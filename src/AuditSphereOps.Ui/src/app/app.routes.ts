@@ -6,7 +6,7 @@ import { staffGuard } from './core/staff.guard';
 export const routes: Routes = [
   { path: 'setup/microsoft365', title: 'Initial administrator setup · AuditSphere',
     loadComponent: () => import('./features/admin/bootstrap').then(m => m.InstallationBootstrap) },
-  { path: 'app/administration/microsoft365/tenant-connection', canActivate: [staffGuard], title: 'Microsoft tenant connection · AuditSphere',
+  { path: 'app/administration/microsoft365/tenant-connection', canActivate: [staffGuard], canDeactivate: [unsavedChangesGuard], title: 'Microsoft tenant connection · AuditSphere',
     loadComponent: () => import('./features/admin/tenant').then(m => m.TenantConnection) },
   { path: 'app/administration/microsoft365', pathMatch: 'full', redirectTo: 'app/administration/microsoft365/tenant-connection' },
   { path: 'app/administration/users', canActivate: [staffGuard], title: 'Users & Access · AuditSphere',

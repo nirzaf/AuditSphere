@@ -24,6 +24,7 @@ public static partial class UiEndpoints
   private static void MapMicrosoft365Endpoints(RouteGroupBuilder group)
   {
     MapTenantOperationEndpoints(group);
+    MapTenantSetupEndpoints(group);
     MapSelectedResourceEndpoints(group);
     MapWorkspaceProvisioningEndpoints(group);
     group.MapUiGet("/administration/microsoft365", http => ReadAsync(http, async (db, actor, ct) =>

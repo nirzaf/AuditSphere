@@ -229,6 +229,16 @@ public sealed partial class AuditSphereDbContext
 
     var adminEvent = b.Entity<Microsoft365AdministrationEvent>();
     adminEvent.Property(x => x.Operation).HasMaxLength(60);
+    adminEvent.Property(x => x.SetupRequestHash).HasMaxLength(64);
+    adminEvent.HasIndex(x => new { x.FirmId, x.ActorUserId, x.SetupRequestId }).IsUnique()
+      .HasFilter("setup_request_id IS NOT NULL");
+    adminEvent.HasOne<Microsoft365SetupDraft>().WithMany().HasForeignKey(x => new { x.FirmId, x.SetupDraftId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    adminEvent.ToTable("m365_administration_events", t => t.HasCheckConstraint("ck_m365_setup_request_receipt",
+      "(operation <> 'TENANT_SETUP_METADATA_SAVED' AND setup_request_id IS NULL AND setup_request_hash IS NULL AND setup_draft_id IS NULL AND setup_revision_after IS NULL) OR " +
+      "(operation = 'TENANT_SETUP_METADATA_SAVED' AND setup_request_id IS NOT NULL AND setup_request_hash IS NOT NULL AND " +
+      "setup_request_hash ~ '^[a-f0-9]{64}$' AND setup_draft_id IS NOT NULL AND setup_revision_after IS NOT NULL AND setup_revision_after > 1)"));
+
     adminEvent.Property(x => x.TargetTenantId).HasMaxLength(200);
     adminEvent.Property(x => x.TargetObjectId).HasMaxLength(200);
     adminEvent.Property(x => x.OldState).HasMaxLength(300);

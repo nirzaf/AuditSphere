@@ -125,6 +125,12 @@ public sealed class Microsoft365AdministrationEvent
   public Guid FirmId { get; set; }
   public Guid ActorUserId { get; set; }
   public string Operation { get; set; } = string.Empty;
+  // Optional local setup request receipt. These are never Microsoft operation/correlation identifiers.
+  public Guid? SetupRequestId { get; set; }
+  public string? SetupRequestHash { get; set; }
+  public Guid? SetupDraftId { get; set; }
+  public long? SetupRevisionAfter { get; set; }
+
   public string? TargetTenantId { get; set; }
   public string? TargetObjectId { get; set; }
   public Guid? TargetUserId { get; set; }

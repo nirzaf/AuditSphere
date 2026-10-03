@@ -1,4 +1,4 @@
-import { Component, effect, inject, signal } from '@angular/core';
+import { Component, effect, inject, signal, viewChild } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -7,9 +7,10 @@ import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
 import { consentDestination, tenantWorkspace } from './tenant-contracts';
 import { SharePointAdministration } from './sharepoint';
+import { TenantSetupEditor } from './tenant-setup-editor';
 import { WorkspaceAdministration } from './workspaces';
 
-@Component({ selector: 'audit-tenant-connection', imports: [ReactiveFormsModule, RouterLink, MatButtonModule, SharePointAdministration, WorkspaceAdministration, ...SHARED], template: `
+@Component({ selector: 'audit-tenant-connection', imports: [TenantSetupEditor, ReactiveFormsModule, RouterLink, MatButtonModule, SharePointAdministration, WorkspaceAdministration, ...SHARED], template: `
   <audit-page-header title="Microsoft tenant connection" description="Microsoft authenticates the tenant administrator and asks for consent. AuditSphere verifies the exact tenant and each capability separately." />
   <nav class="actions" aria-label="Microsoft administration"><a matButton routerLink="/app/administration">Administration overview</a><a matButton routerLink="/app/administration/users">Users & Access</a></nav>
   <button matButton (click)="ws.reload()" [disabled]="busy()">Refresh persisted status</button>
@@ -38,7 +39,10 @@ import { WorkspaceAdministration } from './workspaces';
       }
     </section>
     @if(w.workspace.setupMetadata; as metadata) {
-      <section class="panel" aria-labelledby="setup-capability-heading"><h2 id="setup-capability-heading">Saved setup configuration</h2>
+      @if(w.workspace.connection.draftId && w.workspace.draftRevision) {
+<audit-tenant-setup-editor [draftId]="w.workspace.connection.draftId!" [revision]="w.workspace.draftRevision!" [initial]="metadata" [editable]="canEditSetup(w.workspace.connection.draftState, w.workspace.connection.connectionState)" (changed)="ws.reload()" />
+}
+<section class="panel" aria-labelledby="setup-capability-heading"><h2 id="setup-capability-heading">Saved setup configuration</h2>
         <dl class="facts"><dt>Mail setup</dt><dd><audit-status [value]="metadata.mailState" /></dd>
           <dt>Records setup</dt><dd><audit-status [value]="metadata.recordsState" /></dd></dl>
         <p>These are saved draft states, not verification results. Mail permission and transport are checked separately. A configured records profile does not prove document protection, release readiness or external provider acceptance.</p>
@@ -60,6 +64,9 @@ import { WorkspaceAdministration } from './workspaces';
   <audit-workspace-administration />
 ` })
 export class TenantConnection {
+  readonly setupEditor = viewChild(TenantSetupEditor);
+  confirmNavigation() { return this.setupEditor()?.confirmNavigation() ?? true; }
+  canEditSetup(draft: string | null, connection: string | null) { return !!draft && ![draft, connection].some(x => x === 'ACTIVE' || x === 'SUSPENDED' || x === 'BLOCKED'); }
   private readonly api = inject(Api); private readonly session = inject(SessionService);
   readonly ws = this.api.resource(() => '/api/ui/administration/microsoft365', tenantWorkspace, 'Current firm-wide Administrator access is required.');
   readonly form = inject(FormBuilder).nonNullable.group({ reviewed: [false, Validators.requiredTrue] });

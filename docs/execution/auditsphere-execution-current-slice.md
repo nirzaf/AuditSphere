@@ -13,6 +13,29 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Angular tenant setup editor
+
+Safe tenant label and mail/records configuration flags now have a native Signal
+Forms editor backed by Application preview, save and actor-owned receipt lookup.
+Exact intent and current setup state are reviewed before publication. Current
+firm-wide administrator authority, configured tenant binding, protected-state
+checks, revision fencing and immutable evidence are enforced server-side.
+
+Unsubmitted tab drafts retain only bounded local fields, never assent. Pending
+submissions retain request references for explicit receipt reconciliation, never
+automatic replay. Navigation protection and session-bound late-response checks
+preserve unsaved edits and prevent stale responses from applying.
+
+Focused builds, PostgreSQL tests, Angular tests, EF drift inspection and built-in
+browser verification passed; evidence is recorded in status.json. The migration
+was applied only through owned synthetic test schemas. Automated API/E2E mutation
+journeys, downgrade acceptance and wider migration acceptance remain open.
+
+A later artifact check found drift in the original regression manifest. Its
+running E2E recovery cannot establish the original frozen checkpoint. Earlier
+API/Domain terminal results remain observed, but aggregate completion is not
+claimed. The older recovery section below describes the initial restart only.
+
 ## Angular full regression recovery
 
 The full API and Domain suites passed on the frozen migration checkpoint. User
