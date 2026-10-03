@@ -1,0 +1,126 @@
+<form [formRoot]="fields">
+  <fieldset [disabled]="locked()">
+    <legend>{{ label() }}</legend>
+    @if (seed().kind === 'ANSWER') {
+      <label [for]="fieldId('answer')">Answer for {{ seed().questionCode }}</label>
+      @if (booleanAnswer()) {
+        <select
+          [id]="fieldId('answer')"
+          [formField]="fields.answer"
+          [attr.aria-describedby]="fieldId('answer-error')"
+        >
+          <option value="">Choose an answer</option>
+          <option value="Yes">Yes</option>
+          <option value="No">No</option>
+        </select>
+      } @else {
+        <textarea
+          [id]="fieldId('answer')"
+          [formField]="fields.answer"
+          rows="3"
+          [attr.aria-describedby]="fieldId('answer-error')"
+        ></textarea>
+      }
+    }
+    @if (seed().kind === 'ANSWER' || seed().kind === 'RECORD_REVIEW') {
+      <label [for]="fieldId('evidence')"
+        >Evidence reference {{ evidenceRequired() ? '(required)' : '(optional)' }}</label
+      >
+      <input
+        [id]="fieldId('evidence')"
+        [formField]="fields.evidence"
+        autocomplete="off"
+        [attr.aria-describedby]="fieldId('evidence-error')"
+      />
+    }
+    @if (seed().kind === 'REQUEST_REVIEW') {
+      <label [for]="fieldId('area')">Review area</label
+      ><input
+        [id]="fieldId('area')"
+        [formField]="fields.area"
+        [attr.aria-describedby]="fieldId('area-error')"
+      />
+      <label [for]="fieldId('specialist')">Specialist</label
+      ><input
+        [id]="fieldId('specialist')"
+        [formField]="fields.specialist"
+        [attr.aria-describedby]="fieldId('specialist-error')"
+      />
+    }
+    @if (seed().kind === 'RECORD_REVIEW') {
+      <label [for]="fieldId('status')">Review result</label>
+      <select
+        [id]="fieldId('status')"
+        [formField]="fields.status"
+        [attr.aria-describedby]="fieldId('status-error')"
+      >
+        <option value="HOLD">Hold</option>
+        <option value="CLEARED">Cleared</option>
+        <option value="CONDITIONS">Conditions</option>
+      </select>
+    }
+    @if (seed().kind === 'DECISION') {
+      <label [for]="fieldId('serviceRoute')">Service route</label
+      ><input
+        [id]="fieldId('serviceRoute')"
+        [formField]="fields.serviceRoute"
+        [attr.aria-describedby]="fieldId('serviceRoute-error')"
+      />
+      <label [for]="fieldId('decision')">Decision</label>
+      <select
+        [id]="fieldId('decision')"
+        [formField]="fields.decision"
+        [attr.aria-describedby]="fieldId('decision-error')"
+      >
+        <option value="Accepted">Accepted</option>
+        <option value="AcceptedWithConditions">Accepted with conditions</option>
+        <option value="Declined">Declined</option>
+        <option value="Deferred">Deferred</option>
+      </select>
+      <label [for]="fieldId('rationale')">Rationale</label
+      ><textarea
+        [id]="fieldId('rationale')"
+        [formField]="fields.rationale"
+        rows="4"
+        [attr.aria-describedby]="fieldId('rationale-error')"
+      ></textarea>
+    }
+    @if (seed().kind === 'DECISION' || seed().kind === 'RECORD_REVIEW') {
+      <label [for]="fieldId('conditions')">Conditions</label
+      ><textarea
+        [id]="fieldId('conditions')"
+        [formField]="fields.conditions"
+        rows="3"
+        [attr.aria-describedby]="fieldId('conditions-error')"
+      ></textarea>
+    }
+    @for (key of visibleKeys(); track key) {
+      @if ((attempted() || fields[key]().touched()) && fields[key]().invalid()) {
+        <p [id]="fieldId(key + '-error')" role="alert">{{ errorFor(key) }}</p>
+      }
+    }
+    @if (attempted() && !valid()) {
+      <section #summary tabindex="-1" role="alert" [attr.aria-label]="label() + ' validation'">
+        <h3>Review these fields</h3>
+        <ul>
+          @for (key of visibleKeys(); track key) {
+            @if (fields[key]().invalid()) {
+              <li>
+                <a [href]="'#' + fieldId(key)" (click)="focusField($event, key)">{{
+                  errorFor(key)
+                }}</a>
+              </li>
+            }
+          }
+        </ul>
+      </section>
+    }
+    <button
+      matButton
+      type="submit"
+      [disabled]="locked() || fields().pending() || fields().submitting()"
+    >
+      {{ label() }}
+    </button>
+  </fieldset>
+</form>

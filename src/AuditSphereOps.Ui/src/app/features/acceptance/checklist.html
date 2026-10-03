@@ -1,0 +1,354 @@
+<a routerLink="/app">Portfolio</a>
+<h1>Client acceptance checklist</h1>
+@if (loading()) {
+  <mat-progress-bar mode="indeterminate" aria-label="Loading acceptance" />
+}
+@if (error()) {
+  <p role="alert">{{ error() }}</p>
+  <button matButton (click)="refresh()">Retry</button>
+}
+<p role="status">{{ commandStatus() }}</p>
+@if (data(); as checklist) {
+  @if (uncertain()) {
+    <section aria-label="Assessment request recovery">
+      <h2>Assessment request requires verification</h2>
+      <p role="alert">
+        Further actions are blocked until this request is reconciled and acknowledged. No action is
+        retried automatically.
+      </p>
+      <p>
+        Request: <code>{{ pending()?.requestId ?? 'Recovery storage unavailable' }}</code>
+      </p>
+      <button matButton [disabled]="busy() || !pending()" (click)="reconcile()">
+        Verify assessment receipt
+      </button>
+      @if (absent()) {
+        <p>
+          No committed receipt was found at verification. Close this reference and reload the
+          evaluation before explicitly reviewing a new action.
+        </p>
+        <button matButton [disabled]="busy()" (click)="acknowledgeAbsent()">
+          Close absent request and reload evaluation
+        </button>
+      }
+      @if (!pending()) {
+        <button matButton [disabled]="busy()" (click)="refresh()">Retry recovery storage</button>
+      }
+    </section>
+  }
+  @if (receipt(); as r) {
+    <section aria-label="Retained assessment receipt">
+      <h2>Retained assessment receipt</h2>
+      <p>
+        {{ r.kind }} · Evaluation {{ r.generation }} → {{ r.resultGeneration }} ·
+        {{ r.createdAt }}
+      </p>
+      <p>Request {{ r.requestId }} · Result {{ r.resourceId }}</p>
+      <p>{{ r.preview.effect }}</p>
+      <dl>
+        @if (r.preview.fields.questionCode) {
+          <dt>Question</dt>
+          <dd>{{ r.preview.fields.questionCode }}</dd>
+          <dt>Previous answer</dt>
+          <dd>{{ r.preview.before.answer ?? 'Not recorded' }}</dd>
+          <dt>Recorded answer</dt>
+          <dd>{{ r.preview.fields.answer }}</dd>
+        }
+        @if (r.preview.fields.area) {
+          <dt>Review area</dt>
+          <dd>{{ r.preview.fields.area }} · {{ r.preview.fields.specialist }}</dd>
+        }
+        @if (r.preview.fields.reviewId) {
+          <dt>Specialist review</dt>
+          <dd>{{ r.preview.fields.reviewId }}</dd>
+          <dt>Recorded result</dt>
+          <dd>{{ r.preview.fields.status }}</dd>
+        }
+        @if (r.preview.fields.decision) {
+          <dt>Partner decision</dt>
+          <dd>{{ r.preview.fields.serviceRoute }} · {{ r.preview.fields.decision }}</dd>
+          <dt>Rationale</dt>
+          <dd>{{ r.preview.fields.rationale }}</dd>
+        }
+        @if (r.preview.fields.evidence) {
+          <dt>Evidence reference</dt>
+          <dd>{{ r.preview.fields.evidence }}</dd>
+        }
+        @if (r.preview.fields.conditions) {
+          <dt>Conditions</dt>
+          <dd>{{ r.preview.fields.conditions }}</dd>
+        }
+      </dl>
+      <button matButton [disabled]="busy()" (click)="acknowledge()">
+        Acknowledge assessment receipt
+      </button>
+    </section>
+  }
+  @if (!uncertain()) {
+    @if (assessment(); as workspace) {
+      <section aria-label="Client assessment profile">
+        <h2>{{ workspace.client.legalName }}</h2>
+        <p>
+          Registration: {{ workspace.client.registrationNumber ?? 'Not recorded' }} · Relationship:
+          {{ workspace.client.status }}
+        </p>
+      </section>
+      @if (workspace.selectedDecision; as selected) {
+        <section
+          [attr.aria-label]="
+            selected.decision === 'Pending' ? 'Decision status' : 'Recorded professional decision'
+          "
+        >
+          <h2>
+            {{ selected.decision === 'Pending' ? 'Decision pending' : 'Recorded decision' }}
+          </h2>
+          <p>
+            {{ selected.decision }} · Evaluation {{ selected.generation }} ·
+            {{ selected.serviceRoute }}
+          </p>
+          <p>
+            Decision path: {{ selected.path }} · Prior decision:
+            {{ selected.priorDecisionId ?? 'None' }}
+          </p>
+          <p>{{ selected.rationale }}</p>
+          @if (selected.conditions) {
+            <p>Conditions: {{ selected.conditions }}</p>
+          }
+          <p>
+            Recorded by {{ selected.decidedBy ?? 'Not recorded' }} ·
+            {{ selected.decidedAt ?? 'Not recorded' }}
+          </p>
+        </section>
+      }
+      @if (workspace.historical || workspace.selectedDecision?.engagementId) {
+        <p role="status">
+          {{
+            workspace.historical
+              ? 'You are viewing a historical professional decision.'
+              : 'You are viewing an engagement-specific professional decision.'
+          }}
+          The questionnaire below describes the current client evaluation; this view is read-only.
+        </p>
+        <a [routerLink]="['/app/clients', checklist.clientId, 'assessment']"
+          >Open current evaluation</a
+        >
+      }
+      <section aria-label="Client workspace status">
+        <h2>Client workspace</h2>
+        @if (workspace.repository; as repository) {
+          <p>{{ repository.logicalKey }} · {{ repository.state }}</p>
+          <p>Last verification: {{ repository.lastVerifiedAt ?? 'Not verified' }}</p>
+          @if (repository.state !== 'READY') {
+            <p role="status">
+              Workspace access is unavailable until acceptance, configuration and verification gates
+              are satisfied. Ask an administrator to review workspace status.
+            </p>
+          }
+        } @else {
+          <p>No client workspace has been recorded.</p>
+        }
+        <p>Document access remains application-mediated and separately authorized.</p>
+      </section>
+      <section aria-label="Evaluation progress">
+        <h2>Evaluation progress</h2>
+        <p>
+          {{ workspace.answered }} of {{ workspace.total }} questions answered ·
+          {{ workspace.clearedReviews }} of {{ workspace.totalReviews }} specialist reviews cleared
+        </p>
+        @if (workspace.total > 0) {
+          <mat-progress-bar
+            mode="determinate"
+            [value]="(100 * workspace.answered) / workspace.total"
+            aria-label="Questions answered"
+          />
+        }
+        @for (section of workspace.sections; track section.section) {
+          <p>{{ section.section }}: {{ section.answered }} of {{ section.total }}</p>
+        }
+      </section>
+    }
+    <p>{{ checklist.path }} · Evaluation {{ checklist.generation }}</p>
+    <p>
+      Current decision: {{ checklist.currentDecision ?? 'Not recorded' }} · Prior decision:
+      {{ checklist.priorDecision ?? 'None' }}
+    </p>
+    <p role="status">
+      {{ checklist.ready ? 'Checklist ready for human decision' : 'Checklist blocked' }}
+    </p>
+    <ul>
+      @for (blocker of checklist.blockers; track $index) {
+        <li>{{ blocker.message }}</li>
+      }
+    </ul>
+
+    <p>
+      Unsubmitted answers, evidence and professional notes stay in memory. A reload discards them.
+      Only a dispatched request reference is retained in this tab.
+    </p>
+    <button matButton [disabled]="busy() || !!preview()" (click)="refresh()">
+      Refresh current evaluation
+    </button>
+    @for (question of checklist.questions; track question.code) {
+      <section [attr.aria-label]="question.code + ' assessment question'">
+        <h2>{{ question.code }} · {{ question.section }}</h2>
+        <p>{{ question.prompt }}</p>
+        @if (question.priorAnswer) {
+          <p>Prior-cycle answer: {{ question.priorAnswer }}</p>
+        }
+        @if (question.answer) {
+          <p>
+            Recorded: {{ question.answer }} · {{ question.evidence }} · Revision
+            {{ question.revision }} · {{ question.answeredBy }}
+          </p>
+        }
+        @if (question.adverse) {
+          <p>Adverse answer: specialist clearance is required.</p>
+        }
+        @if (checklist.canEdit) {
+          <audit-assessment-command-editor
+            [seed]="seed('answer-' + question.code)"
+            [editorKey]="'answer-' + question.code"
+            [label]="'Review answer for ' + question.code"
+            [booleanAnswer]="question.answerType === 'BOOLEAN'"
+            [requiresEvidence]="question.requiresEvidence"
+            [locked]="locked()"
+            (requested)="prepare($event)"
+            (dirtyChange)="editorChanged('answer-' + question.code, $event)"
+          />
+        }
+      </section>
+    }
+    <h2>Specialist reviews</h2>
+    @for (clearance of checklist.clearances; track clearance.id) {
+      <section [attr.aria-label]="clearance.area + ' specialist review'">
+        <p>
+          {{ clearance.area }} · {{ clearance.specialist }} · {{ clearance.status }} ·
+          {{ clearance.evidence }} · {{ clearance.conditions }}
+        </p>
+        @if (checklist.canReview && clearance.status !== 'CLEARED') {
+          <audit-assessment-command-editor
+            [seed]="seed('review-' + clearance.id)"
+            [editorKey]="'review-' + clearance.id"
+            [label]="'Review specialist result for ' + clearance.area"
+            [locked]="locked()"
+            (requested)="prepare($event)"
+            (dirtyChange)="editorChanged('review-' + clearance.id, $event)"
+          />
+        }
+      </section>
+    } @empty {
+      <p>No specialist reviews recorded.</p>
+    }
+    @if (checklist.canEdit) {
+      <h2>Request specialist review</h2>
+      <audit-assessment-command-editor
+        [seed]="seed('request')"
+        editorKey="request"
+        label="Review specialist request"
+        [locked]="locked()"
+        (requested)="prepare($event)"
+        (dirtyChange)="editorChanged('request', $event)"
+      />
+    }
+    @if (checklist.canDecide) {
+      <h2>Partner decision</h2>
+      <p>
+        This is your professional decision. Checklist readiness does not accept the client
+        automatically.
+      </p>
+      <audit-assessment-command-editor
+        [seed]="seed('decision')"
+        editorKey="decision"
+        label="Review Partner decision"
+        [locked]="locked()"
+        (requested)="prepare($event)"
+        (dirtyChange)="editorChanged('decision', $event)"
+      />
+    }
+    @if (checklist.canStartContinuance) {
+      <h2>Continuance review</h2>
+      <p>Opening the next evaluation advances the generation and requires fresh delta answers.</p>
+      <audit-assessment-command-editor
+        [seed]="seed('continuance')"
+        editorKey="continuance"
+        label="Review continuance"
+        [locked]="locked()"
+        (requested)="prepare($event)"
+        (dirtyChange)="editorChanged('continuance', $event)"
+      />
+    }
+    @if (preview(); as p) {
+      <section
+        aria-label="Exact assessment action review"
+        class="review"
+        tabindex="-1"
+        id="assessment-action-review"
+      >
+        <h2>Review exact assessment action</h2>
+        <p>{{ p.fields.kind }} · Evaluation {{ p.fields.generation }} · {{ p.before.path }}</p>
+        <p>{{ p.effect }}</p>
+        <dl>
+          @if (p.fields.questionCode) {
+            <dt>Question</dt>
+            <dd>{{ p.fields.questionCode }} · Revision {{ p.fields.revision }}</dd>
+            <dt>Previous answer</dt>
+            <dd>{{ p.before.answer ?? 'Not recorded' }}</dd>
+            <dt>Proposed answer</dt>
+            <dd>{{ p.fields.answer }}</dd>
+          }
+          @if (p.fields.area) {
+            <dt>Review area</dt>
+            <dd>{{ p.fields.area }}</dd>
+            <dt>Specialist</dt>
+            <dd>{{ p.fields.specialist }}</dd>
+          }
+          @if (p.fields.reviewId) {
+            <dt>Specialist review</dt>
+            <dd>{{ p.fields.reviewId }}</dd>
+            <dt>Current result</dt>
+            <dd>{{ p.before.reviewStatus }}</dd>
+            <dt>Proposed result</dt>
+            <dd>{{ p.fields.status }}</dd>
+          }
+          @if (p.fields.decision) {
+            <dt>Service route</dt>
+            <dd>{{ p.fields.serviceRoute }}</dd>
+            <dt>Partner decision</dt>
+            <dd>{{ p.fields.decision }}</dd>
+            <dt>Rationale</dt>
+            <dd>{{ p.fields.rationale }}</dd>
+          }
+          @if (p.fields.evidence) {
+            <dt>Evidence reference</dt>
+            <dd>{{ p.fields.evidence }}</dd>
+          }
+          @if (p.fields.conditions) {
+            <dt>Conditions</dt>
+            <dd>{{ p.fields.conditions }}</dd>
+          }
+          @if (p.fields.kind === 'CONTINUANCE') {
+            <dt>Current decision</dt>
+            <dd>{{ p.before.decision }}</dd>
+          }
+        </dl>
+        <fieldset [disabled]="busy() || uncertain()">
+          <label
+            ><input
+              type="checkbox"
+              [formField]="confirmationFields.reviewed"
+              (change)="setReviewed($any($event.target).checked)"
+            />
+            I reviewed this exact assessment action and its effects.</label
+          >
+          <button matButton [disabled]="busy() || !reviewed" (click)="execute()">
+            Confirm reviewed assessment action
+          </button>
+          <button matButton [disabled]="busy()" (click)="cancelReview()">
+            Cancel review and edit
+          </button>
+        </fieldset>
+      </section>
+    }
+    <a [routerLink]="['/app/clients', checklist.clientId]">View client profile</a>
+  }
+}

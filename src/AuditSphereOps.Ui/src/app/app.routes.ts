@@ -180,6 +180,8 @@ export const routes: Routes = [
   {
     path: 'app/clients/:id/assessment',
     canActivate: [staffGuard],
+    canDeactivate: [unsavedChangesGuard],
+    runGuardsAndResolvers: 'paramsOrQueryParamsChange',
     title: 'Acceptance · AuditSphere',
     loadComponent: () =>
       import('./features/acceptance/checklist').then((m) => m.AcceptanceChecklist),

@@ -13,6 +13,27 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Angular assessment review and recovery forms
+
+Native assessment actions now use typed Signal Forms with bounded validation,
+accessible error summaries and exact server previews. Explicit assent applies only
+to the current preview; cancelling or editing invalidates it. All five actions
+compose the reviewed Application command and immutable receipt endpoints.
+
+Only a dispatched request ID and hash are retained in tab storage. Answers,
+evidence, professional notes and assent remain in memory. Lost responses and
+reloads fence further actions until authorized receipt lookup and explicit
+acknowledgement; no action is automatically retried. Unavailable storage prevents
+dispatch. Navigation asks before discarding unsubmitted edits and blocks unresolved
+requests. Historical and engagement-specific decisions remain read-only.
+
+Production UI, Release build, Angular tests and focused browser checks passed.
+The built-in browser verified a synthetic answer review, committed receipt and
+refreshed persisted progress with no console warnings/errors. Focused backend and
+model checks are recorded in status.json. Shared Development migration and live
+Microsoft acceptance have not been performed. Broader assessment parity,
+resource-grid acceptance and migration cutover/Blazor retirement remain open.
+
 ## Reviewed assessment commands and backend recovery
 
 The Application assessment workspace now previews and executes answer revisions,

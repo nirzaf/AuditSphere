@@ -1,0 +1,30 @@
+:host {
+  display: block;
+}
+p,
+dd,
+code {
+  overflow-wrap: anywhere;
+}
+dl {
+  margin-block: 1rem;
+}
+dt {
+  font-weight: 600;
+}
+dd {
+  margin-inline-start: 0;
+  margin-block-end: 0.75rem;
+  white-space: pre-wrap;
+}
+.review {
+  padding: 1rem;
+  border: 2px solid var(--mat-sys-primary);
+  border-radius: 8px;
+}
+button {
+  min-height: 44px;
+}
+fieldset {
+  min-width: 0;
+}
