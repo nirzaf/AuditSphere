@@ -43,7 +43,9 @@ public static class AcceptanceDecisionService
         RequiredRoles: PartnerRoles, InternalOnly: true), ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
 
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    if (!await AcceptanceCommandAuthority.LockFirmAsync(db, actor, ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var client = await db.PracticeClients.SingleOrDefaultAsync(x =>
       x.Id == request.PracticeClientId && x.FirmId == actor.FirmId, ct);
     if (client is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
@@ -51,6 +53,9 @@ public static class AcceptanceDecisionService
       $"SELECT * FROM client_safety_states WHERE id = {client.Id} AND firm_id = {actor.FirmId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
     if (clientGuard is null) return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Client safety state is unavailable.");
+    auth = await AcceptanceCommandAuthority.CheckAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, request.PracticeClientId, request.EngagementId, RequiredRoles: PartnerRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     if (clientGuard.InputGeneration != request.ExpectedGeneration)
       return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision, "The client evaluation changed; reload before recording the decision.");
 
@@ -121,7 +126,10 @@ public static class AcceptanceDecisionService
     }
 
     await db.SaveChangesAsync(ct);
-    await tx.CommitAsync(ct);
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, request.PracticeClientId, request.EngagementId, RequiredRoles: PartnerRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(acceptance.Id);
   }
 

@@ -8,6 +8,8 @@ using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using System.Data.Common;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace AuditSphereOps.Domain.Tests;
 
@@ -64,6 +66,136 @@ public sealed class AcceptanceChecklistTests
   {
     db = new AuditSphereDbContext(pg.Options);
     return AcceptanceDecisionService.RecordAsync(db, w.Partner, new(w.ClientId, null, "AccountingOnly", decision, "Reviewed against the checklist.", null, generation));
+  }
+
+  [Fact]
+  public async Task ReviewedCallerRollbackPublishesNoAnswersReviewsOrDecisions()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    await using var tx = await db.Database.BeginTransactionAsync();
+    Assert.True((await AcceptanceChecklistService.RecordAnswerAsync(db, w.Staff, w.ClientId, "CE-001", "Yes", "DOC")).Succeeded);
+    var review = await AcceptanceChecklistService.RequestClearanceAsync(db, w.Staff, w.ClientId, "AML", "Specialist");
+    Assert.True(review.Succeeded, review.Message);
+    Assert.True((await AcceptanceChecklistService.RecordClearanceAsync(db, w.Manager, review.Value, "CLEARED", "SCREEN", null)).Succeeded);
+    var decision = await AcceptanceDecisionService.RecordAsync(db, w.Partner,
+      new(w.ClientId, null, "AccountingOnly", "Declined", "Reviewed caller rollback", null, 1));
+    Assert.True(decision.Succeeded, decision.Message);
+    Assert.Same(tx, db.Database.CurrentTransaction);
+    await using (var observer = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.Empty(await observer.EvaluationResponses.ToListAsync());
+      Assert.Empty(await observer.SpecialistClearances.ToListAsync());
+      Assert.Empty(await observer.AcceptanceDecisions.ToListAsync());
+    }
+    await tx.RollbackAsync();
+    await using var after = new AuditSphereDbContext(pg.Options);
+    Assert.Empty(await after.EvaluationResponses.ToListAsync());
+    Assert.Empty(await after.SpecialistClearances.ToListAsync());
+    Assert.Empty(await after.AcceptanceDecisions.ToListAsync());
+    Assert.Empty(await after.ClientWorkspaces.ToListAsync());
+    Assert.Equal("PROSPECT", (await after.PracticeClients.SingleAsync(c => c.Id == w.ClientId)).Status);
+  }
+
+  [Fact]
+  public async Task ReviewedCallerRollbackDoesNotOpenTheNextContinuanceGeneration()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    await AnswerAllAsync(pg, w);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var first = await AcceptanceDecisionService.RecordAsync(db, w.Partner,
+      new(w.ClientId, null, "AccountingOnly", "Accepted", "First-year decision", null, 1));
+    Assert.True(first.Succeeded, first.Message);
+    await using var tx = await db.Database.BeginTransactionAsync();
+    var next = await AcceptanceChecklistService.StartContinuanceAsync(db, w.Manager, w.ClientId, expectedGeneration: 1);
+    Assert.True(next.Succeeded, next.Message);
+    Assert.Equal(2, next.Value);
+    Assert.Same(tx, db.Database.CurrentTransaction);
+    await tx.RollbackAsync();
+    await using var observer = new AuditSphereDbContext(pg.Options);
+    Assert.Equal(1, (await observer.ClientSafetyStates.SingleAsync(c => c.Id == w.ClientId)).InputGeneration);
+    Assert.Equal(first.Value, Assert.Single(await observer.AcceptanceDecisions.ToListAsync()).Id);
+  }
+
+  private sealed class ObserveFirmLock : DbCommandInterceptor
+  {
+    public TaskCompletionSource<bool> Reached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command,
+      CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
+    {
+      if (command.CommandText.Contains("firm_safety_states", StringComparison.Ordinal) &&
+          command.CommandText.Contains("FOR SHARE", StringComparison.Ordinal)) Reached.TrySetResult(true);
+      return ValueTask.FromResult(result);
+    }
+  }
+
+  [Theory]
+  [InlineData("ANSWER")]
+  [InlineData("REQUEST_REVIEW")]
+  [InlineData("RECORD_REVIEW")]
+  [InlineData("DECISION")]
+  [InlineData("CONTINUANCE")]
+  public async Task AssessmentCommandRefusesAnActorRevokedWhileWaitingForPublicationLock(string kind)
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    Guid reviewId = Guid.Empty;
+    if (kind == "RECORD_REVIEW")
+    {
+      await using var setup = new AuditSphereDbContext(pg.Options);
+      reviewId = (await AcceptanceChecklistService.RequestClearanceAsync(setup, w.Staff, w.ClientId, "AML", "Specialist")).Value;
+    }
+    if (kind == "CONTINUANCE")
+    {
+      await AnswerAllAsync(pg, w);
+      await using var setup = new AuditSphereDbContext(pg.Options);
+      var first = await AcceptanceDecisionService.RecordAsync(setup, w.Partner,
+        new(w.ClientId, null, "AccountingOnly", "Accepted", "Prior acceptance", null, 1));
+      Assert.True(first.Succeeded, first.Message);
+    }
+    var actor = kind is "ANSWER" or "REQUEST_REVIEW" ? w.Staff : kind == "DECISION" ? w.Partner : w.Manager;
+    await using var blocker = new AuditSphereDbContext(pg.Options);
+    await using var tx = await blocker.Database.BeginTransactionAsync();
+    await blocker.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={w.FirmId} FOR UPDATE").SingleAsync();
+    var signal = new ObserveFirmLock();
+    var options = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(signal).Options;
+    await using var writer = new AuditSphereDbContext(options);
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+    async Task<CommandResult> Attempt()
+    {
+      if (kind == "ANSWER") return await AcceptanceChecklistService.RecordAnswerAsync(writer, actor, w.ClientId, "CE-001", "Yes", "DOC", timeout.Token, 1, 0);
+      if (kind == "RECORD_REVIEW") return await AcceptanceChecklistService.RecordClearanceAsync(writer, actor, reviewId, "CLEARED", "SCREEN", null, timeout.Token, 1, "PENDING");
+      if (kind == "REQUEST_REVIEW")
+      {
+        var result = await AcceptanceChecklistService.RequestClearanceAsync(writer, actor, w.ClientId, "AML", "Specialist", timeout.Token, 1);
+        return new(result.Succeeded, result.ErrorCode, result.Message);
+      }
+      if (kind == "DECISION")
+      {
+        var result = await AcceptanceDecisionService.RecordAsync(writer, actor,
+          new(w.ClientId, null, "AccountingOnly", "Declined", "Revoked decision", null, 1), timeout.Token);
+        return new(result.Succeeded, result.ErrorCode, result.Message);
+      }
+      var next = await AcceptanceChecklistService.StartContinuanceAsync(writer, actor, w.ClientId, timeout.Token, 1);
+      return new(next.Succeeded, next.ErrorCode, next.Message);
+    }
+    var attempt = Attempt();
+    await signal.Reached.Task.WaitAsync(timeout.Token);
+    await blocker.RoleGrants.Where(g => g.UserId == actor.UserId).ExecuteUpdateAsync(s => s.SetProperty(g => g.RevokedAt, DateTimeOffset.UtcNow));
+    await blocker.Users.Where(u => u.Id == actor.UserId).ExecuteUpdateAsync(s => s.SetProperty(u => u.SessionEpoch, u => u.SessionEpoch + 1));
+    await tx.CommitAsync();
+    var refused = await attempt;
+    Assert.False(refused.Succeeded);
+    Assert.Equal(ErrorCodes.GenerationStale, refused.ErrorCode);
+    Assert.Equal("Session is stale; sign in again.", refused.Message);
+    await using var observer = new AuditSphereDbContext(pg.Options);
+    Assert.Equal(1, (await observer.ClientSafetyStates.SingleAsync(c => c.Id == w.ClientId)).InputGeneration);
+    Assert.False(await observer.AcceptanceDecisions.AnyAsync(d => d.Rationale == "Revoked decision"));
+    if (kind == "ANSWER") Assert.Empty(await observer.EvaluationResponses.ToListAsync());
+    if (kind == "REQUEST_REVIEW") Assert.Empty(await observer.SpecialistClearances.ToListAsync());
+    if (kind == "RECORD_REVIEW") Assert.Equal("PENDING", (await observer.SpecialistClearances.SingleAsync()).Status);
   }
 
   [Fact]

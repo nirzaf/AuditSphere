@@ -98,10 +98,16 @@ public static class AcceptanceChecklistService
     if (!auth.Succeeded) return auth;
     var evidence = string.IsNullOrWhiteSpace(evidenceReference) ? null : evidenceReference.Trim();
     if (evidence is { Length: > 500 }) return CommandResult.Fail("acceptance.invalid", "Evidence references are limited to 500 characters.");
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    // Standalone commands commit their own transaction; reviewed callers publish the mutation and receipt together.
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    if (!await AcceptanceCommandAuthority.LockFirmAsync(db, actor, ct))
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var guard = await db.ClientSafetyStates.FromSqlInterpolated(
       $"SELECT * FROM client_safety_states WHERE id = {clientId} AND firm_id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if (guard is null) return CommandResult.Fail(ErrorCodes.GateBlocked, "Client safety state is unavailable.");
+    auth = await AcceptanceCommandAuthority.CheckAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, clientId, RequiredRoles: ProfessionalRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded) return auth;
     if (expectedGeneration.HasValue && expectedGeneration.Value != guard.InputGeneration)
       return CommandResult.Fail(ErrorCodes.GenerationStale, "Reload the current evaluation before saving.");
     var checklist = await LoadAsync(db, actor.FirmId, clientId, null, guard.InputGeneration, ct);
@@ -126,7 +132,9 @@ public static class AcceptanceChecklistService
       AnsweredByUserId = actor.UserId, AnsweredAt = DateTimeOffset.UtcNow
     });
     await db.SaveChangesAsync(ct);
-    await tx.CommitAsync(ct);
+    auth = await AuthorizeAsync(db, actor, clientId, ProfessionalRoles, ct);
+    if (!auth.Succeeded) return auth;
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult.Ok();
   }
 
@@ -140,10 +148,16 @@ public static class AcceptanceChecklistService
     var name = (specialistName ?? string.Empty).Trim();
     if (areaName.Length is < 2 or > 100 || name.Length is < 2 or > 200)
       return CommandResult<Guid>.Fail("acceptance.invalid", "Name the review area and the specialist who will perform it.");
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    // Standalone commands commit their own transaction; reviewed callers publish the mutation and receipt together.
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    if (!await AcceptanceCommandAuthority.LockFirmAsync(db, actor, ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var guard = await db.ClientSafetyStates.FromSqlInterpolated(
       $"SELECT * FROM client_safety_states WHERE id = {clientId} AND firm_id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if (guard is null) return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Client safety state is unavailable.");
+    auth = await AcceptanceCommandAuthority.CheckAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, clientId, RequiredRoles: ProfessionalRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     if (expectedGeneration.HasValue && expectedGeneration.Value != guard.InputGeneration)
       return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "Reload the current evaluation.");
     if (expectedGeneration.HasValue && (await LoadAsync(db, actor.FirmId, clientId, null, guard.InputGeneration, ct)).CurrentDecision is not null)
@@ -158,7 +172,9 @@ public static class AcceptanceChecklistService
     };
     db.SpecialistClearances.Add(clearance);
     await db.SaveChangesAsync(ct);
-    await tx.CommitAsync(ct);
+    auth = await AuthorizeAsync(db, actor, clientId, ProfessionalRoles, ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(clearance.Id);
   }
 
@@ -178,10 +194,16 @@ public static class AcceptanceChecklistService
     if (snapshot is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizeAsync(db, actor, snapshot.PracticeClientId, ClearanceRoles, ct);
     if (!auth.Succeeded) return auth;
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    // Standalone commands commit their own transaction; reviewed callers publish the mutation and receipt together.
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    if (!await AcceptanceCommandAuthority.LockFirmAsync(db, actor, ct))
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var guard = await db.ClientSafetyStates.FromSqlInterpolated(
       $"SELECT * FROM client_safety_states WHERE id = {snapshot.PracticeClientId} AND firm_id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if (guard is null) return CommandResult.Fail(ErrorCodes.GateBlocked, "Client safety state is unavailable.");
+    auth = await AcceptanceCommandAuthority.CheckAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, snapshot.PracticeClientId, RequiredRoles: ClearanceRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded) return auth;
     if (expectedGeneration.HasValue && expectedGeneration.Value != guard.InputGeneration)
       return CommandResult.Fail(ErrorCodes.GenerationStale, "Reload the current evaluation.");
     if (expectedGeneration.HasValue && (await LoadAsync(db, actor.FirmId, snapshot.PracticeClientId, null, guard.InputGeneration, ct)).CurrentDecision is not null)
@@ -196,7 +218,9 @@ public static class AcceptanceChecklistService
     clearance.SpecialistUserId = actor.UserId;
     clearance.ClearedAt = normalized == "CLEARED" ? DateTimeOffset.UtcNow : null;
     await db.SaveChangesAsync(ct);
-    await tx.CommitAsync(ct);
+    auth = await AuthorizeAsync(db, actor, snapshot.PracticeClientId, ClearanceRoles, ct);
+    if (!auth.Succeeded) return auth;
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult.Ok();
   }
 
@@ -209,10 +233,16 @@ public static class AcceptanceChecklistService
   {
     var auth = await AuthorizeAsync(db, actor, clientId, ContinuanceRoles, ct);
     if (!auth.Succeeded) return CommandResult<long>.Fail(auth.ErrorCode!, auth.Message!);
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    // Standalone commands commit their own transaction; reviewed callers publish the mutation and receipt together.
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    if (!await AcceptanceCommandAuthority.LockFirmAsync(db, actor, ct))
+      return CommandResult<long>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var guard = await db.ClientSafetyStates.FromSqlInterpolated(
       $"SELECT * FROM client_safety_states WHERE id = {clientId} AND firm_id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if (guard is null) return CommandResult<long>.Fail(ErrorCodes.GateBlocked, "Client safety state is unavailable.");
+    auth = await AcceptanceCommandAuthority.CheckAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, clientId, RequiredRoles: ContinuanceRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded) return CommandResult<long>.Fail(auth.ErrorCode!, auth.Message!);
     if (expectedGeneration.HasValue && expectedGeneration.Value != guard.InputGeneration)
       return CommandResult<long>.Fail(ErrorCodes.GenerationStale, "Reload the current evaluation.");
     var accepted = await db.AcceptanceDecisions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.PracticeClientId == clientId &&
@@ -227,7 +257,9 @@ public static class AcceptanceChecklistService
       ServiceRoute = accepted.ServiceRoute, Generation = guard.InputGeneration, Path = AcceptancePaths.Continuance, PriorDecisionId = accepted.Id
     });
     await db.SaveChangesAsync(ct);
-    await tx.CommitAsync(ct);
+    auth = await AuthorizeAsync(db, actor, clientId, ContinuanceRoles, ct);
+    if (!auth.Succeeded) return CommandResult<long>.Fail(auth.ErrorCode!, auth.Message!);
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult<long>.Ok(guard.InputGeneration);
   }
 

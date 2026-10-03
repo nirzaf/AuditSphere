@@ -13,6 +13,26 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Assessment command transaction ownership and current authority
+
+Answer capture, specialist review requests/results, Partner decisions and
+continuance now join a caller transaction when one exists. Standalone calls
+retain their own commit/rollback boundary. A reviewed caller must roll back its
+entire scope when a composed command fails; this enables the upcoming mutation
+and immutable receipt to publish together.
+
+Commands acquire firm, client and actor publication locks in that order, then
+recheck persisted authority after waiting and again before publication. Owned
+PostgreSQL tests cover rollback without answers, reviews, decisions, workspace
+intent or a new continuance generation, plus revocation during each command's
+firm-lock wait. Existing human decision, scope, generation and protected-state
+rules remain enforced. The focused API and legacy/native browser checks remain
+separate from whole-suite acceptance; observed results are in `status.json`.
+
+Next: immutable reviewed assessment request receipts and authorized recovery,
+then typed Signal Forms and navigation/draft parity. No receipt UI or persistent
+request recovery is claimed by this transaction foundation.
+
 ## Native assessment detail and exact legacy selection
 
 The Angular assessment now composes a named Application projection for client
