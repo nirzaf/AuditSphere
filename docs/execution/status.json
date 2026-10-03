@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "cb50441631a1dccd227d313d8b9cb900f4fb9296",
+  "headCommit": "153f9f99110b6687fc4770402e905de41e177f7f",
   "verifiedCommit": "75b70e9afc8d01af06ee2c4681754edb99cd4f70",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -6811,6 +6811,19 @@
         "secretScan": "PASS: staged gitleaks; no leaks found"
       },
       "boundary": "Focused local evidence only. Full .NET suite was not rerun, EF drift was not checked for this slice, and no schema, shared Development database, Microsoft tenant or production state was changed. Wider migration, cutover and Blazor retirement remain PARTIAL."
+    },
+    "angularResourceGridRangeIntegrity": {
+      "status": "PASS_LOCAL",
+      "sourceCommit": "153f9f99110b6687fc4770402e905de41e177f7f",
+      "observedAt": "2026-10-03",
+      "scope": "Resource grid week headers now derive from the selected normalized date range rather than the first staff row. Empty teams retain all selected week columns with an aligned empty row. The Angular decoder fails closed if the week count is outside 1-12 or any row/allocation is misaligned with the returned range.",
+      "checks": {
+        "angularTests": "PASS: full suite 451/451 across 87 files",
+        "angularProductionBuild": "PASS",
+        "browserJourneys": "PASS: resource planning journey 2/2 across canonical and /ui route modes; four week columns present",
+        "secretScan": "PASS: staged gitleaks; no leaks found"
+      },
+      "boundary": "Focused presentation-contract evidence only. Full .NET suite and EF drift were not rerun. No schema, shared Development database, external provider or production state changed. Broader resource-planning acceptance and migration cutover/retirement remain open."
     },
     "angularCommercialReadModelAndPerfBudgets": {
       "status": "IMPLEMENTED_LOCALLY_VERIFIED_TARGETED",

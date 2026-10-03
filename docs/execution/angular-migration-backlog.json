@@ -108,7 +108,7 @@
       "id": "US-018",
       "title": "Migrate staffing, resource planning and budgets",
       "status": "PARTIAL",
-      "scope": "Native staffing, budget and resource projections/commands retain Application authorization. Resource Signal Forms, validation, persisted-profile editing, allocation details, unsaved-navigation and keyboard/mobile parity are implemented. Reviewed resource commands enforce current publication basis and atomic immutable receipts with actor/firm-scoped lookup, idempotent replay and reload recovery. Wider staffing/budget acceptance, full regression and cutover remain open."
+      "scope": "Native staffing, budget and resource projections/commands retain Application authorization. Resource Signal Forms, validation, persisted-profile editing, allocation details, unsaved-navigation and keyboard/mobile parity are implemented. Reviewed resource commands enforce current publication basis and atomic immutable receipts with actor/firm-scoped lookup, idempotent replay and reload recovery. Resource grid headers derive from the normalized server range, including when no active staff exist, and the Angular decoder enforces bounded row/week alignment. The empty-state contract and four-week canonical/prefixed browser journey pass locally. Wider staffing/budget acceptance, full regression and cutover remain open."
     },
     {
       "id": "US-019",

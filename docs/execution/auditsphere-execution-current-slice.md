@@ -13,6 +13,21 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Angular resource-grid range integrity
+
+The grid now derives week headers from the server-returned normalized range, so
+an empty staff list retains its selected week columns. The empty row spans the
+full table width. Angular validates the 1–12 week bound and verifies that every
+staff row and allocation aligns with the returned date range; malformed grids
+fail closed.
+
+All 451 Angular tests across 87 files, the production UI build, and both
+canonical and `/ui` resource-planning browser journeys passed. The focused unit
+case covers three weeks with no staff and checks the six-column empty row. The
+full .NET suite and EF drift check were not rerun; wider planning acceptance and
+Blazor retirement remain open. Evidence is in `status.json` under
+`angularResourceGridRangeIntegrity`.
+
 ## Angular assessment specialist timeline
 
 The assessment workspace now reads the latest 200 specialist request/result
