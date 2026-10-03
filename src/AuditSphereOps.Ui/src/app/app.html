@@ -1,26 +1,24 @@
 <a class="skip-link" href="#main" (click)="skipToMain($event)">Skip to main content</a>
 <mat-toolbar
   ><strong>AuditSphere</strong><span class="spacer"></span><span>Workspace preview</span>
+  @if (session.current() && !publicSetup()) {
+    <button class="navigation-toggle" matButton aria-haspopup="dialog"
+      [attr.aria-expanded]="navigationOpen()" [attr.aria-busy]="navigationLoading()"
+      [attr.aria-disabled]="navigationLoading()" (click)="openNavigation()">
+      {{ navigationLoading() ? 'Opening navigation…' : 'Open navigation' }}
+    </button>
+  }
   @if (session.current()) {
     <button matButton (click)="signOut()">Sign out</button>
   }
 </mat-toolbar>
 <div class="workspace">
-  <aside aria-label="Workspace navigation">
-    @if (session.current()?.staff) {
-    @for (group of nav; track group.title) {
-      <h2>{{ group.title }}</h2>
-      @for (item of group.items; track item.path) {
-        <a [routerLink]="item.path" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: item.exact ?? false }" ariaCurrentWhenActive="page">{{ item.label }}</a>
-      }
-    }
-    <p>Your access follows current AuditSphere assignments.</p>
-    } @else if (session.current()) {
-      <h2>Your workspace</h2><a routerLink="/portal" routerLinkActive="active" ariaCurrentWhenActive="page">Client portal</a>
-      <p>Only your assigned requests and shared documents are available.</p>
-    }
-  </aside>
+  <aside><audit-workspace-navigation /></aside>
   <main id="main" tabindex="-1">
+    @if (navigationFailure() && compact()) {
+      <section role="alert"><p>{{ navigationFailure() }}</p>
+        <button matButton (click)="openNavigation()">Retry navigation</button></section>
+    }
     @if (signOutFailure()) {
       <section role="alert">
         <p>{{ signOutFailure() }}</p>

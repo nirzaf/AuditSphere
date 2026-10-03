@@ -13,6 +13,30 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Responsive Angular navigation and source bookmark parity
+
+The native desktop and compact shells now share their presentation links. A compact
+Material modal provides keyboard focus containment, Escape/backdrop/close recovery,
+successful-navigation destination focus and current-session ownership. Canceled guards
+preserve the menu. Resize and late lazy-load fences prevent hidden focus or overlays
+from returning after revocation, layout change or destruction. Portal links remain
+restricted to the client workspace; API authorization remains unchanged.
+
+The preserved Microsoft 365 bookmark redirects to the guarded tenant workspace.
+A contract checks every legacy workspace route against explicit native host/router
+ownership. Root/authentication denial remain server endpoints. Route coverage does
+not establish complete source-action or retirement acceptance.
+
+Build, Angular/API and final affected browser cohorts passed; built-in browser checks
+cover keyboard entry/recovery, destination/resize focus and staff/client narrow views.
+Earlier failing selector/resize runs and the actual trigger-focus repair are preserved
+in `status.json`. Final source/assets/assemblies remained frozen and match. The broader
+whole-solution run is isolated on the earlier canonical checkpoint and remains running.
+
+Next eligible source gap: native portfolio summary, release/package panels and scoped
+CSV export. Full action parity and wider accessibility/performance acceptance remain
+open. No tenant permission, shared/production deployment or Wiki changes occurred.
+
 ## Controlled Angular route ownership and upgrade rehearsal
 
 The standalone API can explicitly serve the native Angular catalogue at canonical

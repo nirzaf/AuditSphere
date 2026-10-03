@@ -45,6 +45,12 @@ public sealed class AngularNavigationJourneyTests
     Assert.Equal(url, page.Url);
     await page.ReloadAsync();
     await Assertions.Expect(page.Locator("audit-pbc-inbox")).ToContainTextAsync("Navigation bank statements");
+    await page.GotoAsync(origin + prefix + "/app/administration/microsoft365");
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() {Name="Microsoft tenant connection",Exact=true})).ToBeVisibleAsync();
+    Assert.Equal(origin + prefix + "/app/administration/microsoft365/tenant-connection",page.Url);
+    await Assertions.Expect(page.Locator("audit-tenant-connection > audit-state").GetByText("Current firm-wide Administrator access is required.",new(){Exact=true})).ToBeVisibleAsync();
+    await page.ReloadAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() {Name="Microsoft tenant connection",Exact=true})).ToBeVisibleAsync();
     Assert.Empty(errors);
   }
 }

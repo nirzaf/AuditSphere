@@ -6,7 +6,7 @@
       "id": "US-001",
       "title": "Baseline every route, action and business control",
       "status": "PARTIAL",
-      "scope": "See migration architecture for implemented portfolio pilot; full story acceptance remains open."
+      "scope": "Source discovery drift is checked. A contract now requires every current legacy workspace route to have exact native host/router ownership, with explicit server-only root/auth dispositions and a tested Microsoft 365 bookmark redirect. Dialog/action tracing and full behavioral acceptance remain open."
     },
     {
       "id": "US-002",
@@ -30,7 +30,7 @@
       "id": "US-005",
       "title": "Build task-focused shells and preserve deep links",
       "status": "PARTIAL",
-      "scope": "Native staff/client shells and exact lazy-route catalogue support both preview URLs and deployment-owned canonical /app, /portal and /setup URLs. Host-selected bases preserve router/search/sign-in/consent context, API/auth/health exclusion and direct-link reload. Complete context, dirty-edit, back/forward, drawer and migration acceptance remain open."
+      "scope": "Native staff/client shells preserve exact preview/canonical direct links, search and sign-in context. A shared compact Material navigation modal supports keyboard focus containment, Escape/close/backdrop recovery, destination focus after successful navigation, guard cancellation, desktop resize, session invalidation and late-load fences. Full dirty-edit/context and source-action acceptance across all modules remain open."
     },
     {
       "id": "US-006",
@@ -252,7 +252,7 @@
       "id": "US-042",
       "title": "Verify accessibility, responsive use and locale behavior",
       "status": "PARTIAL",
-      "scope": "Synthetic mobile portfolio/portal checks and shared semantic controls exist. Full keyboard, contrast, locale, focus and all-module responsive acceptance remains open."
+      "scope": "Shared semantic controls and scoped mobile portfolio/portal checks exist. Compact staff/client navigation now exercises keyboard entry/trapping/Escape, destination focus, desktop/narrow resize, revocation clearing and restricted portal links. Full screen-reader, contrast, locale, nested-overlay and all-module responsive acceptance remain open."
     },
     {
       "id": "US-043",

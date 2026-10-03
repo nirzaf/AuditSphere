@@ -52,6 +52,22 @@ operator must confirm API compatibility and retain the previous build for the
 approved rollback window. No older API/database writer is started by this option.
 Local mode/asset checks do not establish production rollout or final retirement.
 
+### Responsive shell navigation and preserved bookmarks
+
+Desktop and compact shells use one scoped navigation component. On narrow screens,
+Material's modal presents a labelled, scrollable menu with keyboard focus containment,
+Escape/backdrop dismissal and an explicit close action. Successful route navigation
+closes the menu and focuses the destination; guard cancellation preserves the menu.
+Session/identity changes clear it. Resize and late lazy-load checks prevent a hidden
+trigger from retaining focus or a stale session from opening an overlay.
+
+The old Microsoft 365 workspace bookmark redirects to the guarded native tenant
+workspace. A source-route contract checks every legacy workspace route against the
+explicit Angular/host catalogue; root and access-denial endpoints remain server-owned.
+This proves route disposition, not action parity or retirement acceptance. Source
+control discovery remains separately checked. Local browser/unit evidence belongs
+in `status.json`; broader screen-reader, all-module and production acceptance remain open.
+
 ## Read contract
 
 `GET /api/ui/portfolio?search=<client-name-or-id>&page=0&pageSize=25`

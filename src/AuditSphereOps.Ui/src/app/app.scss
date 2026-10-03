@@ -11,15 +11,7 @@ aside {
   background: #edf3f8;
   border-right: 1px solid #d8e1eb;
 }
-aside a {
-  display: block;
-  padding: 0.75rem;
-  color: #12385d;
-}
-aside p {
-  font-size: 0.875rem;
-  margin-top: 2rem;
-}
+.navigation-toggle { display: none; }
 main {
   min-width: 0;
   padding: clamp(1rem, 4vw, 3rem);
@@ -41,14 +33,9 @@ main {
     grid-template-columns: minmax(0, 1fr);
   }
   aside {
-    border-right: 0;
-  }
-  aside a {
-    display: inline-block;
-  }
-  aside p {
     display: none;
   }
+  .navigation-toggle { display: inline-flex; min-height: 44px; }
 }
 mat-toolbar {
   min-height: 64px;
@@ -59,16 +46,4 @@ mat-toolbar {
 }
 mat-toolbar span:not(.spacer) {
   font-size: 0.875rem;
-}
-aside h2 {
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin: 1rem 0 0.25rem;
-  color: #315476;
-}
-aside a.active {
-  font-weight: 600;
-  background: #dbe7f2;
-  border-radius: 4px;
 }

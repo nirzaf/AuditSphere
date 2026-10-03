@@ -18,7 +18,7 @@
     "postgres": "18.6 loopback development profile"
   },
   "verification": {
-    "ciLatestHostedRun": "PASS: hosted CI run 36446032819 at exact setup-activation UI source commit cc3d624cce489f870df9d7cb7512a869ee8cc4a1. Run 36447224902 for active-review source commit be80aad351f5497f3e7408d9e886d994a5bd1c2a was cancelled after a separate README push; run 36447354520 for that subsequent commit was in progress at the last check. Hosted CI verifies Release build, EF model drift and documentation health; it does not run PostgreSQL/browser suites or establish production acceptance.",
+    "ciLatestHostedRun": "PASS: hosted CI run 37092874919 at canonical-route source commit bc17a10f44e393a70ea2fb6b3c9f343d28271c9e completed successfully. Hosted CI checks locked Angular install/build/unit tests, pinned .NET Release build, EF drift, API/UI publication and documentation; PostgreSQL/API/browser full suites remain separately recorded local evidence. No production acceptance.",
     "ciLockedRestore": "PASS locally: SDK policy regression check rejected latestPatch and passed after global.json required rollForward=disable for SDK 10.0.300. CI now installs from global.json and checks SDK selection before locked restore. dotnet tool restore; dotnet restore AuditSphereOps.slnx --locked-mode; dotnet build AuditSphereOps.slnx --no-restore --configuration Release all passed. Actionlint v1.7.7 passed with ShellCheck/Pyflakes disabled. Package lock files unchanged. Addresses run 35920521850 NU1004 for SDK-injected Microsoft.AspNetCore.App.Internal.Assets 10.0.11 versus locked 10.0.8; local SDK 10.0.300 evaluates 10.0.8. Full tests and hosted execution of this fix not rerun.",
     "ciWorkflowValidation": "PASS locally: actionlint v1.7.7 reproduced the forbidden runner context in job-level env, then exited 0 after E2E_RUN_ROOT initialization moved to a step using RUNNER_TEMP and GITHUB_ENV. Command: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 -shellcheck= -pyflakes= .github/workflows/ci.yml. Bash assertion also passed for a temporary path containing spaces and run/attempt suffix 393-2. ShellCheck/Pyflakes disabled; full .NET suite and hosted GitHub Actions not rerun for this workflow-only fix.",
     "build": "PASS: frozen integrated source d5210b7 Release and Angular production builds; zero .NET warnings/errors. Newer slice evidence is recorded separately.",
@@ -4847,14 +4847,127 @@
       "fingerprintsPath": "/private/tmp/auditsphere-canonical-combined-final-hashes.json",
       "fingerprintsUnchanged": true,
       "publication": {
-        "status": "READY_FOR_PUSH",
-        "branch": "master"
+        "status": "PUSHED",
+        "branch": "master",
+        "commit": "bc17a10f44e393a70ea2fb6b3c9f343d28271c9e",
+        "remoteHeadConfirmed": true,
+        "secretScanLog": "/private/tmp/auditsphere-canonical-routes-secret-staged.log",
+        "secretScanExitCode": 0
       },
       "remaining": [
         "Whole source-action and story acceptance",
         "Broader migration quality gates, approved deployment cutover and Blazor retirement"
       ],
       "evidenceBoundary": "Canonical routes remain off by default. Local controlled cutover/rollback rehearsal only; no shared/production deployment, tenant effect, permission change or Wiki publication. Earlier pinned whole-solution acceptance remains separate; full migration PARTIAL."
+    },
+    "angularCanonicalFullRegression": {
+      "status": "RUNNING",
+      "sourceCommit": "bc17a10f44e393a70ea2fb6b3c9f343d28271c9e",
+      "log": "/private/tmp/auditsphere-canonical-full-suite.log",
+      "fingerprintsPath": "/private/tmp/auditsphere-canonical-combined-final-hashes.json",
+      "api": {
+        "status": "PASS",
+        "passed": 158,
+        "failed": 0,
+        "skipped": 0
+      },
+      "domain": {
+        "status": "RUNNING"
+      },
+      "browser": {
+        "status": "RUNNING"
+      },
+      "boundary": "Whole command remains running; no final exit code or whole-solution acceptance yet. Earlier verifiedCommit remains unchanged. Frozen owned worktree is separate from the newer responsive shell work."
+    },
+    "angularResponsiveShell": {
+      "status": "IMPLEMENTED_LOCALLY_VERIFIED_TARGETED",
+      "sourceBaseCommit": "bc17a10f44e393a70ea2fb6b3c9f343d28271c9e",
+      "observedAt": "2026-10-03T03:35:32Z",
+      "scope": "Shared desktop/compact staff/client navigation; lazy Material modal with keyboard focus containment, cancellation/destination focus, session/owner fences, resize/late-load safety and explicit native Microsoft 365 bookmark redirect. Legacy workspace route ownership check does not claim action parity.",
+      "build": {
+        "status": "PASS",
+        "exitCode": 0,
+        "warnings": 0,
+        "errors": 0,
+        "log": "/private/tmp/auditsphere-shell-release-build-ready.log",
+        "angularLog": "/private/tmp/auditsphere-shell-angular-build-ready.log"
+      },
+      "angular": {
+        "status": "PASS",
+        "passed": 310,
+        "failed": 0,
+        "skipped": 0,
+        "files": 71,
+        "exitCode": 0,
+        "log": "/private/tmp/auditsphere-shell-angular-tests-ready.log"
+      },
+      "api": {
+        "status": "PASS",
+        "passed": 10,
+        "failed": 0,
+        "skipped": 0,
+        "exitCode": 0,
+        "log": "/private/tmp/auditsphere-shell-api.log",
+        "boundary": "Routing/catalogue/source disposition, canonical ownership and standalone host. Runtime/API test assemblies unchanged through the subsequent UI/E2E focus repairs."
+      },
+      "browser": {
+        "status": "PASS",
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "exitCode": 0,
+        "log": "/private/tmp/auditsphere-shell-browser-ready.log",
+        "scope": "Preview and canonical keyboard modal/focus, narrow/desktop resize, revocation and restricted client menu; affected search/bookmark/reload/portfolio/rollback journeys."
+      },
+      "modelDrift": {
+        "status": "PASS",
+        "exitCode": 0,
+        "log": "/private/tmp/auditsphere-shell-model.log"
+      },
+      "bundle": {
+        "status": "WITHIN_CONFIGURED_BUILD_BUDGET",
+        "initialRawKilobytes": 494.89,
+        "cliEstimatedTransferKilobytes": 125.19,
+        "boundary": "CLI production build output, not measured browser/network or production performance acceptance. Existing raw warning/error budgets unchanged."
+      },
+      "builtInBrowser": {
+        "status": "PASS",
+        "screenshots": [
+          "/private/tmp/auditsphere-angular-final-mobile-navigation.png",
+          "/private/tmp/auditsphere-angular-final-client-navigation.png"
+        ],
+        "boundary": "Final frozen owned synthetic Release API/Angular build, external effects disabled. Keyboard menu entry and Escape restores trigger; successful navigation focuses main; open menu closes on desktop resize with main focused. Narrow320/390 and desktop1100 fit content; client modal exposes only Client portal. No console warnings/errors. Tabs closed, viewport reset, hosts/database disposed exit0."
+      },
+      "initialBrowser": {
+        "status": "FAIL_THEN_CORRECTED",
+        "passed": 2,
+        "failed": 4,
+        "skipped": 0,
+        "exitCode": 1,
+        "log": "/private/tmp/auditsphere-shell-browser.log",
+        "details": "Modal correctly hides background controls, so aria-expanded inspection needed its stable DOM control rather than an accessibility-hidden role lookup; M365 refusal needed the exact parent state because multiple capability states share its message. Built-in inspection also found a focus loss caused by disabling the lazy-loading trigger; fixed focus retention and explicit cancellation return."
+      },
+      "resizeBrowser": {
+        "status": "FAIL_THEN_CORRECTED",
+        "passed": 4,
+        "failed": 2,
+        "skipped": 0,
+        "exitCode": 1,
+        "log": "/private/tmp/auditsphere-shell-browser-corrected.log",
+        "details": "Resize assertions raced the asynchronously opening menu. Final journey waits for the actual modal before testing closure; added separate late-load/resize focus safety and its unit test. No assertion or authority relaxation."
+      },
+      "fingerprintsPath": "/private/tmp/auditsphere-shell-ready-frozen-hashes.json",
+      "fingerprintsUnchanged": true,
+      "publication": {
+        "status": "READY_FOR_PUSH",
+        "branch": "master"
+      },
+      "remaining": [
+        "Portfolio summary/release/package panels and scoped CSV source parity",
+        "Dialog/action tracing across remaining native features",
+        "All-module accessibility/locale/performance and final migration/retirement acceptance"
+      ],
+      "evidenceBoundary": "Local synthetic targeted verification only. Backend authorization/financial logic and Microsoft permissions unchanged; no shared/production migration/deployment or Wiki publication. Wider full-solution run on the earlier canonical source is separate and still running; migration remains PARTIAL."
     }
   },
   "documentationWork": {
@@ -4962,7 +5075,7 @@
     "implementationStatus": "PARTIAL",
     "acceptanceStatus": "PARTIAL",
     "scope": "Standalone API and native Angular capability slices preserve Application authorization, exact financial inputs, durable operations and independent human gates. Legacy Blazor remains available for rollback until wider parity and retirement acceptance.",
-    "nextAction": "Publish verified native ECL/inventory preparation; complete source-action parity, canonical route cutover verification and migration quality gates.",
+    "nextAction": "Publish verified responsive shell/bookmark step; finish native portfolio summary/export source parity, remaining source-action and quality gates. Join the frozen canonical whole-solution run before updating broad acceptance.",
     "branch": "master"
   },
   "localEvidence": [

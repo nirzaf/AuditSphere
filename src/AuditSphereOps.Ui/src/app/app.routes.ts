@@ -7,6 +7,7 @@ export const routes: Routes = [
     loadComponent: () => import('./features/admin/bootstrap').then(m => m.InstallationBootstrap) },
   { path: 'app/administration/microsoft365/tenant-connection', canActivate: [staffGuard], title: 'Microsoft tenant connection · AuditSphere',
     loadComponent: () => import('./features/admin/tenant').then(m => m.TenantConnection) },
+  { path: 'app/administration/microsoft365', pathMatch: 'full', redirectTo: 'app/administration/microsoft365/tenant-connection' },
   { path: 'app/administration/users', canActivate: [staffGuard], title: 'Users & Access · AuditSphere',
     loadComponent: () => import('./features/admin/access').then(m => m.UserAccess) },
   { path: 'app/administration', pathMatch: 'full', canActivate: [staffGuard], title: 'Administration · AuditSphere',

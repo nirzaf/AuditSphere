@@ -708,6 +708,7 @@ For the complete documentation index, authority hierarchy, current requirements,
 - Administration: `Application/Microsoft365/TenantAdministrationWorkspaceQuery.cs`, existing tenant/directory providers, and `Security/RoleAssignmentReviewDigest.cs` for current-access review fencing.
 - Native portal/admin: `src/AuditSphereOps.Ui/src/app/features/{portal,admin}/`; standalone API contract tests and Angular browser journeys.
 - Angular: `src/AuditSphereOps.Ui/src/app/core/session.ts` and `features/portfolio/portfolio.ts`.
+- Responsive shell: `Ui/src/app/app.{ts,html,scss}` and `core/workspace-navigation{,-dialog}.ts`; `app-navigation.spec.ts` and `AngularShellNavigationJourneyTests.cs` cover owner/load fencing, keyboard focus, resize, revocation and client navigation isolation. `AngularRoutingContractTests.cs` checks legacy/native route disposition.
 - Tests: `PortfolioQueryTests`, `UiContractTests`, `AngularPortfolioJourneyTests`, Angular component/decoder tests.
 - Authority: [migration ownership and remaining scope](auditsphere-angular-migration-current.md).
 

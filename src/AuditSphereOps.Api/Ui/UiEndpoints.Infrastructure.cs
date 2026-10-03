@@ -25,7 +25,7 @@ public static partial class UiEndpoints
   /// <summary>Angular-owned preview routes (served under /ui). Keep in step with app.routes.ts.</summary>
   public static readonly string[] SpaRoutes =
   [
-    "/ui/setup/microsoft365", "/ui/app/administration", "/ui/app/administration/users", "/ui/app/administration/microsoft365/tenant-connection",
+    "/ui/setup/microsoft365", "/ui/app/administration", "/ui/app/administration/users", "/ui/app/administration/microsoft365", "/ui/app/administration/microsoft365/tenant-connection",
     "/ui/portal/accounting/journals/{id:guid}", "/ui/portal/accounting/packages/{id:guid}", "/ui/portal", "/ui/portal/requests/{id:guid}",
     "/ui", "/ui/", "/ui/app", "/ui/app/accounting", "/ui/app/practice/leads", "/ui/app/practice/commercial-settings",
     "/ui/app/clients/{id:guid}", "/ui/app/engagements/{id:guid}", "/ui/app/clients/{id:guid}/assessment",
