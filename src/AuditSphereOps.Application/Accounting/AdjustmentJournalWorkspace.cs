@@ -20,13 +20,18 @@ public sealed record JournalRevisionSnapshot(Guid JournalId, long Revision, stri
   string Reason, string EvidenceReference, IReadOnlyList<JournalLineView> Lines);
 public sealed record JournalHistoricalRevision(JournalActionReceipt Receipt, JournalRevisionSnapshot Before, JournalRevisionSnapshot After,
   JournalManagementDecisionView? Management = null);
+public sealed record JournalReflectionView(
+  string State, string Evidence, Guid? ReviewedByUserId, DateTimeOffset? ReviewedAt, bool IsExactRevision);
 public sealed record JournalReviewView(Guid JournalId, Guid ClientId, Guid EngagementId, string JournalNumber,
   string Status, long Revision, string ReviewBasis, Guid DatasetId, long DatasetRevision, string DatasetDigest,
   Guid? PeriodId, string PeriodStart, string PeriodEnd, Guid? BookId, string Currency, string Purpose, string Origin,
   string Reason, string EvidenceReference, string? ReturnReason, Guid PreparerId, Guid? SupersedesId, Guid? ReversalOfId,
   IReadOnlyList<JournalLineView> Lines, decimal TotalDebit, decimal TotalCredit, string? Blocker,
   bool CanEdit, bool CanSubmit, bool CanReturn, bool CanPost, bool CanReverse,
-  int HistoryCount, int HistoryPage, IReadOnlyList<JournalActionReceipt> History);
+  int HistoryCount, int HistoryPage, IReadOnlyList<JournalActionReceipt> History,
+  JournalManagementDecisionView? ManagementDecision = null,
+  JournalReflectionView? SourceReflection = null,
+  bool CanReconcileReflection = false);
 
 /// <summary>Native journal commands compose the existing treatment service in one owned,
 /// serialized transaction with exact review fencing, final authority and immutable receipts.
@@ -61,6 +66,9 @@ public static partial class AdjustmentJournalWorkspace
     if (lines.Count > MaximumLines) return Fail<Snapshot>(ErrorCodes.GateBlocked, "This journal exceeds the interactive line limit.");
     var decisions = await evidenceDb.AdjustmentJournalManagementDecisions.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
       x.JournalId == id && x.ClientId == j.ClientId && x.EngagementId == j.EngagementId).OrderBy(x => x.JournalRevision).Take(1001).ToListAsync(ct);
+    var reconciliations = await db.JournalSourceReconciliations.AsNoTracking().Where(x =>
+      x.FirmId == actor.FirmId && x.ClientId == j.ClientId && x.EngagementId == j.EngagementId &&
+      x.BaseDatasetId == j.BaseDatasetId && x.LogicalJournalNumber == j.JournalNumber).ToListAsync(ct);
     var historyQuery = evidenceDb.AdjustmentJournalActions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == j.ClientId &&
       x.EngagementId == j.EngagementId && (x.JournalId == id || x.ResultJournalId == id));
     var history = await historyQuery.OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).Take(1001).ToListAsync(ct);
@@ -86,12 +94,22 @@ public static partial class AdjustmentJournalWorkspace
       frozen ? "The engagement file is frozen. An approved amendment is required." : null;
     var hasManagement = decisions.Any(x => x.JournalRevision == j.Revision);
     var managementAccepted = decisions.Any(x => x.JournalRevision == j.Revision && x.Decision is "ACCEPTED" or "PARTIAL");
+    var currentDecisionRecord = decisions.SingleOrDefault(x => x.JournalRevision == j.Revision);
+    var currentDecision = currentDecisionRecord is null ? null : new JournalManagementDecisionView(
+      currentDecisionRecord.Id, currentDecisionRecord.JournalRevision, currentDecisionRecord.Decision,
+      currentDecisionRecord.EvidenceMode, currentDecisionRecord.EvidenceReference,
+      currentDecisionRecord.DecidedByUserId, currentDecisionRecord.DecidedAt);
+    var currentReconciliation = reconciliations.FirstOrDefault();
+    var currentReflection = currentReconciliation is null ? null : new JournalReflectionView(
+      currentReconciliation.State, currentReconciliation.Evidence, currentReconciliation.ReviewedByUserId,
+      currentReconciliation.ReviewedAt, currentReconciliation.JournalRevision == j.Revision);
     var editable = blocker is null && prepared && j.Status is "Draft" or "Returned" && !hasManagement;
     var canSubmit = blocker is null && prepared && j.Status is "Draft" or "Returned";
     var canReturn = blocker is null && reviewed && j.Status == "Submitted";
     var canPost = blocker is null && reviewed && j.Status == "Submitted" &&
       j.Purpose != AdjustmentJournalPurposes.GroupOnlyElimination && (j.Purpose != AdjustmentJournalPurposes.ClientBookCorrection || managementAccepted);
-    var basis = Hashing.Sha256Hex(JsonSerializer.Serialize(new { actor.FirmId, actor.UserId, actor.SessionEpoch, j, d, lines, decisions, history, period, book, firm, safety, frozen, hasReversal }));
+    var canReconcileReflection = blocker is null && reviewed && j.Status == "Posted";
+    var basis = Hashing.Sha256Hex(JsonSerializer.Serialize(new { actor.FirmId, actor.UserId, actor.SessionEpoch, j, d, lines, decisions, reconciliations, history, period, book, firm, safety, frozen, hasReversal }));
     auth = await Auth(db, actor, j, ReadRoles, ct);
     if (!auth.Succeeded) return Fail<Snapshot>(auth.ErrorCode!, auth.Message!);
     var view = new JournalReviewView(id, j.ClientId, j.EngagementId, j.JournalNumber, j.Status, j.Revision, basis, d.Id, d.Revision,
@@ -99,7 +117,8 @@ public static partial class AdjustmentJournalWorkspace
       j.BookId, d.Currency, j.Purpose, j.Origin, j.Reason, j.EvidenceReference, j.ReturnReason, j.CreatedByUserId, j.SupersedesJournalId, j.ReversalOfJournalId,
       lines, lines.Sum(x => x.Debit), lines.Sum(x => x.Credit), blocker, editable, canSubmit, canReturn, canPost,
       blocker is null && prepared && j.Status == "Posted" && !hasReversal, history.Count, historyPage,
-      history.OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).Skip((historyPage - 1) * 25).Take(25).Select(Receipt).ToArray());
+      history.OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).Skip((historyPage - 1) * 25).Take(25).Select(Receipt).ToArray(),
+      currentDecision, currentReflection, canReconcileReflection);
     return CommandResult<Snapshot>.Ok(new(view, j, SnapshotJson(j, lines)));
   }
 

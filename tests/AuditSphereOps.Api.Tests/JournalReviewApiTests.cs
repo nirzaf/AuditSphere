@@ -106,6 +106,57 @@ public sealed class JournalReviewApiTests
       Assert.False((await AdjustmentJournalWorkspace.ExecuteAsync(db,db,actor,id,request)).Succeeded);
     await using var verify=new AuditSphereDbContext(pg.Options);Assert.Equal("Draft",await verify.AdjustmentJournals.Where(x=>x.Id==id).Select(x=>x.Status).SingleAsync());Assert.Empty(await verify.AdjustmentJournalActions.ToListAsync());
   }
+
+  [Fact]
+  public async Task SourceReflectionAndManagementDispositionReconciliation()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("API-JOURNAL-REFLECTION");
+    var (f, id) = await Seed(pg);
+    using var staffFactory = Factory(pg, f.Staff); using var staff = staffFactory.CreateClient(); var staffCsrf = await SignIn(staff);
+    using var reviewerFactory = Factory(pg, f.Reviewer); using var reviewer = reviewerFactory.CreateClient(); var reviewerCsrf = await SignIn(reviewer);
+
+    var mgmtView = await Read(staff, Url(id) + "/management");
+    var mgmtBasis = mgmtView.GetProperty("reviewBasis").GetString()!;
+    var mgmtReq = new { RequestId = Guid.NewGuid(), ReviewBasis = mgmtBasis, Decision = "ACCEPTED", Reason = "Client approved in closing meeting", EvidenceReference = "Signed closing memo", Reviewed = true };
+    var mgmtPost = await Post(staff, staffCsrf, Url(id) + "/management", mgmtReq);
+    Assert.Equal(HttpStatusCode.OK, mgmtPost.StatusCode);
+
+    var draftView = await Read(staff, Url(id) + "/workspace");
+    Assert.False(draftView.GetProperty("canReconcileReflection").GetBoolean());
+    var md = draftView.GetProperty("managementDecision");
+    Assert.Equal("ACCEPTED", md.GetProperty("decision").GetString());
+    Assert.Equal("OFFLINE", md.GetProperty("evidenceMode").GetString());
+    Assert.Equal("Signed closing memo", md.GetProperty("evidenceReference").GetString());
+
+    await Execute(staff, staffCsrf, id, Request(draftView, "SUBMIT"));
+    var submitted = await Read(reviewer, Url(id) + "/workspace");
+    await Execute(reviewer, reviewerCsrf, id, Request(submitted, "POST"));
+
+    var postedStaff = await Read(staff, Url(id) + "/workspace");
+    Assert.False(postedStaff.GetProperty("canReconcileReflection").GetBoolean());
+    var staffReflection = await Post(staff, staffCsrf, Url(id) + "/source-reflection",
+      new { RequestId = Guid.NewGuid(), ReviewBasis = postedStaff.GetProperty("reviewBasis").GetString(), State = "NOT_REFLECTED", Evidence = "Staff attempt" });
+    Assert.Equal(HttpStatusCode.BadRequest, staffReflection.StatusCode);
+
+    var postedReviewer = await Read(reviewer, Url(id) + "/workspace");
+    Assert.True(postedReviewer.GetProperty("canReconcileReflection").GetBoolean());
+
+    var invalid = await Post(reviewer, reviewerCsrf, Url(id) + "/source-reflection",
+      new { RequestId = Guid.NewGuid(), ReviewBasis = postedReviewer.GetProperty("reviewBasis").GetString(), State = "REFLECTED", Evidence = "   " });
+    Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+
+    var ok = await Post(reviewer, reviewerCsrf, Url(id) + "/source-reflection",
+      new { RequestId = Guid.NewGuid(), ReviewBasis = postedReviewer.GetProperty("reviewBasis").GetString(), State = "NOT_REFLECTED", Evidence = "Not reflected in client trial balance" });
+    Assert.Equal(HttpStatusCode.OK, ok.StatusCode);
+
+    var updated = await Read(reviewer, Url(id) + "/workspace");
+    var sr = updated.GetProperty("sourceReflection");
+    Assert.Equal("NOT_REFLECTED", sr.GetProperty("state").GetString());
+    Assert.Equal("Not reflected in client trial balance", sr.GetProperty("evidence").GetString());
+    Assert.True(sr.GetProperty("isExactRevision").GetBoolean());
+    Assert.Equal(f.Reviewer.Id, sr.GetProperty("reviewedByUserId").GetGuid());
+  }
+
   private sealed class EpochAfterSave(Func<Task> act):SaveChangesInterceptor
   {
     private bool fired;

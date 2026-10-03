@@ -12,6 +12,8 @@ public static partial class UiEndpoints
   public sealed record ChartCreationInput(string LatestVersion, string SourceScope, string EffectiveFrom, bool Reviewed);
   public sealed record ChartAccountsInput(string Version, IReadOnlyList<ClientAccountInput> Accounts, bool Reviewed);
   public sealed record ChartPublicationInput(string Version, string Digest, bool Reviewed);
+  public sealed record ChartAliasesInput(string Version, IReadOnlyList<SourceAccountAliasInput> Aliases, bool Reviewed);
+  public sealed record ClientDimensionsInput(IReadOnlyList<AccountingDimensionInput> Dimensions, bool Reviewed);
   private static void MapChartEndpoints(RouteGroupBuilder group)
   {
     group.MapGet("/accounting/clients/{id:guid}/charts/{chartId:guid}/publication", async (Guid id, Guid chartId,
@@ -94,6 +96,61 @@ public static partial class UiEndpoints
       if (!result.Succeeded) return Results.Json(new { code = result.ErrorCode }, statusCode: 403);
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);
+    });
+    group.MapGet("/accounting/clients/{id:guid}/charts/{chartId:guid}/aliases", async (Guid id, Guid chartId,
+      HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
+    {
+      var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
+      if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
+      var result = await ClientAccountingService.GetChartRevisionAliasesAsync(db, actor, chartId, http.RequestAborted, id);
+      if (!result.Succeeded) return Results.Json(new { code = result.ErrorCode }, statusCode: 403);
+      if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      return Results.Ok(result.Value);
+    });
+    group.MapPost("/accounting/clients/{id:guid}/charts/{chartId:guid}/aliases", async (Guid id, Guid chartId,
+      ChartAliasesInput input, HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf,
+      IDbContextFactory<AuditSphereDbContext> factory) =>
+    {
+      var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
+      if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      try { await csrf.ValidateRequestAsync(http); }
+      catch (AntiforgeryValidationException) { return Results.Json(new { code = "csrf.invalid" }, statusCode: 403); }
+      if (!input.Reviewed || !int.TryParse(input.Version, NumberStyles.None, CultureInfo.InvariantCulture, out var version) || version < 1 ||
+        input.Aliases is null || input.Aliases.Count is < 1 or > 100 || input.Aliases.Any(x => x is null ||
+          x.ClientAccountId == Guid.Empty || string.IsNullOrWhiteSpace(x.SourceSystem) || x.SourceSystem.Length > 100 ||
+          string.IsNullOrWhiteSpace(x.AliasCode) || x.AliasCode.Length > 100 || (x.AliasName is not null && x.AliasName.Length > 200)))
+        return Results.Json(new { code = "request.invalid" }, statusCode: 400);
+      await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
+      var result = await ClientAccountingService.AddSourceAccountAliasesAsync(db, actor, chartId, input.Aliases, http.RequestAborted, id, version);
+      return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
+    });
+    group.MapGet("/accounting/clients/{id:guid}/dimensions", async (Guid id,
+      HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
+    {
+      var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
+      if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
+      var result = await ClientAccountingService.GetDimensionDefinitionsAsync(db, actor, id, http.RequestAborted);
+      if (!result.Succeeded) return Results.Json(new { code = result.ErrorCode }, statusCode: 403);
+      if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      return Results.Ok(result.Value);
+    });
+    group.MapPost("/accounting/clients/{id:guid}/dimensions", async (Guid id,
+      ClientDimensionsInput input, HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf,
+      IDbContextFactory<AuditSphereDbContext> factory) =>
+    {
+      var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
+      if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      try { await csrf.ValidateRequestAsync(http); }
+      catch (AntiforgeryValidationException) { return Results.Json(new { code = "csrf.invalid" }, statusCode: 403); }
+      if (!input.Reviewed || input.Dimensions is null || input.Dimensions.Count is < 1 or > 100 || input.Dimensions.Any(x => x is null ||
+        !AuditSphereOps.Domain.Accounting.AccountingDimensionTypes.All.Contains(x.DimensionType?.Trim() ?? string.Empty) ||
+        string.IsNullOrWhiteSpace(x.Code) || x.Code.Length > 100 || string.IsNullOrWhiteSpace(x.Name) || x.Name.Length > 300))
+        return Results.Json(new { code = "request.invalid" }, statusCode: 400);
+      await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
+      var result = await ClientAccountingService.AddDimensionDefinitionsAsync(db, actor, id, input.Dimensions, http.RequestAborted);
+      return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
     });
   }
 }

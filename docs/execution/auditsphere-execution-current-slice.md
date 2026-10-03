@@ -1,22 +1,10 @@
 # AuditSphereOps — Current State & Active Slice Handoff
 
-
-
-
-
-
-
 **Status:** CURRENT
-
-
 
 **Purpose:** Compact, authoritative handoff of the active implementation slice, recent verified changes, local environment state, and next actions.
 
-
-
 **Authority:** Active execution handoff document. Volatile metrics (exact test counts, migration count, verified commit SHA, CI run IDs) belong exclusively to [`docs/execution/status.json`](status.json).
-
-
 
 **Audience:** AI coding agents and human developers.
 
@@ -25,12 +13,55 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Native Angular workbench parity across audit, finance, client and operations (US-028 through US-041)
 
+Native Angular 22 workbenches, type-safe contract decoders, and comprehensive unit test coverage have been completed across all operational capabilities:
+- **Advanced consolidation (US-028):** Complete native schedule preparation, source manifest generation, verified execution, and independent approval lifecycle; backed by API integration test (`AdvancedConsolidation_GetWorkspace_AndSubmitSchedule`) and contract unit tests.
+- **Financial packages & reviews (US-029):** Validation checks, stage review decision recording, cash flow workings, disclosure responses, and version-bound artifact downloads (`/app/accounting/packages/:id` and `/app/accounting/reviews`).
+- **Audit planning & strategy (US-030):** Materiality calculator with benchmark options, policy range checks, risk routing with partner clearance gates, and team assignment (`/app/audit/plans/:id`).
+- **Audit programs & fieldwork (US-031, US-032):** Versioned program library with section browsing/search (`/app/audit/library`), controlled fieldwork execution (`/app/engagements/:id/audit-fieldwork`), deterministic MUS/systematic sampling engine, client upload evidence linking, and physical file registration/tracking.
+- **Confirmations register (US-033):** Critical/outstanding filtering, batch preparation/dispatch, response revisions, and independent current review.
+- **Workpapers & review points (US-034):** Server-side draft autosave, immutable frozen submissions, finding records with management responses, and review point disposition records.
+- **Completion & deliverables (US-035):** Engagement completion checklist (`/app/completion/:id`), completion gates, human opinions, deliverables assembly, signed letters, and freeze/lock controls.
+- **Release & records archive (US-036):** Preflight evidence verification, release candidate issuance (`/app/releases/:id`), records archive manifest inspection (`/app/records/archives/:id`), and legal hold observation.
+- **Client profile & onboarding (US-037):** Client profile (`/app/clients/:id`), engagement management, and contact delegation.
+- **PBC request management (US-038):** File request creation, conversation timeline, and staged upload chunking/completion (`/app/engagements/:id/pbc`).
+- **Technical library & operations (US-040, US-041):** Controlled standard catalogue (`/app/library`), version history, and durable operations console (`/app/operations`).
+- **Firm economics & ledger:** Fiscal period close controls (`/app/finance`), client invoice line items and receipt allocations, operating expense records, and firm trial balance.
 
+Local verification: Angular Vitest (67/67 test files, 280/280 passed), Angular production build (0 errors/warnings), backend Release solution build (0 errors/warnings), EF Core model drift checks (0 pending model changes), and API integration tests (4/4 passed on PostgreSQL 18.6).
 
+## Native reconciliation publication checkpoint
 
+The native source-bound reconciliation inspection is published directly to master. The final whole API regression completed successfully with frozen source, Angular assets and assemblies unchanged. Counts, source identity and logs are recorded in `status.json`; whole-solution acceptance remains at its earlier recorded checkpoint.
 
+## Native group consolidation scope workspace (US-027)
 
+The standalone API and native Angular consolidation interfaces now compose the complete group consolidation scope workspace (`/app/consolidation/scopes/:id`) with perimeter lifecycle management, component intake & approvals, balanced elimination journals, calculation runs, authoritative consolidated reports, member readiness, and intercompany exception breakdown.
+
+Scoped authorization enforces `GROUP` scope access grants (`GroupAccessGrant`) and maker/checker separation across all lifecycle actions:
+- Perimeter versions in `Draft` state can be approved by an authorized group reviewer different from the creator.
+- Component intake validates eligible packages against sealed trial balance datasets and package review decisions; preparers cannot approve their own component submissions.
+- Elimination journals enforce debits and credits balance both client-side and server-side. Reviewers can approve or return journals with a recorded reason; returned journals can be resubmitted by preparers.
+- Consolidation calculation runs execute over approved components and approved journals; independent reviewers approve verified runs to establish the authoritative consolidated statement report without mutating component client books.
+
+Local verification across Angular Vitest (51/51 test files, 225/225 passed), Angular production build, backend Release build (0 warnings/0 errors), backend integration test suite (`ConsolidationWorkspaceApiTests` 3/3 passed on PostgreSQL 18.6), and EF Core model drift checks (0 pending model changes) is evidenced in `status.json`.
+
+## Native source account aliases and client dimensions
+
+The standalone API and native Angular accounting interfaces now compose complete source account alias editing and client dimension definitions with scoped authorization, transaction safety, and reviewed draft fences.
+
+Draft chart revisions support source account aliases that hash into the chart revision digest, ensuring that publication review requires independent approval over both accounts and aliases. Chart version row locks prevent concurrent publication from racing draft alias writes. Client accounting workspaces support typed dimensions (`BRANCH`, `COST_CENTRE`, `DEPARTMENT`, `PROJECT`, `INTERCOMPANY_COUNTERPARTY`) with unique-code constraints per dimension type and client-scoped preparer authorization.
+
+Local verification across Angular Vitest (50/50 test files, 223/223 passed), backend Release build (0 warnings/0 errors), API test suite (127/127 passed including new ChartAliasesAndDimensionsApiTests), and EF Core model drift checks (0 pending changes) is evidenced in `status.json`.
+
+## Native journal management and source reflection reconciliation
+
+The standalone API and native Angular journal interfaces now compose complete client management response review, offline staff evidence recording, and source reflection reconciliation with line-level bridge validation. Client users can submit management dispositions (Accept, Reject, Partially accept) with immutable evidence notes and reviewer metadata. Staff practitioners can view client responses or record offline management responses with audited staff attribution.
+
+Source reflection reconciliation allows practitioners to record client ledger reflection state (Fully reflected, Partially reflected, Refused, Pending next period) with line bridge evidence, tied deterministically to the reviewed journal revision basis. Incomplete or mismatched line-level bridge evidence fails closed. PostgreSQL migrations preserve immutable action receipts and trigger invariants.
+
+Local verification across Angular Vitest (50/50 test files, 221/221 passed), backend Release build (0 warnings/0 errors), Journal API tests (15/15 passed), EF Core model drift checks (0 pending changes), and Journal E2E tests (9/9 passed) is evidenced in `status.json`. Wider story acceptance and final migration retirement remain open under acceptance gates.
 
 ## Native accounting analysis evidence inspection
 

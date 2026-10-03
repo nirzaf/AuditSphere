@@ -81,11 +81,100 @@
       />
     </section>
   }
-  <p class="actions">
-    <a [routerLink]="['/app/accounting/journals', j.journalId, 'management']"
-      >Review management response</a
-    >
-  </p>
+  <section class="panel" aria-label="Client management response">
+    <h2>Client management disposition</h2>
+    @if (j.managementDecision; as m) {
+      <dl class="facts">
+        <dt>Management decision</dt>
+        <dd><audit-status [value]="m.decision" /></dd>
+        <dt>Evidence mode</dt>
+        <dd>{{ m.evidenceMode === 'SIGNED_IN' ? 'Authenticated client portal' : 'Staff-recorded offline evidence' }}</dd>
+        <dt>Exact revision</dt>
+        <dd>Revision {{ m.journalRevision }}</dd>
+        <dt>Evidence reference</dt>
+        <dd>{{ m.evidenceReference }}</dd>
+        <dt>Decided at</dt>
+        <dd>{{ m.decidedAt }} UTC @if (m.decidedByUserId) { by <code>{{ m.decidedByUserId }}</code> }</dd>
+      </dl>
+      <p class="actions">
+        <a [routerLink]="['/app/accounting/journals', j.journalId, 'management']">Review management response</a>
+      </p>
+    } @else {
+      <p>No client management disposition has been recorded for this journal revision.</p>
+      <p class="actions">
+        <a [routerLink]="['/app/accounting/journals', j.journalId, 'management']">Review management response</a>
+      </p>
+    }
+  </section>
+
+  <section class="panel" aria-label="Source reflection reconciliation">
+    <h2>Source reflection reconciliation</h2>
+    @if (j.sourceReflection; as sr) {
+      <dl class="facts">
+        <dt>Source reflection state</dt>
+        <dd>
+          <audit-status [value]="sr.state" />
+          @if (!sr.isExactRevision) {
+            <small>(Recorded against earlier revision)</small>
+          }
+        </dd>
+        <dt>Line-level bridge / evidence</dt>
+        <dd>{{ sr.evidence || 'No bridge evidence recorded' }}</dd>
+        @if (sr.reviewedAt) {
+          <dt>Reconciled</dt>
+          <dd>{{ sr.reviewedAt }} UTC @if (sr.reviewedByUserId) { by <code>{{ sr.reviewedByUserId }}</code> }</dd>
+        }
+      </dl>
+    } @else {
+      <p>Source reflection has not been evaluated for this journal.</p>
+    }
+    @if (j.canReconcileReflection) {
+      <h3>Reconcile source reflection</h3>
+      <p>
+        Verify whether this posted journal treatment has been reflected in client books or trial balance source.
+        Reflected and partially reflected states require line-level bridge evidence.
+      </p>
+      <form (submit)="$event.preventDefault(); reconcileReflection()">
+        <fieldset [disabled]="busy() || uncertain()">
+          <label
+            >Reflection state
+            <select
+              aria-label="Reflection state"
+              [value]="reflectionState()"
+              (change)="reflectionState.set($any($event.target).value)"
+            >
+              <option value="NOT_REFLECTED">Not reflected in source</option>
+              <option value="REFLECTED">Reflected in source</option>
+              <option value="PARTIALLY_REFLECTED">Partially reflected in source</option>
+              <option value="NOT_APPLICABLE">Not applicable</option>
+            </select>
+          </label>
+          <label
+            >Reconciliation evidence / line-level bridge
+            <textarea
+              aria-label="Reconciliation evidence"
+              rows="3"
+              [value]="reflectionEvidence()"
+              (input)="reflectionEvidence.set($any($event.target).value)"
+              placeholder="Document line-level source bridge or justification..."
+            ></textarea>
+          </label>
+          <button
+            matButton
+            type="submit"
+            [disabled]="
+              busy() ||
+              uncertain() ||
+              ((reflectionState() === 'REFLECTED' || reflectionState() === 'PARTIALLY_REFLECTED') &&
+                !reflectionEvidence().trim())
+            "
+          >
+            Save reflection reconciliation
+          </button>
+        </fieldset>
+      </form>
+    }
+  </section>
   <section class="panel" aria-label="Current journal lines">
     <h2>Retained journal lines</h2>
     <div class="table-scroll" tabindex="0" role="region" aria-label="Journal line scroll area">

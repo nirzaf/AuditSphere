@@ -50,6 +50,9 @@ const v = {
   historyCount: 0,
   historyPage: 1,
   history: [],
+  managementDecision: null,
+  sourceReflection: null,
+  canReconcileReflection: false,
 };
 const preview = {
   action: 'UPDATE',
@@ -263,5 +266,83 @@ describe('Exact native journal editor and receipt recovery', () => {
     const { c } = await open({ ...v, journalId: actor });
     expect(c.journal.data()).toBeNull();
     expect(c.journal.error()).toContain('Unsupported response');
+  });
+  it('reconciles source reflection on posted journals and validates line bridge evidence', async () => {
+    const postedView = {
+      ...v,
+      status: 'Posted',
+      canEdit: false,
+      canSubmit: false,
+      canPost: false,
+      canReturn: false,
+      canReverse: true,
+      canReconcileReflection: true,
+    };
+    const { c, http } = await open(postedView);
+    expect(c.reflectionState()).toBe('NOT_REFLECTED');
+
+    c.reflectionState.set('REFLECTED');
+    c.reflectionEvidence.set('   ');
+    await c.reconcileReflection();
+    expect(c.message()).toBe('Line-level bridge evidence is required for reflected treatments.');
+    expect(c.failed()).toBe(true);
+    http.expectNone(root + '/source-reflection');
+
+    c.reflectionEvidence.set('Bridged to 1000 in December close');
+    const task = c.reconcileReflection();
+    const req = http.expectOne(root + '/source-reflection');
+    expect(req.request.body.state).toBe('REFLECTED');
+    expect(req.request.body.evidence).toBe('Bridged to 1000 in December close');
+    expect(req.request.body.reviewBasis).toBe(v.reviewBasis);
+    req.flush({ ok: true });
+    await task;
+    TestBed.tick();
+
+    expect(c.message()).toBe('Source reflection reconciliation recorded.');
+    http.expectOne(root + '/workspace?historyPage=1').flush({
+      ...postedView,
+      sourceReflection: {
+        state: 'REFLECTED',
+        evidence: 'Bridged to 1000 in December close',
+        reviewedByUserId: actor,
+        reviewedAt: '2026-03-01T12:00:00Z',
+        isExactRevision: true,
+      },
+    });
+    TestBed.tick();
+    expect(c.journal.data()?.sourceReflection?.state).toBe('REFLECTED');
+  });
+  it('decodes management disposition and source reflection in review contracts', () => {
+    const decoded = decodeJournalReview({
+      ...v,
+      status: 'Posted',
+      canEdit: false,
+      canSubmit: false,
+      canPost: false,
+      canReturn: false,
+      canReverse: true,
+      canReconcileReflection: true,
+      managementDecision: {
+        id,
+        journalRevision: 1,
+        decision: 'ACCEPTED',
+        evidenceMode: 'SIGNED_IN',
+        evidenceReference: 'Portal accepted',
+        decidedByUserId: actor,
+        decidedAt: '2026-02-01T10:00:00Z',
+      },
+      sourceReflection: {
+        state: 'REFLECTED',
+        evidence: 'Bridged 1000',
+        reviewedByUserId: actor,
+        reviewedAt: '2026-02-02T11:00:00Z',
+        isExactRevision: true,
+      },
+    });
+    expect(decoded.managementDecision?.decision).toBe('ACCEPTED');
+    expect(decoded.sourceReflection?.state).toBe('REFLECTED');
+    expect(() =>
+      decodeJournalReview({ ...v, status: 'Draft', canReconcileReflection: true }),
+    ).toThrow();
   });
 });

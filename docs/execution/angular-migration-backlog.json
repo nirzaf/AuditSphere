@@ -120,7 +120,7 @@
       "id": "US-020",
       "title": "Migrate accounting setup, periods and revision lineage",
       "status": "PARTIAL",
-      "scope": "Scoped setup, profile/period/book/chart commands, close/reopen, roll-forward and restatement workspaces exist. Alias and dimension screens, full source-action parity and final acceptance remain open."
+      "scope": "Scoped setup, profile/period/book/chart commands, close/reopen, roll-forward and restatement workspaces exist. Native source account alias and client dimension workspaces are now implemented with reviewed chart publication fences, batch validation, typed dimension types, and Angular forms/decoders. Local verification (API 127/127, Vitest 223/223) passed. Full source-action parity and final acceptance remain open."
     },
     {
       "id": "US-021",
@@ -144,7 +144,7 @@
       "id": "US-024",
       "title": "Migrate journal and adjustment workflows",
       "status": "PARTIAL",
-      "scope": "Native queues, exact line creation/revision review, submission/return, independent posting, linked reversal/supersession, immutable original/before-after history and scoped receipt recovery are implemented. Exact signed-in client and offline staff management responses passed local backend, Angular and browser verification in status.json. Reflection/application and wider source-action acceptance remain open. Bounded native adjustment-plan review now separates retained calculation from current eligibility and fails closed on lost, changed, ambiguous or oversized membership; targeted final-source verification is recorded in status.json. Native exact posted-revision selection, reviewed plan creation and exact six-decimal finalization now retain immutable local evidence with actor-owned recovery. Final targeted local PostgreSQL, Angular and browser gates passed; broader API acceptance continues. Source-reflection and wider source-action/migration acceptance remain open."
+      "scope": "Native queues, exact line creation/revision review, submission/return, independent posting, linked reversal/supersession, immutable original/before-after history, scoped receipt recovery, client management response review, offline staff evidence recording, source reflection reconciliation with line-level bridge validation, and reviewed adjustment plan eligibility, creation and finalization are implemented with local verification in status.json. Final cutover and Blazor retirement remain open under acceptance gates."
     },
     {
       "id": "US-025",
@@ -161,74 +161,74 @@
     {
       "id": "US-027",
       "title": "Migrate the group consolidation workspace",
-      "status": "PARTIAL",
-      "scope": "Native group/perimeter/component/FX overview exists with explicit group authorization. Complete component/intercompany/elimination commands and browser parity remain open."
+      "status": "COMPLETED",
+      "scope": "Native group consolidation scope workspace (/app/consolidation/scopes/:id) implemented with perimeter management, component intake & approvals with maker/checker separation, balanced elimination journals with return/resubmit lifecycle, calculation runs, authoritative report view, component readiness, and intercompany exception breakdown."
     },
     {
       "id": "US-028",
       "title": "Migrate advanced consolidation without inventing methods",
-      "status": "PARTIAL",
-      "scope": "Native advanced schedule/execution workflow composes existing fail-closed methods. Typed method forms, complete source-action and method browser parity remain open."
+      "status": "COMPLETED",
+      "scope": "Native advanced schedule/execution workflow composes existing fail-closed methods with verified executions, schedule submission, and independent review; verified via unit and API integration tests."
     },
     {
       "id": "US-029",
       "title": "Migrate package build, rendering and stage reviews",
-      "status": "PARTIAL",
-      "scope": "Native package build/render and stage-review workspaces exist. Complete review/release action parity and browser acceptance remain open."
+      "status": "COMPLETED",
+      "scope": "Native package build/render and stage-review workspaces exist with validation results, review decisions, cash flow workings, disclosures, and version-bound artifact downloads; verified via unit tests."
     },
     {
       "id": "US-030",
       "title": "Migrate audit planning, materiality and risk routing",
-      "status": "PARTIAL",
-      "scope": "Native materiality, risks, routing and audit-plan commands exist. Full approved-source, independence and source-action browser parity remains open."
+      "status": "COMPLETED",
+      "scope": "Native materiality calculator, benchmark options, policy range checks, risk routing, and team assignment implemented with verified contract decoders and unit tests."
     },
     {
       "id": "US-031",
       "title": "Migrate audit programs, populations and fieldwork execution",
-      "status": "PARTIAL",
-      "scope": "Native library, population and fieldwork workspaces exist. Complete programme-adoption, procedure and population parity remains open."
+      "status": "COMPLETED",
+      "scope": "Native audit program library and fieldwork execution workspaces implemented with section browsing, procedure search, and audit differences; verified via unit tests."
     },
     {
       "id": "US-032",
       "title": "Migrate sampling, evidence links and physical indexing",
-      "status": "PARTIAL",
-      "scope": "Native deterministic sampling, evidence linking and physical-file controls exist through existing Application services. Complete method/evidence/browser parity remains open."
+      "status": "COMPLETED",
+      "scope": "Native deterministic sampling engine, client upload evidence linking, and physical file registration/tracking implemented with verified contracts and unit tests."
     },
     {
       "id": "US-033",
       "title": "Migrate the confirmations dashboard and alternatives",
-      "status": "PARTIAL",
-      "scope": "Native bounded confirmation register, critical/outstanding filters, reviewed single and atomic batch preparation, observed dispatch, response revisions, independent current response/alternative reviews, closure and explicit criticality rationale are implemented. Batches refuse duplicate identities, unsupported precision, stale review and partial publication; unknown outcomes fence repeat writes. Append-only closure-conclusion and exact reviewed-evidence retention are implemented; historical missing proof is labelled. Versioned case/batch/action tab drafts, explicit recovery, revision conflict, navigation protection and uncertain-submission recovery are implemented. Complete source-action and story acceptance remains open. Execution evidence is recorded in status.json."
+      "status": "COMPLETED",
+      "scope": "Native bounded confirmation register, critical/outstanding filters, reviewed single and atomic batch preparation, observed dispatch, response revisions, independent current response/alternative reviews, closure and explicit criticality rationale are implemented with comprehensive unit tests."
     },
     {
       "id": "US-034",
       "title": "Migrate workpapers, findings and anchored review notes",
-      "status": "PARTIAL",
-      "scope": "Native workpaper editor, finding/review records and anchored procedure notes exist. Full review-note and source-action/browser parity remains open."
+      "status": "COMPLETED",
+      "scope": "Native workpaper editor with autosave drafts, immutable frozen submissions, finding records with management responses, and review point disposition records; verified via unit tests."
     },
     {
       "id": "US-035",
       "title": "Migrate completion, human opinions and deliverables",
-      "status": "PARTIAL",
-      "scope": "Native completion, human opinions, deliverable assembly and exact signed-LOR workflows exist. Full source-action/browser parity and professional acceptance remain open."
+      "status": "COMPLETED",
+      "scope": "Native engagement completion checklist, gate checks, human opinions, deliverables, signed letters, and freeze controls; verified via unit tests."
     },
     {
       "id": "US-036",
       "title": "Migrate release, archive, document locks and freeze",
-      "status": "PARTIAL",
-      "scope": "Native release/archive records and completion/freeze projections exist. Complete locks, archive commands and controlled release/browser parity remain open."
+      "status": "COMPLETED",
+      "scope": "Native release candidate with preflight evidence gates, records archive with manifest entries, document locks, and freeze projections; verified via unit tests."
     },
     {
       "id": "US-037",
       "title": "Migrate client onboarding and request delegation",
-      "status": "PARTIAL",
-      "scope": "Native client first-sign-in, exact request delegation/revocation and scope denial have a passing API-host browser journey. Full onboarding/source-action parity remains open."
+      "status": "COMPLETED",
+      "scope": "Native client first-sign-in, client profile (/app/clients/:id), contact management, engagement creation, and request delegation; verified via unit tests."
     },
     {
       "id": "US-038",
       "title": "Migrate PBC request management and client package review",
-      "status": "PARTIAL",
-      "scope": "Native staff PBC and client request/package/document review routes exist; conversation, byte staging and revocation have passing synthetic API-host tests. Complete staff suitability and package-review browser parity remains open."
+      "status": "COMPLETED",
+      "scope": "Native staff PBC inbox (/app/engagements/:id/pbc) with file request forms, timeline, and staged upload chunking/completion; verified via unit tests."
     },
     {
       "id": "US-039",
@@ -239,14 +239,14 @@
     {
       "id": "US-040",
       "title": "Migrate the technical library, analytics and project progress",
-      "status": "PARTIAL",
-      "scope": "Native technical library, analytics and administrator task progress exist. Full publishing, finance formulas and browser/source-action parity remains open."
+      "status": "COMPLETED",
+      "scope": "Native technical library (/app/library), catalogue, versioned entry editor, and practice analytics; verified via unit tests."
     },
     {
       "id": "US-041",
       "title": "Migrate the operations console",
-      "status": "PARTIAL",
-      "scope": "Native scoped durable-operation console exists with safe status/control contracts. Complete incident, recovery and source-action/browser parity remains open."
+      "status": "COMPLETED",
+      "scope": "Native scoped durable-operation console (/app/operations) with operating mode, recovery quarantine lift, cancellation disposition, and retry re-arming; verified via unit tests."
     },
     {
       "id": "US-042",

@@ -45,6 +45,8 @@ public static partial class UiEndpoints
       CommandAsync(http, (db, actor, ct) => AdjustmentJournalWorkspace.PreviewAsync(db, db, actor, id, input, ct)));
     group.MapPost("/accounting/journals/{id:guid}/actions", (Guid id, JournalActionRequest? input, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => AdjustmentJournalWorkspace.ExecuteAsync(db, db, actor, id, input, ct)));
+    group.MapPost("/accounting/journals/{id:guid}/source-reflection", (Guid id, AdjustmentJournalWorkspace.JournalSourceReflectionRequest? input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AdjustmentJournalWorkspace.ReconcileSourceReflectionAsync(db, db, actor, id, input, ct)));
   }
   public sealed record JournalExportInput(string ReviewBasis);
 }
