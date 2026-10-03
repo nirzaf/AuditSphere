@@ -18,6 +18,29 @@
     "postgres": "18.6 loopback development profile"
   },
   "verification": {
+    "angularFullRegressionRecovery": {
+      "codeCommit": "21e76054b88c904ed44d457cf09df0bfd3382023",
+      "observedAt": "2026-10-03T15:12:21.342754+00:00",
+      "status": "PARTIAL_E2E_RUNNING",
+      "domainTests": {
+        "passed": 640,
+        "failed": 0,
+        "skipped": 0
+      },
+      "apiTests": {
+        "passed": 174,
+        "failed": 0,
+        "skipped": 0
+      },
+      "originalRun": "Stopped after user interruption; no E2E completion summary or aggregate success established. Process and handle were confirmed absent before recovery.",
+      "frozenArtifactCheck": "PASS: no original artifact changed or missing before recovery.",
+      "e2eRecovery": "Full E2E suite restarted with existing Release binaries and UI assets; terminal result pending.",
+      "originalLog": "/private/tmp/auditsphere-angular-full-regression.log",
+      "recoveryLog": "/private/tmp/auditsphere-angular-full-e2e-recovery.log",
+      "recoveryExitRecord": "/private/tmp/auditsphere-angular-full-e2e-recovery.exit",
+      "artifactManifest": "/private/tmp/auditsphere-angular-regression-manifest.json",
+      "boundary": "Applies to frozen checkpoint only. Concurrent commercial source edits and new performance test are not compiled into this checkpoint. No full regression completion, shared database migration, production acceptance or final migration retirement claimed."
+    },
     "angularTenantSetupMetadata": {
       "codeCommit": "ff05dd48801af6bf87631db1e97225355cabd20b",
       "verifiedAt": "2026-10-03T14:37:47.072258+00:00",

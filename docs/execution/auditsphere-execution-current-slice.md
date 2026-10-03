@@ -13,6 +13,19 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Angular full regression recovery
+
+The full API and Domain suites passed on the frozen migration checkpoint. User
+interruption ended the original process before an E2E completion result was
+recorded. After confirming the old process absent and the artifact manifest
+unchanged, the unfinished E2E suite was restarted against the existing Release
+binaries and UI assets. Its terminal result remains pending in status.json.
+
+Concurrent commercial source edits and a new performance test are preserved and
+are outside this compiled checkpoint. Aggregate regression completion, wider
+migration acceptance and final Blazor retirement remain unverified. No shared
+Development or production database migration was performed.
+
 ## Angular Microsoft tenant setup metadata
 
 The tenant workspace now projects the saved friendly tenant label and mail/records
