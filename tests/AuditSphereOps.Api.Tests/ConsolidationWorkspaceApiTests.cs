@@ -340,6 +340,84 @@ public sealed class ConsolidationWorkspaceApiTests
     Assert.Equal("APPROVED", wsApproved.GetProperty("journals")[0].GetProperty("status").GetString());
   }
 
+  [Fact]
+  public async Task AdvancedConsolidation_GetWorkspace_AndSubmitSchedule()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("API-CONSOL-ADVANCED");
+    var seed = await PbcSeed.SeedAsync(pg);
+    Guid groupId, scopeId;
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var group = new ClientGroup { Id = Guid.CreateVersion7(), FirmId = seed.FirmId, Code = "GRP-ADV", Name = "Advanced Group", Revision = 1 };
+      db.ClientGroups.Add(group);
+      groupId = group.Id;
+
+      db.GroupAccessGrants.Add(new GroupAccessGrant
+      {
+        Id = Guid.CreateVersion7(), FirmId = seed.FirmId, GroupId = group.Id,
+        UserId = seed.Staff.Id, Role = "AccountingPreparer", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = seed.Staff.Id
+      });
+
+      var scope = new ConsolidationScopeVersion
+      {
+        Id = Guid.CreateVersion7(), FirmId = seed.FirmId, GroupId = group.Id,
+        PeriodId = Guid.NewGuid(), Method = AdvancedConsolidationMethods.AcquisitionNci,
+        ReportingCurrency = "QAR", Status = AccountingWorkflowStates.Draft,
+        OpeningBasis = "OPENING_BALANCE",
+        CreatedByUserId = seed.Staff.Id, CreatedAt = DateTimeOffset.UtcNow,
+        GroupRevision = 1
+      };
+      db.ConsolidationScopeVersions.Add(scope);
+      await db.SaveChangesAsync();
+      scopeId = scope.Id;
+    }
+
+    using var factory = Factory(pg, seed.Staff);
+    using var client = factory.CreateClient();
+    var csrf = await SignIn(client);
+
+    // Read workspace
+    var ws = await Read(client, $"/api/ui/consolidation/advanced/{scopeId}");
+    Assert.Equal(scopeId, ws.GetProperty("scope").GetProperty("id").GetGuid());
+    Assert.Equal("Advanced Group", ws.GetProperty("scope").GetProperty("groupName").GetString());
+    Assert.Equal(AdvancedConsolidationMethods.AcquisitionNci, ws.GetProperty("scope").GetProperty("method").GetString());
+    Assert.True(ws.GetProperty("canPrepare").GetBoolean());
+    Assert.False(ws.GetProperty("canReview").GetBoolean());
+
+    // Submit schedule
+    var sourceManifest = JsonSerializer.Serialize(new
+    {
+      sources = new[]
+      {
+        new { componentId = Guid.NewGuid(), kind = "Package", id = Guid.NewGuid(), hash = new string('a', 64) }
+      }
+    });
+    var inputSnapshot = JsonSerializer.Serialize(new
+    {
+      targetOwnership = 0.8m,
+      statementLines = new[]
+      {
+        new { taxonomyCode = "1000", comparativeAmount = 100m, currentAmount = 120m }
+      }
+    });
+
+    var submitRes = await Post(client, csrf, $"/api/ui/consolidation/advanced/{scopeId}/schedules", new
+    {
+      sourceManifestJson = sourceManifest,
+      inputSnapshotJson = inputSnapshot
+    });
+    Assert.Equal(HttpStatusCode.OK, submitRes.StatusCode);
+    var scheduleId = JsonDocument.Parse(await submitRes.Content.ReadAsStringAsync()).RootElement.GetProperty("value").GetGuid();
+
+    // Re-read workspace to verify schedule appears
+    var wsAfter = await Read(client, $"/api/ui/consolidation/advanced/{scopeId}");
+    var schedules = wsAfter.GetProperty("schedules");
+    Assert.Equal(1, schedules.GetArrayLength());
+    Assert.Equal(scheduleId, schedules[0].GetProperty("id").GetGuid());
+    Assert.Equal("SUBMITTED", schedules[0].GetProperty("status").GetString());
+  }
+
   private static StandaloneApiApplicationFactory Factory(OwnedPostgresDatabase pg, AppUser u) => new(new Dictionary<string, string?>
   {
     ["ConnectionStrings:AuditSphere"] = pg.ConnectionString,
