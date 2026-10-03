@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "2bc012afe8cdbd7c710dbd6eee26d6463b7cec63",
+  "headCommit": "d53620f3f90fc7d6367c107de8205078a7b1e29b",
   "verifiedCommit": "6c9801362b49a285454be7bd9272fba874e0b84a",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": true,
@@ -3920,7 +3920,22 @@
       },
       "observedAt": "2026-10-03T00:14:26.449233+00:00",
       "fingerprintsUnchanged": true,
-      "docsChecks": "PASS Markdown health, filename policy, protected narrative metrics and staged diff checks. No Wiki publication."
+      "docsChecks": "PASS Markdown health, filename policy, protected narrative metrics and staged diff checks. No Wiki publication.",
+      "publication": {
+        "status": "PUSHED",
+        "branch": "master",
+        "implementationCommit": "d53620f3f90fc7d6367c107de8205078a7b1e29b",
+        "remoteHeadConfirmed": true,
+        "confirmedAt": "2026-10-03T00:16:27.103885+00:00"
+      },
+      "fullSuite": {
+        "status": "RUNNING",
+        "sourceCommit": "d53620f3f90fc7d6367c107de8205078a7b1e29b",
+        "worktree": "/Users/qts/.codex/worktrees/angular-journal-management/AuditSphere",
+        "log": "/private/tmp/auditsphere-management-regression-suite.log",
+        "fingerprintsPath": "/private/tmp/auditsphere-management-regression-hashes.json",
+        "boundary": "Exact published source and unchanged final Release/Angular build artifacts; frozen managed checkout has no source edits or rebuilds. Terminal result required for a whole-suite pass."
+      }
     }
   },
   "documentationWork": {
