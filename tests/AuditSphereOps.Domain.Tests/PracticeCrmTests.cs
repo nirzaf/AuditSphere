@@ -141,6 +141,53 @@ public sealed class PracticeCrmTests
   }
 
   [Fact]
+  public async Task ProposalCreation_ReconcilesExactRetry_AndRejectsChangedRequestIdentity()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    Guid opportunityId;
+    await using (var setupDb = new AuditSphereDbContext(pg.Options))
+    {
+      var lead = await PracticeCrmService.CreateLeadAsync(setupDb, fixture.Actor,
+        new("Proposal recovery lead", "Recovery journey"));
+      Assert.True(lead.Succeeded, lead.Message);
+      Assert.True((await PracticeCrmService.QualifyLeadAsync(setupDb, fixture.Actor, lead.Value)).Succeeded);
+      var opportunity = await PracticeCrmService.CreateOpportunityAsync(setupDb, fixture.Actor,
+        Opportunity(lead.Value));
+      Assert.True(opportunity.Succeeded, opportunity.Message);
+      opportunityId = opportunity.Value;
+    }
+
+    var requestId = Guid.NewGuid();
+    var request = Proposal(opportunityId, expectedRevision: 0) with { RequestId = requestId };
+    await using (var firstDb = new AuditSphereDbContext(pg.Options))
+    {
+      var first = await PracticeCrmService.ReviseProposalAsync(firstDb, fixture.Actor, request);
+      Assert.True(first.Succeeded, first.Message);
+      Assert.Equal(requestId, first.Value);
+    }
+
+    await using (var retryDb = new AuditSphereDbContext(pg.Options))
+    {
+      var retry = await PracticeCrmService.ReviseProposalAsync(retryDb, fixture.Actor, request);
+      Assert.True(retry.Succeeded, retry.Message);
+      Assert.Equal(requestId, retry.Value);
+      Assert.Equal(1, await retryDb.Proposals.CountAsync(x => x.OpportunityId == opportunityId));
+
+      var changedIntent = await PracticeCrmService.ReviseProposalAsync(retryDb, fixture.Actor,
+        request with { Deliverables = "Changed deliverables" });
+      Assert.False(changedIntent.Succeeded);
+      Assert.Equal(ErrorCodes.IdempotencyConflict, changedIntent.ErrorCode);
+
+      var staleNewRequest = await PracticeCrmService.ReviseProposalAsync(retryDb, fixture.Actor,
+        request with { RequestId = Guid.NewGuid() });
+      Assert.False(staleNewRequest.Succeeded);
+      Assert.Equal(ErrorCodes.StaleRevision, staleNewRequest.ErrorCode);
+      Assert.Equal(1, await retryDb.Proposals.CountAsync(x => x.OpportunityId == opportunityId));
+    }
+  }
+
+  [Fact]
   public async Task CommercialWorkflow_ConvertsIdempotently_AndLeavesAcceptancePending()
   {
     await using var pg = await PgTestSchema.CreateAsync();

@@ -197,6 +197,137 @@ public sealed class AngularCommercialJourneyTests
   }
 
   [Fact]
+  [Trait("CaseId", "ANGULAR-COMMERCIAL-PROPOSAL-RECOVERY-01")]
+  public async Task LostProposalCreateResponses_ReconcileCommitAndRetrySameRequest()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "ANGULAR-COMMERCIAL-PROPOSAL-RECOVERY-01");
+    var settings = new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" };
+    var buildPath = Environment.GetEnvironmentVariable("AUDITSPHERE_TEST_UI_BUILD_PATH");
+    if (!string.IsNullOrWhiteSpace(buildPath)) settings["AngularUi__BuildPath"] = buildPath;
+    var origin = await host.StartApiForIdentityAsync(host.Fixture.Admin, settings);
+    Guid leadId, committedOpportunityId, retryOpportunityId;
+    await using (var db = host.CreateDbContext())
+    {
+      var actor = PbcSeed.Actor(host.Fixture.Admin, "Administrator");
+      var lead = await PracticeCrmService.CreateLeadAsync(db, actor,
+        new("Synthetic proposal recovery lead", "Recovery journey"));
+      Assert.True(lead.Succeeded, lead.Message);
+      Assert.True((await PracticeCrmService.QualifyLeadAsync(db, actor, lead.Value)).Succeeded);
+      leadId = lead.Value;
+      var committed = await PracticeCrmService.CreateOpportunityAsync(db, actor,
+        new(leadId, "AccountingOnly", "Committed synthetic entity", "2026-01-01", "2026-12-31", 1000m, "QAR"));
+      var retry = await PracticeCrmService.CreateOpportunityAsync(db, actor,
+        new(leadId, "FinancialStatementAudit", "Retry synthetic entity", "2026-01-01", "2026-12-31", 2000m, "QAR"));
+      Assert.True(committed.Succeeded, committed.Message);
+      Assert.True(retry.Succeeded, retry.Message);
+      committedOpportunityId = committed.Value;
+      retryOpportunityId = retry.Value;
+    }
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var errors = new List<string>();
+    page.PageError += (_, error) => errors.Add(error);
+    var committedRequestId = Guid.Empty;
+    var retryRequestId = Guid.Empty;
+    var proposalPosts = 0;
+    Guid committedTargetOpportunityId = Guid.Empty;
+    Guid retryTargetOpportunityId = Guid.Empty;
+    await page.RouteAsync("**/api/ui/opportunities/*/proposals", async route =>
+    {
+      if (route.Request.Method != "POST") { await route.ContinueAsync(); return; }
+      using var body = JsonDocument.Parse(route.Request.PostData!);
+      var seenIdentity = body.RootElement.GetProperty("requestId").GetGuid();
+      var segments = new Uri(route.Request.Url).AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+      var opportunityIndex = Array.IndexOf(segments, "opportunities");
+      Assert.InRange(opportunityIndex, 0, segments.Length - 2);
+      var seenOpportunityId = Guid.Parse(segments[opportunityIndex + 1]);
+      var call = Interlocked.Increment(ref proposalPosts);
+      if (call == 1)
+      {
+        committedTargetOpportunityId = seenOpportunityId;
+        committedRequestId = seenIdentity;
+        await using var accepted = await route.FetchAsync();
+        Assert.Equal(200, accepted.Status);
+        await route.AbortAsync("failed");
+      }
+      else if (call == 2)
+      {
+        retryTargetOpportunityId = seenOpportunityId;
+        retryRequestId = seenIdentity;
+        await route.AbortAsync("failed");
+      }
+      else
+      {
+        Assert.Equal(retryTargetOpportunityId, seenOpportunityId);
+        Assert.Equal(retryRequestId, seenIdentity);
+        await route.ContinueAsync();
+      }
+    });
+
+    var routePath = $"/ui/app/practice/leads/{leadId:D}";
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(routePath));
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "Opportunities", Exact = true })).ToBeVisibleAsync();
+    await page.GetByRole(AriaRole.Button, new() { Name = "Prepare initial proposal", Exact = true }).First.ClickAsync();
+    await page.GetByRole(AriaRole.Textbox, new() { Name = "Service profile", Exact = true }).FillAsync("Committed recovery profile");
+    await page.GetByRole(AriaRole.Textbox, new() { Name = "Deliverables", Exact = true }).FillAsync("Committed recovery report");
+    await page.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed the proposal terms.", Exact = true }).CheckAsync();
+    await page.GetByRole(AriaRole.Button, new() { Name = "Create initial draft", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByText("Proposal outcome unconfirmed", new() { Exact = false })).ToBeVisibleAsync();
+    Assert.NotEqual(Guid.Empty, committedRequestId);
+
+    await page.ReloadAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "Proposal", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByText("Committed recovery profile", new() { Exact = false })).ToBeVisibleAsync();
+    Assert.Equal(1, proposalPosts);
+    Assert.Contains(committedTargetOpportunityId, new[] { committedOpportunityId, retryOpportunityId });
+    await using (var db = host.CreateDbContext())
+    {
+      var proposal = await db.Proposals.SingleAsync(x => x.OpportunityId == committedTargetOpportunityId);
+      Assert.Equal(committedRequestId, proposal.Id);
+      Assert.Equal("Committed recovery report", proposal.Deliverables);
+    }
+
+    await page.GotoAsync(origin + $"/ui/app/practice/leads/{leadId:D}");
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "Opportunities", Exact = true })).ToBeVisibleAsync();
+    await page.GetByRole(AriaRole.Button, new() { Name = "Prepare initial proposal", Exact = true }).ClickAsync();
+    await page.GetByRole(AriaRole.Textbox, new() { Name = "Service profile", Exact = true }).FillAsync("Retry recovery profile");
+    await page.GetByRole(AriaRole.Textbox, new() { Name = "Deliverables", Exact = true }).FillAsync("Retry recovery report");
+    await page.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed the proposal terms.", Exact = true }).CheckAsync();
+    await page.GetByRole(AriaRole.Button, new() { Name = "Create initial draft", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByText("Proposal outcome unconfirmed", new() { Exact = false })).ToBeVisibleAsync();
+    Assert.NotEqual(Guid.Empty, retryRequestId);
+
+    await page.ReloadAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Button,
+      new() { Name = "Resolve saved proposal request", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Textbox,
+      new() { Name = "Service profile", Exact = true })).ToHaveValueAsync("Retry recovery profile");
+    await page.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed the proposal terms.", Exact = true }).CheckAsync();
+    await page.GetByRole(AriaRole.Button, new() { Name = "Resolve saved proposal request", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "Proposal", Exact = true })).ToBeVisibleAsync();
+    Assert.Equal(3, proposalPosts);
+    Assert.NotEqual(committedTargetOpportunityId, retryTargetOpportunityId);
+    Assert.Contains(retryTargetOpportunityId, new[] { committedOpportunityId, retryOpportunityId });
+    await using (var db = host.CreateDbContext())
+    {
+      var proposal = await db.Proposals.SingleAsync(x => x.OpportunityId == retryTargetOpportunityId);
+      Assert.Equal(retryRequestId, proposal.Id);
+      Assert.Equal("Retry recovery report", proposal.Deliverables);
+      Assert.Equal(2, await db.Proposals.CountAsync(x =>
+        x.OpportunityId == committedTargetOpportunityId || x.OpportunityId == retryTargetOpportunityId));
+    }
+    Assert.Empty(errors);
+  }
+
+  [Fact]
   [Trait("CaseId", "ANGULAR-COMMERCIAL-E2E-01")]
   public async Task QuotationPreview_Save_AndApprovalUsePersistedServerState()
   {

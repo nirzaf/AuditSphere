@@ -44,7 +44,8 @@ public sealed record ReviseProposalRequest(
   string Currency,
   string PeriodStart,
   string PeriodEnd,
-  long? ExpectedRevision = null);
+  long? ExpectedRevision = null,
+  Guid? RequestId = null);
 
 public sealed record ProposalResponseRequest(string Decision, string? Reason = null);
 
@@ -211,11 +212,40 @@ public static class PracticeCrmService
   {
     var validation = ValidateProposal(request);
     if (validation is not null) return CommandResult<Guid>.Fail("crm.invalid", validation);
+    if (request.RequestId == Guid.Empty ||
+        (request.RequestId.HasValue && !request.ExpectedRevision.HasValue))
+      return CommandResult<Guid>.Fail("crm.invalid", "A proposal request identity requires an expected revision.");
     var auth = await AuthorizeAsync(db, actor, ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+
+    if (request.RequestId is { } requestId)
+    {
+      var priorRequest = await db.Proposals.AsNoTracking()
+        .SingleOrDefaultAsync(x => x.Id == requestId, ct);
+      if (priorRequest is not null)
+      {
+        var matches = priorRequest.FirmId == actor.FirmId
+          && priorRequest.OpportunityId == request.OpportunityId
+          && priorRequest.PreparedByUserId == actor.UserId
+          && priorRequest.Revision == request.ExpectedRevision!.Value + 1
+          && priorRequest.ServiceProfileId == request.ServiceProfileId.Trim()
+          && priorRequest.Scope == request.Scope.Trim()
+          && priorRequest.Exclusions == request.Exclusions.Trim()
+          && priorRequest.Deliverables == request.Deliverables.Trim()
+          && priorRequest.Dependencies == request.Dependencies.Trim()
+          && priorRequest.Fee == request.Fee
+          && priorRequest.Currency == request.Currency.Trim().ToUpperInvariant()
+          && priorRequest.PeriodStart == request.PeriodStart.Trim()
+          && priorRequest.PeriodEnd == request.PeriodEnd.Trim();
+        return matches
+          ? CommandResult<Guid>.Ok(priorRequest.Id)
+          : CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict,
+            "This request identity is already bound to different proposal terms.");
+      }
+    }
 
     var opportunity = await db.Opportunities
       .SingleOrDefaultAsync(x => x.Id == request.OpportunityId && x.FirmId == actor.FirmId, ct);
@@ -234,7 +264,7 @@ public static class PracticeCrmService
     if (previous is not null) previous.Status = CrmStates.ProposalSuperseded;
     var proposal = new Proposal
     {
-      Id = Guid.CreateVersion7(), FirmId = actor.FirmId, OpportunityId = opportunity.Id,
+      Id = request.RequestId ?? Guid.CreateVersion7(), FirmId = actor.FirmId, OpportunityId = opportunity.Id,
       PracticeClientId = opportunity.PracticeClientId, Revision = (previous?.Revision ?? 0) + 1,
       Status = CrmStates.ProposalDraft, ServiceProfileId = request.ServiceProfileId.Trim(),
       Scope = request.Scope.Trim(), Exclusions = request.Exclusions.Trim(),

@@ -1,5 +1,6 @@
 using System.Globalization;
 using AuditSphereOps.Application.Practice;
+using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Api.Authentication;
 using Microsoft.AspNetCore.Antiforgery;
@@ -16,7 +17,7 @@ public static partial class UiEndpoints
   public sealed record ClientConversionInput(string LegalName);
   public sealed record ProposalRevisionInput(string ExpectedRevision, string ServiceProfile, string Scope,
     string Exclusions, string Deliverables, string Dependencies, string Fee, string Currency,
-    string PeriodStart, string PeriodEnd);
+    string PeriodStart, string PeriodEnd, Guid? RequestId = null);
   private static void MapCommercialEndpoints(RouteGroupBuilder group)
   {
     group.MapGet("/leads/{id:guid}", async (Guid id, HttpContext http, TrustedActorResolver resolver,
@@ -66,6 +67,7 @@ public static partial class UiEndpoints
         || input.Exclusions is null || input.Exclusions.Length > 10000
         || string.IsNullOrWhiteSpace(input.Deliverables) || input.Deliverables.Length > 10000
         || input.Dependencies is null || input.Dependencies.Length > 10000
+        || input.RequestId == Guid.Empty
         || input.Currency is null || input.Currency.Length != 3
         || input.PeriodStart is null || input.PeriodStart.Length != 10
         || input.PeriodEnd is null || input.PeriodEnd.Length != 10)
@@ -73,8 +75,10 @@ public static partial class UiEndpoints
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await PracticeCrmService.ReviseProposalAsync(db, actor,
         new(id, input.ServiceProfile, input.Scope, input.Exclusions, input.Deliverables, input.Dependencies,
-          fee, input.Currency, input.PeriodStart, input.PeriodEnd, revision), http.RequestAborted);
-      return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
+          fee, input.Currency, input.PeriodStart, input.PeriodEnd, revision, input.RequestId), http.RequestAborted);
+      if (result.Succeeded) return Results.Ok(new { id = result.Value });
+      var status = result.ErrorCode == ErrorCodes.IdempotencyConflict ? 409 : 400;
+      return Results.Json(new { code = result.ErrorCode }, statusCode: status);
     });
     group.MapGet("/proposals/{id:guid}", async (Guid id, HttpContext http, TrustedActorResolver resolver,
       IDbContextFactory<AuditSphereDbContext> factory) =>
