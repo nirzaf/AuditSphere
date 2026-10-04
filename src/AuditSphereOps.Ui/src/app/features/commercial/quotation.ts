@@ -412,6 +412,7 @@ export class Quotation {
   private read?: Subscription;
   private write?: Subscription;
   private fence = 0;
+  private refreshParentAfterUncertainSave = false;
   private reviewedBody?: object;
   readonly data = signal<Workspace | null>(null);
   readonly loading = signal(false);
@@ -479,6 +480,7 @@ export class Quotation {
         this.tabDraft.reset();
         this.read?.unsubscribe();
         this.write?.unsubscribe();
+        this.refreshParentAfterUncertainSave = false;
         this.data.set(null);
         this.busy.set(false);
         this.uncertain.set(false);
@@ -611,6 +613,7 @@ export class Quotation {
           if (changesFee && (!object(value) || !identity(value['id']))) {
             this.uncertain.set(true);
             this.data.set(null);
+            this.refreshParentAfterUncertainSave = true;
             this.invalidatePreview();
             this.message.set('Outcome unconfirmed. Refresh and review persisted versions.');
             return;
@@ -628,7 +631,10 @@ export class Quotation {
           this.busy.set(false);
           this.uncertain.set(!(failure.status >= 400 && failure.status < 500));
           this.invalidatePreview();
-          if (this.uncertain()) this.data.set(null);
+          if (this.uncertain()) {
+            this.data.set(null);
+            if (changesFee) this.refreshParentAfterUncertainSave = true;
+          }
           this.message.set(
             this.uncertain()
               ? 'Outcome unconfirmed. Refresh and review persisted versions before another command.'
@@ -670,6 +676,10 @@ export class Quotation {
               }
             }
             void this.tabDraft.bind(`commercial-quotation:${w.proposalId}`, w);
+            if (this.refreshParentAfterUncertainSave) {
+              this.refreshParentAfterUncertainSave = false;
+              this.changed.emit();
+            }
           } catch {
             this.error.set('Unsupported quotation response.');
           }

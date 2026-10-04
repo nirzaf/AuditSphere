@@ -509,7 +509,28 @@ public sealed class AngularCommercialJourneyTests
     if (await placeholder.CountAsync() > 0) await placeholder.ScrollIntoViewIfNeededAsync();
     var quotation = page.Locator("audit-quotation");
     await Assertions.Expect(quotation.GetByRole(AriaRole.Heading, new() { Name = "Calculated quotation", Exact = true })).ToBeVisibleAsync();
+    var quotationSavePosts = 0;
+    await page.RouteAsync($"**/api/ui/proposals/{proposalId:D}/quotation", async route =>
+    {
+      if (route.Request.Method != "POST") { await route.ContinueAsync(); return; }
+      if (Interlocked.Increment(ref quotationSavePosts) == 1)
+      {
+        await using (var accepted = await route.FetchAsync()) Assert.Equal(200, accepted.Status);
+        await route.AbortAsync("failed");
+        return;
+      }
+      await route.ContinueAsync();
+    });
     await quotation.GetByRole(AriaRole.Textbox, new() { Name = "Hours 1", Exact = true }).FillAsync("10");
+    await quotation.GetByRole(AriaRole.Button, new() { Name = "Calculate preview", Exact = true }).ClickAsync();
+    await Assertions.Expect(quotation.GetByText("Server preview:", new() { Exact = false })).ToContainTextAsync("7500");
+    await quotation.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed these inputs and the server-calculated total.", Exact = true }).CheckAsync();
+    await quotation.GetByRole(AriaRole.Button, new() { Name = "Save quotation version", Exact = true }).ClickAsync();
+    await Assertions.Expect(quotation.GetByText("Outcome unconfirmed. Refresh and review persisted versions before another command.", new() { Exact = true })).ToBeVisibleAsync();
+    await quotation.GetByRole(AriaRole.Button, new() { Name = "Refresh quotation", Exact = true }).ClickAsync();
+    await Assertions.Expect(quotation.GetByRole(AriaRole.Heading, new() { NameRegex = new Regex(@"^Revision 1 · DRAFT · ") })).ToBeVisibleAsync();
+    await Assertions.Expect(page.Locator("audit-proposal > dl").GetByText(new Regex(@"^7500(?:\.0+)? QAR$"))).ToBeVisibleAsync();
+    await quotation.GetByRole(AriaRole.Button, new() { Name = "I reviewed the persisted outcome", Exact = true }).ClickAsync();
     await quotation.GetByRole(AriaRole.Button, new() { Name = "Calculate preview", Exact = true }).ClickAsync();
     await Assertions.Expect(quotation.GetByText("Server preview:", new() { Exact = false })).ToContainTextAsync("7500");
     await quotation.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed these inputs and the server-calculated total.", Exact = true }).CheckAsync();
@@ -528,6 +549,7 @@ public sealed class AngularCommercialJourneyTests
       Assert.Equal("APPROVED", version.Status);
       Assert.Equal(7500m, (await db.Proposals.SingleAsync(p => p.Id == proposalId)).Fee);
     }
+    Assert.Equal(2, quotationSavePosts);
     var documentPlaceholder = page.GetByText("Commercial document generation and downloads", new() { Exact = true });
     if (await documentPlaceholder.CountAsync() > 0) await documentPlaceholder.ScrollIntoViewIfNeededAsync();
     var documents = page.Locator("audit-commercial-documents");
@@ -535,10 +557,29 @@ public sealed class AngularCommercialJourneyTests
     await documents.GetByRole(AriaRole.Button, new() { Name = "Refresh document state", Exact = true }).ClickAsync();
     await Assertions.Expect(documents.GetByText("Record client commercial acceptance and convert the proposal to a prospect client.", new() { Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(documents.GetByRole(AriaRole.Button, new() { Name = "Generate engagement letter", Exact = true })).ToBeDisabledAsync();
+    var documentGenerationPosts = 0;
+    await page.RouteAsync($"**/api/ui/proposals/{proposalId:D}/documents/quotation", async route =>
+    {
+      if (route.Request.Method != "POST") { await route.ContinueAsync(); return; }
+      if (Interlocked.Increment(ref documentGenerationPosts) == 1)
+      {
+        await using (var accepted = await route.FetchAsync()) Assert.Equal(200, accepted.Status);
+        await route.AbortAsync("failed");
+        return;
+      }
+      await route.ContinueAsync();
+    });
     await documents.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed this quotation, firm profile and document action.", Exact = true }).CheckAsync();
     await documents.GetByRole(AriaRole.Button, new() { Name = "Generate brief quotation", Exact = true }).ClickAsync();
+    await Assertions.Expect(documents.GetByText("Outcome unconfirmed. Refresh and review persisted artifacts before another command.", new() { Exact = true })).ToBeVisibleAsync();
+    await documents.GetByRole(AriaRole.Button, new() { Name = "Refresh document state", Exact = true }).ClickAsync();
     var downloadLink = documents.GetByRole(AriaRole.Link, new() { NameRegex = new Regex(@"^Quotation-.*\.docx$") });
     await Assertions.Expect(downloadLink).ToBeVisibleAsync();
+    await documents.GetByRole(AriaRole.Button, new() { Name = "I reviewed the persisted document outcome", Exact = true }).ClickAsync();
+    await documents.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed this quotation, firm profile and document action.", Exact = true }).CheckAsync();
+    await documents.GetByRole(AriaRole.Button, new() { Name = "Generate brief quotation", Exact = true }).ClickAsync();
+    await Assertions.Expect(documents.GetByText("Immutable document available. An existing document is reused for the same quotation.", new() { Exact = true })).ToBeVisibleAsync();
+    Assert.Equal(2, documentGenerationPosts);
     var downloaded = await page.RunAndWaitForDownloadAsync(() => downloadLink.ClickAsync());
     Assert.EndsWith(".docx", downloaded.SuggestedFilename);
     Assert.Null(await downloaded.FailureAsync());
@@ -570,9 +611,26 @@ public sealed class AngularCommercialJourneyTests
     await page.Locator("#proposal-fee-agreement").ScrollIntoViewIfNeededAsync();
     await Assertions.Expect(fees.GetByRole(AriaRole.Heading, new() { Name = "Agreed fee and billing milestones", Exact = true })).ToBeVisibleAsync();
     await fees.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed this fee, milestone and selected action.", Exact = true }).CheckAsync();
+    var feeAgreementPosts = 0;
+    await page.RouteAsync($"**/api/ui/proposals/{proposalId:D}/fee-agreement", async route =>
+    {
+      if (route.Request.Method != "POST") { await route.ContinueAsync(); return; }
+      if (Interlocked.Increment(ref feeAgreementPosts) == 1)
+      {
+        await using (var accepted = await route.FetchAsync()) Assert.Equal(200, accepted.Status);
+        await route.AbortAsync("failed");
+        return;
+      }
+      await route.ContinueAsync();
+    });
     await fees.GetByRole(AriaRole.Button, new() { Name = "Create fee agreement", Exact = true }).ClickAsync();
+    await Assertions.Expect(fees.GetByText("Outcome unconfirmed. Refresh and compare persisted invoices/payments before another command.", new() { Exact = true })).ToBeVisibleAsync();
+    await fees.GetByRole(AriaRole.Button, new() { Name = "Refresh fee agreement", Exact = true }).ClickAsync();
     await Assertions.Expect(fees.GetByRole(AriaRole.Table, new() { Name = "Persisted fee milestones", Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(fees.Locator("tbody tr")).ToHaveCountAsync(2);
+    await fees.GetByRole(AriaRole.Button, new() { Name = "I reviewed the persisted fee outcome", Exact = true }).ClickAsync();
+    Assert.Equal(1, feeAgreementPosts);
+    Assert.Equal(0, await fees.GetByRole(AriaRole.Button, new() { Name = "Create fee agreement", Exact = true }).CountAsync());
     await fees.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed this fee, milestone and selected action.", Exact = true }).CheckAsync();
     await Assertions.Expect(fees.GetByText("A current FinanceManager or FinanceReviewer assignment for this client is required for invoice and payment commands.", new() { Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(fees.GetByRole(AriaRole.Button, new() { Name = "Draft advance invoice", Exact = true })).ToBeDisabledAsync();
