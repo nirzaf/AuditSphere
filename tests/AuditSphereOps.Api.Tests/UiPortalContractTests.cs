@@ -118,6 +118,7 @@ public sealed class UiPortalContractTests
 
     using var resumed = await PostAsync(client, resumeUrl, resumeInput, csrf);
     Assert.Equal(HttpStatusCode.OK, resumed.StatusCode);
+    Assert.Equal("no-store", resumed.Headers.CacheControl?.ToString());
     var resumeBody = await resumed.Content.ReadFromJsonAsync<JsonElement>();
     var resume = resumeBody.GetProperty("value");
     Assert.Equal(uploadId, resume.GetProperty("uploadIntentId").GetGuid());

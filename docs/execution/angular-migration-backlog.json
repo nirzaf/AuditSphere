@@ -78,7 +78,7 @@
       "id": "US-013",
       "title": "Migrate uploads and downloads with exact evidence integrity",
       "status": "PARTIAL",
-      "scope": "Same-origin client chunk staging, browser SHA-256, exact declared bytes and protected downloads are migrated. Trusted completion and durable transfer remain server-owned. Comprehensive upload/resume/download parity remains open."
+      "scope": "Same-origin client chunk staging, browser SHA-256, exact declared bytes and protected downloads are migrated. Client portal recovery now reissues a one-transfer capability only after current participant/write-window checks and exact filename, size and SHA-256 confirmation; the capability hash alone is stored, capability responses are no-store, chunk offset/index comes from locked contiguous receipts, and stale capability checks repeat under the chunk lock. Interrupted acknowledgements resume without duplicate intents. Focused PostgreSQL API and browser journeys pass locally. Trusted completion and durable transfer remain server-owned; broader upload/resume/download parity remains open."
     },
     {
       "id": "US-014",
