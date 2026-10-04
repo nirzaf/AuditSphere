@@ -4,12 +4,12 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "404b4b8c8d821f3cf761c52c1dd6b20f8f753764",
-  "verifiedCommit": "404b4b8c8d821f3cf761c52c1dd6b20f8f753764",
+  "headCommit": "32ad07453c28171e4af658b1b2530b036d484d05",
+  "verifiedCommit": "32ad07453c28171e4af658b1b2530b036d484d05",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": true,
   "productionEnabled": false,
-  "verifiedAt": "2026-10-03T22:47:51Z",
+  "verifiedAt": "2026-10-04T05:24:39Z",
   "toolchain": {
     "sdk": ".NET 10",
     "efCore": "10.0.12",
@@ -7274,7 +7274,10 @@
         "passed": 2,
         "failed": 0,
         "skipped": 0,
-        "routeModes": ["/ui", "/app"]
+        "routeModes": [
+          "/ui",
+          "/app"
+        ]
       },
       "efModelDrift": "NONE",
       "builtInBrowser": "LIMITED: Authenticated Development Angular workspace reloaded at /ui/app/accounting. Read-only search found no synthetic invoice to open; no Development billing records were created. The invoice workflow was exercised in the owned PostgreSQL Playwright journey.",
@@ -7362,6 +7365,68 @@
         }
       },
       "boundary": "Release build, PostgreSQL-backed API/Domain/E2E suites and EF model check passed at the recorded source. The local Development database was backed up and advanced through all 142 repository migrations; readiness is 200. Built-in browser now renders the authenticated Angular mapping empty state for the current scope. Production migration/canary, live Microsoft acceptance, real assistive-technology acceptance and Blazor retirement remain separate gates."
+    },
+    "angularBlazorRuntimeRetirement": {
+      "codeCommit": "32ad07453c28171e4af658b1b2530b036d484d05",
+      "observedAt": "2026-10-04T05:24:39Z",
+      "status": "PASS_LOCAL_SLICE",
+      "ownerApproval": "Owner approved local Angular route cutover and Blazor runtime retirement on 2026-10-04.",
+      "runtimeBoundary": "AuditSphereOps.Api is the only supported runtime. ApiHost rejects legacyPresentation=true unless the host environment is Test. AuditSphereOps.Web remains as a Test-only regression fixture.",
+      "angularProductionBuild": "PASS",
+      "releaseSolutionBuild": {
+        "status": "PASS",
+        "warnings": 0,
+        "errors": 0
+      },
+      "retirementPolicyTests": {
+        "filter": "FullyQualifiedName~StandaloneApiHostTests.LegacyBlazorPresentation",
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0
+      },
+      "productionSecurityConfigTests": {
+        "filter": "FullyQualifiedName~CookieSecurityOptionsTests",
+        "passed": 5,
+        "failed": 0,
+        "skipped": 0
+      },
+      "testHostRouteSmoke": {
+        "filter": "FullyQualifiedName~RouteRenderSmokeTests",
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0
+      },
+      "fullSolutionRegression": {
+        "command": "dotnet test AuditSphereOps.slnx --no-build --configuration Release -m:1",
+        "api": {
+          "passed": 182,
+          "failed": 0,
+          "skipped": 0,
+          "duration": "13m 18s"
+        },
+        "domain": {
+          "passed": 644,
+          "failed": 0,
+          "skipped": 0,
+          "duration": "30m 16s"
+        },
+        "e2e": {
+          "passed": 203,
+          "failed": 0,
+          "skipped": 0,
+          "duration": "45m 24s"
+        },
+        "total": {
+          "passed": 1029,
+          "failed": 0,
+          "skipped": 0
+        },
+        "status": "PASS"
+      },
+      "efModelDrift": "NONE",
+      "builtInBrowser": "PASS: authenticated Development Angular Accounting workspace rendered at /app/accounting; navigation links use canonical /app routes and the authorized accounting-client table loaded. No business mutation was submitted.",
+      "testHarnessCorrection": "Two earlier full-suite attempts surfaced production-configuration tests still booting AuditSphereOps.Web. Cookie/Data Protection and unsafe development-identity configuration checks were moved to StandaloneApiApplicationFactory; focused suites and the final complete run passed.",
+      "boundary": "Local cutover and retirement are verified. Overall Angular migration acceptance remains PARTIAL. No production deployment/canary, real assistive-technology or wider-locale acceptance, or live Microsoft gate is claimed."
     }
   },
   "documentationWork": {
@@ -7468,8 +7533,8 @@
     "packageId": "ASP.NET Core API and Angular 22 presentation migration",
     "implementationStatus": "PARTIAL",
     "acceptanceStatus": "PARTIAL",
-    "scope": "Standalone API and native Angular capability slices preserve Application authorization, exact financial inputs, durable operations and independent human gates. Legacy Blazor remains available for rollback until wider parity and retirement acceptance.",
-    "nextAction": "Continue remaining partial Angular creation/planning/source-action parity and accessibility acceptance. US-019 now has reviewed receipt recording, posted-invoice allocation, FinanceManager credit notes and separate 100-row cursor-paged histories. API 178/178 and Domain 644/644 passed in the latest combined attempt; after strengthening the resource-planning preview journey, the complete E2E project passed 203/203 in a separate run. No single clean all-project invocation exists at the latest commit; the last clean all-project run was 1022/1022 at 404b4b8. The built-in Development browser had no synthetic invoice to open and no Development billing data was created. Production-like canary, screen-reader and wider-locale acceptance, live Microsoft gates and US-047 retirement work remain open.",
+    "scope": "Owner-approved local cutover is complete: the API serves canonical Angular routes and the legacy Web host is Test-only. Wider capability parity and production/external acceptance remain separate gates.",
+    "nextAction": "Continue any remaining partial Angular creation/planning/source-action parity, then complete production-like canary and owner acceptance, real screen-reader/wider-locale checks, and live Microsoft gates when their infrastructure is available. At code commit 32ad074, the Release solution suite passed API 182/182, Domain 644/644, E2E 203/203 (1,029 total; zero failed/skipped), Angular production build and Release build passed with zero warnings/errors, EF model drift was NONE, and the authenticated built-in browser showed canonical /app/accounting. US-047 local runtime retirement is complete; overall migration acceptance remains PARTIAL.",
     "branch": "master"
   },
   "localEvidence": [
@@ -8262,6 +8327,11 @@
       "item": "Microsoft 365 optional tenant administration — advanced Graph queries and Development live acceptance (2026-09-28)",
       "status": "LOCAL_VERIFIED",
       "details": "Source commit ec9709a adds $count=true plus ConsistencyLevel eventual for filtered group membership and user-only group listing, treats explicit null isAssignableToRole as ordinary while failing closed on missing/unknown values, and refuses HTTP guest redirect in the live Graph adapter. Focused GraphTenantAdministrationProviderTests passed 22/22. The opt-in live Development test passed 1/1: synthetic member created and bound, group member added and removed, guest invited with HTTPS redemption destination, and Graph sendMail accepted a PBC notification through the durable mail worker. Recipient inbox delivery was not verified. Synthetic user, guest and group were deleted; exact tenant reads returned none. Release Web build passed with 0 warnings/errors and EF model check found no changes. The broad solution run had one unrelated E2E timeout, whose isolated rerun passed. Production acceptance and independent review remain blocked external."
+    },
+    {
+      "item": "Owner-approved Angular runtime retirement (2026-10-04)",
+      "status": "LOCAL_VERIFIED",
+      "details": "At code commit 32ad074, ApiHost rejects legacy Blazor presentation outside Test; E2E retains the Test-only Web host. Angular production build and Release solution build passed (0 warnings/errors); retirement policy tests 4/4, production security configuration tests 5/5, Test host route smoke 1/1, full solution tests API 182/182 + Domain 644/644 + E2E 203/203 = 1,029/1,029 with zero failed or skipped, EF model drift NONE, and the built-in browser rendered authenticated canonical /app/accounting without a business mutation. Overall migration acceptance remains PARTIAL pending production/canary, assistive-technology/locale, broader source-action parity and live Microsoft gates."
     }
   ],
   "remainingLocalWork": [
@@ -8278,7 +8348,7 @@
     {
       "item": "ASP.NET Core API and Angular 22 migration",
       "status": "PARTIAL",
-      "details": "Native API and Angular capability routes, financial review/evidence actions and scoped portfolio/client/contact/engagement projections have local verification. A fresh current-source Release build and full PostgreSQL-backed suite passed at 404b4b8: API 176/176, Domain 644/644 and E2E 202/202, zero failures or skips; EF reported no model drift. The Development database was backed up and migrated through all 142 repository migrations; API readiness now returns 200. Built-in browser renders the authorized Mappings empty state for the current scope. Remaining: partial creation/planning/source-action parity, screen-reader and wider-locale acceptance, production-like canary, live Microsoft gates and owner-authorized Blazor retirement."
+      "details": "Native API and Angular capability routes, financial review/evidence actions, and scoped portfolio/client/contact/engagement projections have local verification. Owner-approved canonical Angular routing and non-Test Blazor runtime retirement are complete at code commit 32ad074; AuditSphereOps.Web is Test-only. The Release solution build passed with zero warnings/errors, Angular production build passed, the full PostgreSQL-backed solution suite passed API 182/182, Domain 644/644 and E2E 203/203 (1,029 total; zero failed/skipped), and EF reported no model drift. The Development browser rendered authenticated /app/accounting with canonical /app navigation and no mutation. Remaining: partial creation/planning/source-action parity, screen-reader/wider-locale acceptance, production-like canary, and live Microsoft gates."
     }
   ],
   "externalGates": [

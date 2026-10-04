@@ -554,7 +554,7 @@ Responsive confirmation forms no longer impose an intrinsic minimum width on the
 
 ### Retained confirmation closure evidence
 
-Closing a case now retains the human conclusion and an append-only snapshot of the exact case, current response and current alternative evidence. Closure takes the case lock, rechecks scope, refuses a second closure and requires independent review of the current evidence. Alternatives use the same timestamp-and-ID ordering as the native detail projection; an older reviewed alternative cannot clear a newer unreviewed revision. The API exposes only the retained conclusion, actor, timestamp and evidence digest, through the existing exact engagement authorization. Historical closed cases without a closure record are explicitly labelled as missing retained evidence; no backfill invents professional conclusions. The additive `ConfirmationClosureEvidence` migration adds scoped foreign keys, a unique case decision and an update/delete refusal trigger. Apply it through the approved deployment migration procedure before starting the upgraded API or rollback host. Local synthetic migration tests do not establish production deployment acceptance.
+Closing a case now retains the human conclusion and an append-only snapshot of the exact case, current response and current alternative evidence. Closure takes the case lock, rechecks scope, refuses a second closure and requires independent review of the current evidence. Alternatives use the same timestamp-and-ID ordering as the native detail projection; an older reviewed alternative cannot clear a newer unreviewed revision. The API exposes only the retained conclusion, actor, timestamp and evidence digest, through the existing exact engagement authorization. Historical closed cases without a closure record are explicitly labelled as missing retained evidence; no backfill invents professional conclusions. The additive `ConfirmationClosureEvidence` migration adds scoped foreign keys, a unique case decision and an update/delete refusal trigger. Apply it through the approved deployment migration procedure before starting the upgraded API. Local synthetic migration tests do not establish production deployment acceptance.
 
 ### Confirmation draft storage and navigation
 
@@ -582,7 +582,7 @@ The Angular trial-balance intake composes a dedicated native Signal Forms curren
 
 The existing Application query filters prior candidates by current firm/client/engagement grants before selection. An engagement-only assignment cannot see a sibling engagement's prior balances or identity, while a valid client-wide/firm-wide assignment can include authorized prior work. Expired wider grants never qualify. Source sealing, exact period ancestry, bounded account aggregation and latest approved rate validity fail closed. An invalid latest direction/effective interval cannot silently use an older positive observation. Final authorization and current/prior source, period and rate rechecks refuse a changed read before publication.
 
-The native panel limits rendered pages, labels a missing authorized prior comparison, and removes the previous result before a refreshed calculation. Changed filters mark displayed results stale; late or wrong-context responses cannot repopulate changed datasets or revoked sessions. Missing rates explain the required input correction without inventing approvable figures. Upload and mapping commands remain their existing separate workflows. Complete intake command/form/draft parity, rate/method editor parity and final Blazor retirement remain open.
+The native panel limits rendered pages, labels a missing authorized prior comparison, and removes the previous result before a refreshed calculation. Changed filters mark displayed results stale; late or wrong-context responses cannot repopulate changed datasets or revoked sessions. Missing rates explain the required input correction without inventing approvable figures. Upload and mapping commands remain their existing separate workflows. Complete intake command/form/draft parity, rate/method editor parity, and production/accessibility acceptance remain open. Local Blazor runtime retirement is complete; Web is Test-only.
 
 
 ## Native currency configuration
@@ -793,7 +793,8 @@ Changed context retains current local fields and requires a new complete review.
 The additive native-receipt migration is exercised only by owned local test databases.
 It was not applied to the shared Development database or production. Migration rollback
 refuses deletion of retained native receipts. Broader accounting form parity, high-volume
-performance/accessibility acceptance, controlled cutover and Blazor retirement remain open.
+performance/accessibility acceptance and production rollout remain open. Local cutover is
+complete; the legacy Web runtime is Test-only.
 
 ### Native statement contribution review
 
@@ -816,7 +817,8 @@ The complete contribution CSV is an explicit authenticated, antiforgery-protecte
 It carries the exact source/mapping basis, checks revision and bounds on the server, and
 protects text against spreadsheet formulas. It does not issue a financial package, record
 a professional conclusion or grant source/mapping approval. Complete migration acceptance,
-production-like performance, cutover/rollback and Blazor retirement remain open.
+production-like performance and deployment rollback readiness remain open. The local route
+cutover is complete, and Web is Test-only.
 
 ### Native journal revision lifecycle
 
@@ -845,8 +847,9 @@ management evidence; downloading them is neither external posting nor package ap
 
 The additive action-evidence migration and returned-line guard are exercised only in owned test
 databases. Rollback refuses deletion of retained action evidence. Native creation is described
-below. Native management response is described below. Reflection/application controls, broader accounting parity, production-like
-acceptance, cutover and Blazor retirement remain open. Executed verification lives in `status.json`.
+below. Native management response is described below. Reflection/application controls, broader
+accounting parity and production-like acceptance remain open. Local cutover is complete; the
+legacy Web runtime is Test-only. Executed verification lives in `status.json`.
 
 ### Native journal creation
 

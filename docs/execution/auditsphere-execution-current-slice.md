@@ -22,15 +22,22 @@ fixture; `ApiHost` rejects `legacyPresentation=true` in every other environment.
 Operator setup guidance now uses the API, and the accounting browser journey
 script builds Angular, applies migrations through API and launches API.
 
-Angular production build and Release solution build passed with zero warnings or
-errors. The retirement policy tests passed 4/4, the Test-host route-render smoke
-passed 1/1, and the built-in browser rendered the authenticated Accounting
-workspace at `http://localhost:5099/app/accounting` with canonical `/app` links.
-No business mutation was submitted. The full solution regression is in progress;
-its result and EF drift check will be added to `status.json` when observed.
-Production canary, real assistive-technology and wider-locale acceptance, and
-live Microsoft gates remain outside local verification. Overall migration status
-remains PARTIAL.
+At code commit `32ad074`, the Angular production build and Release solution build
+passed with zero warnings/errors. Retirement policy tests passed 4/4, production
+security configuration tests passed 5/5, and the Test-host route-render smoke
+passed 1/1. The complete PostgreSQL-backed solution suite then passed in one run:
+API 182/182, Domain 644/644 and E2E 203/203 (**1,029 passed, zero failed, zero
+skipped**). EF reported no pending model changes. The built-in browser rendered
+the authenticated Accounting workspace at `http://localhost:5099/app/accounting`
+with canonical `/app` links and its authorized client table. No business
+mutation was submitted. Two earlier full-suite attempts exposed security tests
+that still booted the retired Web host in Production; those tests now use the
+standalone API factory, and the final complete run passed.
+
+US-047 local runtime retirement is complete; overall migration acceptance stays
+PARTIAL. Production canary, real assistive-technology and wider-locale
+acceptance, remaining source-action parity and live Microsoft gates remain
+outside this local verification.
 
 ## Current Release regression and resource-planning browser journey
 
