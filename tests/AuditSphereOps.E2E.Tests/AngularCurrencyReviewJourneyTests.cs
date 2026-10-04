@@ -9,7 +9,7 @@ public sealed class AngularCurrencyReviewJourneyTests
   [Trait("CaseId", "ANGULAR-INTAKE-CURRENCY")]
   public async Task NativeClosingReview_Identity_MissingRate_StaleFilters_AndRevokedSession()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-INTAKE-CURRENCY"); CurrencyReviewFixture.Inputs i;
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-INTAKE-CURRENCY", startLegacyBlazorHosts: false); CurrencyReviewFixture.Inputs i;
     await using (var db = host.CreateDbContext()) i = await CurrencyReviewFixture.SeedAsync(db, host.Fixture, hiddenPrior: true);
     var origin = await host.StartApiForIdentityAsync(host.Fixture.Staff, new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
     using var playwright = await Playwright.CreateAsync(); await using var browser = await PlaywrightBrowser.LaunchAsync(playwright); var page = await browser.NewPageAsync(); var errors = new List<string>(); page.PageError += (_, e) => errors.Add(e);

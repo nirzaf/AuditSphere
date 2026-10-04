@@ -9,7 +9,7 @@ public sealed class AngularGeneralLedgerCompletenessJourneyTests
   [Trait("CaseId","ANGULAR-GL-COMPLETENESS")]
   public async Task NativePreparation_LostResponseReload_DurableWorker_IndependentApprovalAndRevocation()
   {
-    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-GL-COMPLETENESS");var p=await Seed(host);
+    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-GL-COMPLETENESS", startLegacyBlazorHosts: false);var p=await Seed(host);
     var origin=await host.StartApiForIdentityAsync(host.Fixture.Staff,new Dictionary<string,string>{["AngularUi__Enabled"]="true"});
     using var pw=await Playwright.CreateAsync();await using var browser=await PlaywrightBrowser.LaunchAsync(pw);var page=await browser.NewPageAsync();var errors=new List<string>();page.PageError+=(_,e)=>errors.Add(e);
     await page.GotoAsync(origin+"/auth/sign-in?returnUrl="+Uri.EscapeDataString($"/ui/app/engagements/{host.Fixture.EngagementId}/general-ledger"));
@@ -34,7 +34,7 @@ public sealed class AngularGeneralLedgerCompletenessJourneyTests
   [Trait("CaseId","ANGULAR-GL-COMPLETENESS-GATES")]
   public async Task MissingOpeningEvidence_NativeDraftProtection_StaleAssentAndIndependentRejection()
   {
-    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-GL-COMPLETENESS-GATES");var p=await Seed(host,missingOpening:true);
+    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-GL-COMPLETENESS-GATES", startLegacyBlazorHosts: false);var p=await Seed(host,missingOpening:true);
     var origin=await host.StartApiForIdentityAsync(host.Fixture.Staff,new Dictionary<string,string>{["AngularUi__Enabled"]="true"});using var pw=await Playwright.CreateAsync();await using var browser=await PlaywrightBrowser.LaunchAsync(pw);var page=await browser.NewPageAsync();
     await page.GotoAsync(origin+"/auth/sign-in?returnUrl="+Uri.EscapeDataString(Route(p.BatchId)));await page.GetByLabel("Closing trial balance",new(){Exact=true}).SelectOptionAsync(p.ClosingId.ToString("D"));await page.GetByRole(AriaRole.Button,new(){Name="Review completeness source pair",Exact=true}).ClickAsync();await Assertions.Expect(page.Locator("body")).ToContainTextAsync("Unknown opening is never zero");
     await page.GetByLabel("Completeness evidence reference",new(){Exact=true}).FillAsync("Unsubmitted completeness draft");await page.GetByRole(AriaRole.Link,new(){Name="Back to general ledger inspection",Exact=true}).ClickAsync();await Assertions.Expect(page.GetByRole(AriaRole.Dialog)).ToBeVisibleAsync();await page.GetByRole(AriaRole.Button,new(){Name="Keep editing",Exact=true}).ClickAsync();

@@ -35,7 +35,7 @@ internal sealed class OwnedBlazorHost : IAsyncDisposable
 
   public static async Task<OwnedBlazorHost> StartAsync(
     bool startWorker = true, bool enableSetup = false, string? caseId = null,
-    bool requireProtectionAttestation = false)
+    bool requireProtectionAttestation = false, bool startLegacyBlazorHosts = true)
   {
     var repo = FindRepositoryRoot();
     OwnedPostgresDatabase? pg = null;
@@ -49,8 +49,11 @@ internal sealed class OwnedBlazorHost : IAsyncDisposable
       var requestId = await PbcSeed.CreateSentAcknowledgedRequestAsync(pg, fixture,
         PbcSeed.Actor(fixture.Staff, "Staff"), PbcSeed.Actor(fixture.Client, "ClientUser"));
       host = new OwnedBlazorHost(pg, fixture, requestId, runRoot);
-      host.ClientUrl = await host.StartWebAsync(repo, fixture.Client, enableSetup);
-      host.StaffUrl = await host.StartWebAsync(repo, fixture.Staff, enableSetup, requireProtectionAttestation);
+      if (startLegacyBlazorHosts)
+      {
+        host.ClientUrl = await host.StartWebAsync(repo, fixture.Client, enableSetup);
+        host.StaffUrl = await host.StartWebAsync(repo, fixture.Staff, enableSetup, requireProtectionAttestation);
+      }
       if (startWorker) await host.StartWorkerAsync(repo);
       return host;
     }

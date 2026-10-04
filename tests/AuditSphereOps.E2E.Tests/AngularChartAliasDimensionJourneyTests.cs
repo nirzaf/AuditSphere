@@ -13,7 +13,7 @@ public sealed class AngularChartAliasDimensionJourneyTests
   public async Task StaffCanReviewAndPersistClientChartAliasAndDimension()
   {
     await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
-      caseId: "ANGULAR-CHART-ALIAS-DIMENSION-01");
+      caseId: "ANGULAR-CHART-ALIAS-DIMENSION-01", startLegacyBlazorHosts: false);
     var fixture = host.Fixture;
     string clientName;
     Guid chartId, accountId;

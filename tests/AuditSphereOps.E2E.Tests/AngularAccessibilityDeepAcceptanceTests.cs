@@ -37,7 +37,7 @@ public sealed class AngularAccessibilityDeepAcceptanceTests
   [Trait("CaseId", "ANGULAR-A11Y-DEEP-E2E")]
   public async Task ScreenReaderProxySemantics_LiveRegionsAndDialogMatrix_HoldAcrossTheShell()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-A11Y-DEEP-E2E");
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-A11Y-DEEP-E2E", startLegacyBlazorHosts: false);
     var origin = await host.StartApiForIdentityAsync(host.Fixture.Admin,
       new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
     using var playwright = await Playwright.CreateAsync();
@@ -111,7 +111,7 @@ public sealed class AngularAccessibilityDeepAcceptanceTests
   [Trait("CaseId", "ANGULAR-LOCALE-THROTTLE-E2E")]
   public async Task LocaleMatrix_RendersWithoutErrors_AndConstrainedNetworkStillLoadsLazyRoutes()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-LOCALE-THROTTLE-E2E");
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-LOCALE-THROTTLE-E2E", startLegacyBlazorHosts: false);
     var origin = await host.StartApiForIdentityAsync(host.Fixture.Staff,
       new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
     using var playwright = await Playwright.CreateAsync();
@@ -159,7 +159,7 @@ public sealed class AngularAccessibilityDeepAcceptanceTests
   [Trait("CaseId", "ANGULAR-SUSTAINED-LOAD-E2E")]
   public async Task SustainedNavigation_AcrossLazyRoutes_StaysWithinPerNavigationCeiling()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-SUSTAINED-LOAD-E2E");
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-SUSTAINED-LOAD-E2E", startLegacyBlazorHosts: false);
     var origin = await host.StartApiForIdentityAsync(host.Fixture.Staff,
       new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
     using var playwright = await Playwright.CreateAsync();

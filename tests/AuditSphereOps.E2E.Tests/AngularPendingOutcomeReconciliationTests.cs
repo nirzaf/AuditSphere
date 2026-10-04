@@ -18,7 +18,7 @@ public sealed class AngularPendingOutcomeReconciliationTests
   [Trait("CaseId", "ANGULAR-PENDING-OUTCOME-E2E")]
   public async Task LostCommandResponse_SurfacesGlobally_DeepLinksAndClearsAfterAcknowledgment()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-PENDING-OUTCOME-E2E");
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-PENDING-OUTCOME-E2E", startLegacyBlazorHosts: false);
     var f = host.Fixture;
     await using (var db = host.CreateDbContext())
     {

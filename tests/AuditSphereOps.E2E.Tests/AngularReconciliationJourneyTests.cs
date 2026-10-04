@@ -10,7 +10,7 @@ public sealed class AngularReconciliationJourneyTests
   [Trait("CaseId","ANGULAR-RECONCILIATION-REVIEW")]
   public async Task RetainedProofSourceChangeAndRevocationRemainVisibleAndScoped()
   {
-    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-RECONCILIATION-REVIEW");
+    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-RECONCILIATION-REVIEW", startLegacyBlazorHosts: false);
     var s=await ReconciliationReviewSeed.SeedAsync(host.Database);var f=s.Fixture;
     var origin=await host.StartApiForIdentityAsync(f.Staff,new Dictionary<string,string> { ["AngularUi__Enabled"]="true",["Application__FirmId"]=f.FirmId.ToString("D") });
     using var pw=await Playwright.CreateAsync();await using var browser=await PlaywrightBrowser.LaunchAsync(pw);var page=await browser.NewPageAsync();

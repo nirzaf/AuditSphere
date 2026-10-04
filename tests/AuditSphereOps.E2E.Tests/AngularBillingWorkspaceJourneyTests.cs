@@ -11,7 +11,7 @@ public sealed class AngularBillingWorkspaceJourneyTests
   [Fact]
   public async Task FinanceManagerRecordsAllocatesAndRecoversCreditNoteInNativeInvoiceWorkspace()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-BILLING-WORKSPACE-E2E");
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-BILLING-WORKSPACE-E2E", startLegacyBlazorHosts: false);
     var f = host.Fixture;
     var manager = PbcSeed.Actor(f.Admin, "FinanceManager");
     var reviewer = PbcSeed.Actor(f.Reviewer, "FinanceReviewer");

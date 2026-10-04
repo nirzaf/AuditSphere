@@ -10,7 +10,7 @@ public sealed class AngularPlanningAssentJourneyTests
     [InlineData(true)]
     public async Task ChangedStaffingSelectionClearsNativeAssentWithoutDispatch(bool canonical)
     {
-        await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-PLANNING-ASSENT-E2E");
+        await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-PLANNING-ASSENT-E2E", startLegacyBlazorHosts: false);
         var fixture = host.Fixture;
         await using (var db = host.CreateDbContext()) await BudgetPreparationReviewSeed.PopulateAsync(db, fixture);
         var origin = await host.StartApiForIdentityAsync(fixture.Staff, new Dictionary<string, string>

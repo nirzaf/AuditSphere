@@ -12,7 +12,7 @@ public sealed class AngularAssessmentParityJourneyTests
   [InlineData(true)]
   public async Task ExactHistoryProfileProgressAndCurrentDecisionAssentRemainScoped(bool canonical)
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-ASSESSMENT-PARITY");
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-ASSESSMENT-PARITY", startLegacyBlazorHosts: false);
     var f = host.Fixture;
     Guid decisionId;
     await using (var db = host.CreateDbContext()) decisionId = await AssessmentParitySeed.PopulateAsync(db, f);

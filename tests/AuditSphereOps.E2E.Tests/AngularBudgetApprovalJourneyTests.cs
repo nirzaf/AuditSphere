@@ -11,7 +11,7 @@ public sealed class AngularBudgetApprovalJourneyTests
   [InlineData(true)]
   public async Task IndependentApprovalLostResponseReloadAndReceiptNeverResubmit(bool canonical)
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker:false, caseId:"ANGULAR-BUDGET-APPROVAL-E2E");
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker:false, caseId:"ANGULAR-BUDGET-APPROVAL-E2E", startLegacyBlazorHosts: false);
     var f = host.Fixture;
     await using (var db = host.CreateDbContext()) { await BudgetApprovalReviewSeed.PopulateAsync(db, f); }
     var origin = await host.StartApiForIdentityAsync(f.Admin, new Dictionary<string,string> {

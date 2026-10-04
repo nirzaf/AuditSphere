@@ -10,7 +10,7 @@ public sealed class AngularTrialBalanceUploadJourneyTests
   [Trait("CaseId", "ANGULAR-TB-UPLOAD")]
   public async Task NativeReviewedUpload_InvalidPeriod_CheckpointRecovery_WorkerValidation_AndRevocation()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(caseId: "ANGULAR-TB-UPLOAD"); await Seed(host);
+    await using var host = await OwnedBlazorHost.StartAsync(caseId: "ANGULAR-TB-UPLOAD", startLegacyBlazorHosts: false); await Seed(host);
     var origin = await host.StartApiForIdentityAsync(host.Fixture.Staff, new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
     using var pw = await Playwright.CreateAsync(); await using var browser = await PlaywrightBrowser.LaunchAsync(pw); var page = await browser.NewPageAsync(); var errors = new List<string>(); page.PageError += (_, e) => errors.Add(e);
     var route = $"/ui/app/engagements/{host.Fixture.EngagementId}/tb-intake"; await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(route));
@@ -39,7 +39,7 @@ public sealed class AngularTrialBalanceUploadJourneyTests
   [Trait("CaseId", "ANGULAR-TB-UNKNOWN")]
   public async Task AcceptedImportWithLostResponse_ReconcilesWithoutDuplicateOrAutomaticRetry()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-TB-UNKNOWN"); await Seed(host);
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-TB-UNKNOWN", startLegacyBlazorHosts: false); await Seed(host);
     var origin = await host.StartApiForIdentityAsync(host.Fixture.Staff, new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" }); using var pw = await Playwright.CreateAsync(); await using var browser = await PlaywrightBrowser.LaunchAsync(pw); var page = await browser.NewPageAsync(); var writes = 0;
     await page.RouteAsync("**/tb-intake/import", async r => { writes++; var accepted = await r.FetchAsync(); Assert.Equal(200, accepted.Status); await r.AbortAsync("failed"); });
     var route = $"/ui/app/engagements/{host.Fixture.EngagementId}/tb-intake"; await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(route));

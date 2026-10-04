@@ -10,7 +10,7 @@ public sealed class AngularAccountingEvidenceQueueJourneyTests
   [Trait("CaseId", "ANGULAR-EVIDENCE-QUEUE-ACCESS")]
   public async Task ScopedEvidenceCountsRemainIsolatedAndDisappearAfterEpochLoss()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-EVIDENCE-QUEUE-ACCESS");
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-EVIDENCE-QUEUE-ACCESS", startLegacyBlazorHosts: false);
     var (f, _) = await AccountingEvidenceQueueSeed.SeedAsync(host.Database);
     var origin = await host.StartApiForIdentityAsync(f.Staff, new Dictionary<string, string> {
       ["AngularUi__Enabled"] = "true", ["Application__FirmId"] = f.FirmId.ToString("D") });

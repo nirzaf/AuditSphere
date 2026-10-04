@@ -10,7 +10,7 @@ public sealed class AngularSharePointJourneyTests
   [Trait("CaseId", "ANGULAR-SELECTED-SHAREPOINT")]
   public async Task ExactResourceDraftAndTemplateApproval_RemainSeparateFromLiveVerification()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-SELECTED-SHAREPOINT");
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-SELECTED-SHAREPOINT", startLegacyBlazorHosts: false);
     var seeded = await TenantAdministrationJourneyTests.SeedAsync(host, verified: true);
     var settings = TenantAdministrationJourneyTests.Simulation(seeded); settings["AngularUi__Enabled"] = "true";
     var origin = await host.StartApiForIdentityAsync(seeded.Admin,settings);

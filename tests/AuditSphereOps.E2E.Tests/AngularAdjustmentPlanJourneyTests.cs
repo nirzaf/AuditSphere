@@ -12,7 +12,7 @@ public sealed class AngularAdjustmentPlanJourneyTests
   [Trait("CaseId","ANGULAR-ADJUSTMENT-PLAN-COMMAND")]
   public async Task ReviewedCreationFinalizationAndRetainedHistoryPreserveExactSource()
   {
-    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-ADJUSTMENT-PLAN-COMMAND");
+    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-ADJUSTMENT-PLAN-COMMAND", startLegacyBlazorHosts: false);
     AdjustmentPlanReviewSeed.Result seed;
     await using(var db=host.CreateDbContext()) seed=await AdjustmentPlanReviewSeed.SeedAsync(db,host.Fixture);
     var origin=await host.StartApiForIdentityAsync(host.Fixture.Staff,new Dictionary<string,string>{["AngularUi__Enabled"]="true"});
@@ -60,7 +60,7 @@ public sealed class AngularAdjustmentPlanJourneyTests
   [Trait("CaseId","ANGULAR-ADJUSTMENT-PLAN-REVIEW")]
   public async Task NativeQueueCurrentReflectionMobileAndEpochLossRemainExact()
   {
-    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-ADJUSTMENT-PLAN-REVIEW");
+    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-ADJUSTMENT-PLAN-REVIEW", startLegacyBlazorHosts: false);
     AdjustmentPlanReviewSeed.Result seed;
     await using(var db=host.CreateDbContext()) seed=await AdjustmentPlanReviewSeed.SeedAsync(db,host.Fixture);
     var origin=await host.StartApiForIdentityAsync(host.Fixture.Staff,new Dictionary<string,string>{["AngularUi__Enabled"]="true"});

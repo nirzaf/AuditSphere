@@ -12,7 +12,7 @@ public sealed class AngularEngagementCreationJourneyTests
   [Trait("CaseId","ANGULAR-ENGAGEMENT-CREATION-E2E")]
   public async Task ReviewBlockedCreationDraftLostResponseRecoveryAndRevocation(bool canonical)
   {
-    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-ENGAGEMENT-CREATION-E2E");var f=host.Fixture;
+    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-ENGAGEMENT-CREATION-E2E", startLegacyBlazorHosts: false);var f=host.Fixture;
     await using(var db=host.CreateDbContext()) {
       await EngagementCreationReviewSeed.PopulateAsync(db,f); }
     var origin=await host.StartApiForIdentityAsync(f.Staff,new Dictionary<string,string>{["AngularUi__Enabled"]="true",["AngularUi__CanonicalRoutes"]=canonical.ToString()});

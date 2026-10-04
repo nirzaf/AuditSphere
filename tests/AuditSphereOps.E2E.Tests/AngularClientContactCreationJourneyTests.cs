@@ -12,7 +12,7 @@ public sealed class AngularClientContactCreationJourneyTests
   [Trait("CaseId","ANGULAR-CLIENT-CONTACT-CREATION-E2E")]
   public async Task ReviewPrimaryReplacementDraftLostResponseRecoveryAndRevocation(bool canonical)
   {
-    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-CLIENT-CONTACT-CREATION-E2E");var f=host.Fixture;
+    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-CLIENT-CONTACT-CREATION-E2E", startLegacyBlazorHosts: false);var f=host.Fixture;
     await using(var db=host.CreateDbContext()) {
       await ClientProfileWorkspaceSeed.PopulateAsync(db,f);
       db.RoleGrants.Add(PbcSeed.Grant(f.FirmId,f.Staff,"Manager",f.ClientId));await db.SaveChangesAsync(); }

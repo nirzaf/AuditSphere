@@ -8,7 +8,7 @@ public sealed class AngularGeneralLedgerJourneyTests
   [Trait("CaseId","ANGULAR-GL-INSPECTION")]
   public async Task ScopedSource_Filters_ServerPages_FullJournal_MobileAndRevocation()
   {
-    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-GL-INSPECTION");var id=await Seed(host);
+    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-GL-INSPECTION", startLegacyBlazorHosts: false);var id=await Seed(host);
     var origin=await host.StartApiForIdentityAsync(host.Fixture.Admin,new Dictionary<string,string>{{"AngularUi__Enabled","true"}});
     using var pw=await Playwright.CreateAsync();await using var browser=await PlaywrightBrowser.LaunchAsync(pw);var page=await browser.NewPageAsync();var errors=new List<string>();page.PageError+=(_,e)=>errors.Add(e);
     await page.GotoAsync(origin+"/auth/sign-in?returnUrl="+Uri.EscapeDataString(Route(host.Fixture.EngagementId)));
@@ -26,7 +26,7 @@ public sealed class AngularGeneralLedgerJourneyTests
   [Trait("CaseId","ANGULAR-GL-RECOVERY")]
   public async Task FailedRead_ClearsData_ExplicitRefreshRecovers_AndAnotherContextIsRefused()
   {
-    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-GL-RECOVERY");var id=await Seed(host);
+    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-GL-RECOVERY", startLegacyBlazorHosts: false);var id=await Seed(host);
     var origin=await host.StartApiForIdentityAsync(host.Fixture.Admin,new Dictionary<string,string>{{"AngularUi__Enabled","true"}});using var pw=await Playwright.CreateAsync();await using var browser=await PlaywrightBrowser.LaunchAsync(pw);var page=await browser.NewPageAsync();
     await page.GotoAsync(origin+"/auth/sign-in?returnUrl="+Uri.EscapeDataString(Route(host.Fixture.EngagementId)));await page.GetByRole(AriaRole.Button,new(){Name="Inspect ledger "+id,Exact=true}).ClickAsync();await Assertions.Expect(page.GetByRole(AriaRole.Region,new(){Name="General ledger lines",Exact=true})).ToBeVisibleAsync();
     var fail=true;await page.RouteAsync($"**/general-ledger/{id}?*",async r=>{if(fail){await r.FulfillAsync(new(){Status=503,ContentType="application/json",Body="{}"});return;}await r.ContinueAsync();});

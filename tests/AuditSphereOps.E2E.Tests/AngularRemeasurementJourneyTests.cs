@@ -8,7 +8,7 @@ public sealed class AngularRemeasurementJourneyTests
   [Trait("CaseId", "ANGULAR-FX-NATIVE-LIFECYCLE")]
   public async Task NativeDraftRecovery_ExactPreparation_IndependentApproval_StaleInputs_AndRevocation()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-FX-NATIVE-LIFECYCLE");
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-FX-NATIVE-LIFECYCLE", startLegacyBlazorHosts: false);
     RemeasurementFixture.Inputs i; await using (var db = host.CreateDbContext()) i = await RemeasurementFixture.SeedAsync(db, host.Fixture);
     var settings = new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" };
     var origin = await host.StartApiForIdentityAsync(host.Fixture.Staff, settings); var reviewerOrigin = await host.StartApiForIdentityAsync(host.Fixture.Reviewer, settings);

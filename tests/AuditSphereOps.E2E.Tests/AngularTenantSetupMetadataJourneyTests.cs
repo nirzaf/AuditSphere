@@ -10,7 +10,7 @@ public sealed class AngularTenantSetupMetadataJourneyTests
   [InlineData(true)]
   public async Task SavedSetupIsDisplayedSeparatelyFromConsentAndLiveVerification(bool canonical)
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-TENANT-SETUP-METADATA");
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-TENANT-SETUP-METADATA", startLegacyBlazorHosts: false);
     var f = host.Fixture;
     await using (var db = host.CreateDbContext())
     {

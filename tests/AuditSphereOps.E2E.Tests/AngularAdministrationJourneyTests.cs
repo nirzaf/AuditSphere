@@ -9,7 +9,7 @@ public sealed class AngularAdministrationJourneyTests
   [Trait("CaseId", "ANGULAR-ADMINISTRATION-E2E")]
   public async Task ReviewedRoleScopeAndRevocation_PersistEvidence_AndInvalidateOpenSessions()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-ADMINISTRATION-E2E");
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-ADMINISTRATION-E2E", startLegacyBlazorHosts: false);
     var settings = new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" };
     var adminOrigin = await host.StartApiForIdentityAsync(host.Fixture.Admin, settings);
     var staffOrigin = await host.StartApiForIdentityAsync(host.Fixture.Staff, settings);

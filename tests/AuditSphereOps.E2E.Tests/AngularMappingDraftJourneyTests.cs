@@ -12,7 +12,7 @@ public sealed class AngularMappingDraftJourneyTests
   [Fact][Trait("CaseId", "ANGULAR-MAPPING-BATCH")]
   public async Task NativeSplitDraftRecoveryAndLostCreateResponsePreserveApprovedHistory()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-MAPPING-BATCH");
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-MAPPING-BATCH", startLegacyBlazorHosts: false);
     var parent = await Seed(host);
     var origin = await host.StartApiForIdentityAsync(host.Fixture.Staff, new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
     using var pw = await Playwright.CreateAsync(); await using var browser = await PlaywrightBrowser.LaunchAsync(pw); var page = await browser.NewPageAsync();
@@ -66,7 +66,7 @@ public sealed class AngularMappingDraftJourneyTests
   [Fact][Trait("CaseId", "ANGULAR-MAPPING-BATCH-GATES")]
   public async Task KeyboardPasteAndStaleBatchRemainExplicitAndPublishNoPartialVersion()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-MAPPING-BATCH-GATES");
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-MAPPING-BATCH-GATES", startLegacyBlazorHosts: false);
     var parent = await Seed(host); var origin = await host.StartApiForIdentityAsync(host.Fixture.Staff, new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
     using var pw = await Playwright.CreateAsync(); await using var browser = await PlaywrightBrowser.LaunchAsync(pw); var page = await browser.NewPageAsync();
     await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString($"/ui/app/accounting/mappings/{parent}/edit"));

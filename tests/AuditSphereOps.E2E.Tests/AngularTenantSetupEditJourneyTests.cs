@@ -9,7 +9,7 @@ public sealed class AngularTenantSetupEditJourneyTests
   [Fact]
   public async Task ReviewedSetupCanRecoverCommittedReceiptAfterReloadWithoutAnotherMutation()
   {
-    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-TENANT-SETUP-EDIT");
+    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-TENANT-SETUP-EDIT", startLegacyBlazorHosts: false);
     var f=host.Fixture; var tenant=Guid.NewGuid().ToString("D"); f.Admin.TenantId=tenant;
     var draftId=Guid.CreateVersion7(); var now=DateTimeOffset.UtcNow; var sessionId=Guid.CreateVersion7();
     await using(var db=host.CreateDbContext())

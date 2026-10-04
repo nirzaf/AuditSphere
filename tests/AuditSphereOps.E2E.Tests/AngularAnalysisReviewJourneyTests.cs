@@ -10,7 +10,7 @@ public sealed class AngularAnalysisReviewJourneyTests
   [Trait("CaseId","ANGULAR-ANALYSIS-REVIEW")]
   public async Task NativeEvidenceNavigationPreservesExactInputsProvenanceAndRevocationFences()
   {
-    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-ANALYSIS-REVIEW");var s=await AccountingAnalysisReviewSeed.SeedAsync(host.Database);var f=s.Fixture;
+    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-ANALYSIS-REVIEW", startLegacyBlazorHosts: false);var s=await AccountingAnalysisReviewSeed.SeedAsync(host.Database);var f=s.Fixture;
     var origin=await host.StartApiForIdentityAsync(f.Staff,new Dictionary<string,string>{["AngularUi__Enabled"]="true",["Application__FirmId"]=f.FirmId.ToString("D")});
     using var pw=await Playwright.CreateAsync();await using var browser=await PlaywrightBrowser.LaunchAsync(pw);var page=await browser.NewPageAsync();
     var errors=new List<string>();page.PageError+=(_,e)=>errors.Add(e);

@@ -10,7 +10,7 @@ public sealed class AngularEngagementProfileJourneyTests
   [Trait("CaseId","ANGULAR-ENGAGEMENT-PREPARATION-AUTHORITY")]
   public async Task PreparationLinksFollowTheExactRoleScopeAndDirectRoutesStayProtected()
   {
-    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-ENGAGEMENT-PREPARATION-AUTHORITY");
+    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-ENGAGEMENT-PREPARATION-AUTHORITY", startLegacyBlazorHosts: false);
     var f=host.Fixture;
     var origin=await host.StartApiForIdentityAsync(f.Staff,new Dictionary<string,string> {
       ["AngularUi__Enabled"]="true",["AngularUi__CanonicalRoutes"]="true" });
@@ -35,7 +35,7 @@ public sealed class AngularEngagementProfileJourneyTests
   [Trait("CaseId","ANGULAR-ENGAGEMENT-PROFILE-E2E")]
   public async Task MetadataPagedHoldsPreservedPlanningFieldsAndRevocation(bool canonical)
   {
-    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-ENGAGEMENT-PROFILE-E2E");
+    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-ENGAGEMENT-PROFILE-E2E", startLegacyBlazorHosts: false);
     var f=host.Fixture; await using(var db=host.CreateDbContext()) {
       await EngagementProfileWorkspaceSeed.PopulateAsync(db,f);
       // Editing is reviewed budget-preparation authority, not Administrator authority.
@@ -87,7 +87,7 @@ public sealed class AngularEngagementProfileJourneyTests
   [InlineData(true)]
   public async Task AdministratorStaffingAndApprovalDoNotConferBudgetPreparation(bool canonical)
   {
-    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-PLANNING-AUTHORITY-E2E");
+    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-PLANNING-AUTHORITY-E2E", startLegacyBlazorHosts: false);
     var f=host.Fixture;
     await using(var db=host.CreateDbContext()) {
       await BudgetPreparationReviewSeed.PopulateAsync(db,f);

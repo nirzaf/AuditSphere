@@ -11,7 +11,7 @@ public sealed class AngularAccountingJourneyTests
   [Trait("CaseId", "ANGULAR-ACCOUNTING-E2E-01")]
   public async Task ReviewedSetupPersistsProfilePeriodAndBook()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-ACCOUNTING-E2E-01");
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-ACCOUNTING-E2E-01", startLegacyBlazorHosts: false);
     var origin = await host.StartApiForIdentityAsync(host.Fixture.Admin,
       new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
     string clientName;

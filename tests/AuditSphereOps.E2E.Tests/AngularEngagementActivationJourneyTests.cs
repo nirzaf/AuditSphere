@@ -7,7 +7,7 @@ public sealed class AngularEngagementActivationJourneyTests
   [Theory][InlineData(false)][InlineData(true)]
   public async Task ExactPartnerReviewLostResponseReceiptReloadAndRevocation(bool canonical)
   {
-    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-PARTNER-ACTIVATION");var f=host.Fixture;
+    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-PARTNER-ACTIVATION", startLegacyBlazorHosts: false);var f=host.Fixture;
     await using(var db=host.CreateDbContext()){await EngagementActivationReviewSeed.PopulateAsync(db,f);}
     var origin=await host.StartApiForIdentityAsync(f.Staff,new Dictionary<string,string>{["AngularUi__Enabled"]="true",["AngularUi__CanonicalRoutes"]=canonical.ToString()});var prefix=canonical?"":"/ui";
     using var playwright=await Playwright.CreateAsync();await using var browser=await PlaywrightBrowser.LaunchAsync(playwright);await using var context=await browser.NewContextAsync();var page=await context.NewPageAsync();

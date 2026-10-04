@@ -12,7 +12,7 @@ public sealed class AngularClientProfileJourneyTests
   [Trait("CaseId", "ANGULAR-CLIENT-PROFILE-E2E")]
   public async Task ScopedMetadataIndependentPagesReloadMobileAndRevocation(bool canonical)
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-CLIENT-PROFILE-E2E");
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-CLIENT-PROFILE-E2E", startLegacyBlazorHosts: false);
     var f = host.Fixture;
     await using (var db = host.CreateDbContext()) { await ClientProfileWorkspaceSeed.PopulateAsync(db, f); }
     var prefix = canonical ? "" : "/ui";

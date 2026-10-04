@@ -10,7 +10,7 @@ public sealed class AngularGeneralLedgerAcceptanceJourneyTests
   [Trait("CaseId", "ANGULAR-GL-ACCEPTANCE")]
   public async Task InspectionIndependentAcceptance_UnknownSaveReloadAndRevocation()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-GL-ACCEPTANCE");
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-GL-ACCEPTANCE", startLegacyBlazorHosts: false);
     var first = await Seed(host); var second = await Seed(host);
     var origin = await host.StartApiForIdentityAsync(host.Fixture.Admin, new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
     using var pw = await Playwright.CreateAsync(); await using var browser = await PlaywrightBrowser.LaunchAsync(pw);
@@ -54,7 +54,7 @@ public sealed class AngularGeneralLedgerAcceptanceJourneyTests
   [Trait("CaseId", "ANGULAR-GL-ACCEPTANCE-GATES")]
   public async Task ImporterCannotAccept_StaleReviewRefused_AndNavigationProtectsIntent()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-GL-ACCEPTANCE-GATES");
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-GL-ACCEPTANCE-GATES", startLegacyBlazorHosts: false);
     var id = await Seed(host); var self = await Seed(host, self: true);
     var origin = await host.StartApiForIdentityAsync(host.Fixture.Admin, new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
     using var pw = await Playwright.CreateAsync(); await using var browser = await PlaywrightBrowser.LaunchAsync(pw); var page = await browser.NewPageAsync();

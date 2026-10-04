@@ -9,7 +9,7 @@ public sealed class AngularJournalCreationJourneyTests
   [Fact][Trait("CaseId","ANGULAR-JOURNAL-CREATION")]
   public async Task ExactSourceCreationRecoversUnknownResultAndRetainsOriginalLinesInNativeHistory()
   {
-    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-JOURNAL-CREATION");Guid source,journal;
+    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-JOURNAL-CREATION", startLegacyBlazorHosts: false);Guid source,journal;
     await using(var db=host.CreateDbContext()){journal=await JournalReviewSeed.SeedAsync(db,host.Fixture);source=await db.AdjustmentJournals.Where(x=>x.Id==journal).Select(x=>x.BaseDatasetId).SingleAsync();}
     var origin=await host.StartApiForIdentityAsync(host.Fixture.Staff,new Dictionary<string,string>{["AngularUi__Enabled"]="true"});
     using var pw=await Playwright.CreateAsync();await using var browser=await PlaywrightBrowser.LaunchAsync(pw);var page=await browser.NewPageAsync();var errors=new List<string>();page.PageError+=(_,e)=>errors.Add(e);
