@@ -15,7 +15,7 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## AS-PAR-002: client-scoped audit fieldwork command isolation
 
-Three PostgreSQL-backed regressions seed sibling clients A and B and use real
+PostgreSQL-backed regressions seed sibling clients A and B and use real
 client-B record identifiers. A Partner scoped only to A is denied audit-program
 adoption, procedure applicability changes, result submission and result review;
 the target procedure, result, workpaper and review state remains unchanged. The
@@ -28,14 +28,16 @@ and journal linking against B's engagement and difference; the persisted
 difference remains unchanged. The area-assessment case denies A-scoped
 assessment creation, completion evaluation and review against B's engagement,
 leaving B's assessment unchanged. The opening-balance case denies A-scoped record,
-review and planning-summary requests for B and preserves B's verification. All
-five focused Release Domain tests passed. The full solution regression was not
-run for this slice. A Domain suite attempt on the previous checkpoint stopped
-after approximately 13 minutes without a runner summary, so no full-suite result
-is claimed. EF reports no pending model changes. Exact evidence is in
-`status.json`. No shared Development database, tenant, or production state was
-changed. AS-PAR-002 remains partial for other command families and export/count
-paths, plus independent review.
+review and planning-summary requests for B and preserves B's verification. The
+finding case also denies A-scoped creation, management-response recording and
+management-letter designation for B's engagement, preserving B's finding state.
+The focused Release Domain regressions passed. The full solution regression was
+not run for this slice. A Domain suite attempt on the previous checkpoint
+stopped after approximately 13 minutes without a runner summary, so no
+full-suite result is claimed. EF reports no pending model changes. Exact
+evidence is in `status.json`. No shared Development database, tenant, or
+production state was changed. AS-PAR-002 remains partial for other command
+families and export/count paths, plus independent review.
 
 ## Parity hardening: workpaper navigation safety, management letter designation, and attribute strata sampling
 
