@@ -1,16 +1,24 @@
 # AuditSphere Angular presentation migration
 
-**Status: CURRENT for implemented API/Angular boundaries; full migration acceptance remains PARTIAL.**
+**Status: CURRENT for implemented API/Angular boundaries; local owner-approved route cutover is complete; full migration acceptance remains PARTIAL.**
 
-The owner requested implementation of the attached Blazor-to-Angular guide. Angular replaces presentation incrementally. The .NET modular monolith remains the capability, session and database authority. The request does not authorize a NestJS rewrite, additional writers, different identity authorities or retirement of Blazor before parity acceptance.
+The owner requested implementation of the attached Blazor-to-Angular guide. Angular replaces presentation incrementally. The .NET modular monolith remains the capability, session and database authority. The owner later approved canonical Angular route ownership and retirement of the Blazor runtime outside automated Test hosts. Production deployment, canary, assistive-technology and live Microsoft gates remain separate acceptance work.
 
 ## API and Angular project boundary
 
 The owner subsequently requested an ASP.NET Core API backend and a separate Angular UI project. `AuditSphereOps.Api` owns the HTTP host, authenticated API contracts, consent callbacks, protected file transports, provider composition and health checks. `AuditSphereOps.Ui` owns Angular presentation. Domain, Application, Infrastructure and Worker retain their existing responsibilities.
 
-The legacy Web host references the API host composition during coexistence; it adds only Razor/MudBlazor presentation and circuit actor resolution. API has no reference to Web, Razor components or MudBlazor. Both hosts use the same authorization and authentication implementation. API defaults to the Angular build, with explicit SPA routes. It never routes API/auth/health failures into the SPA.
+The Web project references shared API composition for legacy Razor/MudBlazor regression journeys and circuit actor resolution. `ApiHost` rejects this presentation mode outside the `Test` environment. API has no reference to Web, Razor components or MudBlazor. Operators run API with Angular as the sole supported UI host. It never routes API/auth/health failures into the SPA.
 
-Same-origin delivery remains the supported production boundary: build Angular separately, publish its browser artifacts with API, and terminate HTTPS at the approved host. The Angular development server proxies API/auth calls; no permissive cross-origin policy or browser bearer-token store is added. Existing private development user secrets remain in the approved `AuditSphereOps.Web.Development` namespace for both hosts; no secret is copied into project configuration. Independent local API publication has been checked. Production deployment and full UI retirement still require acceptance.
+Same-origin delivery remains the supported production boundary: build Angular separately, publish its browser artifacts with API, and terminate HTTPS at the approved host. The Angular development server proxies API/auth calls; no permissive cross-origin policy or browser bearer-token store is added. Existing private development user secrets remain in the approved `AuditSphereOps.Web.Development` namespace for local API development; no secret is copied into project configuration. Independent local API publication has been checked. Production deployment and canary acceptance remain open.
+
+The owner approved local cutover on 2026-10-04. `AngularUi:Enabled` and
+`AngularUi:CanonicalRoutes` are true in the API's checked-in base configuration.
+`AuditSphereOps.Web` still builds because API/E2E regression projects depend on
+its test fixture; the shared host guard allows it only when
+`DOTNET_ENVIRONMENT=Test` (or the ASP.NET Core environment is `Test`). It is not
+an operator rollback host. Rollback uses the retained compatible Angular assets
+and API build according to the deployment's approved release procedure.
 
 ## Implemented ownership
 
@@ -34,9 +42,9 @@ acceptance are still pending; the backend alone does not establish UI parity.
 - Angular workspace: `src/AuditSphereOps.Ui`, standalone Angular with Material/CDK, zoneless change notification and lazy capability routes.
 - Shared Material typography uses an installed system font stack for both the shell and body-mounted dialogs, with no external font dependency.
 - API serves only the explicit `/ui` route catalogue shared by `UiEndpoints.SpaRoutes` and Angular `app.routes.ts`; a contract test prevents catalogue drift. Native families include practice, accounting, consolidation, audit, completion, administration and the restricted portal. Auth, consent callbacks, API, protected file transports and health keep their HTTP owners. Unknown routes are not a blanket SPA fallback.
-- `AngularUi:Enabled` defaults to true in API and false in the rollback Web host. Enabling requires a production browser build. `AngularUi:BuildPath` optionally supplies its directory. Local publication bundles browser artifacts under `ui/`; API includes no Web/MudBlazor dependency. A backend-only publication is explicit and must disable local SPA serving or supply approved assets.
-- Angular navigation stays within its declared routes. Search validates destinations against that same catalogue, handles multiple hits sharing one destination and shows an unavailable state for an unowned page. No migrated control links to `/app` or `/portal` on the API host. The Web rollback host remains directly available; it is not a hidden frontend fallback. Skip navigation focuses the current main content without changing workspace context.
-- API owns `/api/ui/session`, `/api/ui/portfolio` and CSRF-validated `POST /api/ui/sign-out`; the legacy Web host reuses these endpoints. They resolve trusted cookie identity and current epoch, never accept browser actor/firm/role authority, and return no-store responses.
+- `AngularUi:Enabled` and `AngularUi:CanonicalRoutes` default to true in API. Enabling requires a production browser build. `AngularUi:BuildPath` optionally supplies its directory. Local publication bundles browser artifacts under `ui/`; API includes no Web/MudBlazor dependency. A backend-only publication is explicit and must disable local SPA serving or supply approved assets. The legacy Web project is Test-only.
+- Angular navigation stays within its declared routes. Search validates destinations against that same catalogue, handles multiple hits sharing one destination and shows an unavailable state for an unowned page. Skip navigation focuses the current main content without changing workspace context.
+- API owns `/api/ui/session`, `/api/ui/portfolio` and CSRF-validated `POST /api/ui/sign-out`; the Test-only legacy Web host reuses these endpoints for regression journeys. They resolve trusted cookie identity and current epoch, never accept browser actor/firm/role authority, and return no-store responses.
 - Initial setup has a native `/ui/setup/microsoft365` page and cookie-authenticated `/api/setup/session` / `/api/setup/bootstrap` contracts. Only the exact deployment-approved Microsoft tenant/object identity can submit the installation proof with CSRF protection and explicit review. Application onboarding performs the local binding and evidence transaction; the API returns no raw proof/capability and requires fresh sign-in for the new session epoch. A revoked administrator cannot reopen bootstrap. Tenant preparation uses the deployment tenant and expected draft revision, preserving immutable connection history without asserting consent or selected-site verification.
 - The Application `PortfolioQuery` owns bounded scoped clients, current-scope summary counts, recent release/package projections and formula-safe CSV export. Each projection uses one authorized scope snapshot and rechecks every contributing scope before delivery. Group membership never authorizes this query.
 - The session bootstrap issues the antiforgery proof through `XSRF-TOKEN`; Angular sends `X-XSRF-TOKEN` for same-origin unsafe HTTP calls. Sign-out validates the antiforgery proof before removing the authentication cookie. Passive session checks do not renew an idle authentication ticket. Migrated business mutations compose existing Application services. Every unsafe endpoint must explicitly validate antiforgery as well as Application authorization; client configuration alone is not CSRF enforcement.
@@ -66,7 +74,8 @@ results are never cached. Every return refetches current authority. Identity cha
 revocation, route destruction and changed filters fence late reads/downloads. The
 configuration notice reports persisted active configuration only; it does not
 establish verified Microsoft capabilities. Full client/engagement source-action
-parity and retirement acceptance remain open. Curated source dispositions are in
+parity, production rollout and assistive-technology acceptance remain open. The
+Blazor runtime is retired outside Test. Curated source dispositions are in
 the [portfolio action audit](../execution/angular-portfolio-parity.json).
 
 ### Reviewed local client contact creation
@@ -196,9 +205,9 @@ default. Deployments can explicitly set it to `false` to keep the `/ui` preview
 prefix during rollback. When enabled, the exact native catalogue also owns `/app`,
 `/portal` and `/setup` destinations with a root router base. Preview routes remain
 available under `/ui` for existing tabs. API, auth, health, protected file paths
-and unknown destinations never receive an HTML fallback. The legacy Web rollback
-host refuses canonical ownership to prevent route collisions. Disabled Angular
-serving or an incompatible build also fails startup.
+and unknown destinations never receive an HTML fallback. The Test-only Web host
+refuses canonical ownership to prevent route collisions. Disabled Angular serving
+or an incompatible build also fails startup.
 
 One production build uses `/ui/` for fingerprinted script/style asset URLs in both
 route modes. Router links, search, deep-link sign-in, first-administrator setup and
@@ -227,7 +236,7 @@ trigger from retaining focus or a stale session from opening an overlay.
 The old Microsoft 365 workspace bookmark redirects to the guarded native tenant
 workspace. A source-route contract checks every legacy workspace route against the
 explicit Angular/host catalogue; root and access-denial endpoints remain server-owned.
-This proves route disposition, not action parity or retirement acceptance. Source
+This proves route disposition, not full action parity or migration acceptance. Source
 control discovery remains separately checked. Local browser/unit evidence belongs
 in `status.json`; broader screen-reader, all-module and production acceptance remain open.
 

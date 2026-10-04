@@ -50,7 +50,7 @@ AuditSphereOps is an audit, accounting, and assurance operations platform built 
 
 - **`AuditSphereOps.Ui/`**: Angular 22 UI with Material/CDK, native staff workbenches under `/ui/app` and restricted client portal under `/ui/portal`. Uses same-origin authenticated APIs, never Microsoft Graph or browser bearer-token storage.
 
-- **`AuditSphereOps.Web/`**: Legacy Blazor Interactive Server rollback host. Reuses API composition and retains existing workbenches while complete migration parity and retirement acceptance remain open.
+- **`AuditSphereOps.Web/`**: Legacy Blazor Interactive Server host retained only for Test-environment regression coverage. `ApiHost` rejects legacy presentation startup outside `Test`; operators use the API host with the Angular build.
 
 
 
@@ -106,7 +106,7 @@ AuditSphereOps is an audit, accounting, and assurance operations platform built 
 
 
 
-- **Runtime & Framework:** .NET 10 SDK (`dotnet`), ASP.NET Core API, Angular 22 with Material/CDK, EF Core 10 + Npgsql 10. Blazor Interactive Server/MudBlazor remain only in the rollback Web host.
+- **Runtime & Framework:** .NET 10 SDK (`dotnet`), ASP.NET Core API, Angular 22 with Material/CDK, EF Core 10 + Npgsql 10. Blazor Interactive Server/MudBlazor remain only in the Test-only Web regression host.
 
 
 
@@ -405,7 +405,7 @@ scripts/db/restore-drill.sh
 
 
 
-- Verify guidance against the current checkout, especially `docs/architecture/auditsphere-architecture-current-architecture.md`, `src/AuditSphereOps.Api/appsettings.json`, the Angular administration components, the rollback `src/AuditSphereOps.Web/Components/Pages/Microsoft365Setup.razor`, and the actual startup, worker, and deployment scripts. `docs/auditsphere-m365-onboarding-user-stories.md` describes proposed requirements: check implementation before presenting any step as available. Link to the applicable source revision; do not copy the specification or configuration files wholesale.
+- Verify guidance against the current checkout, especially `docs/architecture/auditsphere-architecture-current-architecture.md`, `src/AuditSphereOps.Api/appsettings.json`, the Angular administration components, the API startup, worker, and deployment scripts. `AuditSphereOps.Web` is Test-only and must not be documented as an operator rollback host. `docs/auditsphere-m365-onboarding-user-stories.md` describes proposed requirements: check implementation before presenting any step as available. Link to the applicable source revision; do not copy the specification or configuration files wholesale.
 
 
 

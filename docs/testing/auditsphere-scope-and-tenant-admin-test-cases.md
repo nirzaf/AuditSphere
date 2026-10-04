@@ -28,9 +28,9 @@ Use firm F with client A and sibling client B. Give the viewer only a CLIENT gra
 ## Local verification after a repair
 
 1. Run the focused sibling-client and changed-page suites. If a failure refers only to an old heading, update the assertion to the uniform unavailable behavior and verify protected data remains absent; do not weaken authorization assertions.
-2. Run `dotnet build src/AuditSphereOps.Web/AuditSphereOps.Web.csproj --no-restore --configuration Release`.
+2. Build the supported host and frontend: `npm --prefix src/AuditSphereOps.Ui run build`, then `dotnet build src/AuditSphereOps.Api/AuditSphereOps.Api.csproj --no-restore --configuration Release`.
 3. Run `dotnet test AuditSphereOps.slnx --no-build --configuration Release` with PostgreSQL available. Record the actual outcome and any unrelated failures.
-4. Run `dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web`.
+4. Run `dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Api`.
 5. Put observed commands, outcomes, source commit, and remaining coverage gaps in `docs/execution/status.json`; update the current-slice document only with those observed facts. Passing these cases leaves the broader authorization audit partial until remaining routes and commands are covered.
 
 ## Live Microsoft 365 Development tenant checks

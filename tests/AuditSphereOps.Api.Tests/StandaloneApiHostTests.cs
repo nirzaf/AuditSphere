@@ -12,6 +12,23 @@ namespace AuditSphereOps.Api.Tests;
 
 public sealed class StandaloneApiHostTests
 {
+  [Theory]
+  [InlineData("Development")]
+  [InlineData("Production")]
+  [InlineData("Acceptance")]
+  public void LegacyBlazorPresentation_IsRetiredOutsideTest(string environment)
+  {
+    var error = Assert.Throws<InvalidOperationException>(() =>
+      ApiHost.EnsureLegacyPresentationEnvironment(legacyPresentation: true, environment));
+    Assert.Contains("retired outside Test", error.Message, StringComparison.OrdinalIgnoreCase);
+  }
+
+  [Fact]
+  public void LegacyBlazorPresentation_RemainsAvailableToTestHosts()
+  {
+    ApiHost.EnsureLegacyPresentationEnvironment(legacyPresentation: true, "Test");
+  }
+
   [Fact]
   public async Task ApiHost_RunsWithoutBlazor_AndPreservesCookieScopeAndCsrfBoundaries()
   {

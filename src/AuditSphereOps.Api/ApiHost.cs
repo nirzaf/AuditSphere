@@ -3,13 +3,14 @@ using AuditSphereOps.Api.Ui;
 
 namespace AuditSphereOps.Api;
 
-/// <summary>Shared secure HTTP composition. Only the legacy rollback host supplies Razor presentation callbacks.</summary>
+/// <summary>Shared secure HTTP composition. Legacy Razor presentation is allowed only in isolated Test hosts.</summary>
 public static partial class ApiHost
 {
   public static WebApplication Create(string[] args, Action<WebApplicationBuilder>? addPresentation = null,
     Action<WebApplication>? mapPresentation = null, bool legacyPresentation = false)
   {
     var builder = WebApplication.CreateBuilder(args);
+    EnsureLegacyPresentationEnvironment(legacyPresentation, builder.Environment.EnvironmentName);
     builder.Services.AddAntiforgery(options => options.HeaderName = "X-XSRF-TOKEN");
     if (legacyPresentation && builder.Environment.IsEnvironment("Test")) builder.WebHost.UseStaticWebAssets();
     ConfigureObservability(builder, legacyPresentation);
@@ -48,5 +49,11 @@ public static partial class ApiHost
     app.MapUiEndpoints(legacyPresentation);
     mapPresentation?.Invoke(app);
     return app;
+  }
+
+  internal static void EnsureLegacyPresentationEnvironment(bool legacyPresentation, string environmentName)
+  {
+    if (legacyPresentation && !string.Equals(environmentName, "Test", StringComparison.OrdinalIgnoreCase))
+      throw new InvalidOperationException("The Blazor presentation host is retired outside Test. Run the Angular UI through AuditSphereOps.Api.");
   }
 }

@@ -13,6 +13,25 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Owner-approved Angular route cutover and Blazor runtime retirement
+
+On 2026-10-04 the owner approved completing the local cutover. The standalone API
+is the only supported runtime and serves Angular on canonical `/app`, `/portal`
+and `/setup` routes. `AuditSphereOps.Web` remains as a Test-only regression
+fixture; `ApiHost` rejects `legacyPresentation=true` in every other environment.
+Operator setup guidance now uses the API, and the accounting browser journey
+script builds Angular, applies migrations through API and launches API.
+
+Angular production build and Release solution build passed with zero warnings or
+errors. The retirement policy tests passed 4/4, the Test-host route-render smoke
+passed 1/1, and the built-in browser rendered the authenticated Accounting
+workspace at `http://localhost:5099/app/accounting` with canonical `/app` links.
+No business mutation was submitted. The full solution regression is in progress;
+its result and EF drift check will be added to `status.json` when observed.
+Production canary, real assistive-technology and wider-locale acceptance, and
+live Microsoft gates remain outside local verification. Overall migration status
+remains PARTIAL.
+
 ## Current Release regression and resource-planning browser journey
 
 At `152790fb1709d7c886b49be539260d6a84201afd`, the full Release solution test
@@ -69,9 +88,9 @@ versions, 0 chart-bound); no business mutation was submitted. The backup stays
 outside the repository. Exact observations are in `status.json` under
 `angularCurrentSourceFullRegression`.
 
-This verifies the local Development route and empty-state journey. Production
-canary, live Microsoft checks, screen-reader and wider-locale acceptance, and
-US-047 Blazor retirement remain open; overall migration acceptance is PARTIAL.
+This verifies the earlier local Development route and empty-state journey.
+Production canary, live Microsoft checks, screen-reader and wider-locale
+acceptance remain open; overall migration acceptance is PARTIAL.
 
 The owner-approved route-ownership change is committed as `f4afcc5` and
 `b293ca1`: canonical `/app` routing is now the API configuration default, while
@@ -81,14 +100,15 @@ Release solution build, standalone API publish and EF model check passed;
 setting and fingerprinted Angular assets. The built-in browser verified the
 authenticated `/app/accounting/mappings` route and the `/ui` preview alias, with
 navigation following each prefix. No business mutation or production deployment
-was performed. The separate legacy Blazor rollback host remains available.
+was performed. The Web project is now Test-only and refuses non-Test startup.
 Evidence is recorded under `angularCanonicalRouteDefaultFlip` and
 `angularDevelopmentCanonicalRouteOwnership` in `status.json`.
 
 The shipped API now defaults to canonical Angular ownership. Production-like
 canary, deployment retention of the previous fingerprinted build, live
 Microsoft acceptance, assistive-technology acceptance and Blazor retirement
-remain open, so overall migration acceptance remains PARTIAL.
+remain open, so overall migration acceptance remains PARTIAL. Local runtime
+retirement was subsequently approved and is recorded above.
 
 ## Reviewed existing service-period engagement inspection
 

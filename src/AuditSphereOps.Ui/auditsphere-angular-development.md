@@ -1,6 +1,6 @@
 # AuditSphere Angular UI
 
-`AuditSphereOps.Api` is the ASP.NET Core backend; `AuditSphereOps.Ui` is the Angular frontend. Domain/Application/Infrastructure/Worker remain unchanged in responsibility. Native Angular routes now cover practice, accounting, audit, completion, administration and the client portal, but complete source-action parity and final retirement acceptance remain open. The legacy Web host is the rollback presentation host and reuses API composition.
+`AuditSphereOps.Api` is the ASP.NET Core backend; `AuditSphereOps.Ui` is the Angular frontend. Domain/Application/Infrastructure/Worker remain unchanged in responsibility. Native Angular routes cover practice, accounting, audit, completion, administration and the client portal; broader source-action parity and production acceptance remain open. The owner-approved local cutover is complete. `AuditSphereOps.Web` is retained only for automated Test-environment regression journeys and refuses startup outside `Test`.
 
 ## Build and verify
 
@@ -34,7 +34,7 @@ npm --prefix src/AuditSphereOps.Ui run build
 DOTNET_ENVIRONMENT=Development dotnet run --project src/AuditSphereOps.Api -c Release --no-launch-profile -- --urls http://localhost:5100
 ```
 
-Open `http://localhost:5100/ui/app`; client identities use `/ui/portal`. API includes no Razor components or Blazor circuit endpoints. Its default enables the production Angular build; missing assets fail startup. Both API and rollback Web use the existing approved development user-secrets namespace. Do not copy secrets into JSON configuration or command history.
+Open `http://localhost:5100/app`; client identities use `/portal`. API includes no Razor components or Blazor circuit endpoints. Its default enables the production Angular build and canonical routes; missing assets fail startup. Supply local credentials through the existing approved development user-secrets namespace. Do not copy secrets into JSON configuration or command history.
 
 ### First administrator on a fresh installation
 
@@ -46,7 +46,7 @@ Supply `Setup:FirmId`, `Setup:InstallationId`, `Setup:BootstrapProofHash`, `Setu
 4. Open Administration → Microsoft 365 → Tenant connection. If the deployment tenant has not been prepared, review its configured identity and prepare the current setup revision. This creates a connection revision requiring Microsoft consent; it does not assert consent or selected-site verification.
 5. Follow the configured Microsoft consent flow and verify each capability separately. Missing deployment credentials, consent or selected-site grants remain blocked.
 
-A lost bootstrap/preparation response requires a fresh sign-in or refresh and review of persisted state before another write. These local tests do not establish live Microsoft authentication/consent acceptance. The Web rollback host retains its existing setup route.
+A lost bootstrap/preparation response requires a fresh sign-in or refresh and review of persisted state before another write. These local tests do not establish live Microsoft authentication/consent acceptance. The Test-only Web regression host is not an operator setup route.
 
 ### Optional Microsoft administration
 
@@ -76,18 +76,17 @@ The API publish target bundles the Angular browser artifacts into `ui/`. Missing
 
 ### Controlled canonical routes
 
-`AngularUi:CanonicalRoutes` defaults to false. After the route family meets its
-acceptance gates, an operator may enable it on the standalone API host. The exact
-native catalogue then also serves `/app`, `/portal` and `/setup/microsoft365`.
-The existing `/ui` preview URLs remain usable, and both modes load the same
-fingerprinted assets from `/ui/`. Sign-in and consent destinations follow the
-configured mode. The Web rollback host rejects this setting; keep it false there.
+`AngularUi:CanonicalRoutes` defaults to true in the API host. The native catalogue
+serves `/app`, `/portal` and `/setup/microsoft365`. The `/ui` preview URLs remain
+usable, and both modes load the same fingerprinted assets from `/ui/`. Sign-in
+and consent destinations follow the configured mode. The legacy Web host is
+Test-only and cannot be used as a deployment rollback host.
 
-To rehearse a local rollback, disable `AngularUi:CanonicalRoutes` and restart the
-API with the same approved build/private configuration. Canonical application
-routes become unavailable and `/ui/app` remains the preview. The separately hosted
-legacy Web presentation remains available at its own `/app` and `/portal` URLs.
-Do not start a second database writer or loosen authorization for rollback.
+For an approved API release rollback, restore the previous compatible API build
+and its matching retained Angular assets using the deployment's release process.
+Setting `AngularUi:CanonicalRoutes=false` is only a route-prefix compatibility
+mode: it serves the same Angular application under `/ui` and does not restore
+Blazor. Do not start a second database writer or loosen authorization for rollback.
 
 Before replacing a build, retain its complete browser artifact directory separately.
 `AngularUi:PreviousBuildPath` may point to that distinct approved directory for the
@@ -98,17 +97,14 @@ and current API compatibility before deployment. Remove the retention setting an
 directory only after the approved window. Local tests do not establish production
 canary or owner acceptance.
 
-## Legacy rollback preview
+## Legacy Web regression host
 
-From the repository root, keep the usual approved private database/identity configuration and run:
+`AuditSphereOps.Web` is not an operator or deployment host. Automated regression
+tests launch it with `DOTNET_ENVIRONMENT=Test`; the shared API host rejects
+`legacyPresentation=true` in Development, Production, Acceptance and other
+non-Test environments. Use `AuditSphereOps.Api` for local and deployed Angular UI.
 
-```sh
-DOTNET_ENVIRONMENT=Development AngularUi__Enabled=true dotnet run --project src/AuditSphereOps.Web -c Release --no-launch-profile
-```
-
-Open `/ui/app` on that host and sign in through the existing `/auth/sign-in` flow. `AngularUi:BuildPath` can override the browser build directory when packaging deployment artifacts. These are preview instructions, not production rollout acceptance. The Web rollback host still requires a separately supplied Angular build if its preview is enabled. API publication bundles an already built frontend; neither host runs npm during .NET publish.
-
-Disable `AngularUi:Enabled` and use `/app` to roll back. Auth, consent, API, health and document routes retain their existing owners.
+Authentication, consent, API, health and document routes remain owned by the API host.
 
 ## Conventions
 
