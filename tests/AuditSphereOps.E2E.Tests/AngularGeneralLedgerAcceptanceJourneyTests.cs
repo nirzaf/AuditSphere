@@ -10,7 +10,7 @@ public sealed class AngularGeneralLedgerAcceptanceJourneyTests
   [Trait("CaseId", "ANGULAR-GL-ACCEPTANCE")]
   public async Task InspectionIndependentAcceptance_UnknownSaveReloadAndRevocation()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-GL-ACCEPTANCE", startLegacyBlazorHosts: false);
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-GL-ACCEPTANCE");
     var first = await Seed(host); var second = await Seed(host);
     var origin = await host.StartApiForIdentityAsync(host.Fixture.Admin, new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
     using var pw = await Playwright.CreateAsync(); await using var browser = await PlaywrightBrowser.LaunchAsync(pw);
@@ -54,7 +54,7 @@ public sealed class AngularGeneralLedgerAcceptanceJourneyTests
   [Trait("CaseId", "ANGULAR-GL-ACCEPTANCE-GATES")]
   public async Task ImporterCannotAccept_StaleReviewRefused_AndNavigationProtectsIntent()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-GL-ACCEPTANCE-GATES", startLegacyBlazorHosts: false);
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-GL-ACCEPTANCE-GATES");
     var id = await Seed(host); var self = await Seed(host, self: true);
     var origin = await host.StartApiForIdentityAsync(host.Fixture.Admin, new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
     using var pw = await Playwright.CreateAsync(); await using var browser = await PlaywrightBrowser.LaunchAsync(pw); var page = await browser.NewPageAsync();
@@ -74,7 +74,7 @@ public sealed class AngularGeneralLedgerAcceptanceJourneyTests
   }
 
   private static string Route(Guid id) => $"/ui/app/accounting/gl-sources/{id}/acceptance";
-  private static async Task<Guid> Seed(OwnedBlazorHost host, bool self = false)
+  private static async Task<Guid> Seed(OwnedHost host, bool self = false)
   {
     await using var db = host.CreateDbContext();
     return await GeneralLedgerWorkspaceSeed.SeedAsync(db, self ? host.Fixture with { Staff = host.Fixture.Admin } : host.Fixture, journals: 1);

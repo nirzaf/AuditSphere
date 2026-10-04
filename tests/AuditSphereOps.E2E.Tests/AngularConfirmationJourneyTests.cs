@@ -7,7 +7,7 @@ public sealed class AngularConfirmationJourneyTests
   [Trait("CaseId","ANGULAR-CONFIRMATION-LIFECYCLE")]
   public async Task NativeSignalForms_ObservedDispatch_IndependentAlternativeReview_AndSessionRevocation()
   {
-    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-CONFIRMATION-LIFECYCLE", startLegacyBlazorHosts: false);
+    await using var host=await OwnedHost.StartAsync(startWorker:false,caseId:"ANGULAR-CONFIRMATION-LIFECYCLE");
     var settings=new Dictionary<string,string>{["AngularUi__Enabled"]="true"};
     var origin=await host.StartApiForIdentityAsync(host.Fixture.Staff,settings);var reviewerOrigin=await host.StartApiForIdentityAsync(host.Fixture.Reviewer,settings);
     using var playwright=await Playwright.CreateAsync();await using var browser=await PlaywrightBrowser.LaunchAsync(playwright);
@@ -44,7 +44,7 @@ public sealed class AngularConfirmationJourneyTests
   [Trait("CaseId","ANGULAR-CONFIRMATION-BATCH")]
   public async Task NativeBatchForm_ReviewsAllRows_RejectsPartialDuplicates_AndPersistsExactDrafts()
   {
-    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-CONFIRMATION-BATCH", startLegacyBlazorHosts: false);
+    await using var host=await OwnedHost.StartAsync(startWorker:false,caseId:"ANGULAR-CONFIRMATION-BATCH");
     var origin=await host.StartApiForIdentityAsync(host.Fixture.Staff,new Dictionary<string,string>{["AngularUi__Enabled"]="true"});
     using var playwright=await Playwright.CreateAsync();await using var browser=await PlaywrightBrowser.LaunchAsync(playwright);await using var context=await browser.NewContextAsync();var page=await context.NewPageAsync();var errors=new List<string>();page.PageError+=(_,e)=>errors.Add(e);
     var route="/ui/app/engagements/"+host.Fixture.EngagementId+"/confirmations";
@@ -74,7 +74,7 @@ public sealed class AngularConfirmationJourneyTests
   [Trait("CaseId","ANGULAR-CONFIRMATION-DRAFT-RECOVERY")]
   public async Task TabDrafts_ExplicitRecovery_NavigationProtection_RevisionConflict_AndRevocation()
   {
-    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-CONFIRMATION-DRAFT-RECOVERY", startLegacyBlazorHosts: false);
+    await using var host=await OwnedHost.StartAsync(startWorker:false,caseId:"ANGULAR-CONFIRMATION-DRAFT-RECOVERY");
     var origin=await host.StartApiForIdentityAsync(host.Fixture.Staff,new Dictionary<string,string>{["AngularUi__Enabled"]="true"});
     using var playwright=await Playwright.CreateAsync();await using var browser=await PlaywrightBrowser.LaunchAsync(playwright);await using var context=await browser.NewContextAsync();
     var page=await context.NewPageAsync();var errors=new List<string>();page.PageError+=(_,e)=>errors.Add(e);
@@ -109,7 +109,7 @@ public sealed class AngularConfirmationJourneyTests
   [Trait("CaseId","ANGULAR-CONFIRMATION-DRAFT-STORAGE-FAILURE")]
   public async Task TabStorageFailure_DoesNotPretendSaved_AndKeepsNavigationIntent()
   {
-    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-CONFIRMATION-DRAFT-STORAGE-FAILURE", startLegacyBlazorHosts: false);
+    await using var host=await OwnedHost.StartAsync(startWorker:false,caseId:"ANGULAR-CONFIRMATION-DRAFT-STORAGE-FAILURE");
     var origin=await host.StartApiForIdentityAsync(host.Fixture.Staff,new Dictionary<string,string>{["AngularUi__Enabled"]="true"});
     using var playwright=await Playwright.CreateAsync();await using var browser=await PlaywrightBrowser.LaunchAsync(playwright);await using var context=await browser.NewContextAsync();
     await context.AddInitScriptAsync("Storage.prototype.setItem = function(){ throw new DOMException('Unavailable', 'QuotaExceededError'); }");

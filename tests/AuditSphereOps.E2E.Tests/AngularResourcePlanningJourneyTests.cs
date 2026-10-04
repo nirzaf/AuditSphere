@@ -14,7 +14,7 @@ public sealed class AngularResourcePlanningJourneyTests
   [InlineData(true)]
   public async Task StaleAllocationReviewCannotOverwriteConcurrentPlanningChange(bool canonical)
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-RESOURCE-STALE", startLegacyBlazorHosts: false);
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-RESOURCE-STALE");
     Assert.Empty(Directory.EnumerateFiles(host.RunRoot, "web-*.log"));
     var f = host.Fixture;
     var week = ResourceGridCalculator.WeekStart(DateOnly.FromDateTime(DateTime.UtcNow));
@@ -100,7 +100,7 @@ public sealed class AngularResourcePlanningJourneyTests
   [InlineData(true)]
   public async Task KeyboardFormsCapacityAvailabilityAndAllocationsRemainServerOwned(bool canonical)
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-RESOURCE-FORMS", startLegacyBlazorHosts: false);
+    await using var host = await OwnedHost.StartAsync(startWorker:false,caseId:"ANGULAR-RESOURCE-FORMS");
     var f=host.Fixture;
     await using(var db=host.CreateDbContext()) {
       var staff=await db.Users.SingleAsync(x=>x.Id==f.Staff.Id);staff.DisplayName="Synthetic resource staff";

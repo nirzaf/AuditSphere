@@ -11,7 +11,7 @@ public sealed class AngularShellNavigationJourneyTests
   [Trait("CaseId", "ANGULAR-SHELL-NAVIGATION")]
   public async Task ResponsiveMenu_KeyboardFocus_ContextAndRevocation(bool canonical)
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker:false, caseId:"ANGULAR-SHELL-NAVIGATION", startLegacyBlazorHosts: false);
+    await using var host = await OwnedHost.StartAsync(startWorker:false, caseId:"ANGULAR-SHELL-NAVIGATION");
     var settings = new Dictionary<string,string>{["AngularUi__Enabled"]="true",["AngularUi__CanonicalRoutes"]=canonical.ToString()};
     var prefix = canonical ? "" : "/ui";
     var origin = await host.StartApiForIdentityAsync(host.Fixture.Staff, settings);

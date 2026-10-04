@@ -10,7 +10,7 @@ public sealed class AngularTrialBalanceUploadJourneyTests
   [Trait("CaseId", "ANGULAR-TB-UPLOAD")]
   public async Task NativeReviewedUpload_InvalidPeriod_CheckpointRecovery_WorkerValidation_AndRevocation()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(caseId: "ANGULAR-TB-UPLOAD", startLegacyBlazorHosts: false); await Seed(host);
+    await using var host = await OwnedHost.StartAsync(caseId: "ANGULAR-TB-UPLOAD"); await Seed(host);
     var origin = await host.StartApiForIdentityAsync(host.Fixture.Staff, new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
     using var pw = await Playwright.CreateAsync(); await using var browser = await PlaywrightBrowser.LaunchAsync(pw); var page = await browser.NewPageAsync(); var errors = new List<string>(); page.PageError += (_, e) => errors.Add(e);
     var route = $"/ui/app/engagements/{host.Fixture.EngagementId}/tb-intake"; await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(route));
@@ -39,7 +39,7 @@ public sealed class AngularTrialBalanceUploadJourneyTests
   [Trait("CaseId", "ANGULAR-TB-UNKNOWN")]
   public async Task AcceptedImportWithLostResponse_ReconcilesWithoutDuplicateOrAutomaticRetry()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-TB-UNKNOWN", startLegacyBlazorHosts: false); await Seed(host);
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-TB-UNKNOWN"); await Seed(host);
     var origin = await host.StartApiForIdentityAsync(host.Fixture.Staff, new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" }); using var pw = await Playwright.CreateAsync(); await using var browser = await PlaywrightBrowser.LaunchAsync(pw); var page = await browser.NewPageAsync(); var writes = 0;
     await page.RouteAsync("**/tb-intake/import", async r => { writes++; var accepted = await r.FetchAsync(); Assert.Equal(200, accepted.Status); await r.AbortAsync("failed"); });
     var route = $"/ui/app/engagements/{host.Fixture.EngagementId}/tb-intake"; await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(route));
@@ -50,5 +50,5 @@ public sealed class AngularTrialBalanceUploadJourneyTests
     await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Import reviewed periods" })).ToHaveCountAsync(0); Assert.Equal(1, writes); await using var db = host.CreateDbContext(); Assert.Equal(2, await db.TrialBalanceDatasets.CountAsync());
   }
   private static FilePayload File(string csv) => new() { Name = "synthetic-tb.csv", MimeType = "text/csv", Buffer = Encoding.UTF8.GetBytes(csv) };
-  private static async Task Seed(OwnedBlazorHost host) { await using var db = host.CreateDbContext(); var f = host.Fixture; foreach (var (code, year) in new[] { ("FY25", 2025), ("FY26", 2026) }) db.ClientReportingPeriods.Add(new() { Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, PeriodCode = code, StartDate = new(year, 1, 1), EndDate = new(year, 12, 31), Currency = "QAR", Basis = "IFRS", Status = "ACTIVE", CreatedByUserId = f.Admin.Id, CreatedAt = DateTimeOffset.UtcNow }); await db.SaveChangesAsync(); }
+  private static async Task Seed(OwnedHost host) { await using var db = host.CreateDbContext(); var f = host.Fixture; foreach (var (code, year) in new[] { ("FY25", 2025), ("FY26", 2026) }) db.ClientReportingPeriods.Add(new() { Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, PeriodCode = code, StartDate = new(year, 1, 1), EndDate = new(year, 12, 31), Currency = "QAR", Basis = "IFRS", Status = "ACTIVE", CreatedByUserId = f.Admin.Id, CreatedAt = DateTimeOffset.UtcNow }); await db.SaveChangesAsync(); }
 }

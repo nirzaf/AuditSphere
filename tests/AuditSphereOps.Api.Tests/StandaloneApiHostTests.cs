@@ -16,17 +16,19 @@ public sealed class StandaloneApiHostTests
   [InlineData("Development")]
   [InlineData("Production")]
   [InlineData("Acceptance")]
-  public void LegacyBlazorPresentation_IsRetiredOutsideTest(string environment)
+  [InlineData("Test")]
+  public void LegacyBlazorPresentation_IsCompletelyRetired(string environment)
   {
     var error = Assert.Throws<InvalidOperationException>(() =>
       ApiHost.EnsureLegacyPresentationEnvironment(legacyPresentation: true, environment));
-    Assert.Contains("retired outside Test", error.Message, StringComparison.OrdinalIgnoreCase);
+    Assert.Contains("retired", error.Message, StringComparison.OrdinalIgnoreCase);
   }
 
   [Fact]
-  public void LegacyBlazorPresentation_RemainsAvailableToTestHosts()
+  public void StandardApiHostPresentation_RequiresNoLegacyPresentation()
   {
-    ApiHost.EnsureLegacyPresentationEnvironment(legacyPresentation: true, "Test");
+    ApiHost.EnsureLegacyPresentationEnvironment(legacyPresentation: false, "Test");
+    ApiHost.EnsureLegacyPresentationEnvironment(legacyPresentation: false, "Production");
   }
 
   [Fact]

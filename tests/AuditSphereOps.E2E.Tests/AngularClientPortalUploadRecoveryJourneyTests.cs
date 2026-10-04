@@ -15,7 +15,7 @@ public sealed class AngularClientPortalUploadRecoveryJourneyTests
   [Trait("CaseId", "ANGULAR-PORTAL-UPLOAD-RESUME-E2E")]
   public async Task LostChunkAcknowledgement_ResumesExactFileFromPersistedChunkReceipt()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-PORTAL-UPLOAD-RESUME-E2E", startLegacyBlazorHosts: false);
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-PORTAL-UPLOAD-RESUME-E2E");
     var fixture = host.Fixture;
     var primary = PbcSeed.User(fixture.FirmId, "Client");
     primary.DisplayName = "Synthetic primary contact";

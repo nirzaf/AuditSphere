@@ -9,7 +9,7 @@ public sealed class AngularJournalReviewJourneyTests
   [Fact][Trait("CaseId","ANGULAR-JOURNAL-REVIEW")]
   public async Task ExactLineCorrectionUnknownReceiptRecoveryReturnAndIndependentPostPreserveHistory()
   {
-    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-JOURNAL-REVIEW", startLegacyBlazorHosts: false);
+    await using var host=await OwnedHost.StartAsync(startWorker:false,caseId:"ANGULAR-JOURNAL-REVIEW");
     Guid id;await using(var db=host.CreateDbContext())id=await JournalReviewSeed.SeedAsync(db,host.Fixture);
     var settings=new Dictionary<string,string>{["AngularUi__Enabled"]="true"};
     var origin=await host.StartApiForIdentityAsync(host.Fixture.Staff,settings);
@@ -73,7 +73,7 @@ public sealed class AngularJournalReviewJourneyTests
   [Fact][Trait("CaseId","ANGULAR-JOURNAL-STALE")]
   public async Task ChangedPeriodRefusesReviewedMutationAndClearsOldPreviewOnRefresh()
   {
-    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-JOURNAL-STALE", startLegacyBlazorHosts: false);
+    await using var host=await OwnedHost.StartAsync(startWorker:false,caseId:"ANGULAR-JOURNAL-STALE");
     Guid id;await using(var db=host.CreateDbContext())id=await JournalReviewSeed.SeedAsync(db,host.Fixture);
     var origin=await host.StartApiForIdentityAsync(host.Fixture.Staff,new Dictionary<string,string>{["AngularUi__Enabled"]="true"});
     using var pw=await Playwright.CreateAsync();await using var browser=await PlaywrightBrowser.LaunchAsync(pw);var page=await browser.NewPageAsync();

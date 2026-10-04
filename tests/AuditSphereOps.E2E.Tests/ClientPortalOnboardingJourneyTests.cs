@@ -18,7 +18,7 @@ public sealed class ClientPortalOnboardingJourneyTests
   [Trait("CaseId", "AS-PORTAL-COMMERCIAL-01")]
   public async Task CommercialOnboardingPending_HidesClientContent_AndDisabledSessionClearsTheState()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "AS-PORTAL-COMMERCIAL-01");
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "AS-PORTAL-COMMERCIAL-01");
     var f = host.Fixture;
     var contactId = Guid.NewGuid();
     await using (var db = host.CreateDbContext())
@@ -54,7 +54,7 @@ public sealed class ClientPortalOnboardingJourneyTests
   [Trait("CaseId", "AS-PORTAL-ONBOARD-01")]
   public async Task FirstSignInOpensUploads_AndThePrimaryContactDelegatesAndRevokes()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "AS-PORTAL-ONBOARD-01");
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "AS-PORTAL-ONBOARD-01");
     var f = host.Fixture;
     var primary = PbcSeed.User(f.FirmId, "Client");
     primary.DisplayName = "Primary Contact";

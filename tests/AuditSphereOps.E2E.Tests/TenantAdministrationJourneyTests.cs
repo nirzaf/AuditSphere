@@ -12,9 +12,9 @@ namespace AuditSphereOps.E2E.Tests;
 [Trait("Category", "Microsoft365Onboarding")]
 public sealed class TenantAdministrationJourneyTests
 {
-  internal sealed record Seeded(OwnedBlazorHost Host, AppUser Admin, string TenantId, string MemberObjectId, string GroupObjectId);
+  internal sealed record Seeded(OwnedHost Host, AppUser Admin, string TenantId, string MemberObjectId, string GroupObjectId);
 
-  internal static async Task<Seeded> SeedAsync(OwnedBlazorHost host, bool verified)
+  internal static async Task<Seeded> SeedAsync(OwnedHost host, bool verified)
   {
     var tenantId = Guid.NewGuid().ToString("D");
     var now = DateTimeOffset.UtcNow;
@@ -98,7 +98,7 @@ public sealed class TenantAdministrationJourneyTests
   [Trait("CaseId", "M365-ADMIN-E2E-01")]
   public async Task ConnectTenant_VerifiesConsentIdentityAndShowsDerivedDashboardStatus()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "M365-ADMIN-E2E-01");
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "M365-ADMIN-E2E-01");
     var seeded = await SeedAsync(host, verified: false);
     var origin = await host.StartWebForIdentityAsync(seeded.Admin, Simulation(seeded));
     await using var session = await BrowserSession.OpenAsync(origin, "/app/administration");
@@ -238,7 +238,7 @@ public sealed class TenantAdministrationJourneyTests
   [Trait("CaseId", "M365-ADMIN-E2E-02")]
   public async Task AssignExistingDirectoryUser_WithReviewedScope_ThenRevokeAccess()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "M365-ADMIN-E2E-02");
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "M365-ADMIN-E2E-02");
     var seeded = await SeedAsync(host, verified: true);
     var origin = await host.StartWebForIdentityAsync(seeded.Admin, Simulation(seeded));
     await using var session = await BrowserSession.OpenAsync(origin, "/app/administration");
@@ -297,7 +297,7 @@ public sealed class TenantAdministrationJourneyTests
   [Trait("CaseId", "M365-ADMIN-E2E-03")]
   public async Task CreateUserWhenEnabled_ShowsPasswordOnce_AndRecoversUnknownOutcome()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "M365-ADMIN-E2E-03");
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "M365-ADMIN-E2E-03");
     var seeded = await SeedAsync(host, verified: true);
     var origin = await host.StartWebForIdentityAsync(seeded.Admin, Simulation(seeded));
     await using var session = await BrowserSession.OpenAsync(origin, "/app/administration");
@@ -355,7 +355,7 @@ public sealed class TenantAdministrationJourneyTests
   [Trait("CaseId", "M365-ADMIN-E2E-04")]
   public async Task GuestInvitation_IsClientScoped_AndGuestCannotOpenAdministration()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "M365-ADMIN-E2E-04");
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "M365-ADMIN-E2E-04");
     var seeded = await SeedAsync(host, verified: true);
     var origin = await host.StartWebForIdentityAsync(seeded.Admin, Simulation(seeded, provisioning: false));
     await using var session = await BrowserSession.OpenAsync(origin, "/app/administration");
@@ -393,7 +393,7 @@ public sealed class TenantAdministrationJourneyTests
   [Trait("CaseId", "M365-ADMIN-E2E-05")]
   public async Task GroupMembershipAndFailureStates_AreExplicit()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "M365-ADMIN-E2E-05");
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "M365-ADMIN-E2E-05");
     var seeded = await SeedAsync(host, verified: true);
     var origin = await host.StartWebForIdentityAsync(seeded.Admin, Simulation(seeded));
     await using var session = await BrowserSession.OpenAsync(origin, "/app/administration");
@@ -433,7 +433,7 @@ public sealed class TenantAdministrationJourneyTests
     session.AssertNoPageErrors();
   }
 
-  private static async Task<string?> ClientNameAsync(OwnedBlazorHost host)
+  private static async Task<string?> ClientNameAsync(OwnedHost host)
   {
     await using var db = host.CreateDbContext();
     return await db.PracticeClients.Where(x => x.Id == host.Fixture.ClientId).Select(x => x.LegalName).SingleAsync();

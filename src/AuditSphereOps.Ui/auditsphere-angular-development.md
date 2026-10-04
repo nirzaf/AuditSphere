@@ -34,7 +34,7 @@ npm --prefix src/AuditSphereOps.Ui run build
 DOTNET_ENVIRONMENT=Development dotnet run --project src/AuditSphereOps.Api -c Release --no-launch-profile -- --urls http://localhost:5100
 ```
 
-Open `http://localhost:5100/app`; client identities use `/portal`. API includes no Razor components or Blazor circuit endpoints. Its default enables the production Angular build and canonical routes; missing assets fail startup. Supply local credentials through the existing approved development user-secrets namespace. Do not copy secrets into JSON configuration or command history.
+Open `http://localhost:5100/app`; client identities use `/portal`. API includes no Razor components or legacy circuit endpoints. Its default enables the production Angular build and canonical routes; missing assets fail startup. Supply local credentials through the existing approved development user-secrets namespace. Do not copy secrets into JSON configuration or command history.
 
 ### First administrator on a fresh installation
 
@@ -79,14 +79,14 @@ The API publish target bundles the Angular browser artifacts into `ui/`. Missing
 `AngularUi:CanonicalRoutes` defaults to true in the API host. The native catalogue
 serves `/app`, `/portal` and `/setup/microsoft365`. The `/ui` preview URLs remain
 usable, and both modes load the same fingerprinted assets from `/ui/`. Sign-in
-and consent destinations follow the configured mode. The legacy Web host is
-Test-only and cannot be used as a deployment rollback host.
+and consent destinations follow the configured mode. The legacy Web host
+has been retired.
 
 For an approved API release rollback, restore the previous compatible API build
 and its matching retained Angular assets using the deployment's release process.
 Setting `AngularUi:CanonicalRoutes=false` is only a route-prefix compatibility
 mode: it serves the same Angular application under `/ui` and does not restore
-Blazor. Do not start a second database writer or loosen authorization for rollback.
+any legacy host. Do not start a second database writer or loosen authorization for rollback.
 
 Before replacing a build, retain its complete browser artifact directory separately.
 `AngularUi:PreviousBuildPath` may point to that distinct approved directory for the
@@ -97,12 +97,11 @@ and current API compatibility before deployment. Remove the retention setting an
 directory only after the approved window. Local tests do not establish production
 canary or owner acceptance.
 
-## Legacy Web regression host
+## Retired Legacy Presentation Host
 
-`AuditSphereOps.Web` is not an operator or deployment host. Automated regression
-tests launch it with `DOTNET_ENVIRONMENT=Test`; the shared API host rejects
-`legacyPresentation=true` in Development, Production, Acceptance and other
-non-Test environments. Use `AuditSphereOps.Api` for local and deployed Angular UI.
+The legacy `AuditSphereOps.Web` host and all Blazor components have been completely retired.
+The shared API host rejects `legacyPresentation=true` across all environments.
+Use `AuditSphereOps.Api` for local and deployed Angular UI.
 
 Authentication, consent, API, health and document routes remain owned by the API host.
 

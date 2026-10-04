@@ -18,7 +18,7 @@ public sealed class AngularSearchShortcutAcceptanceTests
   [Trait("CaseId", "ANGULAR-SEARCH-SHORTCUT-E2E")]
   public async Task SlashShortcutFocusesSearch_EscapeDismisses_AndFieldsKeepTheirSlash()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-SEARCH-SHORTCUT-E2E", startLegacyBlazorHosts: false);
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-SEARCH-SHORTCUT-E2E");
     var origin = await host.StartApiForIdentityAsync(host.Fixture.Staff,
       new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
     using var playwright = await Playwright.CreateAsync();

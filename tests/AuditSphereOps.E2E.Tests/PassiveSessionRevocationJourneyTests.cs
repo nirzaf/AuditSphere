@@ -13,7 +13,7 @@ public sealed class PassiveSessionRevocationJourneyTests
   [InlineData(true, true)]
   public async Task OpenShellClearsContentWithoutUserAction(bool client, bool disable)
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+    await using var host = await OwnedHost.StartAsync(startWorker: false,
       caseId: $"PASSIVE-REVOCATION-{(client ? 1 : 0)}-{(disable ? 1 : 0)}");
     var identity = client ? host.Fixture.Client : host.Fixture.Admin;
     var origin = client ? host.ClientUrl : await host.StartWebForIdentityAsync(identity);

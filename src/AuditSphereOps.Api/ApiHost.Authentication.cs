@@ -128,7 +128,7 @@ public static partial class ApiHost
             {
               // Only proof-backed setup can use this Microsoft identity. Without an epoch claim,
               // TrustedActorResolver denies every protected application actor and role.
-              if (!legacyPresentation && context.Properties is { } properties)
+              if (context.Properties is { } properties)
                 properties.RedirectUri = AuditSphereOps.Api.Ui.AngularRouteOwnership.Destination(builder.Configuration, "/setup/microsoft365");
               return;
             }

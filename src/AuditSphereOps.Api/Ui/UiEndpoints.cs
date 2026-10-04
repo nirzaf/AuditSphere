@@ -20,7 +20,7 @@ public static partial class UiEndpoints
   public static void MapUiEndpoints(this WebApplication app, bool legacyPresentation = false)
   {
     var canonical = AngularRouteOwnership.Canonical(app.Configuration);
-    if (canonical && (legacyPresentation || !app.Configuration.GetValue<bool>("AngularUi:Enabled")))
+    if (canonical && !app.Configuration.GetValue<bool>("AngularUi:Enabled"))
       throw new InvalidOperationException("Canonical Angular routes require the standalone API host and enabled Angular assets.");
     if (app.Configuration.GetValue<bool>("AngularUi:Enabled"))
     {
@@ -51,7 +51,7 @@ public static partial class UiEndpoints
             RequestPath = "/ui"
           }));
       }
-      // Explicit Angular-owned routes only: /auth, /api, /health and unmigrated Blazor routes never fall back to the SPA.
+      // Explicit Angular-owned routes only: /auth, /api, /health and unrouted paths never fall back to the SPA.
       foreach (var route in SpaRoutes)
         app.MapGet(route, (HttpContext http) =>
         {

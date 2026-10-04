@@ -10,7 +10,7 @@ public sealed class AngularAnalyticalPreparationJourneyTests
   [Trait("CaseId","ANGULAR-ANALYTICAL-PREPARATION")]
   public async Task ReviewedPreparationRecoversALostAcknowledgementWithoutDuplicateAndKeepsHumanReviewSeparate()
   {
-    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-ANALYTICAL-PREPARATION", startLegacyBlazorHosts: false);
+    await using var host=await OwnedHost.StartAsync(startWorker:false,caseId:"ANGULAR-ANALYTICAL-PREPARATION");
     var seed=await AccountingAnalysisReviewSeed.SeedAsync(host.Database,false,true);var f=seed.Fixture;
     var origin=await host.StartApiForIdentityAsync(f.Staff,new Dictionary<string,string>{["AngularUi__Enabled"]="true",["Application__FirmId"]=f.FirmId.ToString("D")});
     using var pw=await Playwright.CreateAsync();await using var browser=await PlaywrightBrowser.LaunchAsync(pw);await using var context=await browser.NewContextAsync();

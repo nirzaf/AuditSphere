@@ -10,7 +10,7 @@ public sealed class AngularPlanningNavigationJourneyTests
     [InlineData(true)]
     public async Task PlanningNavigationKeepsSavesRestoresAndDiscardsWithoutBusinessWrites(bool canonical)
     {
-        await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-PLANNING-NAVIGATION-E2E", startLegacyBlazorHosts: false);
+        await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-PLANNING-NAVIGATION-E2E");
         var fixture = host.Fixture;
         await using (var db = host.CreateDbContext()) await BudgetPreparationReviewSeed.PopulateAsync(db, fixture);
         var origin = await host.StartApiForIdentityAsync(fixture.Staff, new Dictionary<string, string>

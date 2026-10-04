@@ -11,7 +11,7 @@ public sealed class AngularMappingApprovalJourneyTests
   [Fact][Trait("CaseId","ANGULAR-MAPPING-REVIEW")]
   public async Task NativeIndependentApprovalRecoversLostResponseAndRevokedSession()
   {
-    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-MAPPING-REVIEW", startLegacyBlazorHosts: false);
+    await using var host=await OwnedHost.StartAsync(startWorker:false,caseId:"ANGULAR-MAPPING-REVIEW");
     var seed=await Seed(host);var origin=await host.StartApiForIdentityAsync(host.Fixture.Reviewer,new Dictionary<string,string>{["AngularUi__Enabled"]="true"});
     using var pw=await Playwright.CreateAsync();await using var browser=await PlaywrightBrowser.LaunchAsync(pw);var page=await browser.NewPageAsync();
     var errors=new List<string>();page.PageError+=(_,e)=>errors.Add(e);
@@ -48,7 +48,7 @@ public sealed class AngularMappingApprovalJourneyTests
   [Fact][Trait("CaseId","ANGULAR-MAPPING-GATES")]
   public async Task CreatorAndChangedSourceGenerationCannotApprove()
   {
-    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-MAPPING-GATES", startLegacyBlazorHosts: false);
+    await using var host=await OwnedHost.StartAsync(startWorker:false,caseId:"ANGULAR-MAPPING-GATES");
     var seed=await Seed(host);
     var settings=new Dictionary<string,string>{["AngularUi__Enabled"]="true"};
     var staff=await host.StartApiForIdentityAsync(host.Fixture.Staff,settings);
@@ -70,7 +70,7 @@ public sealed class AngularMappingApprovalJourneyTests
     Assert.Null(await proof.MappingVersions.Select(x=>x.ApprovedByUserId).SingleAsync());
   }
 
-  private static async Task<MappingApprovalSeed.Context> Seed(OwnedBlazorHost host) {
+  private static async Task<MappingApprovalSeed.Context> Seed(OwnedHost host) {
     await using var db=host.CreateDbContext();return await MappingApprovalSeed.SeedAsync(db,host.Fixture);
   }
 }

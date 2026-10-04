@@ -34,7 +34,7 @@ public static partial class ApiHost
     // PostgreSQL: single AuditSphere connection string; startup validates, never auto-applies destructive DDL (§45.6).
     var connectionString = builder.Configuration.GetConnectionString("AuditSphere")
       ?? "Host=127.0.0.1;Port=5433;Database=auditsphere;Username=postgres";
-    var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString) { Name = legacyPresentation ? "AuditSphere.Web" : "AuditSphere.Api" };
+    var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString) { Name = "AuditSphere.Api" };
     var dataSource = dataSourceBuilder.Build();
     builder.Services.AddSingleton(dataSource);
     builder.Services.AddDbContextFactory<AuditSphereDbContext>(options => options.UseNpgsql(dataSource));

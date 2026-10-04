@@ -10,7 +10,7 @@ public sealed class AngularEvidenceActionsJourneyTests
   [Trait("CaseId","ANGULAR-EVIDENCE-ACTIONS")]
   public async Task ExactNativeLinkAndIndependentDecisionRetainEvidenceAndClearAfterRevocation()
   {
-    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-EVIDENCE-ACTIONS", startLegacyBlazorHosts: false);
+    await using var host=await OwnedHost.StartAsync(startWorker:false,caseId:"ANGULAR-EVIDENCE-ACTIONS");
     var seed=await AccountingAnalysisReviewSeed.SeedAsync(host.Database,false,false);var f=seed.Fixture;var id=seed.Evidence["ECL"];
     var settings=new Dictionary<string,string>{["AngularUi__Enabled"]="true",["Application__FirmId"]=f.FirmId.ToString("D")};
     var staffOrigin=await host.StartApiForIdentityAsync(f.Staff,settings);var reviewerOrigin=await host.StartApiForIdentityAsync(f.Reviewer,settings);

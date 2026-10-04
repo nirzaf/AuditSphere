@@ -18,7 +18,7 @@ public sealed class FirmOperationsJourneyTests
   [Trait("CaseId", "AS-STE-FIRM-OPS-01")]
   public async Task LibraryPublishAnalyticsAndExpenseToTrialBalance()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "AS-STE-FIRM-OPS-01");
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "AS-STE-FIRM-OPS-01");
     var f = host.Fixture;
     var partner = PbcSeed.User(f.FirmId, "Staff"); partner.DisplayName = "Pat Partner";
     var manager = PbcSeed.User(f.FirmId, "Staff");

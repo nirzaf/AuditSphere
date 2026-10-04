@@ -19,7 +19,7 @@ public sealed class AngularNestedOverlayAcceptanceTests
   [Trait("CaseId", "ANGULAR-NESTED-OVERLAY-E2E")]
   public async Task DirtyPageNavigationDialog_StacksGuardDialog_WithPerLayerEscapeAndFocusRestoration()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-NESTED-OVERLAY-E2E", startLegacyBlazorHosts: false);
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-NESTED-OVERLAY-E2E");
     var f = host.Fixture;
     await using (var db = host.CreateDbContext())
     {

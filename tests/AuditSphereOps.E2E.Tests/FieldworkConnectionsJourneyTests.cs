@@ -21,7 +21,7 @@ public sealed class FieldworkConnectionsJourneyTests
   [Trait("CaseId", "AS-STE-FIELDWORK-01")]
   public async Task SeniorUploadsDrillsSamplesIndexesAndInsertsAStep()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "AS-STE-FIELDWORK-01");
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "AS-STE-FIELDWORK-01");
     var f = host.Fixture;
     var senior = PbcSeed.User(f.FirmId, "Staff"); senior.DisplayName = "Sam Senior";
     var reviewer = PbcSeed.User(f.FirmId, "Staff");

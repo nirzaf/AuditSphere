@@ -1,7 +1,7 @@
 // Abstractions: only real provider/persistence/actor boundaries (§28.2). No generic repositories.
 namespace AuditSphereOps.Application.Abstractions;
 
-/// <summary>Authenticated actor resolved from the Blazor circuit (§28.4): user + firm + session epoch + roles.</summary>
+/// <summary>Authenticated actor resolved from the trusted presentation session (§28.4): user + firm + session epoch + roles.</summary>
 public sealed record ActorContext(
   Guid UserId,
   Guid FirmId,

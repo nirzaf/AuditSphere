@@ -16,7 +16,7 @@ public sealed class GlobalSearchJourneyTests
   [Trait("CaseId", "AS-UI-SEARCH-01")]
   public async Task StaffSearchFindsOnlyOpenableRecordsAndRespectsKeyboardAndContext()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "AS-UI-SEARCH-01");
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "AS-UI-SEARCH-01");
     var user = PbcSeed.User(host.Fixture.FirmId, "Staff");
     await using (var db = host.CreateDbContext())
     {

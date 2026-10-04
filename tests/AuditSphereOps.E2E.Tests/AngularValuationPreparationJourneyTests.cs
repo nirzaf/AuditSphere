@@ -10,7 +10,7 @@ public sealed class AngularValuationPreparationJourneyTests
   [Trait("CaseId","ANGULAR-VALUATION-PREPARATION")]
   public async Task ExactEclAndInventoryPreparationRemainSeparateFromReviewAndClearAfterRevocation()
   {
-    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-VALUATION-PREPARATION", startLegacyBlazorHosts: false);
+    await using var host=await OwnedHost.StartAsync(startWorker:false,caseId:"ANGULAR-VALUATION-PREPARATION");
     var seed=await AccountingAnalysisReviewSeed.SeedAsync(host.Database,false,false);var f=seed.Fixture;
     Guid rec;await using(var db=host.CreateDbContext())rec=await db.EclAssessments.Where(x=>x.Id==seed.Evidence["ECL"]).Select(x=>x.ReconciliationId).SingleAsync();
     var origin=await host.StartApiForIdentityAsync(f.Staff,new Dictionary<string,string>{["AngularUi__Enabled"]="true",["Application__FirmId"]=f.FirmId.ToString("D")});

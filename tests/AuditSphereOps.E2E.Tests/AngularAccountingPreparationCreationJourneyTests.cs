@@ -10,7 +10,7 @@ public sealed class AngularAccountingPreparationCreationJourneyTests
   [Trait("CaseId","ANGULAR-ACCOUNTING-PREPARATION-CREATION")]
   public async Task ReconciliationAndSpecialistPreparationHaveReviewedReceiptsAndRecoverLostReply()
   {
-    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-ACCOUNTING-PREPARATION-CREATION", startLegacyBlazorHosts: false);
+    await using var host=await OwnedHost.StartAsync(startWorker:false,caseId:"ANGULAR-ACCOUNTING-PREPARATION-CREATION");
     var seed=await ReconciliationReviewSeed.SeedAsync(host.Database);var f=seed.Fixture;
     await using(var db=host.CreateDbContext())
       await db.ClientReportingPeriods.Where(x=>x.FirmId==f.FirmId&&x.ClientId==f.ClientId).ExecuteUpdateAsync(x=>x.SetProperty(p=>p.Status,"ACTIVE"));

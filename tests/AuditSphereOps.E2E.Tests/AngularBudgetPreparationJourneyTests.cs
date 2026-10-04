@@ -9,7 +9,7 @@ public sealed class AngularBudgetPreparationJourneyTests
   [InlineData(true)]
   public async Task ExactReviewLostResponseReloadAndRetainedReceiptNeverDuplicateBudget(bool canonical)
   {
-    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-BUDGET-REVIEW-E2E", startLegacyBlazorHosts: false);var f=host.Fixture;
+    await using var host=await OwnedHost.StartAsync(startWorker:false,caseId:"ANGULAR-BUDGET-REVIEW-E2E");var f=host.Fixture;
     await using(var db=host.CreateDbContext()){await BudgetPreparationReviewSeed.PopulateAsync(db,f);}
     var origin=await host.StartApiForIdentityAsync(f.Staff,new Dictionary<string,string>{["AngularUi__Enabled"]="true",["AngularUi__CanonicalRoutes"]=canonical.ToString()});
     using var playwright=await Playwright.CreateAsync();await using var browser=await PlaywrightBrowser.LaunchAsync(playwright);await using var context=await browser.NewContextAsync();var page=await context.NewPageAsync();var errors=new List<string>();page.PageError+=(_,e)=>errors.Add(e);

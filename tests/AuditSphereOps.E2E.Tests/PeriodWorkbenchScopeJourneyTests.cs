@@ -18,7 +18,7 @@ public sealed class PeriodWorkbenchScopeJourneyTests
   public async Task SelectionReloadClearsAllProtectedContentWhenAccessChanges(
     string route, string loadButton, bool disableUser)
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+    await using var host = await OwnedHost.StartAsync(startWorker: false,
       caseId: $"AS-PAR-002-{route.ToUpperInvariant()}-{(disableUser ? "DISABLED" : "REVOKED")}");
     Guid grantId;
     const string periodCode = "SYN-PRIVATE-CLOSED-PERIOD";
@@ -117,9 +117,9 @@ public sealed class PeriodWorkbenchScopeJourneyTests
   [Trait("CaseId", "AS-PAR-002-ROLLFORWARD-STALE-SOURCE-01")]
   public async Task StaleSourcePackageLeavesAuthorizedWorkbenchAvailable()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+    await using var host = await OwnedHost.StartAsync(startWorker: false,
       caseId: "AS-PAR-002-ROLLFORWARD-STALE-SOURCE-01");
-    var (packageId, _) = await FinancialArtifactJourneyTests.CreatePackageAsync(host);
+    var (packageId, _) = await FinancialPackageFixture.CreatePackageAsync(host);
     await using (var db = host.CreateDbContext())
     {
       db.RoleGrants.Add(PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Staff,

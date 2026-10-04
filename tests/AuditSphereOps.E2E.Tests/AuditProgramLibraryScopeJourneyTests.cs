@@ -11,7 +11,7 @@ public sealed class AuditProgramLibraryScopeJourneyTests
   [Trait("CaseId", "AS-PAR-002-AUDIT-LIBRARY-01")]
   public async Task RevokedGrant_ClearsOpenLibraryOnSearchAndRefresh()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+    await using var host = await OwnedHost.StartAsync(startWorker: false,
       caseId: "AS-PAR-002-AUDIT-LIBRARY-01");
     Guid grantId;
     await using (var db = host.CreateDbContext())

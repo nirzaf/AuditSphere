@@ -25,7 +25,7 @@ public sealed class CompletionDeliverablesJourneyTests
   [Trait("CaseId", "AS-STE-COMPLETION-01")]
   public async Task PartnerClearsDecidesAndIssues_ClientReviewsInThePortal()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "AS-STE-COMPLETION-01");
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "AS-STE-COMPLETION-01");
     var f = host.Fixture;
     var partner = PbcSeed.User(f.FirmId, "Staff"); partner.DisplayName = "Pat Partner";
     var manager = PbcSeed.User(f.FirmId, "Staff"); manager.DisplayName = "Mona Manager";

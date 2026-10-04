@@ -43,7 +43,7 @@ public sealed class LivePbcBrowserJourneyTests(ITestOutputHelper output)
       ["SelectedSite__CertificatePath"] = options.CertificatePath, ["SelectedSite__PrivateKeyPath"] = options.PrivateKeyPath
     };
 
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "P2-LIVE-BROWSER-01");
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "P2-LIVE-BROWSER-01");
     var location = new SelectedSiteLocation(options.TenantId, Env("SITE_ID")!, Env("DRIVE_ID")!, options.CredentialReference);
     using var graphHttp = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(100) };
     using var transport = new GraphPreauthenticatedTransport();
@@ -121,7 +121,7 @@ public sealed class LivePbcBrowserJourneyTests(ITestOutputHelper output)
     }
   }
 
-  private static async Task SeedSelectedSiteAsync(OwnedBlazorHost host, SelectedSiteCertificateOptions options, SelectedSiteLocation location)
+  private static async Task SeedSelectedSiteAsync(OwnedHost host, SelectedSiteCertificateOptions options, SelectedSiteLocation location)
   {
     var now = DateTimeOffset.UtcNow;
     var connectionId = Guid.NewGuid();

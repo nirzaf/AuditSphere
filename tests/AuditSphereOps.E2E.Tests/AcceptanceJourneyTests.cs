@@ -18,7 +18,7 @@ public sealed class AcceptanceJourneyTests
   [Trait("CaseId", "AS-ACCEPTANCE-PATH-01")]
   public async Task AdverseAnswerNeedsReview_ThenPartnerAcceptsCreatesAndActivatesTheEngagement()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "AS-ACCEPTANCE-PATH-01");
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "AS-ACCEPTANCE-PATH-01");
     var partner = PbcSeed.User(host.Fixture.FirmId, "Staff");
     var clientId = host.Fixture.ClientId;
     await using (var db = host.CreateDbContext())

@@ -11,7 +11,7 @@ public sealed class AngularAccountingJourneyTests
   [Trait("CaseId", "ANGULAR-ACCOUNTING-E2E-01")]
   public async Task ReviewedSetupPersistsProfilePeriodAndBook()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-ACCOUNTING-E2E-01", startLegacyBlazorHosts: false);
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-ACCOUNTING-E2E-01");
     var origin = await host.StartApiForIdentityAsync(host.Fixture.Admin,
       new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
     string clientName;
@@ -116,7 +116,7 @@ public sealed class AngularAccountingJourneyTests
     await lifecycle.GetByRole(AriaRole.Button, new() { Name = "Close period", Exact = true }).ClickAsync();
     await Assertions.Expect(accounting.GetByRole(AriaRole.Cell, new() { Name = "CLOSED / 2", Exact = true })).ToBeVisibleAsync();
     // Use the existing package builder fixture; package generation and artifacts remain real local Application work.
-    var sourcePackage = await FinancialArtifactJourneyTests.CreatePackageAsync(host);
+    var sourcePackage = await FinancialPackageFixture.CreatePackageAsync(host);
     var roll = accounting.Locator("form").Filter(new() { Has = page.GetByRole(AriaRole.Heading, new() { Name = "Roll forward closed period", Exact = true }) });
     await roll.GetByLabel("Closed prior period", new() { Exact = true }).SelectOptionAsync(periodId.ToString());
     await roll.GetByRole(AriaRole.Button, new() { Name = "Load validated source packages", Exact = true }).ClickAsync();

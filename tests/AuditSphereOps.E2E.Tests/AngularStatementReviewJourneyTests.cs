@@ -9,7 +9,7 @@ public sealed class AngularStatementReviewJourneyTests
   [Fact][Trait("CaseId", "ANGULAR-STATEMENT-REVIEW")]
   public async Task ApprovedStatementContributionsAndEvidenceReturnRetainContextWithoutStaleTotals()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-STATEMENT-REVIEW", startLegacyBlazorHosts: false);
+    await using var host = await OwnedHost.StartAsync(startWorker:false,caseId:"ANGULAR-STATEMENT-REVIEW");
     StatementReviewSeed.Context seed; await using(var db=host.CreateDbContext()) seed=await StatementReviewSeed.SeedAsync(db,host.Fixture,true);
     var origin=await host.StartApiForIdentityAsync(host.Fixture.Staff,new Dictionary<string,string>{["AngularUi__Enabled"]="true"});
     using var pw=await Playwright.CreateAsync();await using var browser=await PlaywrightBrowser.LaunchAsync(pw);var page=await browser.NewPageAsync();
@@ -56,7 +56,7 @@ public sealed class AngularStatementReviewJourneyTests
   [Fact][Trait("CaseId", "ANGULAR-STATEMENT-STALE")]
   public async Task ChangedGenerationHidesOldContributionAndRefusesExport()
   {
-    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-STATEMENT-STALE", startLegacyBlazorHosts: false);
+    await using var host=await OwnedHost.StartAsync(startWorker:false,caseId:"ANGULAR-STATEMENT-STALE");
     await using(var db=host.CreateDbContext()) await StatementReviewSeed.SeedAsync(db,host.Fixture);
     var origin=await host.StartApiForIdentityAsync(host.Fixture.Staff,new Dictionary<string,string>{["AngularUi__Enabled"]="true"});
     using var pw=await Playwright.CreateAsync();await using var browser=await PlaywrightBrowser.LaunchAsync(pw);var page=await browser.NewPageAsync();

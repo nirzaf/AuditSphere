@@ -9,7 +9,7 @@ public sealed class AngularJournalManagementJourneyTests
   [Fact][Trait("CaseId","ANGULAR-JOURNAL-CLIENT-MANAGEMENT")]
   public async Task ClientQueueExactDispositionLostAcknowledgmentAndRevocationAreNativeAndScoped()
   {
-    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-JOURNAL-CLIENT-MANAGEMENT", startLegacyBlazorHosts: false);Guid id;
+    await using var host=await OwnedHost.StartAsync(startWorker:false,caseId:"ANGULAR-JOURNAL-CLIENT-MANAGEMENT");Guid id;
     await using(var db=host.CreateDbContext())id=await JournalReviewSeed.SeedAsync(db,host.Fixture);
     var origin=await host.StartApiForIdentityAsync(host.Fixture.Client,new Dictionary<string,string>{["AngularUi__Enabled"]="true"});
     using var pw=await Playwright.CreateAsync();await using var browser=await PlaywrightBrowser.LaunchAsync(pw);var page=await browser.NewPageAsync();var errors=new List<string>();page.PageError+=(_,e)=>errors.Add(e);
@@ -34,7 +34,7 @@ public sealed class AngularJournalManagementJourneyTests
   [Fact][Trait("CaseId","ANGULAR-JOURNAL-OFFLINE-MANAGEMENT")]
   public async Task OfflineStaffEvidenceAppearsInImmutableHistoryWithoutClaimingClientAuthentication()
   {
-    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-JOURNAL-OFFLINE-MANAGEMENT", startLegacyBlazorHosts: false);Guid id;
+    await using var host=await OwnedHost.StartAsync(startWorker:false,caseId:"ANGULAR-JOURNAL-OFFLINE-MANAGEMENT");Guid id;
     await using(var db=host.CreateDbContext())id=await JournalReviewSeed.SeedAsync(db,host.Fixture);
     var origin=await host.StartApiForIdentityAsync(host.Fixture.Staff,new Dictionary<string,string>{["AngularUi__Enabled"]="true"});using var pw=await Playwright.CreateAsync();await using var browser=await PlaywrightBrowser.LaunchAsync(pw);var page=await browser.NewPageAsync();
     await page.GotoAsync(origin+"/auth/sign-in?returnUrl="+Uri.EscapeDataString("/ui/app/accounting/journals/"+id));await page.GetByRole(AriaRole.Link,new(){Name="Review management response",Exact=true}).ClickAsync();

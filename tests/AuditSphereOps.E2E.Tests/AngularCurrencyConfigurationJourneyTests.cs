@@ -8,7 +8,7 @@ public sealed class AngularCurrencyConfigurationJourneyTests
   [Trait("CaseId", "ANGULAR-CURRENCY-CONFIGURATION")]
   public async Task NativeExactPreparation_DraftRecovery_IndependentApproval_AndRevocation()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-CURRENCY-CONFIGURATION", startLegacyBlazorHosts: false);
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-CURRENCY-CONFIGURATION");
     await using (var db = host.CreateDbContext()) { db.RoleGrants.Add(PbcSeed.AdminGrant(host.Fixture.FirmId, host.Fixture.Reviewer)); await db.SaveChangesAsync(); }
     var origin = await host.StartApiForIdentityAsync(host.Fixture.Admin, new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
     using var playwright = await Playwright.CreateAsync(); await using var browser = await PlaywrightBrowser.LaunchAsync(playwright); var page = await browser.NewPageAsync(); var errors = new List<string>(); page.PageError += (_, e) => errors.Add(e);

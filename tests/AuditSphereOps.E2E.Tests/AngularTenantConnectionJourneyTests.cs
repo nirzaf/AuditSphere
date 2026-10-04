@@ -10,7 +10,7 @@ public sealed class AngularTenantConnectionJourneyTests
   [Trait("CaseId", "ANGULAR-TENANT-CONNECTION")]
   public async Task ConsentAndExactDirectoryBinding_UseStandaloneApi_AndRemainSeparateFromLocalAccess()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-TENANT-CONNECTION", startLegacyBlazorHosts: false);
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-TENANT-CONNECTION");
     var seeded = await TenantAdministrationJourneyTests.SeedAsync(host, verified: false);
     var settings = TenantAdministrationJourneyTests.Simulation(seeded);
     settings["AngularUi__Enabled"] = "true";

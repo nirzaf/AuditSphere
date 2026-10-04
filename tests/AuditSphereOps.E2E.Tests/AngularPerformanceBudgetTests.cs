@@ -25,7 +25,7 @@ public sealed class AngularPerformanceBudgetTests
   [Trait("CaseId", "ANGULAR-PERF-E2E")]
   public async Task NativeShell_MeetsLocalColdWarmAndLargeDatasetBudgets()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-PERF-E2E", startLegacyBlazorHosts: false);
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-PERF-E2E");
     var f = host.Fixture;
     const int leadCount = 60;
     await using (var db = host.CreateDbContext())

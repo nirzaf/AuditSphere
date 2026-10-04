@@ -15,8 +15,8 @@ public sealed class AngularCommercialJourneyTests
   [Trait("CaseId", "ANGULAR-COMMERCIAL-LEAD-RECOVERY-01")]
   public async Task LostLeadCreateResponse_ReloadResolvesSameRequestWithoutDuplicate()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
-      caseId: "ANGULAR-COMMERCIAL-LEAD-RECOVERY-01", startLegacyBlazorHosts: false);
+    await using var host = await OwnedHost.StartAsync(startWorker: false,
+      caseId: "ANGULAR-COMMERCIAL-LEAD-RECOVERY-01");
     var settings = new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" };
     var buildPath = Environment.GetEnvironmentVariable("AUDITSPHERE_TEST_UI_BUILD_PATH");
     if (!string.IsNullOrWhiteSpace(buildPath)) settings["AngularUi__BuildPath"] = buildPath;
@@ -86,8 +86,8 @@ public sealed class AngularCommercialJourneyTests
   [Trait("CaseId", "ANGULAR-COMMERCIAL-OPPORTUNITY-RECOVERY-01")]
   public async Task LostOpportunityCreateResponses_ReconcileCommitAndRetryUncommittedRequest()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
-      caseId: "ANGULAR-COMMERCIAL-OPPORTUNITY-RECOVERY-01", startLegacyBlazorHosts: false);
+    await using var host = await OwnedHost.StartAsync(startWorker: false,
+      caseId: "ANGULAR-COMMERCIAL-OPPORTUNITY-RECOVERY-01");
     var settings = new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" };
     var buildPath = Environment.GetEnvironmentVariable("AUDITSPHERE_TEST_UI_BUILD_PATH");
     if (!string.IsNullOrWhiteSpace(buildPath)) settings["AngularUi__BuildPath"] = buildPath;
@@ -200,8 +200,8 @@ public sealed class AngularCommercialJourneyTests
   [Trait("CaseId", "ANGULAR-COMMERCIAL-PROPOSAL-RECOVERY-01")]
   public async Task LostProposalCreateResponses_ReconcileCommitAndRetrySameRequest()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
-      caseId: "ANGULAR-COMMERCIAL-PROPOSAL-RECOVERY-01", startLegacyBlazorHosts: false);
+    await using var host = await OwnedHost.StartAsync(startWorker: false,
+      caseId: "ANGULAR-COMMERCIAL-PROPOSAL-RECOVERY-01");
     var settings = new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" };
     var buildPath = Environment.GetEnvironmentVariable("AUDITSPHERE_TEST_UI_BUILD_PATH");
     if (!string.IsNullOrWhiteSpace(buildPath)) settings["AngularUi__BuildPath"] = buildPath;
@@ -331,8 +331,8 @@ public sealed class AngularCommercialJourneyTests
   [Trait("CaseId", "ANGULAR-COMMERCIAL-PROPOSAL-REVISION-RECOVERY-01")]
   public async Task LostProposalRevisionResponses_ReconcileCommitAndRetrySameRequest()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
-      caseId: "ANGULAR-COMMERCIAL-PROPOSAL-REVISION-RECOVERY-01", startLegacyBlazorHosts: false);
+    await using var host = await OwnedHost.StartAsync(startWorker: false,
+      caseId: "ANGULAR-COMMERCIAL-PROPOSAL-REVISION-RECOVERY-01");
     var settings = new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" };
     var buildPath = Environment.GetEnvironmentVariable("AUDITSPHERE_TEST_UI_BUILD_PATH");
     if (!string.IsNullOrWhiteSpace(buildPath)) settings["AngularUi__BuildPath"] = buildPath;
@@ -463,7 +463,7 @@ public sealed class AngularCommercialJourneyTests
   [Trait("CaseId", "ANGULAR-COMMERCIAL-E2E-01")]
   public async Task QuotationPreview_Save_AndApprovalUsePersistedServerState()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-COMMERCIAL-E2E-01", startLegacyBlazorHosts: false);
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-COMMERCIAL-E2E-01");
     var settings = new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" };
     var buildPath = Environment.GetEnvironmentVariable("AUDITSPHERE_TEST_UI_BUILD_PATH");
     if (!string.IsNullOrWhiteSpace(buildPath)) settings["AngularUi__BuildPath"] = buildPath;
@@ -667,7 +667,7 @@ public sealed class AngularCommercialJourneyTests
   [Trait("CaseId", "ANGULAR-COMMERCIAL-DRAFT-E2E-01")]
   public async Task EmbeddedDrafts_RecoverOnlyFields_AfterGuardedNavigation()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-COMMERCIAL-DRAFT-E2E-01", startLegacyBlazorHosts: false);
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-COMMERCIAL-DRAFT-E2E-01");
     var settings = new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" };
     var buildPath = Environment.GetEnvironmentVariable("AUDITSPHERE_TEST_UI_BUILD_PATH");
     if (!string.IsNullOrWhiteSpace(buildPath)) settings["AngularUi__BuildPath"] = buildPath;

@@ -13,7 +13,7 @@ public sealed class AngularPortfolioJourneyTests
   [Trait("CaseId", "ANGULAR-PORTFOLIO-E2E-02")]
   public async Task ScopedSummaryRecordsCsvAndReturnFilters(bool canonical)
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-PORTFOLIO-E2E-02");
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-PORTFOLIO-E2E-02");
     var a = await AuditSphereOps.Domain.Tests.SiblingClientSeed.SeedAsync(host.Database, host.Fixture.FirmId, "PORTFOLIO-A");
     var b = await AuditSphereOps.Domain.Tests.SiblingClientSeed.SeedAsync(host.Database, host.Fixture.FirmId, "HIDDEN-PORTFOLIO-B");
     try
@@ -67,9 +67,9 @@ public sealed class AngularPortfolioJourneyTests
   [InlineData(false)]
   [InlineData(true)]
   [Trait("CaseId", "ANGULAR-PORTFOLIO-E2E-01")]
-  public async Task DirectLink_Scope_Revocation_AndBlazorRollback(bool canonical)
+  public async Task DirectLink_Scope_Revocation_AndCanonicalFallback(bool canonical)
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-PORTFOLIO-E2E-01");
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-PORTFOLIO-E2E-01");
     var prefix=canonical?"":"/ui";
     var settings=new Dictionary<string,string>{["AngularUi__Enabled"]="true",["AngularUi__CanonicalRoutes"]=canonical.ToString()};
     var origin = await host.StartApiForIdentityAsync(host.Fixture.Staff, settings);

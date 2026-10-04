@@ -123,7 +123,7 @@ public sealed class AngularAccessibilitySweepTests
   [Trait("CaseId", "ANGULAR-A11Y-SWEEP-E2E")]
   public async Task EveryModuleState_SatisfiesSemanticContrastAndLocaleContract()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-A11Y-SWEEP-E2E", startLegacyBlazorHosts: false);
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-A11Y-SWEEP-E2E");
     var origin = await host.StartApiForIdentityAsync(host.Fixture.Staff,
       new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
     using var playwright = await Playwright.CreateAsync();

@@ -12,7 +12,7 @@ public sealed class AngularMappingDraftJourneyTests
   [Fact][Trait("CaseId", "ANGULAR-MAPPING-BATCH")]
   public async Task NativeSplitDraftRecoveryAndLostCreateResponsePreserveApprovedHistory()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-MAPPING-BATCH", startLegacyBlazorHosts: false);
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-MAPPING-BATCH");
     var parent = await Seed(host);
     var origin = await host.StartApiForIdentityAsync(host.Fixture.Staff, new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
     using var pw = await Playwright.CreateAsync(); await using var browser = await PlaywrightBrowser.LaunchAsync(pw); var page = await browser.NewPageAsync();
@@ -66,7 +66,7 @@ public sealed class AngularMappingDraftJourneyTests
   [Fact][Trait("CaseId", "ANGULAR-MAPPING-BATCH-GATES")]
   public async Task KeyboardPasteAndStaleBatchRemainExplicitAndPublishNoPartialVersion()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-MAPPING-BATCH-GATES", startLegacyBlazorHosts: false);
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-MAPPING-BATCH-GATES");
     var parent = await Seed(host); var origin = await host.StartApiForIdentityAsync(host.Fixture.Staff, new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
     using var pw = await Playwright.CreateAsync(); await using var browser = await PlaywrightBrowser.LaunchAsync(pw); var page = await browser.NewPageAsync();
     await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString($"/ui/app/accounting/mappings/{parent}/edit"));
@@ -93,7 +93,7 @@ public sealed class AngularMappingDraftJourneyTests
     await using var proof = host.CreateDbContext(); Assert.Single(await proof.MappingVersions.ToListAsync()); Assert.Equal(2, await proof.MappingAllocations.CountAsync()); Assert.Empty(await proof.SourceAcceptanceDecisions.ToListAsync());
   }
 
-  private static async Task<Guid> Seed(OwnedBlazorHost host)
+  private static async Task<Guid> Seed(OwnedHost host)
   {
     await using var db = host.CreateDbContext(); var seed = await MappingApprovalSeed.SeedAsync(db, host.Fixture);
     var actor = PbcSeed.Actor(host.Fixture.Reviewer, "AccountingReviewer"); var plan = await MappingApprovalWorkspace.GetAsync(db, actor, seed.MappingId);

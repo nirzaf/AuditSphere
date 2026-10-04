@@ -12,7 +12,7 @@ public sealed class AngularNavigationJourneyTests
   [Trait("CaseId", "ANGULAR-API-NAVIGATION-E2E")]
   public async Task AuthorizedSearch_OpensNativeRoutes_AndSkipLinkPreservesContext(bool canonical)
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-API-NAVIGATION-E2E", startLegacyBlazorHosts: false);
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-API-NAVIGATION-E2E");
     var f = host.Fixture;
     await using (var db = host.CreateDbContext())
       foreach (var objective in new[] { "Navigation bank statements", "Navigation bank reconciliation" })

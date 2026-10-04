@@ -18,7 +18,7 @@ public sealed class CommercialJourneyTests
   [Trait("CaseId", "AS-COMMERCIAL-QUOTE-01")]
   public async Task PartnerPricesApprovesAndDownloadsBrandedDocuments_AndClientsCannot()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "AS-COMMERCIAL-QUOTE-01");
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "AS-COMMERCIAL-QUOTE-01");
     var admin = PbcSeed.Actor(host.Fixture.Admin, "Administrator");
     var partner = PbcSeed.User(host.Fixture.FirmId, "Staff");
     Guid proposalId;

@@ -44,7 +44,7 @@ public static partial class ApiHost
     // cannot roll back durable state.
     var telemetryEndpoint = TelemetryEndpoint.Parse(builder.Configuration["Telemetry:Otlp:Endpoint"]);
     var telemetry = builder.Services.AddOpenTelemetry()
-      .ConfigureResource(resource => resource.AddService(legacyPresentation ? "AuditSphereOps.Web" : "AuditSphereOps.Api"))
+      .ConfigureResource(resource => resource.AddService("AuditSphereOps.Api"))
       .WithTracing(tracing =>
       {
         tracing.AddSource(AuditDiagnostics.ActivitySourceName)

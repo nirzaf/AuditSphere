@@ -30,7 +30,7 @@ namespace AuditSphereOps.Api;
 
 public static partial class ApiHost
 {
-  private static void MapAuthenticationEndpoints(WebApplication app, AuthenticationConfiguration identity, bool legacyPresentation)
+  private static void MapAuthenticationEndpoints(WebApplication app, AuthenticationConfiguration identity, bool legacyPresentation = false)
   {
     var oidcConfigured = identity.OidcConfigured;
     var developmentIdentityEnabled = identity.DevelopmentIdentityEnabled;
@@ -87,8 +87,7 @@ public static partial class ApiHost
         http.Response.Headers["Referrer-Policy"] = "no-referrer";
         if (!http.RequestServices.GetRequiredService<TenantAdministrationSettings>().ConsentEnabled)
           return Results.NotFound();
-        var consentPage = !legacyPresentation || configuration.GetValue<bool>("AngularUi:Enabled")
-          ? AngularRouteOwnership.Destination(configuration, "/app/administration/microsoft365/tenant-connection") : "/app/administration/microsoft365/tenant-connection";
+        var consentPage = AngularRouteOwnership.Destination(configuration, "/app/administration/microsoft365/tenant-connection");
         var query = http.Request.Query;
         if (query["state"].Count != 1 || query["tenant"].Count > 1 ||
             query["admin_consent"].Count > 1 || query["error"].Count > 1)
@@ -125,12 +124,12 @@ public static partial class ApiHost
         return Results.Redirect(verifier.BuildIdentityChallenge(challenge.Value!.TenantId,
           challenge.Value.State, challenge.Value.Nonce).ToString());
       });
-      TenantAdministrationComposition.MapEndpoints(app, nativeUi: !legacyPresentation);
+      TenantAdministrationComposition.MapEndpoints(app, nativeUi: true);
       app.MapGet("/auth/landing", async (HttpContext http, TrustedActorResolver actorResolver,
         IDbContextFactory<AuditSphereDbContext> dbFactory, CancellationToken ct) =>
       {
         if (http.User.Identity?.IsAuthenticated != true)
-          return Results.Redirect(legacyPresentation ? "/app" : AngularRouteOwnership.Destination(app.Configuration, "/app"));
+          return Results.Redirect(AngularRouteOwnership.Destination(app.Configuration, "/app"));
         var subject = http.User.FindFirstValue("oid");
         var tenant = http.User.FindFirstValue("tid");
         if (string.IsNullOrWhiteSpace(subject) || string.IsNullOrWhiteSpace(tenant))
@@ -145,8 +144,8 @@ public static partial class ApiHost
           return Results.Redirect("/auth/access-not-assigned");
         return user.UserKind.Equals("Client", StringComparison.OrdinalIgnoreCase) ||
                actor.Roles.Contains("ClientUser", StringComparer.OrdinalIgnoreCase)
-          ? Results.Redirect(legacyPresentation ? "/portal" : AngularRouteOwnership.Destination(app.Configuration, "/portal"))
-          : Results.Redirect(legacyPresentation ? "/app" : AngularRouteOwnership.Destination(app.Configuration, "/app"));
+          ? Results.Redirect(AngularRouteOwnership.Destination(app.Configuration, "/portal"))
+          : Results.Redirect(AngularRouteOwnership.Destination(app.Configuration, "/app"));
       });
       app.MapGet("/auth/sign-out", async (HttpContext http) =>
       {
@@ -155,13 +154,11 @@ public static partial class ApiHost
       });
     }
 
-    if (!legacyPresentation)
+    app.MapGet("/", () => Results.Redirect(AngularRouteOwnership.Destination(app.Configuration, "/app")));
+    app.MapGet("/auth/access-not-assigned", (HttpContext http) =>
     {
-      app.MapGet("/", () => Results.Redirect(AngularRouteOwnership.Destination(app.Configuration, "/app")));
-      app.MapGet("/auth/access-not-assigned", (HttpContext http) =>
-      {
-        http.Response.Headers.CacheControl = "no-store";
-        const string page = """
+      http.Response.Headers.CacheControl = "no-store";
+      const string page = """
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><title>AuditSphere access not assigned</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -172,14 +169,13 @@ main{max-width:34rem;padding:2rem;text-align:center}a.button{display:inline-bloc
 <p><a class="button" href="/auth/sign-out">Sign out</a></p></main></body>
 </html>
 """;
-        return Results.Text(page, "text/html; charset=utf-8", statusCode: StatusCodes.Status403Forbidden);
-      });
-      if (!oidcConfigured && !developmentIdentityEnabled)
-        app.MapGet("/auth/sign-in", () => Results.Problem("Microsoft sign-in is not configured for this deployment.", statusCode: 503));
-    }
+      return Results.Text(page, "text/html; charset=utf-8", statusCode: StatusCodes.Status403Forbidden);
+    });
+    if (!oidcConfigured && !developmentIdentityEnabled)
+      app.MapGet("/auth/sign-in", () => Results.Problem("Microsoft sign-in is not configured for this deployment.", statusCode: 503));
     string LocalDestination(string? returnUrl) =>
       !string.IsNullOrWhiteSpace(returnUrl) && returnUrl.StartsWith('/') &&
       !returnUrl.StartsWith("//", StringComparison.Ordinal) && !returnUrl.Contains('\\') && !returnUrl.Any(char.IsControl)
-        ? returnUrl : legacyPresentation ? "/auth/landing" : AngularRouteOwnership.Destination(app.Configuration, "/app");
+        ? returnUrl : AngularRouteOwnership.Destination(app.Configuration, "/app");
   }
 }

@@ -11,7 +11,7 @@ public sealed class AngularWorkspaceAdministrationJourneyTests
   [Trait("CaseId", "ANGULAR-WORKSPACE-ADMINISTRATION")]
   public async Task AcceptedClientReview_ShowsRealBlockers_WithoutInventingFoldersOrPrivilegedSiteAccess()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-WORKSPACE-ADMINISTRATION", startLegacyBlazorHosts: false);
+    await using var host = await OwnedHost.StartAsync(startWorker:false,caseId:"ANGULAR-WORKSPACE-ADMINISTRATION");
     var seeded = await TenantAdministrationJourneyTests.SeedAsync(host,verified:true);
     var settings = TenantAdministrationJourneyTests.Simulation(seeded); settings["AngularUi__Enabled"]="true";
     var origin = await host.StartApiForIdentityAsync(seeded.Admin,settings);

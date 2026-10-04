@@ -10,8 +10,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.E2E.Tests;
 
-internal sealed class OwnedBlazorHost : IAsyncDisposable
+internal sealed class OwnedHost : IAsyncDisposable
 {
+  internal const string BootstrapProof = "AuditSphere synthetic E2E bootstrap proof";
   private readonly List<Process> processes = [];
   private readonly string runRoot;
   private readonly OwnedPostgresDatabase pg;
@@ -25,7 +26,7 @@ internal sealed class OwnedBlazorHost : IAsyncDisposable
   public DbContextOptions<AuditSphereDbContext> DbOptions => pg.Options;
   public string StagingRoot => Path.Combine(runRoot, "staging");
 
-  private OwnedBlazorHost(OwnedPostgresDatabase pg, PbcSeed.Fixture fixture, Guid requestId, string runRoot)
+  private OwnedHost(OwnedPostgresDatabase pg, PbcSeed.Fixture fixture, Guid requestId, string runRoot)
   {
     this.pg = pg;
     Fixture = fixture;
@@ -33,13 +34,13 @@ internal sealed class OwnedBlazorHost : IAsyncDisposable
     this.runRoot = runRoot;
   }
 
-  public static async Task<OwnedBlazorHost> StartAsync(
+  public static async Task<OwnedHost> StartAsync(
     bool startWorker = true, bool enableSetup = false, string? caseId = null,
-    bool requireProtectionAttestation = false, bool startLegacyBlazorHosts = true)
+    bool requireProtectionAttestation = false)
   {
     var repo = FindRepositoryRoot();
     OwnedPostgresDatabase? pg = null;
-    OwnedBlazorHost? host = null;
+    OwnedHost? host = null;
     string? runRoot = null;
     try
     {
@@ -48,12 +49,9 @@ internal sealed class OwnedBlazorHost : IAsyncDisposable
       var fixture = await PbcSeed.SeedAsync(pg);
       var requestId = await PbcSeed.CreateSentAcknowledgedRequestAsync(pg, fixture,
         PbcSeed.Actor(fixture.Staff, "Staff"), PbcSeed.Actor(fixture.Client, "ClientUser"));
-      host = new OwnedBlazorHost(pg, fixture, requestId, runRoot);
-      if (startLegacyBlazorHosts)
-      {
-        host.ClientUrl = await host.StartWebAsync(repo, fixture.Client, enableSetup, apiHost: true);
-        host.StaffUrl = await host.StartWebAsync(repo, fixture.Staff, enableSetup, requireProtectionAttestation, apiHost: true);
-      }
+      host = new OwnedHost(pg, fixture, requestId, runRoot);
+      host.ClientUrl = await host.StartWebAsync(repo, fixture.Client, enableSetup, apiHost: true);
+      host.StaffUrl = await host.StartWebAsync(repo, fixture.Staff, enableSetup, requireProtectionAttestation, apiHost: true);
       if (startWorker) await host.StartWorkerAsync(repo);
       return host;
     }
@@ -180,7 +178,7 @@ internal sealed class OwnedBlazorHost : IAsyncDisposable
     {
       settings.AddRange([
         "Setup__InstallationId", "synthetic-installation",
-        "Setup__BootstrapProofHash", Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(M365SetupJourneyTests.BootstrapProof))).ToLowerInvariant()
+        "Setup__BootstrapProofHash", Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(BootstrapProof))).ToLowerInvariant()
       ]);
     }
     foreach (var (key, value) in extraSettings ?? new Dictionary<string, string>())

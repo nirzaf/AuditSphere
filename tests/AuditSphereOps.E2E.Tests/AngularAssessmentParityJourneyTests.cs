@@ -12,7 +12,7 @@ public sealed class AngularAssessmentParityJourneyTests
   [InlineData(true)]
   public async Task ExactHistoryProfileProgressAndCurrentDecisionAssentRemainScoped(bool canonical)
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-ASSESSMENT-PARITY", startLegacyBlazorHosts: false);
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-ASSESSMENT-PARITY");
     var f = host.Fixture;
     Guid decisionId;
     await using (var db = host.CreateDbContext()) decisionId = await AssessmentParitySeed.PopulateAsync(db, f);
@@ -96,7 +96,7 @@ public sealed class AngularAssessmentParityJourneyTests
     Assert.Empty(errors);
   }
 
-  private static async Task SeedSpecialistTimelineAsync(OwnedBlazorHost host, PbcSeed.Fixture f)
+  private static async Task SeedSpecialistTimelineAsync(OwnedHost host, PbcSeed.Fixture f)
   {
     await using var db = host.CreateDbContext();
     var actor = PbcSeed.Actor(f.Admin, "Partner");

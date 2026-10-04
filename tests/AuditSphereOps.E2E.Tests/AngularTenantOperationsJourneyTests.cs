@@ -12,7 +12,7 @@ public sealed class AngularTenantOperationsJourneyTests
   [Trait("CaseId", "ANGULAR-TENANT-PROVISIONING-E2E")]
   public async Task ReviewedProvisioning_OneTimePassword_GuestScope_AndUnknownRecovery()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-TENANT-PROVISIONING-E2E", startLegacyBlazorHosts: false);
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-TENANT-PROVISIONING-E2E");
     var seeded = await TenantAdministrationJourneyTests.SeedAsync(host, verified: true);
     var settings = TenantAdministrationJourneyTests.Simulation(seeded); settings["AngularUi__Enabled"] = "true";
     var origin = await host.StartApiForIdentityAsync(seeded.Admin, settings);
@@ -103,7 +103,7 @@ public sealed class AngularTenantOperationsJourneyTests
   [Trait("CaseId", "ANGULAR-TENANT-GROUPS-E2E")]
   public async Task GroupAllowlist_ReviewedAddRemove_AndRetirement_PreserveLocalAuthority()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-TENANT-GROUPS-E2E", startLegacyBlazorHosts: false);
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-TENANT-GROUPS-E2E");
     var seeded = await TenantAdministrationJourneyTests.SeedAsync(host, verified: true);
     var settings = TenantAdministrationJourneyTests.Simulation(seeded); settings["AngularUi__Enabled"] = "true";
     var origin = await host.StartApiForIdentityAsync(seeded.Admin, settings);

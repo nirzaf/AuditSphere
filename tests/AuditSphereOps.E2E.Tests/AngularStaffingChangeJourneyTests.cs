@@ -11,7 +11,7 @@ public sealed class AngularStaffingChangeJourneyTests
   [InlineData(true)]
   public async Task AssignmentAndRevocationLostResponsesReconcileAfterReloadWithoutRetry(bool canonical)
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker:false, caseId:"ANGULAR-STAFFING-REVIEW", startLegacyBlazorHosts: false);
+    await using var host = await OwnedHost.StartAsync(startWorker:false, caseId:"ANGULAR-STAFFING-REVIEW");
     var f = host.Fixture;
     var origin = await host.StartApiForIdentityAsync(f.Admin, new Dictionary<string,string> {
       ["AngularUi__Enabled"]="true", ["AngularUi__CanonicalRoutes"]=canonical.ToString() });

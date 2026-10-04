@@ -13,7 +13,7 @@ public sealed class AngularClientPortalJourneyTests
   [Trait("CaseId", "ANGULAR-CLIENT-PORTAL-E2E")]
   public async Task ClientPortal_FirstSignIn_Delegation_Conversation_Upload_AndRevocation()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-CLIENT-PORTAL-E2E", startLegacyBlazorHosts: false);
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-CLIENT-PORTAL-E2E");
     var f = host.Fixture; Guid requestId; Guid colleagueId;
     var primary = PbcSeed.User(f.FirmId, "Client"); primary.DisplayName = "Management";
     await using (var db = host.CreateDbContext())

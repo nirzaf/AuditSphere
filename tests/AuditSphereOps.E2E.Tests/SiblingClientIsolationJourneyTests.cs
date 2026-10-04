@@ -33,7 +33,7 @@ public sealed partial class SiblingClientIsolationJourneyTests(ITestOutputHelper
   [Trait("CaseId", "AS-PAR-002-SIBLING-CLIENT-DIFF-01")]
   public async Task SiblingClientDataNeverChangesWhatAClientScopedUserSees(string grantScope)
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "AS-PAR-002-SIBLING-CLIENT-DIFF-01");
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "AS-PAR-002-SIBLING-CLIENT-DIFF-01");
     var scoped = PbcSeed.User(host.Fixture.FirmId, "Staff");
     await using (var db = host.CreateDbContext())
     {
@@ -96,7 +96,7 @@ public sealed partial class SiblingClientIsolationJourneyTests(ITestOutputHelper
   [Trait("CaseId", "AS-PAR-002-SIBLING-PORTAL-DIFF-01")]
   public async Task SiblingClientDataNeverChangesWhatAnotherClientSeesInThePortal()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "AS-PAR-002-SIBLING-PORTAL-DIFF-01");
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "AS-PAR-002-SIBLING-PORTAL-DIFF-01");
     using var playwright = await Playwright.CreateAsync();
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var context = await browser.NewContextAsync();
@@ -140,7 +140,7 @@ public sealed partial class SiblingClientIsolationJourneyTests(ITestOutputHelper
   [Trait("CaseId", "AS-PAR-002-SIBLING-GROUP-DIFF-01")]
   public async Task SiblingGroupNeverChangesWhatAGroupScopedUserSees()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "AS-PAR-002-SIBLING-GROUP-DIFF-01");
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "AS-PAR-002-SIBLING-GROUP-DIFF-01");
     var groupUser = PbcSeed.User(host.Fixture.FirmId, "Staff");
     var ownGroupId = Guid.NewGuid();
     var ownScopeId = Guid.NewGuid();
@@ -229,7 +229,7 @@ public sealed partial class SiblingClientIsolationJourneyTests(ITestOutputHelper
   [Trait("CaseId", "AS-PAR-002-ASSESSMENT-STALE-ROUTE-01")]
   public async Task AssessmentWorkbenchesClearWhenRouteChangesInPlaceToSiblingClient()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "AS-PAR-002-ASSESSMENT-STALE-ROUTE-01");
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "AS-PAR-002-ASSESSMENT-STALE-ROUTE-01");
     const string ownPrivate = "OWN-PRIVATE-REGISTRATION-7731";
     var reviewer = PbcSeed.User(host.Fixture.FirmId, "Staff");
     var sibling = await SiblingClientSeed.SeedAsync(host.Database, host.Fixture.FirmId, Marker);

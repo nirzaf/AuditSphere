@@ -1,5 +1,5 @@
 // Authorization decision enforced inside commands (§§8.1, 8.3, 8.6, 28.3).
-// Presentation layers (Blazor/HTTP) call commands; they never authorize by themselves.
+// Presentation layers (UI/HTTP) call commands; they never authorize by themselves.
 // Every protected command resolves the actor from the trusted session, re-reads current
 // access/assignment/holds under the command transaction, and denies cross-firm/client
 // access with a nondisclosing scope error. Workers declare an authority mode instead.

@@ -7,7 +7,7 @@ public sealed class AngularClientConversionJourneyTests
  [Theory][InlineData(false)][InlineData(true)]
  public async Task ReviewedConversionLostResponseRecoversAfterReloadWithoutDuplicateClient(bool canonical)
  {
-  await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-CLIENT-CONVERSION", startLegacyBlazorHosts: false);var f=host.Fixture;Guid id;
+  await using var host=await OwnedHost.StartAsync(startWorker:false,caseId:"ANGULAR-CLIENT-CONVERSION");var f=host.Fixture;Guid id;
   await using(var db=host.CreateDbContext())id=await ClientConversionReviewSeed.PopulateAsync(db,f);
   var origin=await host.StartApiForIdentityAsync(f.Admin,new Dictionary<string,string>{["AngularUi__Enabled"]="true",["AngularUi__CanonicalRoutes"]=canonical.ToString()});
   using var playwright=await Playwright.CreateAsync();await using var browser=await PlaywrightBrowser.LaunchAsync(playwright);await using var context=await browser.NewContextAsync();var page=await context.NewPageAsync();var errors=new List<string>();page.PageError+=(_,e)=>errors.Add(e);

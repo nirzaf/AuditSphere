@@ -22,7 +22,7 @@ public sealed class PlanningAndResourcesJourneyTests
   [Trait("CaseId", "AS-STE-PLANNING-01")]
   public async Task PartnerStaffsCalculatesMaterialityReviewsRedRiskAndSeesTheGrid()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "AS-STE-PLANNING-01");
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "AS-STE-PLANNING-01");
     var f = host.Fixture;
     var partner = PbcSeed.User(f.FirmId, "Staff"); partner.DisplayName = "Pat Partner";
     var manager = PbcSeed.User(f.FirmId, "Staff"); manager.DisplayName = "Mona Manager";

@@ -11,7 +11,7 @@ public sealed class ClientSharePointSitesJourneyTests
   [Fact]
   public async Task SeparateSiteAndMembershipHealth_FullControlWarning_AndStaleSessionDenial()
   {
-    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "CLIENT-SITE-STATUS");
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "CLIENT-SITE-STATUS");
     var f = host.Fixture;
     var tenant = Guid.NewGuid().ToString("D");
     var connectionId = Guid.NewGuid();
