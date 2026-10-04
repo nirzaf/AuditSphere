@@ -13,6 +13,24 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Resource grid separates approved actual hours and stays readable on mobile
+
+Resource week cells now show approved actual hours separately from planned hours
+and capacity, and include the actual amount in their accessible name. Minimum
+column widths prevent the week headers from collapsing; narrow viewports scroll
+inside the grid without widening the whole page.
+
+The focused Angular resource suite passed 13/13. The PostgreSQL-backed Playwright
+resource journey passed 2/2 on canonical and `/ui` routes, including a seeded
+approved-time entry and 390px no-overflow/contained-scroll checks. The built-in
+browser showed a 343px grid viewport, 896px scrollable grid and 112px week column
+at 390px, with no console warnings or errors. The production Angular build
+succeeded in a temporary output directory with a 5.46kB initial-bundle warning
+over its warning budget. The shared-tree E2E attempt stopped before the page due
+to concurrent pending EF model changes; the same journey passed from a clean
+snapshot. No shared Development data was changed. The full suite and wider
+staffing/budget acceptance remain open.
+
 ## Accounting preparation navigation reflects exact role and scope
 
 The analytical preparation page showed the generic scope-denial message for a user

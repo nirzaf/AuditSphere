@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "f1c2e3595686fcb172d7ef1be16f4cf2d36a851e",
+  "headCommit": "5b3c6e9b1a8eb941ad7f9ec9b6cda4d064e2e414",
   "verifiedCommit": "f92ae6887f56e20ed857a638a507099829132826",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -7863,8 +7863,8 @@
     "packageId": "ASP.NET Core API and Angular 22 presentation migration",
     "implementationStatus": "PARTIAL",
     "acceptanceStatus": "PARTIAL",
-    "scope": "Owner-approved local Angular cutover is complete and the legacy Web runtime is Test-only. Native analytical preparation, reconciliation creation and specialist schedule preparation/revision are implemented at 815d79f; the multi-segment workflow-link defect was fixed at pushed master commit 935bd79. API and Domain project suites passed, the focused preparation journey passed, and EF reports no model drift. Overall migration acceptance remains PARTIAL because the full E2E project was interrupted by missing shared Angular assets and broader parity/production gates remain open.",
-    "nextAction": "Partition E2E verification into bounded groups against stable isolated Angular assets, then continue the next non-overlapping local accounting migration slice. Human screen-reader acceptance, production canary and live Microsoft gates remain separate.",
+    "scope": "Owner-approved local Angular cutover is complete and the legacy Web runtime is Test-only. Native analytical preparation, reconciliation creation and specialist schedule preparation/revision are implemented at 815d79f; the multi-segment workflow-link defect was fixed at pushed master commit 935bd79. At 5b3c6e9, the resource grid exposes approved actual hours and keeps weekly columns readable in a contained mobile scroller. Focused Angular and PostgreSQL-backed browser evidence is recorded below. Overall migration acceptance remains PARTIAL because full-suite, broader source-action, planning, assistive-technology, production and live Microsoft acceptance remain open.",
+    "nextAction": "Continue non-overlapping Angular creation, planning and source-action parity, then run the full regression against stable isolated assets. Human screen-reader/wider-locale acceptance, production canary and live Microsoft gates remain separate.",
     "branch": "master"
   },
   "localEvidence": [
@@ -8682,6 +8682,11 @@
       "item": "Accounting preparation navigation role and scope reflection (2026-10-04)",
       "status": "LOCAL_VERIFIED",
       "details": "At pushed code commit f1c2e3595686fcb172d7ef1be16f4cf2d36a851e, a shared Application authorization gate keeps analytical, reconciliation and specialist preparation behind the existing exact RoleGrant role and client/engagement scope checks. Engagement workflow links now reflect that capability, while direct protected routes retain server authorization and show safe administrator guidance. Isolated Release API build passed with zero warnings/errors; PostgreSQL Domain tests passed 2/2, API tests 1/1, Angular CI tests 463/463 across 90 files, production Angular build passed, and the focused Playwright journey passed 1/1. Built-in browser verification passed on an isolated synthetic Test host/database: a Staff-only user saw no accounting-preparation links and direct analytical navigation showed safe denial guidance. No shared Development database data was changed. EF model drift: NONE. Full solution suite was not run on this source; the prior clean 1,035/1,035 suite remains attributed to f92ae6887f56e20ed857a638a507099829132826."
+    },
+    {
+      "item": "Angular resource grid approved-actual visibility and mobile readability (2026-10-04)",
+      "status": "LOCAL_VERIFIED",
+      "details": "At code commit 5b3c6e9, each resource week cell now shows approved actual hours separately from planned hours/capacity and exposes both in its accessible name. Intrinsic column minimums keep week headings legible while horizontal scrolling stays inside the grid. The focused Angular resource component suite passed 13/13. PostgreSQL-backed Playwright journey passed 2/2 across canonical and /ui route modes using an isolated test database and production assets; it verified a seeded 8-hour approved entry, planned/approved-actual distinction, 4-week headers, contained grid scrolling and no page-level overflow at 390px. The built-in browser also rendered the authenticated resource page at 390px: document width 375px, grid viewport 343px, grid scroll width 896px and week column width 112px; console had no warnings or errors. The production Angular build succeeded with a non-blocking initial-bundle warning (505.46 kB versus 500 kB warning budget) while writing only to a temporary directory. The shared-tree E2E run stopped before the page because the concurrent uncommitted EF model changes had pending migration drift; the same journey passed from a clean snapshot at the current base with this slice applied. No shared Development data, tenant, schema or production state changed. Overall US-018 and migration acceptance remain PARTIAL."
     }
   ],
   "remainingLocalWork": [
@@ -8698,7 +8703,7 @@
     {
       "item": "ASP.NET Core API and Angular 22 migration",
       "status": "PARTIAL",
-      "details": "Native API and Angular capability routes, financial review/evidence actions, and scoped portfolio/client/contact/engagement projections have local verification. Owner-approved canonical Angular routing and non-Test Blazor runtime retirement are complete; AuditSphereOps.Web is Test-only. At 9820d12, the Release solution suite passed API 182/182, Domain 646/646 and E2E 205/205 (1,033 total; zero failed/skipped), and EF reported no model drift. Angular commercial lead and opportunity creation now recover or reconcile by request identity after ambiguous responses; both are included in that full run. Remaining: other partial creation/planning/source-action parity, screen-reader/wider-locale acceptance, production-like canary, and live Microsoft gates."
+      "details": "Native API and Angular capability routes, financial review/evidence actions, and scoped portfolio/client/contact/engagement projections have local verification. Owner-approved canonical Angular routing and non-Test Blazor runtime retirement are complete; AuditSphereOps.Web is Test-only. At 9820d12, the Release solution suite passed API 182/182, Domain 646/646 and E2E 205/205 (1,033 total; zero failed/skipped), and EF reported no model drift. Angular commercial lead and opportunity creation now recover or reconcile by request identity after ambiguous responses; both are included in that full run. At 5b3c6e9, resource-grid approved-actual display and mobile column sizing passed focused Angular, isolated PostgreSQL browser and built-in-browser checks. Remaining: broader planning and source-action parity, a current full regression, screen-reader/wider-locale acceptance, production-like canary, and live Microsoft gates."
     }
   ],
   "externalGates": [
