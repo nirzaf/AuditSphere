@@ -34,6 +34,13 @@ mutation was submitted. Two earlier full-suite attempts exposed security tests
 that still booted the retired Web host in Production; those tests now use the
 standalone API factory, and the final complete run passed.
 
+The production Angular build was then published with the API. Its 105 browser
+files contain no Blazor/MudBlazor runtime names or references, and the API
+dependency manifest contains no Web or MudBlazor dependency. The focused route
+contract suite passed 3/3: every Angular route has an API SPA owner, every legacy
+Razor route has an explicit native owner except server-owned root/access-denied
+routes, and authentication routes stay outside the SPA.
+
 US-047 local runtime retirement is complete; overall migration acceptance stays
 PARTIAL. Production canary, real assistive-technology and wider-locale
 acceptance, remaining source-action parity and live Microsoft gates remain

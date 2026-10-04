@@ -7425,8 +7425,24 @@
       },
       "efModelDrift": "NONE",
       "builtInBrowser": "PASS: authenticated Development Angular Accounting workspace rendered at /app/accounting; navigation links use canonical /app routes and the authorized accounting-client table loaded. No business mutation was submitted.",
+      "publishedRuntimeAudit": {
+        "observedAt": "2026-10-04T05:40:10Z",
+        "angularBuild": "PASS: npm run build",
+        "apiPublish": "PASS: dotnet publish src/AuditSphereOps.Api/AuditSphereOps.Api.csproj --no-restore --configuration Release --output /tmp/auditsphere-api-us047",
+        "publishedBrowserFiles": 105,
+        "legacyAssetNames": [],
+        "legacyRuntimeReferencesInAngularAssets": [],
+        "apiDependenciesForLegacyUi": [],
+        "routeContractTests": {
+          "command": "dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-restore --configuration Release --filter FullyQualifiedName~AngularRoutingContractTests",
+          "passed": 3,
+          "failed": 0,
+          "skipped": 0,
+          "coverage": "Exact Angular/API SPA route catalogue; every legacy Razor route has an explicit Angular owner except the server-owned root and access-not-assigned routes; no auth route is served by the SPA."
+        }
+      },
       "testHarnessCorrection": "Two earlier full-suite attempts surfaced production-configuration tests still booting AuditSphereOps.Web. Cookie/Data Protection and unsafe development-identity configuration checks were moved to StandaloneApiApplicationFactory; focused suites and the final complete run passed.",
-      "boundary": "Local cutover and retirement are verified. Overall Angular migration acceptance remains PARTIAL. No production deployment/canary, real assistive-technology or wider-locale acceptance, or live Microsoft gate is claimed."
+      "boundary": "Local cutover and retirement are verified. The published API has no MudBlazor/Web project dependency or Blazor/MudBlazor browser runtime asset/reference. Overall Angular migration acceptance remains PARTIAL. No production deployment/canary, real assistive-technology or wider-locale acceptance, or live Microsoft gate is claimed."
     }
   },
   "documentationWork": {
@@ -8418,6 +8434,6 @@
     "status": "PASS_LOCAL_SLICE",
     "verified": "Focused PostgreSQL chart workspace test and current client-scoped Playwright journeys passed. Alias/dimension creation persists and reloads; changing reviewed fields clears assent; simulated read failures are visible, retryable and fail closed.",
     "changes": "Publication digest includes source aliases; alias writes fence the reviewed chart version; Angular alias and dimension workspaces use bounded typed responses and disable writes until reads verify successfully.",
-    "pending": "Broader accounting source-action parity, overall Angular migration, full current-source regression, accessibility/locale/performance acceptance, production-like cutover and owner-authorized Blazor retirement remain pending."
+    "pending": "Broader accounting source-action parity, overall Angular migration, accessibility/locale/performance acceptance and production-like canary remain pending. Local cutover and Blazor runtime retirement are complete."
   }
 }

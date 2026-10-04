@@ -53,5 +53,5 @@
       "evidencePointer": "EngagementCreationReviewTests; EngagementCreationReviewApiTests; engagement-create.spec.ts; AngularEngagementCreationJourneyTests"
     }
   ],
-  "remaining": "Engagement planning forms/drafts/recovery, full engagement source-action parity, wider quality gates, production cutover and Blazor retirement."
+  "remaining": "Engagement planning forms/drafts/recovery, full engagement source-action parity and wider quality gates. Local route cutover and Blazor runtime retirement are complete; production canary and overall migration acceptance remain open."
 }
