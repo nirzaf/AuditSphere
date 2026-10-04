@@ -73,13 +73,15 @@ public sealed class AngularResourcePlanningJourneyTests
       response.Request.Method == "POST" && response.Url.EndsWith("/api/ui/practice/resources/commands", StringComparison.Ordinal));
     await page.GetByRole(AriaRole.Button, new() { Name = "Confirm reviewed planning action", Exact = true }).ClickAsync();
     Assert.Equal(409, (await commandResponse).Status);
-    await Assertions.Expect(page.GetByRole(AriaRole.Alert)).ToContainTextAsync("Planning inputs changed after this review");
+    await Assertions.Expect(page.Locator("p.command-result[role='alert']"))
+      .ToContainTextAsync("Planning inputs changed after this review");
     await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "Planning request recovery", Exact = true })).ToBeVisibleAsync();
-    await Assertions.Expect(table).Not.ToContainTextAsync("20 / 40 h");
+    await Assertions.Expect(table).ToHaveCountAsync(0);
 
     await page.GetByRole(AriaRole.Button, new() { Name = "Verify planning receipt", Exact = true }).ClickAsync();
     var recovery = page.GetByRole(AriaRole.Region, new() { Name = "Planning request recovery", Exact = true });
-    await Assertions.Expect(recovery).ToContainTextAsync("No committed receipt was found");
+    await Assertions.Expect(page.Locator("p.command-result[role='alert']"))
+      .ToContainTextAsync("No committed receipt was found");
     await page.GetByRole(AriaRole.Button, new() { Name = "Close absent request and reload planning", Exact = true }).ClickAsync();
     await Assertions.Expect(table).ToContainTextAsync("2 / 40 h");
     Assert.Equal(1, dispatches);
