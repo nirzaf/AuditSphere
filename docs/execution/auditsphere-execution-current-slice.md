@@ -13,6 +13,24 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Angular commercial create-recovery full regression
+
+At source commit `9820d128e54925a4a2bff99a5b44c5fc7d4edc82`, the serial Release
+solution test run passed API 182/182, Domain 646/646 and E2E 205/205: **1,033
+passed, zero failed and zero skipped**. It includes the lead- and
+opportunity-create lost-response recovery journeys. EF reported no pending
+model changes. The Angular production build, 452 Angular unit tests and Release
+solution build had passed on the same code state before this documentation-only
+checkpoint. The commit was the verified `master` remote head when the run began.
+Exact metrics are recorded in `status.json` under
+`angularCommercialCreateRecoveryFullRegression`.
+
+This closes the full-suite verification gap for those two create-recovery
+slices. The Angular migration remains PARTIAL: other creation/planning/source
+actions, broader screen-reader and locale acceptance, a production canary, and
+live Microsoft gates remain open. No production deployment or live Microsoft
+mutation was performed.
+
 ## Angular commercial opportunity creation recovery
 
 At code commit `cdc8c8f`, opportunity creation saves its reviewed terms and
