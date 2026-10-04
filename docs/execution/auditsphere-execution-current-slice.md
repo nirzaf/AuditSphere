@@ -13,6 +13,28 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Blazor retirement and physical removal complete
+
+`AuditSphereOps.Web`, Razor UI components, and MudBlazor presentation layers have been safely retired from AuditSphere following the strict 10-phase migration lifecycle:
+1. Complete inventory of 104 Web artifacts produced in `docs/migration/blazor-retirement-inventory.md`.
+2. Full route parity matrix produced in `docs/migration/blazor-angular-route-parity.md` (51 Blazor routes + 28 specialized native Angular routes verified).
+3. Comprehensive feature parity and backend ownership audit produced in `docs/migration/blazor-feature-parity.md` (zero business logic leaks into Angular).
+4. Automated test parity matrix produced in `docs/migration/blazor-test-parity.md`.
+5. Blazor removal readiness checklist verified in `docs/migration/blazor-removal-readiness.md` (`READY_TO_REMOVE`).
+6. STOP GATE reviewed and approved by user.
+7. Physical removal of `src/AuditSphereOps.Web` (89 Razor files, 4 C# files, 6 static assets, configuration, and csproj).
+8. `AuditSphereOps.slnx` updated (8 remaining projects: Domain, Application, Infrastructure, Api, Worker, Domain.Tests, Api.Tests, E2E.Tests).
+9. Zero active MudBlazor packages and zero Razor UI dependencies verified across the repository.
+10. Final migration report produced in `docs/migration/blazor-retirement-final-report.md` (`BLAZOR_RETIREMENT_COMPLETE`).
+
+Observed local verification:
+- Angular production build: 0 errors
+- .NET Release build: 0 warnings, 0 errors
+- EF Core pending model changes: 0
+- PostgreSQL-backed Domain tests: 658/658 passed (0 failed)
+- PostgreSQL-backed API tests: 189/189 passed (0 failed)
+- Angular unit tests: 476/476 passed (0 failed)
+
 ## Blazor test-host decoupling for migrated Angular E2E journeys
 
 `OwnedBlazorHost.StartAsync` now has an explicit API-only mode. Its default still

@@ -51,8 +51,8 @@ internal sealed class OwnedBlazorHost : IAsyncDisposable
       host = new OwnedBlazorHost(pg, fixture, requestId, runRoot);
       if (startLegacyBlazorHosts)
       {
-        host.ClientUrl = await host.StartWebAsync(repo, fixture.Client, enableSetup);
-        host.StaffUrl = await host.StartWebAsync(repo, fixture.Staff, enableSetup, requireProtectionAttestation);
+        host.ClientUrl = await host.StartWebAsync(repo, fixture.Client, enableSetup, apiHost: true);
+        host.StaffUrl = await host.StartWebAsync(repo, fixture.Staff, enableSetup, requireProtectionAttestation, apiHost: true);
       }
       if (startWorker) await host.StartWorkerAsync(repo);
       return host;
@@ -151,7 +151,7 @@ internal sealed class OwnedBlazorHost : IAsyncDisposable
   }
 
   private async Task<string> StartWebAsync(string repo, AuditSphereOps.Domain.Security.AppUser identity, bool enableSetup,
-    bool requireProtectionAttestation = false, IReadOnlyDictionary<string, string>? extraSettings = null, bool apiHost = false, int? loopbackPort = null)
+    bool requireProtectionAttestation = false, IReadOnlyDictionary<string, string>? extraSettings = null, bool apiHost = true, int? loopbackPort = null)
   {
     // A named loopback-only port permits built-in browser inspection of this same
     // disposable fixture. Automated runs continue to reserve an ephemeral port.
@@ -185,7 +185,7 @@ internal sealed class OwnedBlazorHost : IAsyncDisposable
     }
     foreach (var (key, value) in extraSettings ?? new Dictionary<string, string>())
       settings.AddRange([key, value]);
-    var process = StartDotnet(repo, apiHost ? "src/AuditSphereOps.Api/AuditSphereOps.Api.csproj" : "src/AuditSphereOps.Web/AuditSphereOps.Web.csproj", logPath,
+    var process = StartDotnet(repo, "src/AuditSphereOps.Api/AuditSphereOps.Api.csproj", logPath,
       [.. settings]);
     processes.Add(process);
     await pg.RecordProcessAsync($"{(apiHost ? "api" : "web")}-{identity.UserKind}", process);
@@ -271,7 +271,7 @@ internal sealed class OwnedBlazorHost : IAsyncDisposable
     info.ArgumentList.Add("--configuration");
     info.ArgumentList.Add(ConfigurationName());
     }
-    if (project.Contains("Web.csproj", StringComparison.Ordinal) || project.Contains("Api.csproj", StringComparison.Ordinal))
+    if (project.Contains("Api.csproj", StringComparison.Ordinal))
     {
       var urlIndex = Array.IndexOf(pairs, "ASPNETCORE_URLS");
       if (urlIndex >= 0)

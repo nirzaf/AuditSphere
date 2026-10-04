@@ -175,7 +175,7 @@ Native, production-grade implementations for the R2R lifecycle defined under `do
 
 ## Web Workbenches & Navigation Directory
 
-The table below lists source workbench routes in the rollback Blazor host (`src/AuditSphereOps.Web`). Implemented Angular routes use `/ui` plus the same route. The explicit route catalogue in `src/AuditSphereOps.Ui/src/app/app.routes.ts` owns Angular navigation; route presence does not establish full action parity. Draft, authorization and acceptance evidence are recorded in the migration ledger.
+The table below lists native workspace routes in AuditSphere. Angular routes use `/ui` plus the same route or canonical routes directly (`/app/...`). The explicit route catalogue in `src/AuditSphereOps.Ui/src/app/app.routes.ts` owns all application navigation.
 
 | Route | Workbench | Description |
 |---|---|---|
@@ -247,7 +247,6 @@ AuditSphere/
 │   ├── AuditSphereOps.Infrastructure/  # EF Core DbContext, mappings, migrations, provider adapters
 │   ├── AuditSphereOps.Api/             # ASP.NET Core API host, authenticated contracts, files and health
 │   ├── AuditSphereOps.Ui/              # Angular frontend, Material/CDK, lazy staff/client routes
-│   ├── AuditSphereOps.Web/             # Legacy Blazor presentation using shared API composition
 │   └── AuditSphereOps.Worker/          # Durable-operation worker (general, processing, records)
 ├── tests/
 │   ├── AuditSphereOps.Domain.Tests/    # PostgreSQL-backed domain, integration & architecture guard tests

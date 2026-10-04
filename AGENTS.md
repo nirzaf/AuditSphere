@@ -50,7 +50,7 @@ AuditSphereOps is an audit, accounting, and assurance operations platform built 
 
 - **`AuditSphereOps.Ui/`**: Angular 22 UI with Material/CDK, native staff workbenches under `/ui/app` and restricted client portal under `/ui/portal`. Uses same-origin authenticated APIs, never Microsoft Graph or browser bearer-token storage.
 
-- **`AuditSphereOps.Web/`**: Legacy Blazor Interactive Server host retained only for Test-environment regression coverage. `ApiHost` rejects legacy presentation startup outside `Test`; operators use the API host with the Angular build.
+- **`AuditSphereOps.Web/`**: Retired. Blazor, Razor UI components, and MudBlazor presentation layers have been safely retired. Operators and test fixtures use the ASP.NET Core API host (`AuditSphereOps.Api`) with the Angular 22 frontend (`AuditSphereOps.Ui`).
 
 
 
@@ -106,7 +106,7 @@ AuditSphereOps is an audit, accounting, and assurance operations platform built 
 
 
 
-- **Runtime & Framework:** .NET 10 SDK (`dotnet`), ASP.NET Core API, Angular 22 with Material/CDK, EF Core 10 + Npgsql 10. Blazor Interactive Server/MudBlazor remain only in the Test-only Web regression host.
+- **Runtime & Framework:** .NET 10 SDK (`dotnet`), ASP.NET Core API, Angular 22 with Material/CDK, EF Core 10 + Npgsql 10. Blazor Interactive Server and MudBlazor have been retired.
 
 
 

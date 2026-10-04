@@ -269,6 +269,35 @@ public sealed partial class AcceptanceChecklistTests
   }
 
   [Fact]
+  public async Task ReviewedDecisionCommandRefusesAuthorityRevokedAfterPreview()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    AssessmentCommandRequest request;
+    await using (var review = new AuditSphereDbContext(pg.Options))
+      request = await ReviewAsync(review, w.Partner, w.ClientId,
+        new("DECISION", "1", ServiceRoute: "AccountingOnly", Decision: "Declined", Rationale: "Revoked reviewed decision"));
+
+    await using (var revoke = new AuditSphereDbContext(pg.Options))
+    {
+      await revoke.RoleGrants.Where(x => x.UserId == w.Partner.UserId)
+        .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow));
+      await revoke.Users.Where(x => x.Id == w.Partner.UserId)
+        .ExecuteUpdateAsync(s => s.SetProperty(x => x.SessionEpoch, x => x.SessionEpoch + 1));
+    }
+
+    await using (var execute = new AuditSphereDbContext(pg.Options))
+    {
+      var result = await AssessmentCommandWorkspace.ExecuteAsync(execute, w.Partner, w.ClientId, request);
+      Assert.False(result.Succeeded);
+    }
+
+    await using var proof = new AuditSphereDbContext(pg.Options);
+    Assert.Empty(await proof.AssessmentCommandReceipts.ToListAsync());
+    Assert.False(await proof.AcceptanceDecisions.AnyAsync(x => x.Rationale == "Revoked reviewed decision"));
+  }
+
+  [Fact]
   public async Task ReceiptStorageFailureRollsBackThePreviouslySavedAssessmentMutation()
   {
     await using var pg = await PgTestSchema.CreateAsync();
