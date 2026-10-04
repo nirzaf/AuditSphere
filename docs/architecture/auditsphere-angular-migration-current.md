@@ -489,20 +489,21 @@ The Angular proposal route now defers a fee-agreement workspace with persisted a
 
 ### Invoice receipts, allocations and credit notes
 
-The native invoice detail uses `BillingInvoiceWorkspaceQuery` for an authorized,
-bounded view of the latest 100 receipts in the invoice's billing account and the
-latest 100 credit notes for that invoice. It composes the existing `BillingService`
-for receipt recording, allocation to posted invoices, and credit-note issuance;
-the UI does not write financial state directly. Exact decimal strings, explicit
-review confirmation, server-side role/scope checks and antiforgery protect each
-command. Displayed invoice credit and allocation totals come from the complete
-persisted balance calculation, independent of the bounded recent-history lists.
-Credit-note issuance remains FinanceManager-only. When a command response is lost,
-the form stays disabled until the user reloads persisted state and clears the
-unresolved draft; the client never retries automatically. Synthetic PostgreSQL
-API and Playwright journeys cover recording, allocation, credit, authorization,
-CSRF and lost-response recovery. Older-than-window history pagination, wider
-source-action parity, production rollout and full migration acceptance remain open.
+The native invoice detail uses `BillingInvoiceWorkspaceQuery` for an authorized
+history view. Each receipt and credit-note request returns at most 100 rows; the
+UI loads older rows on demand with separate timestamp-and-ID keyset cursors. It
+composes the existing `BillingService` for receipt recording, allocation to
+posted invoices, and credit-note issuance; the UI does not write financial state
+directly. Exact decimal strings, explicit review confirmation, server-side
+role/scope checks and antiforgery protect each command. Displayed invoice credit
+and allocation totals come from the complete persisted balance calculation,
+independent of the page currently loaded. Credit-note issuance remains
+FinanceManager-only. When a command response is lost, the form stays disabled
+until the user reloads persisted state and clears the unresolved draft; the client
+never retries automatically. Synthetic PostgreSQL API and Playwright journeys
+cover recording, allocation, credit, stable paging across equal timestamps,
+authorization, CSRF and lost-response recovery. Wider source-action parity,
+production rollout and full migration acceptance remain open.
 
 ### Commercial settings
 

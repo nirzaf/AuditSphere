@@ -15,24 +15,30 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular invoice receipts, allocations and credit notes
 
-The Angular invoice workspace now shows the latest bounded billing-account
-receipts and invoice credit notes, records reviewed receipts, allocates receipts
-to posted invoices, and issues reviewed credit notes for FinanceManagers. The
-API delegates to the existing `BillingService`; the Application query scopes the
-invoice, billing account, receipt history and credit history. Exact decimal
-strings, explicit review, CSRF and current role/scope checks remain in force.
-After a lost response, the form stays disabled until persisted state is refreshed
-and the unresolved draft is cleared. Evidence for the Release build, Angular
-suite, PostgreSQL API journey, Playwright browser journey and EF model check is
-in `status.json` under `angularBillingReceiptCreditWorkspace`.
+The Angular invoice workspace shows billing-account receipts and invoice credit
+notes in on-demand pages of 100 rows, records reviewed receipts, allocates
+receipts to posted invoices, and issues reviewed credit notes for FinanceManagers.
+Separate timestamp-and-ID keyset cursors preserve rows sharing the same timestamp.
+The API delegates to the existing `BillingService`; the Application query scopes
+the invoice, billing account, receipt history and credit history. Exact decimal
+strings, complete invoice balance totals, explicit review, CSRF and current
+role/scope checks remain in force. After a lost response, the form stays disabled
+until persisted state is refreshed and the unresolved draft is cleared. Evidence
+for the Release build, Angular suite, PostgreSQL API journey, Playwright browser
+journeys and EF model check is in `status.json` under
+`angularBillingReceiptCreditWorkspace`.
 
 The built-in Development browser was reloaded on the authenticated Angular
 workspace. Its synthetic search returned no invoice to inspect, so no Development
-billing rows were created; the complete invoice flow was exercised in the owned
-PostgreSQL Playwright journey. The full solution suite was not rerun for this
-slice. Migration acceptance remains PARTIAL; broader US-019 parity, production
-canary, assistive-technology acceptance, live Microsoft gates and Blazor
-retirement remain open.
+billing rows were created; the invoice and paging flow was exercised in owned
+PostgreSQL Playwright journeys. A full Release suite attempt at `3e3c892` ran for
+about 40 minutes before it was stopped: API passed 178/178 and Domain passed
+644/644; E2E had one stale preview-route assertion and did not return a suite
+total. That assertion now expects the canonical `/app` route, and the corrected
+tenant journey plus invoice journey passed 2/2. The latest completed whole-suite
+pass remains 1022/1022 at `404b4b8`. Migration acceptance remains PARTIAL; wider
+US-019 parity, production canary, assistive-technology acceptance, live Microsoft
+gates and Blazor retirement remain open.
 
 ## Current-source Angular regression and built-in browser check
 

@@ -143,7 +143,7 @@
       "action": "receipt recording / credit notes",
       "owner": "Angular UiEndpoints.Finance.cs + BillingInvoiceWorkspaceQuery + BillingService",
       "verdict": "IMPLEMENTED",
-      "disposition": "Native Angular addition; no equivalent action existed in Blazor. Reviewed receipt recording, allocation to posted invoices and FinanceManager-only credit notes use the existing BillingService. The view bounds recent history to 100 items while complete credited/allocated totals use the full persisted invoice balance.",
+      "disposition": "Native Angular addition; no equivalent action existed in Blazor. Reviewed receipt recording, allocation to posted invoices and FinanceManager-only credit notes use the existing BillingService. Receipt and credit histories use separate 100-row keyset pages; complete credited/allocated totals use the full persisted invoice balance.",
       "evidencePointer": "BillingWorkspaceApiTests; AngularBillingWorkspaceJourneyTests; status.json/angularBillingReceiptCreditWorkspace"
     },
     {
@@ -294,5 +294,5 @@
       "evidencePointer": "RouteRenderSmokeTests"
     }
   ],
-  "remaining": "Administration setup metadata and selected SharePoint resource/template pre-dispatch recovery now have focused local evidence; broader administration and production-like acceptance remain open. Commercial settings and embedded proposal/quotation/document/fee-agreement drafts have focused local evidence; durable commercial command recovery remains open. Invoice receipt/credit history pagination beyond the recent 100 items and broader US-019 source-action parity remain open. Curated accounting parity lives in the accounting slice entries. Whole-migration acceptance, fresh full regression, canary and owner-authorized retirement remain open."
+  "remaining": "Administration setup metadata and selected SharePoint resource/template pre-dispatch recovery now have focused local evidence; broader administration and production-like acceptance remain open. Commercial settings and embedded proposal/quotation/document/fee-agreement drafts have focused local evidence; durable commercial command recovery remains open. Broader US-019 source-action parity remains open. Curated accounting parity lives in the accounting slice entries. Whole-migration acceptance, fresh full regression, canary and owner-authorized retirement remain open."
 }
