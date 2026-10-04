@@ -31,6 +31,9 @@ leaving B's assessment unchanged. The opening-balance case denies A-scoped recor
 review and planning-summary requests for B and preserves B's verification. The
 finding case also denies A-scoped creation, management-response recording and
 management-letter designation for B's engagement, preserving B's finding state.
+The planning case denies A-scoped materiality, risk, population and workpaper
+creation, along with materiality approval and workpaper submission against B;
+the existing materiality and workpaper remain unchanged.
 The focused Release Domain regressions passed. The full solution regression was
 not run for this slice. A Domain suite attempt on the previous checkpoint
 stopped after approximately 13 minutes without a runner summary, so no

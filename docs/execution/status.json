@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "632de55fddeb103194c165475b0ece1f623d0a96",
+  "headCommit": "35a9b25f57c977168e1d45d4257e012bf8e16dda",
   "verifiedCommit": "f92ae6887f56e20ed857a638a507099829132826",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -19,11 +19,11 @@
   },
   "verification": {
     "asPar002AuditCommandIsolation": {
-      "sourceCommit": "632de55fddeb103194c165475b0ece1f623d0a96",
-      "verifiedAt": "2026-10-04T17:25:00Z",
+      "sourceCommit": "35a9b25f57c977168e1d45d4257e012bf8e16dda",
+      "verifiedAt": "2026-10-04T17:28:00Z",
       "status": "PASS_LOCAL",
       "domainTests": {
-        "passed": 6,
+        "passed": 7,
         "failed": 0,
         "skipped": 0,
         "tests": [
@@ -32,14 +32,15 @@
           "AuditDifferenceCommandIsolationTests.SiblingClientIds_AreDeniedForDifferenceQueriesAndCommands",
           "AuditAreaAssessmentIsolationTests.SiblingEngagementIds_AreDeniedForAssessmentAndCompletion",
           "AuditPlanningCompletionIsolationTests.SiblingEngagementIds_AreDeniedForOpeningBalanceRecordAndReview",
-          "AuditFindingCommandIsolationTests.SiblingEngagementIds_AreDeniedForFindingCreateResponseAndDesignation"
+          "AuditFindingCommandIsolationTests.SiblingEngagementIds_AreDeniedForFindingCreateResponseAndDesignation",
+          "AuditPlanningCommandIsolationTests.SiblingEngagementIds_AreDeniedAcrossPlanningCommands"
         ]
       },
       "fullSolutionRegression": "NOT_RUN on this source commit",
       "domainFullSuiteAttempt": "A Domain suite attempt on predecessor source commit dd80eb93eaee6e55e0a5fbb6da3428ba18f61b5e was interrupted after approximately 13 minutes without a runner summary; no full-suite result is claimed for this source commit.",
       "efModelDrift": "NONE; no changes have been made to the model since the last migration",
       "remoteHead": "PUSHED and confirmed at sourceCommit",
-      "boundary": "Six focused PostgreSQL-backed tests passed on owned test databases. A client-A scoped Partner was denied sibling-client audit-program adoption, applicability, result submission and result review; B's procedure/result/workpaper/review state remained unchanged. The confirmation test denied sibling-ID creation, approval, dispatch, response, response review, alternative work, alternative review and closure; B's confirmation, response, alternative-work and closure state remained unchanged. The difference test denied sibling-ID creation, summaries, evaluation, correction-state changes and journal linking; B's difference state remained unchanged. The area-assessment test denied sibling-ID creation, completion evaluation and assessment review, with B's assessment unchanged. The opening-balance test denied sibling record, review and planning-summary attempts and preserved the verification state. The finding test denied sibling engagement creation, response and management-letter designation, preserving B's finding and recommendation state. No shared Development database, tenant, or production state was changed. AS-PAR-002 remains partial for other command families, export/count paths, and independent review."
+      "boundary": "Seven focused PostgreSQL-backed tests passed on owned test databases. A client-A scoped Partner was denied sibling-client audit-program adoption, applicability, result submission and result review; B's procedure/result/workpaper/review state remained unchanged. The confirmation test denied sibling-ID creation, approval, dispatch, response, response review, alternative work, alternative review and closure; B's confirmation, response, alternative-work and closure state remained unchanged. The difference test denied sibling-ID creation, summaries, evaluation, correction-state changes and journal linking; B's difference state remained unchanged. The area-assessment test denied sibling-ID creation, completion evaluation and assessment review, with B's assessment unchanged. The opening-balance test denied sibling record, review and planning-summary attempts and preserved the verification state. The finding test denied sibling engagement creation, response and management-letter designation, preserving B's finding and recommendation state. The planning test denied sibling engagement materiality, risk, population and workpaper creation plus materiality approval and workpaper submission; B's records stayed unchanged. No shared Development database, tenant, or production state was changed. AS-PAR-002 remains partial for other command families, export/count paths, and independent review."
     },
     "asPar002ScopedPortfolioBillingAndResourceRecovery": {
       "sourceCommit": "cdf18c014919fbfa2a89d125b706d9055036f627",
