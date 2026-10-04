@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "64e83a3c7e95aa200cdb793025c506ca01b3f32e",
+  "headCommit": "cdf18c014919fbfa2a89d125b706d9055036f627",
   "verifiedCommit": "f92ae6887f56e20ed857a638a507099829132826",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -18,6 +18,42 @@
     "postgres": "18.6 loopback development profile"
   },
   "verification": {
+    "asPar002ScopedPortfolioBillingAndResourceRecovery": {
+      "sourceCommit": "cdf18c014919fbfa2a89d125b706d9055036f627",
+      "verifiedAt": "2026-10-04T16:51:37Z",
+      "status": "PASS_LOCAL",
+      "productionUiBuild": "PASS; initial bundle 505.46 kB, 5.46 kB over the 500 kB warning budget",
+      "apiTests": {
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "test": "PortfolioSiblingIsolationApiTests; client and engagement scope"
+      },
+      "domainTests": {
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "test": "BillingCommandScopeIsolationTests"
+      },
+      "angularUnitTests": {
+        "passed": 14,
+        "failed": 0,
+        "skipped": 0,
+        "files": 1,
+        "file": "practice/resources.spec.ts"
+      },
+      "browserJourneys": {
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "journey": "StaleAllocationReviewCannotOverwriteConcurrentPlanningChange",
+        "routeModes": ["/app", "/ui"]
+      },
+      "efModelDrift": "NONE",
+      "fullSolutionRegression": "NOT_RUN on this source commit",
+      "builtInBrowser": "Localhost navigation was blocked by the browser URL policy; the Playwright journey passed in both route modes",
+      "boundary": "Same-firm sibling-client portfolio counts/CSV stayed byte-identical for client- and engagement-scoped staff. Direct BillingService reads and mutations using sibling account, invoice and receipt IDs were denied with no sibling state change. A stale resource allocation review was refused; the grid stayed hidden pending receipt reconciliation, then reloaded the concurrent persisted value after explicit close. All database checks used owned PostgreSQL test databases; no shared Development migration or production effect occurred."
+    },
     "parityHardeningSamplingAndDeliverables": {
       "verifiedAt": "2026-10-04T16:42:00Z",
       "status": "PASS_LOCAL",

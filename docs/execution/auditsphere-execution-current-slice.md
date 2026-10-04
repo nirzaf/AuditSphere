@@ -23,6 +23,33 @@ This slice resolves key parity requirements across audit fieldwork, deliverable 
 
 All 476 Angular unit tests, 647 Domain tests, and 186 API tests passed. EF Core migrations are in sync with 0 model changes pending.
 
+## AS-PAR-002: portfolio isolation, billing commands, and stale resource review
+
+The same-firm sibling-client differential now checks `/api/ui/portfolio/workspace`
+and CSV export before and after client B receives marker data. The complete
+workspace response and export stay identical for both CLIENT- and
+ENGAGEMENT-scoped staff. A PostgreSQL-backed Application test also submits
+client B's real account, invoice, and receipt identifiers to BillingService
+reads and mutations as a client-A-scoped finance user; each is denied and the
+invoice, account, receipt, allocation, and credit-note state remains unchanged.
+
+Resource planning now has a stale-review browser journey in both `/app` and
+`/ui` modes. A concurrent allocation update makes the reviewed command return
+409; the UI identifies the stale review, removes the grid while the request is
+unresolved, reconciles an absent receipt, and reloads the current 2-hour value
+only after explicit close. The command is dispatched once.
+
+At source commit `cdf18c014919fbfa2a89d125b706d9055036f627`, the API isolation
+cases passed 2/2, the billing Application test passed 1/1, the focused Angular
+resource suite passed 14/14, and the stale-review Playwright journeys passed
+2/2. The Angular production build passed with a 505.46 kB initial bundle,
+5.46 kB above its 500 kB warning budget. EF reported no pending model changes.
+The full solution regression was not run. Built-in-browser navigation to
+localhost was blocked by its URL policy; the isolated Playwright journeys used
+owned PostgreSQL databases. AS-PAR-002 remains partial for other command
+families and export/count paths; no shared Development migration or production
+effect was performed.
+
 ## Resource grid separates approved actual hours and stays readable on mobile
 
 Resource week cells now show approved actual hours separately from planned hours
