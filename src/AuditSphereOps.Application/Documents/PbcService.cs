@@ -38,6 +38,13 @@ public sealed record StartPbcUploadRequest(
   long DeclaredByteCount,
   string DeclaredSha256Hex);
 
+public sealed record ResumePbcUploadRequest(
+  Guid PbcRequestId,
+  Guid UploadIntentId,
+  string FileName,
+  long DeclaredByteCount,
+  string DeclaredSha256Hex);
+
 public sealed record RecordPbcUploadChunkRequest(
   Guid UploadIntentId,
   int ChunkIndex,
@@ -51,6 +58,9 @@ public sealed record CompletePbcUploadRequest(Guid UploadIntentId, string FinalS
 
 public sealed record PbcUploadReceipt(Guid UploadIntentId, Guid PbcRequestId, string State,
   long ReceivedByteCount, long Revision, string? Capability = null);
+
+public sealed record PbcUploadResumeReceipt(Guid UploadIntentId, Guid PbcRequestId, string State,
+  long ReceivedByteCount, int NextChunkIndex, long Revision, string Capability);
 
 public sealed record PbcMessageRequest(Guid PbcRequestId, string Body, string PublicBaseUrl);
 public sealed record PbcDownload(string FileName, string ContentType, long ByteCount,
@@ -421,6 +431,93 @@ public static class PbcService
       intent.Id, intent.PbcRequestId, intent.State, intent.ReceivedByteCount, intent.Revision, capability));
   }
 
+  /// <summary>Reissues a short-lived, one-transfer capability after rechecking the current client
+  /// participant, request window and exact original file fingerprint. Only its hash is retained.</summary>
+  public static async Task<CommandResult<PbcUploadResumeReceipt>> ResumeUploadAsync(
+    IAuditSphereDbContext db, ActorContext actor, ResumePbcUploadRequest input,
+    CancellationToken ct = default)
+  {
+    if (input.PbcRequestId == Guid.Empty || input.UploadIntentId == Guid.Empty ||
+        string.IsNullOrWhiteSpace(input.FileName) || input.FileName.Trim() != input.FileName || input.FileName.Length > 255 ||
+        input.FileName.Contains('/') || input.FileName.Contains('\\') || input.FileName.Contains("..") ||
+        input.DeclaredByteCount <= 0 || input.DeclaredByteCount > MaxUploadBytes || !IsSha256(input.DeclaredSha256Hex))
+      return CommandResult<PbcUploadResumeReceipt>.Fail("pbc.upload.invalid", "Upload metadata is invalid or exceeds the bounded transfer policy.");
+
+    // This is a client portal operation. Staff already have a separate reviewed completion workflow.
+    if (!actor.Roles.Contains("ClientUser", StringComparer.OrdinalIgnoreCase))
+      return CommandResult<PbcUploadResumeReceipt>.Fail(ErrorCodes.ScopeDenied, "Upload unavailable.");
+    var current = await db.PbcRequests.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == input.PbcRequestId && x.FirmId == actor.FirmId, ct);
+    if (current is null)
+      return CommandResult<PbcUploadResumeReceipt>.Fail(ErrorCodes.ScopeDenied, "Upload unavailable.");
+    var auth = await AuthorizeClientAsync(db, actor, current, ct);
+    if (!auth.Succeeded)
+      return CommandResult<PbcUploadResumeReceipt>.Fail(auth.ErrorCode!, "Upload unavailable.");
+    var uploadWindow = await ClientPortalService.RequireFirstSignInAsync(db, actor, ct);
+    if (uploadWindow.Succeeded)
+      uploadWindow = await ClientPortalService.RequireUploadWindowAsync(db, actor, current.EngagementId, ct);
+    if (!uploadWindow.Succeeded)
+      return CommandResult<PbcUploadResumeReceipt>.Fail(uploadWindow.ErrorCode!, "Upload unavailable.");
+    var writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, current.EngagementId,
+      $"resume upload {input.FileName}", ct);
+    if (!writable.Succeeded)
+      return CommandResult<PbcUploadResumeReceipt>.Fail(writable.ErrorCode!, "Upload unavailable.");
+
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    _ = await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE id = {current.ClientId} AND firm_id = {actor.FirmId} FOR UPDATE")
+      .AsNoTracking().SingleAsync(ct);
+    auth = await AuthorizeClientAsync(db, actor, current, ct);
+    if (!auth.Succeeded)
+      return CommandResult<PbcUploadResumeReceipt>.Fail(auth.ErrorCode!, "Upload unavailable.");
+    uploadWindow = await ClientPortalService.RequireFirstSignInAsync(db, actor, ct);
+    if (uploadWindow.Succeeded)
+      uploadWindow = await ClientPortalService.RequireUploadWindowAsync(db, actor, current.EngagementId, ct);
+    if (!uploadWindow.Succeeded)
+      return CommandResult<PbcUploadResumeReceipt>.Fail(uploadWindow.ErrorCode!, "Upload unavailable.");
+
+    var request = await db.PbcRequests.FromSqlInterpolated($"""
+      SELECT * FROM pbc_requests WHERE firm_id = {actor.FirmId} AND id = {input.PbcRequestId} FOR UPDATE
+      """).SingleOrDefaultAsync(ct);
+    if (request is null || request.ClientId != current.ClientId || request.EngagementId != current.EngagementId ||
+        request.State is not (PbcStates.Sent or PbcStates.Acknowledged or PbcStates.Resubmitted or PbcStates.PartiallyReceived))
+      return CommandResult<PbcUploadResumeReceipt>.Fail(ErrorCodes.ScopeDenied, "Upload unavailable.");
+
+    var intent = await db.PbcUploadIntents.FromSqlInterpolated($"""
+      SELECT * FROM pbc_upload_intents WHERE firm_id = {actor.FirmId} AND id = {input.UploadIntentId} FOR UPDATE
+      """).SingleOrDefaultAsync(ct);
+    if (intent is null || intent.PbcRequestId != request.Id || intent.ClientId != request.ClientId ||
+        intent.EngagementId != request.EngagementId || intent.FileName != input.FileName ||
+        intent.DeclaredByteCount != input.DeclaredByteCount ||
+        !string.Equals(intent.DeclaredSha256Hex, input.DeclaredSha256Hex, StringComparison.OrdinalIgnoreCase))
+      return CommandResult<PbcUploadResumeReceipt>.Fail("pbc.upload.resume-mismatch", "Select the exact file originally chosen for this upload.");
+    if (intent.State is not (PbcUploadStates.Started or PbcUploadStates.Chunking) || intent.ExpiresAt <= DateTimeOffset.UtcNow ||
+        intent.ReceivedByteCount >= intent.DeclaredByteCount)
+      return CommandResult<PbcUploadResumeReceipt>.Fail("pbc.upload.resume-unavailable", "This upload cannot be resumed. Start a new upload if the request is still open.");
+
+    var chunks = await db.PbcUploadChunks.AsNoTracking().Where(x =>
+      x.FirmId == actor.FirmId && x.PbcUploadIntentId == intent.Id).OrderBy(x => x.ChunkIndex)
+      .Select(x => new { x.ChunkIndex, x.Offset, x.ByteCount }).ToListAsync(ct);
+    long expectedOffset = 0;
+    for (var index = 0; index < chunks.Count; index++)
+    {
+      var chunk = chunks[index];
+      if (chunk.ChunkIndex != index || chunk.Offset != expectedOffset || chunk.ByteCount <= 0 || chunk.ByteCount > MaxChunkBytes)
+        return CommandResult<PbcUploadResumeReceipt>.Fail(ErrorCodes.GateBlocked, "The staged upload needs review by your audit team.");
+      expectedOffset += chunk.ByteCount;
+    }
+    if (expectedOffset != intent.ReceivedByteCount)
+      return CommandResult<PbcUploadResumeReceipt>.Fail(ErrorCodes.GateBlocked, "The staged upload needs review by your audit team.");
+
+    var capability = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
+    intent.CapabilityHash = Hashing.Sha256Hex(capability);
+    intent.ExpiresAt = DateTimeOffset.UtcNow.AddHours(24);
+    intent.Revision++;
+    await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
+    return CommandResult<PbcUploadResumeReceipt>.Ok(new(intent.Id, intent.PbcRequestId, intent.State,
+      intent.ReceivedByteCount, chunks.Count, intent.Revision, capability));
+  }
+
   public static async Task<CommandResult<PbcUploadReceipt>> RecordChunkAsync(
     IAuditSphereDbContext db, ActorContext actor, RecordPbcUploadChunkRequest input,
     CancellationToken ct = default)
@@ -452,6 +549,10 @@ public static class PbcService
       SELECT * FROM pbc_upload_intents WHERE firm_id = {actor.FirmId} AND id = {input.UploadIntentId} FOR UPDATE
       """).SingleOrDefaultAsync(ct);
     if (intent is null)
+      return CommandResult<PbcUploadReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    // Recheck after acquiring the row lock so a capability rotated by ResumeUploadAsync cannot
+    // authorize a chunk that passed the initial check just before rotation.
+    if (!IsCapability(input.Capability) || Hashing.Sha256Hex(input.Capability) != intent.CapabilityHash)
       return CommandResult<PbcUploadReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var existing = await db.PbcUploadChunks.AsNoTracking().SingleOrDefaultAsync(x =>
       x.FirmId == actor.FirmId && x.PbcUploadIntentId == intent.Id && x.ChunkIndex == input.ChunkIndex, ct);

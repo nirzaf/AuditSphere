@@ -11,6 +11,7 @@ public static partial class UiEndpoints
   public sealed record PortalReplyInput(string Body);
   public sealed record PortalDelegateInput(Guid UserId);
   public sealed record PortalUploadInput(string FileName, string ContentType, string ByteCount, string Sha256);
+  public sealed record PortalUploadResumeInput(string FileName, string ByteCount, string Sha256);
 
   public sealed record PortalPackageDecisionInput(string Decision, string EvidenceReference, string Comment, string ExpectedHash, bool Reviewed);
   public sealed record PortalAcknowledgementInput(string Sha256, bool Reviewed);
@@ -70,5 +71,10 @@ public static partial class UiEndpoints
           return CommandResult<PbcUploadReceipt>.Fail("request.invalid", "File size is invalid.");
         return await PbcService.StartUploadAsync(db, actor, new(id, i.FileName ?? "", i.ContentType ?? "application/octet-stream", count, i.Sha256 ?? ""), ct);
       }));
+    group.MapPost("/portal/requests/{id:guid}/uploads/{uploadId:guid}/resume", (Guid id, Guid uploadId, PortalUploadResumeInput i, HttpContext http) => CommandAsync(http,
+      (db, actor, ct) => long.TryParse(i.ByteCount, System.Globalization.NumberStyles.None,
+        System.Globalization.CultureInfo.InvariantCulture, out var count)
+        ? PbcService.ResumeUploadAsync(db, actor, new(id, uploadId, i.FileName ?? "", count, i.Sha256 ?? ""), ct)
+        : Task.FromResult(CommandResult<PbcUploadResumeReceipt>.Fail("pbc.upload.invalid", "File size is invalid."))));
   }
 }
