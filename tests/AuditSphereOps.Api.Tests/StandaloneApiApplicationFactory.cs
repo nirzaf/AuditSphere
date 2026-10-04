@@ -13,9 +13,14 @@ internal sealed class StandaloneApiApplicationFactory(IReadOnlyDictionary<string
   {
     builder.UseEnvironment("Test");
     builder.UseSetting("AngularUi:Enabled", "false");
+    builder.UseSetting("AngularUi:CanonicalRoutes", "false");
     foreach (var (key, value) in settings) if (value is not null) builder.UseSetting(key, value);
     builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(
-      new Dictionary<string, string?> { ["AngularUi:Enabled"] = "false" }).AddInMemoryCollection(settings));
+      new Dictionary<string, string?>
+      {
+        ["AngularUi:Enabled"] = "false",
+        ["AngularUi:CanonicalRoutes"] = "false"
+      }).AddInMemoryCollection(settings));
     if (configureServices is not null) builder.ConfigureServices(configureServices);
   }
 }
