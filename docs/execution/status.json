@@ -20,7 +20,7 @@
   "verification": {
     "asPar002AuditCommandIsolation": {
       "sourceCommit": "dd80eb93eaee6e55e0a5fbb6da3428ba18f61b5e",
-      "verifiedAt": "2026-10-04T17:02:00Z",
+      "verifiedAt": "2026-10-04T17:16:00Z",
       "status": "PASS_LOCAL",
       "domainTests": {
         "passed": 3,
@@ -33,6 +33,7 @@
         ]
       },
       "fullSolutionRegression": "NOT_RUN on this source commit",
+      "domainFullSuiteAttempt": "INTERRUPTED after approximately 13 minutes without a runner summary; the CPU-active test process was stopped. No full-suite result is claimed.",
       "remoteHead": "PUSHED and confirmed at sourceCommit",
       "boundary": "Three focused PostgreSQL-backed tests passed on owned test databases. A client-A scoped Partner was denied sibling-client audit-program adoption, applicability, result submission and result review; B's procedure/result/workpaper/review state remained unchanged. The confirmation test denied sibling-ID creation, approval, dispatch, response, response review, alternative work, alternative review and closure; B's confirmation, response, alternative-work and closure state remained unchanged. The difference test denied sibling-ID creation, summaries, evaluation, correction-state changes and journal linking; B's difference state remained unchanged. No shared Development database, tenant, or production state was changed. AS-PAR-002 remains partial for other command families, export/count paths, and independent review."
     },

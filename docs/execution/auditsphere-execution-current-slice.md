@@ -26,10 +26,12 @@ alternative-work and closure state remains unchanged. The difference test
 denies A-scoped creation, aggregate reads, evaluation, correction-state changes
 and journal linking against B's engagement and difference; the persisted
 difference remains unchanged. All three focused Release Domain tests passed;
-the full solution regression was not run for this slice. Exact evidence is in
-`status.json`. No shared Development database, tenant, or production state was
-changed. AS-PAR-002 remains partial for other command families and export/count
-paths, plus independent review.
+the full solution regression was not run for this slice. The broader Domain
+suite was started but stopped after approximately 13 minutes without a runner
+summary, so no full-suite result is claimed. Exact evidence is in `status.json`.
+No shared Development database, tenant, or production state was changed.
+AS-PAR-002 remains partial for other command families and export/count paths,
+plus independent review.
 
 ## Parity hardening: workpaper navigation safety, management letter designation, and attribute strata sampling
 
