@@ -3,9 +3,9 @@ namespace AuditSphereOps.Api.Tests;
 public sealed class TelemetryConfigurationTests
 {
   [Fact]
-  public void ConfiguredInvalidOtlpEndpointRefusesWebStartup()
+  public void ConfiguredInvalidOtlpEndpointRefusesApiStartup()
   {
-    using var factory = new ApiWebApplicationFactory(new Dictionary<string, string?>
+    using var factory = new StandaloneApiApplicationFactory(new Dictionary<string, string?>
     {
       ["Telemetry:Otlp:Endpoint"] = "ftp://collector.invalid/otlp?token=fixture-secret",
       ["Application:AllowSimulationAdapters"] = "false",

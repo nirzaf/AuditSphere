@@ -294,7 +294,7 @@ public sealed class PbcHttpTests
       ["Application:AllowSimulationAdapters"] = "false",
       ["ExternalEffects:Enabled"] = "false"
     };
-    using var factory = new ApiWebApplicationFactory(settings);
+    using var factory = new StandaloneApiApplicationFactory(settings);
     using var client = factory.CreateClient();
     using var live = await client.GetAsync("/health/live");
     using var ready = await client.GetAsync("/health/ready");
@@ -307,7 +307,7 @@ public sealed class PbcHttpTests
     Assert.False((bool)(await command.ExecuteScalarAsync())!);
 
     await using var oldSchema = await OwnedPostgresDatabase.CreateAsync("PROP-API-05", "20260917073959_InitialCreate");
-    using var pendingFactory = new ApiWebApplicationFactory(new Dictionary<string, string?>
+    using var pendingFactory = new StandaloneApiApplicationFactory(new Dictionary<string, string?>
     {
       ["ConnectionStrings:AuditSphere"] = oldSchema.ConnectionString,
       ["Application:AllowSimulationAdapters"] = "false",
@@ -338,7 +338,7 @@ public sealed class PbcHttpTests
     using (var before = await client.GetAsync("/auth/landing"))
     {
       Assert.Equal(HttpStatusCode.Redirect, before.StatusCode);
-      Assert.Equal("/portal", before.Headers.Location?.OriginalString);
+      Assert.Equal("/ui/portal", before.Headers.Location?.OriginalString);
     }
 
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -357,7 +357,7 @@ public sealed class PbcHttpTests
     using var freshClient = await SignInAsync(factory, fixture.Client);
     using var fresh = await freshClient.GetAsync("/auth/landing");
     Assert.Equal(HttpStatusCode.Redirect, fresh.StatusCode);
-    Assert.Equal("/portal", fresh.Headers.Location?.OriginalString);
+    Assert.Equal("/ui/portal", fresh.Headers.Location?.OriginalString);
   }
 
   [Fact]
@@ -431,10 +431,10 @@ public sealed class PbcHttpTests
     using var safeClient = safeFactory.CreateClient(new() { AllowAutoRedirect = false });
     using var unsafeReturn = await safeClient.GetAsync("/auth/sign-in?returnUrl=%2F%2Fattacker.invalid");
     Assert.Equal(HttpStatusCode.Redirect, unsafeReturn.StatusCode);
-    Assert.Equal("/auth/landing", unsafeReturn.Headers.Location?.OriginalString);
+    Assert.Equal("/ui/app", unsafeReturn.Headers.Location?.OriginalString);
   }
 
-  private static ApiWebApplicationFactory CreateFactory(string connectionString,
+  private static StandaloneApiApplicationFactory CreateFactory(string connectionString,
     AuditSphereOps.Domain.Security.AppUser identity, string root, string? environment = null,
     bool developmentIdentity = true, bool oidc = false)
   {
@@ -456,10 +456,10 @@ public sealed class PbcHttpTests
       settings["Identity:ClientSecret"] = "synthetic-test-secret";
     }
     if (environment is not null) settings["ASPNETCORE_ENVIRONMENT"] = environment;
-    return new(settings, environment ?? "Test");
+    return new(settings, environmentName: environment ?? "Test");
   }
 
-  private static async Task<HttpClient> SignInAsync(ApiWebApplicationFactory factory,
+  private static async Task<HttpClient> SignInAsync(StandaloneApiApplicationFactory factory,
     AuditSphereOps.Domain.Security.AppUser user)
   {
     var client = factory.CreateClient(new() { AllowAutoRedirect = false });

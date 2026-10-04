@@ -13,7 +13,7 @@ namespace AuditSphereOps.Api.Tests;
 
 public sealed class UiPortalContractTests
 {
-  private static ApiWebApplicationFactory Factory(string connection, string subject, string tenant) => new(new Dictionary<string, string?>
+  private static StandaloneApiApplicationFactory Factory(string connection, string subject, string tenant) => new(new Dictionary<string, string?>
   {
     ["ConnectionStrings:AuditSphere"] = connection, ["DevelopmentIdentity:Enabled"] = "true", ["DevelopmentIdentity:Subject"] = subject,
     ["DevelopmentIdentity:TenantId"] = tenant, ["Application:AllowSimulationAdapters"] = "true", ["ExternalEffects:Enabled"] = "false"

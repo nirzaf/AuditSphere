@@ -7,7 +7,7 @@ public sealed class RequestCorrelationTests
   [Fact]
   public async Task ResponsesUseDistinctServerOwnedCorrelationIdsIncludingFailures()
   {
-    using var factory = new ApiWebApplicationFactory(new Dictionary<string, string?>
+    using var factory = new StandaloneApiApplicationFactory(new Dictionary<string, string?>
     {
       ["Application:AllowSimulationAdapters"] = "false",
       ["ExternalEffects:Enabled"] = "false"

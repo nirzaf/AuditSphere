@@ -41,7 +41,7 @@ public sealed class BillingWorkspaceApiTests
       Assert.True((await BillingService.PostInvoiceAsync(db, manager, invoiceId)).Succeeded);
     }
 
-    using var factory = new ApiWebApplicationFactory(new Dictionary<string, string?>
+    using var factory = new StandaloneApiApplicationFactory(new Dictionary<string, string?>
     {
       ["ConnectionStrings:AuditSphere"] = pg.ConnectionString,
       ["DevelopmentIdentity:Enabled"] = "true", ["DevelopmentIdentity:Subject"] = seed.Admin.Subject,
@@ -84,7 +84,7 @@ public sealed class BillingWorkspaceApiTests
     Assert.Equal(15m, Decimal(receipt.GetProperty("remaining")));
     Assert.Equal("SYN-CN-001", Assert.Single(final.GetProperty("creditNotes").EnumerateArray()).GetProperty("noteNumber").GetString());
 
-    using var staffFactory = new ApiWebApplicationFactory(new Dictionary<string, string?>
+    using var staffFactory = new StandaloneApiApplicationFactory(new Dictionary<string, string?>
     {
       ["ConnectionStrings:AuditSphere"] = pg.ConnectionString,
       ["DevelopmentIdentity:Enabled"] = "true", ["DevelopmentIdentity:Subject"] = seed.Staff.Subject,
@@ -127,7 +127,7 @@ public sealed class BillingWorkspaceApiTests
       await db.SaveChangesAsync();
     }
 
-    using var factory = new ApiWebApplicationFactory(new Dictionary<string, string?>
+    using var factory = new StandaloneApiApplicationFactory(new Dictionary<string, string?>
     {
       ["ConnectionStrings:AuditSphere"] = pg.ConnectionString,
       ["DevelopmentIdentity:Enabled"] = "true", ["DevelopmentIdentity:Subject"] = seed.Admin.Subject,

@@ -15,7 +15,7 @@
     <PackageReference Include="xunit.runner.visualstudio" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="../../src/AuditSphereOps.Web/AuditSphereOps.Web.csproj" />
+    <ProjectReference Include="../../src/AuditSphereOps.Api/AuditSphereOps.Api.csproj" />
     <ProjectReference Include="../../src/AuditSphereOps.Infrastructure/AuditSphereOps.Infrastructure.csproj" />
     <ProjectReference Include="../../src/AuditSphereOps.Worker/AuditSphereOps.Worker.csproj" />
     <ProjectReference Include="../../src/AuditSphereOps.Application/AuditSphereOps.Application.csproj" />

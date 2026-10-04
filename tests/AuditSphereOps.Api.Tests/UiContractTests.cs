@@ -21,7 +21,7 @@ public sealed class UiContractTests
   {
     await using var pg = await OwnedPostgresDatabase.CreateAsync("ANGULAR-API-01");
     var seed = await PbcSeed.SeedAsync(pg);
-    using var factory = new ApiWebApplicationFactory(new Dictionary<string, string?>
+    using var factory = new StandaloneApiApplicationFactory(new Dictionary<string, string?>
     {
       ["ConnectionStrings:AuditSphere"] = pg.ConnectionString,
       ["DevelopmentIdentity:Enabled"] = "true", ["DevelopmentIdentity:Subject"] = seed.Staff.Subject,
