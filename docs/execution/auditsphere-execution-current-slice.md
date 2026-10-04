@@ -13,6 +13,32 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Angular proposal-create retry fingerprint and full regression
+
+At pushed code commit `f92ae6887f56e20ed857a638a507099829132826`, keyed proposal
+creation stores a canonical SHA-256 fingerprint of the reviewed request, bound
+to the firm, actor, request identity, opportunity and expected revision. Retry
+reconciliation compares that immutable fingerprint rather than mutable proposal
+fields, so later quotation edits cannot make changed request terms look like an
+exact retry. PostgreSQL guards reject fingerprint mutation or deletion, and the
+rollback refuses to remove the migration while fingerprints remain. The
+Angular page continues to persist the reviewed intent before dispatch and
+requires fresh review before retrying after an uncertain response.
+
+The serial Release solution suite passed API 182/182, Domain 647/647 and E2E
+206/206: **1,035 passed, zero failed and zero skipped**. The Angular production
+build, 452/452 Angular unit tests, Release solution build (zero warnings or
+errors), focused PostgreSQL fingerprint test, focused lost-response browser
+journey and EF model-drift check also passed. Exact evidence is in
+`status.json` under `angularCommercialProposalCreateRecoveryFullRegression`.
+The additive migration was exercised in isolated test databases only; the
+shared Development and production databases were not migrated.
+
+Overall Angular migration acceptance remains PARTIAL. Remaining local
+creation/planning/source-action parity, production-like canary, real
+screen-reader and wider-locale acceptance, and live Microsoft gates remain
+open. No production deployment or live Microsoft mutation was performed.
+
 ## Angular commercial create-recovery full regression
 
 At source commit `9820d128e54925a4a2bff99a5b44c5fc7d4edc82`, the serial Release
