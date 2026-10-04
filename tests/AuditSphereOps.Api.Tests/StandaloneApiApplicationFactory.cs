@@ -6,12 +6,15 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace AuditSphereOps.Api.Tests;
 
-internal sealed class StandaloneApiApplicationFactory(IReadOnlyDictionary<string, string?> settings, Action<IServiceCollection>? configureServices = null)
+internal sealed class StandaloneApiApplicationFactory(
+  IReadOnlyDictionary<string, string?> settings,
+  Action<IServiceCollection>? configureServices = null,
+  string environmentName = "Test")
   : WebApplicationFactory<ApiProgram>
 {
   protected override void ConfigureWebHost(IWebHostBuilder builder)
   {
-    builder.UseEnvironment("Test");
+    builder.UseEnvironment(environmentName);
     builder.UseSetting("AngularUi:Enabled", "false");
     builder.UseSetting("AngularUi:CanonicalRoutes", "false");
     foreach (var (key, value) in settings) if (value is not null) builder.UseSetting(key, value);

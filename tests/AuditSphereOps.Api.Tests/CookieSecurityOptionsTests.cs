@@ -30,7 +30,7 @@ public sealed class CookieSecurityOptionsTests
     }
     using var keyProfile = environmentName == "Production" ? new ProductionKeyProfile() : null;
     keyProfile?.Apply(settings);
-    using var factory = new ApiWebApplicationFactory(settings, environmentName);
+    using var factory = new StandaloneApiApplicationFactory(settings, environmentName: environmentName);
 
     var options = factory.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
       .Get(CookieAuthenticationDefaults.AuthenticationScheme);
@@ -53,7 +53,7 @@ public sealed class CookieSecurityOptionsTests
     };
     profile.Apply(settings);
     string protectedValue;
-    using (var first = new ApiWebApplicationFactory(settings, "Production"))
+    using (var first = new StandaloneApiApplicationFactory(settings, environmentName: "Production"))
       protectedValue = first.Services.GetRequiredService<IDataProtectionProvider>()
         .CreateProtector("fixture").Protect("test payload");
 
@@ -62,19 +62,19 @@ public sealed class CookieSecurityOptionsTests
     Assert.Contains("encryptedSecret", keyXml, StringComparison.Ordinal);
     Assert.DoesNotContain("<masterKey", keyXml, StringComparison.Ordinal);
 
-    using (var restarted = new ApiWebApplicationFactory(settings, "Production"))
+    using (var restarted = new StandaloneApiApplicationFactory(settings, environmentName: "Production"))
       Assert.Equal("test payload", restarted.Services.GetRequiredService<IDataProtectionProvider>()
         .CreateProtector("fixture").Unprotect(protectedValue));
 
     var originalInstallation = settings["Application:InstallationId"];
     settings["Application:InstallationId"] = Guid.NewGuid().ToString("D");
-    using (var anotherInstallation = new ApiWebApplicationFactory(settings, "Production"))
+    using (var anotherInstallation = new StandaloneApiApplicationFactory(settings, environmentName: "Production"))
       Assert.Throws<CryptographicException>(() => anotherInstallation.Services
         .GetRequiredService<IDataProtectionProvider>().CreateProtector("fixture").Unprotect(protectedValue));
 
     settings["Application:InstallationId"] = originalInstallation;
     settings["Identity:TenantId"] = Guid.NewGuid().ToString("D");
-    using var anotherTenant = new ApiWebApplicationFactory(settings, "Production");
+    using var anotherTenant = new StandaloneApiApplicationFactory(settings, environmentName: "Production");
     Assert.Throws<CryptographicException>(() => anotherTenant.Services
       .GetRequiredService<IDataProtectionProvider>().CreateProtector("fixture").Unprotect(protectedValue));
   }
@@ -90,7 +90,7 @@ public sealed class CookieSecurityOptionsTests
       ["Application:AllowSimulationAdapters"] = "false",
       ["ExternalEffects:Enabled"] = "false"
     };
-    using var factory = new ApiWebApplicationFactory(settings, "Production");
+    using var factory = new StandaloneApiApplicationFactory(settings, environmentName: "Production");
     var error = Assert.ThrowsAny<Exception>(() => factory.CreateClient());
     Assert.Contains("Production Data Protection requires", error.ToString());
   }
@@ -109,7 +109,7 @@ public sealed class CookieSecurityOptionsTests
     };
     profile.Apply(settings);
     string protectedValue;
-    using (var beforeRotation = new ApiWebApplicationFactory(settings, "Production"))
+    using (var beforeRotation = new StandaloneApiApplicationFactory(settings, environmentName: "Production"))
       protectedValue = beforeRotation.Services.GetRequiredService<IDataProtectionProvider>()
         .CreateProtector("rotation-fixture").Protect("retained payload");
 
@@ -120,17 +120,17 @@ public sealed class CookieSecurityOptionsTests
     settings["DataProtection:CertificatePassword"] = replacement.Password;
     settings["DataProtection:PreviousCertificates:0:Path"] = priorPath;
     settings["DataProtection:PreviousCertificates:0:Password"] = priorPassword;
-    using (var rotated = new ApiWebApplicationFactory(settings, "Production"))
+    using (var rotated = new StandaloneApiApplicationFactory(settings, environmentName: "Production"))
       Assert.Equal("retained payload", rotated.Services.GetRequiredService<IDataProtectionProvider>()
         .CreateProtector("rotation-fixture").Unprotect(protectedValue));
 
     settings.Remove("DataProtection:PreviousCertificates:0:Password");
-    using (var incompletePriorCertificate = new ApiWebApplicationFactory(settings, "Production"))
+    using (var incompletePriorCertificate = new StandaloneApiApplicationFactory(settings, environmentName: "Production"))
       Assert.Contains("previous certificate is unavailable",
         Assert.ThrowsAny<Exception>(() => incompletePriorCertificate.CreateClient()).ToString());
 
     settings.Remove("DataProtection:PreviousCertificates:0:Path");
-    using var withoutPriorCertificate = new ApiWebApplicationFactory(settings, "Production");
+    using var withoutPriorCertificate = new StandaloneApiApplicationFactory(settings, environmentName: "Production");
     Assert.Throws<CryptographicException>(() => withoutPriorCertificate.Services
       .GetRequiredService<IDataProtectionProvider>().CreateProtector("rotation-fixture")
       .Unprotect(protectedValue));
