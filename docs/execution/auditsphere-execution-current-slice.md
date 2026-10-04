@@ -13,6 +13,25 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Accounting preparation navigation reflects exact role and scope
+
+The analytical preparation page showed the generic scope-denial message for a user
+without an eligible preparation grant. The engagement page also advertised the
+preparation workflows to staff who could not open them. The shared Application
+authorization gate now exposes the exact existing role and client/engagement scope
+capability to the engagement query, and the Angular navigation only shows those
+links when that capability is present. The analytical page gives safe guidance to
+ask a firm administrator to review the local role and scope. Protected direct
+routes continue to enforce the existing server-side checks; no role or scope
+permission was widened.
+
+The focused Application, API, Angular, Playwright and built-in browser checks
+passed on isolated synthetic data. The full solution regression was not run on
+this source commit; its latest complete result remains tied to the earlier commit
+recorded in `status.json`. No shared Development database data was changed. Exact
+verification evidence is recorded in `status.json` under the local evidence entry
+for this slice.
+
 ## Native reconciliation and specialist schedule preparation
 
 Native reconciliation creation (`/app/engagements/:id/reconciliation/new`) and
