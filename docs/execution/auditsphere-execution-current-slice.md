@@ -13,18 +13,20 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
-## AS-PAR-002: audit-program command isolation
+## AS-PAR-002: client-scoped audit command isolation
 
-A PostgreSQL-backed regression seeds active sibling clients A and B, gives a
-Partner access only to A, and creates real audit-program procedure/result records
-under B. Attempts by A's Partner to adopt the program to B's engagement, change
-B's applicability, submit a result against B's procedure, and review B's result
-are all denied. The test verifies that B's procedure, result, workpaper and review
-state is unchanged. The focused Release Domain test passed; the full solution
-regression was not run for this slice. Exact evidence is in `status.json`. No
-shared Development database, tenant, or production state was changed. AS-PAR-002
-remains partial for other command families and export/count paths, plus
-independent review.
+Two PostgreSQL-backed regressions seed sibling clients A and B and use real
+client-B record identifiers. A Partner scoped only to A is denied audit-program
+adoption, procedure applicability changes, result submission and result review;
+the target procedure, result, workpaper and review state remains unchanged. The
+confirmation lifecycle test also denies A-scoped create, approval, dispatch,
+response, response review, alternative work, alternative review and closure
+against B's engagement and confirmation records; B's confirmation, response,
+alternative-work and closure state remains unchanged. Both focused Release
+Domain tests passed; the full solution regression was not run for this slice.
+Exact evidence is in `status.json`. No shared Development database, tenant, or
+production state was changed. AS-PAR-002 remains partial for other command
+families and export/count paths, plus independent review.
 
 ## Parity hardening: workpaper navigation safety, management letter designation, and attribute strata sampling
 
