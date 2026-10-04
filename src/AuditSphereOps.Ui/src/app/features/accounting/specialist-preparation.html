@@ -1,0 +1,91 @@
+<a [routerLink]="['/app/engagements',id()]">← Back to engagement</a>
+<audit-page-header title="Prepare specialist schedule" eyebrow="Reviewed accounting evidence"
+  description="Choose a supported specialist profile. Each save creates an append-only revision; preparation does not replace independent review or create an audit conclusion." />
+<button matButton="outlined" type="button" (click)="refresh()" [disabled]="busy()">Refresh period and schedule</button>
+<audit-state [loading]="context.loading()" [error]="context.error()" label="specialist schedules" />
+@if(message()){<p role="status">{{message()}}</p>}
+@if(context.data();as c){
+  <section class="panel"><h2>{{c.clientName}} · {{c.engagementName}}</h2>
+    <label>Reporting period <select [value]="periodId()" [disabled]="busy()||uncertain()" (change)="changePeriod($any($event.target).value)">
+      @for(p of c.periods;track p.id){<option [value]="p.id">{{p.code}} · {{p.currency}} · {{p.status}}</option>}
+    </select></label>
+    <label>Specialist area <select [value]="area()" [disabled]="busy()||uncertain()" (change)="changeArea($any($event.target).value)">
+      @for(a of areas;track a){<option [value]="a">{{a.replace('_',' ')}}</option>}
+    </select></label>
+    @if(!c.periods.length){<p>No reporting periods are available in this engagement.</p>}
+  </section>
+  <audit-state [loading]="state.loading()" [error]="state.error()" label="current specialist revision" />
+  @if(state.data();as s){
+    <section class="panel"><h2>Current revision context</h2><p>{{s.periodCode}} · {{s.currency}} · input generation {{s.inputGeneration}}</p>
+      <dl><dt>Selected area</dt><dd>{{s.area}}</dd><dt>Next revision</dt><dd>{{s.nextRevision}}</dd>
+        <dt>Revision superseded</dt><dd>{{s.currentScheduleId??'First schedule for this area'}}</dd></dl>
+      @if(s.blockers.length){<h3>Preparation blocked</h3><ul>@for(b of s.blockers;track b){<li>{{b}}</li>}</ul>}
+    </section>
+    @if(uncertain()){<section class="panel" role="alert"><h2>Schedule outcome needs reconciliation</h2><p>Request {{pending()?.requestId}} · {{pending()?.requestHash}}</p>
+      <button matButton="outlined" (click)="reconcile()" [disabled]="busy()">Check retained receipt</button>
+      @if(receipt()){<button matButton="filled" (click)="acknowledge()">Acknowledge retained receipt</button>}
+    </section>}
+    @if(s.canPrepare){<section class="panel"><h2>Schedule inputs</h2>
+      <form (submit)="$event.preventDefault();prepare()"><fieldset [disabled]="busy()||(uncertain()&&!absent())"><legend>{{s.area}} · revision {{s.nextRevision}}</legend>
+        <label>Methodology version <input maxlength="100" [value]="model().methodologyVersion" (input)="model.set({...model(),methodologyVersion:$any($event.target).value})" /></label>
+        <label>Assumptions SHA-256 <input maxlength="64" spellcheck="false" [value]="model().assumptionsHash" (input)="model.set({...model(),assumptionsHash:$any($event.target).value})" /></label>
+        <fieldset><legend>Amounts (exact values, up to six decimal places)</legend>
+          @for(k of commonAmounts;track k){<label>{{k}}
+            <input inputmode="decimal" [value]="model()[k]" (input)="setField(k,$any($event.target).value)" /></label>}
+        </fieldset>
+        @if(area()==='ASSETS'){<fieldset><legend>Asset method</legend><label>Depreciation method <input maxlength="80" [value]="model().depreciationMethod" (input)="model.set({...model(),depreciationMethod:$any($event.target).value})" /></label>
+          <label>Useful life in months <input type="number" min="1" max="12000" step="1" [value]="model().usefulLifeMonths" (input)="model.set({...model(),usefulLifeMonths:$any($event.target).value})" /></label></fieldset>}
+        @if(area()==='PAYROLL'){<fieldset><legend>Payroll evidence</legend>
+          <label>Gross pay <input inputmode="decimal" [value]="model().payrollGrossAmount" (input)="model.set({...model(),payrollGrossAmount:$any($event.target).value})" /></label>
+          <label>Deductions <input inputmode="decimal" [value]="model().payrollDeductionsAmount" (input)="model.set({...model(),payrollDeductionsAmount:$any($event.target).value})" /></label>
+          <label>Net pay <input inputmode="decimal" [value]="model().payrollNetAmount" (input)="model.set({...model(),payrollNetAmount:$any($event.target).value})" /></label>
+          <label>Contract reference <input maxlength="200" [value]="model().payrollContractReference" (input)="model.set({...model(),payrollContractReference:$any($event.target).value})" /></label>
+          <label>Bank payment reference <input maxlength="200" [value]="model().payrollBankPaymentReference" (input)="model.set({...model(),payrollBankPaymentReference:$any($event.target).value})" /></label></fieldset>}
+        @if(area()==='LOANS'){<fieldset><legend>Loan evidence</legend>
+          <label>Repayment amount <input inputmode="decimal" [value]="model().loanRepaymentAmount" (input)="model.set({...model(),loanRepaymentAmount:$any($event.target).value})" /></label>
+          <label>Maturity date <input type="date" [value]="model().loanMaturityDate" (input)="model.set({...model(),loanMaturityDate:$any($event.target).value})" /></label>
+          <label>Covenant evidence reference <input maxlength="200" [value]="model().loanCovenantReference" (input)="model.set({...model(),loanCovenantReference:$any($event.target).value})" /></label></fieldset>}
+        @if(area()==='EQUITY'){<fieldset><legend>Equity and disclosure</legend>
+          <label>Profit or loss <input inputmode="decimal" [value]="model().equityProfitOrLossAmount" (input)="model.set({...model(),equityProfitOrLossAmount:$any($event.target).value})" /></label>
+          <label>Other comprehensive income <input inputmode="decimal" [value]="model().equityOciAmount" (input)="model.set({...model(),equityOciAmount:$any($event.target).value})" /></label>
+          <label>Related party disclosure reference <input maxlength="200" [value]="model().relatedPartyDisclosureReference" (input)="model.set({...model(),relatedPartyDisclosureReference:$any($event.target).value})" /></label></fieldset>}
+        @if(area()==='RELATED_PARTIES'){<label>Related party disclosure reference <input maxlength="200" [value]="model().relatedPartyDisclosureReference" (input)="model.set({...model(),relatedPartyDisclosureReference:$any($event.target).value})" /></label>}
+        @if(area()==='TAX'){<fieldset><legend>Tax rules and evidence</legend>
+          <label>Jurisdiction <input maxlength="100" [value]="model().taxJurisdiction" (input)="model.set({...model(),taxJurisdiction:$any($event.target).value})" /></label>
+          <label>Tax rule version <input maxlength="100" [value]="model().taxRuleVersion" (input)="model.set({...model(),taxRuleVersion:$any($event.target).value})" /></label>
+          <label>Tax base <input inputmode="decimal" [value]="model().taxBaseAmount" (input)="model.set({...model(),taxBaseAmount:$any($event.target).value})" /></label>
+          <label>Tax rate <input inputmode="decimal" [value]="model().taxRate" (input)="model.set({...model(),taxRate:$any($event.target).value})" /></label>
+          <label>Tax return evidence <input maxlength="200" [value]="model().taxReturnEvidenceReference" (input)="model.set({...model(),taxReturnEvidenceReference:$any($event.target).value})" /></label>
+          <label>Tax payment evidence <input maxlength="200" [value]="model().taxPaymentEvidenceReference" (input)="model.set({...model(),taxPaymentEvidenceReference:$any($event.target).value})" /></label>
+          <label>Tax correspondence evidence <input maxlength="200" [value]="model().taxCorrespondenceReference" (input)="model.set({...model(),taxCorrespondenceReference:$any($event.target).value})" /></label></fieldset>}
+        @if(area()==='FORECAST'){<fieldset><legend>Forecast ownership and sensitivity</legend>
+          <label>Management owner <input maxlength="200" [value]="model().forecastOwner" (input)="model.set({...model(),forecastOwner:$any($event.target).value})" /></label>
+          <label>Forecast horizon end <input type="date" [value]="model().forecastHorizonEnd" (input)="model.set({...model(),forecastHorizonEnd:$any($event.target).value})" /></label>
+          <label>Cash input <input inputmode="decimal" [value]="model().forecastCashInputAmount" (input)="model.set({...model(),forecastCashInputAmount:$any($event.target).value})" /></label>
+          <label>Debt input <input inputmode="decimal" [value]="model().forecastDebtInputAmount" (input)="model.set({...model(),forecastDebtInputAmount:$any($event.target).value})" /></label>
+          <label>Sensitivity evidence reference <input maxlength="200" [value]="model().forecastSensitivityReference" (input)="model.set({...model(),forecastSensitivityReference:$any($event.target).value})" /></label>
+          <label>Sensitivity result <textarea rows="3" maxlength="4000" [value]="model().forecastSensitivityResult" (input)="model.set({...model(),forecastSensitivityResult:$any($event.target).value})"></textarea></label></fieldset>}
+        <label>Preparation evidence reference <input maxlength="2000" [value]="model().evidenceReference" (input)="model.set({...model(),evidenceReference:$any($event.target).value})" /></label>
+        <label>Reason for preparation <textarea rows="3" maxlength="4000" [value]="model().reason" (input)="model.set({...model(),reason:$any($event.target).value})"></textarea></label>
+        <p>Numbers are sent and stored as exact decimal strings. Missing method evidence blocks this profile; the form does not infer conclusions.</p>
+        <div class="actions"><button matButton="filled" type="submit" [disabled]="!valid()">Preview schedule calculation</button>
+          <button matButton="outlined" type="button" (click)="saveDraft()">Save tab draft</button>
+          @if(draftAvailable()){<button matButton="outlined" type="button" (click)="restoreDraft()">Restore editable fields</button>}</div>
+      </fieldset></form>
+    </section>}
+    @if(preview();as p){<section class="panel"><h2>Review specialist calculation</h2><p>{{p.area}} · revision {{p.revision}} · {{model().methodologyVersion}} · {{model().reason}}</p>
+      <dl><dt>Calculated amount</dt><dd>{{p.calculatedAmount}} {{p.currency}}</dd><dt>Management amount</dt><dd>{{p.managementAmount}} {{p.currency}}</dd>
+        <dt>Difference</dt><dd>{{p.difference}} {{p.currency}}</dd><dt>Prior revision</dt><dd>{{p.supersedesScheduleId??'None'}}</dd></dl>
+      <label><input type="checkbox" [checked]="reviewed()" (change)="reviewed.set($any($event.target).checked)" [disabled]="busy()||!p.canProceed" /> I reviewed the exact profile inputs, calculation, evidence and revision relationship.</label>
+      <button matButton="filled" (click)="execute()" [disabled]="busy()||!reviewed()||!p.canProceed">Retain reviewed schedule revision</button>
+    </section>}
+    @if(receipt();as r){<section class="panel"><h2>Retained schedule receipt</h2><p>{{r.result.area}} · revision {{r.result.revision}} · {{r.requestId}} · {{r.createdAt}}</p>
+      <p>{{r.reason}} · {{r.result.calculatedAmount}} {{state.data()?.currency}}</p><a [routerLink]="['/app/accounting/evidence','SPECIALIST',r.scheduleId]">Inspect specialist evidence and independent review</a>
+    </section>}
+  }
+  <section class="panel"><h2>Retained schedule revisions</h2>
+    @if(!c.schedules.length){<p>No specialist schedule revisions are retained for this engagement.</p>}
+    @else{<div class="table-scroll"><table><caption>Specialist schedule revision history</caption><thead><tr><th>Period</th><th>Area</th><th>Revision</th><th>Replaces</th><th>Method</th><th>Status</th><th>Calculated</th><th>Created</th></tr></thead>
+      <tbody>@for(x of c.schedules;track x.id){<tr><td>{{x.periodCode}}</td><td>{{x.area}}</td><td>{{x.revision}}</td><td>{{x.supersedesScheduleId??'First'}}</td><td>{{x.methodologyVersion}}</td><td>{{x.status}}</td><td>{{x.calculatedAmount}}</td><td>{{x.createdAt}}</td></tr>}</tbody></table></div>}
+  </section>
+}

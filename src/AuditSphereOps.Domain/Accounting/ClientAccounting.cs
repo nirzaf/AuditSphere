@@ -679,6 +679,10 @@ public sealed class SpecialistAccountingSchedule
   public Guid EngagementId { get; set; }
   public Guid PeriodId { get; set; }
   public long InputGeneration { get; set; } = 1;
+  /// <summary>Monotonic revision within one engagement, period and specialist area.</summary>
+  public long Revision { get; set; } = 1;
+  /// <summary>The prior immutable schedule revision replaced by this preparation.</summary>
+  public Guid? SupersedesScheduleId { get; set; }
   public string Area { get; set; } = string.Empty; // ASSETS | PAYROLL | LOANS | EQUITY | TAX | FORECAST
   public string MethodologyVersion { get; set; } = string.Empty;
   public string DepreciationMethod { get; set; } = string.Empty;

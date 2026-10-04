@@ -1,0 +1,54 @@
+<a [routerLink]="['/app/engagements',id()]">← Back to engagement</a>
+<audit-page-header title="Prepare reconciliation" eyebrow="Reviewed accounting evidence"
+  description="Choose one accepted and sealed source, select exact account codes and review the server calculation before saving a new reconciliation revision." />
+<button matButton="outlined" type="button" (click)="refresh()" [disabled]="busy()">Refresh source context</button>
+<audit-state [loading]="context.loading()" [error]="context.error()" label="reconciliation sources" />
+@if(message()){<p role="status">{{message()}}</p>}
+@if(context.data();as c){
+  <section class="panel"><h2>{{c.clientName}} · {{c.engagementName}}</h2>
+    @if(!c.sources.length){<p>No accepted, sealed trial balance or sealed general ledger is available in this engagement.</p>}
+    @else{<label for="source">Accepted source</label><select id="source" [value]="selected()?.kind+':'+selected()?.id" [disabled]="busy()||uncertain()"
+        (change)="selectSource(c.sources.find(x=>$any($event.target).value===x.kind+':'+x.id)??null)">
+      @for(s of c.sources;track s.kind+':'+s.id){<option [value]="s.kind+':'+s.id">{{s.kind==='TRIAL_BALANCE'?'Trial balance':'General ledger'}} · {{s.periodCode}} · {{s.currency}} · {{s.rowCount}} accounts/rows · {{s.importedAt}}</option>}
+    </select>}
+  </section>
+  <audit-state [loading]="state.loading()" [error]="state.error()" label="selected reconciliation source" />
+  @if(state.data();as s){
+    <section class="panel"><h2>Current source and period</h2><p>{{s.periodCode}} · {{s.currency}} · {{s.basis}} · generation {{s.inputGeneration}}</p>
+      <dl><dt>Source type</dt><dd>{{s.sourceKind}}</dd><dt>Exact source digest</dt><dd class="digest">{{s.sourceHash}}</dd>
+        <dt>Reporting book</dt><dd>{{s.bookId??'No book assigned'}}</dd><dt>Client / engagement</dt><dd>{{s.clientName}} · {{s.engagementName}}</dd></dl>
+      @if(s.blockers.length){<h3>Preparation blocked</h3><ul>@for(b of s.blockers;track b){<li>{{b}}</li>}</ul>}
+    </section>
+    @if(uncertain()){<section class="panel" role="alert"><h2>Reconciliation outcome needs reconciliation</h2><p>Request {{pending()?.requestId}} · {{pending()?.requestHash}}</p>
+      <button matButton="outlined" (click)="reconcile()" [disabled]="busy()">Check retained receipt</button>
+      @if(receipt()){<button matButton="filled" (click)="acknowledge()">Acknowledge retained receipt</button>}
+    </section>}
+    @if(s.canPrepare){<section class="panel"><h2>Exact reconciliation inputs</h2>
+      <form (submit)="$event.preventDefault();prepare()"><fieldset [disabled]="busy()||(uncertain()&&!absent())"><legend>Source-bound schedule</legend>
+        <label>Reconciliation area <input maxlength="80" [value]="model().area" (input)="model.set({...model(),area:$any($event.target).value})" /></label>
+        <label>Account codes (one per line or comma separated, up to 100)
+          <textarea rows="5" maxlength="12000" spellcheck="false" [value]="model().accountCodes" (input)="model.set({...model(),accountCodes:$any($event.target).value})"></textarea>
+        </label>
+        <label>Reconciliation date <input type="date" [value]="model().asOfDate" (input)="model.set({...model(),asOfDate:$any($event.target).value})" /></label>
+        @if(needsAgeing()){<label>Ageing date basis <select [value]="model().agingBasis" (change)="model.set({...model(),agingBasis:$any($event.target).value})">
+          <option value="">Choose a date basis</option><option value="DUE_DATE">Due date</option><option value="INVOICE_DATE">Invoice date</option><option value="STATEMENT_DATE">Statement date</option></select></label>
+          <label>Ageing bucket rule version <input maxlength="60" [value]="model().agingBucketRuleVersion" (input)="model.set({...model(),agingBucketRuleVersion:$any($event.target).value})" /></label>}
+        <p>Only the selected source and listed account codes are included. Account totals and residual are computed by the server.</p>
+        <label>Reason <textarea rows="3" maxlength="4000" [value]="model().reason" (input)="model.set({...model(),reason:$any($event.target).value})"></textarea></label>
+        <label>Evidence reference <input maxlength="2000" [value]="model().evidenceReference" (input)="model.set({...model(),evidenceReference:$any($event.target).value})" /></label>
+        <div class="actions"><button matButton="filled" type="submit" [disabled]="!valid()">Preview exact totals</button>
+          <button matButton="outlined" type="button" (click)="saveDraft()">Save tab draft</button>
+          @if(draftAvailable()){<button matButton="outlined" type="button" (click)="restoreDraft()">Restore editable fields</button>}</div>
+      </fieldset></form>
+    </section>}
+    @if(preview();as p){<section class="panel"><h2>Review before saving</h2><p>{{p.area}} · {{p.accountSelection}} · {{model().reason}} · {{model().evidenceReference}}</p>
+      <dl><dt>Source total</dt><dd>{{p.sourceTotal}} {{p.currency}}</dd><dt>General ledger total</dt><dd>{{p.glTotal}} {{p.currency}}</dd>
+        <dt>Residual</dt><dd>{{p.residual}} {{p.currency}}</dd><dt>Result</dt><dd>{{p.resultStatus}}</dd><dt>Source digest</dt><dd class="digest">{{p.sourceHash}}</dd></dl>
+      <label><input type="checkbox" [checked]="reviewed()" (change)="reviewed.set($any($event.target).checked)" [disabled]="busy()||!p.canProceed" /> I reviewed this exact source, account selection, date, calculation and evidence reference.</label>
+      <button matButton="filled" (click)="execute()" [disabled]="busy()||!reviewed()||!p.canProceed">Save reviewed reconciliation</button>
+    </section>}
+    @if(receipt();as r){<section class="panel"><h2>Retained reconciliation receipt</h2><p>{{r.result.status}} · revision {{r.result.revision}} · {{r.requestId}} · {{r.createdAt}}</p>
+      <p>{{r.reason}} · {{r.evidenceReference}}</p><a [routerLink]="['/app/accounting/reconciliations',r.reconciliationId]">Inspect source-bound reconciliation evidence</a>
+    </section>}
+  }
+}

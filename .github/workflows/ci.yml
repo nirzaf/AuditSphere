@@ -13,6 +13,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+  DOTNET_NOLOGO: 'true'
   DOTNET_ENVIRONMENT: Test
   ASPNETCORE_ENVIRONMENT: Test
   ExternalEffects__Enabled: 'false'
@@ -20,11 +22,57 @@ env:
   DevelopmentIdentity__Enabled: 'false'
 
 jobs:
-  # Mandatory gate: pinned-SDK locked restore, Release build, EF model drift, plus the documentation health checks.
+  # Angular presentation gate: production build plus unit tests. Runs in
+  # parallel with the .NET gate; its browser bundle is handed to the API
+  # publish verification through a build artifact (the Api publish target
+  # globs ../AuditSphereOps.Ui/dist/auditsphere-ui/browser).
+  ui-build:
+    name: Build · Angular
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: src/AuditSphereOps.Ui/.nvmrc
+          cache: npm
+          cache-dependency-path: src/AuditSphereOps.Ui/package-lock.json
+
+      - name: Build and test Angular presentation
+        working-directory: src/AuditSphereOps.Ui
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run build
+          npm run test:ci
+
+      - name: Upload Angular browser bundle
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: angular-ui-browser
+          path: src/AuditSphereOps.Ui/dist/auditsphere-ui/browser
+          retention-days: 1
+
+      - name: Summarize
+        if: ${{ always() }}
+        env:
+          RESULT: ${{ job.status }}
+        run: |
+          printf 'Angular gate outcome: %s\nCommit: %s\nRun: %s / attempt %s\n' \
+            "$RESULT" "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_STEP_SUMMARY"
+
+  # Mandatory gate: pinned-SDK locked restore, Release build, EF model drift,
+  # and standalone API + Angular publication verification.
   # The PostgreSQL-backed Domain/Api/E2E suites are intentionally not run here because
   # they take 10+ minutes per project; run them locally (see docs/testing).
-  build-test-ready:
-    name: Build · Release
+  dotnet-build:
+    name: Build · .NET Release
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:
@@ -40,20 +88,6 @@ jobs:
           global-json-file: global.json
           cache: true
           cache-dependency-path: '**/packages.lock.json'
-
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version-file: src/AuditSphereOps.Ui/.nvmrc
-          cache: npm
-          cache-dependency-path: src/AuditSphereOps.Ui/package-lock.json
-
-      - name: Build and test Angular presentation
-        working-directory: src/AuditSphereOps.Ui
-        run: |
-          set -euo pipefail
-          npm ci
-          npm run build
-          npm run test:ci
 
       - name: Verify pinned .NET SDK
         run: |
@@ -86,6 +120,12 @@ jobs:
           dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure \
             --startup-project src/AuditSphereOps.Api --no-build --configuration Release
 
+      - name: Download Angular browser bundle
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: angular-ui-browser
+          path: src/AuditSphereOps.Ui/dist/auditsphere-ui/browser
+
       - name: Verify standalone API and Angular publication
         run: |
           set -euo pipefail
@@ -101,7 +141,7 @@ jobs:
         env:
           RESULT: ${{ job.status }}
         run: |
-          printf 'CI outcome: %s\nCommit: %s\nRun: %s / attempt %s\n' \
+          printf '.NET gate outcome: %s\nCommit: %s\nRun: %s / attempt %s\n' \
             "$RESULT" "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_STEP_SUMMARY"
 
   # Documentation health gate: canonical-link integrity, naming policy and

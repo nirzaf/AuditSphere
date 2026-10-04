@@ -10,6 +10,30 @@ public static partial class UiEndpoints
   private static void MapPeriodMaintenanceEndpoints(RouteGroupBuilder group)
   {
     MapValuationPreparationEndpoints(group);
+    const string reconciliation = "/engagements/{id:guid}/reconciliation-preparation";
+    group.MapGet(reconciliation, (Guid id, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => ReconciliationPreparationWorkspace.ContextAsync(db, actor, id, ct)));
+    group.MapGet(reconciliation + "/state", (Guid id, string? sourceKind, Guid sourceId, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => ReconciliationPreparationWorkspace.StateAsync(db, actor, id, sourceKind, sourceId, ct)));
+    group.MapPost(reconciliation + "/preview", (Guid id, ReconciliationPreparationRequest input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => ReconciliationPreparationWorkspace.PreviewAsync(db, actor, id, input, ct)));
+    group.MapPost(reconciliation, (Guid id, ReconciliationPreparationRequest input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => ReconciliationPreparationWorkspace.ExecuteAsync(db, actor, id, input, ct)));
+    group.MapGet(reconciliation + "/receipts/{requestId:guid}", (Guid id, Guid requestId, string? requestHash, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => ReconciliationPreparationWorkspace.LookupAsync(db, actor, id, requestId, requestHash, ct)));
+
+    const string specialist = "/engagements/{id:guid}/specialist-preparation";
+    group.MapGet(specialist, (Guid id, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => SpecialistSchedulePreparationWorkspace.ContextAsync(db, actor, id, ct)));
+    group.MapGet(specialist + "/state", (Guid id, Guid periodId, string? area, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => SpecialistSchedulePreparationWorkspace.StateAsync(db, actor, id, periodId, area, ct)));
+    group.MapPost(specialist + "/preview", (Guid id, SpecialistPreparationRequest input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => SpecialistSchedulePreparationWorkspace.PreviewAsync(db, actor, id, input, ct)));
+    group.MapPost(specialist, (Guid id, SpecialistPreparationRequest input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => SpecialistSchedulePreparationWorkspace.ExecuteAsync(db, actor, id, input, ct)));
+    group.MapGet(specialist + "/receipts/{requestId:guid}", (Guid id, Guid requestId, string? requestHash, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => SpecialistSchedulePreparationWorkspace.LookupAsync(db, actor, id, requestId, requestHash, ct)));
+
     group.MapGet("/engagements/{id:guid}/analytical-preparation", (Guid id, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => AnalyticalReviewPreparationWorkspace.ContextAsync(db, actor, id, ct)));
     group.MapGet("/engagements/{id:guid}/analytical-preparation/state", (Guid id, Guid periodId,

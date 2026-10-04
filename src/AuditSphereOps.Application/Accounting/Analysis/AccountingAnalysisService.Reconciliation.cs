@@ -98,6 +98,9 @@ public static partial class AccountingAnalysisService
     }
     var canonical = string.Join('|', request.ClientId, request.EngagementId, request.PeriodId,
       request.Area.Trim().ToUpperInvariant(), string.Join(',', codes), sourceHash);
+    var previous = await db.AccountingReconciliations.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+      x.ClientId == request.ClientId && x.EngagementId == request.EngagementId && x.PeriodId == request.PeriodId && x.Area == area)
+      .OrderByDescending(x => x.Revision).ThenByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
     var reconciliation = new AccountingReconciliation
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = request.ClientId, EngagementId = request.EngagementId,
@@ -107,6 +110,7 @@ public static partial class AccountingAnalysisService
       AgingBasis = agingBasis, AgingBucketRuleVersion = agingRuleVersion,
       Residual = MoneyPolicy.Normalize(glTotal - sourceTotal), SourceHash = sourceHash,
       Status = MoneyPolicy.Normalize(glTotal - sourceTotal) == 0m ? "RECONCILED" : "UNRECONCILED",
+      Revision = (previous?.Revision ?? 0) + 1, SupersedesReconciliationId = previous?.Id,
       InputGeneration = clientState.InputGeneration,
       CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     };

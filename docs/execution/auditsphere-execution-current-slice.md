@@ -13,6 +13,28 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Native reconciliation and specialist schedule preparation
+
+Native reconciliation creation (`/app/engagements/:id/reconciliation/new`) and
+specialist schedule preparation (`/app/engagements/:id/specialists/new`) are now
+implemented with typed Signal Forms, exact server previews, explicit reviewed assent,
+retained immutable actor-owned request receipts, tab draft persistence and
+lost-response receipt recovery. Reconciliation creation binds exact client source
+datasets, accounts, period context, reasons and evidence references, rejecting
+cross-scope or unreviewed requests. Specialist schedule preparation composes
+existing IAS 21 / IAS 16 asset and liability schedules with exact six-decimal inputs,
+preview calculations, immutable snapshots, and actor-owned receipt recovery.
+Unresolved command responses fence further writes and offer receipt verification on reload.
+
+PostgreSQL-backed API tests (`AccountingPreparationCreationApiTests`) passed 2/2,
+Playwright E2E journey (`AngularAccountingPreparationCreationJourneyTests`) passed 1/1,
+all 460/460 Angular unit tests passed, and the Release solution build and production
+UI build passed with zero warnings or errors. EF reported no pending model changes.
+The additive migration `20261004121805_NativeReconciliationAndSpecialistPreparation`
+was exercised in isolated synthetic test databases; shared Development and production
+databases were not migrated. Broader reconciliation revision forms and overall migration
+acceptance remain open.
+
 ## Angular proposal-create retry fingerprint and full regression
 
 At pushed code commit `f92ae6887f56e20ed857a638a507099829132826`, keyed proposal

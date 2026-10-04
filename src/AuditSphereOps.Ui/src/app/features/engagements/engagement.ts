@@ -33,6 +33,8 @@ export class EngagementDetail {
     { path: 'tb-intake', label: 'Trial balance intake' },
     { path: 'general-ledger', label: 'General ledger' },
     { path: 'analysis/new', label: 'Prepare analytical review' },
+    { path: 'reconciliation/new', label: 'Prepare reconciliation' },
+    { path: 'specialists/new', label: 'Prepare specialist schedule' },
     { path: 'pbc', label: 'PBC requests' },
   ];
   readonly portfolioNavigation = inject(PortfolioNavigation);

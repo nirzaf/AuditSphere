@@ -48,7 +48,7 @@ export class TabDrafts {
   }
   private key(entity: string): string | null {
     const s = this.session.current();
-    return s?.staff && /^[a-zA-Z0-9:/-]{1,200}$/.test(entity)
+    return s?.staff && /^[a-zA-Z0-9:_/-]{1,200}$/.test(entity)
       ? `${prefix}${s.firmId}:${s.userId}:${s.generation}:${entity}`
       : null;
   }

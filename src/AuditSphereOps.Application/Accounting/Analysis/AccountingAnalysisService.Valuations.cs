@@ -111,10 +111,14 @@ public static partial class AccountingAnalysisService
       x.Id == request.ClientId && x.FirmId == actor.FirmId, ct);
     if (clientState is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Client accounting safety state is unavailable.");
+    var previous = await db.SpecialistAccountingSchedules.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+      x.ClientId == request.ClientId && x.EngagementId == request.EngagementId && x.PeriodId == request.PeriodId && x.Area == area)
+      .OrderByDescending(x => x.Revision).ThenByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
     var schedule = new SpecialistAccountingSchedule
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = request.ClientId, EngagementId = request.EngagementId,
       PeriodId = request.PeriodId, InputGeneration = clientState.InputGeneration, Area = area,
+      Revision = (previous?.Revision ?? 0) + 1, SupersedesScheduleId = previous?.Id,
       MethodologyVersion = request.MethodologyVersion.Trim(),
       DepreciationMethod = request.DepreciationMethod?.Trim().ToUpperInvariant() ?? string.Empty,
       UsefulLifeMonths = request.UsefulLifeMonths,
@@ -176,7 +180,7 @@ public static partial class AccountingAnalysisService
       s.Difference != MoneyPolicy.Normalize(calculated - s.ManagementAmount) ? "The retained specialist amounts differ from the supported typed inputs. No substitute result is supplied." : null);
   }
 
-  private static string? ValidateSpecialistProfile(
+  internal static string? ValidateSpecialistProfile(
     SpecialistScheduleRequest request, string area, out decimal calculated)
   {
     calculated = 0m;

@@ -192,6 +192,10 @@ export const routes: Routes = [
     title: 'Review activation · AuditSphere', loadComponent: () => import('./features/engagements/activation').then(m => m.EngagementActivationReview) },
   { path: 'app/engagements/:id/analysis/new', canActivate: [staffGuard], canDeactivate: [unsavedChangesGuard],
     title: 'Prepare analytical review · AuditSphere', loadComponent: () => import('./features/accounting/analytical-preparation').then(m => m.AnalyticalPreparation) },
+  { path: 'app/engagements/:id/reconciliation/new', canActivate: [staffGuard], canDeactivate: [unsavedChangesGuard],
+    title: 'Prepare reconciliation · AuditSphere', loadComponent: () => import('./features/accounting/reconciliation-create').then(m => m.ReconciliationCreate) },
+  { path: 'app/engagements/:id/specialists/new', canActivate: [staffGuard], canDeactivate: [unsavedChangesGuard],
+    title: 'Prepare specialist schedule · AuditSphere', loadComponent: () => import('./features/accounting/specialist-preparation').then(m => m.SpecialistPreparation) },
   {
     path: 'app/engagements/:id',
     canActivate: [staffGuard],
