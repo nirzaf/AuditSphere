@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using System.Text.Json;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Security;
@@ -10,6 +11,77 @@ namespace AuditSphereOps.E2E.Tests;
 
 public sealed class AngularCommercialJourneyTests
 {
+  [Fact]
+  [Trait("CaseId", "ANGULAR-COMMERCIAL-LEAD-RECOVERY-01")]
+  public async Task LostLeadCreateResponse_ReloadResolvesSameRequestWithoutDuplicate()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "ANGULAR-COMMERCIAL-LEAD-RECOVERY-01");
+    var settings = new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" };
+    var buildPath = Environment.GetEnvironmentVariable("AUDITSPHERE_TEST_UI_BUILD_PATH");
+    if (!string.IsNullOrWhiteSpace(buildPath)) settings["AngularUi__BuildPath"] = buildPath;
+    var origin = await host.StartApiForIdentityAsync(host.Fixture.Admin, settings);
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var errors = new List<string>();
+    page.PageError += (_, error) => errors.Add(error);
+    var requestIdentity = Guid.Empty;
+    var postCount = 0;
+    await page.RouteAsync("**/api/ui/leads", async route =>
+    {
+      if (route.Request.Method != "POST") { await route.ContinueAsync(); return; }
+      using var body = JsonDocument.Parse(route.Request.PostData!);
+      var seenIdentity = body.RootElement.GetProperty("requestId").GetGuid();
+      if (Interlocked.Increment(ref postCount) == 1)
+      {
+        requestIdentity = seenIdentity;
+        await using var accepted = await route.FetchAsync();
+        Assert.Equal(200, accepted.Status);
+        await route.AbortAsync("failed");
+      }
+      else
+      {
+        Assert.Equal(requestIdentity, seenIdentity);
+        await route.ContinueAsync();
+      }
+    });
+
+    var routePath = "/ui/app/practice/leads";
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(routePath));
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "Practice leads", Exact = true })).ToBeVisibleAsync();
+    await page.GetByRole(AriaRole.Textbox, new() { Name = "Lead name", Exact = true }).FillAsync("Synthetic lost-response lead");
+    await page.GetByRole(AriaRole.Textbox, new() { Name = "Source", Exact = true }).FillAsync("Recovery journey");
+    await page.GetByRole(AriaRole.Textbox, new() { Name = "Contact name", Exact = true }).FillAsync("Synthetic contact");
+    await page.GetByRole(AriaRole.Textbox, new() { Name = "Contact email", Exact = true }).FillAsync("recovery@example.test");
+    await page.GetByRole(AriaRole.Button, new() { Name = "Record lead", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByText("Lead outcome unconfirmed", new() { Exact = false })).ToBeVisibleAsync();
+    Assert.NotEqual(Guid.Empty, requestIdentity);
+
+    await page.ReloadAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "Practice leads", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Button,
+      new() { Name = "Resolve saved lead request", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Textbox,
+      new() { Name = "Lead name", Exact = true })).ToHaveValueAsync("Synthetic lost-response lead");
+    await page.GetByRole(AriaRole.Button, new() { Name = "Resolve saved lead request", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByText("Lead recorded.", new() { Exact = false })).ToBeVisibleAsync();
+    Assert.Equal(2, postCount);
+
+    await using (var db = host.CreateDbContext())
+    {
+      var lead = await db.Leads.SingleAsync(x => x.Id == requestIdentity);
+      Assert.Equal("Synthetic lost-response lead", lead.Name);
+      Assert.Equal("recovery@example.test", lead.PrimaryContactEmail);
+      Assert.Equal(1, await db.Leads.CountAsync(x => x.Name == "Synthetic lost-response lead"));
+    }
+    Assert.Empty(errors);
+  }
+
   [Fact]
   [Trait("CaseId", "ANGULAR-COMMERCIAL-E2E-01")]
   public async Task QuotationPreview_Save_AndApprovalUsePersistedServerState()

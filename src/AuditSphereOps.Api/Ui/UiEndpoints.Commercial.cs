@@ -11,7 +11,7 @@ public static partial class UiEndpoints
 {
   public sealed record OpportunityInput(Guid RequestId, string ServiceRoute, string EntityScope,
     string PeriodStart, string PeriodEnd, string ExpectedFee, string Currency);
-  public sealed record LeadInput(string Name, string Source, string? ContactName, string? ContactEmail);
+  public sealed record LeadInput(Guid RequestId, string Name, string Source, string? ContactName, string? ContactEmail);
   public sealed record ProposalResponseInput(string Decision, string? Reason);
   public sealed record ClientConversionInput(string LegalName);
   public sealed record ProposalRevisionInput(string ExpectedRevision, string ServiceProfile, string Scope,
@@ -151,12 +151,14 @@ public static partial class UiEndpoints
       if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       try { await csrf.ValidateRequestAsync(http); }
       catch (AntiforgeryValidationException) { return Results.Json(new { code = "csrf.invalid" }, statusCode: 403); }
-      if (input.Name?.Length > 200 || input.Source?.Length > 200 || input.ContactName?.Length > 200 || input.ContactEmail?.Length > 254)
+      if (input.RequestId == Guid.Empty || input.Name?.Length > 200 || input.Source?.Length > 200
+        || input.ContactName?.Length > 200 || input.ContactEmail?.Length > 254)
         return Results.Json(new { code = "request.invalid" }, statusCode: 400);
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await PracticeCrmService.CreateLeadAsync(db, actor,
-        new(input.Name!, input.Source!, input.ContactName, input.ContactEmail, actor.UserId), http.RequestAborted);
-      return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
+        new(input.Name!, input.Source!, input.ContactName, input.ContactEmail, actor.UserId, RequestId: input.RequestId), http.RequestAborted);
+      return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode },
+        statusCode: result.ErrorCode == AuditSphereOps.Domain.Shared.ErrorCodes.IdempotencyConflict ? 409 : 400);
     });
     group.MapPost("/leads/{id:guid}/qualify", async (Guid id, HttpContext http, TrustedActorResolver resolver,
       IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>

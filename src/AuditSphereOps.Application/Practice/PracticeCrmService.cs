@@ -17,7 +17,8 @@ public sealed record CreateLeadRequest(
   string? PrimaryContactName = null,
   string? PrimaryContactEmail = null,
   Guid? OwnerUserId = null,
-  string? ConsentRestrictions = null);
+  string? ConsentRestrictions = null,
+  Guid? RequestId = null);
 
 public sealed record CreateOpportunityRequest(
   Guid LeadId,
@@ -89,6 +90,28 @@ public static class PracticeCrmService
       $"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if (guard is null) return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
     var name = request.Name.Trim();
+    var source = request.Source.Trim();
+    var contactName = TrimOrNull(request.PrimaryContactName);
+    var contactEmail = TrimOrNull(request.PrimaryContactEmail);
+    var consentRestrictions = TrimOrNull(request.ConsentRestrictions);
+
+    // The caller's request identity is also the new lead identity. The firm lock
+    // serializes concurrent retries, and matching the stored intent prevents a
+    // reused key from disclosing or returning a different lead.
+    if (request.RequestId is { } requestId)
+    {
+      var prior = await db.Leads.AsNoTracking().SingleOrDefaultAsync(x => x.Id == requestId, ct);
+      if (prior is not null)
+      {
+        if (prior.FirmId != actor.FirmId || prior.Name != name || prior.Source != source
+          || prior.PrimaryContactName != contactName || prior.PrimaryContactEmail != contactEmail
+          || prior.OwnerUserId != request.OwnerUserId || prior.ConsentRestrictions != consentRestrictions)
+          return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict,
+            "This request identity is already bound to a different lead request.");
+        return CommandResult<Guid>.Ok(prior.Id);
+      }
+    }
+
     var email = TrimOrNull(request.PrimaryContactEmail)?.ToUpperInvariant();
     var duplicate = await db.Leads.AsNoTracking().AnyAsync(x =>
       x.FirmId == actor.FirmId && x.Name.ToUpper() == name.ToUpper() &&
@@ -99,10 +122,10 @@ public static class PracticeCrmService
 
     var lead = new Lead
     {
-      Id = Guid.CreateVersion7(), FirmId = actor.FirmId, Name = name,
-      Source = request.Source.Trim(), PrimaryContactName = TrimOrNull(request.PrimaryContactName),
-      PrimaryContactEmail = TrimOrNull(request.PrimaryContactEmail), OwnerUserId = request.OwnerUserId,
-      ConsentRestrictions = TrimOrNull(request.ConsentRestrictions), CreatedAt = DateTimeOffset.UtcNow
+      Id = request.RequestId ?? Guid.CreateVersion7(), FirmId = actor.FirmId, Name = name,
+      Source = source, PrimaryContactName = contactName,
+      PrimaryContactEmail = contactEmail, OwnerUserId = request.OwnerUserId,
+      ConsentRestrictions = consentRestrictions, CreatedAt = DateTimeOffset.UtcNow
     };
     db.Leads.Add(lead);
     await db.SaveChangesAsync(ct);
@@ -518,6 +541,8 @@ public static class PracticeCrmService
 
   private static string? ValidateLead(CreateLeadRequest request)
   {
+    if (request.RequestId == Guid.Empty)
+      return "A nonempty operation identity is required.";
     var error = Required(request.Name, "Lead name") ?? Required(request.Source, "Lead source");
     if (error is not null) return error;
     return string.IsNullOrWhiteSpace(request.PrimaryContactEmail) ? null : EmailError(request.PrimaryContactEmail);

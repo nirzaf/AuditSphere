@@ -66,6 +66,42 @@ public sealed class PracticeCrmTests
       12000m, "QAR", "2026-01-01", "2026-12-31", expectedRevision);
 
   [Fact]
+  public async Task LeadCreation_ReconcilesExactRetry_AndRejectsRequestIdentityReuse()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    var requestId = Guid.NewGuid();
+    var request = new CreateLeadRequest("Idempotent Lead", "Referral", "Synthetic Contact",
+      "lead@example.test", fixture.User.Id, RequestId: requestId);
+
+    await using (var firstDb = new AuditSphereDbContext(pg.Options))
+    {
+      var first = await PracticeCrmService.CreateLeadAsync(firstDb, fixture.Actor, request);
+      Assert.True(first.Succeeded, first.Message);
+      Assert.Equal(requestId, first.Value);
+    }
+
+    await using (var retryDb = new AuditSphereDbContext(pg.Options))
+    {
+      var retry = await PracticeCrmService.CreateLeadAsync(retryDb, fixture.Actor, request);
+      Assert.True(retry.Succeeded, retry.Message);
+      Assert.Equal(requestId, retry.Value);
+      Assert.Equal(1, await retryDb.Leads.CountAsync(x => x.FirmId == fixture.FirmId));
+
+      var changedIntent = await PracticeCrmService.CreateLeadAsync(retryDb, fixture.Actor,
+        request with { Source = "Website" });
+      Assert.False(changedIntent.Succeeded);
+      Assert.Equal(ErrorCodes.IdempotencyConflict, changedIntent.ErrorCode);
+
+      var newIdentityDuplicate = await PracticeCrmService.CreateLeadAsync(retryDb, fixture.Actor,
+        request with { RequestId = Guid.NewGuid() });
+      Assert.False(newIdentityDuplicate.Succeeded);
+      Assert.Equal("crm.duplicate", newIdentityDuplicate.ErrorCode);
+      Assert.Equal(1, await retryDb.Leads.CountAsync(x => x.FirmId == fixture.FirmId));
+    }
+  }
+
+  [Fact]
   public async Task CommercialWorkflow_ConvertsIdempotently_AndLeavesAcceptancePending()
   {
     await using var pg = await PgTestSchema.CreateAsync();
