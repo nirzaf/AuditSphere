@@ -35,6 +35,31 @@ was exercised in isolated synthetic test databases; shared Development and produ
 databases were not migrated. Broader reconciliation revision forms and overall migration
 acceptance remain open.
 
+The browser check exposed that the engagement menu treated `reconciliation/new`,
+`specialists/new` and `analysis/new` as single router segments. Commit `935bd79`
+now splits each configured path into real route segments. The focused engagement
+route contract passed 3/3, an isolated production Angular build passed, and the
+built-in browser opened all three forms at their intended URLs. The shared
+Development client had no configured accounting profile, reporting period or
+accepted source, so those forms displayed the safe unavailable state; no shared
+data was changed.
+
+The complete Angular unit suite passed 461/461 on commit `935bd79`, using a
+clean temporary UI snapshot so the other agent's in-progress application shell
+and quotation changes were not included. The full E2E rerun against isolated
+assets was stopped after 44 minutes without a test summary; it remains
+unverified, and no whole-suite pass is claimed.
+
+The API and Domain projects also passed 186/186 and 647/647, respectively, on
+feature commit `815d79f`. The focused preparation Playwright journey passed 1/1
+using a clean isolated UI build. The first full E2E attempt could not start its
+owned hosts because a parallel Angular test run had cleared shared `dist`. A
+second attempt used the isolated UI bundle but was stopped after about 44
+minutes without a runner summary; the test host had used up to about 1.5 GB and
+sustained CPU. No whole-solution pass is claimed. The additive migration was
+tested only against disposable PostgreSQL databases; Development and production
+were not migrated.
+
 ## Angular proposal-create retry fingerprint and full regression
 
 At pushed code commit `f92ae6887f56e20ed857a638a507099829132826`, keyed proposal
