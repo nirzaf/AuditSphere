@@ -23,7 +23,7 @@ public sealed class AngularTenantConnectionJourneyTests
     await page.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed the configured tenant", Exact = false }).CheckAsync();
     await page.GetByRole(AriaRole.Button, new() { Name = "Connect Microsoft 365 tenant", Exact = true }).ClickAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Verified consenting identity", Exact = true })).ToBeVisibleAsync();
-    Assert.Contains("/ui/app/administration/microsoft365/tenant-connection", page.Url);
+    Assert.Contains("/app/administration/microsoft365/tenant-connection", page.Url);
     await using (var db = host.CreateDbContext())
     {
       var attempt = await db.TenantConsentAttempts.SingleAsync(x => x.State == TenantConsentAttemptStates.ConsentVerified);
