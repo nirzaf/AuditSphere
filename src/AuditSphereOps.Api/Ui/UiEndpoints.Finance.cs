@@ -27,9 +27,12 @@ public static partial class UiEndpoints
     }));
     group.MapPost("/finance/periods/{id:guid}/close", (Guid id, FiscalCloseInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => LedgerService.CloseFiscalPeriodAsync(db, actor, id, i.Reason ?? "", ct)));
-    group.MapGet("/finance/invoices/{id:guid}", (Guid id, HttpContext http) => ReadAsync(http, async (db, actor, ct) =>
+    group.MapGet("/finance/invoices/{id:guid}", (
+      Guid id, DateTimeOffset? receiptBefore, Guid? receiptBeforeId,
+      DateTimeOffset? creditBefore, Guid? creditBeforeId, HttpContext http) => ReadAsync(http, async (db, actor, ct) =>
     {
-      var r = await BillingInvoiceWorkspaceQuery.GetAsync(db, actor, id, ct);
+      var r = await BillingInvoiceWorkspaceQuery.GetAsync(db, actor, id,
+        receiptBefore, receiptBeforeId, creditBefore, creditBeforeId, ct);
       if (!r.Succeeded || r.Value is null) return CommandResult<object>.Fail(r.ErrorCode ?? ErrorCodes.ScopeDenied, r.Message ?? "Access denied.");
       var v = r.Value.Detail;
       return CommandResult<object>.Ok(new

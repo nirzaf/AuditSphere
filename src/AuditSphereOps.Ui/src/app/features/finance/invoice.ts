@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, effect, inject, signal, untracked } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -51,10 +51,11 @@ export const decodeInvoice = obj({
         <div class="table-scroll"><table><caption class="sr-only">Recent receipts for this client billing account</caption><thead><tr>
           <th scope="col">Transaction reference</th><th scope="col">Received</th><th scope="col">Currency</th><th scope="col" class="number">Receipt amount</th><th scope="col" class="number">Allocated</th><th scope="col" class="number">Available</th>
         </tr></thead><tbody>
-          @for (r of i.receipts; track r.id) { <tr><td>{{ r.reference }}</td><td>{{ r.receivedAt.slice(0, 16).replace('T', ' ') }} UTC</td><td>{{ r.currency }}</td><td class="number">{{ r.amount | money }}</td><td class="number">{{ r.allocated | money }}</td><td class="number">{{ r.remaining | money }}</td></tr> }
+          @for (r of receiptHistory(); track r.id) { <tr><td>{{ r.reference }}</td><td>{{ r.receivedAt.slice(0, 16).replace('T', ' ') }} UTC</td><td>{{ r.currency }}</td><td class="number">{{ r.amount | money }}</td><td class="number">{{ r.allocated | money }}</td><td class="number">{{ r.remaining | money }}</td></tr> }
           @empty { <tr><td colspan="6">No receipts are recorded for this client billing account.</td></tr> }
         </tbody></table></div>
-        @if (i.receiptsHaveMore) { <p class="muted">Showing the latest 100 receipts for this billing account.</p> }
+        @if (receiptHistoryHaveMore()) { <button matButton="outlined" (click)="loadOlderReceipts()" [disabled]="receiptHistoryBusy() || busy() || uncertain()">{{ receiptHistoryBusy() ? 'Loading older receipts…' : 'Load older receipts' }}</button> }
+        @if (receiptHistoryMessage()) { <p role="alert">{{ receiptHistoryMessage() }}</p> }
         @if (i.canAct) {
           <h3>Record a payment</h3>
           <p>Record the bank or cheque reference first. Then allocate available funds to posted invoices in this billing account.</p>
@@ -72,12 +73,12 @@ export const decodeInvoice = obj({
           </form>
           @if (i.status === 'POSTED' || i.status === 'SENT') {
             <h3>Allocate a recorded receipt</h3>
-            @if (receiptsWithBalance(i).length) {
+            @if (receiptsWithBalance().length) {
               <form [formGroup]="allocationForm" (ngSubmit)="allocate(i)">
                 <label for="allocation-receipt">Receipt and available balance</label>
-                <select id="allocation-receipt" formControlName="receiptId" (change)="selectReceipt($event, i)">
+                <select id="allocation-receipt" formControlName="receiptId" (change)="selectReceipt($event)">
                   <option value="">Select a receipt</option>
-                  @for (r of receiptsWithBalance(i); track r.id) { <option [value]="r.id">{{ r.reference }} — {{ r.remaining | money }} {{ r.currency }} available</option> }
+                  @for (r of receiptsWithBalance(); track r.id) { <option [value]="r.id">{{ r.reference }} — {{ r.remaining | money }} {{ r.currency }} available</option> }
                 </select>
                 <label for="allocation-amount">Amount to allocate ({{ i.currency ?? 'billing currency' }})</label>
                 <input id="allocation-amount" inputmode="decimal" autocomplete="off" formControlName="amount" />
@@ -93,9 +94,10 @@ export const decodeInvoice = obj({
       <section class="panel" aria-labelledby="credits-heading">
         <h2 id="credits-heading">Credit notes</h2>
         <div class="table-scroll"><table><caption class="sr-only">Issued credit notes for this invoice</caption><thead><tr><th scope="col">Note number</th><th scope="col">Issued</th><th scope="col">Reason</th><th scope="col" class="number">Amount</th></tr></thead>
-          <tbody>@for (c of i.creditNotes; track c.id) { <tr><td>{{ c.noteNumber }}</td><td>{{ c.createdAt.slice(0, 16).replace('T', ' ') }} UTC</td><td>{{ c.reason }}</td><td class="number">{{ c.amount | money }} {{ c.currency }}</td></tr> }
+          <tbody>@for (c of creditHistory(); track c.id) { <tr><td>{{ c.noteNumber }}</td><td>{{ c.createdAt.slice(0, 16).replace('T', ' ') }} UTC</td><td>{{ c.reason }}</td><td class="number">{{ c.amount | money }} {{ c.currency }}</td></tr> }
           @empty { <tr><td colspan="4">No credit notes have been issued for this invoice.</td></tr> }</tbody></table></div>
-        @if (i.creditNotesHaveMore) { <p class="muted">Showing the latest 100 credit notes for this invoice.</p> }
+        @if (creditHistoryHaveMore()) { <button matButton="outlined" (click)="loadOlderCreditNotes()" [disabled]="creditHistoryBusy() || busy() || uncertain()">{{ creditHistoryBusy() ? 'Loading older credit notes…' : 'Load older credit notes' }}</button> }
+        @if (creditHistoryMessage()) { <p role="alert">{{ creditHistoryMessage() }}</p> }
         @if (i.canIssueCreditNote && (i.status === 'POSTED' || i.status === 'SENT')) {
           <h3>Issue a credit note</h3>
           <form [formGroup]="creditForm" (ngSubmit)="issueCredit(i)">
@@ -139,6 +141,15 @@ export class InvoiceDetail {
   readonly id = routeGuid();
   readonly invoice = this.api.resource(() => this.id() ? `/api/ui/finance/invoices/${this.id()}` : null, decodeInvoice,
     'The requested invoice was not found in the current firm scope.');
+  readonly receiptHistory = signal<ReturnType<typeof decodeInvoice>['receipts']>([]);
+  readonly receiptHistoryHaveMore = signal(false);
+  readonly receiptHistoryBusy = signal(false);
+  readonly receiptHistoryMessage = signal('');
+  readonly creditHistory = signal<ReturnType<typeof decodeInvoice>['creditNotes']>([]);
+  readonly creditHistoryHaveMore = signal(false);
+  readonly creditHistoryBusy = signal(false);
+  readonly creditHistoryMessage = signal('');
+  private historyVisit = 0;
   readonly busy = signal(false);
   readonly uncertain = signal(false);
   readonly reconciliationLoaded = signal(false);
@@ -148,14 +159,78 @@ export class InvoiceDetail {
   readonly allocationForm = this.fb.group({ receiptId: ['', Validators.required], amount: ['', [Validators.required, positiveAmount]], reviewed: [false, Validators.requiredTrue] });
   readonly creditForm = this.fb.group({ noteNumber: ['', [Validators.required, Validators.maxLength(64)]], amount: ['', [Validators.required, positiveAmount]], reason: ['', [Validators.required, Validators.maxLength(1000)]], reviewed: [false, Validators.requiredTrue] });
 
-  receiptsWithBalance(i: ReturnType<typeof decodeInvoice>): ReturnType<typeof decodeInvoice>['receipts'] {
-    return i.receipts.filter((r) => this.isPositive(r.remaining));
+  constructor() {
+    effect(() => {
+      const current = this.invoice.data();
+      untracked(() => {
+        this.historyVisit++;
+        this.receiptHistory.set(current?.receipts ?? []);
+        this.receiptHistoryHaveMore.set(current?.receiptsHaveMore ?? false);
+        this.receiptHistoryBusy.set(false);
+        this.receiptHistoryMessage.set('');
+        this.creditHistory.set(current?.creditNotes ?? []);
+        this.creditHistoryHaveMore.set(current?.creditNotesHaveMore ?? false);
+        this.creditHistoryBusy.set(false);
+        this.creditHistoryMessage.set('');
+      });
+    });
   }
 
-  selectReceipt(event: Event, i: ReturnType<typeof decodeInvoice>): void {
+  receiptsWithBalance(): ReturnType<typeof decodeInvoice>['receipts'] {
+    return this.receiptHistory().filter((r) => this.isPositive(r.remaining));
+  }
+
+  selectReceipt(event: Event): void {
     const id = (event.target as HTMLSelectElement).value;
-    const receipt = i.receipts.find((x) => x.id === id);
+    const receipt = this.receiptHistory().find((x) => x.id === id);
     this.allocationForm.patchValue({ amount: receipt?.remaining ?? '', reviewed: false });
+  }
+
+  async loadOlderReceipts(): Promise<void> {
+    const last = this.receiptHistory().at(-1);
+    const invoiceId = this.id();
+    if (!invoiceId || !last || !this.receiptHistoryHaveMore() || this.receiptHistoryBusy() || this.busy() || this.uncertain()) return;
+    const visit = this.historyVisit;
+    const generation = this.session.invalidation();
+    this.receiptHistoryBusy.set(true);
+    this.receiptHistoryMessage.set('');
+    try {
+      const page = await this.api.get(`/api/ui/finance/invoices/${invoiceId}?receiptBefore=${encodeURIComponent(last.receivedAt)}&receiptBeforeId=${last.id}`, decodeInvoice);
+      if (visit !== this.historyVisit || generation !== this.session.invalidation() || invoiceId !== this.id()) return;
+      this.receiptHistory.update((items) => this.appendPage(items, page.receipts));
+      this.receiptHistoryHaveMore.set(page.receiptsHaveMore);
+    } catch {
+      if (visit === this.historyVisit && generation === this.session.invalidation() && invoiceId === this.id())
+        this.receiptHistoryMessage.set('Older receipts could not be loaded. Try again shortly.');
+    } finally {
+      if (visit === this.historyVisit) this.receiptHistoryBusy.set(false);
+    }
+  }
+
+  async loadOlderCreditNotes(): Promise<void> {
+    const last = this.creditHistory().at(-1);
+    const invoiceId = this.id();
+    if (!invoiceId || !last || !this.creditHistoryHaveMore() || this.creditHistoryBusy() || this.busy() || this.uncertain()) return;
+    const visit = this.historyVisit;
+    const generation = this.session.invalidation();
+    this.creditHistoryBusy.set(true);
+    this.creditHistoryMessage.set('');
+    try {
+      const page = await this.api.get(`/api/ui/finance/invoices/${invoiceId}?creditBefore=${encodeURIComponent(last.createdAt)}&creditBeforeId=${last.id}`, decodeInvoice);
+      if (visit !== this.historyVisit || generation !== this.session.invalidation() || invoiceId !== this.id()) return;
+      this.creditHistory.update((items) => this.appendPage(items, page.creditNotes));
+      this.creditHistoryHaveMore.set(page.creditNotesHaveMore);
+    } catch {
+      if (visit === this.historyVisit && generation === this.session.invalidation() && invoiceId === this.id())
+        this.creditHistoryMessage.set('Older credit notes could not be loaded. Try again shortly.');
+    } finally {
+      if (visit === this.historyVisit) this.creditHistoryBusy.set(false);
+    }
+  }
+
+  private appendPage<T extends { id: string }>(current: T[], page: T[]): T[] {
+    const seen = new Set(current.map((item) => item.id));
+    return [...current, ...page.filter((item) => !seen.has(item.id))];
   }
 
   async recordReceipt(i: ReturnType<typeof decodeInvoice>): Promise<void> {

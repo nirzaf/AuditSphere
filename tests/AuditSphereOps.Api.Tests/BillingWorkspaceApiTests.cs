@@ -96,6 +96,73 @@ public sealed class BillingWorkspaceApiTests
     Assert.Equal(HttpStatusCode.Forbidden, (await staff.GetAsync(path)).StatusCode);
   }
 
+  [Fact]
+  public async Task InvoiceHistoryUsesStableCursorsAcrossEqualTimestamps()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("ANGULAR-BILLING-HISTORY-PAGES");
+    var seed = await PbcSeed.SeedAsync(pg);
+    var manager = PbcSeed.Actor(seed.Admin, "FinanceManager");
+    Guid accountId, invoiceId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, seed.Admin, "FinanceManager"));
+      await db.SaveChangesAsync();
+      accountId = (await BillingService.CreateBillingAccountAsync(db, manager,
+        new CreateBillingAccountRequest(seed.ClientId, "QAR"))).Value;
+      invoiceId = (await BillingService.CreateInvoiceDraftAsync(db, manager,
+        new CreateInvoiceDraftRequest(accountId, "SYN-ANG-HISTORY-INV-001", [new InvoiceLineRequest("Synthetic fee", 1m, 100m)]))).Value;
+      var sameInstant = DateTimeOffset.UtcNow.AddDays(-2);
+      db.Receipts.AddRange(Enumerable.Range(1, 101).Select(i => new Receipt
+      {
+        Id = HistoryId(i), FirmId = seed.FirmId, BillingAccountId = accountId,
+        Amount = 1m, Currency = "QAR", Reference = $"SYN-PAGE-R-{i:D3}",
+        RecordedByUserId = seed.Admin.Id, ReceivedAt = sameInstant
+      }));
+      db.CreditNotes.AddRange(Enumerable.Range(1, 101).Select(i => new CreditNote
+      {
+        Id = HistoryId(i), FirmId = seed.FirmId, BillingAccountId = accountId, InvoiceId = invoiceId,
+        NoteNumber = $"SYN-PAGE-C-{i:D3}", Currency = "QAR", Amount = 0.01m,
+        Reason = "Synthetic history page", CreatedByUserId = seed.Admin.Id, CreatedAt = sameInstant
+      }));
+      await db.SaveChangesAsync();
+    }
+
+    using var factory = new ApiWebApplicationFactory(new Dictionary<string, string?>
+    {
+      ["ConnectionStrings:AuditSphere"] = pg.ConnectionString,
+      ["DevelopmentIdentity:Enabled"] = "true", ["DevelopmentIdentity:Subject"] = seed.Admin.Subject,
+      ["DevelopmentIdentity:TenantId"] = seed.Admin.TenantId,
+      ["Application:AllowSimulationAdapters"] = "true", ["ExternalEffects:Enabled"] = "false"
+    });
+    using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
+    await SignInAsync(client);
+    var path = $"/api/ui/finance/invoices/{invoiceId:D}";
+    var first = await client.GetFromJsonAsync<JsonElement>(path);
+    var receipts = first.GetProperty("receipts").EnumerateArray().ToArray();
+    var credits = first.GetProperty("creditNotes").EnumerateArray().ToArray();
+    Assert.Equal(100, receipts.Length);
+    Assert.Equal(100, credits.Length);
+    Assert.True(first.GetProperty("receiptsHaveMore").GetBoolean());
+    Assert.True(first.GetProperty("creditNotesHaveMore").GetBoolean());
+
+    var lastReceipt = receipts[^1];
+    var lastCredit = credits[^1];
+    var receiptAt = Uri.EscapeDataString(lastReceipt.GetProperty("receivedAt").GetString()!);
+    var creditAt = Uri.EscapeDataString(lastCredit.GetProperty("createdAt").GetString()!);
+    var nextUrl = $"{path}?receiptBefore={receiptAt}&receiptBeforeId={lastReceipt.GetProperty("id").GetGuid():D}" +
+      $"&creditBefore={creditAt}&creditBeforeId={lastCredit.GetProperty("id").GetGuid():D}";
+    var older = await client.GetFromJsonAsync<JsonElement>(nextUrl);
+    var olderReceipt = Assert.Single(older.GetProperty("receipts").EnumerateArray());
+    var olderCredit = Assert.Single(older.GetProperty("creditNotes").EnumerateArray());
+    Assert.Equal("SYN-PAGE-R-001", olderReceipt.GetProperty("reference").GetString());
+    Assert.Equal("SYN-PAGE-C-001", olderCredit.GetProperty("noteNumber").GetString());
+    Assert.False(older.GetProperty("receiptsHaveMore").GetBoolean());
+    Assert.False(older.GetProperty("creditNotesHaveMore").GetBoolean());
+    Assert.DoesNotContain(olderReceipt.GetProperty("id").GetGuid(), receipts.Select(x => x.GetProperty("id").GetGuid()));
+  }
+
+  private static Guid HistoryId(int number) => Guid.Parse($"00000000-0000-7000-8000-{number:000000000000}");
+
   private static decimal Decimal(JsonElement value) => decimal.Parse(value.GetString()!, CultureInfo.InvariantCulture);
 
   private static async Task<string> SignInAsync(HttpClient client)

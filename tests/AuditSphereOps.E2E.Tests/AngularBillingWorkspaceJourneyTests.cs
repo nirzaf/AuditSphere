@@ -35,6 +35,20 @@ public sealed class AngularBillingWorkspaceJourneyTests
       });
       await db.SaveChangesAsync();
       Assert.True((await BillingService.PostInvoiceAsync(db, manager, invoiceId)).Succeeded);
+      var sameInstant = DateTimeOffset.UtcNow.AddDays(-20);
+      db.Receipts.AddRange(Enumerable.Range(1, 101).Select(i => new Receipt
+      {
+        Id = HistoryId(i), FirmId = f.FirmId, BillingAccountId = accountId,
+        Amount = 1m, Currency = "QAR", Reference = $"SYN-PAGE-R-{i:D3}",
+        RecordedByUserId = f.Admin.Id, ReceivedAt = sameInstant
+      }));
+      db.CreditNotes.AddRange(Enumerable.Range(1, 101).Select(i => new CreditNote
+      {
+        Id = HistoryId(i), FirmId = f.FirmId, BillingAccountId = accountId, InvoiceId = invoiceId,
+        NoteNumber = $"SYN-PAGE-C-{i:D3}", Currency = "QAR", Amount = 0.01m,
+        Reason = "Synthetic history page", CreatedByUserId = f.Admin.Id, CreatedAt = sameInstant
+      }));
+      await db.SaveChangesAsync();
     }
 
     var origin = await host.StartApiForIdentityAsync(f.Admin, new Dictionary<string, string>
@@ -83,9 +97,14 @@ public sealed class AngularBillingWorkspaceJourneyTests
     await Assertions.Expect(page.GetByText("SYN-ANG-CN-001", new() { Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Clear unresolved billing draft", Exact = true })).ToBeVisibleAsync();
     Assert.Equal(1, creditCalls);
+    await page.GetByRole(AriaRole.Button, new() { Name = "Clear unresolved billing draft", Exact = true }).ClickAsync();
+    await page.GetByRole(AriaRole.Button, new() { Name = "Load older receipts", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByText("SYN-PAGE-R-001", new() { Exact = true })).ToBeVisibleAsync();
+    await page.GetByRole(AriaRole.Button, new() { Name = "Load older credit notes", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByText("SYN-PAGE-C-001", new() { Exact = true })).ToBeVisibleAsync();
     await using (var db = host.CreateDbContext())
     {
-      Assert.Single(await db.CreditNotes.Where(x => x.InvoiceId == invoiceId).ToListAsync());
+      Assert.Equal(1, await db.CreditNotes.CountAsync(x => x.InvoiceId == invoiceId && x.NoteNumber == "SYN-ANG-CN-001"));
       Assert.Equal(25m, await db.ReceiptAllocations.Where(x => x.InvoiceId == invoiceId).SumAsync(x => x.Amount));
     }
 
@@ -93,4 +112,6 @@ public sealed class AngularBillingWorkspaceJourneyTests
     Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));
     Assert.Empty(errors);
   }
+
+  private static Guid HistoryId(int number) => Guid.Parse($"00000000-0000-7000-8000-{number:000000000000}");
 }

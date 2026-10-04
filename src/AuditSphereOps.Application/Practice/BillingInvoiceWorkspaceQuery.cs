@@ -26,8 +26,15 @@ public static class BillingInvoiceWorkspaceQuery
   private static readonly string[] CreditRoles = ["FinanceManager"];
 
   public static async Task<CommandResult<BillingInvoiceWorkspace>> GetAsync(
-    IAuditSphereDbContext db, ActorContext actor, Guid invoiceId, CancellationToken ct = default)
+    IAuditSphereDbContext db, ActorContext actor, Guid invoiceId,
+    DateTimeOffset? receiptBefore = null, Guid? receiptBeforeId = null,
+    DateTimeOffset? creditBefore = null, Guid? creditBeforeId = null,
+    CancellationToken ct = default)
   {
+    if ((receiptBefore is null) != (receiptBeforeId is null) || receiptBeforeId == Guid.Empty ||
+        (creditBefore is null) != (creditBeforeId is null) || creditBeforeId == Guid.Empty)
+      return CommandResult<BillingInvoiceWorkspace>.Fail("billing.invalid", "The billing history cursor is invalid.");
+
     var detail = await BillingService.GetInvoiceDetailAsync(db, actor, invoiceId, ct);
     if (!detail.Succeeded || detail.Value is null)
       return CommandResult<BillingInvoiceWorkspace>.Fail(detail.ErrorCode!, detail.Message!);
@@ -37,8 +44,12 @@ public static class BillingInvoiceWorkspaceQuery
     if (account is null)
       return CommandResult<BillingInvoiceWorkspace>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
-    var receiptRows = await db.Receipts.AsNoTracking()
-      .Where(x => x.FirmId == actor.FirmId && x.BillingAccountId == account.Id && x.Status == BillingStates.ReceiptRecorded)
+    var receiptQuery = db.Receipts.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.BillingAccountId == account.Id && x.Status == BillingStates.ReceiptRecorded);
+    if (receiptBefore is { } receivedAt && receiptBeforeId is { } receiptId)
+      receiptQuery = receiptQuery.Where(x => x.ReceivedAt < receivedAt ||
+        (x.ReceivedAt == receivedAt && x.Id.CompareTo(receiptId) < 0));
+    var receiptRows = await receiptQuery
       .OrderByDescending(x => x.ReceivedAt).ThenByDescending(x => x.Id)
       .Take(PageLimit + 1)
       .Select(x => new { x.Id, x.Reference, x.Currency, x.Amount, x.ReceivedAt })
@@ -60,8 +71,12 @@ public static class BillingInvoiceWorkspaceQuery
         allocated, MoneyPolicy.Normalize(x.Amount - allocated), x.ReceivedAt);
     }).ToArray();
 
-    var creditRows = await db.CreditNotes.AsNoTracking()
-      .Where(x => x.FirmId == actor.FirmId && x.InvoiceId == invoiceId && x.Status == BillingStates.CreditIssued)
+    var creditQuery = db.CreditNotes.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.InvoiceId == invoiceId && x.Status == BillingStates.CreditIssued);
+    if (creditBefore is { } createdAt && creditBeforeId is { } creditId)
+      creditQuery = creditQuery.Where(x => x.CreatedAt < createdAt ||
+        (x.CreatedAt == createdAt && x.Id.CompareTo(creditId) < 0));
+    var creditRows = await creditQuery
       .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
       .Take(PageLimit + 1)
       .Select(x => new BillingCreditNoteSummary(x.Id, x.NoteNumber, x.Currency, x.Amount, x.Reason, x.CreatedAt))
