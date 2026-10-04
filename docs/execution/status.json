@@ -7481,6 +7481,42 @@
       "efModelDrift": "NONE",
       "fullSolutionRegression": "NOT_RUN at this source commit; the prior 1,029/1,029 pass remains attributed to 32ad074.",
       "boundary": "Synthetic isolated PostgreSQL fixture only. The browser journey confirmed the lost-response replay returned one lead for the same request identity. No Development or production business mutation; overall migration acceptance and external gates remain open."
+    },
+    "angularCommercialOpportunityCreateRecovery": {
+      "sourceCommit": "cdc8c8fffcf74c5497c5af2eac7e2405b51adb66",
+      "verifiedAt": "2026-10-04T06:16:13Z",
+      "status": "PASS_LOCAL",
+      "angularProductionBuild": "PASS",
+      "angularUnitTests": {
+        "passed": 452,
+        "failed": 0,
+        "skipped": 0,
+        "files": 87
+      },
+      "releaseSolutionBuild": {
+        "status": "PASS",
+        "warnings": 0,
+        "errors": 0
+      },
+      "domainTests": {
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "filter": "FullyQualifiedName~ReconcilesExactRetry"
+      },
+      "playwright": {
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "journey": "LostOpportunityCreateResponses_ReconcileCommitAndRetryUncommittedRequest",
+        "scenarios": [
+          "Committed write with dropped response reconciles from persisted opportunity list after reload without another POST.",
+          "Uncommitted write with dropped response reloads exact terms, requires fresh review and retries with the same request identity."
+        ]
+      },
+      "efModelDrift": "NONE",
+      "fullSolutionRegression": "NOT_RUN at this source commit; the prior 1,029/1,029 pass remains attributed to 32ad074.",
+      "boundary": "Synthetic isolated PostgreSQL fixture only. No Development or production business mutation; overall migration acceptance and external gates remain open."
     }
   },
   "documentationWork": {
@@ -8391,6 +8427,11 @@
       "item": "Angular commercial lead creation recovery (2026-10-04)",
       "status": "LOCAL_VERIFIED",
       "details": "At code commit 0e1f874, lead-create requests use a durable request identity and exact-payload reconciliation. The browser saves the pending request before dispatch and recovers it after a lost response/reload. Angular production build, 452/452 Angular unit tests, Release solution build (0 warnings/errors), PostgreSQL Domain test 1/1, API contract test 1/1, Playwright recovery journey 1/1 and EF model check (NONE) passed. The full solution suite was not run on this source commit; the previous clean 1,029/1,029 remains attributed to 32ad074. No Development or production mutation. Broader commercial command recovery and overall migration acceptance remain open."
+    },
+    {
+      "item": "Angular commercial opportunity creation recovery (2026-10-04)",
+      "status": "LOCAL_VERIFIED",
+      "details": "At code commit cdc8c8f, an opportunity request persists its exact reviewed terms and request identity before dispatch. After a lost response, a committed opportunity is reconciled from the server projection; an uncommitted request requires fresh review and reuses the same request identity. Angular production build, 452/452 Angular unit tests, Release solution build (0 warnings/errors), two PostgreSQL Domain idempotency cases, the Playwright two-outcome recovery journey and EF model check (NONE) passed. The full solution suite was not run on this source commit; the previous clean 1,029/1,029 remains attributed to 32ad074. No Development or production mutation. Broader commercial command recovery remains open."
     }
   ],
   "remainingLocalWork": [
@@ -8407,7 +8448,7 @@
     {
       "item": "ASP.NET Core API and Angular 22 migration",
       "status": "PARTIAL",
-      "details": "Native API and Angular capability routes, financial review/evidence actions, and scoped portfolio/client/contact/engagement projections have local verification. Owner-approved canonical Angular routing and non-Test Blazor runtime retirement are complete at code commit 32ad074; AuditSphereOps.Web is Test-only. The Release solution build passed with zero warnings/errors, Angular production build passed, the full PostgreSQL-backed solution suite passed API 182/182, Domain 644/644 and E2E 203/203 (1,029 total; zero failed/skipped), and EF reported no model drift. The Development browser rendered authenticated /app/accounting with canonical /app navigation and no mutation. Angular commercial lead creation now has request-ID recovery after an ambiguous response (focused local evidence at 0e1f874; the full solution suite was not rerun there). Remaining: other partial creation/planning/source-action parity, screen-reader/wider-locale acceptance, production-like canary, and live Microsoft gates."
+      "details": "Native API and Angular capability routes, financial review/evidence actions, and scoped portfolio/client/contact/engagement projections have local verification. Owner-approved canonical Angular routing and non-Test Blazor runtime retirement are complete at code commit 32ad074; AuditSphereOps.Web is Test-only. The Release solution build passed with zero warnings/errors, Angular production build passed, the full PostgreSQL-backed solution suite passed API 182/182, Domain 644/644 and E2E 203/203 (1,029 total; zero failed/skipped), and EF reported no model drift. The Development browser rendered authenticated /app/accounting with canonical /app navigation and no mutation. Angular commercial lead and opportunity creation now recover or reconcile by request identity after an ambiguous response (focused local evidence at 0e1f874 and cdc8c8f; the full solution suite was not rerun at either slice). Remaining: other partial creation/planning/source-action parity, screen-reader/wider-locale acceptance, production-like canary, and live Microsoft gates."
     }
   ],
   "externalGates": [

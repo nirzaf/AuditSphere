@@ -13,6 +13,27 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Angular commercial opportunity creation recovery
+
+At code commit `cdc8c8f`, opportunity creation saves its reviewed terms and
+request identity to the current user’s browser draft before dispatch. On reload,
+the page queries the lead’s persisted opportunities. If the exact request ID is
+present, it clears the pending intent and reports the persisted result without
+posting again. If it is absent, the unchanged intent remains available for an
+explicit retry after fresh review, using the same request ID. The API already
+binds that request ID to the exact opportunity fields and current actor. No
+database migration was needed.
+
+The Playwright journey covered both outcomes: a committed write with a dropped
+response was reconciled from the list, and an uncommitted write was retried with
+the same ID after the user re-reviewed its terms. Two PostgreSQL Domain
+idempotency cases, all 452 Angular unit tests, Angular production build, Release
+solution build and EF model check passed. Exact evidence is in `status.json`
+under `angularCommercialOpportunityCreateRecovery`. The complete solution suite
+was not run on this source commit; the prior 1,029/1,029 result remains tied to
+`32ad074`. Recovery for other commercial commands and overall migration
+acceptance remain open.
+
 ## Angular commercial lead creation recovery
 
 At code commit `0e1f874`, Angular lead creation saves the complete request and a
