@@ -13,6 +13,27 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Angular commercial lead creation recovery
+
+At code commit `0e1f874`, Angular lead creation saves the complete request and a
+client-generated request ID before dispatch. If the response is lost, the form
+locks its fields and offers an explicit recovery action after reload. The API
+reuses the request ID as the lead identity and returns the existing lead only
+when firm and submitted fields match; changed or cross-firm reuse fails with a
+generic idempotency conflict. Legacy callers without a request ID retain their
+existing behavior. No database migration was needed.
+
+The lost-response Playwright journey committed a synthetic lead, dropped its
+first response, reloaded and retried the same request ID; it observed exactly
+one lead row. The PostgreSQL idempotency test, API contract test, all 452
+Angular unit tests, production Angular build, Release solution build and EF
+model check passed. Exact evidence is recorded in `status.json` under
+`angularCommercialLeadCreateRecovery`. The complete solution suite was not run
+on this source commit; the previous 1,029/1,029 result remains attributed to
+`32ad074`. Broader commercial command recovery, overall migration acceptance,
+production canary, real assistive-technology checks and live Microsoft gates
+remain open.
+
 ## Owner-approved Angular route cutover and Blazor runtime retirement
 
 On 2026-10-04 the owner approved completing the local cutover. The standalone API

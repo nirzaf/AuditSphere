@@ -7443,6 +7443,44 @@
       },
       "testHarnessCorrection": "Two earlier full-suite attempts surfaced production-configuration tests still booting AuditSphereOps.Web. Cookie/Data Protection and unsafe development-identity configuration checks were moved to StandaloneApiApplicationFactory; focused suites and the final complete run passed.",
       "boundary": "Local cutover and retirement are verified. The published API has no MudBlazor/Web project dependency or Blazor/MudBlazor browser runtime asset/reference. Overall Angular migration acceptance remains PARTIAL. No production deployment/canary, real assistive-technology or wider-locale acceptance, or live Microsoft gate is claimed."
+    },
+    "angularCommercialLeadCreateRecovery": {
+      "sourceCommit": "0e1f874ad1142c0d52524ee023a998cf9abcfaef",
+      "verifiedAt": "2026-10-04T06:02:28Z",
+      "status": "PASS_LOCAL",
+      "angularProductionBuild": "PASS",
+      "angularUnitTests": {
+        "passed": 452,
+        "failed": 0,
+        "skipped": 0,
+        "files": 87
+      },
+      "releaseSolutionBuild": {
+        "status": "PASS",
+        "warnings": 0,
+        "errors": 0
+      },
+      "domainTests": {
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "filter": "LeadCreation_ReconcilesExactRetry_AndRejectsRequestIdentityReuse"
+      },
+      "apiTests": {
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "filter": "UiContractTests"
+      },
+      "playwright": {
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "journey": "LostLeadCreateResponse_ReloadResolvesSameRequestWithoutDuplicate"
+      },
+      "efModelDrift": "NONE",
+      "fullSolutionRegression": "NOT_RUN at this source commit; the prior 1,029/1,029 pass remains attributed to 32ad074.",
+      "boundary": "Synthetic isolated PostgreSQL fixture only. The browser journey confirmed the lost-response replay returned one lead for the same request identity. No Development or production business mutation; overall migration acceptance and external gates remain open."
     }
   },
   "documentationWork": {
@@ -8348,6 +8386,11 @@
       "item": "Owner-approved Angular runtime retirement (2026-10-04)",
       "status": "LOCAL_VERIFIED",
       "details": "At code commit 32ad074, ApiHost rejects legacy Blazor presentation outside Test; E2E retains the Test-only Web host. Angular production build and Release solution build passed (0 warnings/errors); retirement policy tests 4/4, production security configuration tests 5/5, Test host route smoke 1/1, full solution tests API 182/182 + Domain 644/644 + E2E 203/203 = 1,029/1,029 with zero failed or skipped, EF model drift NONE, and the built-in browser rendered authenticated canonical /app/accounting without a business mutation. Overall migration acceptance remains PARTIAL pending production/canary, assistive-technology/locale, broader source-action parity and live Microsoft gates."
+    },
+    {
+      "item": "Angular commercial lead creation recovery (2026-10-04)",
+      "status": "LOCAL_VERIFIED",
+      "details": "At code commit 0e1f874, lead-create requests use a durable request identity and exact-payload reconciliation. The browser saves the pending request before dispatch and recovers it after a lost response/reload. Angular production build, 452/452 Angular unit tests, Release solution build (0 warnings/errors), PostgreSQL Domain test 1/1, API contract test 1/1, Playwright recovery journey 1/1 and EF model check (NONE) passed. The full solution suite was not run on this source commit; the previous clean 1,029/1,029 remains attributed to 32ad074. No Development or production mutation. Broader commercial command recovery and overall migration acceptance remain open."
     }
   ],
   "remainingLocalWork": [
@@ -8364,7 +8407,7 @@
     {
       "item": "ASP.NET Core API and Angular 22 migration",
       "status": "PARTIAL",
-      "details": "Native API and Angular capability routes, financial review/evidence actions, and scoped portfolio/client/contact/engagement projections have local verification. Owner-approved canonical Angular routing and non-Test Blazor runtime retirement are complete at code commit 32ad074; AuditSphereOps.Web is Test-only. The Release solution build passed with zero warnings/errors, Angular production build passed, the full PostgreSQL-backed solution suite passed API 182/182, Domain 644/644 and E2E 203/203 (1,029 total; zero failed/skipped), and EF reported no model drift. The Development browser rendered authenticated /app/accounting with canonical /app navigation and no mutation. Remaining: partial creation/planning/source-action parity, screen-reader/wider-locale acceptance, production-like canary, and live Microsoft gates."
+      "details": "Native API and Angular capability routes, financial review/evidence actions, and scoped portfolio/client/contact/engagement projections have local verification. Owner-approved canonical Angular routing and non-Test Blazor runtime retirement are complete at code commit 32ad074; AuditSphereOps.Web is Test-only. The Release solution build passed with zero warnings/errors, Angular production build passed, the full PostgreSQL-backed solution suite passed API 182/182, Domain 644/644 and E2E 203/203 (1,029 total; zero failed/skipped), and EF reported no model drift. The Development browser rendered authenticated /app/accounting with canonical /app navigation and no mutation. Angular commercial lead creation now has request-ID recovery after an ambiguous response (focused local evidence at 0e1f874; the full solution suite was not rerun there). Remaining: other partial creation/planning/source-action parity, screen-reader/wider-locale acceptance, production-like canary, and live Microsoft gates."
     }
   ],
   "externalGates": [
