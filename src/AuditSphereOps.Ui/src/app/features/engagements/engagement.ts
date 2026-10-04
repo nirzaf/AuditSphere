@@ -18,6 +18,10 @@ import {
 } from './engagement-contracts';
 export { decodeEngagement } from './engagement-contracts';
 
+export function engagementWorkflowLink(engagementId: string, path: string): string[] {
+  return ['/app/engagements', engagementId, ...path.split('/').filter(Boolean)];
+}
+
 @Component({
   selector: 'audit-engagement',
   imports: [EngagementPlanning, RouterLink, MatButtonModule, MatProgressBarModule, ...SHARED],
@@ -25,6 +29,7 @@ export { decodeEngagement } from './engagement-contracts';
   styleUrl: './engagement.scss',
 })
 export class EngagementDetail {
+  readonly workflowLink = engagementWorkflowLink;
   readonly workflows = [
     { path: 'audit-plan', label: 'Audit plan' },
     { path: 'audit-fieldwork', label: 'Fieldwork' },

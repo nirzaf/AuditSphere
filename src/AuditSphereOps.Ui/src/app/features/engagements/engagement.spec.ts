@@ -1,8 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import { decodeEngagement } from './engagement';
+import { decodeEngagement, engagementWorkflowLink } from './engagement';
 import { decodeClient } from '../clients/client';
 const id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 describe('Workspace contracts', () => {
+  it('keeps multi-segment engagement workflow routes as router segments', () => {
+    expect(engagementWorkflowLink(id, 'reconciliation/new')).toEqual([
+      '/app/engagements',
+      id,
+      'reconciliation',
+      'new',
+    ]);
+    expect(engagementWorkflowLink(id, 'specialists/new')).toEqual([
+      '/app/engagements',
+      id,
+      'specialists',
+      'new',
+    ]);
+  });
+
   it('preserves exact revision and validates hold state', () => {
     const value = {
       id,
