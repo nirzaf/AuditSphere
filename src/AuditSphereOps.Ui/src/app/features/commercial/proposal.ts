@@ -9,6 +9,7 @@ import { UnsavedChangesDialog } from '../../core/unsaved-changes';
 import { CommercialFormDraft, textFields } from './commercial-form-draft';
 import { firstValueFrom, Subscription, timeout } from 'rxjs';
 import { SessionService } from '../../core/session';
+import { Drafts } from '../../core/drafts';
 import { Quotation } from './quotation';
 import { CommercialDocuments } from './documents';
 import { FeeAgreement } from './fee-agreement';
@@ -52,6 +53,22 @@ interface Proposal {
   responseAt: string | null;
   supersedesId: string | null;
   versions: History[];
+}
+interface ProposalRevisionIntent {
+  proposalId: string;
+  opportunityId: string;
+  requestId: string;
+  expectedRevision: string;
+  serviceProfile: string;
+  scope: string;
+  exclusions: string;
+  deliverables: string;
+  dependencies: string;
+  fee: string;
+  currency: string;
+  periodStart: string;
+  periodEnd: string;
+  submissionPending: true;
 }
 export function decodeProposal(value: unknown): Proposal {
   if (!value || typeof value !== 'object') throw new Error('Invalid proposal');
@@ -289,6 +306,7 @@ export function decodeProposal(value: unknown): Proposal {
               name="profile"
               [(ngModel)]="draft.serviceProfile"
               (ngModelChange)="reviewed = false"
+              [disabled]="busy() || revisionCreatePending()"
               required
               maxlength="100"
           /></label>
@@ -297,6 +315,7 @@ export function decodeProposal(value: unknown): Proposal {
               name="scope"
               [(ngModel)]="draft.scope"
               (ngModelChange)="reviewed = false"
+              [disabled]="busy() || revisionCreatePending()"
               required
               maxlength="10000"
             ></textarea>
@@ -306,6 +325,7 @@ export function decodeProposal(value: unknown): Proposal {
               name="exclusions"
               [(ngModel)]="draft.exclusions"
               (ngModelChange)="reviewed = false"
+              [disabled]="busy() || revisionCreatePending()"
               maxlength="10000"
             ></textarea>
           </label>
@@ -314,6 +334,7 @@ export function decodeProposal(value: unknown): Proposal {
               name="deliverables"
               [(ngModel)]="draft.deliverables"
               (ngModelChange)="reviewed = false"
+              [disabled]="busy() || revisionCreatePending()"
               required
               maxlength="10000"
             ></textarea>
@@ -323,6 +344,7 @@ export function decodeProposal(value: unknown): Proposal {
               name="dependencies"
               [(ngModel)]="draft.dependencies"
               (ngModelChange)="reviewed = false"
+              [disabled]="busy() || revisionCreatePending()"
               maxlength="10000"
             ></textarea>
           </label>
@@ -331,6 +353,7 @@ export function decodeProposal(value: unknown): Proposal {
               name="fee"
               [(ngModel)]="draft.fee"
               (ngModelChange)="reviewed = false"
+              [disabled]="busy() || revisionCreatePending()"
               inputmode="decimal"
               required
           /></label>
@@ -339,6 +362,7 @@ export function decodeProposal(value: unknown): Proposal {
               name="currency"
               [(ngModel)]="draft.currency"
               (ngModelChange)="reviewed = false"
+              [disabled]="busy() || revisionCreatePending()"
               required
               maxlength="3"
           /></label>
@@ -348,6 +372,7 @@ export function decodeProposal(value: unknown): Proposal {
               type="date"
               [(ngModel)]="draft.periodStart"
               (ngModelChange)="reviewed = false"
+              [disabled]="busy() || revisionCreatePending()"
               required
           /></label>
           <label
@@ -356,12 +381,41 @@ export function decodeProposal(value: unknown): Proposal {
               type="date"
               [(ngModel)]="draft.periodEnd"
               (ngModelChange)="reviewed = false"
+              [disabled]="busy() || revisionCreatePending()"
               required
           /></label>
           <button matButton type="submit" [disabled]="!reviewed || busy() || uncertain()">
             Create reviewed revision
           </button>
         </form>
+        @if (revisionCreatePending()) {
+          <section aria-label="Proposal revision recovery">
+            <p role="alert">
+              A saved proposal revision may have completed. Check persisted revisions before retrying.
+            </p>
+            @if (recoverableRevisionCreate()) {
+              <p>
+                No matching revision was found and the proposal is unchanged. Review the saved terms
+                again before retrying with the same request identity.
+              </p>
+              <button
+                matButton
+                [disabled]="!reviewed || busy()"
+                (click)="resolveSavedRevisionRequest()"
+              >
+                Retry saved proposal revision
+              </button>
+            } @else {
+              <button
+                matButton
+                [disabled]="busy() || loading()"
+                (click)="checkSavedRevisionRequest()"
+              >
+                Check saved proposal revision
+              </button>
+            }
+          </section>
+        }
       }
       <p>
         Tab drafts retain only unsubmitted fields, never assent. Recovery requires this current
@@ -395,6 +449,11 @@ export function decodeProposal(value: unknown): Proposal {
         }
       </ul>
     }
+    @if (uncertain() && !revisionCreatePending()) {
+      <button matButton [disabled]="busy() || loading()" (click)="refreshUncertainState()">
+        Refresh persisted proposal state
+      </button>
+    }
     <p role="status">{{ commandStatus() }}</p>
   `,
 })
@@ -403,6 +462,7 @@ export class ProposalDetail {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly session = inject(SessionService);
+  private readonly drafts = inject(Drafts);
   private readonly dialog = inject(MatDialog);
   private readonly quotationEditor = viewChild(Quotation);
   private readonly documentEditor = viewChild(CommercialDocuments);
@@ -476,11 +536,15 @@ export class ProposalDetail {
   }
   private id = '';
   private request?: Subscription;
+  private savedRevisionIntent: ProposalRevisionIntent | null = null;
+  private revisionRequestId: string = crypto.randomUUID();
   readonly data = signal<Proposal | null>(null);
   readonly loading = signal(false);
   readonly error = signal('');
   readonly busy = signal(false);
   readonly uncertain = signal(false);
+  readonly revisionCreatePending = signal(false);
+  readonly recoverableRevisionCreate = signal(false);
   readonly commandStatus = signal('');
   reviewed = false;
   reason = '';
@@ -524,6 +588,10 @@ export class ProposalDetail {
     this.legalName = '';
     this.commandStatus.set('');
     this.uncertain.set(false);
+    this.savedRevisionIntent = null;
+    this.revisionCreatePending.set(false);
+    this.recoverableRevisionCreate.set(false);
+    this.revisionRequestId = crypto.randomUUID();
   }
   revise(): void {
     const proposal = this.data();
@@ -532,13 +600,163 @@ export class ProposalDetail {
       this.commandStatus.set('Enter an exact decimal fee.');
       return;
     }
+    const intent: ProposalRevisionIntent = {
+      proposalId: this.id,
+      opportunityId: proposal.opportunityId,
+      requestId: this.revisionRequestId,
+      expectedRevision: proposal.revision,
+      ...this.draft,
+      submissionPending: true,
+    };
+    if (!this.persistRevisionIntent(intent)) {
+      this.commandStatus.set('The reviewed revision could not be saved for safe recovery. No request was sent.');
+      return;
+    }
+    this.savedRevisionIntent = intent;
+    this.revisionCreatePending.set(true);
+    this.recoverableRevisionCreate.set(false);
+    this.sendRevisionIntent(intent);
+  }
+  private static validRevisionIntent(value: unknown): ProposalRevisionIntent | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    const v = value as Record<string, unknown>;
+    const text = (key: string, max: number) =>
+      typeof v[key] === 'string' && v[key].length <= max ? v[key] as string : null;
+    const proposalId = text('proposalId', 36);
+    const opportunityId = text('opportunityId', 36);
+    const requestId = text('requestId', 36);
+    const expectedRevision = text('expectedRevision', 19);
+    const serviceProfile = text('serviceProfile', 100);
+    const scope = text('scope', 10000);
+    const exclusions = text('exclusions', 10000);
+    const deliverables = text('deliverables', 10000);
+    const dependencies = text('dependencies', 10000);
+    const fee = text('fee', 40);
+    const currency = text('currency', 3);
+    const periodStart = text('periodStart', 10);
+    const periodEnd = text('periodEnd', 10);
+    if (
+      !proposalId || !guidPattern.test(proposalId) ||
+      !opportunityId || !guidPattern.test(opportunityId) ||
+      !requestId || !guidPattern.test(requestId) ||
+      !expectedRevision || !/^\d{1,19}$/.test(expectedRevision) ||
+      !serviceProfile || !serviceProfile.trim() || scope === null ||
+      exclusions === null || !deliverables || !deliverables.trim() || dependencies === null ||
+      !fee || !exactDecimal(fee) || !currency || !/^[A-Za-z]{3}$/.test(currency) ||
+      !periodStart || !/^\d{4}-\d{2}-\d{2}$/.test(periodStart) ||
+      !periodEnd || !/^\d{4}-\d{2}-\d{2}$/.test(periodEnd) ||
+      v['submissionPending'] !== true
+    ) return null;
+    return {
+      proposalId, opportunityId, requestId, expectedRevision, serviceProfile, scope,
+      exclusions, deliverables, dependencies, fee, currency, periodStart, periodEnd,
+      submissionPending: true,
+    };
+  }
+  private revisionIntentScope(): string {
+    return 'commercial-proposal-revision:' + this.id;
+  }
+  private sameRevisionIntent(a: ProposalRevisionIntent, b: ProposalRevisionIntent): boolean {
+    return a.proposalId === b.proposalId && a.opportunityId === b.opportunityId &&
+      a.requestId === b.requestId && a.expectedRevision === b.expectedRevision &&
+      a.serviceProfile === b.serviceProfile && a.scope === b.scope &&
+      a.exclusions === b.exclusions && a.deliverables === b.deliverables &&
+      a.dependencies === b.dependencies && a.fee === b.fee && a.currency === b.currency &&
+      a.periodStart === b.periodStart && a.periodEnd === b.periodEnd &&
+      a.submissionPending === b.submissionPending;
+  }
+  private persistRevisionIntent(intent: ProposalRevisionIntent): boolean {
+    this.drafts.save(this.revisionIntentScope(), intent);
+    const saved = this.drafts.load(this.revisionIntentScope(), ProposalDetail.validRevisionIntent);
+    return !!saved && this.sameRevisionIntent(saved, intent);
+  }
+  private clearRevisionIntent(): void {
+    this.drafts.clear(this.revisionIntentScope());
+    this.savedRevisionIntent = null;
+    this.revisionCreatePending.set(false);
+    this.recoverableRevisionCreate.set(false);
+    this.revisionRequestId = crypto.randomUUID();
+  }
+  checkSavedRevisionRequest(): void {
+    if (!this.revisionCreatePending() || this.busy()) return;
+    this.commandStatus.set('Checking persisted proposal revisions…');
+    this.load();
+  }
+  resolveSavedRevisionRequest(): void {
+    const intent = this.savedRevisionIntent;
+    if (!intent || !this.recoverableRevisionCreate() || !this.reviewed || this.busy()) return;
+    this.sendRevisionIntent(intent);
+  }
+  private reconcileRevisionIntent(proposal: Proposal): void {
+    let intent = this.savedRevisionIntent;
+    if (!intent) {
+      intent = this.drafts.load(this.revisionIntentScope(), ProposalDetail.validRevisionIntent);
+      if (!intent) return;
+      this.savedRevisionIntent = intent;
+    }
+    if (intent.proposalId.toLowerCase() !== this.id.toLowerCase() ||
+        intent.opportunityId.toLowerCase() !== proposal.opportunityId.toLowerCase()) {
+      this.clearRevisionIntent();
+      this.commandStatus.set('The saved revision belongs to a different proposal context and was cleared.');
+      return;
+    }
+    this.revisionRequestId = intent.requestId;
+    this.revisionCreatePending.set(true);
+    const persisted = proposal.versions.find(v => v.id.toLowerCase() === intent!.requestId.toLowerCase());
+    if (persisted) {
+      this.clearRevisionIntent();
+      this.tabDraft.submitted();
+      this.uncertain.set(false);
+      this.reviewed = false;
+      this.commandStatus.set('Persisted proposal revision found. Opening it.');
+      void this.router.navigate(['/app/practice/proposals', persisted.id]);
+      return;
+    }
+    const latest = proposal.versions.reduce(
+      (current, version) => BigInt(version.revision) > BigInt(current.revision) ? version : current,
+      { id: proposal.id, revision: proposal.revision } as History,
+    );
+    if (latest.revision === intent.expectedRevision) {
+      this.draft = {
+        serviceProfile: intent.serviceProfile, scope: intent.scope, exclusions: intent.exclusions,
+        deliverables: intent.deliverables, dependencies: intent.dependencies, fee: intent.fee,
+        currency: intent.currency, periodStart: intent.periodStart, periodEnd: intent.periodEnd,
+      };
+      this.reviewed = false;
+      this.recoverableRevisionCreate.set(true);
+      this.uncertain.set(true);
+      this.commandStatus.set('No matching revision was found. Review the unchanged saved terms before retrying.');
+      return;
+    }
+    this.clearRevisionIntent();
+    this.tabDraft.submitted();
+    this.uncertain.set(false);
+    this.reviewed = false;
+    this.commandStatus.set('The proposal changed while this request was unresolved. No retry was sent.');
+    if (latest.id.toLowerCase() !== this.id.toLowerCase())
+      void this.router.navigate(['/app/practice/proposals', latest.id]);
+  }
+  private sendRevisionIntent(intent: ProposalRevisionIntent): void {
+    if (!this.data() || this.busy()) return;
     const id = this.id;
     const generation = this.session.invalidation();
     this.busy.set(true);
+    this.uncertain.set(false);
+    this.recoverableRevisionCreate.set(false);
+    this.commandStatus.set('Saving reviewed proposal revision…');
     this.http
-      .post<unknown>('/api/ui/opportunities/' + proposal.opportunityId + '/proposals', {
-        ...this.draft,
-        expectedRevision: proposal.revision,
+      .post<unknown>('/api/ui/opportunities/' + intent.opportunityId + '/proposals', {
+        requestId: intent.requestId,
+        serviceProfile: intent.serviceProfile,
+        scope: intent.scope,
+        exclusions: intent.exclusions,
+        deliverables: intent.deliverables,
+        dependencies: intent.dependencies,
+        fee: intent.fee,
+        currency: intent.currency,
+        periodStart: intent.periodStart,
+        periodEnd: intent.periodEnd,
+        expectedRevision: intent.expectedRevision,
       })
       .pipe(timeout(15000))
       .subscribe({
@@ -546,26 +764,42 @@ export class ProposalDetail {
           this.busy.set(false);
           if (id !== this.id || generation !== this.session.invalidation()) return;
           const result = value as { id?: unknown };
-          if (typeof result?.id !== 'string' || !guidPattern.test(result.id)) {
+          if (typeof result?.id !== 'string' ||
+              result.id.toLowerCase() !== intent.requestId.toLowerCase()) {
             this.uncertain.set(true);
-            this.commandStatus.set('Outcome unconfirmed. Review persisted revisions.');
+            this.commandStatus.set('Outcome unconfirmed. Check persisted proposal revisions.');
             return;
           }
+          this.clearRevisionIntent();
           this.tabDraft.submitted();
-          this.router.navigate(['/app/practice/proposals', result.id]);
+          this.reviewed = false;
+          this.uncertain.set(false);
+          this.commandStatus.set('Proposal revision recorded.');
+          void this.router.navigate(['/app/practice/proposals', result.id]);
         },
         error: (failure) => {
           this.busy.set(false);
           if (id !== this.id || generation !== this.session.invalidation()) return;
-          this.uncertain.set(!(failure.status >= 400 && failure.status < 500));
-          this.commandStatus.set(
-            this.uncertain()
-              ? 'Outcome unconfirmed. Review persisted revisions before retrying.'
-              : 'Revision refused. Reload and check the reviewed terms and current revision.',
-          );
+          if (failure.status >= 400 && failure.status < 500) {
+            this.clearRevisionIntent();
+            this.uncertain.set(false);
+            this.reviewed = false;
+            this.commandStatus.set('Revision refused. Review the current proposal and terms before another request.');
+            this.load();
+          } else {
+            this.revisionCreatePending.set(true);
+            this.recoverableRevisionCreate.set(false);
+            this.uncertain.set(true);
+            this.commandStatus.set('Outcome unconfirmed. Check persisted proposal revisions before retrying.');
+          }
           if (failure.status === 401) this.session.clear();
         },
       });
+  }
+  refreshUncertainState(): void {
+    if (!this.uncertain() || this.revisionCreatePending() || this.busy()) return;
+    this.commandStatus.set('Refreshing persisted proposal state…');
+    this.load();
   }
   action(path: string, body: object = {}): void {
     if (!this.data() || !this.reviewed || this.busy() || this.uncertain()) return;
@@ -605,6 +839,8 @@ export class ProposalDetail {
     this.request?.unsubscribe();
     const preserveDraft = this.tabDraft.dirty();
     const pendingDraft = { ...this.draft };
+    const wasUncertain = this.uncertain();
+    const statusBeforeLoad = this.commandStatus();
     this.error.set('');
     if (!guidPattern.test(this.id) || !this.session.current()?.staff) return;
     const generation = this.session.invalidation();
@@ -634,6 +870,12 @@ export class ProposalDetail {
             this.reviewed = false;
             if (!this.legalName) this.legalName = p.leadName;
             void this.tabDraft.bind(`commercial-proposal:${p.id}`, p);
+            this.reconcileRevisionIntent(p);
+            if (wasUncertain && !this.revisionCreatePending() &&
+                statusBeforeLoad === 'Refreshing persisted proposal state…') {
+              this.uncertain.set(false);
+              this.commandStatus.set('Persisted proposal state refreshed. Review it before another action.');
+            }
           } catch {
             this.data.set(null);
             this.error.set('Proposal returned an unsupported response.');

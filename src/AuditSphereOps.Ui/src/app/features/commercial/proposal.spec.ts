@@ -61,6 +61,9 @@ describe('proposal refresh draft preservation', () => {
       id, request: undefined, data: signal<unknown>(proposal), error: signal(''), loading: signal(false),
       session: { current: () => ({ staff: true }), invalidation: () => 0 },
       http: { get: () => of(proposal) },
+      drafts: { load: () => null, save: vi.fn(), clear: vi.fn() },
+      uncertain: signal(false), revisionCreatePending: signal(false), recoverableRevisionCreate: signal(false),
+      commandStatus: signal(''),
       tabDraft: { dirty: () => dirty, reset: vi.fn(), bind: vi.fn() },
       draft: { scope: 'Unsubmitted scope' }, reviewed: true, legalName: '',
     };
