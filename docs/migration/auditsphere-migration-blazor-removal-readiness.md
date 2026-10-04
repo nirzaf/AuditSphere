@@ -9,7 +9,7 @@ This gate follows the source inventory, route matrix, feature register, test reg
 | Condition | Status | Evidence / remaining work |
 |---|---|---|
 | Every production Blazor route accounted for | **PASS — route ownership only** | All discovered route templates are in [the route matrix](auditsphere-migration-blazor-angular-route-parity.md); the focused API route contract passes. This is not feature parity. |
-| Every required feature and user action reviewed | **OPEN** | The source inventory is discovery-only; its route/action entries remain `NOT_ANALYZED`. Feature-family parity is `PARTIAL`. |
+| Every required feature and user action reviewed | **OPEN** | A curated review now records `AssessmentDecision.razor` as `PARTIAL`; its direct-deep-link journey, decision-specific revocation test, and lost-response browser recovery remain open. The other 75 route/action rows and supporting source files remain `NOT_ANALYZED`; feature-family parity is `PARTIAL`. |
 | Every command and backend authority mapped to an equivalent API/Application contract | **OPEN** | Per-source command, validation, audit, recovery, and outcome crosswalk is incomplete. |
 | Every authorization rule, role, and scope compared | **OPEN** | Existing server authorization tests do not establish full old-to-new parity for every source action. |
 | Client portal, upload, download, Microsoft 365, and recovery behaviors reviewed end to end | **OPEN** | Focused Angular/API journeys exist; the complete per-source crosswalk and live external gates remain incomplete. |
@@ -27,7 +27,7 @@ This gate follows the source inventory, route matrix, feature register, test reg
 
 ## Required work before reopening the removal gate
 
-1. Review each source/action row against its Angular behavior, API contract, Application authority, role/scope, validation, audit evidence, empty/error/stale behavior, concurrency, and recovery. Mark parity only when evidence covers the behavior.
+1. Review each remaining source/action row against its Angular behavior, API contract, Application authority, role/scope, validation, audit evidence, empty/error/stale behavior, concurrency, and recovery. The assessment decision review is a worked example with three explicit open checks; mark parity only when evidence covers the behavior.
 2. Finish splitting PostgreSQL fixture lifecycle and API-host startup from `OwnedBlazorHost`; API-only mode avoids launching Web for migrated Angular journeys, but the shared fixture still owns both concerns and E2E.Tests still references Web.
 3. Retain the new committed-inventory route contract and decide whether to remove or keep the existing Web-source route parser; replace or explicitly retain the legacy route-render test with an owner-approved, behavior-appropriate decision.
 4. Run the complete Release solution suite against a frozen current source/assets snapshot and record the exact source commit. Preserve the historical suite attribution separately.

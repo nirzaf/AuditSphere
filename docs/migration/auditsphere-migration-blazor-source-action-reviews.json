@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "authority": "Curated source-action dispositions; discovery hints alone never promote a row.",
+  "records": [
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/AssessmentDecision.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-assessment-decision-source-review.md",
+      "reviewedAtCommit": "40ada3c9744e5b72b160dcd6a1739c07a62e298c",
+      "openGaps": [
+        "Exercise the exact legacy /app/assessments/{clientId}/decision deep link in both canonical and /ui Angular modes and record its final current-evaluation decision state.",
+        "Add a DECISION-specific reviewed-command regression for authority revocation between preview and publication, asserting that neither a decision nor a receipt is persisted.",
+        "Exercise a lost DECISION response followed by reload and receipt reconciliation, proving the decision is not dispatched twice."
+      ]
+    }
+  ]
+}

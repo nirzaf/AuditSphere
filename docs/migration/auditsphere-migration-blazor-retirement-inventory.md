@@ -1,6 +1,6 @@
 # AuditSphere — Blazor Retirement Inventory
 
-> **Discovery register only.** A route, candidate Angular feature, injected service, or test name does not prove behavioral parity. All source entries remain `NOT_ANALYZED` until source actions, server authority, scope rules, failures, recovery, and equivalent tests are reviewed together.
+> **Discovery register with curated reviews.** Route/action hints do not prove parity. Manifest rows carry evidence-linked dispositions; `PARTIAL` records unresolved gaps, `PARITY_VERIFIED` requires complete behavior evidence, and neither disposition alone establishes removal readiness.
 
 Exact source counts and the discovery snapshot are recorded in `docs/execution/status.json`.
 
@@ -10,7 +10,7 @@ Exact source counts and the discovery snapshot are recorded in `docs/execution/s
 - Razor route/action files are listed with their scanner-derived hints.
 - Exact source and route totals are maintained in `docs/execution/status.json`.
 - Source discovery drift is separately checked by `python3 scripts/ui/inventory.py --check`.
-- No row in this generated register is accepted as feature parity or removal-ready evidence.
+- Only rows named in `auditsphere-migration-blazor-source-action-reviews.json` carry a reviewed disposition; `PARTIAL` rows must name open evidence gaps, and a disposition applies to the cited source artifact only.
 
 ## Razor routes and action components
 
@@ -45,7 +45,7 @@ Action/dependency values below are syntax-level scanner hints. Roles, business a
 | `src/AuditSphereOps.Web/Components/Pages/AccountingWorkspace.razor` | /app/accounting | accounting/setup / US-020 (candidate) | AuthorizeAsync; CountAsync; CreateDbContextAsync; LoadAccountingContextAsync; LoadAccountingContextCoreAsync; OnInitializedAsync; … (+4) | CurrentActorResolver; IDbContextFactory<AuditSphereDbContext>; ILogger<AccountingWorkspace> | `NOT_ANALYZED` |
 | `src/AuditSphereOps.Web/Components/Pages/Administration.razor` | /app/administration | administration / US-039 (candidate) | AnyAsync; ApplyRoleAsync; ApplyRoleGrantAndInvitationAsync; ConfirmRevokeAsync; CopyExistingInvitationAsync; CopyInvitationAsync; … (+17) | CurrentActorResolver; IDbContextFactory<AuditSphereDbContext>; IConfiguration; IJSRuntime; IDialogService; … (+1) | `NOT_ANALYZED` |
 | `src/AuditSphereOps.Web/Components/Pages/AdvancedConsolidationWorkflow.razor` | /app/consolidation/advanced/{ScopeId:guid} | consolidation / US-028 (candidate) | AnyAsync; ApproveAdvancedExecutionAsync; ApproveAdvancedMethodScheduleAsync; ApproveExecutionAsync; ApproveScheduleAsync; AuthorizeGroupAsync; … (+15) | CurrentActorResolver; IDbContextFactory<AuditSphereDbContext> | `NOT_ANALYZED` |
-| `src/AuditSphereOps.Web/Components/Pages/AssessmentDecision.razor` | /app/assessments/{Id:guid}/decision | acceptance / US-017 (candidate) | AuthorizeAsync; CreateDbContextAsync; GetAuthenticationStateAsync; OnParametersSetAsync; RecordAsync; ResolveAsync; … (+1) | AuthenticationStateProvider; CurrentActorResolver; IDbContextFactory<AuditSphereDbContext>; NavigationManager | `NOT_ANALYZED` |
+| `src/AuditSphereOps.Web/Components/Pages/AssessmentDecision.razor` | /app/assessments/{Id:guid}/decision | acceptance / US-017 (candidate) | AuthorizeAsync; CreateDbContextAsync; GetAuthenticationStateAsync; OnParametersSetAsync; RecordAsync; ResolveAsync; … (+1) | AuthenticationStateProvider; CurrentActorResolver; IDbContextFactory<AuditSphereDbContext>; NavigationManager | [`PARTIAL`](auditsphere-migration-blazor-assessment-decision-source-review.md) |
 | `src/AuditSphereOps.Web/Components/Pages/AssessmentDetail.razor` | /app/assessments/{Id:guid}; /app/clients/{ClientId:guid}/assessment | acceptance / US-017 (candidate) | AuthorizeAsync; CreateDbContextAsync; FirstOrDefaultAsync; GetAsync; LoadAsync; OnParametersSetAsync; … (+3) | CurrentActorResolver; IDbContextFactory<AuditSphereDbContext>; NavigationManager | `NOT_ANALYZED` |
 | `src/AuditSphereOps.Web/Components/Pages/AuditFieldwork.razor` | /app/engagements/{EngagementId:guid}/audit-fieldwork | audit/fieldwork / US-031 (candidate) | AdoptAsync; AuthorizeAsync; CreateDbContextAsync; DecideApplicabilityAsync; EvaluateCompletionAsync; FirstOrDefaultAsync; … (+13) | CurrentActorResolver; IDbContextFactory<AuditSphereDbContext> | `NOT_ANALYZED` |
 | `src/AuditSphereOps.Web/Components/Pages/AuditPlan.razor` | /app/audit/plans/{Id:guid}; /app/engagements/{EngagementId:guid}/audit-plan | audit/planning / US-030 (candidate) | ApproveMaterialityAssessmentAsync; ApproveMaterialityAsync; AuthorizeAsync; CreateAuditRiskAsync; CreateDbContextAsync; CreateFindingAsync; … (+12) | CurrentActorResolver; IDbContextFactory<AuditSphereDbContext>; NavigationManager | `NOT_ANALYZED` |
@@ -132,4 +132,4 @@ These files were enumerated but their retirement impact has not been accepted. S
 
 ## Evidence required to advance a row
 
-Review the complete Blazor artifact and record its user-invokable actions, roles and scope, backend owner, API contract, Angular counterpart, validation and empty/error states, concurrency and unknown-result recovery, accessibility/navigation behavior, and tests that exercise the API/Angular path. Use `PARITY_VERIFIED` only after behavior-level evidence; use `INTENTIONALLY_RETIRED` only with explicit product-owner approval. Physical removal readiness is tracked separately in `auditsphere-migration-blazor-removal-readiness.md`.
+Review the complete Blazor artifact and record its user-invokable actions, roles and scope, backend owner, API contract, Angular counterpart, validation and empty/error states, concurrency and unknown-result recovery, accessibility/navigation behavior, and tests that exercise the API/Angular path. Record `PARITY_VERIFIED` only with behavior-level evidence; record `PARTIAL` with the remaining gaps; record `INTENTIONALLY_RETIRED` only with an explicit owner-approval reference. Physical removal readiness is tracked separately in `auditsphere-migration-blazor-removal-readiness.md`.

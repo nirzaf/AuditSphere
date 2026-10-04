@@ -28,6 +28,24 @@ or skipped tests (45m46s). The run includes retained Test-only legacy journeys.
 The E2E project still references Web, and this was not a full-solution run; no
 Web source or project was deleted. Exact evidence is in `status.json`.
 
+## Blazor source-action review: Partner assessment decision
+
+The legacy `AssessmentDecision.razor` action was compared with its Angular
+assessment route, `AssessmentRouteQuery`, cookie/CSRF API endpoints,
+`AssessmentCommandWorkspace`, and the focused assessment verification already
+recorded in `status.json`. The native flow requires the current Partner/client
+authority, previews the exact decision, requires fresh assent, and retains an
+immutable actor-owned receipt. The Angular route catalogue maps the legacy
+decision route to the shared resolver, but an E2E journey has not yet started at
+the exact `/app/assessments/{clientId}/decision` URL. Decision-specific
+revocation and lost-response browser checks also remain open. The inventory
+therefore records this single source row as `PARTIAL`, not `PARITY_VERIFIED`.
+
+`AssessmentDetail.razor`, `AcceptanceChecklistPanel.razor`, and the remaining
+source/action rows were not reviewed by this slice. No new runtime tests were
+run for this documentation review; prior verification remains attributed to its
+recorded commits. The physical Web-removal decision remains `NOT_READY`.
+
 ## API test host no longer depends on the Blazor project
 
 API.Tests now references `AuditSphereOps.Api` directly and all API HTTP test

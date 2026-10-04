@@ -105,6 +105,30 @@
       "remainingWebCoupling": "E2E.Tests still references Web; OwnedBlazorHost retains legacy startup by default; API.Tests and AngularRoutingContractTests retain separate Web dependencies. No Web project/source deletion was performed.",
       "removalDecision": "NOT_READY; continue parity review and test dependency removal only where independently proven safe."
     },
+    "angularBlazorAssessmentDecisionSourceReview": {
+      "sourceCommit": "40ada3c9744e5b72b160dcd6a1739c07a62e298c",
+      "observedAt": "2026-10-04T19:38:41Z",
+      "status": "REVIEWED_PARTIAL",
+      "review": "docs/migration/auditsphere-migration-blazor-assessment-decision-source-review.md",
+      "dispositions": {
+        "sourceActionRows": 76,
+        "partialReviewed": 1,
+        "parityVerified": 0,
+        "notAnalyzed": 75,
+        "supportingFilesNotAnalyzed": 28
+      },
+      "existingEvidence": {
+        "angularE2e": "AngularAssessmentParityJourneyTests is included in the 219/219 E2E run at c562da2f109ce26ab2f061c00976823ff06aea61.",
+        "apiAndDomain": "CSRF, request receipt, actor/client isolation, readiness, replay, revocation, and immutable evidence checks are recorded in angularAssessmentCommandReceipts and related assessment entries."
+      },
+      "freshRuntimeTests": "NOT_RUN for this documentation review; an independent PostgreSQL-backed Domain test process was active.",
+      "openGaps": [
+        "Exercise the exact legacy /app/assessments/{clientId}/decision deep link in canonical and /ui browser modes.",
+        "Test reviewed-decision authority revocation between preview and publication.",
+        "Test lost-decision-response reload and receipt reconciliation without duplicate dispatch."
+      ],
+      "removalDecision": "NOT_READY; one reviewed partial source row does not close broader behavior, operational, human, or external acceptance gates."
+    },
     "angularBlazorMigrationBaselineAndFocusedRouteResourceVerification": {
       "sourceCommit": "d00f63edb0fad05f7384c0eb8d2dafbc4c1a1971",
       "observedAt": "2026-10-04T18:03:06Z",
