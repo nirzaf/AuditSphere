@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "e654692062a41cea369f070aeffb0face6dc3e3b",
+  "headCommit": "d00f63edb0fad05f7384c0eb8d2dafbc4c1a1971",
   "verifiedCommit": "f92ae6887f56e20ed857a638a507099829132826",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -18,6 +18,70 @@
     "postgres": "18.6 loopback development profile"
   },
   "verification": {
+    "angularBlazorMigrationBaselineAndFocusedRouteResourceVerification": {
+      "sourceCommit": "d00f63edb0fad05f7384c0eb8d2dafbc4c1a1971",
+      "observedAt": "2026-10-04T18:03:06Z",
+      "status": "PASS_LOCAL_SLICE",
+      "inventory": {
+        "webProjectFiles": 104,
+        "razorFiles": 89,
+        "routeOrActionDiscoveryRows": 76,
+        "distinctLegacyRouteTemplates": 59,
+        "supportingFiles": 28,
+        "discoveryRowsPromotedToParityVerified": 0,
+        "backlogStories": {
+          "total": 47,
+          "completed": 15,
+          "partial": 32
+        },
+        "routeOwnership": {
+          "explicitAngularOrApi": 57,
+          "serverOwned": 2
+        },
+        "reviewBoundary": "The generated source register is syntax-level discovery. Every route/action row remains NOT_ANALYZED; the route matrix establishes ownership only."
+      },
+      "angularProductionBuild": {
+        "status": "PASS",
+        "initialBundle": "505.46 kB against a 500 kB warning budget; build completed with the existing size warning."
+      },
+      "releaseSolutionBuild": {
+        "status": "PASS",
+        "warnings": 0,
+        "errors": 0
+      },
+      "angularUnitTests": {
+        "passed": 476,
+        "failed": 0,
+        "skipped": 0,
+        "files": 91
+      },
+      "apiRouteContractTests": {
+        "passed": 3,
+        "failed": 0,
+        "skipped": 0,
+        "filter": "FullyQualifiedName~AngularRoutingContractTests"
+      },
+      "resourcePlanningE2e": {
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0,
+        "filter": "FullyQualifiedName~AngularResourcePlanningJourneyTests"
+      },
+      "efModelDrift": "NONE",
+      "builtInBrowser": "PASS: authenticated Angular resource-planning route rendered on the local Development API host at localhost:5100; read-only inspection, no business command submitted.",
+      "fullSolutionRegression": "NOT_RUN at this source commit. The latest complete suite remains 1,035/1,035 at f92ae6887f56e20ed857a638a507099829132826 and is historical evidence only.",
+      "knownWebTestCoupling": [
+        "AuditSphereOps.Api.Tests and AuditSphereOps.E2E.Tests reference AuditSphereOps.Web.",
+        "OwnedBlazorHost starts the Web host; RouteRenderSmokeTests asserts legacy markup.",
+        "AngularRoutingContractTests reads the legacy Razor source tree."
+      ],
+      "removalDecision": "NOT_READY; stop before physical Web, Razor, or MudBlazor removal.",
+      "externalAndHumanGates": [
+        "Production-like canary and rollback acceptance",
+        "Human screen-reader walkthrough and wider locale acceptance",
+        "Live Microsoft 365 tenant/consent/selected-resource acceptance"
+      ]
+    },
     "asPar002AuditCommandIsolation": {
       "sourceCommit": "e654692062a41cea369f070aeffb0face6dc3e3b",
       "verifiedAt": "2026-10-04T17:36:26Z",
@@ -8809,6 +8873,11 @@
       "item": "Angular resource grid approved-actual visibility and mobile readability (2026-10-04)",
       "status": "LOCAL_VERIFIED",
       "details": "At code commit 5b3c6e9, each resource week cell now shows approved actual hours separately from planned hours/capacity and exposes both in its accessible name. Intrinsic column minimums keep week headings legible while horizontal scrolling stays inside the grid. The focused Angular resource component suite passed 13/13. PostgreSQL-backed Playwright journey passed 2/2 across canonical and /ui route modes using an isolated test database and production assets; it verified a seeded 8-hour approved entry, planned/approved-actual distinction, 4-week headers, contained grid scrolling and no page-level overflow at 390px. The built-in browser also rendered the authenticated resource page at 390px: document width 375px, grid viewport 343px, grid scroll width 896px and week column width 112px; console had no warnings or errors. The production Angular build succeeded with a non-blocking initial-bundle warning (505.46 kB versus 500 kB warning budget) while writing only to a temporary directory. The shared-tree E2E run stopped before the page because the concurrent uncommitted EF model changes had pending migration drift; the same journey passed from a clean snapshot at the current base with this slice applied. No shared Development data, tenant, schema or production state changed. Overall US-018 and migration acceptance remain PARTIAL."
+    },
+    {
+      "item": "Angular migration inventory and Blazor removal stop gate",
+      "status": "LOCAL_VERIFIED",
+      "details": "At source commit d00f63e, the generated Web source inventory, Angular route ownership register, feature/test crosswalks and NOT_READY removal gate were reconciled. Angular build, Release solution build, Angular unit tests, focused API route contract, resource-planning E2E and EF model-drift check passed; the built-in browser rendered the authenticated local resource-planning route read-only. The full suite was not rerun at this source commit. All inventory source/action rows remain NOT_ANALYZED; Web remains Test-only and test projects/fixtures retain Web coupling. No source, schema, shared Development data, tenant or production state changed. See verification.angularBlazorMigrationBaselineAndFocusedRouteResourceVerification."
     }
   ],
   "remainingLocalWork": [

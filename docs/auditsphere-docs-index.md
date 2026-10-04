@@ -210,6 +210,7 @@ When two documents appear to conflict or contain differing detail, precedence is
 
 | [`docs/architecture/auditsphere-architecture-document-naming-policy.md`](architecture/auditsphere-architecture-document-naming-policy.md) | Standard markdown naming rules (`auditsphere-<area>-<document-type>-<subject>[-<id>][-<status>].md`) and uniqueness rules. | `CURRENT` |
 | [`docs/architecture/auditsphere-angular-conventions-current.md`](architecture/auditsphere-angular-conventions-current.md) | Native Angular coding conventions, draft/assent rules and safe AI-assisted implementation boundaries for the presentation migration. | `CURRENT` |
+| [`docs/migration/blazor-retirement-inventory.md`](migration/blazor-retirement-inventory.md), [route matrix](migration/blazor-angular-route-parity.md), [feature register](migration/blazor-feature-parity.md), [test register](migration/blazor-test-parity.md), [removal gate](migration/blazor-removal-readiness.md), and [stop-gate report](migration/blazor-retirement-final-report.md) | Source discovery and evidence registers for the gradual Blazor retirement. Route ownership is not behavior parity; physical removal is currently blocked. | `PARTIAL` |
 
 
 
