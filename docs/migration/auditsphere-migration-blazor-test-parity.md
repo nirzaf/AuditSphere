@@ -10,6 +10,7 @@ Exact run counts, commits, logs, and external-gate evidence belong in [`docs/exe
 |---|---|---|---|
 | `AngularRoutingContractTests` | API deep-link declarations match Angular route declarations; runtime Angular links avoid legacy workbench paths; non-server-owned legacy workspace paths have a native owner | Screen actions, form parity, backend authorization for each capability, error/recovery parity | Route ownership only |
 | `AngularResourcePlanningJourneyTests` | Resource planning page is exercised through the API host in canonical and `/ui` modes; a reviewed allocation rejects a stale concurrent change and recovery reloads persisted state | Full staffing, certification, availability, budget, role/scope and all failure-state parity | Focused slice only |
+| API-only Angular E2E fixture mode | Angular/API journeys can use the shared owned PostgreSQL fixture without launching a legacy Web process; a representative journey asserts no Web host log was created | Removal of the Web project reference, legacy route smoke, or parity of remaining Blazor-only tests | Full E2E result recorded in `status.json` |
 | Angular CI component/unit suite | Current Angular component and contract tests pass | Blazor-to-Angular equivalence for every Razor artifact | Component coverage only |
 | Release solution build and EF model check | Current projects compile and the EF model has no pending migration | Whole-solution behavioral regression or UI parity | Build/model evidence only |
 | Built-in browser visit to `/app/practice/resources` on the API host | The canonical Angular resource screen renders with an authenticated Development session and shows the live resource grid/forms | Production behavior, every form command, accessibility with a human screen reader, or a comparison against the Blazor screen | Read-only visual inspection only |
@@ -20,7 +21,7 @@ Current exact results and attribution are recorded under `angularBlazorMigration
 ## Blazor test coupling that blocks project removal
 
 - `AuditSphereOps.Api.Tests.csproj` and `AuditSphereOps.E2E.Tests.csproj` still reference `AuditSphereOps.Web.csproj`.
-- `OwnedBlazorHost.StartAsync` starts legacy Web hosts. Angular journeys also use this fixture for owned PostgreSQL data; several then start the API host for the page under test. Split database seeding/lifecycle from Web startup before removing the project.
+- `OwnedBlazorHost.StartAsync` retains legacy startup by default for existing Blazor cases, and now has an explicit API-only mode. Migrated Angular journeys that use the API host opt out of the legacy Web processes. The shared fixture still combines database seeding and host lifecycle, and the E2E project still references Web; split those concerns and migrate or retire remaining legacy-only journeys before project removal.
 - `RouteRenderSmokeTests` explicitly exercises the MudBlazor host and asserts legacy page markup. It is not an Angular replacement and needs equivalent Angular/API coverage or an owner-approved retirement decision.
 - Existing test crosswalk rows are candidate relationships until the host and assertions have been checked. A shared test file or reused fixture is not itself a replacement test.
 

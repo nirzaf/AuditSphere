@@ -13,6 +13,21 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Blazor test-host decoupling for migrated Angular E2E journeys
+
+`OwnedBlazorHost.StartAsync` now has an explicit API-only mode. Its default still
+starts the Test-only Web host for legacy journeys; migrated Angular E2E callers
+that use the API host opt out. The resource-planning journey also asserts that
+API-only mode created no Web-host log. This reduces unnecessary legacy runtime
+use while preserving tests that specifically exercise Blazor.
+
+At code commit `c562da2f109ce26ab2f061c00976823ff06aea61`, the E2E Release
+project build passed with zero warnings/errors, the focused resource-planning
+journey passed 4/4, and the complete E2E project passed 219/219 with zero failed
+or skipped tests (45m46s). The run includes retained Test-only legacy journeys.
+The E2E project still references Web, and this was not a full-solution run; no
+Web source or project was deleted. Exact evidence is in `status.json`.
+
 ## AS-PAR-002: client-scoped audit fieldwork command isolation
 
 PostgreSQL-backed regressions seed sibling clients A and B and use real
@@ -3924,4 +3939,4 @@ Focused evidence and the 505.46 kB Angular initial-bundle warning are recorded i
 
 ### Blazor retirement source inventory and removal stop gate
 
-The current source snapshot now has a reproducible discovery register for the legacy Web project, a route-ownership matrix, feature/test crosswalks, and a removal-readiness decision. The generated source rows remain `NOT_ANALYZED`; Angular route ownership is not treated as behavior parity. The production API rejects the legacy presentation outside `Test`, while the solution and API/E2E test fixtures still depend on the Web project. The removal recommendation is `NOT_READY`; no Web, Razor, or MudBlazor files were deleted. Current counts and focused verification are in `status.json`; see `docs/migration/blazor-retirement-final-report.md` for the stop-gate report and remaining work.
+The current source snapshot now has a reproducible discovery register for the legacy Web project, a route-ownership matrix, feature/test crosswalks, and a removal-readiness decision. The generated source rows remain `NOT_ANALYZED`; Angular route ownership is not treated as behavior parity. The production API rejects the legacy presentation outside `Test`, while the solution and API/E2E test fixtures still depend on the Web project. The removal recommendation is `NOT_READY`; no Web, Razor, or MudBlazor files were deleted. Current counts and focused verification are in `status.json`; see `docs/migration/auditsphere-migration-blazor-retirement-final-report.md` for the stop-gate report and remaining work.

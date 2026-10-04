@@ -132,4 +132,4 @@ These files were enumerated but their retirement impact has not been accepted. S
 
 ## Evidence required to advance a row
 
-Review the complete Blazor artifact and record its user-invokable actions, roles and scope, backend owner, API contract, Angular counterpart, validation and empty/error states, concurrency and unknown-result recovery, accessibility/navigation behavior, and tests that exercise the API/Angular path. Use `PARITY_VERIFIED` only after behavior-level evidence; use `INTENTIONALLY_RETIRED` only with explicit product-owner approval. Physical removal readiness is tracked separately in `blazor-removal-readiness.md`.
+Review the complete Blazor artifact and record its user-invokable actions, roles and scope, backend owner, API contract, Angular counterpart, validation and empty/error states, concurrency and unknown-result recovery, accessibility/navigation behavior, and tests that exercise the API/Angular path. Use `PARITY_VERIFIED` only after behavior-level evidence; use `INTENTIONALLY_RETIRED` only with explicit product-owner approval. Physical removal readiness is tracked separately in `auditsphere-migration-blazor-removal-readiness.md`.

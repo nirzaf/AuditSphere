@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "d00f63edb0fad05f7384c0eb8d2dafbc4c1a1971",
+  "headCommit": "c562da2f109ce26ab2f061c00976823ff06aea61",
   "verifiedCommit": "f92ae6887f56e20ed857a638a507099829132826",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -18,6 +18,39 @@
     "postgres": "18.6 loopback development profile"
   },
   "verification": {
+    "angularBlazorE2EHostDecoupling": {
+      "sourceCommit": "c562da2f109ce26ab2f061c00976823ff06aea61",
+      "observedAt": "2026-10-04T19:00:11Z",
+      "status": "PASS_LOCAL_SLICE",
+      "fixture": {
+        "legacyWebStartupDefault": true,
+        "apiOnlyMode": "Migrated Angular journeys that use the API host opt out of Web startup; legacy test journeys retain default behavior.",
+        "angularJourneyFilesOptedOut": 58,
+        "startAsyncCallsOptedOut": 84,
+        "negativeAssertion": "Representative resource-planning E2E verifies API-only mode creates no web-*.log host output."
+      },
+      "releaseE2eProjectBuild": {
+        "status": "PASS",
+        "warnings": 0,
+        "errors": 0
+      },
+      "focusedResourcePlanningE2e": {
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0
+      },
+      "fullE2eProjectRegression": {
+        "status": "PASS",
+        "passed": 219,
+        "failed": 0,
+        "skipped": 0,
+        "duration": "45m46s",
+        "scope": "Complete E2E test project, including retained Test-only Web journeys."
+      },
+      "fullSolutionRegression": "NOT_RUN at this source commit.",
+      "remainingWebCoupling": "E2E.Tests still references Web; OwnedBlazorHost retains legacy startup by default; API.Tests and AngularRoutingContractTests retain separate Web dependencies. No Web project/source deletion was performed.",
+      "removalDecision": "NOT_READY; continue parity review and test dependency removal only where independently proven safe."
+    },
     "angularBlazorMigrationBaselineAndFocusedRouteResourceVerification": {
       "sourceCommit": "d00f63edb0fad05f7384c0eb8d2dafbc4c1a1971",
       "observedAt": "2026-10-04T18:03:06Z",
@@ -8878,6 +8911,11 @@
       "item": "Angular migration inventory and Blazor removal stop gate",
       "status": "LOCAL_VERIFIED",
       "details": "At source commit d00f63e, the generated Web source inventory, Angular route ownership register, feature/test crosswalks and NOT_READY removal gate were reconciled. Angular build, Release solution build, Angular unit tests, focused API route contract, resource-planning E2E and EF model-drift check passed; the built-in browser rendered the authenticated local resource-planning route read-only. The full suite was not rerun at this source commit. All inventory source/action rows remain NOT_ANALYZED; Web remains Test-only and test projects/fixtures retain Web coupling. No source, schema, shared Development data, tenant or production state changed. See verification.angularBlazorMigrationBaselineAndFocusedRouteResourceVerification."
+    },
+    {
+      "item": "Blazor test-host decoupling for migrated Angular E2E journeys (2026-10-04)",
+      "status": "LOCAL_VERIFIED",
+      "details": "At code commit c562da2f109ce26ab2f061c00976823ff06aea61, OwnedBlazorHost keeps legacy Web startup as the default and offers explicit API-only startup; 58 migrated Angular journey files / 84 calls opt out. The resource-planning E2E asserts no Web-host log is created. E2E Release build passed with zero warnings/errors, focused resource-planning E2E passed 4/4, and the full E2E project passed 219/219 with zero failed/skipped tests in 45m46s. This is not a full-solution regression. E2E.Tests still references Web, legacy journeys remain, and no Blazor source/project was removed. The removal gate remains NOT_READY."
     }
   ],
   "remainingLocalWork": [

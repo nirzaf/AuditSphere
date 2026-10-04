@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 WEB = ROOT / "src" / "AuditSphereOps.Web"
 SOURCE_INVENTORY = ROOT / "docs" / "execution" / "angular-source-inventory.json"
-OUTPUT = ROOT / "docs" / "migration" / "blazor-retirement-inventory.md"
+OUTPUT = ROOT / "docs" / "migration" / "auditsphere-migration-blazor-retirement-inventory.md"
 
 
 def cell(value: object) -> str:
@@ -106,7 +106,7 @@ def render() -> str:
         "",
         "## Evidence required to advance a row",
         "",
-        "Review the complete Blazor artifact and record its user-invokable actions, roles and scope, backend owner, API contract, Angular counterpart, validation and empty/error states, concurrency and unknown-result recovery, accessibility/navigation behavior, and tests that exercise the API/Angular path. Use `PARITY_VERIFIED` only after behavior-level evidence; use `INTENTIONALLY_RETIRED` only with explicit product-owner approval. Physical removal readiness is tracked separately in `blazor-removal-readiness.md`.",
+        "Review the complete Blazor artifact and record its user-invokable actions, roles and scope, backend owner, API contract, Angular counterpart, validation and empty/error states, concurrency and unknown-result recovery, accessibility/navigation behavior, and tests that exercise the API/Angular path. Use `PARITY_VERIFIED` only after behavior-level evidence; use `INTENTIONALLY_RETIRED` only with explicit product-owner approval. Physical removal readiness is tracked separately in `auditsphere-migration-blazor-removal-readiness.md`.",
         "",
     ]
     return "\n".join(lines)

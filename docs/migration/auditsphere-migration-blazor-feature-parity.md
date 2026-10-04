@@ -24,6 +24,6 @@ The authoritative story-level state is [`docs/execution/angular-migration-backlo
 
 ## Required behavior review for each source
 
-For each row in [`blazor-retirement-inventory.md`](blazor-retirement-inventory.md), confirm the complete presentation and interaction set, form semantics, server authorization and exact scope, client/engagement isolation, audit evidence, loading/empty/error/stale states, concurrency and unknown-result recovery, uploads/downloads, keyboard/navigation behavior, and API/Angular test coverage. Record product-owner approval for anything classified `INTENTIONALLY_RETIRED`.
+For each row in [`auditsphere-migration-blazor-retirement-inventory.md`](auditsphere-migration-blazor-retirement-inventory.md), confirm the complete presentation and interaction set, form semantics, server authorization and exact scope, client/engagement isolation, audit evidence, loading/empty/error/stale states, concurrency and unknown-result recovery, uploads/downloads, keyboard/navigation behavior, and API/Angular test coverage. Record product-owner approval for anything classified `INTENTIONALLY_RETIRED`.
 
-The source/action review is not complete. The current Angular route contract proves explicit route ownership only. See the test-host dependencies and focused verification boundaries in [`blazor-test-parity.md`](blazor-test-parity.md).
+The source/action review is not complete. The current Angular route contract proves explicit route ownership only. See the test-host dependencies and focused verification boundaries in [`auditsphere-migration-blazor-test-parity.md`](auditsphere-migration-blazor-test-parity.md).
