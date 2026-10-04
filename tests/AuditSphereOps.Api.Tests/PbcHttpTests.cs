@@ -377,14 +377,14 @@ public sealed class PbcHttpTests
       ["Application:AllowSimulationAdapters"] = "false",
       ["ExternalEffects:Enabled"] = "false"
     };
-    using (var production = new ApiWebApplicationFactory(productionSettings, "Production"))
+    using (var production = new StandaloneApiApplicationFactory(productionSettings, environmentName: "Production"))
     {
       var error = Assert.ThrowsAny<Exception>(() => production.CreateClient());
       Assert.Contains("Development identity is allowed only", error.ToString());
     }
 
     productionSettings["DevelopmentIdentity:Enabled"] = "false";
-    using (var missingOidc = new ApiWebApplicationFactory(productionSettings, "Production"))
+    using (var missingOidc = new StandaloneApiApplicationFactory(productionSettings, environmentName: "Production"))
     {
       var error = Assert.ThrowsAny<Exception>(() => missingOidc.CreateClient());
       Assert.Contains("Production identity requires configured OIDC", error.ToString());
@@ -398,7 +398,7 @@ public sealed class PbcHttpTests
       ["Identity:ClientSecret"] = "synthetic-test-secret",
       ["Application:AllowSimulationAdapters"] = "true"
     };
-    using (var mixed = new ApiWebApplicationFactory(oidcSettings))
+    using (var mixed = new StandaloneApiApplicationFactory(oidcSettings))
     {
       var error = Assert.ThrowsAny<Exception>(() => mixed.CreateClient());
       Assert.Contains("Development identity cannot be enabled with OIDC", error.ToString());
@@ -412,7 +412,7 @@ public sealed class PbcHttpTests
     })
     {
       partialIdentity["ConnectionStrings:AuditSphere"] = noDatabase;
-      using var incomplete = new ApiWebApplicationFactory(partialIdentity);
+      using var incomplete = new StandaloneApiApplicationFactory(partialIdentity);
       var error = Assert.ThrowsAny<Exception>(() => incomplete.CreateClient());
       Assert.Contains("Identity configuration requires TenantId, ClientId and ClientSecret together", error.ToString());
     }
