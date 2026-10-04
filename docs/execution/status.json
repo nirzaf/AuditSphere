@@ -7616,6 +7616,15 @@
       },
       "proposalCreateRequestFingerprint": "A canonical SHA-256 request fingerprint is retained on keyed proposal creation and compared on retry, so later quotation edits to mutable proposal fields cannot change retry identity. PostgreSQL guards reject fingerprint mutation and deletion; rollback refuses while retained fingerprints exist.",
       "boundary": "Serial PostgreSQL-backed local regression on pushed master code commit f92ae68. The new migration was exercised in isolated test databases only; shared Development and production were not migrated. No production or live Microsoft mutation. Overall Angular migration acceptance remains PARTIAL."
+    },
+    "angularDeepAccessibilityAndLocale": {
+      "status": "PASS_LOCAL_SLICE",
+      "scope": "US-042/043 deep acceptance beyond the DOM sweep: landmark structure, non-skipping heading hierarchy, skip-link first-tab-stop focus handoff, live-region announcement of the scoped CSV export outcome, and an administration dialog matrix (focus enters, Escape closes, focus returns to the trigger, aria-expanded disclosure toggle). Locale matrix: fr-FR and RTL ar-EG contexts sign in and render the time workspace LTR-declared with zero page errors. US-043 constrained-network budget: cold lazy route under ~1.6Mbps/150ms RTT.",
+      "build": "PASS: Release solution build zero warnings/errors.",
+      "browserTests": "PASS: deep acceptance 2/2 with zero page errors in every locale context.",
+      "measurements": "Constrained-network (200KB/s down, 100KB/s up, 150ms latency) cold signed-in lazy-route load: 4890ms against a 25000ms order-of-magnitude ceiling.",
+      "boundary": "These are browser-observable AT proxies (semantics, focus, live regions, dialog discipline), not a human screen-reader walk-through; the app is honestly LTR-declared under RTL locales. Measurement recorded here only.",
+      "remaining": "Real-AT walk-through, production canary/acceptance, live Microsoft gates."
     }
   },
   "documentationWork": {

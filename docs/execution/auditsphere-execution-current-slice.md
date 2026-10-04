@@ -3741,3 +3741,16 @@ one finding class - captionless tables on the practice time page, fixed for
 both the staff list and the approver queue - and the sweep now passes across
 all twenty routes with zero page errors. Real screen-reader walk-throughs and
 a wider locale matrix remain open before the whole-migration acceptance gate.
+
+### Deep accessibility and locale acceptance
+
+Beyond the DOM sweep, the deep acceptance journey pins what assistive
+technology and throttled readers depend on: landmark structure, a
+non-skipping heading hierarchy, the skip link as the first tab stop handing
+focus to main, live-region announcement of command outcomes, and the
+administration dialog matrix - focus enters, Escape closes, focus returns to
+the trigger, and history disclosures toggle an honest aria-expanded state.
+The locale matrix signs in and renders under fr-FR and RTL ar-EG while staying
+honestly LTR-declared, and a constrained-network budget loads a cold lazy
+route at 4890ms observed against a 25s ceiling. A human screen-reader
+walk-through and production acceptance remain the open gates.
