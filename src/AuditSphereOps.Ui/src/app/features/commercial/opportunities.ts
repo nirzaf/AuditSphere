@@ -6,6 +6,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { Subscription, timeout } from 'rxjs';
 import { SessionService } from '../../core/session';
+import { Drafts } from '../../core/drafts';
 import { exactDecimal, guidPattern } from '../../core/contracts';
 interface Opportunity {
   id: string;
@@ -24,6 +25,17 @@ interface LeadWorkspace {
   name: string;
   status: string;
   opportunities: Opportunity[];
+}
+interface OpportunityCreateIntent {
+  leadId: string;
+  requestId: string;
+  serviceRoute: string;
+  entityScope: string;
+  periodStart: string;
+  periodEnd: string;
+  expectedFee: string;
+  currency: string;
+  submissionPending: true;
 }
 export function decodeOpportunities(value: unknown): LeadWorkspace {
   if (!value || typeof value !== 'object') throw new Error('Unsupported lead');
@@ -81,6 +93,7 @@ export function decodeOpportunities(value: unknown): LeadWorkspace {
               [(ngModel)]="draft.serviceRoute"
               required
               maxlength="100"
+              [disabled]="busy() || createPending()"
           /></label>
           <label
             >Entity scope<textarea
@@ -88,13 +101,24 @@ export function decodeOpportunities(value: unknown): LeadWorkspace {
               [(ngModel)]="draft.entityScope"
               required
               maxlength="10000"
+              [disabled]="busy() || createPending()"
             ></textarea>
           </label>
           <label
-            >Period start<input name="start" type="date" [(ngModel)]="draft.periodStart" required
+            >Period start<input
+              name="start"
+              type="date"
+              [(ngModel)]="draft.periodStart"
+              required
+              [disabled]="busy() || createPending()"
           /></label>
           <label
-            >Period end<input name="end" type="date" [(ngModel)]="draft.periodEnd" required
+            >Period end<input
+              name="end"
+              type="date"
+              [(ngModel)]="draft.periodEnd"
+              required
+              [disabled]="busy() || createPending()"
           /></label>
           <label
             >Expected fee<input
@@ -102,18 +126,37 @@ export function decodeOpportunities(value: unknown): LeadWorkspace {
               [(ngModel)]="draft.expectedFee"
               inputmode="decimal"
               required
+              [disabled]="busy() || createPending()"
           /></label>
           <label
-            >Currency<input name="currency" [(ngModel)]="draft.currency" required maxlength="3"
+            >Currency<input
+              name="currency"
+              [(ngModel)]="draft.currency"
+              required
+              maxlength="3"
+              [disabled]="busy() || createPending()"
           /></label>
           <label
-            ><input type="checkbox" name="reviewed" [(ngModel)]="reviewed" />I reviewed these
-            discovery terms.</label
+            ><input type="checkbox" name="reviewed" [(ngModel)]="reviewed" [disabled]="busy()" />I
+            reviewed these discovery terms.</label
           >
           <button matButton type="submit" [disabled]="!reviewed || busy() || uncertain()">
             Record opportunity
           </button>
         </form>
+        @if (createPending() && uncertain() && recoverableCreate()) {
+          <p role="alert">
+            This saved opportunity request may have completed. Review the unchanged terms and
+            resolve it with the same request identity.
+          </p>
+          <button
+            matButton
+            [disabled]="!reviewed || busy()"
+            (click)="resolveSavedOpportunityRequest()"
+          >
+            Resolve saved opportunity request
+          </button>
+        }
       }
       <h2>Latest 100 opportunities</h2>
       @for (o of lead.opportunities; track o.id) {
@@ -184,16 +227,19 @@ export class Opportunities {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly session = inject(SessionService);
+  private readonly drafts = inject(Drafts);
   private id = '';
   private request?: Subscription;
   private write?: Subscription;
-  private requestId = crypto.randomUUID();
+  private requestId: string = crypto.randomUUID();
   private fence = 0;
   readonly data = signal<LeadWorkspace | null>(null);
   readonly loading = signal(false);
   readonly error = signal('');
   readonly busy = signal(false);
   readonly uncertain = signal(false);
+  readonly createPending = signal(false);
+  readonly recoverableCreate = signal(false);
   readonly commandStatus = signal('');
   readonly selected = signal<Opportunity | null>(null);
   draft = {
@@ -214,6 +260,7 @@ export class Opportunities {
     const route = this.route.paramMap.subscribe((p) => {
       this.reset();
       this.id = p.get('id') ?? '';
+      this.restorePendingIntent();
       this.load();
     });
     effect(() => {
@@ -221,7 +268,10 @@ export class Opportunities {
       const staff = this.session.current()?.staff;
       untracked(() => {
         this.reset();
-        if (staff) this.load();
+        if (staff) {
+          this.restorePendingIntent();
+          this.load();
+        }
       });
     });
     inject(DestroyRef).onDestroy(() => {
@@ -239,6 +289,8 @@ export class Opportunities {
     this.selected.set(null);
     this.busy.set(false);
     this.uncertain.set(false);
+    this.createPending.set(false);
+    this.recoverableCreate.set(false);
     this.commandStatus.set('');
     this.reviewed = this.proposalReviewed = false;
     this.profile = this.deliverables = this.exclusions = this.dependencies = '';
@@ -257,15 +309,204 @@ export class Opportunities {
     this.proposalReviewed = false;
   }
   createOpportunity(): void {
-    if (!this.reviewed || !exactDecimal(this.draft.expectedFee)) {
+    if (
+      !this.data() ||
+      !this.reviewed ||
+      !exactDecimal(this.draft.expectedFee) ||
+      this.busy() ||
+      this.uncertain() ||
+      this.createPending()
+    ) {
       this.commandStatus.set('Review terms and enter an exact decimal fee.');
       return;
     }
-    this.save(
-      '/api/ui/leads/' + this.id + '/opportunities',
-      { ...this.draft, requestId: this.requestId },
-      false,
+    const intent: OpportunityCreateIntent = {
+      leadId: this.id,
+      requestId: this.requestId,
+      ...this.draft,
+      submissionPending: true,
+    };
+    if (!this.persistIntent(intent)) {
+      this.commandStatus.set(
+        'The opportunity was not sent because this browser could not save its recovery identity.',
+      );
+      return;
+    }
+    this.createPending.set(true);
+    this.recoverableCreate.set(false);
+    this.sendOpportunityIntent(intent);
+  }
+  resolveSavedOpportunityRequest(): void {
+    if (
+      !this.data() ||
+      this.busy() ||
+      !this.reviewed ||
+      !this.createPending() ||
+      !this.recoverableCreate()
+    )
+      return;
+    const saved = this.drafts.load(this.intentScope(), Opportunities.validIntent);
+    if (
+      !saved ||
+      saved.leadId !== this.id ||
+      saved.requestId !== this.requestId ||
+      !this.sameIntent(saved, this.currentIntent())
+    ) {
+      this.commandStatus.set(
+        'The saved recovery details could not be verified. No retry was sent; refresh the page or contact an administrator.',
+      );
+      return;
+    }
+    this.sendOpportunityIntent(saved);
+  }
+  private static validIntent(value: unknown): OpportunityCreateIntent | null {
+    if (!value || typeof value !== 'object') return null;
+    const v = value as Record<string, unknown>;
+    const text = (key: string, max: number) =>
+      typeof v[key] === 'string' && (v[key] as string).length <= max ? (v[key] as string) : null;
+    const leadId = text('leadId', 36),
+      requestId = text('requestId', 36);
+    const serviceRoute = text('serviceRoute', 100),
+      entityScope = text('entityScope', 10000);
+    const periodStart = text('periodStart', 10),
+      periodEnd = text('periodEnd', 10);
+    const expectedFee = text('expectedFee', 100),
+      currency = text('currency', 3);
+    if (
+      !leadId ||
+      !guidPattern.test(leadId) ||
+      !requestId ||
+      !guidPattern.test(requestId) ||
+      serviceRoute === null ||
+      entityScope === null ||
+      periodStart === null ||
+      periodEnd === null ||
+      !expectedFee ||
+      !exactDecimal(expectedFee) ||
+      !currency ||
+      currency.length !== 3 ||
+      v['submissionPending'] !== true
+    )
+      return null;
+    return {
+      leadId,
+      requestId,
+      serviceRoute,
+      entityScope,
+      periodStart,
+      periodEnd,
+      expectedFee,
+      currency,
+      submissionPending: true,
+    };
+  }
+  private intentScope(): string {
+    return 'commercial-opportunity-create:' + this.id;
+  }
+  private currentIntent(): OpportunityCreateIntent {
+    return { leadId: this.id, requestId: this.requestId, ...this.draft, submissionPending: true };
+  }
+  private sameIntent(a: OpportunityCreateIntent, b: OpportunityCreateIntent): boolean {
+    return (
+      a.leadId === b.leadId &&
+      a.requestId === b.requestId &&
+      a.serviceRoute === b.serviceRoute &&
+      a.entityScope === b.entityScope &&
+      a.periodStart === b.periodStart &&
+      a.periodEnd === b.periodEnd &&
+      a.expectedFee === b.expectedFee &&
+      a.currency === b.currency &&
+      a.submissionPending === b.submissionPending
     );
+  }
+  private persistIntent(intent: OpportunityCreateIntent): boolean {
+    this.drafts.save(this.intentScope(), intent);
+    const saved = this.drafts.load(this.intentScope(), Opportunities.validIntent);
+    return !!saved && this.sameIntent(saved, intent);
+  }
+  private restorePendingIntent(): void {
+    const saved = this.drafts.load(this.intentScope(), Opportunities.validIntent);
+    if (!saved || saved.leadId !== this.id) return;
+    this.requestId = saved.requestId;
+    this.draft = {
+      serviceRoute: saved.serviceRoute,
+      entityScope: saved.entityScope,
+      periodStart: saved.periodStart,
+      periodEnd: saved.periodEnd,
+      expectedFee: saved.expectedFee,
+      currency: saved.currency,
+    };
+    this.createPending.set(true);
+    this.recoverableCreate.set(true);
+    this.uncertain.set(true);
+    this.commandStatus.set(
+      'A saved opportunity request needs resolution. Review its unchanged terms to retry safely.',
+    );
+  }
+  private sendOpportunityIntent(intent: OpportunityCreateIntent): void {
+    if (this.busy()) return;
+    const fence = this.fence;
+    this.busy.set(true);
+    this.uncertain.set(false);
+    this.commandStatus.set('Saving reviewed opportunity terms…');
+    this.write = this.http
+      .post<unknown>('/api/ui/leads/' + intent.leadId + '/opportunities', {
+        requestId: intent.requestId,
+        serviceRoute: intent.serviceRoute,
+        entityScope: intent.entityScope,
+        periodStart: intent.periodStart,
+        periodEnd: intent.periodEnd,
+        expectedFee: intent.expectedFee,
+        currency: intent.currency,
+      })
+      .pipe(timeout(15000))
+      .subscribe({
+        next: (value) => {
+          if (fence !== this.fence) return;
+          this.busy.set(false);
+          const result = value as { id?: unknown };
+          if (
+            typeof result?.id !== 'string' ||
+            result.id.toLowerCase() !== intent.requestId.toLowerCase()
+          ) {
+            this.uncertain.set(true);
+            this.recoverableCreate.set(true);
+            this.commandStatus.set(
+              'The response did not confirm the saved request identity. Resolve the saved request before continuing.',
+            );
+            return;
+          }
+          this.drafts.clear(this.intentScope());
+          this.createPending.set(false);
+          this.recoverableCreate.set(false);
+          this.reviewed = false;
+          this.requestId = crypto.randomUUID();
+          this.commandStatus.set('Opportunity recorded.');
+          this.load();
+        },
+        error: (failure) => {
+          if (fence !== this.fence) return;
+          this.busy.set(false);
+          if (failure.status >= 400 && failure.status < 500) {
+            this.drafts.clear(this.intentScope());
+            this.createPending.set(false);
+            this.recoverableCreate.set(false);
+            this.uncertain.set(false);
+            this.reviewed = false;
+            this.requestId = crypto.randomUUID();
+            this.commandStatus.set(
+              'Opportunity request refused. Review current access, terms and existing opportunities.',
+            );
+          } else {
+            this.uncertain.set(true);
+            this.recoverableCreate.set(true);
+            this.commandStatus.set(
+              'Opportunity outcome unconfirmed. Resolve the saved request before another command.',
+            );
+          }
+          if (failure.status === 401) this.session.clear();
+        },
+      });
   }
   createProposal(): void {
     const o = this.selected();
@@ -342,12 +583,17 @@ export class Opportunities {
           try {
             const v = decodeOpportunities(value);
             this.data.set(v);
+            const creationWasPersisted = v.opportunities.some((o) => o.id === this.requestId);
             if (
               this.uncertain() &&
-              v.opportunities.some(
-                (o) => o.id === this.requestId || (o.id === this.selected()?.id && o.proposalId),
-              )
+              (creationWasPersisted ||
+                v.opportunities.some((o) => o.id === this.selected()?.id && o.proposalId))
             ) {
+              if (this.createPending() && creationWasPersisted) {
+                this.drafts.clear(this.intentScope());
+                this.createPending.set(false);
+                this.recoverableCreate.set(false);
+              }
               this.uncertain.set(false);
               this.reviewed = this.proposalReviewed = false;
               this.selected.set(null);

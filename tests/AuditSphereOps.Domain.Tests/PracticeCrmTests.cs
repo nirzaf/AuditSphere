@@ -102,6 +102,45 @@ public sealed class PracticeCrmTests
   }
 
   [Fact]
+  public async Task OpportunityCreation_ReconcilesExactRetry_AndRejectsChangedRequestIdentity()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    Guid leadId;
+    await using (var setupDb = new AuditSphereDbContext(pg.Options))
+    {
+      var lead = await PracticeCrmService.CreateLeadAsync(setupDb, fixture.Actor,
+        new("Opportunity recovery lead", "Referral"));
+      Assert.True(lead.Succeeded, lead.Message);
+      leadId = lead.Value;
+      Assert.True((await PracticeCrmService.QualifyLeadAsync(setupDb, fixture.Actor, leadId)).Succeeded);
+    }
+
+    var requestId = Guid.NewGuid();
+    var request = Opportunity(leadId) with { RequestId = requestId, OwnerUserId = fixture.User.Id };
+    await using (var firstDb = new AuditSphereDbContext(pg.Options))
+    {
+      var first = await PracticeCrmService.CreateOpportunityAsync(firstDb, fixture.Actor, request);
+      Assert.True(first.Succeeded, first.Message);
+      Assert.Equal(requestId, first.Value);
+    }
+
+    await using (var retryDb = new AuditSphereDbContext(pg.Options))
+    {
+      var retry = await PracticeCrmService.CreateOpportunityAsync(retryDb, fixture.Actor, request);
+      Assert.True(retry.Succeeded, retry.Message);
+      Assert.Equal(requestId, retry.Value);
+      Assert.Equal(1, await retryDb.Opportunities.CountAsync(x => x.LeadId == leadId));
+
+      var changedIntent = await PracticeCrmService.CreateOpportunityAsync(retryDb, fixture.Actor,
+        request with { EntityScope = "Changed entity" });
+      Assert.False(changedIntent.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, changedIntent.ErrorCode);
+      Assert.Equal(1, await retryDb.Opportunities.CountAsync(x => x.LeadId == leadId));
+    }
+  }
+
+  [Fact]
   public async Task CommercialWorkflow_ConvertsIdempotently_AndLeavesAcceptancePending()
   {
     await using var pg = await PgTestSchema.CreateAsync();

@@ -83,6 +83,120 @@ public sealed class AngularCommercialJourneyTests
   }
 
   [Fact]
+  [Trait("CaseId", "ANGULAR-COMMERCIAL-OPPORTUNITY-RECOVERY-01")]
+  public async Task LostOpportunityCreateResponses_ReconcileCommitAndRetryUncommittedRequest()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false,
+      caseId: "ANGULAR-COMMERCIAL-OPPORTUNITY-RECOVERY-01");
+    var settings = new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" };
+    var buildPath = Environment.GetEnvironmentVariable("AUDITSPHERE_TEST_UI_BUILD_PATH");
+    if (!string.IsNullOrWhiteSpace(buildPath)) settings["AngularUi__BuildPath"] = buildPath;
+    var origin = await host.StartApiForIdentityAsync(host.Fixture.Admin, settings);
+    Guid leadId;
+    await using (var db = host.CreateDbContext())
+    {
+      var actor = PbcSeed.Actor(host.Fixture.Admin, "Administrator");
+      var lead = await PracticeCrmService.CreateLeadAsync(db, actor,
+        new("Synthetic opportunity recovery lead", "Recovery journey"));
+      Assert.True(lead.Succeeded, lead.Message);
+      Assert.True((await PracticeCrmService.QualifyLeadAsync(db, actor, lead.Value)).Succeeded);
+      leadId = lead.Value;
+    }
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var errors = new List<string>();
+    page.PageError += (_, error) => errors.Add(error);
+    var requestIdentity = Guid.Empty;
+    var retryIdentity = Guid.Empty;
+    var postCount = 0;
+    await page.RouteAsync($"**/api/ui/leads/{leadId}/opportunities", async route =>
+    {
+      if (route.Request.Method != "POST") { await route.ContinueAsync(); return; }
+      using var body = JsonDocument.Parse(route.Request.PostData!);
+      var seenIdentity = body.RootElement.GetProperty("requestId").GetGuid();
+      var call = Interlocked.Increment(ref postCount);
+      if (call == 1)
+      {
+        requestIdentity = seenIdentity;
+        await using var accepted = await route.FetchAsync();
+        Assert.Equal(200, accepted.Status);
+        await route.AbortAsync("failed");
+      }
+      else if (call == 2)
+      {
+        retryIdentity = seenIdentity;
+        await route.AbortAsync("failed");
+      }
+      else
+      {
+        Assert.Equal(retryIdentity, seenIdentity);
+        await route.ContinueAsync();
+      }
+    });
+
+    var routePath = $"/ui/app/practice/leads/{leadId:D}";
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(routePath));
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "Opportunities", Exact = true })).ToBeVisibleAsync();
+    await page.GetByLabel("Service route", new() { Exact = true }).FillAsync("AccountingOnly");
+    await page.GetByLabel("Entity scope", new() { Exact = true }).FillAsync("Synthetic entity");
+    await page.GetByLabel("Period start", new() { Exact = true }).FillAsync("2026-01-01");
+    await page.GetByLabel("Period end", new() { Exact = true }).FillAsync("2026-12-31");
+    await page.GetByLabel("Expected fee", new() { Exact = true }).FillAsync("1500.25");
+    await page.GetByLabel("Currency", new() { Exact = true }).FillAsync("QAR");
+    await page.GetByLabel("I reviewed these discovery terms.", new() { Exact = true }).CheckAsync();
+    await page.GetByRole(AriaRole.Button, new() { Name = "Record opportunity", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByText("Opportunity outcome unconfirmed", new() { Exact = false })).ToBeVisibleAsync();
+    Assert.NotEqual(Guid.Empty, requestIdentity);
+
+    await page.ReloadAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "Opportunities", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByText("Persisted result found.", new() { Exact = false })).ToBeVisibleAsync();
+    var recovery = page.GetByRole(AriaRole.Button,
+      new() { Name = "Resolve saved opportunity request", Exact = true });
+    await Assertions.Expect(recovery).ToHaveCountAsync(0);
+    Assert.Equal(1, postCount);
+
+    await page.GetByLabel("Service route", new() { Exact = true }).FillAsync("FinancialStatementAudit");
+    await page.GetByLabel("Entity scope", new() { Exact = true }).FillAsync("Second synthetic entity");
+    await page.GetByLabel("Expected fee", new() { Exact = true }).FillAsync("2000.00");
+    await page.GetByLabel("I reviewed these discovery terms.", new() { Exact = true }).CheckAsync();
+    await page.GetByRole(AriaRole.Button, new() { Name = "Record opportunity", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByText("Opportunity outcome unconfirmed", new() { Exact = false })).ToBeVisibleAsync();
+    Assert.NotEqual(Guid.Empty, retryIdentity);
+
+    await page.ReloadAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "Opportunities", Exact = true })).ToBeVisibleAsync();
+    recovery = page.GetByRole(AriaRole.Button,
+      new() { Name = "Resolve saved opportunity request", Exact = true });
+    await Assertions.Expect(recovery).ToBeVisibleAsync();
+    await Assertions.Expect(recovery).ToBeDisabledAsync();
+    await Assertions.Expect(page.GetByLabel("Entity scope", new() { Exact = true })).ToHaveValueAsync("Second synthetic entity");
+    await page.GetByLabel("I reviewed these discovery terms.", new() { Exact = true }).CheckAsync();
+    await recovery.ClickAsync();
+    await Assertions.Expect(page.GetByText("Opportunity recorded.", new() { Exact = false })).ToBeVisibleAsync();
+    Assert.Equal(3, postCount);
+
+    await using (var db = host.CreateDbContext())
+    {
+      var opportunity = await db.Opportunities.SingleAsync(x => x.Id == requestIdentity);
+      Assert.Equal(leadId, opportunity.LeadId);
+      Assert.Equal("Synthetic entity", opportunity.EntityScope);
+      Assert.Equal(1500.25m, opportunity.ExpectedFee);
+      var retry = await db.Opportunities.SingleAsync(x => x.Id == retryIdentity);
+      Assert.Equal("Second synthetic entity", retry.EntityScope);
+      Assert.Equal(2000m, retry.ExpectedFee);
+      Assert.Equal(2, await db.Opportunities.CountAsync(x => x.LeadId == leadId));
+    }
+    Assert.Empty(errors);
+  }
+
+  [Fact]
   [Trait("CaseId", "ANGULAR-COMMERCIAL-E2E-01")]
   public async Task QuotationPreview_Save_AndApprovalUsePersistedServerState()
   {
