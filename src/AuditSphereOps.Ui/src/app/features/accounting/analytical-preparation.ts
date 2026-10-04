@@ -23,7 +23,8 @@ export class AnalyticalPreparation implements NavigationProtected {
   private readonly dialog=inject(MatDialog); private readonly route=inject(ActivatedRoute);
   private readonly routeParams=toSignal(this.route.paramMap,{initialValue:this.route.snapshot?.paramMap});
   readonly id=routeGuid(); readonly model=signal(empty()); readonly periodId=signal(''); readonly comparisonPeriodId=signal('');
-  readonly data=this.api.resource(()=>this.id()?this.base():null,decodeAnalyticalContext);
+  readonly data=this.api.resource(()=>this.id()?this.base():null,decodeAnalyticalContext,
+    'This analytical workspace is unavailable to your current account. Ask your firm administrator to confirm your AuditSphere role and client or engagement scope.');
   readonly periods=computed(()=>this.data.data()?.periods??[]);
   readonly currentPeriod=computed(()=>this.periods().find(p=>p.id===this.periodId())??null);
   readonly comparisonPeriods=computed(()=>{const p=this.currentPeriod();return p?this.periods().filter(x=>x.id!==p.id&&x.endDate<p.startDate):[];});

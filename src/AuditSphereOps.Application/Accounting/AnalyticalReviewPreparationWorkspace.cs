@@ -4,7 +4,6 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
-using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
@@ -39,11 +38,10 @@ public sealed record AnalyticalPreparationLookup(bool Found, AnalyticalPreparati
 /// exact scope/generation fencing, immutable actor-owned receipt evidence and safe response-loss recovery.</summary>
 public static class AnalyticalReviewPreparationWorkspace
 {
-  private static readonly string[] Roles = ["Administrator", "Partner", "Manager", "AccountingPreparer", "AccountingReviewer"];
   private static CommandResult<T> Fail<T>(string code, string message) => CommandResult<T>.Fail(code, message);
   private static Task<CommandResult> Authorize(IClientAccountingDbContext db, ActorContext actor, Guid clientId,
-    Guid engagementId, CancellationToken ct) => AuthorizationDecision.AuthorizeAsync(db, actor,
-    new(actor.FirmId, clientId, engagementId, Roles, InternalOnly: true), ct);
+    Guid engagementId, CancellationToken ct) => AccountingPreparationAuthorization.AuthorizeAsync(db, actor,
+      clientId, engagementId, ct);
 
   private static bool Amount(string? raw, bool allowNegative, bool optional, out decimal value)
   {

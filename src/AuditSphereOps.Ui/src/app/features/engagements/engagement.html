@@ -64,9 +64,9 @@
     </section>
     <nav aria-label="Engagement workflows" [hidden]="loading() || !data() || planning()?.loading()">
       @for (workflow of workflows; track workflow.path) {
-        <a matButton [routerLink]="workflowLink(engagement.id, workflow.path)">{{
-          workflow.label
-        }}</a>
+        @if (workflowAvailable(workflow.requiresAccountingPreparation, engagement.canPrepareAccounting)) {
+          <a matButton [routerLink]="workflowLink(engagement.id, workflow.path)">{{ workflow.label }}</a>
+        }
       }
     </nav>
     @if (workBlocked(engagement)) {

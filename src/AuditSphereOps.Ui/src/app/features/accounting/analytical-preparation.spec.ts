@@ -53,6 +53,11 @@ describe('native analytical preparation',()=>{
     const {fixture,component:c}=await open();c.model.set({...fields});TestBed.inject(SessionService).clear();TestBed.tick();
     expect(c.data.data()).toBeNull();expect(c.model().currentAmount).toBe('');expect(fixture.nativeElement.textContent).not.toContain('120.123456');
   });
+  it('explains how to request access when the server conceals an unavailable scope',()=>{
+    const fixture=TestBed.createComponent(AnalyticalPreparation);fixture.detectChanges();TestBed.tick();
+    http.expectOne(base).flush({code:'scope.denied'},{status:403,statusText:'Forbidden'});TestBed.tick();
+    expect(fixture.nativeElement.textContent).toContain('Ask your firm administrator to confirm your AuditSphere role and client or engagement scope.');
+  });
   it('rejects malformed period state, preview and mismatched receipt contracts',()=>{
     expect(()=>decodeAnalyticalState({...state,reviewBasis:'bad'},'state')).toThrow();expect(()=>decodeAnalyticalPreview({...preview,periodId:'bad'},'preview')).toThrow();
     expect(()=>decodeAnalyticalLookup({found:true,receipt:null})).toThrow();expect(analyticalEditableFields({...fields,hidden:'value'})).toBeNull();

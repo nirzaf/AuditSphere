@@ -27,7 +27,7 @@ public sealed class EngagementProfileWorkspaceApiTests
     Assert.Equal(HttpStatusCode.OK,response.StatusCode); Assert.True(response.Headers.CacheControl!.NoStore);
     var v=(await response.Content.ReadFromJsonAsync<EngagementWorkspace>())!;
     Assert.Equal(5,v.Holds.Count); Assert.Equal(new EngagementHoldMetrics(105,52,53),v.HoldMetrics);
-    Assert.Equal(new EngagementWorkspacePaging(2,50),v.Paging); Assert.False(v.CanViewClientProfile);
+    Assert.Equal(new EngagementWorkspacePaging(2,50),v.Paging); Assert.False(v.CanViewClientProfile); Assert.False(v.CanPrepareAccounting);
     Assert.Equal("9007199254740993",v.Generation); Assert.Equal("Synthetic annual audit profile",v.ServiceProfileId);
     foreach(var q in new[]{"holdPage=-1","holdPage=10001","holdPageSize=100","holdPageSize=bad","holdPageSize=0"})
       Assert.Equal(HttpStatusCode.BadRequest,(await c.GetAsync(path+"?"+q)).StatusCode);
@@ -35,6 +35,9 @@ public sealed class EngagementProfileWorkspaceApiTests
     using var guessed=await c.GetAsync("/api/ui/engagements/"+Guid.NewGuid());
     Assert.Equal(HttpStatusCode.Forbidden,hidden.StatusCode); Assert.Equal(await guessed.Content.ReadAsStringAsync(),await hidden.Content.ReadAsStringAsync());
     Assert.Empty((await c.GetFromJsonAsync<EngagementWorkspace>(path+"?holdPage=10000"))!.Holds);
+    await using (var db=new AuditSphereDbContext(pg.Options)) {
+      db.RoleGrants.Add(PbcSeed.Grant(f.FirmId,f.Staff,"AccountingPreparer",clientId:f.ClientId)); await db.SaveChangesAsync(); }
+    Assert.True((await c.GetFromJsonAsync<EngagementWorkspace>(path))!.CanPrepareAccounting);
     await using(var db=new AuditSphereDbContext(pg.Options)) {
       await db.RoleGrants.Where(g=>g.UserId==f.Staff.Id).ExecuteUpdateAsync(s=>s.SetProperty(g=>g.RevokedAt,DateTimeOffset.UtcNow)); }
     Assert.Equal(HttpStatusCode.Forbidden,(await c.GetAsync(path)).StatusCode);

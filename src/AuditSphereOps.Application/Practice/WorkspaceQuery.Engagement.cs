@@ -1,4 +1,5 @@
 using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Shared;
@@ -33,13 +34,18 @@ public static partial class WorkspaceQuery
     var canActivate = row.Status == "Draft" && (await AuthorizationDecision.AuthorizeAsync(db, actor, activation, ct)).Succeeded;
     var clientProfile = new AuthorizationRequest(actor.FirmId, ClientId: row.PracticeClientId, RequiredRoles: ClientRoles, InternalOnly: true);
     var canViewClient = (await AuthorizationDecision.AuthorizeAsync(db, actor, clientProfile, ct)).Succeeded;
+    var canPrepareAccounting = (await AccountingPreparationAuthorization.AuthorizeAsync(db, actor,
+      row.PracticeClientId, row.Id, ct)).Succeeded;
     // Every advertised authority is rechecked after the projection; client navigation never derives from engagement scope.
     if (canActivate && !(await AuthorizationDecision.AuthorizeAsync(db, actor, activation, ct)).Succeeded ||
         canViewClient && !(await AuthorizationDecision.AuthorizeAsync(db, actor, clientProfile, ct)).Succeeded ||
+        canPrepareAccounting && !(await AccountingPreparationAuthorization.AuthorizeAsync(db, actor,
+          row.PracticeClientId, row.Id, ct)).Succeeded ||
         !(await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct)).Succeeded) return UnavailableEngagement();
     return CommandResult<EngagementWorkspace>.Ok(new(row.Id, row.PracticeClientId, clientName, row.ServiceRoute,
       row.Status, row.PeriodStart, row.PeriodEnd, row.Generation.ToString(System.Globalization.CultureInfo.InvariantCulture),
-      row.ProfessionalWorkBlocked, holds, canActivate, row.ServiceProfileId, row.CreatedAt, canViewClient, counts, paging));
+      row.ProfessionalWorkBlocked, holds, canActivate, row.ServiceProfileId, row.CreatedAt, canViewClient,
+      canPrepareAccounting, counts, paging));
   }
 
   private static CommandResult<EngagementWorkspace> UnavailableEngagement() =>

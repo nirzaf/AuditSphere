@@ -22,6 +22,11 @@ export function engagementWorkflowLink(engagementId: string, path: string): stri
   return ['/app/engagements', engagementId, ...path.split('/').filter(Boolean)];
 }
 
+export function engagementWorkflowAvailable(requiresAccountingPreparation: boolean | undefined,
+  canPrepareAccounting: boolean): boolean {
+  return !requiresAccountingPreparation || canPrepareAccounting;
+}
+
 @Component({
   selector: 'audit-engagement',
   imports: [EngagementPlanning, RouterLink, MatButtonModule, MatProgressBarModule, ...SHARED],
@@ -30,16 +35,17 @@ export function engagementWorkflowLink(engagementId: string, path: string): stri
 })
 export class EngagementDetail {
   readonly workflowLink = engagementWorkflowLink;
-  readonly workflows = [
+  readonly workflowAvailable = engagementWorkflowAvailable;
+  readonly workflows: Array<{ path: string; label: string; requiresAccountingPreparation?: boolean }> = [
     { path: 'audit-plan', label: 'Audit plan' },
     { path: 'audit-fieldwork', label: 'Fieldwork' },
     { path: 'completion', label: 'Completion' },
     { path: 'statements', label: 'Statements' },
     { path: 'tb-intake', label: 'Trial balance intake' },
     { path: 'general-ledger', label: 'General ledger' },
-    { path: 'analysis/new', label: 'Prepare analytical review' },
-    { path: 'reconciliation/new', label: 'Prepare reconciliation' },
-    { path: 'specialists/new', label: 'Prepare specialist schedule' },
+    { path: 'analysis/new', label: 'Prepare analytical review', requiresAccountingPreparation: true },
+    { path: 'reconciliation/new', label: 'Prepare reconciliation', requiresAccountingPreparation: true },
+    { path: 'specialists/new', label: 'Prepare specialist schedule', requiresAccountingPreparation: true },
     { path: 'pbc', label: 'PBC requests' },
   ];
   readonly portfolioNavigation = inject(PortfolioNavigation);

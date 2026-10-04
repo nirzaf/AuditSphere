@@ -33,6 +33,7 @@ const decoder = obj({
   professionalWorkBlocked: bool,
   canActivate: bool,
   canViewClientProfile: bool,
+  canPrepareAccounting: bool,
   holdMetrics: obj({ total: nat, active: nat, released: nat }),
   paging: obj({ holdPage: nat, holdPageSize: nat }),
   holds: arr(

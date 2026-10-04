@@ -23,6 +23,7 @@ public sealed class EngagementProfileWorkspaceTests
     Assert.Equal(new EngagementHoldMetrics(105,52,53), v.HoldMetrics); Assert.Equal(10, v.Holds.Count);
     Assert.Equal("9007199254740993", v.Generation); Assert.Equal("Synthetic annual audit profile", v.ServiceProfileId);
     Assert.Equal(new DateTimeOffset(2026,1,2,12,30,0,TimeSpan.Zero), v.CreatedAt); Assert.False(v.CanViewClientProfile);
+    Assert.False(v.CanPrepareAccounting);
     Assert.Equal(100, (await WorkspaceQuery.EngagementAsync(db, actor, f.EngagementId)).Value!.Holds.Count);
     var last = (await WorkspaceQuery.EngagementAsync(db, actor, f.EngagementId, paging: new(2,50))).Value!;
     Assert.Equal(5, last.Holds.Count); Assert.Equal(v.HoldMetrics, last.HoldMetrics);
@@ -36,6 +37,8 @@ public sealed class EngagementProfileWorkspaceTests
     Assert.False((await WorkspaceQuery.EngagementAsync(db, PbcSeed.Actor(f.Client,"ClientUser"), f.EngagementId)).Succeeded);
     db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Staff, "Staff", f.ClientId)); await db.SaveChangesAsync();
     Assert.True((await WorkspaceQuery.EngagementAsync(db, actor, f.EngagementId)).Value!.CanViewClientProfile);
+    db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Staff, "AccountingPreparer", clientId: f.ClientId)); await db.SaveChangesAsync();
+    Assert.True((await WorkspaceQuery.EngagementAsync(db, actor, f.EngagementId)).Value!.CanPrepareAccounting);
     await db.Users.Where(u => u.Id == f.Staff.Id).ExecuteUpdateAsync(s => s.SetProperty(u => u.SessionEpoch, u => u.SessionEpoch + 1));
     Assert.False((await WorkspaceQuery.EngagementAsync(db, actor, f.EngagementId)).Succeeded);
   }

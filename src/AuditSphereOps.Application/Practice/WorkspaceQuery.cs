@@ -24,7 +24,7 @@ public sealed record EngagementWorkspacePaging(int HoldPage = 0, int HoldPageSiz
 public sealed record EngagementWorkspace(Guid Id, Guid ClientId, string ClientName, string ServiceRoute,
   string Status, string PeriodStart, string PeriodEnd, string Generation, bool ProfessionalWorkBlocked,
   IReadOnlyList<WorkspaceHold> Holds, bool CanActivate, string ServiceProfileId, DateTimeOffset CreatedAt,
-  bool CanViewClientProfile, EngagementHoldMetrics HoldMetrics, EngagementWorkspacePaging Paging);
+  bool CanViewClientProfile, bool CanPrepareAccounting, EngagementHoldMetrics HoldMetrics, EngagementWorkspacePaging Paging);
 
 /// <summary>Explicitly authorized projections; engagement scope never grants a client-wide profile.</summary>
 public static partial class WorkspaceQuery

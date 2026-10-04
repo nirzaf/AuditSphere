@@ -6,6 +6,29 @@ namespace AuditSphereOps.E2E.Tests;
 
 public sealed class AngularEngagementProfileJourneyTests
 {
+  [Fact]
+  [Trait("CaseId","ANGULAR-ENGAGEMENT-PREPARATION-AUTHORITY")]
+  public async Task PreparationLinksFollowTheExactRoleScopeAndDirectRoutesStayProtected()
+  {
+    await using var host=await OwnedBlazorHost.StartAsync(startWorker:false,caseId:"ANGULAR-ENGAGEMENT-PREPARATION-AUTHORITY");
+    var f=host.Fixture;
+    var origin=await host.StartApiForIdentityAsync(f.Staff,new Dictionary<string,string> {
+      ["AngularUi__Enabled"]="true",["AngularUi__CanonicalRoutes"]="true" });
+    using var playwright=await Playwright.CreateAsync(); await using var browser=await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context=await browser.NewContextAsync(); var page=await context.NewPageAsync();
+    var errors=new List<string>(); page.PageError+=(_,e)=>errors.Add(e);
+    var path="/app/engagements/"+f.EngagementId;
+    await page.GotoAsync(origin+"/auth/sign-in?returnUrl="+Uri.EscapeDataString(path));
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,new(){Name="Engagement details",Exact=true})).ToBeVisibleAsync();
+    foreach(var name in new[]{"Prepare analytical review","Prepare reconciliation","Prepare specialist schedule"})
+      await Assertions.Expect(page.GetByRole(AriaRole.Link,new(){Name=name,Exact=true})).ToHaveCountAsync(0);
+    await page.GotoAsync(origin+path+"/analysis/new");
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,new(){Name="Prepare analytical review",Exact=true})).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Alert)).ToContainTextAsync(
+      "Ask your firm administrator to confirm your AuditSphere role and client or engagement scope.");
+    Assert.Empty(errors);
+  }
+
   [Theory]
   [InlineData(false)]
   [InlineData(true)]

@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { decodeEngagement, engagementWorkflowLink } from './engagement';
+import { decodeEngagement, engagementWorkflowAvailable, engagementWorkflowLink } from './engagement';
 import { decodeClient } from '../clients/client';
 const id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 describe('Workspace contracts', () => {
+  it('shows preparation workflows only when the engagement projection grants that capability', () => {
+    expect(engagementWorkflowAvailable(true, false)).toBe(false);
+    expect(engagementWorkflowAvailable(true, true)).toBe(true);
+    expect(engagementWorkflowAvailable(undefined, false)).toBe(true);
+  });
+
   it('keeps multi-segment engagement workflow routes as router segments', () => {
     expect(engagementWorkflowLink(id, 'reconciliation/new')).toEqual([
       '/app/engagements',
@@ -33,6 +39,7 @@ describe('Workspace contracts', () => {
       serviceProfileId: 'Standard',
       createdAt: '2026-01-02T12:30:00Z',
       canViewClientProfile: false,
+      canPrepareAccounting: false,
       holdMetrics: { total: 0, active: 0, released: 0 },
       paging: { holdPage: 0, holdPageSize: 10 },
       holds: [],

@@ -22,6 +22,7 @@ const payload = {
   professionalWorkBlocked: true,
   canActivate: true,
   canViewClientProfile: false,
+  canPrepareAccounting: false,
   holdMetrics: { total: 27, active: 13, released: 14 },
   paging: { holdPage: 0, holdPageSize: 10 },
   holds: [

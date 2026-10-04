@@ -3,7 +3,6 @@ using System.Globalization;
 using System.Text.Json;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
-using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
@@ -35,13 +34,12 @@ public sealed record SpecialistPreparationLookup(bool Found, SpecialistPreparati
 /// <summary>Reviewed append-only specialist schedule revisions with actor-owned idempotent recovery.</summary>
 public static class SpecialistSchedulePreparationWorkspace
 {
-  private static readonly string[] Roles = ["Administrator", "Partner", "Manager", "AccountingPreparer", "AccountingReviewer"];
   private static readonly HashSet<string> Areas = ["ASSETS", "PAYROLL", "LOANS", "EQUITY", "RELATED_PARTIES", "TAX", "FORECAST"];
   private const int Limit = 100;
   private static CommandResult<T> Fail<T>(string code, string message) => CommandResult<T>.Fail(code, message);
   private static Task<CommandResult> Authorize(IClientAccountingDbContext db, ActorContext actor, Guid clientId,
-    Guid engagementId, CancellationToken ct) => AuthorizationDecision.AuthorizeAsync(db, actor,
-      new(actor.FirmId, clientId, engagementId, Roles, InternalOnly: true), ct);
+    Guid engagementId, CancellationToken ct) => AccountingPreparationAuthorization.AuthorizeAsync(db, actor,
+      clientId, engagementId, ct);
   private static string Exact(decimal value) => value.ToString("0.000000", CultureInfo.InvariantCulture);
   private static bool Hash(string? value) => value is { Length: 64 } && value.All(char.IsAsciiHexDigit);
   private static string RequestHash(ActorContext actor, Guid engagementId, SpecialistPreparationRequest request) =>
