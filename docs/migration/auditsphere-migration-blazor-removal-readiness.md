@@ -21,7 +21,7 @@ This gate follows the source inventory, route matrix, feature register, test reg
 | Current EF model drift is clean | **PASS — current source snapshot** | `dotnet ef migrations has-pending-model-changes` reported no pending changes. |
 | No active runtime navigation points to legacy Blazor workbenches | **PASS — route contract** | `AngularRoutingContractTests` checks runtime links and native route ownership. |
 | API, Application, Domain, Infrastructure, and Worker require no Web project reference | **PASS — project boundary** | The production project graph does not reference `AuditSphereOps.Web`; the API rejects legacy presentation outside `Test`. |
-| No required test or test fixture depends on Web | **OPEN — known coupling** | API.Tests now references the API project directly and its 189-test suite passes without Web. E2E.Tests still references Web; `OwnedBlazorHost` retains legacy startup for legacy cases, `RouteRenderSmokeTests` asserts legacy markup, and the route contract scans Web sources. |
+| No required test or test fixture depends on Web | **OPEN — known coupling** | API.Tests now references the API project directly and its 189-test suite passes without Web. A new route contract checks the committed route inventory, but the existing route test still scans Web source in this committed snapshot. E2E.Tests still references Web; `OwnedBlazorHost` retains legacy startup for legacy cases and `RouteRenderSmokeTests` asserts legacy markup. |
 | Rollback exit criteria and production-like cutover are proven | **OPEN** | Local browser rendering is not a production canary, and the legacy host is Test-only. Document and exercise the approved operational rollback path. |
 | Live Microsoft 365 acceptance is complete | **BLOCKED_EXTERNAL** | Live tenant, consent, and selected-resource checks remain external acceptance gates in `status.json`. |
 
@@ -29,7 +29,7 @@ This gate follows the source inventory, route matrix, feature register, test reg
 
 1. Review each source/action row against its Angular behavior, API contract, Application authority, role/scope, validation, audit evidence, empty/error/stale behavior, concurrency, and recovery. Mark parity only when evidence covers the behavior.
 2. Finish splitting PostgreSQL fixture lifecycle and API-host startup from `OwnedBlazorHost`; API-only mode avoids launching Web for migrated Angular journeys, but the shared fixture still owns both concerns and E2E.Tests still references Web.
-3. Replace or explicitly retain the legacy route-render test and Web-source route parser with an equivalent contract that no longer requires the Web project.
+3. Retain the new committed-inventory route contract and decide whether to remove or keep the existing Web-source route parser; replace or explicitly retain the legacy route-render test with an owner-approved, behavior-appropriate decision.
 4. Run the complete Release solution suite against a frozen current source/assets snapshot and record the exact source commit. Preserve the historical suite attribution separately.
 5. Complete the production-like canary and rollback acceptance, human assistive-technology walkthrough, and applicable locale review.
 6. Resolve or formally retain all external Microsoft acceptance gates; do not mark them passed from local simulation.

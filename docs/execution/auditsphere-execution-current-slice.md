@@ -42,6 +42,23 @@ warnings/errors and the complete PostgreSQL-backed API test project passed
 Web reference or its retained legacy smoke coverage, and it is not a
 whole-solution regression. Exact evidence is in `status.json`.
 
+## Preserve the route-ownership check without compiling Web
+
+`AngularLegacyRouteInventoryContractTests` reads the committed source-discovery
+manifest and verifies that every non-server-owned discovered legacy workspace
+route has a declared API/Angular owner. This keeps the route-ownership
+assertion executable without a Web project reference or Razor source tree. It
+does not establish behavior parity, and the existing `AngularRoutingContractTests`
+still reads Web source in the committed source snapshot.
+
+At code commit `b2769fb8d6d2881b6feca2cbe96cbdb66f3b126e`, the API.Tests Release
+project build passed with zero warnings/errors and the focused inventory route
+contract passed 1/1. A concurrent lane had modified the older route test and
+staged Web deletions in the shared worktree; those changes were excluded from
+this commit, and the focused filter exercised only the new manifest contract.
+The full API suite result remains 189/189 at `d4439483`; a full solution
+regression was not run at this source commit. Exact evidence is in `status.json`.
+
 ## AS-PAR-002: client-scoped audit fieldwork command isolation
 
 PostgreSQL-backed regressions seed sibling clients A and B and use real
