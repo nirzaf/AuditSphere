@@ -14,8 +14,90 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { Subscription, timeout } from 'rxjs';
 import { SessionService } from '../../core/session';
+import { Drafts } from '../../core/drafts';
 import { CommercialFormDraft, textFields } from './commercial-form-draft';
 import { exactDecimal, guidPattern } from '../../core/contracts';
+
+export interface QuotationSaveIntent {
+  proposalId: string;
+  requestId: string;
+  proposalRevision: string;
+  expectedRevision: string;
+  lines: { rateCardId: string; hours: string }[];
+  complexity: string;
+  risk: string;
+  discount: string;
+  nonStandardTerms: boolean;
+  note: string | null;
+  submissionPending: true;
+}
+
+export function validQuotationIntent(value: unknown): QuotationSaveIntent | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const v = value as Record<string, unknown>;
+  const tf = (k: string, max: number) => {
+    const val = v[k];
+    return typeof val === 'string' && val.length <= max ? val : null;
+  };
+  const proposalId = tf('proposalId', 36);
+  const requestId = tf('requestId', 36);
+  const proposalRevision = tf('proposalRevision', 19);
+  const expectedRevision = tf('expectedRevision', 19);
+  const complexity = tf('complexity', 40);
+  const risk = tf('risk', 40);
+  const discount = tf('discount', 40);
+  const nonStandardTerms = typeof v['nonStandardTerms'] === 'boolean' ? v['nonStandardTerms'] : null;
+  const note =
+    v['note'] === null || (typeof v['note'] === 'string' && v['note'].length <= 2000)
+      ? (v['note'] as string | null)
+      : undefined;
+  if (
+    !proposalId ||
+    !guidPattern.test(proposalId) ||
+    !requestId ||
+    !guidPattern.test(requestId) ||
+    !proposalRevision ||
+    !/^\d{1,19}$/.test(proposalRevision) ||
+    !expectedRevision ||
+    !/^\d{1,19}$/.test(expectedRevision) ||
+    !complexity ||
+    !exactDecimal(complexity) ||
+    !risk ||
+    !exactDecimal(risk) ||
+    !discount ||
+    !exactDecimal(discount) ||
+    nonStandardTerms === null ||
+    note === undefined ||
+    v['submissionPending'] !== true ||
+    !Array.isArray(v['lines']) ||
+    v['lines'].length < 1 ||
+    v['lines'].length > 100
+  )
+    return null;
+  const lines: { rateCardId: string; hours: string }[] = [];
+  for (const raw of v['lines']) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    const r = raw as Record<string, unknown>;
+    const rateCardId =
+      typeof r['rateCardId'] === 'string' && r['rateCardId'].length <= 36 ? r['rateCardId'] : null;
+    const hours = typeof r['hours'] === 'string' && r['hours'].length <= 40 ? r['hours'] : null;
+    if (!rateCardId || !guidPattern.test(rateCardId) || !hours || !exactDecimal(hours)) return null;
+    lines.push({ rateCardId, hours });
+  }
+  return {
+    proposalId,
+    requestId,
+    proposalRevision,
+    expectedRevision,
+    lines,
+    complexity,
+    risk,
+    discount,
+    nonStandardTerms,
+    note,
+    submissionPending: true,
+  };
+}
 export function quotationDraft(
   value: unknown,
 ): {
@@ -306,6 +388,19 @@ export function decodeQuotation(value: unknown): Workspace {
             The previous command outcome was not confirmed. Compare persisted versions and approvals
             before proceeding.
           </p>
+          @if (recoverableSave()) {
+            <label
+              ><input type="checkbox" [(ngModel)]="reviewed" [disabled]="busy()" />I reviewed these
+              inputs and confirm the saved quotation request.</label
+            >
+            <button
+              matButton
+              [disabled]="!reviewed || busy()"
+              (click)="resolveSavedQuotationRequest()"
+            >
+              Resolve saved quotation request
+            </button>
+          }
           <button matButton [disabled]="busy()" (click)="acknowledgeOutcome()">
             I reviewed the persisted outcome
           </button>
@@ -409,11 +504,16 @@ export class Quotation {
   readonly changed = output<void>();
   private readonly http = inject(HttpClient);
   private readonly session = inject(SessionService);
+  private readonly drafts = inject(Drafts);
   private read?: Subscription;
   private write?: Subscription;
   private fence = 0;
   private refreshParentAfterUncertainSave = false;
   private reviewedBody?: object;
+  readonly savePending = signal(false);
+  readonly recoverableSave = signal(false);
+  private requestId: string = crypto.randomUUID();
+  private savedIntent: QuotationSaveIntent | null = null;
   readonly data = signal<Workspace | null>(null);
   readonly loading = signal(false);
   readonly busy = signal(false);
@@ -421,6 +521,14 @@ export class Quotation {
   readonly error = signal('');
   readonly message = signal('');
   readonly previewAmounts = signal<Amounts | null>(null);
+  private intentScope(): string {
+    return 'commercial-quotation-save:' + this.proposalId();
+  }
+  private persistIntent(intent: QuotationSaveIntent): boolean {
+    this.drafts.save(this.intentScope(), intent);
+    const saved = this.drafts.load(this.intentScope(), validQuotationIntent);
+    return !!saved && saved.requestId === intent.requestId;
+  }
   readonly tabDraft = new CommercialFormDraft(
     () => ({
       lines: this.lines.map((x) => ({ ...x })),
@@ -481,6 +589,10 @@ export class Quotation {
         this.read?.unsubscribe();
         this.write?.unsubscribe();
         this.refreshParentAfterUncertainSave = false;
+        this.savePending.set(false);
+        this.recoverableSave.set(false);
+        this.savedIntent = null;
+        this.requestId = crypto.randomUUID();
         this.data.set(null);
         this.busy.set(false);
         this.uncertain.set(false);
@@ -504,6 +616,8 @@ export class Quotation {
   acknowledgeOutcome(): void {
     if (!this.data() || this.busy()) return;
     this.uncertain.set(false);
+    this.savePending.set(false);
+    this.recoverableSave.set(false);
     this.invalidatePreview();
     this.message.set(
       'Persisted state reviewed. Calculate a fresh preview or choose the current approval action.',
@@ -582,12 +696,155 @@ export class Quotation {
       });
   }
   save(): void {
-    if (this.reviewed && this.previewAmounts() && this.reviewedBody)
-      this.command(
-        '/api/ui/proposals/' + this.proposalId() + '/quotation',
-        this.reviewedBody,
-        true,
+    const w = this.data();
+    if (
+      !this.reviewed ||
+      !this.previewAmounts() ||
+      this.busy() ||
+      this.uncertain() ||
+      this.savePending() ||
+      !w
+    )
+      return;
+    const intent: QuotationSaveIntent = {
+      proposalId: this.proposalId(),
+      requestId: this.requestId,
+      proposalRevision: w.proposalRevision,
+      expectedRevision: w.versions[0]?.revision ?? '0',
+      lines: this.lines.map((x) => ({ rateCardId: x.rateCardId, hours: x.hours })),
+      complexity: this.complexity,
+      risk: this.risk,
+      discount: this.discount,
+      nonStandardTerms: this.nonStandard,
+      note: this.note || null,
+      submissionPending: true,
+    };
+    if (!this.persistIntent(intent)) {
+      this.message.set(
+        'The quotation was not sent because this browser could not save its recovery identity.',
       );
+      return;
+    }
+    this.savedIntent = intent;
+    this.savePending.set(true);
+    this.recoverableSave.set(false);
+    this.sendQuotationIntent(intent);
+  }
+  resolveSavedQuotationRequest(): void {
+    const w = this.data();
+    if (
+      !w ||
+      this.busy() ||
+      !this.reviewed ||
+      !this.savePending() ||
+      !this.recoverableSave()
+    )
+      return;
+    const saved = this.drafts.load(this.intentScope(), validQuotationIntent);
+    if (
+      !saved ||
+      saved.proposalId !== this.proposalId() ||
+      saved.requestId !== this.requestId
+    ) {
+      this.message.set(
+        'The saved recovery details could not be verified. No retry was sent; refresh the page or contact an administrator.',
+      );
+      return;
+    }
+    this.sendQuotationIntent(saved);
+  }
+  private sendQuotationIntent(intent: QuotationSaveIntent): void {
+    const w = this.data();
+    if (!w || this.busy()) return;
+    const fence = this.fence;
+    this.busy.set(true);
+    this.uncertain.set(false);
+    this.recoverableSave.set(false);
+    this.message.set('Saving reviewed quotation version…');
+    const lines = intent.lines.map((l) => {
+      const r = w.rates.find((rate) => rate.id === l.rateCardId);
+      return r ? { role: r.role, activity: r.activity, hours: l.hours, rateCardId: r.id } : null;
+    });
+    if (lines.some((l) => l === null)) {
+      this.busy.set(false);
+      this.message.set('An approved rate changed; refresh the quotation.');
+      return;
+    }
+    const body = {
+      requestId: intent.requestId,
+      proposalRevision: intent.proposalRevision,
+      revision: intent.expectedRevision,
+      lines,
+      complexity: intent.complexity,
+      risk: intent.risk,
+      discount: intent.discount,
+      nonStandardTerms: intent.nonStandardTerms,
+      note: intent.note,
+    };
+    this.write = this.http
+      .post<unknown>('/api/ui/proposals/' + intent.proposalId + '/quotation', body)
+      .pipe(timeout(15000))
+      .subscribe({
+        next: (value) => {
+          if (fence !== this.fence) return;
+          this.busy.set(false);
+          const result = value as { id?: unknown };
+          if (
+            typeof result?.id !== 'string' ||
+            (result.id.toLowerCase() !== intent.requestId.toLowerCase() &&
+              !identity(result.id))
+          ) {
+            this.uncertain.set(true);
+            this.savePending.set(true);
+            this.recoverableSave.set(true);
+            this.data.set(null);
+            this.refreshParentAfterUncertainSave = true;
+            this.invalidatePreview();
+            this.message.set('Outcome unconfirmed. Refresh and review persisted versions.');
+            return;
+          }
+          this.drafts.clear(this.intentScope());
+          this.savePending.set(false);
+          this.recoverableSave.set(false);
+          this.uncertain.set(false);
+          this.reviewed = false;
+          this.requestId = crypto.randomUUID();
+          this.savedIntent = null;
+          this.invalidatePreview();
+          this.message.set('Quotation version recorded.');
+          this.tabDraft.submitted();
+          this.changed.emit();
+          this.load();
+        },
+        error: (failure) => {
+          if (fence !== this.fence) return;
+          this.busy.set(false);
+          if (failure.status >= 400 && failure.status < 500) {
+            this.drafts.clear(this.intentScope());
+            this.savePending.set(false);
+            this.recoverableSave.set(false);
+            this.uncertain.set(false);
+            this.reviewed = false;
+            this.requestId = crypto.randomUUID();
+            this.savedIntent = null;
+            this.invalidatePreview();
+            this.message.set(
+              'Quotation version refused. Refresh and check current rates, revision and independent approval role.',
+            );
+          } else {
+            this.uncertain.set(true);
+            this.savePending.set(true);
+            this.recoverableSave.set(true);
+            this.data.set(null);
+            this.refreshParentAfterUncertainSave = true;
+            this.invalidatePreview();
+            this.message.set(
+              'Outcome unconfirmed. Refresh and review persisted versions before another command.',
+            );
+          }
+          if (failure.status === 401) this.session.clear();
+        },
+      });
   }
   submit(v: Version): void {
     this.command('/api/ui/quotations/' + v.id + '/submit', {});
@@ -662,7 +919,37 @@ export class Quotation {
             const w = decodeQuotation(value);
             if (w.proposalId !== this.proposalId()) throw new Error('Wrong proposal');
             this.data.set(w);
-            if (!this.lines[0].rateCardId) {
+            const pending = this.drafts.load(this.intentScope(), validQuotationIntent);
+            if (pending && pending.proposalId.toLowerCase() === this.proposalId().toLowerCase()) {
+              const matched = w.versions.some(
+                (v) => v.id.toLowerCase() === pending.requestId.toLowerCase(),
+              );
+              if (matched) {
+                this.drafts.clear(this.intentScope());
+                this.savePending.set(false);
+                this.recoverableSave.set(false);
+                this.savedIntent = null;
+                this.requestId = crypto.randomUUID();
+                this.message.set('Persisted result found. The saved quotation revision was recorded.');
+                this.changed.emit();
+              } else {
+                this.savedIntent = pending;
+                this.requestId = pending.requestId;
+                this.lines = pending.lines.map((l) => ({ ...l }));
+                this.complexity = pending.complexity;
+                this.risk = pending.risk;
+                this.discount = pending.discount;
+                this.nonStandard = pending.nonStandardTerms;
+                this.note = pending.note ?? '';
+                this.savePending.set(true);
+                this.recoverableSave.set(true);
+                this.uncertain.set(true);
+                this.reviewed = false;
+                this.message.set(
+                  'A saved quotation request needs resolution. Review its unchanged terms to retry safely.',
+                );
+              }
+            } else if (!this.lines[0].rateCardId) {
               const v = w.versions[0];
               this.lines = v
                 ? v.amounts.lines.map((l) => ({ rateCardId: l.rateCardId, hours: l.hours }))

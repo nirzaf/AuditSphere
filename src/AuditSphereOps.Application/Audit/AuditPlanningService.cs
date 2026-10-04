@@ -145,6 +145,22 @@ public sealed record FindingResponseResult(
     string Status,
     bool Corrected);
 
+/// <summary>
+/// Designates (or un-designates) a finding for the client-facing management letter (§26/R09). The
+/// decision is persisted with its author and a required recommendation; internal-only findings never
+/// appear in the letter, so designation is itself output-affecting evidence.
+/// </summary>
+public sealed record RecordManagementLetterDesignationRequest(
+    Guid FindingId,
+    bool Designated,
+    string? Recommendation);
+
+public sealed record ManagementLetterDesignationResult(
+    Guid FindingId,
+    bool Designated,
+    DateTimeOffset? DesignatedAt,
+    string? Recommendation);
+
 // ---------------------------------------------------------------------------
 // Posting balance guard record (NT-22.1 unit test support)
 // ---------------------------------------------------------------------------
@@ -840,6 +856,67 @@ public static class AuditPlanningService
 
         return CommandResult<FindingResponseResult>.Ok(new FindingResponseResult(
             target.Id, status, req.Corrected));
+    }
+
+    private static readonly string[] ManagementLetterDesignationRoles = ["Manager", "Partner", "Administrator"];
+
+    /// <summary>
+    /// Designates (or un-designates) a finding for the client-facing management letter. The decision is
+    /// persisted with its author and a required recommendation; the letter renders only designated,
+    /// complete matters, so the designation itself is output-affecting evidence.
+    /// </summary>
+    public static async Task<CommandResult<ManagementLetterDesignationResult>> DesignateManagementLetterFindingAsync(
+        IAuditSphereDbContext db,
+        ActorContext actor,
+        RecordManagementLetterDesignationRequest req,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(db);
+        ArgumentNullException.ThrowIfNull(req);
+
+        if (!actor.Roles.Intersect(ManagementLetterDesignationRoles).Any())
+            return CommandResult<ManagementLetterDesignationResult>.Fail(ErrorCodes.ScopeDenied,
+                "Only a Manager, Partner or Administrator may designate a finding for the management letter.");
+        var recommendation = req.Recommendation?.Trim() ?? "";
+        if (req.Designated && recommendation.Length is 0 or > 2000)
+            return CommandResult<ManagementLetterDesignationResult>.Fail(InvalidCode,
+                "A designation requires the exact recommendation that the client-facing letter will render.");
+
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+
+        var snapshot = await db.Findings.AsNoTracking()
+            .SingleOrDefaultAsync(f => f.Id == req.FindingId && f.FirmId == actor.FirmId, ct);
+        if (snapshot is null)
+            return CommandResult<ManagementLetterDesignationResult>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+        var scope = await LockedEngagementAsync(db, actor, snapshot.EngagementId, ct, snapshot.ClientId);
+        if (scope.Denied is not null)
+            return CommandResult<ManagementLetterDesignationResult>.Fail(scope.Denied, scope.Message);
+
+        var writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, snapshot.EngagementId,
+            "designate a management-letter finding", ct);
+        if (!writable.Succeeded)
+            return CommandResult<ManagementLetterDesignationResult>.Fail(writable.ErrorCode!, writable.Message!);
+
+        var target = await db.Findings.FromSqlInterpolated($"""
+            SELECT * FROM findings WHERE id = {req.FindingId} AND firm_id = {actor.FirmId} FOR UPDATE
+            """).AsNoTracking().SingleOrDefaultAsync(ct);
+        if (target is null || target.ClientId != snapshot.ClientId || target.EngagementId != snapshot.EngagementId)
+            return CommandResult<ManagementLetterDesignationResult>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+        DateTimeOffset? designatedAt = req.Designated ? DateTimeOffset.UtcNow : null;
+        Guid? designatedBy = req.Designated ? actor.UserId : null;
+        string? storedRecommendation = req.Designated ? recommendation : null;
+        await db.Findings.Where(x => x.Id == req.FindingId).ExecuteUpdateAsync(s => s
+            .SetProperty(x => x.LetterDesignatedAt, designatedAt)
+            .SetProperty(x => x.LetterDesignatedByUserId, designatedBy)
+            .SetProperty(x => x.LetterRecommendation, storedRecommendation), ct);
+
+        await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
+
+        return CommandResult<ManagementLetterDesignationResult>.Ok(new(
+            target.Id, req.Designated, designatedAt, storedRecommendation));
     }
 
     public static async Task<CommandResult> SetReviewPointDispositionAsync(

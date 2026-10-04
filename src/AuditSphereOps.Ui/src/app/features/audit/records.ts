@@ -11,7 +11,8 @@ export const decodePopulation = obj({ id: guid, engagementId: guid, purpose: tex
   selections: arr(obj({ method: text, status: text, rationale: text, itemCount: nat, testCount: nat, reviewedTestCount: nat }), 1000),
   evidence: arr(obj({ purpose: text, assertion: text, receiptToken: text }), 5000) });
 export const decodeFinding = obj({ id: guid, engagementId: guid, findingType: text, impactDescription: text, monetaryAmount: nullable(dec), corrected: bool,
-  managementResponse: nullable(text), status: text, createdAt: instant, professionalWorkBlocked: bool });
+  managementResponse: nullable(text), status: text, createdAt: instant, professionalWorkBlocked: bool,
+  letterDesignatedAt: nullable(instant), letterRecommendation: nullable(text) });
 export const decodeReviewPoint = obj({ id: guid, engagementId: guid, targetKind: text, targetId: guid, targetRevision: int, raisedByUserId: guid, raisedAt: instant,
   significant: bool, cleared: bool, comment: text, status: text });
 const gate = obj({ state: text, detail: text });
@@ -78,6 +79,15 @@ export class PopulationRecord {
           <button matButton="filled" type="submit" [disabled]="cmd.busy() || f.professionalWorkBlocked">Record response</button>
         </form>
         <p><small>Correction inside the audited period and future-period remediation are tracked separately; filing a response here does not state an audit conclusion.</small></p></section>
+      <section class="panel"><h2>Management letter designation</h2>
+        <p>Designation status: <audit-status [value]="f.letterDesignatedAt ? 'DESIGNATED' : 'INTERNAL_ONLY'" /></p>
+        @if (f.letterRecommendation) { <p>Recommendation held for the client-facing letter:</p><blockquote>{{ f.letterRecommendation }}</blockquote> }
+        <form (submit)="$event.preventDefault(); designate(f.id, designatedFlag)">
+          <label><span><input type="checkbox" name="designated" [(ngModel)]="designatedFlag" /> Designate this matter for the client-facing management letter</span></label>
+          <label>Recommendation rendered in the letter <textarea name="rec" [(ngModel)]="designation" rows="3" [required]="designatedFlag" maxlength="2000"></textarea></label>
+          <button matButton="filled" type="submit" [disabled]="cmd.busy() || f.professionalWorkBlocked">Record designation</button>
+        </form>
+        <p><small>Only designated matters with a complete recommendation are rendered in the management letter; findings left internal-only never appear in client reporting. A Manager, Partner or Administrator records the designation, and changing a designated matter invalidates the generated letter.</small></p></section>
     }
     <audit-command-message [message]="cmd.message()" [failed]="cmd.failed()" />
   `,
@@ -89,6 +99,8 @@ export class FindingRecord {
   readonly cmd = new CommandState(this.api);
   response = '';
   corrected = false;
+  designatedFlag = false;
+  designation = '';
   constructor() {
     effect(() => {
       const f = this.rec.data();
@@ -96,10 +108,18 @@ export class FindingRecord {
         this.response = f.managementResponse;
         this.corrected = f.corrected;
       }
+      if (f && !this.designation && f.letterRecommendation !== null) {
+        this.designation = f.letterRecommendation;
+        this.designatedFlag = f.letterDesignatedAt !== null;
+      }
     });
   }
   respond(id: string): void {
     void this.cmd.run(`/api/ui/findings/${id}/response`, { managementResponse: this.response, corrected: this.corrected }, 'The management response was recorded.').finally(() => this.rec.reload());
+  }
+  designate(id: string, designated: boolean): void {
+    void this.cmd.run(`/api/ui/findings/${id}/management-letter-designation`, { designated, recommendation: designated ? this.designation : null },
+      designated ? 'The matter was designated for the management letter.' : 'The matter was returned to internal-only.').finally(() => this.rec.reload());
   }
 }
 

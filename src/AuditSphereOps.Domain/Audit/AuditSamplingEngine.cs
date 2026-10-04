@@ -15,10 +15,25 @@ public static class AuditSamplingMethods
   public const string Systematic = "SYSTEMATIC";
   /// <summary>Key items first, then seeded random from the remainder up to the sample size.</summary>
   public const string Stratified = "STRATIFIED";
-  public static readonly string[] All = [MonetaryUnit, KeyItem, Random, Systematic, Stratified];
+  /// <summary>Reviewer-defined attribute strata: one seeded draw per reviewer-defined stratum.</summary>
+  public const string AttributeStrata = "ATTRIBUTE_STRATA";
+  public static readonly string[] All = [MonetaryUnit, KeyItem, Random, Systematic, Stratified, AttributeStrata];
 }
 
-public sealed record SamplingPopulationItem(string StableRowId, decimal SignedAmount);
+/// <summary>Reviewer-selectable, deterministic stratification fields derived from imported schedule rows.</summary>
+public static class SamplingAttributeFields
+{
+  public const string Account = "ACCOUNT";
+  public const string Currency = "CURRENCY";
+  public const string Direction = "DIRECTION";
+  public const string Month = "MONTH";
+  public static readonly string[] All = [Account, Currency, Direction, Month];
+}
+
+/// <summary>Row attributes carried from the imported schedule; they feed reviewer-defined attribute strata.</summary>
+public sealed record SamplingRowAttributes(string AccountCode, string Currency, DateOnly? TransactionDate, DateOnly? PostingDate);
+
+public sealed record SamplingPopulationItem(string StableRowId, decimal SignedAmount, SamplingRowAttributes? Attributes = null);
 
 public sealed record SamplingPlan(
   string Method,
@@ -29,17 +44,24 @@ public sealed record SamplingPlan(
   /// <summary>Required for RANDOM, SYSTEMATIC and STRATIFIED: maximum items to select.</summary>
   int? SampleSize = null,
   /// <summary>Required for RANDOM, SYSTEMATIC and STRATIFIED: reproducible selection seed.</summary>
-  int? Seed = null);
+  int? Seed = null,
+  /// <summary>Required for ATTRIBUTE_STRATA: reviewer-defined stratification fields from SamplingAttributeFields.</summary>
+  IReadOnlyList<string>? AttributeFields = null);
 
 public sealed record SampledItem(
   string StableRowId, decimal SignedAmount, decimal AbsoluteAmount,
   string InclusionReason, decimal CumulativeAbsoluteAmount);
 
+public sealed record AttributeStratumSummary(
+  string StratumKey, int PopulationCount, int Slots, int SelectedCount);
+
 public sealed record SamplingOutcome(
   string Method, int PopulationCount, decimal PopulationSignedTotal, decimal PopulationAbsoluteTotal,
   int SelectedCount, decimal SelectedAbsoluteTotal, decimal CoveragePercent,
   int? Seed, decimal? Interval, decimal? KeyItemThreshold,
-  IReadOnlyList<SampledItem> Items);
+  IReadOnlyList<SampledItem> Items,
+  /// <summary>Only for ATTRIBUTE_STRATA: the reviewer-defined strata and their allocation.</summary>
+  IReadOnlyList<AttributeStratumSummary>? Strata = null);
 
 public static class AuditSamplingEngine
 {
@@ -57,32 +79,110 @@ public static class AuditSamplingEngine
     if (population.Select(x => x.StableRowId).Distinct(StringComparer.Ordinal).Count() != population.Count)
       throw new ArgumentException("Population row identities must be unique.", nameof(population));
 
-    // Systematic sampling selects row positions, including zero-amount transactions.
-    // Existing monetary-exposure methods preserve their original population contract.
+    // Systematic sampling and attribute strata select row positions including zero-amount
+    // transactions (a zero-value row still carries attributes worth stratifying). Existing
+    // monetary-exposure methods preserve their original population contract.
     var ordered = population
-      .Select(x => new SamplingPopulationItem(x.StableRowId.Trim(), x.SignedAmount))
-      .Where(x => plan.Method == AuditSamplingMethods.Systematic || Abs(x.SignedAmount) > 0m)
+      .Select(x => new SamplingPopulationItem(x.StableRowId.Trim(), x.SignedAmount, x.Attributes))
+      .Where(x => plan.Method == AuditSamplingMethods.Systematic || plan.Method == AuditSamplingMethods.AttributeStrata || Abs(x.SignedAmount) > 0m)
       .ToList();
     var signedTotal = population.Sum(x => x.SignedAmount);
     var absoluteTotal = ordered.Sum(x => Abs(x.SignedAmount));
 
-    var selected = plan.Method switch
+    List<SampledItem> selected;
+    IReadOnlyList<AttributeStratumSummary>? strata = null;
+    switch (plan.Method)
     {
-      AuditSamplingMethods.MonetaryUnit => SelectMonetaryUnit(ordered, Require(plan.Interval, "interval", plan.Method)),
-      AuditSamplingMethods.KeyItem => SelectKeyItems(ordered, Require(plan.KeyItemThreshold, "key-item threshold", plan.Method)),
-      AuditSamplingMethods.Random => SelectRandom(ordered, RequireSize(plan.SampleSize, plan.Method), RequireSeed(plan.Seed, plan.Method)),
-      AuditSamplingMethods.Systematic => SelectSystematic(ordered, RequireSize(plan.SampleSize, plan.Method), RequireSeed(plan.Seed, plan.Method)),
-      _ => SelectStratified(ordered, Require(plan.KeyItemThreshold, "key-item threshold", plan.Method),
-        RequireSize(plan.SampleSize, plan.Method), RequireSeed(plan.Seed, plan.Method))
-    };
+      case AuditSamplingMethods.MonetaryUnit:
+        selected = SelectMonetaryUnit(ordered, Require(plan.Interval, "interval", plan.Method));
+        break;
+      case AuditSamplingMethods.KeyItem:
+        selected = SelectKeyItems(ordered, Require(plan.KeyItemThreshold, "key-item threshold", plan.Method));
+        break;
+      case AuditSamplingMethods.Random:
+        selected = SelectRandom(ordered, RequireSize(plan.SampleSize, plan.Method), RequireSeed(plan.Seed, plan.Method));
+        break;
+      case AuditSamplingMethods.Systematic:
+        selected = SelectSystematic(ordered, RequireSize(plan.SampleSize, plan.Method), RequireSeed(plan.Seed, plan.Method));
+        break;
+      case AuditSamplingMethods.AttributeStrata:
+        (selected, strata) = SelectAttributeStrata(ordered, plan.AttributeFields,
+          RequireSize(plan.SampleSize, plan.Method), RequireSeed(plan.Seed, plan.Method));
+        break;
+      default:
+        selected = SelectStratified(ordered, Require(plan.KeyItemThreshold, "key-item threshold", plan.Method),
+          RequireSize(plan.SampleSize, plan.Method), RequireSeed(plan.Seed, plan.Method));
+        break;
+    }
 
     var selectedAbsolute = selected.Sum(x => x.AbsoluteAmount);
     return new SamplingOutcome(
       plan.Method, ordered.Count, Money(signedTotal), Money(absoluteTotal),
       selected.Count, Money(selectedAbsolute),
       absoluteTotal == 0m ? 0m : Money(selectedAbsolute / absoluteTotal * 100m),
-      plan.Seed, plan.Interval, plan.KeyItemThreshold, selected);
+      plan.Seed, plan.Interval, plan.KeyItemThreshold, selected, strata);
   }
+
+  /// <summary>
+  /// Reviewer-defined attribute strata (R07/T20): rows are grouped by the reviewer-selected
+  /// deterministic fields (account, currency, direction, month), the sample size is allocated one slot
+  /// per stratum first and the remainder in stable stratum order, and each stratum is filled by a
+  /// derived seeded draw without replacement. A size below the stratum count cannot cover every
+  /// required stratum and is refused instead of silently dropping strata.
+  /// </summary>
+  private static (List<SampledItem> Items, IReadOnlyList<AttributeStratumSummary> Strata) SelectAttributeStrata(
+    List<SamplingPopulationItem> ordered, IReadOnlyList<string>? fields, int sampleSize, int seed)
+  {
+    if (fields is null || fields.Count == 0)
+      throw new ArgumentException("Attribute strata sampling requires reviewer-defined attribute fields.", nameof(fields));
+    var keys = fields.Select(f => f.Trim().ToUpperInvariant()).Distinct(StringComparer.Ordinal).ToArray();
+    if (keys.Any(f => !SamplingAttributeFields.All.Contains(f)))
+      throw new ArgumentException("Attribute strata fields must be chosen from the supported reviewer-defined attribute set.", nameof(fields));
+    if (ordered.Any(x => x.Attributes is null))
+      throw new ArgumentException("Attribute strata sampling requires population rows that carry the imported row attributes.", nameof(ordered));
+
+    var groups = new SortedDictionary<string, List<int>>(StringComparer.Ordinal);
+    for (var i = 0; i < ordered.Count; i++)
+    {
+      var key = string.Join('|', keys.Select(f => StratumFieldValue(f, ordered[i])));
+      if (!groups.TryGetValue(key, out var bucket)) groups[key] = bucket = [];
+      bucket.Add(i);
+    }
+    if (sampleSize < groups.Count)
+      throw new ArgumentException(
+        $"The sample size must provide at least one slot for each of the {groups.Count} strata present in the population.", nameof(fields));
+
+    var baseSlots = Math.DivRem(sampleSize, groups.Count, out var remainder);
+    var cumulativeByRow = CumulativeIndex(ordered);
+    var selected = new List<SampledItem>(sampleSize);
+    var strata = new List<AttributeStratumSummary>(groups.Count);
+    var ordinal = 0;
+    foreach (var (key, indexes) in groups)
+    {
+      var slots = Math.Min(baseSlots + (ordinal < remainder ? 1 : 0), indexes.Count);
+      var stratumSeed = unchecked(seed + ordinal);
+      foreach (var index in DrawIndexesFrom(indexes, slots, stratumSeed))
+      {
+        var item = ordered[index];
+        selected.Add(new SampledItem(item.StableRowId, item.SignedAmount, Abs(item.SignedAmount),
+          $"Attribute strata '{key}': {slots} of {indexes.Count} rows drawn with per-stratum seed {stratumSeed}.",
+          cumulativeByRow[index]));
+      }
+      strata.Add(new AttributeStratumSummary(key, indexes.Count, slots, Math.Min(slots, indexes.Count)));
+      ordinal++;
+    }
+    return (selected, strata);
+  }
+
+  private static string StratumFieldValue(string field, SamplingPopulationItem item) => field switch
+  {
+    SamplingAttributeFields.Account => item.Attributes!.AccountCode.Trim().ToUpperInvariant(),
+    SamplingAttributeFields.Currency => item.Attributes!.Currency.Trim().ToUpperInvariant(),
+    SamplingAttributeFields.Direction => item.SignedAmount > 0m ? "DEBIT" : item.SignedAmount < 0m ? "CREDIT" : "ZERO",
+    _ => (item.Attributes!.TransactionDate ?? item.Attributes.PostingDate) is { } month
+      ? $"{month.Year:D4}-{month.Month:D2}"
+      : "NOT_STATED",
+  };
 
   private static List<SampledItem> SelectMonetaryUnit(List<SamplingPopulationItem> ordered, decimal interval)
   {

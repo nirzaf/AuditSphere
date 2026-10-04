@@ -18,6 +18,8 @@ public sealed class AuditSamplingRun
   public decimal? KeyItemThreshold { get; set; }
   public int? SampleSize { get; set; }
   public int? Seed { get; set; }
+  /// <summary>Only for ATTRIBUTE_STRATA: the reviewer-defined attribute fields (JSON array) needed to re-perform the draw.</summary>
+  public string? AttributeFields { get; set; }
   public int PopulationCount { get; set; }
   public decimal PopulationAbsoluteTotal { get; set; }
   public int SelectedCount { get; set; }

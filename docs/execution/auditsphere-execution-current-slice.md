@@ -13,6 +13,16 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Parity hardening: workpaper navigation safety, management letter designation, and attribute strata sampling
+
+This slice resolves key parity requirements across audit fieldwork, deliverable reporting, and sampling:
+- **Workpaper Navigation Safety (GAP-01/UX10):** [WorkpaperEditor](file:///Users/qts/Repos/AuditSphere/src/AuditSphereOps.Ui/src/app/features/audit/workpaper.ts) guards in-flight and unacknowledged draft edits on navigation using `confirmNavigation()` with the shared [UnsavedChangesDialog](file:///Users/qts/Repos/AuditSphere/src/AuditSphereOps.Ui/src/app/core/unsaved-changes.ts) (Save, Discard, Stay), prevents browser window close via `@HostListener('window:beforeunload')`, and registers `canDeactivate: [unsavedChangesGuard]` on `/app/audit/workpapers/:id`.
+- **Management Letter Finding Designation (GAP-02/R04):** [Finding](file:///Users/qts/Repos/AuditSphere/src/AuditSphereOps.Domain/Audit/Audit.cs) records maintain persisted designation decisions (`letter_designated_at`, `letter_designated_by_user_id`, `letter_recommendation`). [AuditDeliverableService](file:///Users/qts/Repos/AuditSphere/src/AuditSphereOps.Application/Completion/AuditDeliverableService.cs) filters exclusively for designated matters with complete recommendations when generating client-facing management letters; internal-only findings are excluded from client deliverables.
+- **Reviewer-Defined Attribute Strata Sampling (GAP-03/T20/T22):** [AuditSamplingEngine](file:///Users/qts/Repos/AuditSphere/src/AuditSphereOps.Domain/Audit/AuditSamplingEngine.cs) implements attribute strata sampling supporting reviewer-selected fields (account, currency, direction, month), guaranteed stratum coverage, and persisted run provenance.
+- **Commercial Quotation Recovery & Shell Pending Outcomes:** [QuotationWorkspace](file:///Users/qts/Repos/AuditSphere/src/AuditSphereOps.Ui/src/app/features/commercial/quotation.ts) persists save intent with unique request IDs for recovery without duplicated fee actions, and [PendingOutcomes](file:///Users/qts/Repos/AuditSphere/src/AuditSphereOps.Ui/src/app/core/pending-outcomes.ts) banner surfaces unresolved commands.
+
+All 476 Angular unit tests, 647 Domain tests, and 186 API tests passed. EF Core migrations are in sync with 0 model changes pending.
+
 ## Resource grid separates approved actual hours and stays readable on mobile
 
 Resource week cells now show approved actual hours separately from planned hours

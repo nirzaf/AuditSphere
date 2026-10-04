@@ -237,6 +237,11 @@ public sealed class Finding
   public decimal? MonetaryAmount { get; set; }
   public string? ManagementResponse { get; set; }
   public string Status { get; set; } = FindingStatuses.Open;
+  // Persisted management-letter designation decision. Null while the finding stays internal-only;
+  // the recommendation is required while designated and is rendered in the client-facing letter.
+  public DateTimeOffset? LetterDesignatedAt { get; set; }
+  public Guid? LetterDesignatedByUserId { get; set; }
+  public string? LetterRecommendation { get; set; }
   public DateTimeOffset CreatedAt { get; set; }
 }
 

@@ -144,6 +144,12 @@ public sealed partial class AuditDeliverablesTests
     Guid srm;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
+      // The management letter is a selective client report (R09): the Manager designates the seeded
+      // matter before the completion chain is compiled, so every facts digest from here on includes
+      // the client-facing designation and its exact recommendation.
+      Assert.True((await AuditPlanningService.DesignateManagementLetterFindingAsync(db, manager,
+        new RecordManagementLetterDesignationRequest(await db.Findings.AsNoTracking().Select(x => x.Id).SingleAsync(), true,
+          "Introduce a documented approval workflow before the next cycle."))).Succeeded);
       Assert.Equal(ErrorCodes.GateBlocked, (await AuditDeliverableService.DecideOpinionAsync(db, partner, w.EngagementId, "UNMODIFIED", null, null)).ErrorCode);
       srm = (await AuditDeliverableService.GenerateSummaryReviewMemorandumAsync(db, manager, w.EngagementId, "Clear the confirmation before signing.")).Value;
       Assert.Equal(ErrorCodes.ScopeDenied, (await AuditDeliverableService.PartnerClearAsync(db, w.A("partner2", "Partner"), srm, "Reviewed", "Reviewed")).ErrorCode);
@@ -188,7 +194,11 @@ public sealed partial class AuditDeliverablesTests
         var report = (await AuditDeliverableService.GenerateReportAsync(db, manager, w.EngagementId, kind)).Value!;
         var text = DocumentText((await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.Id == report.DeliverableId)).Content);
         Assert.Contains("Credit notes approved without review", text);
-        if (kind == DeliverableKinds.ManagementLetter) Assert.Contains("Approval workflow introduced from March.", text);
+        if (kind == DeliverableKinds.ManagementLetter)
+        {
+          Assert.Contains("Approval workflow introduced from March.", text);
+          Assert.Contains("Introduce a documented approval workflow before the next cycle.", text);
+        }
       }
       iar = (await AuditDeliverableService.GenerateReportAsync(db, manager, w.EngagementId, DeliverableKinds.IndependentAuditorsReport)).Value!.DeliverableId!.Value;
       var iarText = DocumentText((await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.Id == iar)).Content);

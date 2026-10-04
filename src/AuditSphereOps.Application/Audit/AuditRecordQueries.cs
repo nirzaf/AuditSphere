@@ -15,7 +15,8 @@ public sealed record PopulationRecord(Guid Id, Guid EngagementId, string Purpose
   decimal MonetaryControlTotal, string Currency, string? Exclusions, string Status, DateTimeOffset CreatedAt, IReadOnlyList<PopulationSelectionView> Selections,
   IReadOnlyList<PopulationEvidenceView> Evidence);
 public sealed record FindingRecordView(Guid Id, Guid EngagementId, string FindingType, string ImpactDescription, decimal? MonetaryAmount, bool Corrected,
-  string? ManagementResponse, string Status, DateTimeOffset CreatedAt, bool ProfessionalWorkBlocked);
+  string? ManagementResponse, string Status, DateTimeOffset CreatedAt, bool ProfessionalWorkBlocked,
+  DateTimeOffset? LetterDesignatedAt, string? LetterRecommendation);
 public sealed record ReviewPointView(Guid Id, Guid EngagementId, string TargetKind, Guid TargetId, long TargetRevision, Guid RaisedByUserId, DateTimeOffset RaisedAt,
   bool Significant, bool Cleared, string Comment, string Status);
 public sealed record ReleaseGateView(string State, string Detail);
@@ -88,7 +89,8 @@ public static class AuditRecordQueries
     var f = await db.Findings.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id && x.FirmId == actor.FirmId, ct);
     if (f is null || !await AuthorizeAsync(db, actor, f.ClientId, f.EngagementId, AuditRoles, ct)) return CommandResult<FindingRecordView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var blocked = await db.Engagements.AsNoTracking().Where(e => e.Id == f.EngagementId && e.FirmId == actor.FirmId).Select(e => e.ProfessionalWorkBlocked).SingleOrDefaultAsync(ct);
-    return CommandResult<FindingRecordView>.Ok(new(f.Id, f.EngagementId, f.FindingType, f.ImpactDescription, f.MonetaryAmount, f.Corrected, f.ManagementResponse, f.Status, f.CreatedAt, blocked));
+    return CommandResult<FindingRecordView>.Ok(new(f.Id, f.EngagementId, f.FindingType, f.ImpactDescription, f.MonetaryAmount, f.Corrected, f.ManagementResponse, f.Status, f.CreatedAt, blocked,
+      f.LetterDesignatedAt, f.LetterRecommendation));
   }
 
   public static async Task<CommandResult<ReviewPointView>> ReviewPointAsync(IAuditSphereDbContext db, ActorContext actor, Guid id, CancellationToken ct = default)

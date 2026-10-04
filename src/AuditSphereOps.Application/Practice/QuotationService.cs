@@ -19,7 +19,8 @@ public sealed record SaveQuotationRequest(
   decimal DiscountPercent,
   bool NonStandardTerms,
   string? NonStandardTermsNote,
-  long? ExpectedRevision = null, long? ExpectedProposalRevision = null);
+  long? ExpectedRevision = null, long? ExpectedProposalRevision = null,
+  Guid? RequestId = null);
 
 public sealed record QuotationRateOption(string Role, string Activity, decimal RatePerHour, Guid RateCardVersionId);
 
@@ -81,6 +82,24 @@ public static class QuotationService
     if (invalid is not null) return CommandResult<Guid>.Fail("quotation.invalid", invalid);
 
     var hash = QuotationCalculator.InputHash(input, request.NonStandardTerms, note);
+
+    if (request.RequestId is { } reqId && reqId != Guid.Empty)
+    {
+      var priorVersion = await db.QuotationVersions.AsNoTracking()
+        .SingleOrDefaultAsync(x => x.Id == reqId, ct);
+      if (priorVersion is not null)
+      {
+        var matches = priorVersion.FirmId == actor.FirmId
+          && priorVersion.ProposalId == request.ProposalId
+          && priorVersion.CreatedByUserId == actor.UserId
+          && priorVersion.InputHash == hash;
+        return matches
+          ? CommandResult<Guid>.Ok(priorVersion.Id)
+          : CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict,
+            "This quotation request identity is already bound to different terms.");
+      }
+    }
+
     var latest = await db.QuotationVersions.Where(x => x.FirmId == actor.FirmId && x.ProposalId == proposal.Id)
       .OrderByDescending(x => x.Revision).FirstOrDefaultAsync(ct);
     if (latest is not null && latest.Status != QuotationStates.Superseded && latest.InputHash == hash)
@@ -95,7 +114,8 @@ public static class QuotationService
     if (latest is not null && latest.Status != QuotationStates.Superseded) latest.Status = QuotationStates.Superseded;
     var version = new QuotationVersion
     {
-      Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ProposalId = proposal.Id, Revision = (latest?.Revision ?? 0) + 1,
+      Id = request.RequestId is { } id && id != Guid.Empty ? id : Guid.CreateVersion7(),
+      FirmId = actor.FirmId, ProposalId = proposal.Id, Revision = (latest?.Revision ?? 0) + 1,
       Currency = currency, LinesJson = JsonSerializer.Serialize(result.Lines, Json), ComplexityFactor = request.ComplexityFactor,
       RiskPremiumPercent = request.RiskPremiumPercent, DiscountPercent = request.DiscountPercent,
       NonStandardTerms = request.NonStandardTerms, NonStandardTermsNote = note, BaseAmount = result.BaseAmount,

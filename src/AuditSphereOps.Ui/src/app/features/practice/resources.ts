@@ -377,7 +377,9 @@ export class ResourcePlanning {
       if (!r.ok) {
         this.cmd.failed.set(true);
         this.cmd.message.set(
-          'The planning action requires receipt verification. No action is retried automatically.',
+          !r.unknown && r.code === 'revision.stale'
+            ? 'Planning inputs changed after this review. The reviewed action was not accepted. Verify the retained request before closing it or reviewing the current values.'
+            : 'The planning action requires receipt verification. No action is retried automatically.',
         );
         return;
       }

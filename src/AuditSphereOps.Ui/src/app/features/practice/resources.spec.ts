@@ -364,6 +364,40 @@ describe('Resource planning forms', () => {
     expect(f.componentInstance.pending()).toBeNull();
     f.destroy();
   });
+  it('explains a stale review and requires receipt reconciliation before refresh', async () => {
+    const f = setup(),
+      c = editor(f, 'certification');
+    c.model.update((m) => ({ ...m, user: id, name: 'Stale qualification' }));
+    TestBed.tick();
+    const p = await review(f, 'certification');
+    f.componentInstance.assentModel.set({ reviewed: true });
+    const confirming = f.componentInstance.confirmReviewed();
+    http
+      .expectOne('/api/ui/practice/resources/commands')
+      .flush(
+        { code: 'revision.stale', message: 'Planning inputs changed.' },
+        { status: 409, statusText: 'Conflict' },
+      );
+    await confirming;
+    expect(f.componentInstance.cmd.message()).toContain('Planning inputs changed after this review');
+    expect(f.componentInstance.pending()?.requestId).toBe(p.requestId);
+    expect(f.componentInstance.cmd.uncertain()).toBe(true);
+    await f.componentInstance.send('certification', c.model());
+    http.expectNone((r) => r.method === 'POST');
+
+    const verifying = f.componentInstance.verifyReceipt();
+    http
+      .expectOne(
+        '/api/ui/practice/resources/receipts/' + p.requestId + '?requestHash=' + p.requestHash,
+      )
+      .flush({ found: false, receipt: null });
+    await verifying;
+    f.componentInstance.acknowledge();
+    http.expectOne((r) => r.url.startsWith('/api/ui/practice/resources?')).flush(workspace);
+    TestBed.tick();
+    http.expectNone((r) => r.method === 'POST');
+    f.destroy();
+  });
   it('mixed planning fields and mismatched receipt metadata fail closed', () => {
     const f = setup(),
       c = editor(f, 'certification');

@@ -154,4 +154,45 @@ public sealed class AngularAccessibilityDeepAcceptanceTests
     Assert.True(watch.Elapsed <= TimeSpan.FromSeconds(25),
       $"Constrained-network cold load took {watch.ElapsedMilliseconds}ms, exceeding the 25s ceiling.");
   }
+
+  [Fact]
+  [Trait("CaseId", "ANGULAR-SUSTAINED-LOAD-E2E")]
+  public async Task SustainedNavigation_AcrossLazyRoutes_StaysWithinPerNavigationCeiling()
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-SUSTAINED-LOAD-E2E");
+    var origin = await host.StartApiForIdentityAsync(host.Fixture.Staff,
+      new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var pageErrors = new List<string>();
+    page.PageError += (_, error) => pageErrors.Add(error);
+
+    await SignInAsync(page, origin, "/ui/app");
+
+    // Sustained local load: repeated warm navigations across every lazy route family in one session.
+    // Order-of-magnitude ceiling per warm navigation; exact measurements belong to status.json only.
+    var routes = new[]
+    {
+      "/ui/app", "/ui/app/practice/leads", "/ui/app/practice/time",
+      "/ui/app/accounting/mappings", "/ui/app/operations",
+    };
+    var slowest = 0L;
+    for (var round = 0; round < 3; round++)
+    {
+      foreach (var route in routes)
+      {
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        await page.GotoAsync(origin + route);
+        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        watch.Stop();
+        slowest = Math.Max(slowest, watch.ElapsedMilliseconds);
+        Assert.True(watch.Elapsed <= TimeSpan.FromSeconds(5),
+          $"Warm navigation to {route} took {watch.ElapsedMilliseconds}ms, exceeding the 5s ceiling.");
+      }
+    }
+    output.WriteLine($"PERF sustained warm navigations slowest={slowest}ms over {routes.Length * 3} navigations (ceiling 5000ms each)");
+    Assert.Empty(pageErrors);
+  }
 }

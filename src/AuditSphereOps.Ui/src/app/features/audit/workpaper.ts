@@ -1,9 +1,12 @@
-import { Component, DestroyRef, effect, inject, signal, untracked } from '@angular/core';
+import { Component, DestroyRef, HostListener, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
+import { MatDialog } from '@angular/material/dialog';
 import { Api, routeGuid } from '../../core/api';
 import { arr, guid, instant, int, nullable, obj, text } from '../../core/decode';
+import { UnsavedChangesDialog } from '../../core/unsaved-changes';
 import { SHARED } from '../../core/ui';
 
 const draft = obj({ workpaperId: guid, draftId: nullable(guid), baseWorkpaperRevision: int, baseInputGeneration: int, basePolicyGeneration: int, draftRevision: int,
@@ -16,7 +19,9 @@ const AUTOSAVE_MS = 750;
 
 /**
  * Working content is saved as a server-side draft guarded by the draft revision and base generations. Autosave runs
- * once after typing pauses; a refused or unacknowledged save is reported and never retried automatically.
+ * once after typing pauses; a refused or unacknowledged save is reported and never retried automatically. A deliberate
+ * navigation waits for any unresolved save outcome and then protects the typed content with an acknowledged save,
+ * an explicit discard, or by staying; a refused save blocks leaving with the failure visible.
  */
 @Component({
   selector: 'audit-workpaper',
@@ -72,6 +77,8 @@ export class WorkpaperEditor {
   conclusion = '';
   private dirty = false;
   private timer: ReturnType<typeof setTimeout> | undefined;
+  private pendingSave: Promise<boolean> | null = null;
+  private readonly dialogs = inject(MatDialog);
 
   constructor() {
     effect(() => {
@@ -95,25 +102,45 @@ export class WorkpaperEditor {
   async save(): Promise<boolean> {
     const w = this.wp.data(); const s = this.state;
     clearTimeout(this.timer);
-    if (!w || !s || this.saving() || this.conflict()) return false;
+    if (!w || !s || this.conflict()) return this.pendingSave ?? false;
+    if (this.saving()) return this.pendingSave ?? false;
     this.saving.set(true); this.status.set('Saving…');
     const work = this.work, conclusion = this.conclusion;
-    try {
-      const r = await this.api.command<Draft>(`/api/ui/audit/workpapers/${w.id}/draft`, { expectedDraftRevision: s.draftRevision, baseWorkpaperRevision: w.revision,
-        baseInputGeneration: s.baseInputGeneration, basePolicyGeneration: s.basePolicyGeneration, saveId: crypto.randomUUID(), workPerformed: work, conclusion });
-      if (!r.ok) {
-        const conflict = r.status === 409 || ['revision.stale', 'generation.stale', 'draft.target-changed', 'draft.conflict'].includes(r.code);
-        this.conflict.set(conflict);
-        this.status.set(conflict ? 'Conflict — a newer draft or target exists. Reload the current workpaper.' : 'Not saved — changes since the last save are not yet saved.');
-        this.report(false, r.message);
-        return false;
-      }
-      this.state = r.value;
-      this.dirty = this.work !== work || this.conclusion !== conclusion;
-      this.status.set(this.dirty ? 'Unsaved changes' : `Saved at ${(r.value.lastSavedAt ?? '').slice(0, 19).replace('T', ' ')} UTC`);
-      if (!this.failed()) this.message.set('');
-      return !this.dirty;
-    } finally { this.saving.set(false); }
+    this.pendingSave = (async (): Promise<boolean> => {
+      try {
+        const r = await this.api.command<Draft>(`/api/ui/audit/workpapers/${w.id}/draft`, { expectedDraftRevision: s.draftRevision, baseWorkpaperRevision: w.revision,
+          baseInputGeneration: s.baseInputGeneration, basePolicyGeneration: s.basePolicyGeneration, saveId: crypto.randomUUID(), workPerformed: work, conclusion });
+        if (!r.ok) {
+          const conflict = r.status === 409 || ['revision.stale', 'generation.stale', 'draft.target-changed', 'draft.conflict'].includes(r.code);
+          this.conflict.set(conflict);
+          this.status.set(conflict ? 'Conflict — a newer draft or target exists. Reload the current workpaper.' : 'Not saved — changes since the last save are not yet saved.');
+          this.report(false, r.message);
+          return false;
+        }
+        this.state = r.value;
+        this.dirty = this.work !== work || this.conclusion !== conclusion;
+        this.status.set(this.dirty ? 'Unsaved changes' : `Saved at ${(r.value.lastSavedAt ?? '').slice(0, 19).replace('T', ' ')} UTC`);
+        if (!this.failed()) this.message.set('');
+        return !this.dirty;
+      } finally { this.saving.set(false); this.pendingSave = null; }
+    })();
+    return this.pendingSave;
+  }
+  /** Leave guard: navigation waits for an unresolved save outcome, then an acknowledged save, an
+   * explicit discard, or staying protects the typed content. A conflicted target cannot save this
+   * content at all and its refusal is already reported, so leaving it is honest. */
+  async confirmNavigation(): Promise<boolean> {
+    if (!this.wp.data() || this.conflict()) return true;
+    if (this.saving() && this.pendingSave) await this.pendingSave.catch(() => false);
+    if (!this.dirty) return true;
+    const decision = await firstValueFrom(this.dialogs.open(UnsavedChangesDialog).afterClosed());
+    if (decision === 'save') return this.save();
+    if (decision === 'discard') return this.discard();
+    return false;
+  }
+  @HostListener('window:beforeunload', ['$event'])
+  beforeUnload(event: BeforeUnloadEvent): void {
+    if (this.dirty || this.saving()) { event.preventDefault(); event.returnValue = ''; }
   }
   async submit(): Promise<void> {
     const w = this.wp.data();
@@ -129,14 +156,15 @@ export class WorkpaperEditor {
       if (r.ok) this.wp.reload();
     } finally { this.busy.set(false); }
   }
-  async discard(): Promise<void> {
+  async discard(): Promise<boolean> {
     const w = this.wp.data(); const s = this.state;
-    if (!w || !s || this.busy()) return;
+    if (!w || !s || this.busy()) return false;
     this.busy.set(true);
     try {
       const r = await this.api.command(`/api/ui/audit/workpapers/${w.id}/draft/discard`, { expectedDraftRevision: s.draftRevision });
       this.report(r.ok, r.ok ? 'Draft discarded.' : r.message);
       if (r.ok) this.wp.reload();
+      return r.ok;
     } finally { this.busy.set(false); }
   }
   reload(): void { this.message.set(''); this.wp.reload(); }

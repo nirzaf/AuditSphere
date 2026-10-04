@@ -6,6 +6,7 @@ namespace AuditSphereOps.Api.Ui;
 public static partial class UiEndpoints
 {
   public sealed record FindingResponseInput(string ManagementResponse, bool Corrected);
+  public sealed record ManagementLetterDesignationInput(bool Designated, string? Recommendation);
   public sealed record DispositionInput(bool Cleared);
   public sealed record IssueInput(long ExpectedRevision, string ManifestDigest, string ReleaseKey);
   public sealed record WorkpaperDraftInput(long ExpectedDraftRevision, long BaseWorkpaperRevision, long BaseInputGeneration, long BasePolicyGeneration, Guid SaveId,
@@ -23,6 +24,9 @@ public static partial class UiEndpoints
     group.MapGet("/findings/{id:guid}", (Guid id, HttpContext http) => ReadAsync(http, (db, actor, ct) => AuditRecordQueries.FindingAsync(db, actor, id, ct)));
     group.MapPost("/findings/{id:guid}/response", (Guid id, FindingResponseInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => AuditPlanningService.RecordFindingResponseAsync(db, actor, new RecordFindingResponseRequest(id, i.ManagementResponse ?? "", i.Corrected), ct)));
+    group.MapPost("/findings/{id:guid}/management-letter-designation", (Guid id, ManagementLetterDesignationInput i, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AuditPlanningService.DesignateManagementLetterFindingAsync(db, actor,
+        new RecordManagementLetterDesignationRequest(id, i.Designated, i.Recommendation), ct)));
     group.MapGet("/reviews/{id:guid}", (Guid id, HttpContext http) => ReadAsync(http, (db, actor, ct) => AuditRecordQueries.ReviewPointAsync(db, actor, id, ct)));
     group.MapPost("/reviews/{id:guid}/disposition", (Guid id, DispositionInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => AuditPlanningService.SetReviewPointDispositionAsync(db, actor, id, i.Cleared, ct)));

@@ -11,7 +11,7 @@ public static partial class UiEndpoints
 {
   public sealed record QuotationLineInputDto(string Role, string Activity, string Hours, Guid RateCardId);
   public sealed record QuotationInput(string ProposalRevision, string Revision, IReadOnlyList<QuotationLineInputDto> Lines,
-    string Complexity, string Risk, string Discount, bool NonStandardTerms, string? Note);
+    string Complexity, string Risk, string Discount, bool NonStandardTerms, string? Note, string? RequestId = null);
   public sealed record QuotationApprovalInput(string RuleKey, string Reason);
   private static bool DecimalInput(string? text, out decimal value)
   {
@@ -25,6 +25,12 @@ public static partial class UiEndpoints
       || !DecimalInput(input.Complexity, out var complexity) || !DecimalInput(input.Risk, out var risk)
       || !DecimalInput(input.Discount, out var discount) || input.Lines is null || input.Lines.Count is < 1 or > 100
       || input.Note?.Length > 2000) return null;
+    Guid? requestId = null;
+    if (!string.IsNullOrWhiteSpace(input.RequestId))
+    {
+      if (!Guid.TryParse(input.RequestId, out var parsedReqId) || parsedReqId == Guid.Empty) return null;
+      requestId = parsedReqId;
+    }
     var lines = new List<QuotationHoursLine>();
     foreach (var l in input.Lines)
     {
@@ -32,7 +38,7 @@ public static partial class UiEndpoints
         || l.Activity.Length > 200 || l.RateCardId == Guid.Empty || !DecimalInput(l.Hours, out var hours)) return null;
       lines.Add(new(l.Role, l.Activity, hours, l.RateCardId));
     }
-    return new(id, lines, complexity, risk, discount, input.NonStandardTerms, input.Note, revision, proposalRevision);
+    return new(id, lines, complexity, risk, discount, input.NonStandardTerms, input.Note, revision, proposalRevision, requestId);
   }
   private static void MapQuotationEndpoints(RouteGroupBuilder group)
   {

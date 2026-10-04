@@ -1,3 +1,4 @@
+using System.Globalization;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Tests;
@@ -8,6 +9,89 @@ namespace AuditSphereOps.E2E.Tests;
 
 public sealed class AngularResourcePlanningJourneyTests
 {
+  [Theory]
+  [InlineData(false)]
+  [InlineData(true)]
+  public async Task StaleAllocationReviewCannotOverwriteConcurrentPlanningChange(bool canonical)
+  {
+    await using var host = await OwnedBlazorHost.StartAsync(startWorker: false, caseId: "ANGULAR-RESOURCE-STALE");
+    var f = host.Fixture;
+    var week = ResourceGridCalculator.WeekStart(DateOnly.FromDateTime(DateTime.UtcNow));
+    await using (var db = host.CreateDbContext())
+    {
+      var actor = PbcSeed.Actor(f.Admin, "Administrator");
+      Assert.True((await StaffingService.AssignAsync(db, actor,
+        new(f.EngagementId, f.Staff.Id, StaffingLevels.StaffAssociate))).Succeeded);
+      Assert.True((await ResourcePlanningService.SaveProfileAsync(db, actor,
+        new(f.Staff.Id, "Audit", "IFRS", 2400, 75m))).Succeeded);
+      Assert.True((await ResourcePlanningService.SetAllocationAsync(db, actor,
+        new(f.EngagementId, f.Staff.Id, week, 600))).Succeeded);
+    }
+
+    var settings = new Dictionary<string, string>
+    {
+      ["AngularUi__Enabled"] = "true",
+      ["AngularUi__CanonicalRoutes"] = canonical.ToString()
+    };
+    if (Environment.GetEnvironmentVariable("AUDITSPHERE_TEST_UI_BUILD_PATH") is { Length: > 0 } buildPath)
+      settings["AngularUi__BuildPath"] = buildPath;
+    var origin = await host.StartApiForIdentityAsync(f.Admin, settings);
+    var prefix = canonical ? "" : "/ui";
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    var page = await (await browser.NewContextAsync(new() { ViewportSize = new() { Width = 1280, Height = 900 } })).NewPageAsync();
+    var errors = new List<string>();
+    page.PageError += (_, error) => errors.Add(error);
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(prefix + "/app/practice/resources"));
+    var table = page.GetByRole(AriaRole.Table, new() { Name = "Resource grid", Exact = true });
+    await Assertions.Expect(table).ToContainTextAsync("10 / 40 h");
+
+    var allocation = page.GetByRole(AriaRole.Form, new() { Name = "Save allocation", Exact = true });
+    await allocation.GetByLabel("Engagement", new() { Exact = true }).SelectOptionAsync(f.EngagementId.ToString());
+    await allocation.GetByLabel("Team member", new() { Exact = true }).SelectOptionAsync(f.Staff.Id.ToString());
+    await allocation.GetByLabel("Week of", new() { Exact = true }).FillAsync(week.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+    await allocation.GetByLabel("Planned hours", new() { Exact = true }).FillAsync("20");
+    var previewResponse = page.WaitForResponseAsync(response =>
+      response.Request.Method == "POST" && response.Url.EndsWith("/api/ui/practice/resources/preview", StringComparison.Ordinal));
+    await allocation.GetByRole(AriaRole.Button, new() { Name = "Save allocation", Exact = true }).PressAsync("Enter");
+    Assert.Equal(200, (await previewResponse).Status);
+    await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "Exact planning action review", Exact = true })).ToBeVisibleAsync();
+
+    var dispatches = 0;
+    await page.RouteAsync("**/api/ui/practice/resources/commands", async route =>
+    {
+      dispatches++;
+      await using var db = host.CreateDbContext();
+      var actor = PbcSeed.Actor(f.Admin, "Administrator");
+      var concurrentChange = await ResourcePlanningService.SetAllocationAsync(db, actor,
+        new(f.EngagementId, f.Staff.Id, week, 120));
+      Assert.True(concurrentChange.Succeeded);
+      await route.ContinueAsync();
+    });
+    await page.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed this exact planning action and its effects.", Exact = true }).CheckAsync();
+    var commandResponse = page.WaitForResponseAsync(response =>
+      response.Request.Method == "POST" && response.Url.EndsWith("/api/ui/practice/resources/commands", StringComparison.Ordinal));
+    await page.GetByRole(AriaRole.Button, new() { Name = "Confirm reviewed planning action", Exact = true }).ClickAsync();
+    Assert.Equal(409, (await commandResponse).Status);
+    await Assertions.Expect(page.GetByRole(AriaRole.Alert)).ToContainTextAsync("Planning inputs changed after this review");
+    await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "Planning request recovery", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(table).Not.ToContainTextAsync("20 / 40 h");
+
+    await page.GetByRole(AriaRole.Button, new() { Name = "Verify planning receipt", Exact = true }).ClickAsync();
+    var recovery = page.GetByRole(AriaRole.Region, new() { Name = "Planning request recovery", Exact = true });
+    await Assertions.Expect(recovery).ToContainTextAsync("No committed receipt was found");
+    await page.GetByRole(AriaRole.Button, new() { Name = "Close absent request and reload planning", Exact = true }).ClickAsync();
+    await Assertions.Expect(table).ToContainTextAsync("2 / 40 h");
+    Assert.Equal(1, dispatches);
+    await page.UnrouteAsync("**/api/ui/practice/resources/commands");
+    await using (var db = host.CreateDbContext())
+    {
+      Assert.Equal(120, (await db.StaffAllocations.SingleAsync(x => x.EngagementId == f.EngagementId && x.UserId == f.Staff.Id && x.WeekStart == week)).PlannedMinutes);
+      Assert.Empty(await db.ResourcePlanningReceipts.ToListAsync());
+    }
+    Assert.Empty(errors);
+  }
+
   [Theory]
   [InlineData(false)]
   [InlineData(true)]

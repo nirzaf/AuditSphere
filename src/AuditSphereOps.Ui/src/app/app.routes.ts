@@ -40,7 +40,7 @@ export const routes: Routes = [
     loadComponent: () => import('./features/audit/library').then(m => m.AuditProgramLibrary) },
   { path: 'app/audit/populations/:id', canActivate: [staffGuard], title: 'Population · AuditSphere',
     loadComponent: () => import('./features/audit/records').then(m => m.PopulationRecord) },
-  { path: 'app/audit/workpapers/:id', canActivate: [staffGuard], title: 'Workpaper · AuditSphere',
+  { path: 'app/audit/workpapers/:id', canActivate: [staffGuard], canDeactivate: [unsavedChangesGuard], title: 'Workpaper · AuditSphere',
     loadComponent: () => import('./features/audit/workpaper').then(m => m.WorkpaperEditor) },
   { path: 'app/findings/:id', canActivate: [staffGuard], title: 'Finding · AuditSphere',
     loadComponent: () => import('./features/audit/records').then(m => m.FindingRecord) },

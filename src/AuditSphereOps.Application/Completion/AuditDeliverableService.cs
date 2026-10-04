@@ -69,7 +69,8 @@ public static partial class AuditDeliverableService
   private static string Digest(object value) => Hashing.Sha256Hex(JsonSerializer.Serialize(value));
 
   private static string FactsDigest(Facts facts) => Digest(new { facts.Materiality, facts.Risks, facts.Procedures, facts.OpenReviewNotes,
-    Findings = facts.Findings.Select(f => new { f.Id, f.FindingType, f.Corrected, f.MonetaryAmount, f.ManagementResponse, f.Status }),
+    Findings = facts.Findings.Select(f => new { f.Id, f.FindingType, f.Corrected, f.MonetaryAmount, f.ManagementResponse, f.Status,
+      f.LetterDesignatedAt, f.LetterRecommendation }),
     facts.UnadjustedDifferences, facts.Confirmations, facts.GoingConcern, facts.Blockers });
 
   /// <summary>True while the facts a deliverable was generated from are unchanged (a signed copy follows its source).</summary>
@@ -263,11 +264,17 @@ public static partial class AuditDeliverableService
         ];
         break;
       case DeliverableKinds.ManagementLetter:
+        var designated = facts.Findings.Where(f => f.LetterDesignatedAt is not null).ToList();
+        var incomplete = designated.Where(f => string.IsNullOrWhiteSpace(f.ImpactDescription) || string.IsNullOrWhiteSpace(f.LetterRecommendation)).ToList();
+        if (incomplete.Count > 0)
+          return CommandResult<ReportAttempt>.Fail(ErrorCodes.GateBlocked,
+            $"{incomplete.Count} designated matter(s) lack an impact description or a recommendation. Complete or un-designate them before the management letter can be generated.");
         sections =
         [
           new("Purpose", ["This letter sets out matters that came to our attention during the audit and management's responses. It is not a complete list of all weaknesses that may exist."]),
-          new("Matters and management responses", facts.Findings.Count == 0 ? ["No matters to report."] : [], facts.Findings.Count == 0 ? null
-            : new DocumentTable(["Matter", "Impact", "Management response"], facts.Findings.Select(f => (IReadOnlyList<string>)[f.FindingType, f.ImpactDescription, f.ManagementResponse ?? "Awaiting response"]).ToList()))
+          new("Matters and management responses", designated.Count == 0 ? ["No matters were designated for the management letter."] : [], designated.Count == 0 ? null
+            : new DocumentTable(["Matter", "Impact", "Recommendation", "Management response"], designated.Select(f => (IReadOnlyList<string>)[f.FindingType, f.ImpactDescription,
+              f.LetterRecommendation!, f.ManagementResponse ?? "Awaiting response"]).ToList()))
         ];
         break;
       case DeliverableKinds.RepresentationLetter:
