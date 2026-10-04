@@ -27,13 +27,15 @@ denies A-scoped creation, aggregate reads, evaluation, correction-state changes
 and journal linking against B's engagement and difference; the persisted
 difference remains unchanged. The area-assessment case denies A-scoped
 assessment creation, completion evaluation and review against B's engagement,
-leaving B's assessment unchanged. All four focused Release Domain tests passed.
-The full solution regression was not run for this slice. A Domain suite attempt
-on the previous checkpoint stopped after approximately 13 minutes without a
-runner summary, so no full-suite result is claimed. EF reports no pending model
-changes. Exact evidence is in `status.json`. No shared Development database,
-tenant, or production state was changed. AS-PAR-002 remains partial for other
-command families and export/count paths, plus independent review.
+leaving B's assessment unchanged. The opening-balance case denies A-scoped record,
+review and planning-summary requests for B and preserves B's verification. All
+five focused Release Domain tests passed. The full solution regression was not
+run for this slice. A Domain suite attempt on the previous checkpoint stopped
+after approximately 13 minutes without a runner summary, so no full-suite result
+is claimed. EF reports no pending model changes. Exact evidence is in
+`status.json`. No shared Development database, tenant, or production state was
+changed. AS-PAR-002 remains partial for other command families and export/count
+paths, plus independent review.
 
 ## Parity hardening: workpaper navigation safety, management letter designation, and attribute strata sampling
 
