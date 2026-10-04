@@ -28,6 +28,20 @@ or skipped tests (45m46s). The run includes retained Test-only legacy journeys.
 The E2E project still references Web, and this was not a full-solution run; no
 Web source or project was deleted. Exact evidence is in `status.json`.
 
+## API test host no longer depends on the Blazor project
+
+API.Tests now references `AuditSphereOps.Api` directly and all API HTTP test
+factories use `StandaloneApiApplicationFactory`. The former Web-bound API test
+factory was removed; the API test lock file no longer brings in MudBlazor or
+Blazor component packages. The sign-in landing assertions now pin the API's
+Angular route destinations.
+
+At code commit `d4439483`, the API.Tests Release build passed with zero
+warnings/errors and the complete PostgreSQL-backed API test project passed
+189/189 with zero failed or skipped tests. This does not remove the E2E.Tests
+Web reference or its retained legacy smoke coverage, and it is not a
+whole-solution regression. Exact evidence is in `status.json`.
+
 ## AS-PAR-002: client-scoped audit fieldwork command isolation
 
 PostgreSQL-backed regressions seed sibling clients A and B and use real

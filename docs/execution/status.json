@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "c562da2f109ce26ab2f061c00976823ff06aea61",
+  "headCommit": "d4439483359f58c5047685c9abb7bacb63169416",
   "verifiedCommit": "f92ae6887f56e20ed857a638a507099829132826",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -18,6 +18,30 @@
     "postgres": "18.6 loopback development profile"
   },
   "verification": {
+    "angularBlazorApiTestsDecoupling": {
+      "sourceCommit": "d4439483359f58c5047685c9abb7bacb63169416",
+      "observedAt": "2026-10-04T19:24:22Z",
+      "status": "PASS_LOCAL_SLICE",
+      "apiTestProjectBuild": {
+        "status": "PASS",
+        "warnings": 0,
+        "errors": 0
+      },
+      "webProjectReference": "Removed from AuditSphereOps.Api.Tests.csproj; the project now references AuditSphereOps.Api directly.",
+      "testFactory": "The Web-bound ApiWebApplicationFactory was removed; eight API test files now use StandaloneApiApplicationFactory. Angular landing assertions pin the API-owned /ui routes.",
+      "packageLock": "Restore pruned the Web project, MudBlazor, and Blazor component/localization packages from the API test lock file.",
+      "fullApiTestProject": {
+        "status": "PASS",
+        "passed": 189,
+        "failed": 0,
+        "skipped": 0,
+        "duration": "15m20s",
+        "database": "PostgreSQL-backed isolated test databases"
+      },
+      "fullSolutionRegression": "NOT_RUN at this source commit.",
+      "remainingWebTestCoupling": "E2E.Tests still references Web in the committed source tree; legacy render coverage and Angular route source scan remain. No Web project/source deletion was included in this commit.",
+      "removalDecision": "NOT_READY; source/action parity, E2E coupling, production-like acceptance, and external/human gates remain open."
+    },
     "angularBlazorE2EHostDecoupling": {
       "sourceCommit": "c562da2f109ce26ab2f061c00976823ff06aea61",
       "observedAt": "2026-10-04T19:00:11Z",
@@ -8916,6 +8940,11 @@
       "item": "Blazor test-host decoupling for migrated Angular E2E journeys (2026-10-04)",
       "status": "LOCAL_VERIFIED",
       "details": "At code commit c562da2f109ce26ab2f061c00976823ff06aea61, OwnedBlazorHost keeps legacy Web startup as the default and offers explicit API-only startup; 58 migrated Angular journey files / 84 calls opt out. The resource-planning E2E asserts no Web-host log is created. E2E Release build passed with zero warnings/errors, focused resource-planning E2E passed 4/4, and the full E2E project passed 219/219 with zero failed/skipped tests in 45m46s. This is not a full-solution regression. E2E.Tests still references Web, legacy journeys remain, and no Blazor source/project was removed. The removal gate remains NOT_READY."
+    },
+    {
+      "item": "API test host decoupling from Blazor (2026-10-04)",
+      "status": "LOCAL_VERIFIED",
+      "details": "At pushed code commit d4439483359f58c5047685c9abb7bacb63169416, AuditSphereOps.Api.Tests directly references AuditSphereOps.Api, removes the Web-bound factory, and uses StandaloneApiApplicationFactory across the affected API tests. Its package lock no longer includes MudBlazor or Blazor component packages. Release build passed with zero warnings/errors; the complete PostgreSQL-backed API test project passed 189/189 with zero failures or skips in 15m20s. This was not a full-solution regression. E2E.Tests still references Web in the committed tree, and the migration removal gate remains NOT_READY."
     }
   ],
   "remainingLocalWork": [
