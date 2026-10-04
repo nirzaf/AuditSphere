@@ -74,6 +74,8 @@ public sealed class Proposal
   public string PeriodEnd { get; set; } = string.Empty;
   public Guid? SupersedesId { get; set; }
   public Guid? PreparedByUserId { get; set; }
+  /// <summary>Immutable digest of the reviewed creation request when the proposal ID is its request identity.</summary>
+  public string? CreateRequestHash { get; set; }
   public Guid? ApprovedByUserId { get; set; }
   public DateTimeOffset? ApprovedAt { get; set; }
   public DateTimeOffset? SentAt { get; set; }

@@ -7,6 +7,9 @@ using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
+using Npgsql;
 
 namespace AuditSphereOps.Domain.Tests;
 
@@ -167,6 +170,21 @@ public sealed class PracticeCrmTests
       Assert.Equal(requestId, first.Value);
     }
 
+    await using (var quotationDb = new AuditSphereDbContext(pg.Options))
+    {
+      // QuotationService may revise this field after proposal creation; it must not rewrite the request receipt.
+      var proposal = await quotationDb.Proposals.SingleAsync(x => x.Id == requestId);
+      proposal.Fee = 13000m;
+      await quotationDb.SaveChangesAsync();
+      Assert.Matches("^[a-f0-9]{64}$", proposal.CreateRequestHash!);
+      var hashMutation = await Assert.ThrowsAsync<PostgresException>(() => quotationDb.Database
+        .ExecuteSqlInterpolatedAsync($"UPDATE proposals SET create_request_hash = {new string('0', 64)} WHERE id = {requestId}"));
+      Assert.Equal("P0001", hashMutation.SqlState);
+      var deletion = await Assert.ThrowsAsync<PostgresException>(() => quotationDb.Database
+        .ExecuteSqlInterpolatedAsync($"DELETE FROM proposals WHERE id = {requestId}"));
+      Assert.Equal("P0001", deletion.SqlState);
+    }
+
     await using (var retryDb = new AuditSphereDbContext(pg.Options))
     {
       var retry = await PracticeCrmService.ReviseProposalAsync(retryDb, fixture.Actor, request);
@@ -179,10 +197,23 @@ public sealed class PracticeCrmTests
       Assert.False(changedIntent.Succeeded);
       Assert.Equal(ErrorCodes.IdempotencyConflict, changedIntent.ErrorCode);
 
+      var changedFeeMatchingMutableProposal = await PracticeCrmService.ReviseProposalAsync(retryDb, fixture.Actor,
+        request with { Fee = 13000m });
+      Assert.False(changedFeeMatchingMutableProposal.Succeeded);
+      Assert.Equal(ErrorCodes.IdempotencyConflict, changedFeeMatchingMutableProposal.ErrorCode);
+
       var staleNewRequest = await PracticeCrmService.ReviseProposalAsync(retryDb, fixture.Actor,
         request with { RequestId = Guid.NewGuid() });
       Assert.False(staleNewRequest.Succeeded);
       Assert.Equal(ErrorCodes.StaleRevision, staleNewRequest.ErrorCode);
+      Assert.Equal(1, await retryDb.Proposals.CountAsync(x => x.OpportunityId == opportunityId));
+
+      var migrations = retryDb.Database.GetMigrations().ToArray();
+      var fingerprintMigration = Array.FindIndex(migrations,
+        id => id.EndsWith("_CommercialProposalCreateRequestFingerprint", StringComparison.Ordinal));
+      Assert.True(fingerprintMigration > 0);
+      await Assert.ThrowsAsync<PostgresException>(() => retryDb.GetService<IMigrator>()
+        .MigrateAsync(migrations[fingerprintMigration - 1]));
       Assert.Equal(1, await retryDb.Proposals.CountAsync(x => x.OpportunityId == opportunityId));
     }
   }

@@ -74,12 +74,15 @@ public sealed partial class AuditSphereDbContext
       "status IN ('NEW','QUALIFIED','UNQUALIFIED','LOST') AND length(name) > 0 AND length(source) > 0"));
     b.Entity<Opportunity>().ToTable("opportunities", t => t.HasCheckConstraint("ck_opportunity_state",
       "stage IN ('DISCOVERY','PROPOSAL','NEGOTIATION','WON','LOST') AND length(service_route) > 0 AND length(entity_scope) > 0 AND length(period_start) = 10 AND length(period_end) = 10 AND period_start <= period_end AND expected_fee >= 0 AND (probability IS NULL OR probability BETWEEN 0 AND 100) AND currency ~ '^[A-Z]{3}$'"));
+    b.Entity<Proposal>().Property(x => x.CreateRequestHash).HasMaxLength(64);
     b.Entity<Proposal>().ToTable("proposals", t =>
     {
       t.HasCheckConstraint("ck_proposal_state",
         "status IN ('DRAFT','INTERNAL_REVIEW','SENT','ACCEPTED','DECLINED','SUPERSEDED') AND revision >= 1");
       t.HasCheckConstraint("ck_proposal_content",
         "length(service_profile_id) > 0 AND length(scope) > 0 AND length(deliverables) > 0 AND length(period_start) = 10 AND length(period_end) = 10 AND period_start <= period_end AND fee >= 0 AND currency ~ '^[A-Z]{3}$'");
+      t.HasCheckConstraint("ck_proposal_create_request_hash",
+        "create_request_hash IS NULL OR create_request_hash ~ '^[a-f0-9]{64}$'");
     });
     b.Entity<PracticeClient>().ToTable("practice_clients", t => t.HasCheckConstraint("ck_practice_client_name",
       "length(legal_name) > 0"));

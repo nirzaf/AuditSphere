@@ -1,4 +1,7 @@
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
@@ -221,6 +224,9 @@ public static class PracticeCrmService
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
 
+    var createRequestHash = request.RequestId.HasValue
+      ? ComputeProposalCreateRequestHash(actor, request)
+      : null;
     if (request.RequestId is { } requestId)
     {
       var priorRequest = await db.Proposals.AsNoTracking()
@@ -231,15 +237,7 @@ public static class PracticeCrmService
           && priorRequest.OpportunityId == request.OpportunityId
           && priorRequest.PreparedByUserId == actor.UserId
           && priorRequest.Revision == request.ExpectedRevision!.Value + 1
-          && priorRequest.ServiceProfileId == request.ServiceProfileId.Trim()
-          && priorRequest.Scope == request.Scope.Trim()
-          && priorRequest.Exclusions == request.Exclusions.Trim()
-          && priorRequest.Deliverables == request.Deliverables.Trim()
-          && priorRequest.Dependencies == request.Dependencies.Trim()
-          && priorRequest.Fee == request.Fee
-          && priorRequest.Currency == request.Currency.Trim().ToUpperInvariant()
-          && priorRequest.PeriodStart == request.PeriodStart.Trim()
-          && priorRequest.PeriodEnd == request.PeriodEnd.Trim();
+          && priorRequest.CreateRequestHash == createRequestHash;
         return matches
           ? CommandResult<Guid>.Ok(priorRequest.Id)
           : CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict,
@@ -271,7 +269,8 @@ public static class PracticeCrmService
       Deliverables = request.Deliverables.Trim(), Dependencies = request.Dependencies.Trim(),
       Fee = request.Fee, Currency = request.Currency.Trim().ToUpperInvariant(),
       PeriodStart = request.PeriodStart.Trim(), PeriodEnd = request.PeriodEnd.Trim(),
-      SupersedesId = previous?.Id, PreparedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
+      SupersedesId = previous?.Id, PreparedByUserId = actor.UserId,
+      CreateRequestHash = createRequestHash, CreatedAt = DateTimeOffset.UtcNow
     };
     opportunity.Stage = CrmStates.OpportunityProposal;
     db.Proposals.Add(proposal);
@@ -605,6 +604,34 @@ public static class PracticeCrmService
       ?? CurrencyError(request.Currency)
       ?? ExactMoneyError(request.Fee, "Proposal fee");
     return error ?? PeriodError(request.PeriodStart, request.PeriodEnd);
+  }
+
+  private sealed record ProposalCreateRequestFingerprint(
+    Guid FirmId,
+    Guid ActorUserId,
+    Guid RequestId,
+    Guid OpportunityId,
+    long ExpectedRevision,
+    string ServiceProfileId,
+    string Scope,
+    string Exclusions,
+    string Deliverables,
+    string Dependencies,
+    string Fee,
+    string Currency,
+    string PeriodStart,
+    string PeriodEnd);
+
+  private static string ComputeProposalCreateRequestHash(ActorContext actor, ReviseProposalRequest request)
+  {
+    var canonical = JsonSerializer.Serialize(new ProposalCreateRequestFingerprint(
+      actor.FirmId, actor.UserId, request.RequestId!.Value, request.OpportunityId,
+      request.ExpectedRevision!.Value, request.ServiceProfileId.Trim(), request.Scope.Trim(),
+      request.Exclusions.Trim(), request.Deliverables.Trim(), request.Dependencies.Trim(),
+      request.Fee.ToString("G29", CultureInfo.InvariantCulture),
+      request.Currency.Trim().ToUpperInvariant(), request.PeriodStart.Trim(),
+      request.PeriodEnd.Trim()));
+    return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical))).ToLowerInvariant();
   }
 
   private static string? ValidateContact(CreateClientContactRequest request)
