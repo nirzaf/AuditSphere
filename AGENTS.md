@@ -50,7 +50,7 @@ AuditSphereOps is an audit, accounting, and assurance operations platform built 
 
 - **`AuditSphereOps.Ui/`**: Angular 22 UI with Material/CDK, native staff workbenches under `/ui/app` and restricted client portal under `/ui/portal`. Uses same-origin authenticated APIs, never Microsoft Graph or browser bearer-token storage.
 
-- **`AuditSphereOps.Web/`**: Retired. Blazor, Razor UI components, and MudBlazor presentation layers have been safely retired. Operators and test fixtures use the ASP.NET Core API host (`AuditSphereOps.Api`) with the Angular 22 frontend (`AuditSphereOps.Ui`).
+- **`AuditSphereOps.Web/`**: Legacy Blazor Interactive Server migration/reference/rollback host. Preserve it while source-action parity, production-like cutover, and retirement acceptance remain open. Do not physically remove it until the canonical migration readiness gate passes and the owner separately accepts retirement.
 
 
 
@@ -106,7 +106,7 @@ AuditSphereOps is an audit, accounting, and assurance operations platform built 
 
 
 
-- **Runtime & Framework:** .NET 10 SDK (`dotnet`), ASP.NET Core API, Angular 22 with Material/CDK, EF Core 10 + Npgsql 10. Blazor Interactive Server and MudBlazor have been retired.
+- **Runtime & Framework:** .NET 10 SDK (`dotnet`), ASP.NET Core API, Angular 22 with Material/CDK, EF Core 10 + Npgsql 10. Blazor Interactive Server and MudBlazor remain in the migration/reference/rollback Web host until the retirement gate is accepted.
 
 
 
@@ -183,6 +183,8 @@ AuditSphereOps is an audit, accounting, and assurance operations platform built 
 
 
 - **Code Map & Documentation Authority:** Before changing a business capability, consult `docs/architecture/auditsphere-architecture-code-map.md`; `docs/architecture/auditsphere-architecture-current-architecture.md` is the implementation-authority companion to this file. Preserved requirement/blueprint sources under `docs/task_breakdown/source/` are `HISTORICAL_SOURCE` and never implementation authority. Volatile project facts (test counts, verified SHA, migration count, blockers) live only in `docs/execution/status.json`.
+
+- **Gradual Blazor Retirement:** Follow the discover → inventory → map → compare → close gaps → verify → cut over → observe → remove lifecycle in the canonical migration documents. Route existence, story completion, or a green partial suite is not parity proof. If the Web project is absent while the canonical gate is `NOT_READY`, treat deletion as incomplete and restore/retain rollback source before claiming retirement.
 
 
 
@@ -405,7 +407,7 @@ scripts/db/restore-drill.sh
 
 
 
-- Verify guidance against the current checkout, especially `docs/architecture/auditsphere-architecture-current-architecture.md`, `src/AuditSphereOps.Api/appsettings.json`, the Angular administration components, the API startup, worker, and deployment scripts. `AuditSphereOps.Web` is Test-only and must not be documented as an operator rollback host. `docs/auditsphere-m365-onboarding-user-stories.md` describes proposed requirements: check implementation before presenting any step as available. Link to the applicable source revision; do not copy the specification or configuration files wholesale.
+- Verify guidance against the current checkout, especially `docs/architecture/auditsphere-architecture-current-architecture.md`, `src/AuditSphereOps.Api/appsettings.json`, the Angular administration components, the API and rollback-host startup, worker, and deployment scripts. Document the Web host only as an approved migration/reference/rollback path; do not imply it is a production canary. A missing Web project while the readiness gate is open is a migration blocker, not acceptance. `docs/auditsphere-m365-onboarding-user-stories.md` describes proposed requirements: check implementation before presenting any step as available. Link to the applicable source revision; do not copy the specification or configuration files wholesale.
 
 
 

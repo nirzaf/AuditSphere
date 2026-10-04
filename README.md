@@ -14,7 +14,7 @@
 
 ## API backend and Angular UI
 
-The owner-directed migration now separates `src/AuditSphereOps.Api` (ASP.NET Core HTTP backend) from `src/AuditSphereOps.Ui` (Angular frontend). Both retain the existing Domain/Application/Infrastructure/Worker boundaries. The legacy Blazor host reuses API composition for rollback while feature parity is checked; full migration acceptance and retirement are still pending.
+The owner-directed migration separates `src/AuditSphereOps.Api` (ASP.NET Core HTTP backend) from `src/AuditSphereOps.Ui` (Angular frontend), preserving the Domain/Application/Infrastructure/Worker boundaries. **Migration acceptance remains `NOT_READY`.** Commit `59387b54` removed the legacy Blazor host before the canonical source-action and operational gates passed; the current tree therefore has no local rollback host. That deletion is not accepted as proof of parity or completed retirement. See the [canonical removal gate](docs/migration/auditsphere-migration-blazor-removal-readiness.md) and restore/retain rollback coverage before accepting cutover.
 
 Start/build/publish instructions are in the [Angular development guide](src/AuditSphereOps.Ui/auditsphere-angular-development.md); the [migration architecture](docs/architecture/auditsphere-angular-migration-current.md) records security and acceptance boundaries.
 
@@ -64,7 +64,7 @@ Absolute isolation is enforced between three accounting domains — in the Domai
 
 ## Architecture & Data Flow
 
-AuditSphereOps is structured as a **clean-architecture modular monolith** with an ASP.NET Core API backend and Angular UI. The Blazor host remains available for rollback during migration acceptance:
+AuditSphereOps is structured as a **clean-architecture modular monolith** with an ASP.NET Core API backend and Angular UI. The legacy Blazor host is the planned rollback path during migration acceptance, but it is absent from the current master tree following commit `59387b54`; the migration remains `NOT_READY` until the canonical gate is satisfied:
 
 ```
    ┌───────────────────────────────────────────────┐
@@ -229,7 +229,7 @@ The table below lists native workspace routes in AuditSphere. Angular routes use
 | **Language** | C# 14 | Strict nullability and pattern matching |
 | **HTTP Backend** | ASP.NET Core API (.NET 10) | Authorized capability contracts, cookie/OIDC, consent, files and health |
 | **Frontend** | Angular 22 with Material/CDK | Separate staff and client presentation workspace |
-| **Rollback UI** | Blazor Interactive Server with MudBlazor 9.10.0 | Legacy presentation only; API has no dependency on these libraries |
+| **Rollback UI** | Blazor Interactive Server with MudBlazor 9.10.0 (source absent from current master) | Planned legacy rollback presentation; its premature removal is not accepted as migration completion |
 | **ORM & Data Provider** | Entity Framework Core 10.0.12 + Npgsql 10.0.0 | PostgreSQL persistence |
 | **Database Engine** | PostgreSQL 18.6 | User-local development on port `5433`; managed cloud in prod |
 | **Document Processing** | DocumentFormat.OpenXml & PDFsharp / MigraDoc | Byte-stable, formula-free document generation |

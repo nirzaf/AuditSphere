@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "b2769fb8d6d2881b6feca2cbe96cbdb66f3b126e",
+  "headCommit": "af19fda671b8b0333a62a3a16ab1431195886155",
   "verifiedCommit": "f92ae6887f56e20ed857a638a507099829132826",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -106,28 +106,53 @@
       "removalDecision": "NOT_READY; continue parity review and test dependency removal only where independently proven safe."
     },
     "angularBlazorAssessmentDecisionSourceReview": {
-      "sourceCommit": "40ada3c9744e5b72b160dcd6a1739c07a62e298c",
-      "observedAt": "2026-10-04T19:38:41Z",
+      "sourceCommit": "d00f63edb0fad05f7384c0eb8d2dafbc4c1a1971",
+      "observedAt": "2026-10-04T20:16:25Z",
       "status": "REVIEWED_PARTIAL",
       "review": "docs/migration/auditsphere-migration-blazor-assessment-decision-source-review.md",
       "dispositions": {
         "sourceActionRows": 76,
-        "partialReviewed": 1,
-        "parityVerified": 0,
+        "partialReviewed": 0,
+        "parityVerified": 1,
         "notAnalyzed": 75,
         "supportingFilesNotAnalyzed": 28
       },
       "existingEvidence": {
-        "angularE2e": "AngularAssessmentParityJourneyTests is included in the 219/219 E2E run at c562da2f109ce26ab2f061c00976823ff06aea61.",
-        "apiAndDomain": "CSRF, request receipt, actor/client isolation, readiness, replay, revocation, and immutable evidence checks are recorded in angularAssessmentCommandReceipts and related assessment entries."
+        "assessmentDecisionE2e": "At af19fda671b8b0333a62a3a16ab1431195886155, AngularAssessmentDecisionRouteJourneyTests.LegacyDecisionDeepLinkEnforcesPartnerGrantAndRecoversLostDecisionOnce passed 2/2 for canonical and /ui routes. It checks the exact deep link, client-scoped Senior denial, Partner preview/assent, dropped accepted response, receipt reconciliation, and single decision/receipt.",
+        "reviewedDecisionRevocation": "AcceptanceChecklistTests.Receipts.ReviewedDecisionCommandRefusesAuthorityRevokedAfterPreview passed 1/1; revoked authority persisted neither a decision nor a receipt."
       },
-      "freshRuntimeTests": "NOT_RUN for this documentation review; an independent PostgreSQL-backed Domain test process was active.",
+      "focusedProjectBuilds": "Domain.Tests and E2E.Tests Release builds passed with zero warnings and errors at af19fda671b8b0333a62a3a16ab1431195886155.",
+      "currentWorkingTreeRerun": "NOT_VERIFIED; the later API-only E2E fixture conversion is in progress. Its first focused build attempt hit missing helpers during the transition; a shared fixture helper has since appeared, and this converted snapshot still needs a fresh run.",
       "openGaps": [
-        "Exercise the exact legacy /app/assessments/{clientId}/decision deep link in canonical and /ui browser modes.",
-        "Test reviewed-decision authority revocation between preview and publication.",
-        "Test lost-decision-response reload and receipt reconciliation without duplicate dispatch."
+        "Review AssessmentDetail.razor, AcceptanceChecklistPanel.razor, and all other source/action rows; 75 action rows and 28 supporting artifacts remain unreviewed.",
+        "Run the converted API-only E2E fixture and complete current-head regression before accepting the new host topology."
       ],
-      "removalDecision": "NOT_READY; one reviewed partial source row does not close broader behavior, operational, human, or external acceptance gates."
+      "removalDecision": "NOT_READY; one source-action parity result does not close broader behavior, test, rollback, production, human, or external acceptance gates."
+    },
+    "angularBlazorInventorySnapshotReproduction": {
+      "observedAt": "2026-10-04T20:16:25Z",
+      "status": "PASS_LOCAL",
+      "inventorySourceCommit": "d00f63edb0fad05f7384c0eb8d2dafbc4c1a1971",
+      "result": "The discovery inventory generator reproduced 76 Razor action rows and the tracked Web-file list from the committed source snapshot after the Web directory was deleted. All 76 recorded source SHA-256 values matched the Git snapshot; generation and --check both passed.",
+      "scope": "This preserves source discovery and supports review from Git history; it does not restore rollback capability or prove the remaining actions equivalent.",
+      "removalDecision": "NOT_READY"
+    },
+    "angularBlazorCurrentRetirementGate": {
+      "observedAt": "2026-10-04T20:16:25Z",
+      "sourceCommit": "af19fda671b8b0333a62a3a16ab1431195886155",
+      "status": "NOT_READY",
+      "physicalRemovalCommit": "59387b549214067ef226cdbf33d0d47084a27c46",
+      "webProjectPresent": false,
+      "sourceActionRows": 76,
+      "parityVerified": 1,
+      "notAnalyzed": 75,
+      "supportingFilesNotAnalyzed": 28,
+      "fullSolutionCurrentHead": "NOT_RUN",
+      "efModelCurrentHead": "NOT_RUN",
+      "rollbackAndCanary": "OPEN; no Blazor rollback host or production-like canary evidence is present in the current tree.",
+      "humanAssistiveTechnologyAndLocale": "OPEN",
+      "liveMicrosoftGates": "BLOCKED_EXTERNAL",
+      "decision": "The physical deletion landed before the canonical readiness gate passed. Do not report retirement as accepted or complete; restore/retain an approved rollback path or satisfy all applicable gates and obtain the separate owner acceptance."
     },
     "angularBlazorMigrationBaselineAndFocusedRouteResourceVerification": {
       "sourceCommit": "d00f63edb0fad05f7384c0eb8d2dafbc4c1a1971",

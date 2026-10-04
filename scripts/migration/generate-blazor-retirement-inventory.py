@@ -4,8 +4,10 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
+import subprocess
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -72,15 +74,53 @@ def reviewed_sources(items: list[dict[str, object]]) -> dict[str, dict[str, str]
     return result
 
 
+def source_files(source: dict[str, object], items: list[dict[str, object]]) -> tuple[list[str], str]:
+    """Use the checkout when present, otherwise reproduce the recorded discovery snapshot."""
+    if WEB.is_dir():
+        return sorted(
+            path.relative_to(ROOT).as_posix()
+            for path in WEB.rglob("*")
+            if path.is_file() and not ({"bin", "obj"} & set(path.parts))
+        ), "working tree"
+
+    commit = source.get("sourceCommit")
+    if not isinstance(commit, str) or len(commit) != 40 or any(c not in "0123456789abcdef" for c in commit.lower()):
+        raise SystemExit("Web source is absent and the discovery inventory has no full source commit.")
+    result = subprocess.run(
+        ["git", "ls-tree", "-r", "--name-only", commit, "--", "src/AuditSphereOps.Web"],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode:
+        raise SystemExit(f"Could not read the recorded Web source snapshot {commit}: {result.stderr.strip()}")
+    files = sorted(line for line in result.stdout.splitlines() if line)
+    if not files:
+        raise SystemExit(f"The recorded Web source snapshot {commit} contains no files.")
+
+    for item in items:
+        path = str(item["source"])
+        blob = subprocess.run(
+            ["git", "show", f"{commit}:{path}"],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+        )
+        if blob.returncode:
+            raise SystemExit(f"The recorded source {path} is missing from snapshot {commit}.")
+        expected = str(item.get("sourceSha256", "")).lower()
+        actual = hashlib.sha256(blob.stdout).hexdigest()
+        if expected and actual != expected:
+            raise SystemExit(f"The recorded source hash differs for {path} at snapshot {commit}.")
+    return files, commit
+
+
 def render() -> str:
     source = json.loads(SOURCE_INVENTORY.read_text())
     items = source["items"]
     reviews = reviewed_sources(items)
-    files = sorted(
-        path.relative_to(ROOT).as_posix()
-        for path in WEB.rglob("*")
-        if path.is_file() and not ({"bin", "obj"} & set(path.parts))
-    )
+    files, snapshot = source_files(source, items)
     discovered = {item["source"] for item in items}
     missing = discovered - set(files)
     if missing:
@@ -97,7 +137,7 @@ def render() -> str:
         "",
         "## Observed inventory",
         "",
-        "- The complete non-generated Web file list is enumerated below.",
+        f"- The non-generated Web file list is enumerated below from `{snapshot}`.",
         "- Razor route/action files are listed with their scanner-derived hints.",
         "- Exact source and route totals are maintained in `docs/execution/status.json`.",
         "- Source discovery drift is separately checked by `python3 scripts/ui/inventory.py --check`.",

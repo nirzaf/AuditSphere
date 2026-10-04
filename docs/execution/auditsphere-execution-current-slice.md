@@ -13,29 +13,25 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
-## Blazor retirement and physical removal complete
+## Angular migration and Blazor retirement — NOT READY
 
-`AuditSphereOps.Web`, Razor UI components, and MudBlazor presentation layers have been safely retired from AuditSphere following the strict 10-phase migration lifecycle:
-1. Complete inventory of 104 Web artifacts produced in `docs/migration/blazor-retirement-inventory.md`.
-2. Full route parity matrix produced in `docs/migration/blazor-angular-route-parity.md` (51 Blazor routes + 28 specialized native Angular routes verified).
-3. Comprehensive feature parity and backend ownership audit produced in `docs/migration/blazor-feature-parity.md` (zero business logic leaks into Angular).
-4. Automated test parity matrix produced in `docs/migration/blazor-test-parity.md`.
-5. Blazor removal readiness checklist verified in `docs/migration/blazor-removal-readiness.md` (`READY_TO_REMOVE`).
-6. STOP GATE reviewed and approved by user.
-7. Physical removal of `src/AuditSphereOps.Web` (89 Razor files, 4 C# files, 6 static assets, configuration, and csproj).
-8. `AuditSphereOps.slnx` updated (8 remaining projects: Domain, Application, Infrastructure, Api, Worker, Domain.Tests, Api.Tests, E2E.Tests).
-9. Zero active MudBlazor packages and zero Razor UI dependencies verified across the repository.
-10. Final migration report produced in `docs/migration/blazor-retirement-final-report.md` (`BLAZOR_RETIREMENT_COMPLETE`).
+The canonical removal gate remains `NOT_READY`. Commit `59387b54` removed
+`AuditSphereOps.Web` and its Razor sources before the canonical source-action
+register was complete. That repository state is not accepted as proof of
+behavioral parity or a completed retirement. The new duplicate retirement
+report was withdrawn; the canonical migration documents indexed from
+`docs/auditsphere-docs-index.md` remain authoritative.
 
-Observed local verification:
-- Angular production build: 0 errors
-- .NET Release build: 0 warnings, 0 errors
-- EF Core pending model changes: 0
-- PostgreSQL-backed Domain tests: 658/658 passed (0 failed)
-- PostgreSQL-backed API tests: 189/189 passed (0 failed)
-- Angular unit tests: 476/476 passed (0 failed)
+The source inventory is reproducible from its recorded Git snapshot even though
+the Web directory is absent from the current tree. Route ownership is still only
+route ownership. The source-action crosswalk, full current-head regression,
+rollback/canary evidence, human assistive-technology review, locale acceptance,
+and live Microsoft gates remain outstanding. See the canonical removal gate and
+`verification` entries in `docs/execution/status.json` for observed evidence.
 
-## Blazor test-host decoupling for migrated Angular E2E journeys
+## Historical checkpoint: Blazor test-host decoupling for migrated Angular E2E journeys
+
+This evidence belongs to commit `c562da2f109ce26ab2f061c00976823ff06aea61`; it predates commit `59387b54`, which removed the Web source while the canonical readiness gate remained open. It is not evidence of current-head retirement acceptance.
 
 `OwnedBlazorHost.StartAsync` now has an explicit API-only mode. Its default still
 starts the Test-only Web host for legacy journeys; migrated Angular E2E callers
@@ -50,23 +46,23 @@ or skipped tests (45m46s). The run includes retained Test-only legacy journeys.
 The E2E project still references Web, and this was not a full-solution run; no
 Web source or project was deleted. Exact evidence is in `status.json`.
 
-## Blazor source-action review: Partner assessment decision
+## Source-action parity: Partner assessment decision
 
-The legacy `AssessmentDecision.razor` action was compared with its Angular
-assessment route, `AssessmentRouteQuery`, cookie/CSRF API endpoints,
-`AssessmentCommandWorkspace`, and the focused assessment verification already
-recorded in `status.json`. The native flow requires the current Partner/client
-authority, previews the exact decision, requires fresh assent, and retains an
-immutable actor-owned receipt. The Angular route catalogue maps the legacy
-decision route to the shared resolver, but an E2E journey has not yet started at
-the exact `/app/assessments/{clientId}/decision` URL. Decision-specific
-revocation and lost-response browser checks also remain open. The inventory
-therefore records this single source row as `PARTIAL`, not `PARITY_VERIFIED`.
+The historical `AssessmentDecision.razor` source at the discovery snapshot was
+compared with the Angular assessment route, `AssessmentRouteQuery`, cookie/CSRF
+API endpoints, and `AssessmentCommandWorkspace`. The exact legacy decision URL
+was exercised in canonical and `/ui` modes. A client-scoped Senior could view
+the assessment but could not see the Partner action; the Partner previewed the
+decision, gave fresh assent, and recovered a dropped accepted response after a
+reload without a second dispatch. A PostgreSQL-backed reviewed-command test
+proved authority revoked after preview persists neither decision nor receipt.
+The curated inventory therefore records this source file as
+`PARITY_VERIFIED`.
 
-`AssessmentDetail.razor`, `AcceptanceChecklistPanel.razor`, and the remaining
-source/action rows were not reviewed by this slice. No new runtime tests were
-run for this documentation review; prior verification remains attributed to its
-recorded commits. The physical Web-removal decision remains `NOT_READY`.
+`AssessmentDetail.razor`, `AcceptanceChecklistPanel.razor`, and all other
+source/action rows remain open. The current API-only fixture conversion has not
+yet received a fresh focused run. The overall physical-removal decision remains
+`NOT_READY`; exact evidence and current rerun state are in `status.json`.
 
 ## API test host no longer depends on the Blazor project
 
