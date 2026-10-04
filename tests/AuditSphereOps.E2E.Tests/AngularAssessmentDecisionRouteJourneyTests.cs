@@ -12,33 +12,39 @@ public sealed class AngularAssessmentDecisionRouteJourneyTests
   [InlineData(true)]
   public async Task LegacyDecisionDeepLinkEnforcesPartnerGrantAndRecoversLostDecisionOnce(bool canonical)
   {
-    await using var host = await OwnedBlazorHost.StartAsync(
+    await using var host = await OwnedHost.StartAsync(
       startWorker: false, caseId: "ANGULAR-ASSESSMENT-DECISION-LINK", startLegacyBlazorHosts: false);
     var f = host.Fixture;
+    var senior = PbcSeed.User(f.FirmId, "Staff");
     await using (var db = host.CreateDbContext())
+    {
       await AssessmentParitySeed.PopulateAsync(db, f);
+      db.Users.Add(senior);
+      db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, senior, "Senior", clientId: f.ClientId));
+      await db.SaveChangesAsync();
+    }
 
     var settings = new Dictionary<string, string>
     {
       ["AngularUi__Enabled"] = "true",
       ["AngularUi__CanonicalRoutes"] = canonical.ToString()
     };
-    var staffOrigin = await host.StartApiForIdentityAsync(f.Staff, settings);
+    var seniorOrigin = await host.StartApiForIdentityAsync(senior, settings);
     var origin = await host.StartApiForIdentityAsync(f.Admin, settings);
     var prefix = canonical ? string.Empty : "/ui";
     using var playwright = await Playwright.CreateAsync();
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
 
-    // A current client-scoped Staff grant can open the assessment, but cannot acquire
+    // A current client-scoped Senior grant can open the assessment, but cannot acquire
     // the Partner-only decision action through the legacy direct URL.
-    await using (var staffContext = await browser.NewContextAsync())
+    await using (var seniorContext = await browser.NewContextAsync())
     {
-      var staffPage = await staffContext.NewPageAsync();
-      await staffPage.GotoAsync(staffOrigin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(
+      var seniorPage = await seniorContext.NewPageAsync();
+      await seniorPage.GotoAsync(seniorOrigin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(
         prefix + "/app/assessments/" + f.ClientId + "/decision"));
-      await Assertions.Expect(staffPage.GetByRole(AriaRole.Region,
+      await Assertions.Expect(seniorPage.GetByRole(AriaRole.Region,
         new() { Name = "Client assessment profile", Exact = true })).ToContainTextAsync("PBC TEST CLIENT");
-      await Assertions.Expect(staffPage.GetByRole(AriaRole.Button,
+      await Assertions.Expect(seniorPage.GetByRole(AriaRole.Button,
         new() { Name = "Review Partner decision", Exact = true })).ToHaveCountAsync(0);
     }
 
