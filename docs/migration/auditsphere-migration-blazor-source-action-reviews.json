@@ -6,7 +6,8 @@
       "source": "src/AuditSphereOps.Web/Components/Pages/AssessmentDecision.razor",
       "disposition": "PARITY_VERIFIED",
       "evidence": "auditsphere-migration-blazor-assessment-decision-source-review.md",
-      "reviewedAtCommit": "d00f63edb0fad05f7384c0eb8d2dafbc4c1a1971"
+      "reviewedAtCommit": "d00f63edb0fad05f7384c0eb8d2dafbc4c1a1971",
+      "openGaps": []
     }
   ]
 }

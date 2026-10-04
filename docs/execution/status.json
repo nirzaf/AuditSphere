@@ -107,7 +107,7 @@
     },
     "angularBlazorAssessmentDecisionSourceReview": {
       "sourceCommit": "d00f63edb0fad05f7384c0eb8d2dafbc4c1a1971",
-      "observedAt": "2026-10-04T20:16:25Z",
+      "observedAt": "2026-10-04T20:31:16Z",
       "status": "REVIEWED_PARTIAL",
       "review": "docs/migration/auditsphere-migration-blazor-assessment-decision-source-review.md",
       "dispositions": {
@@ -118,19 +118,20 @@
         "supportingFilesNotAnalyzed": 28
       },
       "existingEvidence": {
-        "assessmentDecisionE2e": "At af19fda671b8b0333a62a3a16ab1431195886155, AngularAssessmentDecisionRouteJourneyTests.LegacyDecisionDeepLinkEnforcesPartnerGrantAndRecoversLostDecisionOnce passed 2/2 for canonical and /ui routes. It checks the exact deep link, client-scoped Senior denial, Partner preview/assent, dropped accepted response, receipt reconciliation, and single decision/receipt.",
+        "assessmentDecisionE2e": "At ce307625bb9cf749c09a20d74f3741ae80334187, AngularAssessmentDecisionRouteJourneyTests.LegacyDecisionDeepLinkEnforcesPartnerGrantAndRecoversLostDecisionOnce passed 2/2 on the API-only host across canonical and /ui routes. Senior received generic Access denied with no assessment profile or decision action; Partner completed review, assent, lost-response recovery and acknowledgement with exactly one dispatch, decision and receipt.",
         "reviewedDecisionRevocation": "AcceptanceChecklistTests.Receipts.ReviewedDecisionCommandRefusesAuthorityRevokedAfterPreview passed 1/1; revoked authority persisted neither a decision nor a receipt."
       },
-      "focusedProjectBuilds": "Domain.Tests and E2E.Tests Release builds passed with zero warnings and errors at af19fda671b8b0333a62a3a16ab1431195886155.",
-      "currentWorkingTreeRerun": "NOT_VERIFIED; the later API-only E2E fixture conversion is in progress. Its first focused build attempt hit missing helpers during the transition; a shared fixture helper has since appeared, and this converted snapshot still needs a fresh run.",
+      "focusedProjectBuilds": "Domain.Tests and E2E.Tests Release builds passed with zero warnings and errors for the focused source slice at ce307625bb9cf749c09a20d74f3741ae80334187.",
+      "authorizationFix": "Committed at ce307625bb9cf749c09a20d74f3741ae80334187: a Partner-only decision-route resolver protects the exact legacy /decision URL; ordinary assessment route/workspace reads no longer include Senior or Reviewer.",
+      "currentWorkingTreeRerun": "PASS_LOCAL at ce307625bb9cf749c09a20d74f3741ae80334187. PostgreSQL-backed AssessmentRoutesPreserveLegacyStaffBoundaryAndRequirePartnerForDecisionDeepLink passed 1/1; API-only LegacyDecisionDeepLinkEnforcesPartnerGrantAndRecoversLostDecisionOnce passed 2/2 for canonical and /ui routes. The run verifies denial/no profile, Partner decision preview/assent, lost-response recovery and exactly one dispatch/decision/receipt.",
       "openGaps": [
-        "Review AssessmentDetail.razor, AcceptanceChecklistPanel.razor, and all other source/action rows; 75 action rows and 28 supporting artifacts remain unreviewed.",
-        "Run the converted API-only E2E fixture and complete current-head regression before accepting the new host topology."
+        "Review AssessmentDetail.razor, AcceptanceChecklistPanel.razor, and all remaining source/action rows; 75 action rows and 28 supporting artifacts remain unreviewed.",
+        "Run the complete current-head regression before accepting the new host topology."
       ],
       "removalDecision": "NOT_READY; one source-action parity result does not close broader behavior, test, rollback, production, human, or external acceptance gates."
     },
     "angularBlazorInventorySnapshotReproduction": {
-      "observedAt": "2026-10-04T20:16:25Z",
+      "observedAt": "2026-10-04T20:23:29Z",
       "status": "PASS_LOCAL",
       "inventorySourceCommit": "d00f63edb0fad05f7384c0eb8d2dafbc4c1a1971",
       "result": "The discovery inventory generator reproduced 76 Razor action rows and the tracked Web-file list from the committed source snapshot after the Web directory was deleted. All 76 recorded source SHA-256 values matched the Git snapshot; generation and --check both passed.",
@@ -138,13 +139,14 @@
       "removalDecision": "NOT_READY"
     },
     "angularBlazorCurrentRetirementGate": {
-      "observedAt": "2026-10-04T20:16:25Z",
-      "sourceCommit": "af19fda671b8b0333a62a3a16ab1431195886155",
+      "observedAt": "2026-10-04T20:31:16Z",
+      "sourceCommit": "ce307625bb9cf749c09a20d74f3741ae80334187",
       "status": "NOT_READY",
       "physicalRemovalCommit": "59387b549214067ef226cdbf33d0d47084a27c46",
       "webProjectPresent": false,
       "sourceActionRows": 76,
       "parityVerified": 1,
+      "partialReviewed": 0,
       "notAnalyzed": 75,
       "supportingFilesNotAnalyzed": 28,
       "fullSolutionCurrentHead": "NOT_RUN",
@@ -153,6 +155,14 @@
       "humanAssistiveTechnologyAndLocale": "OPEN",
       "liveMicrosoftGates": "BLOCKED_EXTERNAL",
       "decision": "The physical deletion landed before the canonical readiness gate passed. Do not report retirement as accepted or complete; restore/retain an approved rollback path or satisfy all applicable gates and obtain the separate owner acceptance."
+    },
+    "angularAssessmentDecisionRoleBoundaryBuild": {
+      "observedAt": "2026-10-04T20:31:16Z",
+      "status": "PASS_LOCAL_BUILD",
+      "command": "npm --prefix src/AuditSphereOps.Ui run build",
+      "result": "Angular production build succeeded after the Partner-only decision route began calling its dedicated API resolver.",
+      "bundle": "Initial bundle 505.46 kB, 5.46 kB over the existing 500 kB warning budget.",
+      "runtimeTests": "PostgreSQL-backed role-boundary test passed 1/1; API-only Playwright decision journey passed 2/2 across canonical and /ui routes. Full project regression remains NOT_RUN."
     },
     "angularBlazorMigrationBaselineAndFocusedRouteResourceVerification": {
       "sourceCommit": "d00f63edb0fad05f7384c0eb8d2dafbc4c1a1971",

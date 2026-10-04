@@ -49,20 +49,19 @@ Web source or project was deleted. Exact evidence is in `status.json`.
 ## Source-action parity: Partner assessment decision
 
 The historical `AssessmentDecision.razor` source at the discovery snapshot was
-compared with the Angular assessment route, `AssessmentRouteQuery`, cookie/CSRF
-API endpoints, and `AssessmentCommandWorkspace`. The exact legacy decision URL
-was exercised in canonical and `/ui` modes. A client-scoped Senior could view
-the assessment but could not see the Partner action; the Partner previewed the
-decision, gave fresh assent, and recovered a dropped accepted response after a
-reload without a second dispatch. A PostgreSQL-backed reviewed-command test
-proved authority revoked after preview persists neither decision nor receipt.
-The curated inventory therefore records this source file as
-`PARITY_VERIFIED`.
+compared with the Angular assessment route and its cookie/CSRF API. Review found
+and fixed a disclosure that let a client-scoped Senior view assessment data
+through the legacy Partner-only `/decision` URL. A distinct Partner-only API
+resolver and narrower assessment-read role set now pass the PostgreSQL-backed
+role test (1/1) and API-only Playwright journeys (2/2 across canonical and `/ui`
+routes). The Senior receives a generic denial with no profile; the Partner
+completes the reviewed decision and recovers one accepted receipt after a lost
+response. `AssessmentDecision.razor` is `PARITY_VERIFIED` for this source only.
 
-`AssessmentDetail.razor`, `AcceptanceChecklistPanel.razor`, and all other
-source/action rows remain open. The current API-only fixture conversion has not
-yet received a fresh focused run. The overall physical-removal decision remains
-`NOT_READY`; exact evidence and current rerun state are in `status.json`.
+`AssessmentDetail.razor`, `AcceptanceChecklistPanel.razor`, the other 75
+source/action rows, all supporting files, and current full-project regression
+remain open. The overall physical-removal decision remains `NOT_READY`; exact
+evidence and current rerun state are in `status.json`.
 
 ## API test host no longer depends on the Blazor project
 
