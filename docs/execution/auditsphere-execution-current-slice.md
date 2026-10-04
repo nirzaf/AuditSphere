@@ -13,6 +13,19 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## AS-PAR-002: audit-program command isolation
+
+A PostgreSQL-backed regression seeds active sibling clients A and B, gives a
+Partner access only to A, and creates real audit-program procedure/result records
+under B. Attempts by A's Partner to adopt the program to B's engagement, change
+B's applicability, submit a result against B's procedure, and review B's result
+are all denied. The test verifies that B's procedure, result, workpaper and review
+state is unchanged. The focused Release Domain test passed; the full solution
+regression was not run for this slice. Exact evidence is in `status.json`. No
+shared Development database, tenant, or production state was changed. AS-PAR-002
+remains partial for other command families and export/count paths, plus
+independent review.
+
 ## Parity hardening: workpaper navigation safety, management letter designation, and attribute strata sampling
 
 This slice resolves key parity requirements across audit fieldwork, deliverable reporting, and sampling:

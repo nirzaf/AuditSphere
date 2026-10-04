@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "cdf18c014919fbfa2a89d125b706d9055036f627",
+  "headCommit": "be60f8ab68f703b503b23099e08ed9d0601b0cf4",
   "verifiedCommit": "f92ae6887f56e20ed857a638a507099829132826",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -18,6 +18,20 @@
     "postgres": "18.6 loopback development profile"
   },
   "verification": {
+    "asPar002AuditProgramCommandIsolation": {
+      "sourceCommit": "be60f8ab68f703b503b23099e08ed9d0601b0cf4",
+      "verifiedAt": "2026-10-04T16:57:00Z",
+      "status": "PASS_LOCAL",
+      "domainTests": {
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "test": "AuditProgramCommandIsolationTests.SiblingClientIds_AreDeniedForAdoptionApplicabilitySubmissionAndReview"
+      },
+      "fullSolutionRegression": "NOT_RUN on this source commit",
+      "remoteHead": "PUSHED and confirmed at sourceCommit",
+      "boundary": "Using owned PostgreSQL test data, a client-A scoped Partner could not adopt a program to client B's engagement or change applicability, submit a procedure result, or review client B's result using B's real identifiers. Assertions confirmed the sibling procedure/result state and workpaper/review counts were unchanged. No shared Development database, tenant, or production state was changed. AS-PAR-002 remains partial for other command families, export/count paths, and independent review."
+    },
     "asPar002ScopedPortfolioBillingAndResourceRecovery": {
       "sourceCommit": "cdf18c014919fbfa2a89d125b706d9055036f627",
       "verifiedAt": "2026-10-04T16:51:37Z",
