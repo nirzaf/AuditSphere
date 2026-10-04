@@ -34,13 +34,14 @@ management-letter designation for B's engagement, preserving B's finding state.
 The planning case denies A-scoped materiality, risk, population and workpaper
 creation, along with materiality approval and workpaper submission against B;
 the existing materiality and workpaper remain unchanged.
-The seven PostgreSQL-backed Release Domain regressions also passed together in a
-combined focused run on the current master commit. Exact evidence is in
-`status.json`. The full solution regression was not run for this slice. A Domain
-suite attempt on the previous checkpoint stopped after approximately 13 minutes
+A combined focused PostgreSQL-backed Release Domain regression run passed on the
+current master commit. It also covers sibling schedule, selection, item-test and
+sampling-run identifiers; those records remain unchanged after denial. Exact
+evidence is in `status.json`. The full solution regression was not run for this
+slice. A Domain suite attempt on the previous checkpoint stopped after approximately 13 minutes
 without a runner summary, so no full-suite result is claimed. EF reports no pending
-model changes. Exact evidence is in `status.json`. No shared Development database, tenant, or
-production state was changed. AS-PAR-002 remains partial for other command
+model changes. Exact evidence is in `status.json`. No shared Development
+database, tenant, or production state was changed. AS-PAR-002 remains partial for other command
 families and export/count paths, plus independent review.
 
 ## Parity hardening: workpaper navigation safety, management letter designation, and attribute strata sampling

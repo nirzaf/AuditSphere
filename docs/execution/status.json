@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "66f0a325d46a11498f52e62a3a7c5dcdc476a51d",
+  "headCommit": "e654692062a41cea369f070aeffb0face6dc3e3b",
   "verifiedCommit": "f92ae6887f56e20ed857a638a507099829132826",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -19,11 +19,11 @@
   },
   "verification": {
     "asPar002AuditCommandIsolation": {
-      "sourceCommit": "66f0a325d46a11498f52e62a3a7c5dcdc476a51d",
-      "verifiedAt": "2026-10-04T17:31:19Z",
+      "sourceCommit": "e654692062a41cea369f070aeffb0face6dc3e3b",
+      "verifiedAt": "2026-10-04T17:36:26Z",
       "status": "PASS_LOCAL",
       "domainTests": {
-        "passed": 7,
+        "passed": 8,
         "failed": 0,
         "skipped": 0,
         "tests": [
@@ -33,21 +33,22 @@
           "AuditAreaAssessmentIsolationTests.SiblingEngagementIds_AreDeniedForAssessmentAndCompletion",
           "AuditPlanningCompletionIsolationTests.SiblingEngagementIds_AreDeniedForOpeningBalanceRecordAndReview",
           "AuditFindingCommandIsolationTests.SiblingEngagementIds_AreDeniedForFindingCreateResponseAndDesignation",
-          "AuditPlanningCommandIsolationTests.SiblingEngagementIds_AreDeniedAcrossPlanningCommands"
+          "AuditPlanningCommandIsolationTests.SiblingEngagementIds_AreDeniedAcrossPlanningCommands",
+          "AuditSamplingSelectionIsolationTests.SiblingIdentifiers_AreDeniedAcrossSchedulesSelectionsAndSampling"
         ]
       },
       "fullSolutionRegression": "NOT_RUN on this source commit",
       "domainFullSuiteAttempt": "A Domain suite attempt on predecessor source commit dd80eb93eaee6e55e0a5fbb6da3428ba18f61b5e was interrupted after approximately 13 minutes without a runner summary; no full-suite result is claimed for this source commit.",
-      "efModelDrift": "NONE; no changes have been made to the model since the last migration",
+      "efModelDrift": "NONE; dotnet ef migrations has-pending-model-changes reported no model changes at sourceCommit",
       "remoteHead": "PUSHED and confirmed at sourceCommit",
-      "boundary": "Seven focused PostgreSQL-backed tests passed on owned test databases. A client-A scoped Partner was denied sibling-client audit-program adoption, applicability, result submission and result review; B's procedure/result/workpaper/review state remained unchanged. The confirmation test denied sibling-ID creation, approval, dispatch, response, response review, alternative work, alternative review and closure; B's confirmation, response, alternative-work and closure state remained unchanged. The difference test denied sibling-ID creation, summaries, evaluation, correction-state changes and journal linking; B's difference state remained unchanged. The area-assessment test denied sibling-ID creation, completion evaluation and assessment review, with B's assessment unchanged. The opening-balance test denied sibling record, review and planning-summary attempts and preserved the verification state. The finding test denied sibling engagement creation, response and management-letter designation, preserving B's finding and recommendation state. The planning test denied sibling engagement materiality, risk, population and workpaper creation plus materiality approval and workpaper submission; B's records stayed unchanged. No shared Development database, tenant, or production state was changed. AS-PAR-002 remains partial for other command families, export/count paths, and independent review.",
+      "boundary": "Eight focused PostgreSQL-backed tests passed on owned test databases. A client-A scoped Partner was denied sibling-client audit-program adoption, applicability, result submission and result review; B's procedure/result/workpaper/review state remained unchanged. The confirmation test denied sibling-ID creation, approval, dispatch, response, response review, alternative work, alternative review and closure; B's confirmation, response, alternative-work and closure state remained unchanged. The difference test denied sibling-ID creation, summaries, evaluation, correction-state changes and journal linking; B's difference state remained unchanged. The area-assessment test denied sibling-ID creation, completion evaluation and assessment review, with B's assessment unchanged. The opening-balance test denied sibling record, review and planning-summary attempts and preserved the verification state. The finding test denied sibling engagement creation, response and management-letter designation, preserving B's finding and recommendation state. The planning test denied sibling engagement materiality, risk, population and workpaper creation plus materiality approval and workpaper submission; B's records stayed unchanged. The fieldwork test denied sibling-ID schedule creation/review, selection creation/review, item-test record/review, sampling-run creation/read and sampling list; the sibling schedule, selection, test and run state stayed unchanged. No shared Development database, tenant, or production state was changed. AS-PAR-002 remains partial for other command families, export/count paths, and independent review.",
       "combinedFocusedRun": {
-        "passed": 7,
+        "passed": 8,
         "failed": 0,
         "skipped": 0,
         "status": "PASS",
-        "sourceCommit": "66f0a325d46a11498f52e62a3a7c5dcdc476a51d",
-        "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --configuration Release --filter 'FullyQualifiedName~AuditProgramCommandIsolationTests|FullyQualifiedName~AuditConfirmationCommandIsolationTests|FullyQualifiedName~AuditDifferenceCommandIsolationTests|FullyQualifiedName~AuditAreaAssessmentIsolationTests|FullyQualifiedName~AuditPlanningCompletionIsolationTests|FullyQualifiedName~AuditFindingCommandIsolationTests|FullyQualifiedName~AuditPlanningCommandIsolationTests'"
+        "sourceCommit": "e654692062a41cea369f070aeffb0face6dc3e3b",
+        "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --configuration Release --filter 'FullyQualifiedName~AuditProgramCommandIsolationTests|FullyQualifiedName~AuditConfirmationCommandIsolationTests|FullyQualifiedName~AuditDifferenceCommandIsolationTests|FullyQualifiedName~AuditAreaAssessmentIsolationTests|FullyQualifiedName~AuditPlanningCompletionIsolationTests|FullyQualifiedName~AuditFindingCommandIsolationTests|FullyQualifiedName~AuditPlanningCommandIsolationTests|FullyQualifiedName~AuditSamplingSelectionIsolationTests'"
       }
     },
     "asPar002ScopedPortfolioBillingAndResourceRecovery": {
