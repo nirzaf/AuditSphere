@@ -10,6 +10,20 @@ public static partial class UiEndpoints
   private static void MapPeriodMaintenanceEndpoints(RouteGroupBuilder group)
   {
     MapValuationPreparationEndpoints(group);
+    group.MapGet("/engagements/{id:guid}/analytical-preparation", (Guid id, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => AnalyticalReviewPreparationWorkspace.ContextAsync(db, actor, id, ct)));
+    group.MapGet("/engagements/{id:guid}/analytical-preparation/state", (Guid id, Guid periodId,
+      Guid? comparisonPeriodId, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => AnalyticalReviewPreparationWorkspace.StateAsync(db, actor, id, periodId, comparisonPeriodId, ct)));
+    group.MapPost("/engagements/{id:guid}/analytical-preparation/preview", (Guid id,
+      AnalyticalPreparationRequest input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AnalyticalReviewPreparationWorkspace.PreviewAsync(db, actor, id, input, ct)));
+    group.MapPost("/engagements/{id:guid}/analytical-preparation", (Guid id,
+      AnalyticalPreparationRequest input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AnalyticalReviewPreparationWorkspace.ExecuteAsync(db, actor, id, input, ct)));
+    group.MapGet("/engagements/{id:guid}/analytical-preparation/receipts/{requestId:guid}",
+      (Guid id, Guid requestId, string? requestHash, HttpContext http) =>
+        ReadAsync(http, (db, actor, ct) => AnalyticalReviewPreparationWorkspace.LookupAsync(db, actor, id, requestId, requestHash, ct)));
     group.MapUiGet("/accounting/evidence", http => ReadAsync(http, (db, actor, ct) => AccountingEvidenceQueueQuery.GetAsync(db, actor, ct)));
     group.MapGet("/accounting/reconciliations/{id:guid}", (Guid id, int? page, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => ReconciliationWorkspaceQuery.GetAsync(db, actor, id, page ?? 0, ct)));

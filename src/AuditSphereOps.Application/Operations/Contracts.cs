@@ -263,6 +263,7 @@ public interface IClientAccountingDbContext : IAuditSphereDbContext
   DbSet<JournalRiskFlag> JournalRiskFlags { get; }
   DbSet<AccountingEvidenceAuditLink> AccountingEvidenceAuditLinks { get; }
   DbSet<AccountingEvidenceAction> AccountingEvidenceActions { get; }
+  DbSet<AccountingAnalysisPreparation> AccountingAnalysisPreparations { get; }
   DbSet<ValuationPreparation> ValuationPreparations { get; }
   DbSet<ConsolidationScopeVersion> ConsolidationScopeVersions { get; }
   DbSet<ConsolidationComponent> ConsolidationComponents { get; }

@@ -326,6 +326,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
 
   public DbSet<AccountingEvidenceAuditLink> AccountingEvidenceAuditLinks => Set<AccountingEvidenceAuditLink>();
   public DbSet<AccountingEvidenceAction> AccountingEvidenceActions => Set<AccountingEvidenceAction>();
+  public DbSet<AccountingAnalysisPreparation> AccountingAnalysisPreparations => Set<AccountingAnalysisPreparation>();
   public DbSet<ValuationPreparation> ValuationPreparations => Set<ValuationPreparation>();
 
   public DbSet<ConsolidationScopeVersion> ConsolidationScopeVersions => Set<ConsolidationScopeVersion>();
@@ -525,6 +526,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
     ConfigureAccounting(b);
     ConfigureClientAccounting(b);
     ConfigureAccountingEvidenceActions(b);
+    ConfigureAccountingAnalysisPreparations(b);
     ConfigureValuationPreparations(b);
     ConfigureDocuments(b);
     ConfigurePbc(b);

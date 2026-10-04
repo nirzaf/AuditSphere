@@ -62,7 +62,7 @@
         <dd>{{ engagement.generation }}</dd>
       </dl>
     </section>
-    <nav aria-label="Engagement workflows">
+    <nav aria-label="Engagement workflows" [hidden]="loading() || !data() || planning()?.loading()">
       @for (workflow of workflows; track workflow.path) {
         <a matButton [routerLink]="['/app/engagements', engagement.id, workflow.path]">{{
           workflow.label

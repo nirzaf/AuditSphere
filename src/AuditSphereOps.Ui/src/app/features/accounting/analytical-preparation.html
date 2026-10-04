@@ -1,0 +1,85 @@
+<a [routerLink]="['/app/engagements',id()]">← Back to engagement</a>
+<audit-page-header title="Prepare analytical review" eyebrow="Accounting preparation"
+  description="Record practitioner-entered analytical inputs and their retained basis. Independent human review stays separate." />
+<button matButton="outlined" (click)="refresh()" [disabled]="busy()">Refresh reporting periods</button>
+<audit-state [loading]="data.loading()" [error]="data.error()" label="analytical preparation" />
+@if(message()){<p role="status">{{message()}}</p>}
+@if(data.data();as c){
+  <section class="panel">
+    <h2>Engagement context</h2>
+    <p>{{c.clientName}} · {{c.engagementName}} · Input generation {{c.inputGeneration}}</p>
+    @if(!c.periods.length){<p>No reporting periods are available in this engagement's authorized client scope.</p>}
+    @else {
+      <div class="grid">
+        <label>Reporting period
+          <select [value]="periodId()" (change)="periodChanged($any($event.target).value)" [disabled]="busy() || uncertain()">
+            @for(p of c.periods;track p.id){<option [value]="p.id">{{p.code}} · {{p.startDate}} to {{p.endDate}} · {{p.currency}} · {{p.status}}</option>}
+          </select>
+        </label>
+        <label>Comparison period (optional)
+          <select [value]="comparisonPeriodId()" (change)="comparisonChanged($any($event.target).value)" [disabled]="busy() || uncertain()">
+            <option value="">No comparison period</option>
+            @for(p of comparisonPeriods();track p.id){<option [value]="p.id">{{p.code}} · {{p.endDate}} · {{p.currency}}</option>}
+          </select>
+        </label>
+      </div>
+      @if(currentPeriod();as p){<p>{{p.code}} · {{p.startDate}} to {{p.endDate}} · {{p.currency}} · revision {{p.revision}}</p>
+        @if(p.blockers.length){<h3>Period blockers</h3><ul>@for(b of p.blockers;track b){<li>{{b}}</li>}</ul>}
+      }
+      @if(basis();as s){
+        <p>Review basis {{s.reviewBasis}} · Current input generation {{s.inputGeneration}} · {{s.currency}}</p>
+        @if(s.blockers.length){<div role="alert"><h3>Preparation blocked</h3><ul>@for(b of s.blockers;track b){<li>{{b}}</li>}</ul></div>}
+      } @else {<p>Loading and verifying the selected reporting-period basis…</p>}
+    }
+  </section>
+
+  @if(uncertain()){<section class="panel" role="alert"><h2>Preparation outcome needs reconciliation</h2>
+    <p>Request {{pending()?.requestId}} · {{pending()?.requestHash}}</p>
+    <p>A retry is unavailable until the server confirms that no receipt exists.</p>
+    <button matButton="outlined" (click)="reconcile()" [disabled]="busy()">Check retained receipt</button>
+    @if(receipt() && pending()){<button matButton="filled" (click)="acknowledge()">Acknowledge retained preparation</button>}
+  </section>}
+
+  @if(basis();as s){@if(s.canPrepare){
+    <section class="panel"><h2>Practitioner-entered analysis</h2>
+      <p>Enter exact values with at most six decimal places and a dot decimal separator. A zero prior amount produces an explicit insufficient-data state; it is never replaced with a ratio.</p>
+      <fieldset [disabled]="busy() || (uncertain() && !absent())"><legend>Preparation inputs</legend>
+        <div class="grid">
+          <label>Analysis area <input maxlength="80" [value]="model().area" (input)="setField('area',$any($event.target).value)" /></label>
+          <label>Measure <input maxlength="100" [value]="model().measure" (input)="setField('measure',$any($event.target).value)" /></label>
+          <label>Current amount <input inputmode="decimal" [value]="model().currentAmount" (input)="setField('currentAmount',$any($event.target).value)" /></label>
+          <label>Prior amount <input inputmode="decimal" [value]="model().priorAmount" (input)="setField('priorAmount',$any($event.target).value)" /></label>
+          <label>Budget amount (optional) <input inputmode="decimal" [value]="model().budgetAmount" (input)="setField('budgetAmount',$any($event.target).value)" /></label>
+          <label>Denominator basis <input maxlength="200" [value]="model().denominatorBasis" (input)="setField('denominatorBasis',$any($event.target).value)" /></label>
+          <label>Formula version <input maxlength="100" [value]="model().formulaVersion" (input)="setField('formulaVersion',$any($event.target).value)" /></label>
+        </div>
+        <label>Preparer explanation <textarea rows="4" maxlength="4000" [value]="model().explanation" (input)="setField('explanation',$any($event.target).value)"></textarea></label>
+        <label>Seasonality explanation (optional) <textarea rows="3" maxlength="2000" [value]="model().seasonalityExplanation" (input)="setField('seasonalityExplanation',$any($event.target).value)"></textarea></label>
+        <div class="grid">
+          <label>Reason for preparation <textarea rows="3" maxlength="4000" [value]="model().reason" (input)="setField('reason',$any($event.target).value)"></textarea></label>
+          <label>Evidence reference <input maxlength="2000" [value]="model().evidenceReference" (input)="setField('evidenceReference',$any($event.target).value)" /></label>
+        </div>
+        <button matButton="filled" (click)="prepare()" [disabled]="!valid() || busy()">Preview exact analysis</button>
+        <button matButton="outlined" (click)="saveDraft()" [disabled]="busy() || uncertain()">Save tab draft</button>
+        @if(draftAvailable() || uncertain()){<button matButton="outlined" (click)="restoreDraft()" [disabled]="busy()">Restore editable fields</button>}
+      </fieldset>
+    </section>
+  }}
+
+  @if(preview();as p){<section class="panel"><h2>Review exact preparation before saving</h2>
+    <p>{{p.area}} · {{p.measure}} · {{p.currency}} · {{p.resultStatus}}</p>
+    <dl><dt>Current amount</dt><dd>{{p.currentAmount}} {{p.currency}}</dd><dt>Prior amount</dt><dd>{{p.priorAmount}} {{p.currency}}</dd>
+      <dt>Variance ratio</dt><dd>{{p.varianceRatio ?? 'Unavailable: zero prior denominator'}}</dd>
+      @if(p.budgetAmount!==null){<dt>Budget amount</dt><dd>{{p.budgetAmount}} {{p.currency}}</dd>}
+      <dt>Reason</dt><dd>{{model().reason}}</dd><dt>Evidence reference</dt><dd>{{model().evidenceReference}}</dd>
+      <dt>Preparer explanation</dt><dd>{{model().explanation}}</dd></dl>
+    @if(p.blockers.length){<ul>@for(b of p.blockers;track b){<li>{{b}}</li>}</ul>}
+    <p>This creates analytical evidence only. It does not make an audit conclusion, approve the analysis, or post a journal.</p>
+    <label><input type="checkbox" [checked]="reviewed()" (change)="reviewed.set($any($event.target).checked)" [disabled]="busy() || !p.canProceed" /> I reviewed this exact period, all entered values, the formula basis and the evidence reference.</label>
+    <button matButton="filled" (click)="execute()" [disabled]="busy() || !reviewed() || !p.canProceed">Retain analytical preparation</button>
+  </section>}
+  @if(receipt();as r){<section class="panel"><h2>Retained preparation receipt</h2><p>{{r.result.area}} · {{r.result.measure}} · {{r.createdAt}}</p>
+    <p>{{r.reason}} · {{r.evidenceReference}}</p><a [routerLink]="['/app/accounting/evidence','ANALYTICAL',r.evidenceId]">Inspect analytical evidence</a>
+    @if(uncertain()){<button matButton="filled" (click)="acknowledge()">Acknowledge retained preparation</button>}
+  </section>}
+}

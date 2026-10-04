@@ -190,6 +190,8 @@ export const routes: Routes = [
   },
   { path: 'app/engagements/:id/activation', canActivate: [staffGuard], canDeactivate: [unsavedChangesGuard],
     title: 'Review activation · AuditSphere', loadComponent: () => import('./features/engagements/activation').then(m => m.EngagementActivationReview) },
+  { path: 'app/engagements/:id/analysis/new', canActivate: [staffGuard], canDeactivate: [unsavedChangesGuard],
+    title: 'Prepare analytical review · AuditSphere', loadComponent: () => import('./features/accounting/analytical-preparation').then(m => m.AnalyticalPreparation) },
   {
     path: 'app/engagements/:id',
     canActivate: [staffGuard],
