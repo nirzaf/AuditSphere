@@ -13,7 +13,7 @@ public sealed class AngularAssessmentDecisionRouteJourneyTests
   public async Task LegacyDecisionDeepLinkEnforcesPartnerGrantAndRecoversLostDecisionOnce(bool canonical)
   {
     await using var host = await OwnedHost.StartAsync(
-      startWorker: false, caseId: "ANGULAR-ASSESSMENT-DECISION-LINK", startLegacyBlazorHosts: false);
+      startWorker: false, caseId: "ANGULAR-ASSESSMENT-DECISION-LINK");
     var f = host.Fixture;
     var senior = PbcSeed.User(f.FirmId, "Staff");
     await using (var db = host.CreateDbContext())
@@ -35,17 +35,24 @@ public sealed class AngularAssessmentDecisionRouteJourneyTests
     using var playwright = await Playwright.CreateAsync();
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
 
-    // A current client-scoped Senior grant can open the assessment, but cannot acquire
-    // the Partner-only decision action through the legacy direct URL.
+    // Both the ordinary detail route and the legacy Partner decision deep link must
+    // preserve the legacy staff gate. The decision URL must not reveal assessment data.
     await using (var seniorContext = await browser.NewContextAsync())
     {
       var seniorPage = await seniorContext.NewPageAsync();
       await seniorPage.GotoAsync(seniorOrigin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(
         prefix + "/app/assessments/" + f.ClientId + "/decision"));
+      await Assertions.Expect(seniorPage.GetByRole(AriaRole.Alert))
+        .ToContainTextAsync("Access denied");
       await Assertions.Expect(seniorPage.GetByRole(AriaRole.Region,
-        new() { Name = "Client assessment profile", Exact = true })).ToContainTextAsync("PBC TEST CLIENT");
+        new() { Name = "Client assessment profile", Exact = true })).ToHaveCountAsync(0);
       await Assertions.Expect(seniorPage.GetByRole(AriaRole.Button,
         new() { Name = "Review Partner decision", Exact = true })).ToHaveCountAsync(0);
+      await seniorPage.GotoAsync(seniorOrigin + prefix + "/app/assessments/" + f.ClientId);
+      await Assertions.Expect(seniorPage.GetByRole(AriaRole.Alert))
+        .ToContainTextAsync("Access denied");
+      await Assertions.Expect(seniorPage.GetByRole(AriaRole.Region,
+        new() { Name = "Client assessment profile", Exact = true })).ToHaveCountAsync(0);
     }
 
     await using var context = await browser.NewContextAsync();

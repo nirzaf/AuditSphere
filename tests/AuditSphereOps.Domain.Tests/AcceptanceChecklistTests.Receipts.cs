@@ -1,6 +1,7 @@
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Acceptance;
 using AuditSphereOps.Domain.Acceptance;
+using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +12,29 @@ namespace AuditSphereOps.Domain.Tests;
 
 public sealed partial class AcceptanceChecklistTests
 {
+  [Fact]
+  public async Task AssessmentRoutesPreserveLegacyStaffBoundaryAndRequirePartnerForDecisionDeepLink()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var senior = User(w.FirmId, "senior");
+    await using var db = new AuditSphereDbContext(pg.Options);
+    db.Users.Add(senior);
+    db.RoleGrants.Add(new RoleGrant
+    {
+      Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = senior.Id, Role = "Senior", ClientId = w.ClientId,
+      GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = senior.Id
+    });
+    await db.SaveChangesAsync();
+
+    Assert.True((await AssessmentRouteQuery.ResolveAsync(db, w.Staff, w.ClientId)).Succeeded);
+    Assert.False((await AssessmentRouteQuery.ResolveDecisionAsync(db, w.Staff, w.ClientId)).Succeeded);
+    Assert.False((await AssessmentRouteQuery.ResolveDecisionAsync(db, w.Manager, w.ClientId)).Succeeded);
+    Assert.True((await AssessmentRouteQuery.ResolveDecisionAsync(db, w.Partner, w.ClientId)).Succeeded);
+    Assert.False((await AssessmentRouteQuery.ResolveAsync(db, Actor(senior, "Senior"), w.ClientId)).Succeeded);
+    Assert.False((await AssessmentWorkspaceQuery.GetAsync(db, Actor(senior, "Senior"), w.ClientId)).Succeeded);
+  }
+
   private static async Task<AssessmentCommandRequest> ReviewAsync(AuditSphereDbContext db, ActorContext actor, Guid clientId,
     AssessmentCommandFields fields, Guid? requestId = null)
   {

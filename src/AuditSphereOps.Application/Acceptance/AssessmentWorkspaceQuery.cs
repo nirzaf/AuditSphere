@@ -23,7 +23,7 @@ public sealed record AssessmentWorkspace(AcceptanceWorkspace Checklist, Assessme
 /// <summary>A scope checked read projection; exact decision selection never substitutes another client's or newer record.</summary>
 public static class AssessmentWorkspaceQuery
 {
-  private static readonly string[] Roles = ["Administrator", "Partner", "Manager", "Senior", "Staff", "EngagementLeader", "Auditor"];
+  private static readonly string[] Roles = ["Administrator", "Partner", "Manager", "Staff", "EngagementLeader", "Auditor"];
 
   public static async Task<CommandResult<AssessmentWorkspace>> GetAsync(IAuditSphereDbContext db, ActorContext actor,
     Guid clientId, Guid? decisionId = null, CancellationToken ct = default)

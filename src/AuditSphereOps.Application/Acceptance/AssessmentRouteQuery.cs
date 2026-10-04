@@ -14,15 +14,26 @@ public sealed record AssessmentRoute(Guid ClientId, Guid? DecisionId);
 /// </summary>
 public static class AssessmentRouteQuery
 {
-  private static readonly string[] Roles = ["Administrator", "Partner", "Manager", "Reviewer", "Senior", "Staff", "EngagementLeader", "Auditor"];
+  // Match the legacy AssessmentDetail staff gate. Senior/Reviewer do not gain access
+  // merely because the Angular route catalogue can resolve their client IDs.
+  private static readonly string[] Roles = ["Administrator", "Partner", "Manager", "Staff", "EngagementLeader", "Auditor"];
+  private static readonly string[] PartnerRole = ["Partner"];
 
-  public static async Task<CommandResult<AssessmentRoute>> ResolveAsync(IAuditSphereDbContext db, ActorContext actor, Guid id, CancellationToken ct = default)
+  public static Task<CommandResult<AssessmentRoute>> ResolveAsync(IAuditSphereDbContext db, ActorContext actor, Guid id, CancellationToken ct = default) =>
+    ResolveAsync(db, actor, id, Roles, ct);
+
+  /// <summary>Resolves the legacy Partner decision deep link without disclosing the assessment to other staff roles.</summary>
+  public static Task<CommandResult<AssessmentRoute>> ResolveDecisionAsync(IAuditSphereDbContext db, ActorContext actor, Guid id, CancellationToken ct = default) =>
+    ResolveAsync(db, actor, id, PartnerRole, ct);
+
+  private static async Task<CommandResult<AssessmentRoute>> ResolveAsync(IAuditSphereDbContext db, ActorContext actor, Guid id,
+    string[] requiredRoles, CancellationToken ct)
   {
     var clientId = await db.PracticeClients.AsNoTracking().Where(c => c.Id == id && c.FirmId == actor.FirmId).Select(c => (Guid?)c.Id).SingleOrDefaultAsync(ct)
       ?? await db.AcceptanceDecisions.AsNoTracking().Where(d => d.Id == id && d.FirmId == actor.FirmId).Select(d => (Guid?)d.PracticeClientId).SingleOrDefaultAsync(ct);
     if (clientId is null) return CommandResult<AssessmentRoute>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var decisionId = clientId.Value == id ? (Guid?)null : id;
-    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, ClientId: clientId, RequiredRoles: Roles, InternalOnly: true), ct);
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, ClientId: clientId, RequiredRoles: requiredRoles, InternalOnly: true), ct);
     return auth.Succeeded ? CommandResult<AssessmentRoute>.Ok(new(clientId.Value, decisionId)) : CommandResult<AssessmentRoute>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
   }
 }

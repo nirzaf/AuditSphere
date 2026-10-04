@@ -34,7 +34,11 @@ export class AssessmentRoute {
       untracked(async () => {
         if (!id) return;
         try {
-          const r = await this.api.get(`/api/ui/assessments/${id}`, decodeRoute);
+          const decisionLink = this.router.url.split('?')[0]?.endsWith('/decision') ?? false;
+          const endpoint = decisionLink
+            ? `/api/ui/assessments/${id}/decision`
+            : `/api/ui/assessments/${id}`;
+          const r = await this.api.get(endpoint, decodeRoute);
           if (this.id() === id)
             await this.router.navigate(['/app/clients', r.clientId, 'assessment'], {
               replaceUrl: true,
