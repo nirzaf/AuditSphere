@@ -13,6 +13,22 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Current Release regression and resource-planning browser journey
+
+At `152790fb1709d7c886b49be539260d6a84201afd`, the full Release solution test
+invocation passed API 178/178 and Domain 644/644. E2E reported 202 passed and
+one failure: the Angular resource-planning journey on the `/ui` preview route
+could not find its review confirmation after profile submission. The journey
+now submits an actual profile change and awaits both HTTP 200 from the preview
+endpoint and the named review panel before checking that assent is disabled.
+The focused journey passed both `/ui` and `/app` variants (2/2), and the full
+E2E project passed 203/203 at `7fe9603721ee9352f6fd40bad1f24c5d5a1ecc28`.
+The Release solution build after this test change passed with zero warnings and
+errors. API and Domain production code was unchanged by the E2E-only correction;
+however, there is not yet a single clean all-project test invocation at the
+latest commit. The latest clean all-project run remains 1022/1022 at `404b4b8`.
+Full migration acceptance remains PARTIAL.
+
 ## Angular invoice receipts, allocations and credit notes
 
 The Angular invoice workspace shows billing-account receipts and invoice credit
@@ -31,14 +47,8 @@ journeys and EF model check is in `status.json` under
 The built-in Development browser was reloaded on the authenticated Angular
 workspace. Its synthetic search returned no invoice to inspect, so no Development
 billing rows were created; the invoice and paging flow was exercised in owned
-PostgreSQL Playwright journeys. A full Release suite attempt at `3e3c892` ran for
-about 40 minutes before it was stopped: API passed 178/178 and Domain passed
-644/644; E2E had one stale preview-route assertion and did not return a suite
-total. That assertion now expects the canonical `/app` route, and the corrected
-tenant journey plus invoice journey passed 2/2. The latest completed whole-suite
-pass remains 1022/1022 at `404b4b8`. Migration acceptance remains PARTIAL; wider
-US-019 parity, production canary, assistive-technology acceptance, live Microsoft
-gates and Blazor retirement remain open.
+PostgreSQL Playwright journeys. Wider US-019 parity, production canary,
+assistive-technology acceptance and live Microsoft gates remain open.
 
 ## Current-source Angular regression and built-in browser check
 

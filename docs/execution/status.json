@@ -7241,8 +7241,8 @@
       "boundary": "Development route ownership only. Production route ownership, production-like canary and Blazor retirement remain open acceptance gates."
     },
     "angularBillingReceiptCreditWorkspace": {
-      "sourceCommit": "6980501974d8b5a54ebb64de23be70ae6cd713fc",
-      "observedAt": "2026-10-04T00:52:07Z",
+      "sourceCommit": "7fe9603721ee9352f6fd40bad1f24c5d5a1ecc28",
+      "observedAt": "2026-10-04T03:15:16Z",
       "status": "PASS_LOCAL_SLICE",
       "releaseSolutionBuild": {
         "status": "PASS",
@@ -7263,15 +7263,22 @@
         "skipped": 0
       },
       "playwrightJourney": {
-        "filter": "FullyQualifiedName~AngularBillingWorkspaceJourneyTests|FullyQualifiedName~AngularTenantConnectionJourneyTests",
+        "filter": "Full AuditSphereOps.E2E.Tests project after resource-planning preview test correction",
+        "passed": 203,
+        "failed": 0,
+        "skipped": 0,
+        "verified": "Full E2E project passed. The Angular resource-planning journey waits for HTTP 200 from the preview endpoint and the named review panel before asserting disabled assent; both /ui and canonical route modes passed."
+      },
+      "focusedPlaywrightJourney": {
+        "filter": "FullyQualifiedName~AngularResourcePlanningJourneyTests.KeyboardFormsCapacityAvailabilityAndAllocationsRemainServerOwned",
         "passed": 2,
         "failed": 0,
         "skipped": 0,
-        "verified": "Receipt recording, posted-invoice allocation, manager credit note, lost-response readback, duplicate-free recovery, cursor-paged histories across equal timestamps, and canonical tenant-connection navigation."
+        "routeModes": ["/ui", "/app"]
       },
       "efModelDrift": "NONE",
       "builtInBrowser": "LIMITED: Authenticated Development Angular workspace reloaded at /ui/app/accounting. Read-only search found no synthetic invoice to open; no Development billing records were created. The invoice workflow was exercised in the owned PostgreSQL Playwright journey.",
-      "fullSolutionRegression": "Attempted at sourceCommit 3e3c892; manually interrupted after about 40 minutes. API 178/178 and Domain 644/644 passed. E2E reported one stale preview-route assertion and did not return a total. The assertion is corrected at 6980501 and both affected focused journeys pass 2/2. The latest completed whole-suite pass remains 1022/1022 at 404b4b8.",
+      "fullSolutionRegression": "A Release solution test invocation at 152790fb1709d7c886b49be539260d6a84201afd completed API 178/178 and Domain 644/644; E2E reported 202 passed and one failure in the Angular resource-planning journey on the /ui preview route. The journey now submits a changed profile, awaits HTTP 200 and the named review panel, and passes in both route modes (2/2); the full E2E project then passed 203/203 at sourceCommit 7fe9603721ee9352f6fd40bad1f24c5d5a1ecc28. There is not yet a single clean all-project invocation at that commit. The last clean all-project invocation remains 1022/1022 at 404b4b8.",
       "boundary": "Local synthetic verification only. Wider US-019 source-action parity, production cutover, accessibility acceptance and Blazor retirement remain open; overall migration acceptance stays PARTIAL."
     },
     "angularCanonicalRouteDefaultFlip": {
@@ -7462,7 +7469,7 @@
     "implementationStatus": "PARTIAL",
     "acceptanceStatus": "PARTIAL",
     "scope": "Standalone API and native Angular capability slices preserve Application authorization, exact financial inputs, durable operations and independent human gates. Legacy Blazor remains available for rollback until wider parity and retirement acceptance.",
-    "nextAction": "Continue remaining partial Angular creation/planning/source-action parity and accessibility acceptance. US-019 now has reviewed receipt recording, posted-invoice allocation, FinanceManager credit notes and separate 100-row cursor-paged histories with focused Angular, PostgreSQL API and Playwright coverage; the built-in Development browser had no synthetic invoice to open and no Development billing data was created. The latest whole-suite attempt was incomplete (API 178/178 and Domain 644/644 passed; E2E stale-route assertion corrected and focused journeys pass). The last completed full Release suite passed 1022/1022 at 404b4b8. Production-like canary, screen-reader and wider-locale acceptance, live Microsoft gates and US-047 Blazor retirement remain open.",
+    "nextAction": "Continue remaining partial Angular creation/planning/source-action parity and accessibility acceptance. US-019 now has reviewed receipt recording, posted-invoice allocation, FinanceManager credit notes and separate 100-row cursor-paged histories. API 178/178 and Domain 644/644 passed in the latest combined attempt; after strengthening the resource-planning preview journey, the complete E2E project passed 203/203 in a separate run. No single clean all-project invocation exists at the latest commit; the last clean all-project run was 1022/1022 at 404b4b8. The built-in Development browser had no synthetic invoice to open and no Development billing data was created. Production-like canary, screen-reader and wider-locale acceptance, live Microsoft gates and US-047 retirement work remain open.",
     "branch": "master"
   },
   "localEvidence": [
