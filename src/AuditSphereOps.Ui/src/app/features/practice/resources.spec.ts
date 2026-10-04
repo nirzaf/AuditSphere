@@ -113,10 +113,16 @@ describe('Resource planning forms', () => {
     const f = setup();
     const text = f.nativeElement.textContent;
     expect(text).toContain('Over-allocated');
+    expect(text).toContain('approved actual 10 h');
     expect(text).toContain('actual 50%');
     expect(text).toContain('Synthetic engagement');
     expect(text).toContain('30 hours');
     expect(text).toContain('does not assign an AuditSphere role');
+    expect(
+      f.nativeElement
+        .querySelector('td[aria-label*="Synthetic planner week of"]')
+        ?.getAttribute('aria-label'),
+    ).toContain('approved actual 10 hours');
     f.destroy();
   });
   it('keeps selected week columns and an aligned empty row when there are no active staff', () => {

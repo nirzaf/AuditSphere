@@ -17,12 +17,35 @@ public sealed class AngularResourcePlanningJourneyTests
     var f=host.Fixture;
     await using(var db=host.CreateDbContext()) {
       var staff=await db.Users.SingleAsync(x=>x.Id==f.Staff.Id);staff.DisplayName="Synthetic resource staff";
+      var taskId = Guid.NewGuid();
+      db.WorkTasks.Add(new WorkTask
+      {
+        Id = taskId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        Title = "Approved actual resource-grid fixture", CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.TimeEntries.Add(new TimeEntry
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        TaskId = taskId, UserId = f.Staff.Id, WorkDate = DateOnly.FromDateTime(DateTime.UtcNow),
+        StartMinute = 540, DurationMinutes = 480, Role = "Staff", Activity = "Audit",
+        BillableClassification = PracticeTimeStates.NonBillable,
+        NarrativeVisibility = PracticeTimeStates.NarrativeInternal, Narrative = "Synthetic approved actual fixture",
+        Currency = "QAR", Status = PracticeTimeStates.TimeApproved, ApprovedByUserId = f.Admin.Id,
+        ApprovedAt = DateTimeOffset.UtcNow, CreatedAt = DateTimeOffset.UtcNow
+      });
       await db.SaveChangesAsync();
       var actor=PbcSeed.Actor(f.Admin,"Administrator");
       Assert.True((await StaffingService.AssignAsync(db,actor,new(f.EngagementId,f.Staff.Id,StaffingLevels.StaffAssociate))).Succeeded);
       Assert.True((await ResourcePlanningService.SaveProfileAsync(db,actor,new(f.Staff.Id,"Audit","IFRS",1200,75m))).Succeeded);
     }
-    var origin=await host.StartApiForIdentityAsync(f.Admin,new Dictionary<string,string>{["AngularUi__Enabled"]="true",["AngularUi__CanonicalRoutes"]=canonical.ToString()});
+    var settings = new Dictionary<string, string>
+    {
+      ["AngularUi__Enabled"] = "true",
+      ["AngularUi__CanonicalRoutes"] = canonical.ToString()
+    };
+    if (Environment.GetEnvironmentVariable("AUDITSPHERE_TEST_UI_BUILD_PATH") is { Length: > 0 } buildPath)
+      settings["AngularUi__BuildPath"] = buildPath;
+    var origin=await host.StartApiForIdentityAsync(f.Admin,settings);
     var prefix=canonical ? "" : "/ui";
     using var playwright=await Playwright.CreateAsync();
     await using var browser=await PlaywrightBrowser.LaunchAsync(playwright);
@@ -32,7 +55,9 @@ public sealed class AngularResourcePlanningJourneyTests
     var table=page.GetByRole(AriaRole.Table,new(){Name="Resource grid",Exact=true});
     await Assertions.Expect(table).ToContainTextAsync("Synthetic resource staff");
     Assert.Equal(7, await table.Locator("thead th").CountAsync());
+    await Assertions.Expect(table.Locator("tr[data-user='Synthetic resource staff']")).ToContainTextAsync("approved actual 8 h");
     Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));
+    Assert.True(await page.EvaluateAsync<bool>("() => { const w = document.querySelector('.table-scroll'); const h = document.querySelector('.table-scroll th:nth-child(4)'); return !!w && !!h && w.scrollWidth > w.clientWidth && h.getBoundingClientRect().width >= 112; }"));
     async Task ConfirmAndAcknowledgeAsync()
     {
       var review = page.GetByRole(AriaRole.Region, new() { Name = "Exact planning action review", Exact = true });

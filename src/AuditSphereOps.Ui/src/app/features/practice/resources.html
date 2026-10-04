@@ -96,6 +96,8 @@
                     hrs(c.plannedMinutes) +
                     ' of ' +
                     hrs(c.capacityMinutes) +
+                    ' hours, approved actual ' +
+                    hrs(c.approvedActualMinutes) +
                     ' hours' +
                     (c.overAllocated ? ', over-allocated' : '')
                   "
@@ -106,6 +108,8 @@
                       c.plannedUtilizationPercent !== null
                         ? 'planned ' + whole(c.plannedUtilizationPercent) + '%'
                         : 'no capacity'
+                    }}{{
+                      ' · approved actual ' + hrs(c.approvedActualMinutes) + ' h'
                     }}{{
                       c.actualUtilizationPercent !== null
                         ? ' · actual ' + whole(c.actualUtilizationPercent) + '%'

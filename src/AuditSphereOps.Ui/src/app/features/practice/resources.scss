@@ -16,6 +16,25 @@ li {
 .table-scroll {
   overflow-x: auto;
 }
+.table-scroll table {
+  min-width: 56rem;
+}
+.table-scroll th:first-child,
+.table-scroll td:first-child {
+  min-width: 9rem;
+}
+.table-scroll th:nth-child(2),
+.table-scroll td:nth-child(2) {
+  min-width: 10rem;
+}
+.table-scroll th:nth-child(3),
+.table-scroll td:nth-child(3) {
+  min-width: 3rem;
+}
+.table-scroll th:nth-child(n + 4),
+.table-scroll td:nth-child(n + 4) {
+  min-width: 5rem;
+}
 @media (max-width: 800px) {
   .resource-editors {
     grid-template-columns: minmax(0, 1fr);
