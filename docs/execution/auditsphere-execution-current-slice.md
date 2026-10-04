@@ -3754,3 +3754,12 @@ The locale matrix signs in and renders under fr-FR and RTL ar-EG while staying
 honestly LTR-declared, and a constrained-network budget loads a cold lazy
 route at 4890ms observed against a 25s ceiling. A human screen-reader
 walk-through and production acceptance remain the open gates.
+
+
+### Reviewed native analytical preparation (US-025)
+
+At code commit `d2fce44`, the engagement workflow now opens a native Angular analytical-preparation form. It loads only authorized reporting periods, fences the command to a reviewed period basis, accepts exact six-decimal practitioner inputs, previews the variance server-side, and requires explicit assent before retaining the analysis. A zero prior amount stays explicitly insufficient rather than inventing a ratio.
+
+The Application command writes the existing analytical-review record and an immutable actor-owned idempotency receipt in one PostgreSQL transaction. The additive migration binds the receipt to the exact actor, period and analytical row, freezes preparation inputs after receipt, permits separate human-review fields to change, and refuses destructive rollback while receipts exist. The browser journey drops the successful response and confirms the saved receipt after reload without duplicating the analysis.
+
+Focused verification and commit attribution are recorded in `status.json`. The migration ran only in owned synthetic PostgreSQL databases. The Development/production databases were not migrated, and the full solution suite was not rerun at this commit. US-025 remains partial: new reconciliation and specialist preparation/revision forms are still open, along with wider story acceptance and external migration gates.
