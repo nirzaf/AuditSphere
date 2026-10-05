@@ -24,9 +24,9 @@ public sealed class GlobalSearchJourneyTests
     await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "AS-UI-SEARCH-01");
     var user = PbcSeed.User(host.Fixture.FirmId, "Staff");
     const string libraryTerm = "ZQXTECHLIBRARY";
-    const string libraryCode = "ZQX-ALL-STAFF";
-    const string libraryTitle = "ZQXTECHLIBRARY approved guidance";
-    Guid libraryDocumentId;
+    const string firstLibraryCode = "ZQX-ALL-STAFF-00";
+    const string firstLibraryTitle = "ZQXTECHLIBRARY approved guidance 00";
+    var libraryDocumentId = Guid.Empty;
     await using (var db = host.CreateDbContext())
     {
       db.Users.Add(user);
@@ -41,15 +41,21 @@ public sealed class GlobalSearchJourneyTests
         PbcSeed.Grant(host.Fixture.FirmId, publisher, "Partner"));
       await db.SaveChangesAsync();
 
-      var created = await TechnicalLibraryService.CreateAsync(db, PbcSeed.Actor(curator, "Manager"),
-        libraryCode, libraryTitle, TechnicalLibraryCategories.Isa, TechnicalLibraryAudiences.AllStaff,
-        $"{libraryTerm} published staff guidance.", "Approved test source", new DateOnly(2026, 1, 1));
-      Assert.True(created.Succeeded, created.Message);
-      libraryDocumentId = created.Value;
-      var draftVersionId = await db.TechnicalLibraryVersions.Where(x => x.DocumentId == libraryDocumentId)
-        .Select(x => x.Id).SingleAsync();
-      var published = await TechnicalLibraryService.PublishAsync(db, PbcSeed.Actor(publisher, "Partner"), draftVersionId);
-      Assert.True(published.Succeeded, published.Message);
+      for (var index = 0; index < 7; index++)
+      {
+        var code = $"ZQX-ALL-STAFF-{index:D2}";
+        var title = $"{libraryTerm} approved guidance {index:D2}";
+        var created = await TechnicalLibraryService.CreateAsync(db, PbcSeed.Actor(curator, "Manager"),
+          code, title, TechnicalLibraryCategories.Isa, TechnicalLibraryAudiences.AllStaff,
+          $"{libraryTerm} published staff guidance {index:D2}.", "Approved test source", new DateOnly(2026, 1, 1));
+        Assert.True(created.Succeeded, created.Message);
+        if (index == 0) libraryDocumentId = created.Value;
+        var draftVersionId = await db.TechnicalLibraryVersions.Where(x => x.DocumentId == created.Value)
+          .Select(x => x.Id).SingleAsync();
+        var published = await TechnicalLibraryService.PublishAsync(db, PbcSeed.Actor(publisher, "Partner"), draftVersionId);
+        Assert.True(published.Succeeded, published.Message);
+      }
+      Assert.NotEqual(Guid.Empty, libraryDocumentId);
     }
     var sibling = await SiblingClientSeed.SeedAsync(host.Database, host.Fixture.FirmId, Marker);
     try
@@ -83,11 +89,14 @@ public sealed class GlobalSearchJourneyTests
       // A published library result is rendered as a real Angular route the scoped Staff user can open.
       await search.FillAsync(libraryTerm);
       var libraryLink = results.GetByRole(AriaRole.Link,
-        new() { Name = $"{libraryCode} — {libraryTitle}", Exact = true });
+        new() { Name = $"{firstLibraryCode} — {firstLibraryTitle}", Exact = true });
+      await Assertions.Expect(results.GetByRole(AriaRole.Status))
+        .ToContainTextAsync("Refine your search for more specific results");
+      Assert.Equal(6, await results.GetByRole(AriaRole.Link).CountAsync());
       await Assertions.Expect(libraryLink).ToBeVisibleAsync(new() { Timeout = 15000 });
       await libraryLink.ClickAsync();
       await Assertions.Expect(page.GetByRole(AriaRole.Heading,
-        new() { Name = $"{libraryCode} — {libraryTitle}", Exact = true })).ToBeVisibleAsync();
+        new() { Name = $"{firstLibraryCode} — {firstLibraryTitle}", Exact = true })).ToBeVisibleAsync();
       Assert.Equal($"/app/library/{libraryDocumentId:D}", new Uri(page.Url).AbsolutePath);
       await Assertions.Expect(search).ToHaveValueAsync(string.Empty);
       await Assertions.Expect(results.GetByRole(AriaRole.Status)).ToHaveCountAsync(0);
