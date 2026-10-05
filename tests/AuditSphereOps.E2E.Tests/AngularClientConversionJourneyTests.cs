@@ -1,3 +1,4 @@
+using AuditSphereOps.Domain.Acceptance;
 using AuditSphereOps.Domain.Tests;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
@@ -20,7 +21,15 @@ public sealed class AngularClientConversionJourneyTests
   await Assertions.Expect(page.GetByRole(AriaRole.Button,new(){Name="Verify conversion receipt",Exact=true})).ToBeVisibleAsync();await page.ReloadAsync();await page.GetByRole(AriaRole.Button,new(){Name="Verify conversion receipt",Exact=true}).ClickAsync();
   var receipt=page.GetByRole(AriaRole.Region,new(){Name="Client conversion receipt",Exact=true});await Assertions.Expect(receipt).ToContainTextAsync("Professional acceptance remains");await receipt.GetByRole(AriaRole.Button,new(){Name="Acknowledge client conversion",Exact=true}).ClickAsync();
   await Assertions.Expect(page.GetByRole(AriaRole.Region,new(){Name="Converted client",Exact=true})).ToBeVisibleAsync();Assert.Equal(1,calls);
-  await using(var db=host.CreateDbContext()){var retained=await db.ClientConversions.SingleAsync();Assert.Equal(id,retained.ProposalId);Assert.Equal(f.Admin.Id,retained.ActorId);Assert.Equal("PROSPECT",(await db.PracticeClients.SingleAsync(x=>x.Id==retained.ClientId)).Status);Assert.Single(await db.ClientPortalIntents.Where(x=>x.PracticeClientId==retained.ClientId).ToListAsync());}
+  await using(var db=host.CreateDbContext())
+  {
+   var retained=await db.ClientConversions.SingleAsync();Assert.Equal(id,retained.ProposalId);Assert.Equal(f.Admin.Id,retained.ActorId);
+   Assert.Equal("PROSPECT",(await db.PracticeClients.SingleAsync(x=>x.Id==retained.ClientId)).Status);
+   Assert.Single(await db.ClientPortalIntents.Where(x=>x.PracticeClientId==retained.ClientId).ToListAsync());
+   var acceptance=await db.AcceptanceDecisions.AsNoTracking().SingleAsync(x=>x.PracticeClientId==retained.ClientId);
+   Assert.Equal("Pending",acceptance.Decision);Assert.Null(acceptance.DecidedByUserId);
+   Assert.False(await db.Engagements.AnyAsync(x=>x.PracticeClientId==retained.ClientId));
+  }
   await page.SetViewportSizeAsync(390,844);Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));Assert.Empty(errors);
  }
 }
