@@ -5,6 +5,7 @@ using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Tests;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
+using System.Text.Json;
 
 namespace AuditSphereOps.E2E.Tests;
 
@@ -154,6 +155,25 @@ public sealed class AngularPortfolioJourneyTests
       var errors = new List<string>(); page.PageError += (_, e) => errors.Add(e);
       await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(prefix + "/app"));
       await Assertions.Expect(page.Locator(".portfolio-clients tbody tr")).ToHaveCountAsync(1);
+
+      // The API projection must scope aggregate counts as well as visible client rows.
+      await using (var response = await context.APIRequest.GetAsync(origin +
+        "/api/ui/portfolio/workspace?search=&page=0&pageSize=25"))
+      {
+        Assert.Equal(200, response.Status);
+        var payloadText = await response.TextAsync();
+        using var payload = JsonDocument.Parse(payloadText);
+        var root = payload.RootElement;
+        Assert.Equal(1, root.GetProperty("clients").GetProperty("total").GetInt32());
+        Assert.Equal(a.Fixture.ClientId.ToString("D"), root.GetProperty("clients").GetProperty("items")[0].GetProperty("id").GetString());
+        Assert.Equal(1, root.GetProperty("metrics").GetProperty("clients").GetInt32());
+        Assert.Equal(1, root.GetProperty("metrics").GetProperty("engagements").GetInt32());
+        Assert.Equal(25, root.GetProperty("metrics").GetProperty("readyCandidates").GetInt32());
+        Assert.Equal(1, root.GetProperty("metrics").GetProperty("issuedReleases").GetInt32());
+        Assert.Equal(26, root.GetProperty("candidateTotal").GetInt32());
+        Assert.DoesNotContain("HIDDEN-PORTFOLIO-B", payloadText, StringComparison.Ordinal);
+      }
+
       await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "Recent financial packages" }).Locator("tbody tr")).ToHaveCountAsync(2);
       var candidates = page.GetByRole(AriaRole.Region, new() { Name = "Recent release candidates" });
       await Assertions.Expect(candidates.Locator("tbody tr")).ToHaveCountAsync(10);
