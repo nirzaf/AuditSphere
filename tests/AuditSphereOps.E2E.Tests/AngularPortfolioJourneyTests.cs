@@ -1,4 +1,8 @@
+using AuditSphereOps.Application.Security;
+using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Engagements;
+using AuditSphereOps.Domain.Practice;
+using AuditSphereOps.Domain.Tests;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
 
@@ -7,6 +11,125 @@ namespace AuditSphereOps.E2E.Tests;
 /// <summary>Requires the Angular production build; see the Angular development guide before running.</summary>
 public sealed class AngularPortfolioJourneyTests
 {
+  [Fact]
+  [Trait("CaseId", "AS-PAR-002-ANG-PORT-FORGED-01")]
+  public async Task ClientIdentityWithErroneousFirmWideStaffGrantCannotReadPortfolio()
+  {
+    await using var host = await OwnedHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-ANG-PORT-FORGED-01");
+    var f = host.Fixture;
+    const string hiddenClientName = "SYN-PAR-002-HIDDEN-PORTFOLIO-CLIENT";
+    await using (var db = host.CreateDbContext())
+    {
+      var hiddenClientId = Guid.NewGuid();
+      var hiddenEngagementId = Guid.NewGuid();
+      var now = DateTimeOffset.UtcNow;
+      db.PracticeClients.Add(new PracticeClient
+      {
+        Id = hiddenClientId, FirmId = f.FirmId, LegalName = hiddenClientName, CreatedAt = now
+      });
+      db.Engagements.Add(new Engagement
+      {
+        Id = hiddenEngagementId, FirmId = f.FirmId, PracticeClientId = hiddenClientId,
+        Status = "Active", CreatedAt = now
+      });
+      db.ClientSafetyStates.Add(new ClientSafetyState { Id = hiddenClientId, FirmId = f.FirmId });
+      db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Client, "Staff"));
+      await db.SaveChangesAsync();
+    }
+
+    var origin = await host.StartApiForIdentityAsync(f.Client,
+      new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var errors = new List<string>();
+    page.PageError += (_, error) => errors.Add(error);
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=%2Fapp");
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "Client portal", Exact = true })).ToBeVisibleAsync();
+    Assert.DoesNotContain("Portfolio", await page.Locator("aside").InnerTextAsync());
+    Assert.DoesNotContain(hiddenClientName, await page.Locator("body").InnerTextAsync());
+
+    await using var denied = await context.APIRequest.GetAsync(origin +
+      "/api/ui/portfolio/workspace?search=&page=0&pageSize=25");
+    Assert.Equal(403, denied.Status);
+    var body = await denied.TextAsync();
+    Assert.DoesNotContain(hiddenClientName, body, StringComparison.Ordinal);
+    Assert.DoesNotContain(f.Client.Email, body, StringComparison.Ordinal);
+    Assert.Empty(errors);
+  }
+
+  [Fact]
+  [Trait("CaseId", "AS-PAR-002-ANG-PORT-EXPORT-REVOKE-01")]
+  public async Task ExportRevocationClearsPortfolioAndDoesNotProduceAnotherDownload()
+  {
+    await using var host = await OwnedHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-ANG-PORT-EXPORT-REVOKE-01");
+    var f = host.Fixture;
+    var staff = PbcSeed.User(f.FirmId, "Staff");
+    var clientId = Guid.NewGuid();
+    const string privateClientName = "=SYN-PAR-002-PORTFOLIO-REVOKED-CLIENT";
+    var staffGrantId = Guid.NewGuid();
+    await using (var db = host.CreateDbContext())
+    {
+      db.Users.Add(staff);
+      db.PracticeClients.Add(new PracticeClient
+      {
+        Id = clientId, FirmId = f.FirmId, LegalName = privateClientName, CreatedAt = DateTimeOffset.UtcNow
+      });
+      var grant = PbcSeed.Grant(f.FirmId, staff, "Staff", clientId: clientId);
+      grant.Id = staffGrantId;
+      db.RoleGrants.Add(grant);
+      await db.SaveChangesAsync();
+    }
+
+    var origin = await host.StartApiForIdentityAsync(staff,
+      new Dictionary<string, string> { ["AngularUi__Enabled"] = "true", ["AngularUi__CanonicalRoutes"] = "true" });
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync(new() { AcceptDownloads = true });
+    var page = await context.NewPageAsync();
+    var errors = new List<string>();
+    var downloadCount = 0;
+    page.PageError += (_, error) => errors.Add(error);
+    page.Download += (_, _) => downloadCount++;
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=%2Fapp");
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Portfolio", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Link, new() { Name = privateClientName, Exact = true })).ToBeVisibleAsync();
+
+    var firstDownloadTask = page.WaitForDownloadAsync();
+    await page.GetByRole(AriaRole.Button, new() { Name = "Download scoped CSV", Exact = true }).ClickAsync();
+    var firstDownload = await firstDownloadTask;
+    Assert.Equal("auditsphere-portfolio.csv", firstDownload.SuggestedFilename);
+    var csv = await File.ReadAllTextAsync((await firstDownload.PathAsync())!);
+    Assert.Contains($"\"'{privateClientName}\"", csv);
+    Assert.Equal(1, downloadCount);
+    var documentToken = await page.EvaluateAsync<string>("window.__portfolioRevocationToken = crypto.randomUUID()");
+
+    await using (var db = host.CreateDbContext())
+    {
+      var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(db,
+        PbcSeed.Actor(f.Admin, "Administrator"),
+        new RevokeRoleGrantRequest(staffGrantId, Reason: "Migration parity export revocation"));
+      Assert.True(revoked.Succeeded, revoked.Message);
+    }
+
+    var refusedExport = page.WaitForResponseAsync(response =>
+      response.Url.EndsWith("/api/ui/portfolio/export", StringComparison.Ordinal) && response.Status == 401);
+    await page.GetByRole(AriaRole.Button, new() { Name = "Download scoped CSV", Exact = true }).ClickAsync();
+    await refusedExport;
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "Access unavailable", Exact = true })).ToBeVisibleAsync(new() { Timeout = 15000 });
+    Assert.DoesNotContain(privateClientName, await page.Locator("body").InnerTextAsync());
+    Assert.Equal(0, await page.GetByRole(AriaRole.Button,
+      new() { Name = "Download scoped CSV", Exact = true }).CountAsync());
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__portfolioRevocationToken"));
+    Assert.Equal(1, downloadCount);
+    Assert.Empty(errors);
+  }
+
   [Theory]
   [InlineData(false)]
   [InlineData(true)]

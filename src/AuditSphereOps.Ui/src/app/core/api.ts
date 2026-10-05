@@ -128,6 +128,7 @@ export class Api {
     } catch (e) {
       const status = e instanceof HttpErrorResponse ? e.status : 0;
       if (status === 0 || status >= 500) return { ok: false, unknown: true, code: 'outcome.unknown', message: 'The download did not complete. Retry when ready.', status };
+      if (status === 401) await this.session.refresh();
       let message = 'The download was refused.';
       if (e instanceof HttpErrorResponse && e.error instanceof Blob) {
         try { const parsed = JSON.parse(await e.error.text()); if (typeof parsed?.message === 'string') message = parsed.message; } catch { /* keep generic */ }

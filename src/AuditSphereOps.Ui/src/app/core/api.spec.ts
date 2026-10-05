@@ -32,6 +32,17 @@ describe('API session and unknown outcome fences', () => {
     http.expectOne('/api/ui/source/export').flush(new Blob(['synthetic csv']));
     const result = await request; expect(result.ok).toBe(false); if (!result.ok) expect(result.message).toContain('No file was saved');
   });
+  it('refreshes and clears the current session when an export reports unauthorized', async () => {
+    const api = TestBed.inject(Api), http = TestBed.inject(HttpTestingController), session = TestBed.inject(SessionService);
+    session.current.set({ userId: '11111111-1111-4111-8111-111111111111', firmId: '22222222-2222-4222-8222-222222222222', generation: '1', staff: true });
+    const request = api.download('/api/ui/portfolio/export');
+    http.expectOne('/api/ui/portfolio/export').flush(new Blob(['refused']), { status: 401, statusText: 'Unauthorized' });
+    await Promise.resolve();
+    http.expectOne('/api/ui/session').flush({}, { status: 401, statusText: 'Unauthorized' });
+    const result = await request;
+    expect(result.ok).toBe(false);
+    expect(session.current()).toBeNull();
+  });
   it('blocks a second page command after a lost response', async () => {
     const state = new CommandState(TestBed.inject(Api)), http = TestBed.inject(HttpTestingController);
     const first = state.run('/api/ui/example', { reviewed: true }, 'Accepted');

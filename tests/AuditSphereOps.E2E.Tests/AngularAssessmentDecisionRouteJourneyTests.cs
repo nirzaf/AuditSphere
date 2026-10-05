@@ -1,4 +1,6 @@
 using AuditSphereOps.Application.Acceptance;
+using AuditSphereOps.Domain.Acceptance;
+using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Tests;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
@@ -7,6 +9,139 @@ namespace AuditSphereOps.E2E.Tests;
 
 public sealed class AngularAssessmentDecisionRouteJourneyTests
 {
+  [Theory]
+  [InlineData(false)]
+  [InlineData(true)]
+  [Trait("CaseId", "AS-PAR-002-ANG-ASSESS-ID-01")]
+  public async Task ExactDecisionIdRequiresItsClientGrantAndKeepsAssessmentDetailsScoped(bool canonical)
+  {
+    await using var host = await OwnedHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-ANG-ASSESS-ID-01");
+    var f = host.Fixture;
+    var partner = PbcSeed.User(f.FirmId, "Staff");
+    var unrelatedManager = PbcSeed.User(f.FirmId, "Staff");
+    var unrelatedClientId = Guid.NewGuid();
+    const string privateRegistration = "SYN-PAR-002-PRIVATE-ASSESSMENT-REGISTRATION";
+    Guid decisionId;
+    await using (var db = host.CreateDbContext())
+    {
+      decisionId = await AssessmentParitySeed.PopulateAsync(db, f);
+      await db.QuestionnaireTemplates.Where(x => x.Bank == "CE" && x.IsActive)
+        .ExecuteUpdateAsync(x => x.SetProperty(template => template.IsActive, false));
+      var templateId = Guid.NewGuid();
+      db.QuestionnaireTemplates.Add(new QuestionnaireTemplate
+      {
+        Id = templateId, Bank = "CE", Version = "AS-PAR-002-v1", Name = "Synthetic scoped assessment",
+        IsActive = true, CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.QuestionDefinitions.AddRange(
+        new QuestionDefinition { Id = Guid.NewGuid(), TemplateId = templateId, QuestionCode = "CE-UI-1", Section = "A", Category = "Acceptance", PromptText = "Synthetic question one", SortOrder = 1 },
+        new QuestionDefinition { Id = Guid.NewGuid(), TemplateId = templateId, QuestionCode = "CE-UI-2", Section = "A", Category = "Acceptance", PromptText = "Synthetic question two", SortOrder = 2 });
+      (await db.PracticeClients.SingleAsync(x => x.Id == f.ClientId)).RegistrationNumber = privateRegistration;
+      db.PracticeClients.Add(new PracticeClient
+      {
+        Id = unrelatedClientId, FirmId = f.FirmId,
+        LegalName = "SYN-PAR-002-UNRELATED-ASSESSMENT-CLIENT", CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.Users.AddRange(partner, unrelatedManager);
+      db.RoleGrants.AddRange(
+        PbcSeed.Grant(f.FirmId, partner, "Partner", clientId: f.ClientId),
+        PbcSeed.Grant(f.FirmId, unrelatedManager, "Manager", clientId: unrelatedClientId));
+      db.EvaluationResponses.Add(new EvaluationResponse
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, PracticeClientId = f.ClientId,
+        Bank = "CE", QuestionId = "CE-UI-1", Answer = "Yes", AnsweredByUserId = partner.Id,
+        AnsweredAt = DateTimeOffset.UtcNow, Generation = 2
+      });
+      db.SpecialistClearances.Add(new SpecialistClearance
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, PracticeClientId = f.ClientId,
+        Area = "Independence", SpecialistName = "Synthetic scoped specialist", Status = "HOLD",
+        EvidenceReference = "SYN-PAR-002-SPECIALIST-HOLD", CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+    }
+
+    var settings = new Dictionary<string, string>
+    {
+      ["AngularUi__Enabled"] = "true",
+      ["AngularUi__CanonicalRoutes"] = canonical.ToString()
+    };
+    var prefix = canonical ? string.Empty : "/ui";
+    var partnerOrigin = await host.StartApiForIdentityAsync(partner, settings);
+    var managerOrigin = await host.StartApiForIdentityAsync(unrelatedManager, settings);
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+
+    await using (var partnerContext = await browser.NewContextAsync())
+    {
+      var page = await partnerContext.NewPageAsync();
+      var errors = new List<string>();
+      page.PageError += (_, error) => errors.Add(error);
+      await page.GotoAsync(partnerOrigin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(
+        prefix + "/app/assessments/" + decisionId.ToString("D")));
+      await Assertions.Expect(page.GetByRole(AriaRole.Region,
+        new() { Name = "Recorded professional decision", Exact = true }))
+        .ToContainTextAsync("Exact synthetic historical decision");
+      await Assertions.Expect(page.GetByRole(AriaRole.Region,
+        new() { Name = "Client assessment profile", Exact = true }))
+        .ToContainTextAsync(privateRegistration);
+      await Assertions.Expect(page.GetByRole(AriaRole.Region,
+        new() { Name = "Evaluation progress", Exact = true }))
+        .ToContainTextAsync("1 of 2 questions answered");
+      await Assertions.Expect(page.GetByRole(AriaRole.Region,
+        new() { Name = "Evaluation progress", Exact = true }))
+        .ToContainTextAsync("0 of 1 specialist reviews cleared");
+      Assert.Contains("decisionId=" + decisionId, page.Url, StringComparison.OrdinalIgnoreCase);
+      foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
+      {
+        await page.SetViewportSizeAsync(width, 900);
+        Assert.True(await page.EvaluateAsync<bool>(
+          "() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
+          $"Assessment route overflows at {width}px.");
+        if (width <= 700)
+        {
+          var mainBox = await page.Locator("#main").BoundingBoxAsync();
+          Assert.NotNull(mainBox);
+          Assert.True(mainBox!.Width >= width - 64,
+            $"Assessment content is squeezed to {mainBox.Width}px at {width}px.");
+        }
+        await Assertions.Expect(page.GetByRole(AriaRole.Region,
+          new() { Name = "Client assessment profile", Exact = true }))
+          .ToContainTextAsync(privateRegistration);
+      }
+      await page.Keyboard.PressAsync("Tab");
+      Assert.True(await page.Locator(":focus-visible").CountAsync() > 0);
+      Assert.Empty(errors);
+    }
+
+    await using (var managerContext = await browser.NewContextAsync())
+    {
+      var page = await managerContext.NewPageAsync();
+      var errors = new List<string>();
+      page.PageError += (_, error) => errors.Add(error);
+      await page.GotoAsync(managerOrigin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(
+        prefix + "/app/assessments/" + decisionId.ToString("D")));
+      await Assertions.Expect(page.GetByRole(AriaRole.Alert))
+        .ToContainTextAsync("Access denied.");
+      await Assertions.Expect(page.GetByRole(AriaRole.Region,
+        new() { Name = "Client assessment profile", Exact = true })).ToHaveCountAsync(0);
+      var body = await page.Locator("body").InnerTextAsync();
+      Assert.DoesNotContain(privateRegistration, body, StringComparison.Ordinal);
+      Assert.DoesNotContain("Exact synthetic historical decision", body, StringComparison.Ordinal);
+
+      await using var exactDecision = await managerContext.APIRequest.GetAsync(managerOrigin +
+        "/api/ui/assessments/" + decisionId.ToString("D"));
+      await using var guessedDecision = await managerContext.APIRequest.GetAsync(managerOrigin +
+        "/api/ui/assessments/" + Guid.NewGuid().ToString("D"));
+      Assert.Equal(403, exactDecision.Status);
+      Assert.Equal(403, guessedDecision.Status);
+      Assert.Equal(await exactDecision.TextAsync(), await guessedDecision.TextAsync());
+      Assert.DoesNotContain(privateRegistration, await exactDecision.TextAsync(), StringComparison.Ordinal);
+      Assert.Empty(errors);
+    }
+  }
+
   [Theory]
   [InlineData(false)]
   [InlineData(true)]

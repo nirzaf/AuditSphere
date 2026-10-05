@@ -9,6 +9,73 @@ namespace AuditSphereOps.E2E.Tests;
 [Trait("Category", "AccountingAndReporting")]
 public sealed class PeriodWorkbenchScopeJourneyTests
 {
+  [Fact]
+  [Trait("CaseId", "AS-PAR-002-ANG-PERIOD-SCOPE-01")]
+  public async Task PeriodMaintenanceRequiresClientOrFirmScopeInAngularRoutes()
+  {
+    await using var host = await OwnedHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-ANG-PERIOD-SCOPE-01");
+    var f = host.Fixture;
+    var clientPartner = PbcSeed.User(f.FirmId, "Staff");
+    var engagementPreparer = PbcSeed.User(f.FirmId, "Staff");
+    const string privatePeriodCode = "SYN-PAR-002-CLIENT-LEVEL-PERIOD";
+    const string privateClientName = "PBC TEST CLIENT";
+    await using (var db = host.CreateDbContext())
+    {
+      db.Users.AddRange(clientPartner, engagementPreparer);
+      db.RoleGrants.AddRange(
+        PbcSeed.Grant(f.FirmId, clientPartner, "Partner", clientId: f.ClientId),
+        PbcSeed.Grant(f.FirmId, engagementPreparer, "AccountingPreparer",
+          clientId: f.ClientId, engagementId: f.EngagementId));
+      db.ClientReportingPeriods.Add(new ClientReportingPeriod
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId,
+        PeriodCode = privatePeriodCode, StartDate = new DateOnly(2025, 1, 1), EndDate = new DateOnly(2025, 12, 31),
+        Basis = "STATUTORY", Currency = "QAR", Status = AccountingWorkflowStates.Closed,
+        CreatedByUserId = f.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+    }
+
+    var settings = new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" };
+    var partnerOrigin = await host.StartApiForIdentityAsync(clientPartner, settings);
+    var engagementOrigin = await host.StartApiForIdentityAsync(engagementPreparer, settings);
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    var errors = new List<string>();
+
+    foreach (var route in new[] { "rollforward", "restatements" })
+    {
+      var heading = route == "rollforward" ? "Period roll-forward" : "Period restatements";
+      var periodField = route == "rollforward" ? "prior" : "period";
+      await using var partnerContext = await browser.NewContextAsync();
+      var partnerPage = await partnerContext.NewPageAsync();
+      partnerPage.PageError += (_, error) => errors.Add(error);
+      await partnerPage.GotoAsync($"{partnerOrigin}/auth/sign-in?returnUrl={Uri.EscapeDataString($"/app/accounting/{route}")}");
+      await Assertions.Expect(partnerPage.GetByRole(AriaRole.Heading, new() { Name = heading, Exact = true }))
+        .ToBeVisibleAsync();
+      var clientPicker = partnerPage.Locator("select[name='client']");
+      await clientPicker.SelectOptionAsync(f.ClientId.ToString("D"));
+      var periodPicker = partnerPage.Locator($"select[name='{periodField}']");
+      await Assertions.Expect(periodPicker).ToContainTextAsync(privatePeriodCode);
+      await Assertions.Expect(partnerPage.Locator("main")).ToContainTextAsync(privateClientName);
+
+      await using var engagementContext = await browser.NewContextAsync();
+      var engagementPage = await engagementContext.NewPageAsync();
+      engagementPage.PageError += (_, error) => errors.Add(error);
+      await engagementPage.GotoAsync($"{engagementOrigin}/auth/sign-in?returnUrl={Uri.EscapeDataString($"/app/accounting/{route}")}");
+      await Assertions.Expect(engagementPage.GetByRole(AriaRole.Heading,
+        new() { Name = heading, Exact = true })).ToBeVisibleAsync();
+      await Assertions.Expect(engagementPage.GetByRole(AriaRole.Alert))
+        .ToContainTextAsync("Sign in with an authorized accounting identity");
+      var deniedBody = await engagementPage.Locator("main").InnerTextAsync();
+      Assert.DoesNotContain(privatePeriodCode, deniedBody, StringComparison.Ordinal);
+      Assert.DoesNotContain(privateClientName, deniedBody, StringComparison.Ordinal);
+    }
+
+    Assert.Empty(errors);
+  }
+
   [Theory]
   [InlineData("restatements", false)]
   [InlineData("rollforward", false)]

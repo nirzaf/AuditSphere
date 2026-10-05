@@ -7,6 +7,37 @@ namespace AuditSphereOps.E2E.Tests;
 public sealed class AngularAccountingEvidenceQueueJourneyTests
 {
   [Fact]
+  [Trait("CaseId", "AS-PAR-002-ANG-ACCT-EVIDENCE-01")]
+  public async Task PartnerEvidenceQueueShowsOnlyTheAssignedClient()
+  {
+    await using var host = await OwnedHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-ANG-ACCT-EVIDENCE-01");
+    var (f, sibling) = await AccountingEvidenceQueueSeed.SeedAsync(host.Database);
+    var siblingPartner = PbcSeed.User(f.FirmId, "Staff");
+    await using (var db = host.CreateDbContext())
+    {
+      db.Users.Add(siblingPartner);
+      db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, siblingPartner, "Partner", clientId: sibling.Client));
+      await db.SaveChangesAsync();
+    }
+
+    var origin = await host.StartApiForIdentityAsync(siblingPartner,
+      new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var errors = new List<string>();
+    page.PageError += (_, error) => errors.Add(error);
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=%2Fapp%2Faccounting%2Fevidence");
+    await Assertions.Expect(page.GetByText("SYNTHETIC-B", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Status)).ToContainTextAsync("1 evidence records");
+    var body = await page.Locator("main").InnerTextAsync();
+    Assert.DoesNotContain("SYNTHETIC-A", body, StringComparison.Ordinal);
+    Assert.Empty(errors);
+  }
+
+  [Fact]
   [Trait("CaseId", "ANGULAR-EVIDENCE-QUEUE-ACCESS")]
   public async Task ScopedEvidenceCountsRemainIsolatedAndDisappearAfterEpochLoss()
   {
