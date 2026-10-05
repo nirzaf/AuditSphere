@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "cd162be1bb84571e2badc7677633f97ccc2cabb3",
+  "headCommit": "b5425b5b1ec299b7ff99c1be55961448939772b7",
   "verifiedCommit": "ead85032de2ccc4d4c8043398fa8471d395376a9",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -8906,7 +8906,7 @@
       "changedApplicationOrModel": false,
       "releaseBuild": "PASS: E2E test project and API dependencies compiled in Release during the focused run.",
       "efModelDrift": "No entity or model changed; EF drift check not rerun for this test-only slice.",
-      "fullSolutionRegression": "NOT_RUN at this source commit. Latest complete PostgreSQL-backed Release solution result remains 1001/1001 (API 191, Domain 660, E2E 150) at ead85032de2ccc4d4c8043398fa8471d395376a9.",
+      "fullSolutionRegression": "NOT_RUN at this source commit. The latest complete clean PostgreSQL-backed Release solution result is 1001/1001 (API 191, Domain 660, E2E 150) at ead85032de2ccc4d4c8043398fa8471d395376a9. This test-only commit and its four new journeys were not included in that run.",
       "builtInBrowser": "NOT_RUN separately; this test-only change exercises the Angular UI in Playwright against the owned API host.",
       "sharedWorktreeBoundary": "The concurrent unstaged src/AuditSphereOps.Application/Accounting/ConsolidationOverviewQuery.cs edit was excluded from the test commit.",
       "removedE2eMethodCrosswalk": {
@@ -9042,6 +9042,63 @@
         "remainingSuites": [
           "FinancialArtifactJourneyTests (19)"
         ]
+      },
+      "retirementDecision": "NOT_READY"
+    },
+    "angularFinancialArtifactParityCrosswalk": {
+      "sourceCommit": "b5425b5b1ec299b7ff99c1be55961448939772b7",
+      "observedAt": "2026-10-05T11:39:58Z",
+      "status": "PASS_LOCAL_SLICE",
+      "caseId": "AS-PAR-002-ANGULAR-FINANCIAL-ARTIFACT-01",
+      "replacementTests": [
+        "AngularFinancialArtifactParityJourneyTests.PackageReviewDownloadsAndRevocationRemainExactAndScoped",
+        "AngularFinancialArtifactParityJourneyTests.ClientManagementDecisionIsHashBoundAndRevocationClearsPackage",
+        "AngularFinancialArtifactParityJourneyTests.AccountingQueuesAndDetailsClearAfterRouteChangesAndGrantRevocation",
+        "AngularFinancialArtifactParityJourneyTests.ReopenedPeriodShowsNewRevisionWithoutReplacingValidatedPackage",
+        "AngularRemeasurementJourneyTests.NativeDraftRecovery_ExactPreparation_IndependentApproval_StaleInputs_AndRevocation"
+      ],
+      "focusedPostgresPlaywright": {
+        "status": "PASS",
+        "passed": 5,
+        "failed": 0,
+        "skipped": 0,
+        "duration": "1m37s",
+        "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~AngularFinancialArtifactParityJourneyTests|FullyQualifiedName~AngularRemeasurementJourneyTests'"
+      },
+      "legacyMethodsMappedThisSlice": [
+        "FinancialArtifactJourneyTests.CurrencyRemeasurementWorkbenchRestrictsContextAndRestoresBrowserDraft",
+        "FinancialArtifactJourneyTests.JournalPageClearsPrivateLinesAfterGrantRevocation",
+        "FinancialArtifactJourneyTests.JournalPageClearsPriorJournalWhenRouteChangesToUnavailableId",
+        "FinancialArtifactJourneyTests.FinancialPackagePageClearsPriorPackageWhenRouteChangesToUnavailableId",
+        "FinancialArtifactJourneyTests.MappingPageClearsPriorEngagementWhenRouteChangesToUnauthorizedMapping",
+        "FinancialArtifactJourneyTests.ClientFinancialPackagePageClearsPriorPackageWhenRouteChangesToUnavailableId",
+        "FinancialArtifactJourneyTests.ClientFinancialPackagePageClearsViewAfterGrantRevocation",
+        "FinancialArtifactJourneyTests.ClientFinancialPackageRefreshRemovesRevokedPackageWithoutAction",
+        "FinancialArtifactJourneyTests.FinancialPackageReviewQueueClearsAfterGrantRevocationAndRefresh",
+        "FinancialArtifactJourneyTests.AccountingRecordTabsReloadTheirScopedQueueDuringInAppNavigation",
+        "FinancialArtifactJourneyTests.RefreshClearsPreviouslyAuthorizedAccountingQueueAfterGrantRevocation",
+        "FinancialArtifactJourneyTests.RefreshClearsPreviouslyAuthorizedJournalAfterGrantRevocation",
+        "FinancialArtifactJourneyTests.ReviewedAdjustmentFlowsFromTrialBalanceIntoTheBrowserPackage",
+        "FinancialArtifactJourneyTests.ReopenedPeriodShowsNewRevisionWithoutReplacingTheValidatedPackage",
+        "FinancialArtifactJourneyTests.PreparerCannotRecordAccountingReviewButAssignedReviewerCan",
+        "FinancialArtifactJourneyTests.StaffDownloadsExactPersistedWorkbookWordAndPdfArtifacts",
+        "FinancialArtifactJourneyTests.RevokedPackageGrantCannotDownloadCachedArtifact",
+        "FinancialArtifactJourneyTests.RefreshClearsPreviouslyAuthorizedPackageAfterGrantRevocation",
+        "FinancialArtifactJourneyTests.RefreshClearsPreviouslyAuthorizedMappingAfterGrantRevocation"
+      ],
+      "coverage": "Maps all 19 removed FinancialArtifactJourneyTests methods with Angular/API-host browser assertions. Covers exact FX workpaper draft recovery and independent approval; journal/package/mapping route clearing and revocation; same-client sibling-engagement mapping isolation; client package decision hash binding, denial and no-action refresh after revocation; reviewer queue and accounting queue navigation/refresh; applied-adjustment package totals; reopened period revision with unchanged validated package/PDF; preparer/reviewer role separation; exact persisted text/workbook/Word/PDF bytes and SHA-256; and a post-revocation artifact endpoint 401 without attachment or hash disclosure.",
+      "database": "Owned isolated PostgreSQL fixtures with synthetic firms, clients, engagements, users, RoleGrants, accounting records and package artifacts.",
+      "changedApplicationOrModel": false,
+      "releaseBuild": "PASS: E2E project and API dependencies compiled in Release during the focused test run.",
+      "efModelDrift": "No Domain, Application or EF model code changed; drift check not rerun for this test-only slice.",
+      "builtInBrowser": "PASS_LOCAL_READ_ONLY: Existing built-in browser tab rendered Angular Package Reviews with the authorized empty-queue message, scoped review explanation and Refresh queue control. No business command was submitted.",
+      "fullSolutionRegression": "NOT_RUN at this source commit. Latest complete PostgreSQL-backed Release solution result remains 1001/1001 (API 191, Domain 660, E2E 150) at ead85032de2ccc4d4c8043398fa8471d395376a9.",
+      "sharedWorktreeBoundary": "The unrelated unstaged src/AuditSphereOps.Application/Accounting/ConsolidationOverviewQuery.cs edit was not staged or committed.",
+      "removedE2eMethodCrosswalk": {
+        "total": 82,
+        "mapped": 82,
+        "remaining": 0,
+        "remainingSuites": []
       },
       "retirementDecision": "NOT_READY"
     }
@@ -10029,13 +10086,18 @@
       "item": "Angular archive and review route responsive parity crosswalk (2026-10-05)",
       "status": "LOCAL_VERIFIED",
       "details": "At pushed test commit 6e48c9776dc58415f61ef6489a2cc94e5703a702, AngularClientScopeAuditDetailJourneyTests passed 1/1 in 37s against isolated PostgreSQL fixtures and the API-host Angular UI. The existing same-document detail journey now also checks archive manifest summary and entry count, six viewport widths, keyboard focus, significant review-point blocker state, exact/sibling/guessed-ID denial, protected-content clearing and authorized recovery. This maps two additional removed ClientScopeJourneyTests methods; aggregate removed-method crosswalk is 44/82, including 33 ClientScope methods, with 38 remaining across three suites. The change is test-only. The latest complete solution regression remains 1001/1001 at ead85032de2ccc4d4c8043398fa8471d395376a9 and predates this commit. A concurrent unstaged ConsolidationOverviewQuery.cs edit was excluded. Retirement remains NOT_READY."
+    },
+    {
+      "item": "Angular financial-artifact and package-role parity crosswalk (2026-10-05)",
+      "status": "LOCAL_VERIFIED",
+      "details": "At pushed test commit b5425b5b1ec299b7ff99c1be55961448939772b7, four new AngularFinancialArtifactParityJourneyTests plus AngularRemeasurementJourneyTests passed 5/5 in 1m37s against isolated PostgreSQL fixtures and API-host Angular routes. This maps the final 19 removed FinancialArtifactJourneyTests methods; the removed E2E method crosswalk is 82/82. The journeys verify same-client sibling-engagement mapping denial, package/journal/client route and revocation clearing, reviewer-only accounting decision, immutable management decision evidence, applied-adjustment package amount, period revision with unchanged package and PDF, exact text/XLSX/DOCX/PDF bytes and hashes, post-revocation artifact 401, responsive package/queue layouts, and tab-only FX draft recovery with independent approval. The built-in browser read-only check showed the Angular Package Reviews route and authorized empty queue. This is test-only; EF model drift was not rerun because no model code changed. The latest complete solution regression remains 1001/1001 (API 191, Domain 660, E2E 150) at ead85032de2ccc4d4c8043398fa8471d395376a9 and predates this test commit. The unrelated unstaged ConsolidationOverviewQuery.cs edit was excluded. Broader AS-PAR-002 review and retirement remain open."
     }
   ],
   "remainingLocalWork": [
     {
       "item": "AS-PAR-002 — remaining whole-application scope and revocation coverage",
       "status": "PARTIAL",
-      "details": "Verified slices cover firm/client/engagement/group grant scoping; protected details, queues, exports and route reads; revocation denials; stale-content clearing; PBC request/inbox role, recipient, draft, sibling-engagement, cross-client and revocation boundaries; archive/review responsive stale-route cases; an accounting task-owner projection limited to current engagement grants; Angular release-candidate scope, expired-attestation blocking, stale-route clearing and post-revocation hiding; same-client sibling-engagement isolation for workpaper, finding and population; completion, audit-plan and adopted-fieldwork route clearing/recovery; refresh-time clearing after revocation for workpaper/finding/audit-plan; and exact-source human audit conclusions plus reviewed fieldwork/workpaper freezing across reload. All 39 removed ClientScopeJourneyTests and all 13 AuditAndReleaseJourneyTests methods now have assertion crosswalks. The aggregate removed-suite crosswalk is 63/82; 19 FinancialArtifactJourneyTests methods remain open. AS-PAR-002 still requires review of those methods, the remaining route/query/search/count/export/direct-command audit, stale-content review on other pages, mutation retry/idempotency checks and corresponding HTTP/browser positive-negative assertions. Full AS-PAR-002 acceptance remains open."
+      "details": "Verified slices cover firm/client/engagement/group grant scoping; protected details, queues, exports and route reads; revocation denials; stale-content clearing; PBC request/inbox role, recipient, draft, sibling-engagement, cross-client and revocation boundaries; archive/review responsive stale-route cases; an accounting task-owner projection limited to current engagement grants; Angular release-candidate scope, expired-attestation blocking, stale-route clearing and post-revocation hiding; same-client sibling-engagement isolation for workpaper, finding, population and accounting mapping; completion, audit-plan and adopted-fieldwork route clearing/recovery; refresh-time clearing after revocation for workpaper/finding/audit-plan; exact-source human audit conclusions; reviewed fieldwork/workpaper freezing across reload; and package, journal, FX-remeasurement and client-management artifact/decision parity. All 39 removed ClientScopeJourneyTests, all 13 AuditAndReleaseJourneyTests and all 19 FinancialArtifactJourneyTests methods now have assertion crosswalks; the removed-suite E2E method crosswalk is 82/82. AS-PAR-002 remains partial: 60 route/query/search/count/export/direct-command source/action rows and 28 supporting files still require review, and retry/idempotency checks plus corresponding HTTP/browser positive-negative assertions remain open. Full AS-PAR-002 acceptance remains open."
     },
     {
       "item": "AS-PAR-009 — Pricing review, evidence-bound dispatch and client response",
@@ -10045,7 +10107,7 @@
     {
       "item": "ASP.NET Core API and Angular 22 migration",
       "status": "PARTIAL",
-      "details": "Native API and Angular capability routes, financial review/evidence actions, and scoped portfolio/client/contact/engagement projections have local verification. Canonical Angular route ownership is active. AuditSphereOps.Web and its Razor source remain restored as rollback/reference; API.Tests and E2E.Tests use API-only hosts. The latest complete PostgreSQL-backed Release solution regression is 1001/1001 (API 191/191, Domain 660/660, E2E 150/150) at ead85032de2ccc4d4c8043398fa8471d395376a9 and predates the current focused slices. Current-source journeys cover 63 of 82 removed E2E methods, including all 39 ClientScope methods and all 13 AuditAndRelease methods; 19 FinancialArtifact methods remain. Also open: 60 unanalyzed source/action rows, 28 supporting files, broader planning parity, production-like rollback/canary, screen-reader/wider-locale acceptance, live Microsoft gates, and separate owner acceptance. Blazor retirement remains NOT_READY."
+      "details": "Native API and Angular capability routes, financial review/evidence actions, and scoped portfolio/client/contact/engagement projections have local verification. Canonical Angular route ownership is active. AuditSphereOps.Web and its Razor source remain restored as rollback/reference; API.Tests and E2E.Tests use API-only hosts. The latest complete PostgreSQL-backed Release solution regression is 1001/1001 (API 191/191, Domain 660/660, E2E 150/150) at ead85032de2ccc4d4c8043398fa8471d395376a9 and predates the current focused test slices. Current-source journeys map all 82/82 removed E2E methods, including all 39 ClientScope, all 13 AuditAndRelease and all 19 FinancialArtifact methods. Also open: 60 unanalyzed source/action rows, 28 supporting files, broader planning parity, production-like rollback/canary, screen-reader/wider-locale acceptance, live Microsoft gates, and separate owner acceptance. Blazor retirement remains NOT_READY."
     }
   ],
   "externalGates": [
