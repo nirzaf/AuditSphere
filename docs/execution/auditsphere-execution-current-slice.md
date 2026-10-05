@@ -15,6 +15,18 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: Search cap and truncation signaling
+
+Fixed Global Search so technical-library and page result caps report
+`truncated=true` when more than six authorized/available hits exist. The
+PostgreSQL test seeds seven published library items and verifies six returned
+with truncation; it also verifies the page catalogue's six-hit boundary. The
+full `GlobalSearchQueryTests` cohort passed 14/14 in 1m08s, and
+`GlobalSearchJourneyTests` passed 2/2 in 48s. Pushed as `a67e6a06`.
+Candidate/ranking limits and role/scope matrices for other result kinds, broad
+query/error recovery, accessibility and full migration acceptance remain
+open. Blazor retirement remains `NOT_READY`.
+
 ## Current follow-on slice: Global Search linked destinations
 
 Extended the Angular Global Search browser journey to open both a published
