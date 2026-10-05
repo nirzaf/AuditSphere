@@ -10,6 +10,13 @@
       "openGaps": ["Complete role/scope and validation matrix", "Stale-content and all command error/recovery states", "Full field-by-field acceptance parity coverage"]
     },
     {
+      "source": "src/AuditSphereOps.Web/Components/Acceptance/EngagementActivationPanel.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-engagement-activation-source-review.md",
+      "reviewedAtCommit": "147ac2a02675b9c65ec43be520c76bc27837a167",
+      "openGaps": ["Cross-firm and guessed-ID HTTP/browser authorization matrix", "All role, blocker, error and display-state parity", "Assistive-technology acceptance"]
+    },
+    {
       "source": "src/AuditSphereOps.Web/Components/Pages/AssessmentDecision.razor",
       "disposition": "PARITY_VERIFIED",
       "evidence": "auditsphere-migration-blazor-assessment-decision-source-review.md",

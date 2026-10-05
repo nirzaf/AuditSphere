@@ -15,7 +15,26 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
-## Current follow-on slice: acceptance checklist evidence parity
+## Current follow-on slice: engagement activation source/action parity review
+
+The next acceptance source row is now hash-checked and mapped to the Angular
+activation route, API, and Application gate. The current UI requires a Partner
+to review the exact accepted client/service/generation and active holds, preview
+the request, explicitly assent, and reconcile an immutable receipt after an
+uncertain response. The Application lifecycle still enforces the current
+unconditional same-route acceptance and hold rules transactionally.
+
+The activation domain gate passed 1/1, the PostgreSQL-backed Angular browser
+journey passed 2/2 in both route ownership modes, Angular CI passed 483/483,
+and the production build passed with the existing 6.60 kB initial-bundle
+warning-budget overage. The built-in browser returned the generic unavailable
+state for the unassigned Development identity. The row is PARTIAL because the
+full cross-firm/guessed-ID and presentation/accessibility matrix remains open.
+No EF drift check or full solution suite was rerun. The Blazor rollback host
+remains `NOT_READY` for retirement; exact evidence and counts are in
+[`status.json`](status.json).
+
+## Previous follow-on slice: acceptance checklist evidence parity
 
 The Angular assessment projection now carries the evidence reference from a
 prior continuance answer through its strict response decoder and renders it
