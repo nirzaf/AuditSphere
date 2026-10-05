@@ -15,6 +15,18 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: Global Search opens technical-library entries
+
+Extended the Angular Global Search browser journey with a real published
+`ALL_STAFF` technical-library fixture. A scoped Staff user sees the result,
+opens its exact Angular library route, and the shell clears search results on
+navigation. `GlobalSearchJourneyTests` passed 2/2 in 45s; the new journey is
+pushed as `59c8abc3`. Combined with the PostgreSQL audience/publication/firm
+boundary case, this verifies the Staff search-to-library path and selected
+role boundaries. Ranking/candidate behavior, exhaustive role/scope, broad
+recovery and accessibility evidence remain open; Blazor retirement remains
+`NOT_READY`.
+
 ## Current follow-on slice: Operations administrator-denial clarity
 
 Rechecked `/ui/app/operations` in the built-in browser. The signed-in Staff
@@ -36,12 +48,13 @@ library results. It verifies a client-scoped Staff grant returns only published
 `ALL_STAFF` guidance; a Manager also sees published `PARTNERS_MANAGERS`
 guidance; neither sees drafts or a same-term record from another firm. The new
 case passed 1/1 in 21s and the full `GlobalSearchQueryTests` cohort passed
-13/13 in 1m05s. The test is pushed as `c5350bc2`. This is query-level evidence;
-the library search result's Angular rendering and route journey remain outside
-this slice. Ranking/candidate-boundary, exhaustive role/scope, assistive-technology,
-complete migration and retirement acceptance remain open. The other agent's
-uncommitted consolidation source and inventory edits were excluded from the
-commit. Blazor retirement remains `NOT_READY`.
+13/13 in 1m05s. The test is pushed as `c5350bc2`. This is the query-level
+audience/publication/firm boundary evidence; the later `59c8abc3` browser
+journey verifies the Staff search-to-library route. Ranking/candidate-boundary,
+exhaustive role/scope, assistive-technology, complete migration and retirement
+acceptance remain open. The other agent's uncommitted consolidation source and
+inventory edits were excluded from the commit. Blazor retirement remains
+`NOT_READY`.
 
 ## Current follow-on slice: Canonical root redirect evidence
 
