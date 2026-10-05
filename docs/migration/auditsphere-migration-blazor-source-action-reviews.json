@@ -315,7 +315,7 @@
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-shell-portfolio-source-review.md",
       "reviewedAtCommit": "1e22baaeeaf33283bf0ca311a93c1c493bcd82e6",
-      "openGaps": ["Direct-root navigation and unauthenticated/fallback-host behavior", "Canonical and preview root redirect behavior across deployment modes"]
+      "openGaps": ["Unauthenticated and fallback-host behavior across deployment modes", "Preview (/ui) root redirect target and route ownership"]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/Portfolio.razor",

@@ -15,6 +15,10 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: Canonical root redirect evidence
+
+Reran `AngularRouteAndShellMigrationSweepTests.ParameterlessRoutesRenderAndPreserveRoleSpecificShells`; 1/1 passed in 37s. Its parameterless-route matrix directly visits `/` in canonical API-route mode and confirms it reaches the Portfolio heading with Practice navigation current. The row remains partial because preview `/ui` root ownership and unauthenticated/fallback-host behavior are not covered by this journey. This is a verification and ledger correction for existing committed code, not a route change. Blazor retirement remains `NOT_READY`.
+
 ## Current follow-on slice: Client contact creation recovery evidence
 
 Reran the existing PostgreSQL-backed
