@@ -20,13 +20,14 @@ which the full suite was run; per-slice records carry their own evidence.
 Extended the PostgreSQL-backed Angular browser journey with a synthetic 503
 for a new search term. The page displays the safe retry message, reveals no
 previous result links or server diagnostic, and succeeds when the same search
-is retried. `GlobalSearchJourneyTests` passed 2/2 in 47s; test commit
-`531488df` is pushed. The Operations screenshot was also rechecked in the
+is retried. It also rejects a malformed 200 response without rendering the
+unsafe link, then clears the protected search workspace after a synthetic 401.
+`GlobalSearchJourneyTests` passed 2/2 in 47s; test commits `531488df` and
+`0407e696` are pushed. The Operations screenshot was also rechecked in the
 built-in browser: its signed-in Workspace preview identity has no firm-wide
 Administrator grant, and the page exposes no operation rows or commands.
-Timeout, malformed-response and in-flight session invalidation cases remain
-open, along with broader migration and retirement acceptance; Blazor remains
-`NOT_READY`.
+Timeout and in-flight session invalidation remain open, along with broader
+migration and retirement acceptance; Blazor remains `NOT_READY`.
 
 ## Current follow-on slice: Angular search truncation hint
 
