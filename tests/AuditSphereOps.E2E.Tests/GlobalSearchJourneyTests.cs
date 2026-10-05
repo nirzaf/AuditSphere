@@ -116,7 +116,30 @@ public sealed class GlobalSearchJourneyTests
       var retryRequests = 0;
       await page.RouteAsync("**/api/ui/search**", async route =>
       {
-        if (!new Uri(route.Request.Url).Query.Contains("term=ZQXRETRYPROBE", StringComparison.Ordinal))
+        var query = new Uri(route.Request.Url).Query;
+        if (query.Contains("term=ZQXMALFORMED", StringComparison.Ordinal))
+        {
+          await route.FulfillAsync(new()
+          {
+            Status = 200,
+            ContentType = "application/json",
+            Body = "{\"term\":\"ZQXMALFORMED\",\"hits\":[{\"kind\":\"Page\",\"title\":\"Unsafe result\",\"detail\":\"Page\",\"href\":\"https://example.invalid\"}],\"truncated\":false}"
+          });
+          return;
+        }
+
+        if (query.Contains("term=ZQXSESSIONPROBE", StringComparison.Ordinal))
+        {
+          await route.FulfillAsync(new()
+          {
+            Status = 401,
+            ContentType = "application/json",
+            Body = "{\"code\":\"session.unavailable\"}"
+          });
+          return;
+        }
+
+        if (!query.Contains("term=ZQXRETRYPROBE", StringComparison.Ordinal))
         {
           await route.ContinueAsync();
           return;
@@ -154,6 +177,12 @@ public sealed class GlobalSearchJourneyTests
       await Assertions.Expect(searchAlert).ToHaveCountAsync(0);
       Assert.Equal(2, retryRequests);
 
+      await search.FillAsync("ZQXMALFORMED");
+      await results.GetByRole(AriaRole.Button, new() { Name = "Search", Exact = true }).ClickAsync();
+      await Assertions.Expect(searchAlert).ToHaveTextAsync("Search returned an unsupported response.");
+      Assert.Equal(0, await results.GetByRole(AriaRole.Link).CountAsync());
+      Assert.DoesNotContain("Recovered search result", await results.InnerTextAsync(), StringComparison.Ordinal);
+
       // A sibling client's exact name yields nothing, not even a count or snippet.
       await search.FillAsync(Marker);
       await Assertions.Expect(results.GetByRole(AriaRole.Status)).ToContainTextAsync("0 results", new() { Timeout = 15000 });
@@ -184,6 +213,13 @@ public sealed class GlobalSearchJourneyTests
       await Assertions.Expect(results.GetByRole(AriaRole.Link, new() { Name = "PBC TEST CLIENT" }).First).ToBeVisibleAsync(new() { Timeout = 15000 });
       Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
         "Search panel overflows the 390px viewport.");
+
+      await search.FillAsync("ZQXSESSIONPROBE");
+      await results.GetByRole(AriaRole.Button, new() { Name = "Search", Exact = true }).ClickAsync();
+      await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+        new() { Name = "Access unavailable", Exact = true })).ToBeVisibleAsync();
+      await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "Global search" })).ToHaveCountAsync(0);
+      Assert.DoesNotContain("PBC TEST CLIENT", await page.Locator("body").InnerTextAsync(), StringComparison.Ordinal);
       Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
       // Rapid typing must never terminate the circuit (regression: a disposed token source crashed it).
       Assert.DoesNotContain(diagnostics, x => x.Contains("unhandled exception on the current circuit", StringComparison.OrdinalIgnoreCase));
