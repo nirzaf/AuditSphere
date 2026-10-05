@@ -60,6 +60,8 @@ public sealed class AngularClientPortalJourneyTests
     }");
     await Assertions.Expect(page.GetByText($"angular-client-evidence.txt · {bytes.Length} bytes", new() { Exact = true }))
       .ToBeVisibleAsync();
+    await Assertions.Expect(page.Locator(".fingerprint").First)
+      .ToContainTextAsync(AuditSphereOps.Domain.Shared.Hashing.Sha256Hex(bytes));
     await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Upload file", Exact = true })).ToBeEnabledAsync();
     await page.GetByRole(AriaRole.Button, new() { Name = "Upload file", Exact = true }).ClickAsync();
     await Assertions.Expect(page.GetByText("File bytes staged. Your audit team must verify trusted completion and suitability before the request is received or accepted.", new() { Exact = true })).ToBeVisibleAsync();
@@ -69,6 +71,8 @@ public sealed class AngularClientPortalJourneyTests
       var upload = await db.PbcUploadIntents.AsNoTracking().SingleAsync(x => x.PbcRequestId == requestId);
       Assert.Equal(PbcUploadStates.Chunking, upload.State); Assert.Equal(bytes.Length, upload.ReceivedByteCount);
       Assert.Equal(AuditSphereOps.Domain.Shared.Hashing.Sha256Hex(bytes), upload.DeclaredSha256Hex);
+      var chunks = await db.PbcUploadChunks.AsNoTracking().Where(x => x.PbcUploadIntentId == upload.Id).ToListAsync();
+      Assert.Single(chunks); Assert.Equal(bytes.Length, chunks[0].ByteCount);
       Assert.False(await db.PbcRequestDelegations.AnyAsync(x => x.PbcRequestId == requestId && x.RevokedAt == null));
     }
     Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));

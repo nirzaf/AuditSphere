@@ -142,6 +142,15 @@ public sealed class AngularPbcStaffJourneyTests
         Assert.Equal(staged.DeclaredSha256Hex, operation.ResultDigest);
       }
 
+      var browserDownload = await page.RunAndWaitForDownloadAsync(() =>
+        page.GetByRole(AriaRole.Link, new() { Name = "Download", Exact = true }).ClickAsync());
+      await using (var stream = await browserDownload.CreateReadStreamAsync())
+      using (var browserBytes = new MemoryStream())
+      {
+        await stream.CopyToAsync(browserBytes);
+        Assert.Equal(uploadBytes, browserBytes.ToArray());
+      }
+
       await using var download = await context.APIRequest.GetAsync(origin + $"/api/pbc/uploads/{staged.UploadIntentId:D}/download",
         new() { MaxRedirects = 0 });
       Assert.Equal(200, download.Status);

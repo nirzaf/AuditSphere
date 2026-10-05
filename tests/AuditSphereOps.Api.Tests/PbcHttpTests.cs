@@ -213,6 +213,9 @@ public sealed class PbcHttpTests
     Assert.Contains("attachment", response.Content.Headers.ContentDisposition?.ToString() ?? "");
     Assert.Equal(bytes, await response.Content.ReadAsByteArrayAsync());
 
+    using var clientDownload = await uploadClient.GetAsync($"/api/pbc/uploads/{upload.UploadIntentId:D}/download");
+    Assert.Equal(HttpStatusCode.Forbidden, clientDownload.StatusCode);
+
     var unrelatedClient = PbcSeed.User(fixture.FirmId, "Client");
     var unrelatedClientId = Guid.NewGuid();
     var unrelatedEngagementId = Guid.NewGuid();

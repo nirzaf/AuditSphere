@@ -54,6 +54,8 @@ public sealed class AngularClientPortalUploadRecoveryJourneyTests
     var bytes = RandomNumberGenerator.GetBytes(chunkBytes + 137);
     string? firstCapability = null;
     string? resumedCapability = null;
+    var secondChunkIntercepted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    var releaseSecondChunk = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
     var intercepted = 0;
     await page.RouteAsync("**/api/pbc/uploads/*/chunks/0", async route =>
     {
@@ -74,6 +76,8 @@ public sealed class AngularClientPortalUploadRecoveryJourneyTests
       {
         var headers = await route.Request.AllHeadersAsync();
         resumedCapability = headers.GetValueOrDefault("x-pbc-upload-capability");
+        secondChunkIntercepted.TrySetResult();
+        await releaseSecondChunk.Task.WaitAsync(TimeSpan.FromSeconds(30));
       }
       await route.ContinueAsync();
     });
@@ -105,6 +109,16 @@ public sealed class AngularClientPortalUploadRecoveryJourneyTests
     var resume = receipt.GetByRole(AriaRole.Button, new() { Name = "Resume staged upload", Exact = true });
     await Assertions.Expect(resume).ToBeEnabledAsync(new() { Timeout = 10000 });
     await resume.ClickAsync();
+    await secondChunkIntercepted.Task.WaitAsync(TimeSpan.FromSeconds(20));
+    try
+    {
+      await Assertions.Expect(page.Locator("section[aria-labelledby='upload-heading'] [role='status']"))
+        .ToContainTextAsync($"{chunkBytes} of {bytes.Length} bytes staged.");
+    }
+    finally
+    {
+      releaseSecondChunk.TrySetResult();
+    }
     await Assertions.Expect(page.GetByText(
       "File bytes staged. Your audit team must verify trusted completion and suitability before the request is received or accepted.",
       new() { Exact = true })).ToBeVisibleAsync(new() { Timeout = 20000 });
