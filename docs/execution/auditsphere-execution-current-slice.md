@@ -15,7 +15,31 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
-## Current follow-on slice: Angular audit-detail route parity
+## Current follow-on slice: Angular completion, fieldwork and plan route parity
+
+At test commit `814d6428`, `AngularClientScopeEngagementParityJourneyTests`
+extends the API-host PostgreSQL parity checks for engagement audit routes.
+Completion now proves that a same-document transition to an unassigned sibling
+engagement clears the prior representation narrative and code, then restores
+the authorized record without replacing the document. Fieldwork publishes and
+adopts the controlled program, verifies its procedure set, clears that program
+on the sibling route and restores it on return. The audit-plan route retains
+same-document denial/recovery checks. Completion and audit plan also check six
+viewport widths and keyboard-visible focus.
+
+The focused cohort passed with no failures or skips. The Angular production
+build succeeds with the existing 6.60 kB initial-bundle budget warning. This is
+test-only; no Application or EF model code changed. Three removed
+`AuditAndReleaseJourneyTests` methods now have assertion-level Angular maps.
+The latest full-solution regression remains the earlier 1001/1001 checkpoint;
+this slice did not rerun the full solution. The other agent's unstaged
+`ConsolidationOverviewQuery.cs` edit was excluded from the test commit. See
+[`status.json`](status.json) for current crosswalk counts and exact evidence.
+AS-PAR-002 and Blazor retirement remain partial/`NOT_READY`; production
+rollback/canary, human assistive-technology acceptance, live Microsoft gates
+and separate owner acceptance remain open.
+
+## Previous follow-on slice: Angular audit-detail route parity
 
 At API-host test commit `fc87cc66`,
 `AngularClientScopeAuditDetailJourneyTests.AuditDetailRoutesClearSiblingAndRevokedContentInTheSameDocument`

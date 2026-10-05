@@ -316,11 +316,32 @@ methods. Twenty-seven remain: eight in `AuditAndReleaseJourneyTests` and 19 in
 recorded in `docs/execution/status.json`; Blazor retirement remains
 `NOT_READY`.
 
+## Removed `AuditAndReleaseJourneyTests` engagement-route crosswalk
+
+At test commit `814d6428`, the API-host Angular engagement parity cohort adds
+same-document route clearing and recovery checks for completion, fieldwork and
+audit planning. The PostgreSQL-backed focused cohort passed 5/5 with no
+failures or skips.
+
+| Removed legacy method | Angular assertion replacement | Disposition |
+|---|---|---|
+| `CompletionClearsPriorEngagementWhenRouteChangesInPlace` | `AngularClientScopeEngagementParityJourneyTests.CompletionAndFieldworkClearPriorEngagementWhenRouteChangesInPlace` loads a synthetic written-representation narrative/code for the assigned engagement, changes to an unassigned sibling engagement in the same document, confirms both markers are absent, then returns and confirms the authorized representation is restored. Six viewport widths and keyboard focus are checked. | Covered for stale completion-content clearing, authorized recovery, responsiveness and focus. |
+| `AuditFieldworkClearsPriorEngagementWhenRouteChangesInPlace` | The same journey publishes/adopts the controlled 2026.1 audit program and confirms its 165 procedures. A same-document transition to the unassigned sibling clears the program/version/count; returning restores the persisted program. | Covered for the fieldwork mutation, stale program clearing and recovery. |
+| `AuditPlanClearsPriorEngagementWhenRouteChangesInPlace` | `AngularClientScopeEngagementParityJourneyTests.EngagementAndAuditPlanClearOnScopeChangeAndRefuseRevokedWrites` checks the exact risk marker disappears at the unassigned sibling route and returns on the authorized route, in the same document. It also checks six viewport widths and keyboard-visible focus. | Covered for audit-plan route denial, stale-state clearing, recovery, responsiveness and focus. |
+
+This adds three mappings to the prior five audit/release mappings. The
+crosswalk now covers 58/82 removed E2E methods, including all 39
+`ClientScopeJourneyTests` methods and eight `AuditAndReleaseJourneyTests`
+methods. Twenty-four remain: five in `AuditAndReleaseJourneyTests` and 19 in
+`FinancialArtifactJourneyTests`. Exact current totals and evidence attribution
+are recorded in `docs/execution/status.json`; Blazor retirement remains
+`NOT_READY`.
+
 ## Migration test gaps that keep retirement unaccepted
 
 - The committed API.Tests and E2E.Tests projects reference `AuditSphereOps.Api` directly and do not reference `AuditSphereOps.Web`; the Web project remains in the solution as a rollback/reference host. This establishes a project boundary only.
 - `AngularLegacyRouteInventoryContractTests` checks the committed discovery snapshot for route ownership. `AngularRoutingContractTests` scans the restored Web source and checks link/route ownership; neither is feature parity.
-- Commit `8ea3ef01` removed nine legacy E2E suites: `AuditAndReleaseJourneyTests`, `ClientScopeJourneyTests`, `FinancialArtifactJourneyTests`, `InvoiceScopeJourneyTests`, `M365SetupJourneyTests`, `PbcUploadJourneyTests`, `PracticeBillingLedgerJourneyTests`, `ResponsiveShellSweepTests`, and `RouteRenderSmokeTests`. The PBC upload and invoice-scope methods, both M365 setup methods, both responsive-shell methods, the route-render method, all four PracticeBillingLedger methods, all 39 `ClientScopeJourneyTests` methods, and five release/detail methods from `AuditAndReleaseJourneyTests` now have assertion-level replacement maps. Twenty-seven methods remain open: eight in `AuditAndReleaseJourneyTests` and 19 in `FinancialArtifactJourneyTests`; exact totals and evidence attribution belong in `status.json`.
+- Commit `8ea3ef01` removed nine legacy E2E suites: `AuditAndReleaseJourneyTests`, `ClientScopeJourneyTests`, `FinancialArtifactJourneyTests`, `InvoiceScopeJourneyTests`, `M365SetupJourneyTests`, `PbcUploadJourneyTests`, `PracticeBillingLedgerJourneyTests`, `ResponsiveShellSweepTests`, and `RouteRenderSmokeTests`. The PBC upload and invoice-scope methods, both M365 setup methods, both responsive-shell methods, the route-render method, all four PracticeBillingLedger methods, all 39 `ClientScopeJourneyTests` methods, and eight release/detail/engagement-route methods from `AuditAndReleaseJourneyTests` now have assertion-level replacement maps. Twenty-four methods remain open: five in `AuditAndReleaseJourneyTests` and 19 in `FinancialArtifactJourneyTests`; exact totals and evidence attribution belong in `status.json`.
 - Focused API-only role and browser journeys pass for selected sources; the API-only E2E host conversion is committed, and the recorded full regression passed locally at its attributed commit. The removed-suite replacement crosswalk remains open until the remaining assertions are mapped. Its state is tracked in `docs/execution/status.json`.
 - Existing test crosswalk rows are candidate relationships until the host and assertions have been checked. A shared test file or reused fixture is not itself a replacement test. Aggregate mapped and remaining method counts belong in `status.json`.
 
