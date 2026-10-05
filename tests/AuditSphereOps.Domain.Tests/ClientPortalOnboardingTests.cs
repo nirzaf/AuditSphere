@@ -168,9 +168,35 @@ public sealed class ClientPortalOnboardingTests
     var mine = await SentRequestAsync(pg, f, f.Client.Id);
     var sibling = await SentRequestAsync(pg, f, other.Id);
     var actor = PbcSeed.Actor(f.Client, "ClientUser");
+    await using (var seed = new AuditSphereDbContext(pg.Options))
+    {
+      var now = DateTimeOffset.UtcNow;
+      for (var index = 0; index < 11; index++)
+        seed.PbcRequests.Add(new PbcRequest
+        {
+          Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+          Objective = $"Synthetic page objective {index}", EntityScope = "TEST ENTITY", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31",
+          Area = $"Synthetic page request {index}", RequestedFormat = "PDF", ControlTotals = "12 months", ClientOwnerUserId = f.Client.Id,
+          FirmOwnerUserId = f.Staff.Id, ReviewerUserId = f.Reviewer.Id, DueDate = $"2027-02-{index + 1:00}",
+          Confidentiality = "Confidential", AcceptanceCriteria = "Complete period.", State = PbcStates.Sent, Revision = 1,
+          CreatedAt = now.AddMinutes(index), CreatedByUserId = f.Staff.Id, UpdatedAt = now.AddMinutes(index)
+        });
+      await seed.SaveChangesAsync();
+    }
     await using var db = new AuditSphereDbContext(pg.Options);
-    var workspace = await ClientPortalWorkspaceQuery.GetAsync(db, actor);
-    Assert.Equal(mine, Assert.Single(workspace.Value!.Requests).Id);
+    var workspace = await ClientPortalWorkspaceQuery.GetAsync(db, actor, page: 0, pageSize: 10);
+    Assert.Equal(10, workspace.Value!.Requests.Count);
+    Assert.True(workspace.Value.HasMoreRequests);
+    Assert.Contains(workspace.Value.Requests, x => x.Id == mine);
+    Assert.DoesNotContain(workspace.Value.Requests, x => x.Id == sibling);
+    var nextPage = await ClientPortalWorkspaceQuery.GetAsync(db, actor, page: 1, pageSize: 10);
+    Assert.Equal(2, nextPage.Value!.Requests.Count);
+    Assert.False(nextPage.Value.HasMoreRequests);
+    Assert.Empty(workspace.Value.Requests.Select(x => x.Id).Intersect(nextPage.Value.Requests.Select(x => x.Id)));
+    var largerPage = await ClientPortalWorkspaceQuery.GetAsync(db, actor, page: 0, pageSize: 25);
+    Assert.Equal(12, largerPage.Value!.Requests.Count);
+    Assert.False(largerPage.Value.HasMoreRequests);
+    Assert.False((await ClientPortalWorkspaceQuery.GetAsync(db, actor, page: 0, pageSize: 20)).Succeeded);
     Assert.Equal(ErrorCodes.ScopeDenied, (await ClientPortalWorkspaceQuery.RequestAsync(db, actor, sibling)).ErrorCode);
     Assert.Equal(ErrorCodes.ScopeDenied, (await ClientPortalWorkspaceQuery.RequestAsync(db, PbcSeed.Actor(f.Staff, "Staff"), mine)).ErrorCode);
     Assert.True((await PbcService.ReplyAsync(db, actor, mine, "Before freeze")).Succeeded);

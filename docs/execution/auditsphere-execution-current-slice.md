@@ -15,6 +15,31 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: Client Portal home source/action parity
+
+Compared the pinned `ClientPortal.razor` home page with the Angular portal
+home, request, shared-document and package components and the scoped API and
+Application projections. Restored 10/25/50 request and package pagination,
+added strict API page-size validation, and matched the legacy pending-onboarding
+state so it shows no empty workbench sections before a client engagement opens.
+Focused Angular tests passed 2/2; full Angular CI passed 491/491 across 95
+files; the production build passed with the existing Commercial Settings
+stylesheet warning. PostgreSQL-backed domain and API portal cohorts passed 3/3
+and 2/2. The API-host client browser journey passed 1/1 for first sign-in,
+delegation/revocation, conversation, upload staging, mobile width, guessed-ID
+denial and session revocation. The built-in browser's staff preview was
+redirected from `/ui/portal` to the staff portfolio without disclosing client
+data.
+
+The Client Portal home source row is now `PARTIAL`, not parity complete:
+document acknowledgement/comment recovery, signed-representation failures,
+bundle authorization, complete role/scope matrices and human assistive-
+technology acceptance remain open. The source/action register now has 71
+partial reviews, four unanalyzed rows and one parity-verified row, with 28
+supporting files open. The complete solution regression and EF model-drift
+check were not rerun; the latest full result remains 1001/1001 at `ead85032`.
+See the [Client Portal Home source review](../migration/auditsphere-migration-blazor-client-portal-source-review.md).
+
 ## Current follow-on slice: Operations recovery source/action parity
 
 Compared the legacy Operations recovery page with the Angular workbench, API

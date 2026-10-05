@@ -18,8 +18,8 @@ public static partial class UiEndpoints
 
   private static void MapPortalEndpoints(RouteGroupBuilder group)
   {
-    group.MapGet("/portal", (int? page, HttpContext http) => ReadAsync(http,
-      (db, actor, ct) => ClientPortalWorkspaceQuery.GetAsync(db, actor, page ?? 0, ct)));
+    group.MapGet("/portal", (int? page, int? pageSize, HttpContext http) => ReadAsync(http,
+      (db, actor, ct) => ClientPortalWorkspaceQuery.GetAsync(db, actor, page ?? 0, pageSize ?? 50, ct)));
     group.MapGet("/portal/requests/{id:guid}", (Guid id, HttpContext http) => ReadAsync(http,
       (db, actor, ct) => ClientPortalWorkspaceQuery.RequestAsync(db, actor, id, ct)));
     group.MapUiGet("/portal/documents", (HttpContext http) => ReadAsync(http,

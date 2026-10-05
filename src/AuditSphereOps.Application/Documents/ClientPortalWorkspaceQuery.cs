@@ -24,13 +24,17 @@ public sealed record PortalRequestWorkspace(Guid Id, string Area, string Objecti
 /// <summary>Client-only DTOs. Participation is additional to current role, scope, commercial and session authorization.</summary>
 public static class ClientPortalWorkspaceQuery
 {
-  public static async Task<CommandResult<PortalWorkspace>> GetAsync(IAuditSphereDbContext db, ActorContext actor, int page = 0, CancellationToken ct = default)
+  public static Task<CommandResult<PortalWorkspace>> GetAsync(IAuditSphereDbContext db, ActorContext actor, int page = 0, CancellationToken ct = default) =>
+    GetAsync(db, actor, page, 50, ct);
+
+  public static async Task<CommandResult<PortalWorkspace>> GetAsync(IAuditSphereDbContext db, ActorContext actor, int page,
+    int pageSize, CancellationToken ct = default)
   {
-    if (page is < 0 or > 10000 || !await IsClientAsync(db, actor, ct))
+    if (page is < 0 or > 10000 || pageSize is not (10 or 25 or 50) || !await IsClientAsync(db, actor, ct))
       return CommandResult<PortalWorkspace>.Fail(ErrorCodes.ScopeDenied, "Portal unavailable.");
     var engagements = await ClientPortalService.AuthorizedPortalEngagementIdsAsync(db, actor, ct);
     var requests = await ClientPortalService.ParticipantRequests(db, actor).Where(x => engagements.Contains(x.EngagementId))
-      .OrderBy(x => x.DueDate).ThenBy(x => x.Id).Skip(page * 50).Take(51)
+      .OrderBy(x => x.DueDate).ThenBy(x => x.Id).Skip(page * pageSize).Take(pageSize + 1)
       .Select(x => new PortalRequestItem(x.Id, x.Area, x.Objective, x.PeriodStart, x.PeriodEnd, x.DueDate, x.State, x.ClientOwnerUserId != actor.UserId)).ToListAsync(ct);
     var packages = await db.FinancialPackages.AsNoTracking().Where(x => x.FirmId == actor.FirmId && engagements.Contains(x.EngagementId) && x.Status == AccountingPackageStates.PackageValidated)
       .OrderByDescending(x => x.CreatedAt).ThenBy(x => x.Id).Take(100)
@@ -43,7 +47,7 @@ public static class ClientPortalWorkspaceQuery
       return CommandResult<PortalWorkspace>.Fail(ErrorCodes.ScopeDenied, "Portal unavailable.");
     return CommandResult<PortalWorkspace>.Ok(new(await ClientPortalService.GetFirstSignInStatusAsync(db, actor, ct),
       await ClientPortalService.HasPendingCommercialOnboardingAsync(db, actor, ct), engagements.Count,
-      requests.Take(50).ToArray(), requests.Count > 50, packages));
+      requests.Take(pageSize).ToArray(), requests.Count > pageSize, packages));
   }
 
   public static async Task<CommandResult<PortalRequestWorkspace>> RequestAsync(IAuditSphereDbContext db, ActorContext actor, Guid requestId, CancellationToken ct = default)

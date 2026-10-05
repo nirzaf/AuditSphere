@@ -50,8 +50,9 @@ public sealed class UiPortalContractTests
     using var client = clientFactory.CreateClient(new() { AllowAutoRedirect = false });
     Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/ui/portal")).StatusCode);
     var csrf = await SignInAsync(client);
-    var workspace = await client.GetFromJsonAsync<JsonElement>("/api/ui/portal");
+    var workspace = await client.GetFromJsonAsync<JsonElement>("/api/ui/portal?page=0&pageSize=10");
     Assert.Equal(requestId, workspace.GetProperty("requests")[0].GetProperty("id").GetGuid());
+    Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/ui/portal?page=0&pageSize=20")).StatusCode);
     Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync($"/api/ui/portal/requests/{Guid.NewGuid()}")).StatusCode);
     Assert.Equal(HttpStatusCode.Forbidden, (await PostAsync(client, $"/api/ui/portal/requests/{requestId}/reply", new { body = "Ready for review" })).StatusCode);
     Assert.Equal(HttpStatusCode.OK, (await PostAsync(client, $"/api/ui/portal/requests/{requestId}/reply", new { body = "Ready for review" }, csrf)).StatusCode);
