@@ -15,7 +15,33 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
-## Current follow-on slice: accounting artifact source/action review
+## Current follow-on slice: accounting workspace and period maintenance
+
+In the current code slice, the Angular evidence and mapping/journal/difference
+queues regained the legacy 10/25/50 rows-per-page choices with a default of 25.
+Unit tests cover page counts, selection and resetting to the first page.
+API-host journeys cover draft period roll-forward with a separately reviewable
+opening bridge, and restatement creation followed by approval from a different
+reviewer while preserving both validated package hashes.
+
+The focused PostgreSQL-backed Release cohort and complete Angular unit suite
+passed, and the production bundle built with its existing small budget
+warning. After reloading the authenticated Development Mappings
+route in the built-in browser, the selected page size was 25. This was a
+read-only check against an empty authorized queue. The other agent's
+`ConsolidationOverviewQuery.cs` edit was not included in the code commit.
+
+The accounting workspace and period-maintenance source family now has
+hash-checked PARTIAL reviews and Angular/API/Application mappings. None is promoted to
+full parity. The full solution regression and EF model-drift result were not
+rerun for this slice; exact counts, commands and commit attribution are in
+[`status.json`](status.json). Direct query/search/count/export/command
+authorization and retry/idempotency checks remain open. Remaining
+source/action reviews and supporting files, production rollback/canary, human
+assistive-technology and wider-locale review, live Microsoft gates, and
+separate owner acceptance keep Blazor retirement `NOT_READY`.
+
+## Previous follow-on slice: accounting artifact source/action review
 
 At code commit `6b1a7a1d`, the package-review selection now has an explicit
 tab-only save/restore/discard flow. Restore filters stored package IDs against
@@ -26,16 +52,18 @@ non-GET request. Angular unit coverage checks the tab draft boundary and stale
 ID/session behavior. The built-in browser rendered the new controls with an
 authorized empty Development queue; that observation was read-only.
 
-Six pinned legacy source/action files in the accounting artifact family have
-now been checked against their matching inventory hashes and reviewed against
-Angular components, API endpoints, Application services, and focused journeys.
-All six remain `PARTIAL`; none is promoted to full parity. The aggregate is one
-parity-verified, 21 partial and 54 unanalyzed source/action rows, plus 28
-supporting files. The removed E2E-method crosswalk is 82/82. AS-PAR-002 still
-needs direct query/search/count/export/command authorization and retry/
-idempotency checks. Exact results are in `status.json`; production
-rollback/canary, human assistive-technology and wider-locale review, live
-Microsoft gates, and separate owner acceptance keep retirement `NOT_READY`.
+At that earlier checkpoint, six pinned legacy source/action files in the
+accounting artifact family had been checked against inventory hashes and
+reviewed against Angular components, API endpoints, Application services and
+focused journeys. All six remained `PARTIAL`; none was promoted to full
+parity. The then-current aggregate was one parity-verified, 21 partial and 54
+unanalyzed source/action rows, plus 28 supporting files. Later accounting
+workspace/period-maintenance reviews supersede those counts. The removed
+E2E-method crosswalk is 82/82. AS-PAR-002 still needs direct
+query/search/count/export/command authorization and retry/idempotency checks.
+Production rollback/canary, human assistive-technology and wider-locale
+review, live Microsoft gates, and separate owner acceptance keep retirement
+`NOT_READY`.
 
 ## Previous follow-on slice: Angular audit workflow parity
 
