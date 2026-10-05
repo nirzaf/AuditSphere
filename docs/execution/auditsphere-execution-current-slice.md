@@ -15,6 +15,34 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: approved initial-administrator sign-in
+
+At code commit `e61d147`, Development/Test authentication now lets only the exact
+deployment-approved synthetic tenant/object identity reach proof-backed
+installation setup before a local user exists. That cookie has no session epoch,
+so protected workspace APIs deny it. Bootstrap creates the local `AppUser` and
+firm-wide Administrator grant through the existing reviewed transaction; a new
+sign-in receives the normal session epoch. Production remains on Microsoft OIDC.
+
+The rebuilt API-only browser journey passed 3/3 cases: approved bootstrap,
+wrong-tenant denial and wrong-object denial. It also verifies pre-bootstrap
+workspace denial, proof consumption and no proof persistence. Related API
+installation/cookie-security tests passed 8/8. A full serial E2E compatibility
+run passed 135/135 in 34m07s; it included the bootstrap happy path, while the
+two identity-mismatch cases were added afterward and are covered by the focused
+3/3 run. Release solution build passed with zero warnings/errors, Angular CI
+passed 476/476 across 91 files, and EF reported no model drift. The Angular
+build succeeded with the existing 505.53 kB initial bundle warning (5.53 kB
+above budget). Exact attribution is in `status.json` under
+`angularBlazorApprovedBootstrapSlice`.
+
+The built-in browser rendered the authenticated Microsoft tenant-connection
+route read-only and showed consent `VERIFIED` separately from stale directory
+and selected-resource capabilities. No verification action was submitted.
+Overall Blazor removal remains `NOT_READY`: 62 source/action rows, 28 support
+files, the 82-method removed-suite crosswalk, production/human/external checks,
+and separate owner acceptance remain open.
+
 The canonical removal gate remains `NOT_READY`. Commit `59387b54` removed
 `AuditSphereOps.Web` and its Razor sources before the canonical source-action
 register was complete. That repository state is not accepted as proof of
@@ -25,8 +53,8 @@ report was withdrawn; the canonical migration documents indexed from
 The Web rollback/reference project and Razor source have been restored to the
 solution from the parent of the premature physical-removal commit. The API
 remains the Angular route owner; API.Tests and E2E.Tests do not reference Web,
-and the E2E fixture starts only the API. The current working tree passed the
-Angular production build and unit suite, Release solution build, complete
+and the E2E fixture starts only the API. The recorded `eb94ae5` snapshot passed
+the Angular production build and unit suite, Release solution build, complete
 PostgreSQL-backed solution suite, and EF model check; exact evidence is in
 `docs/execution/status.json`. A successful build and local browser smoke are not
 an operational rollback exercise. Source-action parity, a complete replacement
@@ -78,10 +106,11 @@ routes). The Senior receives a generic denial with no profile; the Partner
 completes the reviewed decision and recovers one accepted receipt after a lost
 response. `AssessmentDecision.razor` is `PARITY_VERIFIED` for this source only.
 
-`AssessmentDetail.razor`, `AcceptanceChecklistPanel.razor`, the other 75
-source/action rows, all supporting files, and current full-project regression
-remain open. The overall physical-removal decision remains `NOT_READY`; exact
-evidence and current rerun state are in `status.json`.
+`AssessmentDetail.razor`, `AcceptanceChecklistPanel.razor`, the 62 unanalyzed
+source/action rows, all 28 supporting files, and complete removed-test crosswalk
+remain open. Thirteen administration artifacts are now separately
+`PARTIAL_REVIEWED`. The overall physical-removal decision remains `NOT_READY`;
+exact evidence and current rerun state are in `status.json`.
 
 ## API test host no longer depends on the Blazor project
 
@@ -352,9 +381,9 @@ on this source commit; the previous 1,029/1,029 result remains attributed to
 production canary, real assistive-technology checks and live Microsoft gates
 remain open.
 
-## Owner-approved Angular route cutover and Blazor runtime retirement
+## Historical checkpoint: owner-approved Angular route cutover and Blazor runtime retirement
 
-On 2026-10-04 the owner approved completing the local cutover. The standalone API
+At this 2026-10-04 checkpoint, the owner had approved completing the local cutover. The standalone API
 is the only supported runtime and serves Angular on canonical `/app`, `/portal`
 and `/setup` routes. `AuditSphereOps.Web` remains as a Test-only regression
 fixture; `ApiHost` rejects `legacyPresentation=true` in every other environment.
@@ -381,9 +410,10 @@ Razor route has an explicit native owner except server-owned root/access-denied
 routes, and authentication routes stay outside the SPA.
 
 This historical checkpoint reported US-047 local runtime retirement complete.
-After reinspection at `8ea3ef01`, that disposition is superseded: the source
-action audit and replacement coverage for 82 assertions from nine deleted E2E
-suites are still open, so the current retirement gate is `NOT_READY`. Production
+That disposition was later superseded when the Web rollback/reference source
+was restored at `eb94ae5`. The source action audit and assertion-level
+replacement crosswalk for the 82 test methods in nine deleted E2E suites remain
+open; the current removal gate is `NOT_READY`. Production
 canary, real assistive-technology and wider-locale acceptance, and live Microsoft
 gates also remain outside local verification.
 
@@ -463,7 +493,8 @@ The shipped API now defaults to canonical Angular ownership. Production-like
 canary, deployment retention of the previous fingerprinted build, live
 Microsoft acceptance, assistive-technology acceptance and Blazor retirement
 remain open, so overall migration acceptance remains PARTIAL. Local runtime
-retirement was subsequently approved and is recorded above.
+retirement was recorded at the historical checkpoint above, then superseded by
+the rollback-source restoration; current removal readiness remains `NOT_READY`.
 
 ## Reviewed existing service-period engagement inspection
 

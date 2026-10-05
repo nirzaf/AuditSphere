@@ -8,6 +8,97 @@
       "evidence": "auditsphere-migration-blazor-assessment-decision-source-review.md",
       "reviewedAtCommit": "d00f63edb0fad05f7384c0eb8d2dafbc4c1a1971",
       "openGaps": []
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/Administration.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-administration-source-review.md",
+      "reviewedAtCommit": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
+      "openGaps": ["Tab-by-tab user and access data parity", "Invitation state coverage", "Stale-content behavior across sections"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/AccessNotAssigned.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-administration-source-review.md",
+      "reviewedAtCommit": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
+      "openGaps": ["Browser journey for an unmapped Entra identity", "Disabled-identity denial rendering"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Administration/ClientSharePointSitesPanel.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-administration-source-review.md",
+      "reviewedAtCommit": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
+      "openGaps": ["Live site provisioning", "Live staff membership synchronization", "Production ACL review"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Administration/CreateUserWizard.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-administration-source-review.md",
+      "reviewedAtCommit": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
+      "openGaps": ["Live Graph creation", "Disabled-account rejection", "Complete validation matrix"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Administration/ExternalOperationsPanel.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-administration-source-review.md",
+      "reviewedAtCommit": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
+      "openGaps": ["Recovery coverage for each external-operation kind", "Live Microsoft outcomes"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Administration/GuestInvitationPanel.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-administration-source-review.md",
+      "reviewedAtCommit": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
+      "openGaps": ["Existing-guest choice journey", "Live B2B invitation acceptance"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Administration/ManagedGroupsPanel.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-administration-source-review.md",
+      "reviewedAtCommit": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
+      "openGaps": ["Live Graph membership outcomes", "Provider paging", "Broader failure and recovery states"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Administration/Microsoft365StatusPanel.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-administration-source-review.md",
+      "reviewedAtCommit": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
+      "openGaps": ["Live capability verification", "Failure and stale capability state matrix"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Administration/MicrosoftDirectoryPanel.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-administration-source-review.md",
+      "reviewedAtCommit": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
+      "openGaps": ["Multi-page continuation", "Search and filter failure states", "Revoked-directory observations"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Administration/RoleAssignmentDialog.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-administration-source-review.md",
+      "reviewedAtCommit": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
+      "openGaps": ["Complete role and scope comparison", "Stale-preview UI matrix"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Administration/WorkspaceProvisioningPanel.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-administration-source-review.md",
+      "reviewedAtCommit": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
+      "openGaps": ["Successful isolated live provisioning", "Production ACL acceptance"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/Microsoft365Setup.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-administration-source-review.md",
+      "reviewedAtCommit": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
+      "openGaps": ["Legacy template editing assertions", "Complete setup resume assertions", "Live resource verification"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/TenantConnection.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-administration-source-review.md",
+      "reviewedAtCommit": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
+      "openGaps": ["Real Entra callback and consent", "Production credentials", "Selected-site permission and operator acceptance"]
     }
   ]
 }
