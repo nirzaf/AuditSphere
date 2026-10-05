@@ -1,6 +1,7 @@
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Search;
 using AuditSphereOps.Application.Security;
+using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
@@ -108,6 +109,55 @@ public sealed class GlobalSearchQueryTests
     // A client-scoped Partner is not a firm-wide commercial identity, so leads stay hidden.
     var (_, scoped) = await UserAsync(w, ("Partner", w.Own.ClientId, null));
     Assert.DoesNotContain((await SearchAsync(w, scoped, Marker)).Hits, x => x.Kind == GlobalSearchQuery.Kinds.Lead);
+  }
+
+  [Fact]
+  public async Task FinanceSearch_ReturnsOnlyInvoicesInsideTheActorFirmAndClientScope()
+  {
+    await using var w = await SeedAsync();
+    var now = DateTimeOffset.UtcNow;
+    var ownInvoiceId = Guid.NewGuid();
+    var siblingInvoiceId = Guid.NewGuid();
+    var foreignFirmId = Guid.NewGuid();
+    var foreignClientId = Guid.NewGuid();
+    var foreignAccountId = Guid.NewGuid();
+    var foreignInvoiceId = Guid.NewGuid();
+    await using (var db = w.Db())
+    {
+      var ownAccountId = Guid.NewGuid();
+      var siblingAccountId = Guid.NewGuid();
+      db.BillingAccounts.AddRange(
+        new BillingAccount { Id = ownAccountId, FirmId = w.Own.FirmId, PracticeClientId = w.Own.ClientId, Currency = "QAR", CreatedAt = now },
+        new BillingAccount { Id = siblingAccountId, FirmId = w.Own.FirmId, PracticeClientId = w.Sibling.Fixture.ClientId, Currency = "QAR", CreatedAt = now },
+        new BillingAccount { Id = foreignAccountId, FirmId = foreignFirmId, PracticeClientId = foreignClientId, Currency = "QAR", CreatedAt = now });
+      db.FirmSafetyStates.Add(new FirmSafetyState { Id = foreignFirmId });
+      db.PracticeClients.Add(new PracticeClient
+      {
+        Id = foreignClientId, FirmId = foreignFirmId, LegalName = $"{Marker} Foreign Billing Client", CreatedAt = now
+      });
+      db.ClientSafetyStates.Add(new ClientSafetyState { Id = foreignClientId, FirmId = foreignFirmId });
+      db.Invoices.AddRange(
+        new Invoice { Id = ownInvoiceId, FirmId = w.Own.FirmId, BillingAccountId = ownAccountId, InvoiceNumber = $"{Marker}-OWN-INV", Currency = "QAR", Subtotal = 100, Total = 100, Status = BillingStates.InvoiceDraft, CreatedAt = now },
+        new Invoice { Id = siblingInvoiceId, FirmId = w.Own.FirmId, BillingAccountId = siblingAccountId, InvoiceNumber = $"{Marker}-SIBLING-INV", Currency = "QAR", Subtotal = 200, Total = 200, Status = BillingStates.InvoiceDraft, CreatedAt = now },
+        new Invoice { Id = foreignInvoiceId, FirmId = foreignFirmId, BillingAccountId = foreignAccountId, InvoiceNumber = $"{Marker}-FOREIGN-INV", Currency = "QAR", Subtotal = 300, Total = 300, Status = BillingStates.InvoiceDraft, CreatedAt = now });
+      await db.SaveChangesAsync();
+    }
+
+    var (_, scopedFinance) = await UserAsync(w, ("FinanceManager", w.Own.ClientId, null));
+    var scoped = await SearchAsync(w, scopedFinance, Marker);
+    Assert.Equal([$"/app/practice/invoices/{ownInvoiceId:D}"], scoped.Hits
+      .Where(x => x.Kind == GlobalSearchQuery.Kinds.Invoice).Select(x => x.Href));
+    Assert.DoesNotContain(scoped.Hits, x => x.Title.Contains("SIBLING", StringComparison.OrdinalIgnoreCase) ||
+      x.Title.Contains("FOREIGN", StringComparison.OrdinalIgnoreCase));
+
+    var (_, staff) = await UserAsync(w, ("Staff", w.Own.ClientId, null));
+    Assert.DoesNotContain((await SearchAsync(w, staff, Marker)).Hits, x => x.Kind == GlobalSearchQuery.Kinds.Invoice);
+
+    var (_, firmFinance) = await UserAsync(w, ("FinanceReviewer", null, null));
+    var firmWide = await SearchAsync(w, firmFinance, Marker);
+    Assert.Contains(firmWide.Hits, x => x.Href == $"/app/practice/invoices/{ownInvoiceId:D}");
+    Assert.Contains(firmWide.Hits, x => x.Href == $"/app/practice/invoices/{siblingInvoiceId:D}");
+    Assert.DoesNotContain(firmWide.Hits, x => x.Href == $"/app/practice/invoices/{foreignInvoiceId:D}");
   }
 
   [Fact]
