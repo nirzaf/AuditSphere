@@ -60,9 +60,17 @@ public sealed class AngularRouteAndShellMigrationSweepTests
     var errors = new List<string>();
     page.PageError += (_, error) => errors.Add(error);
 
-    await page.GotoAsync(SignInUrl(origin, destination));
+    await page.GotoAsync(origin + "/");
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "Access unavailable", Exact = true })).ToBeVisibleAsync();
+    var signIn = page.GetByRole(AriaRole.Link, new() { Name = "Sign in", Exact = true });
+    await Assertions.Expect(signIn).ToBeVisibleAsync();
+    Assert.Equal("/auth/sign-in?returnUrl=" + Uri.EscapeDataString(destination),
+      await signIn.GetAttributeAsync("href"));
+    await signIn.ClickAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Heading,
       new() { Name = "Portfolio", Exact = true })).ToBeVisibleAsync();
+    Assert.Equal(destination, new Uri(page.Url).AbsolutePath);
     await page.GotoAsync(origin + "/");
     await Assertions.Expect(page.GetByRole(AriaRole.Heading,
       new() { Name = "Portfolio", Exact = true })).ToBeVisibleAsync();
