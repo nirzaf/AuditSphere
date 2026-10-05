@@ -225,6 +225,12 @@ public sealed class AngularClientScopeEngagementParityJourneyTests
       var managerPage = await managerContext.NewPageAsync();
       var managerErrors = new List<string>();
       managerPage.PageError += (_, error) => managerErrors.Add(error);
+      await managerPage.GotoAsync(managerOrigin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(targetEngagement));
+      await Assertions.Expect(managerPage.GetByRole(AriaRole.Heading,
+        new() { Name = "Engagement unavailable", Exact = true })).ToBeVisibleAsync();
+      var deniedEngagement = await managerPage.Locator("main").InnerTextAsync();
+      Assert.DoesNotContain("PBC TEST CLIENT", deniedEngagement, StringComparison.Ordinal);
+      Assert.DoesNotContain(privateHold, deniedEngagement, StringComparison.Ordinal);
       var path = targetEngagement + "/audit-plan";
       await managerPage.GotoAsync(managerOrigin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(path));
       await Assertions.Expect(managerPage.GetByRole(AriaRole.Alert)).ToContainTextAsync(
