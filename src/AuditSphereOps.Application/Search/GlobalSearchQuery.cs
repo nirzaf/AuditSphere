@@ -175,12 +175,15 @@ public static class GlobalSearchQuery
 
     // Technical library: published versions the actor's audience allows; each hit names its version.
     var library = await TechnicalLibraryService.SearchAsync(db, actor, text, ct);
+    truncated |= library.Count > PerKind;
     hits.AddRange(library.Take(PerKind).Select(h => new GlobalSearchHit(Kinds.Library, $"{h.Code} — {h.Title}", $"{h.Category} · v{h.Version} · {Trim(h.Snippet, 90)}", $"/app/library/{h.DocumentId:D}")));
 
     // Pages are navigation, not data: each route still authorizes its own content when opened.
-    hits.AddRange(Pages.Where(p => p.Title.Contains(text, StringComparison.OrdinalIgnoreCase) ||
+    var pages = Pages.Where(p => p.Title.Contains(text, StringComparison.OrdinalIgnoreCase) ||
         p.Keywords.Contains(text, StringComparison.OrdinalIgnoreCase))
-      .Take(PerKind).Select(p => new GlobalSearchHit(Kinds.Page, p.Title, "Page", p.Href)));
+      .Take(PerKind + 1).ToArray();
+    truncated |= pages.Length > PerKind;
+    hits.AddRange(pages.Take(PerKind).Select(p => new GlobalSearchHit(Kinds.Page, p.Title, "Page", p.Href)));
 
     return CommandResult<GlobalSearchResult>.Ok(new(text, hits, truncated));
   }

@@ -185,6 +185,38 @@ public sealed class GlobalSearchQueryTests
   }
 
   [Fact]
+  public async Task LibraryAndPageCapsSignalWhenMoreThanSixResultsExist()
+  {
+    await using var w = await SeedAsync();
+    var (_, manager) = await UserAsync(w, ("Manager", null, null));
+    var (_, partner) = await UserAsync(w, ("Partner", null, null));
+    await using var db = w.Db();
+
+    for (var index = 0; index < 7; index++)
+    {
+      var created = await TechnicalLibraryService.CreateAsync(db, manager,
+        $"ZQX-LIB-CAP-{index:D2}", $"Library cap item {index:D2}", TechnicalLibraryCategories.Isa,
+        TechnicalLibraryAudiences.AllStaff, $"CAPLIBRARYTERM published policy content {index:D2}",
+        "Approved test source", new DateOnly(2026, 1, 1));
+      Assert.True(created.Succeeded, created.Message);
+      var versionId = await db.TechnicalLibraryVersions.Where(x => x.DocumentId == created.Value)
+        .Select(x => x.Id).SingleAsync();
+      var published = await TechnicalLibraryService.PublishAsync(db, partner, versionId);
+      Assert.True(published.Succeeded, published.Message);
+    }
+
+    var pages = await SearchAsync(w, manager, "re");
+    var pageHits = pages.Hits.Where(x => x.Kind == GlobalSearchQuery.Kinds.Page).ToArray();
+    Assert.Equal(6, pageHits.Length);
+    Assert.True(pages.Truncated);
+
+    var library = await SearchAsync(w, manager, "CAPLIBRARYTERM");
+    var libraryHits = library.Hits.Where(x => x.Kind == GlobalSearchQuery.Kinds.Library).ToArray();
+    Assert.Equal(6, libraryHits.Length);
+    Assert.True(library.Truncated);
+  }
+
+  [Fact]
   public async Task TechnicalLibraryHitsRespectAudiencePublicationAndFirmBoundary()
   {
     await using var w = await SeedAsync();
