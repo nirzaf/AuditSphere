@@ -15,6 +15,25 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: Acceptance checklist workspace and role parity
+
+Added a PostgreSQL-backed API-host browser journey for the Angular acceptance
+checklist. It verifies current workspace and progress state, pending specialist
+clearance, Staff editing/request controls, Manager review controls without
+Partner decision access, refresh confirmation that keeps unsaved input, and
+confirmed discard restoring persisted answer/evidence. Revoking the Staff
+client grant then refreshing clears the client profile, question and evidence.
+The focused acceptance cohort passed 7/7; Angular CI passed 493/493 across 95
+files; the production build passed with the existing Commercial Settings style
+warning (7.53 kB against 4 kB). Built-in browser inspection of the supplied
+Operations page confirmed the firm-wide Administrator denial and no operation
+rows. The checklist source row remains `PARTIAL`; full role/scope, validation,
+stale/error/recovery, assistive-technology, production/canary, live Microsoft
+and owner acceptance remain open. No EF model changed; the pending-model check
+was not rerun. The latest full solution regression remains 1001/1001 at
+`ead85032`; Blazor retirement remains `NOT_READY`. See the [acceptance
+checklist source review](../migration/auditsphere-migration-blazor-acceptance-checklist-source-review.md).
+
 ## Current follow-on slice: Release issue and lost-response recovery
 
 Added the missing Angular journey for a verified release candidate. The
