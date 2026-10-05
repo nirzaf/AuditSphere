@@ -145,6 +145,21 @@ public sealed class GlobalSearchJourneyTests
           Assert.Contains(hits, hit => hit.GetProperty("href").GetString() == $"/app/clients/{f.ClientId:D}");
         }
 
+        await using (var shortTerm = await context.APIRequest.GetAsync(origin + "/api/ui/search?term=x"))
+        {
+          Assert.Equal(200, shortTerm.Status);
+          using var body = JsonDocument.Parse(await shortTerm.TextAsync());
+          Assert.Empty(body.RootElement.GetProperty("hits").EnumerateArray());
+          Assert.False(body.RootElement.GetProperty("truncated").GetBoolean());
+        }
+        await using (var tooLong = await context.APIRequest.GetAsync(origin + "/api/ui/search?term=" +
+          Uri.EscapeDataString(new string('x', 101))))
+        {
+          Assert.Equal(400, tooLong.Status);
+          using var body = JsonDocument.Parse(await tooLong.TextAsync());
+          Assert.Equal("request.invalid", body.RootElement.GetProperty("code").GetString());
+        }
+
         await AssertNoHitsAsync(context, origin, Marker);
         await AssertNoHitsAsync(context, origin, "ZQXFOREIGNSEARCH");
 

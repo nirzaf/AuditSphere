@@ -161,6 +161,29 @@ public sealed class GlobalSearchQueryTests
   }
 
   [Fact]
+  public async Task SearchCapsEachKindAndSignalsThatMoreMatchesExist()
+  {
+    await using var w = await SeedAsync();
+    const string term = "CAPBOUNDARY";
+    await using (var db = w.Db())
+    {
+      db.Leads.AddRange(Enumerable.Range(0, 7).Select(index => new Lead
+      {
+        Id = Guid.NewGuid(), FirmId = w.Own.FirmId, Name = $"{term}-Prospect-{index:D2}",
+        Source = "Referral", CreatedAt = DateTimeOffset.UtcNow.AddSeconds(index)
+      }));
+      await db.SaveChangesAsync();
+    }
+    var (_, partner) = await UserAsync(w, ("Partner", null, null));
+
+    var result = await SearchAsync(w, partner, term);
+    var leads = result.Hits.Where(x => x.Kind == GlobalSearchQuery.Kinds.Lead).ToArray();
+    Assert.Equal(6, leads.Length);
+    Assert.All(leads, hit => Assert.Contains(term, hit.Title, StringComparison.OrdinalIgnoreCase));
+    Assert.True(result.Truncated);
+  }
+
+  [Fact]
   public async Task ClientIdentitiesRevokedGrantsAndStaleSessionsGetNothing()
   {
     await using var w = await SeedAsync();
