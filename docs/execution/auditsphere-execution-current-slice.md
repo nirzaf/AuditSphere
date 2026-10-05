@@ -15,6 +15,43 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Commercial Settings form UI repair
+
+The commercial settings form now uses a scoped, responsive grid with aligned
+labels and controls, clearer field guidance, grouped sections and a separated
+review/action area. The Angular component bindings and business behavior were
+preserved. The production Angular build passed with its existing initial
+bundle warning (506.60 kB, 6.60 kB above the 500 kB warning budget); the
+focused settings component tests passed 6/6. The built-in browser rendered the
+Development Commercial Settings page read-only; no business command was
+submitted. No API, Application, Domain or EF model code changed. This UI-only
+repair does not change migration parity or retirement acceptance.
+
+## Current follow-on slice: resource planning, budget and staffing source review
+
+The resource planning page and its engagement budget and staffing panels were
+checked against the pinned discovery snapshot; all three source hashes match.
+The native ownership mapping covers the Angular resource workbench and
+engagement planning UI, API endpoints, and Application queries/workspaces for
+resource edits, reviewed resource commands, budget preparation and approval,
+and staffing changes.
+
+The focused PostgreSQL-backed Release browser cohort passed 12/12 with no
+failures or skips. It covers canonical and `/ui` routes for resource form and
+stale-review behavior, exact budget review and receipt recovery, independent
+approval, staffing add/revoke recovery, session-epoch invalidation and assent
+clearing. The built-in browser rendered the Development resource planning page
+read-only; no business command was submitted.
+
+All three source rows remain `PARTIAL`. Complete role/scope, firm and guessed-ID
+isolation, all validation/failure/recovery branches, live SharePoint membership
+reconciliation and assistive-technology parity remain open. The full solution
+regression and EF pending-model check were not rerun for this slice; the latest
+complete regression remains 1001/1001 at the separate `ead85032` checkpoint.
+Source hashes, focused test command and counts, browser boundary and open gaps
+are recorded in [`status.json`](status.json) and the linked source review.
+Blazor retirement and AS-PAR-002 remain `NOT_READY`/partial.
+
 ## Current follow-on slice: commercial workflow source review
 
 Six legacy commercial sources were checked against the pinned discovery

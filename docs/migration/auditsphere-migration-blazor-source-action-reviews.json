@@ -379,6 +379,27 @@
       "evidence": "auditsphere-migration-blazor-commercial-source-review.md",
       "reviewedAtCommit": "4aaffc31243bd524ebc48142af6b3f2c42c66d1a",
       "openGaps": ["Complete proposal detail/history role, scope and cross-firm/guessed-ID matrix", "Refresh, revision-conflict, stale-content and query-failure behavior", "Full review, conversion and route-transition accessibility/recovery coverage"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/ResourcePlanning.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-resource-planning-source-review.md",
+      "reviewedAtCommit": "7ca600d1fb93c331fa1491e575fd4b7b24cdd6e8",
+      "openGaps": ["Complete role, scope, firm/client isolation and inaccessible-ID assertion coverage", "Exhaustive validation, conflict, failure, stale-state and recovery behavior", "Full production, assistive-technology and locale acceptance"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Planning/EngagementBudgetPanel.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-resource-planning-source-review.md",
+      "reviewedAtCommit": "7ca600d1fb93c331fa1491e575fd4b7b24cdd6e8",
+      "openGaps": ["Full budget line, rate-card and reviewer-authority validation matrix", "All conflicts, denials, failure and receipt-recovery branches", "Production, accessibility, locale and owner acceptance"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Planning/EngagementStaffingPanel.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-resource-planning-source-review.md",
+      "reviewedAtCommit": "7ca600d1fb93c331fa1491e575fd4b7b24cdd6e8",
+      "openGaps": ["Complete staffing role/scope, authorization and validation matrix", "Cross-firm, guessed-ID and all stale/revoked-session behavior", "Live SharePoint membership reconciliation and production acceptance"]
     }
   ]
 }
