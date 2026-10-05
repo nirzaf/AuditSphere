@@ -71,6 +71,14 @@ public sealed class AngularRouteAndShellMigrationSweepTests
       Assert.True(await staffPage.Locator("main h1").IsVisibleAsync(), $"{route} did not show its page heading.");
       var currentLinks = staffPage.Locator("audit-workspace-navigation nav a[aria-current='page']");
       Assert.True(await currentLinks.CountAsync() <= 1, $"{route} marked more than one workspace destination current.");
+      await AssertCurrentNavigationSectionAsync(staffPage, route);
+      if (route == "/app/accounting/mappings")
+      {
+        var queueLink = staffPage.GetByRole(AriaRole.Navigation, new() { Name = "Accounting record queues", Exact = true })
+          .GetByRole(AriaRole.Link, new() { Name = "Adjustments", Exact = true });
+        await queueLink.FocusAsync();
+        Assert.Equal("solid", await queueLink.EvaluateAsync<string>("element => getComputedStyle(element).outlineStyle"));
+      }
     }
 
     // Progress is an implementation tracker, not a readiness percentage; its filter changes
@@ -80,14 +88,26 @@ public sealed class AngularRouteAndShellMigrationSweepTests
     await Assertions.Expect(filters).ToBeVisibleAsync();
     var taskSummary = staffPage.Locator("section[aria-label='Task-card filters'] p");
     var beforeFilter = await taskSummary.InnerTextAsync();
-    var beforeTotal = Regex.Match(beforeFilter, @"of (\d+) distinct task cards").Groups[1].Value;
-    Assert.False(string.IsNullOrWhiteSpace(beforeTotal), beforeFilter);
+    var beforeCounts = Regex.Match(beforeFilter, @"Showing (\d+) of (\d+) distinct task cards");
+    Assert.True(beforeCounts.Success, beforeFilter);
+    var beforeTotal = beforeCounts.Groups[2].Value;
+    var overallBar = staffPage.Locator("div[role='img'][aria-label^='Overall task-card progress:']");
+    await Assertions.Expect(overallBar).ToBeVisibleAsync();
+    await Assertions.Expect(staffPage.Locator("div[role='img'][aria-label^='Module 20 task-card progress:']")).ToBeVisibleAsync();
+    var overallBefore = await overallBar.GetAttributeAsync("aria-label");
+    var completedCount = Regex.Match(overallBefore ?? "", @"^Overall task-card progress: (\d+) completed").Groups[1].Value;
+    Assert.False(string.IsNullOrWhiteSpace(completedCount), overallBefore);
     await filters.GetByRole(AriaRole.Button, new() { Name = "Completed", Exact = true }).ClickAsync();
     await Assertions.Expect(filters.GetByRole(AriaRole.Button, new() { Name = "Completed", Exact = true }))
       .ToHaveAttributeAsync("aria-pressed", "true");
     var filteredText = await taskSummary.InnerTextAsync();
-    Assert.Contains($"of {beforeTotal} distinct task cards", filteredText);
+    var completedCounts = Regex.Match(filteredText, @"Showing (\d+) of (\d+) distinct task cards");
+    Assert.True(completedCounts.Success, filteredText);
+    Assert.Equal(completedCount, completedCounts.Groups[1].Value);
+    Assert.Equal(beforeTotal, completedCounts.Groups[2].Value);
+    Assert.Equal(overallBefore, await overallBar.GetAttributeAsync("aria-label"));
     await filters.GetByRole(AriaRole.Button, new() { Name = "All", Exact = true }).ClickAsync();
+    await Assertions.Expect(taskSummary).ToContainTextAsync($"Showing {beforeTotal} of {beforeTotal} distinct task cards.");
 
     // A staff identity without firm-wide Administrator authority sees no tracker data.
     var staffOrigin = await host.StartApiForIdentityAsync(host.Fixture.Staff, settings);
@@ -101,7 +121,7 @@ public sealed class AngularRouteAndShellMigrationSweepTests
 
     // Client navigation stays separate from the staff workspace.
     var clientOrigin = await host.StartApiForIdentityAsync(host.Fixture.Client, settings);
-    await using var clientContext = await browser.NewContextAsync();
+    await using var clientContext = await browser.NewContextAsync(new() { ViewportSize = new() { Width = 1440, Height = 900 } });
     var clientPage = await clientContext.NewPageAsync();
     clientPage.PageError += (_, error) => errors.Add(error);
     await clientPage.GotoAsync(SignInUrl(clientOrigin, "/portal"));
@@ -110,6 +130,12 @@ public sealed class AngularRouteAndShellMigrationSweepTests
     await Assertions.Expect(clientNavigation.GetByRole(AriaRole.Link)).ToHaveCountAsync(1);
     await Assertions.Expect(clientNavigation.GetByRole(AriaRole.Link, new() { Name = "Client portal", Exact = true })).ToBeVisibleAsync();
     Assert.DoesNotContain("Administration", await clientNavigation.InnerTextAsync());
+    foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
+    {
+      await clientPage.SetViewportSizeAsync(width, 900);
+      Assert.True(await clientPage.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
+        $"Client portal overflows the {width}px viewport.");
+    }
     Assert.Empty(errors);
   }
 
@@ -171,6 +197,7 @@ public sealed class AngularRouteAndShellMigrationSweepTests
           .ToBeVisibleAsync(new() { Timeout = 15000 });
         Assert.True(await page.Locator("audit-workspace-navigation nav a[aria-current='page']").CountAsync() <= 1,
           $"{route} marked more than one workspace destination current.");
+        await AssertCurrentNavigationSectionAsync(page, route);
         foreach (var width in widths)
         {
           await page.SetViewportSizeAsync(width, 900);
@@ -219,6 +246,33 @@ public sealed class AngularRouteAndShellMigrationSweepTests
       db.RoleGrants.Add(PbcSeed.Grant(host.Fixture.FirmId, user, role));
     await db.SaveChangesAsync();
     return user;
+  }
+
+  private static async Task AssertCurrentNavigationSectionAsync(IPage page, string route)
+  {
+    var expected = route switch
+    {
+      "/" or "/app" => "Practice",
+      _ when route.StartsWith("/app/administration", StringComparison.Ordinal) || route == "/app/operations" => "Administration",
+      _ when route.StartsWith("/app/accounting", StringComparison.Ordinal) || route.StartsWith("/app/consolidation", StringComparison.Ordinal) ||
+        route.StartsWith("/app/finance", StringComparison.Ordinal) => "Accounting",
+      _ when route.StartsWith("/app/audit", StringComparison.Ordinal) || route == "/app/library" ||
+        Regex.IsMatch(route, @"^/app/engagements/[^/]+/(audit-plan|audit-fieldwork|completion)(?:/|$)") => "Audit",
+      _ when route.StartsWith("/app/practice", StringComparison.Ordinal) || route.StartsWith("/app/clients/", StringComparison.Ordinal) ||
+        Regex.IsMatch(route, @"^/app/engagements/[^/]+(?:/pbc)?$") => "Practice",
+      _ => null
+    };
+
+    var marked = page.Locator("audit-workspace-navigation nav h2[aria-current='location']");
+    if (expected is null)
+    {
+      Assert.Equal(0, await marked.CountAsync());
+      return;
+    }
+
+    var headings = await marked.AllInnerTextsAsync();
+    Assert.True(headings.Count == 1, $"{route} should mark only the {expected} navigation section as current; found [{string.Join(", ", headings)}].");
+    Assert.Equal(expected.ToUpperInvariant(), headings[0].Trim().ToUpperInvariant());
   }
 
   private static string SignInUrl(string origin, string returnUrl) =>
