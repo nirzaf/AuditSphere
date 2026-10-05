@@ -109,11 +109,11 @@ At the time of this slice, this closed the assertion map for the single method i
 
 ## Removed `ClientScopeJourneyTests` audit-detail method crosswalk
 
-At test commit `cf609420`, one API-host Angular/PostgreSQL Playwright journey
-replaces five detail and revocation methods. It uses scoped Application
-fixtures and browser routes on the Angular host; sibling and random IDs share
-the same generic unavailable state, and same-document navigation preserves the
-document while clearing protected content.
+`AngularClientScopeAuditDetailJourneyTests.AuditDetailRoutesClearSiblingAndRevokedContentInTheSameDocument`
+now maps seven detail, archive, review and revocation methods. It uses scoped
+Application fixtures and browser routes on the Angular host; sibling and
+random IDs share the same generic unavailable state, and same-document
+navigation preserves the document while clearing protected content.
 
 | Legacy method | Replacement evidence | Disposition |
 |---|---|---|
@@ -121,17 +121,18 @@ document while clearing protected content.
 | `AuditPopulationAndLinkedReceiptsRequireCurrentEngagementScope` | The same journey verifies the authorized population purpose, extraction parameters, and receipt token. The source filename remains hidden even on the authorized route. Sibling and guessed IDs expose no source marker, filename, or monetary total and render the same unavailable state. | Covered. |
 | `WorkpaperAndSubmissionHistoryRequireCurrentEngagementScope` | The journey verifies the assigned workpaper title, objective, procedure, and frozen submission conclusion. A sibling-client ID is denied. After the exact Staff grant is revoked, a draft save through `AuditPlanningService` is refused with no `WorkpaperDraft` persisted, and both open Angular pages clear all seeded workpaper details. | Covered for the scoped detail, submission-history, stale-content, and no-write assertions. |
 | `ReviewPointReadAndDispositionAreEngagementScoped` | The journey reads the assigned review comment, clears and reopens the point through the Angular controls, and checks both persisted states. Sibling and guessed IDs expose no review content. | Covered. |
+| `RecordsArchiveClearsPriorManifestOnUnauthorizedRouteChange` | The same journey checks the authorized archive manifest summary, one-entry count, profile, entry and digest; it verifies six viewport widths and keyboard focus, then navigates in the same document to sibling and random IDs and confirms the prior archive data clears before returning to the authorized archive. | Covered for archive summary, responsive layout, focus, stale-content clearing and recovery. |
+| `ReviewPointClearsPriorPointOnSameDocumentIdChange` | The journey checks that an authorized significant review point shows its open completion-blocker state, then covers six viewport widths and keyboard focus. Sibling and random point IDs clear both comments, review context and the action; the authorized route restores its content without replacing the document. | Covered for blocker state, responsive layout, focus, stale-content clearing and recovery. |
 | `ReviewPointClearsProtectedStateWhenCurrentGrantIsRevoked` | After grant revocation, the review disposition command is refused and the point remains open. The two already-open Angular pages clear the comment, blocking state, and action controls; the test records no browser page errors. | Covered. |
 
-The focused case passed 1/1 in 33 seconds; the Release solution build passed
-with zero warnings/errors and EF reported no pending model changes. The shared
-worktree had an unrelated unstaged edit to
-`ConsolidationOverviewQuery.cs`; it was not included in the commit. The same
-journey also checks archive and review-point same-document sibling/guessed-ID
-clearing, but it does not close `RecordsArchiveClearsPriorManifestOnUnauthorizedRouteChange`
-or `ReviewPointClearsPriorPointOnSameDocumentIdChange`: their legacy viewport,
-keyboard-focus, and archive-summary assertions are not all represented here.
-Those methods remain open, as do the other unreviewed ClientScope methods.
+The original focused case passed 1/1 in 33 seconds at `cf609420`; after the
+archive/review summary, responsive and focus assertions were added, the current
+focused case passed 1/1 in 37 seconds at test commit `6e48c977`. The Release
+solution build and EF no-drift check were recorded at the original slice; the
+current change is test-only. The shared worktree had an unrelated unstaged
+edit to `ConsolidationOverviewQuery.cs`; it was not included in the commit.
+These archive and review-point methods are now mapped, alongside the other
+five rows above.
 
 ## Removed `ClientScopeJourneyTests` client-profile method crosswalk
 
@@ -251,7 +252,7 @@ current crosswalk and full-suite boundaries are tracked in `status.json`.
 
 - The committed API.Tests and E2E.Tests projects reference `AuditSphereOps.Api` directly and do not reference `AuditSphereOps.Web`; the Web project remains in the solution as a rollback/reference host. This establishes a project boundary only.
 - `AngularLegacyRouteInventoryContractTests` checks the committed discovery snapshot for route ownership. `AngularRoutingContractTests` scans the restored Web source and checks link/route ownership; neither is feature parity.
-- Commit `8ea3ef01` removed nine legacy E2E suites: `AuditAndReleaseJourneyTests`, `ClientScopeJourneyTests`, `FinancialArtifactJourneyTests`, `InvoiceScopeJourneyTests`, `M365SetupJourneyTests`, `PbcUploadJourneyTests`, `PracticeBillingLedgerJourneyTests`, `ResponsiveShellSweepTests`, and `RouteRenderSmokeTests`. The PBC upload and invoice-scope methods, both M365 setup methods, both responsive-shell methods, the route-render method, all four PracticeBillingLedger methods, and 31 `ClientScopeJourneyTests` methods now have assertion-level replacement maps. Three suites containing 40 methods remain open for assertion-level mapping or an owner-approved retirement disposition; exact totals and evidence attribution belong in `status.json`.
+- Commit `8ea3ef01` removed nine legacy E2E suites: `AuditAndReleaseJourneyTests`, `ClientScopeJourneyTests`, `FinancialArtifactJourneyTests`, `InvoiceScopeJourneyTests`, `M365SetupJourneyTests`, `PbcUploadJourneyTests`, `PracticeBillingLedgerJourneyTests`, `ResponsiveShellSweepTests`, and `RouteRenderSmokeTests`. The PBC upload and invoice-scope methods, both M365 setup methods, both responsive-shell methods, the route-render method, all four PracticeBillingLedger methods, and 33 `ClientScopeJourneyTests` methods now have assertion-level replacement maps. Three suites containing 38 methods remain open for assertion-level mapping or an owner-approved retirement disposition; exact totals and evidence attribution belong in `status.json`.
 - Focused API-only role and browser journeys pass for selected sources; the API-only E2E host conversion is committed, and the recorded full regression passed locally at its attributed commit. The removed-suite replacement crosswalk remains open until the remaining assertions are mapped. Its state is tracked in `docs/execution/status.json`.
 - Existing test crosswalk rows are candidate relationships until the host and assertions have been checked. A shared test file or reused fixture is not itself a replacement test. Aggregate mapped and remaining method counts belong in `status.json`.
 

@@ -15,7 +15,28 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
-## Current follow-on slice: Angular PBC authorization parity
+## Current follow-on slice: Angular archive and review route parity
+
+At test commit `6e48c977`, `AngularClientScopeAuditDetailJourneyTests` adds the
+legacy archive and review-point assertions that were still missing. For an
+authorized archive, the API-host Angular journey verifies the manifest
+summary and entry count, all six viewport widths, keyboard focus, exact and
+guessed-ID denials, same-document clearing, and authorized return. For a
+significant review point, it checks the open completion blocker, responsive
+layout and focus, same-document content/action clearing, and restoration.
+
+The focused PostgreSQL-backed Playwright case passed 1/1 in 37 seconds. This
+is a test-only change: no application code, API contract, database model or EF
+migration changed. The latest complete Release solution run remains
+1001/1001 at `ead85032`, before this test commit; current-source evidence is
+focused, not a new whole-solution regression. The crosswalk now covers 44/82
+removed E2E methods, including 33 `ClientScopeJourneyTests` methods; 38
+methods across three suites remain open. Sixty source/action rows and 28
+supporting files remain unanalyzed. AS-PAR-002 remains partial and retirement
+stays `NOT_READY`. Exact evidence is in [`status.json`](status.json) and the
+[test parity register](../migration/auditsphere-migration-blazor-test-parity.md).
+
+## Previous follow-on slice: Angular PBC authorization parity
 
 `AngularPbcScopeParityJourneyTests` now has four API-host Playwright journeys
 that map eight removed `ClientScopeJourneyTests` methods. The isolated
@@ -74,7 +95,7 @@ supporting files are still unanalyzed. AS-PAR-002 remains partial, and the
 Blazor retirement decision stays `NOT_READY`. Exact evidence is in
 [`status.json`](status.json) and the [test parity register](../migration/auditsphere-migration-blazor-test-parity.md).
 
-## Current follow-on slice: firm administration and workspace revocation
+## Previous follow-on slice: firm administration and workspace revocation
 
 `AngularFirmScopeRevocationParityJourneyTests` covers the firm-administration
 and current-access boundaries from five removed `ClientScopeJourneyTests`
@@ -104,7 +125,7 @@ The aggregate removed-method and source-action counts are tracked in
 wider-locale review, live Microsoft gates, and separate owner acceptance
 remain open. Retirement remains `NOT_READY` and AS-PAR-002 remains partial.
 
-## Current follow-on slice: advanced group consolidation authorization
+## Previous follow-on slice: advanced group consolidation authorization
 
 `AngularAdvancedConsolidationAuthorizationJourneyTests` maps two removed
 `ClientScopeJourneyTests` methods. A Client identity carrying an erroneous
@@ -385,7 +406,7 @@ reviewed (13 administration and two PBC), and 60 unanalyzed; 28 supporting files
 and the broader operational and owner gates remain open. Retirement stays
 `NOT_READY`.
 
-## Current follow-on slice: approved initial-administrator sign-in
+## Previous follow-on slice: approved initial-administrator sign-in
 
 At code commit `e61d147`, Development/Test authentication now lets only the exact
 deployment-approved synthetic tenant/object identity reach proof-backed
