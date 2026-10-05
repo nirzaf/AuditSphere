@@ -189,15 +189,41 @@ grant remains active.
 | `FirmFinanceRefreshClearsLedgerAfterGrantRevocation` | The journey reads a marker-named firm account, revokes the FinanceReviewer grant, refreshes the open route, and verifies the account is absent while the document token remains. | Covered for current-grant revalidation and stale finance-row clearing. |
 
 The focused browser journey, Angular unit suite and Release solution build
-passed; EF reported no pending model changes. A complete solution regression
-is running on the shared worktree; its result and attribution will be recorded
-in `status.json`.
+passed; EF reported no pending model changes. The latest complete solution
+regression is attributed to its earlier frozen checkpoint; current-slice
+focused results and the checkpoint boundary are recorded in `status.json`.
+
+## Removed `ClientScopeJourneyTests` portfolio, queue and period scope crosswalk
+
+Eight additional removed methods now have API-host Angular assertions using
+isolated PostgreSQL fixtures. The focused cohort passed 15/15 tests with no
+failures or skips. The journeys exercise API denials and rendered scope, not
+only route ownership.
+
+| Legacy method | Replacement evidence | Disposition |
+|---|---|---|
+| `ClientIdentityWithErroneousFirmWideStaffGrantCannotViewPortfolio` | `AngularPortfolioJourneyTests.ClientIdentityWithErroneousFirmWideStaffGrantCannotReadPortfolio` gives a Client identity an erroneous firm-wide Staff grant and checks that the scoped portfolio API and Angular workspace do not reveal the staff portfolio. | Covered for the forged role grant, protected read denial and private-data non-disclosure. |
+| `PortfolioCsvRechecksGrantAndClearsRowsAfterRevocation` | `AngularPortfolioJourneyTests.ExportRevocationClearsPortfolioAndDoesNotProduceAnotherDownload` revokes the scoped grant after an authorized portfolio read, then verifies the open workspace clears and a subsequent export is refused without producing another download. `Api.download()` also refreshes the session after HTTP 401; its unit test verifies the expired session is cleared. | Covered for export-time authority revalidation, stale-row clearing and failed-export session invalidation. |
+| `EngagementScopedTimeQueueHidesSiblingTasksEntriesAndClientPeriods` | `AngularPracticeTimeScopeParityJourneyTests.EngagementScopedTimeQueueHidesSiblingTasksEntriesAndClientPeriods` seeds assigned and sibling engagement tasks/time entries plus a client-level period. An engagement-only Manager sees only the assigned task and narrative. | Covered for engagement isolation across the task queue, time entries and client-period projection. |
+| `AssessmentDecisionIdResolvesScopeBeforeExposingAssessmentDetails` | `AngularAssessmentDecisionRouteJourneyTests.ExactDecisionIdRequiresItsClientGrantAndKeepsAssessmentDetailsScoped` exercises canonical and `/ui` routes for an exact assessment ID, an unauthorized identity and a random ID. Exact and guessed IDs return indistinguishable denials; authorized content is checked across six viewport widths and keyboard focus. | Covered for ID-to-client authorization before disclosure, guessed-ID indistinguishability, responsive layout and focus. |
+| `ClientScopedPartnerCannotSeeAccountingEvidenceFromAnotherClient` | `AngularAccountingEvidenceQueueJourneyTests.PartnerEvidenceQueueShowsOnlyTheAssignedClient` checks that a client-scoped Partner sees the assigned client's evidence and count only. `ScopedEvidenceCountsRemainIsolatedAndDisappearAfterEpochLoss` checks sibling-marker absence and clears evidence after session-epoch loss. | Covered for client isolation, count scoping and stale-content clearing after session invalidation. |
+| `AccountingWorkspaceIgnoresOtherRoleAndMismatchedEngagementGrants` | `AngularAccountingScopeParityJourneyTests.MismatchedAndOtherRoleGrantsDoNotExpandAngularAccountingWorkspace` combines a matching client grant with other-role and mismatched engagement grants, checks search/list/detail API results, and denies the sibling client's period. | Covered for role and engagement mismatch non-widening across Angular and API reads. |
+| `AccountingPeriodRequiresClientGrantAndClearsPriorPeriodOnRouteChange` | The same accounting journey navigates from an authorized period to a sibling period and a random period ID in-place. Both denials are identical and the previously visible period markers are cleared. | Covered for exact client-period scope, guessed-ID indistinguishability and stale period clearing. |
+| `PeriodMaintenanceQueuesDoNotWidenEngagementGrantToClientPeriodScope` | `PeriodWorkbenchScopeJourneyTests.PeriodMaintenanceRequiresClientOrFirmScopeInAngularRoutes` checks roll-forward and restatement queues for a client-scoped Partner and an engagement-only AccountingPreparer. The client grant sees the period; the engagement-only identity sees neither period marker nor client name. | Covered for client-level period maintenance authorization and refusal to widen an engagement grant. |
+
+The code commit is `beee6480`. Angular production build and unit tests passed;
+the initial bundle is 506.60 kB, 6.60 kB over the 500 kB warning budget. The
+Release solution build passed with zero warnings/errors, and EF reported no
+pending model changes. The built-in browser rendered the authenticated local
+Angular accounting route read-only. A clean whole-solution run remains
+attributed to its earlier checkpoint, before this code commit. AS-PAR-002 and
+Blazor retirement remain partial/`NOT_READY`.
 
 ## Migration test gaps that keep retirement unaccepted
 
 - The committed API.Tests and E2E.Tests projects reference `AuditSphereOps.Api` directly and do not reference `AuditSphereOps.Web`; the Web project remains in the solution as a rollback/reference host. This establishes a project boundary only.
 - `AngularLegacyRouteInventoryContractTests` checks the committed discovery snapshot for route ownership. `AngularRoutingContractTests` scans the restored Web source and checks link/route ownership; neither is feature parity.
-- Commit `8ea3ef01` removed nine legacy E2E suites: `AuditAndReleaseJourneyTests`, `ClientScopeJourneyTests`, `FinancialArtifactJourneyTests`, `InvoiceScopeJourneyTests`, `M365SetupJourneyTests`, `PbcUploadJourneyTests`, `PracticeBillingLedgerJourneyTests`, `ResponsiveShellSweepTests`, and `RouteRenderSmokeTests`. The PBC upload and invoice-scope methods, both M365 setup methods, both responsive-shell methods, the route-render method, all four PracticeBillingLedger methods, and ten ClientScope detail, profile, firm-wide-role and advanced-consolidation methods now have replacement maps. Three suites remain open for assertion-level mapping or an owner-approved retirement disposition; the exact open-method count belongs in `status.json`.
+- Commit `8ea3ef01` removed nine legacy E2E suites: `AuditAndReleaseJourneyTests`, `ClientScopeJourneyTests`, `FinancialArtifactJourneyTests`, `InvoiceScopeJourneyTests`, `M365SetupJourneyTests`, `PbcUploadJourneyTests`, `PracticeBillingLedgerJourneyTests`, `ResponsiveShellSweepTests`, and `RouteRenderSmokeTests`. The PBC upload and invoice-scope methods, both M365 setup methods, both responsive-shell methods, the route-render method, all four PracticeBillingLedger methods, and 23 `ClientScopeJourneyTests` methods now have assertion-level replacement maps. Three suites containing 48 methods remain open for assertion-level mapping or an owner-approved retirement disposition; exact totals and evidence attribution belong in `status.json`.
 - Focused API-only role and browser journeys pass for selected sources; the API-only E2E host conversion is committed, and the recorded full regression passed locally at its attributed commit. The removed-suite replacement crosswalk remains open until the remaining assertions are mapped. Its state is tracked in `docs/execution/status.json`.
 - Existing test crosswalk rows are candidate relationships until the host and assertions have been checked. A shared test file or reused fixture is not itself a replacement test. Aggregate mapped and remaining method counts belong in `status.json`.
 

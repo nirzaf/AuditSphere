@@ -15,6 +15,38 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: Angular client scope and export parity
+
+Code commit `beee6480` extends the assertion crosswalk for eight removed
+`ClientScopeJourneyTests` methods. The additions cover an erroneous firm-wide
+Staff grant on a Client identity, portfolio export after role revocation,
+engagement-only time queues, exact assessment deep links, client-scoped
+accounting evidence, accounting workspace/period scope, and client-versus-
+engagement scope for period-maintenance queues. A 401 from an Angular download
+now refreshes the session so protected UI state is cleared; the Angular API
+unit test covers that behavior.
+
+The focused PostgreSQL-backed API-host Playwright cohort passed 15/15 with no
+failures or skips. It exercises the canonical and `/ui` assessment routes,
+exact and guessed IDs, stale-content removal after revocation or route change,
+client/engagement scope isolation, and prevention of a post-revocation CSV
+download. Angular CI passed 477/477 tests across 91 files. The production UI
+build completed with its existing initial-bundle warning: 506.60 kB against a
+500 kB budget. The Release solution build passed with zero warnings/errors;
+EF reported no pending model changes. The Release build included an unrelated
+unstaged `ConsolidationOverviewQuery.cs` edit from the concurrent agent, which
+was excluded from the code commit. The built-in browser rendered the local
+Angular accounting route read-only; no business command was submitted.
+
+The latest complete suite remains the earlier 1001/1001 frozen pass at
+`ead85032` (API 191, Domain 660, E2E 150), before this slice's code commit.
+The current code changes therefore have focused, not whole-solution,
+regression evidence. The removed-suite crosswalk now covers 34/82 methods;
+48 methods across three suites remain open. Sixty source/action rows and 28
+supporting files are still unanalyzed. AS-PAR-002 remains partial, and the
+Blazor retirement decision stays `NOT_READY`. Exact evidence is in
+[`status.json`](status.json) and the [test parity register](../migration/auditsphere-migration-blazor-test-parity.md).
+
 ## Current follow-on slice: firm administration and workspace revocation
 
 `AngularFirmScopeRevocationParityJourneyTests` covers the firm-administration
