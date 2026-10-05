@@ -818,6 +818,19 @@
           "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~GlobalSearchJourneyTests'",
           "coverage": "Seven PostgreSQL-backed published library entries appear as six links with the Angular refinement hint; the first exact entry remains navigable and route changes clear search.",
           "boundary": "Library truncation UI only. Page truncation is covered at query level; visible UI hint for page-only overflow and other result-kind caps/ranking, role/scope, accessibility, error/recovery and full migration acceptance remain open. No Angular source changed. Shared Release build compiled another agent’s uncommitted ConsolidationOverviewQuery.cs edit, not exercised and excluded from commits."
+        },
+        "globalSearchSafeFailureRetryJourney": {
+          "sourceCommit": "531488df4c48887b6d54d1fcd606a1ba301f15bc",
+          "observedAt": "2026-10-05T22:12:11Z",
+          "status": "PASS_LOCAL",
+          "cohort": "GlobalSearchJourneyTests",
+          "passed": 2,
+          "failed": 0,
+          "skipped": 0,
+          "duration": "47s",
+          "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~GlobalSearchJourneyTests'",
+          "coverage": "The PostgreSQL-backed Angular browser journey intercepts one search with a synthetic 503 containing a private diagnostic, verifies the safe user message and no stale result links or diagnostic leakage, then retries the same term and renders a valid result. Both GlobalSearchJourneyTests passed.",
+          "boundary": "One synthetic HTTP failure and retry path only. Timeout, malformed response, session invalidation during search, wider accessibility, other per-kind caps/ranking and full migration acceptance remain open. The shared Release test build compiled another agent’s uncommitted ConsolidationOverviewQuery.cs edit, not exercised by this search test and excluded from the commit."
         }
       },
       "practiceBillingLedgerCrosswalk": {

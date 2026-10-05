@@ -15,6 +15,19 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: Global Search safe failure and retry
+
+Extended the PostgreSQL-backed Angular browser journey with a synthetic 503
+for a new search term. The page displays the safe retry message, reveals no
+previous result links or server diagnostic, and succeeds when the same search
+is retried. `GlobalSearchJourneyTests` passed 2/2 in 47s; test commit
+`531488df` is pushed. The Operations screenshot was also rechecked in the
+built-in browser: its signed-in Workspace preview identity has no firm-wide
+Administrator grant, and the page exposes no operation rows or commands.
+Timeout, malformed-response and in-flight session invalidation cases remain
+open, along with broader migration and retirement acceptance; Blazor remains
+`NOT_READY`.
+
 ## Current follow-on slice: Angular search truncation hint
 
 Expanded the Global Search browser fixture to seven published library entries.
