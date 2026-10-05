@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "sourceCommit": "d00f63edb0fad05f7384c0eb8d2dafbc4c1a1971",
+  "sourceCommit": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
   "coverage": "Source discovery only; dynamic actions, scope and parity tests require manual review.",
   "items": [
     {
@@ -994,7 +994,7 @@
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/AccessNotAssigned.razor",
-      "sourceSha256": "4eabadd729a04b8f546911ed692f2e94dce0ea64d1edff5b46da7c644693d022",
+      "sourceSha256": "a9acabdcadf95ec085e4a28f86c7d73525e0711a7cb1eb277cf4ac2c3f2ec54a",
       "routes": [
         "/auth/access-not-assigned"
       ],
@@ -1405,7 +1405,7 @@
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/AssessmentDecision.razor",
-      "sourceSha256": "6f108fa6118b23d8903133d293a70861ce6f3dc5950d5735aea0e11ece71a217",
+      "sourceSha256": "1e10ce36690a0baa9da932b3c2438266a00d49cc040acd3925d6e08923df86da",
       "routes": [
         "/app/assessments/{Id:guid}/decision"
       ],
@@ -2517,7 +2517,7 @@
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/Home.razor",
-      "sourceSha256": "8ba5747ae34a0623df5aecddcba69f0b70504202fc64473725ddb197bb982939",
+      "sourceSha256": "f7cf54fa3538c2049f3c3a2d23452de8cda47cda00bebfbd3a35a32cedc5d38b",
       "routes": [
         "/"
       ],
