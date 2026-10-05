@@ -57,7 +57,8 @@ const QUEUED = ['PENDING', 'RETRY_WAIT'], PROCESSING = ['CLAIMED', 'REMOTE_START
 })
 export class Operations {
   private readonly api = inject(Api);
-  readonly ops = this.api.resource(() => '/api/ui/operations', decodeOperations, 'Sign in with an authorized administrator identity to view operations.');
+  readonly ops = this.api.resource(() => '/api/ui/operations', decodeOperations,
+    'Operations is limited to firm-wide AuditSphere Administrators. Your current account does not have that access; switch to an authorized administrator account or ask a firm administrator to review your access.');
   readonly cmd = new CommandState(this.api);
   readonly queued = QUEUED; readonly processing = PROCESSING; readonly attention = ATTENTION;
   disposition = '';

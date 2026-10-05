@@ -70,6 +70,26 @@ describe('Angular Operations pager', () => {
     TestBed.resetTestingModule();
   });
 
+  it('explains the administrator requirement to signed-in staff without revealing operations', () => {
+    const fixture = TestBed.createComponent(Operations);
+    const http = TestBed.inject(HttpTestingController);
+    fixture.detectChanges();
+    http.expectOne('/api/ui/operations').flush(
+      { code: 'authorization.denied', message: 'Forbidden.' },
+      { status: 403, statusText: 'Forbidden' },
+    );
+    TestBed.tick();
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const alert = root.querySelector('[role="alert"]');
+    expect(alert?.textContent).toContain('firm-wide AuditSphere Administrators');
+    expect(alert?.textContent).toContain('Your current account does not have that access');
+    expect(alert?.textContent).not.toContain('Sign in');
+    expect(root.querySelector('table')).toBeNull();
+    fixture.destroy();
+  });
+
   it('matches legacy 10/25/50 page sizes and exposes table semantics', () => {
     const fixture = TestBed.createComponent(Operations);
     const http = TestBed.inject(HttpTestingController);
