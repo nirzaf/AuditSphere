@@ -152,6 +152,108 @@ describe('Workpaper authored-content protection', () => {
     expect(f.nativeElement.textContent).toContain('The draft save was refused.');
   });
 
+  it('clears a refused-save error after the corrected draft is acknowledged', async () => {
+    const f = open(); const c = f.componentInstance;
+    c.work = 'Invalid draft.'; c.changed();
+    const rejected = c.save();
+    http.expectOne(r => r.method === 'POST' && r.url === draftUrl)
+      .flush({ code: 'request.invalid', message: 'The draft save was refused.' }, { status: 400, statusText: 'Bad Request' });
+    await expect(rejected).resolves.toBe(false);
+    expect(c.failed()).toBe(true);
+
+    c.work = 'Corrected draft.'; c.changed();
+    const recovered = c.save();
+    http.expectOne(r => r.method === 'POST' && r.url === draftUrl).flush(acknowledged());
+    await expect(recovered).resolves.toBe(true);
+    expect(c.failed()).toBe(false);
+    expect(c.message()).toBe('Draft saved.');
+    expect(c.status()).toContain('Saved at');
+    f.detectChanges();
+    expect(f.nativeElement.textContent).not.toContain('The draft save was refused.');
+  });
+
+  it('checks the persisted draft after a lost acknowledgement and confirms the exact save without resending', async () => {
+    const f = open(); const c = f.componentInstance;
+    c.work = 'Unacknowledged work.'; c.conclusion = 'Unacknowledged conclusion.'; c.changed();
+    const saving = c.save();
+    const request = http.expectOne(r => r.method === 'POST' && r.url === draftUrl);
+    const attempt = request.request.body;
+    request.flush({}, { status: 500, statusText: 'Server Error' });
+    await expect(saving).resolves.toBe(false);
+    expect(c.uncertain()).toBe(true);
+    await expect(c.confirmNavigation()).resolves.toBe(false);
+    expect(http.match(r => r.method === 'POST' && r.url === draftUrl).length).toBe(0);
+
+    const check = c.checkSaveOutcome();
+    http.expectOne(r => r.method === 'GET' && r.url === readUrl).flush({
+      ...workpaperPayload(),
+      draft: { ...draftPayload(), draftRevision: attempt.expectedDraftRevision + 1,
+        lastSaveId: attempt.saveId, workPerformed: attempt.workPerformed.trim(), conclusion: attempt.conclusion.trim() },
+    });
+    await check;
+    expect(c.uncertain()).toBe(false);
+    expect(c.retryReady()).toBe(false);
+    expect(c.failed()).toBe(false);
+    expect(c.message()).toBe('The persisted draft confirms that save.');
+    expect(http.match(r => r.method === 'POST' && r.url === draftUrl).length).toBe(0);
+  });
+
+  it('offers only the same idempotent save after the server confirms the draft revision did not advance', async () => {
+    const f = open(); const c = f.componentInstance;
+    c.work = 'Retryable work.'; c.conclusion = 'Retryable conclusion.'; c.changed();
+    const saving = c.save();
+    const first = http.expectOne(r => r.method === 'POST' && r.url === draftUrl);
+    const attempt = first.request.body;
+    first.flush({}, { status: 500, statusText: 'Server Error' });
+    await expect(saving).resolves.toBe(false);
+
+    const check = c.checkSaveOutcome();
+    http.expectOne(r => r.method === 'GET' && r.url === readUrl).flush(workpaperPayload());
+    await check;
+    expect(c.uncertain()).toBe(true);
+    expect(c.retryReady()).toBe(true);
+
+    const retry = c.retryExactSave();
+    const second = http.expectOne(r => r.method === 'POST' && r.url === draftUrl);
+    expect(second.request.body).toEqual({
+      expectedDraftRevision: attempt.expectedDraftRevision,
+      baseWorkpaperRevision: attempt.baseWorkpaperRevision,
+      baseInputGeneration: attempt.baseInputGeneration,
+      basePolicyGeneration: attempt.basePolicyGeneration,
+      saveId: attempt.saveId,
+      workPerformed: attempt.workPerformed,
+      conclusion: attempt.conclusion,
+    });
+    second.flush({ value: { ...draftPayload(), draftRevision: attempt.expectedDraftRevision + 1,
+      lastSaveId: attempt.saveId, workPerformed: attempt.workPerformed.trim(), conclusion: attempt.conclusion.trim() } });
+    await retry;
+    expect(c.uncertain()).toBe(false);
+    expect(c.retryReady()).toBe(false);
+    expect(c.failed()).toBe(false);
+    expect(c.message()).toBe('The exact draft save was confirmed.');
+  });
+
+  it('clears workpaper content when access is revoked during save reconciliation', async () => {
+    const f = open(); const c = f.componentInstance;
+    c.work = 'Protected workpaper content.'; c.changed();
+    const saving = c.save();
+    http.expectOne(r => r.method === 'POST' && r.url === draftUrl)
+      .flush({}, { status: 500, statusText: 'Server Error' });
+    await expect(saving).resolves.toBe(false);
+    expect(c.uncertain()).toBe(true);
+
+    const check = c.checkSaveOutcome();
+    http.expectOne(r => r.method === 'GET' && r.url === readUrl)
+      .flush({ code: 'scope.denied' }, { status: 403, statusText: 'Forbidden' });
+    await check;
+    http.expectOne(r => r.method === 'GET' && r.url === readUrl)
+      .flush({ code: 'scope.denied' }, { status: 403, statusText: 'Forbidden' });
+    f.detectChanges();
+    expect(c.wp.data()).toBeNull();
+    expect(c.uncertain()).toBe(false);
+    expect(f.nativeElement.textContent).not.toContain('Protected workpaper content.');
+  });
+
   it('reports a conflicted target, blocks the save, and allows leaving without a further save attempt', async () => {
     const f = open(); const c = f.componentInstance;
     c.work = 'Stale content.'; c.changed();
