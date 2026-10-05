@@ -15,6 +15,22 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: Records Archive and Release reviews
+
+Reviewed the Records Archive and Release Razor pages against their pinned
+source hashes and mapped both detail routes through Angular, API projections,
+and Application authorization. Focused PostgreSQL browser journeys passed
+1/1 for Archive scope/detail behavior and 1/1 for expired-protection Release
+gates, scope isolation, and stale-content clearing. Read-only built-in-browser
+checks showed generic unavailable states for guessed archive and release IDs.
+
+Both rows remain `PARTIAL`. The verified-candidate Angular issue success and
+uncertain-result path, full role/scope and error matrices, archive empty and
+large-manifest variants, and human accessibility/locale acceptance remain
+open. The source/action inventory now has 8 unanalyzed rows, 67 partial rows,
+and one parity-verified row. Exact evidence and gaps are in the
+[records source review](../migration/auditsphere-migration-blazor-records-source-review.md).
+
 ## Current follow-on slice: ReviewPoint source/action review
 
 Reviewed the ReviewPoint route against its pinned Razor hash and mapped its

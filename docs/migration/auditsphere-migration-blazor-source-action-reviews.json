@@ -463,6 +463,20 @@
       "evidence": "auditsphere-migration-blazor-review-point-source-review.md",
       "reviewedAtCommit": "55ba972d308a3d92fbd690629daa28b70f98ee32",
       "openGaps": ["Complete role/scope, expired-grant and cross-firm HTTP response matrix", "Network, stale-route and command failure/recovery branches", "Human screen-reader and wider-locale acceptance"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/RecordsArchive.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-records-source-review.md",
+      "reviewedAtCommit": "5af8e02b06797b53825da09fce6b4dff04d97fb7",
+      "openGaps": ["Complete role/scope, expired-grant and cross-firm response matrix", "Empty, incomplete, large-manifest and failure/recovery variants", "Human screen-reader and wider-locale acceptance"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/Release.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-records-source-review.md",
+      "reviewedAtCommit": "5af8e02b06797b53825da09fce6b4dff04d97fb7",
+      "openGaps": ["Successful Angular issue flow with one-time key and uncertain-outcome recovery", "Complete role/scope, expired-grant and cross-firm response matrix", "Remaining validation/error and human accessibility/locale acceptance"]
     }
   ]
 }
