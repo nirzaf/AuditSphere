@@ -483,6 +483,25 @@ public sealed class AngularFinancialArtifactParityJourneyTests
       new() { Name = "Financial package reviews", Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(reviewQueuePage.GetByText(packageId.ToString("D"), new() { Exact = true }))
       .ToBeVisibleAsync();
+    var reviewQueueCommands = 0;
+    reviewQueuePage.Request += (_, request) =>
+    {
+      if (!string.Equals(request.Method, "GET", StringComparison.OrdinalIgnoreCase))
+        Interlocked.Increment(ref reviewQueueCommands);
+    };
+    var packageSelection = reviewQueuePage.GetByRole(AriaRole.Checkbox,
+      new() { Name = $"Select package {packageId:D}", Exact = true });
+    await packageSelection.CheckAsync();
+    await reviewQueuePage.GetByRole(AriaRole.Button, new() { Name = "Save selection in this tab", Exact = true }).ClickAsync();
+    await Assertions.Expect(reviewQueuePage.GetByText("Selection saved in this tab", new() { Exact = false })).ToBeVisibleAsync();
+    await reviewQueuePage.ReloadAsync();
+    await Assertions.Expect(reviewQueuePage.GetByRole(AriaRole.Heading,
+      new() { Name = "Financial package reviews", Exact = true })).ToBeVisibleAsync();
+    await reviewQueuePage.GetByRole(AriaRole.Button, new() { Name = "Restore saved selection", Exact = true }).ClickAsync();
+    await Assertions.Expect(packageSelection).ToBeCheckedAsync();
+    await reviewQueuePage.GetByRole(AriaRole.Button, new() { Name = "Preview selected", Exact = true }).ClickAsync();
+    await Assertions.Expect(reviewQueuePage.GetByText("No decision was recorded.", new() { Exact = false })).ToBeVisibleAsync();
+    Assert.Equal(0, reviewQueueCommands);
     foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
     {
       await reviewQueuePage.SetViewportSizeAsync(width, 900);
