@@ -179,6 +179,19 @@ public sealed class AngularClientScopeEngagementParityJourneyTests
 
     var targetPlan = targetEngagement + "/audit-plan";
     await NavigateAsync(page, targetPlan, privateRisk);
+    foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
+    {
+      await page.SetViewportSizeAsync(width, 900);
+      var documentWidth = await page.EvaluateAsync<int>("document.documentElement.scrollWidth");
+      Assert.True(documentWidth <= width + 1, $"Audit plan is {documentWidth}px wide at a {width}px viewport.");
+    }
+    await page.SetViewportSizeAsync(1280, 900);
+    await page.GetByRole(AriaRole.Link, new() { Name = "Fieldwork control center", Exact = true }).FocusAsync();
+    await page.Keyboard.PressAsync("Tab");
+    var programLibraryLink = page.GetByLabel("Audit plan navigation")
+      .GetByRole(AriaRole.Link, new() { Name = "Program library", Exact = true });
+    await Assertions.Expect(programLibraryLink).ToBeFocusedAsync();
+    await Assertions.Expect(programLibraryLink).ToHaveCSSAsync("outline-style", "solid");
     var siblingPlanText = await NavigateAsync(page, siblingEngagement + "/audit-plan",
       "Sign in with an authorized internal staff identity assigned to this engagement to view its audit plan.");
     Assert.DoesNotContain(privateRisk, siblingPlanText, StringComparison.Ordinal);
@@ -300,6 +313,93 @@ public sealed class AngularClientScopeEngagementParityJourneyTests
       Assert.DoesNotContain("SYN-R-01", body, StringComparison.Ordinal);
       Assert.Empty(errors);
     }
+  }
+
+  [Fact]
+  [Trait("CaseId", "AS-PAR-002-ANGULAR-COMPLETION-FIELDWORK-STALE-01")]
+  public async Task CompletionAndFieldworkClearPriorEngagementWhenRouteChangesInPlace()
+  {
+    await using var host = await OwnedHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-ANGULAR-COMPLETION-FIELDWORK-STALE-01");
+    var f = host.Fixture;
+    var siblingEngagementId = Guid.NewGuid();
+    const string privateNarrative = "SYN-PAR-002-STALE-COMPLETION-NARRATIVE";
+    await using (var db = host.CreateDbContext())
+    {
+      db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Staff, "Partner", f.ClientId, f.EngagementId));
+      db.Engagements.Add(new Engagement
+      {
+        Id = siblingEngagementId, FirmId = f.FirmId,
+        PracticeClientId = f.ClientId, Status = "Active", CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.WrittenRepresentations.Add(new WrittenRepresentation
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId,
+        EngagementId = f.EngagementId, Code = "SYN-PAR-002-LOR-01", Title = "Synthetic representation",
+        Narrative = privateNarrative
+      });
+      await db.SaveChangesAsync();
+    }
+
+    var origin = await host.StartApiForIdentityAsync(f.Staff, Angular);
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var errors = new List<string>();
+    page.PageError += (_, error) => errors.Add(error);
+
+    var completionPath = $"/app/engagements/{f.EngagementId:D}/completion";
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(completionPath));
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "Engagement completion checklist", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByText(privateNarrative, new() { Exact = false })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByText("SYN-PAR-002-LOR-01", new() { Exact = true })).ToBeVisibleAsync();
+
+    foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
+    {
+      await page.SetViewportSizeAsync(width, 900);
+      var documentWidth = await page.EvaluateAsync<int>("document.documentElement.scrollWidth");
+      Assert.True(documentWidth <= width + 1, $"Completion is {documentWidth}px wide at a {width}px viewport.");
+    }
+    await page.SetViewportSizeAsync(1280, 900);
+    await page.GetByRole(AriaRole.Link, new() { Name = "Audit plan", Exact = true }).FocusAsync();
+    await page.Keyboard.PressAsync("Tab");
+    var fieldworkLink = page.GetByRole(AriaRole.Link, new() { Name = "Fieldwork control center", Exact = true });
+    await Assertions.Expect(fieldworkLink).ToBeFocusedAsync();
+    await Assertions.Expect(fieldworkLink).ToHaveCSSAsync("outline-style", "solid");
+
+    var token = Guid.NewGuid().ToString("N");
+    await page.EvaluateAsync("value => window.__auditRouteParityToken = value", token);
+    var siblingCompletionPath = $"/app/engagements/{siblingEngagementId:D}/completion";
+    var deniedCompletion = await NavigateAsync(page, siblingCompletionPath,
+      "Sign in with an authorized internal staff identity assigned to this engagement to view its completion checklist.");
+    Assert.DoesNotContain(privateNarrative, deniedCompletion, StringComparison.Ordinal);
+    Assert.DoesNotContain("SYN-PAR-002-LOR-01", deniedCompletion, StringComparison.Ordinal);
+    Assert.Equal(token, await page.EvaluateAsync<string>("() => window.__auditRouteParityToken"));
+    var restoredCompletion = await NavigateAsync(page, completionPath, privateNarrative);
+    Assert.Contains("SYN-PAR-002-LOR-01", restoredCompletion, StringComparison.Ordinal);
+    Assert.Equal(token, await page.EvaluateAsync<string>("() => window.__auditRouteParityToken"));
+
+    var fieldworkPath = $"/app/engagements/{f.EngagementId:D}/audit-fieldwork";
+    await NavigateAsync(page, fieldworkPath, "Publish and adopt 2026.1");
+    await page.GetByRole(AriaRole.Button, new() { Name = "Publish and adopt 2026.1", Exact = true }).ClickAsync();
+    var program = page.GetByRole(AriaRole.Region, new() { Name = "Versioned audit program", Exact = true });
+    await Assertions.Expect(program).ToContainTextAsync("AUDIT-WORKING-PROCESS v2026.1");
+    await Assertions.Expect(program.GetByText("165", new() { Exact = true })).ToBeVisibleAsync();
+
+    var fieldworkToken = Guid.NewGuid().ToString("N");
+    await page.EvaluateAsync("value => window.__auditRouteParityToken = value", fieldworkToken);
+    var siblingFieldworkPath = $"/app/engagements/{siblingEngagementId:D}/audit-fieldwork";
+    var deniedFieldwork = await NavigateAsync(page, siblingFieldworkPath,
+      "Fieldwork unavailable: an authorized internal engagement scope is required.");
+    Assert.DoesNotContain("AUDIT-WORKING-PROCESS", deniedFieldwork, StringComparison.Ordinal);
+    Assert.DoesNotContain("165", deniedFieldwork, StringComparison.Ordinal);
+    Assert.Equal(fieldworkToken, await page.EvaluateAsync<string>("() => window.__auditRouteParityToken"));
+    var restoredFieldwork = await NavigateAsync(page, fieldworkPath, "AUDIT-WORKING-PROCESS v2026.1");
+    Assert.Contains("165", restoredFieldwork, StringComparison.Ordinal);
+    Assert.Equal(fieldworkToken, await page.EvaluateAsync<string>("() => window.__auditRouteParityToken"));
+    Assert.Empty(errors);
   }
 
   private static async Task<string> NavigateAsync(IPage page, string path, string expectedText)
