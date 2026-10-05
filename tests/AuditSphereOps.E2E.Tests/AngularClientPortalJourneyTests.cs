@@ -52,7 +52,14 @@ public sealed class AngularClientPortalJourneyTests
     await page.GetByRole(AriaRole.Button, new() { Name = "Send reply", Exact = true }).ClickAsync();
     await Assertions.Expect(page.Locator(".conversation")).ToContainTextAsync("The requested statements are attached.");
     var bytes = System.Text.Encoding.UTF8.GetBytes("Synthetic bank evidence from Angular portal.");
-    await page.GetByLabel("Choose a file (up to 250 MB)", new() { Exact = true }).SetInputFilesAsync(new FilePayload { Name = "angular-client-evidence.txt", MimeType = "text/plain", Buffer = bytes });
+    await page.Locator(".drop-zone").EvaluateAsync(@"zone => {
+      const transfer = new DataTransfer();
+      transfer.items.add(new File([new TextEncoder().encode('Synthetic bank evidence from Angular portal.')],
+        'angular-client-evidence.txt', { type: 'text/plain' }));
+      zone.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer }));
+    }");
+    await Assertions.Expect(page.GetByText($"angular-client-evidence.txt · {bytes.Length} bytes", new() { Exact = true }))
+      .ToBeVisibleAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Upload file", Exact = true })).ToBeEnabledAsync();
     await page.GetByRole(AriaRole.Button, new() { Name = "Upload file", Exact = true }).ClickAsync();
     await Assertions.Expect(page.GetByText("File bytes staged. Your audit team must verify trusted completion and suitability before the request is received or accepted.", new() { Exact = true })).ToBeVisibleAsync();

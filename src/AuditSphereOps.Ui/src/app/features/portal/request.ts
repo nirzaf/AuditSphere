@@ -31,8 +31,19 @@ const fingerprint = async (bytes: ArrayBuffer): Promise<string> =>
       <section class="panel" aria-labelledby="upload-heading"><h2 id="upload-heading">Upload requested files</h2>
         @if (!w.firstSignIn.completed) { <p role="status">Uploads open after your first portal sign-in is complete.</p><a routerLink="/portal">Complete first sign-in</a> }
         @else if (!w.canWrite) { <p role="status">Uploads and replies are closed for this request. Released documents remain available.</p> }
-        <label for="portal-file">Choose a file (up to 250 MB)</label>
-        <input id="portal-file" type="file" (change)="choose($event)" [disabled]="busy() || !w.canWrite || !w.firstSignIn.completed" />
+        <div class="drop-zone" [class.drop-zone-active]="dragOver()"
+          [class.drop-zone-disabled]="busy() || !w.canWrite || !w.firstSignIn.completed"
+          tabindex="0" role="button" aria-describedby="portal-drop-help" aria-controls="portal-file"
+          [attr.aria-disabled]="busy() || !w.canWrite || !w.firstSignIn.completed"
+          (click)="openFilePicker($event, fileInput)" (keydown)="activateFilePicker($event, fileInput)"
+          (dragenter)="dragEnter($event)" (dragover)="dragEnter($event)" (dragleave)="dragLeave()" (drop)="drop($event)">
+          <strong>Drop a file here</strong> <span class="muted">or</span>
+          <span class="drop-zone-choose">choose a file</span>
+          <span id="portal-drop-help">One file at a time, up to 250 MB.</span>
+        </div>
+        <label class="sr-only" for="portal-file">Choose a file (up to 250 MB)</label>
+        <input #fileInput id="portal-file" class="sr-only" type="file" (change)="choose($event)"
+          [disabled]="busy() || !w.canWrite || !w.firstSignIn.completed" />
         @if (file(); as f) { <p>{{ f.name }} · {{ f.size }} bytes</p><p class="fingerprint">SHA-256 {{ hash() || 'Calculating fingerprint…' }}</p> }
         <button matButton="filled" (click)="upload()" [disabled]="busy() || !hash() || !w.canWrite || !w.firstSignIn.completed || uncertain() || uploadUncertain()">{{ busy() ? 'Working…' : 'Upload file' }}</button>
         @if (sent() > 0) { <mat-progress-bar [value]="progress()" aria-label="Upload progress" /><p role="status">{{ sent() }} of {{ file()?.size ?? sent() }} bytes staged. Trusted staff completion is still required.</p> }
@@ -70,7 +81,7 @@ const fingerprint = async (bytes: ArrayBuffer): Promise<string> =>
         </article> } @empty { <p>No transfer intents are recorded.</p> }
       </section>
     }
-  `, styles: `input[type=file], button, select { min-height: 44px; } textarea { width: 100%; min-height: 7rem; } .fingerprint { overflow-wrap: anywhere; } .conversation { padding-left: 1.25rem; } time { display: block; font-size: .875rem; } .receipt { padding-block: 1rem; border-bottom: 1px solid var(--mat-sys-outline-variant); }`
+  `, styles: `input[type=file], button, select { min-height: 44px; } textarea { width: 100%; min-height: 7rem; } .fingerprint { overflow-wrap: anywhere; } .conversation { padding-left: 1.25rem; } time { display: block; font-size: .875rem; } .receipt { padding-block: 1rem; border-bottom: 1px solid var(--mat-sys-outline-variant); } .drop-zone { border: 2px dashed var(--mat-sys-outline-variant); border-radius: 8px; padding: 1.25rem 1rem; text-align: center; margin-block: .75rem; cursor: pointer; display: grid; gap: .35rem; } .drop-zone:focus-visible, .drop-zone-active { border-color: var(--mat-sys-primary); background: color-mix(in srgb, var(--mat-sys-primary) 6%, transparent); outline: 2px solid var(--mat-sys-primary); outline-offset: 2px; } .drop-zone-choose { color: var(--mat-sys-primary); text-decoration: underline; } .drop-zone-disabled { cursor: not-allowed; opacity: .65; }`
 })
 export class ClientPbcRequest {
   private readonly api = inject(Api); private readonly session = inject(SessionService);
@@ -80,12 +91,14 @@ export class ClientPbcRequest {
   readonly reply = this.fb.nonNullable.group({ body: ['', [Validators.required, Validators.maxLength(4000)]] });
   readonly delegation = this.fb.nonNullable.group({ userId: ['', Validators.required] });
   readonly file = signal<File | null>(null); readonly hash = signal(''); readonly sent = signal(0);
+  readonly dragOver = signal(false);
   readonly busy = signal(false); readonly uncertain = signal(false); readonly uploadUncertain = signal(false);
   readonly failed = signal(false); readonly message = signal('');
   private abort = new AbortController(); private selection = 0;
   constructor() {
     effect(() => { this.id(); this.session.invalidation(); if (!this.session.current() || !this.ws.data()) {
       this.abort.abort(); this.abort = new AbortController(); this.selection++; this.file.set(null); this.hash.set('');
+      this.dragOver.set(false);
       this.reply.reset(); this.delegation.reset(); this.sent.set(0);
       if (!this.session.current() || !this.id()) { this.uploadUncertain.set(false); this.uncertain.set(false); }
     } });
@@ -107,13 +120,50 @@ export class ClientPbcRequest {
   }
   refresh(): void { if (this.busy()) return; this.ws.reload(); /* unknown mutations remain fenced; verify with the audit team before repeating */ }
   async choose(event: Event): Promise<void> {
-    const selected = (event.target as HTMLInputElement).files?.[0] ?? null; const sequence = ++this.selection;
+    const input = event.target as HTMLInputElement;
+    const selected = input.files?.[0] ?? null;
+    input.value = '';
+    await this.selectFile(selected);
+  }
+  openFilePicker(event: MouseEvent, input: HTMLInputElement): void {
+    event.preventDefault();
+    if (this.canChooseFile()) input.click();
+  }
+  activateFilePicker(event: KeyboardEvent, input: HTMLInputElement): void {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    if (this.canChooseFile()) input.click();
+  }
+  dragEnter(event: DragEvent): void {
+    event.preventDefault();
+    if (this.canChooseFile()) this.dragOver.set(true);
+  }
+  dragLeave(): void { this.dragOver.set(false); }
+  drop(event: DragEvent): void {
+    event.preventDefault();
+    this.dragOver.set(false);
+    if (!this.canChooseFile()) return;
+    const files = event.dataTransfer?.files;
+    if (!files?.length) return;
+    if (files.length > 1) {
+      this.failed.set(true);
+      this.message.set('Drop one file at a time.');
+      return;
+    }
+    void this.selectFile(files[0]);
+  }
+  private canChooseFile(): boolean {
+    const request = this.ws.data();
+    return !this.busy() && !!request?.canWrite && request.firstSignIn.completed;
+  }
+  private async selectFile(selected: File | null): Promise<void> {
+    const sequence = ++this.selection;
     this.hash.set(''); this.file.set(null); this.sent.set(0); this.failed.set(false); this.message.set('');
     if (!selected) return;
     if (!selected.size || selected.size > MAX_FILE) { this.failed.set(true); this.message.set('Select a non-empty file of up to 250 MB.'); return; }
     this.file.set(selected);
     try { const sha = await fingerprint(await selected.arrayBuffer()); if (sequence === this.selection) this.hash.set(sha); }
-    catch { this.failed.set(true); this.message.set('The fingerprint could not be calculated. Select the file again.'); }
+    catch { if (sequence === this.selection) { this.failed.set(true); this.message.set('The fingerprint could not be calculated. Select the file again.'); } }
   }
   private async command(path: string, body: unknown, success: string): Promise<void> {
     if (this.busy() || this.uncertain()) return;
