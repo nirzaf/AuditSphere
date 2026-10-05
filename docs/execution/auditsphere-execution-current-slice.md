@@ -15,6 +15,29 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: Shared confirmation source/action parity
+
+Reviewed the two callers of the shared Blazor confirmation dialog against the
+Angular role-revocation and lead-qualification workflows. The Angular revoke
+dialog now identifies the exact user, Microsoft identity, role and scope before
+submission; lead qualification displays the immutable lead ID and makes clear
+that it grants neither professional acceptance nor client access. The focused
+PostgreSQL-backed API-host browser cohort passed 2/2, verifying both flows,
+persisted changes and session invalidation. Angular CI passed 491/491 across
+95 files. The production build passed with the existing 7.53 kB Commercial
+Settings stylesheet warning against a 4 kB warning budget.
+
+Both callers remain partial; the 76-row source/action inventory now
+has 73 partial reviews, two unanalyzed rows, one parity-verified row, and 28
+supporting files open. Complete authorization and unknown-outcome matrices,
+human assistive-technology/locale acceptance, production/canary evidence, live
+Microsoft gates, and separate owner acceptance remain open. The built-in
+browser reproduced the Operations denial for the `Workspace preview` identity;
+no operation data was shown and no privilege was changed. The full solution
+regression and EF model-drift check were not rerun; the latest complete result
+remains 1001/1001 at `ead85032`. Blazor retirement remains `NOT_READY`. See the
+[shared confirmation source review](../migration/auditsphere-migration-blazor-confirm-dialog-source-review.md).
+
 ## Current follow-on slice: Risk-routing source/action parity
 
 Compared the pinned `RiskRoutingPanel.razor` source with the Angular audit-plan

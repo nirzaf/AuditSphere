@@ -93,7 +93,7 @@ Action/dependency values below are syntax-level scanner hints. Roles, business a
 | `src/AuditSphereOps.Web/Components/Planning/EngagementStaffingPanel.razor` | — | practice/resources / US-018 (candidate) | AssignAsync; CandidatesAsync; CreateDbContextAsync; ListAsync; LoadAsync; OnParametersSetAsync; … (+2) | CurrentActorResolver; IDbContextFactory<AuditSphereDbContext> | [`PARTIAL`](auditsphere-migration-blazor-resource-planning-source-review.md) |
 | `src/AuditSphereOps.Web/Components/Planning/MaterialityEnginePanel.razor` | — | audit/planning / US-030 (candidate) | ApproveAsync; ApproveMaterialityAssessmentAsync; CalculateAsync; CreateDbContextAsync; GetLatestAsync; GetSourceAsync; … (+4) | CurrentActorResolver; IDbContextFactory<AuditSphereDbContext> | [`PARTIAL`](auditsphere-migration-blazor-audit-planning-fieldwork-source-review.md) |
 | `src/AuditSphereOps.Web/Components/Planning/RiskRoutingPanel.razor` | — | audit/planning / US-030 (candidate) | AssessAsync; AssignAsync; AssignOwnerAsync; ClearAsync; CreateDbContextAsync; GetRoutingAsync; … (+6) | CurrentActorResolver; IDbContextFactory<AuditSphereDbContext> | [`PARTIAL`](auditsphere-migration-blazor-audit-planning-fieldwork-source-review.md) |
-| `src/AuditSphereOps.Web/Components/Shared/ConfirmDialog.razor` | — | shell/shared / US-005 (candidate) | ConfirmAsync | — | `NOT_ANALYZED` |
+| `src/AuditSphereOps.Web/Components/Shared/ConfirmDialog.razor` | — | shell/shared / US-005 (candidate) | ConfirmAsync | — | [`PARTIAL`](auditsphere-migration-blazor-confirm-dialog-source-review.md) |
 
 ## Supporting Web project files
 

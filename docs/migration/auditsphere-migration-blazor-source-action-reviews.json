@@ -512,6 +512,13 @@
       "evidence": "auditsphere-migration-blazor-audit-planning-fieldwork-source-review.md",
       "reviewedAtCommit": "d29f147c77fd7900afa0e25a99f344fb393ff546",
       "openGaps": ["Complete role, scope, expiry and cross-firm query and command matrix", "Stale and revoked session plus unknown command outcome recovery", "Self-assessor Partner clearance denial across the browser role matrix", "Human assistive-technology and wider-locale acceptance"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Shared/ConfirmDialog.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-confirm-dialog-source-review.md",
+      "reviewedAtCommit": "0d819cd9ed95742eb251c4612b07e6f22f9a3c94",
+      "openGaps": ["Complete role, scope, expiry, cross-firm and unknown-result matrix across both callers", "Human screen-reader and wider-locale acceptance"]
     }
   ]
 }
