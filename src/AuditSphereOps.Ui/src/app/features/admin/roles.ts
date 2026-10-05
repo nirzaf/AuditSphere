@@ -132,8 +132,11 @@ export class RoleAssignmentDialog {
   }
 }
 
+type AccessRevocationData = { displayName: string; microsoftIdentity: string; grant: ReturnType<typeof accessLine> };
 @Component({ selector: 'audit-access-revocation', imports: [ReactiveFormsModule, MatDialogModule, MatButtonModule, ...SHARED], template: `
-  <h2 mat-dialog-title>Revoke AuditSphere access</h2><mat-dialog-content><p>{{ data.role }} · {{ data.scopeKind }}</p>
+  <h2 mat-dialog-title>Revoke AuditSphere access</h2><mat-dialog-content>
+    <p><strong>{{ data.displayName }}</strong> · {{ data.microsoftIdentity }}</p>
+    <p>{{ data.grant.role }} · {{ data.grant.scopeKind }} · {{ data.grant.engagementId ?? data.grant.clientId ?? data.grant.groupId ?? 'Firm-wide' }}</p>
     <p>This removes the local grant and invalidates protected sessions. Microsoft Entra roles remain separate.</p>
     <form [formGroup]="form" (ngSubmit)="save()"><label for="revoke-reason">Reason</label><textarea id="revoke-reason" formControlName="reason" maxlength="1000"></textarea>
       <label><input type="checkbox" formControlName="reviewed" /> I reviewed this grant and confirm revocation.</label>
@@ -141,14 +144,14 @@ export class RoleAssignmentDialog {
     <audit-command-message [message]="message()" [failed]="true" /></mat-dialog-content><mat-dialog-actions><button matButton (click)="dialog.close()" [disabled]="busy()">Close</button></mat-dialog-actions>
 ` })
 export class AccessRevocationDialog {
-  readonly data = inject<ReturnType<typeof accessLine>>(MAT_DIALOG_DATA); readonly dialog = inject(MatDialogRef<AccessRevocationDialog>);
+  readonly data = inject<AccessRevocationData>(MAT_DIALOG_DATA); readonly dialog = inject(MatDialogRef<AccessRevocationDialog>);
   private readonly api = inject(Api); private readonly session = inject(SessionService);
   readonly form = inject(FormBuilder).nonNullable.group({ reason: ['', [Validators.required, Validators.minLength(5), Validators.maxLength(1000)]], reviewed: [false, Validators.requiredTrue] });
   readonly busy = signal(false); readonly uncertain = signal(false); readonly message = signal('');
   private readonly openedGeneration = this.session.invalidation();
   constructor() { effect(() => { if (this.session.invalidation() !== this.openedGeneration || !this.session.current()?.staff) this.dialog.close(); }); }
   async save(): Promise<void> { if (this.form.invalid || this.busy() || this.uncertain()) return; const generation = this.session.invalidation(); this.busy.set(true);
-    try { const r = await this.api.command('/api/ui/administration/access/revoke', { grantId: this.data.grantId, groupGrant: this.data.groupGrant, ...this.form.getRawValue() });
+    try { const r = await this.api.command('/api/ui/administration/access/revoke', { grantId: this.data.grant.grantId, groupGrant: this.data.grant.groupGrant, ...this.form.getRawValue() });
       if (generation !== this.session.invalidation()) { this.dialog.close(); return; }
       if (r.ok) this.dialog.close(true); else { this.message.set(r.message); if (r.unknown) this.uncertain.set(true); }
     } finally { this.busy.set(false); }

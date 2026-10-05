@@ -222,6 +222,7 @@ export function decodeLeads(value: unknown): LeadPage {
       @if (qualification(); as lead) {
         <section role="alert">
           <h2>Qualify {{ lead.name }}?</h2>
+          <p>Record ID: {{ lead.id }}</p>
           <p>This does not grant professional acceptance or client access.</p>
           <button matButton [disabled]="busy() || uncertain()" (click)="qualify(lead.id)">
             Confirm qualification</button

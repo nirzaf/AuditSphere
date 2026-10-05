@@ -83,6 +83,46 @@ public sealed class AngularCommercialJourneyTests
   }
 
   [Fact]
+  [Trait("CaseId", "ANGULAR-COMMERCIAL-LEAD-QUALIFICATION-01")]
+  public async Task LeadQualificationConfirmationIdentifiesExactRecordAndKeepsAcceptanceSeparate()
+  {
+    await using var host = await OwnedHost.StartAsync(startWorker: false,
+      caseId: "ANGULAR-COMMERCIAL-LEAD-QUALIFICATION-01");
+    Guid leadId;
+    const string leadName = "Synthetic qualification confirmation lead";
+    await using (var db = host.CreateDbContext())
+    {
+      var actor = PbcSeed.Actor(host.Fixture.Admin, "Administrator");
+      var created = await PracticeCrmService.CreateLeadAsync(db, actor, new(leadName, "Migration review"));
+      Assert.True(created.Succeeded, created.Message);
+      leadId = created.Value;
+    }
+
+    var settings = new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" };
+    var origin = await host.StartApiForIdentityAsync(host.Fixture.Admin, settings);
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var errors = new List<string>();
+    page.PageError += (_, error) => errors.Add(error);
+
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString("/ui/app/practice/leads"));
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Practice leads", Exact = true })).ToBeVisibleAsync();
+    await page.GetByRole(AriaRole.Button, new() { Name = $"Qualify {leadName}", Exact = true }).ClickAsync();
+    var confirmation = page.GetByRole(AriaRole.Alert);
+    await Assertions.Expect(confirmation.GetByRole(AriaRole.Heading, new() { Name = $"Qualify {leadName}?", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(confirmation.GetByText($"Record ID: {leadId:D}", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(confirmation.GetByText("This does not grant professional acceptance or client access.", new() { Exact = true })).ToBeVisibleAsync();
+    await confirmation.GetByRole(AriaRole.Button, new() { Name = "Confirm qualification", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Status).GetByText("Commercial change recorded.", new() { Exact = true })).ToBeVisibleAsync();
+
+    await using (var db = host.CreateDbContext())
+      Assert.Equal(CrmStates.LeadQualified, (await db.Leads.SingleAsync(x => x.Id == leadId)).Status);
+    Assert.Empty(errors);
+  }
+
+  [Fact]
   [Trait("CaseId", "ANGULAR-COMMERCIAL-OPPORTUNITY-RECOVERY-01")]
   public async Task LostOpportunityCreateResponses_ReconcileCommitAndRetryUncommittedRequest()
   {

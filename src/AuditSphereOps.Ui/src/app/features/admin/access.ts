@@ -30,7 +30,7 @@ import { capabilityAvailable, recoverableOperation } from './operations-contract
           <dt>Last application access</dt><dd>{{ u.lastAuditSphereAccess ?? 'Not observed' }}</dd><dt>Created by</dt><dd>{{ u.createdBy }}</dd><dt>Created</dt><dd>{{ u.createdDate }}</dd></dl>
         <h3>AuditSphere roles and scope</h3><ul>@for(g of u.access; track g.grantId) { <li>{{ g.role }} · {{ g.scopeKind }} · {{ g.engagementId ?? g.clientId ?? g.groupId ?? 'Firm' }} · expires {{ g.expiresAt ?? 'No expiry' }}
           <button matButton (click)="toggleHistory(g.grantId)" [attr.aria-expanded]="expandedGrant() === g.grantId" [attr.aria-label]="'View history for ' + g.role + ' for ' + u.displayName">History</button>
-          <button matButton (click)="revoke(g)" [attr.aria-label]="'Revoke ' + g.role + ' for ' + u.displayName">Revoke</button>
+          <button matButton (click)="revoke(u, g)" [attr.aria-label]="'Revoke ' + g.role + ' for ' + u.displayName">Revoke</button>
           @if (expandedGrant() === g.grantId) { <ul><li role="listitem" class="history-head">Grant change evidence (latest 20)</li>
             @for(e of grantHistory().get(g.grantId) ?? []; track e.at) { <li>{{ e.at }} · {{ e.action }} · {{ e.priorRole }} → {{ e.newRole }} · {{ e.reason ?? e.source }} · by {{ e.actor }}</li> }
             @empty { <li>No recorded changes for this grant.</li> }</ul> }</li> } @empty { <li>No active grants</li> }</ul>
@@ -83,8 +83,8 @@ export class UserAccess {
   search(): void { this.applied.set(this.filter.getRawValue()); this.page.set(0); }
   assign(user: ReturnType<typeof accessUser>): void { const workspace = this.ws.data(); if (!workspace) return;
     this.dialog.open(RoleAssignmentDialog, { data: { user, workspace }, width: '48rem', maxWidth: '96vw', autoFocus: 'first-heading' }).afterClosed().subscribe(changed => { if(changed) this.ws.reload(); }); }
-  revoke(grant: ReturnType<typeof accessLine>): void {
-    this.dialog.open(AccessRevocationDialog, { data: grant, width: '35rem', maxWidth: '96vw', autoFocus: 'first-heading' }).afterClosed().subscribe(changed => { if(changed) this.ws.reload(); }); }
+  revoke(user: ReturnType<typeof accessUser>, grant: ReturnType<typeof accessLine>): void {
+    this.dialog.open(AccessRevocationDialog, { data: { displayName: user.displayName, microsoftIdentity: user.microsoftIdentity, grant }, width: '35rem', maxWidth: '96vw', autoFocus: 'first-heading' }).afterClosed().subscribe(changed => { if(changed) this.ws.reload(); }); }
   available(capability:string):boolean{return !!this.settings.data()?.configuredTenantId && capabilityAvailable(this.settings.data()?.workspace.capabilities ?? [],capability);}
   provision(invite:boolean):void{const workspace=this.ws.data(),tenantId=this.settings.data()?.configuredTenantId;if(!workspace||!tenantId||!this.available(invite?'GUEST_INVITATION':'TENANT_USER_PROVISIONING'))return;
     this.dialog.open(TenantProvisioningDialog,{data:{workspace,tenantId,invite},width:'46rem',maxWidth:'96vw',autoFocus:'first-heading'}).afterClosed().subscribe(changed=>{if(changed)this.ws.reload();});}

@@ -47,6 +47,9 @@ public sealed class AngularAdministrationJourneyTests
     await page.GetByLabel("Search local users", new() { Exact = true }).FillAsync(host.Fixture.Staff.Email);
     await page.GetByRole(AriaRole.Button, new() { Name = "Search local access", Exact = true }).ClickAsync();
     await page.GetByRole(AriaRole.Button, new() { Name = "Revoke Manager for " + host.Fixture.Staff.DisplayName, Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Dialog).GetByText(host.Fixture.Staff.DisplayName, new() { Exact = false })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Dialog)).ToContainTextAsync($"{host.Fixture.Staff.DisplayName} · {host.Fixture.Staff.Email}");
+    await Assertions.Expect(page.GetByRole(AriaRole.Dialog).GetByText($"Manager · CLIENT · {host.Fixture.ClientId}", new() { Exact = true })).ToBeVisibleAsync();
     await dialog.GetByLabel("Reason", new() { Exact = true }).FillAsync("Client management assignment ended");
     await dialog.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed this grant and confirm revocation.", Exact = true }).CheckAsync();
     await dialog.GetByRole(AriaRole.Button, new() { Name = "Revoke reviewed access", Exact = true }).ClickAsync();
