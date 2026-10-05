@@ -32,6 +32,7 @@ const question = {
   evidence: null,
   revision: '0',
   priorAnswer: null,
+  priorEvidence: null,
   answeredBy: null,
 };
 const workspace = {

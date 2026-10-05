@@ -210,7 +210,10 @@
         <h2>{{ question.code }} · {{ question.section }}</h2>
         <p>{{ question.prompt }}</p>
         @if (question.priorAnswer) {
-          <p>Prior-cycle answer: {{ question.priorAnswer }}</p>
+          <p>
+            Prior-cycle answer: {{ question.priorAnswer }}
+            @if (question.priorEvidence) { · Evidence reference: {{ question.priorEvidence }} }
+          </p>
         }
         @if (question.answer) {
           <p>

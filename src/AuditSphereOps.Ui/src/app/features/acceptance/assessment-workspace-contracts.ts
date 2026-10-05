@@ -21,6 +21,7 @@ export interface Question {
   evidence: string | null;
   revision: string;
   priorAnswer: string | null;
+  priorEvidence: string | null;
   answeredBy: string | null;
 }
 export interface Clearance {
@@ -99,9 +100,10 @@ export function decodeChecklist(value: unknown): Checklist {
       !bounded(q['category'], 300) ||
       typeof q['requiresEvidence'] !== 'boolean' ||
       typeof q['adverse'] !== 'boolean' ||
-      !['answer', 'evidence', 'priorAnswer', 'answeredBy'].every(
+      !['answer', 'evidence', 'priorAnswer', 'priorEvidence', 'answeredBy'].every(
         (k) =>
-          q[k] === null || bounded(q[k], k === 'evidence' ? 500 : k === 'answeredBy' ? 300 : 2000),
+          q[k] === null ||
+          bounded(q[k], k === 'evidence' || k === 'priorEvidence' ? 500 : k === 'answeredBy' ? 300 : 2000),
       )
     )
       throw new Error('Invalid question');

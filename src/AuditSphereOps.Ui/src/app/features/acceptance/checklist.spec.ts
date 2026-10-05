@@ -38,9 +38,36 @@ describe('Acceptance workspace contract', () => {
             answer: 'Yes',
             evidence: {},
             priorAnswer: null,
+            priorEvidence: null,
             answeredBy: null,
           },
         ],
+      }),
+    ).toThrow();
+  });
+  it('preserves a bounded prior-cycle evidence reference', () => {
+    const question = {
+      code: 'RV-001',
+      section: 'R.1',
+      prompt: 'Did management change?',
+      category: 'Continuance',
+      answerType: 'BOOLEAN',
+      requiresEvidence: false,
+      adverse: false,
+      revision: '0',
+      answer: null,
+      evidence: null,
+      priorAnswer: 'No',
+      priorEvidence: 'PRIOR-CYCLE-REVIEW-17',
+      answeredBy: null,
+    };
+    expect(decodeChecklist({ ...context, questions: [question] }).questions[0].priorEvidence).toBe(
+      'PRIOR-CYCLE-REVIEW-17',
+    );
+    expect(() =>
+      decodeChecklist({
+        ...context,
+        questions: [{ ...question, priorEvidence: 'x'.repeat(501) }],
       }),
     ).toThrow();
   });

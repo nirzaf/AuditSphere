@@ -110,9 +110,21 @@ public sealed class AcceptanceJourneyTests
     await ConfirmReviewedActionAsync(page.GetByRole(AriaRole.Button, new() { Name = "Review Partner decision", Exact = true }));
 
     await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Review continuance", Exact = true })).ToBeVisibleAsync();
+    await using (var db = host.CreateDbContext())
+    {
+      db.EvaluationResponses.Add(new EvaluationResponse
+      {
+        Id = Guid.NewGuid(), FirmId = host.Fixture.FirmId, PracticeClientId = clientId,
+        Bank = "RV", QuestionId = "RV-T1", Answer = "No", EvidenceReference = "SYNTHETIC-PRIOR-CYCLE-EVIDENCE",
+        Generation = 1, Revision = 1, AnsweredByUserId = partner.Id, AnsweredAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+    }
     await ConfirmReviewedActionAsync(page.GetByRole(AriaRole.Button, new() { Name = "Review continuance", Exact = true }));
     await Assertions.Expect(page.GetByText("CONTINUANCE · Evaluation 2", new() { Exact = true })).ToBeVisibleAsync();
-    await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "RV-T1 assessment question", Exact = true })).ToBeVisibleAsync();
+    var continuanceQuestion = page.GetByRole(AriaRole.Region, new() { Name = "RV-T1 assessment question", Exact = true });
+    await Assertions.Expect(continuanceQuestion).ToContainTextAsync("Prior-cycle answer: No");
+    await Assertions.Expect(continuanceQuestion).ToContainTextAsync("Evidence reference: SYNTHETIC-PRIOR-CYCLE-EVIDENCE");
     await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "CE-T1 assessment question", Exact = true })).ToHaveCountAsync(0);
     await Assertions.Expect(progress).ToContainTextAsync("0 of 1 questions answered");
 
