@@ -29,7 +29,7 @@ export const decodeAdvanced = obj({
           <dt>Perimeter</dt><dd>{{ w.scope.status }} · group revision {{ w.scope.groupRevision }}</dd><dt>Approved components</dt><dd>{{ w.scope.approvedComponentCount }}</dd>
           <dt>Approved reviewed journals</dt><dd>{{ w.scope.approvedReviewedJournalCount }}</dd></dl>
         <p><small>This workflow calls the existing scope-checked commands. Approval remains maker/checker separated, source and method evidence are re-read server-side, and no action enables a professional or external release gate.</small></p></section>
-      <section class="panel" aria-labelledby="schedule-submit-heading"><h2 id="schedule-submit-heading">Submit source-bound schedule</h2>
+      <section class="panel schedule-input" aria-labelledby="schedule-submit-heading"><h2 id="schedule-submit-heading">Submit source-bound schedule</h2>
         <p><small>Inputs are kept as a browser draft for this signed-in user. The server canonicalizes the JSON, validates the selected method and creates a submitted schedule only; it never accepts client-supplied approval state.</small></p>
         <label>Source manifest JSON * <textarea name="manifest" [(ngModel)]="manifest" (ngModelChange)="persist()" rows="10" maxlength="20000" required></textarea></label>
         <label>Method input and statement JSON * <textarea name="snapshot" [(ngModel)]="snapshot" (ngModelChange)="persist()" rows="14" maxlength="20000" required></textarea></label>
@@ -56,6 +56,11 @@ export const decodeAdvanced = obj({
     }
     <audit-command-message [message]="cmd.message()" [failed]="cmd.failed()" />
   `,
+  styles: [`
+    :host { display: block; max-width: 100%; min-width: 0; }
+    .schedule-input label { display: block; max-width: 100%; }
+    .schedule-input textarea { display: block; width: 100%; min-width: 0; resize: vertical; }
+  `],
 })
 export class AdvancedConsolidation {
   private readonly api = inject(Api);

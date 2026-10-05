@@ -44,6 +44,10 @@ body {
   outline: 3px solid #075a9c;
   outline-offset: 3px;
 }
+button:focus-visible {
+  outline: 3px solid #075a9c;
+  outline-offset: 3px;
+}
 h1 {
   font-size: clamp(1.8rem, 3vw, 2.5rem);
 }
@@ -83,6 +87,7 @@ small {
 }
 .table-scroll {
   overflow-x: auto;
+  position: relative;
 }
 nav {
   display: flex;
