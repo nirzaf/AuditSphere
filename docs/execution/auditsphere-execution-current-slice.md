@@ -15,7 +15,34 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
-## Current follow-on slice: client scoped audit detail and revocation journeys
+## Current follow-on slice: client profile sibling-route isolation
+
+At test commit `fbca7aea`, the API-host Angular client-profile journey maps two
+removed `ClientScopeJourneyTests` methods. In both `/ui` and canonical route
+modes, client-A Staff and client-B Manager identities each read their own
+profile, then change to the sibling client's ID in the same document. The
+route clears private profile details; a random ID returns the same denial text.
+Returning to the authorized client restores its profile while a document
+token remains. The current journey also retains the profile's paging, reload,
+mobile, unknown-ID and revocation checks.
+
+The focused PostgreSQL-backed Playwright profile cohort passed 2/2 in 48
+seconds. The Release solution build passed with zero warnings/errors, EF
+reported no pending model changes, and the built-in browser rendered the
+generic unavailable state for an unknown client ID. The full solution suite
+was not rerun; the latest complete regression remains 985/985 at `eb94ae50`.
+An unrelated unstaged edit to `ConsolidationOverviewQuery.cs` was excluded from
+the test commit.
+
+Eighteen of 82 removed E2E methods now have assertion maps; three suites and 64
+methods remain open. Sixty source/action rows and 28 supporting files remain
+unanalyzed. Production rollback/canary, human assistive-technology and
+wider-locale review, live Microsoft gates, and separate owner acceptance
+remain open. Retirement remains `NOT_READY` and AS-PAR-002 remains partial.
+Exact attribution is in `status.json` and the [test parity
+register](../migration/auditsphere-migration-blazor-test-parity.md).
+
+## Previous follow-on slice: client scoped audit detail and revocation journeys
 
 At test commit `cf609420`, `AngularClientScopeAuditDetailJourneyTests` covers
 five removed `ClientScopeJourneyTests` methods for finding details, population
@@ -37,18 +64,18 @@ unknown population ID showed the generic unavailable state. An unrelated
 unstaged change to `ConsolidationOverviewQuery.cs` was present during
 verification and excluded from the test commit.
 
-Sixteen of 82 removed E2E methods now have assertion maps; three suites and 66
-methods remain open. This journey also exercises archive and review-point
-same-document sibling/guessed-ID clearing, but does not close those old
-route-specific methods because their viewport, keyboard-focus, and archive
-summary assertions are not all represented. Sixty source/action rows and 28
-supporting files remain unanalyzed. The last complete solution regression
-remains 985/985 at `eb94ae50`; this slice ran its focused case, not the full
-solution suite. Production rollback/canary, human assistive-technology and
-wider-locale review, live Microsoft gates, and separate owner acceptance
-remain open. Retirement and AS-PAR-002 remain `NOT_READY`/partial. Exact
-attribution is in `status.json` and the [test parity
-register](../migration/auditsphere-migration-blazor-test-parity.md).
+Sixteen of 82 removed E2E methods had assertion maps at that slice; three
+suites and 66 methods remained open. This journey also exercises archive and
+review-point same-document sibling/guessed-ID clearing, but does not close
+those old route-specific methods because their viewport, keyboard-focus, and
+archive-summary assertions are not all represented. Sixty source/action rows
+and 28 supporting files remained unanalyzed. The latest complete solution
+regression remains 985/985 at `eb94ae50`; the slice ran its focused case, not
+the full solution suite. Production rollback/canary, human
+assistive-technology and wider-locale review, live Microsoft gates, and
+separate owner acceptance remained open. Retirement and AS-PAR-002 remained
+`NOT_READY`/partial. Exact attribution is in `status.json` and the [test
+parity register](../migration/auditsphere-migration-blazor-test-parity.md).
 
 ## Previous follow-on slice: Practice Billing and Ledger assertion crosswalk
 
