@@ -210,14 +210,28 @@
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-audit-planning-fieldwork-source-review.md",
       "reviewedAtCommit": "02a694f2bf61d015b440ee936f66abb2982c6adb",
-      "openGaps": ["Separate FieldworkToolsPanel source/action review", "Complete fieldwork action, authorization and recovery matrix"]
+      "openGaps": ["Complete fieldwork action, authorization and recovery matrix"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Fieldwork/FieldworkToolsPanel.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-audit-planning-fieldwork-source-review.md",
+      "reviewedAtCommit": "efdc0738f328129ba4fbfe1c9d5c54b5d3a04085",
+      "openGaps": ["Full supported role/scope and validation matrix", "Stale evidence and sampling inputs", "Failed/unknown worker outcomes and command recovery"]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/AuditPlan.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-audit-planning-fieldwork-source-review.md",
       "reviewedAtCommit": "02a694f2bf61d015b440ee936f66abb2982c6adb",
-      "openGaps": ["Separate MaterialityEnginePanel source/action review", "Complete materiality validation, approval, role and failure/recovery matrix"]
+      "openGaps": ["Complete materiality validation, approval, role and failure/recovery matrix"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Planning/MaterialityEnginePanel.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-audit-planning-fieldwork-source-review.md",
+      "reviewedAtCommit": "efdc0738f328129ba4fbfe1c9d5c54b5d3a04085",
+      "openGaps": ["Policy boundary and validation cases", "Stale-source and calculation failure/recovery", "Full materiality role matrix"]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/AuditPopulation.razor",

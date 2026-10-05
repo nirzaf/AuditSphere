@@ -17,19 +17,34 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Current follow-on slice: audit planning and fieldwork source review
 
-Six source pages now have a hash-checked partial review against their Angular,
-API and Application owners. Existing journeys cover assessment history and
-progress, scoped fieldwork/program adoption, population evidence and sample
-counts, library revocation, finding detail, and audit-plan scope clearing. The
-legacy `/app/audit/plans/{id}` alias now has a direct API-host browser check for
-authorized rendering and same-document sibling-scope denial/clearing. The
-Development built-in browser rendered the same Angular alias read-only.
+Six source pages and two embedded panels now have hash-checked partial reviews
+against their Angular, API and Application owners. Commit `efdc0738` adds an
+Application projection for reviewer-only fieldwork access: reviewers receive
+submitted procedures and review notes, while planner schedules, client-upload
+candidates, physical files, and planning controls stay out of that response.
+The Angular page displays only the review workflow for reviewer-only users;
+the existing Application commands still enforce role and engagement scope.
 
-The audit-plan journey passed; exact command, source SHA and attribution are in
-[`status.json`](status.json). The review remains PARTIAL: `AcceptanceChecklistPanel`,
-`FieldworkToolsPanel` and `MaterialityEnginePanel` have separate source rows,
-and the complete command/role/error/recovery matrix is open. No production or
-full-suite acceptance is inferred; Blazor retirement remains `NOT_READY`.
+The PostgreSQL-backed fieldwork browser journey passed 1/1. It covers a staged
+client upload delivered by the simulated background worker, evidence linking,
+MUS and SYSTEMATIC sampling, physical-file registration/link/movement, an ad hoc
+step, and a reviewer-created note answered by the preparer and resolved by the
+reviewer. It also asserts reviewer projection redaction and denial of sampling
+for the Reviewer-only grant. The materiality browser journey separately passes
+the self-approval boundary: the preparer sees no approval action and an
+independent Manager approves the persisted calculation. Angular unit tests pass
+482/482; the production build succeeds with the existing 6.60 kB initial-bundle
+budget warning. The built-in Development browser rendered the audit-plan alias
+read-only; reviewer-only behavior was checked in the isolated Playwright
+journey using synthetic identities.
+
+The audit-plan alias and focused journeys passed; exact commands, source hashes
+and attribution are in [`status.json`](status.json). The source-action register
+now has 76 rows: one parity-verified, 35 partial and 40 unanalyzed, plus 28
+supporting files not analyzed. `AcceptanceChecklistPanel` is still unanalyzed;
+the reviewed fieldwork and materiality panels remain PARTIAL pending the full
+command/role/error/recovery matrices. No full-suite, EF-drift, production, or
+owner acceptance is inferred; Blazor retirement remains `NOT_READY`.
 
 ## Current follow-on slice: accounting workspace and period maintenance
 

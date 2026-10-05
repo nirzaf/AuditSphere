@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "02a694f2bf61d015b440ee936f66abb2982c6adb",
+  "headCommit": "efdc0738f328129ba4fbfe1c9d5c54b5d3a04085",
   "verifiedCommit": "ead85032de2ccc4d4c8043398fa8471d395376a9",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -250,15 +250,15 @@
       "removalDecision": "NOT_READY"
     },
     "angularBlazorCurrentRetirementGate": {
-      "observedAt": "2026-10-05T13:07:39Z",
-      "sourceCommit": "02a694f2bf61d015b440ee936f66abb2982c6adb",
+      "observedAt": "2026-10-05T13:53:07Z",
+      "sourceCommit": "efdc0738f328129ba4fbfe1c9d5c54b5d3a04085",
       "status": "NOT_READY",
       "physicalRemovalCommit": "59387b549214067ef226cdbf33d0d47084a27c46",
       "webProjectPresent": true,
       "sourceActionRows": 76,
       "parityVerified": 1,
-      "partialReviewed": 33,
-      "notAnalyzed": 42,
+      "partialReviewed": 35,
+      "notAnalyzed": 40,
       "supportingFilesNotAnalyzed": 28,
       "administrationSourceReview": {
         "review": "docs/migration/auditsphere-migration-blazor-administration-source-review.md",
@@ -307,6 +307,68 @@
         },
         "builtInBrowser": "PASS_LOCAL_READ_ONLY: after reload, the authenticated Development Mappings page displayed 25 selected with 10/25/50 choices. The authorized queue was empty; no business command was submitted. Browser console had no errors or warnings."
       },
+      "auditPlanningFieldworkSourceReview": {
+        "review": "docs/migration/auditsphere-migration-blazor-audit-planning-fieldwork-source-review.md",
+        "sourceSnapshot": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
+        "reviewedAgainstCommit": "efdc0738f328129ba4fbfe1c9d5c54b5d3a04085",
+        "status": "PARTIAL_REVIEWED",
+        "reviewedArtifacts": 8,
+        "parityVerifiedArtifacts": 0,
+        "summary": "Six audit planning/fieldwork pages and two child panels are hash-checked and mapped to Angular/API/Application owners. The FieldworkToolsPanel journey covers worker-delivered client upload, sampling, evidence linking, physical files, ad hoc steps and an independent review-note thread. The materiality journey covers self-approval suppression and independent Manager approval. All eight artifacts remain partial because full role, validation, error, stale-input and recovery parity is not established.",
+        "panelSourceHashes": [
+          {
+            "source": "src/AuditSphereOps.Web/Components/Fieldwork/FieldworkToolsPanel.razor",
+            "sha256": "15ad6d2ceb127f51ae541b6e2153563291f2c9a63a218f5bda5fc1cf1f2fc922"
+          },
+          {
+            "source": "src/AuditSphereOps.Web/Components/Planning/MaterialityEnginePanel.razor",
+            "sha256": "07b16634095a179659b0fa1fd2bdf6c5af69564d7c1116dab8f770996fcdbe9f"
+          }
+        ],
+        "focusedFieldworkPostgresPlaywright": {
+          "status": "PASS",
+          "sourceCommit": "efdc0738f328129ba4fbfe1c9d5c54b5d3a04085",
+          "passed": 1,
+          "failed": 0,
+          "skipped": 0,
+          "duration": "48s",
+          "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~FieldworkConnectionsJourneyTests.SeniorUploadsDrillsSamplesIndexesAndInsertsAStep'",
+          "coverage": "API-host Angular browser journey with isolated PostgreSQL. It completes a staged client upload through the simulated general worker, links evidence, runs MUS and SYSTEMATIC sampling, registers/links/moves a physical file, inserts an ad hoc step, and exercises Reviewer-only result/note access with reviewer redaction, denied planner sampling, preparer response and reviewer resolution. A stale session epoch retains its typed denial response."
+        },
+        "focusedMaterialityPostgresPlaywright": {
+          "status": "PASS",
+          "sourceCommit": "20fb05d8e0425a92193b279f07096c9a3f19500d",
+          "passed": 1,
+          "failed": 0,
+          "skipped": 0,
+          "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~PlanningAndResourcesJourneyTests.PartnerStaffsCalculatesMaterialityReviewsRedRiskAndSeesTheGrid'",
+          "coverage": "The preparer sees neither calculated nor manual approval controls; an independent Manager approves the calculation and the distinct preparer/approver identities are checked in PostgreSQL."
+        },
+        "angularUnitTests": {
+          "status": "PASS",
+          "sourceCommit": "20fb05d8e0425a92193b279f07096c9a3f19500d",
+          "files": 94,
+          "passed": 482,
+          "failed": 0,
+          "skipped": 0,
+          "command": "npm run test:ci"
+        },
+        "angularProductionBuild": {
+          "status": "PASS_WITH_BUDGET_WARNING",
+          "sourceCommit": "20fb05d8e0425a92193b279f07096c9a3f19500d",
+          "initialBundle": "506.60 kB; 6.60 kB above the 500 kB warning budget."
+        },
+        "builtInBrowser": "PASS_LOCAL_READ_ONLY: the authenticated Development Angular audit-plan alias rendered in the Codex in-app browser. The reviewer-only projection was verified in the isolated PostgreSQL Playwright browser journey using a synthetic Reviewer identity; the Development browser identity was not changed.",
+        "releaseBuild": "The focused Release E2E invocation compiled the Application, API, Worker and E2E projects successfully.",
+        "efModelDrift": "No EF entity or model changed; the current pending-model-changes command was not rerun.",
+        "fullSolutionRegression": "NOT_RUN at code commit efdc0738; the latest complete PostgreSQL-backed Release solution result remains 1001/1001 at ead85032de2ccc4d4c8043398fa8471d395376a9.",
+        "sharedWorktreeBoundary": "The concurrent unstaged edit to src/AuditSphereOps.Application/Accounting/ConsolidationOverviewQuery.cs was excluded from code commits 20fb05d8 and efdc0738.",
+        "openGaps": [
+          "AcceptanceChecklistPanel remains unanalyzed.",
+          "Full role/scope, validation, stale-content, failure and retry/recovery coverage remains open for the eight reviewed artifacts.",
+          "Production rollback/canary, human assistive-technology and wider-locale acceptance, live Microsoft gates and separate owner acceptance remain open."
+        ]
+      },
       "currentHeadTestTopology": {
         "apiTestAndE2eProjectReferencesToWeb": false,
         "e2eFixture": "OwnedHost starts isolated API hosts using API-specific methods; the restored Web project remains in the solution as rollback/reference source.",
@@ -327,12 +389,12 @@
         "assertionReplacementAudit": "All 82 removed E2E methods have assertion-level API/Angular replacement crosswalks, including all 39 ClientScopeJourneyTests, all 13 AuditAndReleaseJourneyTests, and all 19 FinancialArtifactJourneyTests methods. A full-suite pass is regression evidence, not replacement evidence; the independent source/action inventory and direct endpoint/query authorization audit remain open.",
         "legacyE2eTestMethodsRemaining": 0
       },
-      "fullSolutionCurrentHead": "Latest complete PostgreSQL-backed Release solution regression: API 191/191, Domain 660/660 and E2E 150/150 (1001/1001; zero failed/skipped) at ead85032de2ccc4d4c8043398fa8471d395376a9. This clean frozen result predates current code commit 02a694f2. The accounting slice separately has 482/482 Angular unit tests and 21/21 focused PostgreSQL-backed Release E2E tests; the audit-plan alias slice passed its focused browser journey 1/1. The complete solution was not rerun.",
-      "efModelCurrentHead": "The current audit-plan alias code slice changed E2E test files only; it did not change Application, Domain, Infrastructure or EF model code. The EF model-drift command was not rerun. The latest recorded no-pending-model-changes result remains attributed to its prior verified source snapshot.",
+      "fullSolutionCurrentHead": "Latest complete PostgreSQL-backed Release solution regression: API 191/191, Domain 660/660 and E2E 150/150 (1001/1001; zero failed/skipped) at ead85032de2ccc4d4c8043398fa8471d395376a9. This clean frozen result predates code commits 20fb05d8 and efdc0738. Since then, the fieldwork and materiality browser journeys each passed 1/1, and all 482 Angular unit tests passed. The complete solution was not rerun.",
+      "efModelCurrentHead": "The current slice changed an Application read projection and UI/tests, but no EF entity or model. The pending-model-changes command was not rerun; the latest recorded no-drift result remains attributed to its prior verified source snapshot.",
       "rollbackAndCanary": "Local Development rollback smoke PASS: Razor root, local Blazor/MudBlazor assets, negotiate endpoint, and SignalR circuit handshake. Production OIDC, route cutover recovery, and production-like canary remain OPEN.",
       "humanAssistiveTechnologyAndLocale": "OPEN",
       "liveMicrosoftGates": "BLOCKED_EXTERNAL",
-      "decision": "NOT_READY. The Web rollback/reference source remains restored. All 82 removed E2E methods have assertion crosswalks. Thirty-three source/action rows are partially reviewed (13 administration, two PBC, twelve accounting and six audit planning/fieldwork), one assessment source is parity verified, and 42 rows plus 28 supporting files remain unanalyzed. AS-PAR-002 direct endpoint/query authorization and retry/idempotency checks, production/human/external acceptance and separate owner acceptance remain open.",
+      "decision": "NOT_READY. The Web rollback/reference source remains restored. All 82 removed E2E methods have assertion crosswalks. Thirty-five source/action rows are partially reviewed (13 administration, two PBC, twelve accounting and eight audit planning/fieldwork), one assessment source is parity verified, and 40 rows plus 28 supporting files remain unanalyzed. AS-PAR-002 direct endpoint/query authorization and retry/idempotency checks, production/human/external acceptance and separate owner acceptance remain open.",
       "angularProductionBuild": {
         "status": "PASS_WITH_BUDGET_WARNING",
         "initialBundle": "506.60 kB; 6.60 kB above the 500 kB warning budget."
@@ -9085,8 +9147,8 @@
       "retirementDecision": "NOT_READY"
     },
     "angularAuditPlanningFieldworkSourceReview": {
-      "sourceCommit": "02a694f2bf61d015b440ee936f66abb2982c6adb",
-      "observedAt": "2026-10-05T13:05:04Z",
+      "sourceCommit": "efdc0738f328129ba4fbfe1c9d5c54b5d3a04085",
+      "observedAt": "2026-10-05T13:53:07Z",
       "status": "PASS_LOCAL_SLICE",
       "caseId": "AS-PAR-002-ANGULAR-ENGAGEMENT-PLAN-SCOPE-01",
       "review": "docs/migration/auditsphere-migration-blazor-audit-planning-fieldwork-source-review.md",
@@ -9120,12 +9182,14 @@
       "sourceActionRegister": {
         "rows": 76,
         "parityVerified": 1,
-        "partialReviewed": 33,
-        "notAnalyzed": 42,
+        "partialReviewed": 35,
+        "notAnalyzed": 40,
         "supportingFilesNotAnalyzed": 28
       },
       "replacementTests": [
-        "AngularClientScopeEngagementParityJourneyTests.EngagementAndAuditPlanClearOnScopeChangeAndRefuseRevokedWrites"
+        "AngularClientScopeEngagementParityJourneyTests.EngagementAndAuditPlanClearOnScopeChangeAndRefuseRevokedWrites",
+        "FieldworkConnectionsJourneyTests.SeniorUploadsDrillsSamplesIndexesAndInsertsAStep",
+        "PlanningAndResourcesJourneyTests.PartnerStaffsCalculatesMaterialityReviewsRedRiskAndSeesTheGrid"
       ],
       "focusedPostgresPlaywright": {
         "status": "PASS",
@@ -9135,15 +9199,63 @@
         "duration": "37s",
         "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~AngularClientScopeEngagementParityJourneyTests.EngagementAndAuditPlanClearOnScopeChangeAndRefuseRevokedWrites'"
       },
-      "coverage": "The scoped plan journey now exercises both the canonical engagement route and legacy /app/audit/plans/{Id} alias. The alias renders the authorized engagement projection, then denies and clears a sibling engagement in the same document and restores the authorized plan on return. The six-page source review maps existing assessment, fieldwork, population, library and finding journeys without promoting any row to full parity.",
+      "followOnRoleAndPanelReview": {
+        "panelSourceHashesMatched": [
+          {
+            "source": "src/AuditSphereOps.Web/Components/Fieldwork/FieldworkToolsPanel.razor",
+            "sha256": "15ad6d2ceb127f51ae541b6e2153563291f2c9a63a218f5bda5fc1cf1f2fc922"
+          },
+          {
+            "source": "src/AuditSphereOps.Web/Components/Planning/MaterialityEnginePanel.razor",
+            "sha256": "07b16634095a179659b0fa1fd2bdf6c5af69564d7c1116dab8f770996fcdbe9f"
+          }
+        ],
+        "focusedFieldworkPostgresPlaywright": {
+          "status": "PASS",
+          "sourceCommit": "efdc0738f328129ba4fbfe1c9d5c54b5d3a04085",
+          "passed": 1,
+          "failed": 0,
+          "skipped": 0,
+          "duration": "48s",
+          "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~FieldworkConnectionsJourneyTests.SeniorUploadsDrillsSamplesIndexesAndInsertsAStep'"
+        },
+        "focusedMaterialityPostgresPlaywright": {
+          "status": "PASS",
+          "sourceCommit": "20fb05d8e0425a92193b279f07096c9a3f19500d",
+          "passed": 1,
+          "failed": 0,
+          "skipped": 0,
+          "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~PlanningAndResourcesJourneyTests.PartnerStaffsCalculatesMaterialityReviewsRedRiskAndSeesTheGrid'"
+        },
+        "angularUnitTests": {
+          "status": "PASS",
+          "files": 94,
+          "passed": 482,
+          "failed": 0,
+          "skipped": 0,
+          "command": "npm run test:ci"
+        },
+        "angularProductionBuild": {
+          "status": "PASS_WITH_BUDGET_WARNING",
+          "initialBundle": "506.60 kB; 6.60 kB above the 500 kB warning budget."
+        },
+        "authorizationBoundary": "Reviewer-only grants can read only result-bearing procedure rows and review-note fields from the fieldwork workspace. Planner schedules, client-upload candidates, physical files, program/difference data, and planning controls are omitted. Sampling remains denied by its Application command authorization.",
+        "efModelDrift": "Application projection code changed, but no EF entity/model changed; pending-model-changes was not rerun.",
+        "fullSolutionRegression": "NOT_RUN at code commit efdc0738; latest complete PostgreSQL-backed Release suite is 1001/1001 at ead85032de2ccc4d4c8043398fa8471d395376a9.",
+        "openGaps": [
+          "AcceptanceChecklistPanel remains unanalyzed.",
+          "Full role/scope, validation, stale-input, failure and retry/recovery parity remains open for the reviewed pages and panels."
+        ]
+      },
+      "coverage": "The scoped plan journey exercises the canonical engagement route and legacy /app/audit/plans/{Id} alias, sibling-scope denial/clearing and recovery. The six page and two panel rows now have hash-checked partial reviews. Focused journeys additionally cover worker-delivered upload and the fieldwork review-note role boundary, plus suppression of materiality self-approval and independent approval. No row is promoted to full parity.",
       "builtInBrowser": "PASS_LOCAL_READ_ONLY: authenticated Development Angular route /ui/app/audit/plans/{id} rendered the audit-plan header, scope-derived navigation and current empty-state counts. No business command was submitted.",
-      "releaseBuild": "PASS: E2E test project and API dependencies compiled in Release during the focused run.",
-      "efModelDrift": "No application, domain or EF model code changed; drift check not rerun for this test-only slice.",
+      "releaseBuild": "PASS: Application, API, Worker and E2E test projects compiled in Release during the focused run.",
+      "efModelDrift": "Application read-projection code changed, but no EF entity/model changed; pending-model-changes was not rerun.",
       "fullSolutionRegression": "NOT_RUN at this code commit. Latest complete PostgreSQL-backed Release solution result remains 1001/1001 (API 191, Domain 660, E2E 150) at ead85032de2ccc4d4c8043398fa8471d395376a9.",
       "sharedWorktreeBoundary": "The unrelated unstaged src/AuditSphereOps.Application/Accounting/ConsolidationOverviewQuery.cs edit was excluded from the code commit.",
       "openGaps": [
-        "AcceptanceChecklistPanel, FieldworkToolsPanel and MaterialityEnginePanel are separate source rows and remain open.",
-        "The full command, role, validation, stale-content, failure and recovery matrix for the six reviewed pages remains open."
+        "AcceptanceChecklistPanel remains unanalyzed.",
+        "The full command, role, validation, stale-content, failure and recovery matrix for the six pages and two reviewed panels remains open."
       ],
       "retirementDecision": "NOT_READY"
     },
@@ -9374,8 +9486,8 @@
     "packageId": "ASP.NET Core API and Angular 22 presentation migration",
     "implementationStatus": "PARTIAL",
     "acceptanceStatus": "PARTIAL",
-    "scope": "Canonical Angular route ownership is in place. AuditSphereOps.Web and its Razor source remain restored as rollback/reference. API.Tests and E2E.Tests use API-only hosts. All 82 removed E2E methods have assertion crosswalks. The source/action register has one parity-verified row, 33 partial rows and 42 unanalyzed rows; 28 supporting files remain open. Focused Angular unit, browser and PostgreSQL-backed E2E evidence is recorded for current slices. Overall migration acceptance and Blazor retirement are NOT_READY.",
-    "nextAction": "Review the next bounded set of unanalyzed source/action rows from the Blazor retirement inventory, implement any verified Angular behavior gaps, and keep mapping direct query/search/count/export/command authorization plus retry/idempotency for AS-PAR-002. Forty-two rows are unanalyzed, 33 remain partial pending complete parity evidence, and 28 supporting files remain open. Keep the Blazor rollback host until behavior parity, production rollback/canary, human assistive-technology/locale acceptance, live Microsoft gates and separate owner acceptance are complete.",
+    "scope": "Canonical Angular route ownership is in place. AuditSphereOps.Web and its Razor source remain restored as rollback/reference. API.Tests and E2E.Tests use API-only hosts. All 82 removed E2E methods have assertion crosswalks. The source/action register has one parity-verified row, 35 partial rows and 40 unanalyzed rows; 28 supporting files remain open. Focused Angular unit, browser and PostgreSQL-backed E2E evidence is recorded for current slices. Overall migration acceptance and Blazor retirement are NOT_READY.",
+    "nextAction": "Review the next bounded set of unanalyzed source/action rows from the Blazor retirement inventory, implement any verified Angular behavior gaps, and keep mapping direct query/search/count/export/command authorization plus retry/idempotency for AS-PAR-002. Forty rows are unanalyzed, 35 remain partial pending complete parity evidence, and 28 supporting files remain open. Keep the Blazor rollback host until behavior parity, production rollback/canary, human assistive-technology/locale acceptance, live Microsoft gates and separate owner acceptance are complete.",
     "branch": "master"
   },
   "localEvidence": [
@@ -10263,13 +10375,18 @@
       "item": "Angular accounting workspace and period-maintenance parity slice (2026-10-05)",
       "status": "LOCAL_VERIFIED",
       "details": "At pushed code commit 5aff633eaf82be3a4ae4299ed11088b3db38fab2, the evidence and mapping/journal/difference queues regained the legacy 10/25/50 page-size choices, defaulting to 25 and resetting to page one after a size change. The added Angular tests and existing unit suite passed 482/482 across 94 files; the production bundle built with a 506.60 kB initial bundle, 6.60 kB over the warning budget. The focused PostgreSQL-backed Release E2E cohort passed 21/21 with zero failures or skips, including reviewed roll-forward creation, separate opening-bridge approval and independent immutable restatement approval. The six source hashes match the pinned inventory and their rows are now PARTIAL: the register has 76 total rows, one parity-verified, 27 partial and 48 unanalyzed; 28 supporting files remain open. Built-in browser reload showed selected page size 25 on the empty authorized Development Mappings queue with no console errors or warnings. No Application, Domain, Infrastructure or EF model code changed; the EF check and complete solution regression were not rerun. The latest full suite remains 1001/1001 at ead85032de2ccc4d4c8043398fa8471d395376a9. A concurrent unstaged ConsolidationOverviewQuery.cs edit was not staged or included. AS-PAR-002 and Blazor retirement remain partial/NOT_READY; production, human, external and owner acceptance remain open."
+    },
+    {
+      "item": "Angular fieldwork reviewer boundary and materiality approval parity slice (2026-10-05)",
+      "status": "LOCAL_VERIFIED",
+      "details": "At pushed code commit efdc0738 (building on 20fb05d8), the reviewer-only fieldwork workspace returns submitted-result procedures and review-note capabilities while excluding planner schedules, upload candidates, physical files and other planning projections; planner commands remain Application-authorized. The focused PostgreSQL-backed Angular browser journey passed 1/1 at efdc0738 in 48s. It covers simulated worker delivery of a client upload, evidence linking, MUS/SYSTEMATIC sampling, physical-file changes, an ad hoc step, reviewer-created notes, preparer response, reviewer resolution, projection redaction, denied Reviewer-only sampling, and preservation of the typed stale-session denial. A materiality journey passed 1/1 at 20fb05d8, confirming the preparer sees no approval controls and a different Manager records approval. Angular unit tests passed 482/482 at 20fb05d8; the production build passed with the existing 6.60 kB initial-bundle budget warning. The source/action register now has 76 rows: one parity-verified, 35 partial and 40 unanalyzed; 28 supporting files remain open. The complete solution and EF pending-model checks were not rerun. The latest full solution pass remains 1001/1001 at ead85032de2ccc4d4c8043398fa8471d395376a9. The concurrent ConsolidationOverviewQuery.cs edit was excluded. Blazor retirement remains NOT_READY."
     }
   ],
   "remainingLocalWork": [
     {
       "item": "AS-PAR-002 — remaining whole-application scope and revocation coverage",
       "status": "PARTIAL",
-      "details": "Verified slices cover firm/client/engagement/group grant scoping; protected details, queues, exports and route reads; revocation denials; stale-content clearing; PBC request/inbox role, recipient, draft, sibling-engagement, cross-client and revocation boundaries; archive/review responsive stale-route cases; an accounting task-owner projection limited to current engagement grants; Angular release-candidate scope, expired-attestation blocking, stale-route clearing and post-revocation hiding; same-client sibling-engagement isolation for workpaper, finding, population and accounting mapping; completion, audit-plan and adopted-fieldwork route clearing/recovery; refresh-time clearing after revocation for workpaper/finding/audit-plan; exact-source human audit conclusions; reviewed fieldwork/workpaper freezing across reload; package, journal, FX-remeasurement, package-review selection recovery and client-management artifact/decision parity; and accounting evidence, period, record-queue, workspace, restatement and roll-forward behavior. All 39 removed ClientScopeJourneyTests, all 13 AuditAndReleaseJourneyTests and all 19 FinancialArtifactJourneyTests methods have assertion crosswalks; the removed-suite E2E method crosswalk is 82/82. AS-PAR-002 remains partial: 42 source/action rows are wholly unanalyzed, 33 rows have partial reviews but still need complete assertion-level authorization and recovery crosswalks, 28 supporting files remain open, and retry/idempotency checks plus corresponding HTTP/browser positive-negative assertions remain open. Full AS-PAR-002 acceptance remains open."
+      "details": "Verified slices cover firm/client/engagement/group grant scoping; protected details, queues, exports and route reads; revocation denials; stale-content clearing; PBC request/inbox role, recipient, draft, sibling-engagement, cross-client and revocation boundaries; archive/review responsive stale-route cases; an accounting task-owner projection limited to current engagement grants; Angular release-candidate scope, expired-attestation blocking, stale-route clearing and post-revocation hiding; same-client sibling-engagement isolation for workpaper, finding, population and accounting mapping; completion, audit-plan and adopted-fieldwork route clearing/recovery; reviewer-only fieldwork data redaction and command denial; materiality self-approval suppression; refresh-time clearing after revocation for workpaper/finding/audit-plan; exact-source human audit conclusions; reviewed fieldwork/workpaper freezing across reload; package, journal, FX-remeasurement, package-review selection recovery and client-management artifact/decision parity; and accounting evidence, period, record-queue, workspace, restatement and roll-forward behavior. All 39 removed ClientScopeJourneyTests, all 13 AuditAndReleaseJourneyTests and all 19 FinancialArtifactJourneyTests methods have assertion crosswalks; the removed-suite E2E method crosswalk is 82/82. AS-PAR-002 remains partial: 40 source/action rows are wholly unanalyzed, 35 rows have partial reviews but still need complete assertion-level authorization and recovery crosswalks, 28 supporting files remain open, and retry/idempotency checks plus corresponding HTTP/browser positive-negative assertions remain open. Full AS-PAR-002 acceptance remains open."
     },
     {
       "item": "AS-PAR-009 — Pricing review, evidence-bound dispatch and client response",
@@ -10279,7 +10396,7 @@
     {
       "item": "ASP.NET Core API and Angular 22 migration",
       "status": "PARTIAL",
-      "details": "Native API and Angular capability routes, financial review/evidence actions, and scoped portfolio/client/contact/engagement projections have local verification. Canonical Angular route ownership is active. AuditSphereOps.Web and its Razor source remain restored as rollback/reference; API.Tests and E2E.Tests use API-only hosts. The latest complete PostgreSQL-backed Release solution regression is 1001/1001 (API 191/191, Domain 660/660, E2E 150/150) at ead85032de2ccc4d4c8043398fa8471d395376a9 and predates the current focused code/UI slices. The current accounting slice separately passed 482/482 Angular unit tests and 21/21 focused PostgreSQL-backed Release E2E tests; the audit-plan alias journey passed 1/1 in the focused PostgreSQL-backed Release run; the complete solution was not rerun. Current-source journeys map all 82/82 removed E2E methods, including all 39 ClientScope, all 13 AuditAndRelease and all 19 FinancialArtifact methods. Also open: 42 unanalyzed source/action rows, 33 partially reviewed rows awaiting full parity evidence, 28 supporting files, direct query/search/count/export/command retry/idempotency authorization, broader planning parity, production-like rollback/canary, screen-reader/wider-locale acceptance, live Microsoft gates and separate owner acceptance. Blazor retirement remains NOT_READY."
+      "details": "Native API and Angular capability routes, financial review/evidence actions, and scoped portfolio/client/contact/engagement projections have local verification. Canonical Angular route ownership is active. AuditSphereOps.Web and its Razor source remain restored as rollback/reference; API.Tests and E2E.Tests use API-only hosts. The latest complete PostgreSQL-backed Release solution regression is 1001/1001 (API 191/191, Domain 660/660, E2E 150/150) at ead85032de2ccc4d4c8043398fa8471d395376a9 and predates the current focused code/UI slices. The fieldwork/materiality follow-on passed 482/482 Angular unit tests and two focused PostgreSQL-backed Release browser journeys; the complete solution was not rerun. Current-source journeys map all 82/82 removed E2E methods, including all 39 ClientScope, all 13 AuditAndRelease and all 19 FinancialArtifact methods. Also open: 40 unanalyzed source/action rows, 35 partially reviewed rows awaiting full parity evidence, 28 supporting files, direct query/search/count/export/command retry/idempotency authorization, broader planning parity, production-like rollback/canary, screen-reader/wider-locale acceptance, live Microsoft gates and separate owner acceptance. Blazor retirement remains NOT_READY."
     }
   ],
   "externalGates": [
