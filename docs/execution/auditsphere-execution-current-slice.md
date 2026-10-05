@@ -15,6 +15,22 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: Global Search API authorization parity
+
+Added a direct API-host PostgreSQL browser journey for `GET /api/ui/search`.
+It verifies an assigned Staff identity can find its client, while exact
+sibling-client and foreign-firm markers return no hits and no `truncated`
+count. Client identities receive 403; after client-grant revocation the API
+returns no results; after session-epoch change the same cookie receives 401.
+The direct API journey passed 1/1, the full Global Search browser class passed
+2/2, and `GlobalSearchQueryTests` passed 10/10. The Global Search source row
+remains `PARTIAL`; all result-kind, full role/scope, query/error and
+assistive-technology matrices remain open. No EF model changed. The full
+solution regression was not rerun; the latest remains 1001/1001 at `ead85032`.
+The test is pushed to master as `6c0b0f49`; Blazor retirement remains
+`NOT_READY`. See the [shell, search, portfolio and profiles source
+review](../migration/auditsphere-migration-blazor-shell-portfolio-source-review.md).
+
 ## Current follow-on slice: Acceptance checklist workspace and role parity
 
 Added a PostgreSQL-backed API-host browser journey for the Angular acceptance
