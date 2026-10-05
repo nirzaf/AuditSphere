@@ -15,6 +15,28 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: reduce the Angular shell's initial bundle
+
+The root shell no longer imports the Material toolbar and button modules. The
+compact workspace-navigation Material dialog is loaded only when requested, and
+the route deactivation guards are split from their dialog components. This keeps
+the existing keyboard, focus, resize, route-change and session-revocation
+behavior while removing unused Material/CDK dialog and button chunks from the
+initial dependency graph.
+
+The production Angular build now reports a 349.67 kB raw initial bundle (94.01
+kB estimated transfer), down from 506.60 kB and below the 500 kB warning
+budget. All 488 Angular unit tests and three focused PostgreSQL-backed
+Playwright cases passed. The built-in browser loaded the API-host Commercial
+Settings page read-only after the rebuild. The 7.53 kB Commercial Settings
+component stylesheet still exceeds its 4 kB component-style warning budget;
+this keeps US-043 partial. No .NET or EF model code changed, and the full
+solution regression and pending-model check were not rerun. This slice does not
+change the migration's `NOT_READY` retirement decision: source/action reviews,
+production/canary, human accessibility, live Microsoft, and owner acceptance
+gates remain open. Exact evidence and commands are recorded in
+[`status.json`](status.json).
+
 ## Current follow-on slice: Angular workpaper save-outcome recovery
 
 The Workpaper editor now treats a timeout or server error after a draft save as

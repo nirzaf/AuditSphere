@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "f9af0d2a3050fbdbc8a09f835a1f66e0c723496f",
+  "headCommit": "bf8c0d2082c061de6b818c866b2f1dc0770cd706",
   "verifiedCommit": "ead85032de2ccc4d4c8043398fa8471d395376a9",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -18,6 +18,40 @@
     "postgres": "18.6 loopback development profile"
   },
   "verification": {
+    "angularShellInitialBundleSplit": {
+      "sourceCommit": "bf8c0d2082c061de6b818c866b2f1dc0770cd706",
+      "observedAt": "2026-10-05T17:34:50Z",
+      "status": "PASS_LOCAL_SLICE",
+      "caseId": "AS-PERF-043-ANGULAR-SHELL-LAZY-MATERIAL-01",
+      "angularProductionBuild": {
+        "status": "PASS_WITH_COMPONENT_STYLE_WARNING",
+        "initialBundle": "349.67 kB raw and 94.01 kB estimated transfer, below the 500 kB initial warning budget; no initial-bundle warning.",
+        "before": "506.60 kB raw at source commit f9af0d2a3050fbdbc8a09f835a1f66e0c723496f.",
+        "remainingWarning": "Commercial settings component stylesheet is 7.53 kB against the 4 kB component-style warning budget."
+      },
+      "angularUnitTests": {
+        "status": "PASS",
+        "files": 94,
+        "passed": 488,
+        "failed": 0,
+        "skipped": 0,
+        "command": "npm --prefix src/AuditSphereOps.Ui run test:ci"
+      },
+      "focusedPostgresPlaywright": {
+        "status": "PASS",
+        "passed": 3,
+        "failed": 0,
+        "skipped": 0,
+        "duration": "1m12s",
+        "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~AngularShellNavigationJourneyTests|FullyQualifiedName~AngularNestedOverlayAcceptanceTests'"
+      },
+      "coverage": "The initial shell no longer imports Material toolbar/button modules. Workspace navigation's Material dialog launcher is dynamically loaded on request, and route deactivation guards are split from their Material dialog components. Existing focused journeys verify keyboard focus, Escape, route focus, responsive resize, staff/client navigation boundaries, session revocation and nested overlay behavior.",
+      "builtInBrowser": "PASS_LOCAL_READ_ONLY: the API-host Commercial Settings route rendered after the production Angular rebuild; no settings were changed. The focused browser tests exercised the responsive navigation and dialog flows.",
+      "scope": "Angular presentation only; no API, Application, Domain, Infrastructure, EF model or database schema changes.",
+      "fullSolutionRegression": "NOT_RUN for this slice; the latest complete PostgreSQL-backed Release solution result remains 1001/1001 at ead85032de2ccc4d4c8043398fa8471d395376a9.",
+      "efModelDrift": "NOT_RUN; no model code changed.",
+      "retirementDecision": "NOT_READY"
+    },
     "angularWorkpaperSaveRecovery": {
       "sourceCommit": "f9af0d2a3050fbdbc8a09f835a1f66e0c723496f",
       "observedAt": "2026-10-05T17:12:45Z",
