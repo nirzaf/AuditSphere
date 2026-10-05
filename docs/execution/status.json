@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "e82c3d2b5626eeddf8759b1dabf621a0852d59ff",
+  "headCommit": "fc87cc66c2fdee76dc0357d49f586414acf84923",
   "verifiedCommit": "ead85032de2ccc4d4c8043398fa8471d395376a9",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -8919,6 +8919,46 @@
         ]
       },
       "retirementDecision": "NOT_READY"
+    },
+    "angularAuditDetailRouteParity": {
+      "sourceCommit": "fc87cc66c2fdee76dc0357d49f586414acf84923",
+      "observedAt": "2026-10-05T10:20:41Z",
+      "status": "PASS_LOCAL_SLICE",
+      "caseId": "AS-PAR-002-ANGULAR-AUDIT-DETAIL-01",
+      "replacementTests": [
+        "AngularClientScopeAuditDetailJourneyTests.AuditDetailRoutesClearSiblingAndRevokedContentInTheSameDocument"
+      ],
+      "legacyMethodsMappedThisSlice": [
+        "AuditAndReleaseJourneyTests.WorkpaperClearsPriorWorkpaperWhenRouteChangesInPlace",
+        "AuditAndReleaseJourneyTests.FindingClearsPriorFindingWhenRouteChangesInPlace",
+        "AuditAndReleaseJourneyTests.AuditPopulationClearsPriorPopulationWhenRouteChangesInPlace"
+      ],
+      "focusedPostgresPlaywright": {
+        "status": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "duration": "37s",
+        "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~AngularClientScopeAuditDetailJourneyTests'"
+      },
+      "coverage": "The API-host Angular journey reads exact workpaper, finding and population records, including a frozen workpaper submission, management response, population sample rationale and reviewed item-test count. Each route is checked against a separate sibling client, a same-client sibling engagement where applicable, and a guessed ID. Denial clears prior and target private markers, guessed-ID and sibling-client denial states normalize identically, and authorized return preserves the document. All five detail routes retain six viewport checks and keyboard focus checks. Existing archive/review mutation and grant-revocation assertions remain in the journey.",
+      "database": "Isolated PostgreSQL; synthetic own-client, sibling-client and unassigned sibling-engagement records and grants.",
+      "changedApplicationOrModel": false,
+      "releaseBuild": "PASS: E2E test project and API dependencies compiled in Release during the focused run.",
+      "efModelDrift": "No entity or model changed; EF drift check not rerun for this test-only slice.",
+      "fullSolutionRegression": "NOT_RUN at this source commit. Latest complete PostgreSQL-backed Release solution result remains 1001/1001 (API 191, Domain 660, E2E 150) at ead85032de2ccc4d4c8043398fa8471d395376a9.",
+      "builtInBrowser": "NOT_RUN separately; this test-only change exercises the Angular UI in Playwright against the owned API host.",
+      "sharedWorktreeBoundary": "The concurrent unstaged src/AuditSphereOps.Application/Accounting/ConsolidationOverviewQuery.cs edit was excluded from the test commit.",
+      "removedE2eMethodCrosswalk": {
+        "total": 82,
+        "mapped": 55,
+        "remaining": 27,
+        "remainingSuites": [
+          "AuditAndReleaseJourneyTests (8)",
+          "FinancialArtifactJourneyTests (19)"
+        ]
+      },
+      "retirementDecision": "NOT_READY"
     }
   },
   "documentationWork": {
@@ -9025,8 +9065,8 @@
     "packageId": "ASP.NET Core API and Angular 22 presentation migration",
     "implementationStatus": "PARTIAL",
     "acceptanceStatus": "PARTIAL",
-    "scope": "Canonical Angular route ownership is in place. AuditSphereOps.Web and its Razor source remain restored as rollback/reference. API.Tests and E2E.Tests use API-only hosts. Focused current-source journeys cover 52 of 82 removed E2E methods, including all 39 ClientScopeJourneyTests methods and two release-safety methods; 30 methods remain across AuditAndReleaseJourneyTests (11) and FinancialArtifactJourneyTests (19). Fifteen source/action rows are partially reviewed, one is parity verified, 60 remain unanalyzed and 28 supporting files remain open. Overall migration acceptance and Blazor retirement are NOT_READY.",
-    "nextAction": "Continue assertion-level review of the 30 remaining methods in AuditAndReleaseJourneyTests and FinancialArtifactJourneyTests. Close eligible Angular/API behavior gaps, then review the 60 unanalyzed source/action rows and 28 supporting files. Keep the Blazor rollback host until behavior parity, production rollback/canary, human assistive-technology/locale acceptance, live Microsoft gates, and separate owner acceptance are complete.",
+    "scope": "Canonical Angular route ownership is in place. AuditSphereOps.Web and its Razor source remain restored as rollback/reference. API.Tests and E2E.Tests use API-only hosts. Focused current-source journeys cover 55 of 82 removed E2E methods, including all 39 ClientScopeJourneyTests methods and five audit/release methods; 27 methods remain across AuditAndReleaseJourneyTests (8) and FinancialArtifactJourneyTests (19). Fifteen source/action rows are partially reviewed, one is parity verified, 60 remain unanalyzed and 28 supporting files remain open. Overall migration acceptance and Blazor retirement are NOT_READY.",
+    "nextAction": "Continue assertion-level review of the eight remaining AuditAndReleaseJourneyTests methods and 19 FinancialArtifactJourneyTests methods. Close eligible Angular/API behavior gaps, then review the 60 unanalyzed source/action rows and 28 supporting files. Keep the Blazor rollback host until behavior parity, production rollback/canary, human assistive-technology/locale acceptance, live Microsoft gates, and separate owner acceptance are complete.",
     "branch": "master"
   },
   "localEvidence": [
@@ -9910,7 +9950,7 @@
     {
       "item": "AS-PAR-002 — remaining whole-application scope and revocation coverage",
       "status": "PARTIAL",
-      "details": "Verified slices cover firm/client/engagement/group grant scoping; protected details, queues, exports and route reads; revocation denials; stale-content clearing; PBC request/inbox role, recipient, draft, sibling-engagement, cross-client and revocation boundaries; archive/review responsive stale-route cases; an accounting task-owner projection limited to current engagement grants; and Angular release-candidate scope, expired-attestation blocking, stale-route clearing and post-revocation hiding. All 39 removed ClientScopeJourneyTests methods now have assertion crosswalks. The aggregate removed-suite crosswalk is 52/82, with 30 methods still open across AuditAndReleaseJourneyTests (11) and FinancialArtifactJourneyTests (19). AS-PAR-002 still requires the remaining route/query/search/count/export/direct-command audit, stale-content review on other pages, mutation retry/idempotency checks and corresponding HTTP/browser positive-negative assertions. Full AS-PAR-002 acceptance remains open."
+      "details": "Verified slices cover firm/client/engagement/group grant scoping; protected details, queues, exports and route reads; revocation denials; stale-content clearing; PBC request/inbox role, recipient, draft, sibling-engagement, cross-client and revocation boundaries; archive/review responsive stale-route cases; an accounting task-owner projection limited to current engagement grants; and Angular release-candidate scope, expired-attestation blocking, stale-route clearing, post-revocation hiding, plus same-client sibling-engagement isolation for workpaper, finding and population routes. All 39 removed ClientScopeJourneyTests methods now have assertion crosswalks. The aggregate removed-suite crosswalk is 55/82, with 27 methods still open across AuditAndReleaseJourneyTests (8) and FinancialArtifactJourneyTests (19). AS-PAR-002 still requires the remaining route/query/search/count/export/direct-command audit, stale-content review on other pages, mutation retry/idempotency checks and corresponding HTTP/browser positive-negative assertions. Full AS-PAR-002 acceptance remains open."
     },
     {
       "item": "AS-PAR-009 — Pricing review, evidence-bound dispatch and client response",
@@ -9920,7 +9960,7 @@
     {
       "item": "ASP.NET Core API and Angular 22 migration",
       "status": "PARTIAL",
-      "details": "Native API and Angular capability routes, financial review/evidence actions, and scoped portfolio/client/contact/engagement projections have local verification. Canonical Angular route ownership is active. AuditSphereOps.Web and its Razor source remain restored as rollback/reference; API.Tests and E2E.Tests use API-only hosts. The latest complete PostgreSQL-backed Release solution regression is 1001/1001 (API 191/191, Domain 660/660, E2E 150/150) at ead85032de2ccc4d4c8043398fa8471d395376a9 and predates the current focused slices. Current-source journeys cover 52 of 82 removed E2E methods, including all 39 ClientScope methods and two release-safety methods; 30 methods remain across two suites. Also open: 60 unanalyzed source/action rows, 28 supporting files, broader planning parity, production-like rollback/canary, screen-reader/wider-locale acceptance, live Microsoft gates, and separate owner acceptance. Blazor retirement remains NOT_READY."
+      "details": "Native API and Angular capability routes, financial review/evidence actions, and scoped portfolio/client/contact/engagement projections have local verification. Canonical Angular route ownership is active. AuditSphereOps.Web and its Razor source remain restored as rollback/reference; API.Tests and E2E.Tests use API-only hosts. The latest complete PostgreSQL-backed Release solution regression is 1001/1001 (API 191/191, Domain 660/660, E2E 150/150) at ead85032de2ccc4d4c8043398fa8471d395376a9 and predates the current focused slices. Current-source journeys cover 55 of 82 removed E2E methods, including all 39 ClientScope methods and five audit/release methods; 27 methods remain across two suites. Also open: 60 unanalyzed source/action rows, 28 supporting files, broader planning parity, production-like rollback/canary, screen-reader/wider-locale acceptance, live Microsoft gates, and separate owner acceptance. Blazor retirement remains NOT_READY."
     }
   ],
   "externalGates": [

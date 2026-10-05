@@ -10,6 +10,7 @@ Exact run counts, commits, logs, and external-gate evidence belong in [`docs/exe
 |---|---|---|---|
 | `AngularRoutingContractTests` | API deep-link declarations match Angular route declarations; runtime Angular links avoid legacy workbench paths; non-server-owned legacy workspace paths have a native owner | Screen actions, form parity, backend authorization for each capability, error/recovery parity | Route ownership only |
 | `AngularResourcePlanningJourneyTests` | Resource planning page is exercised through the API host in canonical and `/ui` modes; a reviewed allocation rejects a stale concurrent change and recovery reloads persisted state | Full staffing, certification, availability, budget, role/scope and all failure-state parity | Focused slice only |
+| `AngularClientScopeAuditDetailJourneyTests` | API-host Angular workpaper, finding and population routes are checked against a sibling client and same-client sibling engagement; guessed IDs clear data; authorized content returns in the same document. The seeded views include a frozen submission, management response and reviewed population sample. Six viewport widths and keyboard focus are checked across the detail routes. | Other audit actions, every revoked-user reload/refresh case, and full audit/release workflow parity | Three removed `AuditAndReleaseJourneyTests` methods mapped; suite remains open. |
 | `AngularReleaseParityJourneyTests` | API-host Angular release detail verifies exact engagement access, sibling-scope and guessed-ID denial, expired protection blocking, no-release persistence, same-document stale-state clearing and recovery, six viewport widths, keyboard focus, and clearing after revoked-grant reload. | Other release/signature/records behaviors and production provider acceptance | Two removed release methods mapped; remaining suite parity stays open. |
 | `AngularAssessmentDecisionRouteJourneyTests`, `AngularClientScopeEngagementParityJourneyTests`, plus `AcceptanceChecklistTests.Receipts` | Exact legacy assessment-decision deep link in canonical and `/ui` modes; scoped Partner access and unrelated-client Manager denial with no profile disclosure; Partner preview/assent; decision-specific authority revocation; lost-response reload/reconciliation and one-dispatch receipt. | Other acceptance sources, other actions, and whole-family parity | `PARITY_VERIFIED` for `AssessmentDecision.razor` only; the remaining acceptance family stays open. Detailed results are in `status.json`. |
 | Former `TenantAdministrationJourneyTests` cases M365-ADMIN-E2E-01..05 | `AngularTenantConnectionJourneyTests` covers consent identity, four independently verified capabilities, responsive tenant/dashboard views, exact directory binding, reviewed client-scoped RoleGrant assignment and revocation evidence. `AngularTenantOperationsJourneyTests` covers one-time-password handling, unknown-outcome reconciliation, client-scoped guest invitation and guest portal restriction, plus reviewed managed-group add/remove and a NOT_GRANTED blocker. `AngularAdministrationJourneyTests` retains local role/scope review and session invalidation. | This replaces those five stale Blazor-selector journeys only; the two remaining removed suites and the source-action inventory still need their own assertion crosswalks. | Focused API/Angular replacement set; exact current run is recorded in `status.json`. |
@@ -126,14 +127,15 @@ navigation preserves the document while clearing protected content.
 | `ReviewPointClearsPriorPointOnSameDocumentIdChange` | The journey checks that an authorized significant review point shows its open completion-blocker state, then covers six viewport widths and keyboard focus. Sibling and random point IDs clear both comments, review context and the action; the authorized route restores its content without replacing the document. | Covered for blocker state, responsive layout, focus, stale-content clearing and recovery. |
 | `ReviewPointClearsProtectedStateWhenCurrentGrantIsRevoked` | After grant revocation, the review disposition command is refused and the point remains open. The two already-open Angular pages clear the comment, blocking state, and action controls; the test records no browser page errors. | Covered. |
 
-The original focused case passed 1/1 in 33 seconds at `cf609420`; after the
-archive/review summary, responsive and focus assertions were added, the current
-focused case passed 1/1 in 37 seconds at test commit `6e48c977`. The Release
-solution build and EF no-drift check were recorded at the original slice; the
-current change is test-only. The shared worktree had an unrelated unstaged
-edit to `ConsolidationOverviewQuery.cs`; it was not included in the commit.
-These archive and review-point methods are now mapped, alongside the other
-five rows above.
+The latest focused PostgreSQL-backed case passed 1/1 in 37 seconds at test
+commit `fc87cc66`. The same-client sibling-engagement, responsive and keyboard
+checks now apply to workpaper, finding and population details as well as archive
+and review. The test retains the review disposition and two-open-page
+revocation assertions. The Release solution build and EF no-drift check were
+recorded at the earlier source slice; this update is test-only. The shared
+worktree had an unrelated unstaged edit to `ConsolidationOverviewQuery.cs`; it
+was not included in the commit. The five ClientScope methods listed above
+remain mapped.
 
 ## Removed `ClientScopeJourneyTests` client-profile method crosswalk
 
@@ -293,11 +295,32 @@ remain: 11 in `AuditAndReleaseJourneyTests` and 19 in
 `FinancialArtifactJourneyTests`. Exact run and commit evidence is in
 `docs/execution/status.json`. Blazor retirement remains `NOT_READY`.
 
+## Removed `AuditAndReleaseJourneyTests` audit-detail route crosswalk
+
+At test commit `fc87cc66`,
+`AngularClientScopeAuditDetailJourneyTests.AuditDetailRoutesClearSiblingAndRevokedContentInTheSameDocument`
+maps three legacy detail-route journeys through the API-host Angular UI and
+isolated PostgreSQL records.
+
+| Removed legacy method | Angular assertion replacement | Disposition |
+|---|---|---|
+| `WorkpaperClearsPriorWorkpaperWhenRouteChangesInPlace` | The exact Staff grant reads workpaper objective, procedure, title and frozen submission. In the same document, a sibling-client ID and an unassigned same-client sibling-engagement ID clear all protected workpaper content; a guessed ID matches the generic sibling-client denial. The route is checked at six widths with keyboard focus, and the authorized route restores its data. | Covered for the scoped detail, stale-route denial, recovery and responsive/focus assertions. |
+| `FindingClearsPriorFindingWhenRouteChangesInPlace` | The API `GET /api/ui/findings/{id}` displays the finding impact and management response only for the authorized engagement. Sibling-client, sibling-engagement and guessed IDs clear prior content; returning to the authorized ID restores the finding. Six viewport widths and keyboard focus are checked. | Covered for the detail state and tested scope boundaries. Other finding commands remain open. |
+| `AuditPopulationClearsPriorPopulationWhenRouteChangesInPlace` | The API `GET /api/ui/audit/populations/{id}` displays the 12,000-row population, QAR control total, extraction parameters, sample rationale and one reviewed item test. Sibling-client and same-client sibling-engagement IDs clear the rows, amount, receipt and rationale; the authorized record returns without a document reload. Six viewport widths and keyboard focus are checked. | Covered for population detail, reviewed sample summary, stale-state clearing and recovery. Other audit sampling mutations remain open. |
+
+This adds three mappings to the two release-method mappings above. The
+crosswalk now covers 55/82 removed E2E methods, including all 39
+`ClientScopeJourneyTests` methods and five `AuditAndReleaseJourneyTests`
+methods. Twenty-seven remain: eight in `AuditAndReleaseJourneyTests` and 19 in
+`FinancialArtifactJourneyTests`. Exact run and full-suite boundaries are
+recorded in `docs/execution/status.json`; Blazor retirement remains
+`NOT_READY`.
+
 ## Migration test gaps that keep retirement unaccepted
 
 - The committed API.Tests and E2E.Tests projects reference `AuditSphereOps.Api` directly and do not reference `AuditSphereOps.Web`; the Web project remains in the solution as a rollback/reference host. This establishes a project boundary only.
 - `AngularLegacyRouteInventoryContractTests` checks the committed discovery snapshot for route ownership. `AngularRoutingContractTests` scans the restored Web source and checks link/route ownership; neither is feature parity.
-- Commit `8ea3ef01` removed nine legacy E2E suites: `AuditAndReleaseJourneyTests`, `ClientScopeJourneyTests`, `FinancialArtifactJourneyTests`, `InvoiceScopeJourneyTests`, `M365SetupJourneyTests`, `PbcUploadJourneyTests`, `PracticeBillingLedgerJourneyTests`, `ResponsiveShellSweepTests`, and `RouteRenderSmokeTests`. The PBC upload and invoice-scope methods, both M365 setup methods, both responsive-shell methods, the route-render method, all four PracticeBillingLedger methods, all 39 `ClientScopeJourneyTests` methods, and two release-safety methods from `AuditAndReleaseJourneyTests` now have assertion-level replacement maps. Thirty methods remain open: 11 in `AuditAndReleaseJourneyTests` and 19 in `FinancialArtifactJourneyTests`; exact totals and evidence attribution belong in `status.json`.
+- Commit `8ea3ef01` removed nine legacy E2E suites: `AuditAndReleaseJourneyTests`, `ClientScopeJourneyTests`, `FinancialArtifactJourneyTests`, `InvoiceScopeJourneyTests`, `M365SetupJourneyTests`, `PbcUploadJourneyTests`, `PracticeBillingLedgerJourneyTests`, `ResponsiveShellSweepTests`, and `RouteRenderSmokeTests`. The PBC upload and invoice-scope methods, both M365 setup methods, both responsive-shell methods, the route-render method, all four PracticeBillingLedger methods, all 39 `ClientScopeJourneyTests` methods, and five release/detail methods from `AuditAndReleaseJourneyTests` now have assertion-level replacement maps. Twenty-seven methods remain open: eight in `AuditAndReleaseJourneyTests` and 19 in `FinancialArtifactJourneyTests`; exact totals and evidence attribution belong in `status.json`.
 - Focused API-only role and browser journeys pass for selected sources; the API-only E2E host conversion is committed, and the recorded full regression passed locally at its attributed commit. The removed-suite replacement crosswalk remains open until the remaining assertions are mapped. Its state is tracked in `docs/execution/status.json`.
 - Existing test crosswalk rows are candidate relationships until the host and assertions have been checked. A shared test file or reused fixture is not itself a replacement test. Aggregate mapped and remaining method counts belong in `status.json`.
 

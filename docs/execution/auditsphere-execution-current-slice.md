@@ -15,7 +15,34 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
-## Current follow-on slice: Angular release safety parity
+## Current follow-on slice: Angular audit-detail route parity
+
+At API-host test commit `fc87cc66`,
+`AngularClientScopeAuditDetailJourneyTests.AuditDetailRoutesClearSiblingAndRevokedContentInTheSameDocument`
+adds same-client sibling-engagement targets for the workpaper, finding and
+population details. The Angular route journey retains sibling-client and
+guessed-ID checks, then proves protected values clear on denial and reload on
+authorized return. It now checks all six viewport widths and keyboard focus on
+the workpaper, finding, population, archive and review routes. The population
+fixture includes a reviewed item test and sample rationale; the workpaper has a
+frozen submission and the finding has a recorded management response.
+
+The focused PostgreSQL-backed Release E2E run passed 1/1 with no failures or
+skips in 37 seconds. The E2E project and API dependencies compiled in Release.
+This is test-only; no Application or EF model code changed. It maps three
+removed `AuditAndReleaseJourneyTests` methods. The removed-method crosswalk now
+covers 55/82 methods, including all 39 `ClientScopeJourneyTests` methods and
+five audit/release methods. Twenty-seven methods remain: eight in
+`AuditAndReleaseJourneyTests` and 19 in `FinancialArtifactJourneyTests`. The
+latest complete PostgreSQL-backed Release solution result remains 1001/1001 at
+`ead85032`, before this focused test. Sixty source/action rows and 28
+supporting files remain unanalyzed. AS-PAR-002 stays partial and Blazor
+retirement stays `NOT_READY`; production canary, human assistive-technology
+review, live Microsoft gates and separate owner acceptance remain open. Exact
+evidence is in [`status.json`](status.json) and the [test parity
+register](../migration/auditsphere-migration-blazor-test-parity.md).
+
+## Previous follow-on slice: Angular release safety parity
 
 At API-host test commit `e82c3d2b`,
 `AngularReleaseParityJourneyTests.ExpiredProtectionBlocksIssueAndReleaseDetailsClearOnScopeChangeAndRevocation`
