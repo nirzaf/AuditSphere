@@ -114,6 +114,7 @@ export class UserAccess {
     } catch (e) {
       if (generation !== this.session.invalidation()) return;
       this.inviteFailed.set(true); this.inviteMessage.set(e instanceof Error ? e.message : 'The invitation link could not be loaded. Refresh and try again.');
+      this.ws.reload();
     } finally { this.copying.set(false); }
   }
   readonly roster = inject(FormBuilder).nonNullable.group({

@@ -76,13 +76,14 @@ public static class UserAccessWorkspaceQuery
         observation.EnabledState == "DISABLED" ? "DISABLED" :
         observation.ObservedAt < now - DirectoryStaleAfter ? "STALE" : observation.EnabledState;
       var invitation = invitations.Where(x => x.UserId == user.Id).OrderByDescending(x => x.CreatedAt).FirstOrDefault();
+      var invitationGrantActive = invitation is not null && active.Any(x => x.GrantId == invitation.RoleGrantId);
       return new UserAccessRow(user.Id, user.DisplayName, user.Email, user.TenantId, user.Subject,
         user.UserKind == "Client" ? $"Client ({observation?.UserType ?? "Guest"})" : $"Staff ({observation?.UserType ?? "Member"})",
         directory,
         user.Disabled ? "DISABLED" : active.Count == 0 ? "NO_ACCESS" : "ACTIVE",
         active,
-        invitation is null ? null : invitation.FirstAccessAt is not null ? null : invitation.Id,
-        invitation is null ? "NONE" : invitation.FirstAccessAt is not null ? "ACCEPTED" : invitation.DeliveryState,
+        invitation is null || invitation.FirstAccessAt is not null || !invitationGrantActive ? null : invitation.Id,
+        invitation is null ? "NONE" : invitation.FirstAccessAt is not null ? "ACCEPTED" : invitationGrantActive ? invitation.DeliveryState : "REVOKED",
         observation?.ObservedAt, user.LastSignInAt,
         user.CreatedByUserId is { } creator ? Name(creator) : "Bootstrap / roster", user.CreatedAt);
     }

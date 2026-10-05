@@ -173,6 +173,26 @@ the built-in browser showed the Development identity's safe no-group-access
 state and a visible keyboard focus ring. The latest complete solution run and
 the aggregate open-method count remain attributed in `status.json`.
 
+## Removed `ClientScopeJourneyTests` firm-wide revocation crosswalk
+
+The API-host Angular/PostgreSQL journey covers the legacy firm-wide
+administration and workspace refresh cases. It also fixed the stale
+invitation-copy control by projecting only invitations whose linked access
+grant remains active.
+
+| Legacy method | Replacement evidence | Disposition |
+|---|---|---|
+| `FirmAdministrationRejectsClientIdentityWithErroneousAdminGrant` | `AngularFirmScopeRevocationParityJourneyTests.ErroneousClientAdministratorGrantIsDeniedAndRevocationClearsNativeWorkspaces` gives a Client identity an erroneous firm-wide Administrator grant, verifies the browser remains in the client portal, and confirms the administration overview and Users & Access APIs both return 403 without exposing the identity or administrator workspace. | Covered for the forged client grant, route classification, API denial and disclosure checks. |
+| `FirmAdministrationRefreshClearsDirectoryAfterAdminGrantRevocation` | The same journey searches a local identity, confirms a copy invitation action, revokes the invitation's role grant, retries the copy action and verifies no clipboard write occurs, the server returns 403, and the refreshed access projection removes the stale copy control. It then revokes the open administrator's grant and verifies the Users & Access page clears after refresh while its document token remains. | Covered for invitation grant revalidation, stale-control clearing and administrator-session revocation. |
+| `OperationsRefreshClearsLedgerAfterAdminGrantRevocation` | The journey reads a private durable operation, confirms `LOCAL_ONLY` mode and the attention count, checks the six viewport widths and visible keyboard focus, then revokes Administrator access and verifies the open Operations page clears after refresh while its document token remains. | Covered for authorized operation details, recovery-state summary, responsiveness, keyboard focus and post-revocation clearing. |
+| `PracticeLeadsRefreshClearsCommercialRowsAfterGrantRevocation` | The journey reads a marker-named firm-wide lead, revokes the RelationshipManager grant, refreshes the open route, and verifies the lead is absent while the document token remains. | Covered for current-grant revalidation and stale commercial-row clearing. |
+| `FirmFinanceRefreshClearsLedgerAfterGrantRevocation` | The journey reads a marker-named firm account, revokes the FinanceReviewer grant, refreshes the open route, and verifies the account is absent while the document token remains. | Covered for current-grant revalidation and stale finance-row clearing. |
+
+The focused browser journey, Angular unit suite and Release solution build
+passed; EF reported no pending model changes. A complete solution regression
+is running on the shared worktree; its result and attribution will be recorded
+in `status.json`.
+
 ## Migration test gaps that keep retirement unaccepted
 
 - The committed API.Tests and E2E.Tests projects reference `AuditSphereOps.Api` directly and do not reference `AuditSphereOps.Web`; the Web project remains in the solution as a rollback/reference host. This establishes a project boundary only.

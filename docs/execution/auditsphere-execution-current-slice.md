@@ -15,6 +15,36 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: firm administration and workspace revocation
+
+`AngularFirmScopeRevocationParityJourneyTests` covers the firm-administration
+and current-access boundaries from five removed `ClientScopeJourneyTests`
+methods. A Client identity carrying an erroneous firm-wide Administrator grant
+is sent to the client portal; both administration overview and user-access
+API reads are denied. The administrator browser journey verifies that a
+revoked invitation grant cannot copy a link and that the stale copy control is
+removed after the access projection refreshes. Revoking the open
+Administrator, RelationshipManager or FinanceReviewer grants clears private
+content from the already-open Users & Access, Operations, Practice leads and
+Firm ledger Angular workspaces after refresh.
+
+The same PostgreSQL-backed browser test checks the operations mode and
+attention count, six viewport widths, keyboard focus visibility, retained
+document tokens, and absence of page errors. It exposed a stale invitation
+projection: the UI previously kept offering a copy action after the linked
+grant was revoked. The Application query now reports that invitation as
+revoked and exposes no copyable ID; the Angular client refreshes its access
+projection after a refused copy attempt. The focused browser journey passed,
+the Angular unit suite passed, the Release solution build passed without
+warnings or errors, and EF reported no pending model changes. The complete
+solution regression is running on the shared worktree, which includes the
+concurrent edit; its final result and scope will be recorded in `status.json`.
+
+The aggregate removed-method and source-action counts are tracked in
+`status.json`. Production rollback/canary, human assistive-technology and
+wider-locale review, live Microsoft gates, and separate owner acceptance
+remain open. Retirement remains `NOT_READY` and AS-PAR-002 remains partial.
+
 ## Current follow-on slice: advanced group consolidation authorization
 
 `AngularAdvancedConsolidationAuthorizationJourneyTests` maps two removed
