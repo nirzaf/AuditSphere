@@ -15,6 +15,18 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: Operations access-denial clarity
+
+The built-in browser showed a signed-in staff user on the Operations page with
+an access message that incorrectly suggested signing in again. Updated the
+message to explain the firm-wide AuditSphere Administrator requirement and
+offer the appropriate next step. The API authorization remains unchanged. The
+focused Operations Angular suite passed 4/4, the production Angular build
+passed with the existing Commercial Settings stylesheet warning (7.53 kB
+against a 4 kB budget), and the built-in browser confirmed the message while
+showing no operation records. The full solution regression and EF drift check
+were not rerun; Blazor retirement remains `NOT_READY`.
+
 ## Current follow-on slice: Shared confirmation source/action parity
 
 Reviewed the two callers of the shared Blazor confirmation dialog against the

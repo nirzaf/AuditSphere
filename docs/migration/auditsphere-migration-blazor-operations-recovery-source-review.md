@@ -27,8 +27,9 @@ recovery remain owned by Application `OperationRecoveryService`.
 - Angular now restores the legacy table's 10/25/50 page-size choices and
   previous/next navigation. The operations table has a caption and scoped
   column headers; the cancellation reason has an explicit associated label.
-- The focused Angular unit suite passed **3/3**, including the 10/25/50 row
-  counts, page transitions and table semantics. Full Angular CI passed
+- The focused Angular unit suite passed **4/4**, including signed-in staff
+  administrator-access denial, the 10/25/50 row counts, page transitions and
+  table semantics. Full Angular CI passed
   **489/489** across 94 test files. The production Angular build passed at
   349.67 kB raw initial size; it retains the existing 7.53 kB commercial
   settings stylesheet warning against the 4 kB warning budget.
@@ -40,10 +41,12 @@ recovery remain owned by Application `OperationRecoveryService`.
   append-only actor events, plus a 403 and no operation data for ordinary
   staff. No worker ran in this disposable fixture.
 - The built-in Development browser loaded `/ui/app/operations` read-only. Its
-  current identity received the expected administrator-only access message;
-  no operation data or commands were exposed and no business action was
-  submitted. The authorized interactive action path was verified against the
-  isolated PostgreSQL browser fixture above.
+  signed-in staff identity received a clear explanation that firm-wide
+  AuditSphere Administrator access is required, with a safe next step to
+  switch accounts or ask an administrator to review access. No operation data
+  or commands were exposed and no business action was submitted. The
+  authorized interactive action path was verified against the isolated
+  PostgreSQL browser fixture above.
 
 ## Remaining gaps
 
