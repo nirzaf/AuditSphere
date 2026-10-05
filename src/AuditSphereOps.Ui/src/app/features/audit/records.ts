@@ -192,6 +192,14 @@ export class ReleaseCandidate {
   readonly id = routeGuid();
   readonly rec = this.api.resource(() => (this.id() ? `/api/ui/releases/${this.id()}` : null), decodeRelease, 'The candidate is not available in the current firm scope.');
   readonly cmd = new CommandState(this.api);
+  private readonly reconcileIssued = effect(() => {
+    const candidate = this.rec.data();
+    if (candidate?.status === 'ISSUED' && this.cmd.uncertain()) {
+      this.cmd.uncertain.set(false);
+      this.cmd.failed.set(false);
+      this.cmd.message.set('Release confirmed: the current candidate is issued.');
+    }
+  });
   key = '';
   issue(id: string, revision: number, digest: string): void {
     const key = this.key; this.key = '';

@@ -172,4 +172,102 @@ public sealed class AngularReleaseParityJourneyTests
     await using (var db = host.CreateDbContext())
       Assert.Empty(await db.Releases.AsNoTracking().Where(x => x.ReleaseCandidateId == candidateId).ToListAsync());
   }
+
+  [Fact]
+  [Trait("CaseId", "AS-PAR-002-ANGULAR-RELEASE-RECOVERY-01")]
+  public async Task VerifiedCandidateLostIssueResponseReconcilesWithoutRetainingKeyOrDuplicatingRelease()
+  {
+    await using var host = await OwnedHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-ANGULAR-RELEASE-RECOVERY-01", requireProtectionAttestation: true);
+    var f = host.Fixture;
+    var artifact = "synthetic-angular-release-recovery-artifact"u8.ToArray();
+    var digest = Hashing.Sha256Hex(artifact);
+    var workpaperId = Guid.NewGuid();
+    var reviewer = PbcSeed.Actor(f.Reviewer, "Reviewer");
+    var partner = PbcSeed.Actor(f.Admin, "Administrator");
+    var now = DateTimeOffset.UtcNow;
+    Guid candidateId;
+
+    await using (var db = host.CreateDbContext())
+    {
+      db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Staff, "Partner", f.ClientId, f.EngagementId));
+      db.Workpapers.Add(new Workpaper
+      {
+        Id = workpaperId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        ActorId = f.Staff.Id, Index = "R-ANGULAR-RELEASE-RECOVERY", Title = "Synthetic Angular release recovery",
+        Objective = "Exercise verified release and uncertain-result recovery", TemplateVersion = "SYNTHETIC-v1",
+        Procedure = "Synthetic procedure", Status = WorkpaperStatuses.Working, CreatedAt = now
+      });
+      await db.SaveChangesAsync();
+
+      var approval = await ApprovalService.CreateAsync(db, reviewer,
+        new CreateApprovalRequest("WORKPAPER", workpaperId, 1, 1, 1, digest));
+      Assert.True(approval.Succeeded, approval.Message);
+      var candidate = await ReleaseService.CreateCandidateAsync(db, partner,
+        new CreateReleaseCandidateRequest(approval.Value!, "WORKPAPER", workpaperId, 1, 1, 1, digest));
+      Assert.True(candidate.Succeeded, candidate.Message);
+      candidateId = candidate.Value;
+
+      var checkpointStore = new LocalAppendOnlyCheckpointStore(Path.Combine(host.RunRoot, "checkpoints"));
+      var checkpoint = await ReleaseCheckpointService.RecordCheckpointDirectAsync(db, checkpointStore, partner,
+        new RecordReleaseCheckpointRequest(candidateId, 1, "synthetic-angular-release-recovery", digest, artifact));
+      Assert.True(checkpoint.Succeeded, checkpoint.Message);
+      db.ProtectionAttestations.Add(new ProtectionAttestation
+      {
+        Id = Guid.CreateVersion7(), FirmId = f.FirmId, ClientId = f.ClientId,
+        EngagementId = f.EngagementId, ArtifactId = workpaperId, ArtifactHash = digest,
+        Binding = "synthetic://audit-sphere-test/records", ProfileId = "AUDITSPHERE-SYNTHETIC-RECORD",
+        ProfileVersion = 1, ObservedState = "PROTECTED", VerificationTime = now,
+        Verifier = "synthetic-fixture", ExpiryTime = now.AddDays(1),
+        RecheckRule = "TEST_ONLY", CreatedAt = now
+      });
+      await db.SaveChangesAsync();
+    }
+
+    var issueKey = "synthetic-angular-release-recovery-key";
+    var origin = host.StaffUrl;
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var pageErrors = new List<string>();
+    page.PageError += (_, error) => pageErrors.Add(error);
+    var path = $"/app/releases/{candidateId:D}";
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(path));
+    await Assertions.Expect(page.GetByText("verified — Profile AUDITSPHERE-SYNTHETIC-RECORD", new() { Exact = false }))
+      .ToBeVisibleAsync();
+    var keyInput = page.GetByLabel("Authorized release key", new() { Exact = true });
+    await keyInput.FillAsync(issueKey);
+    await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Issue release", Exact = true }))
+      .ToBeEnabledAsync();
+    var posts = 0;
+    await page.RouteAsync($"**/api/ui/releases/{candidateId:D}/issue", async route =>
+    {
+      if (route.Request.Method != "POST") { await route.ContinueAsync(); return; }
+      Interlocked.Increment(ref posts);
+      await using var accepted = await route.FetchAsync();
+      Assert.Equal(200, accepted.Status);
+      await Assertions.Expect(keyInput).ToHaveValueAsync("");
+      await route.AbortAsync("failed");
+    });
+    await page.GetByRole(AriaRole.Button, new() { Name = "Issue release", Exact = true }).ClickAsync();
+
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Issued", Exact = true }))
+      .ToBeVisibleAsync(new() { Timeout = 15000 });
+    await Assertions.Expect(page.GetByText("Release confirmed: the current candidate is issued.", new() { Exact = true }))
+      .ToBeVisibleAsync();
+    Assert.Equal(1, posts);
+    Assert.Equal(0, await page.GetByLabel("Authorized release key", new() { Exact = true }).CountAsync());
+    var browserStorage = await page.EvaluateAsync<string>("() => JSON.stringify([Object.entries(localStorage), Object.entries(sessionStorage)])");
+    Assert.DoesNotContain(issueKey, browserStorage, StringComparison.Ordinal);
+    Assert.Empty(pageErrors);
+
+    await using (var db = host.CreateDbContext())
+    {
+      var release = await db.Releases.AsNoTracking().SingleAsync(x => x.ReleaseCandidateId == candidateId);
+      Assert.Equal(ReleaseStates.Issued, (await db.ReleaseCandidates.AsNoTracking().SingleAsync(x => x.Id == candidateId)).Status);
+      Assert.Single(await db.DurableOperations.AsNoTracking().Where(x => x.TargetId == release.Id &&
+        x.OperationKind == "ReleaseDelivery.v1").ToListAsync());
+    }
+  }
 }
