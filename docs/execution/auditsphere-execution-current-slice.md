@@ -15,6 +15,27 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: practice operations source review
+
+Practice time, practice analytics, project progress and the technical library
+were checked against their pinned discovery hashes and mapped to native
+Angular routes and API/Application owners. The focused PostgreSQL-backed
+Release browser cohort passed 5/5: scoped time visibility and independent
+approval, library publish/search, analytics definitions, project-progress
+filtering/denial, and the 20-route accessibility contract. The built-in
+browser rendered the four Development pages read-only; no business command
+was submitted.
+
+All four source rows remain `PARTIAL`. The library UI's create/version forms
+and audience isolation, populated analytics formulas and edge cases, the
+complete time role/retry/revocation matrix, and malformed/stale progress
+snapshot paths still need direct coverage. The full solution regression and
+EF pending-model check were not rerun; the latest complete regression remains
+1001/1001 at `ead85032`. Exact hashes, command and counts, browser boundaries,
+and shared-worktree notes are recorded in [`status.json`](status.json) and the
+linked source review. AS-PAR-002 remains partial and Blazor retirement remains
+`NOT_READY`.
+
 ## Commercial Settings form UI repair
 
 The commercial settings form now uses a scoped, responsive grid with aligned

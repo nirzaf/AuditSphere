@@ -400,6 +400,34 @@
       "evidence": "auditsphere-migration-blazor-resource-planning-source-review.md",
       "reviewedAtCommit": "7ca600d1fb93c331fa1491e575fd4b7b24cdd6e8",
       "openGaps": ["Complete staffing role/scope, authorization and validation matrix", "Cross-firm, guessed-ID and all stale/revoked-session behavior", "Live SharePoint membership reconciliation and production acceptance"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/PracticeTime.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-practice-operations-source-review.md",
+      "reviewedAtCommit": "10444247ba77285f51dfe69eae8217dcd96ec853",
+      "openGaps": ["Complete role/scope, cross-firm and guessed-ID matrix", "Full validation, revoked-session and command failure/retry coverage", "Broader accessibility, locale and owner acceptance"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/PracticeAnalytics.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-practice-operations-source-review.md",
+      "reviewedAtCommit": "10444247ba77285f51dfe69eae8217dcd96ec853",
+      "openGaps": ["Populated metric and formula edge-case assertions", "Missing-rate, mixed-currency and capacity-boundary coverage", "Complete authorization, accessibility and locale acceptance"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/ProjectProgress.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-practice-operations-source-review.md",
+      "reviewedAtCommit": "10444247ba77285f51dfe69eae8217dcd96ec853",
+      "openGaps": ["Complete malformed, missing, stale and inconsistent snapshot matrix", "Full administrator, cross-firm and error-state acceptance", "Actual assistive-technology and locale acceptance"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/TechnicalLibrary.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-practice-operations-source-review.md",
+      "reviewedAtCommit": "10444247ba77285f51dfe69eae8217dcd96ec853",
+      "openGaps": ["Exercise entry creation and version drafting from the Angular forms", "Audience isolation, duplicate code and distinct publisher denial matrix", "Full validation, error/recovery and accessibility acceptance"]
     }
   ]
 }
