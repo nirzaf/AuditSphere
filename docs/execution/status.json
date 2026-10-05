@@ -4,12 +4,12 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "019126cd964bef85799ab1c1923ee5551da4fbff",
+  "headCommit": "e3323ed1c5735c4d884656824fc9df7822c48719",
   "verifiedCommit": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
   "productionEnabled": false,
-  "verifiedAt": "2026-10-05T01:51:52Z",
+  "verifiedAt": "2026-10-05T03:34:48Z",
   "toolchain": {
     "sdk": ".NET 10",
     "efCore": "10.0.12",
@@ -139,8 +139,8 @@
       "removalDecision": "NOT_READY"
     },
     "angularBlazorCurrentRetirementGate": {
-      "observedAt": "2026-10-05T03:17:36Z",
-      "sourceCommit": "019126cd964bef85799ab1c1923ee5551da4fbff",
+      "observedAt": "2026-10-05T03:34:48Z",
+      "sourceCommit": "e3323ed1c5735c4d884656824fc9df7822c48719",
       "status": "NOT_READY",
       "physicalRemovalCommit": "59387b549214067ef226cdbf33d0d47084a27c46",
       "webProjectPresent": true,
@@ -166,20 +166,21 @@
           "FinancialArtifactJourneyTests",
           "InvoiceScopeJourneyTests",
           "M365SetupJourneyTests",
-          "PbcUploadJourneyTests",
           "PracticeBillingLedgerJourneyTests",
           "ResponsiveShellSweepTests",
           "RouteRenderSmokeTests"
         ],
+        "legacyE2eSuitesWithCompletedAssertionCrosswalk": ["PbcUploadJourneyTests"],
         "legacyE2eTestMethodsRemoved": 82,
-        "assertionReplacementAudit": "OPEN; the nine removed E2E suites contained 82 test methods. Map each method's behavior-level assertions to a passing API/Angular journey or an owner-approved retirement disposition. The full-suite pass is regression evidence, not replacement evidence."
+        "legacyE2eTestMethodsMapped": 1,
+        "assertionReplacementAudit": "PARTIAL; the single PbcUploadJourneyTests method has a passing API/Angular assertion crosswalk. Eight other removed suites containing 81 methods remain open for method-level mapping or an owner-approved retirement disposition. A full-suite pass is regression evidence, not replacement evidence."
       },
       "fullSolutionCurrentHead": "RECORDED_AT eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39: API 191/191, Domain 660/660, E2E 134/134; 985/985 passed, zero failed/skipped. Later bootstrap and PBC slices have focused current-source coverage; see their dedicated verification records.",
-      "efModelCurrentHead": "NONE; dotnet ef migrations has-pending-model-changes reported no model changes since the last migration.",
+      "efModelCurrentHead": "NONE at e3323ed1c5735c4d884656824fc9df7822c48719; dotnet ef migrations has-pending-model-changes reported no model changes since the last migration.",
       "rollbackAndCanary": "Local Development rollback smoke PASS: Razor root, local Blazor/MudBlazor assets, negotiate endpoint, and SignalR circuit handshake. Production OIDC, route cutover recovery, and production-like canary remain OPEN.",
       "humanAssistiveTechnologyAndLocale": "OPEN",
       "liveMicrosoftGates": "BLOCKED_EXTERNAL",
-      "decision": "NOT_READY. The Web rollback/reference source is restored. The recorded full local regression and EF checks pass at their attributed source commit; later bootstrap and PBC slices have focused current-source evidence. Fifteen source/action rows are partially reviewed (13 administration and two PBC), one assessment source is parity verified, and 60 rows plus 28 supporting files remain unanalyzed. The 82-method assertion replacement crosswalk, production/human/external acceptance, and separate owner acceptance remain open.",
+      "decision": "NOT_READY. The Web rollback/reference source is restored. The recorded full local regression and EF checks pass at their attributed source commit; later bootstrap and PBC slices have focused current-source evidence. Fifteen source/action rows are partially reviewed (13 administration and two PBC), one assessment source is parity verified, and 60 rows plus 28 supporting files remain unanalyzed. The 81 remaining removed-test methods, production/human/external acceptance, and separate owner acceptance remain open.",
       "angularProductionBuild": {
         "status": "PASS",
         "initialBundle": "505.53 kB against the 500 kB warning budget; build succeeded with the existing size warning."
@@ -231,23 +232,32 @@
       "pbcSourceReview": {
         "review": "docs/migration/auditsphere-migration-blazor-pbc-source-review.md",
         "sourceInventorySnapshot": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
-        "reviewedAgainstCommit": "019126cd964bef85799ab1c1923ee5551da4fbff",
+        "reviewedAgainstCommit": "e3323ed1c5735c4d884656824fc9df7822c48719",
         "status": "PARTIAL_REVIEWED",
         "reviewedArtifacts": 2,
         "parityVerifiedArtifacts": 0,
-        "summary": "Compared staff PbcRequests and client ClientPbcRequest with native Angular/API owners. Staff request creation, queued follow-up, simulated worker completion, refreshed transfer state and exact-byte authenticated download are covered; client drop, reply, delegation/revocation and exact-byte interrupted-upload recovery are covered. Live selected-site worker delivery through the Angular route, the full authorization/failure/stale matrix and the removed PbcUploadJourneyTests crosswalk remain open.",
+        "summary": "Compared staff PbcRequests and client ClientPbcRequest with native Angular/API owners. Staff request creation, queued follow-up, simulated worker completion, uncertain-provider recovery, responsive states, and exact-byte browser/API downloads are covered; client drop, browser-computed hash, reply, delegation/revocation, staged progress and exact-byte interrupted-upload recovery are covered. The single removed PbcUploadJourneyTests method has a passing crosswalk. Live selected-site worker delivery through Angular and the broader authorization/failure/stale matrix remain open.",
         "staffJourney": {
-          "sourceCommit": "019126cd964bef85799ab1c1923ee5551da4fbff",
+          "sourceCommit": "e3323ed1c5735c4d884656824fc9df7822c48719",
           "test": "AngularPbcStaffJourneyTests.StaffInbox_CreatesRequest_RequestsMoreFiles_AndQueuesVerifiedTransfer",
           "status": "PASS_LOCAL",
           "passed": 1,
           "failed": 0,
           "skipped": 0,
-          "duration": "28s",
-          "coverage": "API-host Angular staff request creation and queued email, request-more conversation entry, scoped staged upload completion, pending durable operation, Test simulation worker completion, refreshed COMPLETED/RECEIVED UI, and exact authenticated download bytes with no-store/nosniff headers. Live selected-site provider execution is not asserted by this journey."
+          "coverage": "API-host Angular staff request creation and queued email, request-more conversation entry, scoped staged upload completion, pending durable operation, Test simulation worker completion, refreshed COMPLETED/RECEIVED UI, exact browser download bytes, and exact authenticated API bytes with no-store/nosniff headers. Live selected-site provider execution is not asserted by this journey."
+        },
+        "uncertainOutcomeRecoveryJourney": {
+          "sourceCommit": "e3323ed1c5735c4d884656824fc9df7822c48719",
+          "test": "AngularPbcUncertainOutcomeJourneyTests.StaffInbox_ShowsUncertainProviderOutcome_ThenReconcilesExactUpload",
+          "status": "PASS_LOCAL",
+          "passed": 1,
+          "failed": 0,
+          "skipped": 0,
+          "duration": "26s focused; included in the 4/4 PBC regression",
+          "coverage": "After staff queues completion, scripted simulation provider stores exact bytes then loses its response. PostgreSQL retains STAGED / RESULT_UNCERTAIN / PartiallyReceived; Angular renders staged / result uncertain. Reconciliation verifies the stored receipt, produces one provider file and exact digest, then Angular renders RECEIVED / COMPLETED. Staff inbox has no document overflow at 320, 390, 760, 1024, 1440 and 1920 pixels; the recipient selector remains within the viewport."
         },
         "clientPortalJourneys": {
-          "sourceCommit": "efc183146c5b94cdda4e99de37b65312f1f3cf1f",
+          "sourceCommit": "e3323ed1c5735c4d884656824fc9df7822c48719",
           "tests": [
             "AngularClientPortalJourneyTests.ClientPortal_FirstSignIn_Delegation_Conversation_Upload_AndRevocation",
             "AngularClientPortalUploadRecoveryJourneyTests.LostChunkAcknowledgement_ResumesExactFileFromPersistedChunkReceipt"
@@ -256,18 +266,36 @@
           "passed": 2,
           "failed": 0,
           "skipped": 0,
-          "duration": "50s",
-          "coverage": "Real DataTransfer drop event, staged-byte hash, first sign-in, delegation and revocation, client reply, disabled-identity content clearing, lost chunk acknowledgement, exact-file resume, capability rotation and reconstructed byte equality."
+          "duration": "included in the 1m11s focused PBC regression",
+          "coverage": "Real DataTransfer drop event and displayed browser-computed SHA-256, first sign-in, delegation and revocation, client reply, disabled-identity content clearing, chunked upload progress, persisted chunk receipts, lost chunk acknowledgement, exact-file resume, capability rotation and reconstructed byte equality."
         },
         "combinedPbcJourneyRegression": {
-          "sourceCommit": "019126cd964bef85799ab1c1923ee5551da4fbff",
-          "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-build --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~AngularPbcStaffJourneyTests|FullyQualifiedName~AngularClientPortalJourneyTests|FullyQualifiedName~AngularClientPortalUploadRecoveryJourneyTests'",
+          "sourceCommit": "e3323ed1c5735c4d884656824fc9df7822c48719",
+          "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~AngularPbcStaffJourneyTests|FullyQualifiedName~AngularClientPortalJourneyTests|FullyQualifiedName~AngularClientPortalUploadRecoveryJourneyTests|FullyQualifiedName~AngularPbcUncertainOutcomeJourneyTests'",
           "status": "PASS_LOCAL",
-          "passed": 3,
+          "passed": 4,
           "failed": 0,
           "skipped": 0,
-          "duration": "1m"
+          "duration": "1m11s"
         },
+        "sameClientDownloadAuthorization": {
+          "sourceCommit": "e3323ed1c5735c4d884656824fc9df7822c48719",
+          "test": "PbcHttpTests.DownloadIsScopedAndReturnsExactBytesWithSafeHeaders",
+          "status": "PASS_LOCAL",
+          "passed": 1,
+          "failed": 0,
+          "skipped": 0,
+          "duration": "23s",
+          "coverage": "After exact-byte staff download, the assigned ClientUser requests the same received upload and is denied with HTTP 403; sibling client remains separately denied."
+        },
+        "releaseSolutionBuild": {
+          "sourceCommit": "e3323ed1c5735c4d884656824fc9df7822c48719",
+          "status": "PASS",
+          "warnings": 0,
+          "errors": 0,
+          "command": "dotnet build AuditSphereOps.slnx --no-restore --configuration Release -m:1"
+        },
+        "efModelDrift": "NONE at e3323ed1c5735c4d884656824fc9df7822c48719; dotnet ef migrations has-pending-model-changes reported no model changes since the last migration.",
         "angularProductionBuild": {
           "status": "PASS_WITH_BUDGET_WARNING",
           "initialBundle": "505.53 kB; 5.53 kB above the 500 kB warning budget."
@@ -280,7 +308,7 @@
           "skipped": 0,
           "command": "npm --prefix src/AuditSphereOps.Ui run test:ci"
         },
-        "builtInBrowser": "PASS_LOCAL_READ_ONLY: built-in browser rendered the staff PBC inbox and its conversation timeline. The Development fixture had no eligible client recipient/reviewer, so request submission was unavailable and no command was submitted. File drop, worker completion and exact download bytes were dynamically verified in the API-host Playwright journey."
+        "builtInBrowser": "PASS_LOCAL_READ_ONLY: built-in browser rendered the authenticated Angular staff PBC inbox, scoped request timeline, and recipient/reviewer controls. The Development data currently has no eligible recipient or reviewer, so controls are unavailable; no command was submitted. File drop, uncertain-result recovery, worker completion, responsive widths and exact browser download bytes were verified only against isolated synthetic PostgreSQL fixtures in API-host Playwright journeys."
       }
     },
     "angularBlazorApprovedBootstrapSlice": {

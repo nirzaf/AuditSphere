@@ -15,25 +15,33 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
-## Current follow-on slice: PBC source-action review and Angular file drop
+## Current follow-on slice: PBC upload recovery and removed-test crosswalk
 
-The PBC source review now covers the restored `PbcRequests.razor` staff inbox
-and `ClientPbcRequest.razor` client route against the API-host Angular journeys.
-The client upload control now preserves the legacy accessible drag/drop option
-alongside its file picker, and the Playwright journey dispatches a real browser
-`DataTransfer` drop event. The staff journey checks request creation, queued
-follow-up communication, scoped staged-upload completion, and the durable
-operation from `PENDING` through the Test simulation worker to `COMPLETED` and
-`RECEIVED`. It refreshes the Angular view and downloads the exact bytes through
-the authorized API, checking safe headers. Portal journeys cover first sign-in,
-delegation and revocation, conversation reply, upload staging, lost
-acknowledgement recovery, capability rotation and exact-byte reconstruction.
+The PBC source review compares the restored `PbcRequests.razor` staff inbox and
+`ClientPbcRequest.razor` client route against API-host Angular journeys. The
+client journey verifies accessible drag/drop, browser-computed SHA-256, staged
+receipts, reply, delegation and revocation. The multi-chunk recovery journey
+holds the resumed second chunk to verify in-flight progress and also covers lost
+acknowledgement, capability rotation and exact-byte reconstruction. The staff
+journey checks request creation, queued follow-up communication, worker
+completion, refreshed `COMPLETED` / `RECEIVED` UI, actual browser download bytes,
+and safe API response headers. A new uncertain-outcome journey has the simulated
+provider accept exact bytes and lose its response; the inbox renders `staged` /
+`result uncertain`, then reconciliation verifies one provider object and the UI
+recovers to `RECEIVED` / `COMPLETED`. It checks 320, 390, 760, 1024, 1440 and
+1920 pixel widths and keeps the recipient control in view. The assigned client
+is also denied download access to the same received upload.
 
-Both PBC source rows remain `PARTIAL`: the live selected-site worker path through
-the Angular staff route, the full authorization/state/error/stale matrix, and
-the removed `PbcUploadJourneyTests` assertion crosswalk remain open. Focused
-evidence and exact attribution are in
-`status.json` and the [PBC source review](../migration/auditsphere-migration-blazor-pbc-source-review.md).
+The focused PBC E2E cohort passed 4/4, the scoped API download test passed 1/1,
+and the Release solution build passed with zero warnings/errors at the code
+commit recorded in `status.json`. The single removed
+`PbcUploadJourneyTests.ClientUpload_ReconcilesUncertainProviderResult_AndStaffDownloadsExactBytes`
+method now has a passing assertion-by-assertion replacement map. Eight other
+removed E2E suites and 81 methods remain open. Both PBC source rows stay
+`PARTIAL`: live selected-site worker delivery through Angular and the wider
+authorization/state/error/stale matrix remain open. Details and exact source
+attribution are in `status.json`, the [test parity register](../migration/auditsphere-migration-blazor-test-parity.md),
+and the [PBC source review](../migration/auditsphere-migration-blazor-pbc-source-review.md).
 The current inventory is one source/action row parity verified, 15 partially
 reviewed (13 administration and two PBC), and 60 unanalyzed; 28 supporting files
 and the broader operational and owner gates remain open. Retirement stays
