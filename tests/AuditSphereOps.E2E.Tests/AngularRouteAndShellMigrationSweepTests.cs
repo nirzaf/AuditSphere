@@ -39,6 +39,37 @@ public sealed class AngularRouteAndShellMigrationSweepTests
     ("/auth/access-not-assigned", "Access not assigned"),
   ];
 
+  [Theory]
+  [InlineData(false)]
+  [InlineData(true)]
+  [Trait("CaseId", "AS-PAR-002-ANG-ROOT-ROUTE-01")]
+  public async Task RootRedirectRespectsPreviewAndCanonicalAngularOwnership(bool canonical)
+  {
+    await using var host = await OwnedHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-ANG-ROOT-ROUTE-01");
+    var destination = canonical ? "/app" : "/ui/app";
+    var origin = await host.StartApiForIdentityAsync(host.Fixture.Staff, new Dictionary<string, string>
+    {
+      ["AngularUi__Enabled"] = "true",
+      ["AngularUi__CanonicalRoutes"] = canonical.ToString()
+    });
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var errors = new List<string>();
+    page.PageError += (_, error) => errors.Add(error);
+
+    await page.GotoAsync(SignInUrl(origin, destination));
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "Portfolio", Exact = true })).ToBeVisibleAsync();
+    await page.GotoAsync(origin + "/");
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "Portfolio", Exact = true })).ToBeVisibleAsync();
+    Assert.Equal(destination, new Uri(page.Url).AbsolutePath);
+    Assert.Empty(errors);
+  }
+
   [Fact]
   [Trait("CaseId", "ANGULAR-MIGRATION-ROUTE-RENDER")]
   public async Task ParameterlessRoutesRenderAndPreserveRoleSpecificShells()
