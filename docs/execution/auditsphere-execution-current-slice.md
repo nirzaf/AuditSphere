@@ -15,6 +15,20 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: Global Search technical-library audience boundary
+
+Added a PostgreSQL-backed `GlobalSearchQueryTests` case for published technical
+library results. It verifies a client-scoped Staff grant returns only published
+`ALL_STAFF` guidance; a Manager also sees published `PARTNERS_MANAGERS`
+guidance; neither sees drafts or a same-term record from another firm. The new
+case passed 1/1 in 21s and the full `GlobalSearchQueryTests` cohort passed
+13/13 in 1m05s. The test is pushed as `c5350bc2`. This is query-level evidence;
+the library search result's Angular rendering and route journey remain outside
+this slice. Ranking/candidate-boundary, exhaustive role/scope, assistive-technology,
+complete migration and retirement acceptance remain open. The other agent's
+uncommitted consolidation source and inventory edits were excluded from the
+commit. Blazor retirement remains `NOT_READY`.
+
 ## Current follow-on slice: Canonical root redirect evidence
 
 Reran `AngularRouteAndShellMigrationSweepTests.ParameterlessRoutesRenderAndPreserveRoleSpecificShells`; 1/1 passed in 37s. Its parameterless-route matrix directly visits `/` in canonical API-route mode and confirms it reaches the Portfolio heading with Practice navigation current. The additional two-mode journey below covers preview root ownership; unauthenticated/fallback-host behavior remains open. These are verification and ledger corrections, not route changes. Blazor retirement remains `NOT_READY`.
