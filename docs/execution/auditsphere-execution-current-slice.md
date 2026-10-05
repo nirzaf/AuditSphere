@@ -15,6 +15,10 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: Unauthenticated root sign-in handoff
+
+Extended `AngularRouteAndShellMigrationSweepTests.RootRedirectRespectsPreviewAndCanonicalAngularOwnership` to begin without a cookie in both route modes. Each case verifies the protected Angular shell shows its sign-in prompt, preserves the matching return destination (`/app` or `/ui/app`), and reaches Portfolio after the development identity signs in. The browser cohort passed 2/2 in 39s and is pushed as `be9d736d`. This closes the root-route unauthenticated journey only; fallback-host behavior remains open. No authorization policy changed, and Blazor retirement remains `NOT_READY`.
+
 ## Current follow-on slice: Global Search technical-library audience boundary
 
 Added a PostgreSQL-backed `GlobalSearchQueryTests` case for published technical
@@ -31,13 +35,13 @@ commit. Blazor retirement remains `NOT_READY`.
 
 ## Current follow-on slice: Canonical root redirect evidence
 
-Reran `AngularRouteAndShellMigrationSweepTests.ParameterlessRoutesRenderAndPreserveRoleSpecificShells`; 1/1 passed in 37s. Its parameterless-route matrix directly visits `/` in canonical API-route mode and confirms it reaches the Portfolio heading with Practice navigation current. The additional two-mode journey below covers preview root ownership; unauthenticated/fallback-host behavior remains open. These are verification and ledger corrections, not route changes. Blazor retirement remains `NOT_READY`.
+Reran `AngularRouteAndShellMigrationSweepTests.ParameterlessRoutesRenderAndPreserveRoleSpecificShells`; 1/1 passed in 37s. Its parameterless-route matrix directly visits `/` in canonical API-route mode and confirms it reaches the Portfolio heading with Practice navigation current. The additional two-mode journey below covers preview root ownership. The unauthenticated root sign-in handoff is now covered separately; fallback-host behavior remains open. These are verification and ledger corrections, not route changes. Blazor retirement remains `NOT_READY`.
 
 Added `RootRedirectRespectsPreviewAndCanonicalAngularOwnership`; its two
 PostgreSQL-backed browser cases passed 2/2 in 41s. They verify the final path
 and Portfolio heading after `/` redirects to `/app` in canonical mode and
-`/ui/app` in preview mode. Unauthenticated/fallback-host behavior remains
-open. This test-only change is pushed as `c3a9ad21`.
+`/ui/app` in preview mode. Fallback-host behavior remains open. This test-only
+change is pushed as `c3a9ad21`.
 
 ## Current follow-on slice: Client contact creation recovery evidence
 
