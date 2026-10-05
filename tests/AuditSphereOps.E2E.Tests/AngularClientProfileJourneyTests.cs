@@ -45,6 +45,47 @@ public sealed class AngularClientProfileJourneyTests
     await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name="Client portal intent",Exact=true })).ToContainTextAsync("Acceptance and Partner activation are required");
     Assert.DoesNotContain("EXCLUDED PRIVATE PROFILE", await page.Locator("body").InnerTextAsync());
     await page.SetViewportSizeAsync(390,844); Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));
+
+    var sibling = await SiblingClientSeed.SeedAsync(host.Database, f.FirmId, "CLIENT-PROFILE-SIBLING");
+    try
+    {
+      var documentToken = Guid.NewGuid().ToString("N");
+      await page.EvaluateAsync("token => window.__clientProfileRouteToken = token", documentToken);
+      async Task<string> NavigateInPlaceAsync(Guid clientId, string? expectedProfileText = null)
+      {
+        await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+          prefix + "/app/clients/" + clientId.ToString("D"));
+        if (expectedProfileText is null)
+          await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+            new() { Name = "Client unavailable", Exact = true })).ToBeVisibleAsync();
+        else
+          await Assertions.Expect(page.GetByText(expectedProfileText, new() { Exact = false })).ToBeVisibleAsync();
+        return await page.Locator("body").InnerTextAsync();
+      }
+
+      var siblingBody = await NavigateInPlaceAsync(sibling.Fixture.ClientId);
+      Assert.DoesNotContain("SYNTHETIC-REG-001", siblingBody);
+      Assert.DoesNotContain("Synthetic trading name", siblingBody);
+      Assert.DoesNotContain("Synthetic contact 000", siblingBody);
+      Assert.DoesNotContain(sibling.Marker, siblingBody, StringComparison.OrdinalIgnoreCase);
+      Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__clientProfileRouteToken"));
+
+      var randomId = Guid.NewGuid();
+      var randomBody = await NavigateInPlaceAsync(randomId);
+      Assert.Equal(siblingBody, randomBody);
+      Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__clientProfileRouteToken"));
+
+      var restoredBody = await NavigateInPlaceAsync(f.ClientId, "Synthetic trading name");
+      Assert.Contains("Synthetic trading name", restoredBody);
+      Assert.Contains("SYNTHETIC-REG-001", restoredBody);
+      Assert.Contains("Synthetic contact 000", restoredBody);
+      Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__clientProfileRouteToken"));
+    }
+    finally
+    {
+      PbcSeed.DeleteDirectory(sibling.StagingRoot);
+    }
+
     await page.GotoAsync(origin + prefix + "/app/clients/" + Guid.NewGuid());
     await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() {Name="Client unavailable",Exact=true})).ToBeVisibleAsync();
     Assert.DoesNotContain("SYNTHETIC-REG-001", await page.Locator("body").InnerTextAsync());
