@@ -131,8 +131,8 @@ interface RowInput { likelihood: number; magnitude: number; fraud: boolean; rati
               <label>Likelihood <select [(ngModel)]="input(row).likelihood" [name]="'l-' + row.riskId"><option [ngValue]="1">1 Low</option><option [ngValue]="2">2 Moderate</option><option [ngValue]="3">3 High</option></select></label>
               <label>Magnitude <select [(ngModel)]="input(row).magnitude" [name]="'m-' + row.riskId"><option [ngValue]="1">1 Low</option><option [ngValue]="2">2 Moderate</option><option [ngValue]="3">3 High</option></select></label>
               <label><span><input type="checkbox" [(ngModel)]="input(row).fraud" [name]="'f-' + row.riskId" /> Fraud risk</span></label>
-              <label>Rationale <input [(ngModel)]="input(row).rationale" [name]="'r-' + row.riskId" maxlength="500" [attr.aria-label]="'Band rationale for ' + row.area" /></label>
-              <button matButton="outlined" (click)="assess(row.riskId)" [disabled]="cmd.busy()" [attr.aria-label]="'Assess band for ' + row.area">Assess band</button>
+              <label>Rationale <input [(ngModel)]="input(row).rationale" [name]="'r-' + row.riskId" maxlength="500" required [attr.aria-label]="'Band rationale for ' + row.area" /></label>
+              <button matButton="outlined" (click)="assess(row.riskId)" [disabled]="cmd.busy() || !input(row).rationale.trim()" [attr.aria-label]="'Assess band for ' + row.area">Assess band</button>
             </div>
             @if (row.band && p.canAssignOwners && p.team.length) {
               <div class="inline-form">
@@ -142,8 +142,8 @@ interface RowInput { likelihood: number; magnitude: number; fraud: boolean; rati
             }
             @if (row.partnerReviewRequired && !row.partnerCleared && p.isPartner) {
               <div class="inline-form">
-                <label>Partner review note <input [(ngModel)]="input(row).note" [name]="'n-' + row.riskId" maxlength="1000" [attr.aria-label]="'Partner review note for ' + row.area" /></label>
-                <button matButton="filled" (click)="clear(row.riskId)" [disabled]="cmd.busy()" [attr.aria-label]="'Record Partner review for ' + row.area">Record Partner review</button>
+                <label>Partner review note <input [(ngModel)]="input(row).note" [name]="'n-' + row.riskId" maxlength="1000" required [attr.aria-label]="'Partner review note for ' + row.area" /></label>
+                <button matButton="filled" (click)="clear(row.riskId)" [disabled]="cmd.busy() || !input(row).note.trim()" [attr.aria-label]="'Record Partner review for ' + row.area">Record Partner review</button>
               </div>
             }
           </article>

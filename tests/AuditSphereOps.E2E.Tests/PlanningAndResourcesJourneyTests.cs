@@ -12,8 +12,8 @@ using Microsoft.Playwright;
 namespace AuditSphereOps.E2E.Tests;
 
 /// <summary>
-/// A Partner staffs the engagement at the four levels, calculates materiality from the mapped trial balance without
-/// typing the benchmark, records the mandatory review of a red risk, and sees an over-allocated week on the grid.
+/// A Partner staffs the engagement, calculates materiality from the mapped trial balance, assesses and assigns a
+/// risk through Angular, records the mandatory independent review of a red risk, and sees an over-allocated week.
 /// </summary>
 [Trait("Category", "AuditPlanning")]
 public sealed class PlanningAndResourcesJourneyTests
@@ -143,13 +143,49 @@ public sealed class PlanningAndResourcesJourneyTests
       Assert.Equal(manager.Id, approval.ApprovedByUserId);
     }
 
-    // Red risk routing and the mandatory Partner review.
+    // Create, assess and assign a separate risk through Angular's route controls.
+    var risksSection = page.Locator("section[aria-labelledby='risks-heading']");
+    await risksSection.GetByText("Record an identified risk", new() { Exact = true }).ClickAsync();
+    await risksSection.GetByLabel("Account or disclosure area", new() { Exact = true }).FillAsync("Cash");
+    await risksSection.GetByLabel("Assertion", new() { Exact = true }).FillAsync("Valuation");
+    await risksSection.GetByLabel("Risk description", new() { Exact = true }).FillAsync("Cash balance may be misstated.");
+    await risksSection.GetByLabel("Drivers", new() { Exact = true }).FillAsync("Complex foreign currency balances.");
+    await risksSection.GetByLabel("Planned response", new() { Exact = true }).FillAsync("Agree balances to independent bank evidence.");
+    await risksSection.GetByRole(AriaRole.Button, new() { Name = "Record risk", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByText("The identified risk was recorded.", new() { Exact = true })).ToBeVisibleAsync();
+    var cashCard = page.Locator("[data-risk='Cash']");
+    await Assertions.Expect(cashCard).ToContainTextAsync("NOT ASSESSED");
+    var assess = cashCard.GetByRole(AriaRole.Button, new() { Name = "Assess band for Cash", Exact = true });
+    await Assertions.Expect(assess).ToBeDisabledAsync();
+    await cashCard.Locator("select").Nth(0).SelectOptionAsync(new SelectOptionValue { Label = "2 Moderate" });
+    await cashCard.Locator("select").Nth(1).SelectOptionAsync(new SelectOptionValue { Label = "2 Moderate" });
+    await page.GetByLabel("Band rationale for Cash", new() { Exact = true }).FillAsync("Moderate foreign currency valuation exposure.");
+    await Assertions.Expect(assess).ToBeEnabledAsync();
+    await assess.ClickAsync();
+    await Assertions.Expect(cashCard).ToContainTextAsync("AMBER");
+    var owner = cashCard.GetByLabel("Owner for Cash", new() { Exact = true });
+    await owner.SelectOptionAsync(manager.Id.ToString());
+    await cashCard.GetByRole(AriaRole.Button, new() { Name = "Assign owner for Cash", Exact = true }).ClickAsync();
+    await Assertions.Expect(cashCard).ToContainTextAsync("Owner: Mona Manager (Audit Manager).");
+    await using (var db = host.CreateDbContext())
+    {
+      var risk = await db.AuditRisks.AsNoTracking().SingleAsync(x => x.EngagementId == f.EngagementId && x.AccountArea == "Cash");
+      var assessment = await db.RiskBandAssessments.AsNoTracking().SingleAsync(x => x.RiskId == risk.Id);
+      var assignment = await db.RiskOwnerAssignments.AsNoTracking().SingleAsync(x => x.RiskBandAssessmentId == assessment.Id);
+      Assert.Equal(RiskBands.Amber, assessment.Band);
+      Assert.Equal(manager.Id, assignment.OwnerUserId);
+    }
+
+    // Red risk routing and the mandatory independent Partner review.
     var card = page.Locator("[data-risk='Revenue']");
     await Assertions.Expect(card).ToContainTextAsync("RED");
     await Assertions.Expect(card).ToContainTextAsync("Partner review required");
-    await page.GetByLabel("Partner review note for Revenue").FillAsync("Journal testing and cut-off procedures address the fraud risk.");
-    await page.GetByLabel("Partner review note for Revenue").PressAsync("Tab");
-    await page.GetByRole(AriaRole.Button, new() { Name = "Record Partner review for Revenue" }).ClickAsync();
+    var partnerReview = page.GetByLabel("Partner review note for Revenue", new() { Exact = true });
+    var clear = page.GetByRole(AriaRole.Button, new() { Name = "Record Partner review for Revenue", Exact = true });
+    await Assertions.Expect(clear).ToBeDisabledAsync();
+    await partnerReview.FillAsync("Journal testing and cut-off procedures address the fraud risk.");
+    await partnerReview.PressAsync("Tab");
+    await clear.ClickAsync();
     await Assertions.Expect(card).ToContainTextAsync("Partner reviewed (Pat Partner)");
     await using (var db = host.CreateDbContext())
       Assert.True(await db.RiskPartnerClearances.AnyAsync(x => x.RiskId == redRisk && x.PartnerUserId == partner.Id));
