@@ -1,5 +1,9 @@
 using AuditSphereOps.Domain.Tests;
+using AuditSphereOps.Domain.Completion;
+using AuditSphereOps.Domain.Practice;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
+using System.Text.Json;
 
 namespace AuditSphereOps.E2E.Tests;
 
@@ -92,5 +96,94 @@ public sealed class GlobalSearchJourneyTests
     {
       PbcSeed.DeleteDirectory(sibling.StagingRoot);
     }
+  }
+
+  [Fact]
+  [Trait("CaseId", "AS-PAR-002-ANG-GLOBAL-SEARCH-API-01")]
+  public async Task SearchApiEnforcesFirmGrantAndIdentityBoundariesWithoutLeakingCounts()
+  {
+    await using var host = await OwnedHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-ANG-GLOBAL-SEARCH-API-01");
+    var f = host.Fixture;
+    var staff = PbcSeed.User(f.FirmId, "Staff");
+    var foreignFirmId = Guid.NewGuid();
+    var foreignClientId = Guid.NewGuid();
+    await using (var db = host.CreateDbContext())
+    {
+      db.Users.Add(staff);
+      db.RoleGrants.AddRange(
+        PbcSeed.Grant(f.FirmId, staff, "Staff", f.ClientId),
+        PbcSeed.Grant(f.FirmId, staff, "Partner", f.ClientId));
+      db.FirmSafetyStates.Add(new FirmSafetyState { Id = foreignFirmId });
+      db.PracticeClients.Add(new PracticeClient
+      {
+        Id = foreignClientId, FirmId = foreignFirmId, LegalName = "ZQXFOREIGNSEARCH PRIVATE CLIENT",
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.ClientSafetyStates.Add(new ClientSafetyState { Id = foreignClientId, FirmId = foreignFirmId });
+      await db.SaveChangesAsync();
+    }
+
+    var sibling = await SiblingClientSeed.SeedAsync(host.Database, f.FirmId, Marker);
+    try
+    {
+      var origin = await host.StartApiForIdentityAsync(staff);
+      using var playwright = await Playwright.CreateAsync();
+      await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+      await using (var context = await browser.NewContextAsync())
+      {
+        var page = await context.NewPageAsync();
+        await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString("/app"));
+        await page.GetByRole(AriaRole.Heading, new() { Name = "Portfolio" })
+          .First.WaitForAsync(new() { Timeout = 15000 });
+
+        await using var own = await context.APIRequest.GetAsync(origin + "/api/ui/search?term=pbc%20test");
+        Assert.Equal(200, own.Status);
+        using (var body = JsonDocument.Parse(await own.TextAsync()))
+        {
+          var hits = body.RootElement.GetProperty("hits").EnumerateArray().ToArray();
+          Assert.Contains(hits, hit => hit.GetProperty("href").GetString() == $"/app/clients/{f.ClientId:D}");
+        }
+
+        await AssertNoHitsAsync(context, origin, Marker);
+        await AssertNoHitsAsync(context, origin, "ZQXFOREIGNSEARCH");
+
+        await using (var db = host.CreateDbContext())
+          await db.RoleGrants.Where(g => g.UserId == staff.Id && g.RevokedAt == null)
+            .ExecuteUpdateAsync(g => g.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow));
+        await AssertNoHitsAsync(context, origin, "pbc test");
+
+        await using (var db = host.CreateDbContext())
+          await db.Users.Where(u => u.Id == staff.Id)
+            .ExecuteUpdateAsync(u => u.SetProperty(x => x.SessionEpoch, x => x.SessionEpoch + 1));
+        await using var stale = await context.APIRequest.GetAsync(origin + "/api/ui/search?term=pbc%20test");
+        Assert.Equal(401, stale.Status);
+      }
+
+      var clientOrigin = await host.StartApiForIdentityAsync(f.Client);
+      await using (var clientContext = await browser.NewContextAsync())
+      {
+        var clientPage = await clientContext.NewPageAsync();
+        await clientPage.GotoAsync(clientOrigin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString("/portal"));
+        await clientPage.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await using var denied = await clientContext.APIRequest.GetAsync(clientOrigin + "/api/ui/search?term=pbc%20test");
+        Assert.Equal(403, denied.Status);
+        Assert.DoesNotContain("PBC TEST CLIENT", await denied.TextAsync(), StringComparison.Ordinal);
+      }
+    }
+    finally
+    {
+      PbcSeed.DeleteDirectory(sibling.StagingRoot);
+    }
+  }
+
+  private static async Task AssertNoHitsAsync(IBrowserContext context, string origin, string term)
+  {
+    await using var response = await context.APIRequest.GetAsync(
+      origin + "/api/ui/search?term=" + Uri.EscapeDataString(term));
+    Assert.Equal(200, response.Status);
+    using var body = JsonDocument.Parse(await response.TextAsync());
+    Assert.Empty(body.RootElement.GetProperty("hits").EnumerateArray());
+    Assert.False(body.RootElement.GetProperty("truncated").GetBoolean());
   }
 }
