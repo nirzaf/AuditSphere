@@ -428,6 +428,27 @@
       "evidence": "auditsphere-migration-blazor-practice-operations-source-review.md",
       "reviewedAtCommit": "10444247ba77285f51dfe69eae8217dcd96ec853",
       "openGaps": ["Exercise entry creation and version drafting from the Angular forms", "Audience isolation, duplicate code and distinct publisher denial matrix", "Full validation, error/recovery and accessibility acceptance"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/Finance.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-finance-source-review.md",
+      "reviewedAtCommit": "5a554a0931703974074cfe182dcad0dd992d43a5",
+      "openGaps": ["Complete FinanceManager/FinanceReviewer role and scope matrix, including firm and guessed-ID denials", "Period-close invalid, stale/revoked-session, failure and recovery states", "Complete read and command authorization assertions across current routes"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/FirmBooks.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-finance-source-review.md",
+      "reviewedAtCommit": "5a554a0931703974074cfe182dcad0dd992d43a5",
+      "openGaps": ["Angular rejection workflow, required rejection reason and same-preparer review denial", "Invalid and oversized evidence upload, malformed form, cross-firm and guessed-ID cases", "Post idempotency/retry and stale or revoked session behavior"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/InvoiceDetail.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-finance-source-review.md",
+      "reviewedAtCommit": "5a554a0931703974074cfe182dcad0dd992d43a5",
+      "openGaps": ["Full firm-wide and client-scoped role matrix, cross-firm and guessed-ID denial", "Browser journeys for invoice approve, post and send actions with independent authority", "Invalid history cursors, paging failures and each uncertain billing outcome"]
     }
   ]
 }

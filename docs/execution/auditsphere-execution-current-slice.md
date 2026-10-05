@@ -15,6 +15,31 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: firm finance source review
+
+The Finance ledger, FirmBooks and InvoiceDetail Razor sources match their
+pinned discovery hashes and are mapped to the Angular finance components, API
+endpoints and Application services. A gap in existing evidence was corrected:
+the prior expense-to-trial-balance journey still ran through the legacy host,
+so a dedicated API-host Angular journey now covers source-document capture,
+submission, independent FinanceReviewer approval, ledger posting, persisted
+identities and balanced/reconciled trial-balance output. The new journey passed
+1/1. The existing focused finance/invoice/accessibility cohort also passed
+6/6; its legacy FirmOperations test is explicitly not treated as Angular
+evidence.
+
+The Angular production build passed with the known bundle and component-style
+warnings. In the built-in Development browser, the current identity had no
+firm-wide finance grant; Firm ledger and Firm books showed access denied with
+no finance data. No business action was submitted. All three source rows stay
+`PARTIAL`: complete role/scope and cross-firm isolation, expense rejection and
+validation, close/post recovery, and invoice approve/post/send coverage remain
+open. The full solution regression and EF model-drift check were not rerun;
+the latest complete suite remains 1001/1001 at `ead85032`. Exact test commands,
+source hashes, shared-worktree boundaries, browser observation and open gaps
+are in [`status.json`](status.json) and the [finance source review](../migration/auditsphere-migration-blazor-finance-source-review.md).
+AS-PAR-002 remains partial and Blazor retirement remains `NOT_READY`.
+
 ## Current follow-on slice: practice operations source review
 
 Practice time, practice analytics, project progress and the technical library
