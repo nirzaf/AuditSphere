@@ -23,10 +23,17 @@ Reran the existing PostgreSQL-backed
 contact replacement, a dropped create response followed by receipt
 reconciliation without duplicate creation, and protected-content clearing
 after the Manager grant is revoked. The ClientDetail source/action row remains
-partial because field validation, stale-generation conflict, complete role and
-cross-firm matrices, and assistive-technology acceptance are still open. The
-contact test source was already committed; this turn records the fresh
-verification only. Blazor retirement remains `NOT_READY`.
+partial because complete UI field validation and stale-generation conflict
+rendering, full role and cross-firm matrices, and assistive-technology
+acceptance are still open. The PostgreSQL-backed
+`ClientContactCreationTests` also passed 4/4 in 33s, covering
+concurrent idempotency, immutable receipts, changed-request conflict, invalid
+field samples, stale-generation refusal, foreign-firm/client/role denial, and
+rollback after authority revocation during publication. These were existing
+committed tests; this turn records fresh verification only. Complete UI
+validation/conflict rendering, broader role/field-redaction and cross-firm
+HTTP matrices, and assistive-technology acceptance remain open. Blazor
+retirement remains `NOT_READY`.
 
 ## Current follow-on slice: Global Search bounds and candidate caps
 
