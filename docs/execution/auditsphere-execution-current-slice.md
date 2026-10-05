@@ -15,7 +15,67 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
-## Current follow-on slice: client profile sibling-route isolation
+## Current follow-on slice: advanced group consolidation authorization
+
+`AngularAdvancedConsolidationAuthorizationJourneyTests` maps two removed
+`ClientScopeJourneyTests` methods. A Client identity carrying an erroneous
+`AccountingPreparer` group grant is redirected to its portal and receives a
+4xx response from the protected advanced-consolidation API, with no group name
+or scope ID disclosed. A Staff identity with the exact group grant can read
+the authorized scope. In the same Angular document, changing from that scope
+to an unauthorized sibling clears the prior group details; returning restores
+authorized data, the document token remains, and the browser-local schedule
+draft survives reload.
+
+The focused API-host PostgreSQL/Playwright cohort passed. It checks
+320, 390, 760, 1024, 1440 and 1920 pixel widths, bounded table scrolling and
+keyboard-visible focus. The journey found and fixed a root horizontal scroll
+caused by screen-reader-only table header text escaping its scroll container.
+The advanced form now fits narrow screens, and Material buttons receive an
+explicit visible keyboard focus outline. Angular production build succeeded
+with a warning that the initial bundle is slightly over its 500 kB budget. The
+Release solution build passed with zero warnings/errors; EF reported no pending model changes.
+The built-in browser rendered the live Development group page, showed its
+safe `No group access` state, displayed a solid focus outline after keyboard
+navigation, and recorded no console errors. The full solution suite was not
+rerun; its latest complete result remains attributed in `status.json`. The
+unrelated `ConsolidationOverviewQuery.cs` edit was excluded from this commit.
+
+Aggregate removed-method and source-action counts are tracked in `status.json`.
+Production rollback/canary, human assistive-technology and
+wider-locale review, live Microsoft gates, and separate owner acceptance
+remain open. Retirement remains `NOT_READY` and AS-PAR-002 remains partial.
+Exact attribution is in `status.json` and the [test parity
+register](../migration/auditsphere-migration-blazor-test-parity.md).
+
+## Previous follow-on slice: firm-wide finance and commercial scope
+
+At test commit `fb208af7`, `AngularFirmWideScopeJourneyTests` maps
+`ClientScopeJourneyTests.FirmLedgerAndLeadsRequireFirmWideRoleGrants`. The
+API-host Angular journey verifies that a firm-wide FinanceReviewer sees the
+firm period and account while client-scoped FinanceManager and Partner users
+see neither. It also verifies that a firm-wide RelationshipManager sees the
+commercial lead, a client-scoped RelationshipManager does not, and a Client
+identity with an erroneous local RelationshipManager grant stays in the client
+portal without the lead data.
+
+The focused PostgreSQL-backed Playwright case passed 1/1 in 41 seconds. The
+Release solution build passed with zero warnings/errors, EF reported no pending
+model changes, and the built-in browser rendered the firm ledger's safe
+restricted state for the current Development identity. The full solution suite
+was not rerun; the latest complete regression remains 985/985 at `eb94ae50`.
+An unrelated unstaged edit to `ConsolidationOverviewQuery.cs` was excluded from
+the test commit.
+
+Nineteen of 82 removed E2E methods now have assertion maps; three suites and 63
+methods remain open. Sixty source/action rows and 28 supporting files remain
+unanalyzed. Production rollback/canary, human assistive-technology and
+wider-locale review, live Microsoft gates, and separate owner acceptance
+remain open. Retirement remains `NOT_READY` and AS-PAR-002 remains partial.
+Exact attribution is in `status.json` and the [test parity
+register](../migration/auditsphere-migration-blazor-test-parity.md).
+
+## Previous follow-on slice: client profile sibling-route isolation
 
 At test commit `fbca7aea`, the API-host Angular client-profile journey maps two
 removed `ClientScopeJourneyTests` methods. In both `/ui` and canonical route
@@ -34,8 +94,8 @@ was not rerun; the latest complete regression remains 985/985 at `eb94ae50`.
 An unrelated unstaged edit to `ConsolidationOverviewQuery.cs` was excluded from
 the test commit.
 
-Eighteen of 82 removed E2E methods now have assertion maps; three suites and 64
-methods remain open. Sixty source/action rows and 28 supporting files remain
+Eighteen of 82 removed E2E methods had assertion maps at that slice; three
+suites and 64 methods remained open. Sixty source/action rows and 28 supporting files remained
 unanalyzed. Production rollback/canary, human assistive-technology and
 wider-locale review, live Microsoft gates, and separate owner acceptance
 remain open. Retirement remains `NOT_READY` and AS-PAR-002 remains partial.
