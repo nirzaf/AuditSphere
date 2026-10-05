@@ -15,6 +15,17 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: Angular search truncation hint
+
+Expanded the Global Search browser fixture to seven published library entries.
+The Staff UI displays six links and the “Refine your search for more specific
+results” hint, then opens the selected exact library route. The full
+`GlobalSearchJourneyTests` cohort passed 2/2 in 47s; the UI assertion is pushed
+as `4b019b0c`. The PostgreSQL query tests separately prove page and library
+`truncated=true` signaling. Ranking/candidate behavior for other result kinds,
+exhaustive role/scope, errors/recovery, accessibility and full migration
+acceptance remain open.
+
 ## Current follow-on slice: Search cap and truncation signaling
 
 Fixed Global Search so technical-library and page result caps report
