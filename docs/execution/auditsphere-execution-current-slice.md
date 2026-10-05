@@ -15,7 +15,25 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
-## Current follow-on slice: engagement activation source/action parity review
+## Current follow-on slice: blocked engagement creation source/action review
+
+The third acceptance source row is hash-checked and mapped to the native client
+engagement-creation route, its API contracts, and the Application services. It
+creates only a reviewed, blocked draft; exact duplicates route to the existing
+engagement, and uncertain responses reconcile through actor-owned receipts.
+Editable fields can be saved in the current tab without preserving review
+assent. Partner activation remains separate.
+
+Five PostgreSQL-backed domain review/recovery tests passed, as did the
+canonical and `/ui` API-host browser journey (2/2). Angular CI passed 483/483,
+and the production build passed with the existing 6.60 kB initial-bundle
+warning-budget overage. The built-in browser showed the generic unavailable
+state for the unassigned Development identity. Cross-firm/guessed-ID and full
+validation/accessibility parity remain open; EF drift and whole-solution tests
+were not rerun. Inventory and exact evidence are in [`status.json`](status.json);
+Blazor retirement stays `NOT_READY`.
+
+## Previous follow-on slice: engagement activation source/action parity review
 
 The next acceptance source row is now hash-checked and mapped to the Angular
 activation route, API, and Application gate. The current UI requires a Partner
