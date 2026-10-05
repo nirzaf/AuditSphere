@@ -20,6 +20,15 @@ public sealed class AngularSharePointJourneyTests
     await page.GotoAsync(origin + "/auth/sign-in?returnUrl=%2Fui%2Fapp%2Fadministration%2Fmicrosoft365%2Ftenant-connection");
     var panel = page.Locator("audit-sharepoint-administration");
     await Assertions.Expect(panel.GetByRole(AriaRole.Heading,new() { Name = "Selected SharePoint workspace",Exact = true })).ToBeVisibleAsync();
+    foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
+    {
+      await page.SetViewportSizeAsync(width, 900);
+      Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"),
+        $"Selected SharePoint setup overflows the {width}px viewport.");
+    }
+    await page.SetViewportSizeAsync(390, 844);
+    await page.Keyboard.PressAsync("Tab");
+    Assert.True(await page.Locator(":focus-visible").CountAsync() > 0);
     const string tabOnlyManifest = "{\"nodes\":[{\"key\":\"tab-only\",\"name\":\"Draft only\"}]}";
     await panel.GetByLabel("Folder manifest",new() { Exact = true }).FillAsync(tabOnlyManifest);
     await page.GetByRole(AriaRole.Link,new() { Name = "Administration overview",Exact = true }).ClickAsync();
