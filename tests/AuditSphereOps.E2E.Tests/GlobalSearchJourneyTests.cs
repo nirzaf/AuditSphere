@@ -1,4 +1,5 @@
 using AuditSphereOps.Domain.Tests;
+using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Practice;
 using Microsoft.EntityFrameworkCore;
@@ -22,12 +23,33 @@ public sealed class GlobalSearchJourneyTests
   {
     await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "AS-UI-SEARCH-01");
     var user = PbcSeed.User(host.Fixture.FirmId, "Staff");
+    const string libraryTerm = "ZQXTECHLIBRARY";
+    const string libraryCode = "ZQX-ALL-STAFF";
+    const string libraryTitle = "ZQXTECHLIBRARY approved guidance";
+    Guid libraryDocumentId;
     await using (var db = host.CreateDbContext())
     {
       db.Users.Add(user);
       db.RoleGrants.AddRange(PbcSeed.Grant(host.Fixture.FirmId, user, "Staff", host.Fixture.ClientId),
         PbcSeed.Grant(host.Fixture.FirmId, user, "Partner", host.Fixture.ClientId));
       await db.SaveChangesAsync();
+
+      var curator = PbcSeed.User(host.Fixture.FirmId, "Staff");
+      var publisher = PbcSeed.User(host.Fixture.FirmId, "Staff");
+      db.Users.AddRange(curator, publisher);
+      db.RoleGrants.AddRange(PbcSeed.Grant(host.Fixture.FirmId, curator, "Manager"),
+        PbcSeed.Grant(host.Fixture.FirmId, publisher, "Partner"));
+      await db.SaveChangesAsync();
+
+      var created = await TechnicalLibraryService.CreateAsync(db, PbcSeed.Actor(curator, "Manager"),
+        libraryCode, libraryTitle, TechnicalLibraryCategories.Isa, TechnicalLibraryAudiences.AllStaff,
+        $"{libraryTerm} published staff guidance.", "Approved test source", new DateOnly(2026, 1, 1));
+      Assert.True(created.Succeeded, created.Message);
+      libraryDocumentId = created.Value;
+      var draftVersionId = await db.TechnicalLibraryVersions.Where(x => x.DocumentId == libraryDocumentId)
+        .Select(x => x.Id).SingleAsync();
+      var published = await TechnicalLibraryService.PublishAsync(db, PbcSeed.Actor(publisher, "Partner"), draftVersionId);
+      Assert.True(published.Succeeded, published.Message);
     }
     var sibling = await SiblingClientSeed.SeedAsync(host.Database, host.Fixture.FirmId, Marker);
     try
@@ -57,6 +79,18 @@ public sealed class GlobalSearchJourneyTests
       await Assertions.Expect(results.GetByRole(AriaRole.Link, new() { Name = "PBC TEST CLIENT" }).First).ToBeVisibleAsync(new() { Timeout = 15000 });
       await Assertions.Expect(results).ToContainTextAsync("Documents and emails are not searched.");
       Assert.DoesNotContain(Marker, await results.InnerTextAsync(), StringComparison.OrdinalIgnoreCase);
+
+      // A published library result is rendered as a real Angular route the scoped Staff user can open.
+      await search.FillAsync(libraryTerm);
+      var libraryLink = results.GetByRole(AriaRole.Link,
+        new() { Name = $"{libraryCode} — {libraryTitle}", Exact = true });
+      await Assertions.Expect(libraryLink).ToBeVisibleAsync(new() { Timeout = 15000 });
+      await libraryLink.ClickAsync();
+      await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+        new() { Name = $"{libraryCode} — {libraryTitle}", Exact = true })).ToBeVisibleAsync();
+      Assert.Equal($"/app/library/{libraryDocumentId:D}", new Uri(page.Url).AbsolutePath);
+      await Assertions.Expect(search).ToHaveValueAsync(string.Empty);
+      await Assertions.Expect(results.GetByRole(AriaRole.Status)).ToHaveCountAsync(0);
 
       // A sibling client's exact name yields nothing, not even a count or snippet.
       await search.FillAsync(Marker);
