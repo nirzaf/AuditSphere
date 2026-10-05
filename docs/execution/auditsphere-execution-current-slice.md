@@ -17,7 +17,13 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Current follow-on slice: Canonical root redirect evidence
 
-Reran `AngularRouteAndShellMigrationSweepTests.ParameterlessRoutesRenderAndPreserveRoleSpecificShells`; 1/1 passed in 37s. Its parameterless-route matrix directly visits `/` in canonical API-route mode and confirms it reaches the Portfolio heading with Practice navigation current. The row remains partial because preview `/ui` root ownership and unauthenticated/fallback-host behavior are not covered by this journey. This is a verification and ledger correction for existing committed code, not a route change. Blazor retirement remains `NOT_READY`.
+Reran `AngularRouteAndShellMigrationSweepTests.ParameterlessRoutesRenderAndPreserveRoleSpecificShells`; 1/1 passed in 37s. Its parameterless-route matrix directly visits `/` in canonical API-route mode and confirms it reaches the Portfolio heading with Practice navigation current. The additional two-mode journey below covers preview root ownership; unauthenticated/fallback-host behavior remains open. These are verification and ledger corrections, not route changes. Blazor retirement remains `NOT_READY`.
+
+Added `RootRedirectRespectsPreviewAndCanonicalAngularOwnership`; its two
+PostgreSQL-backed browser cases passed 2/2 in 41s. They verify the final path
+and Portfolio heading after `/` redirects to `/app` in canonical mode and
+`/ui/app` in preview mode. Unauthenticated/fallback-host behavior remains
+open. This test-only change is pushed as `c3a9ad21`.
 
 ## Current follow-on slice: Client contact creation recovery evidence
 
