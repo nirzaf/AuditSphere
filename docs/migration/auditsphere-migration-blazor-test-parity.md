@@ -222,11 +222,34 @@ Angular accounting route read-only. A clean whole-solution run remains
 attributed to its earlier checkpoint, before this code commit. AS-PAR-002 and
 Blazor retirement remain partial/`NOT_READY`.
 
+## Removed `ClientScopeJourneyTests` PBC portal and inbox scope crosswalk
+
+`AngularPbcScopeParityJourneyTests` adds three API-host Playwright journeys
+that replace seven removed client/staff PBC authorization methods. The tests
+use isolated PostgreSQL fixtures and exercise both authorized and denied
+identities, exact request IDs, same-document transitions, grant revocation,
+and persisted no-write outcomes.
+
+| Legacy method | Replacement evidence | Disposition |
+|---|---|---|
+| `ClientPortalHidesPbcRequestsOutsideAssignedEngagement` | `ClientPortalHidesUnassignedSiblingRequestsDraftsAndOtherClients` seeds a sent request on an unassigned sibling engagement and verifies it is absent from the Angular portal list and unavailable by its exact ID. | Covered for engagement-level client isolation. |
+| `ClientPbcRequestClearsThreadWhenNavigatingToAnotherRecipientsRequest` | The same journey authorizes the client's own request, then changes the route in-place to a sent request assigned to a different recipient in the same engagement. It verifies both private markers disappear, the denied response is shown, and the document token remains. | Covered for recipient-level request isolation and stale thread clearing. |
+| `PbcInboxRequiresAllowedRoleGrantForTheTargetEngagement` | `PbcInboxRequiresPbcRoleAndClearsAfterStaffGrantRevocation` gives a Staff-kind identity only a FinanceManager grant on the target engagement. The PBC API/UI show a generic scope denial without the seeded private marker. | Covered for role-specific PBC denial. |
+| `RevokedStaffGrantClearsOpenPbcInboxAfterNextCommand` | The same staff journey opens the PBC inbox, types a private request-more-files draft, revokes the exact Staff grant and attempts the command. The session is invalidated; the inbox and draft clear, and no matching communication is persisted. | Covered for current-grant revalidation, session invalidation, stale-content removal and no-write refusal. |
+| `RevokedClientGrantClearsOpenRequestAfterNextCommand` | `ClientReplyIsRefusedAndClearedAfterGrantRevocation` opens an assigned request, types a private reply, revokes the ClientUser grant and submits. The portal returns to its signed-out protection state, clears request/reply content, and persists no reply. | Covered for client-side command reauthorization and revoked-session clearing. |
+| `ClientCannotSeeOwnUnsentDraftPbcRequest` | The portal scope journey verifies the client's own unsent DRAFT request is absent from the list and its exact route returns the same generic unavailable state as the other unauthorized requests. | Covered for draft invisibility and direct-ID denial. |
+| `UnrelatedClientCannotViewSiblingPbcRequestOrItsDescription` | The same journey first reads an unrelated client's own sent request, then navigates in-place to the original client's request ID. It gets the generic unavailable state, no private markers, and retains the document token. | Covered for positive control, cross-client denial and stale-content clearing. |
+
+The focused PostgreSQL-backed browser cohort passed 3/3 with zero failures or
+skips. The test-only commit does not change application or EF models. The
+latest whole-solution run remains attributed to its earlier checkpoint; the
+current crosswalk and full-suite boundaries are tracked in `status.json`.
+
 ## Migration test gaps that keep retirement unaccepted
 
 - The committed API.Tests and E2E.Tests projects reference `AuditSphereOps.Api` directly and do not reference `AuditSphereOps.Web`; the Web project remains in the solution as a rollback/reference host. This establishes a project boundary only.
 - `AngularLegacyRouteInventoryContractTests` checks the committed discovery snapshot for route ownership. `AngularRoutingContractTests` scans the restored Web source and checks link/route ownership; neither is feature parity.
-- Commit `8ea3ef01` removed nine legacy E2E suites: `AuditAndReleaseJourneyTests`, `ClientScopeJourneyTests`, `FinancialArtifactJourneyTests`, `InvoiceScopeJourneyTests`, `M365SetupJourneyTests`, `PbcUploadJourneyTests`, `PracticeBillingLedgerJourneyTests`, `ResponsiveShellSweepTests`, and `RouteRenderSmokeTests`. The PBC upload and invoice-scope methods, both M365 setup methods, both responsive-shell methods, the route-render method, all four PracticeBillingLedger methods, and 23 `ClientScopeJourneyTests` methods now have assertion-level replacement maps. Three suites containing 48 methods remain open for assertion-level mapping or an owner-approved retirement disposition; exact totals and evidence attribution belong in `status.json`.
+- Commit `8ea3ef01` removed nine legacy E2E suites: `AuditAndReleaseJourneyTests`, `ClientScopeJourneyTests`, `FinancialArtifactJourneyTests`, `InvoiceScopeJourneyTests`, `M365SetupJourneyTests`, `PbcUploadJourneyTests`, `PracticeBillingLedgerJourneyTests`, `ResponsiveShellSweepTests`, and `RouteRenderSmokeTests`. The PBC upload and invoice-scope methods, both M365 setup methods, both responsive-shell methods, the route-render method, all four PracticeBillingLedger methods, and 30 `ClientScopeJourneyTests` methods now have assertion-level replacement maps. Three suites containing 41 methods remain open for assertion-level mapping or an owner-approved retirement disposition; exact totals and evidence attribution belong in `status.json`.
 - Focused API-only role and browser journeys pass for selected sources; the API-only E2E host conversion is committed, and the recorded full regression passed locally at its attributed commit. The removed-suite replacement crosswalk remains open until the remaining assertions are mapped. Its state is tracked in `docs/execution/status.json`.
 - Existing test crosswalk rows are candidate relationships until the host and assertions have been checked. A shared test file or reused fixture is not itself a replacement test. Aggregate mapped and remaining method counts belong in `status.json`.
 

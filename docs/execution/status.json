@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "beee6480bb0bd0da64b2cb2643bb82571b42d25c",
+  "headCommit": "06de2cfac377e5651dfb2e6ddb62ae88fc53c57e",
   "verifiedCommit": "ead85032de2ccc4d4c8043398fa8471d395376a9",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -184,8 +184,8 @@
       "removalDecision": "NOT_READY"
     },
     "angularBlazorCurrentRetirementGate": {
-      "observedAt": "2026-10-05T08:43:03Z",
-      "sourceCommit": "beee6480bb0bd0da64b2cb2643bb82571b42d25c",
+      "observedAt": "2026-10-05T09:05:43Z",
+      "sourceCommit": "06de2cfac377e5651dfb2e6ddb62ae88fc53c57e",
       "status": "NOT_READY",
       "physicalRemovalCommit": "59387b549214067ef226cdbf33d0d47084a27c46",
       "webProjectPresent": true,
@@ -219,15 +219,15 @@
           "PracticeBillingLedgerJourneyTests"
         ],
         "legacyE2eTestMethodsRemoved": 82,
-        "legacyE2eTestMethodsMapped": 34,
-        "assertionReplacementAudit": "PARTIAL; the single PbcUploadJourneyTests and InvoiceScopeJourneyTests methods, both M365SetupJourneyTests methods, both ResponsiveShellSweepTests methods, the RouteRenderSmokeTests method, all four PracticeBillingLedgerJourneyTests methods, and 23 ClientScopeJourneyTests methods have API/Angular assertion crosswalks. Three removed suites containing 48 methods remain open for method-level mapping or an owner-approved retirement disposition. A full-suite pass is regression evidence, not replacement evidence."
+        "legacyE2eTestMethodsMapped": 41,
+        "assertionReplacementAudit": "PARTIAL; the single PbcUploadJourneyTests and InvoiceScopeJourneyTests methods, both M365SetupJourneyTests methods, both ResponsiveShellSweepTests methods, the RouteRenderSmokeTests method, all four PracticeBillingLedgerJourneyTests methods, and 30 ClientScopeJourneyTests methods have API/Angular assertion crosswalks. Three removed suites containing 41 methods remain open for method-level mapping or an owner-approved retirement disposition. A full-suite pass is regression evidence, not replacement evidence."
       },
-      "fullSolutionCurrentHead": "Latest complete PostgreSQL-backed Release solution regression: API 191/191, Domain 660/660 and E2E 150/150 (1001/1001; zero failed/skipped) at ead85032de2ccc4d4c8043398fa8471d395376a9. This clean frozen result predates the current authorization crosswalk code commit. The current source commit has focused tests, not a new full-suite run.",
-      "efModelCurrentHead": "NONE at beee6480; dotnet ef migrations has-pending-model-changes reported no model changes for the current source and shared worktree.",
+      "fullSolutionCurrentHead": "Latest complete PostgreSQL-backed Release solution regression: API 191/191, Domain 660/660 and E2E 150/150 (1001/1001; zero failed/skipped) at ead85032de2ccc4d4c8043398fa8471d395376a9. This clean frozen result predates current authorization crosswalk code commit 06de2cfac377e5651dfb2e6ddb62ae88fc53c57e. The current source commit has focused tests, not a new full-suite run.",
+      "efModelCurrentHead": "NONE at beee6480; dotnet ef migrations has-pending-model-changes reported no model changes. The subsequent PBC commit 06de2cfac377e5651dfb2e6ddb62ae88fc53c57e adds tests only and does not change application or EF models.",
       "rollbackAndCanary": "Local Development rollback smoke PASS: Razor root, local Blazor/MudBlazor assets, negotiate endpoint, and SignalR circuit handshake. Production OIDC, route cutover recovery, and production-like canary remain OPEN.",
       "humanAssistiveTechnologyAndLocale": "OPEN",
       "liveMicrosoftGates": "BLOCKED_EXTERNAL",
-      "decision": "NOT_READY. The Web rollback/reference source remains restored. Focused current-source checks cover 34 of the 82 removed E2E methods; 48 methods across three suites remain open. Twenty-three ClientScopeJourneyTests methods now have assertion crosswalks. Fifteen source/action rows are partially reviewed (13 administration and two PBC), one assessment source is parity verified, and 60 rows plus 28 supporting files remain unanalyzed. Production/human/external acceptance and separate owner acceptance remain open.",
+      "decision": "NOT_READY. The Web rollback/reference source remains restored. Focused current-source checks cover 41 of the 82 removed E2E methods; 41 methods across three suites remain open. Thirty ClientScopeJourneyTests methods now have assertion crosswalks. Fifteen source/action rows are partially reviewed (13 administration and two PBC), one assessment source is parity verified, and 60 rows plus 28 supporting files remain unanalyzed. Production/human/external acceptance and separate owner acceptance remain open.",
       "angularProductionBuild": {
         "status": "PASS_WITH_BUDGET_WARNING",
         "initialBundle": "506.60 kB; 6.60 kB above the 500 kB warning budget."
@@ -8734,6 +8734,49 @@
       "sharedWorktreeBoundary": "An unrelated unstaged edit to src/AuditSphereOps.Application/Accounting/ConsolidationOverviewQuery.cs was included in the Release solution build but excluded from the code commit.",
       "scopeBoundary": "This maps eight removed ClientScopeJourneyTests methods. It does not close the broader AS-PAR-002 audit, the remaining 48 removed E2E method crosswalks, the 60 unanalyzed source/action rows, the 28 supporting-file reviews, or human, production, live Microsoft and owner acceptance gates.",
       "retirementDecision": "NOT_READY"
+    },
+    "angularPbcScopeParityCrosswalk": {
+      "sourceCommit": "06de2cfac377e5651dfb2e6ddb62ae88fc53c57e",
+      "observedAt": "2026-10-05T09:05:43Z",
+      "status": "PASS_LOCAL_SLICE",
+      "focusedPostgresPlaywright": {
+        "status": "PASS",
+        "passed": 3,
+        "failed": 0,
+        "skipped": 0,
+        "duration": "56s",
+        "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~AngularPbcScopeParityJourneyTests'"
+      },
+      "legacyMethodsMappedThisSlice": [
+        "ClientScopeJourneyTests.ClientPortalHidesPbcRequestsOutsideAssignedEngagement",
+        "ClientScopeJourneyTests.ClientPbcRequestClearsThreadWhenNavigatingToAnotherRecipientsRequest",
+        "ClientScopeJourneyTests.PbcInboxRequiresAllowedRoleGrantForTheTargetEngagement",
+        "ClientScopeJourneyTests.RevokedStaffGrantClearsOpenPbcInboxAfterNextCommand",
+        "ClientScopeJourneyTests.RevokedClientGrantClearsOpenRequestAfterNextCommand",
+        "ClientScopeJourneyTests.ClientCannotSeeOwnUnsentDraftPbcRequest",
+        "ClientScopeJourneyTests.UnrelatedClientCannotViewSiblingPbcRequestOrItsDescription"
+      ],
+      "replacementJourneys": [
+        "AngularPbcScopeParityJourneyTests.ClientPortalHidesUnassignedSiblingRequestsDraftsAndOtherClients",
+        "AngularPbcScopeParityJourneyTests.PbcInboxRequiresPbcRoleAndClearsAfterStaffGrantRevocation",
+        "AngularPbcScopeParityJourneyTests.ClientReplyIsRefusedAndClearedAfterGrantRevocation"
+      ],
+      "removedE2eMethodCrosswalk": {
+        "total": 82,
+        "mapped": 41,
+        "remaining": 41,
+        "clientScopeMapped": 30,
+        "remainingSuites": [
+          "AuditAndReleaseJourneyTests",
+          "ClientScopeJourneyTests",
+          "FinancialArtifactJourneyTests"
+        ]
+      },
+      "coverage": "API-host Angular browser journeys use isolated PostgreSQL fixtures. They verify assigned versus sibling engagements, recipient isolation, own unsent draft hiding, unrelated-client exact-ID denial, authorized PBC role requirements, same-document stale-content clearing, open-workspace revocation, command refusal, and no persisted communication or reply after revocation.",
+      "database": "PostgreSQL-backed isolated test databases",
+      "sharedWorktreeBoundary": "The concurrent agent had an unstaged edit to src/AuditSphereOps.Application/Accounting/ConsolidationOverviewQuery.cs. The test-only commit did not stage or include it.",
+      "latestCompleteSolutionRegression": "1001/1001 (API 191, Domain 660, E2E 150) at ead85032de2ccc4d4c8043398fa8471d395376a9; predates the current source commit and is not a full-suite result for this slice.",
+      "retirementDecision": "NOT_READY"
     }
   },
   "documentationWork": {
@@ -8840,8 +8883,8 @@
     "packageId": "ASP.NET Core API and Angular 22 presentation migration",
     "implementationStatus": "PARTIAL",
     "acceptanceStatus": "PARTIAL",
-    "scope": "Canonical Angular route ownership is in place. AuditSphereOps.Web and its Razor source remain restored as rollback/reference. API.Tests and E2E.Tests use API-only hosts. Current focused checks cover 34 of 82 removed E2E methods, including 23 ClientScope methods; 48 methods remain open. Fifteen source/action rows are partially reviewed, one is parity verified, 60 remain unanalyzed and 28 supporting files remain open. Overall migration acceptance and Blazor retirement are NOT_READY.",
-    "nextAction": "Continue assertion-level review of the 48 remaining methods across the three removed E2E suites, then review the 60 unanalyzed source/action rows and 28 supporting files. Close eligible Angular/API gaps. Keep the Blazor rollback host until behavior parity, production rollback/canary, human assistive-technology/locale acceptance, live Microsoft gates, and separate owner acceptance are complete.",
+    "scope": "Canonical Angular route ownership is in place. AuditSphereOps.Web and its Razor source remain restored as rollback/reference. API.Tests and E2E.Tests use API-only hosts. Current focused checks cover 41 of 82 removed E2E methods, including 30 ClientScope methods; 41 methods remain open. Fifteen source/action rows are partially reviewed, one is parity verified, 60 remain unanalyzed and 28 supporting files remain open. Overall migration acceptance and Blazor retirement are NOT_READY.",
+    "nextAction": "Continue assertion-level review of the 41 remaining methods across AuditAndReleaseJourneyTests, ClientScopeJourneyTests, and FinancialArtifactJourneyTests. Prioritize the remaining ClientScope authorization and stale-content behaviors, then review the 60 unanalyzed source/action rows and 28 supporting files. Close eligible Angular/API gaps. Keep the Blazor rollback host until behavior parity, production rollback/canary, human assistive-technology/locale acceptance, live Microsoft gates, and separate owner acceptance are complete.",
     "branch": "master"
   },
   "localEvidence": [
@@ -9704,13 +9747,18 @@
       "item": "Angular client scope, period and export authorization crosswalk (2026-10-05)",
       "status": "LOCAL_VERIFIED",
       "details": "At pushed code commit beee6480, eight removed ClientScopeJourneyTests methods gained assertion-level API-host Angular replacements. The isolated PostgreSQL Playwright cohort passed 15/15 with zero failures/skips. Angular CI passed 477/477 across 91 files; the production build succeeded with an initial bundle of 506.60 kB (6.60 kB above its 500 kB warning budget); Release solution build passed with zero warnings/errors; EF reported no pending model changes. Built-in browser smoke was read-only at the local Angular accounting route. The build included an unrelated concurrent edit to ConsolidationOverviewQuery.cs, excluded from the code commit. The latest complete regression remains the earlier 1001/1001 pass at ead85032de2ccc4d4c8043398fa8471d395376a9, before this code commit. Crosswalk total is 34/82, with 48 methods still open; 60 source/action rows and 28 support files remain unanalyzed. Retirement remains NOT_READY."
+    },
+    {
+      "item": "Angular PBC authorization and revocation crosswalk (2026-10-05)",
+      "status": "LOCAL_VERIFIED",
+      "details": "At pushed test commit 06de2cfac377e5651dfb2e6ddb62ae88fc53c57e, AngularPbcScopeParityJourneyTests passed 3/3 in 56s against isolated PostgreSQL fixtures and the API-host Angular UI. The three journeys map seven removed ClientScopeJourneyTests methods covering assigned-engagement, recipient and client isolation; hidden unsent drafts; role-specific staff inbox access; same-document stale-thread clearing; and staff/client grant revocation with command refusal and no persisted communication/reply. The removed-method crosswalk is 41/82, including 30 ClientScope methods; 41 remain across three suites. This test-only commit changes no application or EF model. The latest complete suite remains 1001/1001 at ead85032de2ccc4d4c8043398fa8471d395376a9 and predates this commit. The concurrent ConsolidationOverviewQuery.cs edit was excluded. Retirement remains NOT_READY."
     }
   ],
   "remainingLocalWork": [
     {
       "item": "AS-PAR-002 — remaining whole-application scope and revocation coverage",
       "status": "PARTIAL",
-      "details": "Verified slices cover firm/client/engagement/group grant scoping; protected details, queues, exports and route reads; revocation denials; and stale-content clearing. Twenty-three removed ClientScopeJourneyTests methods now have assertion crosswalks, including audit detail/review, client profile, finance/commercial scope, advanced consolidation, firm administration revocation, portfolio export, engagement time, assessment IDs, evidence queue and accounting/period scope. AS-PAR-002 still requires the remaining route/query/search/count/export/direct-command audit, stale-content review on other pages, mutation retry/idempotency checks and corresponding HTTP/browser positive-negative assertions. Full AS-PAR-002 acceptance remains open."
+      "details": "Verified slices cover firm/client/engagement/group grant scoping; protected details, queues, exports and route reads; revocation denials; stale-content clearing; and PBC request/inbox role, recipient, draft, sibling-engagement, cross-client and revocation boundaries. Thirty removed ClientScopeJourneyTests methods now have assertion crosswalks. AS-PAR-002 still requires the remaining route/query/search/count/export/direct-command audit, stale-content review on other pages, mutation retry/idempotency checks and corresponding HTTP/browser positive-negative assertions. Full AS-PAR-002 acceptance remains open."
     },
     {
       "item": "AS-PAR-009 — Pricing review, evidence-bound dispatch and client response",
@@ -9720,7 +9768,7 @@
     {
       "item": "ASP.NET Core API and Angular 22 migration",
       "status": "PARTIAL",
-      "details": "Native API and Angular capability routes, financial review/evidence actions, and scoped portfolio/client/contact/engagement projections have local verification. Canonical Angular route ownership is active. AuditSphereOps.Web and its Razor source remain restored as rollback/reference; API.Tests and E2E.Tests use API-only hosts. The latest complete PostgreSQL-backed Release solution regression is 1001/1001 (API 191/191, Domain 660/660, E2E 150/150) at ead85032de2ccc4d4c8043398fa8471d395376a9; it predates the current code commit beee6480. Focused current-source journeys now cover 34 of 82 removed E2E methods; 48 methods across three suites remain open. Also open: 60 unanalyzed source/action rows, 28 supporting files, broader planning parity, production-like rollback/canary, screen-reader/wider-locale acceptance, and live Microsoft gates."
+      "details": "Native API and Angular capability routes, financial review/evidence actions, and scoped portfolio/client/contact/engagement projections have local verification. Canonical Angular route ownership is active. AuditSphereOps.Web and its Razor source remain restored as rollback/reference; API.Tests and E2E.Tests use API-only hosts. The latest complete PostgreSQL-backed Release solution regression is 1001/1001 (API 191/191, Domain 660/660, E2E 150/150) at ead85032de2ccc4d4c8043398fa8471d395376a9; it predates the current code commit 06de2cfac377e5651dfb2e6ddb62ae88fc53c57e. Focused current-source journeys cover 41 of 82 removed E2E methods; 41 methods across three suites remain open. Also open: 60 unanalyzed source/action rows, 28 supporting files, broader planning parity, production-like rollback/canary, screen-reader/wider-locale acceptance, and live Microsoft gates."
     }
   ],
   "externalGates": [
