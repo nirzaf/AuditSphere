@@ -99,6 +99,10 @@ describe('Audit Fieldwork Contracts', () => {
           procedureTitles: ['Land and Buildings Title Verification'],
         },
       ],
+      canManageFieldwork: true,
+      canViewReviewNotes: true,
+      canAddOrResolveReviewNotes: true,
+      canRespondToReviewNotes: true,
     };
 
     const decoded = decodeFieldwork(raw, 'fieldwork');
@@ -110,6 +114,10 @@ describe('Audit Fieldwork Contracts', () => {
     expect(decoded.aggregate?.conclusion).toContain('tolerable error');
     expect(decoded.samplingRuns[0].method).toBe('MUS');
     expect(decoded.physicalItems[0].fileIndex).toBe('PF-01');
+    expect(decoded.canManageFieldwork).toBe(true);
+    expect(decoded.canViewReviewNotes).toBe(true);
+    expect(decoded.canAddOrResolveReviewNotes).toBe(true);
+    expect(decoded.canRespondToReviewNotes).toBe(true);
   });
 
   it('decodes a valid procedure review payload', () => {

@@ -19,7 +19,8 @@ public sealed record FieldworkPhysicalItem(Guid Id, string FileIndex, string Box
 public sealed record AuditFieldworkWorkspace(Guid EngagementId, int CatalogProcedureCount, string CatalogVersion, FieldworkProgram? Program,
   IReadOnlyList<FieldworkProcedure> Procedures, IReadOnlyList<AuditDifferenceSummary> Differences, FieldworkAggregate? Aggregate, bool AggregateCurrentAndReviewed,
   IReadOnlyList<FieldworkSchedule> Schedules, IReadOnlyList<string> SamplingMethods, IReadOnlyList<FieldworkSamplingRun> SamplingRuns,
-  IReadOnlyList<EvidenceCandidate> EvidenceCandidates, IReadOnlyList<FieldworkPhysicalItem> PhysicalItems);
+  IReadOnlyList<EvidenceCandidate> EvidenceCandidates, IReadOnlyList<FieldworkPhysicalItem> PhysicalItems, bool CanManageFieldwork,
+  bool CanViewReviewNotes, bool CanAddOrResolveReviewNotes, bool CanRespondToReviewNotes);
 public sealed record FieldworkResultView(Guid Id, long Revision, string WorkPerformed, string? Conclusion);
 public sealed record ProcedureReviewWorkspace(Guid ProcedureId, FieldworkResultView? CurrentResult, IReadOnlyList<ReviewNoteView> Notes, IReadOnlyList<ProcedureEvidenceView> Evidence);
 
@@ -31,22 +32,40 @@ public static class AuditFieldworkWorkspaceQuery
 {
   public const string DefaultProgramVersion = "2026.1";
   private static readonly string[] FieldworkRoles = ["Partner", "Manager", "SeniorManager", "Senior", "Staff", "Auditor", "EngagementLeader", "Administrator"];
+  private static readonly string[] ReviewRoles = ["Reviewer", "Senior", "Manager", "Partner", "Administrator"];
+  private static readonly string[] ReviewParticipantRoles = ["Reviewer", "Senior", "Staff", "Manager", "Partner", "Administrator", "Auditor"];
 
-  private static async Task<(Domain.Engagements.Engagement? Engagement, CommandResult Auth)> AuthorizeAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct)
+  private sealed record WorkspaceAuthorization(Domain.Engagements.Engagement? Engagement, CommandResult Auth,
+    bool CanManageFieldwork, bool CanViewReviewNotes, bool CanAddOrResolveReviewNotes, bool CanRespondToReviewNotes);
+
+  private static async Task<WorkspaceAuthorization> AuthorizeAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct)
   {
     var engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x => x.Id == engagementId && x.FirmId == actor.FirmId, ct);
-    if (engagement is null) return (null, CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied."));
-    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagement.Id, FieldworkRoles, true, true), ct);
-    return (engagement, auth);
+    if (engagement is null) return new(null, CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied."), false, false, false, false);
+
+    async Task<bool> AllowsAsync(string[] roles) => (await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagement.Id, roles, true, true), ct)).Succeeded;
+
+    var canManage = await AllowsAsync(FieldworkRoles);
+    var canViewNotes = await AllowsAsync(ReviewParticipantRoles);
+    var canAddOrResolveNotes = await AllowsAsync(ReviewRoles);
+    var canRespondToNotes = canViewNotes;
+    var auth = canManage || canViewNotes
+      ? CommandResult.Ok()
+      : CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    return new(engagement, auth, canManage, canViewNotes, canAddOrResolveNotes, canRespondToNotes);
   }
 
   public static async Task<CommandResult<AuditFieldworkWorkspace>> GetAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)
   {
-    var (engagement, auth) = await AuthorizeAsync(db, actor, engagementId, ct);
-    if (!auth.Succeeded) return CommandResult<AuditFieldworkWorkspace>.Fail(auth.ErrorCode!, auth.Message!);
-    var adoption = await db.EngagementAuditPrograms.AsNoTracking()
-      .Where(x => x.FirmId == actor.FirmId && x.ClientId == engagement!.PracticeClientId && x.EngagementId == engagementId && x.Status == EngagementAuditProgramStatuses.Adopted)
-      .OrderByDescending(x => x.AdoptedAt).FirstOrDefaultAsync(ct);
+    var authorization = await AuthorizeAsync(db, actor, engagementId, ct);
+    if (!authorization.Auth.Succeeded) return CommandResult<AuditFieldworkWorkspace>.Fail(authorization.Auth.ErrorCode!, authorization.Auth.Message!);
+    var engagement = authorization.Engagement!;
+    var adoption = authorization.CanManageFieldwork
+      ? await db.EngagementAuditPrograms.AsNoTracking()
+        .Where(x => x.FirmId == actor.FirmId && x.ClientId == engagement.PracticeClientId && x.EngagementId == engagementId && x.Status == EngagementAuditProgramStatuses.Adopted)
+        .OrderByDescending(x => x.AdoptedAt).FirstOrDefaultAsync(ct)
+      : null;
     FieldworkProgram? program = null;
     List<FieldworkProcedure> procedures = [];
     if (adoption is not null)
@@ -58,6 +77,20 @@ public static class AuditFieldworkWorkspaceQuery
         .OrderBy(x => x.SourceSectionNumber).ThenBy(x => x.SourceProcedureId)
         .Select(x => new FieldworkProcedure(x.Id, x.SourceProcedureId, x.SourceSectionNumber, x.SourceSectionTitle, x.Title, x.ApplicabilityStatus, x.Status)).ToListAsync(ct);
     }
+    else if (authorization.CanViewReviewNotes)
+    {
+      // A reviewer-only projection exposes only procedures with submitted results to review.
+      procedures = await db.AuditProcedures.AsNoTracking()
+        .Where(x => x.FirmId == actor.FirmId && x.ClientId == engagement.PracticeClientId && x.EngagementId == engagementId &&
+          db.AuditProcedureResults.Any(r => r.FirmId == actor.FirmId && r.ClientId == engagement.PracticeClientId && r.EngagementId == engagementId && r.AuditProcedureId == x.Id))
+        .OrderBy(x => x.SourceSectionNumber).ThenBy(x => x.SourceProcedureId)
+        .Select(x => new FieldworkProcedure(x.Id, x.SourceProcedureId, x.SourceSectionNumber, x.SourceSectionTitle, x.Title, x.ApplicabilityStatus, x.Status)).ToListAsync(ct);
+    }
+
+    if (!authorization.CanManageFieldwork)
+      return CommandResult<AuditFieldworkWorkspace>.Ok(new(engagementId, 0, string.Empty, null, procedures, [], null, false, [], [], [], [], [],
+        false, authorization.CanViewReviewNotes, authorization.CanAddOrResolveReviewNotes, authorization.CanRespondToReviewNotes));
+
     var differences = await AuditFieldworkService.GetDifferenceSummariesAsync(db, actor, engagementId, ct);
     var aggregate = await db.AuditAreaAssessments.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.ClientId == engagement!.PracticeClientId && x.EngagementId == engagementId &&
@@ -82,7 +115,8 @@ public static class AuditFieldworkWorkspaceQuery
       x.Description, x.CurrentLocation, x.Movements.Select(m => new FieldworkMovement(m.ToLocation, m.MovedAt)).ToList(), x.Procedures.Select(p => p.Title).ToList())).ToList();
     return CommandResult<AuditFieldworkWorkspace>.Ok(new(engagementId, AuditProgramCatalog.Items.Count, DefaultProgramVersion, program, procedures, summaries,
       aggregate is null ? null : new FieldworkAggregate(aggregate.Id, aggregate.Status, aggregate.Conclusion, aggregate.CreatedByUserId == actor.UserId),
-      currentAndReviewed, schedules, AuditSamplingMethods.All, runs, candidates, physical));
+      currentAndReviewed, schedules, AuditSamplingMethods.All, runs, candidates, physical, true, authorization.CanViewReviewNotes,
+      authorization.CanAddOrResolveReviewNotes, authorization.CanRespondToReviewNotes));
   }
 
   /// <summary>Current submitted result, its anchored review notes and linked client evidence for one procedure.</summary>
@@ -90,8 +124,9 @@ public static class AuditFieldworkWorkspaceQuery
   {
     var procedure = await db.AuditProcedures.AsNoTracking().Where(x => x.Id == procedureId && x.FirmId == actor.FirmId).Select(x => new { x.EngagementId }).SingleOrDefaultAsync(ct);
     if (procedure is null) return CommandResult<ProcedureReviewWorkspace>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var (_, auth) = await AuthorizeAsync(db, actor, procedure.EngagementId, ct);
-    if (!auth.Succeeded) return CommandResult<ProcedureReviewWorkspace>.Fail(auth.ErrorCode!, auth.Message!);
+    var authorization = await AuthorizeAsync(db, actor, procedure.EngagementId, ct);
+    if (!authorization.Auth.Succeeded || !authorization.CanViewReviewNotes)
+      return CommandResult<ProcedureReviewWorkspace>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var result = await db.AuditProcedureResults.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.AuditProcedureId == procedureId)
       .OrderByDescending(x => x.Revision).Select(x => new FieldworkResultView(x.Id, x.Revision, x.WorkPerformed, x.Conclusion)).FirstOrDefaultAsync(ct);
     return CommandResult<ProcedureReviewWorkspace>.Ok(new(procedureId, result, await ReviewNotesService.ListAsync(db, actor, procedureId, ct),

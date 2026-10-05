@@ -118,6 +118,30 @@ public sealed class PlanningAndResourcesJourneyTests
     await Assertions.Expect(thresholds).ToContainTextAsync("15,000.00 QAR");
     await Assertions.Expect(thresholds).ToContainTextAsync("11,250.00 QAR");
     await Assertions.Expect(thresholds).ToContainTextAsync("750.00 QAR");
+    await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Approve calculated materiality", Exact = true })).ToHaveCountAsync(0);
+    await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Approve materiality", Exact = true })).ToHaveCountAsync(0);
+
+    // The preparer cannot approve their own calculation; an independent Manager can.
+    var managerOrigin = await host.StartApiForIdentityAsync(manager,
+      new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
+    var managerPage = await (await browser.NewContextAsync()).NewPageAsync();
+    await managerPage.GotoAsync($"{managerOrigin}/auth/sign-in?returnUrl={Uri.EscapeDataString($"/app/engagements/{f.EngagementId:D}/audit-plan")}");
+    var materialityApproval = managerPage.GetByRole(AriaRole.Button,
+      new() { Name = "Approve calculated materiality", Exact = true });
+    await Assertions.Expect(materialityApproval).ToBeVisibleAsync();
+    await Assertions.Expect(managerPage.GetByRole(AriaRole.Button,
+      new() { Name = "Approve materiality", Exact = true })).ToHaveCountAsync(0);
+    await materialityApproval.ClickAsync();
+    await Assertions.Expect(managerPage.GetByText("Materiality approved.", new() { Exact = true })).ToBeVisibleAsync();
+    await using (var db = host.CreateDbContext())
+    {
+      var assessment = await db.MaterialityAssessments.AsNoTracking()
+        .Where(x => x.EngagementId == f.EngagementId).OrderByDescending(x => x.CreatedAt).FirstAsync();
+      var approval = await db.MaterialityApprovals.AsNoTracking()
+        .SingleAsync(x => x.MaterialityAssessmentId == assessment.Id);
+      Assert.Equal(partner.Id, assessment.ActorId);
+      Assert.Equal(manager.Id, approval.ApprovedByUserId);
+    }
 
     // Red risk routing and the mandatory Partner review.
     var card = page.Locator("[data-risk='Revenue']");

@@ -57,7 +57,7 @@ interface RowInput { likelihood: number; magnitude: number; fraud: boolean; rati
             <dt>SAD threshold</dt><dd>{{ c.sadThreshold | money }} {{ c.currency }}</dd>
           </dl>
           <p><small>{{ c.benchmarkKind }}{{ c.destinationCode ? ' (' + c.destinationCode + ')' : '' }} of {{ c.benchmarkAmount | money }} {{ c.currency }} from {{ c.sourceLineCount }} mapped line(s), mapping version {{ c.mappingVersionNumber }}; rate {{ c.ratePercent }}%, TE {{ c.performancePercent }}% of PM, SAD {{ c.trivialPercent }}% of PM ({{ c.policyVersion }}).</small></p>
-          @if (c.state === 'DRAFT') { <button matButton="outlined" (click)="send('/api/ui/materiality/' + c.assessmentId + '/approve', {}, 'Materiality approved.')" [disabled]="cmd.busy()">Approve calculated materiality</button> }
+          @if (c.state === 'DRAFT' && p.canApproveMateriality) { <button matButton="outlined" (click)="send('/api/ui/materiality/' + c.assessmentId + '/approve', {}, 'Materiality approved.')" [disabled]="cmd.busy()">Approve calculated materiality</button> }
         }
         @if (p.materialitySource; as s) {
           <p>Source: mapping version {{ s.mappingVersion }} over trial balance <code>{{ s.datasetDigest.slice(0, 12) }}</code> ({{ s.currency }}).</p>
@@ -82,7 +82,7 @@ interface RowInput { likelihood: number; magnitude: number; fraud: boolean; rati
             <dt>Clearly trivial</dt><dd>{{ m.clearlyTrivialThreshold | money }}</dd><dt>Benchmark</dt><dd>{{ m.benchmarkSource }} ({{ m.benchmarkVersion }})</dd>
             <dt>Benchmark amount</dt><dd>{{ m.benchmarkAmount | money }} × {{ m.rateApplied }}</dd><dt>Rationale</dt><dd>{{ m.rationale }}</dd><dt>Status</dt><dd>{{ m.status }}</dd>
           </dl>
-          @if (p.canApproveMateriality) { <button matButton="filled" (click)="send('/api/ui/materiality/' + m.id + '/approve', {}, 'The materiality assessment was independently approved.')" [disabled]="cmd.busy()">Approve materiality</button> }
+          @if (p.canApproveMateriality && !p.latestCalculation) { <button matButton="filled" (click)="send('/api/ui/materiality/' + m.id + '/approve', {}, 'The materiality assessment was independently approved.')" [disabled]="cmd.busy()">Approve materiality</button> }
           @if (m.approvedAt) { <p><small>Approved by {{ m.approvedByUserId }} at {{ m.approvedAt.slice(0, 16).replace('T', ' ') }}.</small></p> }
           @if (m.qualitativeConsiderations) { <p>Qualitative considerations: {{ m.qualitativeConsiderations }}</p> }
         } @else { <p>No materiality assessment has been recorded for this engagement.</p> }

@@ -18,7 +18,8 @@ export const decodeFieldwork = obj({ engagementId: guid, catalogProcedureCount: 
     selectedCount: nat, populationCount: nat, coveragePercent: dec, sourceDigest: text, reproduces: bool }), 10),
   evidenceCandidates: arr(obj({ uploadIntentId: guid, pbcRequestId: guid, requestArea: text, fileName: text, contentSha256: text, receivedAt: instant, superseded: bool }), 5000),
   physicalItems: arr(obj({ id: guid, fileIndex: text, boxReference: text, description: text, currentLocation: text,
-    movements: arr(obj({ toLocation: text, movedAt: instant }), 1000), procedureTitles: arr(text, 1000) }), 5000) });
+    movements: arr(obj({ toLocation: text, movedAt: instant }), 1000), procedureTitles: arr(text, 1000) }), 5000),
+  canManageFieldwork: bool, canViewReviewNotes: bool, canAddOrResolveReviewNotes: bool, canRespondToReviewNotes: bool });
 export const decodeProcedureReview = obj({ procedureId: guid,
   currentResult: nullable(obj({ id: guid, revision: nat, workPerformed: text, conclusion: nullable(text) })),
   notes: arr(obj({ noteId: guid, resultRevision: nat, field: text, excerpt: text, startOffset: int, body: text, authorName: text, createdAt: instant, open: bool,
@@ -31,13 +32,16 @@ type Fieldwork = ReturnType<typeof decodeFieldwork>;
   imports: [FormsModule, RouterLink, MatButtonModule, MatTabsModule, ...SHARED],
   template: `
     <nav aria-label="Breadcrumb"><a routerLink="/app">Portfolio</a> / <a [routerLink]="['/app/engagements', id()]">Engagement</a> / <span>Audit fieldwork</span></nav>
-    <audit-page-header title="Controlled audit fieldwork" eyebrow="Engagement audit" description="Fieldwork procedures, differences, and aggregate conclusion on this engagement." />
+    <audit-page-header title="Controlled audit fieldwork" eyebrow="Engagement audit" [description]="ws.data()?.canManageFieldwork ? 'Fieldwork procedures, differences, and aggregate conclusion on this engagement.' : 'Review submitted procedure results and resolve review notes for this engagement.'" />
     <audit-state [loading]="ws.loading()" [error]="ws.error()" label="fieldwork coverage" />
     @if (ws.data(); as w) {
       @if (w.program) { <p role="status">{{ w.procedures.length }} adopted procedures · {{ count(w, 'APPLICABLE') }} applicable · {{ reviewed(w) }} reviewed</p> }
+      @if (w.canManageFieldwork || w.canViewReviewNotes) {
       <section class="panel" aria-labelledby="fieldwork-tools-heading">
-        <h2 id="fieldwork-tools-heading">Fieldwork tools</h2><a [routerLink]="['/app/engagements',id(),'confirmations']">Confirmation dashboard</a>
-        <mat-tab-group>
+        <h2 id="fieldwork-tools-heading">{{ w.canManageFieldwork ? 'Fieldwork tools' : 'Procedure review' }}</h2>
+        @if (w.canManageFieldwork) { <a [routerLink]="['/app/engagements',id(),'confirmations']">Confirmation dashboard</a> }
+        <mat-tab-group [selectedIndex]="toolTab()" (selectedIndexChange)="toolTab.set($event)">
+          @if (w.canManageFieldwork) {
           <mat-tab label="Sampling">
             <p>Runs the sampling engine over an approved schedule. Parameters, seed and the exact source digest are logged, so the selection can be re-performed.</p>
             <form class="inline-form" (submit)="$event.preventDefault(); sample()">
@@ -104,37 +108,48 @@ type Fieldwork = ReturnType<typeof decodeFieldwork>;
               <button matButton="filled" type="submit" [disabled]="cmd.busy()">Insert step</button>
             </form>
           </mat-tab>
+          }
+          @if (w.canViewReviewNotes) {
           <mat-tab label="Review notes">
             <p>Anchor a note to text in the current submitted result. A result cannot be approved while a note is open; the preparer responds and a reviewer resolves.</p>
-            <label>Procedure <select [(ngModel)]="e.procedure" name="rp" (ngModelChange)="selectProcedure($event)"><option value="">Select</option>@for (p of applicable(w); track p.id) { <option [value]="p.id">{{ p.sourceProcedureId }} · {{ p.title }}</option> }</select></label>
+            @if (reviewable(w).length) {
+              <label>Procedure <select [(ngModel)]="e.procedure" name="rp" (ngModelChange)="selectProcedure($event)"><option value="">Select</option>@for (p of reviewable(w); track p.id) { <option [value]="p.id">{{ p.sourceProcedureId }} · {{ p.title }}</option> }</select></label>
+            } @else { <p role="status">No submitted procedure results are ready for review.</p> }
             @if (reviewError()) { <p role="alert" class="error-text">{{ reviewError() }}</p> }
             @if (review()?.currentResult; as r) {
               <div aria-label="Current submitted result">
                 <p><strong>Revision {{ r.revision }} — work performed:</strong> {{ r.workPerformed }}</p>
                 <p><strong>Conclusion:</strong> {{ r.conclusion }}</p>
               </div>
+              @if (w.canAddOrResolveReviewNotes) {
               <form class="inline-form" (submit)="$event.preventDefault(); addNote(r.id)">
                 <label>Field <select name="nf" [(ngModel)]="n.field"><option value="WORK_PERFORMED">Work performed</option><option value="CONCLUSION">Conclusion</option></select></label>
                 <label>Quoted text <input name="ne" [(ngModel)]="n.excerpt" maxlength="500" /></label>
                 <label>Note <input name="nb" [(ngModel)]="n.body" maxlength="4000" /></label>
                 <button matButton="filled" type="submit" [disabled]="cmd.busy()">Add note</button>
               </form>
+              }
             }
             @for (note of review()?.notes ?? []; track note.noteId) {
               <article class="panel" [attr.data-note]="note.excerpt">
                 <p><mark>“{{ note.excerpt }}”</mark> (r{{ note.resultRevision }}, {{ note.field.toLowerCase().replace('_', ' ') }}) — {{ note.body }} <small>{{ note.authorName }}</small> <strong>{{ note.open ? 'Open' : 'Resolved' }}</strong></p>
                 @for (ev of note.events; track ev.id) { <p><small>{{ ev.kind.toLowerCase() }}: {{ ev.body }}</small></p> }
                 <div class="inline-form">
-                  <label>Reply <input [(ngModel)]="n.reply" [name]="'nr-' + note.noteId" [attr.aria-label]="'Reply to note on ' + note.excerpt" /></label>
-                  <button matButton (click)="noteEvent(note.noteId, 'RESPONSE')" [disabled]="cmd.busy()">Respond</button>
-                  @if (note.open) { <button matButton (click)="noteEvent(note.noteId, 'RESOLVED')" [disabled]="cmd.busy()" [attr.aria-label]="'Resolve note on ' + note.excerpt">Resolve</button> }
+                  @if (w.canRespondToReviewNotes) {
+                    <label>Reply <input [(ngModel)]="n.reply" [name]="'nr-' + note.noteId" [attr.aria-label]="'Reply to note on ' + note.excerpt" /></label>
+                    <button matButton (click)="noteEvent(note.noteId, 'RESPONSE')" [disabled]="cmd.busy()">Respond</button>
+                  }
+                  @if (note.open && w.canAddOrResolveReviewNotes) { <button matButton (click)="noteEvent(note.noteId, 'RESOLVED')" [disabled]="cmd.busy()" [attr.aria-label]="'Resolve note on ' + note.excerpt">Resolve</button> }
                 </div>
               </article>
             }
           </mat-tab>
+          }
         </mat-tab-group>
       </section>
+      }
 
+      @if (w.canManageFieldwork) {
       <section class="panel" aria-labelledby="program-heading">
         <h2 id="program-heading">Versioned audit program</h2>
         <p>The controlled source catalog contains {{ w.catalogProcedureCount }} procedures across 20 sections. Applicability and evidence status are persisted per engagement.</p>
@@ -192,6 +207,7 @@ type Fieldwork = ReturnType<typeof decodeFieldwork>;
           </table></div>
         </section>
       }
+      }
     }
     <audit-command-message [message]="cmd.message()" [failed]="cmd.failed()" />
   `,
@@ -203,6 +219,7 @@ export class AuditFieldwork {
     'Fieldwork unavailable: an authorized internal engagement scope is required.');
   readonly cmd = new CommandState(this.api);
   readonly section = signal<number | null>(null);
+  readonly toolTab = signal(0);
   readonly review = signal<ReturnType<typeof decodeProcedureReview> | null>(null);
   readonly reviewError = signal('');
   s = { procedure: '', schedule: '', method: 'MUS', interval: '', key: '', size: null as number | null, seed: null as number | null, rationale: '' };
@@ -220,6 +237,7 @@ export class AuditFieldwork {
   count(w: Fieldwork, status: string): number { return w.procedures.filter((p) => p.applicabilityStatus === status).length; }
   reviewed(w: Fieldwork): number { return w.procedures.filter((p) => p.status === 'REVIEWED').length; }
   applicable(w: Fieldwork) { return w.procedures.filter((p) => p.applicabilityStatus === 'APPLICABLE'); }
+  reviewable(w: Fieldwork) { return w.canManageFieldwork ? this.applicable(w) : w.procedures; }
   sections(w: Fieldwork) {
     const map = new Map<number, { key: number; title: string; count: number }>();
     for (const p of w.procedures) {

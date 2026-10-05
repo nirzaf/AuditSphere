@@ -1,7 +1,10 @@
+using System.Text;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Accounting;
+using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Audit;
+using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Domain.Tests;
 using Microsoft.EntityFrameworkCore;
@@ -30,7 +33,9 @@ public sealed class FieldworkConnectionsJourneyTests
     await using (var db = host.CreateDbContext())
     {
       db.Users.AddRange(senior, reviewer);
-      db.RoleGrants.AddRange(PbcSeed.Grant(f.FirmId, senior, "Senior", f.ClientId, f.EngagementId), PbcSeed.Grant(f.FirmId, senior, "AccountingPreparer", f.ClientId));
+      db.RoleGrants.AddRange(PbcSeed.Grant(f.FirmId, senior, "Senior", f.ClientId, f.EngagementId),
+        PbcSeed.Grant(f.FirmId, senior, "Staff", f.ClientId, f.EngagementId),
+        PbcSeed.Grant(f.FirmId, senior, "AccountingPreparer", f.ClientId));
       await db.Engagements.Where(x => x.Id == f.EngagementId).ExecuteUpdateAsync(s => s.SetProperty(x => x.ServiceRoute, "FinancialStatementAudit").SetProperty(x => x.PeriodEnd, "2026-12-31"));
       await db.SaveChangesAsync();
       var preparer = new ActorContext(senior.Id, f.FirmId, senior.SessionEpoch, ["AccountingPreparer"]);
@@ -89,7 +94,11 @@ public sealed class FieldworkConnectionsJourneyTests
       await db.SaveChangesAsync();
     }
 
-    var origin = await host.StartApiForIdentityAsync(senior);
+    var uploadBytes = Encoding.UTF8.GetBytes("Synthetic client sales listing evidence for REV-01.");
+    var stagedUpload = await PbcSeed.StageUploadAsync(host.Database, f,
+      PbcSeed.Actor(f.Client, "ClientUser"), host.RequestId, uploadBytes, "client-sales-listing.txt", "text/plain");
+    var origin = await host.StartApiForIdentityAsync(senior,
+      new Dictionary<string, string> { ["Storage__PbcStagingRoot"] = stagedUpload.StagingRoot });
     using var playwright = await Playwright.CreateAsync();
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     var page = await (await browser.NewContextAsync()).NewPageAsync();
@@ -100,6 +109,26 @@ public sealed class FieldworkConnectionsJourneyTests
     {
       await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 15000 });
       await page.WaitForTimeoutAsync(500);
+    }
+
+    var pbcPath = $"/app/engagements/{f.EngagementId:D}/pbc";
+    await page.GotoAsync($"{origin}/auth/sign-in?returnUrl={Uri.EscapeDataString(pbcPath)}");
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "Prepared-by-client requests", Exact = true })).ToBeVisibleAsync();
+    var stagedRequest = page.Locator("section.panel").Filter(new() { HasText = "Bank statements" });
+    await stagedRequest.GetByRole(AriaRole.Button,
+      new() { Name = "Complete staged transfer", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByText(
+      "Staged bytes verified; a durable provider transfer is queued. The request is not received until that transfer completes.",
+      new() { Exact = true })).ToBeVisibleAsync();
+    try
+    {
+      await host.StartGeneralWorkerAsync();
+      await host.WaitForReceivedAsync(stagedUpload.UploadIntentId);
+    }
+    finally
+    {
+      PbcSeed.DeleteDirectory(stagedUpload.StagingRoot);
     }
 
     // Multi-period upload.
@@ -152,6 +181,15 @@ public sealed class FieldworkConnectionsJourneyTests
     await Assertions.Expect(page.Locator(".command-result").Last).ToContainTextAsync("5 of 20 items");
     await Assertions.Expect(page.Locator("[aria-label='Sampling calculation log']")).ToContainTextAsync("SYSTEMATIC");
 
+    await page.GetByRole(AriaRole.Tab, new() { Name = "Client evidence" }).ClickAsync();
+    await page.Locator("select[name='ep']").SelectOptionAsync(revenueProcedure.ToString());
+    await page.Locator("select[name='eu']").SelectOptionAsync(stagedUpload.UploadIntentId.ToString());
+    await page.Locator("input[name='en']").FillAsync("Evidence supporting REV-01");
+    await page.GetByRole(AriaRole.Button, new() { Name = "Link evidence", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByText("Evidence linked.", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.Locator("[aria-label='Linked client evidence']"))
+      .ToContainTextAsync("client-sales-listing.txt");
+
     await page.GetByRole(AriaRole.Tab, new() { Name = "Physical files" }).ClickAsync();
     await page.GetByLabel("File index").FillAsync("X-1");
     await page.GetByLabel("Box").FillAsync("Box 3");
@@ -165,7 +203,18 @@ public sealed class FieldworkConnectionsJourneyTests
     await page.GetByRole(AriaRole.Heading, new() { Name = "Fieldwork tools" }).WaitForAsync(new() { Timeout = 20000 });
     await SettleAsync();
     await page.GetByRole(AriaRole.Tab, new() { Name = "Physical files" }).ClickAsync();
-    await Assertions.Expect(page.Locator("[data-file-index='X-1']")).ToContainTextAsync("Box 3");
+    var physicalFile = page.Locator("[data-file-index='X-1']");
+    await Assertions.Expect(physicalFile).ToContainTextAsync("Box 3");
+    await physicalFile.GetByLabel("Procedure for X-1", new() { Exact = true }).SelectOptionAsync(revenueProcedure.ToString());
+    await physicalFile.GetByRole(AriaRole.Button, new() { Name = "Link X-1", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByText("Physical file linked.", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(physicalFile).ToContainTextAsync("Test revenue cut-off");
+    await physicalFile.GetByLabel("New location for X-1", new() { Exact = true }).FillAsync("Secure audit archive");
+    var movePhysicalFile = physicalFile.GetByRole(AriaRole.Button, new() { Name = "Move X-1", Exact = true });
+    await Assertions.Expect(movePhysicalFile).ToBeEnabledAsync();
+    await movePhysicalFile.ClickAsync();
+    await Assertions.Expect(page.GetByText("Movement recorded.", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(physicalFile).ToContainTextAsync("Secure audit archive");
 
     await page.GetByRole(AriaRole.Tab, new() { Name = "Ad hoc steps" }).ClickAsync();
     await page.GetByLabel("Title").FillAsync("Inspect unusual credit note");
@@ -176,11 +225,98 @@ public sealed class FieldworkConnectionsJourneyTests
     await adhocReason.PressAsync("Tab");
     await page.GetByRole(AriaRole.Button, new() { Name = "Insert step" }).ClickAsync();
     await Assertions.Expect(page.Locator(".command-result").Last).ToContainTextAsync("Ad hoc step inserted");
+
+    Guid resultId;
+    await using (var db = host.CreateDbContext())
+    {
+      var generation = await db.ClientSafetyStates.AsNoTracking().Where(x => x.Id == f.ClientId)
+        .Select(x => x.InputGeneration).SingleAsync();
+      var submitted = await AuditProgramService.SubmitResultAsync(db, PbcSeed.Actor(senior, "Senior"),
+        new SubmitProcedureResultRequest(revenueProcedure, Math.Max(1, generation),
+          "Agreed invoice-001 to the reconciled source schedule and inspected the customer record.",
+          "{}", ["SYNTHETIC-CLIENT-SALES-LISTING"], "Agreed with no exception."));
+      Assert.True(submitted.Succeeded, submitted.Message);
+      resultId = submitted.Value!.AuditProcedureResultId;
+
+      var reviewerActor = PbcSeed.Actor(f.Reviewer, "Reviewer");
+      var blockedSampling = await AuditFieldworkService.RunSamplingAsync(db, reviewerActor,
+        new RunSamplingRequest(f.EngagementId, revenueProcedure, Guid.NewGuid(), AuditSamplingMethods.MonetaryUnit,
+          100m, null, null, null, "Reviewer role must not gain planning access."));
+      Assert.False(blockedSampling.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, blockedSampling.ErrorCode);
+    }
+
+    var reviewerOrigin = await host.StartApiForIdentityAsync(f.Reviewer,
+      new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
+    var reviewerPage = await (await browser.NewContextAsync()).NewPageAsync();
+    var fieldworkPath = $"/app/engagements/{f.EngagementId:D}/audit-fieldwork";
+    await reviewerPage.GotoAsync($"{reviewerOrigin}/auth/sign-in?returnUrl={Uri.EscapeDataString(fieldworkPath)}");
+    await Assertions.Expect(reviewerPage.GetByRole(AriaRole.Heading, new() { Name = "Procedure review", Exact = true })).ToBeVisibleAsync();
+    await reviewerPage.GetByRole(AriaRole.Tab, new() { Name = "Review notes" }).ClickAsync();
+    foreach (var hiddenTab in new[] { "Sampling", "Client evidence", "Physical files", "Ad hoc steps" })
+      await Assertions.Expect(reviewerPage.GetByRole(AriaRole.Tab, new() { Name = hiddenTab, Exact = true })).ToHaveCountAsync(0);
+    await Assertions.Expect(reviewerPage.GetByRole(AriaRole.Link, new() { Name = "Confirmation dashboard", Exact = true })).ToHaveCountAsync(0);
+    await Assertions.Expect(reviewerPage.GetByRole(AriaRole.Heading, new() { Name = "Versioned audit program", Exact = true })).ToHaveCountAsync(0);
+    var reviewerProjection = await reviewerPage.EvaluateAsync<string>("""
+      async path => {
+        const response = await fetch(path, { credentials: 'same-origin' });
+        return `${response.status}|${await response.text()}`;
+      }
+      """, $"/api/ui/engagements/{f.EngagementId:D}/fieldwork");
+    Assert.StartsWith("200|", reviewerProjection, StringComparison.Ordinal);
+    Assert.Contains("\"canManageFieldwork\":false", reviewerProjection, StringComparison.Ordinal);
+    Assert.Contains("\"canViewReviewNotes\":true", reviewerProjection, StringComparison.Ordinal);
+    Assert.Contains("\"schedules\":[]", reviewerProjection, StringComparison.Ordinal);
+    Assert.Contains("\"evidenceCandidates\":[]", reviewerProjection, StringComparison.Ordinal);
+    Assert.Contains("\"physicalItems\":[]", reviewerProjection, StringComparison.Ordinal);
+    var reviewerNotes = reviewerPage.GetByRole(AriaRole.Tabpanel, new() { Name = "Review notes" });
+    await reviewerNotes.GetByRole(AriaRole.Combobox).SelectOptionAsync(revenueProcedure.ToString());
+    var submittedResult = reviewerNotes.GetByLabel("Current submitted result", new() { Exact = true });
+    await Assertions.Expect(submittedResult).ToContainTextAsync("Agreed invoice-001");
+    await reviewerNotes.GetByLabel("Quoted text", new() { Exact = true }).FillAsync("reconciled source schedule");
+    await reviewerNotes.GetByLabel("Note", new() { Exact = true }).FillAsync("Retain the matched invoice reference.");
+    await reviewerNotes.GetByRole(AriaRole.Button, new() { Name = "Add note", Exact = true }).ClickAsync();
+    await Assertions.Expect(reviewerPage.GetByText("Note added.", new() { Exact = true })).ToBeVisibleAsync();
+    var note = reviewerNotes.Locator("[data-note='reconciled source schedule']");
+    await Assertions.Expect(note).ToContainTextAsync("Open");
+
+    var preparerPage = await (await browser.NewContextAsync()).NewPageAsync();
+    await preparerPage.GotoAsync($"{origin}/auth/sign-in?returnUrl={Uri.EscapeDataString(fieldworkPath)}");
+    await preparerPage.GetByRole(AriaRole.Tab, new() { Name = "Review notes" }).ClickAsync();
+    var preparerNotes = preparerPage.GetByRole(AriaRole.Tabpanel, new() { Name = "Review notes" });
+    await preparerNotes.GetByRole(AriaRole.Combobox).SelectOptionAsync(revenueProcedure.ToString());
+    var preparerNote = preparerNotes.Locator("[data-note='reconciled source schedule']");
+    await preparerNotes.GetByLabel("Reply to note on reconciled source schedule", new() { Exact = true })
+      .FillAsync("The matched invoice is recorded in the source schedule.");
+    await preparerNote.GetByRole(AriaRole.Button, new() { Name = "Respond", Exact = true }).ClickAsync();
+    await Assertions.Expect(preparerPage.GetByText("Response added.", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(preparerNote).ToContainTextAsync("response: The matched invoice is recorded");
+
+    await reviewerPage.ReloadAsync();
+    await reviewerPage.GetByRole(AriaRole.Tab, new() { Name = "Review notes" }).ClickAsync();
+    reviewerNotes = reviewerPage.GetByRole(AriaRole.Tabpanel, new() { Name = "Review notes" });
+    await reviewerNotes.GetByRole(AriaRole.Combobox).SelectOptionAsync(revenueProcedure.ToString());
+    note = reviewerNotes.Locator("[data-note='reconciled source schedule']");
+    await note.GetByRole(AriaRole.Button,
+      new() { Name = "Resolve note on reconciled source schedule", Exact = true }).ClickAsync();
+    await Assertions.Expect(reviewerPage.GetByText("Note resolved.", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(note).ToContainTextAsync("Resolved");
+
     await using (var db = host.CreateDbContext())
     {
       Assert.Equal(2, await db.AuditSamplingRuns.CountAsync(x => x.EngagementId == f.EngagementId));
       Assert.True(await db.AuditProcedures.AnyAsync(x => x.EngagementId == f.EngagementId && x.SourceProcedureId == "ADHOC-001"));
       Assert.Equal(2, await db.TrialBalanceDatasets.CountAsync(x => x.EngagementId == f.EngagementId && x.PeriodId != null));
+      Assert.True(await db.ProcedureEvidenceLinks.AnyAsync(x => x.ProcedureId == revenueProcedure &&
+        x.PbcUploadIntentId == stagedUpload.UploadIntentId && x.ContentSha256 == stagedUpload.DeclaredSha256Hex));
+      var noteRecord = await db.ProcedureReviewNotes.AsNoTracking().SingleAsync(x => x.ResultId == resultId);
+      Assert.Equal("reconciled source schedule", noteRecord.Excerpt);
+      var noteEvents = await db.ProcedureReviewNoteEvents.AsNoTracking().Where(x => x.NoteId == noteRecord.Id)
+        .OrderBy(x => x.CreatedAt).Select(x => x.Kind).ToListAsync();
+      Assert.Equal(["RESPONSE", "RESOLVED"], noteEvents);
+      var persistedPhysicalFile = await db.PhysicalEvidenceItems.AsNoTracking().SingleAsync(x =>
+        x.EngagementId == f.EngagementId && x.FileIndex == "X-1");
+      Assert.Equal("Secure audit archive", persistedPhysicalFile.CurrentLocation);
     }
     Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal) || x.Contains("unhandled exception", StringComparison.OrdinalIgnoreCase));
   }
