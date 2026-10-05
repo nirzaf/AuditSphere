@@ -475,8 +475,8 @@
       "source": "src/AuditSphereOps.Web/Components/Pages/Release.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-records-source-review.md",
-      "reviewedAtCommit": "5af8e02b06797b53825da09fce6b4dff04d97fb7",
-      "openGaps": ["Successful Angular issue flow with one-time key and uncertain-outcome recovery", "Complete role/scope, expired-grant and cross-firm response matrix", "Remaining validation/error and human accessibility/locale acceptance"]
+      "reviewedAtCommit": "b3b4e1e3ba1d5c359ea240ed6acd6bd816be3485",
+      "openGaps": ["Complete role/scope, expired-grant, cross-firm and route-error matrix", "Remaining validation/error, human screen-reader, locale and production acceptance"]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/StatementDrillDown.razor",

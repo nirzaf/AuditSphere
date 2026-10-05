@@ -15,6 +15,23 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: Release issue and lost-response recovery
+
+Added the missing Angular journey for a verified release candidate. The
+PostgreSQL-backed API-host test uses a synthetic read-back checkpoint and
+current protection attestation, accepts the issue request, then drops the
+response. Angular reloads the candidate, confirms its persisted `ISSUED`
+state, and clears the unknown-outcome notice without replaying the command.
+The journey verified one issue POST, key clearing before dispatch, no key in
+browser storage, one immutable release event and one durable operation. The
+Release cohort passed 2/2, the records decoder tests passed 5/5, and the
+production Angular build passed with the existing Commercial Settings
+stylesheet warning (7.53 kB against a 4 kB budget). The built-in browser
+checked a guessed Release ID and showed only the generic unavailable state.
+The Release and Records Archive source rows remain partial. The full solution
+regression and EF drift check were not rerun; the latest full result remains
+1001/1001 at `ead85032`. Blazor retirement remains `NOT_READY`.
+
 ## Current follow-on slice: Operations access-denial clarity
 
 The built-in browser showed a signed-in staff user on the Operations page with

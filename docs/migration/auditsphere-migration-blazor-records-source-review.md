@@ -1,7 +1,7 @@
 # Records Archive and Release source/action review
 
 **Disposition: PARTIAL for both source rows**
-**Reviewed against repository commit:** `5af8e02b06797b53825da09fce6b4dff04d97fb7`
+**Reviewed against repository commit:** `b3b4e1e3`
 **Review observed:** 2026-10-05
 
 ## Records Archive
@@ -42,9 +42,10 @@ Pinned Razor hashes match the source-discovery inventory:
 
 - Archive: `d3601645bc97021062bc444a9f71579f61d27450750a26913463fde99c98ed5b`
 - Release: `0b47f8747fac34b68eb3583a20e1e0836793c81b52600e5a738bad4bdab76d88`
-- Angular records feature: `e5f24ffa4fd86540fad14b7cb41f82e857a223da65c3b318d1a815858918a709`
+- Angular records feature: `10fce26b2ad2adc48c792c395edd867b8327c2951912b03a9c2cf56ddc7d12a3`
 
-The focused PostgreSQL-backed API-host journeys passed **1/1 each**:
+The focused PostgreSQL-backed API-host archive journey passed **1/1** and the
+Angular Release cohort passed **2/2**:
 
 ```bash
 dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj \
@@ -58,25 +59,28 @@ dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj \
 
 The archive detail journey verifies its authorized manifest and entry data,
 client/sibling and guessed-ID denial, responsive layout, keyboard focus, and
-absence of private archive markers on denied routes. The Release journey
-verifies expired protection is shown as expired rather than verified, issuance
-stays disabled, a direct issue attempt writes no release, sibling scope is
-denied, a guessed-ID route clears digest/profile/checkpoint content, and a
-revoked grant removes the candidate details after reload. It also checks six
-viewport widths and visible keyboard focus. Built-in Development-browser
-checks of both guessed-ID routes showed their generic unavailable states with
-no protected record content.
+absence of private archive markers on denied routes. The original Release
+journey verifies expired protection is shown as expired rather than verified,
+issuance stays disabled, a direct issue attempt writes no release, sibling
+scope is denied, a guessed-ID route clears digest/profile/checkpoint content,
+and a revoked grant removes candidate details after reload. It also checks six
+viewport widths and visible keyboard focus. The new verified-candidate journey
+submits once with a current protection attestation and read-back checkpoint,
+drops the accepted issue response, and verifies that refreshed persisted
+`ISSUED` state resolves the unknown outcome. It confirms the key is cleared
+before dispatch and absent from browser storage, only one POST is sent, and
+one immutable release event and one durable operation exist. The built-in
+Development browser checked a guessed Release ID and showed the generic
+unavailable state without protected record content.
 
 ## Gaps keeping both rows partial
 
-- The Release journey covers a blocked expired-attestation outcome, but does
-  not yet drive a verified candidate through the Angular issue-key form to a
-  successful release event or exercise its uncertain-result recovery.
 - Complete role/scope, expired-grant, cross-firm, and route-error matrices for
   both pages remain open.
 - Archive empty/incomplete/large-manifest variants and all failure/recovery
   states need direct assertions.
-- Human screen-reader, broader locale, and production acceptance remain open.
+- Remaining Release validation/error states, human screen-reader, broader
+  locale, and production acceptance remain open.
 
 Neither row is promoted to parity verified. These page reviews do not establish
 Purview provider acceptance or close overall migration acceptance.
