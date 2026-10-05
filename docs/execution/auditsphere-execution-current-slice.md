@@ -15,6 +15,20 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: Portfolio aggregate scope parity
+
+Extended `AngularPortfolioJourneyTests.ScopedSummaryRecordsCsvAndReturnFilters`
+to inspect `GET /api/ui/portfolio/workspace` directly while the sibling client
+contains its own fixture data. On canonical and `/ui` routes, the API returns
+only the assigned client, counts one authorized client and engagement, reports
+the 25 ready candidates and one issued release for that client, and omits the
+sibling marker. Both browser journeys passed (2/2). The slice changed tests
+only; the shared build also compiled the other agent's uncommitted
+`ConsolidationOverviewQuery.cs`, which this portfolio test does not exercise
+and which was excluded from the commit. Full solution and EF drift checks were
+not rerun. Portfolio source parity remains partial; Blazor retirement remains
+`NOT_READY`. The test is pushed as `3511f903`.
+
 ## Current follow-on slice: Global Search invoice scope parity
 
 Extended the PostgreSQL-backed `GlobalSearchQueryTests` cohort to seed invoices
