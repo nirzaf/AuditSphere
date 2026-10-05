@@ -67,7 +67,12 @@ public sealed class AngularSharePointJourneyTests
     var template = await db.FolderTemplateVersions.SingleAsync(x => x.FirmId == host.Fixture.FirmId);
     Assert.NotNull(template.ApprovedAt); Assert.Equal("{\"nodes\":[]}",template.ManifestJson);
     var draft = await db.Microsoft365SetupDrafts.SingleAsync(x => x.FirmId == host.Fixture.FirmId);
-    Assert.Equal("drive-1",draft.DriveId); Assert.Equal(2,draft.Revision);
+    Assert.Equal("https://synthetic.sharepoint.com/sites/working", draft.SiteUrl);
+    Assert.Equal("site-1", draft.SiteId);
+    Assert.Equal("drive-1", draft.DriveId);
+    Assert.Equal("root-1", draft.RootFolderId);
+    Assert.Equal("APP_MEDIATED", draft.AccessProfile);
+    Assert.Equal(2,draft.Revision);
     Assert.Empty(await db.FirmWorkspaceConfigurations.ToListAsync());
     Assert.Equal("BLOCKED_EXTERNAL",(await db.TenantCapabilityVerifications.Where(x => x.Capability == Microsoft365Capabilities.SelectedSite).SingleAsync()).State);
     Assert.Equal(1,await db.Microsoft365AdministrationEvents.CountAsync(x => x.Operation == "FOLDER_TEMPLATE_APPROVED"));
