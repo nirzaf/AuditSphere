@@ -90,6 +90,42 @@ describe('Angular Operations pager', () => {
     fixture.destroy();
   });
 
+  it('confirms an accepted retry after a lost response from persisted state without resending', async () => {
+    const fixture = TestBed.createComponent(Operations);
+    const http = TestBed.inject(HttpTestingController);
+    fixture.detectChanges();
+    const initial = http.expectOne('/api/ui/operations');
+    initial.flush({
+      operatingMode: 'LOCAL_ONLY', retryableStates: ['DEAD_LETTER'],
+      operations: [{ id: id1, kind: 'SYNTHETIC_RETRY', status: 'DEAD_LETTER', attemptCount: 4,
+        nextAttemptAt: null, errorCode: 'provider.test-blocked', cancellationDisposition: null }],
+    });
+    TestBed.tick();
+    fixture.detectChanges();
+
+    const command = fixture.componentInstance.retry(id1);
+    const post = http.expectOne({ method: 'POST', url: `/api/ui/operations/${id1}/retry` });
+    post.flush({ code: 'synthetic.lost-response' }, { status: 503, statusText: 'Unavailable' });
+    await command;
+    expect(fixture.componentInstance.cmd.uncertain()).toBe(true);
+    expect(fixture.componentInstance.retryReconciliationId()).toBe(id1);
+
+    http.expectOne('/api/ui/operations').flush({
+      operatingMode: 'LOCAL_ONLY', retryableStates: ['DEAD_LETTER'],
+      operations: [{ id: id1, kind: 'SYNTHETIC_RETRY', status: 'RETRY_WAIT', attemptCount: 0,
+        nextAttemptAt: '2026-10-05T10:00:00Z', errorCode: null, cancellationDisposition: null }],
+    });
+    TestBed.tick();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.cmd.uncertain()).toBe(false);
+    expect(fixture.componentInstance.retryReconciliationId()).toBeNull();
+    expect(fixture.componentInstance.cmd.message()).toContain('confirmed from the persisted operation state');
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('retry wait');
+    http.expectNone((request) => request.method === 'POST');
+    fixture.destroy();
+  });
+
   it('matches legacy 10/25/50 page sizes and exposes table semantics', () => {
     const fixture = TestBed.createComponent(Operations);
     const http = TestBed.inject(HttpTestingController);

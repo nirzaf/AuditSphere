@@ -93,6 +93,7 @@ public sealed class AngularOperationsRecoveryJourneyTests
 
     await page.GotoAsync(adminOrigin + "/auth/sign-in?returnUrl=%2Fapp%2Foperations");
     await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Operations", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.Locator("#search-help")).ToBeVisibleAsync();
     var table = page.GetByRole(AriaRole.Table, new() { Name = "Latest 50 durable operations" });
     await Assertions.Expect(table).ToBeVisibleAsync();
     await Assertions.Expect(table.Locator("tbody tr")).ToHaveCountAsync(10);
@@ -101,9 +102,18 @@ public sealed class AngularOperationsRecoveryJourneyTests
       .ToContainTextAsync("Page 1 of 3 · 1–10 of 26");
     Assert.DoesNotContain(privatePayload, await page.Locator("body").InnerTextAsync());
 
-    await page.SetViewportSizeAsync(390, 844);
-    Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
-      "Operations page overflowed the mobile viewport.");
+    foreach (var width in new[] { 1141, 1024, 700, 390 })
+    {
+      await page.SetViewportSizeAsync(width, 844);
+      Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
+        $"Operations page overflowed the {width}px viewport.");
+      Assert.True(await page.EvaluateAsync<bool>("""
+        () => [...document.querySelectorAll('.app-header, #search-help')].every(element => {
+          const rect = element.getBoundingClientRect();
+          return rect.left >= -1 && rect.right <= innerWidth + 1 && element.scrollWidth <= element.clientWidth + 1;
+        })
+        """), $"Operations header or search guidance was clipped at {width}px.");
+    }
     await page.SetViewportSizeAsync(1440, 900);
 
     await page.GetByLabel("Cancellation disposition", new() { Exact = true })
@@ -114,9 +124,19 @@ public sealed class AngularOperationsRecoveryJourneyTests
     await Assertions.Expect(cancelRow).ToContainTextAsync("Operator cancelled synthetic queued work before worker claim.");
 
     var retryRow = table.Locator("tbody tr").Filter(new() { HasText = retryKind });
+    var retryDispatches = 0;
+    await page.RouteAsync($"**/api/ui/operations/{retryId:D}/retry", async route =>
+    {
+      Interlocked.Increment(ref retryDispatches);
+      await using var accepted = await route.FetchAsync();
+      Assert.Equal(200, accepted.Status);
+      await route.AbortAsync("failed");
+    });
     await retryRow.GetByRole(AriaRole.Button, new() { Name = "Re-arm for retry", Exact = true }).ClickAsync();
     await Assertions.Expect(retryRow).ToContainTextAsync("retry wait");
     await Assertions.Expect(retryRow.GetByRole(AriaRole.Button, new() { Name = "Re-arm for retry", Exact = true })).ToHaveCountAsync(0);
+    await Assertions.Expect(page.GetByText("Re-arm confirmed from the persisted operation state.", new() { Exact = true })).ToBeVisibleAsync();
+    Assert.Equal(1, retryDispatches);
 
     await using (var verify = host.CreateDbContext())
     {
@@ -128,8 +148,9 @@ public sealed class AngularOperationsRecoveryJourneyTests
       Assert.Equal(0, retried.AttemptCount);
       Assert.Contains(await verify.OperationEvents.AsNoTracking().Where(x => x.OperationId == cancelId).ToListAsync(),
         x => x.Kind == "operation.cancelled.v1" && x.Executor == administrator.Id.ToString("D"));
-      Assert.Contains(await verify.OperationEvents.AsNoTracking().Where(x => x.OperationId == retryId).ToListAsync(),
-        x => x.Kind == "operation.recovery-retry.v1" && x.Executor == administrator.Id.ToString("D"));
+      var retryEvents = await verify.OperationEvents.AsNoTracking()
+        .Where(x => x.OperationId == retryId && x.Kind == "operation.recovery-retry.v1").ToListAsync();
+      Assert.Equal(administrator.Id.ToString("D"), Assert.Single(retryEvents).Executor);
     }
 
     await using var staffContext = await browser.NewContextAsync();
