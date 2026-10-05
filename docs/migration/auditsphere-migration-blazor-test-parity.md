@@ -196,12 +196,15 @@ focused results and the checkpoint boundary are recorded in `status.json`.
 ## Removed `ClientScopeJourneyTests` portfolio, queue and period scope crosswalk
 
 Eight additional removed methods now have API-host Angular assertions using
-isolated PostgreSQL fixtures. The focused cohort passed 15/15 tests with no
-failures or skips. The journeys exercise API denials and rendered scope, not
-only route ownership.
+isolated PostgreSQL fixtures. The table also records the previously verified
+firm-wide ledger/leads method, bringing the documented `ClientScopeJourneyTests`
+crosswalk to 23 methods. The focused cohort passed 15/15 tests with no failures
+or skips. The journeys exercise API denials and rendered scope, not only route
+ownership.
 
 | Legacy method | Replacement evidence | Disposition |
 |---|---|---|
+| `FirmLedgerAndLeadsRequireFirmWideRoleGrants` | `AngularFirmWideScopeJourneyTests.FirmLedgerAndPracticeLeadsRequireFirmWideRoleGrants` seeds firm-wide FinanceReviewer and RelationshipManager roles plus client-scoped FinanceManager/RelationshipManager, Partner and Client identities. Only the firm-wide finance and commercial roles see ledger or lead data; the client identity remains in the client portal. | Covered for firm-wide role requirements and refusal to widen client-scoped or client-classified identities. |
 | `ClientIdentityWithErroneousFirmWideStaffGrantCannotViewPortfolio` | `AngularPortfolioJourneyTests.ClientIdentityWithErroneousFirmWideStaffGrantCannotReadPortfolio` gives a Client identity an erroneous firm-wide Staff grant and checks that the scoped portfolio API and Angular workspace do not reveal the staff portfolio. | Covered for the forged role grant, protected read denial and private-data non-disclosure. |
 | `PortfolioCsvRechecksGrantAndClearsRowsAfterRevocation` | `AngularPortfolioJourneyTests.ExportRevocationClearsPortfolioAndDoesNotProduceAnotherDownload` revokes the scoped grant after an authorized portfolio read, then verifies the open workspace clears and a subsequent export is refused without producing another download. `Api.download()` also refreshes the session after HTTP 401; its unit test verifies the expired session is cleared. | Covered for export-time authority revalidation, stale-row clearing and failed-export session invalidation. |
 | `EngagementScopedTimeQueueHidesSiblingTasksEntriesAndClientPeriods` | `AngularPracticeTimeScopeParityJourneyTests.EngagementScopedTimeQueueHidesSiblingTasksEntriesAndClientPeriods` seeds assigned and sibling engagement tasks/time entries plus a client-level period. An engagement-only Manager sees only the assigned task and narrative. | Covered for engagement isolation across the task queue, time entries and client-period projection. |
