@@ -491,6 +491,27 @@
       "evidence": "auditsphere-migration-blazor-statement-intake-source-review.md",
       "reviewedAtCommit": "a75ee4e269ebc1cd3706a8b5bc0d8f83e50c9a22",
       "openGaps": ["Complete per-action role/scope, expired-grant and cross-firm authorization matrix", "All file-format, size, malformed-input, mapping-memory and currency-review outcomes crosswalk", "Human screen-reader and wider-locale acceptance"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/Operations.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-operations-recovery-source-review.md",
+      "reviewedAtCommit": "1b8a50f5ca56075322ba7b17c5569488dfd230b6",
+      "openGaps": ["Firm quarantine transitions and authorized recovery-lift coverage", "Unknown provider outcome and reconciliation paths", "Complete administrator role, scope, expiry, cross-firm and session-revocation matrix", "Human screen-reader and wider-locale acceptance"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/ClientPortal.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-client-portal-source-review.md",
+      "reviewedAtCommit": "0063c743036ffaf13c75b51da51714c68f17d2c2",
+      "openGaps": ["Complete client role, scope, cross-firm and sibling-engagement matrix", "Document comment and acknowledgement recovery plus signed-representation validation and failure paths", "Final-bundle authorization and every stale and error state", "Human assistive-technology and wider-locale acceptance"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Planning/RiskRoutingPanel.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-audit-planning-fieldwork-source-review.md",
+      "reviewedAtCommit": "d29f147c77fd7900afa0e25a99f344fb393ff546",
+      "openGaps": ["Complete role, scope, expiry and cross-firm query and command matrix", "Stale and revoked session plus unknown command outcome recovery", "Self-assessor Partner clearance denial across the browser role matrix", "Human assistive-technology and wider-locale acceptance"]
     }
   ]
 }

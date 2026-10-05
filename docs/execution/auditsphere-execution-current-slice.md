@@ -15,6 +15,27 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: Risk-routing source/action parity
+
+Compared the pinned `RiskRoutingPanel.razor` source with the Angular audit-plan
+routing section, scoped API endpoints, `RiskBandService`, and existing
+professional-review safeguards. Angular now requires nonblank rationale before
+assessing a band and a nonblank note before recording Partner clearance. The
+PostgreSQL-backed API-host browser journey passed 1/1, creating a risk through
+Angular, assessing it as amber, assigning a qualified engagement owner, and
+recording an independent Partner clearance on a separate red risk. Angular CI
+passed 491/491 across 95 files; the production build passed with the existing
+Commercial Settings stylesheet warning (7.53 kB against a 4 kB budget).
+
+The risk-routing source/action row is now `PARTIAL_REVIEWED`, not parity
+complete. Full role/scope/expiry/cross-firm coverage, stale and unknown-result
+recovery, and human assistive-technology/locale acceptance remain open. The
+register now has 72 partial reviews, three unanalyzed rows, one
+parity-verified row, and 28 supporting files open. The full solution regression
+and EF model-drift check were not rerun; the latest complete result remains
+1001/1001 at `ead85032`. See the [audit planning and fieldwork source
+review](../migration/auditsphere-migration-blazor-audit-planning-fieldwork-source-review.md).
+
 ## Current follow-on slice: Client Portal home source/action parity
 
 Compared the pinned `ClientPortal.razor` home page with the Angular portal
