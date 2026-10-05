@@ -15,6 +15,22 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: audit planning and fieldwork source review
+
+Six source pages now have a hash-checked partial review against their Angular,
+API and Application owners. Existing journeys cover assessment history and
+progress, scoped fieldwork/program adoption, population evidence and sample
+counts, library revocation, finding detail, and audit-plan scope clearing. The
+legacy `/app/audit/plans/{id}` alias now has a direct API-host browser check for
+authorized rendering and same-document sibling-scope denial/clearing. The
+Development built-in browser rendered the same Angular alias read-only.
+
+The audit-plan journey passed; exact command, source SHA and attribution are in
+[`status.json`](status.json). The review remains PARTIAL: `AcceptanceChecklistPanel`,
+`FieldworkToolsPanel` and `MaterialityEnginePanel` have separate source rows,
+and the complete command/role/error/recovery matrix is open. No production or
+full-suite acceptance is inferred; Blazor retirement remains `NOT_READY`.
+
 ## Current follow-on slice: accounting workspace and period maintenance
 
 In the current code slice, the Angular evidence and mapping/journal/difference

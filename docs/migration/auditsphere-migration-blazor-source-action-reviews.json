@@ -197,6 +197,48 @@
       "evidence": "auditsphere-migration-blazor-accounting-maintenance-source-review.md",
       "reviewedAtCommit": "5aff633eaf82be3a4ae4299ed11088b3db38fab2",
       "openGaps": ["Invalid/stale source and lost/unknown command outcomes", "Scope and role denial matrix", "Opening-bridge review and recovery lifecycle"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/AssessmentDetail.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-audit-planning-fieldwork-source-review.md",
+      "reviewedAtCommit": "02a694f2bf61d015b440ee936f66abb2982c6adb",
+      "openGaps": ["Separate AcceptanceChecklistPanel source/action review", "Complete client-workspace, clearance, refresh-with-draft, role and failure-state matrix"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/AuditFieldwork.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-audit-planning-fieldwork-source-review.md",
+      "reviewedAtCommit": "02a694f2bf61d015b440ee936f66abb2982c6adb",
+      "openGaps": ["Separate FieldworkToolsPanel source/action review", "Complete fieldwork action, authorization and recovery matrix"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/AuditPlan.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-audit-planning-fieldwork-source-review.md",
+      "reviewedAtCommit": "02a694f2bf61d015b440ee936f66abb2982c6adb",
+      "openGaps": ["Separate MaterialityEnginePanel source/action review", "Complete materiality validation, approval, role and failure/recovery matrix"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/AuditPopulation.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-audit-planning-fieldwork-source-review.md",
+      "reviewedAtCommit": "02a694f2bf61d015b440ee936f66abb2982c6adb",
+      "openGaps": ["Full role and stale/error-state matrix", "Assertions for every evidence and selection combination"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/AuditProgramLibraryPage.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-audit-planning-fieldwork-source-review.md",
+      "reviewedAtCommit": "02a694f2bf61d015b440ee936f66abb2982c6adb",
+      "openGaps": ["All authorization roles and blocked states", "Failed refresh, empty-section and stale/out-of-order search coverage"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/Finding.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-audit-planning-fieldwork-source-review.md",
+      "reviewedAtCommit": "02a694f2bf61d015b440ee936f66abb2982c6adb",
+      "openGaps": ["Role-by-role response authorization and stale-command behavior", "Management-letter designation command journey and failure coverage"]
     }
   ]
 }
