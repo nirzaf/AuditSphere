@@ -15,6 +15,25 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: shell, search, portfolio and profile source review
+
+Six legacy source/action rows were checked against the pinned discovery hashes
+and mapped to the Angular shared shell, global-search query, portfolio, client
+profile and engagement profile, their API endpoints and Application queries.
+The focused PostgreSQL-backed Release browser cohort passed for the global
+search, responsive shell navigation, portfolio scope/export, client profile
+paging/revocation and engagement profile authority cases. The built-in browser
+rendered the Development portfolio, client and engagement routes read-only.
+
+All six rows are recorded `PARTIAL`; focused journeys do not establish every
+role, field, denial, query/result type, failure/recovery path, cross-firm or
+guessed-ID response, or assistive-technology outcome. The source review,
+exact hashes, test command, counts and browser boundary are recorded in
+[`status.json`](status.json) and the linked migration review. No full solution
+regression or EF model-drift check was run for this slice. Production/canary,
+human, external and owner acceptance gates remain open, so Blazor retirement
+stays `NOT_READY`.
+
 ## Current follow-on slice: completion and file records source/action review
 
 The three completion-family Razor sources were checked against the pinned

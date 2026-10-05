@@ -295,6 +295,48 @@
       "evidence": "auditsphere-migration-blazor-completion-file-records-source-review.md",
       "reviewedAtCommit": "2d34fca3966b9be9956dc8a645b71e8234899848",
       "openGaps": ["Complete cross-firm and guessed-ID HTTP/browser authorization matrix", "All role, validation, error, stale-content, and command retry/unknown-result states", "Browser assertions for amendment approval/closure and document-lock lifecycle, plus assistive-technology acceptance"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Layout/MainLayout.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-shell-portfolio-source-review.md",
+      "reviewedAtCommit": "1e22baaeeaf33283bf0ca311a93c1c493bcd82e6",
+      "openGaps": ["Complete route-by-route menu destination and denial parity matrix", "Screen-reader walk-through and wider locale acceptance"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Layout/GlobalSearch.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-shell-portfolio-source-review.md",
+      "reviewedAtCommit": "1e22baaeeaf33283bf0ca311a93c1c493bcd82e6",
+      "openGaps": ["Every indexed result kind and ranking, empty, error and recovery outcome", "Complete role/scope matrix beyond the exercised scoped Staff journey", "Assistive-technology acceptance"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/Home.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-shell-portfolio-source-review.md",
+      "reviewedAtCommit": "1e22baaeeaf33283bf0ca311a93c1c493bcd82e6",
+      "openGaps": ["Direct-root navigation and unauthenticated/fallback-host behavior", "Canonical and preview root redirect behavior across deployment modes"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/Portfolio.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-shell-portfolio-source-review.md",
+      "reviewedAtCommit": "1e22baaeeaf33283bf0ca311a93c1c493bcd82e6",
+      "openGaps": ["Every summary metric and record type plus maximum search/page boundaries", "Full role, scope, cross-firm and guessed-ID HTTP matrix", "Export failure and unknown-result recovery"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/ClientDetail.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-shell-portfolio-source-review.md",
+      "reviewedAtCommit": "1e22baaeeaf33283bf0ca311a93c1c493bcd82e6",
+      "openGaps": ["Contact creation validation, stale-generation and uncertain-response recovery", "Complete role/scope and field-redaction matrix including cross-firm IDs", "Assistive-technology acceptance"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/EngagementDetail.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-shell-portfolio-source-review.md",
+      "reviewedAtCommit": "1e22baaeeaf33283bf0ca311a93c1c493bcd82e6",
+      "openGaps": ["Complete role-by-role profile, workflow-link and authorization matrix", "Cross-firm and guessed-ID HTTP response equivalence", "All stale, hold, query-failure and recovery states plus assistive-technology acceptance"]
     }
   ]
 }
