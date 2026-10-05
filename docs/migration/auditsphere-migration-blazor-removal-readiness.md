@@ -9,7 +9,7 @@ This gate follows the source inventory, route matrix, feature register, test reg
 | Condition | Status | Evidence / remaining work |
 |---|---|---|
 | Every production Blazor route accounted for | **PASS — route ownership only** | All discovered route templates are in [the route matrix](auditsphere-migration-blazor-angular-route-parity.md); the focused API route contract passes. This is not feature parity. |
-| Every required feature and user action reviewed | **OPEN** | One source/action row is parity verified, 13 Administration artifacts are partially reviewed, 62 source/action rows are unanalyzed, and 28 supporting files remain unreviewed. The acceptance family remains partial. See the source-specific review records and `status.json`. |
+| Every required feature and user action reviewed | **OPEN** | One source/action row is parity verified, 15 artifacts are partially reviewed (13 Administration and two PBC), 60 source/action rows are unanalyzed, and 28 supporting files remain unreviewed. The acceptance and PBC families remain partial. See the source-specific review records and `status.json`. |
 | Every command and backend authority mapped to an equivalent API/Application contract | **OPEN** | Per-source command, validation, audit, recovery, and outcome crosswalk is incomplete. |
 | Every authorization rule, role, and scope compared | **OPEN** | Existing server authorization tests do not establish full old-to-new parity for every source action. |
 | Client portal, upload, download, Microsoft 365, and recovery behaviors reviewed end to end | **OPEN** | Focused Angular/API journeys exist; the complete per-source crosswalk and live external gates remain incomplete. |

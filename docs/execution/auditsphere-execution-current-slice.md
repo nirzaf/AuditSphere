@@ -15,6 +15,28 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: PBC source-action review and Angular file drop
+
+The PBC source review now covers the restored `PbcRequests.razor` staff inbox
+and `ClientPbcRequest.razor` client route against the API-host Angular journeys.
+The client upload control now preserves the legacy accessible drag/drop option
+alongside its file picker, and the Playwright journey dispatches a real browser
+`DataTransfer` drop event. The staff journey checks request creation, queued
+follow-up communication, scoped staged-upload completion, the pending durable
+operation identity and the exact download URL. Portal journeys cover first
+sign-in, delegation and revocation, conversation reply, upload staging, lost
+acknowledgement recovery, capability rotation and exact-byte reconstruction.
+
+Both PBC source rows remain `PARTIAL`: the staff path does not yet prove the
+queued transfer completes through the background worker, and exact downloaded
+bytes, the full state/error/stale matrix and the removed `PbcUploadJourneyTests`
+assertion crosswalk remain open. Focused evidence and exact attribution are in
+`status.json` and the [PBC source review](../migration/auditsphere-migration-blazor-pbc-source-review.md).
+The current inventory is one source/action row parity verified, 15 partially
+reviewed (13 administration and two PBC), and 60 unanalyzed; 28 supporting files
+and the broader operational and owner gates remain open. Retirement stays
+`NOT_READY`.
+
 ## Current follow-on slice: approved initial-administrator sign-in
 
 At code commit `e61d147`, Development/Test authentication now lets only the exact
@@ -39,9 +61,10 @@ above budget). Exact attribution is in `status.json` under
 The built-in browser rendered the authenticated Microsoft tenant-connection
 route read-only and showed consent `VERIFIED` separately from stale directory
 and selected-resource capabilities. No verification action was submitted.
-Overall Blazor removal remains `NOT_READY`: 62 source/action rows, 28 support
-files, the 82-method removed-suite crosswalk, production/human/external checks,
-and separate owner acceptance remain open.
+At the bootstrap evidence checkpoint, Blazor removal remained `NOT_READY`: 62
+source/action rows, 28 support files, the 82-method removed-suite crosswalk,
+production/human/external checks, and separate owner acceptance remained open.
+The later PBC review above supersedes its source-row counts.
 
 The canonical removal gate remains `NOT_READY`. Commit `59387b54` removed
 `AuditSphereOps.Web` and its Razor sources before the canonical source-action
@@ -106,10 +129,10 @@ routes). The Senior receives a generic denial with no profile; the Partner
 completes the reviewed decision and recovers one accepted receipt after a lost
 response. `AssessmentDecision.razor` is `PARITY_VERIFIED` for this source only.
 
-`AssessmentDetail.razor`, `AcceptanceChecklistPanel.razor`, the 62 unanalyzed
-source/action rows, all 28 supporting files, and complete removed-test crosswalk
-remain open. Thirteen administration artifacts are now separately
-`PARTIAL_REVIEWED`. The overall physical-removal decision remains `NOT_READY`;
+`AssessmentDetail.razor`, `AcceptanceChecklistPanel.razor`, the remaining 60
+unanalyzed source/action rows, all 28 supporting files, and complete removed-test
+crosswalk remain open. Fifteen artifacts are now separately `PARTIAL_REVIEWED`:
+13 administration and two PBC. The overall physical-removal decision remains `NOT_READY`;
 exact evidence and current rerun state are in `status.json`.
 
 ## API test host no longer depends on the Blazor project
