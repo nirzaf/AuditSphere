@@ -17,21 +17,24 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Current follow-on slice: Angular PBC authorization parity
 
-`AngularPbcScopeParityJourneyTests` adds three API-host Playwright journeys
-that map seven removed `ClientScopeJourneyTests` methods. The isolated
+`AngularPbcScopeParityJourneyTests` now has four API-host Playwright journeys
+that map eight removed `ClientScopeJourneyTests` methods. The isolated
 PostgreSQL-backed cases cover client visibility for assigned engagements and
 recipients, hidden unsent drafts, exact-ID denial, staff role-specific inbox
 access, and same-document clearing when navigating between authorized and
 unauthorized requests. They also revoke staff and client grants while their
 workspaces are open, then prove the next command clears protected content and
-persists no communication or reply.
+persists no communication or reply. The added staff inbox route case navigates
+to a sibling engagement in the same Angular document, clears both request
+markers, then restores the assigned request on return.
 
-The focused Release cohort passed 3/3 with zero failures or skips. This is a
+The focused Release cohort passed 4/4 with zero failures or skips in 1m11s.
+This is a
 test-only slice: no application, API contract, database model, or EF migration
 changed. The latest complete Release solution run remains 1001/1001 at
 `ead85032`, before this PBC test commit; the current source has focused, not
 whole-solution, regression evidence. The removed-suite assertion crosswalk now
-covers 41/82 methods, including 30 `ClientScopeJourneyTests` methods; 41
+covers 42/82 methods, including 31 `ClientScopeJourneyTests` methods; 40
 methods across three removed suites remain open. Sixty source/action rows and
 28 supporting files remain unanalyzed. AS-PAR-002 is partial and Blazor
 retirement remains `NOT_READY`. The concurrent agent's unstaged

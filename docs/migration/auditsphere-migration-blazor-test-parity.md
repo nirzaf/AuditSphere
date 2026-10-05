@@ -224,8 +224,8 @@ Blazor retirement remain partial/`NOT_READY`.
 
 ## Removed `ClientScopeJourneyTests` PBC portal and inbox scope crosswalk
 
-`AngularPbcScopeParityJourneyTests` adds three API-host Playwright journeys
-that replace seven removed client/staff PBC authorization methods. The tests
+`AngularPbcScopeParityJourneyTests` now has four API-host Playwright journeys
+that replace eight removed client/staff PBC authorization methods. The tests
 use isolated PostgreSQL fixtures and exercise both authorized and denied
 identities, exact request IDs, same-document transitions, grant revocation,
 and persisted no-write outcomes.
@@ -239,9 +239,11 @@ and persisted no-write outcomes.
 | `RevokedClientGrantClearsOpenRequestAfterNextCommand` | `ClientReplyIsRefusedAndClearedAfterGrantRevocation` opens an assigned request, types a private reply, revokes the ClientUser grant and submits. The portal returns to its signed-out protection state, clears request/reply content, and persists no reply. | Covered for client-side command reauthorization and revoked-session clearing. |
 | `ClientCannotSeeOwnUnsentDraftPbcRequest` | The portal scope journey verifies the client's own unsent DRAFT request is absent from the list and its exact route returns the same generic unavailable state as the other unauthorized requests. | Covered for draft invisibility and direct-ID denial. |
 | `UnrelatedClientCannotViewSiblingPbcRequestOrItsDescription` | The same journey first reads an unrelated client's own sent request, then navigates in-place to the original client's request ID. It gets the generic unavailable state, no private markers, and retains the document token. | Covered for positive control, cross-client denial and stale-content clearing. |
+| `PbcInboxClearsRenderedStateWhenNavigatingToUnauthorizedSiblingEngagement` | `StaffInboxClearsOnUnauthorizedSiblingEngagementNavigation` opens the assigned staff inbox, changes the engagement route within the same Angular document, and verifies the prior and sibling request markers are absent with a scoped denial. Returning to the assigned engagement restores its request without replacing the document. | Covered for sibling-engagement route reauthorization, stale-content clearing and authorized recovery. |
 
-The focused PostgreSQL-backed browser cohort passed 3/3 with zero failures or
-skips. The test-only commit does not change application or EF models. The
+The focused PostgreSQL-backed browser cohort passed 4/4 in 1m11s with zero
+failures or skips at test commit `41579171`. The test-only commit does not
+change application or EF models. The
 latest whole-solution run remains attributed to its earlier checkpoint; the
 current crosswalk and full-suite boundaries are tracked in `status.json`.
 
@@ -249,7 +251,7 @@ current crosswalk and full-suite boundaries are tracked in `status.json`.
 
 - The committed API.Tests and E2E.Tests projects reference `AuditSphereOps.Api` directly and do not reference `AuditSphereOps.Web`; the Web project remains in the solution as a rollback/reference host. This establishes a project boundary only.
 - `AngularLegacyRouteInventoryContractTests` checks the committed discovery snapshot for route ownership. `AngularRoutingContractTests` scans the restored Web source and checks link/route ownership; neither is feature parity.
-- Commit `8ea3ef01` removed nine legacy E2E suites: `AuditAndReleaseJourneyTests`, `ClientScopeJourneyTests`, `FinancialArtifactJourneyTests`, `InvoiceScopeJourneyTests`, `M365SetupJourneyTests`, `PbcUploadJourneyTests`, `PracticeBillingLedgerJourneyTests`, `ResponsiveShellSweepTests`, and `RouteRenderSmokeTests`. The PBC upload and invoice-scope methods, both M365 setup methods, both responsive-shell methods, the route-render method, all four PracticeBillingLedger methods, and 30 `ClientScopeJourneyTests` methods now have assertion-level replacement maps. Three suites containing 41 methods remain open for assertion-level mapping or an owner-approved retirement disposition; exact totals and evidence attribution belong in `status.json`.
+- Commit `8ea3ef01` removed nine legacy E2E suites: `AuditAndReleaseJourneyTests`, `ClientScopeJourneyTests`, `FinancialArtifactJourneyTests`, `InvoiceScopeJourneyTests`, `M365SetupJourneyTests`, `PbcUploadJourneyTests`, `PracticeBillingLedgerJourneyTests`, `ResponsiveShellSweepTests`, and `RouteRenderSmokeTests`. The PBC upload and invoice-scope methods, both M365 setup methods, both responsive-shell methods, the route-render method, all four PracticeBillingLedger methods, and 31 `ClientScopeJourneyTests` methods now have assertion-level replacement maps. Three suites containing 40 methods remain open for assertion-level mapping or an owner-approved retirement disposition; exact totals and evidence attribution belong in `status.json`.
 - Focused API-only role and browser journeys pass for selected sources; the API-only E2E host conversion is committed, and the recorded full regression passed locally at its attributed commit. The removed-suite replacement crosswalk remains open until the remaining assertions are mapped. Its state is tracked in `docs/execution/status.json`.
 - Existing test crosswalk rows are candidate relationships until the host and assertions have been checked. A shared test file or reused fixture is not itself a replacement test. Aggregate mapped and remaining method counts belong in `status.json`.
 
