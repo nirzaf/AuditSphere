@@ -337,11 +337,32 @@ methods. Twenty-four remain: five in `AuditAndReleaseJourneyTests` and 19 in
 are recorded in `docs/execution/status.json`; Blazor retirement remains
 `NOT_READY`.
 
+## Removed `AuditAndReleaseJourneyTests` revocation and fieldwork crosswalk
+
+At test commit `cd162be1`, three API-host Angular journeys cover the last five
+methods from the removed audit/release suite. The focused PostgreSQL-backed
+Release E2E cohort passed 3/3 with no failures or skips.
+
+| Removed legacy method | Angular assertion replacement | Disposition |
+|---|---|---|
+| `ReloadCurrentTargetClearsWorkpaperAfterGrantRevocation` | `AngularAuditRevocationParityJourneyTests.RefreshAfterGrantRevocationClearsWorkpaperFindingAndAuditPlan` opens the exact scoped workpaper, revokes the staff grant through the normal administration service, refreshes the page and confirms the access-unavailable state contains none of the workpaper's previously visible protected values. | Covered for refreshed workpaper state after local grant revocation. |
+| `FindingRefreshClearsAfterGrantRevocation` | The same journey independently loads the scoped finding in a separate browser context, revokes the grant, refreshes, and verifies the prior impact marker is removed. | Covered for refreshed finding state after local grant revocation. |
+| `AuditPlanRefreshClearsAfterGrantRevocation` | The same journey independently loads the scoped audit plan, revokes the Partner grant, refreshes, and verifies the previously visible materiality facts are removed. | Covered for refreshed audit-plan state after local grant revocation. |
+| `AuditFieldworkRecordsHumanAggregateConclusionBoundToDifferenceSchedule` | `AngularAuditFieldworkParityJourneyTests.AggregateDifferenceConclusionRetainsHumanDecisionAndExactSourceSnapshot` records the practitioner conclusion through Angular and verifies persisted submission status and immutable assessment metadata, including the exact difference ID, description and QAR amount in the source snapshot. | Covered for the human-authored conclusion and its exact persisted source binding. |
+| `AuditProgramAndReviewedFieldworkSurviveReconnectAndFreezeWorkpaper` | `AngularAuditFieldworkParityJourneyTests.AdoptedProgramReviewedFieldworkAndFrozenWorkpaperSurviveReload` publishes/adopts the controlled program, verifies its procedure set and filtering, records fieldwork, reconnects, reloads and submits the workpaper; persisted reviewed and frozen states are checked. | Covered for tested program adoption, fieldwork, browser reload and workpaper freeze. |
+
+The removed-method crosswalk now covers 63/82 methods, including all 39
+`ClientScopeJourneyTests` methods and all 13 `AuditAndReleaseJourneyTests`
+methods. Nineteen methods remain in `FinancialArtifactJourneyTests`. The full
+solution was not rerun at this test commit; current-source evidence is the
+focused cohort only. Exact command, duration and full-suite boundary are in
+`docs/execution/status.json`. Blazor retirement remains `NOT_READY`.
+
 ## Migration test gaps that keep retirement unaccepted
 
 - The committed API.Tests and E2E.Tests projects reference `AuditSphereOps.Api` directly and do not reference `AuditSphereOps.Web`; the Web project remains in the solution as a rollback/reference host. This establishes a project boundary only.
 - `AngularLegacyRouteInventoryContractTests` checks the committed discovery snapshot for route ownership. `AngularRoutingContractTests` scans the restored Web source and checks link/route ownership; neither is feature parity.
-- Commit `8ea3ef01` removed nine legacy E2E suites: `AuditAndReleaseJourneyTests`, `ClientScopeJourneyTests`, `FinancialArtifactJourneyTests`, `InvoiceScopeJourneyTests`, `M365SetupJourneyTests`, `PbcUploadJourneyTests`, `PracticeBillingLedgerJourneyTests`, `ResponsiveShellSweepTests`, and `RouteRenderSmokeTests`. The PBC upload and invoice-scope methods, both M365 setup methods, both responsive-shell methods, the route-render method, all four PracticeBillingLedger methods, all 39 `ClientScopeJourneyTests` methods, and eight release/detail/engagement-route methods from `AuditAndReleaseJourneyTests` now have assertion-level replacement maps. Twenty-four methods remain open: five in `AuditAndReleaseJourneyTests` and 19 in `FinancialArtifactJourneyTests`; exact totals and evidence attribution belong in `status.json`.
+- Commit `8ea3ef01` removed nine legacy E2E suites: `AuditAndReleaseJourneyTests`, `ClientScopeJourneyTests`, `FinancialArtifactJourneyTests`, `InvoiceScopeJourneyTests`, `M365SetupJourneyTests`, `PbcUploadJourneyTests`, `PracticeBillingLedgerJourneyTests`, `ResponsiveShellSweepTests`, and `RouteRenderSmokeTests`. The PBC upload and invoice-scope methods, both M365 setup methods, both responsive-shell methods, the route-render method, all four PracticeBillingLedger methods, all 39 `ClientScopeJourneyTests` methods, and all 13 `AuditAndReleaseJourneyTests` methods now have assertion-level replacement maps. Nineteen `FinancialArtifactJourneyTests` methods remain open; exact totals and evidence attribution belong in `status.json`.
 - Focused API-only role and browser journeys pass for selected sources; the API-only E2E host conversion is committed, and the recorded full regression passed locally at its attributed commit. The removed-suite replacement crosswalk remains open until the remaining assertions are mapped. Its state is tracked in `docs/execution/status.json`.
 - Existing test crosswalk rows are candidate relationships until the host and assertions have been checked. A shared test file or reused fixture is not itself a replacement test. Aggregate mapped and remaining method counts belong in `status.json`.
 

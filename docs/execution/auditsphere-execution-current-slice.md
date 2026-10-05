@@ -15,7 +15,31 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
-## Current follow-on slice: Angular completion, fieldwork and plan route parity
+## Current follow-on slice: Angular audit workflow parity
+
+At test commit `cd162be1`, three API-host Angular journeys map the final five
+removed `AuditAndReleaseJourneyTests` methods. The revocation journey opens
+workpaper, finding and audit-plan pages in separate browser contexts, revokes
+the current local role through `RoleAdministrationService`, then refreshes each
+page and verifies the safe unavailable state contains none of the formerly
+authorized values. The fieldwork journeys record a human aggregate difference
+conclusion bound to the exact source snapshot, and publish/adopt the controlled
+audit program before reviewed fieldwork and a frozen workpaper survive reload.
+
+The focused PostgreSQL-backed Release E2E cohort passed 3/3 with no failures or
+skips. The E2E project and API dependencies compiled in Release. This is a
+test-only slice; no Application or EF model code changed, and the EF drift
+check was not rerun. The complete-solution regression remains the earlier
+1001/1001 checkpoint, not a run at this commit. Nineteen removed
+`FinancialArtifactJourneyTests` methods remain open; 60 source/action rows and
+28 supporting files also remain unanalyzed. The other agent's unstaged
+`ConsolidationOverviewQuery.cs` edit was excluded. AS-PAR-002 remains partial
+and Blazor retirement remains `NOT_READY`; production rollback/canary, human
+assistive-technology acceptance, live Microsoft gates and separate owner
+acceptance remain open. See [`status.json`](status.json) for exact counts and
+command evidence.
+
+## Previous follow-on slice: Angular completion, fieldwork and plan route parity
 
 At test commit `814d6428`, `AngularClientScopeEngagementParityJourneyTests`
 extends the API-host PostgreSQL parity checks for engagement audit routes.
