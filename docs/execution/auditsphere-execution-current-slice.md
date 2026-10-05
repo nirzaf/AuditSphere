@@ -15,6 +15,18 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: Global Search linked destinations
+
+Extended the Angular Global Search browser journey to open both a published
+technical-library result and a supported page result. The scoped Staff user
+opens the exact library entry and the Practice time page, and search results
+clear after each navigation. The full `GlobalSearchJourneyTests` cohort passed
+2/2 in 48s; this extension is pushed as `c4eb8c57`. PostgreSQL tests separately
+cover Manager-only audience, drafts and other-firm library matches. This
+improves destination evidence only; ranking/candidate boundaries, exhaustive
+role/scope, other error/recovery and accessibility coverage remain open.
+Blazor retirement remains `NOT_READY`.
+
 ## Current follow-on slice: Global Search opens technical-library entries
 
 Extended the Angular Global Search browser journey with a real published
