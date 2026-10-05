@@ -164,6 +164,8 @@ internal sealed class OwnedHost : IAsyncDisposable
       "DevelopmentIdentity__Enabled", "true",
       "DevelopmentIdentity__Subject", identity.Subject,
       "DevelopmentIdentity__TenantId", identity.TenantId,
+      "DevelopmentIdentity__Email", identity.Email,
+      "DevelopmentIdentity__DisplayName", identity.DisplayName,
       "Storage__PbcStagingRoot", StagingRoot,
       "Storage__PbcProviderSimulationRoot", Path.Combine(runRoot, "provider"),
       "Storage__ReleaseCheckpointRoot", Path.Combine(runRoot, "checkpoints")

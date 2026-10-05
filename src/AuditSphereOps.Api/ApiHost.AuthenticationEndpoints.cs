@@ -58,6 +58,26 @@ public static partial class ApiHost
         await using var db = await dbFactory.CreateDbContextAsync(http.RequestAborted);
         var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(x =>
           x.Subject == subject && x.TenantId == identityTenantId, http.RequestAborted);
+        if (user is null && InitialAdministratorSignIn.AllowsUnmappedIdentity(app.Configuration,
+              identityTenantId, subject))
+        {
+          // Mirror the narrowly approved OIDC first-sign-in path for local Development/Test.
+          // This ticket has no session epoch, so it cannot act as an application user; it can
+          // only reach the proof-backed setup endpoints that validate the same immutable tid/oid.
+          var email = app.Configuration["DevelopmentIdentity:Email"];
+          var displayName = app.Configuration["DevelopmentIdentity:DisplayName"];
+          if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(displayName))
+            return Results.Problem("The configured development identity is unavailable.", statusCode: StatusCodes.Status503ServiceUnavailable);
+          var bootstrapClaims = new[]
+          {
+            new Claim("oid", subject!), new Claim("tid", identityTenantId!),
+            new Claim(ClaimTypes.Name, displayName), new Claim(ClaimTypes.Email, email)
+          };
+          await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme,
+            new ClaimsPrincipal(new ClaimsIdentity(bootstrapClaims, CookieAuthenticationDefaults.AuthenticationScheme)));
+          return Results.Redirect(LocalDestination(returnUrl ?? AngularRouteOwnership.Destination(
+            app.Configuration, "/setup/microsoft365")));
+        }
         if (user is null || user.Disabled)
           return Results.Problem("The configured development identity is unavailable.", statusCode: StatusCodes.Status503ServiceUnavailable);
         await db.Users.Where(x => x.Id == user.Id).ExecuteUpdateAsync(x =>
