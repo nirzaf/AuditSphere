@@ -15,6 +15,26 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: completion and file records source/action review
+
+The three completion-family Razor sources were checked against the pinned
+discovery hashes and mapped to the native Angular completion workspace, its
+API endpoints, and the Application completion, freeze, and activity services.
+The mapping covers gates and release-candidate preparation; confirmations,
+SRM/Partner clearance, opinion and reports; client review/signing and final
+bundle; plus file freeze, amendments, locks and activity history. All three
+rows remain `PARTIAL`; the review found no missing primary Angular/API owner.
+
+Focused PostgreSQL-backed domain and API-host browser tests passed, including
+the deliverable/client-review path, sibling-engagement denial and stale-route
+clearing. The read-only built-in browser rendered the local Development
+completion workspace without submitting a command. Exact commands and results
+are recorded in [`status.json`](status.json). Cross-firm/guessed-ID, complete
+role/error/recovery, amendment/lock browser, accessibility and assistive-
+technology coverage remain open. No EF model drift check or whole-solution
+regression was run for this slice; the complete migration gate remains
+`NOT_READY`.
+
 ## Current follow-on slice: blocked engagement creation source/action review
 
 The third acceptance source row is hash-checked and mapped to the native client

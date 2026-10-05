@@ -274,6 +274,27 @@
       "evidence": "auditsphere-migration-blazor-audit-planning-fieldwork-source-review.md",
       "reviewedAtCommit": "02a694f2bf61d015b440ee936f66abb2982c6adb",
       "openGaps": ["Role-by-role response authorization and stale-command behavior", "Management-letter designation command journey and failure coverage"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/Completion.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-completion-file-records-source-review.md",
+      "reviewedAtCommit": "2d34fca3966b9be9956dc8a645b71e8234899848",
+      "openGaps": ["Complete cross-firm and guessed-ID HTTP/browser authorization matrix", "All role, validation, error, stale-content, and command retry/unknown-result states", "Browser assertions for amendment approval/closure and document-lock lifecycle, plus assistive-technology acceptance"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Completion/CompletionDeliverablesPanel.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-completion-file-records-source-review.md",
+      "reviewedAtCommit": "2d34fca3966b9be9956dc8a645b71e8234899848",
+      "openGaps": ["Complete cross-firm and guessed-ID HTTP/browser authorization matrix", "All role, validation, error, stale-content, and command retry/unknown-result states", "Browser assertions for amendment approval/closure and document-lock lifecycle, plus assistive-technology acceptance"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Completion/FileRecordsPanel.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-completion-file-records-source-review.md",
+      "reviewedAtCommit": "2d34fca3966b9be9956dc8a645b71e8234899848",
+      "openGaps": ["Complete cross-firm and guessed-ID HTTP/browser authorization matrix", "All role, validation, error, stale-content, and command retry/unknown-result states", "Browser assertions for amendment approval/closure and document-lock lifecycle, plus assistive-technology acceptance"]
     }
   ]
 }
