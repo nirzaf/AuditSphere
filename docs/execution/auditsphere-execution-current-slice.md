@@ -15,7 +15,42 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
-## Current follow-on slice: Practice Billing and Ledger assertion crosswalk
+## Current follow-on slice: client scoped audit detail and revocation journeys
+
+At test commit `cf609420`, `AngularClientScopeAuditDetailJourneyTests` covers
+five removed `ClientScopeJourneyTests` methods for finding details, population
+and linked receipts, workpaper/submission history, review-point disposition,
+and review-point grant revocation. The API-host Angular journey seeds real
+client A and sibling client B records, verifies authorized details, compares
+sibling and guessed-ID states, changes record IDs in place, and checks that
+returning to client A restores only authorized content. Receipt filenames
+remain hidden even on the authorized population page, as required by the old
+privacy assertion.
+
+The journey records a review-point clear and reopen, then revokes the exact
+staff grant while two pages are open. Post-revocation review disposition and
+workpaper draft commands are refused; neither state is written, and both pages
+clear protected content. The PostgreSQL-backed Playwright case passed 1/1 in
+33 seconds. The Release solution build passed with zero warnings/errors and EF
+reported no pending model changes. A read-only built-in-browser check of an
+unknown population ID showed the generic unavailable state. An unrelated
+unstaged change to `ConsolidationOverviewQuery.cs` was present during
+verification and excluded from the test commit.
+
+Sixteen of 82 removed E2E methods now have assertion maps; three suites and 66
+methods remain open. This journey also exercises archive and review-point
+same-document sibling/guessed-ID clearing, but does not close those old
+route-specific methods because their viewport, keyboard-focus, and archive
+summary assertions are not all represented. Sixty source/action rows and 28
+supporting files remain unanalyzed. The last complete solution regression
+remains 985/985 at `eb94ae50`; this slice ran its focused case, not the full
+solution suite. Production rollback/canary, human assistive-technology and
+wider-locale review, live Microsoft gates, and separate owner acceptance
+remain open. Retirement and AS-PAR-002 remain `NOT_READY`/partial. Exact
+attribution is in `status.json` and the [test parity
+register](../migration/auditsphere-migration-blazor-test-parity.md).
+
+## Previous follow-on slice: Practice Billing and Ledger assertion crosswalk
 
 At test commit `18994e21`, all four methods removed with
 `PracticeBillingLedgerJourneyTests` have method-level replacement maps. The new
@@ -38,8 +73,8 @@ included in the test commit. The built-in browser rendered
 so the page showed its restricted state. Authorized period-close behavior was
 verified only with the isolated synthetic test identity.
 
-Eleven of 82 removed E2E methods now have assertion maps; three suites and 71
-methods remain open. Sixty source/action rows and 28 supporting files remain
+Eleven of 82 removed E2E methods had assertion maps at that checkpoint; three suites and 71
+methods remained open. Sixty source/action rows and 28 supporting files remained
 unanalyzed. Production rollback/canary, human assistive-technology and wider
 locale review, live Microsoft gates, and separate owner acceptance remain open.
 Retirement stays `NOT_READY`. The last complete solution regression remains
