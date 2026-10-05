@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "6c0b0f49d9ec9ed4bf0df75087ad6f21f556f928",
+  "headCommit": "672cbfbc5ed9e69ed19c2c25f566d19777e6c013",
   "verifiedCommit": "ead85032de2ccc4d4c8043398fa8471d395376a9",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -324,8 +324,8 @@
       "removalDecision": "NOT_READY"
     },
     "angularBlazorCurrentRetirementGate": {
-      "observedAt": "2026-10-05T20:45:25Z",
-      "sourceCommit": "6c0b0f49d9ec9ed4bf0df75087ad6f21f556f928",
+      "observedAt": "2026-10-05T20:55:31Z",
+      "sourceCommit": "672cbfbc5ed9e69ed19c2c25f566d19777e6c013",
       "status": "NOT_READY",
       "physicalRemovalCommit": "59387b549214067ef226cdbf33d0d47084a27c46",
       "webProjectPresent": true,
@@ -468,7 +468,7 @@
       "rollbackAndCanary": "Local Development rollback smoke PASS: Razor root, local Blazor/MudBlazor assets, negotiate endpoint, and SignalR circuit handshake. Production OIDC, route cutover recovery, and production-like canary remain OPEN.",
       "humanAssistiveTechnologyAndLocale": "OPEN",
       "liveMicrosoftGates": "BLOCKED_EXTERNAL",
-      "decision": "NOT_READY. The Web rollback/reference source remains restored. All 82 removed E2E methods have assertion crosswalks. The 76-row source/action inventory has 73 partial reviews, two unanalyzed rows and one parity-verified row; 28 supporting files remain open. Acceptance checklist workspace/role and Global Search direct API identity, firm and grant boundaries now have focused partial-review evidence. AS-PAR-002 direct query/count/export authorization and broader command retry/idempotency checks, production/human/external acceptance, and separate owner acceptance remain open.",
+      "decision": "NOT_READY. The Web rollback/reference source remains restored. All 82 removed E2E methods have assertion crosswalks. The 76-row source/action inventory has 73 partial reviews, two unanalyzed rows and one parity-verified row; 28 supporting files remain open. Acceptance checklist workspace/role and Global Search direct API identity, firm, grant and invoice result-scope boundaries now have focused partial-review evidence. AS-PAR-002 direct query/count/export authorization and broader command retry/idempotency checks, production/human/external acceptance, and separate owner acceptance remain open.",
       "angularProductionBuild": {
         "status": "PASS_WITH_BUDGET_WARNING",
         "initialBundle": "506.60 kB; 6.60 kB above the 500 kB warning budget."
@@ -1077,6 +1077,25 @@
           "efPendingModelCheck": "NOT_RUN for this slice.",
           "fullSolutionRegression": "NOT_RUN for this slice; the latest complete PostgreSQL-backed Release suite remains 1001/1001 at ead85032de2ccc4d4c8043398fa8471d395376a9."
         }
+      },
+      "globalSearchQueryScopeRegression": {
+        "sourceCommit": "672cbfbc5ed9e69ed19c2c25f566d19777e6c013",
+        "observedAt": "2026-10-05T20:55:31Z",
+        "status": "PASS_LOCAL",
+        "cohort": "GlobalSearchQueryTests",
+        "passed": 11,
+        "failed": 0,
+        "skipped": 0,
+        "focusedCase": "FinanceSearch_ReturnsOnlyInvoicesInsideTheActorFirmAndClientScope",
+        "focusedCaseResult": {
+          "passed": 1,
+          "failed": 0,
+          "skipped": 0,
+          "duration": "18s"
+        },
+        "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --configuration Release -m:1 --filter 'FullyQualifiedName~GlobalSearchQueryTests'",
+        "coverage": "An isolated PostgreSQL test verifies a client-scoped FinanceManager gets only the assigned client invoice, ordinary Staff gets no invoice hits, firm-wide FinanceReviewer sees invoices for both clients within the current firm, and a foreign-firm invoice never appears.",
+        "boundary": "Test-only slice. The shared Release build compiled a concurrent uncommitted ConsolidationOverviewQuery.cs edit from another agent; the search tests do not exercise it and it was excluded from this commit. Full solution regression, Angular CI/build and EF drift were not rerun."
       }
     },
     "angularBlazorApprovedBootstrapSlice": {
@@ -10583,8 +10602,8 @@
     "packageId": "ASP.NET Core API and Angular 22 presentation migration",
     "implementationStatus": "PARTIAL",
     "acceptanceStatus": "PARTIAL",
-    "scope": "Canonical Angular route ownership is in place. AuditSphereOps.Web and its Razor source remain restored as rollback/reference. API.Tests and E2E.Tests use API-only hosts. All 82 removed E2E methods have assertion crosswalks. The 76-row source/action inventory has one parity-verified row, 73 partial reviews and 2 unanalyzed rows; 28 supporting files remain open. Statement Drilldown, Trial Balance Intake, risk routing, shared confirmation callers, acceptance checklist workspace/role behavior, and Global Search direct API scope are now reviewed as partial source/action rows with focused Angular, PostgreSQL and browser evidence. Overall migration acceptance and Blazor retirement are NOT_READY.",
-    "nextAction": "Continue with the remaining 2 unanalyzed source/action rows and AS-PAR-002 direct query/count/export authorization, remaining global-search result-kind role cases, and command retry/idempotency checks. Seventy-three reviewed rows remain partial and still need complete parity evidence; 28 supporting files remain open. Keep the Blazor rollback host until behavior parity, production rollback/canary, human assistive-technology/locale acceptance, live Microsoft gates and separate owner acceptance are complete.",
+    "scope": "Canonical Angular route ownership is in place. AuditSphereOps.Web and its Razor source remain restored as rollback/reference. API.Tests and E2E.Tests use API-only hosts. All 82 removed E2E methods have assertion crosswalks. The 76-row source/action inventory has one parity-verified row, 73 partial reviews and 2 unanalyzed rows; 28 supporting files remain open. Statement Drilldown, Trial Balance Intake, risk routing, shared confirmation callers, acceptance checklist workspace/role behavior, and Global Search direct API and invoice-result scope are now reviewed as partial source/action rows with focused Angular, PostgreSQL and browser evidence. Overall migration acceptance and Blazor retirement are NOT_READY.",
+    "nextAction": "Continue with the remaining 2 unanalyzed source/action rows and AS-PAR-002 direct query/count/export authorization, remaining global-search result-kind role cases, query/error states and candidate caps, and command retry/idempotency checks. Seventy-three reviewed rows remain partial and still need complete parity evidence; 28 supporting files remain open. Keep the Blazor rollback host until behavior parity, production rollback/canary, human assistive-technology/locale acceptance, live Microsoft gates and separate owner acceptance are complete.",
     "branch": "master"
   },
   "localEvidence": [
@@ -11552,13 +11571,18 @@
       "item": "Angular Global Search direct API authorization parity (2026-10-05)",
       "status": "LOCAL_VERIFIED",
       "details": "At pushed test commit 6c0b0f49d9ec9ed4bf0df75087ad6f21f556f928, GlobalSearchJourneyTests.SearchApiEnforcesFirmGrantAndIdentityBoundariesWithoutLeakingCounts passed 1/1 in 32s on an isolated PostgreSQL API host. The full GlobalSearchJourneyTests class passed 2/2 in 43s and GlobalSearchQueryTests passed 10/10 in 56s. The API returns only an assigned client hit; sibling and foreign-firm markers return no hits with truncated=false; ClientUser receives 403; after client-grant revocation there are no results or counts; and a stale session epoch receives 401. This slice changed tests only. A shared Release build also compiled the other agent's concurrent uncommitted ConsolidationOverviewQuery.cs edit; these search tests do not exercise that code, and it was not staged or included in this commit. Full Angular CI and build were not rerun; latest Angular CI passed 493/493 and build passed with the existing Commercial Settings style budget warning. Full solution regression remains 1001/1001 at ead85032de2ccc4d4c8043398fa8471d395376a9. Global Search remains PARTIAL; Blazor retirement NOT_READY."
+    },
+    {
+      "item": "Angular Global Search invoice result scope (2026-10-05)",
+      "status": "LOCAL_VERIFIED",
+      "details": "At pushed test commit 672cbfbc5ed9e69ed19c2c25f566d19777e6c013, the focused PostgreSQL-backed FinanceSearch_ReturnsOnlyInvoicesInsideTheActorFirmAndClientScope case passed 1/1 in 18s and the full GlobalSearchQueryTests class passed 11/11 in 58s. FinanceManager client scope returns only its invoice; ordinary Staff receives no invoice hits; firm-wide FinanceReviewer sees invoices in the current firm; the foreign-firm invoice is excluded. This slice changed tests only. The shared Release build compiled the other agent's concurrent uncommitted ConsolidationOverviewQuery.cs edit; search tests do not exercise it and the file was excluded from this commit. Full solution regression remains 1001/1001 at ead85032de2ccc4d4c8043398fa8471d395376a9; Angular CI/build and EF drift were not rerun. Search and migration remain PARTIAL; Blazor retirement NOT_READY."
     }
   ],
   "remainingLocalWork": [
     {
       "item": "AS-PAR-002 — remaining whole-application scope and revocation coverage",
       "status": "PARTIAL",
-      "details": "Verified slices cover firm/client/engagement/group grant scoping; protected details, queues, exports and route reads; revocation denials; stale-content clearing; PBC request/inbox role, recipient, draft, sibling-engagement, cross-client and revocation boundaries; archive/review responsive stale-route cases; an accounting task-owner projection limited to current engagement grants; Angular release-candidate scope, expired-attestation blocking, stale-route clearing and post-revocation hiding; same-client sibling-engagement isolation for workpaper, finding, population and accounting mapping; completion, audit-plan and adopted-fieldwork route clearing/recovery; reviewer-only fieldwork data redaction and command denial; materiality self-approval suppression; refresh-time clearing after revocation for workpaper/finding/audit-plan; exact-source human audit conclusions; reviewed fieldwork/workpaper freezing across reload; package, journal, FX-remeasurement, package-review selection recovery and client-management artifact/decision parity; accounting evidence, period, record-queue, workspace, restatement and roll-forward behavior; prior-continuance evidence-reference retention, reviewed blocked-engagement draft creation, Partner activation review, receipt recovery and revocation clearing, and exact-target confirmation review for local access revocation and lead qualification. All 39 removed ClientScopeJourneyTests, all 13 AuditAndReleaseJourneyTests and all 19 FinancialArtifactJourneyTests methods have assertion crosswalks; the removed-suite E2E method crosswalk is 82/82. AS-PAR-002 remains partial: 2 source/action rows are wholly unanalyzed, 73 rows have partial reviews but still need complete assertion-level authorization and recovery crosswalks, and 28 supporting files remain open. The Release candidate now has a PostgreSQL-backed Angular issue and lost-response assertion that confirms persisted ISSUED state, sends one request, and creates one release event and durable operation. Broad retry/idempotency and corresponding HTTP/browser positive-negative checks across remaining actions are still open. A dedicated API-host Angular firm-books journey now directly verifies expense evidence, submission, independent review, posting and balanced trial-balance output; the three finance source/action rows remain partial. Full AS-PAR-002 acceptance remains open. A focused direct Global Search API browser journey now verifies assigned-client hits, sibling-client and foreign-firm no-hit/no-count behavior, ClientUser denial, revoked-grant empty results, and stale-session 401; all search result kinds and exhaustive role/scope cases remain open."
+      "details": "Verified slices cover firm/client/engagement/group grant scoping; protected details, queues, exports and route reads; revocation denials; stale-content clearing; PBC request/inbox role, recipient, draft, sibling-engagement, cross-client and revocation boundaries; archive/review responsive stale-route cases; an accounting task-owner projection limited to current engagement grants; Angular release-candidate scope, expired-attestation blocking, stale-route clearing and post-revocation hiding; same-client sibling-engagement isolation for workpaper, finding, population and accounting mapping; completion, audit-plan and adopted-fieldwork route clearing/recovery; reviewer-only fieldwork data redaction and command denial; materiality self-approval suppression; refresh-time clearing after revocation for workpaper/finding/audit-plan; exact-source human audit conclusions; reviewed fieldwork/workpaper freezing across reload; package, journal, FX-remeasurement, package-review selection recovery and client-management artifact/decision parity; accounting evidence, period, record-queue, workspace, restatement and roll-forward behavior; prior-continuance evidence-reference retention, reviewed blocked-engagement draft creation, Partner activation review, receipt recovery and revocation clearing, and exact-target confirmation review for local access revocation and lead qualification. All 39 removed ClientScopeJourneyTests, all 13 AuditAndReleaseJourneyTests and all 19 FinancialArtifactJourneyTests methods have assertion crosswalks; the removed-suite E2E method crosswalk is 82/82. AS-PAR-002 remains partial: 2 source/action rows are wholly unanalyzed, 73 rows have partial reviews but still need complete assertion-level authorization and recovery crosswalks, and 28 supporting files remain open. The Release candidate now has a PostgreSQL-backed Angular issue and lost-response assertion that confirms persisted ISSUED state, sends one request, and creates one release event and durable operation. Broad retry/idempotency and corresponding HTTP/browser positive-negative checks across remaining actions are still open. A dedicated API-host Angular firm-books journey now directly verifies expense evidence, submission, independent review, posting and balanced trial-balance output; the three finance source/action rows remain partial. Full AS-PAR-002 acceptance remains open. A focused direct Global Search API browser journey now verifies assigned-client hits, sibling-client and foreign-firm no-hit/no-count behavior, ClientUser denial, revoked-grant empty results, and stale-session 401; all search result kinds and exhaustive role/scope cases remain open. A PostgreSQL-backed GlobalSearchQueryTests invoice case now verifies FinanceManager client scope, ordinary Staff denial, firm-wide FinanceReviewer in-firm visibility, and foreign-firm invoice exclusion; the 11-test query class passed. Remaining result-kind ranking/cap behavior, exhaustive role/scope, empty/error recovery, and assistive-technology coverage remain open."
     },
     {
       "item": "AS-PAR-009 — Pricing review, evidence-bound dispatch and client response",

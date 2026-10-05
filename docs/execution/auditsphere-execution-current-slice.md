@@ -15,6 +15,21 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: Global Search invoice scope parity
+
+Extended the PostgreSQL-backed `GlobalSearchQueryTests` cohort to seed invoices
+for an assigned client, a sibling client in the same firm, and a client in a
+different firm. FinanceManager scoped to the assigned client sees only its
+invoice; ordinary Staff sees no invoice hits; firm-wide FinanceReviewer sees
+the two in-firm invoices; the foreign-firm invoice never appears. The focused
+case passed 1/1 and the full query class passed 11/11. This slice changed tests
+only. The shared Release build also compiled the other agent's concurrent
+uncommitted `ConsolidationOverviewQuery.cs` edit; these search tests do not
+exercise that code and it was excluded from this commit. The full solution
+suite and EF drift check were not rerun. Search result-kind and exhaustive
+role/scope coverage remain partial; Blazor retirement remains `NOT_READY`.
+The test is pushed as `672cbfbc`.
+
 ## Current follow-on slice: Global Search API authorization parity
 
 Added a direct API-host PostgreSQL browser journey for `GET /api/ui/search`.
