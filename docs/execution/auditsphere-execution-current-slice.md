@@ -15,6 +15,27 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: commercial workflow source review
+
+Six legacy commercial sources were checked against the pinned discovery
+hashes and mapped to the Angular leads, proposal, quotation, document,
+fee-agreement, commercial-settings and reviewed conversion flows, their API
+endpoints, and Application owners. The PostgreSQL-backed Playwright journeys
+cover commercial create/revision recovery, quotation and document work,
+fee-agreement milestones and authority, settings drafts, reviewed conversion,
+plus independent proposal review, status-only send, and accepted/declined
+client responses.
+
+All six sources remain `PARTIAL`. Existing focused evidence does not establish
+the full role/scope and isolation matrices, every validation and failure/retry
+branch, external delivery, or assistive-technology parity. The built-in
+browser rendered Leads and Commercial Settings read-only. The complete
+solution regression, Angular unit/build checks and EF model-drift check were
+not rerun for this slice. Evidence and volatile counts are recorded in
+[`status.json`](status.json) and the linked source review; owner, production,
+external and accessibility acceptance remain open, so Blazor retirement
+stays `NOT_READY`.
+
 ## Current follow-on slice: shell, search, portfolio and profile source review
 
 Six legacy source/action rows were checked against the pinned discovery hashes

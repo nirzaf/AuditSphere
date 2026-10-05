@@ -337,6 +337,48 @@
       "evidence": "auditsphere-migration-blazor-shell-portfolio-source-review.md",
       "reviewedAtCommit": "1e22baaeeaf33283bf0ca311a93c1c493bcd82e6",
       "openGaps": ["Complete role-by-role profile, workflow-link and authorization matrix", "Cross-firm and guessed-ID HTTP response equivalence", "All stale, hold, query-failure and recovery states plus assistive-technology acceptance"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Commercial/FeeAgreementPanel.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-commercial-source-review.md",
+      "reviewedAtCommit": "4aaffc31243bd524ebc48142af6b3f2c42c66d1a",
+      "openGaps": ["Complete finance-role, scope and denial matrix for agreement, invoice and payment actions", "Invoice/payment failure, stale-authority and retry/unknown-result coverage", "Full form, empty/error state and assistive-technology parity"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Commercial/ProposalWorkflowPanel.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-commercial-source-review.md",
+      "reviewedAtCommit": "4aaffc31243bd524ebc48142af6b3f2c42c66d1a",
+      "openGaps": ["Full author/reviewer role and firm/client scope matrix, including revocation during review", "All send/response validation, stale revision and uncertain-result branches", "External recipient identity and delivery evidence are not established by the local status-only workflow"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Commercial/QuotationWorkbench.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-commercial-source-review.md",
+      "reviewedAtCommit": "4aaffc31243bd524ebc48142af6b3f2c42c66d1a",
+      "openGaps": ["Full pricing boundary, approval matrix, revision conflict and role/scope cases", "Tender and document variants, download failures and every recovery branch", "Complete field-level validation, stale-state and accessibility parity"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/CommercialSettings.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-commercial-source-review.md",
+      "reviewedAtCommit": "4aaffc31243bd524ebc48142af6b3f2c42c66d1a",
+      "openGaps": ["Full authorized-role and firm-boundary matrix", "Profile/rule validation, conflicting edits, deactivation and failure/recovery variants", "Field-by-field and assistive-technology parity"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/Leads.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-commercial-source-review.md",
+      "reviewedAtCommit": "4aaffc31243bd524ebc48142af6b3f2c42c66d1a",
+      "openGaps": ["Complete commercial-role, firm/client isolation and guessed-ID matrix", "All lead validation, search/paging boundaries, duplicate and lost-response cases", "Empty, failure, stale-route and assistive-technology parity"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/ProposalDetail.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-commercial-source-review.md",
+      "reviewedAtCommit": "4aaffc31243bd524ebc48142af6b3f2c42c66d1a",
+      "openGaps": ["Complete proposal detail/history role, scope and cross-firm/guessed-ID matrix", "Refresh, revision-conflict, stale-content and query-failure behavior", "Full review, conversion and route-transition accessibility/recovery coverage"]
     }
   ]
 }
