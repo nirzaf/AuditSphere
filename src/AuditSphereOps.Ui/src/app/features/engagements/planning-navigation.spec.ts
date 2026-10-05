@@ -3,7 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { routes } from '../../app.routes';
-import { engagementNavigationGuard } from './planning-navigation';
+import { engagementNavigationGuard } from './planning-navigation.guard';
 
 @Component({ template: '' })
 class NavigationProbe {

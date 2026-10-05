@@ -1,6 +1,47 @@
 .spacer {
   flex: 1;
 }
+.app-header {
+  display: flex;
+  min-height: 64px;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  box-sizing: border-box;
+  padding: 0.75rem 1rem;
+  background: var(--mat-sys-primary);
+  color: var(--mat-sys-on-primary);
+}
+.app-header > span:not(.spacer) {
+  font-size: 0.875rem;
+}
+.shell-button {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  padding: 0.55rem 0.9rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: 1.2;
+  text-decoration: none;
+  cursor: pointer;
+}
+.shell-button:hover:not(:disabled) {
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+.shell-button:disabled,
+.shell-button[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+.shell-primary {
+  background: var(--mat-sys-primary);
+  color: var(--mat-sys-on-primary);
+}
 .workspace {
   display: grid;
   grid-template-columns: 15rem minmax(0, 1fr);
@@ -36,14 +77,4 @@ main {
     display: none;
   }
   .navigation-toggle { display: inline-flex; min-height: 44px; }
-}
-mat-toolbar {
-  min-height: 64px;
-  height: auto;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
-}
-mat-toolbar span:not(.spacer) {
-  font-size: 0.875rem;
 }

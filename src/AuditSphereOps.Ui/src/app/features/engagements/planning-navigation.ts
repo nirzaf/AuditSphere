@@ -1,15 +1,6 @@
 import { Component, inject } from '@angular/core';
-import { CanDeactivateFn } from '@angular/router';
 import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
-import type { EngagementDetail } from './engagement';
-
-export const engagementNavigationGuard: CanDeactivateFn<EngagementDetail> = (
-  component,
-  _route,
-  _state,
-  next,
-) => component.confirmNavigation(next.url);
 
 @Component({
   selector: 'audit-planning-navigation',

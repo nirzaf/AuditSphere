@@ -1,11 +1,9 @@
-import { Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
+import { Component, DestroyRef, Injector, computed, effect, inject, signal } from '@angular/core';
 import { NavigationEnd, NavigationSkipped, NavigationSkippedCode, Router, RouterOutlet } from '@angular/router';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { BreakpointObserver } from '@angular/cdk/layout';
-import { MatDialog, MatDialogRef } from '@angular/material/dialog';
+import type { MatDialogRef } from '@angular/material/dialog';
 import { map } from 'rxjs';
-import { MatToolbarModule } from '@angular/material/toolbar';
-import { MatButtonModule } from '@angular/material/button';
 import { GlobalSearch } from './features/search/search';
 import { PendingOutcomesBanner } from './core/pending-outcomes';
 import { SessionService } from './core/session';
@@ -16,14 +14,14 @@ import { WorkspaceNavigation } from './core/workspace-navigation';
 import type { WorkspaceNavigationDialog } from './core/workspace-navigation-dialog';
 @Component({
   selector: 'app-root',
-  imports: [GlobalSearch, WorkspaceNavigation, RouterOutlet, MatToolbarModule, MatButtonModule, PendingOutcomesBanner],
+  imports: [GlobalSearch, WorkspaceNavigation, RouterOutlet, PendingOutcomesBanner],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
 export class App {
   private readonly router = inject(Router);
   private readonly destroy = inject(DestroyRef);
-  private readonly dialogs = inject(MatDialog);
+  private readonly injector = inject(Injector);
   readonly compact = toSignal(inject(BreakpointObserver).observe('(max-width: 700px)').pipe(map(x => x.matches)), { initialValue: false });
   private readonly currentRoute = toSignal(this.router.events.pipe(map(() => this.router.url)), { initialValue: this.router.url });
   readonly publicSetup = computed(() => this.currentRoute().split(/[?#]/)[0] === '/setup/microsoft365');
@@ -49,13 +47,10 @@ export class App {
     this.navigationLoading.set(true);
     this.navigationFailure.set('');
     try {
-      const { WorkspaceNavigationDialog } = await import('./core/workspace-navigation-dialog');
+      const { openWorkspaceNavigation } = await import('./core/workspace-navigation-launcher');
       if (this.destroyed || owner !== this.owner() || !this.compact() || this.publicSetup()) return;
       this.navigationOwner = owner;
-      const ref = this.dialogs.open(WorkspaceNavigationDialog, {
-        ariaLabel: 'Workspace navigation', autoFocus: 'first-tabbable', restoreFocus: true,
-        width: '22rem', maxWidth: 'calc(100vw - 2rem)', maxHeight: 'calc(100dvh - 2rem)',
-      });
+      const ref = openWorkspaceNavigation(this.injector);
       this.navigationDialog.set(ref);
       ref.afterClosed().pipe(takeUntilDestroyed(this.destroy)).subscribe(reason => {
         if (this.navigationDialog() !== ref) return;

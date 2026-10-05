@@ -1,7 +1,7 @@
-import { engagementNavigationGuard } from './features/engagements/planning-navigation';
+import { engagementNavigationGuard } from './features/engagements/planning-navigation.guard';
 import { Routes } from '@angular/router';
 import { clientGuard } from './core/client.guard';
-import { unsavedChangesGuard } from './core/unsaved-changes';
+import { unsavedChangesGuard } from './core/unsaved-changes.guard';
 import { staffGuard } from './core/staff.guard';
 export const routes: Routes = [
   { path: 'setup/microsoft365', title: 'Initial administrator setup · AuditSphere',

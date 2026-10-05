@@ -1,29 +1,29 @@
 <a class="skip-link" href="#main" (click)="skipToMain($event)">Skip to main content</a>
-<mat-toolbar
-  ><strong>AuditSphere</strong><span class="spacer"></span><span>Workspace preview</span>
+<header class="app-header">
+  <strong>AuditSphere</strong><span class="spacer"></span><span>Workspace preview</span>
   @if (session.current() && !publicSetup()) {
-    <button class="navigation-toggle" matButton aria-haspopup="dialog"
+    <button class="shell-button navigation-toggle" aria-haspopup="dialog"
       [attr.aria-expanded]="navigationOpen()" [attr.aria-busy]="navigationLoading()"
       [attr.aria-disabled]="navigationLoading()" (click)="openNavigation()">
       {{ navigationLoading() ? 'Opening navigation…' : 'Open navigation' }}
     </button>
   }
   @if (session.current()) {
-    <button matButton (click)="signOut()">Sign out</button>
+    <button class="shell-button" (click)="signOut()">Sign out</button>
   }
-</mat-toolbar>
+</header>
 <audit-pending-outcomes />
 <div class="workspace">
   <aside><audit-workspace-navigation /></aside>
   <main id="main" tabindex="-1">
     @if (navigationFailure() && compact()) {
       <section role="alert"><p>{{ navigationFailure() }}</p>
-        <button matButton (click)="openNavigation()">Retry navigation</button></section>
+        <button class="shell-button" (click)="openNavigation()">Retry navigation</button></section>
     }
     @if (signOutFailure()) {
       <section role="alert">
         <p>{{ signOutFailure() }}</p>
-        <button matButton (click)="signOut()">Retry sign-out</button>
+        <button class="shell-button" (click)="signOut()">Retry sign-out</button>
       </section>
     }
     @if (publicSetup()) {
@@ -34,7 +34,7 @@
       @defer (on interaction; on idle) {
         <audit-global-search />
       } @placeholder {
-        <button matButton>Search workspace</button>
+        <button class="shell-button">Search workspace</button>
       }
       <router-outlet />
     } @else if (session.current()) {
@@ -43,7 +43,7 @@
       <section role="alert">
         <h1>Access unavailable</h1>
         <p>Sign in with your current AuditSphere identity.</p>
-        <a matButton="filled" [href]="signInHref">Sign in</a>
+        <a class="shell-button shell-primary" [href]="signInHref">Sign in</a>
       </section>
     }
   </main>
