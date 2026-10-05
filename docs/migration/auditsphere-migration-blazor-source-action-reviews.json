@@ -449,6 +449,13 @@
       "evidence": "auditsphere-migration-blazor-finance-source-review.md",
       "reviewedAtCommit": "5a554a0931703974074cfe182dcad0dd992d43a5",
       "openGaps": ["Full firm-wide and client-scoped role matrix, cross-firm and guessed-ID denial", "Browser journeys for invoice approve, post and send actions with independent authority", "Invalid history cursors, paging failures and each uncertain billing outcome"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/Workpaper.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-workpaper-source-review.md",
+      "reviewedAtCommit": "e8c1788a0847517375b3e93861937c866a6028f3",
+      "openGaps": ["Complete role/scope, expired-grant, cross-firm and guessed-ID HTTP/browser matrix", "All stale, validation, timeout, failure and recovery states", "Dedicated browser journey for draft discard and its persisted lifecycle state", "Human screen-reader and wider-locale acceptance"]
     }
   ]
 }
