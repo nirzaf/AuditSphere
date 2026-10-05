@@ -15,6 +15,20 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: Global Search bounds and candidate caps
+
+Added API-host coverage for the search endpoint's one-character empty result
+and safe `request.invalid` response above the 100-character limit. Added a
+PostgreSQL case proving lead results stop at six and set `truncated=true` when
+there are more matches. `GlobalSearchJourneyTests` passed 2/2 and
+`GlobalSearchQueryTests` passed 12/12. This slice changed tests only. The
+shared Release build compiled the other agent's concurrent uncommitted
+`ConsolidationOverviewQuery.cs` edit, which these search tests do not exercise
+and which was excluded from the commit. Full solution, Angular and EF checks
+were not rerun; remaining indexed result kinds, complete role/scope, error and
+assistive-technology coverage stay open. Pushed as `c716e2fa`; retirement is
+still `NOT_READY`.
+
 ## Current follow-on slice: Portfolio aggregate scope parity
 
 Extended `AngularPortfolioJourneyTests.ScopedSummaryRecordsCsvAndReturnFilters`
