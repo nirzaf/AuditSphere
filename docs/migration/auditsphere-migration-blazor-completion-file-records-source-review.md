@@ -2,7 +2,7 @@
 
 **Status:** PARTIAL_REVIEWED
 **Source reviewed against code:** `147ac2a02675b9c65ec43be520c76bc27837a167`
-**Verification run at repository head:** `2d34fca3966b9be9956dc8a645b71e8234899848`
+**Verification run at repository head:** `1e22baaeeaf33283bf0ca311a93c1c493bcd82e6`
 **Pinned discovery snapshot:** `eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39`
 
 All three legacy artifacts match the pinned discovery hashes:
@@ -23,8 +23,8 @@ All three legacy artifacts match the pinned discovery hashes:
 | Generate a Summary Review Memorandum, record separate Partner clearance, choose one of four opinion types, and require a taxonomy area and basis for a modified opinion. | Angular completion posts to the SRM, clearance and opinion endpoints; `AuditDeliverableService` owns the domain rules. | `CompletionDeliverablesJourneyTests` covers clearance refusal before a current SRM, successful clearance and a qualified opinion with focus and basis. All opinion types, taxonomy staleness and full error/role variants remain open. |
 | Generate reports; share eligible versions with the client; resolve client comments; verify the exact signed representation version/hash; sign the current independent report. | Angular completion uses the report, share, comment-resolution, scan-verification and sign endpoints, all dispatched to `AuditDeliverableService`. | The API-host journey covers report generation/download, client review/acknowledgement, signed PDF upload, Partner scan verification, registered seal/signature and report signing. Full lost-response, stale-version and cross-client download matrices remain open. |
 | Assemble the five-part final bundle only after its required report, client-signed representation, reviewed/released statements and posted balance-fee evidence exist. | Angular presents persisted bundle blockers and sends the exact statements-reviewed assent to `AuditDeliverableService.AssembleBundleAsync`; the protected download is served by the API. | The browser journey confirms assembly remains unavailable while evidence is missing, then assembles and downloads the bundle after isolated synthetic evidence is seeded. Every blocker permutation and unknown-result recovery remain open. |
-| Show the post-signature freeze schedule and external SharePoint read-only observation; request a documented amendment while frozen; require another Partner to approve and close it to re-freeze. | The Angular completion page renders `CompletionFreeze`; API commands call `FileFreezeService` for request, approval and closure. External SharePoint state remains an explicit observed/blocked value. | Domain coverage verifies the freeze lifecycle, refusal of self-approval, independent Partner approval and re-freezing. A browser journey for amendment request/approval/close, revocation during the workflow and API guessed-ID responses remains open. Live SharePoint observation is `BLOCKED_EXTERNAL`. |
-| Acquire/release document locks and show a role-scoped, filterable activity trail with its SharePoint observation boundary. | Angular completion posts lock commands and renders locks/trail from `EngagementCompletionWorkspaceQuery`; API delegates to `EngagementActivityQuery`. | The built-in browser rendered the completion page, lock controls, activity filter and local activity records without submitting a command. Direct browser assertions for lock contention, unauthorized release, trail redaction/filtering and error recovery remain open. Direct SharePoint edits are not observed by this local trail. |
+| Show the post-signature freeze schedule and external SharePoint read-only observation; request a documented amendment while frozen; require another Partner to approve and close it to re-freeze. | The Angular completion page renders `CompletionFreeze`; API commands call `FileFreezeService` for request, approval and closure. External SharePoint state remains an explicit observed/blocked value. | `AuditDeliverablesTests.FileFreezesSixtyDaysAfterSigning_RefusesWrites_AmendsWithApproval_AndTracesActivity` verifies the database lifecycle. `AngularCompletionFileRecordsJourneyTests.FrozenFileAmendmentAndDocumentLocksRequireIndependentAuthorityAndRefreeze` exercises the UI: self-approval is refused without opening the amendment, another Partner approves, the requester closes it, the page returns to FROZEN, and the filtered trail records the opening. Revocation during the workflow and API guessed-ID responses remain open. Live SharePoint observation is `BLOCKED_EXTERNAL`. |
+| Acquire/release document locks and show a role-scoped, filterable activity trail with its SharePoint observation boundary. | Angular completion posts lock commands and renders locks/trail from `EngagementCompletionWorkspaceQuery`; API delegates to `EngagementActivityQuery`. | The focused browser journey verifies an assigned Partner creates a lock, another Staff member is refused on contention and cannot release that lock, and the Partner can release it. It then filters the FREEZE trail and checks the amendment event. Broader trail redaction, stale-content and command-recovery matrices remain open. Direct SharePoint edits are not observed by this local trail. |
 
 ## Authorization and mutation boundary
 
@@ -47,10 +47,15 @@ or protection provider has accepted it.
 - Focused PostgreSQL-backed Release domain and API-host Angular Playwright
   commands passed. Exact commands, results and durations are recorded in
   [`status.json`](../execution/status.json).
+- `AngularCompletionFileRecordsJourneyTests` passed 1/1 on the API-host Angular
+  UI with isolated PostgreSQL and synthetic identities. It covers amendment
+  request, refused self-approval, independent Partner approval, lock
+  contention, unauthorized lock release, Partner lock release, amendment
+  closure/refreeze, persisted evidence, and filtered activity-trail output.
 - A read-only built-in-browser visit to the local Development completion route
-  rendered completion gates, deliverables, file freeze, document locks and
-  activity trail. No business command was submitted. This is not production
-  acceptance.
+  rendered the completion workspace, freeze explanation, document-lock control,
+  activity filter and activity trail. That Development engagement had no freeze
+  configured, and no command was submitted. This is not production acceptance.
 - No application, domain, infrastructure or EF model source was changed in
   this documentation/review slice. The full solution regression and EF model
   drift check were not rerun; the latest complete solution result remains the
@@ -58,7 +63,7 @@ or protection provider has accepted it.
 
 All three source rows remain `PARTIAL`; route ownership and these focused
 journeys do not establish complete source-action parity. The open cross-firm,
-guessed-ID, role/state, validation, stale-content, command retry/unknown-result,
-accessibility and assistive-technology matrices are still required. The
-file-record amendment/lock UI actions need direct positive and negative browser
-coverage. The overall migration and Blazor retirement remain `NOT_READY`.
+guessed-ID, role/state, validation, stale-content, revocation-during-workflow,
+command retry/unknown-result, accessibility and assistive-technology matrices
+are still required. The overall migration and Blazor retirement remain
+`NOT_READY`.

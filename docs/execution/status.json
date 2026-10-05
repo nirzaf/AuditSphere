@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "2d34fca3966b9be9956dc8a645b71e8234899848",
+  "headCommit": "1e22baaeeaf33283bf0ca311a93c1c493bcd82e6",
   "verifiedCommit": "ead85032de2ccc4d4c8043398fa8471d395376a9",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -693,7 +693,7 @@
         "review": "docs/migration/auditsphere-migration-blazor-completion-file-records-source-review.md",
         "sourceSnapshot": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
         "reviewedAgainstCodeCommit": "147ac2a02675b9c65ec43be520c76bc27837a167",
-        "verificationAtCommit": "2d34fca3966b9be9956dc8a645b71e8234899848",
+        "verificationAtCommit": "1e22baaeeaf33283bf0ca311a93c1c493bcd82e6",
         "status": "PARTIAL_REVIEWED",
         "reviewedArtifacts": 3,
         "parityVerifiedArtifacts": 0,
@@ -711,7 +711,7 @@
             "sha256": "6800cc22ec58491bc86172ac377fbcecb52925daca302d9affdf678b5b01b7c0"
           }
         ],
-        "summary": "Completion gates, deliverables, client review, release preparation, file freeze/amendments, locks and activity trail map to current Angular/API/Application owners. All three artifacts remain partial; amendment/lock browser parity and exhaustive authorization, error, stale and recovery assertions remain open.",
+        "summary": "Completion gates, deliverables, client review, release preparation, file freeze/amendments, locks and activity trail map to current Angular/API/Application owners. A PostgreSQL-backed Angular browser journey now exercises the amendment and lock lifecycle, including self-approval refusal, independent Partner approval, contention, unauthorized release, authorized release and refreezing. All three artifacts remain partial pending exhaustive authorization, error, stale, retry and recovery assertions.",
         "focusedPostgresDomainTests": {
           "status": "PASS_LOCAL",
           "passed": 7,
@@ -728,11 +728,22 @@
           "skipped": 0,
           "duration": "1m14s",
           "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-build --configuration Release -m:1 --filter 'FullyQualifiedName~CompletionDeliverablesJourneyTests|FullyQualifiedName~CompletionChecklistDeniesSiblingEngagementAndKeepsRepresentationPrivate|FullyQualifiedName~CompletionAndFieldworkClearPriorEngagementWhenRouteChangesInPlace'",
-          "coverage": "Angular/API-host browser journey for SRM clearance, opinion, reports, client review and signed representation; denial of sibling-engagement completion data; stale completion content clearing across same-document route changes. Direct amendment/lock browser actions are not covered."
+          "coverage": "Angular/API-host browser journey for SRM clearance, opinion, reports, client review and signed representation; denial of sibling-engagement completion data; stale completion content clearing across same-document route changes. Amendment and lock mutations are covered by the separate focused journey below."
         },
-        "builtInBrowser": "PASS_LOCAL_READ_ONLY: authenticated Development Angular completion route rendered its completion gates, deliverables, file-freeze state, document-lock controls and activity trail. No business command was submitted. This is not production acceptance.",
+        "focusedAmendmentLockPlaywright": {
+          "status": "PASS_LOCAL",
+          "caseId": "AS-PAR-002-ANGULAR-COMPLETION-FILE-RECORDS-01",
+          "passed": 1,
+          "failed": 0,
+          "skipped": 0,
+          "duration": "38s",
+          "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release -m:1 --filter FullyQualifiedName~AngularCompletionFileRecordsJourneyTests",
+          "coverage": "PostgreSQL-backed API-host Angular journey: Partner requester cannot self-approve and the amendment remains pending; a second Partner approves; Staff cannot acquire another user's active lock or release it; the assigned Partner releases it and closes the amendment; the UI shows FROZEN again and the filtered FREEZE trail includes the amendment opening. Persisted actor, timestamps, lock release, amendment closure and ProfessionalWorkBlocked state are asserted. No browser page errors occurred."
+        },
+        "builtInBrowser": "PASS_LOCAL_READ_ONLY: authenticated Development Angular completion route loaded in the built-in browser and rendered completion gates, deliverables, the file-freeze section, document-lock control, activity filter and activity trail. The Development engagement had no freeze configured, so the page showed the scheduled-freeze explanation. No business command was submitted. This is not production acceptance.",
         "fullSolutionRegression": "NOT_RUN for this slice; latest complete PostgreSQL-backed Release result remains 1001/1001 at ead85032de2ccc4d4c8043398fa8471d395376a9.",
-        "efModelDrift": "NOT_RUN for this slice; no Domain, Application, Infrastructure or EF model source changed.",
+        "efModelDrift": "NOT_RUN for this slice; the new change is test-only and no Domain, Application, Infrastructure or EF model source was changed by this slice.",
+        "sharedWorktreeBoundary": "The concurrent unstaged edits to docs/execution/angular-source-inventory.json and src/AuditSphereOps.Application/Accounting/ConsolidationOverviewQuery.cs were excluded from the test commit. The Release E2E build compiled the current shared working tree.",
         "boundary": "Focused local behavior does not establish full source-action parity, production/canary acceptance, assistive-technology or wider-locale acceptance, live Microsoft acceptance, or Blazor retirement readiness."
       }
     },

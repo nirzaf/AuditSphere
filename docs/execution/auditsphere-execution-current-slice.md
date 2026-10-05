@@ -27,12 +27,16 @@ rows remain `PARTIAL`; the review found no missing primary Angular/API owner.
 
 Focused PostgreSQL-backed domain and API-host browser tests passed, including
 the deliverable/client-review path, sibling-engagement denial and stale-route
-clearing. The read-only built-in browser rendered the local Development
-completion workspace without submitting a command. Exact commands and results
-are recorded in [`status.json`](status.json). Cross-firm/guessed-ID, complete
-role/error/recovery, amendment/lock browser, accessibility and assistive-
-technology coverage remain open. No EF model drift check or whole-solution
-regression was run for this slice; the complete migration gate remains
+clearing. A further Angular browser journey now covers the amendment and
+document-lock lifecycle: requester self-approval denial, independent Partner
+approval, lock contention, unauthorized release, authorized Partner release,
+closure/refreeze, persisted evidence and the filtered activity trail. The
+read-only built-in browser rendered the local Development completion workspace
+without submitting a command. Exact commands and results are recorded in
+[`status.json`](status.json). Cross-firm/guessed-ID, complete role/error/recovery,
+revocation-during-workflow, accessibility and assistive-technology coverage
+remain open. No EF model drift check or whole-solution regression was run for
+this slice; the complete migration gate remains
 `NOT_READY`.
 
 ## Current follow-on slice: blocked engagement creation source/action review
