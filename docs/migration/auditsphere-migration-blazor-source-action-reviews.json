@@ -105,14 +105,56 @@
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-pbc-source-review.md",
       "reviewedAtCommit": "019126cd964bef85799ab1c1923ee5551da4fbff",
-      "openGaps": ["Live selected-site worker delivery through the Angular staff path", "Complete authorization and failure/stale/upload-state coverage", "Removed PbcUploadJourneyTests assertion crosswalk"]
+      "openGaps": ["Live selected-site worker delivery through the Angular staff path", "Complete authorization and failure/stale/upload-state coverage"]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/ClientPbcRequest.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-pbc-source-review.md",
       "reviewedAtCommit": "019126cd964bef85799ab1c1923ee5551da4fbff",
-      "openGaps": ["Complete failure, stale-session and expiry matrix", "Full download authorization matrix", "Removed PbcUploadJourneyTests assertion crosswalk"]
+      "openGaps": ["Complete failure, stale-session and expiry matrix", "Full download authorization matrix"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/FinancialPackage.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-accounting-artifact-source-review.md",
+      "reviewedAtCommit": "6b1a7a1d3033b4addb507bfcbcba950422420592",
+      "openGaps": ["Complete role and error matrix", "Every artifact-version outcome", "Full source-action equivalence"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/FinancialPackageReviews.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-accounting-artifact-source-review.md",
+      "reviewedAtCommit": "6b1a7a1d3033b4addb507bfcbcba950422420592",
+      "openGaps": ["Role and stale/error queue matrix", "Storage-unavailable and recovery edge cases", "Broader accessibility acceptance"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/ClientFinancialPackage.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-accounting-artifact-source-review.md",
+      "reviewedAtCommit": "6b1a7a1d3033b4addb507bfcbcba950422420592",
+      "openGaps": ["Full client-role and decision validation matrix", "Expiry and stale-session variants", "Complete source-action equivalence"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/CurrencyRemeasurement.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-accounting-artifact-source-review.md",
+      "reviewedAtCommit": "6b1a7a1d3033b4addb507bfcbcba950422420592",
+      "openGaps": ["Every supported currency and rate method", "Complete field-validation and provider-failure matrix", "All role/scope combinations"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/Journals.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-accounting-artifact-source-review.md",
+      "reviewedAtCommit": "6b1a7a1d3033b4addb507bfcbcba950422420592",
+      "openGaps": ["Posting and export validation matrix", "Unknown-result and idempotent retry behavior", "Complete role and error matrix"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/Mapping.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-accounting-artifact-source-review.md",
+      "reviewedAtCommit": "6b1a7a1d3033b4addb507bfcbcba950422420592",
+      "openGaps": ["Full mapping-editor action parity", "Every validation and error path", "Retry and accessibility state coverage"]
     }
   ]
 }

@@ -15,7 +15,29 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
-## Current follow-on slice: Angular audit workflow parity
+## Current follow-on slice: accounting artifact source/action review
+
+At code commit `6b1a7a1d`, the package-review selection now has an explicit
+tab-only save/restore/discard flow. Restore filters stored package IDs against
+the freshly loaded authorized queue; session invalidation clears selection and
+preview. The PostgreSQL-backed browser journey saves a selected package,
+reloads the route, restores it, previews it, and confirms preview made no
+non-GET request. Angular unit coverage checks the tab draft boundary and stale
+ID/session behavior. The built-in browser rendered the new controls with an
+authorized empty Development queue; that observation was read-only.
+
+Six pinned legacy source/action files in the accounting artifact family have
+now been checked against their matching inventory hashes and reviewed against
+Angular components, API endpoints, Application services, and focused journeys.
+All six remain `PARTIAL`; none is promoted to full parity. The aggregate is one
+parity-verified, 21 partial and 54 unanalyzed source/action rows, plus 28
+supporting files. The removed E2E-method crosswalk is 82/82. AS-PAR-002 still
+needs direct query/search/count/export/command authorization and retry/
+idempotency checks. Exact results are in `status.json`; production
+rollback/canary, human assistive-technology and wider-locale review, live
+Microsoft gates, and separate owner acceptance keep retirement `NOT_READY`.
+
+## Previous follow-on slice: Angular audit workflow parity
 
 At test commit `cd162be1`, three API-host Angular journeys map the final five
 removed `AuditAndReleaseJourneyTests` methods. The revocation journey opens
@@ -30,9 +52,10 @@ The focused PostgreSQL-backed Release E2E cohort passed 3/3 with no failures or
 skips. The E2E project and API dependencies compiled in Release. This is a
 test-only slice; no Application or EF model code changed, and the EF drift
 check was not rerun. The complete-solution regression remains the earlier
-1001/1001 checkpoint, not a run at this commit. Nineteen removed
-`FinancialArtifactJourneyTests` methods remain open; 60 source/action rows and
-28 supporting files also remain unanalyzed. The other agent's unstaged
+1001/1001 checkpoint, not a run at this commit. The then-current 19 removed
+`FinancialArtifactJourneyTests` methods and 60 source/action rows were open at
+that historical checkpoint; later slices closed the removed-method crosswalk
+and reviewed six accounting rows. The other agent's unstaged
 `ConsolidationOverviewQuery.cs` edit was excluded. AS-PAR-002 remains partial
 and Blazor retirement remains `NOT_READY`; production rollback/canary, human
 assistive-technology acceptance, live Microsoft gates and separate owner

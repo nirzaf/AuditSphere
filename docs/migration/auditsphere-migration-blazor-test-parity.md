@@ -13,7 +13,7 @@ Exact run counts, commits, logs, and external-gate evidence belong in [`docs/exe
 | `AngularClientScopeAuditDetailJourneyTests` | API-host Angular workpaper, finding and population routes are checked against a sibling client and same-client sibling engagement; guessed IDs clear data; authorized content returns in the same document. The seeded views include a frozen submission, management response and reviewed population sample. Six viewport widths and keyboard focus are checked across the detail routes. | Other audit actions, every revoked-user reload/refresh case, and full audit/release workflow parity | Three removed `AuditAndReleaseJourneyTests` methods mapped; suite remains open. |
 | `AngularReleaseParityJourneyTests` | API-host Angular release detail verifies exact engagement access, sibling-scope and guessed-ID denial, expired protection blocking, no-release persistence, same-document stale-state clearing and recovery, six viewport widths, keyboard focus, and clearing after revoked-grant reload. | Other release/signature/records behaviors and production provider acceptance | Two removed release methods mapped; remaining suite parity stays open. |
 | `AngularAssessmentDecisionRouteJourneyTests`, `AngularClientScopeEngagementParityJourneyTests`, plus `AcceptanceChecklistTests.Receipts` | Exact legacy assessment-decision deep link in canonical and `/ui` modes; scoped Partner access and unrelated-client Manager denial with no profile disclosure; Partner preview/assent; decision-specific authority revocation; lost-response reload/reconciliation and one-dispatch receipt. | Other acceptance sources, other actions, and whole-family parity | `PARITY_VERIFIED` for `AssessmentDecision.razor` only; the remaining acceptance family stays open. Detailed results are in `status.json`. |
-| Former `TenantAdministrationJourneyTests` cases M365-ADMIN-E2E-01..05 | `AngularTenantConnectionJourneyTests` covers consent identity, four independently verified capabilities, responsive tenant/dashboard views, exact directory binding, reviewed client-scoped RoleGrant assignment and revocation evidence. `AngularTenantOperationsJourneyTests` covers one-time-password handling, unknown-outcome reconciliation, client-scoped guest invitation and guest portal restriction, plus reviewed managed-group add/remove and a NOT_GRANTED blocker. `AngularAdministrationJourneyTests` retains local role/scope review and session invalidation. | This replaces those five stale Blazor-selector journeys only; the two remaining removed suites and the source-action inventory still need their own assertion crosswalks. | Focused API/Angular replacement set; exact current run is recorded in `status.json`. |
+| Former `TenantAdministrationJourneyTests` cases M365-ADMIN-E2E-01..05 | `AngularTenantConnectionJourneyTests` covers consent identity, four independently verified capabilities, responsive tenant/dashboard views, exact directory binding, reviewed client-scoped RoleGrant assignment and revocation evidence. `AngularTenantOperationsJourneyTests` covers one-time-password handling, unknown-outcome reconciliation, client-scoped guest invitation and guest portal restriction, plus reviewed managed-group add/remove and a NOT_GRANTED blocker. `AngularAdministrationJourneyTests` retains local role/scope review and session invalidation. | These five methods have replacement evidence. The aggregate 82/82 removed-method crosswalk is now complete; the source/action inventory remains separately incomplete. | Focused API/Angular replacement set; exact current run is recorded in `status.json`. |
 | Removed `M365SetupJourneyTests` bootstrap/draft methods | `AngularInstallationBootstrapJourneyTests` covers exact deployment-approved identity binding, explicit proof review, fresh session, one-time setup closure, local grant evidence, wrong-tenant/object refusal and no workspace session before binding. `AngularTenantSetupMetadataJourneyTests` covers saved setup display for the exact authenticated tenant, no installation-proof prompt, metadata/verification separation and reload. `AngularTenantSetupEditJourneyTests` covers reviewed metadata revisions and receipt recovery without repeat mutation. `AngularSharePointJourneyTests` covers exact selected site, site ID, library, root and access profile persistence, reviewed immutable template approval, and continued blocking of activation after the resource draft invalidates selected-site verification. `AngularTenantConnectionJourneyTests` and `AngularAdministrationJourneyTests` cover current consent/status separation and persisted setup progress. | The replacement intentionally removes user-editable tenant identity: the authenticated tenant must match the deployment-approved identity. The old numeric 1/7-to-2/7 checklist is replaced by persisted capability/setup progress. The setup workspace opens with saved state and no bootstrap-proof prompt after the approved administrator is bound. These are explicit flow changes; no Microsoft password is collected and no synthetic setup state is presented as live verification. | Both removed methods have passing assertion-level API/Angular maps; combined focused Release cohort passed 9/9 with zero failures or skips. Details follow and exact SHA/build/model checks are in `status.json`. |
 | `AcceptanceJourneyTests.PartnerCompletesEvidenceAndSpecialistReviewBeforeAcceptingClient` | API-only Angular route: blocks an evidence-required answer without evidence; records reviewed answers; requires specialist clearance for an adverse answer; confirms HOLD then evidence-backed clearance; records a Partner acceptance; starts a fresh continuance and verifies its question bank and generation; checks persisted immutable receipts and no page errors. | Full acceptance-source inventory, other roles/engagement-specific paths, reload/revocation behavior across every action, and the removed-suite crosswalk | Focused replacement journey verified; no source-family parity promotion. Result is in `status.json`. |
 | Removed `InvoiceScopeJourneyTests` method | `AngularInvoiceScopeJourneyTests.FinanceManagerScopedToAnotherClientCannotViewInvoiceOrFallbackBalance` starts API/Angular hosts over isolated PostgreSQL data with two client-scoped FinanceManagers and real invoice IDs. Each can view their own invoice. Same-document Angular route changes to the sibling invoice show the generic unavailable message, clear both clients' line and balance details, preserve the document token, and reload the first invoice on return. A second client context is denied the owner's invoice; no invoice data leaks and neither page raises a browser error. | Production or mid-session identity revocation behavior is outside this method and remains part of the wider open authorization audit. | The single method has a passing assertion-level replacement map; this does not close other billing or source/action coverage. Exact result is in `status.json`. |
@@ -44,11 +44,13 @@ commit are in `status.json`.
 | Parameterless staff and seeded client, engagement, audit and accounting detail routes reflow, show no more than one exact active link and identify the owning section. | `AngularRouteAndShellMigrationSweepTests.StaffAndDetailRoutesReflowAcrossTheSixViewportMatrix` checks 24 parameterless staff paths plus 10 seeded detail paths at all six widths, asserts no document overflow, at most one exact active link, and the expected current group for each path. Its long legal client name exercises content wrapping. | Covered. The breadcrumb overflow found at 320px was fixed by allowing breadcrumb items to wrap. |
 | A disconnected Blazor circuit reports that a pending action is unconfirmed and does not claim success. | `AngularPendingOutcomeReconciliationTests.LostCommandResponse_SurfacesGlobally_DeepLinksAndClearsAfterAcknowledgment` lets the API accept a contact command, drops its response, then checks the persisted outcome across full navigation, the owning-workspace deep link, manual receipt verification, acknowledgment, and no automatic retry. | Covered by Angular's durable command-outcome recovery. Angular has no SignalR circuit, so the transport-specific reconnect overlay is intentionally replaced by a persisted unknown-outcome banner and manual reconciliation. |
 
-These maps close the two removed `ResponsiveShellSweepTests` methods and the
-single removed `RouteRenderSmokeTests` method. Combined with the PBC,
+At this intermediate checkpoint, these maps closed the two removed
+`ResponsiveShellSweepTests` methods and the single removed
+`RouteRenderSmokeTests` method. Combined with the then-available PBC,
 invoice-scope, M365 setup, and PracticeBillingLedger maps, 11 of 82 removed
-methods are covered; three suites containing 71 methods remain open. This does
-not promote any additional Razor source/action row to full parity or close
+methods were covered. Later sections record the subsequent audit/release and
+financial crosswalk work that completed the 82/82 method map. No E2E method
+crosswalk promotes a Razor source/action row to full parity or closes
 production, human, or external acceptance gates.
 
 ## Removed `PracticeBillingLedgerJourneyTests` method crosswalk
@@ -351,17 +353,21 @@ Release E2E cohort passed 3/3 with no failures or skips.
 | `AuditFieldworkRecordsHumanAggregateConclusionBoundToDifferenceSchedule` | `AngularAuditFieldworkParityJourneyTests.AggregateDifferenceConclusionRetainsHumanDecisionAndExactSourceSnapshot` records the practitioner conclusion through Angular and verifies persisted submission status and immutable assessment metadata, including the exact difference ID, description and QAR amount in the source snapshot. | Covered for the human-authored conclusion and its exact persisted source binding. |
 | `AuditProgramAndReviewedFieldworkSurviveReconnectAndFreezeWorkpaper` | `AngularAuditFieldworkParityJourneyTests.AdoptedProgramReviewedFieldworkAndFrozenWorkpaperSurviveReload` publishes/adopts the controlled program, verifies its procedure set and filtering, records fieldwork, reconnects, reloads and submits the workpaper; persisted reviewed and frozen states are checked. | Covered for tested program adoption, fieldwork, browser reload and workpaper freeze. |
 
-The removed-method crosswalk now covers 63/82 methods, including all 39
-`ClientScopeJourneyTests` methods and all 13 `AuditAndReleaseJourneyTests`
-methods. Nineteen methods remain in `FinancialArtifactJourneyTests`. The full
-solution was not rerun at this test commit; current-source evidence is the
-focused cohort only. Exact command, duration and full-suite boundary are in
-`docs/execution/status.json`. Blazor retirement remains `NOT_READY`.
+At this intermediate checkpoint, the removed-method crosswalk covered 63/82
+methods, including all 39 `ClientScopeJourneyTests` methods and all 13
+`AuditAndReleaseJourneyTests` methods. The next section maps the remaining 19
+`FinancialArtifactJourneyTests` methods. Exact command and historical
+full-suite boundary are in `docs/execution/status.json`; Blazor retirement
+remains `NOT_READY`.
 
 ## Removed `FinancialArtifactJourneyTests` crosswalk
 
 The API-host Angular financial-artifact parity cohort passed 5/5 against
-isolated PostgreSQL fixtures. Four new journeys cover package and mapping
+isolated PostgreSQL fixtures. At the later code/UI slice, the package-review
+journey additionally saves a selected package in tab-only storage, reloads,
+restores only IDs in the fresh authorized queue, and previews without sending
+a non-GET request. Angular unit tests cover the storage boundary and session
+clearing. Four new journeys cover package and mapping
 detail routes, accounting queues, package review authority, client management
 decisions, exact artifact downloads, grant revocation and period reopening.
 The existing Angular remeasurement journey was rerun in the same cohort. This
@@ -393,10 +399,11 @@ AS-PAR-002 route/query/search/count/export/direct-command audit.
 
 The focused test command, result, built-in-browser observation and full-solution
 boundary are recorded in `docs/execution/status.json`. The full solution was
-not rerun for this test-only slice. The latest complete PostgreSQL-backed
+not rerun for this focused code/UI slice. The latest complete PostgreSQL-backed
 Release result is 1001/1001 (API 191, Domain 660, E2E 150) at
-`ead85032de2ccc4d4c8043398fa8471d395376a9`; this new test commit was not part
-of that run. No application or EF model code changed in this test-only slice.
+`ead85032de2ccc4d4c8043398fa8471d395376a9`; the latest focused slice was not
+part of that run. No .NET Application or EF model code changed in this UI/test
+slice.
 Blazor retirement remains `NOT_READY`.
 
 ## Migration test gaps that keep retirement unaccepted
