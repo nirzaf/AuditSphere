@@ -477,6 +477,20 @@
       "evidence": "auditsphere-migration-blazor-records-source-review.md",
       "reviewedAtCommit": "5af8e02b06797b53825da09fce6b4dff04d97fb7",
       "openGaps": ["Successful Angular issue flow with one-time key and uncertain-outcome recovery", "Complete role/scope, expired-grant and cross-firm response matrix", "Remaining validation/error and human accessibility/locale acceptance"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/StatementDrillDown.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-statement-intake-source-review.md",
+      "reviewedAtCommit": "a75ee4e269ebc1cd3706a8b5bc0d8f83e50c9a22",
+      "openGaps": ["Complete per-action role/scope, expired-grant and cross-firm query/export matrix", "All stale-basis, provider-failure and recovery assertions mapped to source actions", "Human screen-reader and wider-locale acceptance"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/TrialBalanceIntake.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-statement-intake-source-review.md",
+      "reviewedAtCommit": "a75ee4e269ebc1cd3706a8b5bc0d8f83e50c9a22",
+      "openGaps": ["Complete per-action role/scope, expired-grant and cross-firm authorization matrix", "All file-format, size, malformed-input, mapping-memory and currency-review outcomes crosswalk", "Human screen-reader and wider-locale acceptance"]
     }
   ]
 }

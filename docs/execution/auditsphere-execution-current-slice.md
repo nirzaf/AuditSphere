@@ -15,6 +15,25 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: Statement Drilldown and Trial Balance Intake
+
+Reviewed the two legacy accounting pages against their pinned source hashes and
+mapped them through Angular, API endpoints and Application services. The
+focused Angular statement/intake unit cohort passed 28/28. PostgreSQL-backed
+API-host journeys passed 3/3, including invalid-period rejection, reviewed
+multi-period upload, owned worker validation, receipt recovery, source export,
+lost-response reconciliation, revocation clearing, and statement-line to
+procedure navigation. The built-in browser showed generic scope-denied states
+for guessed engagement IDs on both current Angular routes.
+
+Both rows remain `PARTIAL`. Complete per-action role/scope, expiry and
+cross-firm matrices, the full file-format/size/error and mapping/currency
+outcome crosswalks, and human screen-reader/locale acceptance remain open. The
+inventory now has six unanalyzed rows, 69 partial rows and one parity-verified
+row; 28 supporting files remain open. The whole-solution regression and EF
+model-drift check were not rerun. AS-PAR-002 and Blazor retirement remain
+partial/`NOT_READY`; see the [Statement and Intake source review](../migration/auditsphere-migration-blazor-statement-intake-source-review.md).
+
 ## Current follow-on slice: Records Archive and Release reviews
 
 Reviewed the Records Archive and Release Razor pages against their pinned
