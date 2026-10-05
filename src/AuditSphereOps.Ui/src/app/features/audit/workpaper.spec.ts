@@ -81,6 +81,7 @@ const readUrl = `/api/ui/audit/workpapers/${id1}`;
 
 describe('Workpaper authored-content protection', () => {
   let http: HttpTestingController;
+  let routeParams: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
   let decisions: Subject<string | undefined>;
   const dialogSpy = {
     open: vi.fn(() => {
@@ -89,11 +90,12 @@ describe('Workpaper authored-content protection', () => {
     }),
   };
   beforeEach(() => {
+    routeParams = new BehaviorSubject(convertToParamMap({ id: id1 }));
     TestBed.configureTestingModule({
       imports: [WorkpaperEditor],
       providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(),
         { provide: MatDialog, useValue: dialogSpy },
-        { provide: ActivatedRoute, useValue: { paramMap: new BehaviorSubject(convertToParamMap({ id: id1 })), snapshot: { paramMap: convertToParamMap({ id: id1 }) } } }],
+        { provide: ActivatedRoute, useValue: { paramMap: routeParams, snapshot: { paramMap: convertToParamMap({ id: id1 }) } } }],
     });
     http = TestBed.inject(HttpTestingController);
     TestBed.inject(SessionService).current.set({ userId: id1, firmId: id1, generation: '1', staff: true });
@@ -169,6 +171,29 @@ describe('Workpaper authored-content protection', () => {
     expect(c.message()).toBe('Draft saved.');
     expect(c.status()).toContain('Saved at');
     f.detectChanges();
+    expect(f.nativeElement.textContent).not.toContain('The draft save was refused.');
+  });
+
+  it('clears prior save feedback when the reused route changes workpaper identity', async () => {
+    const f = open(); const c = f.componentInstance;
+    c.work = 'Refused draft.'; c.changed();
+    const saving = c.save();
+    http.expectOne(r => r.method === 'POST' && r.url === draftUrl)
+      .flush({ code: 'request.failed', message: 'The draft save was refused.' }, { status: 400, statusText: 'Bad Request' });
+    await expect(saving).resolves.toBe(false);
+    expect(c.failed()).toBe(true);
+
+    routeParams.next(convertToParamMap({ id: id2 }));
+    TestBed.tick();
+    const next = workpaperPayload();
+    next.id = id2;
+    next.engagementId = id3;
+    next.draft = { ...draftPayload(), workpaperId: id2 };
+    http.expectOne(`/api/ui/audit/workpapers/${id2}`).flush(next);
+    TestBed.tick(); f.detectChanges();
+
+    expect(c.failed()).toBe(false);
+    expect(c.message()).toBe('');
     expect(f.nativeElement.textContent).not.toContain('The draft save was refused.');
   });
 

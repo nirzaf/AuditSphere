@@ -103,13 +103,20 @@ export class WorkpaperEditor {
   private timer: ReturnType<typeof setTimeout> | undefined;
   private pendingSave: Promise<boolean> | null = null;
   private uncertainSave: DraftSaveAttempt | null = null;
+  private observedRouteId: string | null | undefined;
   private readonly dialogs = inject(MatDialog);
 
   constructor() {
     effect(() => {
+      const routeId = this.id();
       const w = this.wp.data();
       untracked(() => {
         clearTimeout(this.timer);
+        if (this.observedRouteId !== routeId) {
+          this.observedRouteId = routeId;
+          this.message.set('');
+          this.failed.set(false);
+        }
         this.state = w?.draft ?? null; this.work = w?.draft.workPerformed ?? ''; this.conclusion = w?.draft.conclusion ?? ''; this.dirty = false;
         this.uncertainSave = null; this.uncertain.set(false); this.retryReady.set(false);
         this.conflict.set(w?.draft.lifecycle === 'TARGET_CHANGED');
