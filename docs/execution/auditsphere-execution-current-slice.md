@@ -15,7 +15,32 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
-## Current follow-on slice: Angular accounting task-owner scope parity
+## Current follow-on slice: Angular assessment, engagement and completion scope parity
+
+At test commit `bfb72c71`, `AngularClientScopeEngagementParityJourneyTests`
+adds API-host Playwright replacements for the five remaining
+`ClientScopeJourneyTests` methods. Isolated PostgreSQL scenarios cover
+canonical and `/ui` client-assessment deep links, Partner-only decision
+visibility, unrelated-client denial, engagement detail and audit-plan route
+changes, completion representation privacy, and current-grant revocation.
+The stale audit-risk command is refused with `GenerationStale`, no row is
+persisted, and the open browser session is invalidated.
+
+The focused Release E2E cohort passed 4/4 with zero failures or skips in 1m23s.
+This is test-only: no application or EF model changed. The removed-method
+crosswalk now covers 50/82 methods, including all 39 `ClientScopeJourneyTests`
+methods. Thirty-two methods remain in `AuditAndReleaseJourneyTests` and
+`FinancialArtifactJourneyTests`. The latest complete PostgreSQL-backed Release
+solution result remains 1001/1001 at `ead85032`, before this test commit; the
+current source has focused, not whole-solution, regression evidence. Sixty
+source/action rows and 28 supporting files remain unanalyzed. AS-PAR-002 stays
+partial and Blazor retirement stays `NOT_READY`; the rollback/reference host,
+production canary, human assistive-technology review, live Microsoft gates and
+separate owner acceptance remain open. Exact evidence is in
+[`status.json`](status.json) and the [test parity
+register](../migration/auditsphere-migration-blazor-test-parity.md).
+
+## Previous follow-on slice: Angular accounting task-owner scope parity
 
 At code commit `73a2d51b`, the Angular accounting workspace regains the missing
 engagement task-owner summary through `AccountingTaskOwnerQuery`, a protected
