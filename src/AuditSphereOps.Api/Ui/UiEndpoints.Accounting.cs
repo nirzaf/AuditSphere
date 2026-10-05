@@ -21,6 +21,8 @@ public static partial class UiEndpoints
     string Evidence, Guid? SourcePackageId, bool Reviewed);
   private static void MapAccountingEndpoints(RouteGroupBuilder group)
   {
+    group.MapUiGet("/accounting/task-owners", http => ReadAsync(http,
+      (db, actor, ct) => AccountingTaskOwnerQuery.GetAsync(db, actor, ct)));
     group.MapGet("/accounting/clients/{id:guid}/periods/{periodId:guid}/sources", async (Guid id, Guid periodId,
       HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
     {

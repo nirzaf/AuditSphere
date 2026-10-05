@@ -10,6 +10,7 @@ import { SessionService } from '../../core/session';
 import { exactDecimal, guidPattern } from '../../core/contracts';
 
 interface ClientPage { items: { id: string; name: string; profileConfigured: boolean }[]; total: number; page: number; pageSize: number }
+interface TaskOwnerSummary { hasAssignedEngagements: boolean; hasMoreOwners: boolean; owners: { owner: string; activeTaskCount: number }[] }
 interface Profile { id: string; revision: string; jurisdiction: string; currency: string; fiscalMonth: number; fiscalDay: number; sourceSystem: string; sourceIdentifier: string; status: string }
 interface Period { id: string; revision: string; code: string; start: string; end: string; basis: string; currency: string; status: string }
 interface Book { id: string; periodId: string; revision: string; code: string; basis: string; inclusionRule: string; currency: string; status: string }
@@ -52,6 +53,18 @@ export function decodeClients(value: unknown): ClientPage {
     if (typeof r['id'] !== 'string' || !guidPattern.test(r['id']) || typeof r['name'] !== 'string' || typeof r['profileConfigured'] !== 'boolean') throw new Error('Invalid client');
   }
   return v as unknown as ClientPage;
+}
+function decodeTaskOwnerSummary(value: unknown): TaskOwnerSummary {
+  const v = record(value);
+  if (typeof v['hasAssignedEngagements'] !== 'boolean' || typeof v['hasMoreOwners'] !== 'boolean' ||
+    !Array.isArray(v['owners']) || v['owners'].length > 100) throw new Error('Invalid task owner summary');
+  for (const value of v['owners']) {
+    const owner = record(value);
+    if (typeof owner['owner'] !== 'string' || !owner['owner'].trim() || owner['owner'].length > 200 ||
+      !Number.isSafeInteger(owner['activeTaskCount']) || Number(owner['activeTaskCount']) < 1 || Number(owner['activeTaskCount']) > 5000)
+      throw new Error('Invalid task owner');
+  }
+  return v as unknown as TaskOwnerSummary;
 }
 export function decodeWorkspace(value: unknown): Workspace {
   const v = record(value);
@@ -108,6 +121,24 @@ export function decodeWorkspace(value: unknown): Workspace {
           <td>{{ client.profileConfigured ? 'Configured' : 'Not configured' }}</td></tr> }</tbody></table></div>
       <nav aria-label="Accounting client pages"><button matButton [disabled]="page.page === 0" (click)="load(page.page - 1)">Previous</button>
         <span>Page {{ page.page + 1 }}</span><button matButton [disabled]="(page.page + 1) * page.pageSize >= page.total" (click)="load(page.page + 1)">Next</button></nav>
+    }
+    @if (taskOwnerLoading()) { <p role="status">Loading engagement task owners…</p> }
+    @if (taskOwnerError()) { <p role="alert">{{ taskOwnerError() }}</p> }
+    @if (taskOwnerSummary(); as summary) {
+      @if (summary.hasAssignedEngagements) {
+        <section aria-labelledby="accounting-task-owners">
+          <h2 id="accounting-task-owners">Task owners in your assigned engagements</h2>
+          <p>This summary follows your current engagement assignments. It does not grant access to client-wide books or period setup.</p>
+          @if (!summary.owners.length) { <p>No active assigned tasks are available in your engagement scope.</p> }
+          @else {
+            <div class="table-scroll"><table><caption>Active task counts by assigned staff owner</caption>
+              <thead><tr><th scope="col">Staff owner</th><th scope="col">Active tasks</th></tr></thead>
+              <tbody>@for (owner of summary.owners; track $index) { <tr><td>{{ owner.owner }}</td><td>{{ owner.activeTaskCount }}</td></tr> }</tbody>
+            </table></div>
+            @if (summary.hasMoreOwners) { <p>Showing the first 100 task owners in your scope.</p> }
+          }
+        </section>
+      }
     }
     @if (workspace(); as w) {
       <section aria-label="Selected client accounting"><h2>{{ w.name }}</h2>
@@ -234,6 +265,7 @@ export class AccountingWorkspace {
   private readonly http = inject(HttpClient);
   private readonly session = inject(SessionService);
   private request?: Subscription;
+  private taskOwnerRead?: Subscription;
   private detail?: Subscription;
   private write?: Subscription;
   private dimRead?: Subscription;
@@ -261,24 +293,43 @@ export class AccountingWorkspace {
   readonly dimensionsTruncated = signal(false);
   private query = '';
   readonly data = signal<ClientPage | null>(null);
+  readonly taskOwnerSummary = signal<TaskOwnerSummary | null>(null);
+  readonly taskOwnerLoading = signal(false);
+  readonly taskOwnerError = signal('');
   readonly workspace = signal<Workspace | null>(null);
   readonly loading = signal(false);
   readonly error = signal('');
   constructor() {
     effect(() => {
       this.session.invalidation(); const staff = this.session.current()?.staff;
-      untracked(() => { this.request?.unsubscribe(); this.detail?.unsubscribe(); this.write?.unsubscribe(); this.dimRead?.unsubscribe(); this.sourceRead?.unsubscribe(); this.sources.set(null); this.dimensions.set(null); this.dimensionsLoading.set(false); this.dimensionsError.set(''); this.dimensionsTruncated.set(false); this.selectedSource = ''; this.saving.set(false); this.reviewed = false; this.openingReviewed = ''; this.rollReviewed = false; this.dimReviewed = false; this.roll = { prior: '', code: '', start: '', end: '', basis: '', currency: '', closing: '', opening: '', hash: '', evidence: '' }; this.bookReviewed = false; this.book = { periodId: '', code: '', basis: '', inclusionRule: '', currency: '' }; this.periodReviewed = false; this.period = { code: '', start: '', end: '', basis: '', currency: '', prior: '' }; this.dim = { type: 'BRANCH', code: '', name: '' }; this.form = { jurisdiction: '', currency: '', month: 1, day: 1, source: '', identifier: '' }; this.data.set(null); this.workspace.set(null); this.clearSources(); this.decisionPeriod.set(''); this.error.set(''); this.loading.set(false); if (staff) this.load(); });
+      untracked(() => { this.request?.unsubscribe(); this.taskOwnerRead?.unsubscribe(); this.detail?.unsubscribe(); this.write?.unsubscribe(); this.dimRead?.unsubscribe(); this.sourceRead?.unsubscribe(); this.taskOwnerSummary.set(null); this.taskOwnerLoading.set(false); this.taskOwnerError.set(''); this.sources.set(null); this.dimensions.set(null); this.dimensionsLoading.set(false); this.dimensionsError.set(''); this.dimensionsTruncated.set(false); this.selectedSource = ''; this.saving.set(false); this.reviewed = false; this.openingReviewed = ''; this.rollReviewed = false; this.dimReviewed = false; this.roll = { prior: '', code: '', start: '', end: '', basis: '', currency: '', closing: '', opening: '', hash: '', evidence: '' }; this.bookReviewed = false; this.book = { periodId: '', code: '', basis: '', inclusionRule: '', currency: '' }; this.periodReviewed = false; this.period = { code: '', start: '', end: '', basis: '', currency: '', prior: '' }; this.dim = { type: 'BRANCH', code: '', name: '' }; this.form = { jurisdiction: '', currency: '', month: 1, day: 1, source: '', identifier: '' }; this.data.set(null); this.workspace.set(null); this.clearSources(); this.decisionPeriod.set(''); this.error.set(''); this.loading.set(false); if (staff) this.load(); });
     });
-    inject(DestroyRef).onDestroy(() => { this.request?.unsubscribe(); this.detail?.unsubscribe(); this.write?.unsubscribe(); this.dimRead?.unsubscribe(); this.sourceRead?.unsubscribe(); this.sources.set(null); this.dimensions.set(null); this.selectedSource = ''; });
+    inject(DestroyRef).onDestroy(() => { this.request?.unsubscribe(); this.taskOwnerRead?.unsubscribe(); this.detail?.unsubscribe(); this.write?.unsubscribe(); this.dimRead?.unsubscribe(); this.sourceRead?.unsubscribe(); this.sources.set(null); this.taskOwnerSummary.set(null); this.dimensions.set(null); this.selectedSource = ''; });
   }
   search(event: Event, value: string): void { event.preventDefault(); this.query = value.trim(); this.load(); }
   load(page = 0): void {
     if (this.saving()) return;
     this.request?.unsubscribe(); this.detail?.unsubscribe(); this.data.set(null); this.workspace.set(null); this.clearSources(); this.decisionPeriod.set(''); this.error.set(''); this.loading.set(true);
     const generation = this.session.invalidation();
+    this.loadTaskOwners(generation);
     this.request = this.http.get<unknown>('/api/ui/accounting/clients', { params: { search: this.query, page, pageSize: 25 } }).pipe(timeout(15000)).subscribe({
       next: value => { if (generation !== this.session.invalidation()) return; try { this.data.set(decodeClients(value)); } catch { this.error.set('Unsupported accounting response.'); } this.loading.set(false); },
-      error: failure => { if (generation !== this.session.invalidation()) return; this.loading.set(false); this.error.set('Accounting unavailable. Check your current client assignment or retry.'); if (failure.status === 401) this.session.clear(); },
+      error: failure => { if (generation !== this.session.invalidation()) return; this.loading.set(false); this.error.set(failure.status === 403
+        ? 'Client-wide accounting setup requires a current client-level accounting grant.'
+        : 'Accounting unavailable. Check your current client assignment or retry.'); if (failure.status === 401) this.session.clear(); },
+    });
+  }
+  private loadTaskOwners(generation: number): void {
+    this.taskOwnerRead?.unsubscribe(); this.taskOwnerSummary.set(null); this.taskOwnerError.set(''); this.taskOwnerLoading.set(true);
+    this.taskOwnerRead = this.http.get<unknown>('/api/ui/accounting/task-owners').pipe(timeout(15000)).subscribe({
+      next: value => { if (generation !== this.session.invalidation()) return;
+        try { this.taskOwnerSummary.set(decodeTaskOwnerSummary(value)); }
+        catch { this.taskOwnerError.set('The engagement task summary returned an unsupported response.'); }
+        this.taskOwnerLoading.set(false); },
+      error: failure => { if (generation !== this.session.invalidation()) return; this.taskOwnerLoading.set(false);
+        if (failure.status === 401) { this.session.clear(); return; }
+        if (failure.status !== 403) this.taskOwnerError.set('Assigned engagement task owners are temporarily unavailable. Retry the workspace.');
+      },
     });
   }
   select(id: string): void {
