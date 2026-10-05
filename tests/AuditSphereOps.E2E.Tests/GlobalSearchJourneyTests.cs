@@ -92,6 +92,18 @@ public sealed class GlobalSearchJourneyTests
       await Assertions.Expect(search).ToHaveValueAsync(string.Empty);
       await Assertions.Expect(results.GetByRole(AriaRole.Status)).ToHaveCountAsync(0);
 
+      // Supported page hits also resolve to a current Angular-owned destination.
+      await search.FillAsync("practice time");
+      var pageLink = results.GetByRole(AriaRole.Link,
+        new() { Name = "Practice time & tasks", Exact = true });
+      await Assertions.Expect(pageLink).ToBeVisibleAsync(new() { Timeout = 15000 });
+      await pageLink.ClickAsync();
+      await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+        new() { Name = "Practice time & task records", Exact = true })).ToBeVisibleAsync();
+      Assert.Equal("/app/practice/time", new Uri(page.Url).AbsolutePath);
+      await Assertions.Expect(search).ToHaveValueAsync(string.Empty);
+      await Assertions.Expect(results.GetByRole(AriaRole.Status)).ToHaveCountAsync(0);
+
       // A sibling client's exact name yields nothing, not even a count or snippet.
       await search.FillAsync(Marker);
       await Assertions.Expect(results.GetByRole(AriaRole.Status)).ToContainTextAsync("0 results", new() { Timeout = 15000 });
