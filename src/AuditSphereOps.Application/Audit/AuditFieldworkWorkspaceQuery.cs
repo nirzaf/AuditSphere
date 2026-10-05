@@ -43,17 +43,19 @@ public static class AuditFieldworkWorkspaceQuery
     var engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x => x.Id == engagementId && x.FirmId == actor.FirmId, ct);
     if (engagement is null) return new(null, CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied."), false, false, false, false);
 
-    async Task<bool> AllowsAsync(string[] roles) => (await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagement.Id, roles, true, true), ct)).Succeeded;
+    async Task<CommandResult> AuthorizeRolesAsync(string[] roles) => await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagement.Id, roles, true, true), ct);
 
-    var canManage = await AllowsAsync(FieldworkRoles);
-    var canViewNotes = await AllowsAsync(ReviewParticipantRoles);
-    var canAddOrResolveNotes = await AllowsAsync(ReviewRoles);
+    var access = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagement.Id,
+        FieldworkRoles.Concat(ReviewParticipantRoles).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(), true, true), ct);
+    if (!access.Succeeded) return new(engagement, access, false, false, false, false);
+
+    var canManage = (await AuthorizeRolesAsync(FieldworkRoles)).Succeeded;
+    var canViewNotes = (await AuthorizeRolesAsync(ReviewParticipantRoles)).Succeeded;
+    var canAddOrResolveNotes = (await AuthorizeRolesAsync(ReviewRoles)).Succeeded;
     var canRespondToNotes = canViewNotes;
-    var auth = canManage || canViewNotes
-      ? CommandResult.Ok()
-      : CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    return new(engagement, auth, canManage, canViewNotes, canAddOrResolveNotes, canRespondToNotes);
+    return new(engagement, CommandResult.Ok(), canManage, canViewNotes, canAddOrResolveNotes, canRespondToNotes);
   }
 
   public static async Task<CommandResult<AuditFieldworkWorkspace>> GetAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)

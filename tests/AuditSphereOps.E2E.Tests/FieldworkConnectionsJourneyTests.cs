@@ -317,6 +317,11 @@ public sealed class FieldworkConnectionsJourneyTests
       var persistedPhysicalFile = await db.PhysicalEvidenceItems.AsNoTracking().SingleAsync(x =>
         x.EngagementId == f.EngagementId && x.FileIndex == "X-1");
       Assert.Equal("Secure audit archive", persistedPhysicalFile.CurrentLocation);
+
+      var staleReviewer = new ActorContext(f.Reviewer.Id, f.FirmId, f.Reviewer.SessionEpoch + 1, ["Reviewer"]);
+      var staleWorkspace = await AuditFieldworkWorkspaceQuery.GetAsync(db, staleReviewer, f.EngagementId);
+      Assert.False(staleWorkspace.Succeeded);
+      Assert.Equal(ErrorCodes.GenerationStale, staleWorkspace.ErrorCode);
     }
     Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal) || x.Contains("unhandled exception", StringComparison.OrdinalIgnoreCase));
   }
