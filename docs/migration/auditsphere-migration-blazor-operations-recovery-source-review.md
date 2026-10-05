@@ -27,19 +27,25 @@ recovery remain owned by Application `OperationRecoveryService`.
 - Angular now restores the legacy table's 10/25/50 page-size choices and
   previous/next navigation. The operations table has a caption and scoped
   column headers; the cancellation reason has an explicit associated label.
-- The focused Angular unit suite passed **4/4**, including signed-in staff
-  administrator-access denial, the 10/25/50 row counts, page transitions and
-  table semantics. Full Angular CI passed
-  **489/489** across 94 test files. The production Angular build passed at
+- If a retry POST is accepted but its browser acknowledgement is lost, the UI
+  refreshes the exact operation projection and reconciles `RETRY_WAIT` as
+  confirmed. It does not resend the command. Other mutation controls remain
+  disabled while the outcome is unresolved; refresh remains available.
+- The focused Angular unit suite passed **5/5**, including signed-in staff
+  administrator-access denial, 10/25/50 paging, table semantics, and retry
+  response-loss reconciliation. Full Angular CI passed **493/493** across 95
+  test files. The production Angular build passed at
   349.67 kB raw initial size; it retains the existing 7.53 kB commercial
   settings stylesheet warning against the 4 kB warning budget.
 - The PostgreSQL-backed API-host browser cohort passed **2/2**:
   `AngularOperationsRecoveryJourneyTests` and
-  `AngularFirmScopeRevocationParityJourneyTests`. The new journey verified
-  26-row paging, a 390px no-overflow viewport, redaction of request bytes,
-  administrator cancel and re-arm actions, exact persisted states and
-  append-only actor events, plus a 403 and no operation data for ordinary
-  staff. No worker ran in this disposable fixture.
+  `AngularFirmScopeRevocationParityJourneyTests`. It verifies 26-row paging,
+  no horizontal overflow or clipped header/search text at 1141, 1024, 700 and
+  390px, request-byte redaction, administrator cancellation, and a retry whose
+  successful server response is dropped. The refreshed row confirms
+  `RETRY_WAIT`; the browser sends one POST and PostgreSQL contains exactly one
+  actor-attributed retry event. Ordinary staff receives 403 with no operation
+  data. No worker ran in the disposable fixture.
 - The built-in Development browser loaded `/ui/app/operations` read-only. Its
   signed-in staff identity received a clear explanation that firm-wide
   AuditSphere Administrator access is required, with a safe next step to
@@ -51,7 +57,7 @@ recovery remain owned by Application `OperationRecoveryService`.
 ## Remaining gaps
 
 This source row remains `PARTIAL`. The local slice does not close the complete
-expired-grant, cross-firm, concurrent command, unknown transport outcome,
+expired-grant, cross-firm, concurrent command, non-accepted/ambiguous retry,
 quarantine restart approval, operational rollback, or assistive-technology
 acceptance matrices. The broader AS-PAR-002 retry/idempotency and authorization
 crosswalk remains open. No Application, Domain, Infrastructure, API or EF

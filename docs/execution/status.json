@@ -10353,44 +10353,52 @@
       "notRun": "No full solution regression or EF model-drift check was run for this review. Existing full-suite checkpoint remains unchanged."
     },
     "angularOperationsRecovery": {
-      "sourceCommit": "1b8a50f5ca56075322ba7b17c5569488dfd230b6",
-      "accessDenialCopyCommit": "f31a25ed",
-      "observedAt": "2026-10-05T19:45:35Z",
+      "sourceCommit": "15834ec24ae95ec1d5d1ea9f2385540145e8f593",
+      "observedAt": "2026-10-05T20:11:37Z",
       "status": "PASS_LOCAL_SLICE",
       "caseId": "AS-PAR-002-ANGULAR-OPERATIONS-RECOVERY-01",
       "sourceReview": "docs/migration/auditsphere-migration-blazor-operations-recovery-source-review.md",
       "angularFocusedTests": {
         "status": "PASS",
-        "passed": 4,
+        "passed": 5,
         "failed": 0,
         "skipped": 0,
-        "coverage": "Operations component and decoder tests; signed-in staff receive a firm-wide Administrator requirement message on 403 without operation data."
+        "command": "npm run test:ci -- --include=src/app/features/admin/operations.spec.ts",
+        "coverage": "Operations component response-loss test confirms a retry from the refreshed exact operation state and ensures no second POST is sent."
       },
       "angularFullCi": {
         "status": "PASS",
-        "files": 94,
-        "passed": 489,
+        "files": 95,
+        "passed": 493,
         "failed": 0,
         "skipped": 0,
-        "command": "npm --prefix src/AuditSphereOps.Ui run test:ci"
+        "command": "npm run test:ci"
       },
       "angularProductionBuild": {
         "status": "PASS_WITH_COMPONENT_STYLE_WARNING",
-        "initialBundle": "349.67 kB raw, approximately 94.03 kB estimated transfer; below the 500 kB warning budget.",
+        "initialBundle": "349.67 kB raw and 94.00 kB estimated transfer; below the 500 kB initial warning budget.",
         "remainingWarning": "Commercial settings stylesheet is 7.53 kB against the 4 kB component-style warning budget."
       },
       "focusedPostgresPlaywright": {
         "status": "PASS",
-        "latestRunPassed": 1,
+        "passed": 2,
         "failed": 0,
         "skipped": 0,
-        "coverage": "At the final markup state, verifies 26-row paging, 390px no-overflow, request-byte redaction, firm-administrator cancel/re-arm, persisted states and append-only actor events, staff 403 and no data disclosure. The related scope-revocation cohort passed 2/2 before the final markup-only pager placement adjustment."
+        "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-build --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~AngularOperationsRecoveryJourneyTests|FullyQualifiedName~AngularFirmScopeRevocationParityJourneyTests'",
+        "coverage": "The API accepts an administrator retry while Playwright drops the response. The exact refreshed operation state confirms RETRY_WAIT; one POST and one actor-attributed append-only retry event are verified. The related firm-scope revocation journey also passes.",
+        "responsiveWidths": [
+          1141,
+          1024,
+          700,
+          390
+        ]
       },
-      "builtInBrowser": "PASS_LOCAL_READ_ONLY: the signed-in staff identity at /ui/app/operations received a clear firm-wide AuditSphere Administrator requirement and next step; no operation data or commands were exposed.",
-      "scope": "Angular operations presentation, tests and source/action documentation only; no Application, Domain, Infrastructure, API or EF model behavior changed.",
+      "builtInBrowser": "PASS_LOCAL_READ_ONLY: at /ui/app/operations, the current signed-in staff identity received the firm-wide AuditSphere Administrator denial; zero operation rows were rendered and the browser console contained no errors.",
+      "scope": "Angular Operations command recovery presentation and tests. No Application, Domain, Infrastructure, API, EF model, schema or database changes.",
       "fullSolutionRegression": "NOT_RUN for this slice; the latest complete PostgreSQL-backed Release result remains 1001/1001 at ead85032de2ccc4d4c8043398fa8471d395376a9.",
       "efModelDrift": "NOT_RUN; no EF model code changed.",
-      "retirementDecision": "NOT_READY"
+      "retirementDecision": "NOT_READY",
+      "accessDenialCopyCommit": "f31a25ed"
     },
     "angularReleaseRecovery": {
       "sourceCommit": "b3b4e1e3ba1d5c359ea240ed6acd6bd816be3485",
@@ -11484,6 +11492,11 @@
       "item": "Angular shared confirmation source/action review (2026-10-05)",
       "status": "LOCAL_VERIFIED",
       "details": "At pushed code commit 0d819cd9, ConfirmDialog.razor's two callers were checked against the Angular revoke-access and lead-qualification workflows. Confirmations now expose the exact target user, grant scope or lead ID before the action. Angular CI passed 491/491 across 95 files; production build passed with the existing 7.53 kB Commercial Settings stylesheet warning; the focused PostgreSQL-backed API-host Playwright cohort passed 2/2, verifying role revocation/session invalidation and persisted lead qualification. The built-in browser reproduced the Operations denial with the Development identity labeled Workspace preview; no operation data was disclosed and no privilege was changed. Full solution and EF checks were not rerun; latest complete suite remains 1001/1001 at ead85032. Source-action register: 73 partial, 2 unanalyzed, 1 parity-verified, and 28 supporting files remain open. Retirement remains NOT_READY."
+    },
+    {
+      "item": "Angular Operations retry response-loss reconciliation (2026-10-05)",
+      "status": "LOCAL_VERIFIED",
+      "details": "At code commit 15834ec2, Angular Operations refreshes and reconciles the exact retry target after an accepted API POST loses its browser acknowledgement. RETRY_WAIT clears the unknown-outcome guard and reports confirmation from persisted state without a repeat POST. Angular component tests passed 5/5, full Angular CI 493/493 across 95 files, and the production build passed with the existing 7.53 kB Commercial Settings stylesheet warning. The PostgreSQL-backed API-host Operations and firm-scope revocation cohort passed 2/2; the Operations journey verifies one dispatch, one actor event, ordinary-staff denial and no overflow/clipping at 1141, 1024, 700 and 390px. Built-in browser read-only inspection showed no operation data for the current staff identity and no console errors. Source/action row and AS-PAR-002 remain partial. Full solution regression and EF drift were not rerun; latest complete suite remains 1001/1001 at ead85032. Blazor retirement remains NOT_READY."
     }
   ],
   "remainingLocalWork": [

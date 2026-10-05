@@ -5131,3 +5131,21 @@ Focused evidence and the 505.46 kB Angular initial-bundle warning are recorded i
 ### Blazor retirement source inventory and removal stop gate
 
 The current source snapshot now has a reproducible discovery register for the legacy Web project, a route-ownership matrix, feature/test crosswalks, and a removal-readiness decision. The generated source rows remain `NOT_ANALYZED`; Angular route ownership is not treated as behavior parity. The production API rejects the legacy presentation outside `Test`, while the solution and API/E2E test fixtures still depend on the Web project. The removal recommendation is `NOT_READY`; no Web, Razor, or MudBlazor files were deleted. Current counts and focused verification are in `status.json`; see `docs/migration/auditsphere-migration-blazor-retirement-final-report.md` for the stop-gate report and remaining work.
+
+### Operations retry response-loss reconciliation (AS-PAR-002)
+
+At code commit `15834ec2`, the Angular Operations page reconciles a retry whose
+POST was accepted but whose browser response was lost. A scoped refresh that
+finds the exact operation in `RETRY_WAIT` clears the unknown-outcome guard and
+reports confirmation from persisted state; no second POST is sent. Other
+mutation controls stay disabled while the outcome is unresolved. A synthetic
+PostgreSQL/API-host Playwright journey confirms one dispatch, one actor-attributed
+append-only retry event, the persisted state, ordinary-staff denial, and no
+horizontal overflow or clipping at 1141, 1024, 700 and 390px. The operations
+journey plus the related firm-scope revocation cohort passed 2/2. Angular CI
+passed 493/493 across 95 files and the production build passed with the existing
+7.53 kB Commercial Settings stylesheet warning. The built-in Development
+browser still denies operation data to the current staff identity and records
+no console errors. Full solution regression and EF drift were not rerun; no
+Application, API or EF model code changed. The source/action row and AS-PAR-002
+remain partial, and Blazor retirement remains `NOT_READY`.
