@@ -1,0 +1,463 @@
+<main class="settings-page">
+  <header class="page-header">
+    <div class="page-heading">
+      <a class="back-link" routerLink="/app/practice/leads">Leads and opportunities</a>
+      <p class="eyebrow">Firm configuration</p>
+      <h1>Commercial settings</h1>
+      <p class="page-intro">
+        Manage the firm details and approval rules used in commercial documents and quotations.
+      </p>
+    </div>
+    <button
+      matButton="outlined"
+      class="refresh-action"
+      [disabled]="busy() || loading()"
+      (click)="refresh()"
+    >
+      Refresh settings
+    </button>
+  </header>
+
+  @if (loading()) {
+    <mat-progress-bar mode="indeterminate" aria-label="Loading commercial settings" />
+  }
+  @if (error()) {
+    <div class="state-message state-error" role="alert">
+      <strong>Settings unavailable</strong>
+      <p>{{ error() }}</p>
+      <button matButton="outlined" [disabled]="busy()" (click)="refresh()">Try again</button>
+    </div>
+  }
+
+  @if (data(); as w) {
+    @if (!w.canEdit) {
+      <div class="state-message state-readonly" role="status">
+        <strong>Read-only access</strong>
+        <p>A current firm-wide Administrator or Partner is required to edit commercial settings.</p>
+      </div>
+    }
+
+    @if (w.canEdit) {
+      <section class="draft-card" aria-labelledby="draft-title">
+        <div class="draft-copy">
+          <h2 id="draft-title">Unsubmitted changes</h2>
+          <p>
+            Drafts stay in this tab for up to four hours and require the same identity and current
+            settings revision. Review confirmations are never saved.
+          </p>
+        </div>
+        <div class="draft-actions">
+          <button
+            matButton="outlined"
+            [disabled]="busy() || uncertain() || !draftScope()"
+            (click)="saveTabDraft()"
+          >
+            Save tab draft
+          </button>
+          <button
+            matButton="text"
+            [disabled]="busy() || uncertain() || !draftScope()"
+            (click)="recoverTabDraft()"
+          >
+            Recover tab draft
+          </button>
+        </div>
+      </section>
+    }
+
+    <section class="section-card" aria-labelledby="letterhead-title">
+      <header class="section-heading">
+        <div>
+          <p class="eyebrow">Document identity</p>
+          <h2 id="letterhead-title">Firm letterhead</h2>
+          <p class="section-description">
+            Update the reviewed firm profile used for new commercial documents. Existing documents
+            keep the version they were created with.
+          </p>
+        </div>
+        <span class="version-chip">
+          {{ w.profile ? 'Version ' + w.profile.version : 'Not configured' }}
+        </span>
+      </header>
+
+      <form class="settings-form" (ngSubmit)="saveProfile()">
+        <fieldset class="profile-fieldset" [disabled]="!w.canEdit || busy() || uncertain()">
+          <legend class="sr-only">Reviewed firm profile</legend>
+
+          <div class="profile-grid">
+            <div class="field">
+              <label for="firm-legal-name"
+                >Legal name <span class="required-label">Required</span></label
+              >
+              <input
+                id="firm-legal-name"
+                class="field-control"
+                name="legalName"
+                autocomplete="organization"
+                [(ngModel)]="profile.legalName"
+                (ngModelChange)="reviewed = false"
+                required
+                maxlength="200"
+                aria-describedby="legal-name-help"
+              />
+              <small id="legal-name-help"
+                >The registered firm name shown on new documents. Maximum 200 characters.</small
+              >
+            </div>
+
+            <div class="field">
+              <label for="firm-email">Contact email</label>
+              <input
+                id="firm-email"
+                class="field-control"
+                name="email"
+                type="email"
+                autocomplete="email"
+                [(ngModel)]="profile.email"
+                (ngModelChange)="reviewed = false"
+                maxlength="200"
+                aria-describedby="firm-email-help"
+              />
+              <small id="firm-email-help">Use a monitored firm contact address.</small>
+            </div>
+
+            <div class="field field-wide">
+              <label for="firm-address">Address</label>
+              <textarea
+                id="firm-address"
+                class="field-control"
+                name="address"
+                autocomplete="street-address"
+                rows="3"
+                [(ngModel)]="profile.address"
+                (ngModelChange)="reviewed = false"
+                maxlength="500"
+                aria-describedby="firm-address-help"
+              ></textarea>
+              <small id="firm-address-help">Maximum 500 characters.</small>
+            </div>
+
+            <div class="field">
+              <label for="firm-phone">Contact phone</label>
+              <input
+                id="firm-phone"
+                class="field-control"
+                name="phone"
+                type="tel"
+                autocomplete="tel"
+                [(ngModel)]="profile.phone"
+                (ngModelChange)="reviewed = false"
+                maxlength="60"
+                aria-describedby="firm-phone-help"
+              />
+              <small id="firm-phone-help">Maximum 60 characters.</small>
+            </div>
+
+            <div class="field">
+              <label for="firm-accent"
+                >Accent colour <span class="required-label">Required</span></label
+              >
+              <input
+                id="firm-accent"
+                class="field-control color-value"
+                name="accent"
+                autocomplete="off"
+                spellcheck="false"
+                [(ngModel)]="profile.accent"
+                (ngModelChange)="reviewed = false"
+                required
+                maxlength="7"
+                aria-describedby="firm-accent-help"
+              />
+              <small id="firm-accent-help"
+                >Enter a hex colour in #RRGGBB format, for example #2B6CB0.</small
+              >
+            </div>
+
+            <div class="field field-wide">
+              <label for="firm-closing">Closing text</label>
+              <textarea
+                id="firm-closing"
+                class="field-control"
+                name="closing"
+                rows="4"
+                [(ngModel)]="profile.closing"
+                (ngModelChange)="reviewed = false"
+                maxlength="4000"
+                aria-describedby="firm-closing-help"
+              ></textarea>
+              <small id="firm-closing-help"
+                >Optional closing copy for new commercial documents. Maximum 4,000
+                characters.</small
+              >
+            </div>
+          </div>
+
+          <details
+            class="supporting-content"
+            [open]="!!(profile.history || profile.credentials || profile.methodology)"
+          >
+            <summary>
+              <span>Firm background and professional credentials</span>
+              <small>Optional content included in the reviewed firm profile</small>
+            </summary>
+            <div class="profile-grid supporting-grid">
+              <div class="field">
+                <label for="firm-history">Approved firm history and commercial registrations</label>
+                <textarea
+                  id="firm-history"
+                  class="field-control"
+                  name="history"
+                  rows="5"
+                  [(ngModel)]="profile.history"
+                  (ngModelChange)="reviewed = false"
+                  maxlength="16000"
+                  aria-describedby="firm-history-help"
+                ></textarea>
+                <small id="firm-history-help"
+                  >Use approved, current information. Maximum 16,000 characters.</small
+                >
+              </div>
+              <div class="field">
+                <label for="firm-credentials"
+                  >Approved industry credentials and portfolio evidence</label
+                >
+                <textarea
+                  id="firm-credentials"
+                  class="field-control"
+                  name="credentials"
+                  rows="5"
+                  [(ngModel)]="profile.credentials"
+                  (ngModelChange)="reviewed = false"
+                  maxlength="16000"
+                  aria-describedby="firm-credentials-help"
+                ></textarea>
+                <small id="firm-credentials-help"
+                  >Use approved credentials and evidence only. Maximum 16,000 characters.</small
+                >
+              </div>
+              <div class="field field-wide">
+                <label for="firm-methodology">Approved audit methodology overview</label>
+                <textarea
+                  id="firm-methodology"
+                  class="field-control"
+                  name="methodology"
+                  rows="5"
+                  [(ngModel)]="profile.methodology"
+                  (ngModelChange)="reviewed = false"
+                  maxlength="16000"
+                  aria-describedby="firm-methodology-help"
+                ></textarea>
+                <small id="firm-methodology-help"
+                  >Use approved methodology copy. Maximum 16,000 characters.</small
+                >
+              </div>
+            </div>
+          </details>
+
+          <div class="review-confirmation">
+            <input id="profile-reviewed" type="checkbox" name="reviewed" [(ngModel)]="reviewed" />
+            <label for="profile-reviewed"
+              >I reviewed this firm profile and confirm the new version.</label
+            >
+          </div>
+          <div class="form-footer">
+            <p>Saving creates a new version. This confirmation is required for each submission.</p>
+            <button
+              matButton="filled"
+              type="submit"
+              [disabled]="!reviewed || busy() || uncertain()"
+            >
+              {{ busy() ? 'Saving…' : 'Save letterhead version' }}
+            </button>
+          </div>
+        </fieldset>
+      </form>
+    </section>
+
+    <section class="section-card approval-section" aria-labelledby="approval-title">
+      <header class="section-heading approval-heading">
+        <div>
+          <p class="eyebrow">Quotation governance</p>
+          <h2 id="approval-title">Approval matrix</h2>
+          <p class="section-description">
+            The highest exceeded discount band applies. Non-standard terms require every configured
+            role. With no active rules, the default is {{ w.defaultRole }} for discounts over
+            {{ w.defaultDiscountThreshold }}% and non-standard terms. Existing quotation versions
+            retain their recorded requirements.
+          </p>
+        </div>
+      </header>
+
+      <div class="table-scroll">
+        <table>
+          <caption>
+            Active approval rules
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Rule</th>
+              <th scope="col">Threshold</th>
+              <th scope="col">Required role</th>
+              <th scope="col">Version</th>
+              @if (w.canEdit) {
+                <th scope="col">Action</th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (r of w.rules; track r.id) {
+              <tr>
+                <td>
+                  {{
+                    r.kind === 'DISCOUNT_OVER_PERCENT'
+                      ? 'Discount over threshold'
+                      : 'Non-standard terms'
+                  }}
+                </td>
+                <td>{{ r.threshold === null ? 'Not applicable' : r.threshold + '%' }}</td>
+                <td>{{ r.role }}</td>
+                <td>{{ r.version }}</td>
+                @if (w.canEdit) {
+                  <td>
+                    <button
+                      matButton="outlined"
+                      [disabled]="busy() || uncertain()"
+                      (click)="deactivation.set(r)"
+                    >
+                      Review deactivation
+                    </button>
+                  </td>
+                }
+              </tr>
+            } @empty {
+              <tr>
+                <td [attr.colspan]="w.canEdit ? 5 : 4" class="empty-cell">
+                  No configured rules. The safe default described above applies.
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      @if (w.canEdit) {
+        <form class="rule-form" (ngSubmit)="saveRule()">
+          <fieldset [disabled]="busy() || uncertain()">
+            <legend>Add an approval rule</legend>
+            <p class="form-intro">Set the rule type and the role required for future quotations.</p>
+            <div class="rule-grid">
+              <div class="field">
+                <label for="rule-kind">Rule type</label>
+                <select
+                  id="rule-kind"
+                  class="field-control"
+                  name="kind"
+                  [(ngModel)]="kind"
+                  (ngModelChange)="ruleReviewed = false"
+                >
+                  <option value="DISCOUNT_OVER_PERCENT">Discount over threshold</option>
+                  <option value="NON_STANDARD_TERMS">Non-standard terms</option>
+                </select>
+              </div>
+              @if (kind === 'DISCOUNT_OVER_PERCENT') {
+                <div class="field">
+                  <label for="rule-threshold">Discount threshold</label>
+                  <div class="threshold-control">
+                    <input
+                      id="rule-threshold"
+                      class="field-control"
+                      name="threshold"
+                      [(ngModel)]="threshold"
+                      (ngModelChange)="ruleReviewed = false"
+                      inputmode="decimal"
+                      aria-describedby="threshold-help"
+                    />
+                    <span aria-hidden="true">%</span>
+                  </div>
+                  <small id="threshold-help">Use an exact decimal value.</small>
+                </div>
+              }
+              <div class="field">
+                <label for="rule-role">Required approver role</label>
+                <select
+                  id="rule-role"
+                  class="field-control"
+                  name="role"
+                  [(ngModel)]="role"
+                  (ngModelChange)="ruleReviewed = false"
+                >
+                  @for (r of w.approverRoles; track r) {
+                    <option [value]="r">{{ r }}</option>
+                  }
+                </select>
+              </div>
+            </div>
+            <div class="review-confirmation rule-review">
+              <input
+                id="rule-reviewed"
+                type="checkbox"
+                name="ruleReviewed"
+                [(ngModel)]="ruleReviewed"
+              />
+              <label for="rule-reviewed"
+                >I reviewed the effect on future quotation approvals.</label
+              >
+            </div>
+            <div class="form-footer rule-footer">
+              <p>Existing quotation approvals keep their recorded requirements.</p>
+              <button
+                matButton="filled"
+                type="submit"
+                [disabled]="!ruleReviewed || busy() || uncertain()"
+              >
+                {{ busy() ? 'Saving…' : 'Save approval rule' }}
+              </button>
+            </div>
+          </fieldset>
+        </form>
+      }
+    </section>
+
+    @if (deactivation(); as r) {
+      <section class="confirm-card" role="alert" aria-labelledby="deactivation-title">
+        <div>
+          <p class="eyebrow">Review required</p>
+          <h2 id="deactivation-title">Deactivate this approval rule?</h2>
+          <p>
+            <strong>{{
+              r.kind === 'DISCOUNT_OVER_PERCENT' ? 'Discount over threshold' : 'Non-standard terms'
+            }}</strong>
+            · {{ r.role }} · version {{ r.version }}
+          </p>
+          <p>
+            Future quotations use the remaining rules or the safe default. Existing approvals retain
+            their original requirements.
+          </p>
+        </div>
+        <div class="confirm-actions">
+          <button matButton="filled" [disabled]="busy() || uncertain()" (click)="deactivate(r)">
+            Confirm deactivation
+          </button>
+          <button matButton="outlined" [disabled]="busy()" (click)="deactivation.set(null)">
+            Cancel
+          </button>
+        </div>
+      </section>
+    }
+
+    @if (uncertain()) {
+      <section class="state-message state-warning" aria-labelledby="uncertain-title">
+        <strong id="uncertain-title">The saved outcome needs review</strong>
+        <p>Refresh persisted settings before making another change.</p>
+        <button matButton="outlined" [disabled]="busy()" (click)="acknowledge()">
+          I reviewed the persisted settings outcome
+        </button>
+      </section>
+    }
+  }
+
+  @if (message()) {
+    <p class="command-message" role="status">{{ message() }}</p>
+  }
+</main>
