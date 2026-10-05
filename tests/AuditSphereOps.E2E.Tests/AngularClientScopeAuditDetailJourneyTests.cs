@@ -65,8 +65,43 @@ public sealed class AngularClientScopeAuditDetailJourneyTests
                 var initial = await SettledMainTextAsync(page);
                 foreach (var assertion in route.OwnAssertions)
                     Assert.Contains(assertion, initial, StringComparison.Ordinal);
+                if (route.Template == "/app/records/archives/{0}")
+                {
+                    Assert.Contains("Archive manifest", initial, StringComparison.Ordinal);
+                    Assert.Contains("1 manifest entries", initial, StringComparison.Ordinal);
+                }
+                if (route.Template == "/app/reviews/{0}")
+                    Assert.Contains("This significant review point remains open and blocks the engagement completion gate.",
+                      initial, StringComparison.Ordinal);
                 if (route.Template == "/app/audit/populations/{0}")
                     Assert.DoesNotContain(own.ReceiptFileMarker, initial, StringComparison.Ordinal);
+
+                if (route.Template is "/app/records/archives/{0}" or "/app/reviews/{0}")
+                {
+                    foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
+                    {
+                        await page.SetViewportSizeAsync(width, 900);
+                        await page.WaitForFunctionAsync(
+                          "expected => document.documentElement.clientWidth === expected", width);
+                        await page.GetByText(route.OwnAssertions[0], new() { Exact = false }).First
+                          .WaitForAsync();
+                        var documentWidth = await page.EvaluateAsync<int>(
+                          "() => document.documentElement.scrollWidth");
+                        Assert.True(documentWidth <= width + 1,
+                          $"Route {route.Template} is {documentWidth}px wide at {width}px.");
+                    }
+
+                    await page.SetViewportSizeAsync(1440, 900);
+                    var portfolioLink = page.GetByRole(AriaRole.Navigation,
+                      new() { Name = "Breadcrumb", Exact = true }).GetByRole(AriaRole.Link,
+                      new() { Name = "Portfolio", Exact = true });
+                    await portfolioLink.FocusAsync();
+                    await page.Keyboard.PressAsync("Tab");
+                    var engagementLink = page.GetByRole(AriaRole.Link,
+                      new() { Name = "Engagement", Exact = true }).First;
+                    await Assertions.Expect(engagementLink).ToBeFocusedAsync();
+                    await Assertions.Expect(engagementLink).ToHaveCSSAsync("outline-style", "solid");
+                }
 
                 var documentToken = Guid.NewGuid().ToString("N");
                 await page.EvaluateAsync("token => window.__clientScopeAuditDetailToken = token", documentToken);
