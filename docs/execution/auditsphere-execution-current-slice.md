@@ -15,7 +15,39 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
-## Current follow-on slice: route, shell and responsive assertion crosswalk
+## Current follow-on slice: Practice Billing and Ledger assertion crosswalk
+
+At test commit `18994e21`, all four methods removed with
+`PracticeBillingLedgerJourneyTests` have method-level replacement maps. The new
+API-host Angular journey records and independently approves staff time, binds
+the approved time source once to an invoice, preserves invoice balance and
+credit/receipt state, verifies billing does not create firm journals, posts
+three manual journals idempotently, then closes the period through the Angular
+firm-ledger route. Separate journeys check invoice content clearing on role
+revocation and firm-wide proposal access, latest-revision details, unknown-ID
+stale-content clearing, grant revocation, and scoped-user denial. The client
+conversion journey now also asserts a pending acceptance decision with no
+engagement or client portal access.
+
+The combined API-host PostgreSQL/Playwright cohort passed 8/8 with zero failures
+or skips in 2m19s. The Release solution build passed with zero warnings/errors;
+EF reported no pending model changes. A concurrent, unrelated, unstaged change
+to `ConsolidationOverviewQuery.cs` was present during the local run and was not
+included in the test commit. The built-in browser rendered
+`/ui/app/finance`; the current Development identity has no firm finance grant,
+so the page showed its restricted state. Authorized period-close behavior was
+verified only with the isolated synthetic test identity.
+
+Eleven of 82 removed E2E methods now have assertion maps; three suites and 71
+methods remain open. Sixty source/action rows and 28 supporting files remain
+unanalyzed. Production rollback/canary, human assistive-technology and wider
+locale review, live Microsoft gates, and separate owner acceptance remain open.
+Retirement stays `NOT_READY`. The last complete solution regression remains
+985/985 at `eb94ae50`; this slice ran the combined focused cohort, not the full
+solution suite. Exact attribution is in `status.json` and the [test parity
+register](../migration/auditsphere-migration-blazor-test-parity.md).
+
+## Previous follow-on slice: route, shell and responsive assertion crosswalk
 
 At test/source commit `0a461bf` (the current-section shell behavior landed in
 `468f4a03`), both `ResponsiveShellSweepTests` methods and the single
