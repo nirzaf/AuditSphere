@@ -30,16 +30,27 @@ const QUEUED = ['PENDING', 'RETRY_WAIT'], PROCESSING = ['CLAIMED', 'REMOTE_START
       <p role="status">{{ count(o, queued) }} queued · {{ count(o, processing) }} processing · {{ count(o, attention) }} need attention · {{ count(o, ['COMPLETED']) }} completed · {{ count(o, ['CANCELLED_WITH_DISPOSITION']) }} cancelled</p>
       <p><small>Counts summarize only the latest {{ o.operations.length }} firm operations shown below; they are not a backlog total or worker-health verdict.</small></p>
       <section class="panel" aria-labelledby="operations-heading"><h2 id="operations-heading">Latest 50 durable operations</h2>
-        <label>Cancellation disposition <input name="disposition" [(ngModel)]="disposition" maxlength="2000" placeholder="Why is the queued operation being cancelled?" /></label>
-        <div class="table-scroll"><table><thead><tr><th>Kind</th><th>Status</th><th>Attempts</th><th>Next attempt</th><th>Code</th><th>Disposition</th><th>Action</th></tr></thead>
-          <tbody>@for (x of o.operations; track x.id) {
+        <label for="operation-disposition">Cancellation disposition <input id="operation-disposition" name="disposition" [(ngModel)]="disposition" maxlength="2000" placeholder="Why is the queued operation being cancelled?" /></label>
+        <div class="table-scroll"><table><caption>Latest 50 durable operations</caption><thead><tr><th scope="col">Kind</th><th scope="col">Status</th><th scope="col">Attempts</th><th scope="col">Next attempt</th><th scope="col">Code</th><th scope="col">Disposition</th><th scope="col">Action</th></tr></thead>
+          <tbody>@for (x of pageRows(o.operations); track x.id) {
             <tr><td>{{ x.kind }}</td><td><audit-status [value]="x.status" /></td><td>{{ x.attemptCount }}</td><td>{{ x.nextAttemptAt ? x.nextAttemptAt.slice(0, 16).replace('T', ' ') : '—' }}</td>
               <td>{{ x.errorCode ?? '—' }}</td><td>{{ x.cancellationDisposition ?? '—' }}</td>
               <td class="actions">
                 @if (queued.includes(x.status)) { <button matButton="outlined" (click)="cancel(x.id)" [disabled]="cmd.busy() || !disposition.trim()">Cancel queued work</button> }
                 @if (o.retryableStates.includes(x.status)) { <button matButton="filled" (click)="run('/api/ui/operations/' + x.id + '/retry', {}, 'The operation was re-armed for retry; the worker picks it up on its next attempt window.')" [disabled]="cmd.busy()">Re-arm for retry</button> }
               </td></tr>
-          } @empty { <tr><td colspan="7">No durable operations are recorded for this firm.</td></tr> }</tbody></table></div></section>
+          } @empty { <tr><td colspan="7">No durable operations are recorded for this firm.</td></tr> }</tbody></table></div>
+        <nav aria-label="Durable operation pages" class="actions">
+          <button type="button" matButton="outlined" (click)="previousPage()" [disabled]="pageIndex === 0">Previous</button>
+          <span aria-live="polite">Page {{ pageIndex + 1 }} of {{ pageCount(o.operations.length) }} · {{ rangeStart(o.operations.length) }}–{{ rangeEnd(o.operations.length) }} of {{ o.operations.length }}</span>
+          <button type="button" matButton="outlined" (click)="nextPage(o.operations.length)" [disabled]="pageIndex + 1 >= pageCount(o.operations.length)">Next</button>
+          <label for="operation-page-size">Rows per page
+            <select id="operation-page-size" aria-label="Rows per page" [value]="pageSize" (change)="setPageSize($event)">
+              @for (size of pageSizes; track size) { <option [value]="size">{{ size }}</option> }
+            </select>
+          </label>
+        </nav>
+      </section>
     }
     <audit-command-message [message]="cmd.message()" [failed]="cmd.failed()" />
   `,
@@ -50,7 +61,20 @@ export class Operations {
   readonly cmd = new CommandState(this.api);
   readonly queued = QUEUED; readonly processing = PROCESSING; readonly attention = ATTENTION;
   disposition = '';
+  readonly pageSizes = [10, 25, 50] as const;
+  pageSize = 10;
+  pageIndex = 0;
   count(o: ReturnType<typeof decodeOperations>, states: string[]): number { return o.operations.filter((x) => states.includes(x.status)).length; }
+  pageRows<T>(rows: T[]): T[] { const start = this.pageIndex * this.pageSize; return rows.slice(start, start + this.pageSize); }
+  pageCount(count: number): number { return Math.max(1, Math.ceil(count / this.pageSize)); }
+  rangeStart(count: number): number { return count === 0 ? 0 : this.pageIndex * this.pageSize + 1; }
+  rangeEnd(count: number): number { return Math.min(count, (this.pageIndex + 1) * this.pageSize); }
+  previousPage(): void { this.pageIndex = Math.max(0, this.pageIndex - 1); }
+  nextPage(count: number): void { this.pageIndex = Math.min(this.pageCount(count) - 1, this.pageIndex + 1); }
+  setPageSize(event: Event): void {
+    const size = Number((event.target as HTMLSelectElement).value);
+    if ((this.pageSizes as readonly number[]).includes(size)) { this.pageSize = size; this.pageIndex = 0; }
+  }
   run(url: string, body: unknown, ok: string): void { void this.cmd.run(url, body, ok).finally(() => this.ops.reload()); }
   cancel(id: string): void { this.run(`/api/ui/operations/${id}/cancel`, { disposition: this.disposition }, 'The queued operation was cancelled and cannot be claimed by a worker.'); }
 }

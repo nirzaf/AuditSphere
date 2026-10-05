@@ -15,6 +15,27 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: Operations recovery source/action parity
+
+Compared the legacy Operations recovery page with the Angular workbench, API
+contracts and Application authorization. Restored the legacy 10/25/50 row
+choices and added explicit table semantics. The Angular unit suite passed 3/3;
+full Angular CI passed 489/489 across 94 files; the production build passed
+with the existing Commercial Settings stylesheet budget warning. Two focused
+PostgreSQL-backed API-host browser journeys passed, covering firm-admin
+cancel/re-arm with persisted evidence, staff denial, redaction, revocation,
+responsive width and keyboard focus. The built-in Development browser
+confirmed the current identity is denied without operation disclosure.
+
+The Operations row is recorded `PARTIAL`: quarantine and concurrent/unknown
+outcome paths, the complete role/expiry/cross-firm matrix, and human
+assistive-technology acceptance remain open. The source/action register now
+has 70 partial reviews, five unanalyzed rows and one parity-verified row, with
+28 supporting files open. The full solution regression and EF model-drift
+check were not rerun; the latest complete result remains 1001/1001 at
+`ead85032`. AS-PAR-002 and Blazor retirement remain partial/`NOT_READY`; see
+the [Operations Recovery source review](../migration/auditsphere-migration-blazor-operations-recovery-source-review.md).
+
 ## Current follow-on slice: Statement Drilldown and Trial Balance Intake
 
 Reviewed the two legacy accounting pages against their pinned source hashes and
