@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "500eda46bceb3fdeb8b49e15c44b208d155b1172",
+  "headCommit": "fe95bc88f7810d27bfe7d29cb5496b3d662796d4",
   "verifiedCommit": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -139,8 +139,8 @@
       "removalDecision": "NOT_READY"
     },
     "angularBlazorCurrentRetirementGate": {
-      "observedAt": "2026-10-05T03:43:58Z",
-      "sourceCommit": "500eda46bceb3fdeb8b49e15c44b208d155b1172",
+      "observedAt": "2026-10-05T04:02:51Z",
+      "sourceCommit": "fe95bc88f7810d27bfe7d29cb5496b3d662796d4",
       "status": "NOT_READY",
       "physicalRemovalCommit": "59387b549214067ef226cdbf33d0d47084a27c46",
       "webProjectPresent": true,
@@ -164,22 +164,21 @@
           "AuditAndReleaseJourneyTests",
           "ClientScopeJourneyTests",
           "FinancialArtifactJourneyTests",
-          "M365SetupJourneyTests",
           "PracticeBillingLedgerJourneyTests",
           "ResponsiveShellSweepTests",
           "RouteRenderSmokeTests"
         ],
-        "legacyE2eSuitesWithCompletedAssertionCrosswalk": ["PbcUploadJourneyTests", "InvoiceScopeJourneyTests"],
+        "legacyE2eSuitesWithCompletedAssertionCrosswalk": ["PbcUploadJourneyTests", "InvoiceScopeJourneyTests", "M365SetupJourneyTests"],
         "legacyE2eTestMethodsRemoved": 82,
-        "legacyE2eTestMethodsMapped": 2,
-        "assertionReplacementAudit": "PARTIAL; the single methods in PbcUploadJourneyTests and InvoiceScopeJourneyTests have passing API/Angular assertion crosswalks. Seven other removed suites containing 80 methods remain open for method-level mapping or an owner-approved retirement disposition. A full-suite pass is regression evidence, not replacement evidence."
+        "legacyE2eTestMethodsMapped": 4,
+        "assertionReplacementAudit": "PARTIAL; the single methods in PbcUploadJourneyTests and InvoiceScopeJourneyTests and both methods in M365SetupJourneyTests have passing API/Angular assertion crosswalks. Six other removed suites containing 78 methods remain open for method-level mapping or an owner-approved retirement disposition. A full-suite pass is regression evidence, not replacement evidence."
       },
-      "fullSolutionCurrentHead": "RECORDED_AT eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39: API 191/191, Domain 660/660, E2E 134/134; 985/985 passed, zero failed/skipped. Later bootstrap, PBC and invoice-scope slices have focused current-source coverage; see their dedicated verification records.",
-      "efModelCurrentHead": "NONE at 500eda46bceb3fdeb8b49e15c44b208d155b1172; dotnet ef migrations has-pending-model-changes reported no model changes since the last migration.",
+      "fullSolutionCurrentHead": "RECORDED_AT eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39: API 191/191, Domain 660/660, E2E 134/134; 985/985 passed, zero failed/skipped. Later bootstrap, PBC, invoice-scope and M365 setup slices have focused current-source coverage; see their dedicated verification records.",
+      "efModelCurrentHead": "NONE at fe95bc88f7810d27bfe7d29cb5496b3d662796d4; dotnet ef migrations has-pending-model-changes reported no model changes since the last migration.",
       "rollbackAndCanary": "Local Development rollback smoke PASS: Razor root, local Blazor/MudBlazor assets, negotiate endpoint, and SignalR circuit handshake. Production OIDC, route cutover recovery, and production-like canary remain OPEN.",
       "humanAssistiveTechnologyAndLocale": "OPEN",
       "liveMicrosoftGates": "BLOCKED_EXTERNAL",
-      "decision": "NOT_READY. The Web rollback/reference source is restored. The recorded full local regression and EF checks pass at their attributed source commits; later bootstrap, PBC and invoice-scope slices have focused current-source evidence. Fifteen source/action rows are partially reviewed (13 administration and two PBC), one assessment source is parity verified, and 60 rows plus 28 supporting files remain unanalyzed. The 80 remaining removed-test methods, production/human/external acceptance, and separate owner acceptance remain open.",
+      "decision": "NOT_READY. The Web rollback/reference source is restored. The recorded full local regression and EF checks pass at their attributed source commits; later bootstrap, PBC, invoice-scope and M365 setup slices have focused current-source evidence. Fifteen source/action rows are partially reviewed (13 administration and two PBC), one assessment source is parity verified, and 60 rows plus 28 supporting files remain unanalyzed. The 78 remaining removed-test methods, production/human/external acceptance, and separate owner acceptance remain open.",
       "angularProductionBuild": {
         "status": "PASS",
         "initialBundle": "505.53 kB against the 500 kB warning budget; build succeeded with the existing size warning."
@@ -193,7 +192,7 @@
         "command": "npm --prefix src/AuditSphereOps.Ui run test:ci"
       },
       "releaseSolutionBuild": {
-        "sourceCommit": "500eda46bceb3fdeb8b49e15c44b208d155b1172",
+        "sourceCommit": "fe95bc88f7810d27bfe7d29cb5496b3d662796d4",
         "status": "PASS",
         "warnings": 0,
         "errors": 0,
@@ -243,6 +242,40 @@
         "database": "Isolated PostgreSQL test database",
         "coverage": "Two client-scoped FinanceManagers can each view their own invoice; each is denied the other client's actual invoice ID. Same-document Angular route transitions clear both clients' invoice numbers, private lines and balances, preserve the document token, and restore the authorized invoice on return. Both browser contexts report zero page errors. The focused journey covers the invoice detail API; it does not close other billing actions, mid-session identity revocation, or the wider AS-PAR-002 audit."
       },
+      "m365SetupMigrationCrosswalk": {
+        "sourceCommit": "fe95bc88f7810d27bfe7d29cb5496b3d662796d4",
+        "observedAt": "2026-10-05T04:02:51Z",
+        "legacyMethods": [
+          "M365SetupJourneyTests.BoundAdministrator_OpensExistingDraftWithOneClick (PROP-E2E-05-ADMIN)",
+          "M365SetupJourneyTests.SetupDraft_SavesAndResumesWithoutClaimingMicrosoftVerification (PROP-E2E-05)"
+        ],
+        "replacementTests": [
+          "AngularInstallationBootstrapJourneyTests",
+          "AngularTenantSetupMetadataJourneyTests",
+          "AngularTenantSetupEditJourneyTests",
+          "AngularSharePointJourneyTests",
+          "AngularTenantConnectionJourneyTests",
+          "AngularAdministrationJourneyTests"
+        ],
+        "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-build --configuration Release -m:1 --filter 'FullyQualifiedName~AngularInstallationBootstrapJourneyTests|FullyQualifiedName~AngularTenantSetupEditJourneyTests|FullyQualifiedName~AngularTenantSetupMetadataJourneyTests|FullyQualifiedName~AngularSharePointJourneyTests|FullyQualifiedName~AngularTenantConnectionJourneyTests|FullyQualifiedName~AngularAdministrationJourneyTests'",
+        "status": "PASS_LOCAL",
+        "passed": 9,
+        "failed": 0,
+        "skipped": 0,
+        "duration": "2m7s",
+        "database": "Isolated PostgreSQL test databases with synthetic identities and provider state",
+        "coverage": "Assertion crosswalk covers exact deployment-approved administrator bootstrap and one-time reviewed proof; wrong-tenant/object denial; no protected workspace session before binding; proof consumption and non-persistence; loading saved configuration without an installation-proof prompt; exact configured tenant identity and friendly label; reviewed local metadata revision and receipt recovery after reload; exact SharePoint site/site ID/library/root/access profile persistence; immutable reviewed template approval; changed resource draft invalidating selected-site verification and keeping activation blocked; independent tenant/consent/capability progress; six responsive viewport widths, keyboard focus and zero page errors. The legacy editable tenant-ID field and 1/7-to-2/7 checklist are replaced by identity from the authenticated, deployment-approved tenant and persisted capability/setup progress. No test claims live Microsoft acceptance.",
+        "build": {
+          "sourceCommit": "fe95bc88f7810d27bfe7d29cb5496b3d662796d4",
+          "status": "PASS",
+          "warnings": 0,
+          "errors": 0,
+          "command": "dotnet build AuditSphereOps.slnx --no-restore --configuration Release -m:1"
+        },
+        "efModelDrift": "NONE at fe95bc88f7810d27bfe7d29cb5496b3d662796d4; dotnet ef migrations has-pending-model-changes reported no model changes since the last migration.",
+        "builtInBrowser": "PASS_LOCAL_READ_ONLY: authenticated Development Angular Microsoft tenant connection route rendered in the built-in browser. It showed configured tenant and consent separately from stale directory, mail, user-provisioning, guest, group and selected-site verification. No verification, consent or configuration mutation was submitted; the previous Accounting browser route was restored.",
+        "boundary": "This maps both removed M365SetupJourneyTests methods' setup, identity, persistence and no-false-verification assertions to current Angular/API journeys. It does not establish all Administration source/action parity, live Microsoft acceptance, production behavior, or overall Blazor retirement readiness."
+      },
       "pbcSourceReview": {
         "review": "docs/migration/auditsphere-migration-blazor-pbc-source-review.md",
         "sourceInventorySnapshot": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
@@ -250,7 +283,7 @@
         "status": "PARTIAL_REVIEWED",
         "reviewedArtifacts": 2,
         "parityVerifiedArtifacts": 0,
-        "summary": "Compared staff PbcRequests and client ClientPbcRequest with native Angular/API owners. Staff request creation, queued follow-up, simulated worker completion, uncertain-provider recovery, responsive states, and exact-byte browser/API downloads are covered; client drop, browser-computed hash, reply, delegation/revocation, staged progress and exact-byte interrupted-upload recovery are covered. The single removed PbcUploadJourneyTests method has a passing crosswalk. The separate InvoiceScopeJourneyTests method is also mapped; seven other suites and 80 methods remain open. Live selected-site worker delivery through Angular and the broader authorization/failure/stale matrix remain open.",
+        "summary": "Compared staff PbcRequests and client ClientPbcRequest with native Angular/API owners. Staff request creation, queued follow-up, simulated worker completion, uncertain-provider recovery, responsive states, and exact-byte browser/API downloads are covered; client drop, browser-computed hash, reply, delegation/revocation, staged progress and exact-byte interrupted-upload recovery are covered. The single removed PbcUploadJourneyTests method has a passing crosswalk. The separate InvoiceScopeJourneyTests method and both M365SetupJourneyTests methods are also mapped; six other suites and 78 methods remain open. Live selected-site worker delivery through Angular and the broader authorization/failure/stale matrix remain open.",
         "staffJourney": {
           "sourceCommit": "e3323ed1c5735c4d884656824fc9df7822c48719",
           "test": "AngularPbcStaffJourneyTests.StaffInbox_CreatesRequest_RequestsMoreFiles_AndQueuesVerifiedTransfer",

@@ -15,7 +15,39 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
-## Current follow-on slice: invoice scope and stale-route content isolation
+## Current follow-on slice: Microsoft 365 setup assertion crosswalk
+
+The two methods removed with `M365SetupJourneyTests` now have method-level
+replacement maps in the native Angular/API journeys. The approved initial
+administrator flow binds the configured tenant and object identity, requires
+explicit proof review, refuses mismatched identities, closes the setup once,
+and leaves the bootstrap session without protected workspace access. The
+existing administrator opens the saved setup workspace without re-entering an
+installation proof. Reviewed setup metadata and operation receipts survive
+reload; exact selected SharePoint resource fields and template approval persist,
+while changing the resource invalidates selected-site verification and keeps
+activation blocked.
+
+The old editable tenant ID and fixed `1/7` to `2/7` counter are superseded by
+the authenticated deployment-approved tenant and progress derived from saved
+capability/setup state. Saved metadata remains explicitly separate from consent
+and live verification. The focused PostgreSQL-backed API/Angular Release cohort
+passed 9/9 at code commit `fe95bc88`, the Release solution build passed with
+zero warnings/errors, and EF reported no pending model changes. The built-in
+browser rendered the authenticated Development tenant-connection screen and
+showed consent separately from stale capability states; no setup or verification
+action was submitted. No full solution suite was rerun, so the last 985/985
+result remains attributed to `eb94ae50`.
+
+Four of the 82 removed E2E methods now have assertion maps: the PBC upload,
+invoice-scope and two M365 setup methods. Six suites containing 78 methods
+remain open. Sixty source/action rows and 28 supporting files also remain
+unanalyzed, and production, human accessibility/locale, live Microsoft and
+owner-acceptance gates remain open. The retirement decision remains
+`NOT_READY`. Exact results are in `status.json` and the [test parity
+register](../migration/auditsphere-migration-blazor-test-parity.md).
+
+## Previous follow-on slice: invoice scope and stale-route content isolation
 
 At code commit `500eda46`, the removed `InvoiceScopeJourneyTests` method has a
 passing API-host Angular replacement. The isolated PostgreSQL Playwright case
