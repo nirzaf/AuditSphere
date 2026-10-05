@@ -266,6 +266,66 @@ public sealed class AngularPbcScopeParityJourneyTests
     Assert.Empty(errors);
   }
 
+  [Fact]
+  [Trait("CaseId", "AS-PAR-002-ANG-PBC-STALE-ROUTE-01")]
+  public async Task StaffInboxClearsOnUnauthorizedSiblingEngagementNavigation()
+  {
+    await using var host = await OwnedHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-ANG-PBC-STALE-ROUTE-01");
+    var f = host.Fixture;
+    const string privateMarker = "SYN-PAR-002-ANG-PBC-ROUTE-PRIVATE";
+    const string siblingMarker = "SYN-PAR-002-ANG-PBC-SIBLING-PRIVATE";
+    var siblingEngagementId = Guid.NewGuid();
+    var siblingRequestId = Guid.NewGuid();
+    var now = DateTimeOffset.UtcNow;
+    await using (var db = host.CreateDbContext())
+    {
+      await db.PbcRequests.Where(x => x.Id == host.RequestId).ExecuteUpdateAsync(update => update
+        .SetProperty(x => x.Objective, privateMarker)
+        .SetProperty(x => x.Area, privateMarker));
+      db.Engagements.Add(new Engagement
+      {
+        Id = siblingEngagementId, FirmId = f.FirmId, PracticeClientId = f.ClientId,
+        Status = "Active", ProfessionalWorkBlocked = false, CreatedAt = now
+      });
+      db.PbcRequests.Add(Request(siblingRequestId, f, f.ClientId, siblingEngagementId,
+        f.Client.Id, siblingMarker, PbcStates.Sent, now));
+      await db.SaveChangesAsync();
+    }
+
+    var origin = await host.StartApiForIdentityAsync(f.Staff, Angular);
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var errors = new List<string>();
+    page.PageError += (_, error) => errors.Add(error);
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(
+      $"/ui/app/engagements/{f.EngagementId:D}/pbc"));
+    await Assertions.Expect(page.Locator("main")).ToContainTextAsync(privateMarker);
+
+    var documentToken = Guid.NewGuid().ToString("N");
+    await page.EvaluateAsync("token => window.__pbcStaffRouteToken = token", documentToken);
+    await page.EvaluateAsync(
+      "path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/ui/app/engagements/{siblingEngagementId:D}/pbc");
+    await Assertions.Expect(page.GetByRole(AriaRole.Alert))
+      .ToContainTextAsync("The engagement is not available in your current access scope.");
+    var denied = await page.Locator("main").InnerTextAsync();
+    Assert.DoesNotContain(privateMarker, denied, StringComparison.Ordinal);
+    Assert.DoesNotContain(siblingMarker, denied, StringComparison.Ordinal);
+    Assert.Equal(documentToken,
+      await page.EvaluateAsync<string>("() => window.__pbcStaffRouteToken"));
+
+    await page.EvaluateAsync(
+      "path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/ui/app/engagements/{f.EngagementId:D}/pbc");
+    await Assertions.Expect(page.Locator("main")).ToContainTextAsync(privateMarker);
+    Assert.Equal(documentToken,
+      await page.EvaluateAsync<string>("() => window.__pbcStaffRouteToken"));
+    Assert.Empty(errors);
+  }
+
   private static PbcRequest Request(Guid id, PbcSeed.Fixture f, Guid clientId, Guid engagementId,
     Guid ownerId, string marker, string state, DateTimeOffset now) => new()
   {
