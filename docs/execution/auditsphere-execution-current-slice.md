@@ -15,7 +15,47 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
-## Current follow-on slice: Microsoft 365 setup assertion crosswalk
+## Current follow-on slice: route, shell and responsive assertion crosswalk
+
+At test/source commit `0a461bf` (the current-section shell behavior landed in
+`468f4a03`), both `ResponsiveShellSweepTests` methods and the single
+`RouteRenderSmokeTests` method have current API-host Angular assertion maps.
+The route journey covers all 26 parameterless routes, page headings,
+staff/client shell separation, the dynamic project-progress summary and all
+published module/audit/shared bars, filtering, and denial for a non-administrator.
+The responsive journey checks 24 parameterless staff routes
+and 10 seeded detail routes at 320, 390, 760, 1024, 1440 and 1920 pixels. It
+asserts no document overflow, at most one exact active link, and the owning
+current navigation section. It also checks the project-progress summary and
+filter, visible keyboard focus in the accounting queue, client-portal fit, and
+a long client name. It found a 320px overflow in the breadcrumb row; wrapping
+the breadcrumb navigation fixed it.
+
+The lost-circuit assertion maps to
+`AngularPendingOutcomeReconciliationTests.LostCommandResponse_SurfacesGlobally_DeepLinksAndClearsAfterAcknowledgment`.
+Because Angular has no SignalR circuit, the replacement verifies the persisted
+unknown-command outcome across full navigation, its owning-workspace deep link,
+manual receipt verification, acknowledgment, and the absence of automatic
+retry. This is an explicit transport change, not a claim that the Blazor
+reconnect overlay exists in Angular.
+
+The route/responsive E2E cohort passed 2/2 in 47 seconds; the recovery journey
+passed 1/1 in 31 seconds. The Angular production build succeeded at 506.51 kB,
+6.51 kB above its 500 kB warning budget. The Release solution build passed
+with zero warnings/errors and EF found no pending model changes at `468f4a03`.
+The built-in browser rendered the Development Period roll-forward page and
+visually showed the Accounting section as current; its tab was restored to the
+accounting overview. The last full solution regression remains 985/985 at
+`eb94ae50`; no full suite was rerun for this slice.
+
+Seven of the 82 removed E2E methods now have assertion maps. Four suites with
+75 methods remain open. Sixty source/action rows and 28 supporting files also
+remain unanalyzed. Production rollback/canary, human assistive-technology and
+wider-locale review, live Microsoft gates, and separate owner acceptance remain
+open; retirement stays `NOT_READY`. Exact attribution is in `status.json` and
+the [test parity register](../migration/auditsphere-migration-blazor-test-parity.md).
+
+## Previous follow-on slice: Microsoft 365 setup assertion crosswalk
 
 The two methods removed with `M365SetupJourneyTests` now have method-level
 replacement maps in the native Angular/API journeys. The approved initial
@@ -39,9 +79,9 @@ showed consent separately from stale capability states; no setup or verification
 action was submitted. No full solution suite was rerun, so the last 985/985
 result remains attributed to `eb94ae50`.
 
-Four of the 82 removed E2E methods now have assertion maps: the PBC upload,
-invoice-scope and two M365 setup methods. Six suites containing 78 methods
-remain open. Sixty source/action rows and 28 supporting files also remain
+At that checkpoint, four of the 82 removed E2E methods had assertion maps: the
+PBC upload, invoice-scope and two M365 setup methods. Six suites containing 78
+methods remained open. Sixty source/action rows and 28 supporting files also remain
 unanalyzed, and production, human accessibility/locale, live Microsoft and
 owner-acceptance gates remain open. The retirement decision remains
 `NOT_READY`. Exact results are in `status.json` and the [test parity
