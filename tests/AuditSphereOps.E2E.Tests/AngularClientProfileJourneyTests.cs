@@ -80,6 +80,47 @@ public sealed class AngularClientProfileJourneyTests
       Assert.Contains("SYNTHETIC-REG-001", restoredBody);
       Assert.Contains("Synthetic contact 000", restoredBody);
       Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__clientProfileRouteToken"));
+
+      var siblingOrigin = await host.StartApiForIdentityAsync(sibling.Fixture.Admin,
+        new Dictionary<string, string>
+        {
+          ["AngularUi__Enabled"] = "true",
+          ["AngularUi__CanonicalRoutes"] = canonical.ToString()
+        });
+      await using var siblingContext = await browser.NewContextAsync();
+      var siblingPage = await siblingContext.NewPageAsync();
+      var siblingErrors = new List<string>();
+      siblingPage.PageError += (_, error) => siblingErrors.Add(error);
+      var siblingPath = prefix + "/app/clients/" + sibling.Fixture.ClientId.ToString("D");
+      await siblingPage.GotoAsync(siblingOrigin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(siblingPath));
+      await Assertions.Expect(siblingPage.GetByRole(AriaRole.Heading,
+        new() { Name = "Client profile", Exact = true })).ToBeVisibleAsync();
+      await Assertions.Expect(siblingPage.GetByText(sibling.Marker + " Holdings", new() { Exact = true })).ToBeVisibleAsync();
+
+      var siblingDocumentToken = Guid.NewGuid().ToString("N");
+      await siblingPage.EvaluateAsync("token => window.__clientProfileSiblingRouteToken = token", siblingDocumentToken);
+      async Task<string> NavigateSiblingInPlaceAsync(Guid clientId)
+      {
+        await siblingPage.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+          prefix + "/app/clients/" + clientId.ToString("D"));
+        await Assertions.Expect(siblingPage.GetByRole(AriaRole.Heading,
+          new() { Name = "Client unavailable", Exact = true })).ToBeVisibleAsync();
+        return await siblingPage.Locator("body").InnerTextAsync();
+      }
+
+      var ownerBody = await NavigateSiblingInPlaceAsync(f.ClientId);
+      Assert.DoesNotContain("SYNTHETIC-REG-001", ownerBody);
+      Assert.DoesNotContain("Synthetic trading name", ownerBody);
+      Assert.DoesNotContain("Synthetic contact 000", ownerBody);
+      Assert.DoesNotContain(sibling.Marker, ownerBody, StringComparison.OrdinalIgnoreCase);
+      Assert.Equal(siblingDocumentToken,
+        await siblingPage.EvaluateAsync<string>("window.__clientProfileSiblingRouteToken"));
+      var siblingRandomId = Guid.NewGuid();
+      var siblingRandomBody = await NavigateSiblingInPlaceAsync(siblingRandomId);
+      Assert.Equal(ownerBody, siblingRandomBody);
+      Assert.Equal(siblingDocumentToken,
+        await siblingPage.EvaluateAsync<string>("window.__clientProfileSiblingRouteToken"));
+      Assert.Empty(siblingErrors);
     }
     finally
     {
