@@ -1,0 +1,284 @@
+@page "/app/consolidation"
+@rendermode InteractiveServer
+@using AuditSphereOps.Application.Security
+@using AuditSphereOps.Domain.Accounting
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
+<PageTitle>Group consolidation</PageTitle>
+<nav class="breadcrumb-nav" aria-label="Consolidation location"><MudLink Href="/app/accounting">Accounting</MudLink> / <span>Group consolidation</span></nav>
+<PageHeader Title="Group consolidation" Eyebrow="Group accounting" Description="Approved group perimeters and component packs. Consolidation never mutates component client books." />
+<p class="scope-note">Only explicitly granted group scopes appear here. The enabled first profile is same-currency, fully-owned consolidation; configured foreign-operation translation is shown separately, while advanced methods remain fail-closed until approved source-bound schedules and execution verification are complete.</p>
+
+@if (_loading)
+{
+  <LoadingState IsLoading="true" LoadingMessage="Loading approved group scopes…" />
+}
+else if (_groups.Count == 0)
+{
+  <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4"><h2>No group access</h2><p>No explicit group access grant is available for the current identity.</p></MudAlert>
+}
+else
+{
+  <MudGrid Spacing="2" Class="audit-accounting-metrics my-3" aria-label="Scoped group consolidation counts">
+    <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Groups</MudText><MudText Typo="Typo.h4">@_groups.Count</MudText></MudPaper></MudItem>
+    <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Scope versions</MudText><MudText Typo="Typo.h4">@AllScopes.Count()</MudText></MudPaper></MudItem>
+    <MudItem xs="12" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Approved component pins</MudText><MudText Typo="Typo.h4">@AllScopes.Sum(x => x.ApprovedComponentCount)</MudText></MudPaper></MudItem>
+  </MudGrid>
+  <nav aria-label="Group consolidation tabs">
+    <MudPaper Elevation="0" Class="accounting-nav audit-workspace-panel pa-1 my-4">
+    <a href="#perimeter" class="accounting-nav-link" title="Review versioned group membership, method and reporting currency.">Perimeter</a>
+    <a href="#packs" class="accounting-nav-link" title="Review internal and external component-pack counts and approval readiness.">Component packs</a>
+    <a href="#fx" class="accounting-nav-link" title="Review explicitly pinned rate-set and translation-policy state; missing or stale rates block calculation.">FX</a>
+    <a href="#advanced" class="accounting-nav-link" title="Review method-specific advanced schedules and whether a gated profile has approved inputs.">Advanced schedules</a>
+    <a href="#intercompany" class="accounting-nav-link" title="Review grouped matches, outside-perimeter reviews and unresolved differences.">Intercompany</a>
+    <a href="#eliminations" class="accounting-nav-link" title="Review persisted group-only elimination journals and their approval state.">Eliminations</a>
+    </MudPaper>
+  </nav>
+
+  <MudPaper Class="audit-workspace-panel audit-group-panel pa-4 my-4" Elevation="0" id="perimeter" aria-labelledby="perimeter-heading" role="region">
+    <h2 id="perimeter-heading">Perimeter</h2>
+    @foreach (var group in _groups)
+    {
+      <h3 id="group-@group.Id">@group.Name <code>@group.Code</code></h3>
+      @if (group.Scopes.Count == 0)
+      {
+        <p class="muted">No consolidation perimeter versions are available.</p>
+      }
+      else
+      {
+        <MudTable Items="group.Scopes" Dense="true" Hover="true" Elevation="0" HorizontalScrollbar="true" Class="audit-group-table">
+  <HeaderContent><MudTh scope="col">Version</MudTh><MudTh scope="col">Method</MudTh><MudTh scope="col">Currency</MudTh><MudTh scope="col" title="Approved ownership relationships pinned to this scope">Ownership edges</MudTh><MudTh scope="col" title="Grouped intercompany rows needing a complete review">Grouped matches</MudTh><MudTh scope="col" title="Related-party reviews retained outside automatic elimination">Outside reviews</MudTh><MudTh scope="col">Perimeter</MudTh><MudTh scope="col">Latest run</MudTh><MudTh scope="col"><span class="sr-only">Workflow</span></MudTh></HeaderContent>
+  <RowTemplate>            <MudTd DataLabel="Version">v@(context.Version)</MudTd><MudTd DataLabel="Method"><code>@context.Method</code></MudTd><MudTd DataLabel="Currency">@context.Currency</MudTd><MudTd DataLabel="Ownership edges">@context.OwnershipEdges</MudTd><MudTd DataLabel="Grouped matches">@context.GroupedMatches</MudTd><MudTd DataLabel="Outside reviews">@context.OutsideReviews</MudTd><MudTd DataLabel="Perimeter"><StatusChip Status="@context.Status" /></MudTd><MudTd DataLabel="Latest run"><StatusChip Status="@context.RunStatus" /></MudTd><MudTd DataLabel="Workflow">@if (AdvancedConsolidationMethods.All.Contains(context.Method)) { <a href="@($"/app/consolidation/advanced/{context.Id:D}")" title="Open the guarded schedule, maker/checker approval and execution workflow for this advanced context">Open workflow</a> }</MudTd></RowTemplate>
+</MudTable>
+      }
+    }
+  </MudPaper>
+
+  <MudPaper Class="audit-workspace-panel audit-group-panel pa-4 my-4" Elevation="0" id="packs" aria-labelledby="packs-heading" role="region">
+    <h2 id="packs-heading">Component packs</h2>
+    <p class="muted">Counts show what is persisted for each approved scope. Consolidation consumes only approved compatible packs; missing packs are not treated as zero.</p>
+    <MudTable Items="AllScopes" Dense="true" Hover="true" Elevation="0" HorizontalScrollbar="true" Class="audit-group-table">
+  <HeaderContent><MudTh scope="col">Group / scope</MudTh><MudTh scope="col">Components</MudTh><MudTh scope="col">Approved components</MudTh><MudTh scope="col">External packs</MudTh><MudTh scope="col">Approved packs</MudTh></HeaderContent>
+  <RowTemplate> <MudTd DataLabel="Group / scope">@context.GroupName · v@(context.Version)</MudTd><MudTd DataLabel="Components">@context.ComponentCount</MudTd><MudTd DataLabel="Approved components">@context.ApprovedComponentCount</MudTd><MudTd DataLabel="External packs">@context.ExternalPackCount</MudTd><MudTd DataLabel="Approved packs">@context.ApprovedExternalPackCount</MudTd> </RowTemplate>
+</MudTable>
+  </MudPaper>
+
+  <MudPaper Class="audit-workspace-panel audit-group-panel pa-4 my-4" Elevation="0" id="fx" aria-labelledby="fx-heading" role="region">
+    <h2 id="fx-heading">FX</h2>
+    <p class="muted">The enabled first profile is same-currency. Foreign-operation translation is shown only when the scope pins both a rate set and a translation policy; no rate of 1 is inferred.</p>
+    <MudTable Items="AllScopes" Dense="true" Hover="true" Elevation="0" HorizontalScrollbar="true" Class="audit-group-table">
+  <HeaderContent><MudTh scope="col">Group / scope</MudTh><MudTh scope="col">Reporting currency</MudTh><MudTh scope="col">Rate set</MudTh><MudTh scope="col">Translation policy</MudTh></HeaderContent>
+  <RowTemplate> <MudTd DataLabel="Group / scope">@context.GroupName · v@(context.Version)</MudTd><MudTd DataLabel="Reporting currency"><code>@context.Currency</code></MudTd><MudTd DataLabel="Rate set"><StatusChip Status="@context.RateSetStatus" /></MudTd><MudTd DataLabel="Translation policy"><StatusChip Status="@context.TranslationPolicyStatus" /></MudTd> </RowTemplate>
+</MudTable>
+  </MudPaper>
+
+  <MudPaper Class="audit-workspace-panel audit-group-panel pa-4 my-4" Elevation="0" id="advanced" aria-labelledby="advanced-heading" role="region">
+    <h2 id="advanced-heading">Advanced schedules</h2>
+    <p class="muted">Advanced-method schedules are source-bound, maker/checker-reviewed inputs. A complete approved schedule is necessary but does not enable an advanced profile until balanced current/comparative statement evidence is verified and separately approved.</p>
+    <MudTable Items="AllScopes" Dense="true" Hover="true" Elevation="0" HorizontalScrollbar="true" Class="audit-group-table">
+  <HeaderContent><MudTh scope="col">Group / scope</MudTh><MudTh scope="col" title="The selected consolidation method for this scope">Method</MudTh><MudTh scope="col" title="Persisted method schedules awaiting independent approval">Submitted</MudTh><MudTh scope="col" title="Schedules approved by a separate reviewer and still pinned to the scope revision">Approved</MudTh><MudTh scope="col" title="Verified and approved statement executions for the pinned schedule">Executions</MudTh><MudTh scope="col" title="Readiness requires the schedule, balanced statements and separate review">Readiness</MudTh></HeaderContent>
+  <RowTemplate>        <MudTd DataLabel="Group / scope">@context.GroupName · v@(context.Version)</MudTd><MudTd DataLabel="Method"><code>@context.Method</code></MudTd><MudTd DataLabel="Submitted">@context.AdvancedScheduleCount</MudTd><MudTd DataLabel="Approved">@context.ApprovedAdvancedScheduleCount</MudTd><MudTd DataLabel="Executions">@context.AdvancedExecutionCount / @context.ApprovedAdvancedExecutionCount</MudTd><MudTd DataLabel="Readiness"><span title="@context.AdvancedScheduleGuidance"><StatusChip Status="@context.AdvancedScheduleStatus" /></span></MudTd></RowTemplate>
+</MudTable>
+  </MudPaper>
+
+  <MudPaper Class="audit-workspace-panel audit-group-panel pa-4 my-4" Elevation="0" id="intercompany" aria-labelledby="intercompany-heading" role="region">
+    <h2 id="intercompany-heading">Intercompany</h2>
+    <p class="muted">Grouped matches, outside-perimeter reviews and unresolved match rows remain visible before any automatic elimination.</p>
+    <MudTable Items="AllScopes" Dense="true" Hover="true" Elevation="0" HorizontalScrollbar="true" Class="audit-group-table">
+  <HeaderContent><MudTh scope="col">Group / scope</MudTh><MudTh scope="col">Grouped matches</MudTh><MudTh scope="col">Outside reviews</MudTh><MudTh scope="col">Open matches</MudTh></HeaderContent>
+  <RowTemplate> <MudTd DataLabel="Group / scope">@context.GroupName · v@(context.Version)</MudTd><MudTd DataLabel="Grouped matches">@context.GroupedMatches</MudTd><MudTd DataLabel="Outside reviews">@context.OutsideReviews</MudTd><MudTd DataLabel="Open matches"><StatusChip Status="@context.OpenMatchCount.ToString()" /></MudTd> </RowTemplate>
+</MudTable>
+  </MudPaper>
+
+  <MudPaper Class="audit-workspace-panel audit-group-panel pa-4 my-4" Elevation="0" id="eliminations" aria-labelledby="eliminations-heading" role="region">
+    <h2 id="eliminations-heading">Eliminations</h2>
+    <p class="muted">Persisted consolidation journals are separate from component books. Unsupported elimination natures fail closed in the calculation service.</p>
+    <MudTable Items="AllScopes" Dense="true" Hover="true" Elevation="0" HorizontalScrollbar="true" Class="audit-group-table">
+  <HeaderContent><MudTh scope="col">Group / scope</MudTh><MudTh scope="col">Journals</MudTh><MudTh scope="col">Approved journals</MudTh><MudTh scope="col">Latest run</MudTh></HeaderContent>
+  <RowTemplate> <MudTd DataLabel="Group / scope">@context.GroupName · v@(context.Version)</MudTd><MudTd DataLabel="Journals">@context.EliminationJournalCount</MudTd><MudTd DataLabel="Approved journals">@context.ApprovedEliminationJournalCount</MudTd><MudTd DataLabel="Latest run"><StatusChip Status="@context.RunStatus" /></MudTd> </RowTemplate>
+</MudTable>
+  </MudPaper>
+
+  <MudPaper Class="audit-workspace-panel audit-group-panel pa-4 my-4" Elevation="0" id="group-report" aria-labelledby="group-report-heading" role="region">
+    <h2 id="group-report-heading">Approved group reports</h2>
+    <p class="muted">Only the latest approved report with inputs that still match its manifest is shown. This group-level summary does not grant access to component workpapers.</p>
+    @foreach (var scope in AllScopes)
+    {
+      <h3>@scope.GroupName · v@(scope.Version)</h3>
+      @if (AdvancedConsolidationMethods.All.Contains(scope.Method))
+      {
+        <p class="muted">Open the method workflow for its separately reviewed statement execution.</p>
+        <MudLink Href="@($"/app/consolidation/advanced/{scope.Id:D}")">Open advanced workflow</MudLink>
+      }
+      else if (scope.Report is { State: "CURRENT_APPROVED" } report)
+      {
+        <p class="status">Run @report.RunId · approved @report.ApprovedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</p>
+        <div class="table-wrap audit-group-report-wrap"><table class="audit-group-report-table">
+          <caption class="sr-only">Current approved group report for @scope.GroupName version @scope.Version</caption>
+          <thead><tr><th scope="col">Component / adjustment</th><th scope="col">Reporting code</th><th scope="col">Component</th><th scope="col">Alignment</th><th scope="col">Elimination</th><th scope="col">Consolidated</th><th scope="col">Currency</th></tr></thead>
+          <tbody>
+          @foreach (var line in report.Lines)
+          {
+            <tr><td>@line.Component</td><td><code>@line.TaxonomyCode</code></td><td>@line.ComponentAmount.ToString("N2")</td><td>@line.AlignmentAmount.ToString("N2")</td><td>@line.EliminationAmount.ToString("N2")</td><td>@line.ConsolidatedAmount.ToString("N2")</td><td>@line.Currency</td></tr>
+          }
+          </tbody>
+          <tfoot><tr><th colspan="5">Net total</th><td>@report.Lines.Sum(x => x.ConsolidatedAmount).ToString("N2")</td><td>@scope.Currency</td></tr></tfoot>
+        </table></div>
+      }
+      else if (scope.Report is { State: "STALE" })
+      {
+        <p class="notice-text" role="status">The latest approval is historical: a current component, perimeter, rate, match or group journal no longer matches the run. The result is withheld; rebuild and review the group run.</p>
+      }
+      else
+      {
+        <p class="muted">No current approved group report is available. Latest run state: @scope.RunStatus.</p>
+      }
+    }
+  </MudPaper>
+}
+
+@code {
+  private sealed record ScopeRow
+  {
+    public Guid Id { get; init; }
+    public string GroupName { get; init; } = string.Empty;
+    public int Version { get; init; }
+    public string Method { get; init; } = string.Empty;
+    public string Currency { get; init; } = string.Empty;
+    public int OwnershipEdges { get; init; }
+    public int GroupedMatches { get; init; }
+    public int OutsideReviews { get; init; }
+    public int OpenMatchCount { get; init; }
+    public int ComponentCount { get; init; }
+    public int ApprovedComponentCount { get; init; }
+    public int ExternalPackCount { get; init; }
+    public int ApprovedExternalPackCount { get; init; }
+    public int AdvancedScheduleCount { get; init; }
+    public int ApprovedAdvancedScheduleCount { get; init; }
+    public int AdvancedExecutionCount { get; init; }
+    public int ApprovedAdvancedExecutionCount { get; init; }
+    public string AdvancedScheduleStatus { get; init; } = string.Empty;
+    public string AdvancedScheduleGuidance { get; init; } = string.Empty;
+    public string RateSetStatus { get; init; } = string.Empty;
+    public string TranslationPolicyStatus { get; init; } = string.Empty;
+    public int EliminationJournalCount { get; init; }
+    public int ApprovedEliminationJournalCount { get; init; }
+    public string Status { get; init; } = string.Empty;
+    public string RunStatus { get; init; } = string.Empty;
+    public ConsolidationReport? Report { get; init; }
+  }
+  private sealed record GroupRow(Guid Id, string Code, string Name, IReadOnlyList<ScopeRow> Scopes);
+  private List<GroupRow> _groups = [];
+  private bool _loading = true;
+  private IEnumerable<ScopeRow> AllScopes => _groups.SelectMany(x => x.Scopes);
+
+  protected override async Task OnInitializedAsync()
+  {
+    var actor = await ActorResolver.ResolveAsync();
+    if (actor is not null)
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var candidateGroupIds = await db.GroupAccessGrants.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId && x.RevokedAt == null)
+        .Select(x => x.GroupId).Distinct().ToArrayAsync();
+      var groupIds = new List<Guid>(candidateGroupIds.Length);
+      foreach (var groupId in candidateGroupIds)
+      {
+        var access = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, groupId,
+          ["AccountingPreparer", "AccountingReviewer", "Manager", "Partner", "Administrator"]);
+        if (access.Succeeded) groupIds.Add(groupId);
+      }
+      var groups = await db.ClientGroups.AsNoTracking().Where(x => x.FirmId == actor.FirmId && groupIds.Contains(x.Id)).OrderBy(x => x.Name).ToListAsync();
+      var scopes = await db.ConsolidationScopeVersions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && groupIds.Contains(x.GroupId)).ToListAsync();
+      var ownershipCounts = await db.OwnershipInterestVersions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && groupIds.Contains(x.GroupId) &&
+        x.Status == AccountingWorkflowStates.Approved).GroupBy(x => x.ScopeVersionId).Select(x => new { ScopeId = x.Key, Count = x.Count() })
+        .ToDictionaryAsync(x => x.ScopeId, x => x.Count);
+      var matchCounts = await db.IntercompanyMatches.AsNoTracking().Where(x => x.FirmId == actor.FirmId && groupIds.Contains(x.GroupId) &&
+        x.Status != AccountingWorkflowStates.Rejected).GroupBy(x => x.ScopeVersionId).Select(x => new
+        {
+          ScopeId = x.Key,
+          Grouped = x.Count(y => y.MatchMode == IntercompanyMatchModes.Grouped),
+          Outside = x.Count(y => y.OutsidePerimeterReview),
+          Open = x.Count(y => y.Status != AccountingWorkflowStates.Approved)
+        }).ToDictionaryAsync(x => x.ScopeId);
+      var componentCounts = await db.ConsolidationComponents.AsNoTracking().Where(x => x.FirmId == actor.FirmId && groupIds.Contains(x.GroupId))
+        .GroupBy(x => x.ScopeVersionId).Select(x => new { ScopeId = x.Key, Count = x.Count(), Approved = x.Count(y => y.Status == AccountingWorkflowStates.Approved) })
+        .ToDictionaryAsync(x => x.ScopeId);
+      var packCounts = await db.ExternalComponentPacks.AsNoTracking().Where(x => x.FirmId == actor.FirmId && groupIds.Contains(x.GroupId))
+        .GroupBy(x => x.ScopeVersionId).Select(x => new { ScopeId = x.Key, Count = x.Count(), Approved = x.Count(y => y.Status == ExternalComponentPackStates.Approved) })
+        .ToDictionaryAsync(x => x.ScopeId);
+      var advancedScheduleCounts = await db.AdvancedConsolidationMethodSchedules.AsNoTracking().Where(x => x.FirmId == actor.FirmId && groupIds.Contains(x.GroupId))
+        .GroupBy(x => x.ScopeVersionId).Select(x => new { ScopeId = x.Key, Count = x.Count(), Approved = x.Count(y => y.Status == AdvancedConsolidationMethodScheduleStates.Approved) })
+        .ToDictionaryAsync(x => x.ScopeId);
+      var advancedExecutionCounts = await db.AdvancedConsolidationExecutions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && groupIds.Contains(x.GroupId))
+        .GroupBy(x => x.ScopeVersionId).Select(x => new { ScopeId = x.Key, Count = x.Count(), Approved = x.Count(y => y.Status == AdvancedConsolidationExecutionStates.Approved) })
+        .ToDictionaryAsync(x => x.ScopeId);
+      var journalCounts = await db.ConsolidationJournals.AsNoTracking().Where(x => x.FirmId == actor.FirmId && groupIds.Contains(x.GroupId))
+        .GroupBy(x => x.ScopeVersionId).Select(x => new { ScopeId = x.Key, Count = x.Count(), Approved = x.Count(y => y.Status == AccountingWorkflowStates.Approved) })
+        .ToDictionaryAsync(x => x.ScopeId);
+      var runStatuses = await db.ConsolidationRuns.AsNoTracking().Where(x => x.FirmId == actor.FirmId && groupIds.Contains(x.GroupId))
+        .GroupBy(x => x.ScopeVersionId).Select(x => new { ScopeId = x.Key, Status = x.OrderByDescending(y => y.CreatedAt)
+          .ThenByDescending(y => y.Id).Select(y => y.Status).First() }).ToDictionaryAsync(x => x.ScopeId, x => x.Status);
+      var reports = new Dictionary<Guid, ConsolidationReport>();
+      foreach (var scope in scopes.Where(x => !AdvancedConsolidationMethods.All.Contains(x.Method) &&
+        runStatuses.GetValueOrDefault(x.Id) == AccountingWorkflowStates.Approved))
+      {
+        var report = await ConsolidationService.GetLatestReportAsync(db, actor, scope.Id);
+        if (report.Succeeded && report.Value is not null)
+          reports[scope.Id] = report.Value;
+      }
+      var rateSetIds = scopes.Where(x => x.ExchangeRateSetVersionId.HasValue).Select(x => x.ExchangeRateSetVersionId!.Value).Distinct().ToArray();
+      var rateSets = await db.ExchangeRateSetVersions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && rateSetIds.Contains(x.Id))
+        .ToDictionaryAsync(x => x.Id, x => x.Status);
+      var translationPolicyIds = scopes.Where(x => x.TranslationPolicyVersionId.HasValue).Select(x => x.TranslationPolicyVersionId!.Value).Distinct().ToArray();
+      var translationPolicies = await db.TranslationPolicyVersions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && translationPolicyIds.Contains(x.Id))
+        .ToDictionaryAsync(x => x.Id, x => x.Status);
+      _groups = groups.Select(group => new GroupRow(group.Id, group.Code, group.Name, scopes.Where(x => x.GroupId == group.Id)
+        .OrderByDescending(x => x.Version).Select(x =>
+        {
+          var matches = matchCounts.GetValueOrDefault(x.Id);
+          var components = componentCounts.GetValueOrDefault(x.Id);
+          var packs = packCounts.GetValueOrDefault(x.Id);
+          var advancedSchedules = advancedScheduleCounts.GetValueOrDefault(x.Id);
+          var advancedExecutions = advancedExecutionCounts.GetValueOrDefault(x.Id);
+          var advancedRequired = AdvancedConsolidationMethods.All.Contains(x.Method);
+          var advancedStatus = !advancedRequired ? "NOT_APPLICABLE" : advancedSchedules is null ? "REQUIRED" :
+            advancedSchedules.Approved != advancedSchedules.Count || advancedSchedules.Count == 0 ? "REVIEW_REQUIRED" :
+            advancedExecutions is null ? "EXECUTION_REQUIRED" : advancedExecutions.Approved > 0 ? "APPROVED" : "EXECUTION_REVIEW_REQUIRED";
+          var journals = journalCounts.GetValueOrDefault(x.Id);
+          return new ScopeRow
+          {
+            Id = x.Id,
+            GroupName = group.Name,
+            Version = x.Version,
+            Method = x.Method,
+            Currency = x.ReportingCurrency,
+            OwnershipEdges = ownershipCounts.GetValueOrDefault(x.Id),
+            GroupedMatches = matches?.Grouped ?? 0,
+            OutsideReviews = matches?.Outside ?? 0,
+            OpenMatchCount = matches?.Open ?? 0,
+            ComponentCount = components?.Count ?? 0,
+            ApprovedComponentCount = components?.Approved ?? 0,
+            ExternalPackCount = packs?.Count ?? 0,
+            ApprovedExternalPackCount = packs?.Approved ?? 0,
+            AdvancedScheduleCount = advancedSchedules?.Count ?? 0,
+            ApprovedAdvancedScheduleCount = advancedSchedules?.Approved ?? 0,
+            AdvancedExecutionCount = advancedExecutions?.Count ?? 0,
+            ApprovedAdvancedExecutionCount = advancedExecutions?.Approved ?? 0,
+            AdvancedScheduleStatus = advancedStatus,
+            AdvancedScheduleGuidance = advancedRequired
+              ? "Readiness requires an approved current/comparative statement execution and separate reviewer approval; local evidence does not prove methodology or live acceptance."
+              : "The selected bounded profile does not require an advanced-method schedule.",
+            RateSetStatus = x.ExchangeRateSetVersionId is { } rateSetId ? rateSets.GetValueOrDefault(rateSetId, "MISSING") : "SAME_CURRENCY_PROFILE",
+            TranslationPolicyStatus = x.TranslationPolicyVersionId is { } policyId ? translationPolicies.GetValueOrDefault(policyId, "MISSING") : "NOT_CONFIGURED",
+            EliminationJournalCount = journals?.Count ?? 0,
+            ApprovedEliminationJournalCount = journals?.Approved ?? 0,
+            Status = x.Status,
+            RunStatus = runStatuses.GetValueOrDefault(x.Id, "NO_RUN"),
+            Report = reports.GetValueOrDefault(x.Id)
+          };
+        }).ToArray())).ToList();
+    }
+    _loading = false;
+  }
+}

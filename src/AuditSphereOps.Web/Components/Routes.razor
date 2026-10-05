@@ -1,0 +1,29 @@
+<Router AppAssembly="@typeof(Program).Assembly">
+  <Found Context="routeData">
+    <RouteView RouteData="@routeData" DefaultLayout="@LayoutForRoute()" />
+    <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+  </Found>
+  <NotFound>
+    <LayoutView Layout="@typeof(Layout.PublicLayout)">
+      <PageTitle>Not found</PageTitle>
+      <h1>Not found</h1>
+      <p>The requested page is not available in this scope.</p>
+    </LayoutView>
+  </NotFound>
+</Router>
+
+@code {
+  [Inject] private NavigationManager Navigation { get; set; } = default!;
+
+  private Type LayoutForRoute()
+  {
+    var path = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', 2)[0];
+    if (path.Equals("portal", StringComparison.OrdinalIgnoreCase) ||
+        path.StartsWith("portal/", StringComparison.OrdinalIgnoreCase))
+      return typeof(Layout.ClientLayout);
+    if (string.IsNullOrEmpty(path) || path.StartsWith("auth/", StringComparison.OrdinalIgnoreCase) ||
+        path.StartsWith("setup/", StringComparison.OrdinalIgnoreCase))
+      return typeof(Layout.PublicLayout);
+    return typeof(Layout.MainLayout);
+  }
+}

@@ -1,0 +1,176 @@
+@page "/app/practice/commercial-settings"
+@rendermode InteractiveServer
+@using AuditSphereOps.Application.Practice
+@using AuditSphereOps.Domain.Practice
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
+<PageTitle>Commercial settings</PageTitle>
+<div class="page-header">
+  <nav class="breadcrumb-nav" aria-label="Breadcrumb">
+    <a href="/app">Portfolio</a> /
+    <a href="/app/practice/leads">Leads &amp; opportunities</a> /
+    <span>Commercial settings</span>
+  </nav>
+  <PageHeader Title="Commercial settings" Eyebrow="Practice commercial"
+              Description="Firm letterhead for generated documents and the approval matrix that decides who must approve a fee discount or non-standard terms." />
+</div>
+
+@if (_loading)
+{
+  <LoadingState IsLoading="true" LoadingMessage="Loading commercial settings…" />
+}
+else if (!_authorized)
+{
+  <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+    <h2>Access unavailable</h2>
+    <MudText Typo="Typo.body2">Sign in with an authorized firm-wide commercial identity to view these settings.</MudText>
+  </MudAlert>
+}
+else
+{
+  <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" role="region" aria-labelledby="profile-heading">
+    <h2 id="profile-heading">Firm letterhead</h2>
+    <p class="scope-note">Used by generated quotations, engagement letters and receipts. Each change is a new version; generated documents record the version they used. Only an Administrator or Partner can change it.</p>
+    <div class="audit-practice-form-fields">
+      <MudTextField T="string" Label="Legal name" @bind-Value="_legalName" MaxLength="200" Margin="Margin.Dense" />
+      <MudTextField T="string" Label="Address" @bind-Value="_address" MaxLength="500" Lines="2" Margin="Margin.Dense" />
+      <MudTextField T="string" Label="Contact email" @bind-Value="_email" MaxLength="200" Margin="Margin.Dense" />
+      <MudTextField T="string" Label="Contact phone" @bind-Value="_phone" MaxLength="60" Margin="Margin.Dense" />
+      <MudTextField T="string" Label="Accent colour (#RRGGBB)" @bind-Value="_accent" MaxLength="7" Margin="Margin.Dense" />
+      <MudTextField T="string" Label="Closing text (terms reference, registration details)" @bind-Value="_closing" MaxLength="4000" Lines="4" Margin="Margin.Dense" />
+      <MudTextField T="string" Label="Approved firm history and commercial registrations" @bind-Value="_history" MaxLength="16000" Lines="5" Margin="Margin.Dense" />
+      <MudTextField T="string" Label="Approved industry credentials and portfolio evidence" @bind-Value="_credentials" MaxLength="16000" Lines="5" Margin="Margin.Dense" />
+      <MudTextField T="string" Label="Approved audit methodology overview" @bind-Value="_methodology" MaxLength="16000" Lines="5" Margin="Margin.Dense" />
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveProfileAsync" Disabled="@_busy">Save letterhead</MudButton>
+      @if (_profile is not null) { <span class="muted">Current version @_profile.Version</span> }
+    </div>
+  </MudPaper>
+
+  <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" role="region" aria-labelledby="matrix-heading">
+    <h2 id="matrix-heading">Approval matrix</h2>
+    <p class="scope-note">A discount above a band's threshold needs the named role; the highest exceeded band applies. Non-standard terms need every role listed for them. With no rule configured, the safe default is a Partner for a discount over @CommercialApprovalMatrix.DefaultDiscountThresholdPercent.ToString("0.##")% and for non-standard terms.</p>
+    @if (_rules.Count == 0)
+    {
+      <p class="muted">No rules are configured; the default applies.</p>
+    }
+    else
+    {
+      <div class="table-wrap">
+        <table>
+          <caption class="sr-only">Active approval rules</caption>
+          <thead><tr><th scope="col">Rule</th><th scope="col" class="num">Threshold</th><th scope="col">Required role</th><th scope="col">Version</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
+          <tbody>
+            @foreach (var rule in _rules)
+            {
+              <tr>
+                <td>@(rule.Kind == CommercialRuleKinds.DiscountOver ? "Discount over threshold" : "Non-standard terms")</td>
+                <td class="num">@(rule.ThresholdPercent is { } t ? $"{t:0.##}%" : "—")</td>
+                <td>@rule.RequiredRole</td>
+                <td>@rule.Version</td>
+                <td><MudButton Size="Size.Small" Variant="Variant.Outlined" Disabled="@_busy" OnClick="() => DeactivateAsync(rule.Id)">Deactivate</MudButton></td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+    <fieldset class="audit-quote-form">
+      <legend>Add or change a rule</legend>
+      <MudSelect T="string" Label="Rule" @bind-Value="_ruleKind" Margin="Margin.Dense">
+        <MudSelectItem T="string" Value="@CommercialRuleKinds.DiscountOver">Discount over threshold</MudSelectItem>
+        <MudSelectItem T="string" Value="@CommercialRuleKinds.NonStandardTerms">Non-standard terms</MudSelectItem>
+      </MudSelect>
+      @if (_ruleKind == CommercialRuleKinds.DiscountOver)
+      {
+        <MudNumericField T="decimal" Label="Threshold % (discount must exceed)" @bind-Value="_threshold" Min="0" Max="99.99m" Step="1m" Format="0.##" Margin="Margin.Dense" />
+      }
+      <MudSelect T="string" Label="Required approver role" @bind-Value="_ruleRole" Margin="Margin.Dense">
+        @foreach (var role in ApproverRoles) { <MudSelectItem T="string" Value="@role">@role</MudSelectItem> }
+      </MudSelect>
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveRuleAsync" Disabled="@_busy">Save rule</MudButton>
+    </fieldset>
+  </MudPaper>
+
+  @if (_message is not null)
+  {
+    <p class="command-result @(_isError ? "error-text" : "success-text")" role="status">@_message</p>
+  }
+}
+
+@code {
+  private static readonly string[] ApproverRoles = ["Partner", "Manager", "Administrator"];
+
+  private FirmCommercialProfile? _profile;
+  private IReadOnlyList<CommercialApprovalRule> _rules = [];
+  private string _legalName = string.Empty, _address = string.Empty, _email = string.Empty, _phone = string.Empty;
+  private string _history = "", _credentials = "", _methodology = "";
+  private string _accent = "#2B6CB0", _closing = string.Empty;
+  private string _ruleKind = CommercialRuleKinds.DiscountOver, _ruleRole = "Partner";
+  private decimal _threshold = 10m;
+  private bool _loading = true, _authorized, _busy, _isError;
+  private string? _message;
+
+  protected override async Task OnInitializedAsync() => await LoadAsync();
+
+  private async Task LoadAsync()
+  {
+    _loading = true;
+    try
+    {
+      var actor = await ActorResolver.ResolveAsync();
+      if (actor is null) { _authorized = false; return; }
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var profile = await CommercialDocumentService.GetProfileAsync(db, actor);
+      var rules = await QuotationService.ListRulesAsync(db, actor);
+      _authorized = profile.Succeeded && rules.Succeeded;
+      if (!_authorized) return;
+      _profile = profile.Value;
+      _rules = rules.Value!;
+      if (_profile is not null)
+      {
+        _legalName = _profile.LegalName; _address = _profile.Address; _email = _profile.ContactEmail;
+        _phone = _profile.ContactPhone; _accent = _profile.AccentColorHex; _closing = _profile.ClosingText;
+        _history = _profile.FirmHistoryAndRegistrations; _credentials = _profile.IndustryCredentials; _methodology = _profile.AuditMethodology;
+      }
+    }
+    finally { _loading = false; }
+  }
+
+  private Task SaveProfileAsync() => RunAsync(async (db, actor) =>
+  {
+    var result = await CommercialDocumentService.SaveProfileAsync(db, actor, new(_legalName, _address, _email, _phone, _accent, _closing, _history, _credentials, _methodology));
+    return (result.Succeeded, result.Succeeded ? "Letterhead saved." : result.Message);
+  });
+
+  private Task SaveRuleAsync() => RunAsync(async (db, actor) =>
+  {
+    var result = await QuotationService.SaveRuleAsync(db, actor, _ruleKind,
+      _ruleKind == CommercialRuleKinds.DiscountOver ? _threshold : null, _ruleRole);
+    return (result.Succeeded, result.Succeeded ? "Rule saved. New quotations use it immediately; existing versions keep the approvals they required." : result.Message);
+  });
+
+  private Task DeactivateAsync(Guid id) => RunAsync(async (db, actor) =>
+  {
+    var result = await QuotationService.DeactivateRuleAsync(db, actor, id);
+    return (result.Succeeded, result.Succeeded ? "Rule deactivated." : result.Message);
+  });
+
+  private async Task RunAsync(Func<AuditSphereDbContext, ActorContext, Task<(bool Ok, string? Message)>> action)
+  {
+    if (_busy) return;
+    _busy = true;
+    _message = null;
+    try
+    {
+      var actor = await ActorResolver.ResolveAsync();
+      if (actor is null) { _isError = true; _message = "Sign in again."; return; }
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var (ok, message) = await action(db, actor);
+      _isError = !ok;
+      _message = message;
+      await LoadAsync();
+    }
+    finally { _busy = false; }
+  }
+}

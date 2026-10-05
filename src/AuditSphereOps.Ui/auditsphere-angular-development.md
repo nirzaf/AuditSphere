@@ -1,6 +1,6 @@
 # AuditSphere Angular UI
 
-`AuditSphereOps.Api` is the ASP.NET Core backend; `AuditSphereOps.Ui` is the Angular frontend. Domain/Application/Infrastructure/Worker remain unchanged in responsibility. Native Angular routes cover practice, accounting, audit, completion, administration and the client portal; broader source-action parity and production acceptance remain open. The owner-approved local cutover is complete. `AuditSphereOps.Web` is retained only for automated Test-environment regression journeys and refuses startup outside `Test`.
+`AuditSphereOps.Api` is the ASP.NET Core backend; `AuditSphereOps.Ui` is the Angular frontend. Domain/Application/Infrastructure/Worker remain unchanged in responsibility. Native Angular routes cover practice, accounting, audit, completion, administration and the client portal; broader source-action parity and production acceptance remain open. `AuditSphereOps.Web` is retained in the solution as a buildable rollback/reference host after a premature physical deletion. The retirement decision remains `NOT_READY`; source presence and buildability do not establish operational rollback acceptance.
 
 ## Build and verify
 
@@ -46,7 +46,7 @@ Supply `Setup:FirmId`, `Setup:InstallationId`, `Setup:BootstrapProofHash`, `Setu
 4. Open Administration → Microsoft 365 → Tenant connection. If the deployment tenant has not been prepared, review its configured identity and prepare the current setup revision. This creates a connection revision requiring Microsoft consent; it does not assert consent or selected-site verification.
 5. Follow the configured Microsoft consent flow and verify each capability separately. Missing deployment credentials, consent or selected-site grants remain blocked.
 
-A lost bootstrap/preparation response requires a fresh sign-in or refresh and review of persisted state before another write. These local tests do not establish live Microsoft authentication/consent acceptance. The Test-only Web regression host is not an operator setup route.
+A lost bootstrap/preparation response requires a fresh sign-in or refresh and review of persisted state before another write. These local tests do not establish live Microsoft authentication/consent acceptance. The API-only test host is not an operator setup route. The separate `AuditSphereOps.Web` rollback/reference project is retained in the solution while migration acceptance remains open.
 
 ### Optional Microsoft administration
 
@@ -79,8 +79,9 @@ The API publish target bundles the Angular browser artifacts into `ui/`. Missing
 `AngularUi:CanonicalRoutes` defaults to true in the API host. The native catalogue
 serves `/app`, `/portal` and `/setup/microsoft365`. The `/ui` preview URLs remain
 usable, and both modes load the same fingerprinted assets from `/ui/`. Sign-in
-and consent destinations follow the configured mode. The legacy Web host
-has been retired.
+and consent destinations follow the configured mode. The separate Web project
+is not part of API route composition; retaining/building it does not prove
+operational rollback readiness.
 
 For an approved API release rollback, restore the previous compatible API build
 and its matching retained Angular assets using the deployment's release process.
@@ -97,11 +98,17 @@ and current API compatibility before deployment. Remove the retention setting an
 directory only after the approved window. Local tests do not establish production
 canary or owner acceptance.
 
-## Retired Legacy Presentation Host
+## Legacy Presentation Host Status
 
-The legacy `AuditSphereOps.Web` host and all Blazor components have been completely retired.
-The shared API host rejects `legacyPresentation=true` across all environments.
-Use `AuditSphereOps.Api` for local and deployed Angular UI.
+`AuditSphereOps.Web` remains in the solution as a buildable Blazor rollback/reference
+host while the canonical readiness gate is `NOT_READY`. The API does not reference it
+and continues to serve the current Angular UI. No production-like rollback exercise
+has been accepted. The Web host is available to isolated `Test` runs. Development
+configuration enables it for local inspection; other environments require the explicit
+`LegacyPresentation:Enabled=true` setting in the approved host configuration. This
+setting permits startup only; it does not prove OIDC callback, route-switch, data
+compatibility, or production rollback acceptance. The API host remains the normal
+Angular route owner.
 
 Authentication, consent, API, health and document routes remain owned by the API host.
 

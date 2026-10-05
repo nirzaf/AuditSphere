@@ -53,5 +53,5 @@
       "evidencePointer": "EngagementCreationReviewTests; EngagementCreationReviewApiTests; engagement-create.spec.ts; AngularEngagementCreationJourneyTests"
     }
   ],
-  "remaining": "Engagement planning forms/drafts/recovery, full engagement source-action parity and wider quality gates. Local route cutover and Blazor runtime retirement are complete; production canary and overall migration acceptance remain open."
+  "remaining": "Engagement planning forms/drafts/recovery, full engagement source-action parity and wider quality gates. Angular route ownership is active; the restored Web rollback/reference host is buildable but has not passed an operational rollback exercise. Production canary and overall migration acceptance remain open."
 }

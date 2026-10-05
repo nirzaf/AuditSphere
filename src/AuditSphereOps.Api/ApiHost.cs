@@ -10,8 +10,11 @@ public static partial class ApiHost
     Action<WebApplication>? mapPresentation = null, bool legacyPresentation = false)
   {
     var builder = WebApplication.CreateBuilder(args);
-    EnsureLegacyPresentationEnvironment(legacyPresentation, builder.Environment.EnvironmentName);
+    EnsureLegacyPresentationEnvironment(legacyPresentation, builder.Environment.EnvironmentName,
+      builder.Configuration.GetValue<bool>("LegacyPresentation:Enabled"));
     builder.Services.AddAntiforgery(options => options.HeaderName = "X-XSRF-TOKEN");
+    if (legacyPresentation && (builder.Environment.IsEnvironment("Test") || builder.Environment.IsDevelopment()))
+      builder.WebHost.UseStaticWebAssets();
     ConfigureObservability(builder, legacyPresentation);
     builder.Services.AddHttpContextAccessor();
     addPresentation?.Invoke(builder);
@@ -24,16 +27,24 @@ public static partial class ApiHost
 
     if (!app.Environment.IsDevelopment())
     {
-      app.UseExceptionHandler(handler => handler.Run(async http =>
+      if (legacyPresentation)
       {
-        http.Response.Headers.CacheControl = "no-store";
-        await Results.Problem("The request could not be completed. Use the diagnostic ID when contacting your administrator.",
-          statusCode: 500, extensions: new Dictionary<string, object?> { ["diagnosticId"] = http.Response.Headers["X-Correlation-Id"].ToString() }).ExecuteAsync(http);
-      }));
+        app.UseExceptionHandler("/Error", createScopeForErrors: true);
+      }
+      else
+      {
+        app.UseExceptionHandler(handler => handler.Run(async http =>
+        {
+          http.Response.Headers.CacheControl = "no-store";
+          await Results.Problem("The request could not be completed. Use the diagnostic ID when contacting your administrator.",
+            statusCode: 500, extensions: new Dictionary<string, object?> { ["diagnosticId"] = http.Response.Headers["X-Correlation-Id"].ToString() }).ExecuteAsync(http);
+        }));
+      }
       app.UseHsts();
     }
 
     app.UseHttpsRedirection();
+    if (legacyPresentation) app.UseStaticFiles();
     app.UseAuthentication();
     app.UseAuthorization();
     app.UseAntiforgery();
@@ -48,9 +59,10 @@ public static partial class ApiHost
     return app;
   }
 
-  internal static void EnsureLegacyPresentationEnvironment(bool legacyPresentation, string environmentName)
+  internal static void EnsureLegacyPresentationEnvironment(bool legacyPresentation, string environmentName,
+    bool enabled = false)
   {
-    if (legacyPresentation)
-      throw new InvalidOperationException("The Blazor presentation host has been retired. Run the Angular UI through AuditSphereOps.Api.");
+    if (legacyPresentation && !string.Equals(environmentName, "Test", StringComparison.OrdinalIgnoreCase) && !enabled)
+      throw new InvalidOperationException("The Blazor rollback host is disabled. Set LegacyPresentation:Enabled=true only for an explicitly approved rollback deployment.");
   }
 }

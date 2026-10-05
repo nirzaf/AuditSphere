@@ -53,5 +53,5 @@
       "evidencePointer": "portfolio-workspace.spec.ts; AngularPortfolioJourneyTests"
     }
   ],
-  "remaining": "Client read metadata and row controls are implemented in the separate client action audit. Complete client/engagement forms and drafts, wider source-action parity and quality acceptance remain open. Local route cutover and Blazor runtime retirement are complete; production canary and overall migration acceptance remain open."
+  "remaining": "Client read metadata and row controls are implemented in the separate client action audit. Complete client/engagement forms and drafts, wider source-action parity and quality acceptance remain open. Angular route ownership is active; the restored Web rollback/reference host is buildable but has not passed an operational rollback exercise. Production canary and overall migration acceptance remain open."
 }

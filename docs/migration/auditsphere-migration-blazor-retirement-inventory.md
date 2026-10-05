@@ -6,7 +6,7 @@ Exact source counts and the discovery snapshot are recorded in `docs/execution/s
 
 ## Observed inventory
 
-- The non-generated Web file list is enumerated below from `d00f63edb0fad05f7384c0eb8d2dafbc4c1a1971`.
+- The non-generated Web file list is enumerated below from `working tree`.
 - Razor route/action files are listed with their scanner-derived hints.
 - Exact source and route totals are maintained in `docs/execution/status.json`.
 - Source discovery drift is separately checked by `python3 scripts/ui/inventory.py --check`.

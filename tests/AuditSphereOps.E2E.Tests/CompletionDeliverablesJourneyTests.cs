@@ -66,7 +66,7 @@ public sealed class CompletionDeliverablesJourneyTests
       Assert.True((await StaffingService.AssignAsync(db, new ActorContext(f.Admin.Id, f.FirmId, f.Admin.SessionEpoch, ["Administrator"]),
         new(f.EngagementId, partner.Id, StaffingLevels.EngagementPartner))).Succeeded);
 
-    var origin = await host.StartWebForIdentityAsync(partner);
+    var origin = await host.StartApiForIdentityAsync(partner);
     using var playwright = await Playwright.CreateAsync();
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     var page = await (await browser.NewContextAsync()).NewPageAsync();
@@ -88,28 +88,32 @@ public sealed class CompletionDeliverablesJourneyTests
     await page.GetByRole(AriaRole.Button, new() { Name = "Record opinion (Engagement Partner)" }).ClickAsync();
     await Assertions.Expect(result).ToContainTextAsync("Partner clearance of a current Summary Review Memorandum is required");
 
-    await page.Locator("#srm-recommendations").FillAsync("All procedures reviewed; no unadjusted differences.");
-    await page.Locator("#srm-recommendations").PressAsync("Tab");
+    var recommendations = page.GetByLabel("Reviewer recommendations");
+    await recommendations.FillAsync("All procedures reviewed; no unadjusted differences.");
+    await recommendations.PressAsync("Tab");
     await page.GetByRole(AriaRole.Button, new() { Name = "Generate Summary Review Memorandum" }).ClickAsync();
     await Assertions.Expect(result).ToContainTextAsync("Summary Review Memorandum generated.");
     await Assertions.Expect(page.GetByText("Latest SRM v1 is current", new() { Exact = false })).ToBeVisibleAsync();
-    await page.Locator("#clr-risks").FillAsync("Revenue and inventory reviewed.");
-    await page.Locator("#clr-notes").FillAsync("Notes 1 to 14 reviewed.");
-    await page.Locator("#clr-notes").PressAsync("Tab");
+    await page.GetByLabel("Key risk areas reviewed").FillAsync("Revenue and inventory reviewed.");
+    var notesReviewed = page.GetByLabel("Financial-statement notes reviewed");
+    await notesReviewed.FillAsync("Notes 1 to 14 reviewed.");
+    await notesReviewed.PressAsync("Tab");
     await page.GetByRole(AriaRole.Button, new() { Name = "Record Partner clearance" }).ClickAsync();
     await Assertions.Expect(result).ToContainTextAsync("Partner clearance recorded.");
 
     // Conditional fields: focus and basis appear only for a qualified opinion.
-    await Assertions.Expect(page.Locator("#op-focus")).ToHaveCountAsync(0);
-    await page.Locator("#op-type").SelectOptionAsync(AuditOpinionTypes.Qualified);
-    await page.Locator("#op-focus").SelectOptionAsync(new SelectOptionValue { Label = "INV — Inventory" });
-    await page.Locator("#op-basis").FillAsync("We were unable to observe the inventory count at 31 December 2026.");
-    await page.Locator("#op-basis").PressAsync("Tab");
+    var opinionFocus = page.Locator("select[name='focus']");
+    await Assertions.Expect(opinionFocus).ToHaveCountAsync(0);
+    await page.Locator("select[name='op']").SelectOptionAsync(AuditOpinionTypes.Qualified);
+    await opinionFocus.SelectOptionAsync(new SelectOptionValue { Label = "INV — Inventory" });
+    var opinionBasis = page.GetByLabel("Basis for Qualified Opinion");
+    await opinionBasis.FillAsync("We were unable to observe the inventory count at 31 December 2026.");
+    await opinionBasis.PressAsync("Tab");
     await page.GetByRole(AriaRole.Button, new() { Name = "Record opinion (Engagement Partner)" }).ClickAsync();
     await Assertions.Expect(result).ToContainTextAsync("Qualified opinion recorded.");
     await Assertions.Expect(page.GetByText("Current opinion: Qualified — Inventory", new() { Exact = false })).ToBeVisibleAsync();
 
-    foreach (var title in new[] { "Independent Auditor's Report", "Management Representation Letter" })
+    foreach (var title in new[] { "Independent Auditor's Report", "Representation Letter" })
     {
       await page.GetByRole(AriaRole.Button, new() { Name = $"Generate {title}" }).ClickAsync();
       await Assertions.Expect(result).ToContainTextAsync($"{title} generated.");
@@ -118,21 +122,26 @@ public sealed class CompletionDeliverablesJourneyTests
     await Assertions.Expect(table).ToContainTextAsync("Independent Auditor's Report");
     var download = await page.RunAndWaitForDownloadAsync(() => table.GetByRole(AriaRole.Link, new() { Name = "Independent Auditor's Report" }).ClickAsync());
     Assert.EndsWith(".docx", download.SuggestedFilename);
-    await page.GetByRole(AriaRole.Button, new() { Name = "Share Management Representation Letter v1 with the client" }).ClickAsync();
+    var representationLetter = table.GetByRole(AriaRole.Row).Filter(new() { HasText = "Management Representation Letter" });
+    await Assertions.Expect(representationLetter).ToContainTextAsync("v1");
+    await representationLetter.GetByRole(AriaRole.Button, new() { Name = "Share Management Representation Letter v1 with the client", Exact = true }).ClickAsync();
     await Assertions.Expect(result).ToContainTextAsync("Shared with client management.");
 
     // Client management reviews in the portal.
-    var clientOrigin = await host.StartWebForIdentityAsync(f.Client);
+    var clientOrigin = await host.StartApiForIdentityAsync(f.Client);
     var clientPage = await (await browser.NewContextAsync()).NewPageAsync();
     clientPage.PageError += (_, error) => diagnostics.Add($"page-error: {error}");
     await clientPage.GotoAsync($"{clientOrigin}/auth/sign-in?returnUrl={Uri.EscapeDataString("/portal")}");
     await clientPage.GetByRole(AriaRole.Heading, new() { Name = "Documents for your review" }).WaitForAsync(new() { Timeout = 20000 });
     await clientPage.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 15000 });
     await clientPage.WaitForTimeoutAsync(500);
-    var letter = clientPage.Locator("[data-document='Management Representation Letter']");
+    var letter = clientPage.Locator("article.document").Filter(new() { HasText = "Management Representation Letter v1" });
     await Assertions.Expect(letter).ToBeVisibleAsync();
-    await clientPage.GetByRole(AriaRole.Button, new() { Name = "Acknowledge Management Representation Letter" }).ClickAsync();
-    await Assertions.Expect(clientPage.GetByText("Acknowledged. The exact version you reviewed is recorded.")).ToBeVisibleAsync();
+    await letter.GetByRole(AriaRole.Button, new() { Name = "Review this version", Exact = true }).ClickAsync();
+    await letter.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed this exact document version and hash.", Exact = true }).CheckAsync();
+    await letter.GetByRole(AriaRole.Button, new() { Name = "Acknowledge this version", Exact = true }).ClickAsync();
+    await Assertions.Expect(clientPage.GetByText("Acknowledged. The exact version reviewed is recorded.", new() { Exact = true })).ToBeVisibleAsync();
+    await letter.GetByRole(AriaRole.Button, new() { Name = "Upload signed letter", Exact = true }).ClickAsync();
     await using (var db = host.CreateDbContext())
     {
       var ack = await db.ClientDeliverableReviews.AsNoTracking().SingleAsync(x => x.EngagementId == f.EngagementId);
@@ -142,8 +151,9 @@ public sealed class CompletionDeliverablesJourneyTests
 
     await clientPage.GetByLabel("Management signatory", new() { Exact = true }).FillAsync("Authorized Executive Management");
     await clientPage.GetByLabel("Management signatory", new() { Exact = true }).PressAsync("Tab");
-    await clientPage.GetByLabel("Upload management-signed representation letter").SetInputFilesAsync(new FilePayload { Name = "signed-representation.pdf", MimeType = "application/pdf", Buffer = CompletionTestFixtures.SignedPdf() });
-    await Assertions.Expect(clientPage.GetByText("Signed PDF uploaded for this exact letter version", new() { Exact = false })).ToBeVisibleAsync();
+    await clientPage.GetByLabel("Management-signed PDF", new() { Exact = true }).SetInputFilesAsync(new FilePayload { Name = "signed-representation.pdf", MimeType = "application/pdf", Buffer = CompletionTestFixtures.SignedPdf() });
+    await letter.GetByRole(AriaRole.Button, new() { Name = "Upload signed PDF", Exact = true }).ClickAsync();
+    await Assertions.Expect(clientPage.GetByText("Signed PDF uploaded. Engagement Partner verification is pending.", new() { Exact = true })).ToBeVisibleAsync();
 
     // Back on the Partner's page: register a PNG signature, sign, and the 60-day freeze is scheduled and traced.
     await page.GotoAsync($"{origin}/app/engagements/{f.EngagementId:D}/completion");
@@ -154,9 +164,9 @@ public sealed class CompletionDeliverablesJourneyTests
     await page.GetByLabel("I reviewed this exact scan and verified management authority, signature and completeness.").CheckAsync();
     await page.GetByRole(AriaRole.Button, new() { Name = "Verify signed representation (Partner)" }).ClickAsync();
     await Assertions.Expect(result).ToContainTextAsync("Signed representation verified");
-    await page.Locator("#firm-seal-file").SetInputFilesAsync(new FilePayload { Name = "firm-seal.png", MimeType = "image/png", Buffer = Png(100, 100) });
+    await page.GetByLabel("Seal PNG").SetInputFilesAsync(new FilePayload { Name = "firm-seal.png", MimeType = "image/png", Buffer = Png(100, 100) });
     await Assertions.Expect(result).ToContainTextAsync("Approved firm seal registered");
-    await page.Locator("#signature-file").SetInputFilesAsync(new FilePayload { Name = "signature.png", MimeType = "image/png", Buffer = Png(160, 50) });
+    await page.GetByLabel("Signature PNG").SetInputFilesAsync(new FilePayload { Name = "signature.png", MimeType = "image/png", Buffer = Png(160, 50) });
     await Assertions.Expect(result).ToContainTextAsync("Signature specimen registered.");
     await page.GetByRole(AriaRole.Button, new() { Name = "Sign with registered signature" }).ClickAsync();
     await Assertions.Expect(result).ToContainTextAsync("Report signed");

@@ -1,0 +1,315 @@
+@page "/app/assessments/{Id:guid}"
+@page "/app/clients/{ClientId:guid}/assessment"
+@rendermode InteractiveServer
+@using AuditSphereOps.Domain.Acceptance
+@using AuditSphereOps.Domain.Microsoft365
+@using AuditSphereOps.Domain.Practice
+@using AuditSphereOps.Domain.Security
+@using AuditSphereOps.Application.Security
+@using AuditSphereOps.Infrastructure.Persistence
+@using Microsoft.EntityFrameworkCore
+@using AuditSphereOps.Application.Acceptance
+@using AuditSphereOps.Web.Components.Acceptance
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+@inject NavigationManager Nav
+
+<PageTitle>Client Assessment — AuditSphereOps</PageTitle>
+
+<div class="page-header">
+    <nav aria-label="breadcrumb" class="breadcrumb-nav">
+        <a href="/app">Portfolio</a> /
+        @if (_effectiveClientId.HasValue)
+        {
+            <a href="@($"/app/clients/{_effectiveClientId}")">@(_client?.LegalName ?? "Client")</a>
+            <span> / </span>
+        }
+        <span>Assessment</span>
+    </nav>
+    <PageHeader Title="Client Evaluation &amp; Continuance Assessment" Eyebrow="Acceptance and continuance" Description="Client acceptance and continuance assessment records bound to the exact client and engagement scope." />
+</div>
+
+@if (_loading)
+{
+    <LoadingState IsLoading="true" LoadingMessage="Loading assessment…" />
+}
+else if (_actor is null || !_isStaff)
+{
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+        <h2>Access unavailable</h2>
+        <p>Sign in with an authorized internal staff identity to view assessments.</p>
+    </MudAlert>
+}
+else if (_scopeDenied || _client is null)
+{
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+        <h2>Access unavailable</h2>
+        <p>The assessment is not available in the current scope.</p>
+    </MudAlert>
+}
+else
+{
+    <div class="assessment-shell audit-assessment-shell">
+        <div class="audit-record-toolbar" aria-label="Assessment context">
+            <StatusChip Status="@(_decision?.Decision ?? "Pending")" />
+            <MudLink Href="@($"/app/clients/{_client.Id}")">Client profile</MudLink>
+        </div>
+
+        <MudPaper Class="audit-workspace-panel audit-assessment-progress pa-4 my-4" Elevation="1" aria-labelledby="assessment-progress-heading" role="region">
+            <div class="audit-assessment-progress-heading">
+                <h2 id="assessment-progress-heading">Evaluation progress</h2>
+                <span>@AnsweredQuestions / @TotalQuestions responses · @ClearedSpecialists / @_clearances.Count specialist clearances</span>
+            </div>
+            @if (TotalQuestions > 0)
+            {
+                <progress value="@AnsweredQuestions" max="@TotalQuestions" aria-label="Questionnaire responses completed"></progress>
+            }
+            else
+            {
+                <p class="muted">Questionnaire progress is unavailable until question templates are loaded.</p>
+            }
+            @if (!_allSectionsClear)
+            {
+                <p class="audit-assessment-blocker" role="status">Outstanding responses or specialist clearances prevent a new acceptance decision.</p>
+            }
+        </MudPaper>
+
+        <!-- Assessment summary -->
+        <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="summary-heading" role="region">
+            <h2 id="summary-heading">Assessment Profile</h2>
+            <dl class="details audit-assessment-details">
+                <dt>Client</dt><dd>@_client.LegalName</dd>
+                <dt>Registration</dt><dd>@(_client.RegistrationNumber ?? "—")</dd>
+                <dt>Relationship State</dt><dd>@_client.Status</dd>
+                <dt>Acceptance Status</dt><dd>@(_decision?.Decision ?? "Pending Evaluation")</dd>
+                <dt>Decision Generation</dt><dd>@(_decision?.Generation.ToString() ?? "—")</dd>
+            </dl>
+        </MudPaper>
+
+        <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="workspace-heading" role="region">
+            <h2 id="workspace-heading">Client workspace</h2>
+            @if (_workspace is null)
+            {
+                <p class="muted">No accepted-client workspace intent exists. Prospect and incomplete evaluation states do not create one.</p>
+            }
+            else
+            {
+                <dl class="details audit-assessment-details">
+                    <dt>Logical workspace</dt><dd><code>@_workspace.LogicalKey</code></dd>
+                    <dt>State</dt><dd><StatusChip Status="@_workspace.State" /></dd>
+                    <dt>Access profile</dt><dd>Application mediated until direct access is separately verified.</dd>
+                </dl>
+                @if (_workspace.State == ClientWorkspaceStates.WaitingForIntegration)
+                {
+                    <p class="notice" role="status">Integration is not active. No SharePoint link is exposed and no remote folder is assumed to exist.</p>
+                }
+                else if (_workspace.State != ClientWorkspaceStates.Ready || string.IsNullOrWhiteSpace(_workspace.RemoteItemId))
+                {
+                    <p class="notice" role="status">Workspace is not verified yet. Remote identifiers and links remain hidden until provider reconciliation succeeds.</p>
+                }
+            }
+        </MudPaper>
+
+        <!-- CE / RV question sections -->
+        <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="sections-heading" role="region">
+            <h2 id="sections-heading">Question Sections (§13, §14)</h2>
+            @if (_sections.Count == 0)
+            {
+                <p class="empty-state">No question templates loaded. Question banks can be initialized from the administrative console.</p>
+            }
+            else
+            {
+                <div class="section-list">
+                    @foreach (var s in _sections)
+                    {
+                        <div class="section-row audit-assessment-section @(s.Complete ? "complete" : "incomplete")">
+                            <div>
+                                <strong>@s.SectionCode</strong> — <span class="section-label">@s.Name</span>
+                            </div>
+                            <div>
+                                <StatusChip Status="@(s.Complete ? "Completed" : "Pending")" />
+                                <span class="audit-assessment-section-count">@s.Answered / @s.Total answered</span>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </MudPaper>
+
+        @if (_flash is not null)
+        {
+            <p class="command-result success-text" role="status">@_flash</p>
+        }
+        <AcceptanceChecklistPanel @key="@($"checklist-{_client.Id}")" ClientId="_client.Id" OnChanged="RefreshAsync" />
+
+        <!-- Clearances / holds -->
+        <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="clearances-heading" role="region">
+            <h2 id="clearances-heading">Specialist Clearances (§13.3)</h2>
+            @if (_clearances.Count == 0)
+            {
+                <p class="muted">No specialist clearances currently required or recorded for this client.</p>
+            }
+            else
+            {
+                <div class="table-wrap">
+                    <MudTable Items="_clearances" Dense="true" Hover="true" Elevation="0" Class="data-table">
+  <HeaderContent><MudTh>Area</MudTh><MudTh>Specialist</MudTh><MudTh>Status</MudTh><MudTh>Evidence Ref</MudTh><MudTh>Date</MudTh></HeaderContent>
+  <RowTemplate>                                    <MudTd DataLabel="Area"><strong>@context.Area</strong></MudTd>
+                                    <MudTd DataLabel="Specialist">@context.Specialist</MudTd>
+                                    <MudTd DataLabel="Status"><StatusChip Status="@context.Status" /></MudTd>
+                                    <MudTd DataLabel="Evidence Ref">@(context.EvidenceRef ?? "—")</MudTd>
+                                    <MudTd DataLabel="Date">@(context.Date?.ToString("yyyy-MM-dd") ?? "—")</MudTd></RowTemplate>
+</MudTable>
+                </div>
+            }
+        </MudPaper>
+
+        <!-- Partner Decision -->
+        <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="decision-heading" role="region">
+            <h2 id="decision-heading">Partner Decision</h2>
+            @if (_decision is not null && _decision.Decision != "Pending")
+            {
+                <div class="audit-assessment-decision-record">
+                    <strong>Decision recorded:</strong> <StatusChip Status="@_decision.Decision" /> by Partner @(_decision.DecidedByUserId?.ToString()[..8] ?? "—") on @(_decision.DecidedAt?.ToString("yyyy-MM-dd HH:mm") ?? "—") UTC.
+                </div>
+            }
+            else if (_allSectionsClear)
+            {
+                <p class="info-text">All required evaluations and clearances are satisfied. An authorized partner may record the acceptance or continuance decision.</p>
+            }
+            else
+            {
+                <p class="warn-text">Outstanding questionnaire responses or pending specialist clearances block acceptance decision.</p>
+            }
+        </MudPaper>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid? Id { get; set; }
+    [Parameter] public Guid? ClientId { get; set; }
+
+    Guid? _effectiveClientId;
+    AuditSphereOps.Application.Abstractions.ActorContext? _actor;
+    bool _isStaff;
+    bool _loading = true;
+    bool _allSectionsClear;
+    bool _scopeDenied;
+
+    PracticeClient? _client;
+    AcceptanceDecision? _decision;
+    ClientWorkspace? _workspace;
+
+    record SectionRow(string SectionCode, string Name, int Answered, int Total, bool Complete);
+    record ClearanceRow(string Area, string Specialist, string Status, string? EvidenceRef, DateTimeOffset? Date);
+
+    List<SectionRow> _sections = [];
+    List<ClearanceRow> _clearances = [];
+    int AnsweredQuestions => _sections.Sum(x => x.Answered);
+    int TotalQuestions => _sections.Sum(x => x.Total);
+    int ClearedSpecialists => _clearances.Count(x => x.Status == "CLEARED");
+
+    string? _flash;
+    Guid? _flashFor;
+
+    // A child's confirmation must survive the reload that follows a successful command.
+    Task RefreshAsync(string message)
+    {
+        _flash = message;
+        _flashFor = ClientId ?? Id;
+        return LoadAsync(soft: true);
+    }
+
+    protected override Task OnParametersSetAsync() => LoadAsync(soft: false);
+
+    // A soft reload refreshes the numbers in place without blanking the page, so unsaved input in the checklist survives.
+    async Task LoadAsync(bool soft)
+    {
+        if (!soft)
+        {
+            if (_flashFor != (ClientId ?? Id)) _flash = null;
+            _loading = true;
+            _actor = null;
+            _isStaff = false;
+            _scopeDenied = false;
+            _allSectionsClear = false;
+            _effectiveClientId = null;
+            _client = null;
+            _decision = null;
+            _workspace = null;
+        }
+        _sections = [];
+        _clearances = [];
+
+        try
+        {
+            _actor = await ActorResolver.ResolveAsync();
+            _isStaff = _actor is not null && _actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "Staff" or "EngagementLeader" or "Auditor");
+            if (_actor is null || !_isStaff) return;
+
+            await using var db = await DbFactory.CreateDbContextAsync();
+            Guid? resolvedClientId = ClientId;
+            Guid? requestedDecisionId = null;
+            if (!resolvedClientId.HasValue && Id.HasValue)
+            {
+                resolvedClientId = await db.PracticeClients.AsNoTracking()
+                    .Where(c => c.Id == Id.Value && c.FirmId == _actor.FirmId)
+                    .Select(c => (Guid?)c.Id).SingleOrDefaultAsync();
+                if (!resolvedClientId.HasValue)
+                {
+                    requestedDecisionId = Id;
+                    resolvedClientId = await db.AcceptanceDecisions.AsNoTracking()
+                        .Where(d => d.Id == Id.Value && d.FirmId == _actor.FirmId)
+                        .Select(d => (Guid?)d.PracticeClientId).SingleOrDefaultAsync();
+                }
+            }
+            // An unknown identifier renders exactly like an out-of-scope one so identifiers are not an existence oracle.
+            if (!resolvedClientId.HasValue)
+            {
+                _scopeDenied = true;
+                return;
+            }
+
+            var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,
+                new AuthorizationRequest(_actor.FirmId, ClientId: resolvedClientId, InternalOnly: true));
+            if (!authorization.Succeeded)
+            {
+                _scopeDenied = true;
+                return;
+            }
+
+            _effectiveClientId = resolvedClientId;
+            _client = await db.PracticeClients.AsNoTracking()
+                .SingleOrDefaultAsync(c => c.Id == resolvedClientId.Value && c.FirmId == _actor.FirmId);
+            if (_client is null) return;
+
+            _decision = requestedDecisionId.HasValue
+                ? await db.AcceptanceDecisions.AsNoTracking()
+                    .SingleOrDefaultAsync(d => d.Id == requestedDecisionId.Value && d.FirmId == _actor.FirmId && d.PracticeClientId == _client.Id)
+                : await db.AcceptanceDecisions.AsNoTracking()
+                    .Where(d => d.PracticeClientId == _client.Id && d.FirmId == _actor.FirmId)
+                    .OrderByDescending(d => d.Generation).FirstOrDefaultAsync();
+
+            _workspace = await db.ClientWorkspaces.AsNoTracking()
+                .SingleOrDefaultAsync(x => x.FirmId == _actor.FirmId && x.PracticeClientId == _client.Id && x.Purpose == "PRIMARY");
+
+            // Progress and clearances reflect the path-specific checklist (new client vs continuance), not every bank.
+            var checklist = await AcceptanceChecklistService.GetAsync(db, _actor, _client.Id);
+            if (checklist.Succeeded)
+            {
+                var c = checklist.Value!;
+                foreach (var group in c.Items.GroupBy(q => q.Question.Section).OrderBy(g => g.Key, StringComparer.Ordinal))
+                {
+                    var total = group.Count();
+                    var answered = group.Count(q => q.Answer is not null);
+                    _sections.Add(new(group.Key, group.First().Question.Category, answered, total, answered == total && total > 0));
+                }
+                foreach (var clearance in c.Clearances)
+                    _clearances.Add(new(clearance.Area, string.IsNullOrEmpty(clearance.SpecialistName) ? "Unassigned" : clearance.SpecialistName,
+                        clearance.Status, clearance.EvidenceReference, clearance.ClearedAt));
+                _allSectionsClear = c.Ready;
+            }
+        }
+        finally { _loading = false; }
+    }
+}

@@ -61,7 +61,7 @@ public sealed class LivePbcBrowserJourneyTests(ITestOutputHelper output)
         Assert.Equal("VERIFIED", repository.Value?.State);
       }
 
-      var liveStaffUrl = await host.StartWebForIdentityAsync(host.Fixture.Staff,
+      var liveStaffUrl = await host.StartApiForIdentityAsync(host.Fixture.Staff,
         new Dictionary<string, string>(selectedSite) { ["PbcTransfer__LiveProvider"] = "true" });
       await host.StartLivePbcWorkerAsync(selectedSite);
 

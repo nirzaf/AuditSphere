@@ -1,0 +1,141 @@
+@* Bounded Microsoft group administration (§11): allowlisted groups only; never an AuditSphere authorization source. *@
+@using AuditSphereOps.Application.Microsoft365
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+@inject IMicrosoftGroupMembershipProvider GroupProvider
+@inject TenantAdministrationSettings Settings
+
+<MudPaper Class="audit-workspace-panel audit-admin-panel pa-4 my-3" Elevation="0" role="region" aria-labelledby="groups-heading">
+  <h3 id="groups-heading">Microsoft groups</h3>
+  <MudAlert Severity="Severity.Info" Dense="true" Class="mb-2">Membership in these groups does not grant AuditSphere access. Role-assignable and dynamic groups are refused.</MudAlert>
+  @if (!Available)
+  {
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" role="status">
+      Group membership administration is @(Settings.Options.GroupMembershipEnabled ? "enabled but not verified (GroupMember.ReadWrite.All consent must be verified first)" : "not enabled for this deployment").
+    </MudAlert>
+  }
+  else
+  {
+    <MudText Typo="Typo.subtitle2">Approve a managed group</MudText>
+    <div class="d-flex flex-wrap gap-2 align-end">
+      <MudTextField T="string" Label="Group object ID" @bind-Value="_newGroupId" MaxLength="36" id="group-object-id" />
+      <MudTextField T="string" Label="Purpose" @bind-Value="_newPurpose" MaxLength="300" id="group-purpose" />
+      <MudTextField T="string" Label="Reason" @bind-Value="_newReason" MaxLength="1000" id="group-reason" />
+      <MudButton Variant="Variant.Outlined" OnClick="ApproveAsync" Disabled="@_busy">Add to allowlist</MudButton>
+    </div>
+  }
+  @if (Groups.Count == 0)
+  {
+    <MudText Class="mt-3">No AuditSphere-managed groups are allowlisted.</MudText>
+  }
+  else
+  {
+    <MudTable Items="Groups" Dense="true" Elevation="0" Class="mt-3">
+      <HeaderContent><MudTh>Group</MudTh><MudTh>Purpose</MudTh><MudTh>Approved</MudTh><MudTh>Actions</MudTh></HeaderContent>
+      <RowTemplate>
+        <MudTd DataLabel="Group">@context.DisplayName<br /><code>@context.GroupObjectId</code></MudTd>
+        <MudTd DataLabel="Purpose">@context.Purpose</MudTd>
+        <MudTd DataLabel="Approved">@context.ApprovedAt.ToString("yyyy-MM-dd") by @context.ApprovedBy</MudTd>
+        <MudTd DataLabel="Actions">
+          <MudButton Size="Size.Small" Variant="Variant.Outlined" Disabled="@(!Available || _busy)" OnClick="() => ViewMembersAsync(context)">View members</MudButton>
+        </MudTd>
+      </RowTemplate>
+    </MudTable>
+  }
+  @if (_selected is not null)
+  {
+    <MudPaper Class="pa-3 mt-3" Outlined="true">
+      <MudText Typo="Typo.subtitle2">Members of @_selected.DisplayName (first 25)</MudText>
+      @if (_members is null || _members.Members.Count == 0) { <MudText>No user members.</MudText> }
+      else { <ul>@foreach (var member in _members.Members) { <li>@member.DisplayName (@member.UserPrincipalName)</li> }</ul> }
+      <MudText Typo="Typo.subtitle2" Class="mt-2">Change membership</MudText>
+      <div class="d-flex flex-wrap gap-2 align-end">
+        <MudSelect T="Guid?" Label="AuditSphere user" @bind-Value="_memberUserId" id="group-member-user">
+          @foreach (var user in Users) { <MudSelectItem T="Guid?" Value="@user.UserId">@user.DisplayName (@user.MicrosoftIdentity)</MudSelectItem> }
+        </MudSelect>
+        <MudTextField T="string" Label="Reason" @bind-Value="_memberReason" MaxLength="1000" id="group-member-reason" />
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="() => ChangeAsync(true)" Disabled="@_busy">Add member</MudButton>
+        <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="() => ChangeAsync(false)" Disabled="@_busy">Remove member</MudButton>
+      </div>
+    </MudPaper>
+  }
+  @if (_lastChange is not null)
+  {
+    <MudAlert Severity="@(_lastChange.State is "ACCEPTED" or "NO_CHANGE" ? Severity.Success : Severity.Warning)" Class="mt-2" role="status">
+      <div><strong>Group:</strong> @_selected?.DisplayName · <strong>User:</strong> @Users.FirstOrDefault(x => x.UserId == _memberUserId)?.DisplayName</div>
+      <div><strong>Existing membership:</strong> @(_lastChange.ExistingMembership ? "Member" : "Not a member") · <strong>Requested change:</strong> @_lastRequested</div>
+      <div><strong>Microsoft result:</strong> <StatusChip Status="@_lastChange.State" /> @_lastChange.Message @(_lastChange.CorrelationId is null ? "" : $"(request {_lastChange.CorrelationId})")</div>
+    </MudAlert>
+  }
+  @if (!string.IsNullOrWhiteSpace(_error)) { <MudAlert Severity="Severity.Error" Dense="true" Class="mt-2" role="alert">@_error</MudAlert> }
+</MudPaper>
+
+@code {
+  [Parameter] public bool Available { get; set; }
+  [Parameter] public IReadOnlyList<ManagedGroupRow> Groups { get; set; } = [];
+  [Parameter] public IReadOnlyList<UserAccessRow> Users { get; set; } = [];
+  [Parameter] public EventCallback Changed { get; set; }
+
+  private string _newGroupId = string.Empty, _newPurpose = string.Empty, _newReason = string.Empty, _memberReason = string.Empty, _lastRequested = string.Empty;
+  private ManagedGroupRow? _selected;
+  private DirectoryGroupMemberPage? _members;
+  private Guid? _memberUserId;
+  private GroupMembershipChangeResult? _lastChange;
+  private bool _busy;
+  private string? _error;
+
+  private async Task<ActorContext?> ActorAsync()
+  {
+    var actor = await ActorResolver.ResolveAsync();
+    if (actor is null) _error = "Your session is no longer authorized.";
+    return actor;
+  }
+
+  private async Task ApproveAsync()
+  {
+    _busy = true; _error = null;
+    try
+    {
+      if (await ActorAsync() is not { } actor) return;
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await ManagedGroupService.ApproveGroupAsync(db, actor, GroupProvider, Settings.Options,
+        _newGroupId.Trim(), _newPurpose, _newReason, DateTimeOffset.UtcNow);
+      if (!result.Succeeded) { _error = result.Message; return; }
+      _newGroupId = _newPurpose = _newReason = string.Empty;
+      await Changed.InvokeAsync();
+    }
+    finally { _busy = false; }
+  }
+
+  private async Task ViewMembersAsync(ManagedGroupRow group)
+  {
+    _busy = true; _error = null; _selected = group; _members = null; _lastChange = null;
+    try
+    {
+      if (await ActorAsync() is not { } actor) return;
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await ManagedGroupService.ListMembersAsync(db, actor, GroupProvider, Settings.Options, group.Id, null, DateTimeOffset.UtcNow);
+      if (result.Succeeded) _members = result.Value; else _error = result.Message;
+    }
+    finally { _busy = false; }
+  }
+
+  private async Task ChangeAsync(bool add)
+  {
+    if (_selected is null || !_memberUserId.HasValue) { _error = "Choose a user."; return; }
+    _busy = true; _error = null; _lastRequested = add ? "Add" : "Remove";
+    try
+    {
+      if (await ActorAsync() is not { } actor) return;
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await ManagedGroupService.ChangeMembershipAsync(db, actor, GroupProvider, Settings.Options,
+        new("group-" + Guid.NewGuid().ToString("N"), _selected.Id, _memberUserId.Value, add, _memberReason), DateTimeOffset.UtcNow);
+      if (!result.Succeeded) { _error = result.Message; return; }
+      _lastChange = result.Value;
+      var members = await ManagedGroupService.ListMembersAsync(db, actor, GroupProvider, Settings.Options, _selected.Id, null, DateTimeOffset.UtcNow);
+      if (members.Succeeded) _members = members.Value;
+      await Changed.InvokeAsync();
+    }
+    finally { _busy = false; }
+  }
+}

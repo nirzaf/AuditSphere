@@ -1,0 +1,85 @@
+@page "/app/practice/analytics"
+@rendermode InteractiveServer
+@using AuditSphereOps.Application.Practice
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
+<PageTitle>Practice analytics</PageTitle>
+<PageHeader Title="Practice analytics" Eyebrow="Economics" Description="Engagement profitability, realization, budget variance, utilization and milestone performance from approved records, with every formula stated." />
+
+<div class="audit-inline-form" aria-label="Reporting period">
+  <label for="an-from">From <input id="an-from" type="date" @bind="_from" /></label>
+  <label for="an-to">To <input id="an-to" type="date" @bind="_to" /></label>
+  <MudButton Variant="Variant.Outlined" OnClick="LoadAsync">Show</MudButton>
+</div>
+
+@if (_view is null)
+{
+  <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="alert"><p>@(_message ?? "Loading…")</p></MudAlert>
+}
+else
+{
+  <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" role="region" aria-labelledby="econ-heading">
+    <h2 id="econ-heading">Engagement economics</h2>
+    <div class="table-wrap">
+      <table class="statement-table" aria-label="Engagement economics">
+        <thead><tr><th>Engagement</th><th class="num">Budget h</th><th class="num">Actual h</th><th class="num">Standard value</th><th class="num">Cost</th><th class="num">Billed</th><th class="num">Collected</th><th class="num">Realization</th><th class="num">Collection</th><th class="num">Profit</th><th class="num">Margin</th><th class="num">Contract fee</th><th class="num">Lifetime standard value</th><th class="num">Fee less standard value</th></tr></thead>
+        <tbody>
+          @foreach (var r in _view.Engagements)
+          {
+            <tr>
+              <th scope="row">@r.Label</th>
+              <td class="num">@((r.BudgetMinutes / 60m).ToString("N1"))</td><td class="num">@((r.ActualMinutes / 60m).ToString("N1"))</td>
+              <td class="num">@r.StandardValue.ToString("N2")</td><td class="num">@(r.CostComplete ? r.ActualCost.ToString("N2") : $"{r.ActualCost:N2} (partial)")</td>
+              <td class="num">@r.Billed.ToString("N2")</td><td class="num">@r.Collected.ToString("N2")</td>
+              <td class="num">@Pct(r.RealizationPercent)</td><td class="num">@Pct(r.CollectionPercent)</td>
+              <td class="num">@r.Profit.ToString("N2")</td><td class="num">@Pct(r.MarginPercent)</td>
+              <td class="num">@(r.ContractedFee?.ToString("N2") ?? "Unavailable") @r.ContractCurrency</td>
+              <td class="num">@(r.LifetimeStandardValue?.ToString("N2") ?? "Unavailable") @r.ContractCurrency</td>
+              <td class="num">@(r.ContractedFeeLessStandardValue?.ToString("N2") ?? "Unavailable") @r.ContractCurrency</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </MudPaper>
+  <MudGrid Spacing="2">
+    <MudItem xs="12" md="6">
+      <MudPaper Class="audit-workspace-panel pa-4" Elevation="1" role="region" aria-labelledby="util-heading">
+        <h2 id="util-heading">Utilization by department</h2>
+        <ul aria-label="Department utilization">@foreach (var d in _view.Departments) { <li>@d.Department: @Pct(d.UtilizationPercent) of @((d.CapacityMinutes / 60m).ToString("N0")) h capacity (target @Pct(d.TargetPercent))</li> }</ul>
+      </MudPaper>
+    </MudItem>
+    <MudItem xs="12" md="6">
+      <MudPaper Class="audit-workspace-panel pa-4" Elevation="1" role="region" aria-labelledby="milestone-heading">
+        <h2 id="milestone-heading">Milestone performance</h2>
+        <p aria-label="Milestone performance">@_view.Milestones.Due due · @_view.Milestones.CompletedOnTime on time · @_view.Milestones.CompletedLate late · @_view.Milestones.Overdue overdue · on-time @Pct(_view.Milestones.OnTimePercent)</p>
+      </MudPaper>
+    </MudItem>
+  </MudGrid>
+  <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" role="region" aria-labelledby="defs-heading">
+    <h2 id="defs-heading">Definitions</h2>
+    <ul>@foreach (var d in _view.Definitions) { <li>@d</li> }</ul>
+  </MudPaper>
+}
+
+@code {
+  private DateTime _from = new(DateTime.Today.Year, 1, 1), _to = DateTime.Today;
+  private PracticeAnalyticsView? _view;
+  private string? _message;
+
+  private static string Pct(decimal? value) => value is null ? "n/a" : $"{value:0.#}%";
+
+  protected override Task OnInitializedAsync() => LoadAsync();
+
+  private async Task LoadAsync()
+  {
+    _view = null;
+    var actor = await ActorResolver.ResolveAsync();
+    if (actor is null) { _message = "Sign in with a staff identity."; return; }
+    await using var db = await DbFactory.CreateDbContextAsync();
+    var result = await PracticeAnalyticsQuery.GetAsync(db, actor, DateOnly.FromDateTime(_from), DateOnly.FromDateTime(_to));
+    _view = result.Succeeded ? result.Value : null;
+    _message = result.Succeeded ? null : result.Message;
+  }
+}

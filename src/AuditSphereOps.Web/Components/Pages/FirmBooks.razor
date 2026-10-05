@@ -1,0 +1,135 @@
+@page "/app/finance/books"
+@rendermode InteractiveServer
+@using AuditSphereOps.Application.Practice
+@using AuditSphereOps.Domain.Practice
+@using Microsoft.AspNetCore.Components.Forms
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
+<PageTitle>Firm books</PageTitle>
+<PageHeader Title="Firm books" Eyebrow="Economics" Description="The firm's own operating expenses with source documents, posted through the firm ledger after independent review, and the calculated firm trial balance." />
+
+<MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" role="region" aria-labelledby="expense-heading">
+  <h2 id="expense-heading">Operating expenses</h2>
+  <div class="audit-inline-form">
+    <label for="ex-date">Date <input id="ex-date" type="date" @bind="_date" /></label>
+    <label for="ex-category">Category <select id="ex-category" @bind="_category">@foreach (var c in FirmExpenseCategories.All) { <option value="@c">@c.Replace('_', ' ').ToLowerInvariant()</option> }</select></label>
+    <label for="ex-payee">Payee <input id="ex-payee" @bind="_payee" maxlength="200" /></label>
+    <label for="ex-description">Description <input id="ex-description" @bind="_description" maxlength="500" /></label>
+    <label for="ex-amount">Amount <input id="ex-amount" type="number" step="0.01" @bind="_amount" /></label>
+    <label for="ex-currency">Currency <input id="ex-currency" @bind="_currency" maxlength="3" /></label>
+    <label for="ex-expense-account">Expense account <select id="ex-expense-account" @bind="_expenseAccount"><option value="">Select</option>@foreach (var a in _accounts.Where(a => a.AccountType == LedgerStates.AccountExpense)) { <option value="@a.Id">@a.Code @a.Name</option> }</select></label>
+    <label for="ex-payment-account">Paid from <select id="ex-payment-account" @bind="_paymentAccount"><option value="">Select</option>@foreach (var a in _accounts.Where(a => a.AccountType is LedgerStates.AccountAsset or LedgerStates.AccountLiability)) { <option value="@a.Id">@a.Code @a.Name</option> }</select></label>
+    <label for="ex-evidence">Source document <InputFile id="ex-evidence" OnChange="OnEvidenceAsync" /></label>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="RecordAsync" Disabled="@_busy">Record expense</MudButton>
+  </div>
+  <MudTable Items="_expenses" Dense="true" Elevation="0" aria-label="Firm expenses">
+    <HeaderContent><MudTh>Date</MudTh><MudTh>Category</MudTh><MudTh>Payee</MudTh><MudTh>Amount</MudTh><MudTh>Evidence</MudTh><MudTh>Status</MudTh><MudTh><span class="sr-only">Actions</span></MudTh></HeaderContent>
+    <RowTemplate>
+      <MudTd DataLabel="Date">@context.ExpenseDate.ToString("yyyy-MM-dd")</MudTd>
+      <MudTd DataLabel="Category">@context.Category</MudTd>
+      <MudTd DataLabel="Payee">@context.Payee</MudTd>
+      <MudTd DataLabel="Amount">@context.Amount.ToString("N2") @context.Currency</MudTd>
+      <MudTd DataLabel="Evidence">@context.EvidenceFileName <code>@context.EvidenceSha256[..10]</code></MudTd>
+      <MudTd DataLabel="Status"><StatusChip Status="@context.Status" /></MudTd>
+      <MudTd DataLabel="Actions">
+        @if (context.Status == FirmExpenseStates.Draft) { <MudButton Variant="Variant.Text" OnClick="@(() => SubmitAsync(context.Id))" Disabled="@_busy">Submit</MudButton> }
+        @if (context.Status == FirmExpenseStates.Submitted)
+        {
+          <MudButton Variant="Variant.Text" OnClick="@(() => ReviewAsync(context.Id, true))" Disabled="@_busy">Approve</MudButton>
+          <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="@(() => ReviewAsync(context.Id, false))" Disabled="@_busy">Reject</MudButton>
+        }
+        @if (context.Status == FirmExpenseStates.Approved) { <MudButton Variant="Variant.Text" OnClick="@(() => PostAsync(context.Id))" Disabled="@_busy">Post to ledger</MudButton> }
+      </MudTd>
+    </RowTemplate>
+  </MudTable>
+</MudPaper>
+
+<MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" role="region" aria-labelledby="ftb-heading">
+  <h2 id="ftb-heading">Firm trial balance</h2>
+  <div class="audit-inline-form">
+    <label for="ftb-from">From period <input id="ftb-from" @bind="_fromPeriod" maxlength="7" placeholder="YYYY-MM" /></label>
+    <label for="ftb-to">To period <input id="ftb-to" @bind="_toPeriod" maxlength="7" placeholder="YYYY-MM" /></label>
+    <MudButton Variant="Variant.Outlined" OnClick="TrialBalanceAsync">Calculate</MudButton>
+  </div>
+  @if (_tb is not null)
+  {
+    <div class="table-wrap">
+      <table class="statement-table" aria-label="Firm trial balance">
+        <thead><tr><th>Account</th><th class="num">Opening Dr</th><th class="num">Opening Cr</th><th class="num">Movement Dr</th><th class="num">Movement Cr</th><th class="num">Closing Dr</th><th class="num">Closing Cr</th></tr></thead>
+        <tbody>@foreach (var r in _tb.Rows) { <tr><th scope="row">@r.Code @r.Name</th><td class="num">@r.OpeningDebit.ToString("N2")</td><td class="num">@r.OpeningCredit.ToString("N2")</td><td class="num">@r.MovementDebit.ToString("N2")</td><td class="num">@r.MovementCredit.ToString("N2")</td><td class="num">@r.ClosingDebit.ToString("N2")</td><td class="num">@r.ClosingCredit.ToString("N2")</td></tr> }</tbody>
+        <tfoot><tr><th>Totals</th><td></td><td></td><td></td><td></td><td class="num"><strong>@_tb.TotalDebit.ToString("N2")</strong></td><td class="num"><strong>@_tb.TotalCredit.ToString("N2")</strong></td></tr></tfoot>
+      </table>
+    </div>
+    <p aria-label="Firm financial summary">@(_tb.Balanced ? "Balanced." : "NOT balanced.") Revenue @_tb.Revenue.ToString("N2"), expenses @_tb.Expenses.ToString("N2"), profit @_tb.Profit.ToString("N2"). Assets @_tb.Assets.ToString("N2") = liabilities @_tb.Liabilities.ToString("N2") + equity @_tb.Equity.ToString("N2") + profit: @(_tb.PositionReconciles ? "reconciles" : "does not reconcile").</p>
+  }
+</MudPaper>
+@if (_message is not null) { <p class="command-result @(_error ? "error-text" : "success-text")" role="status">@_message</p> }
+
+@code {
+  private DateTime _date = DateTime.Today;
+  private string _category = FirmExpenseCategories.Rent, _payee = "", _description = "", _currency = "QAR", _expenseAccount = "", _paymentAccount = "";
+  private string _fromPeriod = DateTime.Today.ToString("yyyy-MM"), _toPeriod = DateTime.Today.ToString("yyyy-MM");
+  private decimal _amount;
+  private byte[]? _evidence;
+  private string _evidenceName = "", _evidenceType = "";
+  private List<FirmAccount> _accounts = [];
+  private IReadOnlyList<FirmExpense> _expenses = [];
+  private FirmTrialBalanceView? _tb;
+  private bool _busy, _error;
+  private string? _message;
+
+  protected override Task OnInitializedAsync() => LoadAsync();
+
+  private async Task LoadAsync()
+  {
+    var actor = await ActorResolver.ResolveAsync();
+    if (actor is null) return;
+    await using var db = await DbFactory.CreateDbContextAsync();
+    _accounts = await db.FirmAccounts.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.PostingAllowed).OrderBy(x => x.Code).ToListAsync();
+    _expenses = await FirmExpenseService.ListAsync(db, actor);
+  }
+
+  private async Task OnEvidenceAsync(InputFileChangeEventArgs e)
+  {
+    using var stream = e.File.OpenReadStream(FirmExpenseService.MaxEvidenceBytes);
+    using var buffer = new MemoryStream();
+    await stream.CopyToAsync(buffer);
+    (_evidence, _evidenceName, _evidenceType) = (buffer.ToArray(), e.File.Name, e.File.ContentType);
+  }
+
+  private async Task RunAsync(Func<AuditSphereDbContext, ActorContext, Task<CommandResult>> command, string ok)
+  {
+    var actor = await ActorResolver.ResolveAsync();
+    if (actor is null) return;
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await command(db, actor);
+      (_error, _message) = result.Succeeded ? (false, ok) : (true, result.Message);
+      await LoadAsync();
+    }
+    finally { _busy = false; }
+  }
+
+  private static CommandResult Plain<T>(CommandResult<T> r) => r.Succeeded ? CommandResult.Ok() : CommandResult.Fail(r.ErrorCode!, r.Message!);
+
+  private Task RecordAsync() => Guid.TryParse(_expenseAccount, out var expense) && Guid.TryParse(_paymentAccount, out var payment)
+    ? RunAsync(async (db, a) => Plain(await FirmExpenseService.RecordAsync(db, a, new(DateOnly.FromDateTime(_date), _category, _payee, _description, _amount, _currency, expense, payment,
+        _evidenceName, _evidenceType, _evidence ?? []))), "Expense recorded as a draft.")
+    : Task.CompletedTask;
+  private Task SubmitAsync(Guid id) => RunAsync((db, a) => FirmExpenseService.SubmitAsync(db, a, id), "Submitted; its journal awaits review.");
+  private Task ReviewAsync(Guid id, bool approve) => RunAsync((db, a) => FirmExpenseService.ReviewAsync(db, a, id, approve, approve ? "Agreed to the source document." : "Returned for correction."), approve ? "Approved." : "Rejected.");
+  private Task PostAsync(Guid id) => RunAsync(async (db, a) => Plain(await FirmExpenseService.PostAsync(db, a, id)), "Posted to the firm ledger.");
+
+  private async Task TrialBalanceAsync()
+  {
+    var actor = await ActorResolver.ResolveAsync();
+    if (actor is null) return;
+    await using var db = await DbFactory.CreateDbContextAsync();
+    var result = await FirmExpenseService.TrialBalanceAsync(db, actor, _fromPeriod.Trim(), _toPeriod.Trim());
+    _tb = result.Succeeded ? result.Value : null;
+    (_error, _message) = result.Succeeded ? (false, null) : (true, result.Message);
+  }
+}

@@ -1,0 +1,255 @@
+@page "/app/finance"
+@rendermode InteractiveServer
+@using AuditSphereOps.Application.Practice
+@using AuditSphereOps.Domain.Practice
+@using AuditSphereOps.Domain.Security
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
+<PageTitle>Firm ledger</PageTitle>
+<MudLink Href="/app" Class="back-link mb-2 d-inline-block">← Back to portfolio</MudLink>
+<PageHeader Title="Firm ledger &amp; financial operations" Eyebrow="Firm economics" Description="Restricted firm-ledger operations (§41.3). Firm accounts, balanced postings, and period close decisions enforce exact monetary balance and strict immutability." />
+<MudButton Color="Color.Primary" Variant="Variant.Outlined" Class="button-secondary" OnClick="LoadFinanceDataAsync" Disabled="@(_loading || _busy)">Refresh firm ledger</MudButton>
+
+@if (_loading)
+{
+  <LoadingState IsLoading="true" LoadingMessage="Loading firm finance records…" />
+}
+else if (_actor is null || !_isAuthorized)
+{
+  <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+    <h2>Access unavailable</h2>
+    <MudText Typo="Typo.body2">Sign in with an authorized finance identity to access the firm ledger.</MudText>
+  </MudAlert>
+}
+else
+{
+  <MudGrid Spacing="2" Class="audit-practice-metrics mb-4">
+    <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Fiscal periods</MudText><MudText Typo="Typo.h4">@_periods.Count</MudText></MudPaper></MudItem>
+    <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Firm accounts</MudText><MudText Typo="Typo.h4">@_accounts.Count</MudText></MudPaper></MudItem>
+    <MudItem xs="12" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Recent postings shown</MudText><MudText Typo="Typo.h4">@_postings.Count</MudText></MudPaper></MudItem>
+  </MudGrid>
+
+  @if (_result is not null)
+  {
+    <p class="command-result @(_result.Succeeded ? "success-text" : "error-text")" role="status">
+      @(_result.Succeeded ? (_successMessage ?? "Action completed successfully.") : "Blocked: " + _result.ErrorCode)
+    </p>
+  }
+
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="periods-heading" role="region">
+    <h2 id="periods-heading">Fiscal periods</h2>
+    @if (_periods.Count == 0)
+    {
+      <MudText Typo="Typo.body2" Color="Color.Secondary" Class="muted">No fiscal periods are configured for this firm.</MudText>
+    }
+    else
+    {
+      <MudTable Items="_periods" Dense="true" Hover="true" Elevation="0">
+        <HeaderContent>
+          <MudTh>Period Code</MudTh>
+          <MudTh>Status</MudTh>
+          <MudTh>Revision</MudTh>
+          <MudTh>Closed Date</MudTh>
+          <MudTh><span class="sr-only">Actions</span></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+          <MudTd DataLabel="Period Code"><strong>@context.PeriodCode</strong></MudTd>
+          <MudTd DataLabel="Status"><StatusChip Status="@context.Status" /></MudTd>
+          <MudTd DataLabel="Revision">Rev @context.Revision</MudTd>
+          <MudTd DataLabel="Closed Date">@(context.ClosedAt.HasValue ? context.ClosedAt.Value.ToString("yyyy-MM-dd HH:mm") : "—")</MudTd>
+          <MudTd DataLabel="Actions">
+            @if (context.Status == LedgerStates.PeriodOpen && _canClosePeriod)
+            {
+              <MudButton Color="Color.Primary" Variant="Variant.Filled" Size="Size.Small" Class="button small" OnClick="() => PromptClosePeriod(context.Id)" Disabled="@_busy">Close period</MudButton>
+            }
+          </MudTd>
+        </RowTemplate>
+        <PagerContent>
+          <MudTablePager PageSizeOptions="new int[] { 10, 25, 50 }" />
+        </PagerContent>
+      </MudTable>
+    }
+
+    @if (_selectedPeriodIdToClose.HasValue)
+    {
+      <MudPaper Class="pa-4 mt-4" Outlined="true">
+        <h3>Confirm period close</h3>
+        <p class="scope-note">Closing a fiscal period freezes it. All journals within the period must be posted prior to close.</p>
+        <MudTextField @bind-Value="_closeReason" Label="Close reason" Placeholder="e.g. Year-end financial close" Disabled="@_busy" Required="true" Class="my-2" />
+        <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem;">
+          <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="ExecuteClosePeriodAsync" Disabled="@_busy">Confirm close</MudButton>
+          <MudButton Variant="Variant.Text" OnClick="() => _selectedPeriodIdToClose = null" Disabled="@_busy">Cancel</MudButton>
+        </div>
+      </MudPaper>
+    }
+  </MudPaper>
+
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="accounts-heading" role="region">
+    <h2 id="accounts-heading">Chart of firm accounts</h2>
+    @if (_accounts.Count == 0)
+    {
+      <MudText Typo="Typo.body2" Color="Color.Secondary" Class="muted">No firm posting accounts are configured.</MudText>
+    }
+    else
+    {
+      <MudTable Items="_accounts" Dense="true" Hover="true" Elevation="0">
+        <HeaderContent>
+          <MudTh>Code</MudTh>
+          <MudTh>Account Name</MudTh>
+          <MudTh>Type</MudTh>
+          <MudTh>Normal Side</MudTh>
+          <MudTh>Posting Allowed</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+          <MudTd DataLabel="Code"><code>@context.Code</code></MudTd>
+          <MudTd DataLabel="Account Name">@context.Name</MudTd>
+          <MudTd DataLabel="Type">@context.AccountType</MudTd>
+          <MudTd DataLabel="Normal Side">@context.NormalSide</MudTd>
+          <MudTd DataLabel="Posting Allowed">@(context.PostingAllowed ? "Yes" : "No")</MudTd>
+        </RowTemplate>
+        <PagerContent>
+          <MudTablePager PageSizeOptions="new int[] { 10, 25, 50 }" />
+        </PagerContent>
+      </MudTable>
+    }
+  </MudPaper>
+
+  <MudPaper  Class="pa-4 my-4" Elevation="1" aria-labelledby="postings-heading" role="region">
+    <h2 id="postings-heading">Recent firm postings</h2>
+    @if (_postings.Count == 0)
+    {
+      <MudText Typo="Typo.body2" Color="Color.Secondary" Class="muted">No immutable postings recorded in the firm ledger yet.</MudText>
+    }
+    else
+    {
+      <MudTable Items="_postings" Dense="true" Hover="true" Elevation="0">
+        <HeaderContent>
+          <MudTh>Posting ID</MudTh>
+          <MudTh>Posted Date</MudTh>
+          <MudTh>Currency</MudTh>
+          <MudTh>Posted By</MudTh>
+          <MudTh>Reversal</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+          <MudTd DataLabel="Posting ID"><code>@context.Id</code></MudTd>
+          <MudTd DataLabel="Posted Date">@context.PostedAt.ToString("yyyy-MM-dd HH:mm") UTC</MudTd>
+          <MudTd DataLabel="Currency">@context.Currency</MudTd>
+          <MudTd DataLabel="Posted By"><code>@context.PostedByUserId</code></MudTd>
+          <MudTd DataLabel="Reversal">@(context.ReversalOfPostingId.HasValue ? $"Reversal of {context.ReversalOfPostingId.Value}" : "—")</MudTd>
+        </RowTemplate>
+        <PagerContent>
+          <MudTablePager PageSizeOptions="new int[] { 10, 25, 50 }" />
+        </PagerContent>
+      </MudTable>
+    }
+  </MudPaper>
+}
+
+@code {
+  private ActorContext? _actor;
+  private bool _isAuthorized;
+  private bool _canClosePeriod;
+  private List<FirmPeriod> _periods = [];
+  private List<FirmAccount> _accounts = [];
+  private List<FirmPosting> _postings = [];
+  private Guid? _selectedPeriodIdToClose;
+  private string _closeReason = "Standard accounting period close";
+  private CommandResult? _result;
+  private string? _successMessage;
+  private bool _loading = true;
+  private bool _busy;
+  private long _loadGeneration;
+
+  protected override Task OnInitializedAsync() => LoadFinanceDataAsync();
+
+  private void ClearProtectedState()
+  {
+    _actor = null;
+    _isAuthorized = false;
+    _canClosePeriod = false;
+    _periods = [];
+    _accounts = [];
+    _postings = [];
+    _selectedPeriodIdToClose = null;
+    _closeReason = "Standard accounting period close";
+    _result = null;
+    _successMessage = null;
+  }
+
+  private async Task LoadFinanceDataAsync()
+  {
+    var generation = ++_loadGeneration;
+    _loading = true;
+    ClearProtectedState();
+    try
+    {
+      var actor = await ActorResolver.ResolveAsync();
+      if (actor is null || generation != _loadGeneration) return;
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await FirmFinanceQuery.GetAsync(db, actor);
+      if (!result.Succeeded || generation != _loadGeneration) return;
+      var currentActor = await ActorResolver.ResolveAsync();
+      if (currentActor is null || currentActor.UserId != actor.UserId ||
+          currentActor.FirmId != actor.FirmId || currentActor.SessionEpoch != actor.SessionEpoch ||
+          generation != _loadGeneration) return;
+      var snapshot = result.Value!;
+      _actor = currentActor;
+      _isAuthorized = true;
+      _canClosePeriod = snapshot.CanClosePeriod;
+      _periods = snapshot.Periods;
+      _accounts = snapshot.Accounts;
+      _postings = snapshot.RecentPostings;
+    }
+    finally { if (generation == _loadGeneration) _loading = false; }
+  }
+
+  private async Task<ActorContext?> CurrentFinanceActorAsync()
+  {
+    if (_actor is null) return null;
+    var current = await ActorResolver.ResolveAsync();
+    if (current is null || current.UserId != _actor.UserId ||
+        current.FirmId != _actor.FirmId || current.SessionEpoch != _actor.SessionEpoch)
+    {
+      ClearProtectedState();
+      return null;
+    }
+    return current;
+  }
+
+  private void PromptClosePeriod(Guid periodId)
+  {
+    _selectedPeriodIdToClose = periodId;
+    _closeReason = "Standard accounting period close";
+  }
+
+  private async Task ExecuteClosePeriodAsync()
+  {
+    if (!_selectedPeriodIdToClose.HasValue || _busy) return;
+    _busy = true;
+    _result = null;
+    try
+    {
+      var actor = await CurrentFinanceActorAsync();
+      if (actor is null) return;
+      var periodId = _selectedPeriodIdToClose.Value;
+      var reason = _closeReason;
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var res = await LedgerService.CloseFiscalPeriodAsync(db, actor, periodId, reason);
+      if (res.Succeeded)
+      {
+        await LoadFinanceDataAsync();
+        if (_isAuthorized)
+        {
+          _result = res;
+          _successMessage = "Fiscal period successfully closed.";
+        }
+      }
+      else if (res.ErrorCode is ErrorCodes.ScopeDenied or ErrorCodes.GenerationStale)
+        ClearProtectedState();
+      else
+        _result = res;
+    }
+    finally { _busy = false; }
+  }
+}

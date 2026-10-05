@@ -1,5 +1,6 @@
 using System.Text.Json;
 using AuditSphereOps.Domain.Microsoft365;
+using AuditSphereOps.Domain.Security;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
 
@@ -13,8 +14,8 @@ public sealed class AngularTenantOperationsJourneyTests
   public async Task ReviewedProvisioning_OneTimePassword_GuestScope_AndUnknownRecovery()
   {
     await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-TENANT-PROVISIONING-E2E");
-    var seeded = await TenantAdministrationJourneyTests.SeedAsync(host, verified: true);
-    var settings = TenantAdministrationJourneyTests.Simulation(seeded); settings["AngularUi__Enabled"] = "true";
+    var seeded = await TenantAdministrationSeed.SeedAsync(host, verified: true);
+    var settings = TenantAdministrationSeed.Simulation(seeded); settings["AngularUi__Enabled"] = "true";
     var origin = await host.StartApiForIdentityAsync(seeded.Admin, settings);
     using var playwright = await Playwright.CreateAsync(); await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var context = await browser.NewContextAsync(); var page = await context.NewPageAsync();
@@ -89,13 +90,31 @@ public sealed class AngularTenantOperationsJourneyTests
     dialog = await Review("angular.finance@client.test", invite: true);
     await Assertions.Expect(dialog).ToContainTextAsync("Guest invited and bound");
     await dialog.GetByRole(AriaRole.Button, new() { Name = "Close", Exact = true }).ClickAsync();
+    AppUser guest;
     await using (var db = host.CreateDbContext())
     {
-      var user = await db.Users.SingleAsync(x => x.Email == "angular.finance@client.test");
-      Assert.Equal("Client", user.UserKind);
-      var grant = await db.RoleGrants.SingleAsync(x => x.UserId == user.Id);
+      guest = await db.Users.SingleAsync(x => x.Email == "angular.finance@client.test");
+      Assert.Equal("Client", guest.UserKind);
+      var grant = await db.RoleGrants.SingleAsync(x => x.UserId == guest.Id);
       Assert.Equal("ClientUser", grant.Role); Assert.Equal(host.Fixture.ClientId, grant.ClientId); Assert.Equal(host.Fixture.EngagementId, grant.EngagementId);
     }
+    var guestOrigin = await host.StartApiForIdentityAsync(guest,
+      new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
+    var guestPage = await context.NewPageAsync();
+    guestPage.PageError += (_, error) => errors.Add($"guest-page-error: {error}");
+    await guestPage.GotoAsync(guestOrigin + "/auth/sign-in?returnUrl=%2Fui%2Fapp%2Fadministration%2Fusers");
+    await Assertions.Expect(guestPage.GetByRole(AriaRole.Heading, new() { Name = "Complete your first sign-in", Exact = true }))
+      .ToBeVisibleAsync(new() { Timeout = 15000 });
+    await guestPage.GetByLabel("I will keep my sign-in private, use multi-factor sign-in, and upload only requested files.", new() { Exact = true }).CheckAsync();
+    await guestPage.GetByRole(AriaRole.Button, new() { Name = "Complete first sign-in", Exact = true }).ClickAsync();
+    await Assertions.Expect(guestPage.Locator("body")).ToContainTextAsync("First sign-in complete. Uploads are open for your requests.");
+    await guestPage.GotoAsync(guestOrigin + "/app/administration/users");
+    await Assertions.Expect(guestPage.GetByRole(AriaRole.Heading, new() { Name = "Client portal", Exact = true }))
+      .ToBeVisibleAsync(new() { Timeout = 15000 });
+    var guestBody = await guestPage.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain("Users & Access", guestBody);
+    Assert.DoesNotContain("Setup progress", guestBody);
+    Assert.DoesNotContain(seeded.Admin.Email, guestBody);
     Assert.Empty(errors);
   }
 
@@ -104,8 +123,8 @@ public sealed class AngularTenantOperationsJourneyTests
   public async Task GroupAllowlist_ReviewedAddRemove_AndRetirement_PreserveLocalAuthority()
   {
     await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-TENANT-GROUPS-E2E");
-    var seeded = await TenantAdministrationJourneyTests.SeedAsync(host, verified: true);
-    var settings = TenantAdministrationJourneyTests.Simulation(seeded); settings["AngularUi__Enabled"] = "true";
+    var seeded = await TenantAdministrationSeed.SeedAsync(host, verified: true);
+    var settings = TenantAdministrationSeed.Simulation(seeded); settings["AngularUi__Enabled"] = "true";
     var origin = await host.StartApiForIdentityAsync(seeded.Admin, settings);
     using var playwright = await Playwright.CreateAsync(); await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var context = await browser.NewContextAsync(); var page = await context.NewPageAsync();
@@ -154,6 +173,22 @@ public sealed class AngularTenantOperationsJourneyTests
       Assert.Single(await db.RoleGrants.Where(x => x.UserId == seeded.Admin.Id).ToListAsync());
     }
     await dialog.GetByRole(AriaRole.Button, new() { Name = "Close", Exact = true }).ClickAsync();
+
+    await using (var db = host.CreateDbContext())
+    {
+      db.TenantCapabilityVerifications.Add(new TenantCapabilityVerification
+      {
+        Id = Guid.CreateVersion7(), FirmId = host.Fixture.FirmId, TenantId = seeded.TenantId,
+        Capability = Microsoft365Capabilities.GuestInvitation, Permission = "User.Invite.All",
+        State = CapabilityVerificationStates.NotGranted, DiagnosticCode = "app-role-not-granted",
+        ObservedByUserId = seeded.Admin.Id, ObservedAt = DateTimeOffset.UtcNow.AddSeconds(1)
+      });
+      await db.SaveChangesAsync();
+    }
+    await page.ReloadAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Users & Access", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByText("Guest invitations · User.Invite.All · NOT_GRANTED · app-role-not-granted", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Invite new guest", Exact = true })).ToBeDisabledAsync();
     Assert.Empty(errors);
   }
 }

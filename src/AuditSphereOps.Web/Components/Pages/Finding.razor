@@ -1,0 +1,192 @@
+@page "/app/findings/{Id:guid}"
+@rendermode InteractiveServer
+@using AuditSphereOps.Application.Audit
+@using AuditSphereOps.Application.Security
+@using AuditSphereOps.Domain.Audit
+@using FindingRecord = AuditSphereOps.Domain.Audit.Finding
+@using WorkpaperRecord = AuditSphereOps.Domain.Audit.Workpaper
+@using AuditSphereOps.Infrastructure.Persistence
+@using Microsoft.EntityFrameworkCore
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+@inject NavigationManager Nav
+
+<PageTitle>Finding — AuditSphereOps</PageTitle>
+
+<div class="page-header">
+    <nav class="breadcrumb-nav">
+        <a href="/app">Portfolio</a> /
+        <span>Finding</span>
+    </nav>
+    <PageHeader Title="Audit Finding" Eyebrow="Engagement audit" Description="Finding condition, criteria, cause, and effect bound to the exact engagement evidence." />
+</div>
+
+@if (_loading)
+{
+    <LoadingState IsLoading="true" LoadingMessage="Loading…" />
+}
+else if (_actor is null)
+{
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+        <h2>Sign in required</h2>
+        <p>An authenticated staff session is required to view a finding.</p>
+    </MudAlert>
+}
+else if (_finding is null)
+{
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+        <h2>Finding unavailable</h2>
+        <p>The requested finding is unavailable in your current scope.</p>
+    </MudAlert>
+}
+else
+{
+    <div class="audit-record-toolbar" aria-label="Finding navigation">
+        <span class="status-badge @(_finding.Corrected ? "badge-green" : "badge-red")">@_finding.Status</span>
+        <MudLink Href="@($"/app/engagements/{_finding.EngagementId}/audit-plan")">Audit plan</MudLink>
+        <MudLink Href="@($"/app/engagements/{_finding.EngagementId}")">Engagement</MudLink>
+    </div>
+    <MudGrid Spacing="2" Class="audit-accounting-metrics my-3" aria-label="Scoped finding summary">
+        <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Amount recorded</MudText><MudText Typo="Typo.h4">@(_finding.MonetaryAmount?.ToString("N2") ?? "—")</MudText></MudPaper></MudItem>
+        <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Corrected in period</MudText><MudText Typo="Typo.h4">@(_finding.Corrected ? "Yes" : "No")</MudText></MudPaper></MudItem>
+        <MudItem xs="12" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Management response recorded</MudText><MudText Typo="Typo.h4">@(_finding.ManagementResponse is null ? "No" : "Yes")</MudText></MudPaper></MudItem>
+    </MudGrid>
+    <div class="finding-shell">
+        <MudButton Variant="Variant.Outlined" Class="btn-secondary mb-2" OnClick="RefreshFindingAsync" Disabled="@_busy">Refresh finding</MudButton>
+
+        <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1">
+            <h2>Finding Details (§23)</h2>
+            <dl class="detail-grid">
+                <dt>Type</dt><dd>@_finding.FindingType</dd>
+                <dt>Impact description</dt><dd>@_finding.ImpactDescription</dd>
+                <dt>Monetary amount</dt><dd>@(_finding.MonetaryAmount?.ToString("N2") ?? "Not quantified")</dd>
+                <dt>Corrected in the period under audit</dt><dd>@(_finding.Corrected ? "Yes" : "No")</dd>
+                <dt>Status</dt><dd>@_finding.Status</dd>
+                <dt>Raised</dt><dd>@_finding.CreatedAt.ToUniversalTime().ToString("yyyy-MM-dd HH:mm") UTC</dd>
+            </dl>
+        </MudPaper>
+
+        <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1">
+            <h2>Management Response &amp; Action</h2>
+            @if (_finding.ManagementResponse is not null)
+            {
+                <blockquote class="management-response">@_finding.ManagementResponse</blockquote>
+            }
+            else
+            {
+                <p class="empty-state">No management response has been recorded.</p>
+            }
+        </MudPaper>
+
+        <MudPaper Class="audit-workspace-panel audit-finding-response pa-4 my-4" Elevation="1">
+            <h2>Record Management Response</h2>
+            <div class="form-group">
+                <label for="mgmt-response">Management response</label>
+                <MudTextField T="string" @bind-Value="_draftResponse" Lines="4" id="mgmt-response" required />
+            </div>
+            <label class="check">
+                <MudCheckBox T="bool" @bind-Value="_draftCorrected" data-optional="true" />
+                Management corrected the matter within the period under audit (optional)
+            </label>
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-primary" OnClick="RecordResponseAsync" Disabled="@(_busy || _engagement?.ProfessionalWorkBlocked == true)">
+                Record response
+            </MudButton>
+            <p class="notice-text">
+                Correction inside the audited period and future-period remediation are tracked separately;
+                filing a response here does not state an audit conclusion.
+            </p>
+        </MudPaper>
+
+        @if (_result is not null)
+        {
+            <p class="command-result @(_result.Succeeded ? "success-text" : "error-text")" role="status">
+                @(_result.Succeeded ? "The management response was recorded." : "Blocked: " + _result.ErrorCode + " — " + _result.Message)
+            </p>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private AuditSphereOps.Application.Abstractions.ActorContext? _actor;
+    private FindingRecord? _finding;
+    private AuditSphereOps.Domain.Engagements.Engagement? _engagement;
+    private CommandResult? _result;
+    private bool _loading = true;
+    private bool _busy;
+    private string _draftResponse = "";
+    private bool _draftCorrected;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        ClearFinding();
+        _actor = await ActorResolver.ResolveAsync();
+        if (_actor is not null)
+            await RefreshAsync();
+        _loading = false;
+    }
+
+    private async Task RefreshAsync()
+    {
+        var actor = _actor;
+        if (actor is null) return;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var scope = await db.Findings.AsNoTracking()
+            .Where(f => f.Id == Id && f.FirmId == actor.FirmId)
+            .Select(f => new { f.ClientId, f.EngagementId })
+            .SingleOrDefaultAsync();
+        if (scope is null) return;
+
+        var authorization = await AuthorizationDecision.AuthorizeAsync(db, actor,
+            new AuthorizationRequest(actor.FirmId, ClientId: scope.ClientId,
+                EngagementId: scope.EngagementId,
+                RequiredRoles: ["Administrator", "Partner", "Manager", "SeniorManager", "Senior", "Staff", "EngagementLeader", "Auditor"],
+                InternalOnly: true));
+        if (!authorization.Succeeded) return;
+
+        _finding = await db.Findings.AsNoTracking()
+            .FirstOrDefaultAsync(f => f.Id == Id && f.FirmId == actor.FirmId &&
+                f.ClientId == scope.ClientId && f.EngagementId == scope.EngagementId);
+        if (_finding is null) return;
+
+        _draftResponse = _finding.ManagementResponse ?? "";
+        _draftCorrected = _finding.Corrected;
+        _engagement = await db.Engagements.AsNoTracking()
+            .FirstOrDefaultAsync(e => e.Id == _finding.EngagementId && e.FirmId == actor.FirmId);
+    }
+
+    private async Task RefreshFindingAsync()
+    {
+        if (_busy) return;
+        ClearFinding();
+        await RefreshAsync();
+    }
+
+    private async Task RecordResponseAsync()
+    {
+        if (_actor is null || _finding is null || _busy) return;
+        _busy = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var filed = await AuditPlanningService.RecordFindingResponseAsync(db, _actor,
+                new RecordFindingResponseRequest(_finding.Id, _draftResponse, _draftCorrected));
+            _result = filed.Succeeded ? CommandResult.Ok() : CommandResult.Fail(filed.ErrorCode!, filed.Message ?? "The command was refused.");
+            if (!filed.Succeeded && (filed.ErrorCode is ErrorCodes.ScopeDenied or ErrorCodes.GenerationStale))
+                ClearFinding();
+            if (_result.Succeeded) await RefreshAsync();
+        }
+        finally { _busy = false; }
+    }
+
+    private void ClearFinding()
+    {
+        _finding = null;
+        _engagement = null;
+        _draftResponse = "";
+        _draftCorrected = false;
+        _result = null;
+    }
+}

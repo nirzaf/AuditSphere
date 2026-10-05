@@ -115,8 +115,9 @@ public sealed class AngularPortfolioJourneyTests
       using var api = await http.GetAsync(origin + "/api/ui/session");
       Assert.Equal(System.Net.HttpStatusCode.Unauthorized, api.StatusCode);
       Assert.DoesNotContain("<app-root", await api.Content.ReadAsStringAsync());
-      var disabled = await http.GetAsync(host.StaffUrl + "/ui/app");
-      Assert.DoesNotContain("<app-root", await disabled.Content.ReadAsStringAsync());
+      var previewUi = await http.GetAsync(host.StaffUrl + "/ui/app");
+      Assert.Equal(System.Net.HttpStatusCode.OK, previewUi.StatusCode);
+      Assert.Contains("<app-root", await previewUi.Content.ReadAsStringAsync());
     }
     var clientOrigin = await host.StartApiForIdentityAsync(host.Fixture.Client, settings);
     await using var restricted = await browser.NewContextAsync();

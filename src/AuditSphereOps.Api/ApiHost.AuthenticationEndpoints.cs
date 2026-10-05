@@ -154,7 +154,10 @@ public static partial class ApiHost
       });
     }
 
-    app.MapGet("/", () => Results.Redirect(AngularRouteOwnership.Destination(app.Configuration, "/app")));
+    // The standalone Angular API owns the root redirect. A legacy Web host instead
+    // maps `/` to its Razor home component, so registering both creates an ambiguous route.
+    if (!legacyPresentation)
+      app.MapGet("/", () => Results.Redirect(AngularRouteOwnership.Destination(app.Configuration, "/app")));
     app.MapGet("/auth/access-not-assigned", (HttpContext http) =>
     {
       http.Response.Headers.CacheControl = "no-store";

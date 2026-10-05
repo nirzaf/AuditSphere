@@ -5,7 +5,7 @@ namespace AuditSphereOps.E2E.Tests;
 
 /// <summary>
 /// UX-029 staff search in the real shell: scoped hits only, coverage stated, results clear on navigation and
-/// Escape, the "/" shortcut never steals a character typed into a form field, and the narrow toggle reflows.
+/// Escape, the "/" shortcut never steals a character typed into a form field, and the Angular shell reflows.
 /// </summary>
 [Trait("Category", "AuthorizationAndScope")]
 public sealed class GlobalSearchJourneyTests
@@ -28,7 +28,7 @@ public sealed class GlobalSearchJourneyTests
     var sibling = await SiblingClientSeed.SeedAsync(host.Database, host.Fixture.FirmId, Marker);
     try
     {
-      var origin = await host.StartWebForIdentityAsync(user);
+      var origin = await host.StartApiForIdentityAsync(user);
       using var playwright = await Playwright.CreateAsync();
       await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
       await using var context = await browser.NewContextAsync(new() { ViewportSize = new() { Width = 1440, Height = 900 } });
@@ -40,8 +40,8 @@ public sealed class GlobalSearchJourneyTests
       await page.GetByRole(AriaRole.Heading, new() { Name = "Portfolio" }).First.WaitForAsync(new() { Timeout = 15000 });
       await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
-      var search = page.Locator("#global-search-input");
-      var results = page.Locator("#global-search-results");
+      var search = page.GetByRole(AriaRole.Combobox, new() { Name = "Search your workspace" });
+      var results = page.GetByRole(AriaRole.Region, new() { Name = "Global search" });
 
       // "/" outside an editable control focuses search.
       await page.Locator("h1").First.ClickAsync();
@@ -49,24 +49,23 @@ public sealed class GlobalSearchJourneyTests
       await Assertions.Expect(search).ToBeFocusedAsync();
       await Assertions.Expect(search).ToHaveValueAsync(string.Empty);
 
-      await search.PressSequentiallyAsync("pbc test");
+      await search.FillAsync("pbc test");
       await Assertions.Expect(results.GetByRole(AriaRole.Link, new() { Name = "PBC TEST CLIENT" }).First).ToBeVisibleAsync(new() { Timeout = 15000 });
-      await Assertions.Expect(results).ToContainTextAsync("Client documents, evidence and emails are not searched.");
+      await Assertions.Expect(results).ToContainTextAsync("Documents and emails are not searched.");
       Assert.DoesNotContain(Marker, await results.InnerTextAsync(), StringComparison.OrdinalIgnoreCase);
 
       // A sibling client's exact name yields nothing, not even a count or snippet.
-      await search.FillAsync(string.Empty);
-      await search.PressSequentiallyAsync(Marker);
-      await Assertions.Expect(results).ToContainTextAsync("No records you can open match", new() { Timeout = 15000 });
+      await search.FillAsync(Marker);
+      await Assertions.Expect(results.GetByRole(AriaRole.Status)).ToContainTextAsync("0 results", new() { Timeout = 15000 });
       Assert.Equal(0, await results.GetByRole(AriaRole.Link).CountAsync());
 
       // Escape closes; following a hit navigates and clears the panel.
       await search.PressAsync("Escape");
-      await Assertions.Expect(results).ToHaveCountAsync(0);
-      await search.PressSequentiallyAsync("pbc test");
+      await Assertions.Expect(results.GetByRole(AriaRole.Status)).ToHaveCountAsync(0);
+      await search.FillAsync("pbc test");
       await results.GetByRole(AriaRole.Link, new() { Name = "PBC TEST CLIENT" }).First.ClickAsync();
       await page.GetByRole(AriaRole.Heading, new() { Name = "Client profile" }).WaitForAsync();
-      await Assertions.Expect(results).ToHaveCountAsync(0);
+      await Assertions.Expect(results.GetByRole(AriaRole.Status)).ToHaveCountAsync(0);
       await Assertions.Expect(search).ToHaveValueAsync(string.Empty);
 
       // "/" typed inside a form field stays in the field.
@@ -77,13 +76,11 @@ public sealed class GlobalSearchJourneyTests
       await Assertions.Expect(field).ToHaveValueAsync("a/b");
       await Assertions.Expect(search).Not.ToBeFocusedAsync();
 
-      // Narrow screens use a labelled toggle and do not overflow.
+      // Narrow screens keep search available, expose navigation, and do not overflow.
       await page.SetViewportSizeAsync(390, 844);
-      await page.WaitForFunctionAsync("() => (document.querySelector('.audit-main-content') !== null && getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px')");
-      await Assertions.Expect(search).ToBeHiddenAsync();
-      await page.GetByRole(AriaRole.Button, new() { Name = "Open search" }).ClickAsync();
       await Assertions.Expect(search).ToBeVisibleAsync();
-      await search.PressSequentiallyAsync("pbc test");
+      await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Open navigation" })).ToBeVisibleAsync();
+      await search.FillAsync("pbc test");
       await Assertions.Expect(results.GetByRole(AriaRole.Link, new() { Name = "PBC TEST CLIENT" }).First).ToBeVisibleAsync(new() { Timeout = 15000 });
       Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
         "Search panel overflows the 390px viewport.");

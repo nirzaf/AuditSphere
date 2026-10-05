@@ -1,0 +1,28 @@
+@inherits LayoutComponentBase
+
+<SessionAccessBoundary>
+<MudThemeProvider Theme="@_theme" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<a class="skip-link" href="#main-content">Skip to main content</a>
+<MudLayout Class="audit-shell audit-client-shell">
+  <MudAppBar Elevation="0" Class="audit-topbar">
+    <MudLink Href="/portal" Color="Color.Inherit" Typo="Typo.subtitle1" Underline="Underline.None">AuditSphereOps</MudLink>
+    <MudText Typo="Typo.caption" Class="audit-portal-label ml-3">Client portal</MudText>
+    <MudSpacer />
+    <MudButton Href="/portal" Color="Color.Primary" Variant="Variant.Text">Requests</MudButton>
+  </MudAppBar>
+  <MudMainContent Class="audit-main-content">
+    <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="audit-workspace">
+      <main id="main-content">@Body</main>
+    </MudContainer>
+  </MudMainContent>
+</MudLayout>
+
+</SessionAccessBoundary>
+
+@code {
+  private readonly MudTheme _theme = Theme.AuditSphereTheme.Create();
+}

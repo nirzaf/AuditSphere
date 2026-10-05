@@ -22,12 +22,32 @@ behavioral parity or a completed retirement. The new duplicate retirement
 report was withdrawn; the canonical migration documents indexed from
 `docs/auditsphere-docs-index.md` remain authoritative.
 
-The source inventory is reproducible from its recorded Git snapshot even though
-the Web directory is absent from the current tree. Route ownership is still only
-route ownership. The source-action crosswalk, full current-head regression,
-rollback/canary evidence, human assistive-technology review, locale acceptance,
-and live Microsoft gates remain outstanding. See the canonical removal gate and
-`verification` entries in `docs/execution/status.json` for observed evidence.
+The Web rollback/reference project and Razor source have been restored to the
+solution from the parent of the premature physical-removal commit. The API
+remains the Angular route owner; API.Tests and E2E.Tests do not reference Web,
+and the E2E fixture starts only the API. The current working tree passed the
+Angular production build and unit suite, Release solution build, complete
+PostgreSQL-backed solution suite, and EF model check; exact evidence is in
+`docs/execution/status.json`. A successful build and local browser smoke are not
+an operational rollback exercise. Source-action parity, a complete replacement
+crosswalk for nine legacy E2E suites, production canary/rollback, human
+assistive-technology, locale, and live Microsoft acceptance remain separate
+gates. See the canonical removal gate and current `verification` entries in
+`docs/execution/status.json` for observed evidence.
+
+Starting from master commit `8ea3ef01`, the test host was converted to API-only and
+the API.Tests/E2E.Tests project graph no longer references Web. That commit also deleted nine legacy E2E suites
+(`AuditAndReleaseJourneyTests`, `ClientScopeJourneyTests`,
+`FinancialArtifactJourneyTests`, `InvoiceScopeJourneyTests`,
+`M365SetupJourneyTests`, `PbcUploadJourneyTests`,
+`PracticeBillingLedgerJourneyTests`, `ResponsiveShellSweepTests`, and
+`RouteRenderSmokeTests`). This removes legacy host coupling but does not replace
+their assertions. An assertion-by-assertion replacement map and full current-head
+regression are still required; do not treat the new host topology as migration
+parity. The current frozen Release regression passed, but it does not close the
+assertion crosswalk. This working slice also replaces five stale M365 browser
+journeys with Angular/API-host journeys; the M365 test catalog now points to the
+replacement classes. The other nine-suite assertion crosswalk remains open.
 
 ## Historical checkpoint: Blazor test-host decoupling for migrated Angular E2E journeys
 
@@ -360,10 +380,12 @@ contract suite passed 3/3: every Angular route has an API SPA owner, every legac
 Razor route has an explicit native owner except server-owned root/access-denied
 routes, and authentication routes stay outside the SPA.
 
-US-047 local runtime retirement is complete; overall migration acceptance stays
-PARTIAL. Production canary, real assistive-technology and wider-locale
-acceptance, remaining source-action parity and live Microsoft gates remain
-outside this local verification.
+This historical checkpoint reported US-047 local runtime retirement complete.
+After reinspection at `8ea3ef01`, that disposition is superseded: the source
+action audit and replacement coverage for 82 assertions from nine deleted E2E
+suites are still open, so the current retirement gate is `NOT_READY`. Production
+canary, real assistive-technology and wider-locale acceptance, and live Microsoft
+gates also remain outside local verification.
 
 ## Current Release regression and resource-planning browser journey
 

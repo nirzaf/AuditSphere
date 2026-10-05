@@ -34,7 +34,7 @@ public sealed class ClientPortalOnboardingJourneyTests
       Assert.True(request.Succeeded, request.Message);
       Assert.True((await PbcService.ChangeStateAsync(db, staff, new(request.Value, PbcStates.Sent, 1))).Succeeded);
     }
-    var origin = await host.StartWebForIdentityAsync(f.Client);
+    var origin = await host.StartApiForIdentityAsync(f.Client);
     using var playwright = await Playwright.CreateAsync();
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     var page = await (await browser.NewContextAsync()).NewPageAsync();
@@ -46,7 +46,7 @@ public sealed class ClientPortalOnboardingJourneyTests
     await using (var db = host.CreateDbContext())
       await db.Users.Where(x => x.Id == f.Client.Id).ExecuteUpdateAsync(x => x.SetProperty(u => u.Disabled, true).SetProperty(u => u.SessionEpoch, u => u.SessionEpoch + 1));
     await page.GetByRole(AriaRole.Button, new() { Name = "Refresh portal" }).ClickAsync();
-    await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Portal unavailable" })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable", Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Portal setup pending" })).ToHaveCountAsync(0);
   }
 
@@ -76,7 +76,7 @@ public sealed class ClientPortalOnboardingJourneyTests
     await using (var db = host.CreateDbContext())
       Assert.True((await PbcService.ChangeStateAsync(db, PbcSeed.Actor(f.Staff, "Staff"), new PbcStateChangeRequest(requestId, PbcStates.Sent, 1))).Succeeded);
 
-    var origin = await host.StartWebForIdentityAsync(primary);
+    var origin = await host.StartApiForIdentityAsync(primary);
     using var playwright = await Playwright.CreateAsync();
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     var page = await (await browser.NewContextAsync()).NewPageAsync();
@@ -109,10 +109,10 @@ public sealed class ClientPortalOnboardingJourneyTests
     await page.GetByRole(AriaRole.Heading, new() { Name = "Delegate this request" }).WaitForAsync();
     await SettleAsync();
     await Assertions.Expect(page.GetByText("Uploads open after your first portal sign-in is complete.")).ToHaveCountAsync(0);
-    await page.Locator("#delegate-user").SelectOptionAsync(new SelectOptionValue { Label = "Finance Colleague" });
+    await page.GetByLabel("Colleague", new() { Exact = true }).SelectOptionAsync(colleague.Id.ToString());
     await page.GetByRole(AriaRole.Button, new() { Name = "Delegate", Exact = true }).ClickAsync();
     await Assertions.Expect(page.GetByText("Delegation recorded.")).ToBeVisibleAsync();
-    await Assertions.Expect(page.Locator(".delegation-list")).ToContainTextAsync("Finance Colleague");
+    await Assertions.Expect(page.Locator("section[aria-labelledby='delegate-heading']")).ToContainTextAsync("Finance Colleague");
     await using (var db = host.CreateDbContext())
       Assert.True(await db.PbcRequestDelegations.AnyAsync(x => x.PbcRequestId == requestId && x.DelegateUserId == colleague.Id && x.RevokedAt == null));
     await page.GetByRole(AriaRole.Button, new() { Name = "Revoke delegation for Finance Colleague" }).ClickAsync();

@@ -1,0 +1,370 @@
+@page "/app/accounting/mappings"
+@page "/app/accounting/journals"
+@page "/app/accounting/differences"
+@implements IDisposable
+@rendermode InteractiveServer
+@using AuditSphereOps.Domain.Accounting
+@using AuditSphereOps.Domain.Audit
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+@inject NavigationManager Navigation
+@inject ILogger<AccountingRecords> Logger
+
+<PageTitle>@Title</PageTitle>
+<MudLink Href="/app/accounting" Class="back-link mb-2 d-inline-block">← Back to accounting workspace</MudLink>
+<PageHeader Title="@Title" Eyebrow="Accounting records" Description="Only records in the authenticated client or exact engagement scope are shown. Detail links re-check authorization before displaying the record." />
+<MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button-secondary" OnClick="LoadCurrentQueueSafelyAsync" Disabled="@_loading">Refresh queue</MudButton>
+
+@if (_loading)
+{
+  <LoadingState IsLoading="true" LoadingMessage="Loading scoped accounting records…" />
+}
+else if (_loadError is not null)
+{
+  <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+    <h2>Records unavailable</h2>
+    <MudText Typo="Typo.body2">@_loadError</MudText>
+  </MudAlert>
+}
+else if (!_authorized)
+{
+  <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+    <h2>Access unavailable</h2>
+    <MudText Typo="Typo.body2">This queue requires an authorized internal accounting role and an explicit client scope.</MudText>
+  </MudAlert>
+}
+else
+{
+  <MudGrid Spacing="2" Class="audit-accounting-metrics my-3" aria-label="Scoped accounting record counts">
+    @if (Mode == RecordMode.Mappings)
+    {
+      <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Mapping versions shown</MudText><MudText Typo="Typo.h4">@_mappings.Count</MudText></MudPaper></MudItem>
+      <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Chart-bound versions</MudText><MudText Typo="Typo.h4">@_mappings.Count(x => x.HasChart)</MudText></MudPaper></MudItem>
+    }
+    else if (Mode == RecordMode.Journals)
+    {
+      <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Journals shown</MudText><MudText Typo="Typo.h4">@_journals.Count</MudText></MudPaper></MudItem>
+      <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Posted journals</MudText><MudText Typo="Typo.h4">@_journals.Count(x => x.Status == "Posted")</MudText></MudPaper></MudItem>
+    }
+    else
+    {
+      <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Differences shown</MudText><MudText Typo="Typo.h4">@_differences.Count</MudText></MudPaper></MudItem>
+      <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Linked journals</MudText><MudText Typo="Typo.h4">@_differences.Count(x => x.ProposedJournalId.HasValue)</MudText></MudPaper></MudItem>
+    }
+  </MudGrid>
+  <nav aria-label="Accounting record queues">
+    <MudPaper Elevation="0" Class="accounting-nav pa-1 my-3">
+    <a href="/app/accounting/mappings" class="accounting-nav-link @(Mode == RecordMode.Mappings ? "active" : null)" aria-current="@(Mode == RecordMode.Mappings ? "page" : null)" title="Review immutable client chart and reporting mappings.">COA and mappings</a>
+    <a href="/app/accounting/journals" class="accounting-nav-link @(Mode == RecordMode.Journals ? "active" : null)" aria-current="@(Mode == RecordMode.Journals ? "page" : null)" title="Review scoped adjustment journals and their posting state.">Adjustments</a>
+    <a href="/app/accounting/differences" class="accounting-nav-link @(Mode == RecordMode.Differences ? "active" : null)" aria-current="@(Mode == RecordMode.Differences ? "page" : null)" title="Review scoped audit differences and correction lineage.">Differences</a>
+    </MudPaper>
+  </nav>
+
+  @if (Mode == RecordMode.Mappings)
+  {
+    <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="mappings-heading" role="region">
+      <h2 id="mappings-heading">Mapping versions</h2>
+      @if (_mappings.Count == 0)
+      {
+        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="my-3" role="status">No mapping versions are available in the current scope.</MudAlert>
+      }
+      else
+      {
+        <div class="table-wrap audit-accounting-table-wrap"><MudTable Items="_mappings" Dense="true" Hover="true" Elevation="0">
+          <HeaderContent>
+            <MudTh>Client</MudTh>
+            <MudTh>Engagement</MudTh>
+            <MudTh>Period</MudTh>
+            <MudTh>Version</MudTh>
+            <MudTh>Chart</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh><span class="sr-only">Action</span></MudTh>
+          </HeaderContent>
+          <RowTemplate>
+            <MudTd DataLabel="Client">@context.ClientName</MudTd>
+            <MudTd DataLabel="Engagement">@context.EngagementName</MudTd>
+            <MudTd DataLabel="Period">@context.PeriodStart to @context.PeriodEnd</MudTd>
+            <MudTd DataLabel="Version">v@context.Version · gen @context.Generation</MudTd>
+            <MudTd DataLabel="Chart">@(context.HasChart ? "Bound" : "Legacy/unbound")</MudTd>
+            <MudTd DataLabel="Status"><StatusChip Status="@context.Status" /></MudTd>
+            <MudTd DataLabel="Action"><MudLink Href="@($"/app/accounting/mappings/{context.Id}")">Open mapping</MudLink></MudTd>
+          </RowTemplate>
+          <PagerContent>
+            <MudTablePager PageSizeOptions="new int[] { 10, 25, 50 }" />
+          </PagerContent>
+        </MudTable></div>
+      }
+    </MudPaper>
+  }
+  else if (Mode == RecordMode.Journals)
+  {
+    <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="journals-heading" role="region">
+      <h2 id="journals-heading">Adjustment journals</h2>
+      @if (_journals.Count == 0)
+      {
+        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="my-3" role="status">No adjustment journals are available in the current scope.</MudAlert>
+      }
+      else
+      {
+        <div class="table-wrap audit-accounting-table-wrap"><MudTable Items="_journals" Dense="true" Hover="true" Elevation="0">
+          <HeaderContent>
+            <MudTh>Journal</MudTh>
+            <MudTh>Client</MudTh>
+            <MudTh>Engagement</MudTh>
+            <MudTh>Purpose</MudTh>
+            <MudTh>Context</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh><span class="sr-only">Action</span></MudTh>
+          </HeaderContent>
+          <RowTemplate>
+            <MudTd DataLabel="Journal"><strong>@context.JournalNumber</strong><br /><span class="muted">rev @context.Revision</span></MudTd>
+            <MudTd DataLabel="Client">@context.ClientName</MudTd>
+            <MudTd DataLabel="Engagement">@context.EngagementName</MudTd>
+            <MudTd DataLabel="Purpose">@context.Purpose</MudTd>
+            <MudTd DataLabel="Context">@context.PeriodCode · @(context.Currency ?? "Currency not recorded")</MudTd>
+            <MudTd DataLabel="Status"><StatusChip Status="@context.Status" /></MudTd>
+            <MudTd DataLabel="Action"><MudLink Href="@($"/app/accounting/journals/{context.Id}")">Open journal</MudLink></MudTd>
+          </RowTemplate>
+          <PagerContent>
+            <MudTablePager PageSizeOptions="new int[] { 10, 25, 50 }" />
+          </PagerContent>
+        </MudTable></div>
+      }
+    </MudPaper>
+  }
+  else
+  {
+    <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="differences-heading" role="region">
+      <h2 id="differences-heading">Audit differences</h2>
+      <p class="muted">Differences remain separate from journal posting. A proposed journal link is shown only when one is persisted for the exact difference.</p>
+      @if (_differences.Count == 0)
+      {
+        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="my-3" role="status">No audit differences are available in the current scope.</MudAlert>
+      }
+      else
+      {
+        <div class="table-wrap audit-accounting-table-wrap"><MudTable Items="_differences" Dense="true" Hover="true" Elevation="0">
+          <HeaderContent>
+            <MudTh>Area</MudTh>
+            <MudTh>Client</MudTh>
+            <MudTh>Engagement</MudTh>
+            <MudTh>Amount</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh>Correction</MudTh>
+            <MudTh><span class="sr-only">Action</span></MudTh>
+          </HeaderContent>
+          <RowTemplate>
+            <MudTd DataLabel="Area"><strong>@context.AccountArea</strong><br /><span class="muted">@context.DifferenceType</span></MudTd>
+            <MudTd DataLabel="Client">@context.ClientName</MudTd>
+            <MudTd DataLabel="Engagement">@context.EngagementName</MudTd>
+            <MudTd DataLabel="Amount">@context.Amount.ToString("N2") @context.Currency</MudTd>
+            <MudTd DataLabel="Status"><StatusChip Status="@context.Status" /></MudTd>
+            <MudTd DataLabel="Correction">@(context.CorrectionState ?? "Not recorded")</MudTd>
+            <MudTd DataLabel="Action">
+              @if (context.ProposedJournalId is { } journalId)
+              {
+                <MudLink Href="@($"/app/accounting/journals/{journalId}")">Open linked journal</MudLink>
+              }
+              else
+              {
+                <span class="muted">No journal linked</span>
+              }
+            </MudTd>
+          </RowTemplate>
+          <PagerContent>
+            <MudTablePager PageSizeOptions="new int[] { 10, 25, 50 }" />
+          </PagerContent>
+        </MudTable></div>
+      }
+    </MudPaper>
+  }
+}
+
+@code {
+  private enum RecordMode { Mappings, Journals, Differences }
+  private static readonly string[] AccountingRoles = ["Administrator", "Partner", "Manager", "AccountingPreparer", "AccountingReviewer"];
+
+  private sealed record MappingRow(Guid Id, string ClientName, string EngagementName, string PeriodStart, string PeriodEnd,
+    long Version, long Generation, bool HasChart, string Status);
+  private sealed record JournalRow(Guid Id, string JournalNumber, string ClientName, string EngagementName, string Purpose,
+    string PeriodCode, string? Currency, string Status, long Revision);
+  private sealed record DifferenceRow(Guid Id, string AccountArea, string DifferenceType, string ClientName, string EngagementName,
+    decimal Amount, string Currency, string Status, string? CorrectionState, Guid? ProposedJournalId);
+
+  private ActorContext? _actor;
+  private bool _loading = true;
+  private bool _authorized;
+  private string? _loadError;
+  private RecordMode _mode;
+  private List<MappingRow> _mappings = [];
+  private List<JournalRow> _journals = [];
+  private List<DifferenceRow> _differences = [];
+
+  private RecordMode Mode => _mode;
+
+  private string Title => Mode switch
+  {
+    RecordMode.Journals => "Adjustment journals",
+    RecordMode.Differences => "Audit differences",
+    _ => "COA and accounting mappings"
+  };
+
+  protected override async Task OnInitializedAsync()
+  {
+    SetMode(Navigation.Uri);
+    Navigation.LocationChanged += OnLocationChanged;
+    await LoadCurrentQueueSafelyAsync();
+  }
+
+  private async Task LoadCurrentQueueSafelyAsync()
+  {
+    try
+    {
+      await LoadCurrentQueueAsync();
+    }
+    catch (Exception exception)
+    {
+      Logger.LogError(exception, "Failed to load accounting records queue {Queue}", Mode);
+      _loadError = "The selected queue could not be loaded. Refresh the page and try again.";
+      _authorized = false;
+    }
+    finally
+    {
+      _loading = false;
+    }
+  }
+
+  private async Task LoadCurrentQueueAsync()
+  {
+    _authorized = false;
+    _loadError = null;
+    _actor = null;
+    _mappings.Clear();
+    _journals.Clear();
+    _differences.Clear();
+    _loading = true;
+    var actor = await ActorResolver.ResolveAsync();
+    _actor = actor;
+    if (actor is null)
+    {
+      _loading = false;
+      return;
+    }
+
+    await using var db = await DbFactory.CreateDbContextAsync();
+    var authorization = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, RequiredRoles: AccountingRoles, InternalOnly: true));
+    if (!authorization.Succeeded)
+    {
+      _actor = null;
+      _loading = false;
+      return;
+    }
+
+    _authorized = true;
+    var grants = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId &&
+        x.RevokedAt == null && AccountingRoles.Contains(x.Role))
+      .Select(x => new { x.ClientId, x.EngagementId }).ToListAsync();
+    var firmWide = grants.Any(x => x.ClientId is null && x.EngagementId is null);
+    var directClientIds = grants.Where(x => x.ClientId.HasValue && x.EngagementId is null).Select(x => x.ClientId!.Value).Distinct().ToArray();
+    var engagementIds = grants.Where(x => x.EngagementId.HasValue).Select(x => x.EngagementId!.Value).Distinct().ToArray();
+    var engagementClients = engagementIds.Length == 0 ? new Dictionary<Guid, Guid>() : await db.Engagements.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && engagementIds.Contains(x.Id))
+      .ToDictionaryAsync(x => x.Id, x => x.PracticeClientId);
+    var grantedEngagementIds = grants.Where(x => x.ClientId.HasValue && x.EngagementId.HasValue &&
+      engagementClients.TryGetValue(x.EngagementId.Value, out var clientId) && clientId == x.ClientId.Value)
+      .Select(x => x.EngagementId!.Value).Distinct().ToArray();
+    var scopedEngagementIds = firmWide ? [] : await db.Engagements.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && (directClientIds.Contains(x.PracticeClientId) || grantedEngagementIds.Contains(x.Id)))
+      .Select(x => x.Id).ToArrayAsync();
+    var scope = (Expression: firmWide, DirectClients: directClientIds, Engagements: scopedEngagementIds);
+
+    if (Mode == RecordMode.Mappings)
+    {
+      var mappings = await db.MappingVersions.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+        (scope.Expression || scope.DirectClients.Contains(x.ClientId) || scope.Engagements.Contains(x.EngagementId)))
+        .OrderByDescending(x => x.CreatedAt).ToListAsync();
+      _mappings = await MapMappingsAsync(db, mappings);
+    }
+    else if (Mode == RecordMode.Journals)
+    {
+      var journals = await db.AdjustmentJournals.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+        (scope.Expression || scope.DirectClients.Contains(x.ClientId) || scope.Engagements.Contains(x.EngagementId)))
+        .OrderByDescending(x => x.CreatedAt).ToListAsync();
+      _journals = await MapJournalsAsync(db, journals);
+    }
+    else
+    {
+      var differences = await db.AuditDifferences.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+        (scope.Expression || scope.DirectClients.Contains(x.ClientId) || scope.Engagements.Contains(x.EngagementId)))
+        .OrderByDescending(x => x.CreatedAt).ToListAsync();
+      _differences = await MapDifferencesAsync(db, differences);
+    }
+    _loading = false;
+  }
+
+  private bool SetMode(string location)
+  {
+    if (!Uri.TryCreate(location, UriKind.Absolute, out var uri)) return false;
+    var mode = uri.AbsolutePath.TrimEnd('/').ToLowerInvariant() switch
+    {
+      "/app/accounting/mappings" => RecordMode.Mappings,
+      "/app/accounting/journals" => RecordMode.Journals,
+      "/app/accounting/differences" => RecordMode.Differences,
+      _ => (RecordMode?)null
+    };
+    if (mode is null) return false;
+    _mode = mode.Value;
+    return true;
+  }
+
+  private void OnLocationChanged(object? sender, LocationChangedEventArgs args)
+  {
+    _ = InvokeAsync(async () =>
+    {
+      if (!SetMode(args.Location)) return;
+      _loading = true;
+      _authorized = false;
+      StateHasChanged();
+      await LoadCurrentQueueSafelyAsync();
+      StateHasChanged();
+    });
+  }
+
+  public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+
+  private static async Task<List<MappingRow>> MapMappingsAsync(AuditSphereDbContext db, List<MappingVersion> mappings)
+  {
+    var clientNames = await db.PracticeClients.AsNoTracking().Where(x => mappings.Select(y => y.ClientId).Contains(x.Id))
+      .ToDictionaryAsync(x => x.Id, x => x.LegalName);
+    var engagementNames = await db.Engagements.AsNoTracking().Where(x => mappings.Select(y => y.EngagementId).Contains(x.Id))
+      .ToDictionaryAsync(x => x.Id, x => x.ServiceRoute);
+    return mappings.Select(x => new MappingRow(x.Id, clientNames.GetValueOrDefault(x.ClientId, "Scoped client"),
+      engagementNames.GetValueOrDefault(x.EngagementId, "Scoped engagement"), x.PeriodStart, x.PeriodEnd, x.Version, x.Generation,
+      x.ClientChartVersionId is not null, x.Status)).ToList();
+  }
+
+  private static async Task<List<JournalRow>> MapJournalsAsync(AuditSphereDbContext db, List<AdjustmentJournal> journals)
+  {
+    var clientNames = await db.PracticeClients.AsNoTracking().Where(x => journals.Select(y => y.ClientId).Contains(x.Id))
+      .ToDictionaryAsync(x => x.Id, x => x.LegalName);
+    var engagementNames = await db.Engagements.AsNoTracking().Where(x => journals.Select(y => y.EngagementId).Contains(x.Id))
+      .ToDictionaryAsync(x => x.Id, x => x.ServiceRoute);
+    var periodIds = journals.Where(x => x.PeriodId.HasValue).Select(x => x.PeriodId!.Value).Distinct().ToArray();
+    var periods = periodIds.Length == 0 ? new Dictionary<Guid, string>() : await db.ClientReportingPeriods.AsNoTracking()
+      .Where(x => periodIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.PeriodCode);
+    return journals.Select(x => new JournalRow(x.Id, x.JournalNumber, clientNames.GetValueOrDefault(x.ClientId, "Scoped client"),
+      engagementNames.GetValueOrDefault(x.EngagementId, "Scoped engagement"), x.Purpose,
+      x.PeriodId is { } periodId ? periods.GetValueOrDefault(periodId, "Unknown period") : "No period", x.Currency, x.Status, x.Revision)).ToList();
+  }
+
+  private static async Task<List<DifferenceRow>> MapDifferencesAsync(AuditSphereDbContext db, List<AuditDifference> differences)
+  {
+    var clientNames = await db.PracticeClients.AsNoTracking().Where(x => differences.Select(y => y.ClientId).Contains(x.Id))
+      .ToDictionaryAsync(x => x.Id, x => x.LegalName);
+    var engagementNames = await db.Engagements.AsNoTracking().Where(x => differences.Select(y => y.EngagementId).Contains(x.Id))
+      .ToDictionaryAsync(x => x.Id, x => x.ServiceRoute);
+    return differences.Select(x => new DifferenceRow(x.Id, x.AccountArea, x.DifferenceType, clientNames.GetValueOrDefault(x.ClientId, "Scoped client"),
+      engagementNames.GetValueOrDefault(x.EngagementId, "Scoped engagement"), x.Amount, x.Currency, x.Status, x.CorrectionState, x.ProposedJournalId)).ToList();
+  }
+}

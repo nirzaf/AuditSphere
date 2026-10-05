@@ -1,4 +1,5 @@
 using AuditSphereOps.Application.Audit;
+using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Tests;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
@@ -31,17 +32,13 @@ public sealed class AuditProgramLibraryScopeJourneyTests
     await using var context = await browser.NewContextAsync();
     var page = await context.NewPageAsync();
     var diagnostics = new List<string>();
-    var connected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
     page.Console += (_, message) =>
     {
-      diagnostics.Add($"console/{message.Type}: {message.Text}");
-      if (message.Text.Contains("WebSocket connected to ws://", StringComparison.Ordinal))
-        connected.TrySetResult();
+      if (message.Type == "error") diagnostics.Add($"console/{message.Type}: {message.Text}");
     };
     page.PageError += (_, error) => diagnostics.Add($"page-error: {error}");
     await page.GotoAsync($"{host.StaffUrl}/auth/sign-in?returnUrl=%2Fapp%2Faudit%2Flibrary");
     await page.GetByRole(AriaRole.Heading, new() { Name = "Audit program library" }).WaitForAsync();
-    await connected.Task.WaitAsync(TimeSpan.FromSeconds(10));
     await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 5000 });
     await page.GetByRole(AriaRole.Button, new() { Name = "Browse" }).First.ClickAsync();
     await page.GetByText("AWP-01-01").WaitForAsync();
@@ -51,16 +48,21 @@ public sealed class AuditProgramLibraryScopeJourneyTests
 
     await using (var db = host.CreateDbContext())
     {
-      var grant = await db.RoleGrants.SingleAsync(x => x.Id == grantId);
-      grant.RevokedAt = DateTimeOffset.UtcNow;
-      await db.SaveChangesAsync();
+      var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(db,
+        PbcSeed.Actor(host.Fixture.Admin, "Administrator"),
+        new RevokeRoleGrantRequest(grantId, Reason: "Library access review completed"));
+      Assert.True(revoked.Succeeded, revoked.Message);
     }
-    await page.GetByRole(AriaRole.Button, new() { Name = "Search" }).ClickAsync();
-    await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
+    var invalidatedSession = page.WaitForResponseAsync(response =>
+      response.Url.EndsWith("/api/ui/session", StringComparison.Ordinal) && response.Status == 401,
+      new() { Timeout = 15000 });
+    await page.EvaluateAsync("() => window.dispatchEvent(new FocusEvent('focus'))");
+    await invalidatedSession;
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable", Exact = true }).WaitForAsync();
     Assert.Equal(0, await page.GetByText("AWP-01-01").CountAsync());
 
-    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh library" }).ClickAsync();
-    await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable" }).WaitForAsync();
+    await page.ReloadAsync();
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable", Exact = true }).WaitForAsync();
     Assert.Equal(0, await page.GetByText("AWP-01-01").CountAsync());
   }
 }

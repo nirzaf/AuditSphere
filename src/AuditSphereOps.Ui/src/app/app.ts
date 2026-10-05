@@ -10,6 +10,7 @@ import { GlobalSearch } from './features/search/search';
 import { PendingOutcomesBanner } from './core/pending-outcomes';
 import { SessionService } from './core/session';
 import { Drafts } from './core/drafts';
+import { TabDrafts } from './core/tab-drafts';
 import { presentationBase, workspaceSignInHref } from './core/navigation';
 import { WorkspaceNavigation } from './core/workspace-navigation';
 import type { WorkspaceNavigationDialog } from './core/workspace-navigation-dialog';
@@ -28,6 +29,7 @@ export class App {
   readonly publicSetup = computed(() => this.currentRoute().split(/[?#]/)[0] === '/setup/microsoft365');
   readonly session = inject(SessionService);
   private readonly drafts = inject(Drafts);
+  private readonly tabDrafts = inject(TabDrafts);
   private readonly navigationDialog = signal<MatDialogRef<WorkspaceNavigationDialog> | null>(null);
   readonly navigationOpen = computed(() => this.navigationDialog() !== null);
   readonly navigationLoading = signal(false);
@@ -83,6 +85,7 @@ export class App {
   async signOut(): Promise<void> {
     this.signOutFailure.set('');
     this.drafts.clearAll();
+    this.tabDrafts.clearAll();
     try {
       await this.session.signOut();
     } catch {

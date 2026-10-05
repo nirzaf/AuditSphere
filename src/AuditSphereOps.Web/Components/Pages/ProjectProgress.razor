@@ -1,0 +1,205 @@
+@page "/app/administration/project-progress"
+@rendermode InteractiveServer
+@using AuditSphereOps.Application.Security
+@using AuditSphereOps.Api.Services
+@using System.Text.Json
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
+<PageTitle>Project task progress</PageTitle>
+<MudLink Href="/app/administration" Class="back-link mb-2 d-inline-block">← Firm administration</MudLink>
+<PageHeader Title="Project task progress" Eyebrow="Implementation tracker"
+            Description="Completed and pending implementation task cards by module. Bars report reviewed task-card status, not a percentage of working software or production readiness." />
+
+@if (_loading)
+{
+  <LoadingState IsLoading="true" LoadingMessage="Loading task-card progress…" />
+}
+else if (!_authorized)
+{
+  <MudAlert Severity="Severity.Error" role="alert"><h2>Access unavailable</h2>Only an authorized firm administrator can view the implementation tracker.</MudAlert>
+}
+else if (_error is not null)
+{
+  <MudAlert Severity="Severity.Error" role="alert"><h2>Tracker unavailable</h2>@_error</MudAlert>
+}
+else if (_progress is not null)
+{
+  <MudPaper Class="audit-workspace-panel pa-4 mb-4" aria-label="Task-card totals">
+    <div class="audit-progress-summary">
+      <div><strong>@_progress.Completed / @_progress.Tasks.Count (@_progress.CompletionPercent%)</strong><span>Completed task cards</span></div>
+      <div><strong>@_progress.Active</strong><span>Active or in review</span></div>
+      <div><strong>@_progress.Pending</strong><span>Pending or reopened</span></div>
+      <div><strong>@_progress.Blocked</strong><span>Blocked</span></div>
+    </div>
+    <ProjectTaskStatusBar Tasks="_progress.Tasks" Label="Overall task-card progress" />
+    <p class="audit-progress-legend" aria-label="Progress bar key"><span class="audit-task-key-completed">Completed</span><span class="audit-task-key-active">Active or in review</span><span class="audit-task-key-pending">Pending or reopened</span><span class="audit-task-key-blocked">Blocked</span></p>
+    <MudText Typo="Typo.caption">A card becomes complete only after its documented review and evidence gates. The same cross-module card may appear in more than one module below; the total counts each card once.</MudText>
+  </MudPaper>
+
+  <MudPaper Class="audit-workspace-panel pa-4 mb-4" aria-label="Task-card filters">
+    <h2>Find task cards</h2>
+    <div class="audit-progress-filters" role="group" aria-label="Filter task cards by status">
+      @foreach (var filter in TaskFilters)
+      {
+        <MudButton Variant="@(_taskFilter == filter.Key ? Variant.Filled : Variant.Outlined)"
+                   Color="Color.Primary" Size="Size.Small" OnClick="@(() => _taskFilter = filter.Key)"
+                   aria-pressed="@(_taskFilter == filter.Key ? "true" : "false")">@filter.Label</MudButton>
+      }
+    </div>
+    <MudText Typo="Typo.caption">Showing @FilterTasks(_progress.Tasks).Count of @_progress.Tasks.Count distinct task cards. Filters change the lists below; bars and counts always show all published cards.</MudText>
+  </MudPaper>
+
+  <div class="audit-module-progress-grid">
+    @foreach (var module in _progress.Modules)
+    {
+      <MudPaper Class="audit-workspace-panel pa-4" aria-labelledby="@($"module-{module.Number}")">
+        <div class="audit-module-progress-heading">
+          <h2 id="@($"module-{module.Number}")">Module @module.Number — @module.Name</h2>
+          <strong>@module.Completed / @module.Tasks.Count (@module.CompletionPercent%)</strong>
+        </div>
+        <ProjectTaskStatusBar Tasks="module.Tasks" Label="@($"Module {module.Number} task-card progress")" />
+        <p class="audit-progress-counts">@module.Active active or in review · @module.Pending pending · @module.Blocked blocked</p>
+        <details>
+          <summary>View @FilterTasks(module.Tasks).Count of @module.Tasks.Count task cards</summary>
+          <ul class="audit-progress-task-list">
+            @foreach (var task in FilterTasks(module.Tasks))
+            {
+              <li><span><strong>@task.Id</strong> @task.Title@if (task.Status == "BLOCKED" && !string.IsNullOrWhiteSpace(task.BlockedReason)) { <small class="d-block mud-text-secondary">@task.BlockedReason</small> }</span><StatusChip Status="@task.Status" /></li>
+            }
+          </ul>
+        </details>
+      </MudPaper>
+    }
+  </div>
+
+  <MudPaper Class="audit-workspace-panel pa-4 mt-4">
+    <h2>Audit workflow</h2>
+    <ProjectTaskStatusBar Tasks="_progress.AuditTasks" Label="Audit workflow task-card progress" />
+    <p class="audit-progress-counts">@_progress.AuditCompleted / @_progress.AuditTasks.Count completed (@CompletionPercent(_progress.AuditTasks)%) · @CountActive(_progress.AuditTasks) active or in review · @CountPending(_progress.AuditTasks) pending · @CountBlocked(_progress.AuditTasks) blocked</p>
+    <details>
+      <summary>View @FilterTasks(_progress.AuditTasks).Count of @_progress.AuditTasks.Count task cards</summary>
+      <ul class="audit-progress-task-list">
+        @foreach (var task in FilterTasks(_progress.AuditTasks))
+        {
+          <li><span><strong>@task.Id</strong> @task.Title@if (task.Status == "BLOCKED" && !string.IsNullOrWhiteSpace(task.BlockedReason)) { <small class="d-block mud-text-secondary">@task.BlockedReason</small> }</span><StatusChip Status="@task.Status" /></li>
+        }
+      </ul>
+    </details>
+  </MudPaper>
+
+  <section aria-labelledby="audit-phases-heading" class="mt-4">
+    <h2 id="audit-phases-heading">Audit task phases</h2>
+    <div class="audit-module-progress-grid">
+      @foreach (var phase in _progress.AuditPhases)
+      {
+        <MudPaper Class="audit-workspace-panel pa-4" aria-labelledby="@($"audit-phase-{phase.Number}")">
+          <div class="audit-module-progress-heading">
+            <h3 id="@($"audit-phase-{phase.Number}")">@phase.Name</h3>
+            <strong>@phase.Completed / @phase.Tasks.Count (@phase.CompletionPercent%)</strong>
+          </div>
+          <ProjectTaskStatusBar Tasks="phase.Tasks" Label="@($"{phase.Name} task-card progress")" />
+          <p class="audit-progress-counts">@phase.Active active or in review · @phase.Pending pending · @phase.Blocked blocked</p>
+          <details>
+            <summary>View @FilterTasks(phase.Tasks).Count of @phase.Tasks.Count task cards</summary>
+            <ul class="audit-progress-task-list">
+              @foreach (var task in FilterTasks(phase.Tasks))
+              {
+                <li><span><strong>@task.Id</strong> @task.Title@if (task.Status == "BLOCKED" && !string.IsNullOrWhiteSpace(task.BlockedReason)) { <small class="d-block mud-text-secondary">@task.BlockedReason</small> }</span><StatusChip Status="@task.Status" /></li>
+              }
+            </ul>
+          </details>
+        </MudPaper>
+      }
+    </div>
+  </section>
+
+  <MudPaper Class="audit-workspace-panel pa-4 mt-4">
+    <h2>Shared and cross-module foundation</h2>
+    <ProjectTaskStatusBar Tasks="_progress.SharedTasks" Label="Shared foundation task-card progress" />
+    <p class="audit-progress-counts">@_progress.SharedCompleted / @_progress.SharedTasks.Count completed (@CompletionPercent(_progress.SharedTasks)%) · @CountActive(_progress.SharedTasks) active or in review · @CountPending(_progress.SharedTasks) pending · @CountBlocked(_progress.SharedTasks) blocked</p>
+    <details>
+      <summary>View @FilterTasks(_progress.SharedTasks).Count of @_progress.SharedTasks.Count task cards</summary>
+      <ul class="audit-progress-task-list">
+        @foreach (var task in FilterTasks(_progress.SharedTasks))
+        {
+          <li><span><strong>@task.Id</strong> @task.Title@if (task.Status == "BLOCKED" && !string.IsNullOrWhiteSpace(task.BlockedReason)) { <small class="d-block mud-text-secondary">@task.BlockedReason</small> }</span><StatusChip Status="@task.Status" /></li>
+        }
+      </ul>
+    </details>
+  </MudPaper>
+
+  <section aria-labelledby="untracked-modules-heading" class="mt-4">
+    <h2 id="untracked-modules-heading">Other application modules</h2>
+    <p class="muted">These areas have no dedicated module mapping in the published task pack. Their completion cannot be measured here yet; operational records in the app are separate from implementation task status.</p>
+    <div class="audit-module-progress-grid">
+      @foreach (var area in ProjectProgressReader.UntrackedAreas)
+      {
+        <MudPaper Class="audit-workspace-panel pa-4">
+          <div class="audit-module-progress-heading"><h3>@area.Name</h3><strong>Untracked</strong></div>
+          <div class="audit-task-progress audit-task-progress-untracked" role="img" aria-label="@($"{area.Name}: implementation progress not measured")"></div>
+          <p class="audit-progress-counts">No module-specific progress mapping published.</p>
+          @if (area.Route is not null) { <MudLink Href="@area.Route">Open module</MudLink> }
+        </MudPaper>
+      }
+    </div>
+  </section>
+}
+
+@code {
+  private ProjectProgressSnapshot? _progress;
+  private string _taskFilter = "All";
+  private static readonly (string Key, string Label)[] TaskFilters =
+  [
+    ("All", "All"), ("Completed", "Completed"), ("Active", "Active or in review"),
+    ("Pending", "Pending or reopened"), ("Blocked", "Blocked")
+  ];
+  private bool _loading = true;
+  private bool _authorized;
+  private string? _error;
+  private static int CountActive(IReadOnlyList<ProjectTaskProgress> tasks) => tasks.Count(x => x.Status is "IN_PROGRESS" or "IN_REVIEW");
+  private static int CompletionPercent(IReadOnlyList<ProjectTaskProgress> tasks) =>
+    tasks.Count == 0 ? 0 : tasks.Count(x => x.Status == "COMPLETED") * 100 / tasks.Count;
+  private static int CountPending(IReadOnlyList<ProjectTaskProgress> tasks) => tasks.Count(x => x.Status is "NOT_STARTED" or "REOPENED");
+  private static int CountBlocked(IReadOnlyList<ProjectTaskProgress> tasks) => tasks.Count(x => x.Status == "BLOCKED");
+  private IReadOnlyList<ProjectTaskProgress> FilterTasks(IReadOnlyList<ProjectTaskProgress> tasks) =>
+    tasks.Where(x => _taskFilter switch
+    {
+      "Completed" => x.Status == "COMPLETED",
+      "Active" => x.Status is "IN_PROGRESS" or "IN_REVIEW",
+      "Pending" => x.Status is "NOT_STARTED" or "REOPENED",
+      "Blocked" => x.Status == "BLOCKED",
+      _ => true
+    }).ToArray();
+
+  protected override async Task OnInitializedAsync()
+  {
+    await RefreshAsync();
+  }
+
+  private async Task RefreshAsync()
+  {
+    _loading = true;
+    _authorized = false;
+    _progress = null;
+    _error = null;
+    try
+    {
+      var actor = await ActorResolver.ResolveAsync();
+      if (actor is null) return;
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var authorization = await FirmAdministrationQuery.GetAsync(db, actor);
+      if (!authorization.Succeeded) return;
+      var current = await ActorResolver.ResolveAsync();
+      if (current is null || current.FirmId != actor.FirmId || current.UserId != actor.UserId ||
+          current.SessionEpoch != actor.SessionEpoch) return;
+      _authorized = true;
+      try { _progress = ProjectProgressReader.Read(Path.Combine(AppContext.BaseDirectory, "project-progress")); }
+      catch (Exception ex) when (ex is IOException or JsonException or InvalidOperationException or KeyNotFoundException or ArgumentException)
+      {
+        _error = "The published task-card snapshot could not be read or is invalid.";
+      }
+    }
+    finally { _loading = false; }
+  }
+}

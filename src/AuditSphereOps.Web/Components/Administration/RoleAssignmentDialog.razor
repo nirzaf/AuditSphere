@@ -1,0 +1,164 @@
+@* Reusable AuditSphere role assignment (§10). Composes RoleAssignmentService; it never assigns Entra roles. *@
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
+<MudDialog>
+  <TitleContent><MudText Typo="Typo.h6">Assign AuditSphere role</MudText></TitleContent>
+  <DialogContent>
+    <MudText Typo="Typo.body2" Class="mb-2">User: <strong>@UserDisplayName</strong></MudText>
+    <MudAlert Severity="Severity.Info" Dense="true" Class="mb-2">AuditSphere application roles are separate from Microsoft Entra roles. This never grants a Microsoft administrator role.</MudAlert>
+    <MudGrid Spacing="2">
+      <MudItem xs="12" sm="6">
+        <MudSelect T="string" Label="Role" @bind-Value="_role" id="assign-role" Required="true">
+          @foreach (var role in RoleAdministrationService.RoleCodes) { <MudSelectItem Value="@role">@role</MudSelectItem> }
+        </MudSelect>
+      </MudItem>
+      <MudItem xs="12" sm="6">
+        <MudSelect T="string" Label="Scope type" @bind-Value="_scopeKind" id="assign-scope" Required="true">
+          <MudSelectItem Value="@("FIRM_WIDE")">Firm-wide</MudSelectItem>
+          <MudSelectItem Value="@("CLIENT")">Client</MudSelectItem>
+          <MudSelectItem Value="@("ENGAGEMENT")">Engagement</MudSelectItem>
+          <MudSelectItem Value="@("GROUP")">Consolidation group</MudSelectItem>
+        </MudSelect>
+      </MudItem>
+      @if (_scopeKind is "CLIENT" or "ENGAGEMENT")
+      {
+        <MudItem xs="12" sm="6">
+          <MudSelect T="Guid?" Label="Client" @bind-Value="_clientId" id="assign-client">
+            @foreach (var client in Clients) { <MudSelectItem T="Guid?" Value="@client.Id">@client.Name</MudSelectItem> }
+          </MudSelect>
+        </MudItem>
+      }
+      @if (_scopeKind == "ENGAGEMENT")
+      {
+        <MudItem xs="12" sm="6">
+          <MudSelect T="Guid?" Label="Engagement" @bind-Value="_engagementId" id="assign-engagement">
+            @foreach (var engagement in Engagements.Where(x => x.ParentId == _clientId)) { <MudSelectItem T="Guid?" Value="@engagement.Id">@engagement.Name</MudSelectItem> }
+          </MudSelect>
+        </MudItem>
+      }
+      @if (_scopeKind == "GROUP")
+      {
+        <MudItem xs="12" sm="6">
+          <MudSelect T="Guid?" Label="Group" @bind-Value="_groupId" id="assign-group">
+            @foreach (var group in Groups) { <MudSelectItem T="Guid?" Value="@group.Id">@group.Name</MudSelectItem> }
+          </MudSelect>
+        </MudItem>
+      }
+      <MudItem xs="12" sm="6">
+        <MudTextField T="string" Label="Effective from" Value="@("Immediately on approval")" ReadOnly="true" HelperText="Future-dated access is not supported." />
+      </MudItem>
+      <MudItem xs="12" sm="6">
+        <MudDatePicker Label="Expires at (optional)" @bind-Date="_expiresOn" MinDate="@DateTime.Today.AddDays(1)" Clearable="true" id="assign-expires" Disabled="@(_scopeKind == "GROUP")" />
+      </MudItem>
+      <MudItem xs="12">
+        <MudTextField T="string" Label="Reason" @bind-Value="_reason" Lines="2" MaxLength="1000" Required="true" id="assign-reason" HelperText="Recorded in the immutable access history." />
+      </MudItem>
+    </MudGrid>
+    @if (ReplacesGrantId.HasValue)
+    {
+      <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-2">This change replaces an existing grant atomically.</MudAlert>
+    }
+    <MudButton Variant="Variant.Outlined" Class="mt-3" OnClick="PreviewAsync" Disabled="@_busy">Preview change</MudButton>
+    @if (_preview is not null)
+    {
+      <MudPaper Class="pa-3 mt-3" Outlined="true" role="region" aria-label="Access change preview">
+        <MudText Typo="Typo.subtitle2">Current access</MudText>
+        @if (_preview.CurrentAccess.Count == 0) { <MudText Typo="Typo.body2">None</MudText> }
+        else { <ul>@foreach (var line in _preview.CurrentAccess) { <li>@RoleAssignmentService.Describe(line)@(line.ExpiresAt is { } e ? $" (expires {e:yyyy-MM-dd})" : "")</li> }</ul> }
+        <MudText Typo="Typo.subtitle2">Proposed access</MudText>
+        <MudText Typo="Typo.body2">@RoleAssignmentService.Describe(_preview.Proposed)</MudText>
+        <MudText Typo="Typo.subtitle2" Class="mt-2">Added capabilities</MudText>
+        <MudText Typo="Typo.body2">@(_preview.AddedCapabilities.Count == 0 ? "None" : string.Join("; ", _preview.AddedCapabilities))</MudText>
+        <MudText Typo="Typo.subtitle2">Removed capabilities</MudText>
+        <MudText Typo="Typo.body2">@(_preview.RemovedCapabilities.Count == 0 ? "None" : string.Join("; ", _preview.RemovedCapabilities))</MudText>
+        <MudText Typo="Typo.body2" Class="mt-2">Scope expansion: <strong>@(_preview.ScopeExpansion ? "Yes" : "No")</strong> · Scope reduction: <strong>@(_preview.ScopeReduction ? "Yes" : "No")</strong></MudText>
+        <MudText Typo="Typo.subtitle2" Class="mt-2">Professional independence impact</MudText>
+        <MudText Typo="Typo.body2">@(_preview.IndependenceImpact.Count == 0 ? "None identified" : string.Join(" ", _preview.IndependenceImpact))</MudText>
+        @foreach (var warning in _preview.Warnings) { <MudAlert Severity="Severity.Info" Dense="true" Class="mt-1">@warning</MudAlert> }
+        @foreach (var blocking in _preview.BlockingReasons) { <MudAlert Severity="Severity.Error" Dense="true" Class="mt-1" role="alert">@blocking</MudAlert> }
+        @if (_preview.ScopeExpansion || _preview.IndependenceImpact.Count > 0)
+        {
+          <MudCheckBox T="bool" @bind-Value="_confirmExpansion" Label="I confirm this access expansion and its independence impact" Color="Color.Warning" id="assign-confirm" />
+        }
+      </MudPaper>
+    }
+    @if (!string.IsNullOrWhiteSpace(_error)) { <MudAlert Severity="Severity.Error" Dense="true" Class="mt-2" role="alert">@_error</MudAlert> }
+  </DialogContent>
+  <DialogActions>
+    <MudButton OnClick="Cancel" Disabled="@_busy">Cancel</MudButton>
+    <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync"
+      Disabled="@(_busy || _preview is null || _preview.BlockingReasons.Count > 0 || ((_preview.ScopeExpansion || _preview.IndependenceImpact.Count > 0) && !_confirmExpansion))">
+      @(_busy ? "Saving…" : "Save access")
+    </MudButton>
+  </DialogActions>
+</MudDialog>
+
+@code {
+  [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+  [Parameter] public Guid UserId { get; set; }
+  [Parameter] public string UserDisplayName { get; set; } = string.Empty;
+  [Parameter] public Guid? ReplacesGrantId { get; set; }
+  [Parameter] public string? InitialRole { get; set; }
+  [Parameter] public IReadOnlyList<ScopeOption> Clients { get; set; } = [];
+  [Parameter] public IReadOnlyList<ScopeOption> Engagements { get; set; } = [];
+  [Parameter] public IReadOnlyList<ScopeOption> Groups { get; set; } = [];
+
+  private string _role = string.Empty, _scopeKind = string.Empty, _reason = string.Empty;
+  private Guid? _clientId, _engagementId, _groupId;
+  private DateTime? _expiresOn;
+  private RoleAssignmentPreview? _preview;
+  private bool _confirmExpansion, _busy;
+  private string? _error;
+
+  protected override void OnInitialized() => _role = InitialRole ?? string.Empty;
+
+  private RoleAssignmentRequest BuildRequest() => new(UserId, _role, _scopeKind,
+    _scopeKind is "CLIENT" or "ENGAGEMENT" ? _clientId : null, _scopeKind == "ENGAGEMENT" ? _engagementId : null,
+    _scopeKind == "GROUP" ? _groupId : null, null,
+    _expiresOn.HasValue ? new DateTimeOffset(DateTime.SpecifyKind(_expiresOn.Value.Date.AddDays(1).AddSeconds(-1), DateTimeKind.Utc)) : null,
+    _reason, ReplacesGrantId, _confirmExpansion);
+
+  private async Task PreviewAsync()
+  {
+    _error = null; _busy = true; _confirmExpansion = false;
+    try
+    {
+      var actor = await ActorResolver.ResolveAsync();
+      if (actor is null) { _error = "Your session is no longer authorized. Sign in again."; return; }
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await RoleAssignmentService.PreviewAsync(db, actor, BuildRequest(), DateTimeOffset.UtcNow);
+      if (result.Succeeded) _preview = result.Value; else { _preview = null; _error = result.Message; }
+    }
+    finally { _busy = false; }
+  }
+
+  private async Task SaveAsync()
+  {
+    _error = null; _busy = true;
+    try
+    {
+      var actor = await ActorResolver.ResolveAsync();
+      if (actor is null) { _error = "Your session is no longer authorized. Sign in again."; return; }
+      await using var db = await DbFactory.CreateDbContextAsync();
+      // The confirmation applies only to the change that was previewed; any edit requires a new review.
+      var current = await RoleAssignmentService.PreviewAsync(db, actor, BuildRequest(), DateTimeOffset.UtcNow);
+      if (!current.Succeeded || _preview is null ||
+          RoleAssignmentService.Describe(current.Value!.Proposed) != RoleAssignmentService.Describe(_preview.Proposed) ||
+          current.Value.ScopeExpansion != _preview.ScopeExpansion ||
+          current.Value.IndependenceImpact.Count != _preview.IndependenceImpact.Count)
+      {
+        _preview = current.Value;
+        _confirmExpansion = false;
+        _error = current.Message ?? "The proposed access changed since the preview. Review it again before saving.";
+        return;
+      }
+      var result = await RoleAssignmentService.AssignAsync(db, actor, BuildRequest(), DateTimeOffset.UtcNow);
+      if (result.Succeeded) MudDialog.Close(DialogResult.Ok(result.Value));
+      else _error = result.Message;
+    }
+    finally { _busy = false; }
+  }
+
+  private void Cancel() => MudDialog.Cancel();
+}

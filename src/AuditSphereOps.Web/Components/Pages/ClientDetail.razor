@@ -1,0 +1,337 @@
+@page "/app/clients/{ClientId:guid}"
+@using AuditSphereOps.Application.Documents
+@rendermode InteractiveServer
+@using AuditSphereOps.Application.Practice
+@using AuditSphereOps.Domain.Engagements
+@using AuditSphereOps.Domain.Practice
+@using AuditSphereOps.Domain.Security
+@using AuditSphereOps.Web.Components.Acceptance
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
+<PageTitle>Client profile</PageTitle>
+<div class="page-header">
+  <nav class="breadcrumb-nav" aria-label="Breadcrumb">
+    <a href="/app">Portfolio</a> /
+    <span>Client profile</span>
+  </nav>
+  <PageHeader Title="Client profile" Eyebrow="Practice client" Description="Client-level master records, configured engagements, and authorized contacts within the authenticated firm scope." />
+</div>
+
+@if (_loading)
+{
+  <LoadingState IsLoading="true" LoadingMessage="Loading client profile…" />
+}
+else if (_actor is null || !_isStaff)
+{
+  <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+    <h2>Access unavailable</h2>
+    <MudText Typo="Typo.body2">Sign in with an authorized internal staff identity to view this client profile.</MudText>
+  </MudAlert>
+}
+else if (_client is null)
+{
+  <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+    <h2>Client unavailable</h2>
+    <MudText Typo="Typo.body2">The requested client profile was not found in the current firm scope.</MudText>
+  </MudAlert>
+}
+else
+{
+  <div class="audit-record-toolbar" aria-label="Client navigation">
+    <StatusChip Status="@_client.Status" />
+    <MudLink Href="@($"/app/clients/{_client.Id}/assessment")">Client assessment</MudLink>
+    <MudLink Href="/app">Portfolio</MudLink>
+  </div>
+  <MudGrid Spacing="2" Class="audit-accounting-metrics my-3" aria-label="Scoped client summary">
+    <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Engagements</MudText><MudText Typo="Typo.h4">@_engagements.Count</MudText></MudPaper></MudItem>
+    <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Work blocked</MudText><MudText Typo="Typo.h4">@_engagements.Count(x => x.ProfessionalWorkBlocked)</MudText></MudPaper></MudItem>
+    <MudItem xs="12" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Client contacts</MudText><MudText Typo="Typo.h4">@_contacts.Count</MudText></MudPaper></MudItem>
+  </MudGrid>
+  <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="client-heading" role="region">
+    <p class="eyebrow">Status: @_client.Status</p>
+    <h2 id="client-heading">@_client.LegalName</h2>
+    @if (!string.IsNullOrWhiteSpace(_client.CommercialName))
+    {
+      <MudText Typo="Typo.body2" Color="Color.Secondary" Class="muted">Trading as: @_client.CommercialName</MudText>
+    }
+    <dl class="details">
+      <dt>Client ID</dt><dd><code>@_client.Id</code></dd>
+      <dt>Registration Number</dt><dd>@(_client.RegistrationNumber ?? "Not provided")</dd>
+      <dt>Jurisdiction</dt><dd>@(_client.Jurisdiction ?? "Default")</dd>
+      <dt>Safety State Generation</dt><dd>@(_safetyState?.InputGeneration ?? 1)</dd>
+      <dt>Onboarded</dt><dd>@_client.CreatedAt.ToString("yyyy-MM-dd HH:mm") UTC</dd>
+    </dl>
+  </MudPaper>
+
+  @if (_result is not null)
+  {
+    <p class="command-result @(_result.Succeeded ? "success-text" : "error-text")" role="status">
+      @(_result.Succeeded ? (_successMessage ?? "Action completed successfully.") : "Blocked: " + _result.ErrorCode)
+    </p>
+  }
+
+  <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="engagements-heading" role="region">
+    <h2 id="engagements-heading">Associated engagements</h2>
+    @if (_engagements.Count == 0)
+    {
+      <MudText Typo="Typo.body2" Color="Color.Secondary" Class="muted">No engagements are currently configured for this client.</MudText>
+    }
+    else
+    {
+      <MudTable Items="_engagements" Dense="true" Hover="true" Elevation="0">
+        <HeaderContent>
+          <MudTh>Service Route</MudTh>
+          <MudTh>Period</MudTh>
+          <MudTh>Status</MudTh>
+          <MudTh>Work Blocked</MudTh>
+          <MudTh><span class="sr-only">Action</span></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+          <MudTd DataLabel="Service Route">@context.ServiceRoute</MudTd>
+          <MudTd DataLabel="Period">@context.PeriodStart to @context.PeriodEnd</MudTd>
+          <MudTd DataLabel="Status"><StatusChip Status="@context.Status" /></MudTd>
+          <MudTd DataLabel="Work Blocked">@(context.ProfessionalWorkBlocked ? "Blocked" : "Clear")</MudTd>
+          <MudTd DataLabel="Action"><MudLink Href="@($"/app/engagements/{context.Id}")">Open</MudLink></MudTd>
+        </RowTemplate>
+        <PagerContent>
+          <MudTablePager PageSizeOptions="new int[] { 10, 25, 50 }" />
+        </PagerContent>
+      </MudTable>
+    }
+  </MudPaper>
+
+  @if (_canManageContacts)
+  {
+    <EngagementCreatePanel ClientId="_client.Id" OnChanged="ReloadClientAsync" />
+  }
+
+  <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="portal-intent-heading" role="region">
+    <h2 id="portal-intent-heading">Client portal</h2>
+    @if (_portalIntent is null)
+    {
+      <MudText Typo="Typo.body2" Class="muted">No portal intent: the converted lead had no primary contact email.</MudText>
+    }
+    else
+    {
+      <p><StatusChip Status="@_portalIntent.State" /> for <strong>@_portalIntent.RecipientEmail</strong></p>
+      <MudText Typo="Typo.body2" Class="muted">@(_portalIntent.State switch
+      {
+        "AWAITING_ACCEPTANCE" => "Recorded at conversion. No access exists until a Partner accepts the client and activates an engagement.",
+        "READY_TO_INVITE" => "An engagement is active. An administrator can now invite this contact from User access with a client-scoped role.",
+        _ => "The contact holds client-scoped portal access. Uploads open after their first portal sign-in."
+      })</MudText>
+    }
+  </MudPaper>
+
+  <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="contacts-heading" role="region">
+    <h2 id="contacts-heading">Client contacts</h2>
+    @if (_contacts.Count == 0)
+    {
+      <MudText Typo="Typo.body2" Color="Color.Secondary" Class="muted">No authorized client contacts are on file.</MudText>
+    }
+    else
+    {
+      <MudTable Items="_contacts" Dense="true" Hover="true" Elevation="0">
+        <HeaderContent>
+          <MudTh>Name</MudTh>
+          <MudTh>Email</MudTh>
+          <MudTh>Role</MudTh>
+          <MudTh>Primary</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+          <MudTd DataLabel="Name"><strong>@context.FullName</strong></MudTd>
+          <MudTd DataLabel="Email">@context.Email</MudTd>
+          <MudTd DataLabel="Role">@context.Role</MudTd>
+          <MudTd DataLabel="Primary">@(context.Primary ? "Yes" : "No")</MudTd>
+        </RowTemplate>
+        <PagerContent>
+          <MudTablePager PageSizeOptions="new int[] { 10, 25, 50 }" />
+        </PagerContent>
+      </MudTable>
+    }
+
+    @if (_canManageContacts)
+    {
+      <h3 class="mt-6">Add client contact</h3>
+      <form class="audit-practice-form-fields" @onsubmit="CreateContactAsync" @onsubmit:preventDefault="true">
+        <label>
+          Full name
+          <MudTextField T="string" @bind-Value="_contactName" Placeholder="e.g. Alex Morgan" required Disabled="@_busy" />
+        </label>
+        <label>
+          Email address
+          <MudTextField T="string" @bind-Value="_contactEmail" InputType="InputType.Email" Placeholder="e.g. alex@example.com" required Disabled="@_busy" />
+        </label>
+        <label>
+          Role / title
+          <MudTextField T="string" @bind-Value="_contactRole" Placeholder="e.g. CFO, Finance Director" required Disabled="@_busy" />
+        </label>
+        <label class="audit-inline-check">
+          <MudCheckBox T="bool" @bind-Value="_contactPrimary" Disabled="@_busy" data-optional="true" />
+          Set as primary contact (optional)
+        </label>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" ButtonType="ButtonType.Submit" Class="button" Disabled="@_busy">Save contact</MudButton>
+      </form>
+    }
+  </MudPaper>
+}
+
+@code {
+  private ClientPortalIntentView? _portalIntent;
+  [Parameter] public Guid ClientId { get; set; }
+  private ActorContext? _actor;
+  private bool _isStaff;
+  private bool _canManageContacts;
+  private PracticeClient? _client;
+  private ClientSafetyState? _safetyState;
+  private List<ClientContact> _contacts = [];
+  private List<Engagement> _engagements = [];
+  private CommandResult? _result;
+  private string? _successMessage;
+  private bool _loading = true;
+  private bool _busy;
+  private Guid? _loadedClientId;
+  private bool _routeInitialized;
+  private long _loadGeneration;
+
+  private string _contactName = string.Empty;
+  private string _contactEmail = string.Empty;
+  private string _contactRole = string.Empty;
+  private bool _contactPrimary;
+
+  private Task ReloadClientAsync(string message)
+  {
+    _successMessage = message;
+    _routeInitialized = false;
+    return OnParametersSetAsync();
+  }
+
+  protected override async Task OnParametersSetAsync()
+  {
+    if (_routeInitialized && _loadedClientId == ClientId) return;
+    _routeInitialized = true;
+    _loadedClientId = ClientId;
+    var clientId = ClientId;
+    var generation = ++_loadGeneration;
+    ClearClient();
+    _busy = false;
+    _loading = true;
+    try
+    {
+      var actor = await ActorResolver.ResolveAsync();
+      if (!IsCurrentLoad(generation, clientId)) return;
+      _actor = actor;
+      if (actor is not null)
+      {
+        _isStaff = actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "Senior" or "Staff" or "CommercialManager" or "EngagementLeader");
+        _canManageContacts = actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "CommercialManager" or "EngagementLeader");
+        if (_isStaff)
+          await LoadClientAsync(actor, clientId, generation);
+      }
+    }
+    finally
+    {
+      if (IsCurrentLoad(generation, clientId)) _loading = false;
+    }
+  }
+
+  private async Task LoadClientAsync(ActorContext actor, Guid clientId, long generation)
+  {
+    await using var db = await DbFactory.CreateDbContextAsync();
+    var authorization = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, clientId,
+        RequiredRoles: ["Administrator", "Partner", "Manager", "Senior", "Staff", "CommercialManager", "EngagementLeader"],
+        InternalOnly: true));
+    if (!IsCurrentLoad(generation, clientId) || !authorization.Succeeded) return;
+
+    var client = await db.PracticeClients.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.Id == clientId && x.FirmId == actor.FirmId);
+    if (client is not null)
+    {
+      var safetyState = await db.ClientSafetyStates.AsNoTracking()
+        .SingleOrDefaultAsync(x => x.Id == client.Id && x.FirmId == actor.FirmId);
+      var contacts = await db.ClientContacts.AsNoTracking()
+        .Where(x => x.PracticeClientId == client.Id && x.FirmId == actor.FirmId)
+        .OrderByDescending(x => x.Primary)
+        .ThenBy(x => x.FullName)
+        .ToListAsync();
+      var engagements = await db.Engagements.AsNoTracking()
+        .Where(x => x.PracticeClientId == client.Id && x.FirmId == actor.FirmId)
+        .OrderByDescending(x => x.CreatedAt)
+        .ToListAsync();
+      var portalIntent = await ClientPortalService.GetIntentAsync(db, actor.FirmId, client.Id);
+      if (!IsCurrentLoad(generation, clientId)) return;
+      _portalIntent = portalIntent;
+      _client = client;
+      _safetyState = safetyState;
+      _contacts = contacts;
+      _engagements = engagements;
+    }
+  }
+
+  private async Task CreateContactAsync()
+  {
+    var actor = _actor;
+    var client = _client;
+    var generation = _loadGeneration;
+    if (actor is null || client is null || client.Id != ClientId || _busy) return;
+    _busy = true;
+    _result = null;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var req = new CreateClientContactRequest(
+        PracticeClientId: client.Id,
+        FullName: _contactName,
+        Email: _contactEmail,
+        Role: _contactRole,
+        ApprovedScope: null,
+        ValidFrom: DateTimeOffset.UtcNow,
+        ValidTo: null,
+        Primary: _contactPrimary
+      );
+      var res = await PracticeCrmService.CreateClientContactAsync(db, actor, req);
+      if (generation != _loadGeneration) return;
+      _result = res.Succeeded ? CommandResult.Ok() : CommandResult.Fail(res.ErrorCode!, res.Message!);
+      if (!res.Succeeded && (res.ErrorCode is ErrorCodes.ScopeDenied or ErrorCodes.GenerationStale))
+      {
+        ClearClient();
+        return;
+      }
+      if (res.Succeeded)
+      {
+        _successMessage = $"Contact '{_contactName}' was recorded.";
+        _contactName = string.Empty;
+        _contactEmail = string.Empty;
+        _contactRole = string.Empty;
+        _contactPrimary = false;
+        await LoadClientAsync(actor, client.Id, generation);
+      }
+    }
+    finally
+    {
+      if (generation == _loadGeneration) _busy = false;
+    }
+  }
+
+  private void ClearClient()
+  {
+    _actor = null;
+    _isStaff = false;
+    _canManageContacts = false;
+    _client = null;
+    _safetyState = null;
+    _contacts = [];
+    _engagements = [];
+    _result = null;
+    _successMessage = null;
+    _contactName = string.Empty;
+    _contactEmail = string.Empty;
+    _contactRole = string.Empty;
+    _contactPrimary = false;
+  }
+
+  private bool IsCurrentLoad(long generation, Guid clientId) =>
+    generation == _loadGeneration && ClientId == clientId;
+}

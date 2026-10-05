@@ -1,0 +1,126 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject NavigationManager Navigation
+
+<SessionAccessBoundary>
+<MudThemeProvider Theme="@_theme" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<a class="skip-link" href="#main-content">Skip to main content</a>
+<MudBreakpointProvider OnBreakpointChanged="HandleBreakpointChanged">
+<MudLayout Class="audit-shell audit-staff-shell">
+  <MudAppBar Elevation="0" Class="audit-topbar">
+    <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start"
+                   OnClick="@ToggleDrawer" aria-label="Toggle navigation" />
+    <MudLink Href="/app" Color="Color.Inherit" Typo="Typo.subtitle1" Underline="Underline.None" Class="audit-topbar-title">AuditSphereOps</MudLink>
+    <MudText Typo="Typo.caption" Class="audit-environment ml-2">@EnvironmentLabel</MudText>
+    <GlobalSearch />
+  </MudAppBar>
+  <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="0" Variant="DrawerVariant.Responsive" Class="audit-sidebar">
+    <MudNavMenu aria-label="Primary navigation">
+      @* Grouping follows the visual reference order; only real, routable destinations are listed. Root links match
+         exactly; detail routes highlight their owning section (a visual cue only, never an authorization grant). *@
+      <p class="audit-nav-label">Practice &amp; CRM</p>
+      <MudNavLink Href="/app" Match="NavLinkMatch.All" Class="@SectionClass(NavSection.Portfolio)">Portfolio</MudNavLink>
+      <MudNavLink Href="/app/practice/leads" Class="@SectionClass(NavSection.Leads)">Leads</MudNavLink>
+      <MudNavLink Href="/app/practice/commercial-settings">Commercial settings</MudNavLink>
+      <p class="audit-nav-label">Economics &amp; billing</p>
+      <MudNavLink Href="/app/practice/time">Time</MudNavLink>
+      <MudNavLink Href="/app/practice/resources">Resource planning</MudNavLink>
+      <MudNavLink Href="/app/practice/analytics">Practice analytics</MudNavLink>
+      <MudNavLink Href="/app/finance" Match="NavLinkMatch.All" Class="@SectionClass(NavSection.Finance)">Finance</MudNavLink>
+      <MudNavLink Href="/app/finance/books">Firm books</MudNavLink>
+      <p class="audit-nav-label">Accounting workbench</p>
+      <MudNavGroup Title="Accounting" Expanded="@(_section is NavSection.Accounting or NavSection.PackageReviews)">
+        <MudNavLink Href="/app/accounting" Match="NavLinkMatch.All" Class="@SectionClass(NavSection.Accounting)">Accounting workspace</MudNavLink>
+        <MudNavLink Href="/app/accounting/evidence">Accounting evidence</MudNavLink>
+        <MudNavLink Href="/app/accounting/mappings">COA and mappings</MudNavLink>
+        <MudNavLink Href="/app/accounting/journals">Adjustments</MudNavLink>
+        <MudNavLink Href="/app/accounting/differences">Differences</MudNavLink>
+        <MudNavLink Href="/app/accounting/rollforward">Period roll-forward</MudNavLink>
+        <MudNavLink Href="/app/accounting/reviews" Class="@SectionClass(NavSection.PackageReviews)">Package reviews</MudNavLink>
+        <MudNavLink Href="/app/accounting/restatements">Period restatements</MudNavLink>
+        <MudNavLink Href="/app/accounting/remeasurement">Currency remeasurement</MudNavLink>
+      </MudNavGroup>
+      <MudNavLink Href="/app/consolidation">Consolidation</MudNavLink>
+      <p class="audit-nav-label">Audit &amp; assurance</p>
+      <MudNavLink Href="/app/audit/library" Class="@SectionClass(NavSection.Audit)">Audit program library</MudNavLink>
+      <MudNavLink Href="/app/library">Technical library</MudNavLink>
+      <p class="audit-nav-label">Administration</p>
+      <MudNavLink Href="/app/administration" Match="NavLinkMatch.All" Class="@SectionClass(NavSection.Administration)">Administration</MudNavLink>
+      <MudNavLink Href="/app/administration/project-progress">Project progress</MudNavLink>
+      <MudNavLink Href="/app/operations">Operations</MudNavLink>
+      <MudNavLink Href="/portal">Client portal</MudNavLink>
+      <MudNavLink Href="/health/ready">Readiness</MudNavLink>
+    </MudNavMenu>
+  </MudDrawer>
+  <MudMainContent Class="audit-main-content">
+    <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="audit-workspace">
+      <main id="main-content">
+        <AccountingNavigation />
+        @Body
+      </main>
+    </MudContainer>
+  </MudMainContent>
+</MudLayout>
+</MudBreakpointProvider>
+
+</SessionAccessBoundary>
+
+@code {
+  [Inject] private IConfiguration Configuration { get; set; } = default!;
+  private readonly MudTheme _theme = Theme.AuditSphereTheme.Create();
+  private bool _drawerOpen = true;
+  private bool _wasDesktop;
+  private string EnvironmentLabel => Configuration["ASPNETCORE_ENVIRONMENT"] ?? "Development";
+  private NavSection _section;
+  private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+
+  private enum NavSection { None, Portfolio, Leads, Finance, Accounting, PackageReviews, Audit, Administration }
+
+  protected override void OnInitialized()
+  {
+    _section = SectionFor(Navigation.Uri);
+    Navigation.LocationChanged += OnLocationChanged;
+  }
+
+  private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs args)
+  {
+    var section = SectionFor(args.Location);
+    if (section == _section) return;
+    _section = section;
+    _ = InvokeAsync(StateHasChanged);
+  }
+
+  public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+
+  /// <summary>Marks the owning section of a detail route that has no navigation entry of its own.</summary>
+  private string? SectionClass(NavSection section) => _section == section ? "audit-nav-section-current" : null;
+
+  private NavSection SectionFor(string uri)
+  {
+    var path = "/" + Navigation.ToBaseRelativePath(uri).Split('?', '#')[0].TrimEnd('/');
+    static bool Under(string path, string prefix) => path.StartsWith(prefix + "/", StringComparison.OrdinalIgnoreCase);
+    if (Under(path, "/app/practice/invoices")) return NavSection.Finance;
+    if (Under(path, "/app/practice/proposals")) return NavSection.Leads;
+    if (Under(path, "/app/accounting/packages")) return NavSection.PackageReviews;
+    if (Under(path, "/app/accounting/periods")) return NavSection.Accounting;
+    if (Under(path, "/app/audit") || Under(path, "/app/reviews") || Under(path, "/app/findings") ||
+        Under(path, "/app/completion") || Under(path, "/app/releases") || Under(path, "/app/records") ||
+        path.EndsWith("/audit-plan", StringComparison.OrdinalIgnoreCase) ||
+        path.EndsWith("/audit-fieldwork", StringComparison.OrdinalIgnoreCase) ||
+        path.EndsWith("/completion", StringComparison.OrdinalIgnoreCase))
+      return path.Equals("/app/audit/library", StringComparison.OrdinalIgnoreCase) ? NavSection.None : NavSection.Audit;
+    if (Under(path, "/app/clients") || Under(path, "/app/engagements") || Under(path, "/app/assessments")) return NavSection.Portfolio;
+    if (Under(path, "/app/administration/microsoft365")) return NavSection.Administration;
+    return NavSection.None;
+  }
+  private void HandleBreakpointChanged(Breakpoint breakpoint)
+  {
+    var desktop = breakpoint is Breakpoint.Md or Breakpoint.Lg or Breakpoint.Xl or Breakpoint.Xxl;
+    if (desktop && !_wasDesktop) _drawerOpen = true;
+    _wasDesktop = desktop;
+  }
+}

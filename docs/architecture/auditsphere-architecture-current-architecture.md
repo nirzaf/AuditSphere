@@ -24,10 +24,10 @@ this document wins and the source text remains a historical requirement record.
 ## The architecture
 
 ```text
-           Angular UI             Legacy Blazor (rollback)
-               │                           │
-               ▼                           ▼
-        ASP.NET Core API ◀── shared composition ── Web
+           Angular UI       Blazor rollback host
+               │                   (non-canonical)
+               ▼                       │
+        ASP.NET Core API ◀──────────────┘
                │
                ├──────────── Worker
                ▼               │
@@ -39,8 +39,11 @@ this document wins and the source text remains a historical requirement record.
                  PostgreSQL
 ```
 
-- **One modular monolith**, with `Domain`, `Application`, `Infrastructure`, `Api`, legacy `Web`,
-  `Worker`. No microservices, no message broker, no second ERP.
+- **One modular monolith**, with `Domain`, `Application`, `Infrastructure`, `Api`,
+  `Web` and `Worker`. The `Web` project was restored as a buildable rollback host
+  because source-action and operational acceptance remain open. It is not the
+  canonical production route owner; API serves Angular. No microservices, no message
+  broker, no second ERP.
 - **Microsoft tenant administration** follows the
   [capability permission decision](auditsphere-m365-tenant-administration-permissions.md):
   each Microsoft capability (directory read, optional user creation, guest
@@ -66,17 +69,17 @@ this document wins and the source text remains a historical requirement record.
   calculators) contain no EF Core, network, clock or random-ID dependencies.
 - **Durable work** (GL completeness, package build/render) runs through the local durable
   operation infrastructure with revision fencing and idempotent retries.
-- **Legacy UI component library: MudBlazor 9.10.0, Web project only.** This describes the
-  intended rollback host and historical presentation boundary. The Web project and its
-  MudBlazor reference are absent from current master after `59387b54`; the canonical
-  retirement gate remains `NOT_READY`, so this deletion is not accepted as completion.
+- **Legacy UI component library: MudBlazor 9.10.0, Web project only.** The restored
+  `AuditSphereOps.Web` is a rollback/reference host and is excluded from API
+  composition and the API-only test project graph. Its presence does not establish
+  rollback acceptance; the canonical retirement gate remains `NOT_READY`.
   Intentional native HTML exceptions (browser-draft boundaries, raw-value and file-input
   contracts, `<tfoot>`/`colspan` tables) are recorded in
   `docs/auditsphere-ui-mudblazor-conventions-migration-current.md`.
 
 ## Angular presentation migration
 
-The owner-requested [Angular migration](auditsphere-angular-migration-current.md) uses `AuditSphereOps.Api` as the ASP.NET Core HTTP backend and `AuditSphereOps.Ui` as the Angular frontend. API owns the authorized contracts, authentication/consent and protected file transports. The intended rollback host is `AuditSphereOps.Web`; commit `59387b54` removed it while the canonical source-action and retirement gates remained open. This physical deletion is not accepted as migration completion. Restore/retain an approved rollback path or complete the applicable acceptance gates before accepting retirement. Operators use the API host with Angular. API references no Web or MudBlazor code. Domain, Application, Infrastructure, Worker, database and Microsoft permission boundaries remain separate. Production canary, assistive-technology, locale, and live Microsoft acceptance gates remain open.
+The owner-requested [Angular migration](auditsphere-angular-migration-current.md) uses `AuditSphereOps.Api` as the ASP.NET Core HTTP backend and `AuditSphereOps.Ui` as the Angular frontend. API owns the authorized contracts, authentication/consent and protected file transports. `AuditSphereOps.Web` is retained as a rollback/reference host after its premature deletion in `59387b54` was identified while the readiness gate remained open. It is not referenced by API composition or the current API-only test projects. The Web host is enabled for local Development and isolated Test; other environments require explicit `LegacyPresentation:Enabled=true`. Operators use the API host with Angular by default. Domain, Application, Infrastructure, Worker, database and Microsoft permission boundaries remain separate. Production canary, operational rollback, assistive-technology, locale, and live Microsoft acceptance gates remain open.
 
 Native journal management evidence composes the existing local treatment command in Application.
 Client and staff routes derive signed-in versus offline evidence from current identity, preserve

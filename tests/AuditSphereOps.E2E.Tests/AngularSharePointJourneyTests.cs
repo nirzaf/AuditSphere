@@ -11,8 +11,8 @@ public sealed class AngularSharePointJourneyTests
   public async Task ExactResourceDraftAndTemplateApproval_RemainSeparateFromLiveVerification()
   {
     await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-SELECTED-SHAREPOINT");
-    var seeded = await TenantAdministrationJourneyTests.SeedAsync(host, verified: true);
-    var settings = TenantAdministrationJourneyTests.Simulation(seeded); settings["AngularUi__Enabled"] = "true";
+    var seeded = await TenantAdministrationSeed.SeedAsync(host, verified: true);
+    var settings = TenantAdministrationSeed.Simulation(seeded); settings["AngularUi__Enabled"] = "true";
     var origin = await host.StartApiForIdentityAsync(seeded.Admin,settings);
     using var playwright = await Playwright.CreateAsync(); await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     var page = await browser.NewPageAsync(); var errors = new List<string>(); page.PageError += (_,e) => errors.Add(e);

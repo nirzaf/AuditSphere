@@ -1,0 +1,67 @@
+@* Microsoft operation lifecycle (§16). UNKNOWN results are reconciled by immutable identity, never blindly retried. *@
+@using AuditSphereOps.Application.Microsoft365
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+@inject IMicrosoftDirectoryUserProvisioner Provisioner
+@inject IMicrosoftGuestInvitationProvider Invitations
+@inject IMicrosoftGroupMembershipProvider GroupProvider
+@inject TenantAdministrationSettings Settings
+
+<MudPaper Class="audit-workspace-panel audit-admin-panel pa-4 my-3" Elevation="0" role="region" aria-labelledby="operations-heading">
+  <h3 id="operations-heading">Microsoft operations</h3>
+  @if (Operations.Count == 0)
+  {
+    <MudText>No Microsoft changes have been requested.</MudText>
+  }
+  else
+  {
+    <MudTable Items="Operations" Dense="true" Elevation="0" HorizontalScrollbar="true" Class="audit-admin-wide-table">
+      <HeaderContent><MudTh>Requested</MudTh><MudTh>Operation</MudTh><MudTh>Target</MudTh><MudTh>State</MudTh><MudTh>Microsoft result</MudTh><MudTh>Action</MudTh></HeaderContent>
+      <RowTemplate>
+        <MudTd DataLabel="Requested">@context.CreatedAt.ToString("yyyy-MM-dd HH:mm") by @context.RequestedBy</MudTd>
+        <MudTd DataLabel="Operation">@context.Kind<br /><span class="field-help">@context.Reason</span></MudTd>
+        <MudTd DataLabel="Target">@context.Target</MudTd>
+        <MudTd DataLabel="State"><StatusChip Status="@context.State" /></MudTd>
+        <MudTd DataLabel="Microsoft result">
+          @(context.ResultCode ?? "—") @(context.Reconciliation is null ? "" : $"/ {context.Reconciliation}")
+          @if (context.CorrelationId is not null) { <br /><code>@context.CorrelationId</code> }
+        </MudTd>
+        <MudTd DataLabel="Action">
+          @if (context.State is "UNKNOWN" or "DISPATCHING")
+          {
+            <MudButton Size="Size.Small" Variant="Variant.Outlined" Disabled="@_busy" OnClick="() => ResumeAsync(context.Id)">Reconcile</MudButton>
+          }
+          else if (context.State is "ACCEPTED" or "RECONCILED" && context.Kind is "CREATE_TENANT_USER" or "INVITE_GUEST")
+          {
+            <MudButton Size="Size.Small" Variant="Variant.Outlined" Disabled="@_busy" OnClick="() => ResumeAsync(context.Id)">Complete binding</MudButton>
+          }
+        </MudTd>
+      </RowTemplate>
+      <PagerContent><MudTablePager PageSizeOptions="new[] { 10, 25, 50 }" /></PagerContent>
+    </MudTable>
+  }
+  @if (!string.IsNullOrWhiteSpace(_message)) { <MudAlert Severity="Severity.Info" Dense="true" Class="mt-2" role="status">@_message</MudAlert> }
+</MudPaper>
+
+@code {
+  [Parameter] public IReadOnlyList<ExternalOperationRow> Operations { get; set; } = [];
+  [Parameter] public EventCallback Changed { get; set; }
+  private bool _busy;
+  private string? _message;
+
+  private async Task ResumeAsync(Guid operationId)
+  {
+    _busy = true; _message = null;
+    try
+    {
+      var actor = await ActorResolver.ResolveAsync();
+      if (actor is null) { _message = "Your session is no longer authorized."; return; }
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await DirectoryProvisioningService.ResumeAsync(db, actor, operationId,
+        new(Provisioner, Invitations, GroupProvider), Settings.Options, DateTimeOffset.UtcNow);
+      _message = result.Succeeded ? $"{result.Value!.State}: {result.Value.Message}" : result.Message;
+      await Changed.InvokeAsync();
+    }
+    finally { _busy = false; }
+  }
+}

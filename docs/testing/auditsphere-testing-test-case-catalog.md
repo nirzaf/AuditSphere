@@ -224,7 +224,7 @@ Cross-cutting tags: scope, maker/checker, immutable evidence, stale review, migr
 | M365-025 | [RoleAssignmentTests (8 methods)][RoleAssignmentTests] | I / D | Preview diff, explicit expansion confirmation, self-elevation, independence hold, last administrator, CLIENT/ENGAGEMENT/GROUP isolation, revocation session invalidation, stale/disabled directory identity, expiry revocation, no Entra role. |
 | M365-026 | [GraphTenantAdministrationProviderTests (all methods)][GraphTenantAdministrationProviderTests] | C / — | Single-role token fence (selected-site isolation), accepted/failed/unknown classification, ID-token validation, capability mapping, password complexity. |
 | M365-027 | [LiveMicrosoftTenantAcceptanceTests.CapabilityVerification_IsBlockedExternalUnlessLiveCredentialsAreSupplied][LiveMicrosoftTenantAcceptanceTests] | C / — | Live-gated: reports BLOCKED_EXTERNAL per capability without live credentials; read-only when live. |
-| M365-028 | [TenantAdministrationJourneyTests (5 journeys)][TenantAdministrationJourneyTests] | I / — | Playwright browser journeys: connect tenant, assign existing user and revoke, create user with one-time password and UNKNOWN recovery, client-scoped guest isolation, group membership and failure states (simulated tenant). |
+| M365-028 | [Angular tenant connection][AngularTenantConnectionJourneyTests], [tenant operations][AngularTenantOperationsJourneyTests], and [local administration][AngularAdministrationJourneyTests] | I / — | Playwright journeys on the API/Angular host: connect tenant, responsive capability verification, exact directory binding and reviewed local grant/revocation, one-time-password handling and UNKNOWN recovery, client-scoped guest isolation, group membership and failure states (simulated tenant). |
 
 Cross-reference SEC-013–014 for roster administration and last-administrator protection. No test above performs live OIDC, live directory lookup, live Microsoft mutation, selected-resource Graph operations, or Purview verification; M365-011–028 use stubbed HTTP or the Development/Test simulated tenant.
 
@@ -542,7 +542,9 @@ Fresh Release discovery on 2026-09-24 reconciles 260 Domain + 6 API + 55 E2E = 3
 [RoleAssignmentTests]: ../../tests/AuditSphereOps.Domain.Tests/RoleAssignmentTests.cs
 [GraphTenantAdministrationProviderTests]: ../../tests/AuditSphereOps.Domain.Tests/GraphTenantAdministrationProviderTests.cs
 [LiveMicrosoftTenantAcceptanceTests]: ../../tests/AuditSphereOps.Domain.Tests/LiveMicrosoftTenantAcceptanceTests.cs
-[TenantAdministrationJourneyTests]: ../../tests/AuditSphereOps.E2E.Tests/TenantAdministrationJourneyTests.cs
+[AngularTenantConnectionJourneyTests]: ../../tests/AuditSphereOps.E2E.Tests/AngularTenantConnectionJourneyTests.cs
+[AngularTenantOperationsJourneyTests]: ../../tests/AuditSphereOps.E2E.Tests/AngularTenantOperationsJourneyTests.cs
+[AngularAdministrationJourneyTests]: ../../tests/AuditSphereOps.E2E.Tests/AngularAdministrationJourneyTests.cs
 [Microsoft365OnboardingTests]: ../../tests/AuditSphereOps.Domain.Tests/Microsoft365OnboardingTests.cs
 [OperationRecoveryTests]: ../../tests/AuditSphereOps.Domain.Tests/OperationRecoveryTests.cs
 [OutboxMigrationTests]: ../../tests/AuditSphereOps.Domain.Tests/OutboxMigrationTests.cs

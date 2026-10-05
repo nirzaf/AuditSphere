@@ -16,22 +16,20 @@ public sealed class PassiveSessionRevocationJourneyTests
     await using var host = await OwnedHost.StartAsync(startWorker: false,
       caseId: $"PASSIVE-REVOCATION-{(client ? 1 : 0)}-{(disable ? 1 : 0)}");
     var identity = client ? host.Fixture.Client : host.Fixture.Admin;
-    var origin = client ? host.ClientUrl : await host.StartWebForIdentityAsync(identity);
+    var origin = client ? host.ClientUrl : await host.StartApiForIdentityAsync(identity,
+      new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
     var route = client ? "/portal" : "/app/administration";
-    var heading = client ? "Client portal" : "Firm administration & security";
     using var playwright = await Playwright.CreateAsync();
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     var page = await (await browser.NewContextAsync()).NewPageAsync();
+    var protectedHeading = client
+      ? page.GetByRole(AriaRole.Heading, new() { Name = "Client portal", Exact = true })
+      : page.Locator("main h1");
     await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(route));
-    await page.GetByRole(AriaRole.Heading, new() { Name = heading, Exact = true }).WaitForAsync();
+    await protectedHeading.WaitForAsync();
     await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-    await page.EvaluateAsync("""
-      () => {
-        localStorage.setItem('auditsphere:draft:v1:synthetic-revoked', 'synthetic protected draft');
-        sessionStorage.setItem('auditsphere:draft:v1:synthetic-revoked', 'synthetic protected draft');
-        localStorage.setItem('unrelated-preference', 'preserve');
-      }
-      """);
+    var draftKey = $"auditsphere-tab-draft-v1:{identity.FirmId:D}:{identity.Id:D}:{identity.SessionEpoch}:synthetic-revoked";
+    await page.EvaluateAsync("key => { sessionStorage.setItem(key, 'synthetic protected draft'); localStorage.setItem('unrelated-preference', 'preserve'); }", draftKey);
     await using (var db = host.CreateDbContext())
     {
       var user = await db.Users.SingleAsync(x => x.Id == identity.Id);
@@ -42,14 +40,13 @@ public sealed class PassiveSessionRevocationJourneyTests
     // Deliberately no refresh, click, navigation or server command after revocation.
     await Assertions.Expect(page.GetByRole(AriaRole.Heading,
       new() { Name = "Access unavailable", Exact = true })).ToBeVisibleAsync(new() { Timeout = 15000 });
-    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
-      new() { Name = heading, Exact = true })).ToHaveCountAsync(0);
-    await Assertions.Expect(page.Locator(".audit-shell")).ToHaveCountAsync(0);
+    if (client)
+      await Assertions.Expect(protectedHeading).ToHaveCountAsync(0);
+    else
+      await Assertions.Expect(protectedHeading).ToHaveTextAsync("Access unavailable");
+    await Assertions.Expect(page.Locator(".workspace")).ToHaveCountAsync(1);
     await Assertions.Expect(page.GetByRole(AriaRole.Link, new() { Name = "Sign in", Exact = true })).ToBeVisibleAsync();
-    await page.WaitForFunctionAsync("""
-      () => localStorage.getItem('auditsphere:draft:v1:synthetic-revoked') === null &&
-            sessionStorage.getItem('auditsphere:draft:v1:synthetic-revoked') === null
-      """);
+    await page.WaitForFunctionAsync($"() => sessionStorage.getItem('{draftKey}') === null");
     Assert.Equal("preserve", await page.EvaluateAsync<string>("localStorage.getItem('unrelated-preference')"));
   }
 }

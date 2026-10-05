@@ -1,0 +1,105 @@
+@* Post-opinion file freeze, amendments, the engagement activity trail and document locks. *@
+@using AuditSphereOps.Application.Records
+@using AuditSphereOps.Domain.Records
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
+<MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" role="region" aria-labelledby="records-heading">
+  <h2 id="records-heading">File freeze and activity trail</h2>
+  @if (_freeze is null)
+  {
+    <p class="muted">The freeze is scheduled when the Engagement Partner signs the Independent Auditor's Report; the file then freezes @FileFreezeService.FreezeDays days later.</p>
+  }
+  else
+  {
+    <p><StatusChip Status="@_freeze.State" /> Report signed @_freeze.ReportSignedAt.ToLocalTime().ToString("yyyy-MM-dd"); freeze due @_freeze.DueAt.ToLocalTime().ToString("yyyy-MM-dd")@(_freeze.State == FileFreezeStates.Scheduled ? $" ({_freeze.DaysRemaining} day(s) remaining)" : "").</p>
+    <p class="muted">SharePoint read-only: <strong>@_freeze.ExternalReadOnly</strong>. @(_freeze.ExternalReadOnly == ExternalReadOnlyStates.BlockedExternal ? "AuditSphere refuses changes to the frozen file; the SharePoint folder is not confirmed read-only until an authorized tenant change is observed." : "")</p>
+    @if (_freeze.State == FileFreezeStates.Frozen)
+    {
+      <label for="amend-reason" class="d-block">Reason for amendment <input id="amend-reason" @bind="_reason" maxlength="2000" /></label>
+      <MudButton Variant="Variant.Outlined" OnClick="RequestAsync" Disabled="@_busy">Request amendment</MudButton>
+    }
+    @foreach (var a in _freeze.Amendments)
+    {
+      <div class="audit-inline-form">
+        <span>@a.Reason — @(a.ClosedAt is not null ? "closed" : a.OpenedAt is not null ? "open" : "awaiting Partner approval")</span>
+        @if (a.OpenedAt is null) { <MudButton Variant="Variant.Text" OnClick="@(() => ApproveAsync(a.Id))" Disabled="@_busy">Approve (another Partner)</MudButton> }
+        else if (a.ClosedAt is null) { <MudButton Variant="Variant.Text" OnClick="@(() => CloseAsync(a.Id))" Disabled="@_busy">Close and re-freeze</MudButton> }
+      </div>
+    }
+  }
+
+  <h3 class="mt-3">Document locks</h3>
+  <div class="audit-inline-form">
+    <label for="lock-key">Document <input id="lock-key" @bind="_lockKey" maxlength="200" placeholder="e.g. WP-A1" /></label>
+    <MudButton Variant="Variant.Outlined" OnClick="LockAsync" Disabled="@_busy">Lock for editing</MudButton>
+  </div>
+  @foreach (var l in _locks)
+  {
+    <div class="audit-inline-form"><span>@l.DocumentKey locked by @l.LockedBy since @l.LockedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</span>
+      <MudButton Variant="Variant.Text" OnClick="@(() => UnlockAsync(l.Id))" Disabled="@_busy" aria-label="@($"Release lock on {l.DocumentKey}")">Release</MudButton></div>
+  }
+
+  <h3 class="mt-3">Activity trail</h3>
+  <p class="muted">@EngagementActivityQuery.ExternalCoverageNote</p>
+  <label for="trail-kind">Show <select id="trail-kind" @bind="_kind"><option value="">All activity</option>@foreach (var k in new[] { ActivityKinds.Upload, ActivityKinds.Edit, ActivityKinds.Comment, ActivityKinds.SignOff, ActivityKinds.Freeze, ActivityKinds.Denied }) { <option value="@k">@k</option> }</select></label>
+  @if (_trail is null) { <p class="muted">The activity trail is available to Managers, Partners and reviewers.</p> }
+  else
+  {
+    <MudTable Items="_trail.Where(x => _kind.Length == 0 || x.Kind == _kind)" Dense="true" Elevation="0" aria-label="Activity trail">
+      <HeaderContent><MudTh>When</MudTh><MudTh>Kind</MudTh><MudTh>Who</MudTh><MudTh>What</MudTh></HeaderContent>
+      <RowTemplate>
+        <MudTd DataLabel="When">@context.At.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</MudTd>
+        <MudTd DataLabel="Kind">@context.Kind</MudTd>
+        <MudTd DataLabel="Who">@context.Actor</MudTd>
+        <MudTd DataLabel="What">@context.Description</MudTd>
+      </RowTemplate>
+    </MudTable>
+  }
+  @if (_message is not null) { <p class="command-result @(_error ? "error-text" : "success-text")" role="status">@_message</p> }
+</MudPaper>
+
+@code {
+  [Parameter, EditorRequired] public Guid EngagementId { get; set; }
+  private FileFreezeView? _freeze;
+  private IReadOnlyList<ActivityEvent>? _trail;
+  private IReadOnlyList<DocumentLockView> _locks = [];
+  private string _reason = "", _lockKey = "", _kind = "";
+  private bool _busy, _error;
+  private string? _message;
+
+  protected override Task OnParametersSetAsync() => LoadAsync();
+
+  private async Task LoadAsync()
+  {
+    var actor = await ActorResolver.ResolveAsync();
+    if (actor is null) return;
+    await using var db = await DbFactory.CreateDbContextAsync();
+    _freeze = await FileFreezeService.GetAsync(db, actor, EngagementId, DateTimeOffset.UtcNow);
+    var trail = await EngagementActivityQuery.GetAsync(db, actor, EngagementId);
+    _trail = trail.Succeeded ? trail.Value : null;
+    _locks = await EngagementActivityQuery.LocksAsync(db, actor, EngagementId);
+  }
+
+  private async Task RunAsync(Func<AuditSphereDbContext, ActorContext, Task<CommandResult>> command, string ok)
+  {
+    var actor = await ActorResolver.ResolveAsync();
+    if (actor is null) return;
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await command(db, actor);
+      (_error, _message) = result.Succeeded ? (false, ok) : (true, result.Message);
+      await LoadAsync();
+    }
+    finally { _busy = false; }
+  }
+
+  private static CommandResult Plain<T>(CommandResult<T> r) => r.Succeeded ? CommandResult.Ok() : CommandResult.Fail(r.ErrorCode!, r.Message!);
+  private Task RequestAsync() => RunAsync(async (db, a) => Plain(await FileFreezeService.RequestAmendmentAsync(db, a, EngagementId, _reason)), "Amendment requested; another Partner must approve it.");
+  private Task ApproveAsync(Guid id) => RunAsync((db, a) => FileFreezeService.ApproveAmendmentAsync(db, a, id), "Amendment approved; the file is open for the documented change.");
+  private Task CloseAsync(Guid id) => RunAsync((db, a) => FileFreezeService.CloseAmendmentAsync(db, a, id), "Amendment closed; the file is frozen again.");
+  private Task LockAsync() => RunAsync(async (db, a) => Plain(await EngagementActivityQuery.LockAsync(db, a, EngagementId, _lockKey)), "Document locked for you.");
+  private Task UnlockAsync(Guid id) => RunAsync((db, a) => EngagementActivityQuery.UnlockAsync(db, a, id), "Lock released.");
+}

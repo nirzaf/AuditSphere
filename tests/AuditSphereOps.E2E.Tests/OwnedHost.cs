@@ -50,8 +50,8 @@ internal sealed class OwnedHost : IAsyncDisposable
       var requestId = await PbcSeed.CreateSentAcknowledgedRequestAsync(pg, fixture,
         PbcSeed.Actor(fixture.Staff, "Staff"), PbcSeed.Actor(fixture.Client, "ClientUser"));
       host = new OwnedHost(pg, fixture, requestId, runRoot);
-      host.ClientUrl = await host.StartWebAsync(repo, fixture.Client, enableSetup, apiHost: true);
-      host.StaffUrl = await host.StartWebAsync(repo, fixture.Staff, enableSetup, requireProtectionAttestation, apiHost: true);
+      host.ClientUrl = await host.StartApiAsync(repo, fixture.Client, enableSetup);
+      host.StaffUrl = await host.StartApiAsync(repo, fixture.Staff, enableSetup, requireProtectionAttestation);
       if (startWorker) await host.StartWorkerAsync(repo);
       return host;
     }
@@ -70,7 +70,7 @@ internal sealed class OwnedHost : IAsyncDisposable
 
   internal ITestPostgresDatabase Database => pg;
 
-  public async Task<string> StartUnrelatedClientWebAsync()
+  public async Task<string> StartUnrelatedClientApiAsync()
   {
     var user = PbcSeed.User(Fixture.FirmId, "Client");
     var clientId = Guid.NewGuid();
@@ -96,19 +96,15 @@ internal sealed class OwnedHost : IAsyncDisposable
       db.ClientPortalFirstSignIns.Add(PbcSeed.FirstSignIn(user));
       await db.SaveChangesAsync();
     }
-    return await StartWebAsync(FindRepositoryRoot(), user, enableSetup: false);
+    return await StartApiAsync(FindRepositoryRoot(), user, enableSetup: false);
   }
 
-  public Task<string> StartReviewerWebAsync() =>
-    StartWebAsync(FindRepositoryRoot(), Fixture.Reviewer, enableSetup: false);
-
-  public Task<string> StartWebForIdentityAsync(AuditSphereOps.Domain.Security.AppUser identity,
-    IReadOnlyDictionary<string, string>? extraSettings = null) =>
-    StartWebAsync(FindRepositoryRoot(), identity, enableSetup: false, extraSettings: extraSettings);
+  public Task<string> StartReviewerApiAsync() =>
+    StartApiAsync(FindRepositoryRoot(), Fixture.Reviewer, enableSetup: false);
 
   public Task<string> StartApiForIdentityAsync(AuditSphereOps.Domain.Security.AppUser identity,
     IReadOnlyDictionary<string, string>? extraSettings = null, int? loopbackPort = null) =>
-    StartWebAsync(FindRepositoryRoot(), identity, enableSetup: false, extraSettings: extraSettings, apiHost: true, loopbackPort: loopbackPort);
+    StartApiAsync(FindRepositoryRoot(), identity, enableSetup: false, extraSettings: extraSettings, loopbackPort: loopbackPort);
 
   public async Task WaitForReceivedAsync(Guid uploadId)
   {
@@ -148,14 +144,14 @@ internal sealed class OwnedHost : IAsyncDisposable
     DeleteOwnedDirectory(runRoot, Path.Combine(runRoot, "checkpoints"));
   }
 
-  private async Task<string> StartWebAsync(string repo, AuditSphereOps.Domain.Security.AppUser identity, bool enableSetup,
-    bool requireProtectionAttestation = false, IReadOnlyDictionary<string, string>? extraSettings = null, bool apiHost = true, int? loopbackPort = null)
+  private async Task<string> StartApiAsync(string repo, AuditSphereOps.Domain.Security.AppUser identity, bool enableSetup,
+    bool requireProtectionAttestation = false, IReadOnlyDictionary<string, string>? extraSettings = null, int? loopbackPort = null)
   {
     // A named loopback-only port permits built-in browser inspection of this same
     // disposable fixture. Automated runs continue to reserve an ephemeral port.
     if (loopbackPort is < 1024 or > 65535) throw new ArgumentOutOfRangeException(nameof(loopbackPort));
     var url = $"http://127.0.0.1:{loopbackPort ?? ReserveLoopbackPort()}";
-    var logPath = Path.Combine(runRoot, $"{(apiHost ? "api" : "web")}-{identity.UserKind}-{identity.Id:N}.log");
+    var logPath = Path.Combine(runRoot, $"api-{identity.UserKind}-{identity.Id:N}.log");
     var settings = new List<string>
     {
       "DOTNET_ENVIRONMENT", "Test",
@@ -186,7 +182,7 @@ internal sealed class OwnedHost : IAsyncDisposable
     var process = StartDotnet(repo, "src/AuditSphereOps.Api/AuditSphereOps.Api.csproj", logPath,
       [.. settings]);
     processes.Add(process);
-    await pg.RecordProcessAsync($"{(apiHost ? "api" : "web")}-{identity.UserKind}", process);
+    await pg.RecordProcessAsync($"api-{identity.UserKind}", process);
     await WaitForReadyAsync(process, url, logPath);
     return url;
   }

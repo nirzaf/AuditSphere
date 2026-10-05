@@ -1,0 +1,127 @@
+@page "/app/library"
+@page "/app/library/{DocumentId:guid}"
+@rendermode InteractiveServer
+@using AuditSphereOps.Application.Practice
+@using AuditSphereOps.Domain.Practice
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
+<PageTitle>Technical library</PageTitle>
+<PageHeader Title="Technical library" Eyebrow="Audit &amp; assurance" Description="IFRS, ISA and firm guidance as versioned entries. Search covers published versions you are allowed to read; every result names its version." />
+
+<div class="audit-inline-form" role="search">
+  <label for="library-search">Search <input id="library-search" @bind="_term" @bind:event="oninput" @onkeydown="@(e => e.Key == "Enter" ? SearchAsync() : Task.CompletedTask)" maxlength="100" /></label>
+  <MudButton Variant="Variant.Outlined" OnClick="SearchAsync">Search library</MudButton>
+</div>
+@if (_hits is not null)
+{
+  <ul aria-label="Library results">
+    @if (_hits.Count == 0) { <li class="muted">No published entries match.</li> }
+    @foreach (var h in _hits)
+    {
+      <li><MudLink Href="@($"/app/library/{h.DocumentId}")">@h.Code — @h.Title</MudLink> <span class="muted">@h.Category · v@(h.Version) · effective @h.EffectiveFrom.ToString("yyyy-MM-dd")</span><br /><span>@h.Snippet</span></li>
+    }
+  </ul>
+}
+
+@if (_entry is not null)
+{
+  <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" role="region" aria-labelledby="entry-heading">
+    <h2 id="entry-heading">@_entry.Document.Code — @_entry.Document.Title</h2>
+    <p class="muted">@_entry.Document.Category · version @_entry.Version.Version (@_entry.Version.Status.ToLowerInvariant()) · effective @_entry.Version.EffectiveFrom.ToString("yyyy-MM-dd") · source: @_entry.Version.SourceReference · SHA-256 <code>@_entry.Version.ContentSha256[..12]</code></p>
+    <div class="library-body">@_entry.Version.Body</div>
+    <p class="muted mt-2">Versions: @foreach (var v in _entry.History) { <MudLink Href="@($"/app/library/{_entry.Document.Id}?v={v.Version}")" OnClick="@(() => OpenVersionAsync(v.Version))">v@(v.Version) @v.Status.ToLowerInvariant()</MudLink><text> </text> }</p>
+    @if (_entry.History.FirstOrDefault(x => x.Status == TechnicalLibraryStates.Draft) is { } draft)
+    {
+      <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(() => PublishAsync(draft.Id))" Disabled="@_busy">Publish v@(draft.Version) (second approver)</MudButton>
+    }
+    <details class="my-2">
+      <summary>Prepare a new version</summary>
+      <label class="d-block">Content <textarea @bind="_body" rows="6" maxlength="200000" aria-label="New version content"></textarea></label>
+      <label class="d-block">Source reference <input @bind="_source" maxlength="300" aria-label="New version source reference" /></label>
+      <label class="d-block">Effective from <input type="date" @bind="_effective" aria-label="New version effective date" /></label>
+      <MudButton Variant="Variant.Outlined" OnClick="DraftAsync" Disabled="@_busy">Save draft version</MudButton>
+    </details>
+  </MudPaper>
+}
+
+<MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" role="region" aria-labelledby="catalogue-heading">
+  <h2 id="catalogue-heading">Catalogue</h2>
+  <ul aria-label="Library catalogue">
+    @foreach (var item in _catalogue)
+    {
+      <li><MudLink Href="@($"/app/library/{item.Document.Id}")">@item.Document.Code — @item.Document.Title</MudLink> <span class="muted">@item.Document.Category · @(item.PublishedVersion is null ? "not yet published" : $"v{item.PublishedVersion}")@(item.HasDraft ? " · draft pending" : "")</span></li>
+    }
+  </ul>
+  <details>
+    <summary>Add an entry (Manager, Partner or administrator)</summary>
+    <div class="audit-inline-form">
+      <label for="new-code">Code <input id="new-code" @bind="_code" maxlength="40" /></label>
+      <label for="new-title">Title <input id="new-title" @bind="_title" maxlength="200" /></label>
+      <label for="new-category">Category <select id="new-category" @bind="_category">@foreach (var c in TechnicalLibraryCategories.All) { <option value="@c">@c</option> }</select></label>
+      <label for="new-audience">Audience <select id="new-audience" @bind="_audience"><option value="ALL_STAFF">All staff</option><option value="PARTNERS_MANAGERS">Partners and managers</option></select></label>
+    </div>
+    <label for="new-body" class="d-block">Content <textarea id="new-body" @bind="_newBody" rows="5" maxlength="200000"></textarea></label>
+    <label for="new-source" class="d-block">Authoritative source <input id="new-source" @bind="_newSource" maxlength="300" /></label>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateAsync" Disabled="@_busy">Create draft entry</MudButton>
+  </details>
+</MudPaper>
+@if (_message is not null) { <p class="command-result @(_error ? "error-text" : "success-text")" role="status">@_message</p> }
+
+@code {
+  [Parameter] public Guid? DocumentId { get; set; }
+  [SupplyParameterFromQuery(Name = "v")] public int? Version { get; set; }
+  private string _term = "", _body = "", _source = "", _code = "", _title = "", _category = TechnicalLibraryCategories.FirmGuidance, _audience = TechnicalLibraryAudiences.AllStaff, _newBody = "", _newSource = "";
+  private DateTime _effective = DateTime.Today;
+  private IReadOnlyList<LibraryHit>? _hits;
+  private LibraryEntry? _entry;
+  private IReadOnlyList<(TechnicalLibraryDocument Document, int? PublishedVersion, bool HasDraft)> _catalogue = [];
+  private bool _busy, _error;
+  private string? _message;
+
+  protected override Task OnParametersSetAsync() => LoadAsync(Version);
+
+  private async Task LoadAsync(int? version)
+  {
+    var actor = await ActorResolver.ResolveAsync();
+    if (actor is null) return;
+    await using var db = await DbFactory.CreateDbContextAsync();
+    _catalogue = await TechnicalLibraryService.ListAsync(db, actor);
+    if (DocumentId is { } id)
+    {
+      var entry = await TechnicalLibraryService.OpenAsync(db, actor, id, version);
+      _entry = entry.Succeeded ? entry.Value : null;
+      if (!entry.Succeeded) (_error, _message) = (true, entry.Message);
+    }
+  }
+
+  private Task OpenVersionAsync(int version) => LoadAsync(version);
+
+  private async Task SearchAsync()
+  {
+    var actor = await ActorResolver.ResolveAsync();
+    if (actor is null) return;
+    await using var db = await DbFactory.CreateDbContextAsync();
+    _hits = await TechnicalLibraryService.SearchAsync(db, actor, _term);
+  }
+
+  private async Task RunAsync(Func<AuditSphereDbContext, ActorContext, Task<CommandResult>> command, string ok)
+  {
+    var actor = await ActorResolver.ResolveAsync();
+    if (actor is null) return;
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await command(db, actor);
+      (_error, _message) = result.Succeeded ? (false, ok) : (true, result.Message);
+      await LoadAsync(null);
+    }
+    finally { _busy = false; }
+  }
+
+  private static CommandResult Plain<T>(CommandResult<T> r) => r.Succeeded ? CommandResult.Ok() : CommandResult.Fail(r.ErrorCode!, r.Message!);
+  private Task PublishAsync(Guid versionId) => RunAsync((db, a) => TechnicalLibraryService.PublishAsync(db, a, versionId), "Version published; the previous version is superseded.");
+  private Task DraftAsync() => _entry is null ? Task.CompletedTask : RunAsync(async (db, a) => Plain(await TechnicalLibraryService.DraftVersionAsync(db, a, _entry.Document.Id, _body, _source, DateOnly.FromDateTime(_effective))), "Draft version saved; a Partner or administrator must publish it.");
+  private Task CreateAsync() => RunAsync(async (db, a) => Plain(await TechnicalLibraryService.CreateAsync(db, a, _code, _title, _category, _audience, _newBody, _newSource, DateOnly.FromDateTime(DateTime.Today))), "Entry created as a draft; a Partner or administrator must publish it.");
+}

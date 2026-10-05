@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "authority": "Owner-attached migration guide; local route cutover and Blazor runtime retirement are complete, while production rollout and overall migration acceptance remain open.",
+  "authority": "Owner-attached migration guide; Angular route ownership is active. The Web rollback/reference host has been restored after premature physical deletion; the canonical migration gate remains NOT_READY.",
   "stories": [
     {
       "id": "US-001",
@@ -144,7 +144,7 @@
       "id": "US-024",
       "title": "Migrate journal and adjustment workflows",
       "status": "PARTIAL",
-      "scope": "Native queues, exact line creation/revision review, submission/return, independent posting, linked reversal/supersession, immutable original/before-after history, scoped receipt recovery, client management response review, offline staff evidence recording, source reflection reconciliation with line-level bridge validation, and reviewed adjustment plan eligibility, creation and finalization are implemented with local verification in status.json. Local Angular cutover is complete and the Web runtime is Test-only; broader accounting parity and production/assistive-technology acceptance remain open."
+      "scope": "Native queues, exact line creation/revision review, submission/return, independent posting, linked reversal/supersession, immutable original/before-after history, scoped receipt recovery, client management response review, offline staff evidence recording, source reflection reconciliation with line-level bridge validation, and reviewed adjustment plan eligibility, creation and finalization are implemented with local verification in status.json. The Web rollback/reference host has been restored and is available under the explicit environment gate; source-action parity, operational rollback readiness and overall migration acceptance remain open."
     },
     {
       "id": "US-025",
@@ -270,7 +270,7 @@
       "id": "US-045",
       "title": "Deploy with explicit route ownership and reversible cutover",
       "status": "PARTIAL",
-      "scope": "Independent API publication bundles Angular assets. Owner-approved canonical Angular route ownership is enabled by default; the API is the only supported runtime and AuditSphereOps.Web is Test-only. The /ui preview alias, explicit route catalogue, and retained fingerprinted assets remain available. Local browser checks, Release build, EF check and full suite (1,029/1,029) are recorded in status.json. Production-like deployment canary and final rollout acceptance remain open."
+      "scope": "Independent API publication bundles Angular assets. Owner-approved canonical Angular route ownership is enabled by default; the /ui preview alias, explicit route catalogue, and retained fingerprinted assets remain available. AuditSphereOps.Web has been restored as a buildable rollback/reference host after premature physical deletion. Current local Angular and Release builds, full solution regression, and EF check are recorded in status.json. Production-like deployment canary and final rollout acceptance remain open."
     },
     {
       "id": "US-046",
@@ -281,8 +281,8 @@
     {
       "id": "US-047",
       "title": "Retire Blazor only after the migration is accepted",
-      "status": "COMPLETED",
-      "scope": "Owner-approved local Blazor runtime retirement completed on 2026-10-04. ApiHost fails closed when legacyPresentation=true outside Test; the Web project remains only for Test-environment regression journeys. The canonical API/Angular cutover passed the Release build, PostgreSQL-backed full suite (1,029/1,029, zero failures/skips), EF drift check and built-in browser verification at code commit 32ad074. Production deployment/canary and broader migration acceptance remain separate gates tracked under US-045 and the overall migration status."
+      "status": "PARTIAL",
+      "scope": "The Web project was physically deleted at 59387b54 before its source-action parity and operational removal gates passed; it has since been restored from the parent source snapshot, re-added to the solution, and builds as a rollback/reference host. This does not establish operational rollback acceptance. The API-only E2E host conversion landed at 8ea3ef01, but nine legacy E2E suites were deleted without a completed assertion replacement map. Source-action parity, rollback/canary, human assistive-technology, locale, live Microsoft, and separate owner-acceptance gates remain open. Current local full-suite and EF checks pass as recorded in status.json."
     }
   ]
 }

@@ -1,0 +1,196 @@
+@page "/app/accounting/periods/{PeriodId:guid}"
+@rendermode InteractiveServer
+@using AuditSphereOps.Domain.Accounting
+@using AuditSphereOps.Domain.Documents
+@using AuditSphereOps.Domain.Practice
+@using AuditSphereOps.Domain.Security
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+@inject ILogger<AccountingPeriod> Logger
+
+<PageTitle>Accounting period</PageTitle>
+<MudLink Href="/app/accounting" Class="back-link mb-2 d-inline-block">← Back to accounting workspace</MudLink>
+<PageHeader Title="Accounting period" Eyebrow="Accounting record" Description="This page is a read-only exact-record view. Opening a period does not broaden client or engagement authorization." />
+<MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button-secondary" OnClick="LoadPeriodAsync" Disabled="@_loading">Refresh period</MudButton>
+
+@if (_loading)
+{
+  <LoadingState IsLoading="true" LoadingMessage="Loading scoped period…" />
+}
+else if (_error is not null)
+{
+  <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+    <h2>Period unavailable</h2>
+    <MudText Typo="Typo.body2">@_error</MudText>
+  </MudAlert>
+}
+else if (_actor is null || !_authorized)
+{
+  <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+    <h2>Access unavailable</h2>
+    <MudText Typo="Typo.body2">This period is not visible under the current accounting grant.</MudText>
+  </MudAlert>
+}
+else if (_period is null)
+{
+  <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+    <h2>Period not found</h2>
+    <MudText Typo="Typo.body2">The requested period is not available in the current firm scope.</MudText>
+  </MudAlert>
+}
+else
+{
+  <MudPaper Class="audit-workspace-panel audit-record-summary pa-4 my-4" Elevation="1" aria-labelledby="period-heading" role="region">
+    <h2 id="period-heading">@_period.ClientName · @_period.PeriodCode</h2>
+    <dl class="details">
+      <dt>Legal entity</dt><dd>@_period.ClientName</dd>
+      <dt>Engagement</dt><dd>@_period.Engagement</dd>
+      <dt>Period</dt><dd>@_period.StartDate — @_period.EndDate</dd>
+      <dt>Basis</dt><dd>@_period.Basis</dd>
+      <dt>Book</dt><dd>@_period.Book</dd>
+      <dt>Currency</dt><dd><code>@_period.Currency</code></dd>
+      <dt>Status</dt><dd><StatusChip Status="@_period.Status" /></dd>
+      <dt>Revision</dt><dd>@_period.Revision</dd>
+      <dt>Prior period</dt><dd>@(_period.PriorPeriodId?.ToString() ?? "Not recorded")</dd>
+      <dt>Latest package</dt><dd>@(_period.PackageLabel ?? "Not recorded")</dd>
+      <dt>Latest mapping</dt><dd>@(_period.MappingLabel ?? "Not recorded")</dd>
+    </dl>
+  </MudPaper>
+
+  <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="workflow-heading" role="region">
+    <h2 id="workflow-heading">Workflow handoffs</h2>
+    @if (_task is not null)
+    {
+      <p><strong>Work task:</strong> @_task.Title · <strong>Owner:</strong> @_task.Owner · <strong>Due:</strong> @_task.DueDate · <strong>State:</strong> @_task.State</p>
+    }
+    @if (_pbc is not null)
+    {
+      <p><strong>PBC owner:</strong> @_pbc.Owner · <strong>Due:</strong> @_pbc.DueDate · <strong>State:</strong> @_pbc.State</p>
+    }
+    else if (_task is null)
+    {
+      <MudText Typo="Typo.body2" Color="Color.Secondary" Class="muted">No open PBC request is linked to this period. No task owner or due date is invented.</MudText>
+    }
+    <div class="action-bar audit-accounting-review-actions">
+      @if (_period.PackageId is { } packageId)
+      {
+        <MudButton Color="Color.Primary" Variant="Variant.Outlined" Href="@($"/app/accounting/packages/{packageId}")" Class="button">Open package</MudButton>
+      }
+      @if (_period.MappingId is { } mappingId)
+      {
+        <MudButton Color="Color.Primary" Variant="Variant.Outlined" Href="@($"/app/accounting/mappings/{mappingId}")" Class="button">Open mapping</MudButton>
+      }
+      @if (_pbc is not null)
+      {
+        <MudButton Color="Color.Primary" Variant="Variant.Outlined" Href="@($"/app/engagements/{_pbc.EngagementId}/pbc")" Class="button">Open PBC request</MudButton>
+      }
+      <MudButton Color="Color.Primary" Variant="Variant.Outlined" Href="/app/accounting/evidence" Class="button">Open evidence</MudButton>
+      <MudButton Color="Color.Primary" Variant="Variant.Outlined" Href="/app/accounting/rollforward" Class="button">Roll forward</MudButton>
+      <MudButton Color="Color.Primary" Variant="Variant.Outlined" Href="/app/accounting/restatements" Class="button">Restatements</MudButton>
+    </div>
+  </MudPaper>
+}
+
+@code {
+  private static readonly string[] AccountingRoles = ["Administrator", "Partner", "Manager", "AccountingPreparer", "AccountingReviewer"];
+
+  [Parameter] public Guid PeriodId { get; set; }
+
+  private sealed record PeriodView(Guid Id, Guid ClientId, string ClientName, string Engagement, string PeriodCode,
+    DateOnly StartDate, DateOnly EndDate, string Basis, string Book, string Currency, string Status, long Revision,
+    Guid? PriorPeriodId, Guid? PackageId, string? PackageLabel, Guid? MappingId, string? MappingLabel);
+  private sealed record PbcView(Guid EngagementId, string Owner, string DueDate, string State);
+  private sealed record TaskView(string Title, string Owner, string DueDate, string State);
+
+  private ActorContext? _actor;
+  private PeriodView? _period;
+  private PbcView? _pbc;
+  private TaskView? _task;
+  private bool _loading = true;
+  private bool _authorized;
+  private string? _error;
+
+  protected override Task OnParametersSetAsync() => LoadPeriodAsync();
+
+  private async Task LoadPeriodAsync()
+  {
+    _loading = true;
+    _period = null;
+    _pbc = null;
+    _task = null;
+    _actor = null;
+    _authorized = false;
+    _error = null;
+    try
+    {
+      _actor = await ActorResolver.ResolveAsync();
+      if (_actor is not null) await LoadAsync();
+    }
+    catch (Exception ex)
+    {
+      Logger.LogError(ex, "Failed to refresh the accounting period.");
+      _actor = null;
+      _authorized = false;
+      _period = null;
+      _pbc = null;
+      _task = null;
+      _error = "The period could not be refreshed. Retry when the connection is available.";
+    }
+    finally
+    {
+      _loading = false;
+    }
+  }
+
+  private async Task LoadAsync()
+  {
+    if (_actor is null) return;
+    await using var db = await DbFactory.CreateDbContextAsync();
+    var clientId = await db.ClientReportingPeriods.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.Id == PeriodId)
+      .Select(x => (Guid?)x.ClientId).SingleOrDefaultAsync();
+    if (clientId is null) return;
+    var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,
+      new AuthorizationRequest(_actor.FirmId, ClientId: clientId, RequiredRoles: AccountingRoles, InternalOnly: true));
+    if (!authorization.Succeeded)
+    {
+      _actor = null;
+      return;
+    }
+
+    _authorized = true;
+    var period = await db.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == _actor.FirmId && x.Id == PeriodId);
+    if (period is null) return;
+
+    var client = await db.PracticeClients.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == _actor.FirmId && x.Id == period.ClientId);
+    var book = await db.ClientReportingBooks.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.ClientId == period.ClientId && x.PeriodId == period.Id)
+      .OrderBy(x => x.Code).Select(x => x.Code).FirstOrDefaultAsync();
+    var package = await db.FinancialPackages.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.ClientId == period.ClientId && x.PeriodId == period.Id)
+      .OrderByDescending(x => x.CreatedAt).Select(x => new { x.Id, x.MappingVersionId, x.Status, x.Revision, x.Currency }).FirstOrDefaultAsync();
+    var mapping = package?.MappingVersionId is { } mappingId
+      ? await db.MappingVersions.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.Id == mappingId)
+        .Select(x => new { x.Id, x.Version, x.Status }).SingleOrDefaultAsync()
+      : null;
+    var pbc = await db.PbcRequests.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.ClientId == period.ClientId &&
+      x.PeriodStart == period.StartDate.ToString("yyyy-MM-dd") && x.PeriodEnd == period.EndDate.ToString("yyyy-MM-dd") && x.State != PbcStates.Closed)
+      .OrderBy(x => x.DueDate).FirstOrDefaultAsync();
+    var task = await db.WorkTasks.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.ClientId == period.ClientId &&
+      x.ReportingPeriodId == period.Id && (x.Status == PracticeTimeStates.TaskOpen || x.Status == PracticeTimeStates.TaskInProgress))
+      .OrderBy(x => x.DueDate).ThenBy(x => x.CreatedAt).FirstOrDefaultAsync();
+    var owner = pbc is null ? null : await db.Users.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.Id == pbc.FirmOwnerUserId)
+      .Select(x => string.IsNullOrWhiteSpace(x.DisplayName) ? x.Email : x.DisplayName).SingleOrDefaultAsync();
+    var engagement = pbc is null ? null : await db.Engagements.AsNoTracking().Where(x => x.FirmId == _actor.FirmId && x.Id == pbc.EngagementId)
+      .Select(x => x.ServiceRoute).SingleOrDefaultAsync();
+    _period = new(period.Id, period.ClientId, client?.LegalName ?? "Scoped client", engagement ?? "No linked engagement", period.PeriodCode,
+      period.StartDate, period.EndDate, period.Basis, book ?? "No book", period.Currency, period.Status, period.Revision, period.PriorPeriodId,
+      package?.Id, package is null ? null : $"{package.Status} · v{package.Revision} · {package.Currency}", mapping?.Id, mapping is null ? null : $"{mapping.Status} · v{mapping.Version}");
+    if (pbc is not null)
+      _pbc = new(pbc.EngagementId, owner ?? "Assigned firm owner", string.IsNullOrWhiteSpace(pbc.DueDate) ? "Not recorded" : pbc.DueDate, pbc.State);
+    if (task is not null)
+    {
+      var taskOwner = task.AssigneeUserId is null ? null : await db.Users.AsNoTracking()
+        .Where(x => x.FirmId == _actor.FirmId && x.Id == task.AssigneeUserId)
+        .Select(x => string.IsNullOrWhiteSpace(x.DisplayName) ? x.Email : x.DisplayName).SingleOrDefaultAsync();
+      _task = new(task.Title, taskOwner ?? "Assigned staff", task.DueDate?.ToString("yyyy-MM-dd") ?? "Not recorded", task.Status);
+    }
+  }
+}

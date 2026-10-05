@@ -1,0 +1,310 @@
+@page "/portal"
+@rendermode InteractiveServer
+@using AuditSphereOps.Domain.Accounting
+@using AuditSphereOps.Application.Documents
+@using AuditSphereOps.Application.Completion
+@using Microsoft.AspNetCore.Components.Forms
+@using AuditSphereOps.Domain.Completion
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
+<PageTitle>Client portal</PageTitle>
+<PageHeader Title="Client portal" Description="Assigned document requests, shared reports, management-signed representation letters and final deliverable bundles. Internal review and workpaper content remains restricted." />
+<MudButton Color="Color.Primary" Variant="Variant.Filled" Class="audit-client-refresh" OnClick="LoadPortalAsync" Disabled="@_loading">Refresh portal</MudButton>
+
+@if (_loading)
+{
+  <LoadingState IsLoading="true" LoadingMessage="Loading assigned requests…" />
+}
+else if (_pendingCommercialOnboarding && !_clientIds.Any())
+{
+  <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="status">
+    <h2>Portal setup pending</h2>
+    <MudText Typo="Typo.body2">Your workspace opens after commercial acceptance, Partner risk clearance, engagement activation and advance payment. Contact your audit team for the remaining action.</MudText>
+  </MudAlert>
+}
+else if (_actor is null || !_clientIds.Any())
+{
+  <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+    <h2>Portal unavailable</h2>
+    <MudText Typo="Typo.body2">An authenticated client identity with an active assigned engagement is required.</MudText>
+  </MudAlert>
+}
+else
+{
+  @if (_firstSignIn is { Completed: false } status)
+  {
+    <MudPaper Class="audit-client-panel pa-4 my-4" Elevation="1" aria-labelledby="first-sign-in-heading" role="region">
+      <h2 id="first-sign-in-heading">Complete your first sign-in</h2>
+      <p>@status.Message</p>
+      @if (status.CanComplete)
+      {
+        <MudCheckBox T="bool" @bind-Value="_acknowledged" Label="I will keep my sign-in private, use multi-factor sign-in, and upload only files requested from my organisation." />
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="CompleteFirstSignInAsync" Disabled="@(!_acknowledged || _busy)">Complete first sign-in</MudButton>
+      }
+      @if (_firstSignInError is not null) { <p class="command-result error-text" role="status">@_firstSignInError</p> }
+    </MudPaper>
+  }
+  else if (_firstSignIn is { Completed: true } && _justCompleted)
+  {
+    <p class="command-result success-text" role="status">First sign-in complete. Uploads are open for your requests.</p>
+  }
+  <MudPaper Class="audit-client-panel pa-4 my-4" Elevation="1" aria-labelledby="client-pbc-heading" role="region">
+    <h2 id="client-pbc-heading">Requests</h2>
+    @if (_requests.Count == 0)
+    {
+      <MudText Typo="Typo.body2" Color="Color.Secondary" Class="muted">No requests are assigned to this client identity.</MudText>
+    }
+    else
+    {
+      <MudTable Items="_requests" Dense="true" Hover="true" Elevation="0">
+        <HeaderContent>
+          <MudTh>Area</MudTh>
+          <MudTh>Period</MudTh>
+          <MudTh>Due</MudTh>
+          <MudTh>State</MudTh>
+          <MudTh><span class="sr-only">Action</span></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+          <MudTd DataLabel="Area">@context.Area @if (context.ClientOwnerUserId != _actor.UserId) { <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">Delegated to you</MudChip> }</MudTd>
+          <MudTd DataLabel="Period">@context.PeriodStart to @context.PeriodEnd</MudTd>
+          <MudTd DataLabel="Due">@context.DueDate</MudTd>
+          <MudTd DataLabel="State"><StatusChip Status="@context.State" /></MudTd>
+          <MudTd DataLabel="Action"><MudLink Href="@($"/portal/requests/{context.Id}")">Open</MudLink></MudTd>
+        </RowTemplate>
+        <PagerContent>
+          <MudTablePager PageSizeOptions="new int[] { 10, 25, 50 }" />
+        </PagerContent>
+      </MudTable>
+    }
+  </MudPaper>
+
+  <MudPaper Class="audit-client-panel pa-4 my-4" Elevation="1" aria-labelledby="client-review-heading" role="region">
+    <h2 id="client-review-heading">Documents for your review</h2>
+    @if (_shared.Count == 0)
+    {
+      <MudText Typo="Typo.body2" Color="Color.Secondary" Class="muted">No draft reports or letters are shared with you.</MudText>
+    }
+    @foreach (var doc in _shared)
+    {
+      <div class="client-review-item" data-document="@doc.Title">
+        <p><a href="@($"/api/deliverables/{doc.DeliverableId}/download")">@doc.Title v@(doc.Version)</a> <span class="muted">SHA-256 <code>@doc.ContentSha256[..12]</code></span>
+          @if (doc.AcknowledgedAt is not null) { <span class="success-text"> — acknowledged @doc.AcknowledgedAt.Value.ToLocalTime().ToString("yyyy-MM-dd")</span> }</p>
+        @foreach (var c in doc.Comments) { <p class="muted">@(c.FromClient ? "You" : "Auditor"): @c.Body @(c.Resolution is null ? "" : $"— resolved: {c.Resolution}")</p> }
+        @if (doc.AcknowledgedAt is null)
+        {
+          <div class="audit-inline-form">
+            <label>Comment <input @bind="_comment" aria-label="@($"Comment on {doc.Title}")" maxlength="4000" /></label>
+            <MudButton Variant="Variant.Outlined" OnClick="@(() => CommentAsync(doc.ReviewId))" Disabled="@_busy">Send comment</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(() => AcknowledgeAsync(doc.ReviewId, doc.ContentSha256))" Disabled="@_busy" aria-label="@($"Acknowledge {doc.Title}")">Acknowledge this version</MudButton>
+          </div>
+        }
+        @if (doc.Kind == DeliverableKinds.RepresentationLetter && doc.AcknowledgedAt is not null)
+        {
+          <p>Print this exact version on client letterhead, have authorized management sign it, then upload the complete PDF scan (maximum 10 MB).</p>
+          <label>Management signatory <input @bind="_managementSignatory" maxlength="200" aria-label="Management signatory" /></label>
+          <InputFile OnChange="@(args => UploadSignedLetterAsync(doc, args))" accept=".pdf" aria-label="Upload management-signed representation letter" />
+          @foreach (var scan in _signedLetters.Where(x => x.DeliverableId == doc.DeliverableId))
+          {
+            <p><a href="@($"/api/representation-scans/{scan.Id}/download")">Your signed representation PDF</a>
+              <StatusChip Status="@(scan.Current ? scan.Verified ? "VERIFIED" : "PENDING_REVIEW" : "STALE")" /></p>
+          }
+        }
+      </div>
+    }
+    @foreach (var bundle in _bundles)
+    { <p><a href="@($"/api/deliverable-bundles/{bundle.Id}/download")">Download five-part final bundle</a> <code>@bundle.Sha256[..12]</code></p> }
+    @if (_reviewMessage is not null) { <p class="command-result" role="status">@_reviewMessage</p> }
+  </MudPaper>
+
+  <MudPaper Class="audit-client-panel pa-4 my-4" Elevation="1" aria-labelledby="client-packages-heading" role="region">
+    <h2 id="client-packages-heading">Financial packages for management review</h2>
+    <p class="scope-note">These are validated packages explicitly shared with this client identity. This view does not expose internal audit workpapers or review decisions.</p>
+    @if (_packages.Count == 0)
+    {
+      <MudText Typo="Typo.body2" Color="Color.Secondary" Class="muted">No validated financial packages are available for this identity.</MudText>
+    }
+    else
+    {
+      <MudTable Items="_packages" Dense="true" Hover="true" Elevation="0">
+        <HeaderContent>
+          <MudTh>Framework</MudTh>
+          <MudTh>Period</MudTh>
+          <MudTh>Currency</MudTh>
+          <MudTh><span class="sr-only">Action</span></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+          <MudTd DataLabel="Framework">@context.Framework</MudTd>
+          <MudTd DataLabel="Period">@context.PeriodStart to @context.PeriodEnd</MudTd>
+          <MudTd DataLabel="Currency"><code>@context.Currency</code></MudTd>
+          <MudTd DataLabel="Action"><MudLink Href="@($"/portal/accounting/packages/{context.Id}")">Open package</MudLink></MudTd>
+        </RowTemplate>
+        <PagerContent>
+          <MudTablePager PageSizeOptions="new int[] { 10, 25, 50 }" />
+        </PagerContent>
+      </MudTable>
+    }
+  </MudPaper>
+}
+
+@code {
+  private ActorContext? _actor;
+  private List<Guid> _clientIds = [];
+  private List<PbcRequest> _requests = [];
+  private List<ClientPackageRow> _packages = [];
+  private bool _loading = true;
+  private List<AuditDeliverableService.SharedDeliverableView> _shared = [];
+  private string _comment = string.Empty, _managementSignatory = "";
+  private List<SignedLetterView> _signedLetters = [];
+  private List<BundleView> _bundles = [];
+  private bool _pendingCommercialOnboarding;
+
+  private async Task UploadSignedLetterAsync(AuditDeliverableService.SharedDeliverableView document, InputFileChangeEventArgs args)
+  {
+    var actor = await ActorResolver.ResolveAsync();
+    if (actor is null) { await LoadPortalAsync(); return; }
+    if (args.File.Size > AuditDeliverableService.MaxSignedLetterBytes) { _reviewMessage = "The signed scan must be a PDF of at most 10 MB."; return; }
+    _busy = true;
+    try
+    {
+      using var buffer = new MemoryStream();
+      await args.File.OpenReadStream(AuditDeliverableService.MaxSignedLetterBytes).CopyToAsync(buffer);
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await AuditDeliverableService.UploadSignedRepresentationAsync(db, actor, document.DeliverableId, document.ContentSha256, _managementSignatory, buffer.ToArray());
+      _reviewMessage = result.Succeeded ? "Signed PDF uploaded for this exact letter version. Engagement Partner verification is pending." : result.Message;
+      await LoadPortalAsync();
+    }
+    catch (IOException) { _reviewMessage = "The file upload was interrupted. Select the PDF again."; }
+    finally { _busy = false; }
+  }
+
+  private string? _reviewMessage;
+
+  private async Task CommentAsync(Guid reviewId)
+  {
+    if (_actor is null) return;
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await AuditDeliverableService.CommentAsync(db, _actor, reviewId, _comment);
+      _comment = string.Empty;
+      await LoadPortalAsync();
+      _reviewMessage = result.Succeeded ? "Comment sent to the audit team." : result.Message;
+    }
+    finally { _busy = false; }
+  }
+
+  private async Task AcknowledgeAsync(Guid reviewId, string sha)
+  {
+    if (_actor is null) return;
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await AuditDeliverableService.AcknowledgeAsync(db, _actor, reviewId, sha);
+      await LoadPortalAsync();
+      _reviewMessage = result.Succeeded ? "Acknowledged. The exact version you reviewed is recorded." : result.Message;
+    }
+    finally { _busy = false; }
+  }
+  private FirstSignInStatus? _firstSignIn;
+  private bool _acknowledged;
+  private bool _busy;
+  private bool _justCompleted;
+  private string? _firstSignInError;
+
+  private async Task CompleteFirstSignInAsync()
+  {
+    if (_actor is null) return;
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await ClientPortalService.CompleteFirstSignInAsync(db, _actor, _acknowledged);
+      _firstSignInError = result.Succeeded ? null : result.Message;
+      if (result.Succeeded)
+      {
+        await LoadPortalAsync();
+        _justCompleted = true;
+      }
+    }
+    finally { _busy = false; }
+  }
+  private long _loadGeneration;
+
+  protected override Task OnInitializedAsync() => LoadPortalAsync();
+
+  private async Task LoadPortalAsync()
+  {
+    var generation = ++_loadGeneration;
+    _loading = true;
+    _actor = null;
+    _clientIds = [];
+    _requests = [];
+    _packages = []; _shared = []; _signedLetters = []; _bundles = [];
+    _pendingCommercialOnboarding = false;
+    try
+    {
+      var actor = await ActorResolver.ResolveAsync();
+      if (actor is null || generation != _loadGeneration)
+        return;
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var approvedGrantIds = await ClientPortalService.AuthorizedPortalGrantIdsAsync(db, actor);
+      var grants = db.RoleGrants.AsNoTracking().Where(x => approvedGrantIds.Contains(x.Id) &&
+        x.FirmId == actor.FirmId && x.UserId == actor.UserId && x.Role == "ClientUser" &&
+        x.ClientId.HasValue && x.RevokedAt == null);
+      var grantScopes = await grants.Select(x => new { x.ClientId, x.EngagementId }).ToListAsync();
+      var clientIds = grantScopes.Select(x => x.ClientId!.Value).Distinct().ToList();
+      var engagementIds = await ClientPortalService.AuthorizedPortalEngagementIdsAsync(db, actor);
+      var requests = new List<PbcRequest>();
+      var packageRows = new List<ClientPackageRow>();
+      if (clientIds.Count > 0)
+      {
+        requests = await ClientPortalService.ParticipantRequests(db, actor).Where(x => engagementIds.Contains(x.EngagementId) &&
+          grants.Any(g => g.ClientId == x.ClientId &&
+            (!g.EngagementId.HasValue || g.EngagementId == x.EngagementId)))
+          .OrderBy(x => x.DueDate).ThenBy(x => x.Area).ToListAsync();
+        var packages = await db.FinancialPackages.AsNoTracking().Where(x =>
+          x.FirmId == actor.FirmId && engagementIds.Contains(x.EngagementId) && x.Status == AccountingPackageStates.PackageValidated &&
+          grants.Any(g => g.ClientId == x.ClientId &&
+            (!g.EngagementId.HasValue || g.EngagementId == x.EngagementId)))
+          .OrderByDescending(x => x.CreatedAt).Take(100).ToListAsync();
+        packageRows = packages.Select(package => new ClientPackageRow(package.Id, package.Framework, package.PeriodStart,
+            package.PeriodEnd, package.Currency))
+          .ToList();
+      }
+      if (generation != _loadGeneration)
+        return;
+      var currentActor = await ActorResolver.ResolveAsync();
+      if (currentActor is null || currentActor.UserId != actor.UserId ||
+          currentActor.FirmId != actor.FirmId || currentActor.SessionEpoch != actor.SessionEpoch ||
+          generation != _loadGeneration)
+        return;
+      _actor = actor;
+      _clientIds = clientIds;
+      _requests = requests;
+      _packages = packageRows;
+      _firstSignIn = clientIds.Count > 0 ? await ClientPortalService.GetFirstSignInStatusAsync(db, actor) : null;
+      _pendingCommercialOnboarding = await ClientPortalService.HasPendingCommercialOnboardingAsync(db, actor);
+      var shared = new List<AuditDeliverableService.SharedDeliverableView>();
+      var signedLetters = new List<SignedLetterView>();
+      var bundles = new List<BundleView>();
+      foreach (var engagementId in engagementIds)
+      {
+        shared.AddRange(await AuditDeliverableService.SharedAsync(db, actor, engagementId));
+        signedLetters.AddRange(await AuditDeliverableService.SignedRepresentationsAsync(db, actor, engagementId));
+        bundles.AddRange(await AuditDeliverableService.ClientBundlesAsync(db, actor, engagementId));
+      }
+      _signedLetters = signedLetters; _bundles = bundles;
+      _shared = shared;
+    }
+    finally
+    {
+      if (generation == _loadGeneration)
+        _loading = false;
+    }
+  }
+
+  private sealed record ClientPackageRow(Guid Id, string Framework, string PeriodStart, string PeriodEnd, string Currency);
+}

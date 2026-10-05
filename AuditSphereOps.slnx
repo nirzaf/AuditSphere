@@ -3,6 +3,7 @@
   <Project Path="src/AuditSphereOps.Application/AuditSphereOps.Application.csproj" />
   <Project Path="src/AuditSphereOps.Infrastructure/AuditSphereOps.Infrastructure.csproj" />
   <Project Path="src/AuditSphereOps.Api/AuditSphereOps.Api.csproj" />
+  <Project Path="src/AuditSphereOps.Web/AuditSphereOps.Web.csproj" />
   <Project Path="src/AuditSphereOps.Worker/AuditSphereOps.Worker.csproj" />
   <Project Path="tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj" />
   <Project Path="tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj" />

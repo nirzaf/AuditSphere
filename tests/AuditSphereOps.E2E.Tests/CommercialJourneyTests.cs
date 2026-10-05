@@ -43,7 +43,7 @@ public sealed class CommercialJourneyTests
       proposalId = proposal.Value;
     }
 
-    var origin = await host.StartWebForIdentityAsync(partner);
+    var origin = await host.StartApiForIdentityAsync(partner);
     using var playwright = await Playwright.CreateAsync();
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var context = await browser.NewContextAsync();
@@ -52,23 +52,28 @@ public sealed class CommercialJourneyTests
     page.PageError += (_, error) => diagnostics.Add($"page-error: {error}");
     page.Console += (_, message) => diagnostics.Add($"console-{message.Type}: {message.Text}");
     await page.GotoAsync($"{origin}/auth/sign-in?returnUrl={Uri.EscapeDataString($"/app/practice/proposals/{proposalId:D}")}");
+    await page.GetByText("Quotation pricing and approvals").ScrollIntoViewIfNeededAsync();
     await page.GetByRole(AriaRole.Heading, new() { Name = "Calculated quotation" }).WaitForAsync(new() { Timeout = 20000 });
     await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
     // 10 partner hours at the approved 1,000/h rate, previewed by the same calculator the server uses.
-    var hours = page.GetByLabel("Hours", new() { Exact = true });
+    var quotation = page.Locator("audit-quotation");
+    var hours = quotation.GetByRole(AriaRole.Textbox, new() { Name = "Hours 1", Exact = true });
     await hours.FillAsync("10");
-    await hours.PressAsync("Tab");
-    await Assertions.Expect(page.GetByRole(AriaRole.Status, new() { Name = "Fee preview" })).ToContainTextAsync("10,000.00 QAR");
-    await page.GetByRole(AriaRole.Button, new() { Name = "Calculate and save as new version" }).ClickAsync();
-    var version = page.GetByRole(AriaRole.Region, new() { Name = "Quotation revision 1" });
-    await Assertions.Expect(version).ToContainTextAsync("10,000.00 QAR");
-    await version.GetByRole(AriaRole.Button, new() { Name = "Approve quotation (no approval required)" }).ClickAsync();
-    await Assertions.Expect(version).ToContainTextAsync("APPROVED");
+    await quotation.GetByRole(AriaRole.Button, new() { Name = "Calculate preview", Exact = true }).ClickAsync();
+    await Assertions.Expect(quotation.GetByRole(AriaRole.Status).First).ToContainTextAsync("10000");
+    await quotation.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed these inputs and the server-calculated total.", Exact = true }).CheckAsync();
+    await quotation.GetByRole(AriaRole.Button, new() { Name = "Save quotation version", Exact = true }).ClickAsync();
+    await Assertions.Expect(quotation.GetByRole(AriaRole.Heading, new() { Name = "Revision 1 · DRAFT", Exact = false })).ToBeVisibleAsync();
+    await quotation.GetByRole(AriaRole.Button, new() { Name = "Approve quotation (no matrix approval required)", Exact = true }).ClickAsync();
+    await Assertions.Expect(quotation.GetByRole(AriaRole.Heading, new() { Name = "Revision 1 · APPROVED", Exact = false })).ToBeVisibleAsync();
 
-    // No documents without the firm letterhead: the command refuses and says why.
-    await page.GetByRole(AriaRole.Button, new() { Name = "Generate brief quotation" }).ClickAsync();
-    await Assertions.Expect(page.Locator(".command-result", new() { HasText = "commercial profile" })).ToBeVisibleAsync();
+    // The current Angular workspace explains and disables document generation until a profile exists.
+    var deferredDocumentAnchor = page.Locator("#proposal-fee-agreement");
+    await deferredDocumentAnchor.ScrollIntoViewIfNeededAsync();
+    var documents = page.Locator("audit-commercial-documents");
+    await Assertions.Expect(documents.GetByText("Configure the firm commercial profile before generating documents.", new() { Exact = true }).First).ToBeVisibleAsync();
+    await Assertions.Expect(documents.GetByRole(AriaRole.Button, new() { Name = "Generate brief quotation", Exact = true })).ToBeDisabledAsync();
 
     await page.GotoAsync($"{origin}/app/practice/commercial-settings");
     await page.GetByRole(AriaRole.Heading, new() { Name = "Commercial settings" }).First.WaitForAsync();
@@ -76,20 +81,23 @@ public sealed class CommercialJourneyTests
     await page.WaitForTimeoutAsync(500); // let the interactive circuit attach before typing
     await page.GetByLabel("Legal name").FillAsync("Journey Audit Partners");
     await page.GetByLabel("Address").FillAsync("West Bay, Doha");
-    await page.GetByRole(AriaRole.Button, new() { Name = "Save letterhead" }).ClickAsync();
-    await Assertions.Expect(page.GetByText("Letterhead saved.")).ToBeVisibleAsync();
+    await page.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed this firm profile and confirm the new version.", Exact = true }).CheckAsync();
+    await page.GetByRole(AriaRole.Button, new() { Name = "Save letterhead version", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByText("Settings recorded. Existing documents and quotation approvals retain their original identities.", new() { Exact = true })).ToBeVisibleAsync();
 
     await page.GotoAsync($"{origin}/app/practice/proposals/{proposalId:D}");
-    await page.GetByRole(AriaRole.Heading, new() { Name = "Calculated quotation" }).WaitForAsync();
-    await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 15000 });
-    await page.WaitForTimeoutAsync(500);
-    await page.GetByRole(AriaRole.Button, new() { Name = "Generate brief quotation" }).ClickAsync();
-    var quotationLink = page.GetByRole(AriaRole.Link, new() { Name = "Quotation-", Exact = false }).First;
+    deferredDocumentAnchor = page.Locator("#proposal-fee-agreement");
+    await deferredDocumentAnchor.ScrollIntoViewIfNeededAsync();
+    documents = page.Locator("audit-commercial-documents");
+    await Assertions.Expect(documents.GetByRole(AriaRole.Heading, new() { Name = "Commercial documents", Exact = true })).ToBeVisibleAsync();
+    await documents.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed this quotation, firm profile and document action.", Exact = true }).CheckAsync();
+    await documents.GetByRole(AriaRole.Button, new() { Name = "Generate brief quotation", Exact = true }).ClickAsync();
+    await Assertions.Expect(documents.GetByText("Immutable document available. An existing document is reused for the same quotation.", new() { Exact = true })).ToBeVisibleAsync();
+    var quotationLink = documents.GetByRole(AriaRole.Link, new() { NameRegex = new System.Text.RegularExpressions.Regex(@"^Quotation-.*\.docx$") });
     await quotationLink.WaitForAsync(new() { Timeout = 15000 });
-    await Assertions.Expect(page.GetByText("COMMERCIAL-QUOTATION-v1").First).ToBeVisibleAsync();
-    await Assertions.Expect(page.GetByRole(AriaRole.Link, new() { Name = "EngagementLetter-", Exact = false })).ToHaveCountAsync(0);
-    await page.GetByRole(AriaRole.Button, new() { Name = "Generate engagement letter (Partner)" }).ClickAsync();
-    await Assertions.Expect(page.GetByText("Record client acceptance of the current quotation", new() { Exact = false })).ToBeVisibleAsync();
+    await Assertions.Expect(documents.GetByText("Record client commercial acceptance and convert the proposal to a prospect client.", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(documents.GetByRole(AriaRole.Button, new() { Name = "Generate engagement letter", Exact = true })).ToBeDisabledAsync();
+    await Assertions.Expect(documents.GetByRole(AriaRole.Link, new() { NameRegex = new System.Text.RegularExpressions.Regex(@"^EngagementLetter-.*\.docx$") })).ToHaveCountAsync(0);
 
     var href = await quotationLink.GetAttributeAsync("href");
     var download = await context.APIRequest.GetAsync(origin + href!, new() { MaxRedirects = 0 });
@@ -113,8 +121,9 @@ public sealed class CommercialJourneyTests
     Assert.NotEqual(200, unknown.Status);
 
     // The proposal now passes the quotation gate for independent internal review, then can be marked sent.
-    await page.GetByRole(AriaRole.Button, new() { Name = "Submit for internal review" }).ClickAsync();
-    await Assertions.Expect(page.GetByText("Proposal moved to internal review.")).ToBeVisibleAsync();
+    await page.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed this revision and confirm the selected commercial action.", Exact = true }).CheckAsync();
+    await page.GetByRole(AriaRole.Button, new() { Name = "Submit for independent internal review", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Status).Last).ToContainTextAsync("Commercial action recorded.");
 
     Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
     Assert.DoesNotContain(diagnostics, x => x.Contains("unhandled exception on the current circuit", StringComparison.OrdinalIgnoreCase));

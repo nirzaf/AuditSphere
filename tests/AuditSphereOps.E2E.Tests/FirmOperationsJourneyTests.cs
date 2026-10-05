@@ -46,7 +46,7 @@ public sealed class FirmOperationsJourneyTests
     var diagnostics = new List<string>();
     async Task<IPage> SignInAsync(Domain.Security.AppUser user, string path, string heading)
     {
-      var origin = await host.StartWebForIdentityAsync(user);
+      var origin = await host.StartApiForIdentityAsync(user);
       var page = await (await browser.NewContextAsync()).NewPageAsync();
       page.PageError += (_, error) => diagnostics.Add($"page-error: {error}");
       await page.GotoAsync($"{origin}/auth/sign-in?returnUrl={Uri.EscapeDataString(path)}");
@@ -60,7 +60,7 @@ public sealed class FirmOperationsJourneyTests
     var partnerPage = await SignInAsync(partner, $"/app/library/{entryId:D}", "ISA-505 — External confirmations");
     await partnerPage.GetByRole(AriaRole.Button, new() { Name = "Publish v1 (second approver)" }).ClickAsync();
     await Assertions.Expect(partnerPage.Locator(".command-result").Last).ToContainTextAsync("Version published");
-    await partnerPage.Locator("#library-search").FillAsync("confirming parties");
+    await partnerPage.GetByLabel("Search", new() { Exact = true }).FillAsync("confirming parties");
     await partnerPage.GetByRole(AriaRole.Button, new() { Name = "Search library" }).ClickAsync();
     await Assertions.Expect(partnerPage.Locator("[aria-label='Library results']")).ToContainTextAsync("ISA-505 — External confirmations");
     await Assertions.Expect(partnerPage.Locator("[aria-label='Library results']")).ToContainTextAsync("v1");
@@ -71,12 +71,12 @@ public sealed class FirmOperationsJourneyTests
 
     // Finance records and submits a rent expense with its source document.
     var financePage = await SignInAsync(finance, "/app/finance/books", "Operating expenses");
-    await financePage.Locator("#ex-payee").FillAsync("West Bay Towers");
-    await financePage.Locator("#ex-description").FillAsync("Office rent");
-    await financePage.Locator("#ex-amount").FillAsync("6500");
-    await financePage.Locator("#ex-expense-account").SelectOptionAsync(new SelectOptionValue { Label = "6100 Office rent" });
-    await financePage.Locator("#ex-payment-account").SelectOptionAsync(new SelectOptionValue { Label = "1000 Bank" });
-    await financePage.Locator("#ex-evidence").SetInputFilesAsync(new FilePayload { Name = "rent-invoice.pdf", MimeType = "application/pdf", Buffer = "%PDF rent invoice"u8.ToArray() });
+    await financePage.GetByLabel("Payee", new() { Exact = true }).FillAsync("West Bay Towers");
+    await financePage.GetByLabel("Description", new() { Exact = true }).FillAsync("Office rent");
+    await financePage.GetByLabel("Amount", new() { Exact = true }).FillAsync("6500");
+    await financePage.Locator("select[name='expenseAccount']").SelectOptionAsync(new SelectOptionValue { Label = "6100 Office rent" });
+    await financePage.Locator("select[name='paymentAccount']").SelectOptionAsync(new SelectOptionValue { Label = "1000 Bank" });
+    await financePage.GetByLabel("Source document", new() { Exact = true }).SetInputFilesAsync(new FilePayload { Name = "rent-invoice.pdf", MimeType = "application/pdf", Buffer = "%PDF rent invoice"u8.ToArray() });
     await financePage.WaitForTimeoutAsync(500);
     await financePage.GetByRole(AriaRole.Button, new() { Name = "Record expense" }).ClickAsync();
     await Assertions.Expect(financePage.Locator(".command-result").Last).ToContainTextAsync("Expense recorded as a draft.");
@@ -94,7 +94,8 @@ public sealed class FirmOperationsJourneyTests
     await financePage.GetByRole(AriaRole.Button, new() { Name = "Post to ledger" }).ClickAsync();
     await Assertions.Expect(financePage.Locator(".command-result").Last).ToContainTextAsync("Posted to the firm ledger.");
     await financePage.GetByRole(AriaRole.Button, new() { Name = "Calculate" }).ClickAsync();
-    await Assertions.Expect(financePage.Locator("[aria-label='Firm trial balance']")).ToContainTextAsync("6100 Office rent");
+    await Assertions.Expect(financePage.GetByRole(AriaRole.Region, new() { Name = "Firm trial balance", Exact = true }))
+      .ToContainTextAsync("6100 Office rent");
     await Assertions.Expect(financePage.Locator("[aria-label='Firm financial summary']")).ToContainTextAsync("Balanced.");
     await Assertions.Expect(financePage.Locator("[aria-label='Firm financial summary']")).ToContainTextAsync("reconciles");
     await using (var db = host.CreateDbContext())

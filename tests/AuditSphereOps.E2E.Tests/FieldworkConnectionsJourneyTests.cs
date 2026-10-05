@@ -40,8 +40,21 @@ public sealed class FieldworkConnectionsJourneyTests
 
       var datasetId = Guid.NewGuid();
       var mappingId = Guid.NewGuid();
+      var taxonomyId = Guid.NewGuid();
       var accounts = new (string Code, decimal Amount, string Dest, string Section, string? Area)[]
         { ("1000", 800m, "CASH", "ASSETS", "Cash"), ("3000", -300m, "EQUITY", "EQUITY", null), ("4000", -1500m, "REVENUE", "INCOME", "Revenue"), ("5000", 1000m, "EXPENSES", "EXPENSE", null) };
+      db.ReportingTaxonomyVersions.Add(new ReportingTaxonomyVersion
+      {
+        Id = taxonomyId, FirmId = f.FirmId, Code = "tax-v1", Framework = "IFRS", Name = "Synthetic statement taxonomy",
+        Status = AccountingWorkflowStates.Approved, EffectiveFrom = new DateOnly(2026, 1, 1), CreatedByUserId = reviewer.Id,
+        ApprovedByUserId = reviewer.Id, ApprovedAt = now, CreatedAt = now
+      });
+      db.ReportingTaxonomyNodes.AddRange(accounts.Select(a => new ReportingTaxonomyNode
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, TaxonomyVersionId = taxonomyId, Code = a.Dest, Name = a.Dest,
+        StatementSection = a.Section, DisplaySign = "SIGNED", NormalBalance = "DEBIT", IsPosting = true,
+        Applicability = "ALL", CreatedAt = now
+      }));
       db.TrialBalanceDatasets.Add(new TrialBalanceDataset { Id = datasetId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId, SourceKind = "Raw",
         Currency = "QAR", Balanced = true, ValidationStatus = "Accepted", NormalizedDatasetDigest = Hashing.Sha256Hex("journey"), ImportedAt = now, ImportedByUserId = senior.Id });
       db.TrialBalanceRows.AddRange(accounts.Select(a => new TrialBalanceRow { Id = Guid.NewGuid(), DatasetId = datasetId, AccountCode = a.Code, AccountName = a.Dest, Amount = a.Amount, Currency = "QAR", Entity = "E" }));
@@ -76,7 +89,7 @@ public sealed class FieldworkConnectionsJourneyTests
       await db.SaveChangesAsync();
     }
 
-    var origin = await host.StartWebForIdentityAsync(senior);
+    var origin = await host.StartApiForIdentityAsync(senior);
     using var playwright = await Playwright.CreateAsync();
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     var page = await (await browser.NewContextAsync()).NewPageAsync();
@@ -94,59 +107,73 @@ public sealed class FieldworkConnectionsJourneyTests
     await page.GetByRole(AriaRole.Heading, new() { Name = "Multi-period upload" }).WaitForAsync(new() { Timeout = 20000 });
     await SettleAsync();
     var csv = "PeriodCode,AccountCode,AccountName,NetClosingBalance,Currency,Entity,MappingCode\nFY2025,1000,Cash,500,QAR,E1,\nFY2025,4000,Sales,-500,QAR,E1,\nFY2026,1000,Cash,700,QAR,E1,\nFY2026,4000,Sales,-700,QAR,E1,\n";
-    await page.Locator("#mp-file").SetInputFilesAsync(new FilePayload { Name = "two-periods.csv", MimeType = "text/csv", Buffer = System.Text.Encoding.UTF8.GetBytes(csv) });
+    await page.GetByLabel("Trial balance file").SetInputFilesAsync(new FilePayload { Name = "two-periods.csv", MimeType = "text/csv", Buffer = System.Text.Encoding.UTF8.GetBytes(csv) });
     var periods = page.Locator("[aria-label='Periods in the file']");
     await Assertions.Expect(periods).ToContainTextAsync("FY2025");
     await Assertions.Expect(periods).ToContainTextAsync("FY2026");
-    await page.GetByRole(AriaRole.Button, new() { Name = "Import 2 period(s)" }).ClickAsync();
-    await Assertions.Expect(page.GetByText("Imported FY2025, FY2026 as separate datasets", new() { Exact = false })).ToBeVisibleAsync(new() { Timeout = 15000 });
+    await page.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed this exact file, every period and the current reporting-period identities.", Exact = true }).CheckAsync();
+    await page.GetByRole(AriaRole.Button, new() { Name = "Import reviewed periods" }).ClickAsync();
+    await Assertions.Expect(page.GetByText("Each period has a persisted source receipt. Background validation is separate.", new() { Exact = true })).ToBeVisibleAsync(new() { Timeout = 15000 });
 
     // Statements drill-down into the revenue procedure.
     await page.GotoAsync($"{origin}/app/engagements/{f.EngagementId:D}/statements");
-    await page.GetByRole(AriaRole.Heading, new() { Name = "Statement of profit or loss" }).WaitForAsync(new() { Timeout = 20000 });
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Financial statements", Exact = true }).WaitForAsync(new() { Timeout = 20000 });
     await SettleAsync();
-    await page.GetByRole(AriaRole.Button, new() { Name = "REVENUE" }).ClickAsync();
-    var link = page.GetByRole(AriaRole.Link, new() { Name = "REV-01 · Test revenue cut-off" });
+    await page.GetByRole(AriaRole.Button, new() { Name = "Profit or loss", Exact = true }).ClickAsync();
+    await page.GetByRole(AriaRole.Button, new() { Name = "Inspect line REVENUE INCOME", Exact = true }).ClickAsync();
+    var procedureControl = page.GetByRole(AriaRole.Button, new() { Name = "Inspect procedure REV-01", Exact = true });
+    await procedureControl.WaitForAsync(new() { Timeout = 15000 });
+    await procedureControl.ClickAsync();
+    var link = page.GetByRole(AriaRole.Link, new() { Name = "Open controlled fieldwork", Exact = true });
     await Assertions.Expect(link).ToBeVisibleAsync();
-    Assert.EndsWith($"#procedure-{revenueProcedure}", await link.GetAttributeAsync("href"));
+    Assert.EndsWith($"/app/engagements/{f.EngagementId:D}/audit-fieldwork#procedure-{revenueProcedure}", await link.GetAttributeAsync("href"));
 
     // Fieldwork tools.
     await page.GotoAsync($"{origin}/app/engagements/{f.EngagementId:D}/audit-fieldwork");
     await page.GetByRole(AriaRole.Heading, new() { Name = "Fieldwork tools" }).WaitForAsync(new() { Timeout = 20000 });
     await SettleAsync();
-    await page.Locator("#smp-procedure").SelectOptionAsync(new SelectOptionValue { Label = "REV-01 · Test revenue cut-off" });
-    await page.Locator("#smp-schedule").SelectOptionAsync(new SelectOptionValue { Label = "SALES_LISTING · 20 rows (QAR)" });
-    await page.Locator("#smp-interval").FillAsync("5000");
-    await page.Locator("#smp-rationale").FillAsync("MUS over the sales listing");
-    await page.Locator("#smp-rationale").PressAsync("Tab");
+    await page.Locator("select[name='sp']").SelectOptionAsync(new SelectOptionValue { Label = "REV-01 · Test revenue cut-off" });
+    await page.Locator("select[name='ss']").SelectOptionAsync(new SelectOptionValue { Label = "SALES_LISTING · 20 rows (QAR)" });
+    await page.GetByLabel("Interval").FillAsync("5000");
+    var samplingRationale = page.Locator("input[name='sr']");
+    await samplingRationale.FillAsync("MUS over the sales listing");
+    await samplingRationale.PressAsync("Tab");
     await page.GetByRole(AriaRole.Button, new() { Name = "Run sampling" }).ClickAsync();
     await Assertions.Expect(page.Locator(".command-result").Last).ToContainTextAsync("of 20 items");
     await Assertions.Expect(page.Locator("[aria-label='Sampling calculation log']")).ToContainTextAsync("Matches");
 
-    await page.Locator("#smp-method").SelectOptionAsync("SYSTEMATIC");
-    await page.Locator("#smp-procedure").SelectOptionAsync(new SelectOptionValue { Label = "SMP-01 · Select systematic random transactions" });
-    await page.Locator("#smp-size").FillAsync("5");
-    await page.Locator("#smp-seed").FillAsync("42");
-    await page.Locator("#smp-rationale").FillAsync("Systematic random five from the approved sales listing");
-    await page.Locator("#smp-rationale").PressAsync("Tab");
+    await page.Locator("select[name='sm']").SelectOptionAsync("SYSTEMATIC");
+    await page.Locator("select[name='sp']").SelectOptionAsync(new SelectOptionValue { Label = "SMP-01 · Select systematic random transactions" });
+    await page.GetByLabel("Sample size").FillAsync("5");
+    await page.GetByLabel("Seed").FillAsync("42");
+    await samplingRationale.FillAsync("Systematic random five from the approved sales listing");
+    await samplingRationale.PressAsync("Tab");
     await page.GetByRole(AriaRole.Button, new() { Name = "Run sampling" }).ClickAsync();
     await Assertions.Expect(page.Locator(".command-result").Last).ToContainTextAsync("5 of 20 items");
     await Assertions.Expect(page.Locator("[aria-label='Sampling calculation log']")).ToContainTextAsync("SYSTEMATIC");
 
     await page.GetByRole(AriaRole.Tab, new() { Name = "Physical files" }).ClickAsync();
-    await page.Locator("#ph-index").FillAsync("X-1");
-    await page.Locator("#ph-box").FillAsync("Box 3");
-    await page.Locator("#ph-desc").FillAsync("Signed stock count sheets");
-    await page.Locator("#ph-location").FillAsync("Client warehouse");
-    await page.Locator("#ph-location").PressAsync("Tab");
+    await page.GetByLabel("File index").FillAsync("X-1");
+    await page.GetByLabel("Box").FillAsync("Box 3");
+    await page.GetByLabel("Description").FillAsync("Signed stock count sheets");
+    var physicalLocation = page.GetByLabel("Location");
+    await physicalLocation.FillAsync("Client warehouse");
+    await physicalLocation.PressAsync("Tab");
     await page.GetByRole(AriaRole.Button, new() { Name = "Register file" }).ClickAsync();
+    await Assertions.Expect(page.Locator(".command-result").Last).ToContainTextAsync("Registered X-1.");
+    await page.ReloadAsync();
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Fieldwork tools" }).WaitForAsync(new() { Timeout = 20000 });
+    await SettleAsync();
+    await page.GetByRole(AriaRole.Tab, new() { Name = "Physical files" }).ClickAsync();
     await Assertions.Expect(page.Locator("[data-file-index='X-1']")).ToContainTextAsync("Box 3");
 
     await page.GetByRole(AriaRole.Tab, new() { Name = "Ad hoc steps" }).ClickAsync();
-    await page.Locator("#ah-title").FillAsync("Inspect unusual credit note");
-    await page.Locator("#ah-wording").FillAsync("Inspect the December credit note and its approval.");
-    await page.Locator("#ah-reason").FillAsync("Unusual related-party credit note");
-    await page.Locator("#ah-reason").PressAsync("Tab");
+    await page.GetByLabel("Title").FillAsync("Inspect unusual credit note");
+    var adHocPanel = page.GetByRole(AriaRole.Tabpanel, new() { Name = "Ad hoc steps" });
+    await adHocPanel.GetByRole(AriaRole.Textbox, new() { Name = "Step", Exact = true }).FillAsync("Inspect the December credit note and its approval.");
+    var adhocReason = adHocPanel.GetByRole(AriaRole.Textbox, new() { Name = "Why it is needed", Exact = true });
+    await adhocReason.FillAsync("Unusual related-party credit note");
+    await adhocReason.PressAsync("Tab");
     await page.GetByRole(AriaRole.Button, new() { Name = "Insert step" }).ClickAsync();
     await Assertions.Expect(page.Locator(".command-result").Last).ToContainTextAsync("Ad hoc step inserted");
     await using (var db = host.CreateDbContext())

@@ -1,0 +1,455 @@
+@page "/app/audit/workpapers/{Id:guid}"
+@rendermode InteractiveServer
+@implements IAsyncDisposable
+@using AuditSphereOps.Application.Audit
+@using AuditSphereOps.Application.Security
+@using AuditSphereOps.Domain.Audit
+@using AuditSphereOps.Domain.Shared
+@using FindingRecord = AuditSphereOps.Domain.Audit.Finding
+@using WorkpaperRecord = AuditSphereOps.Domain.Audit.Workpaper
+@using AuditSphereOps.Infrastructure.Persistence
+@using Microsoft.EntityFrameworkCore
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+@inject NavigationManager Nav
+
+<PageTitle>Workpaper — AuditSphereOps</PageTitle>
+
+<div class="page-header">
+    <nav class="breadcrumb-nav">
+        <a href="/app">Portfolio</a> /
+        @if (_workpaper is not null)
+        {
+            <a href="@($"/app/engagements/{_workpaper.EngagementId}/audit-plan")">Audit plan</a>
+            <span> / </span>
+        }
+        <span>Workpaper</span>
+    </nav>
+    <PageHeader Title="@(_workpaper is null ? "Workpaper" : $"Workpaper: {_workpaper.Title}")" Eyebrow="Audit evidence" Description="Scoped workpaper detail, procedure linkage, preparer notes, and review status." />
+</div>
+
+@if (_loading)
+{
+    <LoadingState IsLoading="true" LoadingMessage="Loading workpaper…" />
+}
+else if (_actor is null)
+{
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+        <h2>Sign in required</h2>
+        <p>An authenticated staff session is required to open a workpaper.</p>
+    </MudAlert>
+}
+else if (_workpaper is null)
+{
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+        <h2>Workpaper unavailable</h2>
+        <p>The requested workpaper is unavailable in your current scope.</p>
+    </MudAlert>
+}
+else
+{
+    <div class="audit-record-toolbar" aria-label="Workpaper navigation">
+        <span class="status-badge @(_workpaper.Status == WorkpaperStatuses.SubmittedSnapshot ? "badge-blue" : "badge-yellow")">@_workpaper.Status</span>
+        <MudLink Href="@($"/app/engagements/{_workpaper.EngagementId}/audit-plan")">Audit plan</MudLink>
+        <MudLink Href="@($"/app/engagements/{_workpaper.EngagementId}/audit-fieldwork")">Fieldwork control center</MudLink>
+    </div>
+    <MudGrid Spacing="2" Class="audit-accounting-metrics my-3" aria-label="Scoped workpaper summary">
+        <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Current revision</MudText><MudText Typo="Typo.h4">@_workpaper.Revision</MudText></MudPaper></MudItem>
+        <MudItem xs="6" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Frozen submissions</MudText><MudText Typo="Typo.h4">@_submissions.Count</MudText></MudPaper></MudItem>
+        <MudItem xs="12" sm="4"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Linked planned procedure</MudText><MudText Typo="Typo.h4">@(_procedure is null ? "No" : "Yes")</MudText></MudPaper></MudItem>
+    </MudGrid>
+    <div class="workpaper-shell">
+
+        <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1">
+            <h2>Workpaper Details</h2>
+            <dl class="detail-grid">
+                <dt>Index</dt><dd>@_workpaper.Index</dd>
+                <dt>Objective</dt><dd>@_workpaper.Objective</dd>
+                <dt>Template version</dt><dd>@_workpaper.TemplateVersion</dd>
+                <dt>Procedure</dt><dd>@_workpaper.Procedure</dd>
+                <dt>Linked procedure</dt><dd>@(_procedure?.Title ?? "Not linked to a planned procedure")</dd>
+                <dt>Current revision</dt><dd>@_workpaper.Revision</dd>
+                <dt>Created</dt><dd>@_workpaper.CreatedAt.ToUniversalTime().ToString("yyyy-MM-dd HH:mm") UTC</dd>
+            </dl>
+        </MudPaper>
+
+        <!-- Submission history -->
+        <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1">
+            <h2>Submission History</h2>
+            <p class="notice-text">
+                Submission freezes the content into an immutable snapshot: the reviewer sees exactly
+                what was submitted, and a corrected conclusion requires a new workpaper revision.
+                "Open current working content" and "open the submitted snapshot" are distinct actions.
+            </p>
+            @if (_submissions.Count == 0)
+            {
+                <p class="empty-state">No submission has been frozen for this workpaper yet.</p>
+            }
+            else
+            {
+                <div class="table-wrap"><MudTable Items="_submissions" Dense="true" Hover="true" Elevation="0" Class="data-table">
+  <HeaderContent><MudTh scope="col">Rev</MudTh><MudTh scope="col">Submitted at (UTC)</MudTh><MudTh scope="col">Conclusion</MudTh></HeaderContent>
+  <RowTemplate>                                <MudTd DataLabel="Rev">@context.Revision</MudTd>
+                                <MudTd DataLabel="Submitted at (UTC)">@context.SubmittedAt.ToUniversalTime().ToString("yyyy-MM-dd HH:mm")</MudTd>
+                                <MudTd DataLabel="Conclusion">@context.Conclusion</MudTd></RowTemplate>
+</MudTable></div>
+            }
+        </MudPaper>
+
+        <!-- Working draft -->
+        @if (_workpaper.Status == WorkpaperStatuses.Working)
+        {
+            <MudPaper Class="audit-workspace-panel audit-workpaper-editor pa-4 my-4" Elevation="1">
+                <h2>Working Content</h2>
+                <div class="form-group">
+                    <label for="wp-work">Work performed</label>
+<!-- Native textareas retained: data-draft-skip + value/oninput feed the server-side working-draft autosave interop, not MudBlazor binding. -->
+                    <textarea id="wp-work" rows="5" value="@_draftWork" @oninput="OnWorkInputAsync" data-draft-skip="true" required title="Describe the procedures performed and evidence obtained; this working draft is autosaved on the server."
+                              disabled="@(_busy || _draftConflict)" />
+                </div>
+                <div class="form-group">
+                    <label for="wp-conclusion">Conclusion</label>
+                    <textarea id="wp-conclusion" rows="3" value="@_draftConclusion" @oninput="OnConclusionInputAsync" data-draft-skip="true" required title="State the evidence-based conclusion for this workpaper; this working draft is autosaved on the server."
+                              disabled="@(_busy || _draftConflict)" />
+                </div>
+                <div class="action-bar audit-record-actions">
+                    <MudButton Variant="Variant.Outlined" Class="btn-secondary" OnClick="SaveDraftAsync" Disabled="@(_busy || _draftConflict || _saving)">Save draft</MudButton>
+                    <MudButton Variant="Variant.Outlined" Class="btn-secondary" OnClick="DiscardDraftAsync" Disabled="@(_busy || _draftConflict || _saving || _draftRevision < 1)">Discard draft</MudButton>
+                    <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-primary" OnClick="SubmitAsync" Disabled="@(_busy || _draftConflict)">Submit for review</MudButton>
+                    <MudButton Variant="Variant.Outlined" Class="btn-secondary" OnClick="ReloadCurrentTargetAsync" Disabled="@(_busy || _saving)">Reload current target</MudButton>
+                </div>
+                <p class="notice-text" role="status" aria-live="polite">@_draftStatus</p>
+                <p class="notice-text">
+                    Drafts are saved on the server and survive a browser refresh or circuit restart. Submission
+                    waits for the last acknowledged draft and freezes that exact content; a changed target is
+                    refused without overwriting anything.
+                </p>
+            </MudPaper>
+        }
+        else
+        {
+            <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1">
+                <h2>Submitted Content</h2>
+                <dl class="detail-grid">
+                    <dt>Work performed</dt><dd>@_workpaper.WorkPerformed</dd>
+                    <dt>Conclusion</dt><dd>@_workpaper.Conclusion</dd>
+                    <dt>Submitted at</dt><dd>@_workpaper.SubmittedAt?.ToUniversalTime().ToString("yyyy-MM-dd HH:mm") UTC</dd>
+                </dl>
+                <p class="notice-text">A frozen submission is immutable; review targets this exact revision.</p>
+            </MudPaper>
+        }
+
+        @if (_result is not null)
+        {
+            <p class="command-result @(_result.Succeeded ? "success-text" : "error-text")" role="status">
+                @(_result.Succeeded ? "The submission was recorded." : ErrorCatalog.ForUi(_result.ErrorCode))
+            </p>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private AuditSphereOps.Application.Abstractions.ActorContext? _actor;
+    private WorkpaperRecord? _workpaper;
+    private AuditProcedure? _procedure;
+    private List<WorkpaperSubmission> _submissions = [];
+    private CommandResult? _result;
+    private bool _loading = true;
+    private bool _busy;
+    private bool _saving;
+    private bool _hasUnsavedChanges;
+    private bool _draftConflict;
+    private string _draftWork = "";
+    private string _draftConclusion = "";
+    private string _draftStatus = "Unsaved changes";
+    private long _draftRevision;
+    private long _baseInputGeneration = 1;
+    private long _basePolicyGeneration = 1;
+    private Guid _lastSaveId;
+    private CancellationTokenSource? _autosaveCts;
+    private Task? _pendingAutosave;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        ClearProtectedState();
+        _actor = await ActorResolver.ResolveAsync();
+        if (_actor is not null)
+            await RefreshAsync();
+        _loading = false;
+    }
+
+    private async Task RefreshAsync()
+    {
+        var actor = _actor;
+        if (actor is null) return;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var scope = await db.Workpapers.AsNoTracking()
+            .Where(w => w.Id == Id && w.FirmId == actor.FirmId)
+            .Select(w => new { w.ClientId, w.EngagementId })
+            .SingleOrDefaultAsync();
+        if (scope is null)
+        {
+            ClearProtectedState();
+            return;
+        }
+
+        var authorization = await AuthorizationDecision.AuthorizeAsync(db, actor,
+            new AuthorizationRequest(actor.FirmId, ClientId: scope.ClientId,
+                EngagementId: scope.EngagementId,
+                RequiredRoles: ["Administrator", "Partner", "Manager", "SeniorManager", "Senior", "Staff", "EngagementLeader", "Auditor"],
+                InternalOnly: true));
+        if (!authorization.Succeeded)
+        {
+            ClearProtectedState();
+            return;
+        }
+
+        _workpaper = await db.Workpapers.AsNoTracking()
+            .FirstOrDefaultAsync(w => w.Id == Id && w.FirmId == actor.FirmId &&
+                w.ClientId == scope.ClientId && w.EngagementId == scope.EngagementId);
+        if (_workpaper is null)
+        {
+            ClearProtectedState();
+            return;
+        }
+
+        var draftResult = await AuditPlanningService.LoadWorkpaperDraftAsync(db, actor, _workpaper.Id);
+        if (!draftResult.Succeeded || draftResult.Value is null)
+        {
+            ClearProtectedState();
+            return;
+        }
+        var draft = draftResult.Value;
+        _draftWork = draft.WorkPerformed;
+        _draftConclusion = draft.Conclusion;
+        _draftRevision = draft.DraftRevision;
+        _baseInputGeneration = draft.BaseInputGeneration;
+        _basePolicyGeneration = draft.BasePolicyGeneration;
+        _lastSaveId = draft.LastSaveId;
+        _draftConflict = draft.Lifecycle == "TARGET_CHANGED";
+        _draftStatus = _draftConflict ? "Target changed — reload before editing." :
+            draft.DraftRevision > 0 && draft.LastSavedAt is not null
+                ? $"Saved at {draft.LastSavedAt.Value.ToUniversalTime():yyyy-MM-dd HH:mm:ss} UTC"
+                : "Unsaved changes";
+        _hasUnsavedChanges = false;
+
+        if (_workpaper.ProcedureId is { } procedureId)
+            _procedure = await db.AuditProcedures.AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == procedureId && p.FirmId == actor.FirmId &&
+                    p.ClientId == scope.ClientId && p.EngagementId == scope.EngagementId);
+
+        _submissions = await db.WorkpaperSubmissions.AsNoTracking()
+            .Where(s => s.FirmId == actor.FirmId && s.ClientId == scope.ClientId &&
+                s.EngagementId == scope.EngagementId && s.WorkpaperId == _workpaper.Id)
+            .OrderByDescending(s => s.Revision)
+            .ToListAsync();
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (_actor is null || _workpaper is null || _busy) return;
+        _busy = true;
+        try
+        {
+            await FlushPendingSaveAsync();
+            if (_hasUnsavedChanges || _draftRevision < 1)
+            {
+                _result = CommandResult.Fail(ErrorCodes.Drafts.Conflict,
+                    "Save the current draft before submitting it.");
+                return;
+            }
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var submitted = await AuditPlanningService.SubmitWorkpaperAsync(db, _actor,
+                new SubmitWorkpaperRequest(_workpaper.Id, _workpaper.Revision, _draftWork, _draftConclusion,
+                    _draftRevision, _lastSaveId));
+            _result = submitted.Succeeded ? CommandResult.Ok() : CommandResult.Fail(submitted.ErrorCode!, submitted.Message ?? "The command was refused.");
+            if (!submitted.Succeeded && await ClearIfAccessRevokedAsync(submitted.ErrorCode!)) return;
+            if (_result.Succeeded) await RefreshAsync();
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task OnWorkInputAsync(ChangeEventArgs args)
+    {
+        _draftWork = args.Value?.ToString() ?? string.Empty;
+        MarkDraftChanged();
+        await Task.CompletedTask;
+    }
+
+    private async Task OnConclusionInputAsync(ChangeEventArgs args)
+    {
+        _draftConclusion = args.Value?.ToString() ?? string.Empty;
+        MarkDraftChanged();
+        await Task.CompletedTask;
+    }
+
+    private void MarkDraftChanged()
+    {
+        _hasUnsavedChanges = true;
+        _draftStatus = "Unsaved changes";
+        _autosaveCts?.Cancel();
+        _autosaveCts?.Dispose();
+        _autosaveCts = new CancellationTokenSource();
+        _pendingAutosave = AutosaveAfterDelayAsync(_autosaveCts.Token);
+    }
+
+    private async Task AutosaveAfterDelayAsync(CancellationToken ct)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(750), ct);
+            await InvokeAsync(SaveDraftAsync);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+        catch (ObjectDisposedException) { }
+    }
+
+    private async Task FlushPendingSaveAsync()
+    {
+        if (_pendingAutosave is not null)
+        {
+            try { await _pendingAutosave; }
+            catch (OperationCanceledException) { }
+        }
+        if (_hasUnsavedChanges)
+            await SaveDraftAsync();
+    }
+
+    private async Task SaveDraftAsync()
+    {
+        if (_actor is null || _workpaper is null || _saving || _draftConflict) return;
+        _saving = true;
+        _draftStatus = "Saving…";
+        var savedWork = _draftWork;
+        var savedConclusion = _draftConclusion;
+        var saveId = Guid.CreateVersion7();
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var result = await AuditPlanningService.SaveWorkpaperDraftAsync(db, _actor,
+                new SaveWorkpaperDraftRequest(_workpaper.Id, _draftRevision, _workpaper.Revision,
+                    _baseInputGeneration, _basePolicyGeneration, saveId, savedWork, savedConclusion));
+            if (!result.Succeeded || result.Value is null)
+            {
+                _result = CommandResult.Fail(result.ErrorCode ?? ErrorCodes.Drafts.Conflict,
+                    result.Message ?? "The draft could not be saved.");
+                if (await ClearIfAccessRevokedAsync(result.ErrorCode ?? ErrorCodes.Drafts.Conflict)) return;
+                _draftConflict = result.ErrorCode is ErrorCodes.StaleRevision or ErrorCodes.GenerationStale or ErrorCodes.Drafts.TargetChanged;
+                _draftStatus = _draftConflict
+                    ? "Conflict — a newer draft or target exists. Reload the current workpaper."
+                    : "Disconnected — changes since the last save are not yet saved.";
+                return;
+            }
+
+            var draft = result.Value;
+            _draftRevision = draft.DraftRevision;
+            _baseInputGeneration = draft.BaseInputGeneration;
+            _basePolicyGeneration = draft.BasePolicyGeneration;
+            _lastSaveId = draft.LastSaveId;
+            _hasUnsavedChanges = !string.Equals(savedWork, _draftWork, StringComparison.Ordinal) ||
+                                  !string.Equals(savedConclusion, _draftConclusion, StringComparison.Ordinal);
+            _draftStatus = _hasUnsavedChanges
+                ? "Unsaved changes"
+                : $"Saved at {draft.LastSavedAt?.ToUniversalTime():yyyy-MM-dd HH:mm:ss} UTC";
+            _result = null;
+        }
+        catch (Exception)
+        {
+            // A lost circuit or database acknowledgement must never be presented as
+            // saved. Keep the current editor text in memory and let the user retry.
+            _result = CommandResult.Fail(ErrorCodes.Drafts.Conflict,
+                "The draft acknowledgement was not received.");
+            _draftStatus = "Disconnected — changes since the last save are not yet saved.";
+        }
+        finally
+        {
+            _saving = false;
+            if (_hasUnsavedChanges && !_draftConflict)
+                _pendingAutosave = Task.CompletedTask;
+        }
+    }
+
+    private async Task ReloadCurrentTargetAsync()
+    {
+        if (_busy || _saving) return;
+        _result = null;
+        _draftConflict = false;
+        ClearProtectedState();
+        await RefreshAsync();
+    }
+
+    private async Task DiscardDraftAsync()
+    {
+        if (_actor is null || _workpaper is null || _busy || _draftRevision < 1) return;
+        _busy = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var result = await AuditPlanningService.DiscardWorkpaperDraftAsync(db, _actor,
+                _workpaper.Id, _draftRevision);
+            _result = result.Succeeded ? CommandResult.Ok() : CommandResult.Fail(result.ErrorCode!, result.Message ?? "The draft could not be discarded.");
+            if (!result.Succeeded && await ClearIfAccessRevokedAsync(result.ErrorCode!)) return;
+            if (result.Succeeded) await RefreshAsync();
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task<bool> ClearIfAccessRevokedAsync(string errorCode)
+    {
+        if (errorCode == ErrorCodes.ScopeDenied)
+        {
+            ClearProtectedState();
+            return true;
+        }
+        if (errorCode != ErrorCodes.GenerationStale || _actor is null || _workpaper is null)
+            return false;
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var authorization = await AuthorizationDecision.AuthorizeAsync(db, _actor,
+            new AuthorizationRequest(_actor.FirmId, ClientId: _workpaper.ClientId,
+                EngagementId: _workpaper.EngagementId,
+                RequiredRoles: ["Administrator", "Partner", "Manager", "SeniorManager", "Senior", "Staff", "EngagementLeader", "Auditor"],
+                InternalOnly: true));
+        if (authorization.Succeeded) return false;
+        ClearProtectedState();
+        return true;
+    }
+
+    private void ClearProtectedState()
+    {
+        _autosaveCts?.Cancel();
+        _autosaveCts?.Dispose();
+        _autosaveCts = null;
+        _pendingAutosave = null;
+        _workpaper = null;
+        _procedure = null;
+        _submissions.Clear();
+        _draftWork = "";
+        _draftConclusion = "";
+        _draftRevision = 0;
+        _baseInputGeneration = 1;
+        _basePolicyGeneration = 1;
+        _lastSaveId = Guid.Empty;
+        _hasUnsavedChanges = false;
+        _draftConflict = false;
+        _draftStatus = "Unsaved changes";
+        _result = null;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _autosaveCts?.Cancel();
+        _autosaveCts?.Dispose();
+        if (_pendingAutosave is not null)
+        {
+            try { await _pendingAutosave; }
+            catch (OperationCanceledException) { }
+        }
+        _draftWork = string.Empty;
+        _draftConclusion = string.Empty;
+        _lastSaveId = Guid.Empty;
+    }
+}

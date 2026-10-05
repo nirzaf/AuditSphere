@@ -1,0 +1,474 @@
+@page "/portal/requests/{RequestId:guid}"
+@rendermode InteractiveServer
+@implements IAsyncDisposable
+@using AuditSphereOps.Application.Operations
+@using AuditSphereOps.Application.Documents
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+@inject IJSRuntime JS
+
+<PageTitle>Client request</PageTitle>
+<MudLink Href="/portal" Class="back-link mb-2 d-inline-block">← Back to client portal</MudLink>
+<PageHeader Title="PBC request" Description="Restricted client upload and conversation surface for this exact assigned request." />
+<MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button-secondary" OnClick="RefreshRequestAsync" Disabled="@(_loading || _busy)">Refresh request</MudButton>
+
+@if (_loading)
+{
+  <LoadingState IsLoading="true" LoadingMessage="Loading the request…" />
+}
+else if (_actor is null || _request is null)
+{
+  <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+    <h2>Request unavailable</h2>
+    <MudText Typo="Typo.body2">This request is not available in the current client scope.</MudText>
+  </MudAlert>
+}
+else
+{
+  <MudPaper Class="audit-client-panel audit-client-summary pa-4 my-4" Elevation="1" aria-labelledby="request-heading" role="region">
+    <p class="eyebrow"><StatusChip Status="@_request.State" /></p>
+    <h2 id="request-heading">@_request.Area</h2>
+    <dl class="details">
+      <dt>Objective</dt><dd>@_request.Objective</dd>
+      <dt>Period</dt><dd>@_request.PeriodStart to @_request.PeriodEnd</dd>
+      <dt>Requested format</dt><dd>@_request.RequestedFormat</dd>
+      <dt>Due</dt><dd>@_request.DueDate</dd>
+      <dt>Acceptance criteria</dt><dd>@_request.AcceptanceCriteria</dd>
+    </dl>
+  </MudPaper>
+
+  <section class="card audit-client-card" aria-labelledby="upload-heading" data-draft-scope="@($"pbc-upload-{RequestId}")">
+    <h2 id="upload-heading">Upload a file</h2>
+    @if (_firstSignIn is { Completed: false })
+    {
+      <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="my-2" role="alert">
+        Uploads open after your first portal sign-in is complete. <MudLink Href="/portal">Complete it on the portal home page</MudLink>.
+      </MudAlert>
+    }
+    <p class="muted">Drop the file below or choose it. Its SHA-256 fingerprint is calculated in your browser, the file is sent in verified chunks, and your auditor confirms receipt before it is marked received.</p>
+<!-- Native controls retained: pbc-upload.js owns the file input and drop zone (browser FileList/DataTransfer APIs) and calculates the digest. -->
+    <div id="@DropZoneId" class="drop-zone" tabindex="0" role="button" aria-describedby="drop-zone-help" data-testid="pbc-drop-zone">
+      <strong>Drop a file here</strong> <span class="muted">or</span>
+      <label for="@FileInputId" class="drop-zone-choose">choose a file</label>
+      <input id="@FileInputId" type="file" class="sr-only" required title="Select the file to upload." />
+      <span id="drop-zone-help" class="muted d-block">One file at a time, up to 250 MB.</span>
+    </div>
+    <div class="field"><label for="file-name">File name</label><input id="file-name" @bind="_fileName" maxlength="255" readonly /></div>
+    <div class="field"><label for="content-type">Content type</label><input id="content-type" @bind="_contentType" maxlength="200" readonly /></div>
+    <div class="field"><label for="byte-count">Size (bytes)</label><input id="byte-count" type="number" @bind="_byteCount" readonly /></div>
+    <div class="field"><label for="content-hash">SHA-256 fingerprint</label><input id="content-hash" value="@_contentHash" readonly aria-describedby="content-hash-state" /><span id="content-hash-state" class="muted" aria-live="polite">@(_hashing ? "Calculating the fingerprint…" : _contentHash.Length == 64 ? "Fingerprint calculated from the selected file." : string.Empty)</span></div>
+    <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="StartUploadAsync" Disabled="@(_busy || _hashing || _contentHash.Length != 64 || _firstSignIn is { Completed: false })">@(_busy ? "Uploading…" : "Upload file")</MudButton>
+    @if (_progressTotal > 0)
+    {
+      <MudProgressLinear Color="Color.Primary" Value="@(_progressSent * 100.0 / _progressTotal)" Class="my-2" aria-label="Upload progress" />
+      <p class="muted" role="status">@($"{_progressSent:N0} of {_progressTotal:N0} bytes sent")</p>
+    }
+    @if (_result is not null)
+    {
+      <p class="command-result @(_result.Succeeded ? "success-text" : "error-text")" role="status">@(_result.Succeeded ? "Upload received for review. Your auditor confirms receipt before the request is marked received." : $"Blocked: {_result.ErrorCode} — {_result.Message}")</p>
+    }
+    @if (!string.IsNullOrWhiteSpace(_uploadMessage))
+    {
+      <p class="muted" role="status">@_uploadMessage</p>
+    }
+  </section>
+
+  @if (_canDelegate)
+  {
+    <section class="card audit-client-card" aria-labelledby="delegation-heading">
+      <h2 id="delegation-heading">Delegate this request</h2>
+      <p class="muted">As the primary contact you can let a colleague who already has portal access to this engagement upload and reply for this request. You can revoke it at any time.</p>
+      @if (_delegations.Count > 0)
+      {
+        <ul class="delegation-list">
+          @foreach (var d in _delegations)
+          {
+            <li>@d.DelegateName <span class="muted">since @d.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd")</span>
+              <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="@(() => RevokeAsync(d.Id))" Disabled="@_busy" aria-label="@($"Revoke delegation for {d.DelegateName}")">Revoke</MudButton></li>
+          }
+        </ul>
+      }
+      @if (_candidates.Count == 0)
+      {
+        <p class="muted">No other client users hold access to this engagement.</p>
+      }
+      else
+      {
+        <div class="field"><label for="delegate-user">Colleague</label>
+          <select id="delegate-user" @bind="_delegateUserId">
+            <option value="">Select a colleague</option>
+            @foreach (var c in _candidates) { <option value="@c.UserId">@c.Name</option> }
+          </select></div>
+        <MudButton Variant="Variant.Outlined" OnClick="DelegateAsync" Disabled="@(_busy || string.IsNullOrEmpty(_delegateUserId))">Delegate</MudButton>
+      }
+      @if (_delegationMessage is not null) { <p class="command-result" role="status">@_delegationMessage</p> }
+    </section>
+  }
+
+  <section class="card audit-client-card" aria-labelledby="conversation-heading" data-draft-scope="@($"pbc-client-reply-{RequestId}")">
+    <h2 id="conversation-heading">Conversation timeline</h2>
+    <ol class="timeline">
+      @foreach (var item in Timeline())
+      {
+        <li><strong>@item.Label</strong> <span class="muted">@item.At.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</span><p>@item.Body</p></li>
+      }
+    </ol>
+    @if (_request.State is not (PbcStates.Accepted or PbcStates.Closed))
+    {
+      <div class="field"><label for="client-reply">Reply to the assigned auditor or accountant</label><textarea id="client-reply" @bind="_reply" maxlength="4000" required title="Add a response or explain the files you uploaded."></textarea></div>
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button" OnClick="ReplyAsync" Disabled="@_busy">Send reply</MudButton>
+      @if (_replyResult is not null)
+      {
+        <p class="command-result @(_replyResult.Succeeded ? "success-text" : "error-text")" role="status">@(_replyResult.Succeeded ? "Reply added to the request timeline." : $"Blocked: {_replyResult.ErrorCode} — {_replyResult.Message}")</p>
+      }
+    }
+  </section>
+
+  <MudPaper Class="audit-client-panel pa-4 my-4" Elevation="1" aria-labelledby="receipt-heading" role="region">
+    <h2 id="receipt-heading">Transfer receipts</h2>
+    @if (_uploads.Count == 0)
+    {
+      <MudText Typo="Typo.body2" Color="Color.Secondary" Class="muted">No transfer intents are recorded for this request.</MudText>
+    }
+    else
+    {
+      <MudTable Items="_uploads" Dense="true" Hover="true" Elevation="0">
+  <HeaderContent><MudTh scope="col">File</MudTh><MudTh scope="col">Bytes</MudTh><MudTh scope="col">State</MudTh><MudTh scope="col">Expires</MudTh></HeaderContent>
+  <RowTemplate>        <MudTd>@context.FileName</MudTd><MudTd>@context.ReceivedByteCount / @context.DeclaredByteCount</MudTd><MudTd><StatusChip Status="@context.State" /></MudTd><MudTd>@context.ExpiresAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</MudTd></RowTemplate>
+</MudTable>
+    }
+  </MudPaper>
+}
+
+@code {
+  [Parameter] public Guid RequestId { get; set; }
+  private string FileInputId => $"pbc-file-{RequestId:N}";
+  private string DropZoneId => $"pbc-drop-{RequestId:N}";
+  private DotNetObjectReference<ClientPbcRequest>? _selfRef;
+  private FirstSignInStatus? _firstSignIn;
+  private bool _canDelegate;
+  private List<PbcDelegationRow> _delegations = [];
+  private List<PbcDelegateCandidate> _candidates = [];
+  private string _delegateUserId = string.Empty;
+  private string? _delegationMessage;
+  private bool _hashing;
+  private long _progressSent;
+  private long _progressTotal;
+
+  protected override async Task OnAfterRenderAsync(bool firstRender)
+  {
+    if (_request is null) return;
+    _selfRef ??= DotNetObjectReference.Create(this);
+    try { await JS.InvokeVoidAsync("auditSpherePbc.bindDropZone", DropZoneId, FileInputId, _selfRef); }
+    catch (JSException) { }
+  }
+
+  [JSInvokable]
+  public async Task OnFileChosen()
+  {
+    _hashing = true;
+    _result = null;
+    _uploadMessage = null;
+    _progressSent = _progressTotal = 0;
+    await InvokeAsync(StateHasChanged);
+    try
+    {
+      var file = await JS.InvokeAsync<PbcFileDescription?>("auditSpherePbc.describeFile", FileInputId);
+      if (file is not null)
+      {
+        _fileName = file.Name;
+        _contentType = file.Type;
+        _byteCount = file.Size;
+        _contentHash = file.Sha256;
+      }
+    }
+    catch (JSException ex) { _uploadMessage = $"The fingerprint could not be calculated: {ex.Message}"; }
+    finally { _hashing = false; await InvokeAsync(StateHasChanged); }
+  }
+
+  [JSInvokable]
+  public Task OnUploadProgress(long sent, long total)
+  {
+    _progressSent = sent;
+    _progressTotal = total;
+    return InvokeAsync(StateHasChanged);
+  }
+
+  private async Task DelegateAsync()
+  {
+    if (_actor is null || _request is null || !Guid.TryParse(_delegateUserId, out var delegateId)) return;
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await ClientPortalService.DelegateRequestAsync(db, _actor, _request.Id, delegateId);
+      _delegateUserId = string.Empty;
+      await LoadRequestAsync(clearDraftsOnDenied: true);
+      _delegationMessage = result.Succeeded ? "Delegation recorded." : $"Blocked: {result.ErrorCode} — {result.Message}";
+    }
+    finally { _busy = false; }
+  }
+
+  private async Task RevokeAsync(Guid delegationId)
+  {
+    if (_actor is null) return;
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await ClientPortalService.RevokeDelegationAsync(db, _actor, delegationId);
+      await LoadRequestAsync(clearDraftsOnDenied: true);
+      _delegationMessage = result.Succeeded ? "Delegation revoked." : $"Blocked: {result.ErrorCode} — {result.Message}";
+    }
+    finally { _busy = false; }
+  }
+  private ActorContext? _actor;
+  private PbcRequest? _request;
+  private List<PbcUploadIntent> _uploads = [];
+  private List<PbcCommunication> _communications = [];
+  private Dictionary<Guid, string> _userNames = [];
+  private CommandResult<PbcUploadReceipt>? _result;
+  private CommandResult? _replyResult;
+  private string _fileName = string.Empty;
+  private string _contentType = "application/octet-stream";
+  private long _byteCount;
+  private string _contentHash = string.Empty;
+  private string? _uploadMessage;
+  private string _reply = string.Empty;
+  private bool _loading = true;
+  private bool _busy;
+  private long _loadGeneration;
+
+  protected override Task OnParametersSetAsync() => LoadRequestAsync(clearDraftsOnDenied: false);
+
+  private Task RefreshRequestAsync() => LoadRequestAsync(clearDraftsOnDenied: true);
+
+  private async Task LoadRequestAsync(bool clearDraftsOnDenied)
+  {
+    var generation = ++_loadGeneration;
+    var requestId = RequestId;
+    _loading = true;
+    _actor = null;
+    _request = null;
+    _uploads = [];
+    _communications = [];
+    _userNames = [];
+    _result = null;
+    _replyResult = null;
+    _uploadMessage = null;
+    _reply = string.Empty;
+    _fileName = string.Empty;
+    _contentType = "application/octet-stream";
+    _byteCount = 0;
+    _contentHash = string.Empty;
+    _progressSent = _progressTotal = 0;
+    _firstSignIn = null;
+    _canDelegate = false;
+    _delegations = [];
+    _candidates = [];
+    try
+    {
+      var actor = await ActorResolver.ResolveAsync();
+      if (generation != _loadGeneration || requestId != RequestId) return;
+      if (actor is null)
+      {
+        if (clearDraftsOnDenied) await DenyAndClearAsync();
+        return;
+      }
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var candidate = await ClientPortalService.ParticipantRequests(db, actor).Where(x => x.Id == requestId)
+        .Select(x => new { x.ClientId, x.EngagementId })
+        .SingleOrDefaultAsync();
+      if (candidate is not null)
+      {
+        var authorization = await AuthorizationDecision.AuthorizeAsync(db, actor,
+          new AuthorizationRequest(actor.FirmId, candidate.ClientId, candidate.EngagementId, ["ClientUser"]));
+        if (authorization.Succeeded)
+        {
+          var request = await ClientPortalService.ParticipantRequests(db, actor).SingleOrDefaultAsync(x => x.Id == requestId);
+          if (request is not null)
+          {
+            var uploads = await db.PbcUploadIntents.AsNoTracking().Where(x =>
+              x.FirmId == actor.FirmId && x.PbcRequestId == requestId).OrderByDescending(x => x.CreatedAt).ToListAsync();
+            var communications = await db.PbcCommunications.AsNoTracking().Where(x =>
+              x.FirmId == actor.FirmId && x.PbcRequestId == requestId).OrderBy(x => x.CreatedAt).ToListAsync();
+            var userIds = communications.Select(x => x.AuthorUserId).Distinct().ToArray();
+            var userNames = await db.Users.AsNoTracking().Where(x => x.FirmId == actor.FirmId && userIds.Contains(x.Id))
+              .ToDictionaryAsync(x => x.Id, x => string.IsNullOrWhiteSpace(x.DisplayName) ? x.Email : x.DisplayName);
+            if (generation != _loadGeneration || requestId != RequestId) return;
+            var currentActor = await ActorResolver.ResolveAsync();
+            if (currentActor is null || currentActor.UserId != actor.UserId ||
+                currentActor.FirmId != actor.FirmId || currentActor.SessionEpoch != actor.SessionEpoch ||
+                generation != _loadGeneration || requestId != RequestId)
+            {
+              if (clearDraftsOnDenied && generation == _loadGeneration && requestId == RequestId)
+                await DenyAndClearAsync();
+              return;
+            }
+            var currentAuthorization = await AuthorizationDecision.AuthorizeAsync(db, currentActor,
+              new AuthorizationRequest(actor.FirmId, candidate.ClientId, candidate.EngagementId, ["ClientUser"]));
+            if (!currentAuthorization.Succeeded || generation != _loadGeneration || requestId != RequestId)
+            {
+              if (clearDraftsOnDenied && generation == _loadGeneration && requestId == RequestId)
+                await DenyAndClearAsync();
+              return;
+            }
+            _actor = currentActor;
+            _request = request;
+            _uploads = uploads;
+            _communications = communications;
+            _userNames = userNames;
+            _firstSignIn = await ClientPortalService.GetFirstSignInStatusAsync(db, currentActor);
+            _canDelegate = request.ClientOwnerUserId == currentActor.UserId &&
+              await ClientPortalService.IsPrimaryContactAsync(db, currentActor, request.ClientId);
+            if (_canDelegate)
+            {
+              _delegations = await ClientPortalService.DelegationsAsync(db, currentActor, request);
+              _candidates = (await ClientPortalService.DelegateCandidatesAsync(db, currentActor, request))
+                .Where(c => _delegations.All(d => d.DelegateUserId != c.UserId)).ToList();
+            }
+            return;
+          }
+        }
+      }
+      if (clearDraftsOnDenied && generation == _loadGeneration && requestId == RequestId)
+        await DenyAndClearAsync();
+    }
+    finally { if (generation == _loadGeneration) _loading = false; }
+  }
+
+  private async Task StartUploadAsync()
+  {
+    if (_actor is null || _request is null || _busy) return;
+    var actor = _actor;
+    var requestId = _request.Id;
+    var generation = _loadGeneration;
+    var fileInputId = FileInputId;
+    var contentHash = _contentHash;
+    _busy = true;
+    try
+    {
+      var metadata = await JS.InvokeAsync<PbcFileMetadata?>("auditSpherePbc.readFileMetadata", fileInputId);
+      if (generation != _loadGeneration || requestId != RequestId) return;
+      if (metadata is null)
+      {
+        _result = CommandResult<PbcUploadReceipt>.Fail("pbc.file-required", "Select a file before preparing the upload.");
+        return;
+      }
+      _fileName = metadata.Name;
+      _contentType = metadata.Type;
+      _byteCount = metadata.Size;
+      CommandResult<PbcUploadReceipt> result;
+      await using (var db = await DbFactory.CreateDbContextAsync())
+      {
+        result = await PbcService.StartUploadAsync(db, actor,
+          new StartPbcUploadRequest(requestId, metadata.Name, metadata.Type, metadata.Size, contentHash));
+      }
+      if (generation != _loadGeneration || requestId != RequestId) return;
+      _result = result;
+      if (result.Succeeded)
+      {
+        var message = await JS.InvokeAsync<string>("auditSpherePbc.uploadChunks", fileInputId,
+          result.Value!.UploadIntentId, result.Value.Capability!, _selfRef);
+        if (generation != _loadGeneration || requestId != RequestId) return;
+        await JS.InvokeVoidAsync("auditSphereDrafts.clear", $"pbc-upload-{requestId}");
+        var (sent, total) = (_progressSent, _progressTotal);
+        await LoadRequestAsync(clearDraftsOnDenied: true);
+        if (_actor is not null && _request?.Id == requestId)
+        {
+          _result = result;
+          _uploadMessage = message;
+          (_progressSent, _progressTotal) = (sent, total);
+        }
+      }
+      else if (IsAuthorizationFailure(result.ErrorCode))
+      {
+        await DenyAndClearAsync();
+      }
+    }
+    catch (JSException ex)
+    {
+      if (generation == _loadGeneration && requestId == RequestId)
+        _uploadMessage = $"Transfer stopped before trusted completion: {ex.Message}";
+    }
+    finally { _busy = false; }
+  }
+
+  private async Task ReplyAsync()
+  {
+    if (_actor is null || _request is null || _busy) return;
+    var actor = _actor;
+    var requestId = _request.Id;
+    var generation = _loadGeneration;
+    var reply = _reply;
+    _busy = true;
+    try
+    {
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await PbcService.ReplyAsync(db, actor, requestId, reply);
+      if (generation != _loadGeneration || requestId != RequestId) return;
+      _replyResult = result;
+      if (result.Succeeded)
+      {
+        _reply = string.Empty;
+        await JS.InvokeVoidAsync("auditSphereDrafts.clear", $"pbc-client-reply-{requestId}");
+        await LoadRequestAsync(clearDraftsOnDenied: true);
+        if (_actor is not null && _request?.Id == requestId) _replyResult = result;
+      }
+      else if (IsAuthorizationFailure(result.ErrorCode))
+      {
+        await DenyAndClearAsync();
+      }
+    }
+    finally { _busy = false; }
+  }
+
+  private IEnumerable<TimelineItem> Timeline() => _communications.Select(x => new TimelineItem(
+      x.CreatedAt,
+      x.Kind == PbcCommunicationKinds.Email ? $"Email notification {x.DeliveryState?.ToLowerInvariant()}" :
+      x.Kind == PbcCommunicationKinds.ClientMessage ? $"You — {Name(x.AuthorUserId)}" : $"Firm — {Name(x.AuthorUserId)}",
+      x.Body))
+    .Concat(_uploads.Select(x => new TimelineItem(x.CreatedAt, $"You uploaded {x.FileName}",
+      $"{x.ReceivedByteCount} of {x.DeclaredByteCount} bytes — {x.State}")))
+    .OrderBy(x => x.At);
+
+  private string Name(Guid userId) => _userNames.GetValueOrDefault(userId, "User");
+  private static bool IsAuthorizationFailure(string? errorCode) =>
+    errorCode is ErrorCodes.ScopeDenied or ErrorCodes.GenerationStale;
+
+  private async Task DenyAndClearAsync()
+  {
+    _actor = null;
+    _request = null;
+    _uploads.Clear();
+    _communications.Clear();
+    _userNames.Clear();
+    _reply = string.Empty;
+    _fileName = string.Empty;
+    _contentType = "application/octet-stream";
+    _byteCount = 0;
+    _contentHash = string.Empty;
+    _uploadMessage = null;
+    _result = null;
+    _replyResult = null;
+    try
+    {
+      await JS.InvokeVoidAsync("auditSphereDrafts.clear", $"pbc-upload-{RequestId}");
+      await JS.InvokeVoidAsync("auditSphereDrafts.clear", $"pbc-client-reply-{RequestId}");
+      await JS.InvokeVoidAsync("auditSpherePbc.clearFile", FileInputId);
+    }
+    catch (JSException) { }
+  }
+
+  private sealed record TimelineItem(DateTimeOffset At, string Label, string Body);
+
+  private sealed record PbcFileMetadata(string Name, string Type, long Size);
+  private sealed record PbcFileDescription(string Name, string Type, long Size, string Sha256);
+
+  public async ValueTask DisposeAsync()
+  {
+    _selfRef?.Dispose();
+    try { await JS.InvokeVoidAsync("auditSpherePbc.clearFile", FileInputId); }
+    catch (JSDisconnectedException) { }
+  }
+}

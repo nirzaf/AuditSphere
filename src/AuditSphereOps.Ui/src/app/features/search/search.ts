@@ -8,15 +8,16 @@ import {
   untracked,
   viewChild,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpClient } from '@angular/common/http';
 import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { Subscription, timeout } from 'rxjs';
+import { filter, Subscription, timeout } from 'rxjs';
 import { SessionService } from '../../core/session';
-import { Router, RouterLink } from '@angular/router';
+import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { workspaceRoute } from '../../core/navigation';
 export { migratedHref } from '../../core/navigation';
 interface Hit {
@@ -131,6 +132,16 @@ export class GlobalSearch {
   readonly error = signal('');
   readonly route = workspaceRoute;
   constructor() {
+    this.router.events
+      .pipe(
+        filter((event): event is NavigationEnd => event instanceof NavigationEnd),
+        takeUntilDestroyed(),
+      )
+      .subscribe(() => {
+        this.dismiss();
+        const field = this.field();
+        if (field) field.nativeElement.value = '';
+      });
     effect(() => {
       this.session.invalidation();
       untracked(() => {

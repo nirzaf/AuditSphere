@@ -1,0 +1,47 @@
+@* Creates a blocked draft engagement shell. Activation is a separate Partner decision. *@
+@using AuditSphereOps.Application.Acceptance
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+
+<MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" role="region" aria-labelledby="create-engagement-heading">
+  <h2 id="create-engagement-heading">Create engagement</h2>
+  <p class="scope-note">A new engagement starts blocked. It cannot do professional work until a Partner activates it from an accepted decision for the same service.</p>
+  <div class="audit-practice-form-fields">
+    <MudTextField T="string" Label="Service route (e.g. FinancialStatementAudit)" @bind-Value="_route" MaxLength="50" Margin="Margin.Dense" />
+    <MudTextField T="string" Label="Service profile" @bind-Value="_profile" MaxLength="100" Margin="Margin.Dense" />
+    <MudTextField T="string" Label="Period start (yyyy-MM-dd)" @bind-Value="_start" MaxLength="10" Margin="Margin.Dense" />
+    <MudTextField T="string" Label="Period end (yyyy-MM-dd)" @bind-Value="_end" MaxLength="10" Margin="Margin.Dense" />
+    <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="CreateAsync" Disabled="@_busy">Create engagement</MudButton>
+  </div>
+  @if (_message is not null)
+  {
+    <p class="command-result @(_isError ? "error-text" : "success-text")" role="status">@_message</p>
+  }
+</MudPaper>
+
+@code {
+  [Parameter, EditorRequired] public Guid ClientId { get; set; }
+  [Parameter] public EventCallback<string> OnChanged { get; set; }
+
+  private string _route = string.Empty, _profile = string.Empty, _start = string.Empty, _end = string.Empty;
+  private bool _busy, _isError;
+  private string? _message;
+
+  private async Task CreateAsync()
+  {
+    if (_busy) return;
+    _busy = true;
+    _message = null;
+    try
+    {
+      var actor = await ActorResolver.ResolveAsync();
+      if (actor is null) { _isError = true; _message = "Sign in again."; return; }
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await EngagementLifecycleService.CreateDraftAsync(db, actor, new(ClientId, _route, _start, _end, _profile));
+      _isError = !result.Succeeded;
+      _message = result.Succeeded ? "Engagement created (blocked until Partner activation)." : result.Message;
+      if (result.Succeeded) { await OnChanged.InvokeAsync(_message); _route = _profile = _start = _end = string.Empty; }
+    }
+    finally { _busy = false; }
+  }
+}

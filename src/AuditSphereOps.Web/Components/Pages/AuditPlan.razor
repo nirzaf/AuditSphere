@@ -1,0 +1,617 @@
+@page "/app/audit/plans/{Id:guid}"
+@page "/app/engagements/{EngagementId:guid}/audit-plan"
+@rendermode InteractiveServer
+@using AuditSphereOps.Application.Audit
+@using AuditSphereOps.Domain.Audit
+@using FindingRecord = AuditSphereOps.Domain.Audit.Finding
+@using WorkpaperRecord = AuditSphereOps.Domain.Audit.Workpaper
+@using AuditSphereOps.Domain.Engagements
+@using AuditSphereOps.Domain.Security
+@using AuditSphereOps.Web.Components.Planning
+@using AuditSphereOps.Infrastructure.Persistence
+@using Microsoft.EntityFrameworkCore
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+@inject NavigationManager Nav
+
+<PageTitle>Audit Plan — AuditSphereOps</PageTitle>
+
+<div class="page-header">
+    <nav class="breadcrumb-nav">
+        <a href="/app">Portfolio</a> /
+        @if (_effectiveEngagementId.HasValue)
+        {
+            <a href="@($"/app/engagements/{_effectiveEngagementId}")">Engagement</a>
+            <span> / </span>
+        }
+        <span>Audit Plan</span>
+    </nav>
+    <PageHeader Title="Audit Plan &amp; Strategy" Eyebrow="Engagement audit" Description="Planning, risk assessment, materiality, and program adoption for this engagement." />
+</div>
+
+@if (_loading)
+{
+    <LoadingState IsLoading="true" LoadingMessage="Loading plan…" />
+}
+else if (_actor is null || !_isStaff)
+{
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+        <h2>Access unavailable</h2>
+        <p>Sign in with an authorized internal staff identity to view audit plans.</p>
+    </MudAlert>
+}
+else if (_engagement is null)
+{
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+        <h2>Plan unavailable</h2>
+        <p>The requested engagement or plan was not found in the current firm scope.</p>
+    </MudAlert>
+}
+else
+{
+    <div class="audit-record-toolbar" aria-label="Audit plan navigation">
+        <span class="status-badge @(_engagement.ProfessionalWorkBlocked ? "badge-red" : "badge-blue")">@_status</span>
+        <MudLink Href="@($"/app/engagements/{_engagement.Id}/audit-fieldwork")">Fieldwork control center</MudLink>
+        <MudLink Href="/app/audit/library">Program library</MudLink>
+        <MudLink Href="@($"/app/engagements/{_engagement.Id}/completion")">Completion checklist</MudLink>
+    </div>
+    <MudGrid Spacing="2" Class="audit-accounting-metrics my-3" aria-label="Scoped audit plan counts">
+        <MudItem xs="6" sm="3"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Identified risks</MudText><MudText Typo="Typo.h4">@_risks.Count</MudText></MudPaper></MudItem>
+        <MudItem xs="6" sm="3"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Populations</MudText><MudText Typo="Typo.h4">@_populations.Count</MudText></MudPaper></MudItem>
+        <MudItem xs="6" sm="3"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Findings</MudText><MudText Typo="Typo.h4">@_findings.Count</MudText></MudPaper></MudItem>
+        <MudItem xs="6" sm="3"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Workpapers</MudText><MudText Typo="Typo.h4">@_workpapers.Count</MudText></MudPaper></MudItem>
+    </MudGrid>
+    <div class="plan-shell">
+        <MudButton Variant="Variant.Outlined" Class="btn-secondary mb-2" OnClick="RefreshPlanAsync" Disabled="@_loading">Refresh plan</MudButton>
+
+        <MaterialityEnginePanel EngagementId="_engagement.Id" />
+
+        <!-- Materiality -->
+        <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="materiality-heading" role="region">
+            <h2 id="materiality-heading">Materiality (§19.2)</h2>
+            @if (_materiality is not null)
+            {
+                <dl class="detail-grid">
+                    <dt>Overall</dt><dd>@_materiality.OverallMateriality.ToString("N2")</dd>
+                    <dt>Performance</dt><dd>@_materiality.PerformanceMateriality.ToString("N2")</dd>
+                    <dt>Clearly trivial</dt><dd>@_materiality.ClearlyTrivialThreshold.ToString("N2")</dd>
+                    <dt>Benchmark</dt><dd>@_materiality.BenchmarkSource (@_materiality.BenchmarkVersion)</dd>
+                    <dt>Benchmark amount</dt><dd>@_materiality.BenchmarkAmount.ToString("N2") × @_materiality.RateApplied.ToString("P2")</dd>
+                    <dt>Rationale</dt><dd>@_materiality.Rationale</dd>
+                    <dt>Status</dt><dd>@(_materialityApproval is null ? _materiality.Status : MaterialityStatuses.Approved)</dd>
+                </dl>
+                @if (_materialityApproval is null && _actor is not null &&
+                    _materiality.ActorId != _actor.UserId && _actor.Roles.Any(x => x is "Manager" or "Partner"))
+                {
+                    <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-small" OnClick="ApproveMaterialityAsync" Disabled="@_busy">Approve materiality</MudButton>
+                }
+                @if (_materialityApproval is not null)
+                {
+                    <p class="muted">Approved by @_materialityApproval.ApprovedByUserId at @_materialityApproval.ApprovedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm").</p>
+                }
+                @if (_materiality.QualitativeConsiderations is not null)
+                {
+                    <p class="info-text">Qualitative considerations: @_materiality.QualitativeConsiderations</p>
+                }
+            }
+            else
+            {
+                <p class="empty-state">No materiality assessment has been recorded for this engagement.</p>
+            }
+
+            <fieldset class="inline-form">
+                <legend>Record a materiality assessment</legend>
+                <div class="form-group">
+                    <label for="mat-benchmark">Benchmark source</label>
+                    <MudTextField T="string" @bind-Value="_matBenchmark" MaxLength="200" id="mat-benchmark" required />
+                </div>
+                <div class="form-group">
+                    <label for="mat-version">Benchmark version</label>
+                    <MudTextField T="string" @bind-Value="_matVersion" MaxLength="100" id="mat-version" required />
+                </div>
+                <div class="form-group">
+                    <label for="mat-amount">Benchmark amount</label>
+                    <MudNumericField T="decimal" @bind-Value="_matAmount" Step="0.000001m" id="mat-amount" required />
+                </div>
+                <div class="form-group">
+                    <label for="mat-rate">Applied rate (0–1)</label>
+                    <MudNumericField T="decimal" @bind-Value="_matRate" Step="0.0001m" id="mat-rate" required />
+                </div>
+                <div class="form-group">
+                    <label for="mat-overall">Overall materiality</label>
+                    <MudNumericField T="decimal" @bind-Value="_matOverall" Step="0.000001m" id="mat-overall" required />
+                </div>
+                <div class="form-group">
+                    <label for="mat-performance">Performance materiality</label>
+                    <MudNumericField T="decimal" @bind-Value="_matPerformance" Step="0.000001m" id="mat-performance" required />
+                </div>
+                <div class="form-group">
+                    <label for="mat-trivial">Clearly trivial threshold</label>
+                    <MudNumericField T="decimal" @bind-Value="_matTrivial" Step="0.000001m" id="mat-trivial" required />
+                </div>
+                <div class="form-group">
+                    <label for="mat-rationale">Rationale</label>
+                    <MudTextField T="string" @bind-Value="_matRationale" Lines="2" id="mat-rationale" required />
+                </div>
+                <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-small" OnClick="CreateMaterialityAsync" Disabled="@(_busy || _engagement.ProfessionalWorkBlocked)">Record assessment</MudButton>
+            </fieldset>
+        </MudPaper>
+
+        <!-- Risks -->
+        <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="risks-heading" role="region">
+            <h2 id="risks-heading">Identified Risks (§19.3)</h2>
+            @if (_risks.Count == 0)
+            {
+                <p class="empty-state">No audit risks have been recorded for this engagement.</p>
+            }
+            else
+            {
+                <div class="table-wrap"><MudTable Items="_risks" Dense="true" Hover="true" Elevation="0" Class="data-table">
+  <HeaderContent><MudTh scope="col">Area</MudTh><MudTh scope="col">Description</MudTh><MudTh scope="col">Assertion</MudTh><MudTh scope="col">Severity</MudTh><MudTh scope="col">Status</MudTh></HeaderContent>
+  <RowTemplate>                                <MudTd DataLabel="Area">@context.AccountArea</MudTd>
+                                <MudTd DataLabel="Description">@context.Description</MudTd>
+                                <MudTd DataLabel="Assertion">@context.Assertion</MudTd>
+                                <MudTd DataLabel="Severity"><span class="badge @(context.Severity == RiskSeverities.Significant ? "badge-red" : "badge-yellow")">@context.Severity</span></MudTd>
+                                <MudTd DataLabel="Status">@context.Status</MudTd></RowTemplate>
+</MudTable></div>
+            }
+
+            <fieldset class="inline-form">
+                <legend>Record an identified risk</legend>
+                <div class="form-group">
+                    <label for="risk-area">Account or disclosure area</label>
+                    <MudTextField T="string" @bind-Value="_riskArea" MaxLength="200" id="risk-area" required />
+                </div>
+                <div class="form-group">
+                    <label for="risk-assertion">Assertion</label>
+                    <MudTextField T="string" @bind-Value="_riskAssertion" MaxLength="100" id="risk-assertion" required />
+                </div>
+                <div class="form-group">
+                    <label for="risk-description">Risk description</label>
+                    <MudTextField T="string" @bind-Value="_riskDescription" Lines="2" id="risk-description" required />
+                </div>
+                <div class="form-group">
+                    <label for="risk-drivers">Drivers</label>
+                    <MudTextField T="string" @bind-Value="_riskDrivers" Lines="2" id="risk-drivers" required />
+                </div>
+                <div class="form-group">
+                    <label for="risk-significance">Significance decision</label>
+                    <MudSelect T="string" @bind-Value="_riskSignificance" id="risk-significance" required>
+                        <MudSelectItem Value="@SignificanceDecisions.Normal">@SignificanceDecisions.Normal</MudSelectItem>
+                        <MudSelectItem Value="@SignificanceDecisions.Significant">@SignificanceDecisions.Significant</MudSelectItem>
+                    </MudSelect>
+                </div>
+                <div class="form-group">
+                    <label for="risk-response">Planned response</label>
+                    <MudTextField T="string" @bind-Value="_riskResponse" Lines="2" id="risk-response" required />
+                </div>
+                <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-small" OnClick="CreateRiskAsync" Disabled="@(_busy || _engagement.ProfessionalWorkBlocked)">Record risk</MudButton>
+            </fieldset>
+        </MudPaper>
+
+        <RiskRoutingPanel @key="@($"risk-routing-{_risks.Count}")" EngagementId="_engagement.Id" />
+
+        <!-- Populations -->
+        <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="populations-heading" role="region">
+            <h2 id="populations-heading">Populations (§20.1)</h2>
+            @if (_populations.Count == 0)
+            {
+                <p class="empty-state">No population has been extracted for this engagement.</p>
+            }
+            else
+            {
+                <div class="table-wrap"><MudTable Items="_populations" Dense="true" Hover="true" Elevation="0" Class="data-table">
+  <HeaderContent><MudTh scope="col">Purpose</MudTh><MudTh scope="col">Assertion</MudTh><MudTh scope="col">Rows</MudTh><MudTh scope="col">Control total</MudTh><MudTh scope="col">Status</MudTh></HeaderContent>
+  <RowTemplate>                                <MudTd DataLabel="Purpose"><a href="/app/audit/populations/@context.Id">@context.Purpose</a></MudTd>
+                                <MudTd DataLabel="Assertion">@context.Assertion</MudTd>
+                                <MudTd DataLabel="Rows">@context.RowCount.ToString("N0")</MudTd>
+                                <MudTd DataLabel="Control total">@context.Currency @context.MonetaryControlTotal.ToString("N2")</MudTd>
+                                <MudTd DataLabel="Status">@context.Status</MudTd></RowTemplate>
+</MudTable></div>
+            }
+
+            <fieldset class="inline-form">
+                <legend>Record a population version</legend>
+                <div class="form-group">
+                    <label for="pop-purpose">Purpose</label>
+                    <MudTextField T="string" @bind-Value="_popPurpose" MaxLength="300" id="pop-purpose" required />
+                </div>
+                <div class="form-group">
+                    <label for="pop-assertion">Assertion</label>
+                    <MudTextField T="string" @bind-Value="_popAssertion" MaxLength="100" id="pop-assertion" required />
+                </div>
+                <div class="form-group">
+                    <label for="pop-receipt">Source receipt reference</label>
+                    <MudTextField T="string" @bind-Value="_popReceiptRef" MaxLength="200" id="pop-receipt" required />
+                </div>
+                <div class="form-group">
+                    <label for="pop-extraction">Extraction parameters</label>
+                    <MudTextField T="string" @bind-Value="_popExtraction" Lines="2" id="pop-extraction" required />
+                </div>
+                <div class="form-group">
+                    <label for="pop-rows">Row count</label>
+                    <MudNumericField T="int" @bind-Value="_popRows" Min="0" id="pop-rows" required />
+                </div>
+                <div class="form-group">
+                    <label for="pop-total">Monetary control total</label>
+                    <MudNumericField T="decimal" @bind-Value="_popTotal" Step="0.000001m" Min="0m" id="pop-total" required />
+                </div>
+                <div class="form-group">
+                    <label for="pop-currency">Currency (ISO 4217)</label>
+                    <MudTextField T="string" @bind-Value="_popCurrency" MaxLength="3" id="pop-currency" required />
+                </div>
+                <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-small" OnClick="CreatePopulationAsync" Disabled="@(_busy || _engagement.ProfessionalWorkBlocked)">Record population</MudButton>
+            </fieldset>
+        </MudPaper>
+
+        <!-- Findings -->
+        <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="findings-heading" role="region">
+            <h2 id="findings-heading">Findings (§23)</h2>
+            @if (_findings.Count == 0)
+            {
+                <p class="empty-state">No finding has been recorded for this engagement.</p>
+            }
+            else
+            {
+                <ul class="program-list">
+                    @foreach (var f in _findings)
+                    {
+                        <li>
+                            <span class="program-name">@f.FindingType</span>
+                            <span class="program-status">@f.Status · @(f.MonetaryAmount?.ToString("N2") ?? "unquantified")</span>
+                            <a class="btn-small" href="/app/findings/@f.Id">Open</a>
+                        </li>
+                    }
+                </ul>
+            }
+
+            <fieldset class="inline-form">
+                <legend>Record a finding</legend>
+                <div class="form-group">
+                    <label for="find-type">Finding type</label>
+                    <MudTextField T="string" @bind-Value="_findingType" MaxLength="100" id="find-type" required />
+                </div>
+                <div class="form-group">
+                    <label for="find-impact">Impact description</label>
+                    <MudTextField T="string" @bind-Value="_findingImpact" Lines="2" id="find-impact" required />
+                </div>
+                <div class="form-group">
+                    <label for="find-amount">Monetary amount (optional)</label>
+                    <MudNumericField T="decimal" @bind-Value="_findingAmount" Step="0.000001m" Min="0m" id="find-amount" data-optional="true" />
+                </div>
+                <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-small" OnClick="CreateFindingAsync" Disabled="@(_busy || _engagement.ProfessionalWorkBlocked)">Record finding</MudButton>
+            </fieldset>
+        </MudPaper>
+
+        <!-- Programs / Workpapers -->
+        <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="workpapers-heading" role="region">
+            <h2 id="workpapers-heading">Audit Workpapers (§21.1)</h2>
+            @if (_workpapers.Count == 0)
+            {
+                <p class="empty-state">No workpapers created for this audit plan yet.</p>
+            }
+            else
+            {
+                <ul class="program-list">
+                    @foreach (var wp in _workpapers)
+                    {
+                        <li>
+                            <span class="program-name">@wp.Index — @wp.Title</span>
+                            <span class="program-status">Status: @wp.Status · Revision @wp.Revision</span>
+                            <a class="btn-small" href="/app/audit/workpapers/@wp.Id">Open</a>
+                        </li>
+                    }
+                </ul>
+            }
+        </MudPaper>
+
+        @if (_result is not null)
+        {
+            <p class="command-result @(_result.Succeeded ? "success-text" : "error-text")" role="status">
+                @(_result.Succeeded ? _successMessage ?? "Recorded." : "Blocked: " + _result.ErrorCode + " — " + _result.Message)
+            </p>
+        }
+        @if (_engagement.ProfessionalWorkBlocked)
+        {
+            <p class="notice-text">Professional work is blocked on this engagement; planning commands are refused until the hold is cleared.</p>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public Guid? Id { get; set; }
+    [Parameter] public Guid? EngagementId { get; set; }
+
+    Guid? _effectiveEngagementId;
+    AuditSphereOps.Application.Abstractions.ActorContext? _actor;
+    bool _isStaff;
+    bool _busy;
+    CommandResult? _result;
+    string? _successMessage;
+
+    bool _loading = true;
+    string _status = "IN_PROGRESS";
+
+    Engagement? _engagement;
+    MaterialityAssessment? _materiality;
+    MaterialityApproval? _materialityApproval;
+    List<AuditRisk> _risks = [];
+    List<PopulationVersion> _populations = [];
+    List<FindingRecord> _findings = [];
+    List<WorkpaperRecord> _workpapers = [];
+
+    string _matBenchmark = "";
+    string _matVersion = "";
+    string _matRationale = "";
+    decimal _matAmount;
+    decimal _matRate;
+    decimal _matOverall;
+    decimal _matPerformance;
+    decimal _matTrivial;
+
+    string _riskArea = "";
+    string _riskAssertion = "";
+    string _riskDescription = "";
+    string _riskDrivers = "";
+    string _riskSignificance = SignificanceDecisions.Normal;
+    string _riskResponse = "";
+
+    string _popPurpose = "";
+    string _popAssertion = "";
+    string _popReceiptRef = "";
+    string _popExtraction = "";
+    int _popRows;
+    decimal _popTotal;
+    string _popCurrency = "";
+
+    string _findingType = "";
+    string _findingImpact = "";
+    decimal _findingAmount;
+    private static readonly string[] PlanningRoles =
+        ["Partner", "Manager", "SeniorManager", "Senior", "Staff", "Auditor", "EngagementLeader", "Administrator"];
+    Guid? _lastRequestedEngagementId;
+    bool _routeInitialized;
+    long _loadGeneration;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var requestedEngagementId = EngagementId ?? Id;
+        if (_routeInitialized && requestedEngagementId == _lastRequestedEngagementId) return;
+        _routeInitialized = true;
+        _lastRequestedEngagementId = requestedEngagementId;
+        var generation = ++_loadGeneration;
+        ClearPlan();
+        _loading = true;
+        try
+        {
+            _actor = await ActorResolver.ResolveAsync();
+            if (_actor is not null && requestedEngagementId.HasValue)
+            {
+                _effectiveEngagementId = requestedEngagementId;
+                await RefreshAsync(generation);
+            }
+        }
+        finally
+        {
+            if (generation == _loadGeneration) _loading = false;
+        }
+    }
+
+    private async Task RefreshPlanAsync()
+    {
+        var requestedEngagementId = EngagementId ?? Id;
+        if (!requestedEngagementId.HasValue) return;
+        var generation = ++_loadGeneration;
+        ClearPlan();
+        _loading = true;
+        try
+        {
+            _actor = await ActorResolver.ResolveAsync();
+            if (_actor is not null)
+            {
+                _effectiveEngagementId = requestedEngagementId;
+                await RefreshAsync(generation);
+            }
+        }
+        finally
+        {
+            if (generation == _loadGeneration) _loading = false;
+        }
+    }
+
+    private async Task RefreshAsync(long generation)
+    {
+        var actor = _actor;
+        var engagementId = _effectiveEngagementId;
+        if (actor is null || !engagementId.HasValue) return;
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var authorization = await AuthorizationDecision.AuthorizeAsync(db, actor,
+            new AuthorizationRequest(actor.FirmId, EngagementId: engagementId,
+                RequiredRoles: PlanningRoles, InternalOnly: true));
+        if (!authorization.Succeeded)
+        {
+            ClearPlan();
+            return;
+        }
+
+        var engagement = await db.Engagements.AsNoTracking()
+            .FirstOrDefaultAsync(e => e.Id == engagementId.Value && e.FirmId == actor.FirmId);
+
+        if (engagement is null || generation != _loadGeneration) return;
+
+        var materiality = await db.MaterialityAssessments.AsNoTracking()
+            .Where(m => m.FirmId == engagement.FirmId && m.EngagementId == engagement.Id)
+            .OrderByDescending(m => m.CreatedAt)
+            .FirstOrDefaultAsync();
+        var materialityApproval = materiality is null ? null : await db.MaterialityApprovals.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.FirmId == engagement.FirmId && x.MaterialityAssessmentId == materiality.Id);
+
+        var risks = await db.AuditRisks.AsNoTracking()
+            .Where(r => r.FirmId == engagement.FirmId && r.EngagementId == engagement.Id)
+            .OrderBy(r => r.CreatedAt)
+            .ToListAsync();
+
+        var workpapers = await db.Workpapers.AsNoTracking()
+            .Where(w => w.FirmId == engagement.FirmId && w.EngagementId == engagement.Id)
+            .OrderBy(w => w.Index)
+            .ToListAsync();
+
+        var populations = await db.PopulationVersions.AsNoTracking()
+            .Where(p => p.FirmId == engagement.FirmId && p.EngagementId == engagement.Id)
+            .OrderByDescending(p => p.CreatedAt)
+            .ToListAsync();
+
+        var findings = await db.Findings.AsNoTracking()
+            .Where(f => f.FirmId == engagement.FirmId && f.EngagementId == engagement.Id)
+            .OrderByDescending(f => f.CreatedAt)
+            .ToListAsync();
+
+        if (generation != _loadGeneration) return;
+        _isStaff = true;
+        _engagement = engagement;
+        _materialityApproval = materialityApproval;
+        _status = engagement.ProfessionalWorkBlocked ? "PLANNING_BLOCKED" : "PLANNING_ACTIVE";
+        _materiality = materiality;
+        _risks = risks;
+        _workpapers = workpapers;
+        _populations = populations;
+        _findings = findings;
+    }
+
+    private void ClearPlan()
+    {
+        _actor = null;
+        _isStaff = false;
+        _effectiveEngagementId = null;
+        _engagement = null;
+        _materiality = null;
+        _risks = [];
+        _populations = [];
+        _findings = [];
+        _workpapers = [];
+        _status = "IN_PROGRESS";
+        _result = null;
+        _successMessage = null;
+        _matBenchmark = _matVersion = _matRationale = "";
+        _matAmount = _matRate = _matOverall = _matPerformance = _matTrivial = 0;
+        _riskArea = _riskAssertion = _riskDescription = _riskDrivers = _riskResponse = "";
+        _riskSignificance = SignificanceDecisions.Normal;
+        _popPurpose = _popAssertion = _popReceiptRef = _popExtraction = _popCurrency = "";
+        _popRows = 0;
+        _popTotal = 0;
+        _findingType = _findingImpact = "";
+        _findingAmount = 0;
+    }
+
+    private void ApplyCommandResult(CommandResult result, string successMessage)
+    {
+        _result = result;
+        _successMessage = result.Succeeded ? successMessage : null;
+        if (!result.Succeeded && result.ErrorCode is ErrorCodes.ScopeDenied or ErrorCodes.GenerationStale)
+            ClearPlan();
+    }
+
+    private async Task CreateMaterialityAsync()
+    {
+        var actor = _actor;
+        var engagement = _engagement;
+        var generation = _loadGeneration;
+        if (actor is null || engagement is null || _busy) return;
+        _busy = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var created = await AuditPlanningService.CreateMaterialityAssessmentAsync(db, actor,
+                new CreateMaterialityRequest(engagement.Id, _matBenchmark, _matVersion, _matRationale,
+                    _matAmount, _matRate, _matOverall, _matPerformance, _matTrivial, null));
+            if (generation != _loadGeneration) return;
+            ApplyCommandResult(created.Succeeded ? CommandResult.Ok() : CommandResult.Fail(created.ErrorCode!, created.Message ?? "The command was refused."),
+                "The materiality assessment was recorded as a draft.");
+            if (created.Succeeded) await RefreshAsync(generation);
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task ApproveMaterialityAsync()
+    {
+        var actor = _actor;
+        var assessment = _materiality;
+        var generation = _loadGeneration;
+        if (actor is null || assessment is null || _busy) return;
+        _busy = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var result = await AuditPlanningService.ApproveMaterialityAssessmentAsync(db, actor, assessment.Id);
+            if (generation != _loadGeneration) return;
+            ApplyCommandResult(result.Succeeded ? CommandResult.Ok() : CommandResult.Fail(result.ErrorCode!, result.Message ?? "The command was refused."),
+                "The materiality assessment was independently approved.");
+            if (result.Succeeded) await RefreshAsync(generation);
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task CreateRiskAsync()
+    {
+        var actor = _actor;
+        var engagement = _engagement;
+        var generation = _loadGeneration;
+        if (actor is null || engagement is null || _busy) return;
+        _busy = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var created = await AuditPlanningService.CreateAuditRiskAsync(db, actor,
+                new CreateAuditRiskRequest(engagement.Id, _riskArea, _riskAssertion, _riskDescription,
+                    _riskDrivers, _riskSignificance, null, _riskResponse));
+            if (generation != _loadGeneration) return;
+            ApplyCommandResult(created.Succeeded ? CommandResult.Ok() : CommandResult.Fail(created.ErrorCode!, created.Message ?? "The command was refused."),
+                "The identified risk was recorded.");
+            if (created.Succeeded) await RefreshAsync(generation);
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task CreatePopulationAsync()
+    {
+        var actor = _actor;
+        var engagement = _engagement;
+        var generation = _loadGeneration;
+        if (actor is null || engagement is null || _busy) return;
+        _busy = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var created = await AuditPlanningService.CreatePopulationVersionAsync(db, actor,
+                new CreatePopulationRequest(engagement.Id, _popPurpose, _popAssertion, _popReceiptRef,
+                    _popExtraction, _popRows, _popTotal, _popCurrency, null));
+            if (generation != _loadGeneration) return;
+            ApplyCommandResult(created.Succeeded ? CommandResult.Ok() : CommandResult.Fail(created.ErrorCode!, created.Message ?? "The command was refused."),
+                "The population version was recorded as pending approval.");
+            if (created.Succeeded) await RefreshAsync(generation);
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task CreateFindingAsync()
+    {
+        var actor = _actor;
+        var engagement = _engagement;
+        var generation = _loadGeneration;
+        if (actor is null || engagement is null || _busy) return;
+        _busy = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var created = await AuditPlanningService.CreateFindingAsync(db, actor,
+                new CreateFindingRequest(engagement.Id, _findingType, _findingImpact, false,
+                    _findingAmount == 0 ? null : _findingAmount, null));
+            if (generation != _loadGeneration) return;
+            ApplyCommandResult(created.Succeeded ? CommandResult.Ok() : CommandResult.Fail(created.ErrorCode!, created.Message ?? "The command was refused."),
+                "The finding was recorded as open.");
+            if (created.Succeeded) await RefreshAsync(generation);
+        }
+        finally { _busy = false; }
+    }
+}

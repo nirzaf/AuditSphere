@@ -44,7 +44,7 @@ public sealed partial class SiblingClientIsolationJourneyTests(ITestOutputHelper
       await db.SaveChangesAsync();
     }
 
-    var origin = await host.StartWebForIdentityAsync(scoped);
+    var origin = await host.StartApiForIdentityAsync(scoped);
     using var playwright = await Playwright.CreateAsync();
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var context = await browser.NewContextAsync();
@@ -148,6 +148,7 @@ public sealed partial class SiblingClientIsolationJourneyTests(ITestOutputHelper
     await using (var db = host.CreateDbContext())
     {
       db.Users.Add(groupUser);
+      db.RoleGrants.Add(PbcSeed.Grant(host.Fixture.FirmId, groupUser, "Staff", host.Fixture.ClientId));
       db.ClientGroups.Add(new ClientGroup { Id = ownGroupId, FirmId = host.Fixture.FirmId, Code = "OWN-GROUP", Name = "Own reporting group",
         CreatedByUserId = host.Fixture.Admin.Id, CreatedAt = now });
       db.ConsolidationScopeVersions.Add(new ConsolidationScopeVersion { Id = ownScopeId, FirmId = host.Fixture.FirmId, GroupId = ownGroupId,
@@ -159,7 +160,7 @@ public sealed partial class SiblingClientIsolationJourneyTests(ITestOutputHelper
       await db.SaveChangesAsync();
     }
 
-    var origin = await host.StartWebForIdentityAsync(groupUser);
+    var origin = await host.StartApiForIdentityAsync(groupUser);
     using var playwright = await Playwright.CreateAsync();
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var context = await browser.NewContextAsync();
@@ -196,26 +197,36 @@ public sealed partial class SiblingClientIsolationJourneyTests(ITestOutputHelper
     foreach (var leak in leaks) output.WriteLine(leak);
     Assert.Empty(leaks);
     Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+    var consolidationResponseTask = page.WaitForResponseAsync(response =>
+      response.Url.EndsWith("/api/ui/consolidation", StringComparison.Ordinal));
     await page.GotoAsync(origin + "/app/consolidation");
-    await page.GetByRole(AriaRole.Heading, new() { Name = "Perimeter", Exact = true }).WaitForAsync();
+    var consolidationResponse = await consolidationResponseTask;
+    var consolidationJson = await consolidationResponse.TextAsync();
+    Assert.Equal(200, consolidationResponse.Status);
+    Assert.Contains("OWN-GROUP", consolidationJson, StringComparison.Ordinal);
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Group consolidation", Exact = true }).WaitForAsync();
+    var groupWorkspace = await page.Locator("main").InnerTextAsync();
+    Assert.Contains("OWN-GROUP", groupWorkspace, StringComparison.Ordinal);
+    Assert.Contains("Perimeter", groupWorkspace, StringComparison.Ordinal);
     foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
     {
       await page.SetViewportSizeAsync(width, 900);
-      await page.WaitForFunctionAsync(width < 960
-        ? "() => (document.querySelector('.audit-main-content') !== null && getComputedStyle(document.querySelector('.audit-main-content')).marginLeft === '0px')"
-        : "() => document.querySelector('.audit-sidebar')?.getBoundingClientRect().left >= -1");
+      await page.WaitForFunctionAsync(width < 700
+        ? "() => { const w = document.querySelector('.workspace'), a = document.querySelector('.workspace aside'); return !!w && getComputedStyle(a).display === 'none' && getComputedStyle(w).gridTemplateColumns.split(' ').length === 1; }"
+        : "() => { const w = document.querySelector('.workspace'), a = document.querySelector('.workspace aside'); return !!w && getComputedStyle(a).display !== 'none' && getComputedStyle(w).gridTemplateColumns.split(' ').length === 2; }");
       if (Environment.GetEnvironmentVariable("AUDITSPHERE_GROUP_UI_CAPTURE_DIR") is { Length: > 0 } captureDir &&
           width is 320 or 390 or 1440)
       {
         Directory.CreateDirectory(captureDir);
         await page.ScreenshotAsync(new() { Path = Path.Combine(captureDir, $"group-{width}.png"), FullPage = true });
       }
-      var overflowPixels = await page.EvaluateAsync<int>("() => document.documentElement.scrollWidth - window.innerWidth");
-      var overflowing = overflowPixels > 1
-        ? await page.EvaluateAsync<string[]>("() => [...document.querySelectorAll('body *')].filter(x => x.getBoundingClientRect().right > innerWidth + 1).slice(0, 12).map(x => `${x.tagName.toLowerCase()}.${String(x.className).slice(0, 80)}`)")
-        : [];
-      Assert.True(overflowPixels <= 1,
-        $"Group consolidation overflows by {overflowPixels}px at {width}px: {string.Join(", ", overflowing)}.");
+      var tablesStayWithinViewport = await page.EvaluateAsync<bool>(
+        "() => [...document.querySelectorAll('.table-scroll')].every(element => { const rect = element.getBoundingClientRect(); return rect.left >= -1 && rect.right <= innerWidth + 1 && getComputedStyle(element).overflowX === 'auto'; })");
+      Assert.True(tablesStayWithinViewport, $"A group table escaped its bounded scroll container at {width}px.");
+      var tableScroll = page.Locator(".table-scroll").First;
+      var tableScrollLeft = await tableScroll.EvaluateAsync<int>("element => { element.scrollLeft = 0; element.scrollLeft = 100; const left = element.scrollLeft; element.scrollLeft = 0; return left; }");
+      if (width <= 1024)
+        Assert.True(tableScrollLeft > 0, $"The wide group table cannot be scrolled within its container at {width}px.");
     }
     var advancedLink = page.GetByRole(AriaRole.Link, new() { Name = "Open advanced workflow" });
     await advancedLink.FocusAsync();
@@ -252,7 +263,7 @@ public sealed partial class SiblingClientIsolationJourneyTests(ITestOutputHelper
       await db.SaveChangesAsync();
     }
 
-    var origin = await host.StartWebForIdentityAsync(reviewer);
+    var origin = await host.StartApiForIdentityAsync(reviewer);
     using var playwright = await Playwright.CreateAsync();
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var context = await browser.NewContextAsync();
@@ -345,7 +356,7 @@ public sealed partial class SiblingClientIsolationJourneyTests(ITestOutputHelper
       await page.WaitForTimeoutAsync(250);
       // The browser-local draft status reflects this viewer's own earlier visits, not server data.
       var text = DraftStatus().Replace(Whitespace().Replace(await page.Locator("main").First.InnerTextAsync(), " "), "{draft-status}").Trim();
-      var loading = await page.Locator(".mud-progress-circular, .mud-progress-linear, .mud-skeleton").CountAsync() > 0;
+      var loading = await page.Locator("mat-progress-bar[mode='indeterminate'], [aria-busy='true']").CountAsync() > 0;
       if (!loading && text == previous && text.Length > 0) return text;
       previous = text;
     }

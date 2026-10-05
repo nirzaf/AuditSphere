@@ -1,5 +1,4 @@
 using AuditSphereOps.Domain.Acceptance;
-using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Tests;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
@@ -7,16 +6,16 @@ using Microsoft.Playwright;
 namespace AuditSphereOps.E2E.Tests;
 
 /// <summary>
-/// Engagement acceptance in the real UI: answers need evidence, an adverse answer blocks the Partner until a specialist
-/// review with evidence is recorded, the decision is recorded, and the engagement is created blocked and then
-/// activated by the Partner only from that current unconditional acceptance.
+/// Exercises the native Angular acceptance workflow against the API host. Acceptance is a human
+/// decision: evidence-bearing answers, adverse-answer clearance and fresh exact-action assent are
+/// required before a Partner decision can be recorded.
 /// </summary>
 [Trait("Category", "AuthorizationAndScope")]
 public sealed class AcceptanceJourneyTests
 {
   [Fact]
   [Trait("CaseId", "AS-ACCEPTANCE-PATH-01")]
-  public async Task AdverseAnswerNeedsReview_ThenPartnerAcceptsCreatesAndActivatesTheEngagement()
+  public async Task PartnerCompletesEvidenceAndSpecialistReviewBeforeAcceptingClient()
   {
     await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "AS-ACCEPTANCE-PATH-01");
     var partner = PbcSeed.User(host.Fixture.FirmId, "Staff");
@@ -26,118 +25,111 @@ public sealed class AcceptanceJourneyTests
       db.Users.Add(partner);
       db.RoleGrants.Add(PbcSeed.Grant(host.Fixture.FirmId, partner, "Partner"));
       var templateId = Guid.NewGuid();
+      var continuanceTemplateId = Guid.NewGuid();
       db.QuestionnaireTemplates.Add(new QuestionnaireTemplate { Id = templateId, Bank = "CE", Version = "JOURNEY-1", Name = "Journey bank", IsActive = true, CreatedAt = DateTimeOffset.UtcNow });
+      db.QuestionnaireTemplates.Add(new QuestionnaireTemplate { Id = continuanceTemplateId, Bank = "RV", Version = "JOURNEY-1", Name = "Continuance delta bank", IsActive = true, CreatedAt = DateTimeOffset.UtcNow });
       db.QuestionDefinitions.AddRange(
         new QuestionDefinition { Id = Guid.NewGuid(), TemplateId = templateId, QuestionCode = "CE-T1", Section = "A.1", Category = "Identity", PromptText = "Has the client's legal existence been verified?", RequiresEvidence = true, AdverseAnswer = "NO", SortOrder = 1 },
-        new QuestionDefinition { Id = Guid.NewGuid(), TemplateId = templateId, QuestionCode = "CE-T2", Section = "A.4", Category = "AML", PromptText = "Are there sanctions matches requiring action?", AdverseAnswer = "YES", SortOrder = 2 });
+        new QuestionDefinition { Id = Guid.NewGuid(), TemplateId = templateId, QuestionCode = "CE-T2", Section = "A.4", Category = "AML", PromptText = "Are there sanctions matches requiring action?", AdverseAnswer = "YES", SortOrder = 2 },
+        new QuestionDefinition { Id = Guid.NewGuid(), TemplateId = continuanceTemplateId, QuestionCode = "RV-T1", Section = "R.1", Category = "Continuance", PromptText = "Have there been material changes since the prior evaluation?", EscalatesOnChange = true, SortOrder = 1 });
       await db.SaveChangesAsync();
     }
 
-    var origin = await host.StartWebForIdentityAsync(partner);
+    var origin = await host.StartApiForIdentityAsync(partner, new Dictionary<string, string>
+    {
+      ["AngularUi__Enabled"] = "true",
+      ["AngularUi__CanonicalRoutes"] = "true"
+    });
     using var playwright = await Playwright.CreateAsync();
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var context = await browser.NewContextAsync();
     var page = await context.NewPageAsync();
     var diagnostics = new List<string>();
     page.PageError += (_, error) => diagnostics.Add($"page-error: {error}");
-    page.Console += (_, message) => diagnostics.Add($"console-{message.Type}: {message.Text}");
-    async Task SettleAsync()
+    page.Console += (_, message) =>
     {
-      await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 15000 });
-      await page.WaitForTimeoutAsync(500);
+      if (message.Type == "error") diagnostics.Add($"console-error: {message.Text}");
+    };
+
+    async Task ConfirmReviewedActionAsync(ILocator reviewButton)
+    {
+      await reviewButton.ClickAsync();
+      var review = page.GetByRole(AriaRole.Region, new() { Name = "Exact assessment action review", Exact = true });
+      await Assertions.Expect(review).ToBeVisibleAsync();
+      var confirm = page.GetByRole(AriaRole.Button, new() { Name = "Confirm reviewed assessment action", Exact = true });
+      await Assertions.Expect(confirm).ToBeDisabledAsync();
+      await page.GetByLabel("I reviewed this exact assessment action and its effects.", new() { Exact = true }).CheckAsync();
+      await confirm.ClickAsync();
+      var receipt = page.GetByRole(AriaRole.Region, new() { Name = "Retained assessment receipt", Exact = true });
+      await Assertions.Expect(receipt).ToBeVisibleAsync();
+      await page.GetByRole(AriaRole.Button, new() { Name = "Acknowledge assessment receipt", Exact = true }).ClickAsync();
+      await Assertions.Expect(receipt).ToHaveCountAsync(0);
     }
 
     await page.GotoAsync($"{origin}/auth/sign-in?returnUrl={Uri.EscapeDataString($"/app/clients/{clientId:D}/assessment")}");
-    await page.GetByRole(AriaRole.Heading, new() { Name = "Acceptance checklist" }).WaitForAsync(new() { Timeout = 20000 });
-    await SettleAsync();
-    var checklist = page.GetByRole(AriaRole.Region, new() { Name = "Acceptance checklist" });
-    await Assertions.Expect(checklist).ToContainTextAsync("New client onboarding");
-    await Assertions.Expect(checklist).ToContainTextAsync("2 outstanding before a Partner can accept");
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Client acceptance checklist", Exact = true })).ToBeVisibleAsync();
+    var profile = page.GetByRole(AriaRole.Region, new() { Name = "Client assessment profile", Exact = true });
+    await Assertions.Expect(profile).ToContainTextAsync("PBC TEST CLIENT");
+    var progress = page.GetByRole(AriaRole.Region, new() { Name = "Evaluation progress", Exact = true });
+    await Assertions.Expect(progress).ToContainTextAsync("0 of 2 questions answered");
 
-    // An evidence-bearing question refuses a bare answer, then accepts it with a reference.
-    await page.GetByLabel("Answer for CE-T1", new() { Exact = true }).SelectOptionAsync("Yes");
-    await page.GetByRole(AriaRole.Button, new() { Name = "Save answer for CE-T1" }).ClickAsync();
-    await Assertions.Expect(page.Locator(".command-result", new() { HasText = "evidence" })).ToBeVisibleAsync();
-    await page.GetByLabel("Evidence reference for CE-T1", new() { Exact = true }).FillAsync("REG-CERT-2026-11");
-    await page.GetByLabel("Evidence reference for CE-T1", new() { Exact = true }).PressAsync("Tab");
-    await page.GetByRole(AriaRole.Button, new() { Name = "Save answer for CE-T1" }).ClickAsync();
-    await Assertions.Expect(page.Locator("[data-question='CE-T1']")).ToContainTextAsync("REG-CERT-2026-11");
+    // An evidence-bearing answer cannot be reviewed until the required reference is entered.
+    var identity = page.GetByRole(AriaRole.Region, new() { Name = "CE-T1 assessment question", Exact = true });
+    await identity.GetByLabel("Answer for CE-T1", new() { Exact = true }).SelectOptionAsync("Yes");
+    await identity.GetByRole(AriaRole.Button, new() { Name = "Review answer for CE-T1", Exact = true }).ClickAsync();
+    await Assertions.Expect(identity.Locator("[role='alert']").First).ToContainTextAsync("evidence reference");
+    await identity.GetByLabel("Evidence reference (required)", new() { Exact = true }).FillAsync("REG-CERT-2026-11");
+    await ConfirmReviewedActionAsync(identity.GetByRole(AriaRole.Button, new() { Name = "Review answer for CE-T1", Exact = true }));
+    await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "CE-T1 assessment question", Exact = true }))
+      .ToContainTextAsync("Recorded: Yes");
 
-    // A sanctions match is answered "Yes": every field is filled but the Partner is still blocked.
-    await page.GetByLabel("Answer for CE-T2", new() { Exact = true }).SelectOptionAsync("Yes");
-    await page.GetByRole(AriaRole.Button, new() { Name = "Save answer for CE-T2" }).ClickAsync();
-    await Assertions.Expect(checklist).ToContainTextAsync("CE-T2 is an adverse answer");
-    await Assertions.Expect(page.Locator("[data-question='CE-T2']")).ToContainTextAsync("adverse — needs specialist review");
+    // An adverse answer stays a blocker until a requested specialist review is cleared with evidence.
+    var sanctions = page.GetByRole(AriaRole.Region, new() { Name = "CE-T2 assessment question", Exact = true });
+    await sanctions.GetByLabel("Answer for CE-T2", new() { Exact = true }).SelectOptionAsync("Yes");
+    await ConfirmReviewedActionAsync(sanctions.GetByRole(AriaRole.Button, new() { Name = "Review answer for CE-T2", Exact = true }));
+    await Assertions.Expect(sanctions).ToContainTextAsync("Adverse answer: specialist clearance is required.");
+    await Assertions.Expect(page.GetByText("Checklist blocked", new() { Exact = true })).ToBeVisibleAsync();
 
-    // The specialist review must be requested, then cleared with evidence.
-    await page.GetByLabel("Review area", new() { Exact = true }).SelectOptionAsync("AML");
+    var request = page.GetByRole(AriaRole.Button, new() { Name = "Review specialist request", Exact = true });
+    await page.GetByLabel("Review area", new() { Exact = true }).FillAsync("AML");
     await page.GetByLabel("Specialist", new() { Exact = true }).FillAsync("Compliance officer");
-    await page.GetByLabel("Specialist", new() { Exact = true }).PressAsync("Tab");
-    await page.GetByRole(AriaRole.Button, new() { Name = "Request specialist review" }).ClickAsync();
-    await Assertions.Expect(checklist).ToContainTextAsync("AML review requested.");
-    await page.GetByRole(AriaRole.Button, new() { Name = "Clear AML" }).ClickAsync();
-    await Assertions.Expect(page.Locator(".command-result", new() { HasText = "evidence reference" })).ToBeVisibleAsync();
-    await page.GetByLabel("Review evidence for AML", new() { Exact = true }).FillAsync("SANCTIONS-SCREEN-77: false positive");
-    await page.GetByLabel("Review evidence for AML", new() { Exact = true }).PressAsync("Tab");
-    await page.GetByRole(AriaRole.Button, new() { Name = "Clear AML" }).ClickAsync();
-    await Assertions.Expect(checklist).ToContainTextAsync("The checklist is complete and cleared.");
+    await ConfirmReviewedActionAsync(request);
+    var clearance = page.GetByRole(AriaRole.Region, new() { Name = "AML specialist review", Exact = true });
+    await Assertions.Expect(clearance).ToContainTextAsync("PENDING");
+    await clearance.GetByLabel("Review result", new() { Exact = true }).SelectOptionAsync("HOLD");
+    await ConfirmReviewedActionAsync(clearance.GetByRole(AriaRole.Button, new() { Name = "Review specialist result for AML", Exact = true }));
+    await Assertions.Expect(clearance).ToContainTextAsync("HOLD");
+    await clearance.GetByLabel("Review result", new() { Exact = true }).SelectOptionAsync("CLEARED");
+    await clearance.GetByLabel("Evidence reference (required)", new() { Exact = true }).FillAsync("SANCTIONS-SCREEN-77: false positive");
+    await ConfirmReviewedActionAsync(clearance.GetByRole(AriaRole.Button, new() { Name = "Review specialist result for AML", Exact = true }));
+    await Assertions.Expect(page.GetByText("Checklist ready for human decision", new() { Exact = true })).ToBeVisibleAsync();
 
-    // Partner decision.
-    await page.GotoAsync($"{origin}/app/assessments/{clientId:D}/decision");
-    await page.GetByRole(AriaRole.Heading, new() { Name = "Partner Acceptance / Continuance Decision" }).WaitForAsync();
-    await SettleAsync();
-    await page.Locator("#decision-outcome .mud-select").First.ClickAsync();
-    await page.Locator(".mud-popover-open").GetByText("Accepted", new() { Exact = true }).ClickAsync();
-    await page.Locator("#decision-service").FillAsync("AccountingOnly");
-    await page.Locator("#decision-rationale").FillAsync("Cleared after the sanctions review.");
-    await page.Locator("#decision-rationale").PressAsync("Tab");
-    await page.GetByRole(AriaRole.Button, new() { Name = "Record Partner Decision" }).ClickAsync();
+    await page.GetByLabel("Service route", new() { Exact = true }).FillAsync("AccountingOnly");
+    await page.GetByLabel("Decision", new() { Exact = true }).SelectOptionAsync("Accepted");
+    await page.GetByLabel("Rationale", new() { Exact = true }).FillAsync("Cleared after the sanctions review.");
+    await ConfirmReviewedActionAsync(page.GetByRole(AriaRole.Button, new() { Name = "Review Partner decision", Exact = true }));
+
+    await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Review continuance", Exact = true })).ToBeVisibleAsync();
+    await ConfirmReviewedActionAsync(page.GetByRole(AriaRole.Button, new() { Name = "Review continuance", Exact = true }));
+    await Assertions.Expect(page.GetByText("CONTINUANCE · Evaluation 2", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "RV-T1 assessment question", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "CE-T1 assessment question", Exact = true })).ToHaveCountAsync(0);
+    await Assertions.Expect(progress).ToContainTextAsync("0 of 1 questions answered");
+
     await using (var db = host.CreateDbContext())
     {
-      var deadline = DateTime.UtcNow.AddSeconds(15);
-      AcceptanceDecision? decision = null;
-      while (DateTime.UtcNow < deadline && decision is null)
-      {
-        decision = await db.AcceptanceDecisions.AsNoTracking().SingleOrDefaultAsync(x => x.PracticeClientId == clientId && x.Decision == "Accepted");
-        if (decision is null) await Task.Delay(300);
-      }
-      Assert.NotNull(decision);
-      Assert.Equal(AcceptancePaths.NewClient, decision!.Path);
+      var decision = await db.AcceptanceDecisions.AsNoTracking()
+        .SingleAsync(x => x.PracticeClientId == clientId && x.Decision == "Accepted");
+      Assert.Equal("Accepted", decision.Decision);
+      Assert.Equal(AcceptancePaths.NewClient, decision.Path);
+      Assert.Equal("AccountingOnly", decision.ServiceRoute);
+      Assert.Equal("Cleared after the sanctions review.", decision.Rationale);
+      var receipts = await db.AssessmentCommandReceipts.Where(x => x.ClientId == clientId).ToListAsync();
+      Assert.Equal(7, receipts.Count);
+      var continuance = Assert.Single(receipts, x => x.Kind == "CONTINUANCE");
+      Assert.Equal((1L, 2L), (continuance.Generation, continuance.ResultGeneration));
     }
 
-    // Create the engagement (blocked), then activate it as the Partner.
-    await page.GotoAsync($"{origin}/app/clients/{clientId:D}");
-    await page.GetByRole(AriaRole.Heading, new() { Name = "Create engagement" }).WaitForAsync();
-    await SettleAsync();
-    await page.GetByLabel("Service route (e.g. FinancialStatementAudit)").FillAsync("AccountingOnly");
-    await page.GetByLabel("Service profile").FillAsync("ACC-2026");
-    await page.GetByLabel("Period start (yyyy-MM-dd)").FillAsync("2026-01-01");
-    await page.GetByLabel("Period end (yyyy-MM-dd)").FillAsync("2026-12-31");
-    await page.GetByLabel("Period end (yyyy-MM-dd)").PressAsync("Tab");
-    await page.GetByRole(AriaRole.Button, new() { Name = "Create engagement" }).ClickAsync();
-    Guid engagementId = Guid.Empty;
-    await using (var db = host.CreateDbContext())
-    {
-      var deadline = DateTime.UtcNow.AddSeconds(15);
-      while (DateTime.UtcNow < deadline && engagementId == Guid.Empty)
-      {
-        engagementId = await db.Engagements.AsNoTracking().Where(x => x.PracticeClientId == clientId && x.ServiceRoute == "AccountingOnly")
-          .Select(x => x.Id).SingleOrDefaultAsync();
-        if (engagementId == Guid.Empty) await Task.Delay(300);
-      }
-      Assert.NotEqual(Guid.Empty, engagementId);
-      Assert.True((await db.Engagements.AsNoTracking().SingleAsync(x => x.Id == engagementId)).ProfessionalWorkBlocked);
-    }
-
-    await page.GotoAsync($"{origin}/app/engagements/{engagementId:D}");
-    await page.GetByRole(AriaRole.Heading, new() { Name = "Engagement activation" }).WaitForAsync();
-    await SettleAsync();
-    await page.GetByRole(AriaRole.Button, new() { Name = "Activate engagement (Partner)" }).ClickAsync();
-    await Assertions.Expect(page.GetByText("Activated on", new() { Exact = false })).ToBeVisibleAsync(new() { Timeout = 15000 });
-    await using (var db = host.CreateDbContext())
-      Assert.Equal(("Active", false), ((await db.Engagements.AsNoTracking().SingleAsync(x => x.Id == engagementId)) is var e ? (e.Status, e.ProfessionalWorkBlocked) : default));
-
-    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
-    Assert.DoesNotContain(diagnostics, x => x.Contains("unhandled exception on the current circuit", StringComparison.OrdinalIgnoreCase));
+    Assert.Empty(diagnostics);
   }
 }

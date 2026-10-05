@@ -1,0 +1,101 @@
+@* Guest / client users (§9). Existing Guest and Invite New Guest are separate, explicit choices.
+   An invitation grants nothing until the local ClientUser grant (CLIENT/ENGAGEMENT only) commits. *@
+@using AuditSphereOps.Application.Microsoft365
+@inject CurrentActorResolver ActorResolver
+@inject IDbContextFactory<AuditSphereDbContext> DbFactory
+@inject IMicrosoftGuestInvitationProvider Invitations
+@inject TenantAdministrationSettings Settings
+
+<MudPaper Class="audit-workspace-panel audit-admin-panel pa-4 my-3" Elevation="0" role="region" aria-labelledby="guest-heading">
+  <h3 id="guest-heading">Guest and client users</h3>
+  <MudRadioGroup T="string" @bind-Value="_mode">
+    <MudRadio T="string" Value="@("EXISTING")">Existing guest</MudRadio>
+    <MudRadio T="string" Value="@("INVITE")">Invite new guest</MudRadio>
+  </MudRadioGroup>
+  @if (_mode == "EXISTING")
+  {
+    <MicrosoftDirectoryPanel GuestsOnly="true" AssignRequested="AssignRequested" Changed="Changed" />
+  }
+  else if (!Available)
+  {
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" role="status">
+      Guest invitation is @(Settings.Options.GuestInvitationEnabled ? "enabled but not verified (User.Invite.All consent must be verified first)" : "not enabled for this deployment").
+    </MudAlert>
+  }
+  else
+  {
+    <MudTextField T="string" Label="Approved guest email" @bind-Value="_email" InputType="InputType.Email" MaxLength="320" id="guest-email" />
+    <MudSelect T="Guid?" Label="Client" @bind-Value="_clientId" id="guest-client">
+      @foreach (var client in Clients) { <MudSelectItem T="Guid?" Value="@client.Id">@client.Name</MudSelectItem> }
+    </MudSelect>
+    <MudSelect T="Guid?" Label="Engagement (optional, narrows scope)" @bind-Value="_engagementId" Clearable="true" id="guest-engagement">
+      @foreach (var engagement in Engagements.Where(x => x.ParentId == _clientId)) { <MudSelectItem T="Guid?" Value="@engagement.Id">@engagement.Name</MudSelectItem> }
+    </MudSelect>
+    <MudTextField T="string" Label="Reason" @bind-Value="_reason" Lines="2" MaxLength="1000" id="guest-reason" />
+    @if (_previewing)
+    {
+      <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mt-2" role="status">
+        <strong>Preview:</strong> Microsoft will send a B2B invitation to <strong>@_email</strong> for tenant <code>@Settings.Options.TenantId</code>.
+        After Microsoft returns the guest's immutable object ID, AuditSphere grants <strong>ClientUser</strong> for
+        <strong>@(Clients.FirstOrDefault(x => x.Id == _clientId)?.Name)</strong>@(_engagementId.HasValue ? " (engagement scope)" : " (client scope)") only. Firm-wide access is impossible for client users.
+      </MudAlert>
+      <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-2" OnClick="InviteAsync" Disabled="@_busy">@(_busy ? "Sending…" : "Send Microsoft invitation")</MudButton>
+      <MudButton Variant="Variant.Text" Class="mt-2" OnClick="() => _previewing = false" Disabled="@_busy">Edit</MudButton>
+    }
+    else
+    {
+      <MudButton Variant="Variant.Outlined" Class="mt-2" OnClick="Preview">Preview invitation</MudButton>
+    }
+    @if (_result is not null)
+    {
+      <MudAlert Severity="@(_result.State == "BOUND" ? Severity.Success : Severity.Warning)" Class="mt-2" role="status">
+        <StatusChip Status="@_result.State" /> @_result.Message
+        @if (_result.CorrelationId is not null) { <div class="field-help">Microsoft request ID: <code>@_result.CorrelationId</code></div> }
+      </MudAlert>
+    }
+  }
+  @if (!string.IsNullOrWhiteSpace(_error)) { <MudAlert Severity="Severity.Error" Dense="true" Class="mt-2" role="alert">@_error</MudAlert> }
+</MudPaper>
+
+@code {
+  [Parameter] public bool Available { get; set; }
+  [Parameter] public IReadOnlyList<ScopeOption> Clients { get; set; } = [];
+  [Parameter] public IReadOnlyList<ScopeOption> Engagements { get; set; } = [];
+  [Parameter] public EventCallback<(Guid UserId, string Name, bool Client)> AssignRequested { get; set; }
+  [Parameter] public EventCallback Changed { get; set; }
+
+  private string _mode = "EXISTING", _email = string.Empty, _reason = string.Empty, _key = NewKey();
+  private Guid? _clientId, _engagementId;
+  private bool _previewing, _busy;
+  private ExternalOperationResult? _result;
+  private string? _error;
+
+  private void Preview()
+  {
+    _error = !_clientId.HasValue ? "Choose the client this guest belongs to." :
+      string.IsNullOrWhiteSpace(_email) || !_email.Contains('@') ? "Enter the approved guest email." :
+      string.IsNullOrWhiteSpace(_reason) || _reason.Trim().Length < 5 ? "Enter a reason of at least five characters." : null;
+    _previewing = _error is null;
+  }
+
+  private async Task InviteAsync()
+  {
+    _busy = true; _error = null;
+    try
+    {
+      var actor = await ActorResolver.ResolveAsync();
+      if (actor is null) { _error = "Your session is no longer authorized."; return; }
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await DirectoryProvisioningService.InviteGuestAsync(db, actor, Invitations, Settings.Options,
+        new(_key, _email, _clientId!.Value, _engagementId, _reason), DateTimeOffset.UtcNow);
+      if (!result.Succeeded) { _error = result.Message; return; }
+      _result = result.Value;
+      _previewing = false;
+      if (_result!.State == "BOUND") { _email = _reason = string.Empty; _key = NewKey(); }
+      await Changed.InvokeAsync();
+    }
+    finally { _busy = false; }
+  }
+
+  private static string NewKey() => "invite-" + Guid.NewGuid().ToString("N");
+}

@@ -63,7 +63,8 @@ public sealed class PlanningAndResourcesJourneyTests
       Assert.True((await RiskBandService.AssessAsync(db, managerActor, new(redRisk, 2, 2, true, "Presumed fraud risk"))).Succeeded);
     }
 
-    var origin = await host.StartWebForIdentityAsync(partner);
+    var origin = await host.StartApiForIdentityAsync(partner,
+      new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
     using var playwright = await Playwright.CreateAsync();
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     var page = await (await browser.NewContextAsync()).NewPageAsync();
@@ -78,34 +79,39 @@ public sealed class PlanningAndResourcesJourneyTests
 
     // Staffing at the four levels (associate omitted: the fixture's staff user is added to prove the list order).
     await page.GotoAsync($"{origin}/auth/sign-in?returnUrl={Uri.EscapeDataString($"/app/engagements/{f.EngagementId:D}")}");
+    await page.GetByText("Team and budget", new() { Exact = true }).ScrollIntoViewIfNeededAsync();
     await page.GetByRole(AriaRole.Heading, new() { Name = "Engagement team" }).WaitForAsync(new() { Timeout = 20000 });
     await SettleAsync();
-    async Task StaffAsync(string option, string name, string level)
+    var planning = page.GetByRole(AriaRole.Region, new() { Name = "Engagement planning", Exact = true });
+    async Task StaffAsync(Guid userId, string name, string level)
     {
-      await page.Locator("#staff-user").SelectOptionAsync(new SelectOptionValue { Label = option });
-      await page.Locator("#staff-level").SelectOptionAsync(level);
-      await page.GetByRole(AriaRole.Button, new() { Name = "Add to team" }).ClickAsync();
-      try { await Assertions.Expect(page.Locator(".command-result").Last).ToContainTextAsync("Added as"); }
-      catch (PlaywrightException ex)
-      {
-        throw new Xunit.Sdk.XunitException(await page.Locator("[aria-labelledby='staffing-heading']").InnerTextAsync() + "\n" + string.Join("\n", diagnostics) + ex.Message);
-      }
-      await Assertions.Expect(page.Locator("[aria-label='Engagement team']")).ToContainTextAsync(name);
+      await planning.GetByLabel("Person", new() { Exact = true }).SelectOptionAsync(userId.ToString());
+      await planning.GetByLabel("Level", new() { Exact = true }).SelectOptionAsync(level);
+      await planning.GetByLabel("I reviewed the engagement role and client-site access.", new() { Exact = true }).CheckAsync();
+      await planning.GetByRole(AriaRole.Button, new() { Name = "Review team assignment", Exact = true }).ClickAsync();
+      var review = planning.GetByRole(AriaRole.Region, new() { Name = "Staffing change review", Exact = true });
+      await Assertions.Expect(review).ToContainTextAsync("Full Control");
+      await review.GetByLabel("I reviewed this exact staffing change and its access effects.", new() { Exact = true }).CheckAsync();
+      await review.GetByRole(AriaRole.Button, new() { Name = "Confirm staffing change", Exact = true }).ClickAsync();
+      await planning.GetByRole(AriaRole.Button, new() { Name = "Acknowledge staffing change", Exact = true }).ClickAsync();
+      await Assertions.Expect(planning).ToContainTextAsync(name);
     }
-    await StaffAsync("Mona Manager (certified)", "Mona Manager", StaffingLevels.AuditManager);
-    await StaffAsync("Sam Senior", "Sam Senior", StaffingLevels.SeniorAuditor);
-    var team = page.Locator("[aria-label='Engagement team']");
+    await StaffAsync(manager.Id, "Mona Manager", "AUDIT_MANAGER");
+    await StaffAsync(senior.Id, "Sam Senior", "SENIOR_AUDITOR");
+    var team = planning;
     await Assertions.Expect(team).ToContainTextAsync("Audit Manager");
     await Assertions.Expect(team).ToContainTextAsync("Senior Auditor");
     await Assertions.Expect(team).ToContainTextAsync("Senior");
 
     // Materiality from the mapped trial balance.
     await page.GotoAsync($"{origin}/app/engagements/{f.EngagementId:D}/audit-plan");
-    await page.GetByRole(AriaRole.Heading, new() { Name = "Materiality calculator" }).WaitForAsync(new() { Timeout = 20000 });
+    var calculator = page.GetByRole(AriaRole.Region, new() { Name = "Materiality calculator", Exact = true });
+    await calculator.GetByRole(AriaRole.Heading, new() { Name = "Materiality calculator" }).WaitForAsync(new() { Timeout = 20000 });
     await SettleAsync();
-    await Assertions.Expect(page.Locator("#matcalc-benchmark")).ToContainTextAsync("Revenue (income section) — 1,500,000.00");
-    await page.Locator("#matcalc-rationale").FillAsync("Revenue drives user focus for this trading entity.");
-    await page.Locator("#matcalc-rationale").PressAsync("Tab");
+    var benchmark = calculator.GetByRole(AriaRole.Combobox, new() { Name = "Benchmark", Exact = true });
+    await benchmark.SelectOptionAsync(new SelectOptionValue { Label = "Revenue (income section) — 1,500,000.00" });
+    await page.GetByLabel("Rationale for the benchmark", new() { Exact = true }).FillAsync("Revenue drives user focus for this trading entity.");
+    await page.GetByLabel("Rationale for the benchmark", new() { Exact = true }).PressAsync("Tab");
     await page.GetByRole(AriaRole.Button, new() { Name = "Calculate materiality" }).ClickAsync();
     await Assertions.Expect(page.GetByText("Materiality calculated; an independent Manager or Partner must approve it.")).ToBeVisibleAsync();
     var thresholds = page.Locator("[aria-label='Materiality thresholds']");
