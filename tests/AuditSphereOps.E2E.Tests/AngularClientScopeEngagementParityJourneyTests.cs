@@ -198,6 +198,17 @@ public sealed class AngularClientScopeEngagementParityJourneyTests
     Assert.Equal(documentToken, await page.EvaluateAsync<string>("() => window.__engagementParityToken"));
     await NavigateAsync(page, targetPlan, privateRisk);
 
+    // The legacy plan URL uses the engagement ID in its {Id} segment. Keep this alias
+    // behavior under the same scope and in-place clearing contract as the canonical route.
+    var legacyPlan = $"/app/audit/plans/{f.EngagementId:D}";
+    await NavigateAsync(page, legacyPlan, privateRisk);
+    var legacySiblingPlanText = await NavigateAsync(page,
+      $"/app/audit/plans/{siblingEngagementId:D}",
+      "Sign in with an authorized internal staff identity assigned to this engagement to view its audit plan.");
+    Assert.DoesNotContain(privateRisk, legacySiblingPlanText, StringComparison.Ordinal);
+    Assert.Equal(documentToken, await page.EvaluateAsync<string>("() => window.__engagementParityToken"));
+    await NavigateAsync(page, legacyPlan, privateRisk);
+
     var riskSection = page.GetByRole(AriaRole.Region,
       new() { Name = "Identified risks (§19.3)", Exact = true });
     await riskSection.GetByText("Record an identified risk", new() { Exact = true }).ClickAsync();
