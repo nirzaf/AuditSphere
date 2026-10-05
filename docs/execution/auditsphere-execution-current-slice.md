@@ -15,7 +15,36 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
-## Current follow-on slice: Angular assessment, engagement and completion scope parity
+## Current follow-on slice: Angular release safety parity
+
+At API-host test commit `e82c3d2b`,
+`AngularReleaseParityJourneyTests.ExpiredProtectionBlocksIssueAndReleaseDetailsClearOnScopeChangeAndRevocation`
+maps the removed release-candidate route and expired-protection journeys.
+Against an isolated PostgreSQL fixture, the Angular page shows the exact
+candidate only to the authorized engagement Partner, displays the expired
+protection attestation as expired (never verified), keeps issuance blocked,
+and claims no external records-provider acceptance. The Application issue
+attempt is refused and creates no Release row. A sibling-engagement Staff user
+and a guessed candidate ID receive safe unavailable states without release
+details; same-document navigation clears and restores data correctly. The
+journey also checks six viewport widths, keyboard focus, and stale state after
+grant revocation and reload.
+
+The focused Release E2E run passed 1/1 with no failures or skips in 29 seconds.
+The E2E project and API dependencies compiled in Release. This is test-only;
+no Application or EF model code changed. The removed-method crosswalk now
+covers 52/82 methods, including all 39 `ClientScopeJourneyTests` methods and
+two release-safety methods. Thirty methods remain across
+`AuditAndReleaseJourneyTests` (11) and `FinancialArtifactJourneyTests` (19).
+The latest complete PostgreSQL-backed Release solution result remains
+1001/1001 at `ead85032`, before this focused test. Sixty source/action rows and
+28 supporting files remain unanalyzed. AS-PAR-002 stays partial and Blazor
+retirement stays `NOT_READY`; production canary, human assistive-technology
+review, live Microsoft gates and separate owner acceptance remain open. Exact
+evidence is in [`status.json`](status.json) and the [test parity
+register](../migration/auditsphere-migration-blazor-test-parity.md).
+
+## Previous follow-on slice: Angular assessment, engagement and completion scope parity
 
 At test commit `bfb72c71`, `AngularClientScopeEngagementParityJourneyTests`
 adds API-host Playwright replacements for the five remaining
@@ -28,17 +57,14 @@ persisted, and the open browser session is invalidated.
 
 The focused Release E2E cohort passed 4/4 with zero failures or skips in 1m23s.
 This is test-only: no application or EF model changed. The removed-method
-crosswalk now covers 50/82 methods, including all 39 `ClientScopeJourneyTests`
-methods. Thirty-two methods remain in `AuditAndReleaseJourneyTests` and
-`FinancialArtifactJourneyTests`. The latest complete PostgreSQL-backed Release
-solution result remains 1001/1001 at `ead85032`, before this test commit; the
-current source has focused, not whole-solution, regression evidence. Sixty
-source/action rows and 28 supporting files remain unanalyzed. AS-PAR-002 stays
-partial and Blazor retirement stays `NOT_READY`; the rollback/reference host,
-production canary, human assistive-technology review, live Microsoft gates and
-separate owner acceptance remain open. Exact evidence is in
-[`status.json`](status.json) and the [test parity
-register](../migration/auditsphere-migration-blazor-test-parity.md).
+crosswalk at that slice covered 50/82 methods, including all 39
+`ClientScopeJourneyTests` methods; 32 methods remained in
+`AuditAndReleaseJourneyTests` and `FinancialArtifactJourneyTests`. The latest
+complete PostgreSQL-backed Release solution result remained 1001/1001 at
+`ead85032`. Sixty source/action rows and 28 supporting files remained
+unanalyzed. AS-PAR-002 stayed partial and Blazor retirement stayed
+`NOT_READY`. Exact evidence is in [`status.json`](status.json) and the [test
+parity register](../migration/auditsphere-migration-blazor-test-parity.md).
 
 ## Previous follow-on slice: Angular accounting task-owner scope parity
 
