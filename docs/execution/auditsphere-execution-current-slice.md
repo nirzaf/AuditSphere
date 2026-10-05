@@ -15,7 +15,30 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
-## Current follow-on slice: PBC upload recovery and removed-test crosswalk
+## Current follow-on slice: invoice scope and stale-route content isolation
+
+At code commit `500eda46`, the removed `InvoiceScopeJourneyTests` method has a
+passing API-host Angular replacement. The isolated PostgreSQL Playwright case
+seeds two client-scoped FinanceManagers and real invoices. Each manager can
+read their own invoice; same-document Angular route changes to the other
+client's invoice show the generic unavailable state without either client's
+invoice number, line item or amount, keep the document token, and reload the
+authorized invoice when returning. A second context verifies the reciprocal
+denial and no page errors. The focused E2E case passed 1/1. A read-only
+built-in-browser visit to an unknown invoice ID also rendered the generic
+unavailable state and returned to `/ui/app/accounting`.
+
+The Release solution build passed with zero warnings/errors and EF reports no
+pending model changes at this code commit. No full solution test run was made
+for this slice; the last 985/985 full regression remains attributed to the
+earlier frozen commit in `status.json`. Two of 82 removed E2E methods now have
+assertion maps; seven suites with 80 methods remain open. Sixty source/action
+rows and 28 supporting files also remain open, along with production,
+assistive-technology, locale, live Microsoft and owner-acceptance gates. The
+retirement decision stays `NOT_READY`. See the [test parity register](../migration/auditsphere-migration-blazor-test-parity.md)
+and [stop-gate report](../migration/auditsphere-migration-blazor-retirement-final-report.md).
+
+## Previous slice: PBC upload recovery and removed-test crosswalk
 
 The PBC source review compares the restored `PbcRequests.razor` staff inbox and
 `ClientPbcRequest.razor` client route against API-host Angular journeys. The
@@ -36,8 +59,8 @@ The focused PBC E2E cohort passed 4/4, the scoped API download test passed 1/1,
 and the Release solution build passed with zero warnings/errors at the code
 commit recorded in `status.json`. The single removed
 `PbcUploadJourneyTests.ClientUpload_ReconcilesUncertainProviderResult_AndStaffDownloadsExactBytes`
-method now has a passing assertion-by-assertion replacement map. Eight other
-removed E2E suites and 81 methods remain open. Both PBC source rows stay
+method now has a passing assertion-by-assertion replacement map. Seven other
+removed E2E suites and 80 methods remain open. Both PBC source rows stay
 `PARTIAL`: live selected-site worker delivery through Angular and the wider
 authorization/state/error/stale matrix remain open. Details and exact source
 attribution are in `status.json`, the [test parity register](../migration/auditsphere-migration-blazor-test-parity.md),
@@ -108,7 +131,7 @@ regression are still required; do not treat the new host topology as migration
 parity. The current frozen Release regression passed, but it does not close the
 assertion crosswalk. This working slice also replaces five stale M365 browser
 journeys with Angular/API-host journeys; the M365 test catalog now points to the
-replacement classes. The other nine-suite assertion crosswalk remains open.
+replacement classes. The removed-suite assertion crosswalk remains open.
 
 ## Historical checkpoint: Blazor test-host decoupling for migrated Angular E2E journeys
 
