@@ -113,6 +113,47 @@ public sealed class GlobalSearchJourneyTests
       await Assertions.Expect(search).ToHaveValueAsync(string.Empty);
       await Assertions.Expect(results.GetByRole(AriaRole.Status)).ToHaveCountAsync(0);
 
+      var retryRequests = 0;
+      await page.RouteAsync("**/api/ui/search**", async route =>
+      {
+        if (!new Uri(route.Request.Url).Query.Contains("term=ZQXRETRYPROBE", StringComparison.Ordinal))
+        {
+          await route.ContinueAsync();
+          return;
+        }
+
+        retryRequests++;
+        if (retryRequests == 1)
+        {
+          await route.FulfillAsync(new()
+          {
+            Status = 503,
+            ContentType = "application/json",
+            Body = "{\"code\":\"synthetic.search.failure\",\"message\":\"private diagnostic\"}"
+          });
+          return;
+        }
+
+        await route.FulfillAsync(new()
+        {
+          Status = 200,
+          ContentType = "application/json",
+          Body = "{\"term\":\"ZQXRETRYPROBE\",\"hits\":[{\"kind\":\"Page\",\"title\":\"Recovered search result\",\"detail\":\"Page\",\"href\":\"/app/practice/time\"}],\"truncated\":false}"
+        });
+      });
+      await search.FillAsync("ZQXRETRYPROBE");
+      await results.GetByRole(AriaRole.Button, new() { Name = "Search", Exact = true }).ClickAsync();
+      var searchAlert = results.GetByRole(AriaRole.Alert);
+      await Assertions.Expect(searchAlert).ToHaveTextAsync("Search unavailable. Check your access or retry.");
+      Assert.DoesNotContain("private diagnostic", await results.InnerTextAsync(), StringComparison.Ordinal);
+      Assert.Equal(0, await results.GetByRole(AriaRole.Link).CountAsync());
+
+      await results.GetByRole(AriaRole.Button, new() { Name = "Search", Exact = true }).ClickAsync();
+      await Assertions.Expect(results.GetByRole(AriaRole.Link, new() { Name = "Recovered search result", Exact = true }))
+        .ToBeVisibleAsync();
+      await Assertions.Expect(searchAlert).ToHaveCountAsync(0);
+      Assert.Equal(2, retryRequests);
+
       // A sibling client's exact name yields nothing, not even a count or snippet.
       await search.FillAsync(Marker);
       await Assertions.Expect(results.GetByRole(AriaRole.Status)).ToContainTextAsync("0 results", new() { Timeout = 15000 });
