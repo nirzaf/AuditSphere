@@ -1,4 +1,5 @@
 using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Application.Search;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Completion;
@@ -181,6 +182,71 @@ public sealed class GlobalSearchQueryTests
     Assert.Equal(6, leads.Length);
     Assert.All(leads, hit => Assert.Contains(term, hit.Title, StringComparison.OrdinalIgnoreCase));
     Assert.True(result.Truncated);
+  }
+
+  [Fact]
+  public async Task TechnicalLibraryHitsRespectAudiencePublicationAndFirmBoundary()
+  {
+    await using var w = await SeedAsync();
+    var (manager, managerActor) = await UserAsync(w, ("Manager", null, null));
+    var (partner, partnerActor) = await UserAsync(w, ("Partner", null, null));
+    var (_, staffActor) = await UserAsync(w, ("Staff", w.Own.ClientId, null));
+    const string term = "ZQXLIBAUDIENCE";
+    await using var db = w.Db();
+
+    async Task<(Guid DocumentId, Guid VersionId)> CreateEntryAsync(string code, string audience, string body)
+    {
+      var created = await TechnicalLibraryService.CreateAsync(db, managerActor, code, $"{term} {code}",
+        "ISA", audience, body, "Approved test source", new DateOnly(2026, 1, 1));
+      Assert.True(created.Succeeded, created.Message);
+      var versionId = await db.TechnicalLibraryVersions.Where(x => x.DocumentId == created.Value)
+        .Select(x => x.Id).SingleAsync();
+      return (created.Value, versionId);
+    }
+
+    var allStaff = await CreateEntryAsync("ZQX-ALL-STAFF", TechnicalLibraryAudiences.AllStaff,
+      $"{term} guidance available to all staff.");
+    var leadership = await CreateEntryAsync("ZQX-LEADERSHIP", TechnicalLibraryAudiences.PartnersAndManagers,
+      $"{term} guidance limited to partners and managers.");
+    var draft = await CreateEntryAsync("ZQX-DRAFT", TechnicalLibraryAudiences.AllStaff,
+      $"{term} unpublished draft.");
+    Assert.True((await TechnicalLibraryService.PublishAsync(db, partnerActor, allStaff.VersionId)).Succeeded);
+    Assert.True((await TechnicalLibraryService.PublishAsync(db, partnerActor, leadership.VersionId)).Succeeded);
+
+    // A matching published row in another firm must not cross the search boundary.
+    var foreignFirmId = Guid.NewGuid();
+    var foreignDocumentId = Guid.NewGuid();
+    var foreignBody = $"{term} foreign firm policy.";
+    db.TechnicalLibraryDocuments.Add(new TechnicalLibraryDocument
+    {
+      Id = foreignDocumentId, FirmId = foreignFirmId, Code = "ZQX-FOREIGN", Title = $"{term} foreign",
+      Category = TechnicalLibraryCategories.Isa, Audience = TechnicalLibraryAudiences.AllStaff,
+      CreatedByUserId = manager.Id, CreatedAt = DateTimeOffset.UtcNow
+    });
+    db.TechnicalLibraryVersions.Add(new TechnicalLibraryVersion
+    {
+      Id = Guid.NewGuid(), FirmId = foreignFirmId, DocumentId = foreignDocumentId, Version = 1,
+      Body = foreignBody, SourceReference = "Approved foreign test source", EffectiveFrom = new DateOnly(2026, 1, 1),
+      Status = TechnicalLibraryStates.Published, ContentSha256 = Hashing.Sha256Hex(foreignBody),
+      PreparedByUserId = manager.Id, PreparedAt = DateTimeOffset.UtcNow, ApprovedByUserId = partner.Id,
+      PublishedAt = DateTimeOffset.UtcNow
+    });
+    await db.SaveChangesAsync();
+
+    var staffHits = (await SearchAsync(w, staffActor, term)).Hits
+      .Where(x => x.Kind == GlobalSearchQuery.Kinds.Library).ToArray();
+    var managerHits = (await SearchAsync(w, managerActor, term)).Hits
+      .Where(x => x.Kind == GlobalSearchQuery.Kinds.Library).ToArray();
+
+    var staffHit = Assert.Single(staffHits);
+    Assert.Equal($"/app/library/{allStaff.DocumentId:D}", staffHit.Href);
+    Assert.DoesNotContain(staffHits, x => x.Href == $"/app/library/{leadership.DocumentId:D}");
+    Assert.DoesNotContain(staffHits, x => x.Href == $"/app/library/{draft.DocumentId:D}");
+    Assert.DoesNotContain(staffHits, x => x.Href == $"/app/library/{foreignDocumentId:D}");
+    Assert.Contains(managerHits, x => x.Href == $"/app/library/{allStaff.DocumentId:D}");
+    Assert.Contains(managerHits, x => x.Href == $"/app/library/{leadership.DocumentId:D}");
+    Assert.DoesNotContain(managerHits, x => x.Href == $"/app/library/{draft.DocumentId:D}");
+    Assert.DoesNotContain(managerHits, x => x.Href == $"/app/library/{foreignDocumentId:D}");
   }
 
   [Fact]
