@@ -15,7 +15,38 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
-## Current follow-on slice: Angular archive and review route parity
+## Current follow-on slice: Angular accounting task-owner scope parity
+
+At code commit `73a2d51b`, the Angular accounting workspace regains the missing
+engagement task-owner summary through `AccountingTaskOwnerQuery`, a protected
+same-origin API endpoint and a bounded Angular table. The projection includes
+only active task counts and staff display names, requires a current accounting
+grant covering each engagement and a matching stored client relationship, and
+rechecks grants before returning. It omits task titles and owner IDs, so this
+does not widen client-wide books or period access.
+
+The PostgreSQL-backed API-host Playwright cohort passed 2/2 in 41 seconds. It
+maps `AccountingWorkspaceHidesSiblingEngagementTaskSummary`, verifies assigned
+owner visibility, sibling-owner exclusion, absence of task titles/IDs and
+clearing after grant revocation; the adjacent accounting workspace scope
+journey also passed. Angular CI passed 477/477 tests across 91 files. The
+production build succeeded with the existing initial-bundle warning (506.60
+kB, 6.60 kB over budget). The built-in browser loaded the Angular accounting
+page against the refreshed local API and showed its authorized-scope empty
+state for the Development identity; no command was submitted.
+
+The removed-method crosswalk now covers 45/82 methods, including 34
+`ClientScopeJourneyTests` methods; 37 methods across three suites remain open.
+The latest complete PostgreSQL-backed Release solution run remains 1001/1001
+at `ead85032`, before this code commit; current evidence is focused, not a new
+whole-solution regression. No EF entity/model changed, and the prior model
+drift check remains the latest. The concurrent unstaged
+`ConsolidationOverviewQuery.cs` edit was excluded from the commit. AS-PAR-002
+remains partial and Blazor retirement stays `NOT_READY`. Exact evidence is in
+[`status.json`](status.json) and the [test parity
+register](../migration/auditsphere-migration-blazor-test-parity.md).
+
+## Previous follow-on slice: Angular archive and review route parity
 
 At test commit `6e48c977`, `AngularClientScopeAuditDetailJourneyTests` adds the
 legacy archive and review-point assertions that were still missing. For an
