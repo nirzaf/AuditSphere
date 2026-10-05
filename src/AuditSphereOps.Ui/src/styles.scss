@@ -90,6 +90,9 @@ nav {
   gap: 1rem;
   margin-top: 1rem;
 }
+nav[aria-label='Breadcrumb'] {
+  flex-wrap: wrap;
+}
 .panel {
   border: 1px solid #d8e1eb;
   border-radius: 8px;
