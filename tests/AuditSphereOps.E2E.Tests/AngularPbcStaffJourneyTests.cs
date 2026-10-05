@@ -32,7 +32,11 @@ public sealed class AngularPbcStaffJourneyTests
     try
     {
       var origin = await host.StartApiForIdentityAsync(fixture.Staff,
-        new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
+        new Dictionary<string, string>
+        {
+          ["AngularUi__Enabled"] = "true",
+          ["Storage__PbcStagingRoot"] = staged.StagingRoot
+        });
       using var playwright = await Playwright.CreateAsync();
       await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
       await using var context = await browser.NewContextAsync();
@@ -117,6 +121,33 @@ public sealed class AngularPbcStaffJourneyTests
         Assert.Equal((PbcDocumentTransferHandler.Kind, OperationState.PENDING),
           (operation.OperationKind, operation.Status));
       }
+
+      await host.StartGeneralWorkerAsync();
+      await host.WaitForReceivedAsync(staged.UploadIntentId);
+      await page.ReloadAsync();
+      var deliveredRequestCard = page.Locator("section.panel").Filter(new() { HasText = "Bank statements" });
+      var deliveredFileRow = deliveredRequestCard.GetByRole(AriaRole.Row)
+        .Filter(new() { HasText = "staged-bank-statements.txt" });
+      await Assertions.Expect(deliveredFileRow.GetByText("received", new() { Exact = true })).ToBeVisibleAsync();
+      await Assertions.Expect(deliveredFileRow.GetByText("completed", new() { Exact = true })).ToBeVisibleAsync();
+
+      await using (var db = host.CreateDbContext())
+      {
+        var intent = await db.PbcUploadIntents.AsNoTracking().SingleAsync(x => x.Id == staged.UploadIntentId);
+        Assert.Equal((PbcUploadStates.Received, uploadBytes.Length, staged.DeclaredSha256Hex),
+          (intent.State, intent.ReceivedByteCount, intent.ProviderReceiptDigest));
+        var operation = await db.DurableOperations.AsNoTracking().SingleAsync(x => x.Id == intent.TransferOperationId);
+        Assert.Equal(OperationState.COMPLETED, operation.Status);
+        Assert.StartsWith("sim://pbc/", operation.ResultIdentity!);
+        Assert.Equal(staged.DeclaredSha256Hex, operation.ResultDigest);
+      }
+
+      await using var download = await context.APIRequest.GetAsync(origin + $"/api/pbc/uploads/{staged.UploadIntentId:D}/download",
+        new() { MaxRedirects = 0 });
+      Assert.Equal(200, download.Status);
+      Assert.Equal("no-store", download.Headers["cache-control"]);
+      Assert.Equal("nosniff", download.Headers["x-content-type-options"]);
+      Assert.Equal(uploadBytes, await download.BodyAsync());
 
       Assert.Empty(errors);
     }
