@@ -15,6 +15,31 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: Angular workpaper save-outcome recovery
+
+The Workpaper editor now treats a timeout or server error after a draft save as
+an unknown outcome. It retains the exact request identity and content, blocks
+editing/submission/navigation, and asks the practitioner to check the protected
+persisted draft. An exact match confirms the save without another write; an
+unchanged draft revision enables only a deliberate retry of the same idempotent
+request. A changed target fails closed. If access is revoked during
+reconciliation, the editor clears protected content and reloads through the
+scope-checked resource.
+
+Focused Angular tests, the complete Angular CI suite, the production build, and
+a PostgreSQL-backed API-host Playwright journey passed. The browser journey
+commits the draft while deliberately dropping the response, verifies exact
+read-back without a duplicate POST, then submits once and checks persisted
+draft/submission evidence. The built-in browser reloaded the route read-only;
+the unassigned Development identity saw the generic unavailable state for a
+guessed ID. The production build retains the recorded bundle and
+commercial-settings style budget warnings. No EF model changed; neither the
+pending-model check nor full-solution regression was rerun for this UI/API-host
+test slice. Exact commands, counts, commit and boundaries are recorded in
+[`status.json`](status.json). This closes only the Workpaper uncertain-save
+case: broader AS-PAR-002 authorization/retry review remains partial, and
+Blazor retirement stays `NOT_READY`.
+
 ## Current follow-on slice: firm finance source review
 
 The Finance ledger, FirmBooks and InvoiceDetail Razor sources match their

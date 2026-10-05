@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "5a554a0931703974074cfe182dcad0dd992d43a5",
+  "headCommit": "4126c35abb367c1298315d5d3937162e73dcec9f",
   "verifiedCommit": "ead85032de2ccc4d4c8043398fa8471d395376a9",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -18,6 +18,46 @@
     "postgres": "18.6 loopback development profile"
   },
   "verification": {
+    "angularWorkpaperSaveRecovery": {
+      "sourceCommit": "4126c35abb367c1298315d5d3937162e73dcec9f",
+      "observedAt": "2026-10-05T17:04:42Z",
+      "status": "PASS_LOCAL_SLICE",
+      "caseId": "AS-PAR-002-ANGULAR-WORKPAPER-SAVE-RECOVERY-01",
+      "focusedAngularTests": {
+        "status": "PASS",
+        "passed": 12,
+        "failed": 0,
+        "skipped": 0,
+        "command": "npm run test:ci -- --include=src/app/features/audit/workpaper.spec.ts"
+      },
+      "fullAngularCi": {
+        "status": "PASS",
+        "files": 94,
+        "passed": 487,
+        "failed": 0,
+        "skipped": 0,
+        "command": "npm run test:ci"
+      },
+      "angularProductionBuild": {
+        "status": "PASS_WITH_BUDGET_WARNING",
+        "initialBundle": "506.60 kB; 6.60 kB above the 500 kB warning budget.",
+        "commercialSettingsStylesheet": "7.53 kB; 3.53 kB above the 4 kB warning budget."
+      },
+      "focusedPostgresPlaywright": {
+        "status": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "duration": "28s",
+        "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~AngularWorkpaperSaveRecoveryJourneyTests'"
+      },
+      "coverage": "A browser POST commits a workpaper draft while its acknowledgement is aborted. The UI blocks resubmission, reconciles the exact SaveId and content through a protected GET without another POST, then submits once; PostgreSQL confirms the consumed draft and immutable submission. Unit tests cover the exact idempotent retry only after the server shows the draft revision did not advance, refusal-message recovery, and clearing protected content after access revocation.",
+      "builtInBrowser": "PASS_LOCAL_READ_ONLY: Reloaded the Workpaper route after the Angular build. The guessed, unassigned Development workpaper ID showed the generic unavailable message without workpaper content or commands.",
+      "efModelDrift": "No Application, Domain or EF model code changed; the pending-model check was not rerun.",
+      "fullSolutionRegression": "NOT_RUN at this source commit; latest complete PostgreSQL-backed Release solution result remains 1001/1001 at ead85032de2ccc4d4c8043398fa8471d395376a9.",
+      "sharedWorktreeBoundary": "The unrelated unstaged src/AuditSphereOps.Application/Accounting/ConsolidationOverviewQuery.cs and docs/execution/angular-source-inventory.json edits were excluded from this code commit.",
+      "retirementDecision": "NOT_READY"
+    },
     "angularAccountingTaskOwnerScopeParity": {
       "sourceCommit": "73a2d51bd07251b5d2df80b16fe53ada8f02a569",
       "observedAt": "2026-10-05T09:38:25Z",
@@ -11039,6 +11079,11 @@
       "item": "Angular firm finance source review and native firm-books journey (2026-10-05)",
       "status": "LOCAL_VERIFIED",
       "details": "At pushed test commit 5a554a09, Finance.razor, FirmBooks.razor and InvoiceDetail.razor match their pinned eb94ae50 hashes; all three source/action rows are now PARTIAL. The existing focused PostgreSQL-backed Release E2E cohort passed 6/6; its FirmOperationsJourneyTests expense flow remains legacy-host-only and is not counted as Angular evidence. New AngularFirmBooksJourneyTests passed 1/1, verifying source evidence, submit, independent FinanceReviewer approval, post, persisted identities, a balanced/reconciled trial balance and 390px layout. Angular production build passed with the existing 506.60 kB bundle warning and 7.53 kB commercial-settings style warning. Built-in browser read-only routes showed the expected finance access denial for the Development identity, with no records/actions and no command submitted. Full suite and EF drift checks were not rerun; latest complete regression remains 1001/1001 at ead85032. The unrelated unstaged ConsolidationOverviewQuery edit was compiled but excluded; angular-source-inventory edit was left untouched. Counts: 76 total, 1 parity verified, 63 partial and 12 unanalyzed source/action rows; 28 supporting files remain open. AS-PAR-002 remains partial and Blazor retirement NOT_READY."
+    },
+    {
+      "item": "Angular workpaper save-outcome recovery (2026-10-05)",
+      "status": "LOCAL_VERIFIED",
+      "details": "At pushed code/test commit 4126c35, unknown draft-save outcomes retain the exact SaveId and request body, block edits/submission/navigation, and require an explicit persisted-state check. A matching lastSaveId, exact content and unchanged target confirms without resending; an unchanged draft revision permits only the same idempotent request. A changed target fails closed, and denied reconciliation clears loaded protected content. Angular CI passed 487/487 across 94 files; the focused Workpaper suite passed 12/12. The production build passed with the existing 506.60 kB initial-bundle and 7.53 kB commercial-settings stylesheet warnings. The PostgreSQL-backed API-host Playwright journey passed 1/1: server commit plus lost browser acknowledgement, exact GET reconciliation without a duplicate POST, one submission, and persisted consumed-draft/submission evidence. Built-in browser showed the generic unavailable state for a guessed ID under the unassigned Development identity. No EF model changed; EF drift and full-solution regression were not rerun. The latest complete solution result remains 1001/1001 at ead85032. Concurrent consolidation and inventory edits were excluded. AS-PAR-002 remains partial and Blazor retirement NOT_READY."
     }
   ],
   "remainingLocalWork": [
