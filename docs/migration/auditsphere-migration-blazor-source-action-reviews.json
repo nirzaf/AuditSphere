@@ -329,7 +329,7 @@
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-shell-portfolio-source-review.md",
       "reviewedAtCommit": "1e22baaeeaf33283bf0ca311a93c1c493bcd82e6",
-      "openGaps": ["Contact creation validation, stale-generation and uncertain-response recovery", "Complete role/scope and field-redaction matrix including cross-firm IDs", "Assistive-technology acceptance"]
+      "openGaps": ["Complete contact field-validation and stale-generation conflict cases", "Complete role/scope, field-redaction, cross-firm and guessed-ID HTTP matrices", "Assistive-technology acceptance"]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/EngagementDetail.razor",

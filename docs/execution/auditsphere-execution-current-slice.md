@@ -15,6 +15,19 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: Client contact creation recovery evidence
+
+Reran the existing PostgreSQL-backed
+`AngularClientContactCreationJourneyTests` cohort on canonical and `/ui` routes;
+2/2 passed in 43s. The journey covers draft restoration, reviewed primary
+contact replacement, a dropped create response followed by receipt
+reconciliation without duplicate creation, and protected-content clearing
+after the Manager grant is revoked. The ClientDetail source/action row remains
+partial because field validation, stale-generation conflict, complete role and
+cross-firm matrices, and assistive-technology acceptance are still open. The
+contact test source was already committed; this turn records the fresh
+verification only. Blazor retirement remains `NOT_READY`.
+
 ## Current follow-on slice: Global Search bounds and candidate caps
 
 Added API-host coverage for the search endpoint's one-character empty result
