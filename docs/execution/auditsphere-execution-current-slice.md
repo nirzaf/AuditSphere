@@ -15,6 +15,16 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: Operations administrator-denial clarity
+
+Rechecked `/ui/app/operations` in the built-in browser. The signed-in Staff
+preview shows the explicit firm-wide AuditSphere Administrator requirement
+and the safe next step to switch accounts or ask an administrator; no operation
+rows or commands are exposed. Added an E2E assertion for that exact alert; the
+authorized recovery plus Staff-denial browser journey passed 1/1 in 32s and is
+pushed as `f8c702f1`. No authorization behavior changed. Expired/cross-firm
+grants, ambiguous/concurrent recovery and quarantine paths remain open.
+
 ## Current follow-on slice: Unauthenticated root sign-in handoff
 
 Extended `AngularRouteAndShellMigrationSweepTests.RootRedirectRespectsPreviewAndCanonicalAngularOwnership` to begin without a cookie in both route modes. Each case verifies the protected Angular shell shows its sign-in prompt, preserves the matching return destination (`/app` or `/ui/app`), and reaches Portfolio after the development identity signs in. The browser cohort passed 2/2 in 39s and is pushed as `be9d736d`. This closes the root-route unauthenticated journey only; fallback-host behavior remains open. No authorization policy changed, and Blazor retirement remains `NOT_READY`.

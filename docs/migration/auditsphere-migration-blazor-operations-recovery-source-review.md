@@ -45,14 +45,16 @@ recovery remain owned by Application `OperationRecoveryService`.
   successful server response is dropped. The refreshed row confirms
   `RETRY_WAIT`; the browser sends one POST and PostgreSQL contains exactly one
   actor-attributed retry event. Ordinary staff receives 403 with no operation
-  data. No worker ran in the disposable fixture.
+  data. At test commit `f8c702f1`, a focused rerun passed 1/1 in 32s with an
+  assertion for the exact firm-wide Administrator denial alert as well as the
+  existing no-data and 403 checks. No worker ran in the disposable fixture.
 - The built-in Development browser loaded `/ui/app/operations` read-only. Its
-  signed-in staff identity received a clear explanation that firm-wide
-  AuditSphere Administrator access is required, with a safe next step to
-  switch accounts or ask an administrator to review access. No operation data
-  or commands were exposed and no business action was submitted. The
-  authorized interactive action path was verified against the isolated
-  PostgreSQL browser fixture above.
+  signed-in Staff preview displays: “Operations is limited to firm-wide
+  AuditSphere Administrators. Your current account does not have that access;
+  switch to an authorized administrator account or ask a firm administrator
+  to review your access.” No operation rows or commands were exposed and no
+  business action was submitted. The authorized interactive action path was
+  verified against the isolated PostgreSQL browser fixture above.
 
 ## Remaining gaps
 
