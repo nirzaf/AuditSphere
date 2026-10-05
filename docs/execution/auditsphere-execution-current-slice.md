@@ -24,7 +24,8 @@ persisted draft. An exact match confirms the save without another write; an
 unchanged draft revision enables only a deliberate retry of the same idempotent
 request. A changed target fails closed. If access is revoked during
 reconciliation, the editor clears protected content and reloads through the
-scope-checked resource.
+scope-checked resource. When Angular reuses this editor for another workpaper,
+prior success/error feedback is cleared; same-workpaper refreshes retain it.
 
 Focused Angular tests, the complete Angular CI suite, the production build, and
 a PostgreSQL-backed API-host Playwright journey passed. The browser journey
