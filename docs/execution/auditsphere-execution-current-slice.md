@@ -22,15 +22,17 @@ and `ClientPbcRequest.razor` client route against the API-host Angular journeys.
 The client upload control now preserves the legacy accessible drag/drop option
 alongside its file picker, and the Playwright journey dispatches a real browser
 `DataTransfer` drop event. The staff journey checks request creation, queued
-follow-up communication, scoped staged-upload completion, the pending durable
-operation identity and the exact download URL. Portal journeys cover first
-sign-in, delegation and revocation, conversation reply, upload staging, lost
+follow-up communication, scoped staged-upload completion, and the durable
+operation from `PENDING` through the Test simulation worker to `COMPLETED` and
+`RECEIVED`. It refreshes the Angular view and downloads the exact bytes through
+the authorized API, checking safe headers. Portal journeys cover first sign-in,
+delegation and revocation, conversation reply, upload staging, lost
 acknowledgement recovery, capability rotation and exact-byte reconstruction.
 
-Both PBC source rows remain `PARTIAL`: the staff path does not yet prove the
-queued transfer completes through the background worker, and exact downloaded
-bytes, the full state/error/stale matrix and the removed `PbcUploadJourneyTests`
-assertion crosswalk remain open. Focused evidence and exact attribution are in
+Both PBC source rows remain `PARTIAL`: the live selected-site worker path through
+the Angular staff route, the full authorization/state/error/stale matrix, and
+the removed `PbcUploadJourneyTests` assertion crosswalk remain open. Focused
+evidence and exact attribution are in
 `status.json` and the [PBC source review](../migration/auditsphere-migration-blazor-pbc-source-review.md).
 The current inventory is one source/action row parity verified, 15 partially
 reviewed (13 administration and two PBC), and 60 unanalyzed; 28 supporting files

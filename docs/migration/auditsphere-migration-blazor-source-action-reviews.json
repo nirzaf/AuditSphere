@@ -104,15 +104,15 @@
       "source": "src/AuditSphereOps.Web/Components/Pages/PbcRequests.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-pbc-source-review.md",
-      "reviewedAtCommit": "efc183146c5b94cdda4e99de37b65312f1f3cf1f",
-      "openGaps": ["Worker delivery through the Angular staff path", "Downloaded-byte and authorization matrix", "Complete failure, stale and upload-state coverage", "Removed PbcUploadJourneyTests assertion crosswalk"]
+      "reviewedAtCommit": "019126cd964bef85799ab1c1923ee5551da4fbff",
+      "openGaps": ["Live selected-site worker delivery through the Angular staff path", "Complete authorization and failure/stale/upload-state coverage", "Removed PbcUploadJourneyTests assertion crosswalk"]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/ClientPbcRequest.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-pbc-source-review.md",
-      "reviewedAtCommit": "efc183146c5b94cdda4e99de37b65312f1f3cf1f",
-      "openGaps": ["Complete failure, stale-session and expiry matrix", "Downloaded-byte and authorization matrix", "Removed PbcUploadJourneyTests assertion crosswalk"]
+      "reviewedAtCommit": "019126cd964bef85799ab1c1923ee5551da4fbff",
+      "openGaps": ["Complete failure, stale-session and expiry matrix", "Full download authorization matrix", "Removed PbcUploadJourneyTests assertion crosswalk"]
     }
   ]
 }
