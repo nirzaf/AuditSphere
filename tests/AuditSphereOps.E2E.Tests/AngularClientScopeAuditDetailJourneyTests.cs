@@ -21,12 +21,34 @@ public sealed class AngularClientScopeAuditDetailJourneyTests
         await using var host = await OwnedHost.StartAsync(startWorker: false,
           caseId: "AS-PAR-002-ANGULAR-AUDIT-DETAIL-01");
         const string siblingMarker = "ZQXSIBLING-AUDIT";
+        const string siblingEngagementMarker = "SAMECLIENTSIBLING-AUDIT";
         const string ownMarker = "OWN-AUDIT";
         var sibling = await SiblingClientSeed.SeedAsync(host.Database, host.Fixture.FirmId, "ZQXSIBLING");
         try
         {
             var own = await SeedDetailsAsync(host, host.Fixture, ownMarker);
             var other = await SeedDetailsAsync(host, sibling.Fixture, siblingMarker);
+            var siblingEngagementId = Guid.NewGuid();
+            var siblingEngagementStaff = PbcSeed.User(host.Fixture.FirmId, "Staff");
+            await using (var db = host.CreateDbContext())
+            {
+                db.Engagements.Add(new AuditSphereOps.Domain.Engagements.Engagement
+                {
+                    Id = siblingEngagementId, FirmId = host.Fixture.FirmId,
+                    PracticeClientId = host.Fixture.ClientId, Status = "Active",
+                    ProfessionalWorkBlocked = false, CreatedAt = DateTimeOffset.UtcNow
+                });
+                db.Users.Add(siblingEngagementStaff);
+                db.RoleGrants.Add(PbcSeed.Grant(host.Fixture.FirmId, siblingEngagementStaff, "Staff",
+                  host.Fixture.ClientId, siblingEngagementId));
+                await db.SaveChangesAsync();
+            }
+            var siblingEngagementScope = host.Fixture with
+            {
+                EngagementId = siblingEngagementId,
+                Staff = siblingEngagementStaff
+            };
+            var sameClientOther = await SeedDetailsAsync(host, siblingEngagementScope, siblingEngagementMarker);
 
             using var playwright = await Playwright.CreateAsync();
             await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
@@ -36,21 +58,22 @@ public sealed class AngularClientScopeAuditDetailJourneyTests
             page.PageError += (_, error) => errors.Add($"page-error: {error}");
             var origin = host.StaffUrl;
 
-            var routes = new (string Template, Guid OwnId, Guid SiblingId, string[] OwnAssertions, string DeniedMessage)[]
+            var routes = new (string Template, Guid OwnId, Guid SiblingId, Guid? SameClientSiblingId,
+              string[] OwnAssertions, string DeniedMessage)[]
             {
-      ("/app/audit/workpapers/{0}", own.WorkpaperId, other.WorkpaperId,
+      ("/app/audit/workpapers/{0}", own.WorkpaperId, other.WorkpaperId, sameClientOther.WorkpaperId,
         [own.WorkpaperTitleMarker, own.WorkpaperMarker, own.WorkpaperProcedureMarker, own.WorkpaperConclusionMarker],
         "The requested workpaper is unavailable in your current scope."),
-      ("/app/records/archives/{0}", own.ArchiveId, other.ArchiveId,
+      ("/app/records/archives/{0}", own.ArchiveId, other.ArchiveId, null,
         [own.ArchiveMarker, own.ArchiveEntryMarker, own.ArchiveDigestMarker],
         "The archive is not available in the current scope."),
-      ("/app/findings/{0}", own.FindingId, other.FindingId,
+      ("/app/findings/{0}", own.FindingId, other.FindingId, sameClientOther.FindingId,
         [own.FindingMarker, own.FindingResponseMarker],
         "The requested finding is unavailable in your current scope."),
-      ("/app/audit/populations/{0}", own.PopulationId, other.PopulationId,
-        [own.PopulationMarker, own.PopulationParametersMarker, own.ReceiptMarker],
+      ("/app/audit/populations/{0}", own.PopulationId, other.PopulationId, sameClientOther.PopulationId,
+        [own.PopulationMarker, own.PopulationParametersMarker, own.ReceiptMarker, own.PopulationRationaleMarker],
         "The requested population is unavailable in your current scope."),
-      ("/app/reviews/{0}", own.ReviewPointId, other.ReviewPointId, [own.ReviewMarker],
+      ("/app/reviews/{0}", own.ReviewPointId, other.ReviewPointId, null, [own.ReviewMarker],
         "The requested review point was not found in the current firm scope."),
             };
 
@@ -70,28 +93,65 @@ public sealed class AngularClientScopeAuditDetailJourneyTests
                     Assert.Contains("Archive manifest", initial, StringComparison.Ordinal);
                     Assert.Contains("1 manifest entries", initial, StringComparison.Ordinal);
                 }
+                if (route.Template == "/app/audit/workpapers/{0}")
+                    Assert.Contains("1 frozen submissions", initial, StringComparison.Ordinal);
+                if (route.Template == "/app/findings/{0}")
+                    Assert.Contains("management response recorded", initial, StringComparison.OrdinalIgnoreCase);
                 if (route.Template == "/app/reviews/{0}")
                     Assert.Contains("This significant review point remains open and blocks the engagement completion gate.",
                       initial, StringComparison.Ordinal);
                 if (route.Template == "/app/audit/populations/{0}")
-                    Assert.DoesNotContain(own.ReceiptFileMarker, initial, StringComparison.Ordinal);
-
-                if (route.Template is "/app/records/archives/{0}" or "/app/reviews/{0}")
                 {
-                    foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
-                    {
-                        await page.SetViewportSizeAsync(width, 900);
-                        await page.WaitForFunctionAsync(
-                          "expected => document.documentElement.clientWidth === expected", width);
-                        await page.GetByText(route.OwnAssertions[0], new() { Exact = false }).First
-                          .WaitForAsync();
-                        var documentWidth = await page.EvaluateAsync<int>(
-                          "() => document.documentElement.scrollWidth");
-                        Assert.True(documentWidth <= width + 1,
-                          $"Route {route.Template} is {documentWidth}px wide at {width}px.");
-                    }
+                    Assert.Contains("12000 population rows", initial, StringComparison.Ordinal);
+                    Assert.Contains("1 reviewed item tests", initial, StringComparison.Ordinal);
+                    Assert.Contains("Population details (§20.1)", initial, StringComparison.Ordinal);
+                    Assert.DoesNotContain(own.ReceiptFileMarker, initial, StringComparison.Ordinal);
+                }
 
-                    await page.SetViewportSizeAsync(1440, 900);
+                foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
+                {
+                    await page.SetViewportSizeAsync(width, 900);
+                    await page.WaitForFunctionAsync(
+                      "expected => document.documentElement.clientWidth === expected", width);
+                    var documentWidth = await page.EvaluateAsync<int>(
+                      "() => document.documentElement.scrollWidth");
+                    Assert.True(documentWidth <= width + 1,
+                      $"Route {route.Template} is {documentWidth}px wide at {width}px.");
+                }
+
+                await page.SetViewportSizeAsync(1440, 900);
+                if (route.Template == "/app/audit/workpapers/{0}")
+                {
+                    var planLink = page.GetByRole(AriaRole.Link, new() { Name = "Audit plan", Exact = true }).Last;
+                    await planLink.FocusAsync();
+                    await page.Keyboard.PressAsync("Tab");
+                    var fieldworkLink = page.GetByRole(AriaRole.Link,
+                      new() { Name = "Fieldwork control center", Exact = true }).Last;
+                    await Assertions.Expect(fieldworkLink).ToBeFocusedAsync();
+                    await Assertions.Expect(fieldworkLink).ToHaveCSSAsync("outline-style", "solid");
+                }
+                else if (route.Template == "/app/findings/{0}")
+                {
+                    var planLink = page.GetByRole(AriaRole.Link, new() { Name = "Audit plan", Exact = true });
+                    await planLink.FocusAsync();
+                    await page.Keyboard.PressAsync("Tab");
+                    var engagementLink = page.GetByRole(AriaRole.Link,
+                      new() { Name = "Engagement", Exact = true });
+                    await Assertions.Expect(engagementLink).ToBeFocusedAsync();
+                    await Assertions.Expect(engagementLink).ToHaveCSSAsync("outline-style", "solid");
+                }
+                else if (route.Template == "/app/audit/populations/{0}")
+                {
+                    var fieldworkLink = page.GetByRole(AriaRole.Link,
+                      new() { Name = "Fieldwork control center", Exact = true }).Last;
+                    await fieldworkLink.FocusAsync();
+                    await page.Keyboard.PressAsync("Tab");
+                    var planLink = page.GetByRole(AriaRole.Link, new() { Name = "Audit plan", Exact = true });
+                    await Assertions.Expect(planLink).ToBeFocusedAsync();
+                    await Assertions.Expect(planLink).ToHaveCSSAsync("outline-style", "solid");
+                }
+                else
+                {
                     var portfolioLink = page.GetByRole(AriaRole.Navigation,
                       new() { Name = "Breadcrumb", Exact = true }).GetByRole(AriaRole.Link,
                       new() { Name = "Portfolio", Exact = true });
@@ -114,12 +174,28 @@ public sealed class AngularClientScopeAuditDetailJourneyTests
                 if (route.Template == "/app/audit/populations/{0}")
                 {
                     Assert.DoesNotContain(other.ReceiptFileMarker, siblingText, StringComparison.Ordinal);
-                    Assert.DoesNotContain("98765.43", siblingText, StringComparison.Ordinal);
+                    Assert.DoesNotContain("4,800,000", siblingText, StringComparison.Ordinal);
                 }
 
                 var randomId = Guid.NewGuid();
                 var randomText = await NavigateInPlaceAsync(page, Path(randomId), route.DeniedMessage);
                 Assert.Equal(NormalizeId(siblingText, route.SiblingId), NormalizeId(randomText, randomId));
+
+                if (route.SameClientSiblingId is Guid sameClientSiblingId)
+                {
+                    var sameClientSiblingText = await NavigateInPlaceAsync(page,
+                      Path(sameClientSiblingId), route.DeniedMessage);
+                    foreach (var assertion in route.OwnAssertions)
+                        Assert.DoesNotContain(assertion, sameClientSiblingText, StringComparison.Ordinal);
+                    foreach (var marker in sameClientOther.AllMarkers)
+                        Assert.DoesNotContain(marker, sameClientSiblingText, StringComparison.Ordinal);
+                    if (route.Template == "/app/audit/populations/{0}")
+                    {
+                        Assert.DoesNotContain("12000 population rows", sameClientSiblingText, StringComparison.Ordinal);
+                        Assert.DoesNotContain("4,800,000", sameClientSiblingText, StringComparison.Ordinal);
+                    }
+                    await NavigateInPlaceAsync(page, Path(route.OwnId), null, route.OwnAssertions[0]);
+                }
 
                 var restored = await NavigateInPlaceAsync(page, Path(route.OwnId), null, route.OwnAssertions[0]);
                 foreach (var assertion in route.OwnAssertions)
@@ -228,10 +304,52 @@ public sealed class AngularClientScopeAuditDetailJourneyTests
         Assert.True(response.Succeeded, response.Message);
 
         var populationParametersMarker = $"{marker}-EXTRACTION-PARAMETERS";
+        var populationRationaleMarker = $"{marker}-SYNTHETIC-SAMPLE-RATIONALE";
         var populationResult = await AuditPlanningService.CreatePopulationVersionAsync(db, actor,
           new CreatePopulationRequest(scope.EngagementId, $"{marker}-POPULATION-PURPOSE", "Existence",
-            "Synthetic source receipt", populationParametersMarker, 3, 98765.43m, "QAR", null));
+            "Synthetic source receipt", populationParametersMarker, 12_000, 4_800_000m, "QAR", null));
         Assert.True(populationResult.Succeeded, populationResult.Message);
+        var procedureId = Guid.NewGuid();
+        var selectionId = Guid.NewGuid();
+        var itemId = Guid.NewGuid();
+        var itemTestId = Guid.NewGuid();
+        db.AuditProcedures.Add(new AuditProcedure
+        {
+            Id = procedureId, FirmId = scope.FirmId, ClientId = scope.ClientId,
+            EngagementId = scope.EngagementId, Title = $"{marker}-POPULATION-PROCEDURE",
+            Status = AuditProcedureStatuses.Planned, CreatedAt = now
+        });
+        db.AuditSelections.Add(new AuditSelection
+        {
+            Id = selectionId, FirmId = scope.FirmId, ClientId = scope.ClientId,
+            EngagementId = scope.EngagementId, PopulationVersionId = populationResult.Value!.PopulationId,
+            ProcedureId = procedureId, Method = "Manual", Rationale = populationRationaleMarker,
+            SelectedCount = 1, SelectedSignedTotal = 400m, Status = AuditSelectionStatuses.Submitted,
+            CreatedByUserId = scope.Staff.Id, CreatedAt = now
+        });
+        db.AuditSelectionItems.Add(new AuditSelectionItem
+        {
+            Id = itemId, FirmId = scope.FirmId, ClientId = scope.ClientId,
+            EngagementId = scope.EngagementId, SelectionId = selectionId,
+            StableRowId = $"{marker}-SAMPLE-ROW-1", SignedAmount = 400m, Currency = "QAR",
+            InclusionReason = "Synthetic scope parity fixture", CreatedAt = now
+        });
+        db.AuditItemTests.Add(new AuditItemTest
+        {
+            Id = itemTestId, FirmId = scope.FirmId, ClientId = scope.ClientId,
+            EngagementId = scope.EngagementId, SelectionId = selectionId,
+            SelectionItemId = itemId, ProcedureId = procedureId,
+            WorkPerformed = $"{marker}-SAMPLE-TEST-WORK", Result = AuditItemTestResults.Pass,
+            TestedByUserId = scope.Staff.Id, TestedAt = now
+        });
+        db.AuditItemTestReviews.Add(new AuditItemTestReview
+        {
+            Id = Guid.NewGuid(), FirmId = scope.FirmId, ClientId = scope.ClientId,
+            EngagementId = scope.EngagementId, SelectionItemId = itemId,
+            AuditItemTestId = itemTestId, TestRevision = 1,
+            Decision = AuditItemTestReviewDecisions.Reviewed,
+            ReviewerUserId = scope.Reviewer.Id, CreatedAt = now
+        });
         var receiptId = Guid.NewGuid();
         var receiptMarker = $"{marker}-RECEIPT-TOKEN";
         var receiptFileMarker = $"{marker}-SOURCE.csv";
@@ -266,7 +384,7 @@ public sealed class AngularClientScopeAuditDetailJourneyTests
         var workpaperPerformedMarker = $"{marker}-SUBMITTED-WORK";
         var workpaperResult = await AuditPlanningService.CreateWorkpaperAsync(db, actor,
           new CreateWorkpaperRequest(scope.EngagementId, $"{marker}-WP-01", workpaperTitleMarker,
-            $"{marker}-WORKPAPER-OBJECTIVE", "SYNTHETIC-TEMPLATE-v1", null, $"{marker}-WORKPAPER-PROCEDURE"));
+          $"{marker}-WORKPAPER-OBJECTIVE", "SYNTHETIC-TEMPLATE-v1", null, $"{marker}-WORKPAPER-PROCEDURE"));
         Assert.True(workpaperResult.Succeeded, workpaperResult.Message);
         var workpaperId = workpaperResult.Value!.WorkpaperId;
         var workpaperProcedureMarker = $"{marker}-WORKPAPER-PROCEDURE";
@@ -348,7 +466,8 @@ public sealed class AngularClientScopeAuditDetailJourneyTests
           reviewPointId, archiveId, findingId, populationResult.Value!.PopulationId, workpaperId,
           $"{marker}-REVIEW-PRIVATE", $"{marker}-ARCHIVE-PROFILE", $"{marker}-ARCHIVE-FILE",
           new string('b', 64), $"{marker}-FINDING-IMPACT", findingResponseMarker,
-          $"{marker}-POPULATION-PURPOSE", populationParametersMarker, receiptMarker, receiptFileMarker,
+          $"{marker}-POPULATION-PURPOSE", populationParametersMarker, populationRationaleMarker,
+          receiptMarker, receiptFileMarker,
           $"{marker}-WORKPAPER-OBJECTIVE", workpaperProcedureMarker, workpaperConclusionMarker,
           workpaperTitleMarker, workpaperPerformedMarker, marker);
     }
@@ -388,12 +507,14 @@ public sealed class AngularClientScopeAuditDetailJourneyTests
       Guid ReviewPointId, Guid ArchiveId, Guid FindingId, Guid PopulationId, Guid WorkpaperId,
       string ReviewMarker, string ArchiveMarker, string ArchiveEntryMarker, string ArchiveDigestMarker,
       string FindingMarker, string FindingResponseMarker, string PopulationMarker, string PopulationParametersMarker,
-      string ReceiptMarker, string ReceiptFileMarker, string WorkpaperMarker, string WorkpaperProcedureMarker,
+      string PopulationRationaleMarker, string ReceiptMarker, string ReceiptFileMarker,
+      string WorkpaperMarker, string WorkpaperProcedureMarker,
       string WorkpaperConclusionMarker, string WorkpaperTitleMarker, string WorkpaperPerformedMarker, string Marker)
     {
         public string[] AllMarkers =>
         [ReviewMarker, ArchiveMarker, ArchiveEntryMarker, FindingMarker, FindingResponseMarker,
       PopulationMarker, PopulationParametersMarker, ReceiptMarker, ReceiptFileMarker,
+      PopulationRationaleMarker,
       WorkpaperMarker, WorkpaperProcedureMarker, WorkpaperConclusionMarker, WorkpaperTitleMarker,
       WorkpaperPerformedMarker, $"{Marker}-WORKPAPER-AFTER-REVOKE"];
     }
