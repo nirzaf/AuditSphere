@@ -15,6 +15,24 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: ReviewPoint source/action review
+
+Reviewed the ReviewPoint route against its pinned Razor hash and mapped its
+scoped detail and clear/reopen actions through Angular, the API, and
+Application services. Focused PostgreSQL verification passed 1/1 API-host
+browser journey and 1/1 Domain transaction test. The browser journey confirms
+clear/reopen persistence, sibling and guessed-ID denial, route restoration,
+keyboard focus, responsive widths, and denial plus content clearing after
+grant revocation. The built-in browser showed the generic unavailable state
+for a guessed Development ID.
+
+The row is recorded `PARTIAL`: a full role/scope and expired-grant matrix,
+network/stale-command recovery, and human assistive-technology/locale
+acceptance remain open. The inventory now has 10 unanalyzed rows, 65 partial
+rows, and one parity-verified row. Full-suite regression, EF drift, production
+acceptance, and Blazor retirement are not closed by this slice; see the
+[ReviewPoint source review](../migration/auditsphere-migration-blazor-review-point-source-review.md).
+
 ## Current follow-on slice: Workpaper source/action review
 
 Reviewed the Workpaper Razor source against its pinned discovery hash and traced
