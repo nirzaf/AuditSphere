@@ -1,0 +1,168 @@
+# AuditSphere production release pipeline.
+#
+# Dispatch-only (never runs on push); the production Azure environment must be protected by a
+# GitHub environment approval. The pipeline needs owner-approved plumbing before first use:
+#   - an Azure AD application with a federated credential for this repository (OIDC, no stored
+#     secrets) holding Contributor on the target resource group,
+#   - an Azure Container Registry accepted by the owner,
+#   - deployment secrets (connection string, identity client secret, PostgreSQL admin password)
+#     created in the environment Key Vault through the approved secret process.
+# Until that plumbing exists, every live step remains BLOCKED_EXTERNAL and is not faked here.
+#
+# Deployment order per the architecture contract:
+#   build immutable SHA-tagged artifacts
+#     -> run the migration job (failure blocks the release)
+#     -> deploy API + worker revisions
+#     -> canary: split 10% of API traffic to the new revision
+#     -> smoke checks (liveness, readiness, read-only route)
+#     -> promote to 100% or roll traffic back to the previous revision
+# Workers do not serve traffic; their rollback is redeploying the previous image tag.
+
+name: AuditSphere release
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment (Azure environment name with approval protection)
+        required: true
+        default: production
+        type: choice
+        options: [production, acceptance]
+      azure_resource_group:
+        description: Target resource group
+        required: true
+      azure_client_id:
+        description: Entra application (client) id for OIDC federation
+        required: true
+      azure_tenant_id:
+        description: Entra tenant id
+        required: true
+      azure_subscription_id:
+        description: Azure subscription id
+        required: true
+      acr_name:
+        description: Azure Container Registry login server name without .azurecr.io
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: auditsphere-release-${{ inputs.environment }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+  DOTNET_NOLOGO: 'true'
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: ${{ inputs.environment }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          global-json-file: global.json
+
+      - name: Azure login (OIDC, no stored secrets)
+        uses: azure/login@6c251865a4ad93a88f0b1de7d8bf2c8b7d8f5e8a
+        with:
+          client-id: ${{ inputs.azure_client_id }}
+          tenant-id: ${{ inputs.azure_tenant_id }}
+          subscription-id: ${{ inputs.azure_subscription_id }}
+
+      - name: Build immutable artifacts tagged with the commit SHA
+        run: |
+          set -euo pipefail
+          sha="${GITHUB_SHA}"
+          registry="${{ inputs.acr_name }}.azurecr.io"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "registry=$registry" >> "$GITHUB_OUTPUT"
+          docker build -f src/AuditSphereOps.Api/Dockerfile -t "$registry/auditsphere-api:$sha" .
+          docker build -f src/AuditSphereOps.Worker/Dockerfile -t "$registry/auditsphere-worker:$sha" .
+          docker build -f infra/docker/migrations.Dockerfile -t "$registry/auditsphere-migrations:$sha" .
+          az acr login --name "${{ inputs.acr_name }}"
+          docker push "$registry/auditsphere-api:$sha"
+          docker push "$registry/auditsphere-worker:$sha"
+          docker push "$registry/auditsphere-migrations:$sha"
+
+      - name: Run the migration job (blocking)
+        run: |
+          set -euo pipefail
+          job="${{ inputs.namePrefix || 'auditsphere-prod' }}-migrations"
+          az containerapp job start --name "$job" \
+            --resource-group "${{ inputs.azure_resource_group }}"
+          # The job exits non-zero on failed migrations; poll until it terminates.
+          for attempt in $(seq 1 60); do
+            status="$(az containerapp job execution list --name "$job" \
+              --resource-group "${{ inputs.azure_resource_group }}" \
+              --query '[0].properties.status' -o tsv || true)"
+            case "$status" in
+              Succeeded) echo "Migrations succeeded."; exit 0 ;;
+              Failed|FailedStarting) echo "Migration job failed; new revision must not receive traffic."; exit 1 ;;
+            esac
+            sleep 15
+          done
+          echo "Migration job did not complete in time."; exit 1
+
+      - name: Deploy API and worker revisions
+        run: |
+          set -euo pipefail
+          sha="${{ steps.build.outputs.sha }}"
+          registry="${{ steps.build.outputs.registry }}"
+          az deployment group create \
+            --resource-group "${{ inputs.azure_resource_group }}" \
+            --template-file infra/environments/${{ inputs.environment }}/main.bicep \
+            --parameters deploymentEpoch="${{ github.run_number }}" \
+              apiImage="$registry/auditsphere-api:$sha" \
+              workerImage="$registry/auditsphere-worker:$sha" \
+              migrationImage="$registry/auditsphere-migrations:$sha" \
+              registryServer="${{ inputs.acr_name }}.azurecr.io" \
+              registryId="/subscriptions/${{ inputs.azure_subscription_id }}/resourceGroups/${{ inputs.azure_resource_group }}/providers/Microsoft.ContainerRegistry/registries/${{ inputs.acr_name }}"
+
+      - name: Canary 10% of API traffic to the new revision
+        run: |
+          set -euo pipefail
+          app="auditsphere-prod-api"
+          revision="$(az containerapp revision list --name "$app" \
+            --resource-group "${{ inputs.azure_resource_group }}" \
+            --query '[0].name' -o tsv)"
+          az containerapp ingress traffic update --name "$app" \
+            --resource-group "${{ inputs.azure_resource_group }}" \
+            --revision-weight "$revision=10"
+
+      - name: Canary smoke checks (read-only)
+        run: |
+          set -euo pipefail
+          fqdn="$(az containerapp show --name auditsphere-prod-api \
+            --resource-group "${{ inputs.azure_resource_group }}" \
+            --query 'properties.configuration.ingress.fqdn' -o tsv)"
+          for attempt in $(seq 1 20); do
+            if curl -fsS "https://$fqdn/health/live" >/dev/null; then break; fi
+            sleep 10
+          done
+          curl -fsS "https://$fqdn/health/live" >/dev/null
+          # Readiness includes database and migration-state verification.
+          curl -fsS "https://$fqdn/health/ready" >/dev/null
+          # Read-only Angular route smoke: the shell must render without authenticating.
+          code="$(curl -sS -o /dev/null -w '%{http_code}' "https://$fqdn/ui")"
+          test "$code" = 200
+
+      - name: Promote or roll back
+        run: |
+          set -euo pipefail
+          # Promotion and rollback are explicit operator decisions recorded in the run log:
+          #   promote:   az containerapp ingress traffic update --revision-weight <new>=100
+          #   rollback:  az containerapp ingress traffic update --revision-weight <previous>=100
+          # Database rollback is NOT part of application rollback; migrations are forward-only
+          # and the migration bundle must never be reversed through this pipeline.
+          echo "Canary healthy at 10%. Promoting requires the environment approval gate above."

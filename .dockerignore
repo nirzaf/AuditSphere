@@ -1,0 +1,18 @@
+# Keep the build context lean; secrets never enter images.
+.git
+.github
+**/bin/
+**/obj/
+**/node_modules/
+src/AuditSphereOps.Ui/dist/
+tests/
+docs/
+infra/
+contracts/
+scripts/
+*.md
+*.ps1
+*.sh
+Dockerfile*
+**/Dockerfile*
+.dockerignore

@@ -1,0 +1,38 @@
+# Syntax reference: https://docs.docker.com/reference/dockerfile/
+# AuditSphere API host: Angular assets + ASP.NET Core API in one immutable runtime image.
+# Build context is the repository root so the pinned SDK, central package versions and the
+# Angular workspace resolve exactly as the CI build gate does.
+#   docker build -f src/AuditSphereOps.Api/Dockerfile -t auditsphere-api:<git-sha> .
+FROM node:22-alpine AS ui
+WORKDIR /ui
+COPY src/AuditSphereOps.Ui/package.json src/AuditSphereOps.Ui/package-lock.json ./
+RUN npm ci
+COPY src/AuditSphereOps.Ui/ ./
+# Production asset set: fingerprinted browser output consumed by the API host.
+RUN npm run build
+
+FROM mcr.microsoft.com/dotnet/sdk:10.0.300 AS api
+ARG DOTNET_ROLL_FORWARD=disable
+ENV DOTNET_ROLL_FORWARD=$DOTNET_ROLL_FORWARD
+WORKDIR /repo
+COPY global.json Directory.Packages.props AuditSphereOps.slnx ./
+COPY src/AuditSphereOps.Domain/AuditSphereOps.Domain.csproj src/AuditSphereOps.Domain/
+COPY src/AuditSphereOps.Application/AuditSphereOps.Application.csproj src/AuditSphereOps.Application/
+COPY src/AuditSphereOps.Infrastructure/AuditSphereOps.Infrastructure.csproj src/AuditSphereOps.Infrastructure/
+COPY src/AuditSphereOps.Api/AuditSphereOps.Api.csproj src/AuditSphereOps.Api/
+RUN dotnet restore src/AuditSphereOps.Api/AuditSphereOps.Api.csproj --locked-mode
+COPY src/ src/
+# The Angular asset set is copied from the ui stage; publishing is backend-only here.
+RUN dotnet publish src/AuditSphereOps.Api/AuditSphereOps.Api.csproj \
+  --configuration Release --no-restore -p:PublishAngularUi=false -o /out \
+  && test -f /out/AuditSphereOps.Api.dll
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+WORKDIR /app
+COPY --from=api /out/ .
+COPY --from=ui /ui/dist/auditsphere-ui/browser/ ./ui/
+ENV ASPNETCORE_URLS=http://+:8080 \
+  DOTNET_gcServer=1
+# The aspnet image ships a non-root user; the host binds 8080 and writes nothing outside mounted volumes.
+USER $APP_UID
+ENTRYPOINT ["dotnet", "AuditSphereOps.Api.dll"]
