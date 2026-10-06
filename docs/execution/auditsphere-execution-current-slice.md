@@ -15,6 +15,24 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Completed focused slice: Client-scoped invoice billing commands
+
+At code/test commit `8faa79b2`,
+`AngularInvoiceBillingScopeJourneyTests.ClientScopedManagerCanUseOwnBillingWorkspaceButCannotMutateSiblingBillingRecords`
+passed **1/1** in 28 seconds against isolated PostgreSQL and an API-hosted
+Angular browser. A FinanceManager scoped to client A recorded and allocated a
+receipt to A's posted invoice and issued a reviewed credit note. Four direct
+API attempts to record against client B, allocate B's receipt, cross-allocate
+the client's own receipt to B's invoice, or issue a credit note against B all
+returned HTTP 403. PostgreSQL confirmed no sibling receipt, allocation or
+credit mutation; the browser showed only A's invoice and no page errors.
+
+The Angular production build passed at the unchanged UI source with a 349.67
+kB initial bundle and the existing 7.53 kB Commercial Settings stylesheet
+budget warning. This focused test-only slice does not change the EF model.
+The full solution suite was not rerun; its latest complete result remains
+1001/1001 at `ead85032`.
+
 ## Completed focused slice: Firm-books role and scope matrix
 
 At code/test commit `fa9c21d2`,
