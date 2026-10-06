@@ -321,6 +321,41 @@ public sealed class GlobalSearchQueryTests
   }
 
   [Fact]
+  public async Task LeadSearchUsesStableIdTieBreakWhenMoreThanSixNamesMatch()
+  {
+    await using var w = await SeedAsync();
+    const string term = "LEADSTABLETIE";
+    var leads = Enumerable.Range(1, 8)
+      .Select(index => (Id: Guid.Parse($"00000000-0000-0000-0000-{index:D12}"), Source: $"SOURCE-{index:D2}"))
+      .ToArray();
+    await using (var db = w.Db())
+    {
+      // Insert in reverse ID order so the result proves the explicit ID tie-breaker.
+      db.Leads.AddRange(leads.Reverse().Select(lead => new Lead
+      {
+        Id = lead.Id,
+        FirmId = w.Own.FirmId,
+        Name = $"{term} Prospect",
+        Source = lead.Source,
+        CreatedAt = DateTimeOffset.UtcNow
+      }));
+      await db.SaveChangesAsync();
+    }
+
+    var (_, partner) = await UserAsync(w, ("Partner", null, null));
+    var first = (await SearchAsync(w, partner, term)).Hits
+      .Where(hit => hit.Kind == GlobalSearchQuery.Kinds.Lead).ToArray();
+    var second = (await SearchAsync(w, partner, term)).Hits
+      .Where(hit => hit.Kind == GlobalSearchQuery.Kinds.Lead).ToArray();
+
+    Assert.Equal(6, first.Length);
+    Assert.Equal(leads.Take(6).Select(lead => $"Lead · {CrmStates.LeadNew} · {lead.Source}"),
+      first.Select(hit => hit.Detail));
+    Assert.Equal(first, second);
+    Assert.True((await SearchAsync(w, partner, term)).Truncated);
+  }
+
+  [Fact]
   public async Task LibraryAndPageCapsSignalWhenMoreThanSixResultsExist()
   {
     await using var w = await SeedAsync();

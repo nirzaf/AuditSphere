@@ -153,7 +153,7 @@ public static class GlobalSearchQuery
       var leads = await db.Leads.AsNoTracking()
         .Where(l => l.FirmId == actor.FirmId && (l.Name.ToLower().Contains(lowered) ||
           (l.PrimaryContactName != null && l.PrimaryContactName.ToLower().Contains(lowered))))
-        .OrderBy(l => l.Name).Take(PerKind + 1)
+        .OrderBy(l => l.Name).ThenBy(l => l.Id).Take(PerKind + 1)
         .Select(l => new { l.Id, l.Name, l.Status, l.Source })
         .ToListAsync(ct);
       truncated |= leads.Count > PerKind;
