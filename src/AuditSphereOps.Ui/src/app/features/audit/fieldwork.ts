@@ -4,7 +4,7 @@ import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTabsModule } from '@angular/material/tabs';
 import { Api, CommandState, routeGuid } from '../../core/api';
-import { arr, bool, dec, decimalInput, guid, instant, int, nat, nullable, obj, text } from '../../core/decode';
+import { arr, bool, dec, decimalInput, decode, guid, instant, int, nat, nullable, obj, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
 
 const procedure = obj({ id: guid, sourceProcedureId: text, sourceSectionNumber: nullable(int), sourceSectionTitle: nullable(text), title: text, applicabilityStatus: text, status: text });
@@ -14,18 +14,37 @@ export const decodeFieldwork = obj({ engagementId: guid, catalogProcedureCount: 
     correctedGrossAmount: dec, correctedSignedNetAmount: dec }), 100),
   aggregate: nullable(obj({ id: guid, status: text, conclusion: text, preparedByMe: bool })), aggregateCurrentAndReviewed: bool,
   schedules: arr(obj({ id: guid, scheduleType: text, rowCount: nat, currency: text }), 1000), samplingMethods: arr(text, 20),
-  samplingRuns: arr(obj({ id: guid, createdAt: instant, method: text, interval: nullable(dec), keyItemThreshold: nullable(dec), sampleSize: nullable(int), seed: nullable(int),
-    selectedCount: nat, populationCount: nat, coveragePercent: dec, sourceDigest: text, reproduces: bool }), 10),
+  samplingRuns: arr(obj({ id: guid, selectionId: guid, selectionStatus: text, preparedByMe: bool, canReviewSelection: bool,
+    createdAt: instant, method: text, interval: nullable(dec), keyItemThreshold: nullable(dec), sampleSize: nullable(int), seed: nullable(int),
+    selectedCount: nat, populationCount: nat, coveragePercent: dec, sourceDigest: text, selectionDigest: text, engineVersion: text, previewDigest: nullable(text),
+    orderingPolicy: nullable(text), attributeFields: arr(text, 8), reproduces: bool }), 10),
   evidenceCandidates: arr(obj({ uploadIntentId: guid, pbcRequestId: guid, requestArea: text, fileName: text, contentSha256: text, receivedAt: instant, superseded: bool }), 5000),
   physicalItems: arr(obj({ id: guid, fileIndex: text, boxReference: text, description: text, currentLocation: text,
     movements: arr(obj({ toLocation: text, movedAt: instant }), 1000), procedureTitles: arr(text, 1000) }), 5000),
-  canManageFieldwork: bool, canViewReviewNotes: bool, canAddOrResolveReviewNotes: bool, canRespondToReviewNotes: bool });
+  canManageFieldwork: bool, canReviewSelections: bool, canViewReviewNotes: bool, canAddOrResolveReviewNotes: bool, canRespondToReviewNotes: bool });
+const samplingPreviewDecoder = obj({ previewDigest: text, sourceDigest: text, outcome: obj({ method: text, populationCount: nat, populationSignedTotal: dec,
+  populationAbsoluteTotal: dec, selectedCount: nat, selectedAbsoluteTotal: dec, coveragePercent: dec, seed: nullable(int), interval: nullable(dec),
+  keyItemThreshold: nullable(dec), items: arr(obj({ stableRowId: text, signedAmount: dec, absoluteAmount: dec, inclusionReason: text,
+    cumulativeAbsoluteAmount: dec }), 100000),
+  strata: nullable(arr(obj({ stratumKey: text, populationCount: nat, slots: nat, selectedCount: nat }), 10000)) }) });
 export const decodeProcedureReview = obj({ procedureId: guid,
   currentResult: nullable(obj({ id: guid, revision: nat, workPerformed: text, conclusion: nullable(text) })),
   notes: arr(obj({ noteId: guid, resultRevision: nat, field: text, excerpt: text, startOffset: int, body: text, authorName: text, createdAt: instant, open: bool,
     events: arr(obj({ id: guid, kind: text, body: text, createdAt: instant }), 500) }), 500),
   evidence: arr(obj({ linkId: guid, uploadIntentId: guid, fileName: text, contentSha256: text, note: nullable(text), linkedAt: instant }), 1000) });
 type Fieldwork = ReturnType<typeof decodeFieldwork>;
+type SamplingPreview = ReturnType<typeof samplingPreviewDecoder>;
+export const decodeSampleSet = obj({ selectionId: guid, procedureId: guid, method: text, rationale: text, status: text,
+  selectedCount: nat, selectedSignedTotal: dec, inputGeneration: nat, testedCount: nat, exceptionCount: nat, cutOffRecordedCount: nat,
+  subsequentMatchedCount: nat, totalCount: nat, page: nat, pageSize: nat,
+  items: arr(obj({ selectionItemId: guid, stableRowId: text, signedAmount: dec, currency: text, inclusionReason: text,
+    testResult: text, testRevision: nat, exceptionAmount: nullable(dec), auditItemTestId: nullable(guid), testWorkPerformed: nullable(text),
+    evidenceReferences: arr(text, 100), contradictoryEvidence: nullable(text), followUp: nullable(text), testReviewed: bool,
+    testReviewDecision: nullable(text), testReviewComment: nullable(text), canReviewTest: bool }), 500) });
+type SampleSet = ReturnType<typeof decodeSampleSet>;
+type SampleItem = SampleSet['items'][number];
+type SampleTestDraft = { workPerformed: string; evidenceReferences: string; result: string; exceptionAmount: string;
+  contradictoryEvidence: string; followUp: string; reviewerComment: string };
 
 @Component({
   selector: 'audit-fieldwork',
@@ -41,31 +60,127 @@ type Fieldwork = ReturnType<typeof decodeFieldwork>;
         <h2 id="fieldwork-tools-heading">{{ w.canManageFieldwork ? 'Fieldwork tools' : 'Procedure review' }}</h2>
         @if (w.canManageFieldwork) { <a [routerLink]="['/app/engagements',id(),'confirmations']">Confirmation dashboard</a> }
         <mat-tab-group [selectedIndex]="toolTab()" (selectedIndexChange)="toolTab.set($event)">
-          @if (w.canManageFieldwork) {
+          @if (w.canManageFieldwork || w.canReviewSelections) {
           <mat-tab label="Sampling">
-            <p>Runs the sampling engine over an approved schedule. Parameters, seed and the exact source digest are logged, so the selection can be re-performed.</p>
+            @if (w.canManageFieldwork) {
+            <p>Choose a method variant, preview the exact rows, then confirm to record the selection. Population attributes come from the approved schedule; account, currency, direction and month are not inferred from the amount.</p>
+            <p><strong>Method limits:</strong> MUS is monetary-unit interval selection; systematic and random methods select by row; key item selects above a threshold; stratified combines key items with random selection; attribute strata allocates rows across the selected attribute groups. The deterministic preview does not establish statistical sufficiency, confidence or an error bound. A qualified practitioner remains responsible for the methodology and sample size.</p>
             <form class="inline-form" (submit)="$event.preventDefault(); sample()">
               <label>Procedure <select name="sp" [(ngModel)]="s.procedure"><option value="">Select</option>@for (p of applicable(w); track p.id) { <option [value]="p.id">{{ p.sourceProcedureId }} · {{ p.title }}</option> }</select></label>
               <label>Approved schedule <select name="ss" [(ngModel)]="s.schedule"><option value="">Select</option>@for (x of w.schedules; track x.id) { <option [value]="x.id">{{ x.scheduleType }} · {{ x.rowCount }} rows ({{ x.currency }})</option> }</select></label>
-              <label>Method <select name="sm" [(ngModel)]="s.method">@for (m of w.samplingMethods; track m) { <option [value]="m">{{ m === 'SYSTEMATIC' ? 'Systematic random' : m }}</option> }</select></label>
+              <label>Method <select name="sm" [(ngModel)]="s.method">@for (m of w.samplingMethods; track m) { <option [value]="m">{{ methodLabel(m) }}</option> }</select></label>
               @if (s.method === 'MUS') { <label>Interval <input name="si" inputmode="decimal" [(ngModel)]="s.interval" /></label> }
               @if (s.method === 'KEY_ITEM' || s.method === 'STRATIFIED') { <label>Key-item threshold <input name="sk" inputmode="decimal" [(ngModel)]="s.key" /></label> }
               @if (countBased()) {
                 <label>Sample size <input name="sz" type="number" min="1" [(ngModel)]="s.size" /></label>
                 <label>Seed <input name="sd" type="number" [(ngModel)]="s.seed" /></label>
               }
+              @if (s.method === 'ATTRIBUTE_STRATA') {
+                <fieldset class="fieldwork-attribute-fields"><legend>Stratify by</legend>
+                  @for (field of attributeFields; track field.value) {
+                    <label><input type="checkbox" [checked]="s.attributeFields.includes(field.value)" (change)="toggleAttributeField(field.value, $any($event.target).checked)" /> {{ field.label }}</label>
+                  }
+                </fieldset>
+              }
               <label>Rationale <input name="sr" [(ngModel)]="s.rationale" maxlength="500" /></label>
-              <button matButton="filled" type="submit" [disabled]="cmd.busy()">Run sampling</button>
+              <button matButton="filled" type="submit" [disabled]="samplingBusy()">Preview selection</button>
             </form>
+            @if (samplingPreview(); as preview) {
+              <section class="panel" aria-labelledby="sampling-preview-heading">
+                <h3 id="sampling-preview-heading">Exact selection preview</h3>
+                @if (previewMatchesInputs()) {
+                  <p role="status">{{ preview.outcome.selectedCount }} of {{ preview.outcome.populationCount }} rows selected · {{ preview.outcome.coveragePercent | money }}% absolute-amount coverage. Review the row identities and strata before recording.</p>
+                } @else { <p role="alert" class="error-text">Sampling inputs changed after this preview. Preview again before recording.</p> }
+                <dl class="facts"><dt>Source digest</dt><dd><code>{{ preview.sourceDigest }}</code></dd><dt>Preview digest</dt><dd><code>{{ preview.previewDigest }}</code></dd></dl>
+                @if (preview.outcome.strata?.length) {
+                  <h4>Attribute strata and allocation</h4>
+                  <div class="table-scroll"><table aria-label="Attribute strata allocation"><thead><tr><th>Stratum</th><th>Population</th><th>Selected</th></tr></thead>
+                    <tbody>@for (stratum of preview.outcome.strata; track stratum.stratumKey) { <tr><td>{{ stratum.stratumKey }}</td><td>{{ stratum.populationCount }}</td><td>{{ stratum.selectedCount }}</td></tr> }</tbody></table></div>
+                }
+                <h4>Selected row identities</h4>
+                <div class="table-scroll"><table aria-label="Exact selected sampling rows"><thead><tr><th>Stable row ID</th><th>Signed amount</th><th>Selection basis</th></tr></thead>
+                  <tbody>@for (item of preview.outcome.items; track item.stableRowId) { <tr><td><code>{{ item.stableRowId }}</code></td><td>{{ item.signedAmount | money }}</td><td>{{ item.inclusionReason }}</td></tr> }</tbody></table></div>
+                <p><small>All selected IDs are shown above. Recording stores the selection, source and selection digests, method version, ordering policy and seed for replay.</small></p>
+                <button matButton="filled" type="button" [disabled]="samplingBusy() || !previewMatchesInputs()" (click)="recordSampling()">Record this exact sample</button>
+              </section>
+            }
+            }
             @if (w.samplingRuns.length) {
               <div class="table-scroll"><table aria-label="Sampling calculation log">
-                <thead><tr><th>When</th><th>Method</th><th>Parameters</th><th>Selected</th><th>Coverage</th><th>Re-performed</th></tr></thead>
+                <thead><tr><th>When</th><th>Method</th><th>Parameters</th><th>Selection</th><th>Selected</th><th>Coverage</th><th>Attributes / provenance</th><th>Re-performed</th><th>Execution</th></tr></thead>
                 <tbody>@for (r of w.samplingRuns; track r.id) {
-                  <tr><td>{{ r.createdAt.slice(0, 16).replace('T', ' ') }}</td><td>{{ r.method }}</td><td>{{ parameters(r) }}</td><td>{{ r.selectedCount }} of {{ r.populationCount }}</td>
-                    <td>{{ r.coveragePercent | money }}%</td><td [class.error-text]="!r.reproduces">{{ r.reproduces ? 'Matches' : 'Source changed' }}</td></tr> }</tbody>
+                  <tr><td>{{ r.createdAt.slice(0, 16).replace('T', ' ') }}</td><td>{{ methodLabel(r.method) }}</td><td>{{ parameters(r) }}</td><td>{{ r.selectionStatus }}</td><td>{{ r.selectedCount }} of {{ r.populationCount }}</td>
+                    <td>{{ r.coveragePercent | money }}%</td><td>{{ r.attributeFields.length ? r.attributeFields.join(', ') : '—' }}<br /><small>{{ r.orderingPolicy ?? 'Legacy ordering' }} · {{ r.engineVersion }}</small></td>
+                    <td [class.error-text]="!r.reproduces">{{ r.reproduces ? 'Matches' : 'Source changed' }}</td><td>
+                      <button matButton (click)="openSampleSet(r.selectionId)" [disabled]="sampleSetLoading() || sampleActionBusy()">Open sample set</button>
+                      @if (r.canReviewSelection) {
+                        <label>Review note <input [(ngModel)]="selectionReviewComment" [name]="'selection-review-' + r.selectionId" /></label>
+                        <button matButton (click)="reviewSelection(r.selectionId, 'REVIEWED')" [disabled]="sampleActionBusy()">Approve for execution</button>
+                        <button matButton (click)="reviewSelection(r.selectionId, 'CHANGES_REQUIRED')" [disabled]="sampleActionBusy()">Return for changes</button>
+                      } @else if (r.selectionStatus !== 'REVIEWED') {
+                        <small>{{ r.preparedByMe ? 'Independent review required before execution.' : 'Awaiting an authorized selection reviewer.' }}</small>
+                      }
+                    </td></tr> }</tbody>
               </table></div>
+            } @else { <p role="status">No saved sampling selections are available in this engagement yet.</p> }
+            @if (sampleSetLoading()) { <p role="status">Loading the selected sample and execution history…</p> }
+            @if (sampleSetError()) { <p role="alert" class="error-text">{{ sampleSetError() }}</p> }
+            @if (sampleSet(); as selected) {
+              <section class="panel" aria-labelledby="sample-execution-heading">
+                <h3 id="sample-execution-heading">Sample execution · {{ selected.method }} · {{ selected.status }}</h3>
+                <p>{{ selected.testedCount }} of {{ selected.totalCount }} items tested · {{ selected.exceptionCount }} exceptions or limitations · {{ selected.selectedCount }} items in this reviewed sample.</p>
+                <p><strong>Rationale:</strong> {{ selected.rationale }}</p>
+                @if (selected.status !== 'REVIEWED') {
+                  <p role="status">Execution is locked until an independent reviewer approves this exact sample.</p>
+                }
+                @for (item of selected.items; track item.selectionItemId) {
+                  @let draft = itemDraft(item);
+                  <article class="panel" [attr.data-sample-item]="item.stableRowId">
+                    <h4>{{ item.stableRowId }} · {{ item.signedAmount | money }} {{ item.currency }}</h4>
+                    <p><strong>Selection basis:</strong> {{ item.inclusionReason }}</p>
+                    @if (item.testRevision > 0) {
+                      <div class="facts" aria-label="Recorded item test">
+                        <p><strong>Current result:</strong> {{ item.testResult }} · revision {{ item.testRevision }}{{ item.testReviewed ? ' · independently reviewed' : ' · review pending' }}</p>
+                        <p><strong>Work performed:</strong> {{ item.testWorkPerformed }}</p>
+                        @if (item.exceptionAmount !== null) { <p><strong>Exception amount:</strong> {{ item.exceptionAmount | money }} {{ item.currency }}</p> }
+                        @if (item.evidenceReferences.length) { <p><strong>Evidence references:</strong> {{ item.evidenceReferences.join(', ') }}</p> }
+                        @if (item.contradictoryEvidence) { <p><strong>Contradictory evidence:</strong> {{ item.contradictoryEvidence }}</p> }
+                        @if (item.followUp) { <p><strong>Required follow-up:</strong> {{ item.followUp }}</p> }
+                        @if (item.testReviewDecision) { <p><strong>Reviewer decision:</strong> {{ item.testReviewDecision }}{{ item.testReviewComment ? ' — ' + item.testReviewComment : '' }}</p> }
+                      </div>
+                    } @else { <p role="status">No execution result recorded.</p> }
+                    @if (selected.status === 'REVIEWED' && w.canManageFieldwork) {
+                      <form class="inline-form" (submit)="$event.preventDefault(); recordItemTest(item)">
+                        <label>Result <select [(ngModel)]="draft.result" [name]="'result-' + item.selectionItemId"><option value="PASS">Pass</option><option value="EXCEPTION">Exception</option><option value="LIMITATION">Limitation</option></select></label>
+                        <label>Work performed <textarea [(ngModel)]="draft.workPerformed" [name]="'work-' + item.selectionItemId" maxlength="20000" rows="2"></textarea></label>
+                        <label>Evidence references (one per line) <textarea [(ngModel)]="draft.evidenceReferences" [name]="'evidence-' + item.selectionItemId" rows="2"></textarea></label>
+                        @if (draft.result === 'EXCEPTION') { <label>Exception amount <input inputmode="decimal" [(ngModel)]="draft.exceptionAmount" [name]="'amount-' + item.selectionItemId" /></label> }
+                        @if (draft.result !== 'PASS') {
+                          <label>Contradictory evidence <textarea [(ngModel)]="draft.contradictoryEvidence" [name]="'contradiction-' + item.selectionItemId" rows="2"></textarea></label>
+                          <label>Required follow-up <textarea [(ngModel)]="draft.followUp" [name]="'followup-' + item.selectionItemId" rows="2"></textarea></label>
+                        }
+                        <button matButton="filled" type="submit" [disabled]="sampleActionBusy()">{{ item.testRevision ? 'Record a new test revision' : 'Record item test' }}</button>
+                      </form>
+                    }
+                    @if (item.canReviewTest && item.auditItemTestId) {
+                      <div class="inline-form" aria-label="Independent item-test review">
+                        <label>Reviewer note <input [(ngModel)]="draft.reviewerComment" [name]="'test-review-' + item.selectionItemId" /></label>
+                        <button matButton (click)="reviewItemTest(item.auditItemTestId!, 'REVIEWED', item.selectionItemId)" [disabled]="sampleActionBusy()">Review item test</button>
+                        <button matButton (click)="reviewItemTest(item.auditItemTestId!, 'CHANGES_REQUIRED', item.selectionItemId)" [disabled]="sampleActionBusy() || !draft.reviewerComment.trim()">Return item test</button>
+                      </div>
+                    }
+                  </article>
+                }
+                <p>Showing items {{ pageStart(selected) }}–{{ pageEnd(selected) }} of {{ selected.totalCount }}.</p>
+                <div class="actions">
+                  <button matButton (click)="loadSampleSet(selected.selectionId, selected.page - 1)" [disabled]="sampleSetLoading() || selected.page <= 1">Previous</button>
+                  <button matButton (click)="loadSampleSet(selected.selectionId, selected.page + 1)" [disabled]="sampleSetLoading() || selected.page * selected.pageSize >= selected.totalCount">Next</button>
+                </div>
+              </section>
             }
           </mat-tab>
+          }
+          @if (w.canManageFieldwork) {
           <mat-tab label="Client evidence">
             <p>Link a received client upload to a procedure. The link pins the provider receipt digest; a superseded version cannot be linked.</p>
             <form class="inline-form" (submit)="$event.preventDefault(); linkEvidence()">
@@ -222,17 +337,47 @@ export class AuditFieldwork {
   readonly toolTab = signal(0);
   readonly review = signal<ReturnType<typeof decodeProcedureReview> | null>(null);
   readonly reviewError = signal('');
-  s = { procedure: '', schedule: '', method: 'MUS', interval: '', key: '', size: null as number | null, seed: null as number | null, rationale: '' };
+  readonly samplingPreview = signal<SamplingPreview | null>(null);
+  readonly samplingBusy = signal(false);
+  readonly sampleSet = signal<SampleSet | null>(null);
+  readonly sampleSetLoading = signal(false);
+  readonly sampleActionBusy = signal(false);
+  readonly sampleSetError = signal('');
+  selectionReviewComment = '';
+  private readonly sampleDrafts = new Map<string, SampleTestDraft>();
+  private activeEngagementId: string | null = null;
+  readonly attributeFields = [
+    { value: 'ACCOUNT', label: 'Account code' }, { value: 'CURRENCY', label: 'Currency' },
+    { value: 'DIRECTION', label: 'Debit / credit / zero direction' }, { value: 'MONTH', label: 'Transaction or posting month' },
+  ];
+  private previewInputFingerprint = '';
+  s = { procedure: '', schedule: '', method: 'MUS', interval: '', key: '', size: null as number | null, seed: null as number | null,
+    attributeFields: [] as string[], rationale: '' };
   e = { procedure: '', upload: '', note: '' };
   ph = { index: '', box: '', description: '', location: '', linkTarget: '', moveTo: '' };
   ah = { title: '', wording: '', reason: '', section: '' };
   n = { field: 'WORK_PERFORMED', excerpt: '', body: '', reply: '' };
   aggregateConclusion = '';
-  readonly countBased = () => ['RANDOM', 'SYSTEMATIC', 'STRATIFIED'].includes(this.s.method);
+  readonly countBased = () => ['RANDOM', 'SYSTEMATIC', 'STRATIFIED', 'ATTRIBUTE_STRATA'].includes(this.s.method);
 
   constructor() {
     // Seed the conclusion editor from the persisted assessment whenever the workspace reloads.
-    effect(() => { const w = this.ws.data(); untracked(() => (this.aggregateConclusion = w?.aggregate?.conclusion ?? '')); });
+    effect(() => {
+      const w = this.ws.data();
+      this.ws.loading();
+      const engagementId = this.id();
+      untracked(() => {
+        if (engagementId !== this.activeEngagementId) {
+          this.activeEngagementId = engagementId;
+          this.sampleSet.set(null); this.sampleSetError.set(''); this.sampleDrafts.clear();
+        }
+        this.aggregateConclusion = w?.aggregate?.conclusion ?? '';
+        if (!w) {
+          this.samplingPreview.set(null); this.previewInputFingerprint = '';
+          if (this.ws.error()) { this.sampleSet.set(null); this.sampleSetError.set(''); this.sampleDrafts.clear(); }
+        }
+      });
+    });
   }
   count(w: Fieldwork, status: string): number { return w.procedures.filter((p) => p.applicabilityStatus === status).length; }
   reviewed(w: Fieldwork): number { return w.procedures.filter((p) => p.status === 'REVIEWED').length; }
@@ -256,6 +401,60 @@ export class AuditFieldwork {
     return [r.interval ? `interval ${r.interval}` : null, r.keyItemThreshold ? `key items ≥ ${r.keyItemThreshold}` : null, r.sampleSize !== null ? `size ${r.sampleSize}` : null,
       r.seed !== null ? `seed ${r.seed}` : null, `source ${r.sourceDigest.slice(0, 10)}`].filter((x) => x).join(', ');
   }
+  itemDraft(item: SampleItem): SampleTestDraft {
+    let draft = this.sampleDrafts.get(item.selectionItemId);
+    if (!draft) {
+      draft = { workPerformed: item.testWorkPerformed ?? '', evidenceReferences: item.evidenceReferences.join('\n'), result: item.testResult === 'PENDING' ? 'PASS' : item.testResult,
+        exceptionAmount: item.exceptionAmount ?? '', contradictoryEvidence: item.contradictoryEvidence ?? '', followUp: item.followUp ?? '', reviewerComment: '' };
+      this.sampleDrafts.set(item.selectionItemId, draft);
+    }
+    return draft;
+  }
+  pageStart(set: SampleSet): number { return set.totalCount ? (set.page - 1) * set.pageSize + 1 : 0; }
+  pageEnd(set: SampleSet): number { return Math.min(set.page * set.pageSize, set.totalCount); }
+  methodLabel(method: string): string {
+    return ({ MUS: 'Monetary unit (MUS)', KEY_ITEM: 'Key item threshold', RANDOM: 'Seeded random', SYSTEMATIC: 'Systematic random',
+      STRATIFIED: 'Key items plus random', ATTRIBUTE_STRATA: 'Attribute strata' } as Record<string, string>)[method] ?? method;
+  }
+  toggleAttributeField(field: string, checked: boolean): void {
+    this.s.attributeFields = checked
+      ? [...new Set([...this.s.attributeFields, field])]
+      : this.s.attributeFields.filter(x => x !== field);
+  }
+  previewMatchesInputs(): boolean {
+    return this.samplingPreview() !== null && this.previewInputFingerprint === this.samplingFingerprint();
+  }
+  private samplingFingerprint(): string {
+    const s = this.s;
+    return JSON.stringify({ procedureId: s.procedure, scheduleId: s.schedule, method: s.method.trim().toUpperCase(),
+      interval: s.method === 'MUS' ? (s.interval.trim() ? decimalInput(s.interval) : null) : null,
+      keyItemThreshold: ['KEY_ITEM', 'STRATIFIED'].includes(s.method) ? (s.key.trim() ? decimalInput(s.key) : null) : null,
+      sampleSize: this.countBased() ? s.size : null, seed: this.countBased() ? s.seed : null,
+      rationale: s.rationale.trim(), attributeFields: s.method === 'ATTRIBUTE_STRATA' ? [...s.attributeFields].sort() : null });
+  }
+  private samplingInput(): Record<string, unknown> | null {
+    const s = this.s;
+    const interval = s.method === 'MUS' && s.interval.trim() ? decimalInput(s.interval) : null;
+    const keyItemThreshold = ['KEY_ITEM', 'STRATIFIED'].includes(s.method) && s.key.trim() ? decimalInput(s.key) : null;
+    if (!s.procedure || !s.schedule || !s.rationale.trim()) {
+      this.invalid('Choose a procedure and approved schedule, and enter a rationale.'); return null;
+    }
+    if (s.method === 'MUS' && (!s.interval.trim() || interval === null)) {
+      this.invalid('Enter a valid monetary-unit interval.'); return null;
+    }
+    if (['KEY_ITEM', 'STRATIFIED'].includes(s.method) && (!s.key.trim() || keyItemThreshold === null)) {
+      this.invalid('Enter a valid key-item threshold.'); return null;
+    }
+    if (this.countBased() && (!Number.isInteger(s.size) || (s.size ?? 0) < 1 || !Number.isInteger(s.seed))) {
+      this.invalid('Enter a positive whole-number sample size and an integer seed.'); return null;
+    }
+    if (s.method === 'ATTRIBUTE_STRATA' && s.attributeFields.length === 0) {
+      this.invalid('Choose at least one attribute field for stratified attribute sampling.'); return null;
+    }
+    return { procedureId: s.procedure, scheduleId: s.schedule, method: s.method, interval, keyItemThreshold,
+      sampleSize: this.countBased() ? s.size : null, seed: this.countBased() ? s.seed : null, rationale: s.rationale.trim(),
+      attributeFields: s.method === 'ATTRIBUTE_STRATA' ? [...s.attributeFields].sort() : null };
+  }
   history(m: { toLocation: string; movedAt: string }[]): string { return m.map((x) => `${x.toLocation} (${x.movedAt.slice(0, 10)})`).join(' → '); }
   send(url: string, body: unknown, ok: string, after?: () => void): Promise<boolean> {
     return this.cmd.run(url, body, ok, after).finally(() => this.ws.reload());
@@ -264,14 +463,128 @@ export class AuditFieldwork {
   private base(): string { return `/api/ui/engagements/${this.id()}/fieldwork`; }
   decide(procedureId: string, decision: string): void { void this.send(`/api/ui/procedures/${procedureId}/applicability`, { decision }, 'Recorded.'); }
   aggregate(w: Fieldwork): void { void this.send(this.base() + '/aggregate', { conclusion: this.aggregateConclusion }, 'Aggregate conclusion recorded.'); }
-  sample(): void {
-    const s = this.s;
-    const interval = s.interval.trim() ? decimalInput(s.interval) : '', key = s.key.trim() ? decimalInput(s.key) : '';
-    if (!s.procedure || !s.schedule || interval === null || key === null) return this.invalid('Choose a procedure and an approved schedule, and enter amounts as numbers.');
-    this.cmd.run<{ selectedCount: number; populationCount: number; coveragePercent: string }>(this.base() + '/sampling', { procedureId: s.procedure, scheduleId: s.schedule,
-      method: s.method, interval: interval || null, keyItemThreshold: key || null, sampleSize: s.size, seed: s.seed, rationale: s.rationale }, '',
-      (v) => this.cmd.message.set(`Selected ${v.selectedCount} of ${v.populationCount} items (${v.coveragePercent}% coverage); the selection awaits review.`)).finally(() => this.ws.reload());
+  async sample(): Promise<void> {
+    const input = this.samplingInput();
+    if (!input) return;
+    this.samplingPreview.set(null);
+    this.previewInputFingerprint = '';
+    this.samplingBusy.set(true);
+    this.cmd.failed.set(false);
+    this.cmd.message.set('');
+    try {
+      const result = await this.api.command<unknown>(this.base() + '/sampling/preview', input);
+      if (!result.ok) { this.cmd.failed.set(true); this.cmd.message.set(result.message); return; }
+      const preview = decode(samplingPreviewDecoder, result.value);
+      this.samplingPreview.set(preview);
+      this.previewInputFingerprint = this.samplingFingerprint();
+      this.cmd.message.set('Preview ready. Review the selected row IDs and strata before recording.');
+    } catch {
+      this.cmd.failed.set(true);
+      this.cmd.message.set('The preview response could not be verified. Refresh the workspace and try again.');
+    } finally { this.samplingBusy.set(false); }
   }
+  async recordSampling(): Promise<void> {
+    if (!this.previewMatchesInputs()) return this.invalid('Sampling inputs changed. Preview and review the selection again.');
+    const input = this.samplingInput();
+    const preview = this.samplingPreview();
+    if (!input || !preview) return;
+    this.samplingBusy.set(true);
+    this.cmd.failed.set(false);
+    this.cmd.message.set('');
+    try {
+      const result = await this.api.command<{ selectedCount: number; populationCount: number; coveragePercent: string; selectionId: string }>(
+        this.base() + '/sampling', { ...input, expectedPreviewDigest: preview.previewDigest });
+      if (result.ok) {
+        this.cmd.message.set(`Recorded ${result.value.selectedCount} of ${result.value.populationCount} selected rows. The persisted selection is awaiting independent review.`);
+        this.samplingPreview.set(null);
+        this.previewInputFingerprint = '';
+        this.sampleSet.set(null);
+        this.ws.reload();
+        await this.openSampleSet(result.value.selectionId);
+      } else {
+        this.cmd.failed.set(true);
+        this.cmd.message.set(result.unknown
+          ? `${result.message} Repeating the unchanged preview is idempotent.` : result.message);
+        if (result.code === 'generation.stale') this.samplingPreview.set(null);
+      }
+    } finally { this.samplingBusy.set(false); }
+  }
+  async openSampleSet(selectionId: string): Promise<void> { await this.loadSampleSet(selectionId, 1); }
+  async loadSampleSet(selectionId: string, page = 1): Promise<void> {
+    this.sampleSetLoading.set(true); this.sampleSetError.set('');
+    try {
+      const set = await this.api.get(`/api/ui/selections/${selectionId}/sample-set?page=${page}&pageSize=100`, decodeSampleSet);
+      this.sampleSet.set(set);
+      for (const item of set.items) this.itemDraft(item);
+    } catch (error) {
+      this.sampleSet.set(null); this.sampleSetError.set((error as Error).message || 'The sample set is unavailable.');
+    } finally { this.sampleSetLoading.set(false); }
+  }
+  async reviewSelection(selectionId: string, decision: 'REVIEWED' | 'CHANGES_REQUIRED'): Promise<void> {
+    const comment = this.selectionReviewComment.trim();
+    if (!comment) return this.invalid('Enter the independent review note before deciding this sample.');
+    this.sampleActionBusy.set(true); this.cmd.failed.set(false); this.cmd.message.set('');
+    const result = await this.api.command(this.baseSelection(selectionId) + '/review', { decision, comment });
+    if (result.ok) {
+      this.cmd.message.set(decision === 'REVIEWED' ? 'The exact sample is approved for execution.' : 'The sample was returned with the recorded review note.');
+      this.selectionReviewComment = '';
+      this.ws.reload();
+    } else {
+      this.cmd.failed.set(true);
+      this.cmd.message.set(result.unknown ? `${result.message} Refresh the sample status before deciding again.` : result.message);
+    }
+    await this.loadSampleSet(selectionId, this.sampleSet()?.page ?? 1);
+    this.sampleActionBusy.set(false);
+  }
+  async recordItemTest(item: SampleItem): Promise<void> {
+    const draft = this.itemDraft(item);
+    const evidenceReferences = draft.evidenceReferences.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+    if (!draft.workPerformed.trim()) return this.invalid('Describe the work performed for this selected item.');
+    if (['PASS', 'EXCEPTION'].includes(draft.result) && evidenceReferences.length === 0)
+      return this.invalid('Pass and exception results require at least one evidence reference.');
+    if (['EXCEPTION', 'LIMITATION'].includes(draft.result) && !draft.followUp.trim())
+      return this.invalid('Exceptions and limitations require documented follow-up.');
+    let exceptionAmount: string | null = null;
+    if (draft.exceptionAmount.trim()) {
+      try { exceptionAmount = decimalInput(draft.exceptionAmount); }
+      catch { return this.invalid('Enter the exception amount as a decimal.'); }
+    }
+    const set = this.sampleSet();
+    if (!set) return;
+    this.sampleActionBusy.set(true); this.cmd.failed.set(false); this.cmd.message.set('');
+    const result = await this.api.command(this.baseItem(item.selectionItemId) + '/tests', {
+      workPerformed: draft.workPerformed.trim(), evidenceReferences, result: draft.result, exceptionAmount,
+      contradictoryEvidence: draft.contradictoryEvidence.trim() || null, followUp: draft.followUp.trim() || null,
+    });
+    if (result.ok) {
+      this.cmd.message.set(`Item test recorded for ${item.stableRowId}. The current result and evidence are now in the sample history.`);
+      this.sampleDrafts.delete(item.selectionItemId);
+    } else {
+      this.cmd.failed.set(true);
+      this.cmd.message.set(result.unknown ? `${result.message} Refresh the item history before recording another revision.` : result.message);
+    }
+    await this.loadSampleSet(set.selectionId, set.page);
+    this.sampleActionBusy.set(false);
+  }
+  async reviewItemTest(testId: string, decision: 'REVIEWED' | 'CHANGES_REQUIRED', selectionItemId: string): Promise<void> {
+    const draft = this.sampleDrafts.get(selectionItemId);
+    const comment = draft?.reviewerComment.trim() ?? '';
+    if (decision === 'CHANGES_REQUIRED' && !comment) return this.invalid('Enter a reason when returning an item test for changes.');
+    const set = this.sampleSet();
+    if (!set) return;
+    this.sampleActionBusy.set(true); this.cmd.failed.set(false); this.cmd.message.set('');
+    const result = await this.api.command(this.baseItemTest(testId) + '/review', { decision, comment: comment || null });
+    if (result.ok) this.cmd.message.set(decision === 'REVIEWED' ? 'Item-test result independently reviewed.' : 'Item-test result returned with the reviewer note.');
+    else {
+      this.cmd.failed.set(true);
+      this.cmd.message.set(result.unknown ? `${result.message} Refresh the current review state before deciding again.` : result.message);
+    }
+    await this.loadSampleSet(set.selectionId, set.page);
+    this.sampleActionBusy.set(false);
+  }
+  private baseSelection(selectionId: string): string { return `/api/ui/selections/${selectionId}`; }
+  private baseItem(itemId: string): string { return `/api/ui/selection-items/${itemId}`; }
+  private baseItemTest(testId: string): string { return `/api/ui/item-tests/${testId}`; }
   async selectProcedure(procedureId: string): Promise<void> {
     this.review.set(null); this.reviewError.set('');
     if (!procedureId) return;

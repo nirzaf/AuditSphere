@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
@@ -30,7 +31,10 @@ public sealed record SampleSetItemView(
   Guid SelectionItemId, string StableRowId, decimal SignedAmount, string Currency, string InclusionReason,
   string TestResult, long TestRevision, decimal? ExceptionAmount,
   Guid? CutOffTestId, string? CutOffIndicator, bool? CutOffException,
-  Guid? SubsequentMatchId, string? SubsequentState, decimal? MatchedAmount);
+  Guid? SubsequentMatchId, string? SubsequentState, decimal? MatchedAmount,
+  Guid? AuditItemTestId, string? TestWorkPerformed, IReadOnlyList<string> EvidenceReferences,
+  string? ContradictoryEvidence, string? FollowUp, bool TestReviewed, string? TestReviewDecision,
+  string? TestReviewComment, bool CanReviewTest);
 
 public sealed record SampleSetView(
   Guid SelectionId, Guid ProcedureId, string Method, string Rationale, string Status,
@@ -43,7 +47,7 @@ public static class AuditSamplingService
   private static readonly string[] PlanningRoles =
     ["Partner", "Manager", "SeniorManager", "Senior", "Staff", "Auditor", "EngagementLeader", "Administrator"];
   private static readonly string[] ReadRoles =
-    ["Auditor", "Reviewer", "Manager", "Partner", "Administrator", "AccountingPreparer", "AccountingReviewer"];
+    ["Partner", "Manager", "SeniorManager", "Senior", "Staff", "Auditor", "EngagementLeader", "Reviewer", "Administrator"];
 
   /// <summary>Records cut-off evidence for one sampled item. The period-end indicator is
   /// derived from the recorded dates, and a booked item whose document or shipping date
@@ -198,14 +202,37 @@ public static class AuditSamplingService
     if (!auth.Succeeded)
       return CommandResult<SampleSetView>.Fail(auth.ErrorCode!, auth.Message!);
 
-    var allItems = await db.AuditSelectionItems.AsNoTracking()
-      .Where(x => x.FirmId == actor.FirmId && x.SelectionId == selection.Id)
+    var selectedItems = db.AuditSelectionItems.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.SelectionId == selection.Id);
+    var totalCount = await selectedItems.CountAsync(ct);
+    var pageCount = Math.Max(1L, ((long)totalCount + pageSize - 1) / pageSize);
+    if (page > pageCount)
+      return CommandResult<SampleSetView>.Fail(ErrorCodes.Accounting.MappingInvalid, "The requested sample-set page is outside the available items.");
+    var pageItems = await selectedItems
       .OrderBy(x => x.StableRowId).ThenBy(x => x.Id)
+      .Skip((page - 1) * pageSize).Take(pageSize)
       .ToListAsync(ct);
-    var itemIds = allItems.Select(x => x.Id).ToArray();
-    var tests = await db.AuditItemTests.AsNoTracking()
-      .Where(x => x.FirmId == actor.FirmId && itemIds.Contains(x.SelectionItemId))
+    var itemIds = pageItems.Select(x => x.Id).ToArray();
+    var latestTests = await db.AuditItemTests.AsNoTracking()
+      .Where(test => test.FirmId == actor.FirmId && test.SelectionId == selection.Id &&
+        test.Revision == db.AuditItemTests.Where(previous => previous.FirmId == actor.FirmId && previous.SelectionItemId == test.SelectionItemId)
+          .Max(previous => previous.Revision))
+      .Where(x => itemIds.Contains(x.SelectionItemId))
       .ToListAsync(ct);
+    var latestTestIds = latestTests.Select(x => x.Id).ToArray();
+    var testReviews = await db.AuditItemTestReviews.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && latestTestIds.Contains(x.AuditItemTestId))
+      .OrderByDescending(x => x.CreatedAt).ToListAsync(ct);
+    var reviewAuthorization = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(selection.FirmId, selection.ClientId, selection.EngagementId,
+        ["Reviewer", "Manager", "Partner", "Administrator"], InternalOnly: true), ct);
+    var canReviewTests = reviewAuthorization.Succeeded;
+    var latestTestsForSelection = db.AuditItemTests.AsNoTracking()
+      .Where(test => test.FirmId == actor.FirmId && test.SelectionId == selection.Id &&
+        test.Revision == db.AuditItemTests.Where(previous => previous.FirmId == actor.FirmId && previous.SelectionItemId == test.SelectionItemId)
+          .Max(previous => previous.Revision));
+    var testedCount = await latestTestsForSelection.CountAsync(x => x.Result != AuditItemTestResults.Pending, ct);
+    var exceptionCount = await latestTestsForSelection.CountAsync(x => x.Result == AuditItemTestResults.Exception || x.Result == AuditItemTestResults.Limitation, ct);
     var cutOffs = await db.AuditCutOffTestRecords.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && itemIds.Contains(x.SelectionItemId))
       .ToListAsync(ct);
@@ -213,27 +240,35 @@ public static class AuditSamplingService
       .Where(x => x.FirmId == actor.FirmId && itemIds.Contains(x.SelectionItemId))
       .ToListAsync(ct);
 
-    var views = allItems.Select(item =>
+    var views = pageItems.Select(item =>
     {
-      var test = tests.Where(x => x.SelectionItemId == item.Id)
-        .OrderByDescending(x => x.Revision).FirstOrDefault();
+      var test = latestTests.FirstOrDefault(x => x.SelectionItemId == item.Id);
+      var review = test is null ? null : testReviews.FirstOrDefault(x => x.AuditItemTestId == test.Id && x.TestRevision == test.Revision);
+      IReadOnlyList<string> evidenceReferences = [];
+      if (!string.IsNullOrWhiteSpace(test?.EvidenceReferencesJson))
+      {
+        try { evidenceReferences = JsonSerializer.Deserialize<string[]>(test.EvidenceReferencesJson) ?? []; }
+        catch (JsonException) { evidenceReferences = []; }
+      }
       var cutOff = cutOffs.FirstOrDefault(x => x.SelectionItemId == item.Id);
       var match = matches.FirstOrDefault(x => x.SelectionItemId == item.Id);
       return new SampleSetItemView(
         item.Id, item.StableRowId, item.SignedAmount, item.Currency, item.InclusionReason,
         test?.Result ?? AuditItemTestResults.Pending, test?.Revision ?? 0, test?.ExceptionAmount,
         cutOff?.Id, cutOff?.PeriodEndIndicator, cutOff?.IsCutOffException,
-        match?.Id, match?.State, match?.MatchedAmount);
+        match?.Id, match?.State, match?.MatchedAmount, test?.Id, test?.WorkPerformed, evidenceReferences,
+        test?.ContradictoryEvidence, test?.FollowUp, review?.Decision == AuditItemTestReviewDecisions.Reviewed,
+        review?.Decision, review?.Comment, test is not null && canReviewTests && test.TestedByUserId != actor.UserId && review is null);
     }).ToList();
 
     return CommandResult<SampleSetView>.Ok(new SampleSetView(
       selection.Id, selection.ProcedureId, selection.Method, selection.Rationale, selection.Status,
       selection.SelectedCount, selection.SelectedSignedTotal, selection.InputGeneration,
-      views.Count(x => x.TestResult != AuditItemTestResults.Pending),
-      views.Count(x => x.TestResult is AuditItemTestResults.Exception or AuditItemTestResults.Limitation),
-      views.Count(x => x.CutOffTestId is not null),
-      views.Count(x => x.SubsequentState == AuditSubsequentMatchStates.Matched),
-      views.Skip((page - 1) * pageSize).Take(pageSize).ToList(),
-      views.Count, page, pageSize));
+      testedCount, exceptionCount,
+      await db.AuditCutOffTestRecords.AsNoTracking().CountAsync(x => x.FirmId == actor.FirmId && x.SelectionId == selection.Id, ct),
+      await db.AuditSubsequentMatchRecords.AsNoTracking().CountAsync(x => x.FirmId == actor.FirmId && x.SelectionId == selection.Id &&
+        x.State == AuditSubsequentMatchStates.Matched, ct),
+      views,
+      totalCount, page, pageSize));
   }
 }

@@ -13,12 +13,15 @@ public sealed partial class AuditSphereDbContext
     {
       e.HasIndex(x => new { x.FirmId, x.SelectionId }).IsUnique();
       e.HasIndex(x => new { x.FirmId, x.EngagementId, x.CreatedAt });
+      e.HasIndex(x => new { x.FirmId, x.PreviewDigest }).IsUnique().HasFilter("preview_digest IS NOT NULL");
       e.HasOne<AuditSelection>().WithMany().HasForeignKey(x => x.SelectionId).OnDelete(DeleteBehavior.Restrict);
+      e.Property(x => x.PreviewDigest).HasMaxLength(64);
+      e.Property(x => x.OrderingPolicy).HasMaxLength(80);
       foreach (var p in new[] { nameof(AuditSamplingRun.Interval), nameof(AuditSamplingRun.KeyItemThreshold), nameof(AuditSamplingRun.PopulationAbsoluteTotal), nameof(AuditSamplingRun.SelectedAbsoluteTotal) })
         e.Property(p).HasPrecision(28, 6);
       e.Property(x => x.CoveragePercent).HasPrecision(9, 4);
       e.ToTable("audit_sampling_runs", t => t.HasCheckConstraint("ck_audit_sampling_run_values",
-        "method IN ('MUS','KEY_ITEM','RANDOM','SYSTEMATIC','STRATIFIED') AND selected_count > 0 AND selected_count <= population_count AND length(source_digest) = 64 AND length(selection_digest) = 64"));
+        "method IN ('MUS','KEY_ITEM','RANDOM','SYSTEMATIC','STRATIFIED','ATTRIBUTE_STRATA') AND selected_count > 0 AND selected_count <= population_count AND length(source_digest) = 64 AND length(selection_digest) = 64 AND (preview_digest IS NULL OR length(preview_digest) = 64)"));
     });
     b.Entity<ProcedureEvidenceLink>(e =>
     {

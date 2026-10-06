@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Audit;
@@ -9,7 +10,8 @@ using Microsoft.EntityFrameworkCore;
 namespace AuditSphereOps.Application.Audit;
 
 public sealed record RunSamplingRequest(Guid EngagementId, Guid ProcedureId, Guid ScheduleId, string Method, decimal? Interval, decimal? KeyItemThreshold,
-  int? SampleSize, int? Seed, string Rationale);
+  int? SampleSize, int? Seed, string Rationale, IReadOnlyList<string>? AttributeFields = null, string? ExpectedPreviewDigest = null);
+public sealed record SamplingPreviewView(string PreviewDigest, string SourceDigest, SamplingOutcome Outcome);
 public sealed record SamplingRunView(AuditSamplingRun Run, IReadOnlyList<AuditSelectionItem> Items, bool Reproduces);
 public sealed record EvidenceCandidate(Guid UploadIntentId, Guid PbcRequestId, string RequestArea, string FileName, string ContentSha256, DateTimeOffset ReceivedAt, bool Superseded);
 public sealed record ProcedureEvidenceView(Guid LinkId, Guid UploadIntentId, string FileName, string ContentSha256, string? Note, DateTimeOffset LinkedAt);
@@ -20,48 +22,180 @@ public sealed record InsertAdHocProcedureRequest(Guid EngagementId, string Title
 public static partial class AuditFieldworkService
 {
   public const string SamplingEngineVersion = "audit-sampling-engine.v1";
+  public const string AttributeSamplingEngineVersion = "audit-attribute-strata-engine.v1";
+  public const string SamplingOrderingPolicy = "SCHEDULE_SOURCE_LINE_THEN_STABLE_ROW_ID";
+
+  private sealed record PreparedSampling(Guid ClientId, AuditSchedule Schedule, List<AuditScheduleRow> Rows, SamplingPlan Plan,
+    SamplingOutcome Outcome, string SourceDigest, string PreviewDigest, string? AttributeFieldsJson);
 
   // ── Integrated sampling tool (3.2-02) ─────────────────────────────────────────────────────────────
 
-  /// <summary>
-  /// Runs the pure sampling engine over an approved schedule's rows, persists the resulting selection through the
-  /// normal selection command, and logs every parameter, the seed and the exact source digest so the selection can be
-  /// re-performed and compared after reload.
-  /// </summary>
-  public static async Task<CommandResult<SamplingRunView>> RunSamplingAsync(IAuditSphereDbContext db, ActorContext actor, RunSamplingRequest request, CancellationToken ct = default)
+  /// <summary>Previews the exact deterministic selection from an approved schedule without persisting it.</summary>
+  public static async Task<CommandResult<SamplingPreviewView>> PreviewSamplingAsync(
+    IAuditSphereDbContext db, ActorContext actor, RunSamplingRequest request, CancellationToken ct = default)
   {
-    if (string.IsNullOrWhiteSpace(request.Rationale)) return Invalid<SamplingRunView>("A sampling rationale is required.");
+    var prepared = await PrepareSamplingAsync(db, actor, request, ct);
+    return !prepared.Succeeded
+      ? CommandResult<SamplingPreviewView>.Fail(prepared.ErrorCode!, prepared.Message!)
+      : CommandResult<SamplingPreviewView>.Ok(new(prepared.Value!.PreviewDigest, prepared.Value.SourceDigest, prepared.Value.Outcome));
+  }
+
+  /// <summary>Re-performs the reviewed preview and atomically saves its selection and provenance run.</summary>
+  public static async Task<CommandResult<SamplingRunView>> RunSamplingAsync(IAuditSphereDbContext db, ActorContext actor,
+    RunSamplingRequest request, CancellationToken ct = default)
+  {
     var auth = await AuthorizeEngagementAsync(db, actor, request.EngagementId, PlanningRoles, ct);
     if (!auth.Succeeded) return CommandResult<SamplingRunView>.Fail(auth.ErrorCode!, auth.Message!);
+    if (string.IsNullOrWhiteSpace(request.ExpectedPreviewDigest))
+      return Invalid<SamplingRunView>("Preview the sample and review the exact selected rows before recording it.");
+
+    var prior = await ExistingSamplingRunAsync(db, actor.FirmId, request.ExpectedPreviewDigest, ct);
+    if (prior is not null)
+      return await ExistingRunMatchesRequestAsync(db, actor, request, prior, ct)
+        ? await GetSamplingRunAsync(db, actor, prior.Id, ct)
+        : CommandResult<SamplingRunView>.Fail(ErrorCodes.IdempotencyConflict,
+          "This preview reference is already bound to different sampling inputs. Preview the intended inputs again.");
+
+    await using var transaction = await db.Database.BeginTransactionAsync(ct);
+    try
+    {
+      var procedure = await db.AuditProcedures.FromSqlInterpolated($"SELECT * FROM audit_procedures WHERE firm_id={actor.FirmId} AND id={request.ProcedureId} FOR UPDATE")
+        .AsNoTracking().SingleOrDefaultAsync(ct);
+      if (procedure is null || procedure.EngagementId != request.EngagementId || procedure.ClientId != auth.ClientId)
+        return Denied<SamplingRunView>();
+
+      prior = await ExistingSamplingRunAsync(db, actor.FirmId, request.ExpectedPreviewDigest, ct);
+      if (prior is not null)
+      {
+        var priorMatches = await ExistingRunMatchesRequestAsync(db, actor, request, prior, ct);
+        await transaction.CommitAsync(ct);
+        return priorMatches
+          ? await GetSamplingRunAsync(db, actor, prior.Id, ct)
+          : CommandResult<SamplingRunView>.Fail(ErrorCodes.IdempotencyConflict,
+            "This preview reference is already bound to different sampling inputs. Preview the intended inputs again.");
+      }
+
+      var prepared = await PrepareSamplingAsync(db, actor, request, ct);
+      if (!prepared.Succeeded) return CommandResult<SamplingRunView>.Fail(prepared.ErrorCode!, prepared.Message!);
+      var sampling = prepared.Value!;
+      if (!string.Equals(sampling.PreviewDigest, request.ExpectedPreviewDigest, StringComparison.Ordinal))
+        return CommandResult<SamplingRunView>.Fail(ErrorCodes.GenerationStale,
+          "The approved population or sampling inputs changed after preview. Refresh and review a new preview.");
+
+      var byStable = sampling.Rows.ToDictionary(x => x.StableRowId.Trim(), StringComparer.Ordinal);
+      var selection = await CreateSelectionAsync(db, actor, new CreateSelectionRequest(request.EngagementId, request.ProcedureId,
+        sampling.Schedule.Id, null, sampling.Plan.Method, request.Rationale.Trim(), sampling.Outcome.Items.Select(i =>
+          new SelectionItemInput(i.StableRowId, i.SignedAmount, byStable[i.StableRowId].Currency, i.InclusionReason, byStable[i.StableRowId].Id)).ToList()), ct);
+      if (!selection.Succeeded) return CommandResult<SamplingRunView>.Fail(selection.ErrorCode!, selection.Message!);
+
+      var run = new AuditSamplingRun
+      {
+        Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = sampling.ClientId, EngagementId = request.EngagementId,
+        SelectionId = selection.Value!.SelectionId, ProcedureId = request.ProcedureId, ScheduleId = sampling.Schedule.Id,
+        Method = sampling.Plan.Method, Interval = sampling.Plan.Interval, KeyItemThreshold = sampling.Plan.KeyItemThreshold,
+        SampleSize = sampling.Plan.SampleSize, Seed = sampling.Plan.Seed, AttributeFields = sampling.AttributeFieldsJson,
+        OrderingPolicy = SamplingOrderingPolicy, PreviewDigest = sampling.PreviewDigest, PopulationCount = sampling.Outcome.PopulationCount,
+        PopulationAbsoluteTotal = sampling.Outcome.PopulationAbsoluteTotal, SelectedCount = sampling.Outcome.SelectedCount,
+        SelectedAbsoluteTotal = sampling.Outcome.SelectedAbsoluteTotal, CoveragePercent = sampling.Outcome.CoveragePercent,
+        SourceDigest = sampling.SourceDigest, SelectionDigest = SelectionDigest(sampling.Outcome.Items.Select(x => x.StableRowId)),
+        EngineVersion = sampling.Plan.Method switch
+        {
+          AuditSamplingMethods.Systematic => "audit-systematic-engine.v1",
+          AuditSamplingMethods.AttributeStrata => AttributeSamplingEngineVersion,
+          _ => SamplingEngineVersion
+        },
+        CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
+      };
+      db.AuditSamplingRuns.Add(run);
+      await db.SaveChangesAsync(ct);
+      await transaction.CommitAsync(ct);
+      return await GetSamplingRunAsync(db, actor, run.Id, ct);
+    }
+    catch (DbUpdateException)
+    {
+      await transaction.RollbackAsync(ct);
+      prior = await ExistingSamplingRunAsync(db, actor.FirmId, request.ExpectedPreviewDigest, ct);
+      if (prior is not null && await ExistingRunMatchesRequestAsync(db, actor, request, prior, ct))
+        return await GetSamplingRunAsync(db, actor, prior.Id, ct);
+      throw;
+    }
+  }
+
+  private static async Task<CommandResult<PreparedSampling>> PrepareSamplingAsync(
+    IAuditSphereDbContext db, ActorContext actor, RunSamplingRequest request, CancellationToken ct)
+  {
+    if (string.IsNullOrWhiteSpace(request.Rationale) || request.Rationale.Trim().Length > 4000)
+      return Invalid<PreparedSampling>("A sampling rationale of up to 4,000 characters is required.");
+    if (string.IsNullOrWhiteSpace(request.Method)) return Invalid<PreparedSampling>("Choose a supported sampling method.");
+    var auth = await AuthorizeEngagementAsync(db, actor, request.EngagementId, PlanningRoles, ct);
+    if (!auth.Succeeded) return CommandResult<PreparedSampling>.Fail(auth.ErrorCode!, auth.Message!);
     var schedule = await db.AuditSchedules.AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.ScheduleId && x.FirmId == actor.FirmId &&
       x.ClientId == auth.ClientId && x.EngagementId == request.EngagementId, ct);
-    if (schedule is null) return Denied<SamplingRunView>();
-    if (schedule.Status != AuditScheduleStatuses.Approved) return CommandResult<SamplingRunView>.Fail(ErrorCodes.GateBlocked, "Sample only from an approved schedule.");
+    if (schedule is null) return Denied<PreparedSampling>();
+    if (schedule.Status != AuditScheduleStatuses.Approved)
+      return CommandResult<PreparedSampling>.Fail(ErrorCodes.GateBlocked, "Sample only from an approved schedule.");
+
+    var method = request.Method.Trim().ToUpperInvariant();
+    var fields = request.AttributeFields?.Select(x => x?.Trim().ToUpperInvariant() ?? string.Empty)
+      .OrderBy(x => x, StringComparer.Ordinal).ToArray();
+    if (method == AuditSamplingMethods.AttributeStrata && (fields is null || fields.Length == 0))
+      return Invalid<PreparedSampling>("Choose at least one attribute field for stratified attribute sampling.");
+    if (method != AuditSamplingMethods.AttributeStrata && fields is { Length: > 0 })
+      return Invalid<PreparedSampling>("Attribute fields can only be selected for attribute strata sampling.");
+
     var rows = await ScheduleRowsAsync(db, actor.FirmId, schedule.Id, ct);
-    var plan = new SamplingPlan(request.Method.Trim().ToUpperInvariant(), request.Interval, request.KeyItemThreshold, request.SampleSize, request.Seed);
+    if (rows.Any(x => string.IsNullOrWhiteSpace(x.Currency)))
+      return Invalid<PreparedSampling>("Every approved population row needs a currency before sampling.");
+    if (rows.Select(x => x.Currency.Trim().ToUpperInvariant()).Distinct(StringComparer.Ordinal).Skip(1).Any())
+      return Invalid<PreparedSampling>("This population contains mixed currencies. Create approved currency-specific schedules before sampling.");
+    var countBased = method is AuditSamplingMethods.Random or AuditSamplingMethods.Systematic or AuditSamplingMethods.Stratified or AuditSamplingMethods.AttributeStrata;
+    var plan = new SamplingPlan(method,
+      method == AuditSamplingMethods.MonetaryUnit ? request.Interval : null,
+      method is AuditSamplingMethods.KeyItem or AuditSamplingMethods.Stratified ? request.KeyItemThreshold : null,
+      countBased ? request.SampleSize : null, countBased ? request.Seed : null,
+      method == AuditSamplingMethods.AttributeStrata ? fields : null);
     SamplingOutcome outcome;
-    try { outcome = AuditSamplingEngine.Select(rows.Select(x => new SamplingPopulationItem(x.StableRowId, x.SignedAmount)).ToList(), plan); }
-    catch (ArgumentException ex) { return Invalid<SamplingRunView>(ex.Message); }
-    if (outcome.SelectedCount == 0) return CommandResult<SamplingRunView>.Fail(ErrorCodes.GateBlocked, "The parameters select no items; adjust them before recording a selection.");
-    var byStable = rows.ToDictionary(x => x.StableRowId, StringComparer.Ordinal);
-    var selection = await CreateSelectionAsync(db, actor, new CreateSelectionRequest(request.EngagementId, request.ProcedureId, schedule.Id, null,
-      plan.Method, request.Rationale, outcome.Items.Select(i => new SelectionItemInput(i.StableRowId, i.SignedAmount, byStable[i.StableRowId].Currency,
-        i.InclusionReason, byStable[i.StableRowId].Id)).ToList()), ct);
-    if (!selection.Succeeded) return CommandResult<SamplingRunView>.Fail(selection.ErrorCode!, selection.Message!);
-    var run = new AuditSamplingRun
+    try
     {
-      Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = auth.ClientId, EngagementId = request.EngagementId, SelectionId = selection.Value!.SelectionId,
-      ProcedureId = request.ProcedureId, ScheduleId = schedule.Id, Method = plan.Method, Interval = plan.Interval, KeyItemThreshold = plan.KeyItemThreshold,
-      SampleSize = plan.SampleSize, Seed = plan.Seed, PopulationCount = outcome.PopulationCount, PopulationAbsoluteTotal = outcome.PopulationAbsoluteTotal,
-      SelectedCount = outcome.SelectedCount, SelectedAbsoluteTotal = outcome.SelectedAbsoluteTotal, CoveragePercent = outcome.CoveragePercent,
-      SourceDigest = SourceDigest(rows, plan.Method == AuditSamplingMethods.Systematic), SelectionDigest = SelectionDigest(outcome.Items.Select(x => x.StableRowId)),
-      EngineVersion = plan.Method == AuditSamplingMethods.Systematic ? "audit-systematic-engine.v1" : SamplingEngineVersion,
-      CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
-    };
-    db.AuditSamplingRuns.Add(run);
-    await db.SaveChangesAsync(ct);
-    return await GetSamplingRunAsync(db, actor, run.Id, ct);
+      outcome = AuditSamplingEngine.Select(rows.Select(x => new SamplingPopulationItem(x.StableRowId, x.SignedAmount,
+        new SamplingRowAttributes(x.AccountCode, x.Currency, x.TransactionDate, x.PostingDate))).ToList(), plan);
+    }
+    catch (ArgumentException ex) { return Invalid<PreparedSampling>(ex.Message); }
+    if (outcome.SelectedCount == 0)
+      return CommandResult<PreparedSampling>.Fail(ErrorCodes.GateBlocked, "The parameters select no items; adjust them before recording a selection.");
+    var sourceDigest = SourceDigest(rows, preserveOrder: true, includeAttributes: method == AuditSamplingMethods.AttributeStrata);
+    var previewDigest = SamplingPreviewDigest(actor.UserId, request, plan, sourceDigest, outcome);
+    var attributeFieldsJson = method == AuditSamplingMethods.AttributeStrata ? JsonSerializer.Serialize(fields) : null;
+    return CommandResult<PreparedSampling>.Ok(new(auth.ClientId, schedule, rows, plan, outcome, sourceDigest, previewDigest, attributeFieldsJson));
   }
+
+  private static async Task<AuditSamplingRun?> ExistingSamplingRunAsync(IAuditSphereDbContext db, Guid firmId, string previewDigest, CancellationToken ct) =>
+    await db.AuditSamplingRuns.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == firmId && x.PreviewDigest == previewDigest, ct);
+
+  private static async Task<bool> ExistingRunMatchesRequestAsync(IAuditSphereDbContext db, ActorContext actor, RunSamplingRequest request,
+    AuditSamplingRun run, CancellationToken ct)
+  {
+    if (string.IsNullOrWhiteSpace(request.Method)) return false;
+    var method = request.Method.Trim().ToUpperInvariant();
+    var fields = request.AttributeFields?.Select(x => x?.Trim().ToUpperInvariant() ?? string.Empty).OrderBy(x => x, StringComparer.Ordinal).ToArray();
+    var countBased = method is AuditSamplingMethods.Random or AuditSamplingMethods.Systematic or AuditSamplingMethods.Stratified or AuditSamplingMethods.AttributeStrata;
+    if (run.CreatedByUserId != actor.UserId || run.EngagementId != request.EngagementId || run.ProcedureId != request.ProcedureId || run.ScheduleId != request.ScheduleId ||
+        run.Method != method || run.Interval != (method == AuditSamplingMethods.MonetaryUnit ? request.Interval : null) ||
+        run.KeyItemThreshold != (method is AuditSamplingMethods.KeyItem or AuditSamplingMethods.Stratified ? request.KeyItemThreshold : null) ||
+        run.SampleSize != (countBased ? request.SampleSize : null) || run.Seed != (countBased ? request.Seed : null) ||
+        run.AttributeFields != (method == AuditSamplingMethods.AttributeStrata ? JsonSerializer.Serialize(fields) : null)) return false;
+    var selection = await db.AuditSelections.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == run.SelectionId, ct);
+    return selection?.CreatedByUserId == actor.UserId && selection.Rationale == request.Rationale.Trim();
+  }
+
+  private static string SamplingPreviewDigest(Guid actorUserId, RunSamplingRequest request, SamplingPlan plan, string sourceDigest, SamplingOutcome outcome) =>
+    Hashing.Sha256Hex(JsonSerializer.Serialize(new
+    {
+      version = "audit-sampling-preview.v1", actorUserId, request.EngagementId, request.ProcedureId, request.ScheduleId, method = plan.Method,
+      interval = plan.Interval, keyItemThreshold = plan.KeyItemThreshold, sampleSize = plan.SampleSize, seed = plan.Seed,
+      attributeFields = plan.AttributeFields, rationale = request.Rationale.Trim(), sourceDigest, orderingPolicy = SamplingOrderingPolicy,
+      selection = outcome.Items.Select(x => x.StableRowId).ToArray()
+    }));
 
   /// <summary>Reloads a run and re-performs it from the logged parameters over the current schedule rows.</summary>
   public static async Task<CommandResult<SamplingRunView>> GetSamplingRunAsync(IAuditSphereDbContext db, ActorContext actor, Guid runId, CancellationToken ct = default)
@@ -73,9 +207,19 @@ public static partial class AuditFieldworkService
     var items = await db.AuditSelectionItems.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.SelectionId == run.SelectionId)
       .OrderBy(x => x.StableRowId).ToListAsync(ct);
     var rows = await ScheduleRowsAsync(db, actor.FirmId, run.ScheduleId, ct);
-    var again = AuditSamplingEngine.Select(rows.Select(x => new SamplingPopulationItem(x.StableRowId, x.SignedAmount)).ToList(),
-      new SamplingPlan(run.Method, run.Interval, run.KeyItemThreshold, run.SampleSize, run.Seed));
-    var reproduces = SourceDigest(rows, run.Method == AuditSamplingMethods.Systematic) == run.SourceDigest && SelectionDigest(again.Items.Select(x => x.StableRowId)) == run.SelectionDigest;
+    var fields = ReadAttributeFields(run.AttributeFields);
+    SamplingOutcome again;
+    try
+    {
+      again = AuditSamplingEngine.Select(rows.Select(x => new SamplingPopulationItem(x.StableRowId, x.SignedAmount,
+        run.Method == AuditSamplingMethods.AttributeStrata
+          ? new SamplingRowAttributes(x.AccountCode, x.Currency, x.TransactionDate, x.PostingDate) : null)).ToList(),
+        new SamplingPlan(run.Method, run.Interval, run.KeyItemThreshold, run.SampleSize, run.Seed, fields));
+    }
+    catch (ArgumentException) { return CommandResult<SamplingRunView>.Ok(new(run, items, false)); }
+    var sourceDigest = SourceDigest(rows, preserveOrder: run.OrderingPolicy is not null || run.Method == AuditSamplingMethods.Systematic,
+      includeAttributes: run.Method == AuditSamplingMethods.AttributeStrata && run.OrderingPolicy is not null);
+    var reproduces = sourceDigest == run.SourceDigest && SelectionDigest(again.Items.Select(x => x.StableRowId)) == run.SelectionDigest;
     return CommandResult<SamplingRunView>.Ok(new(run, items, reproduces));
   }
 
@@ -89,12 +233,32 @@ public static partial class AuditFieldworkService
   private static async Task<List<AuditScheduleRow>> ScheduleRowsAsync(IAuditSphereDbContext db, Guid firmId, Guid scheduleId, CancellationToken ct) =>
     await db.AuditScheduleRows.AsNoTracking().Where(x => x.FirmId == firmId && x.ScheduleId == scheduleId).OrderBy(x => x.SourceLineNumber).ThenBy(x => x.StableRowId).ToListAsync(ct);
 
-  private static string SourceDigest(IEnumerable<AuditScheduleRow> rows, bool preserveOrder = false) =>
-    preserveOrder
+  private static string SourceDigest(IEnumerable<AuditScheduleRow> rows, bool preserveOrder = false, bool includeAttributes = false)
+  {
+    if (includeAttributes)
+    {
+      var attributedRows = preserveOrder ? rows : rows.OrderBy(x => x.StableRowId, StringComparer.Ordinal);
+      return Hashing.Sha256Hex(JsonSerializer.Serialize(attributedRows.Select(x => new
+      {
+        x.SourceLineNumber, x.StableRowId, Amount = x.SignedAmount.ToString("0.000000", CultureInfo.InvariantCulture), x.Currency,
+        x.AccountCode, TransactionDate = x.TransactionDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+        PostingDate = x.PostingDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+      })));
+    }
+
+    return preserveOrder
       ? Hashing.Sha256Hex(string.Join('\n', rows.Select(x =>
         $"{x.SourceLineNumber}|{x.StableRowId}|{x.SignedAmount.ToString("0.000000", CultureInfo.InvariantCulture)}|{x.Currency}")))
       : Hashing.Sha256Hex(string.Join('\n', rows.OrderBy(x => x.StableRowId, StringComparer.Ordinal)
         .Select(x => $"{x.StableRowId}|{x.SignedAmount.ToString("0.000000", CultureInfo.InvariantCulture)}|{x.Currency}")));
+  }
+
+  private static IReadOnlyList<string>? ReadAttributeFields(string? json)
+  {
+    if (string.IsNullOrWhiteSpace(json)) return null;
+    try { return JsonSerializer.Deserialize<string[]>(json); }
+    catch (JsonException) { return null; }
+  }
 
   private static string SelectionDigest(IEnumerable<string> ids) => Hashing.Sha256Hex(string.Join('\n', ids.OrderBy(x => x, StringComparer.Ordinal)));
 

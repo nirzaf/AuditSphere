@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeFieldwork, decodeProcedureReview } from './fieldwork';
+import { decodeFieldwork, decodeProcedureReview, decodeSampleSet } from './fieldwork';
 
 const id1 = '11111111-1111-4111-8111-111111111111';
 const id2 = '22222222-2222-4222-8222-222222222222';
@@ -59,6 +59,10 @@ describe('Audit Fieldwork Contracts', () => {
       samplingRuns: [
         {
           id: id2,
+          selectionId: id3,
+          selectionStatus: 'REVIEWED',
+          preparedByMe: false,
+          canReviewSelection: false,
           createdAt: '2026-10-01T14:30:00Z',
           method: 'MUS',
           interval: '50000.00',
@@ -69,6 +73,11 @@ describe('Audit Fieldwork Contracts', () => {
           populationCount: 450,
           coveragePercent: '82.50',
           sourceDigest: hash64,
+          selectionDigest: hash64,
+          engineVersion: 'audit-sampling-engine.v1',
+          previewDigest: hash64,
+          orderingPolicy: 'SCHEDULE_SOURCE_LINE_THEN_STABLE_ROW_ID',
+          attributeFields: [],
           reproduces: true,
         },
       ],
@@ -100,6 +109,7 @@ describe('Audit Fieldwork Contracts', () => {
         },
       ],
       canManageFieldwork: true,
+      canReviewSelections: true,
       canViewReviewNotes: true,
       canAddOrResolveReviewNotes: true,
       canRespondToReviewNotes: true,
@@ -113,11 +123,31 @@ describe('Audit Fieldwork Contracts', () => {
     expect(decoded.differences.length).toBe(1);
     expect(decoded.aggregate?.conclusion).toContain('tolerable error');
     expect(decoded.samplingRuns[0].method).toBe('MUS');
+    expect(decoded.samplingRuns[0].selectionStatus).toBe('REVIEWED');
     expect(decoded.physicalItems[0].fileIndex).toBe('PF-01');
     expect(decoded.canManageFieldwork).toBe(true);
+    expect(decoded.canReviewSelections).toBe(true);
     expect(decoded.canViewReviewNotes).toBe(true);
     expect(decoded.canAddOrResolveReviewNotes).toBe(true);
     expect(decoded.canRespondToReviewNotes).toBe(true);
+  });
+
+  it('decodes the selected sample with execution evidence and independent review state', () => {
+    const decoded = decodeSampleSet({
+      selectionId: id1, procedureId: id2, method: 'ATTRIBUTE_STRATA', rationale: 'Cover the approved account groups.', status: 'REVIEWED',
+      selectedCount: 1, selectedSignedTotal: '-100.00', inputGeneration: 2, testedCount: 1, exceptionCount: 1,
+      cutOffRecordedCount: 0, subsequentMatchedCount: 0, totalCount: 1, page: 1, pageSize: 100,
+      items: [{ selectionItemId: id3, stableRowId: 'ROW-009', signedAmount: '-100.00', currency: 'QAR', inclusionReason: 'Account group: 4000',
+        testResult: 'EXCEPTION', testRevision: 1, exceptionAmount: '100.00', auditItemTestId: id1,
+        testWorkPerformed: 'Agreed to the invoice and dispatch record.', evidenceReferences: ['invoice-9', 'dispatch-9'],
+        contradictoryEvidence: 'Dispatch occurred after year end.', followUp: 'Assess the cut-off adjustment.', testReviewed: false,
+        testReviewDecision: 'CHANGES_REQUIRED', testReviewComment: 'Obtain the signed delivery note.', canReviewTest: true }],
+    }, 'sampleSet');
+
+    expect(decoded.items[0].stableRowId).toBe('ROW-009');
+    expect(decoded.items[0].evidenceReferences).toEqual(['invoice-9', 'dispatch-9']);
+    expect(decoded.items[0].followUp).toContain('cut-off');
+    expect(decoded.items[0].canReviewTest).toBe(true);
   });
 
   it('decodes a valid procedure review payload', () => {

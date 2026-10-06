@@ -20,6 +20,10 @@ public sealed class AuditSamplingRun
   public int? Seed { get; set; }
   /// <summary>Only for ATTRIBUTE_STRATA: the reviewer-defined attribute fields (JSON array) needed to re-perform the draw.</summary>
   public string? AttributeFields { get; set; }
+  /// <summary>Ordering contract applied to the population before selection; null on legacy runs.</summary>
+  public string? OrderingPolicy { get; set; }
+  /// <summary>Digest binding an exact reviewed preview to this persisted selection; null on legacy runs.</summary>
+  public string? PreviewDigest { get; set; }
   public int PopulationCount { get; set; }
   public decimal PopulationAbsoluteTotal { get; set; }
   public int SelectedCount { get; set; }

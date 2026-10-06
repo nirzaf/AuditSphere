@@ -1,5 +1,6 @@
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Audit;
+using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Security;
@@ -12,6 +13,14 @@ namespace AuditSphereOps.Domain.Tests;
 [Trait("Profile", "Database")]
 public sealed class AuditSamplingSelectionIsolationTests
 {
+  private static async Task<CommandResult<SamplingRunView>> RunReviewedSamplingAsync(
+    IAuditSphereDbContext db, ActorContext actor, RunSamplingRequest request)
+  {
+    var preview = await AuditFieldworkService.PreviewSamplingAsync(db, actor, request);
+    if (!preview.Succeeded) return CommandResult<SamplingRunView>.Fail(preview.ErrorCode!, preview.Message!);
+    return await AuditFieldworkService.RunSamplingAsync(db, actor, request with { ExpectedPreviewDigest = preview.Value!.PreviewDigest });
+  }
+
   [Fact(DisplayName = "Client-scoped fieldwork cannot reach sibling schedules, selections, tests or sampling runs")]
   public async Task SiblingIdentifiers_AreDeniedAcrossSchedulesSelectionsAndSampling()
   {
@@ -68,7 +77,7 @@ public sealed class AuditSamplingSelectionIsolationTests
       Assert.True((await AuditFieldworkService.ReviewItemTestAsync(db, reviewer,
         new ReviewItemTestRequest(itemTestId, AuditItemTestReviewDecisions.Reviewed, "Evidence agrees."))).Succeeded);
 
-      var run = await AuditFieldworkService.RunSamplingAsync(db, preparer,
+      var run = await RunReviewedSamplingAsync(db, preparer,
         new RunSamplingRequest(clientB.EngagementId, samplingProcedureId, scheduleId, "RANDOM", null, null, 1, 73, "Select one row."));
       Assert.True(run.Succeeded, run.Message);
       samplingRunId = run.Value!.Run.Id;

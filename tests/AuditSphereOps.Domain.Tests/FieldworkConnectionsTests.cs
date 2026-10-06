@@ -2,6 +2,7 @@ using System.Text;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Audit;
+using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Completion;
@@ -41,6 +42,14 @@ public sealed class FieldworkConnectionsTests
 
   private static RoleGrant Grant(Guid firmId, AppUser user, string role) => new()
   { Id = Guid.NewGuid(), FirmId = firmId, UserId = user.Id, Role = role, GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = user.Id };
+
+  private static async Task<CommandResult<SamplingRunView>> RunReviewedSamplingAsync(
+    IAuditSphereDbContext db, ActorContext actor, RunSamplingRequest request)
+  {
+    var preview = await AuditFieldworkService.PreviewSamplingAsync(db, actor, request);
+    if (!preview.Succeeded) return CommandResult<SamplingRunView>.Fail(preview.ErrorCode!, preview.Message!);
+    return await AuditFieldworkService.RunSamplingAsync(db, actor, request with { ExpectedPreviewDigest = preview.Value!.PreviewDigest });
+  }
 
   private static async Task<World> SeedAsync(PgTestSchema pg)
   {
@@ -212,7 +221,7 @@ public sealed class FieldworkConnectionsTests
     await using var pg = await PgTestSchema.CreateAsync();
     var w = await SeedAsync(pg);
     var now = DateTimeOffset.UtcNow;
-    Guid revenueProcedure, cashProcedure, systematicProcedure, scheduleId;
+    Guid revenueProcedure, cashProcedure, systematicProcedure, attributeProcedure, staleProcedure, scheduleId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var datasetId = Guid.NewGuid();
@@ -243,16 +252,20 @@ public sealed class FieldworkConnectionsTests
       var revenue = Procedure("REV-01", "Revenue", "Test revenue cut-off");
       var cash = Procedure("CSH-01", "Cash and bank", "Agree bank balances to confirmations");
       var systematicStep = Procedure("SMP-01", "Sampling", "Select systematic random transactions");
-      db.AuditProcedures.AddRange(revenue, cash, systematicStep);
+      var attributeStep = Procedure("SMP-02", "Sampling", "Select attribute-stratified transactions");
+      var staleStep = Procedure("SMP-03", "Sampling", "Review stale preview behavior");
+      db.AuditProcedures.AddRange(revenue, cash, systematicStep, attributeStep, staleStep);
       systematicProcedure = systematicStep.Id;
+      attributeProcedure = attributeStep.Id;
+      staleProcedure = staleStep.Id;
       (revenueProcedure, cashProcedure) = (revenue.Id, cash.Id);
       scheduleId = Guid.NewGuid();
       db.AuditSchedules.Add(new AuditSchedule { Id = scheduleId, FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId, ScheduleType = "SALES_LISTING",
         EntityIdentifier = "E", SourceReceiptReference = "PBC-1", Currency = "QAR", SignConvention = "DEBIT_POSITIVE", SourceHash = Hashing.Sha256Hex("s"), RowCount = 20,
         Status = AuditScheduleStatuses.Approved, CreatedByUserId = w.Senior.Id, CreatedAt = now });
       db.AuditScheduleRows.AddRange(Enumerable.Range(1, 20).Select(i => new AuditScheduleRow { Id = Guid.NewGuid(), FirmId = w.FirmId, ClientId = w.ClientId,
-        EngagementId = w.EngagementId, ScheduleId = scheduleId, StableRowId = $"INV-{i:000}", SourceLineNumber = i, AccountCode = "4000", Description = $"Invoice {i}",
-        SignedAmount = i * 100m, Currency = "QAR", CreatedAt = now }));
+        EngagementId = w.EngagementId, ScheduleId = scheduleId, StableRowId = $"INV-{i:000}", SourceLineNumber = i, AccountCode = i <= 10 ? "4000" : "4010", Description = $"Invoice {i}",
+        SignedAmount = i * 100m, Currency = "QAR", TransactionDate = new DateOnly(2026, i <= 10 ? 1 : 2, Math.Min(i, 28)), CreatedAt = now }));
       await db.SaveChangesAsync();
     }
 
@@ -268,7 +281,7 @@ public sealed class FieldworkConnectionsTests
       Assert.Equal([cashProcedure], statements.FinancialPosition.Lines.Single(x => x.DestinationCode == "CASH").Procedures.Select(x => x.ProcedureId));
 
       // Integrated sampling: MUS over the approved schedule, logged and reproducible.
-      var run = await AuditFieldworkService.RunSamplingAsync(db, w.Auditor, new(w.EngagementId, revenueProcedure, scheduleId, "MUS", 5000m, null, null, null, "MUS over sales listing"));
+      var run = await RunReviewedSamplingAsync(db, w.Auditor, new(w.EngagementId, revenueProcedure, scheduleId, "MUS", 5000m, null, null, null, "MUS over sales listing"));
       Assert.True(run.Succeeded, run.Message);
       Assert.True(run.Value!.Reproduces);
       Assert.Equal(run.Value.Run.SelectedCount, run.Value.Items.Count);
@@ -276,10 +289,10 @@ public sealed class FieldworkConnectionsTests
       var reloaded = (await AuditFieldworkService.GetSamplingRunAsync(db, w.Manager, run.Value.Run.Id)).Value!;
       Assert.True(reloaded.Reproduces);
       Assert.Equal(run.Value.Items.Select(x => x.StableRowId), reloaded.Items.Select(x => x.StableRowId));
-      var random = await AuditFieldworkService.RunSamplingAsync(db, w.Auditor, new(w.EngagementId, cashProcedure, scheduleId, "RANDOM", null, null, 5, 42, "Random five"));
+      var random = await RunReviewedSamplingAsync(db, w.Auditor, new(w.EngagementId, cashProcedure, scheduleId, "RANDOM", null, null, 5, 42, "Random five"));
       Assert.True(random.Succeeded, random.Message);
       Assert.Equal(5, random.Value!.Run.SelectedCount);
-      var systematic = await AuditFieldworkService.RunSamplingAsync(db, w.Auditor,
+      var systematic = await RunReviewedSamplingAsync(db, w.Auditor,
         new(w.EngagementId, systematicProcedure, scheduleId, "SYSTEMATIC", null, null, 5, 42, "Systematic random five"));
       Assert.True(systematic.Succeeded, systematic.Message);
       Assert.Equal(5, systematic.Value!.Run.SelectedCount);
@@ -287,6 +300,124 @@ public sealed class FieldworkConnectionsTests
       var systematicReload = await AuditFieldworkService.GetSamplingRunAsync(db, w.Manager, systematic.Value.Run.Id);
       Assert.True(systematicReload.Value!.Reproduces);
       Assert.Equal(systematic.Value.Items.Select(x => x.StableRowId), systematicReload.Value.Items.Select(x => x.StableRowId));
+
+      var attributeRequest = new RunSamplingRequest(w.EngagementId, attributeProcedure, scheduleId, AuditSamplingMethods.AttributeStrata,
+        null, null, 5, 17, "Stratify the approved sales sample.",
+        [SamplingAttributeFields.Account, SamplingAttributeFields.Currency, SamplingAttributeFields.Direction, SamplingAttributeFields.Month]);
+      var attributePreview = await AuditFieldworkService.PreviewSamplingAsync(db, w.Auditor, attributeRequest);
+      Assert.True(attributePreview.Succeeded, attributePreview.Message);
+      Assert.Equal(5, attributePreview.Value!.Outcome.SelectedCount);
+      Assert.Equal(2, attributePreview.Value.Outcome.Strata!.Count);
+      Assert.All(attributePreview.Value.Outcome.Strata, x => Assert.Equal(x.Slots, x.SelectedCount));
+      var attributeRun = await AuditFieldworkService.RunSamplingAsync(db, w.Auditor,
+        attributeRequest with { ExpectedPreviewDigest = attributePreview.Value.PreviewDigest });
+      Assert.True(attributeRun.Succeeded, attributeRun.Message);
+      Assert.True(attributeRun.Value!.Reproduces);
+      Assert.Equal(attributePreview.Value.PreviewDigest, attributeRun.Value.Run.PreviewDigest);
+      Assert.Equal(AuditFieldworkService.SamplingOrderingPolicy, attributeRun.Value.Run.OrderingPolicy);
+      Assert.Equal(["ACCOUNT", "CURRENCY", "DIRECTION", "MONTH"], System.Text.Json.JsonSerializer.Deserialize<string[]>(attributeRun.Value.Run.AttributeFields!)!);
+      var attributeRowId = await db.AuditScheduleRows.Where(x => x.ScheduleId == scheduleId).OrderBy(x => x.SourceLineNumber).Select(x => x.Id).FirstAsync();
+      await db.AuditScheduleRows.Where(x => x.Id == attributeRowId).ExecuteUpdateAsync(s => s.SetProperty(x => x.AccountCode, "4999"));
+      var changedAttributeReplay = await AuditFieldworkService.GetSamplingRunAsync(db, w.Manager, attributeRun.Value.Run.Id);
+      Assert.False(changedAttributeReplay.Value!.Reproduces);
+      await db.AuditScheduleRows.Where(x => x.Id == attributeRowId).ExecuteUpdateAsync(s => s.SetProperty(x => x.AccountCode, "4000"));
+      var attributeRetry = await AuditFieldworkService.RunSamplingAsync(db, w.Auditor,
+        attributeRequest with { ExpectedPreviewDigest = attributePreview.Value.PreviewDigest });
+      Assert.True(attributeRetry.Succeeded, attributeRetry.Message);
+      Assert.Equal(attributeRun.Value.Run.Id, attributeRetry.Value!.Run.Id);
+      Assert.Equal(1, await db.AuditSamplingRuns.CountAsync(x => x.PreviewDigest == attributePreview.Value.PreviewDigest));
+      var changedRetry = await AuditFieldworkService.RunSamplingAsync(db, w.Auditor,
+        attributeRequest with { SampleSize = 6, ExpectedPreviewDigest = attributePreview.Value.PreviewDigest });
+      Assert.False(changedRetry.Succeeded);
+      Assert.Equal(ErrorCodes.IdempotencyConflict, changedRetry.ErrorCode);
+
+      var staleRequest = new RunSamplingRequest(w.EngagementId, staleProcedure, scheduleId, AuditSamplingMethods.AttributeStrata,
+        null, null, 5, 18, "Original reviewed intent.", [SamplingAttributeFields.Account]);
+      var stalePreview = await AuditFieldworkService.PreviewSamplingAsync(db, w.Auditor, staleRequest);
+      Assert.True(stalePreview.Succeeded, stalePreview.Message);
+      var staleAttempt = await AuditFieldworkService.RunSamplingAsync(db, w.Auditor,
+        staleRequest with { Rationale = "Changed after preview.", ExpectedPreviewDigest = stalePreview.Value!.PreviewDigest });
+      Assert.False(staleAttempt.Succeeded);
+      Assert.Equal(ErrorCodes.GenerationStale, staleAttempt.ErrorCode);
+      Assert.False(await db.AuditSelections.AnyAsync(x => x.ProcedureId == staleProcedure));
+
+      var tooSmall = await AuditFieldworkService.PreviewSamplingAsync(db, w.Auditor,
+        staleRequest with { SampleSize = 1, AttributeFields = [SamplingAttributeFields.Account] });
+      Assert.False(tooSmall.Succeeded);
+      Assert.Contains("at least one slot for each of the 2 strata", tooSmall.Message, StringComparison.OrdinalIgnoreCase);
+
+      var firstPopulationRow = await db.AuditScheduleRows.Where(x => x.ScheduleId == scheduleId).OrderBy(x => x.SourceLineNumber)
+        .Select(x => x.Id).FirstAsync();
+      await db.AuditScheduleRows.Where(x => x.Id == firstPopulationRow).ExecuteUpdateAsync(s => s.SetProperty(x => x.Currency, "USD"));
+      var mixedCurrency = await AuditFieldworkService.PreviewSamplingAsync(db, w.Auditor, attributeRequest);
+      Assert.False(mixedCurrency.Succeeded);
+      Assert.Contains("mixed currencies", mixedCurrency.Message, StringComparison.OrdinalIgnoreCase);
+      await db.AuditScheduleRows.Where(x => x.Id == firstPopulationRow).ExecuteUpdateAsync(s => s.SetProperty(x => x.Currency, "QAR"));
+
+      var atomicRequest = staleRequest with { Seed = 19, Rationale = "Exercise sampling save recovery." };
+      var atomicPreview = await AuditFieldworkService.PreviewSamplingAsync(db, w.Auditor, atomicRequest);
+      Assert.True(atomicPreview.Succeeded, atomicPreview.Message);
+      await db.Database.ExecuteSqlRawAsync("""
+        CREATE FUNCTION fail_sampling_run_insert_for_test() RETURNS trigger
+        LANGUAGE plpgsql AS $function$
+        BEGIN
+          RAISE EXCEPTION 'forced sampling run insert failure';
+        END
+        $function$;
+        CREATE TRIGGER fail_sampling_run_insert_for_test
+        BEFORE INSERT ON audit_sampling_runs
+        FOR EACH ROW EXECUTE FUNCTION fail_sampling_run_insert_for_test();
+        """);
+      await Assert.ThrowsAsync<DbUpdateException>(async () => await AuditFieldworkService.RunSamplingAsync(db, w.Auditor,
+        atomicRequest with { ExpectedPreviewDigest = atomicPreview.Value!.PreviewDigest }));
+      Assert.False(await db.AuditSelections.AsNoTracking().AnyAsync(x => x.ProcedureId == staleProcedure));
+      Assert.False(await db.AuditSamplingRuns.AsNoTracking().AnyAsync(x => x.PreviewDigest == atomicPreview.Value!.PreviewDigest));
+      await db.Database.ExecuteSqlRawAsync("""
+        DROP TRIGGER fail_sampling_run_insert_for_test ON audit_sampling_runs;
+        DROP FUNCTION fail_sampling_run_insert_for_test();
+        """);
+      var recoveredRun = await AuditFieldworkService.RunSamplingAsync(db, w.Auditor,
+        atomicRequest with { ExpectedPreviewDigest = atomicPreview.Value!.PreviewDigest });
+      Assert.True(recoveredRun.Succeeded, recoveredRun.Message);
+      var recoveredRetry = await AuditFieldworkService.RunSamplingAsync(db, w.Auditor,
+        atomicRequest with { ExpectedPreviewDigest = atomicPreview.Value.PreviewDigest });
+      Assert.True(recoveredRetry.Succeeded, recoveredRetry.Message);
+      Assert.Equal(recoveredRun.Value!.Run.Id, recoveredRetry.Value!.Run.Id);
+      Assert.Equal(1, await db.AuditSelections.AsNoTracking().CountAsync(x => x.ProcedureId == staleProcedure));
+      Assert.Equal(1, await db.AuditSamplingRuns.AsNoTracking().CountAsync(x => x.PreviewDigest == atomicPreview.Value.PreviewDigest));
+
+      var recoveredSelection = await db.AuditSelections.AsNoTracking().SingleAsync(x => x.Id == recoveredRun.Value.Run.SelectionId);
+      Assert.Equal(AuditSelectionStatuses.Submitted, recoveredSelection.Status);
+      Assert.True((await AuditFieldworkService.ReviewSelectionAsync(db, w.Manager,
+        new ReviewSelectionRequest(recoveredSelection.Id, AuditSelectionStatuses.Reviewed, "Independently reviewed the exact selected rows."))).Succeeded);
+      var sampleSet = await AuditSamplingService.GetSampleSetAsync(db, w.Auditor, recoveredSelection.Id);
+      Assert.True(sampleSet.Succeeded, sampleSet.Message);
+      var sampledItem = Assert.Single(sampleSet.Value!.Items);
+      Assert.Equal(AuditItemTestResults.Pending, sampledItem.TestResult);
+      var missingFollowUp = await AuditFieldworkService.RecordItemTestAsync(db, w.Auditor,
+        new RecordItemTestRequest(sampledItem.SelectionItemId, "Compared the item with source evidence.", ["sales-invoice-001"],
+          AuditItemTestResults.Exception, 100m, null, null));
+      Assert.False(missingFollowUp.Succeeded);
+      Assert.Contains("follow-up", missingFollowUp.Message, StringComparison.OrdinalIgnoreCase);
+      var recordedTest = await AuditFieldworkService.RecordItemTestAsync(db, w.Auditor,
+        new RecordItemTestRequest(sampledItem.SelectionItemId, "Compared the item with source evidence.", ["sales-invoice-001"],
+          AuditItemTestResults.Exception, 100m, "Invoice date falls after year end.", "Assess cut-off and obtain the delivery note."));
+      Assert.True(recordedTest.Succeeded, recordedTest.Message);
+      var preparedView = await AuditSamplingService.GetSampleSetAsync(db, w.Auditor, recoveredSelection.Id);
+      Assert.True(preparedView.Succeeded, preparedView.Message);
+      Assert.Equal(AuditItemTestResults.Exception, preparedView.Value!.Items.Single().TestResult);
+      Assert.Equal(100m, preparedView.Value.Items.Single().ExceptionAmount);
+      Assert.Equal("Assess cut-off and obtain the delivery note.", preparedView.Value.Items.Single().FollowUp);
+      Assert.Equal(["sales-invoice-001"], preparedView.Value.Items.Single().EvidenceReferences);
+      var reviewerView = await AuditSamplingService.GetSampleSetAsync(db, w.Manager, recoveredSelection.Id);
+      Assert.True(reviewerView.Value!.Items.Single().CanReviewTest);
+      Assert.True((await AuditFieldworkService.ReviewItemTestAsync(db, w.Manager,
+        new ReviewItemTestRequest(recordedTest.Value!.AuditItemTestId, AuditItemTestReviewDecisions.Reviewed,
+          "Exception and follow-up reviewed."))).Succeeded);
+      var completedSampleSet = await AuditSamplingService.GetSampleSetAsync(db, w.Manager, recoveredSelection.Id);
+      Assert.True(completedSampleSet.Value!.Items.Single().TestReviewed);
+      Assert.False(completedSampleSet.Value.Items.Single().CanReviewTest);
+
       await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"UPDATE audit_sampling_runs SET seed = 7 WHERE id = {random.Value.Run.Id}"));
 
       // Physical file index: X-1 in Box 3, linked both ways, with movement history.
