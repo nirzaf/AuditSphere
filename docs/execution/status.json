@@ -4,12 +4,12 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "64b49210a8fb350ff2e9bb7bffbc043ca2ed47a9",
-  "verifiedCommit": "64b49210a8fb350ff2e9bb7bffbc043ca2ed47a9",
+  "headCommit": "5912f1ba03d8ff61aadf37e854cfa44519dde6fd",
+  "verifiedCommit": "e9b0736081ed2749fc56d82a56f0f48d842f9897",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
   "productionEnabled": false,
-  "verifiedAt": "2026-10-06T19:34:36Z",
+  "verifiedAt": "2026-10-06T19:56:52Z",
   "toolchain": {
     "sdk": ".NET 10",
     "efCore": "10.0.12",
@@ -10897,11 +10897,53 @@
       "fullSolutionRegression": "NOT_RUN for this slice; latest complete PostgreSQL-backed Release solution result remains 1001/1001 at ead85032de2ccc4d4c8043398fa8471d395376a9.",
       "efModelDrift": "NOT_RUN for this slice; no EF entity/model changed.",
       "openGaps": [
-        "No snapshot freshness/staleness acceptance window is defined or verified.",
         "Expired/revoked Administrator session and cross-firm Administrator identity cases remain unverified.",
-        "Full corrupt-file recovery, human assistive-technology and wider-locale acceptance remain open."
+        "Corrupt-file recovery, human assistive-technology and wider-locale acceptance remain open."
       ],
       "retirementDecision": "NOT_READY"
+    },
+    "angularProjectProgressFreshness": {
+      "sourceCommit": "e9b0736081ed2749fc56d82a56f0f48d842f9897",
+      "observedAt": "2026-10-06T19:56:52Z",
+      "status": "PASS_LOCAL_SLICE",
+      "caseId": "ANGULAR-PROJECT-PROGRESS-FRESHNESS-01",
+      "focusedApiTests": {
+        "status": "PASS",
+        "passed": 10,
+        "failed": 0,
+        "skipped": 0,
+        "command": "dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~ProjectProgressReaderTests' --logger 'console;verbosity=minimal'",
+        "coverage": "UTC publication metadata, fresh through day 30, stale after day 30, and fail-closed missing, malformed, non-UTC and materially future timestamps; existing invalid task, empty publication and path-traversal cases pass."
+      },
+      "authorizationJourney": {
+        "status": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~AngularProjectProgressAuthorizationJourneyTests' --logger 'console;verbosity=minimal'",
+        "coverage": "Authenticated isolated-PostgreSQL Angular journey confirms publication timestamp, UTC offset, freshness window and the stale-after label in the administrator-only snapshot region; the separate role matrix continues to deny non-administrators without snapshot fields."
+      },
+      "angularProductionBuild": {
+        "status": "PASS_WITH_COMPONENT_STYLE_WARNING",
+        "bundle": "349.63 kB initial raw bundle; 93.92 kB estimated transfer.",
+        "warning": "Commercial Settings component stylesheet is 7.53 kB against the 4 kB component-style budget."
+      },
+      "releaseSolutionBuild": {
+        "status": "PASS",
+        "warnings": 0,
+        "errors": 0,
+        "command": "dotnet build AuditSphereOps.slnx --no-restore --configuration Release -m:1"
+      },
+      "taskPackValidation": "PASS: 75 tasks, 21 work packages, 111 commands/queries, 52 criteria, 30 journeys, 8 fixtures, and 2487 local links; no validation errors.",
+      "builtInBrowser": "STALE_LOCAL_HOST: authenticated /ui/app/administration/project-progress rendered on localhost:5099, then showed the safe 'Unsupported response' message because the long-running API does not expose the freshness response contract from this source commit. This is not a pass for the updated endpoint/UI; the isolated API and Playwright journey use the current implementation. No business mutation was submitted.",
+      "fullSolutionRegression": "NOT_RUN for this slice. The later accounting and client-role merges at current HEAD 5912f1ba are also not included in the tested source snapshot.",
+      "efModelDrift": "NOT_RUN for this slice; no EF entity or model changed.",
+      "retirementDecision": "NOT_READY",
+      "openGaps": [
+        "Expired/revoked Administrator session and cross-firm Administrator identity cases remain unverified.",
+        "Corrupt-file recovery, human assistive-technology and wider-locale acceptance remain open.",
+        "Production-like canary/rollback, live Microsoft gates and separate owner retirement acceptance remain open."
+      ]
     },
     "angularPracticeAnalyticsCurrencySafety": {
       "sourceCommit": "64b49210a8fb350ff2e9bb7bffbc043ca2ed47a9",
