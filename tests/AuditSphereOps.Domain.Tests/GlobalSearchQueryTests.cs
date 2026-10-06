@@ -189,7 +189,13 @@ public sealed class GlobalSearchQueryTests
     var (_, auditor) = await UserAsync(w, ("Auditor", w.Own.ClientId, w.Own.EngagementId));
     var (_, accountant) = await UserAsync(w, ("Accountant", w.Own.ClientId, w.Own.EngagementId));
     var (_, financeManager) = await UserAsync(w, ("FinanceManager", w.Own.ClientId, null));
+    var (_, financeReviewer) = await UserAsync(w, ("FinanceReviewer", w.Own.ClientId, null));
     var (_, relationshipManager) = await UserAsync(w, ("RelationshipManager", null, null));
+    var (_, senior) = await UserAsync(w, ("Senior", null, null));
+    var (_, administrator) = await UserAsync(w, ("Administrator", null, null));
+    var (_, reviewer) = await UserAsync(w, ("Reviewer", w.Own.ClientId, w.Own.EngagementId));
+    var (_, accountingPreparer) = await UserAsync(w, ("AccountingPreparer", w.Own.ClientId, w.Own.EngagementId));
+    var (_, accountingReviewer) = await UserAsync(w, ("AccountingReviewer", w.Own.ClientId, w.Own.EngagementId));
 
     static string[] RecordKinds(GlobalSearchResult result) => result.Hits
       .Where(hit => hit.Kind != GlobalSearchQuery.Kinds.Page)
@@ -204,8 +210,19 @@ public sealed class GlobalSearchQueryTests
       RecordKinds(await SearchAsync(w, accountant, "PBC TEST CLIENT")));
     Assert.Equal([GlobalSearchQuery.Kinds.Invoice],
       RecordKinds(await SearchAsync(w, financeManager, "PBC TEST CLIENT")));
+    Assert.Equal([GlobalSearchQuery.Kinds.Invoice],
+      RecordKinds(await SearchAsync(w, financeReviewer, "PBC TEST CLIENT")));
     Assert.Equal([GlobalSearchQuery.Kinds.Lead],
       RecordKinds(await SearchAsync(w, relationshipManager, Marker)));
+    Assert.Equal([GlobalSearchQuery.Kinds.Client, GlobalSearchQuery.Kinds.Engagement, GlobalSearchQuery.Kinds.PbcRequest],
+      RecordKinds(await SearchAsync(w, senior, "PBC TEST CLIENT")));
+    Assert.Contains((await SearchAsync(w, administrator, Marker)).Hits, hit => hit.Kind == GlobalSearchQuery.Kinds.Lead);
+    Assert.Equal([GlobalSearchQuery.Kinds.PbcRequest],
+      RecordKinds(await SearchAsync(w, reviewer, "PBC TEST CLIENT")));
+    Assert.Equal([GlobalSearchQuery.Kinds.PbcRequest],
+      RecordKinds(await SearchAsync(w, accountingPreparer, "PBC TEST CLIENT")));
+    Assert.Equal([GlobalSearchQuery.Kinds.PbcRequest],
+      RecordKinds(await SearchAsync(w, accountingReviewer, "PBC TEST CLIENT")));
   }
 
   [Fact]
