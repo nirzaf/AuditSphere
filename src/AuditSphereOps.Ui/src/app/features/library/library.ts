@@ -43,9 +43,9 @@ export const decodeHits = arr(obj({ documentId: guid, code: text, title: text, c
           <details>
             <summary>Prepare a new version</summary>
             <form class="inline-form" (submit)="$event.preventDefault(); draft(e.id)">
-              <label>Content <textarea name="body" [(ngModel)]="next.body" rows="6" maxlength="200000"></textarea></label>
-              <label>Source reference <input name="source" [(ngModel)]="next.source" maxlength="300" /></label>
-              <label>Effective from <input type="date" name="effective" [(ngModel)]="next.effective" /></label>
+              <label>Content <textarea name="body" [(ngModel)]="next.body" rows="6" maxlength="200000" required></textarea></label>
+              <label>Source reference <input name="source" [(ngModel)]="next.source" maxlength="300" required /></label>
+              <label>Effective from <input type="date" name="effective" [(ngModel)]="next.effective" required /></label>
               <button matButton="outlined" type="submit" [disabled]="cmd.busy()">Save draft version</button>
             </form>
           </details>
@@ -64,12 +64,12 @@ export const decodeHits = arr(obj({ documentId: guid, code: text, title: text, c
       <details>
         <summary>Add an entry (Manager, Partner or administrator)</summary>
         <form class="inline-form" (submit)="$event.preventDefault(); create()">
-          <label>Code <input name="code" [(ngModel)]="fresh.code" maxlength="40" /></label>
-          <label>Title <input name="title" [(ngModel)]="fresh.title" maxlength="200" /></label>
+          <label>Code <input name="code" [(ngModel)]="fresh.code" maxlength="40" required /></label>
+          <label>Title <input name="title" [(ngModel)]="fresh.title" maxlength="200" required /></label>
           <label>Category <select name="category" [(ngModel)]="fresh.category"><option value="IFRS">IFRS</option><option value="ISA">ISA</option><option value="FIRM_GUIDANCE">Firm guidance</option></select></label>
           <label>Audience <select name="audience" [(ngModel)]="fresh.audience"><option value="ALL_STAFF">All staff</option><option value="PARTNERS_MANAGERS">Partners and managers</option></select></label>
-          <label>Content <textarea name="body" [(ngModel)]="fresh.body" rows="5" maxlength="200000"></textarea></label>
-          <label>Authoritative source <input name="source" [(ngModel)]="fresh.source" maxlength="300" /></label>
+          <label>Content <textarea name="body" [(ngModel)]="fresh.body" rows="5" maxlength="200000" required></textarea></label>
+          <label>Authoritative source <input name="source" [(ngModel)]="fresh.source" maxlength="300" required /></label>
           <button matButton="filled" type="submit" [disabled]="cmd.busy()">Create draft entry</button>
         </form>
       </details>

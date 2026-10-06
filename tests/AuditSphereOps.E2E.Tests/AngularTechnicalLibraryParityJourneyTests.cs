@@ -52,6 +52,10 @@ public sealed class AngularTechnicalLibraryParityJourneyTests
     const string restrictedTitle = "Leadership only migration note";
     var (managerPage, managerOrigin) = await SignInAsync(manager, "/app/library");
     await managerPage.GetByText("Add an entry (Manager, Partner or administrator)", new() { Exact = true }).ClickAsync();
+    await managerPage.GetByRole(AriaRole.Button, new() { Name = "Create draft entry", Exact = true }).ClickAsync();
+    Assert.False(await managerPage.Locator("input[name='code']").EvaluateAsync<bool>("el => el.validity.valid"));
+    await using (var db = host.CreateDbContext())
+      Assert.Empty(await db.TechnicalLibraryDocuments.AsNoTracking().Where(x => x.FirmId == firmId).ToListAsync());
     await managerPage.Locator("input[name='code']").FillAsync(code);
     await managerPage.Locator("input[name='title']").FillAsync(title);
     await managerPage.Locator("select[name='category']").SelectOptionAsync("ISA");
@@ -127,6 +131,10 @@ public sealed class AngularTechnicalLibraryParityJourneyTests
       Assert.Equal(AuditSphereOps.Domain.Shared.Hashing.Sha256Hex(bodyV2), versions[1].ContentSha256);
       Assert.Equal(draftV1Id, versions[0].Id);
     }
+    await partnerPage.GotoAsync($"{partnerOrigin}{entryPath}?v=1");
+    await Assertions.Expect(partnerPage.GetByText(bodyV1, new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(partnerPage.Locator("section.panel[aria-labelledby='entry-heading']"))
+      .ToContainTextAsync("version 1 (superseded)");
 
     // Manager can prepare leadership-only material. Staff cannot discover it in the catalogue or open it by ID.
     await managerPage.GotoAsync($"{managerOrigin}/app/library");
