@@ -11771,6 +11771,55 @@
         "Concurrent process committed implementation with temporary SDK roll-forward override; override restored in sourceCommit.",
         "Concurrent process merged branch and removed checkout; final epic merge was not performed by this task."
       ]
+    },
+    "clientOperationalTrialBalance": {
+      "sourceCommit": "75321a6b",
+      "status": "LOCAL_SLICE_VERIFIED",
+      "requirements": "CA-24-AC01/AC02 native period activity foundation; partial CA-23 date filtering",
+      "domainFocused": {
+        "passed": 2,
+        "durationSeconds": 31,
+        "coverage": [
+          "Posted-only totals",
+          "Later-range opening without movement",
+          "Explicit zero-activity account inclusion",
+          "Invalid dates refused",
+          "Existing posting, immutable-history and reversal controls"
+        ]
+      },
+      "angularFocused": {
+        "passed": 9,
+        "coverage": [
+          "Exact money strings",
+          "Trial balance source identity",
+          "Row and control-total reconciliation",
+          "Numeric money and changed totals refused"
+        ]
+      },
+      "apiOpenApi": {
+        "passed": 5,
+        "durationSeconds": 7
+      },
+      "browserJourney": {
+        "passed": 1,
+        "durationSeconds": 46,
+        "finalBuiltSource": "75321a6b",
+        "initialFailure": "Reviewer refresh was disabled because draft period was empty; added independent ledger-period selection; rerun and final rebuild journey passed."
+      },
+      "builtInBrowser": "Synthetic selected-client workspace and filter controls inspected; report request occurred around failed fixture teardown and showed honest unavailable state. No console warnings/errors observed. Full report-flow proof is automated Chromium.",
+      "angularBuild": "PASS; existing commercial/settings.scss budget warning",
+      "releaseBuilds": "API and E2E test builds PASS with zero compiler warnings/errors",
+      "efPendingModelChanges": "NONE",
+      "fullRegression": "NOT_RUN",
+      "externalAcceptance": "NOT_RUN",
+      "productionMigration": "NOT_RUN; no schema change in this slice",
+      "contract": "Generated full contract includes preexisting integrated client-relationship endpoints as well as new date filters and TrialBalance schemas.",
+      "limitations": [
+        "Opening includes only earlier posted activity within selected period; cutover openings and year-end carry-forward incomplete.",
+        "Cross-request pagination/export does not yet retain a stable report identity.",
+        "Source acceptance, reporting overlays, comparisons and exports incomplete.",
+        "Full CA-01 through CA-36 scope remains active; no final merge performed by this task."
+      ]
     }
   },
   "documentationWork": {

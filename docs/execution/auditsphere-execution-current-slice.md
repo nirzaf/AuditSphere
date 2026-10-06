@@ -13,6 +13,12 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Native activity Trial Balance and report date selection
+
+The native ledger report now returns a Trial Balance from the same repeatable-read database snapshot as its GL rows and full-result movement totals. Users select a reporting period independently of journal preparation, choose dates within that period and optionally include approved chart accounts with no posted activity. Per-account opening activity, period debits/credits and closing balances reconcile exactly. Only posted native journals contribute. Angular validates exact decimal strings, unique account identities, row equations and overall controls, and fences stale filter responses.
+
+This is a period-activity projection: opening means posted activity earlier in the same selected period. Reviewed cutover/opening postings, prior-period carry-forward, immutable native-source acceptance, adjusted views, comparative mapping and durable exports remain outstanding. Separate refreshed or paginated requests do not yet share a persisted report identity. Tax and ancillary modules remain optional. Focused PostgreSQL, Angular, API and automated browser verification passed; exact evidence is in `verification.clientOperationalTrialBalance` in `status.json`. Full epic acceptance and final merge remain pending.
+
 ## Native manual journal full reversals
 
 Posted native manual journals now support a full reversal in an explicitly selected open correction period. The original remains posted; immutable lineage retains the reason and evidence reference, and database guards require exact swapped debit and credit lines. Identical concurrent preparation requests return the same draft. The reversal follows the normal preview, submission, independent approval and posting workflow. Journal and general-ledger readback show both directions of the correction relationship.
