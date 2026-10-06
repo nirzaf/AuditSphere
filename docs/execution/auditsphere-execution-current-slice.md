@@ -6040,3 +6040,45 @@ workflow. AS-COMP-26 remains open. The full solution regression was not rerun;
 the latest complete result remains 1001/1001 at `ead85032`. The test compiled
 the shared checkout alongside another agent's unrelated uncommitted engagement
 lifecycle route, which the tested finance journey did not exercise.
+
+## Currency-aware SRM differences and honest completion documents (AS-COMP-19)
+
+Revalidating the owner's completion backlog against the current head closed several findings
+by evidence first: the materiality policy (AS-COMP-12), balance-derived FSLI risk bands
+(AS-COMP-13), attribute-strata sampling (AS-COMP-17), monthly firm P&L from period movement
+(AS-COMP-27) and firm receivables ageing (AS-COMP-28) are all implemented at the current
+revision. The remaining calculation-facing defect in the completion chain was the review
+finding that the Summary Review Memorandum reports one signed sum of uncorrected differences
+and raw serialized materiality.
+
+At base `24eadbdb` (the two slice files landed on `master` inside the parallel session's
+`68500767` engagement-lifecycle commit with byte-identical content), the Summary Review
+Memorandum now presents uncorrected differences per currency with gross and signed-net
+amounts and a factual SAD/PM comparison that is explicitly unavailable without
+Partner-approved materiality or an approved translation basis. It adds a readable
+PM/TE/SAD materiality section with currency and benchmark source, a Red-areas callout,
+AJE proposed/agreed/rejected/applied counts, unresolved analytical-review variances, and
+confirmation outstanding/critical/closed totals. No immateriality conclusion is emitted
+anywhere in the memorandum. The Audit Findings Report replaces its single signed
+cross-currency total with the same per-currency table, and the representation letter
+replaces the unconditional computed immateriality assertion with the recorded per-currency
+facts plus management's own signed opinion, so the professional judgment stays with the
+human signatory. The facts digest now covers materiality currency, red areas, per-currency
+difference summaries and unresolved variances: changed inputs stale dependent memoranda
+while historical documents remain immutable.
+
+Verification ran in an isolated worktree because the shared checkout carried the other
+agent's in-flight planning/CRM edits. The fixture-eight journey proves equal-and-opposite
+QAR differences render gross 20,000.00 with signed net 0.00 and "Gross exceeds PM.", a USD
+difference stays separately identified with an explicitly unavailable comparison, the
+memorandum contains no immateriality wording, and the preparer cannot set the correction
+state while the Partner proposes one AJE and rejects another with a recorded reason. The
+focused PostgreSQL test passed 1/1, the full Domain suite passed 692/692, the Api suite
+passed 210/210, the whole-solution Release build passed with zero warnings/errors, and EF
+reported no pending model changes. Repeating the deliverables class and the Release build
+at the committed head `68500767` passed 7/7 and zero/zero; the shared checkout's failing
+deliverables runs (5/7) are attributable to the other agent's uncommitted edits, since the
+identical committed content passes in isolation. E2E/browser journeys and the serialized
+whole-solution regression were not rerun for this slice: no API route, contract or Angular
+surface changed. Tests used owned isolated PostgreSQL schemas; no Development or production
+state was changed. Blazor retirement remains `NOT_READY`.
