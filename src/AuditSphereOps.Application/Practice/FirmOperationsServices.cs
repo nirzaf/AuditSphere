@@ -36,7 +36,7 @@ public static class TechnicalLibraryService
     var auth = await AuthorizeAsync(db, actor, Curators, ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     if (await db.TechnicalLibraryDocuments.AnyAsync(x => x.FirmId == actor.FirmId && x.Code == code.Trim().ToUpperInvariant(), ct))
-      return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict, "That code already exists; add a new version instead.");
+      return CommandResult<Guid>.Fail(ErrorCodes.TechnicalLibrary.DuplicateCode, "That library code already exists. Choose another code or open the entry to prepare a new version.");
     var document = new TechnicalLibraryDocument { Id = Guid.CreateVersion7(), FirmId = actor.FirmId, Code = code.Trim().ToUpperInvariant(), Title = title.Trim(),
       Category = category, Audience = audience, CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow };
     db.TechnicalLibraryDocuments.Add(document);
