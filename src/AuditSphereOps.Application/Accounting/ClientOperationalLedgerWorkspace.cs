@@ -133,8 +133,8 @@ public static class ClientOperationalLedgerWorkspace
       return CommandResult.Fail(ErrorCodes.GateBlocked, "The journal period is closed or no longer covers its posting date.");
     var lines = await db.ClientOperationalJournalLines.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == clientId && x.JournalId == journalId)
       .OrderBy(x => x.LineNumber).ToListAsync(ct);
-    if (lines.Count < 2 || lines.Sum(x => x.Debit) <= 0 || lines.Sum(x => x.Debit) != lines.Sum(x => x.Credit))
-      return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "The journal is not balanced.");
+    if (!await ValidatePostingLinesAsync(db, actor.FirmId, clientId, journal.PostingDate, lines, ct))
+      return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "The journal no longer matches a unique approved chart and balanced active posting accounts.");
     journal.Status = "SUBMITTED";
     journal.SubmittedAt = DateTimeOffset.UtcNow;
     journal.Revision++;
@@ -177,8 +177,8 @@ public static class ClientOperationalLedgerWorkspace
       return CommandResult.Fail(ErrorCodes.GateBlocked, "The journal period is closed or no longer covers its posting date.");
     var lines = await db.ClientOperationalJournalLines.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == clientId && x.JournalId == journalId)
       .OrderBy(x => x.LineNumber).ToListAsync(ct);
-    if (lines.Count < 2 || lines.Sum(x => x.Debit) <= 0 || lines.Sum(x => x.Debit) != lines.Sum(x => x.Credit))
-      return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "The journal is not balanced.");
+    if (!await ValidatePostingLinesAsync(db, actor.FirmId, clientId, journal.PostingDate, lines, ct))
+      return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "The journal no longer matches a unique approved chart and balanced active posting accounts.");
     var decisionRecord = new ClientOperationalJournalDecision
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = clientId, JournalId = journalId,
@@ -220,6 +220,20 @@ public static class ClientOperationalLedgerWorkspace
       x.FirmId == firmId && x.ClientId == clientId && x.Status == AccountingWorkflowStates.Approved &&
       x.EffectiveFrom <= date && (x.EffectiveTo == null || x.EffectiveTo >= date)).Take(2).ToListAsync(ct);
     return matches.Count == 1 ? matches[0] : null;
+  }
+
+  private static async Task<bool> ValidatePostingLinesAsync(IClientAccountingDbContext db, Guid firmId, Guid clientId,
+    DateOnly postingDate, IReadOnlyList<ClientOperationalJournalLine> lines, CancellationToken ct)
+  {
+    if (lines.Count < 2 || lines.Sum(x => x.Debit) <= 0 || lines.Sum(x => x.Debit) != lines.Sum(x => x.Credit)) return false;
+    var chart = await ActiveChartAsync(db, firmId, clientId, postingDate, ct);
+    if (chart is null) return false;
+    var ids = lines.Select(x => x.ClientAccountId).Distinct().ToArray();
+    var accounts = await db.ClientAccounts.AsNoTracking().Where(x => x.FirmId == firmId && x.ClientId == clientId &&
+      x.ChartVersionId == chart.Id && ids.Contains(x.Id) && x.IsPosting && x.Status == AccountingWorkflowStates.Active)
+      .Select(x => new { x.Id, x.AccountCode, x.AccountName }).ToListAsync(ct);
+    return accounts.Count == ids.Length && lines.All(line => accounts.Any(account => account.Id == line.ClientAccountId &&
+      account.AccountCode == line.AccountCode && account.AccountName == line.AccountName));
   }
 
   private static bool ValidAmount(decimal amount) => decimal.Round(amount, 6) == amount;

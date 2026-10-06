@@ -91,6 +91,11 @@ public sealed partial class ClientAccountingTests
       var journal = await db.ClientOperationalJournals.SingleAsync(x => x.FirmId == scope.FirmId && x.Id == journalId);
       Assert.Equal("POSTED", journal.Status);
       Assert.Equal(scope.Reviewer.Id, journal.PostedByUserId);
+      var ledger = await ClientOperationalGeneralLedgerWorkspace.GetAsync(db, reviewer, scope.ClientA, periodId);
+      Assert.True(ledger.Succeeded, ledger.Message);
+      Assert.Equal(2, ledger.Value!.TotalEntries);
+      Assert.Equal("125.000000", ledger.Value.Accounts.Single(x => x.AccountCode == "6000").DebitMovement);
+      Assert.Equal("-125.000000", ledger.Value.Accounts.Single(x => x.AccountCode == "1000").NetMovement);
     }
   }
 

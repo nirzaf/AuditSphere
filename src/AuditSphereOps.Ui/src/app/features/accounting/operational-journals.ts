@@ -9,6 +9,9 @@ import { guidPattern } from '../../core/contracts';
 interface PeriodOption { id: string; code: string; start: string; end: string; currency: string; status: string }
 interface JournalLine { lineNumber: number; accountId: string; accountCode: string; accountName: string; description: string; debit: string; credit: string }
 interface Journal { id: string; clientId: string; periodId: string; journalNumber: string; description: string; postingDate: string; currency: string; status: string; revision: string; createdByUserId: string; lines: JournalLine[] }
+interface LedgerView { clientId: string; periodId: string; periodCode: string; currency: string; basis: string; page: number; pageSize: number; totalEntries: number;
+  accounts: { accountId: string; accountCode: string; accountName: string; debitMovement: string; creditMovement: string; netMovement: string }[];
+  entries: { journalId: string; journalNumber: string; postingDate: string; lineNumber: number; accountCode: string; accountName: string; description: string; debit: string; credit: string }[] }
 const amountPattern = /^(?:0|[1-9]\d{0,14})(?:\.\d{1,6})?$/;
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid journal response');
@@ -29,6 +32,29 @@ export function decodeOperationalJournal(value: unknown, clientId: string): Jour
         !amountPattern.test(String(line['debit'])) || !amountPattern.test(String(line['credit']))) throw new Error('Invalid journal line');
   }
   return v as unknown as Journal;
+}
+export function decodeOperationalLedger(value: unknown, clientId: string, periodId: string): LedgerView {
+  const v = object(value);
+  if (v['clientId'] !== clientId || v['periodId'] !== periodId ||
+      !['periodCode', 'currency', 'basis'].every(k => typeof v[k] === 'string') ||
+      !['page', 'pageSize', 'totalEntries'].every(k => Number.isSafeInteger(v[k]) && Number(v[k]) >= 0) ||
+      Number(v['pageSize']) < 1 || Number(v['pageSize']) > 200 ||
+      !Array.isArray(v['accounts']) || v['accounts'].length > 10000 || !Array.isArray(v['entries']) || v['entries'].length > 200) throw new Error('Invalid ledger response');
+  for (const raw of v['accounts']) {
+    const account = object(raw);
+    if (typeof account['accountId'] !== 'string' || !guidPattern.test(account['accountId']) ||
+        !['accountCode', 'accountName', 'debitMovement', 'creditMovement', 'netMovement'].every(k => typeof account[k] === 'string') ||
+        ![account['debitMovement'], account['creditMovement'], account['netMovement']].every(x => amountPattern.test(String(x)))) throw new Error('Invalid ledger account');
+  }
+  for (const raw of v['entries']) {
+    const entry = object(raw);
+    if (typeof entry['journalId'] !== 'string' || !guidPattern.test(entry['journalId']) ||
+        !['journalNumber', 'postingDate', 'accountCode', 'accountName', 'description', 'debit', 'credit'].every(k => typeof entry[k] === 'string') ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(String(entry['postingDate'])) ||
+        ![entry['debit'], entry['credit']].every(x => amountPattern.test(String(x))) ||
+        !Number.isSafeInteger(entry['lineNumber']) || Number(entry['lineNumber']) < 1) throw new Error('Invalid ledger entry');
+  }
+  return v as unknown as LedgerView;
 }
 function minor(value: string): bigint { const [whole, fraction = ''] = value.split('.'); return BigInt(whole) * 1_000_000n + BigInt(fraction.padEnd(6, '0')); }
 
@@ -57,6 +83,21 @@ function minor(value: string): bigint { const [whole, fraction = ''] = value.spl
           }
         </article>
       }
+      <section aria-labelledby="posted-ledger-heading">
+        <h4 id="posted-ledger-heading">Posted General Ledger activity</h4>
+        <p>Native client journal movements for the selected period. This view does not include opening balances, imported GL, or reporting adjustments.</p>
+        <button matButton type="button" [disabled]="busy() || !periodId" (click)="loadLedger()">Refresh posted ledger</button>
+        @if (ledgerError()) { <p role="alert">{{ ledgerError() }}</p> }
+        @if (ledger(); as l) {
+          <p>{{ l.periodCode }} · {{ l.basis }} · {{ l.currency }} · {{ l.totalEntries }} posted lines</p>
+          @if (!l.entries.length) { <p>No posted native journal lines in this period.</p> }
+          @if (l.accounts.length) { <div class="table-scroll"><table><caption>Account debit, credit and net movement</caption><thead><tr><th>Account</th><th>Debits</th><th>Credits</th><th>Net movement</th></tr></thead>
+            <tbody>@for (a of l.accounts; track a.accountId) { <tr><td>{{ a.accountCode }} · {{ a.accountName }}</td><td>{{ a.debitMovement }}</td><td>{{ a.creditMovement }}</td><td>{{ a.netMovement }}</td></tr> }</tbody></table></div> }
+          @if (l.entries.length) { <div class="table-scroll"><table><caption>Posted journal line detail</caption><thead><tr><th>Date / journal</th><th>Account</th><th>Description</th><th>Debit</th><th>Credit</th></tr></thead>
+            <tbody>@for (e of l.entries; track e.journalId + ':' + e.lineNumber) { <tr><td><button matButton type="button" (click)="lookupId = e.journalId; load()">{{ e.postingDate }} · {{ e.journalNumber }}</button></td>
+              <td>{{ e.accountCode }} · {{ e.accountName }}</td><td>{{ e.description }}</td><td>{{ e.debit }}</td><td>{{ e.credit }}</td></tr> }</tbody></table></div> }
+        }
+      </section>
       <form #createForm="ngForm" (ngSubmit)="createForm.valid && create()">
         <h4>Create manual journal draft</h4>
         <label>Reporting period <select name="period" [(ngModel)]="periodId" (ngModelChange)="reviewed = false" required>
@@ -91,15 +132,17 @@ export class ClientOperationalJournals {
   private readonly http = inject(HttpClient);
   private readonly session = inject(SessionService);
   readonly journal = signal<Journal | null>(null);
+  readonly ledger = signal<LedgerView | null>(null);
   readonly busy = signal(false);
   readonly error = signal('');
+  readonly ledgerError = signal('');
   readonly uncertain = signal(false);
   readonly lines = signal([{ accountCode: '', description: '', debit: '0', credit: '0' }, { accountCode: '', description: '', debit: '0', credit: '0' }]);
   periodId = ''; number = ''; description = ''; postingDate = ''; lookupId = ''; reviewed = false; reason = '';
   private operation?: Subscription;
   private readonly invalidate = effect(() => {
     const id = this.clientId(); this.session.invalidation();
-    untracked(() => { this.operation?.unsubscribe(); this.journal.set(null); this.error.set(''); this.uncertain.set(false); this.busy.set(false); this.lookupId = ''; this.reviewed = false; });
+    untracked(() => { this.operation?.unsubscribe(); this.journal.set(null); this.ledger.set(null); this.error.set(''); this.ledgerError.set(''); this.uncertain.set(false); this.busy.set(false); this.lookupId = ''; this.reviewed = false; });
     void id;
   });
   constructor() { inject(DestroyRef).onDestroy(() => this.operation?.unsubscribe()); }
@@ -130,8 +173,20 @@ export class ClientOperationalJournals {
     if (!guidPattern.test(id) || this.busy()) { if (id) this.error.set('Enter a valid journal ID.'); return; }
     const generation = this.session.invalidation(); this.busy.set(true); this.error.set('');
     this.operation = this.http.get<unknown>(`/api/ui/accounting/clients/${clientId}/operational-journals/${id}`).pipe(timeout(15000)).subscribe({
-      next: value => { if (generation !== this.session.invalidation()) return; try { const journal = decodeOperationalJournal(value, clientId); if (journal.id !== id) throw new Error(); this.journal.set(journal); this.uncertain.set(false); this.reviewed = false; this.busy.set(false); } catch { this.busy.set(false); this.error.set('Journal details could not be validated for this client.'); } },
+      next: value => { if (generation !== this.session.invalidation()) return; try { const journal = decodeOperationalJournal(value, clientId); if (journal.id !== id) throw new Error(); this.journal.set(journal); this.uncertain.set(false); this.reviewed = false; this.busy.set(false); if (journal.status === 'POSTED') this.loadLedger(journal.periodId); } catch { this.busy.set(false); this.error.set('Journal details could not be validated for this client.'); } },
       error: failure => { if (generation !== this.session.invalidation()) return; this.busy.set(false); this.error.set('Journal could not be loaded in this client scope.'); if (failure.status === 401) this.session.clear(); },
+    });
+  }
+  loadLedger(forPeriodId = this.periodId): void {
+    const clientId = this.clientId(); const period = this.periods().find(p => p.id === forPeriodId);
+    if (!period || this.busy()) return;
+    const generation = this.session.invalidation(); this.ledgerError.set('');
+    this.operation = this.http.get<unknown>(`/api/ui/accounting/clients/${clientId}/operational-ledger`, {
+      params: { periodId: forPeriodId, page: '0', pageSize: '100' },
+    }).pipe(timeout(15000)).subscribe({
+      next: value => { if (generation !== this.session.invalidation()) return; try { this.ledger.set(decodeOperationalLedger(value, clientId, forPeriodId)); }
+        catch { this.ledger.set(null); this.ledgerError.set('Posted ledger response did not match this client and period.'); } },
+      error: failure => { if (generation === this.session.invalidation()) { this.ledger.set(null); this.ledgerError.set('Posted client ledger is unavailable. Retry or refresh the client.'); if (failure.status === 401) this.session.clear(); } },
     });
   }
   submit(journal: Journal): void { this.act(journal, 'submit', { revision: journal.revision, reviewed: true }, 'Journal submitted for independent review.'); }
