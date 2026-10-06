@@ -1,4 +1,5 @@
 using AuditSphereOps.Application.Practice;
+using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Tests;
 using Microsoft.EntityFrameworkCore;
@@ -18,6 +19,10 @@ public sealed class AngularInvoiceWorkflowJourneyTests
     var f = host.Fixture;
     var manager = PbcSeed.Actor(f.Admin, "FinanceManager");
     var reviewer = PbcSeed.Actor(f.Reviewer, "FinanceReviewer");
+    var foreignFirmId = Guid.NewGuid();
+    var foreignClientId = Guid.NewGuid();
+    var foreignAccountId = Guid.NewGuid();
+    var foreignInvoiceId = Guid.NewGuid();
     Guid invoiceId;
     const string invoiceNumber = "SYN-ANG-INVOICE-WORKFLOW-001";
     const string lineDescription = "Synthetic annual audit services";
@@ -27,6 +32,25 @@ public sealed class AngularInvoiceWorkflowJourneyTests
       db.RoleGrants.AddRange(
         PbcSeed.Grant(f.FirmId, f.Admin, "FinanceManager"),
         PbcSeed.Grant(f.FirmId, f.Reviewer, "FinanceReviewer"));
+      db.FirmSafetyStates.Add(new FirmSafetyState { Id = foreignFirmId });
+      db.PracticeClients.Add(new PracticeClient
+      {
+        Id = foreignClientId, FirmId = foreignFirmId,
+        LegalName = "SYNTHETIC FOREIGN BILLING CLIENT", CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.ClientSafetyStates.Add(new ClientSafetyState { Id = foreignClientId, FirmId = foreignFirmId });
+      db.BillingAccounts.Add(new BillingAccount
+      {
+        Id = foreignAccountId, FirmId = foreignFirmId, PracticeClientId = foreignClientId,
+        Currency = "QAR", CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.Invoices.Add(new Invoice
+      {
+        Id = foreignInvoiceId, FirmId = foreignFirmId, BillingAccountId = foreignAccountId,
+        InvoiceNumber = "SYN-FOREIGN-INVOICE-MUST-NOT-LEAK", Currency = "QAR",
+        Subtotal = 700m, Total = 700m, Status = BillingStates.InvoiceReviewRequired,
+        CreatedAt = DateTimeOffset.UtcNow
+      });
       await db.SaveChangesAsync();
 
       var account = await BillingService.CreateBillingAccountAsync(db, manager,
@@ -82,9 +106,64 @@ public sealed class AngularInvoiceWorkflowJourneyTests
       }
       """.Replace("__INVOICE_ID__", invoiceId.ToString("D"), StringComparison.Ordinal));
     Assert.Equal(403, unauthorizedApproval);
+
+    var foreignInvoiceResponses = await managerPage.EvaluateAsync<string>("""
+      async () => {
+        const unknownId = '__UNKNOWN_INVOICE_ID__';
+        const foreignId = '__FOREIGN_INVOICE_ID__';
+        await fetch('/api/ui/session');
+        const cookie = document.cookie.split(';').map(value => value.trim())
+          .find(value => value.startsWith('XSRF-TOKEN='));
+        const token = cookie ? decodeURIComponent(cookie.slice('XSRF-TOKEN='.length)) : '';
+        const writeHeaders = { 'X-XSRF-TOKEN': token };
+        const capture = async response => ({ status: response.status, body: await response.text() });
+        const readForeign = await capture(await fetch(`/api/ui/finance/invoices/${foreignId}`));
+        const readUnknown = await capture(await fetch(`/api/ui/finance/invoices/${unknownId}`));
+        const commands = {};
+        for (const action of ['approve', 'post', 'send']) {
+          commands[action] = {
+            foreign: await capture(await fetch(`/api/ui/finance/invoices/${foreignId}/${action}`, {
+              method: 'POST', headers: writeHeaders
+            })),
+            unknown: await capture(await fetch(`/api/ui/finance/invoices/${unknownId}/${action}`, {
+              method: 'POST', headers: writeHeaders
+            }))
+          };
+        }
+        return JSON.stringify({ readForeign, readUnknown, commands });
+      }
+      """.Replace("__FOREIGN_INVOICE_ID__", foreignInvoiceId.ToString("D"), StringComparison.Ordinal)
+        .Replace("__UNKNOWN_INVOICE_ID__", Guid.NewGuid().ToString("D"), StringComparison.Ordinal));
+    using (var responses = System.Text.Json.JsonDocument.Parse(foreignInvoiceResponses))
+    {
+      var root = responses.RootElement;
+      var foreignRead = root.GetProperty("readForeign");
+      var unknownRead = root.GetProperty("readUnknown");
+      Assert.Equal(403, foreignRead.GetProperty("status").GetInt32());
+      Assert.Equal(403, unknownRead.GetProperty("status").GetInt32());
+      Assert.Equal(foreignRead.GetProperty("body").GetString(), unknownRead.GetProperty("body").GetString());
+      Assert.DoesNotContain("SYN-FOREIGN-INVOICE-MUST-NOT-LEAK", foreignRead.GetProperty("body").GetString(), StringComparison.Ordinal);
+
+      foreach (var action in new[] { "approve", "post", "send" })
+      {
+        var actionResponses = root.GetProperty("commands").GetProperty(action);
+        var foreign = actionResponses.GetProperty("foreign");
+        var unknown = actionResponses.GetProperty("unknown");
+        Assert.Equal(403, foreign.GetProperty("status").GetInt32());
+        Assert.Equal(403, unknown.GetProperty("status").GetInt32());
+        Assert.Equal(foreign.GetProperty("body").GetString(), unknown.GetProperty("body").GetString());
+      }
+    }
     await using (var db = host.CreateDbContext())
+    {
       Assert.Equal(BillingStates.InvoiceReviewRequired,
         await db.Invoices.Where(x => x.Id == invoiceId).Select(x => x.Status).SingleAsync());
+      var foreign = await db.Invoices.AsNoTracking().SingleAsync(x => x.Id == foreignInvoiceId);
+      Assert.Equal(BillingStates.InvoiceReviewRequired, foreign.Status);
+      Assert.Null(foreign.ApprovedByUserId);
+      Assert.Null(foreign.PostedAt);
+      Assert.Null(foreign.SentAt);
+    }
 
     var reviewerPage = await browser.NewPageAsync();
     reviewerPage.PageError += (_, error) => errors.Add($"reviewer: {error}");
