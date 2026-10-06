@@ -55,6 +55,20 @@ Blazor retirement gate remains `NOT_READY`. The full solution regression was
 not rerun; its last complete result remains recorded at its earlier verified
 commit in `status.json`.
 
+## Completed focused slice: Firm-ledger close-reason validation
+
+At code/test commit `cfbeed2d`, the PostgreSQL-backed API-host Angular
+`AngularFirmLedgerBoundaryJourneyTests` passed **1/1** in 37 seconds. A
+whitespace-only reason leaves the Angular Confirm close action disabled. A
+direct API request receives the safe HTTP 400 `ledger.invalid` result, and
+PostgreSQL confirms the local period remains `OPEN` at revision 1 with no close
+decision. The journey also retains the foreign-versus-guessed close-ID denial
+and grant-revocation clearing assertions.
+
+State-conflict/provider failure recovery and broader finance role/scope
+coverage remain open. The full solution regression was not rerun; its latest
+complete result remains 1001/1001 at `ead85032`.
+
 ## Completed focused slice: Firm ledger scope and revocation boundaries
 
 At code/test commit `dc43a898`, the PostgreSQL API-host Angular ledger
@@ -65,8 +79,8 @@ and a random guessed ID receive indistinguishable 403 responses without
 changing either firm's period state. Revoking the reviewer grant clears the
 visible ledger after reload.
 
-The remaining firm-ledger gaps are invalid close reasons, state-conflict and
-failure/recovery behavior, and the broader role matrix. Remaining firm-books
+The remaining firm-ledger gaps are state-conflict and failure/recovery
+behavior, and the broader role matrix. Remaining firm-books
 outcome cases and invoice history/error cases are open. The whole AS-PAR-002
 audit and Blazor retirement remain partial/`NOT_READY`.
 
