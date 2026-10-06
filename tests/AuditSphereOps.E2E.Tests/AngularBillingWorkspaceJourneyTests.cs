@@ -1,4 +1,5 @@
 using AuditSphereOps.Application.Practice;
+using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Tests;
 using Microsoft.EntityFrameworkCore;
@@ -15,17 +16,29 @@ public sealed class AngularBillingWorkspaceJourneyTests
     var f = host.Fixture;
     var manager = PbcSeed.Actor(f.Admin, "FinanceManager");
     var reviewer = PbcSeed.Actor(f.Reviewer, "FinanceReviewer");
-    Guid accountId, invoiceId;
+    Guid accountId, invoiceId, otherInvoiceId;
     await using (var db = host.CreateDbContext())
     {
       db.RoleGrants.AddRange(
         PbcSeed.Grant(f.FirmId, f.Admin, "FinanceManager"),
         PbcSeed.Grant(f.FirmId, f.Reviewer, "FinanceReviewer"));
+      var otherClientId = Guid.NewGuid();
+      db.PracticeClients.Add(new PracticeClient
+      {
+        Id = otherClientId, FirmId = f.FirmId, LegalName = "SYNTHETIC SECOND BILLING CLIENT",
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.ClientSafetyStates.Add(new ClientSafetyState { Id = otherClientId, FirmId = f.FirmId });
       await db.SaveChangesAsync();
       accountId = (await BillingService.CreateBillingAccountAsync(db, manager,
         new CreateBillingAccountRequest(f.ClientId, "QAR"))).Value;
       invoiceId = (await BillingService.CreateInvoiceDraftAsync(db, manager,
         new CreateInvoiceDraftRequest(accountId, "SYN-ANG-E2E-INV-001", [new InvoiceLineRequest("Synthetic audit fee", 1m, 100m)]))).Value;
+      var otherAccountId = (await BillingService.CreateBillingAccountAsync(db, manager,
+        new CreateBillingAccountRequest(otherClientId, "QAR"))).Value;
+      otherInvoiceId = (await BillingService.CreateInvoiceDraftAsync(db, manager,
+        new CreateInvoiceDraftRequest(otherAccountId, "SYN-ANG-E2E-INV-STALE-002",
+          [new InvoiceLineRequest("Synthetic separate client fee", 1m, 50m)]))).Value;
       Assert.True((await BillingService.SubmitInvoiceAsync(db, manager, invoiceId)).Succeeded);
       Assert.True((await BillingService.ApproveInvoiceAsync(db, reviewer, invoiceId)).Succeeded);
       db.FirmFinanceProfiles.Add(new FirmFinanceProfile
@@ -175,6 +188,41 @@ public sealed class AngularBillingWorkspaceJourneyTests
 
     await page.SetViewportSizeAsync(390, 844);
     Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));
+
+    await page.ReloadAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Button,
+      new() { Name = "Load older receipts", Exact = true })).ToBeVisibleAsync();
+    var historyRequestStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+    var releaseHistoryResponse = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+    var historyRequestIntercepted = false;
+    await page.RouteAsync("**/api/ui/finance/invoices/**", async interception =>
+    {
+      if (!historyRequestIntercepted && interception.Request.Method == "GET" &&
+          interception.Request.Url.Contains("receiptBefore=", StringComparison.Ordinal))
+      {
+        historyRequestIntercepted = true;
+        historyRequestStarted.TrySetResult(true);
+        await releaseHistoryResponse.Task.WaitAsync(TimeSpan.FromSeconds(15));
+      }
+      await interception.ContinueAsync();
+    });
+    var staleHistoryResponse = page.WaitForResponseAsync(response =>
+      response.Url.Contains("receiptBefore=", StringComparison.Ordinal));
+    await page.GetByRole(AriaRole.Button, new() { Name = "Load older receipts", Exact = true }).ClickAsync();
+    await historyRequestStarted.Task.WaitAsync(TimeSpan.FromSeconds(15));
+    await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/app/practice/invoices/{otherInvoiceId:D}");
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "SYN-ANG-E2E-INV-STALE-002", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByText("No receipts are recorded for this client billing account.",
+      new() { Exact = true })).ToBeVisibleAsync();
+    Assert.DoesNotContain("SYN-PAGE-R-001", await page.Locator("main").InnerTextAsync(), StringComparison.Ordinal);
+    releaseHistoryResponse.TrySetResult(true);
+    var releasedResponse = await staleHistoryResponse;
+    Assert.Equal(200, releasedResponse.Status);
+    await page.EvaluateAsync("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+    Assert.DoesNotContain("SYN-PAGE-R-001", await page.Locator("main").InnerTextAsync(), StringComparison.Ordinal);
+    Assert.True(historyRequestIntercepted);
     Assert.Empty(errors);
   }
 
