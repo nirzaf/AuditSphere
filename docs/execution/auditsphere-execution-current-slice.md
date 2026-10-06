@@ -15,6 +15,24 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: Local Blazor rollback-host route smoke
+
+The retained Web rollback/reference host built in Release with zero warnings
+and errors. A temporary loopback Test-profile process served the Blazor home at
+`/`; its portfolio link opened `/app`, where the unsigned view showed
+“Sign-in required” and no actor or client data. The built-in browser observed
+both pages, and server logs show Blazor negotiation and a completed SignalR
+connection. An unmapped `/app` path returned HTTP 404 in the server log, but
+the browser blocked rendering that navigation, so that is recorded as server
+response evidence only.
+
+The temporary host was stopped after the smoke. The build included another
+agent’s uncommitted consolidation query edit, which the home and portfolio
+routes did not exercise and which was excluded from our commits. This is local
+Test-profile evidence; it does not establish production rollback, canary,
+owner acceptance or Blazor retirement readiness. The migration gate remains
+`NOT_READY`.
+
 ## Current follow-on slice: Operations authorization-denial recovery control
 
 The Operations page now removes its refresh action after the safe firm-wide
