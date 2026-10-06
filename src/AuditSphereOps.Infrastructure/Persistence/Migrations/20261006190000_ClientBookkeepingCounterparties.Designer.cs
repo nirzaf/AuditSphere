@@ -3,6 +3,7 @@ using System;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AuditSphereDbContext))]
-    partial class AuditSphereDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261006190000_ClientBookkeepingCounterparties")]
+    partial class ClientBookkeepingCounterparties
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2729,6 +2732,8 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasAlternateKey("FirmId", "ClientId", "Id");
+
                     b.HasIndex("FirmId", "CreatedByUserId");
 
                     b.HasIndex("FirmId", "ClientId", "NormalizedExternalIdentity")
@@ -2810,150 +2815,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.ToTable("client_chart_versions", null, t =>
                         {
                             t.HasCheckConstraint("ck_client_chart_version_values", "effective_to IS NULL OR effective_from <= effective_to");
-                        });
-                });
-
-            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientCounterpartyAmendment", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<string>("Address")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
-                        .HasColumnName("address");
-
-                    b.Property<Guid>("ClientId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("client_id");
-
-                    b.Property<string>("ContactDetails")
-                        .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)")
-                        .HasColumnName("contact_details");
-
-                    b.Property<Guid>("CounterpartyId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("counterparty_id");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<string>("DisplayName")
-                        .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)")
-                        .HasColumnName("display_name");
-
-                    b.Property<Guid>("FirmId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("firm_id");
-
-                    b.Property<string>("PaymentTerms")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)")
-                        .HasColumnName("payment_terms");
-
-                    b.Property<Guid>("ProposedByUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("proposed_by_user_id");
-
-                    b.Property<string>("Reason")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
-                        .HasColumnName("reason");
-
-                    b.Property<long>("Revision")
-                        .HasColumnType("bigint")
-                        .HasColumnName("revision");
-
-                    b.Property<string>("TaxIdentifier")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("tax_identifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("FirmId", "ProposedByUserId");
-
-                    b.ToTable("client_counterparty_amendments", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_client_counterparty_amendment", "revision>1 AND length(trim(display_name))>0 AND length(trim(reason))>0");
-                        });
-                });
-
-            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientCounterpartyAmendmentDecision", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<Guid>("AmendmentId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("amendment_id");
-
-                    b.Property<Guid>("ClientId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("client_id");
-
-                    b.Property<Guid>("CounterpartyId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("counterparty_id");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<string>("Decision")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("decision");
-
-                    b.Property<Guid>("FirmId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("firm_id");
-
-                    b.Property<string>("Reason")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
-                        .HasColumnName("reason");
-
-                    b.Property<Guid>("ReviewedByUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("reviewed_by_user_id");
-
-                    b.Property<long>("Revision")
-                        .HasColumnType("bigint")
-                        .HasColumnName("revision");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("FirmId", "ReviewedByUserId");
-
-                    b.HasIndex("FirmId", "ClientId", "AmendmentId")
-                        .IsUnique();
-
-                    b.HasIndex("FirmId", "ClientId", "CounterpartyId", "Revision")
-                        .IsUnique()
-                        .HasFilter("decision = 'APPROVE'");
-
-                    b.HasIndex("FirmId", "ClientId", "CounterpartyId", "AmendmentId", "Revision")
-                        .HasDatabaseName("IX_client_counterparty_amendment_decisions_firm_id_client_id_~1");
-
-                    b.ToTable("client_counterparty_amendment_decisions", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_client_counterparty_amendment_decision", "revision>1 AND decision IN ('APPROVE','REJECT') AND length(trim(reason))>0");
                         });
                 });
 
@@ -23708,40 +23569,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("FirmId", "ClientId")
                         .HasPrincipalKey("FirmId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientCounterpartyAmendment", b =>
-                {
-                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ProposedByUserId")
-                        .HasPrincipalKey("FirmId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientBookkeepingCounterparty", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ClientId", "CounterpartyId")
-                        .HasPrincipalKey("FirmId", "ClientId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientCounterpartyAmendmentDecision", b =>
-                {
-                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ReviewedByUserId")
-                        .HasPrincipalKey("FirmId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientCounterpartyAmendment", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ClientId", "CounterpartyId", "AmendmentId", "Revision")
-                        .HasPrincipalKey("FirmId", "ClientId", "CounterpartyId", "Id", "Revision")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

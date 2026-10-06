@@ -6533,6 +6533,158 @@
         ]
       }
     },
+    "/api/ui/accounting/clients/{clientId}/counterparties": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientCounterpartyList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClientCounterpartyHttpInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
     "/api/ui/accounting/clients/{id}/charts/{chartId}/publication": {
       "get": {
         "tags": [
@@ -28233,6 +28385,199 @@
           "reviewed": {
             "type": "boolean",
             "default": false
+          }
+        }
+      },
+      "ClientCounterpartyCreateRequest": {
+        "required": [
+          "legalName",
+          "displayName",
+          "role",
+          "address",
+          "country",
+          "taxIdentifier",
+          "contactDetails",
+          "paymentTerms",
+          "defaultCurrency",
+          "externalSystem",
+          "externalReference"
+        ],
+        "type": "object",
+        "properties": {
+          "legalName": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          },
+          "taxIdentifier": {
+            "type": "string"
+          },
+          "contactDetails": {
+            "type": "string"
+          },
+          "paymentTerms": {
+            "type": "string"
+          },
+          "defaultCurrency": {
+            "type": "string"
+          },
+          "externalSystem": {
+            "type": "string"
+          },
+          "externalReference": {
+            "type": "string"
+          }
+        }
+      },
+      "ClientCounterpartyHttpInput": {
+        "required": [
+          "party",
+          "reviewed"
+        ],
+        "type": "object",
+        "properties": {
+          "party": {
+            "$ref": "#/components/schemas/ClientCounterpartyCreateRequest"
+          },
+          "reviewed": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ClientCounterpartyList": {
+        "required": [
+          "clientId",
+          "role",
+          "page",
+          "pageSize",
+          "total",
+          "bookkeepingActive",
+          "counterparties"
+        ],
+        "type": "object",
+        "properties": {
+          "clientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "page": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "pageSize": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "total": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "bookkeepingActive": {
+            "type": "boolean"
+          },
+          "counterparties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClientCounterpartyView"
+            }
+          }
+        }
+      },
+      "ClientCounterpartyView": {
+        "required": [
+          "id",
+          "clientId",
+          "legalName",
+          "displayName",
+          "role",
+          "address",
+          "country",
+          "taxIdentifier",
+          "contactDetails",
+          "paymentTerms",
+          "defaultCurrency",
+          "externalSystem",
+          "externalReference",
+          "createdByUserId",
+          "createdAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "clientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "legalName": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          },
+          "taxIdentifier": {
+            "type": "string"
+          },
+          "contactDetails": {
+            "type": "string"
+          },
+          "paymentTerms": {
+            "type": "string"
+          },
+          "defaultCurrency": {
+            "type": "string"
+          },
+          "externalSystem": {
+            "type": "string"
+          },
+          "externalReference": {
+            "type": "string"
+          },
+          "createdByUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string"
           }
         }
       },

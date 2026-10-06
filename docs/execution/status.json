@@ -11940,6 +11940,60 @@
         "Party/dimension/evidence editor scope, openings, currency policy, invoices/open items and reporting bridge remain incomplete.",
         "Full CA-01 through CA-36 scope remains active; no final epic merge performed by this task."
       ]
+    },
+    "clientBookkeepingCounterparties": {
+      "implementationCommit": "59ca93ba",
+      "status": "LOCAL_FOUNDATION_VERIFIED",
+      "requirements": "Partial CA-07 initial client-owned customer/supplier profiles; tax optional",
+      "domainFocused": {
+        "passed": 1,
+        "durationSeconds": 32,
+        "coverage": [
+          "Client-scoped duplicate checks and same identity allowed in another client",
+          "Combined role included in both filters",
+          "Optional tax details",
+          "Unsupported currency default refused",
+          "Inactive mandate blocks creation but preserves scoped reads",
+          "Client-only grant excludes sibling client",
+          "PostgreSQL update/delete trigger refuses profile changes"
+        ]
+      },
+      "angularFocused": {
+        "passed": 2
+      },
+      "apiOpenApi": {
+        "passed": 5,
+        "durationSeconds": 6
+      },
+      "browserJourney": {
+        "passed": 1,
+        "durationSeconds": 51,
+        "coverage": [
+          "Create BOTH party without tax identifier",
+          "Customer/supplier filter readback",
+          "Inactive-service retained profiles",
+          "Existing full native journal journey regression"
+        ]
+      },
+      "angularBuild": "PASS; existing commercial/settings.scss budget warning",
+      "releaseBuilds": "Domain, E2E and API test projects compiled successfully in Release",
+      "efPendingModelChanges": "NONE",
+      "migration": "20261006190000_ClientBookkeepingCounterparties",
+      "builtInBrowser": "No live owned target available before fixture teardown; dynamic UI evidence is automated Chromium",
+      "fullRegression": "NOT_RUN",
+      "productionMigration": "NOT_RUN",
+      "externalAcceptance": "NOT_RUN",
+      "limitations": [
+        "Immutable initial profiles only; reviewed amendments, merges and reclassification remain unavailable",
+        "Invoice snapshots and AR/AP subledgers not implemented in this slice",
+        "Only functional currency accepted as optional default",
+        "Unknown creation outcome requires saved-list inspection and explicit separate draft",
+        "Concurrent duplicate creation and migration rollback not dynamically verified in this slice"
+      ],
+      "initialFailures": [
+        "EF generation required dependency restore before succeeding",
+        "Scope fixture referred to non-existent ScopeType; aligned to existing ClientId grants and reran successfully"
+      ]
     }
   },
   "documentationWork": {

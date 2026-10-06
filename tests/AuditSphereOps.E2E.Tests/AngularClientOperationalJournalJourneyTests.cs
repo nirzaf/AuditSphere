@@ -72,6 +72,22 @@ public sealed class AngularClientOperationalJournalJourneyTests
     await profile.GetByRole(AriaRole.Button, new() { Name = "Save profile", Exact = true }).ClickAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Client bookkeeping journals", Exact = true })).ToBeVisibleAsync();
 
+    var parties = page.Locator("audit-client-counterparties");
+    await parties.GetByText("Add a customer or supplier", new() { Exact = true }).ClickAsync();
+    await parties.GetByLabel("Party legal name", new() { Exact = true }).FillAsync("Synthetic Trading");
+    await parties.GetByLabel("Party display name", new() { Exact = true }).FillAsync("Synthetic party");
+    await parties.GetByLabel("Party role", new() { Exact = true }).SelectOptionAsync("BOTH");
+    await parties.GetByLabel("Party country", new() { Exact = true }).FillAsync("QA");
+    await parties.GetByRole(AriaRole.Checkbox).CheckAsync();
+    await parties.GetByRole(AriaRole.Button, new() { Name = "Save client counterparty", Exact = true }).ClickAsync();
+    await Assertions.Expect(parties.GetByRole(AriaRole.Cell, new() { Name = "Synthetic party · Synthetic Trading", Exact = true })).ToBeVisibleAsync();
+    foreach (var partyRole in new[] { "CUSTOMER", "SUPPLIER" })
+    {
+      await parties.GetByLabel("Counterparty role filter", new() { Exact = true }).SelectOptionAsync(partyRole);
+      await parties.GetByRole(AriaRole.Button, new() { Name = "Refresh counterparties", Exact = true }).ClickAsync();
+      await Assertions.Expect(parties.GetByRole(AriaRole.Cell, new() { Name = "Synthetic party · Synthetic Trading", Exact = true })).ToBeVisibleAsync();
+    }
+
     var period = workspace.Locator("form").Filter(new() { Has = page.GetByRole(AriaRole.Heading, new() { Name = "Create reporting period", Exact = true }) });
     await period.GetByLabel("Period code", new() { Exact = true }).FillAsync("2026");
     await period.GetByLabel("Start date", new() { Exact = true }).FillAsync("2026-01-01");
@@ -296,6 +312,9 @@ public sealed class AngularClientOperationalJournalJourneyTests
     }
     await journals.GetByRole(AriaRole.Button, new() { Name = "Refresh saved journals", Exact = true }).ClickAsync();
     await Assertions.Expect(journals.GetByText("Bookkeeping service is inactive.", new() { Exact = false })).ToBeVisibleAsync();
+    await parties.GetByRole(AriaRole.Button, new() { Name = "Refresh counterparties", Exact = true }).ClickAsync();
+    await Assertions.Expect(parties.GetByText("Bookkeeping is inactive.", new() { Exact = false })).ToBeVisibleAsync();
+    await Assertions.Expect(parties.GetByRole(AriaRole.Cell, new() { Name = "Synthetic party · Synthetic Trading", Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(savedJournals.GetByRole(AriaRole.Row)).ToHaveCountAsync(3);
     await journals.GetByRole(AriaRole.Button, new() { Name = "Refresh posted ledger", Exact = true }).ClickAsync();
     await Assertions.Expect(journals.GetByRole(AriaRole.Table, new() { Name = "Official native Trial Balance", Exact = false })).ToBeVisibleAsync();
