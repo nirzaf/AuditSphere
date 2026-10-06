@@ -154,12 +154,73 @@ public sealed class AngularFirmBooksJourneyTests
 
     await preparerPage.ReloadAsync();
     var approvedRow = preparerPage.GetByRole(AriaRole.Row).Filter(new() { HasText = "Synthetic approved office landlord" });
-    await approvedRow.GetByRole(AriaRole.Button, new() { Name = "Post to ledger", Exact = true }).ClickAsync();
-    await Assertions.Expect(preparerPage.GetByText("Posted to the firm ledger.", new() { Exact = true })).ToBeVisibleAsync();
     Guid approvedExpenseId;
     await using (var db = host.CreateDbContext())
       approvedExpenseId = await db.FirmExpenses.AsNoTracking()
         .Where(x => x.Payee == "Synthetic approved office landlord").Select(x => x.Id).SingleAsync();
+    var noSendPostCalls = 0;
+    var noSendPostRoute = $"**/api/ui/finance/books/expenses/{approvedExpenseId:D}/post";
+    await preparerPage.RouteAsync(noSendPostRoute, async interception =>
+    {
+      if (interception.Request.Method == "POST")
+      {
+        Interlocked.Increment(ref noSendPostCalls);
+        await interception.AbortAsync();
+        return;
+      }
+      await interception.ContinueAsync();
+    });
+    await preparerPage.GetByRole(AriaRole.Button, new() { Name = "Post to ledger", Exact = true }).ClickAsync();
+    await Assertions.Expect(preparerPage.GetByRole(AriaRole.Heading,
+      new() { Name = "Verify the saved firm-books state", Exact = true })).ToBeVisibleAsync();
+    await preparerPage.GetByRole(AriaRole.Button,
+      new() { Name = "Refresh persisted firm-books state", Exact = true }).ClickAsync();
+    await Assertions.Expect(preparerPage.GetByText(
+      "Persisted state confirms the expense remains approved. Review it before allowing a deliberate, idempotent post attempt.",
+      new() { Exact = true })).ToBeVisibleAsync();
+    Assert.Equal(1, noSendPostCalls);
+    await preparerPage.GetByRole(AriaRole.Button,
+      new() { Name = "Acknowledge and allow a new post attempt", Exact = true }).ClickAsync();
+    await Assertions.Expect(approvedRow.GetByRole(AriaRole.Button,
+      new() { Name = "Post to ledger", Exact = true })).ToBeVisibleAsync();
+    await preparerPage.UnrouteAsync(noSendPostRoute);
+    await using (var db = host.CreateDbContext())
+    {
+      Assert.Equal(FirmExpenseStates.Approved,
+        await db.FirmExpenses.Where(x => x.Id == approvedExpenseId).Select(x => x.Status).SingleAsync());
+      Assert.Empty(await db.FirmPostings.Where(x => x.PeriodId == periodId).ToListAsync());
+    }
+
+    var lostPostResponseCalls = 0;
+    var postRoute = $"**/api/ui/finance/books/expenses/{approvedExpenseId:D}/post";
+    await preparerPage.RouteAsync(postRoute, async interception =>
+    {
+      if (interception.Request.Method == "POST")
+      {
+        Interlocked.Increment(ref lostPostResponseCalls);
+        var response = await interception.FetchAsync();
+        Assert.Equal(200, response.Status);
+        await interception.AbortAsync();
+        return;
+      }
+      await interception.ContinueAsync();
+    });
+    await approvedRow.GetByRole(AriaRole.Button, new() { Name = "Post to ledger", Exact = true }).ClickAsync();
+    await Assertions.Expect(preparerPage.GetByRole(AriaRole.Heading,
+      new() { Name = "Verify the saved firm-books state", Exact = true })).ToBeVisibleAsync();
+    await preparerPage.GetByRole(AriaRole.Button,
+      new() { Name = "Refresh persisted firm-books state", Exact = true }).ClickAsync();
+    await Assertions.Expect(approvedRow).ToContainTextAsync("posted");
+    await Assertions.Expect(preparerPage.GetByText(
+      "Persisted state confirms this expense is posted to the firm ledger.", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(preparerPage.GetByRole(AriaRole.Button,
+      new() { Name = "Acknowledge verified posting", Exact = true })).ToBeVisibleAsync();
+    Assert.Equal(1, lostPostResponseCalls);
+    await preparerPage.GetByRole(AriaRole.Button,
+      new() { Name = "Acknowledge verified posting", Exact = true }).ClickAsync();
+    await Assertions.Expect(approvedRow.GetByRole(AriaRole.Button,
+      new() { Name = "Post to ledger", Exact = true })).ToHaveCountAsync(0);
+    await preparerPage.UnrouteAsync(postRoute);
     var repeatedPostResponses = await preparerPage.EvaluateAsync<string>("""
       async () => {
         await fetch('/api/ui/session');

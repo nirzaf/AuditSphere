@@ -70,7 +70,7 @@ export class FirmExpenseRejectionDialog {
             <label>Paid from <select name="paymentAccount" [(ngModel)]="draft.paymentAccount" (ngModelChange)="touch()"><option value="">Select</option>
               @for (a of b.accounts; track a.id) { @if (a.accountType === 'ASSET' || a.accountType === 'LIABILITY') { <option [value]="a.id">{{ a.code }} {{ a.name }}</option> } }</select></label>
             <label>Source document <input type="file" (change)="pick($event, b.maxEvidenceBytes)" /></label>
-            <button matButton="filled" type="submit" [disabled]="cmd.busy()">Record expense</button>
+            <button matButton="filled" type="submit" [disabled]="cmd.busy() || cmd.uncertain()">Record expense</button>
           </form>
         }
         <div class="table-scroll"><table>
@@ -83,12 +83,12 @@ export class FirmExpenseRejectionDialog {
                 <td>{{ e.evidenceFileName }} <code>{{ e.evidenceSha256.slice(0, 10) }}</code></td>
                 <td><audit-status [value]="e.status" />@if (e.reviewComment) { <small>{{ e.reviewComment }}</small> }</td>
                 <td class="actions">
-                  @if (e.status === 'DRAFT' && b.canPrepare) { <button matButton (click)="act(e.id, 'submit', 'Submitted; its journal awaits review.')" [disabled]="cmd.busy()">Submit</button> }
+                  @if (e.status === 'DRAFT' && b.canPrepare) { <button matButton (click)="act(e.id, 'submit', 'Submitted; its journal awaits review.')" [disabled]="cmd.busy() || cmd.uncertain()">Submit</button> }
                   @if (e.status === 'SUBMITTED' && b.canReview && !e.preparedByMe) {
-                    <button matButton (click)="review(e.id, true)" [disabled]="cmd.busy()">Approve</button>
-                    <button matButton (click)="review(e.id, false, b.maxReviewCommentLength)" [disabled]="cmd.busy()">Reject</button>
+                    <button matButton (click)="review(e.id, true)" [disabled]="cmd.busy() || cmd.uncertain()">Approve</button>
+                    <button matButton (click)="review(e.id, false, b.maxReviewCommentLength)" [disabled]="cmd.busy() || cmd.uncertain()">Reject</button>
                   }
-                  @if (e.status === 'APPROVED' && b.canPrepare) { <button matButton (click)="act(e.id, 'post', 'Posted to the firm ledger.')" [disabled]="cmd.busy()">Post to ledger</button> }
+                  @if (e.status === 'APPROVED' && b.canPrepare) { <button matButton (click)="act(e.id, 'post', 'Posted to the firm ledger.')" [disabled]="cmd.busy() || cmd.uncertain()">Post to ledger</button> }
                 </td></tr>
             } @empty { <tr><td colspan="7">No firm expenses recorded yet.</td></tr> }
           </tbody>
@@ -117,6 +117,22 @@ export class FirmExpenseRejectionDialog {
         }
       </section>
     }
+    @if (cmd.uncertain() && pendingPostId()) {
+      <section class="panel" aria-labelledby="post-recovery-heading">
+        <h2 id="post-recovery-heading">Verify the saved firm-books state</h2>
+        <p>The post response was lost. Refresh the exact expense before taking another action. AuditSphere will not resend the unresolved request.</p>
+        @if (postVerificationMessage()) { <p role="status">{{ postVerificationMessage() }}</p> }
+        @if (postReconciliation() === 'POSTED') {
+          <p role="status">Persisted state confirms this expense is posted to the firm ledger.</p>
+          <button matButton="outlined" (click)="clearUnresolvedPost()" [disabled]="verifyingPost()">Acknowledge verified posting</button>
+        } @else if (postReconciliation() === 'APPROVED') {
+          <p role="status">Persisted state confirms the expense remains approved. Review it before allowing a deliberate, idempotent post attempt.</p>
+          <button matButton="outlined" (click)="clearUnresolvedPost()" [disabled]="verifyingPost()">Acknowledge and allow a new post attempt</button>
+        } @else {
+          <button matButton="outlined" (click)="verifyPostState()" [disabled]="verifyingPost()">{{ verifyingPost() ? 'Refreshing persisted state…' : 'Refresh persisted firm-books state' }}</button>
+        }
+      </section>
+    }
     <audit-command-message [message]="cmd.message()" [failed]="cmd.failed()" />
   `,
 })
@@ -126,6 +142,10 @@ export class FirmBooks {
   private readonly dialog = inject(MatDialog);
   readonly books = this.api.resource(() => '/api/ui/finance/books', decodeBooks, 'Firm books require a firm-wide finance assignment.');
   readonly cmd = new CommandState(this.api);
+  readonly pendingPostId = signal<string | null>(null);
+  readonly postReconciliation = signal<'POSTED' | 'APPROVED' | 'UNVERIFIABLE' | null>(null);
+  readonly postVerificationMessage = signal('');
+  readonly verifyingPost = signal(false);
   readonly tb = signal<ReturnType<typeof decodeTrialBalance> | null>(null);
   readonly tbError = signal('');
   readonly tbBusy = signal(false);
@@ -179,7 +199,14 @@ export class FirmBooks {
     }).finally(() => this.books.reload());
   }
   act(id: string, action: 'submit' | 'post', success: string): void {
-    this.cmd.run(`/api/ui/finance/books/expenses/${id}/${action}`, {}, success).finally(() => this.books.reload());
+    if (action === 'post') {
+      this.pendingPostId.set(id);
+      this.postReconciliation.set(null);
+      this.postVerificationMessage.set('');
+    }
+    void this.cmd.run(`/api/ui/finance/books/expenses/${id}/${action}`, {}, success).then(succeeded => {
+      if (action === 'post' && (succeeded || !this.cmd.uncertain())) this.pendingPostId.set(null);
+    }).finally(() => this.books.reload());
   }
   review(id: string, approve: boolean, maxReviewCommentLength = 1000): void {
     if (approve) {
@@ -200,6 +227,42 @@ export class FirmBooks {
     this.cmd.run(`/api/ui/finance/books/expenses/${id}/review`, { approve, comment },
       approve ? 'Approved.' : 'Rejected with the recorded reason.').finally(() => this.books.reload());
   }
+
+  async verifyPostState(): Promise<void> {
+    const id = this.pendingPostId();
+    if (!id || this.verifyingPost()) return;
+    this.verifyingPost.set(true);
+    this.postVerificationMessage.set('');
+    try {
+      const persisted = await this.api.get('/api/ui/finance/books', decodeBooks);
+      const target = persisted.expenses.find(expense => expense.id === id);
+      const status = target?.status === 'POSTED' ? 'POSTED' : target?.status === 'APPROVED' ? 'APPROVED' : 'UNVERIFIABLE';
+      this.postReconciliation.set(status);
+      this.postVerificationMessage.set(status === 'UNVERIFIABLE'
+        ? 'The exact expense could not be confirmed in an approved or posted state. Keep this action unresolved and refresh again.'
+        : 'The exact expense was found in refreshed persisted firm-books state.');
+      this.books.reload();
+    } catch {
+      this.postReconciliation.set(null);
+      this.postVerificationMessage.set('Persisted firm-books state could not be verified. Keep this action unresolved and retry the refresh.');
+    } finally {
+      this.verifyingPost.set(false);
+    }
+  }
+
+  clearUnresolvedPost(): void {
+    const status = this.postReconciliation();
+    if (this.verifyingPost() || status !== 'POSTED' && status !== 'APPROVED') return;
+    this.cmd.uncertain.set(false);
+    this.cmd.failed.set(false);
+    this.cmd.message.set(status === 'POSTED'
+      ? 'Persisted state confirms this expense is posted. The lost request was not repeated.'
+      : 'Persisted state confirms this expense remains approved. A new post attempt is available after review.');
+    this.pendingPostId.set(null);
+    this.postReconciliation.set(null);
+    this.postVerificationMessage.set('');
+  }
+
   async trialBalance(): Promise<void> {
     this.tbBusy.set(true); this.tbError.set(''); this.tb.set(null);
     try {
