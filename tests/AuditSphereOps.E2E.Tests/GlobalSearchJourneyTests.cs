@@ -87,10 +87,17 @@ public sealed class GlobalSearchJourneyTests
       Assert.DoesNotContain(Marker, await results.InnerTextAsync(), StringComparison.OrdinalIgnoreCase);
 
       // Page-only overflow exposes the same refinement hint as capped record results.
+      var pageSearchResponse = page.WaitForResponseAsync(response =>
+        response.Url.Contains("/api/ui/search?term=re", StringComparison.Ordinal));
       await search.FillAsync("re");
+      using var pagePayload = JsonDocument.Parse(await (await pageSearchResponse).TextAsync());
       await Assertions.Expect(results.GetByRole(AriaRole.Status))
         .ToContainTextAsync("Refine your search for more specific results", new() { Timeout = 15000 });
       Assert.Equal(6, await results.GetByRole(AriaRole.Link).CountAsync());
+      var pageHits = pagePayload.RootElement.GetProperty("hits").EnumerateArray().ToArray();
+      Assert.True(pagePayload.RootElement.GetProperty("truncated").GetBoolean());
+      Assert.Equal(6, pageHits.Length);
+      Assert.All(pageHits, hit => Assert.Equal("Page", hit.GetProperty("kind").GetString()));
 
       // A published library result is rendered as a real Angular route the scoped Staff user can open.
       await search.FillAsync(libraryTerm);
