@@ -84,6 +84,70 @@ public sealed partial class ClientAccountingTests
 
   [Fact]
   [Trait("Profile", "Database")]
+  public async Task NativeBookkeepingModeRequiresAcceptedClientServiceAndReviewer()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
+    await using var db = new AuditSphereDbContext(pg.Options);
+    db.AcceptanceDecisions.Add(new AcceptanceDecision
+    {
+      Id = Guid.CreateVersion7(), FirmId = scope.FirmId, PracticeClientId = scope.ClientA,
+      ServiceRoute = "BOOKKEEPING", Decision = "Accepted", Generation = 1,
+      Rationale = "Approved bookkeeping service", EvaluationTemplateVersion = "TEST-1",
+      EvaluationSnapshotDigest = new string('b', 64), DecidedByUserId = scope.Reviewer.Id, DecidedAt = DateTimeOffset.UtcNow
+    });
+    await db.SaveChangesAsync();
+
+    var denied = await ClientAccountingService.CreateProfileAsync(db, preparer,
+      new ClientAccountingProfileRequest(scope.ClientA, "QA", "QAR", 1, 1, "AUDITSPHERE", "NATIVE-1",
+        ClientAccountingSourceModes.NativeBookkeeping));
+    Assert.False(denied.Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, denied.ErrorCode);
+
+    var created = await ClientAccountingService.CreateProfileAsync(db, reviewer,
+      new ClientAccountingProfileRequest(scope.ClientA, "QA", "QAR", 1, 1, "AUDITSPHERE", "NATIVE-1",
+        ClientAccountingSourceModes.NativeBookkeeping));
+    Assert.True(created.Succeeded, created.Message);
+    Assert.Equal(ClientAccountingSourceModes.NativeBookkeeping,
+      (await db.ClientAccountingProfiles.SingleAsync(x => x.Id == created.Value)).SourceMode);
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task ExternalSourceProfileCannotSwitchToNativeAfterReportingPeriodsExist()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var profile = await ClientAccountingService.CreateProfileAsync(db, reviewer,
+      new ClientAccountingProfileRequest(scope.ClientA, "QA", "QAR", 1, 1, "LEDGER", "EXT-1"));
+    Assert.True(profile.Succeeded);
+    var period = await ClientAccountingService.CreatePeriodAsync(db, reviewer,
+      new ReportingPeriodRequest(scope.ClientA, "2026", new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), "IFRS", "QAR"));
+    Assert.True(period.Succeeded);
+    db.AcceptanceDecisions.Add(new AcceptanceDecision
+    {
+      Id = Guid.CreateVersion7(), FirmId = scope.FirmId, PracticeClientId = scope.ClientA,
+      ServiceRoute = "BOOKKEEPING", Decision = "Accepted", Generation = 1,
+      Rationale = "Approved bookkeeping service", EvaluationTemplateVersion = "TEST-1",
+      EvaluationSnapshotDigest = new string('c', 64), DecidedByUserId = scope.Reviewer.Id, DecidedAt = DateTimeOffset.UtcNow
+    });
+    await db.SaveChangesAsync();
+
+    var result = await ClientAccountingService.ReviseProfileAsync(db, reviewer, profile.Value,
+      new ClientAccountingProfileRequest(scope.ClientA, "QA", "QAR", 1, 1, "LEDGER", "EXT-1",
+        ClientAccountingSourceModes.NativeBookkeeping), expectedRevision: 1);
+    Assert.False(result.Succeeded);
+    Assert.Equal(ErrorCodes.GateBlocked, result.ErrorCode);
+    Assert.Equal(ClientAccountingSourceModes.ExternalSource,
+      (await db.ClientAccountingProfiles.SingleAsync(x => x.Id == profile.Value)).SourceMode);
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
   public async Task FirmWideAccountingConfiguration_RejectsClientScopedGrants()
   {
     await using var pg = await PgTestSchema.CreateAsync();
