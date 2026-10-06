@@ -73,8 +73,7 @@ public static partial class AuditDeliverableService
       ? routing.Value!.Where(r => r.Band == RiskBands.Red).Select(r => r.Area).Distinct().ToList() : [];
     var procedures = await db.AuditProcedures.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId && x.ApplicabilityStatus == AuditApplicabilityStatuses.Applicable)
       .OrderBy(x => x.SourceProcedureId).Select(x => new { x.Id, x.SourceProcedureId, x.Title, x.Status, x.CurrentResultRevision }).ToListAsync(ct);
-    var openNotes = 0;
-    foreach (var p in procedures) openNotes += await ReviewNotesService.OpenCountAsync(db, actor.FirmId, p.Id, ct);
+    var openNotes = (await ReviewNotesService.OpenNoteIdsAsync(db, actor.FirmId, engagementId, ct)).Count;
     var findings = await db.Findings.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId).OrderBy(x => x.CreatedAt).ToListAsync(ct);
     var differenceRows = await db.AuditDifferences.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId).ToListAsync(ct);
     var unadjustedDifferences = differenceRows

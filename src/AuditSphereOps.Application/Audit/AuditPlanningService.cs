@@ -529,6 +529,14 @@ public static class AuditPlanningService
             .SetProperty(x => x.Conclusion, conclusion)
             .SetProperty(x => x.SubmittedAt, now), ct);
 
+        if (target.ProcedureId is { } procedureId)
+        {
+            await db.AuditProcedures.Where(p => p.Id == procedureId && p.FirmId == target.FirmId)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(p => p.Status, AuditProcedureStatuses.Submitted)
+                    .SetProperty(p => p.CurrentResultRevision, revision), ct);
+        }
+
         db.WorkpaperSubmissions.Add(new WorkpaperSubmission
         {
             Id = Guid.CreateVersion7(),

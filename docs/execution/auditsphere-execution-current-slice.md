@@ -13,6 +13,17 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Procedural workpapers, evidence links, and safe collaboration (AS-COMP-16)
+
+Fieldwork procedure tailoring, workpaper generation, evidence linkage, and independent review lifecycle are verified (§§4.3.2–4.3.3, AS-COMP-16):
+- Procedure tailoring (`AuditProgramService.TailorProcedureAsync`): allows tailoring title, custom wording, and applicability rationale under planning authorization. Updates acquire an exclusive row lock (`FOR UPDATE`); tailoring an already reviewed or submitted procedure reopens testing to `InProgress` and increments `CurrentResultRevision`, safely invalidating stale conclusions.
+- Workpaper generation (`AuditProgramService.GetOrCreateWorkpaperAsync`): initializes a dedicated `Workpaper` entity linked to the planned procedure and moves the procedure to `InProgress`. Idempotent requests safely return the existing workpaper ID.
+- Evidence linking & records queries: `AuditRecordQueries.WorkpaperAsync` returns linked digital PBC evidence (with SHA-256 content digests) and physical evidence indexing (file index, box reference, location movements).
+- Submission synchronization: `AuditPlanningService.SubmitWorkpaperAsync` updates linked procedure status to `Submitted` in lockstep.
+- Fieldwork API endpoints: exposed `/api/ui/procedures/{id}/tailor`, `/api/ui/procedures/{id}/workpaper`, `/api/ui/procedures/{id}/results`, and `/api/ui/procedure-results/{id}/review`.
+- UI updates: `workpaper.ts` decodes and renders linked digital evidence and physical storage references; `fieldwork.ts` decodes `workpaperId`.
+- Verification: PostgreSQL-backed unit tests `ProcedureTailoringAndWorkpaperGeneration_EnforcesLifecycleAndInvalidation` (in `AuditProgramWorkflowTests`) and `LateAndReopenedNotesBlockClearanceUntilRespondedResolvedAndReviewed` (in `AuditDeliverablesTests`) pass alongside the full 104-suite Angular frontend test run and .NET test suite. Release build compiles cleanly with zero warnings/errors, and EF Core model has zero pending migrations.
+
 ## Engagement-scoped CRM, hierarchy and client-finance reads (STE-REM-03)
 
 The pending-features review's commercial scope findings are closed. Correspondence-recipient

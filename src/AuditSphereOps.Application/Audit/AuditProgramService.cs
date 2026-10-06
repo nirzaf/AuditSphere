@@ -63,6 +63,12 @@ public sealed record ProcedureReviewValue(
   long ResultRevision,
   string Decision);
 
+public sealed record TailorProcedureRequest(
+  Guid AuditProcedureId,
+  string Title,
+  string CustomWording,
+  string? Rationale);
+
 /// <summary>
 /// Shared program/adoption/procedure execution commands. Account areas use this path rather than
 /// creating separate workflow engines. The source catalog is immutable; engagement rows are copies
@@ -298,6 +304,114 @@ public static class AuditProgramService
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
     return CommandResult.Ok();
+  }
+
+  public static async Task<CommandResult> TailorProcedureAsync(
+    IAuditSphereDbContext db,
+    ActorContext actor,
+    TailorProcedureRequest request,
+    CancellationToken ct = default)
+  {
+    ArgumentNullException.ThrowIfNull(db);
+    ArgumentNullException.ThrowIfNull(request);
+
+    if (string.IsNullOrWhiteSpace(request.Title) || string.IsNullOrWhiteSpace(request.CustomWording))
+      return CommandResult.Fail(InvalidCode, "Title and custom wording are required to tailor a procedure.");
+
+    var role = Authorization.RequireRole(actor, PlanningRoles);
+    if (!role.Succeeded)
+      return CommandResult.Fail(role.ErrorCode!, role.Message!);
+
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var snapshot = await db.AuditProcedures.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.Id == request.AuditProcedureId && x.FirmId == actor.FirmId, ct);
+    if (snapshot is null)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var scope = await ResolveEngagementAsync(db, actor, snapshot.EngagementId, ct, snapshot.ClientId);
+    if (scope.Denied is not null)
+      return CommandResult.Fail(scope.Denied, scope.Message);
+
+    var procedure = await db.AuditProcedures.FromSqlInterpolated($"""
+      SELECT * FROM audit_procedures
+      WHERE id = {request.AuditProcedureId} AND firm_id = {actor.FirmId}
+      FOR UPDATE
+      """).SingleOrDefaultAsync(ct);
+    if (procedure is null || procedure.ClientId != scope.ClientId || procedure.EngagementId != snapshot.EngagementId)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+    procedure.Title = request.Title.Trim();
+    procedure.SourceWording = request.CustomWording.Trim();
+    if (!string.IsNullOrWhiteSpace(request.Rationale))
+      procedure.ApplicabilityRationale = request.Rationale.Trim();
+
+    // If already reviewed or submitted, tailoring invalidates prior results and reopens the procedure for re-testing
+    if (procedure.Status is AuditProcedureStatuses.Reviewed or AuditProcedureStatuses.Submitted)
+    {
+      procedure.Status = AuditProcedureStatuses.InProgress;
+      procedure.CurrentResultRevision++;
+    }
+
+    await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
+    return CommandResult.Ok();
+  }
+
+  public static async Task<CommandResult<Guid>> GetOrCreateWorkpaperAsync(
+    IAuditSphereDbContext db,
+    ActorContext actor,
+    Guid procedureId,
+    CancellationToken ct = default)
+  {
+    ArgumentNullException.ThrowIfNull(db);
+
+    var role = Authorization.RequireRole(actor, PlanningRoles);
+    if (!role.Succeeded)
+      return CommandResult<Guid>.Fail(role.ErrorCode!, role.Message!);
+
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var procedure = await db.AuditProcedures.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.Id == procedureId && x.FirmId == actor.FirmId, ct);
+    if (procedure is null)
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var scope = await ResolveEngagementAsync(db, actor, procedure.EngagementId, ct, procedure.ClientId);
+    if (scope.Denied is not null)
+      return CommandResult<Guid>.Fail(scope.Denied, scope.Message);
+
+    var existing = await db.Workpapers.AsNoTracking()
+      .Where(w => w.FirmId == actor.FirmId && w.EngagementId == procedure.EngagementId && w.ProcedureId == procedureId)
+      .OrderByDescending(w => w.CreatedAt)
+      .FirstOrDefaultAsync(ct);
+    if (existing is not null)
+      return CommandResult<Guid>.Ok(existing.Id);
+
+    var workpaper = new Workpaper
+    {
+      Id = Guid.CreateVersion7(),
+      FirmId = scope.FirmId,
+      ClientId = scope.ClientId,
+      EngagementId = procedure.EngagementId,
+      ProcedureId = procedure.Id,
+      ActorId = actor.UserId,
+      Index = procedure.SourceProcedureId,
+      Title = procedure.Title,
+      Objective = $"Procedure {procedure.SourceProcedureId}: {procedure.Title}",
+      TemplateVersion = procedure.SourceProcedureId,
+      Procedure = procedure.SourceWording ?? procedure.Title,
+      Revision = 1,
+      Status = WorkpaperStatuses.Working,
+      CreatedAt = DateTimeOffset.UtcNow
+    };
+    db.Workpapers.Add(workpaper);
+
+    if (procedure.Status == AuditProcedureStatuses.Planned && procedure.ApplicabilityStatus == AuditApplicabilityStatuses.Applicable)
+    {
+      await db.AuditProcedures.Where(p => p.Id == procedureId && p.FirmId == actor.FirmId)
+        .ExecuteUpdateAsync(s => s.SetProperty(p => p.Status, AuditProcedureStatuses.InProgress), ct);
+    }
+
+    await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
+    return CommandResult<Guid>.Ok(workpaper.Id);
   }
 
   public static async Task<CommandResult<ProcedureResultValue>> SubmitResultAsync(

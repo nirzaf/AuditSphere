@@ -74,6 +74,10 @@ public static partial class AuditFieldworkService
       else
         blockers.Add($"procedure:{procedure.SourceProcedureId}:unreviewed");
     }
+    // Every unresolved review thread blocks completion — late notes, reopened threads and notes on
+    // earlier result revisions included — until response, reviewer resolution and a renewed review
+    // restore the current work (STE-REM-06).
+    blockers.AddRange(await ReviewNotesService.OpenBlockersAsync(db, firmId, engagementId, ct));
     blockers.AddRange(await db.AuditSelections.AsNoTracking().Where(x => x.FirmId == firmId && x.ClientId == clientId && x.EngagementId == engagementId && x.Status != AuditSelectionStatuses.Reviewed)
       .Select(x => $"selection:{x.Id}:unreviewed").ToListAsync(ct));
     var reviewedSelections = await db.AuditSelections.AsNoTracking().Where(x =>

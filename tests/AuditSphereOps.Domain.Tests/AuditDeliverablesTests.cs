@@ -156,6 +156,92 @@ public sealed partial class AuditDeliverablesTests
     Assert.Equal(2, history.Events.Count);
     await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM procedure_review_notes WHERE id = {note.Value}"));
   }
+  [Fact]
+  public async Task LateAndReopenedNotesBlockClearanceUntilRespondedResolvedAndReviewed()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var senior = w.A("senior", "Senior");
+    var manager = w.A("manager", "Manager");
+    var partner = w.A("partner", "Partner");
+    var associate = w.A("associate", "Staff");
+    await using var db = new AuditSphereDbContext(pg.Options);
+
+    // Reviewed work compiles the Summary Review Memorandum automatically.
+    Assert.True((await AuditProgramService.ReviewResultAsync(db, senior, new(w.ResultId, "REVIEWED", null))).Succeeded);
+    var firstSrm = await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.EngagementId == w.EngagementId && x.Kind == DeliverableKinds.SummaryReviewMemorandum);
+
+    // A late note after review returns the exact work to rework and retains the earlier review decision.
+    var late = await ReviewNotesService.AddNoteAsync(db, senior, new(w.ResultId, "WORK_PERFORMED", "25 invoices", "Show how the sample size of 25 was derived."));
+    Assert.True(late.Succeeded, late.Message);
+    Assert.Equal(AuditProcedureStatuses.ChangesRequired, (await db.AuditProcedures.AsNoTracking().SingleAsync(x => x.Id == w.ProcedureId)).Status);
+    Assert.Equal(AuditProcedureResultStatuses.ChangesRequired, (await db.AuditProcedureResults.AsNoTracking().SingleAsync(x => x.Id == w.ResultId)).Status);
+    Assert.Equal(1, await db.AuditProcedureReviews.CountAsync(x => x.AuditProcedureId == w.ProcedureId));
+
+    // A refreshed memorandum records the late thread as a canonical blocker; clearance is denied and
+    // regenerating the memorandum never resolves the thread.
+    var refreshed = (await AuditDeliverableService.GenerateSummaryReviewMemorandumAsync(db, manager, w.EngagementId, "Late note under rework.")).Value;
+    Assert.NotEqual(firstSrm.Id, refreshed);
+    var denied = await AuditDeliverableService.PartnerClearAsync(db, partner, refreshed, "Risk areas reviewed.", "Notes reviewed.");
+    Assert.Equal(ErrorCodes.GateBlocked, denied.ErrorCode);
+    Assert.Contains("review-note:", denied.Message);
+    Assert.True((await ReviewNotesService.ListAsync(db, senior, w.ProcedureId)).Single().Open);
+
+    // Response and reviewer resolution alone do not restore eligibility: the renewed review is missing.
+    Assert.True((await ReviewNotesService.RespondAsync(db, associate, late.Value, "Per the firm sampling table for moderate risk.")).Succeeded);
+    Assert.True((await ReviewNotesService.ResolveAsync(db, senior, late.Value, "Agreed.")).Succeeded);
+    Assert.False((await ReviewNotesService.ListAsync(db, senior, w.ProcedureId)).Single().Open);
+    var afterResolve = (await AuditDeliverableService.GenerateSummaryReviewMemorandumAsync(db, manager, w.EngagementId, "Resolved; renewed review outstanding.")).Value;
+    Assert.Equal(ErrorCodes.GateBlocked, (await AuditDeliverableService.PartnerClearAsync(db, partner, afterResolve, "Risk areas reviewed.", "Notes reviewed.")).ErrorCode);
+
+    // The preparer resubmits the reworked result and the reviewer issues the renewed review.
+    var resubmit = await AuditProgramService.SubmitResultAsync(db, associate, new SubmitProcedureResultRequest(w.ProcedureId, 1,
+      "Selected 25 invoices around year end and agreed them to dispatch notes.", "{\"result\":\"PASS\"}", ["source:invoice-25"],
+      "Revenue is recorded in the correct period; the sample size follows the firm table for moderate risk."));
+    Assert.True(resubmit.Succeeded, resubmit.Message);
+    Assert.True((await AuditProgramService.ReviewResultAsync(db, senior, new(resubmit.Value!.AuditProcedureResultId, "REVIEWED", null))).Succeeded);
+    Assert.Equal(2, await db.AuditProcedureReviews.CountAsync(x => x.AuditProcedureId == w.ProcedureId));
+    var currentSrm = await db.AuditDeliverables.AsNoTracking()
+      .Where(x => x.EngagementId == w.EngagementId && x.Kind == DeliverableKinds.SummaryReviewMemorandum && x.SignedFromDeliverableId == null)
+      .OrderByDescending(x => x.Version).FirstAsync();
+    var cleared = await AuditDeliverableService.PartnerClearAsync(db, partner, currentSrm.Id, "Risk areas reviewed.", "Notes reviewed.");
+    Assert.True(cleared.Succeeded, cleared.Message);
+
+    // Reopening the resolved thread repeats the cycle: the work returns to rework and clearance is
+    // denied again on a refreshed memorandum until response, resolution and renewed review occur again.
+    Assert.True((await ReviewNotesService.ReopenAsync(db, senior, late.Value, "Partner briefing reopened the sample-size question.")).Succeeded);
+    Assert.Equal(AuditProcedureStatuses.ChangesRequired, (await db.AuditProcedures.AsNoTracking().SingleAsync(x => x.Id == w.ProcedureId)).Status);
+    var reopenedSrm = (await AuditDeliverableService.GenerateSummaryReviewMemorandumAsync(db, manager, w.EngagementId, "Reopened thread under rework.")).Value;
+    var reopenedDenied = await AuditDeliverableService.PartnerClearAsync(db, partner, reopenedSrm, "Risk areas reviewed.", "Notes reviewed.");
+    Assert.Equal(ErrorCodes.GateBlocked, reopenedDenied.ErrorCode);
+    Assert.Contains("review-note:", reopenedDenied.Message);
+  }
+
+  [Fact]
+  public async Task FrozenFileRefusesReviewNoteAttemptsAndRecordsTheRefusedWrite()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var senior = w.A("senior", "Senior");
+    await using var db = new AuditSphereDbContext(pg.Options);
+    Assert.True((await AuditProgramService.ReviewResultAsync(db, senior, new(w.ResultId, "REVIEWED", null))).Succeeded);
+    var srm = await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.EngagementId == w.EngagementId && x.Kind == DeliverableKinds.SummaryReviewMemorandum);
+    var signedAt = DateTimeOffset.UtcNow.AddDays(-61);
+    db.EngagementFileFreezes.Add(new EngagementFileFreeze
+    {
+      Id = Guid.CreateVersion7(), FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId,
+      ReportDeliverableId = srm.Id, ReportSignedAt = signedAt, DueAt = signedAt.AddDays(60),
+      State = FileFreezeStates.Frozen, FrozenAt = signedAt.AddDays(60), UpdatedAt = signedAt.AddDays(60)
+    });
+    await db.SaveChangesAsync();
+
+    var refused = await ReviewNotesService.AddNoteAsync(db, senior, new(w.ResultId, "WORK_PERFORMED", "25 invoices", "Late question after freeze."));
+    Assert.Equal(ErrorCodes.ProtectedState, refused.ErrorCode);
+    Assert.Empty(await db.ProcedureReviewNotes.Where(x => x.EngagementId == w.EngagementId).ToListAsync());
+    Assert.Single(await db.FrozenAccessAttempts.Where(x => x.EngagementId == w.EngagementId && x.Action == "add review note").ToListAsync());
+  }
+
+
 
   [Fact]
   public async Task SrmPresentsCurrencyAwareDifferences_AndDocumentsDoNotAssertAutomaticImmateriality()

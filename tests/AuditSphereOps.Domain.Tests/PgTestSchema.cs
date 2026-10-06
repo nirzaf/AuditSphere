@@ -71,7 +71,8 @@ public sealed class PgTestSchema : IAsyncDisposable, ITestPostgresDatabase
     {
       SearchPath = schema,
       Pooling = true,
-      Timeout = 60
+      Timeout = 60,
+      IncludeErrorDetail = true
     };
     schemaBuilder["Maximum Pool Size"] = "6";
 

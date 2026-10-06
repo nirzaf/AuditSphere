@@ -11,9 +11,11 @@ import { SHARED } from '../../core/ui';
 
 const draft = obj({ workpaperId: guid, draftId: nullable(guid), baseWorkpaperRevision: int, baseInputGeneration: int, basePolicyGeneration: int, draftRevision: int,
   workPerformed: text, conclusion: text, lastSaveId: guid, lastSavedAt: nullable(instant), lifecycle: text });
+const evidenceItem = obj({ linkId: guid, uploadIntentId: guid, fileName: text, contentSha256: text, note: nullable(text), linkedAt: instant });
 export const decodeWorkpaper = obj({ id: guid, engagementId: guid, index: text, title: text, objective: text, templateVersion: text, procedure: text,
   linkedProcedureTitle: nullable(text), revision: int, status: text, workPerformed: nullable(text), conclusion: nullable(text), createdAt: instant, submittedAt: nullable(instant),
-  submissions: arr(obj({ revision: int, submittedAt: instant, conclusion: nullable(text) }), 1000), draft });
+  submissions: arr(obj({ revision: int, submittedAt: instant, conclusion: nullable(text) }), 1000), draft,
+  evidence: nullable(arr(evidenceItem, 1000)), physicalEvidence: nullable(arr(text, 1000)) });
 type Draft = ReturnType<typeof draft>;
 type DraftSaveAttempt = {
   workpaperId: string;
@@ -46,6 +48,18 @@ const AUTOSAVE_MS = 750;
       <section class="panel"><h2>Workpaper details</h2>
         <dl class="facts"><dt>Index</dt><dd>{{ w.index }}</dd><dt>Objective</dt><dd>{{ w.objective }}</dd><dt>Template version</dt><dd>{{ w.templateVersion }}</dd><dt>Procedure</dt><dd>{{ w.procedure }}</dd>
           <dt>Linked procedure</dt><dd>{{ w.linkedProcedureTitle ?? 'Not linked to a planned procedure' }}</dd><dt>Current revision</dt><dd>{{ w.revision }}</dd><dt>Created</dt><dd>{{ w.createdAt.slice(0, 16).replace('T', ' ') }} UTC</dd></dl></section>
+      @if (w.evidence?.length || w.physicalEvidence?.length) {
+        <section class="panel"><h2>Linked evidence</h2>
+          @if (w.evidence?.length) {
+            <h3>Digital evidence</h3>
+            <ul aria-label="Linked digital evidence">@for (e of w.evidence; track e.linkId) { <li>{{ e.fileName }} <code>{{ e.contentSha256.slice(0, 12) }}</code>{{ e.note ? ' — ' + e.note : '' }}</li> }</ul>
+          }
+          @if (w.physicalEvidence?.length) {
+            <h3>Physical evidence</h3>
+            <ul aria-label="Linked physical evidence">@for (p of w.physicalEvidence; track p) { <li>{{ p }}</li> }</ul>
+          }
+        </section>
+      }
       <section class="panel"><h2>Submission history</h2>
         <p>Submission freezes the content into an immutable snapshot: the reviewer sees exactly what was submitted, and a corrected conclusion requires a new workpaper revision.</p>
         <div class="table-scroll"><table><thead><tr><th scope="col">Rev</th><th scope="col">Submitted at (UTC)</th><th scope="col">Conclusion</th></tr></thead>

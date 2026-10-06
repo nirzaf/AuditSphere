@@ -8,7 +8,7 @@ import { arr, bool, dec, decimalInput, decode, guid, instant, int, nat, nullable
 import { SHARED } from '../../core/ui';
 
 const procedure = obj({ id: guid, sourceProcedureId: text, sourceSectionNumber: nullable(int), sourceSectionTitle: nullable(text), title: text,
-  applicabilityStatus: text, status: text, riskId: nullable(guid) });
+  applicabilityStatus: text, status: text, riskId: nullable(guid), workpaperId: nullable(guid) });
 export const decodeFieldwork = obj({ engagementId: guid, catalogProcedureCount: nat, catalogVersion: text,
   program: nullable(obj({ programCode: text, version: text, sourceHash: text })), procedures: arr(procedure, 5000),
   risks: arr(obj({ id: guid, area: text, significanceDecision: text, band: nullable(text), effectiveBand: nullable(text),

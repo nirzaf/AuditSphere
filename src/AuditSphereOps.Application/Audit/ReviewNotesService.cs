@@ -47,6 +47,10 @@ public static class ReviewNotesService
     };
     db.ProcedureReviewNotes.Add(note);
     await db.SaveChangesAsync(ct);
+    // A note added after the work was reviewed returns the exact work to rework: completion stays
+    // blocked until the required response, resolution and a renewed review occur, while the earlier
+    // review decision is retained (STE-REM-06).
+    await ReopenReviewedWorkForReworkAsync(db, result.AuditProcedureId, result.Id, ct);
     return CommandResult<Guid>.Ok(note.Id);
   }
 
@@ -87,6 +91,25 @@ public static class ReviewNotesService
   }
 
   /// <summary>
+  /// Every unresolved thread on this engagement, across all result revisions and including reopened
+  /// threads (STE-REM-06). A thread stays unresolved until a reviewer resolves it; regenerating a
+  /// deliverable, changing applicability or commenting never resolves it.
+  /// </summary>
+  internal static async Task<IReadOnlyList<Guid>> OpenNoteIdsAsync(IAuditSphereDbContext db, Guid firmId, Guid engagementId, CancellationToken ct)
+  {
+    var ids = await db.ProcedureReviewNotes.AsNoTracking()
+      .Where(x => x.FirmId == firmId && x.EngagementId == engagementId)
+      .Select(x => x.Id).ToListAsync(ct);
+    if (ids.Count == 0) return [];
+    var events = await db.ProcedureReviewNoteEvents.AsNoTracking().Where(x => ids.Contains(x.NoteId)).ToListAsync(ct);
+    return ids.Where(id => IsOpen(events.Where(e => e.NoteId == id).ToList())).ToList();
+  }
+
+  /// <summary>Canonical completion blockers for every unresolved thread on this engagement (STE-REM-06).</summary>
+  internal static async Task<IReadOnlyList<string>> OpenBlockersAsync(IAuditSphereDbContext db, Guid firmId, Guid engagementId, CancellationToken ct) =>
+    (await OpenNoteIdsAsync(db, firmId, engagementId, ct)).Select(id => $"review-note:{id}:unresolved").ToList();
+
+  /// <summary>
   /// Review hierarchy: when the preparer is staffed on the engagement, the reviewer must be staffed at a higher level.
   /// Unstaffed legacy engagements keep the existing independence rule only.
   /// </summary>
@@ -122,6 +145,25 @@ public static class ReviewNotesService
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, NoteId = noteId, Kind = kind, Body = body.Trim(), AuthorUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     });
     await db.SaveChangesAsync(ct);
+    // A reopened thread returns reviewed work to rework exactly like a late note (STE-REM-06).
+    if (kind == ReviewNoteEventKinds.Reopened)
+      await ReopenReviewedWorkForReworkAsync(db, note.ProcedureId, note.ResultId, ct);
     return CommandResult.Ok();
+  }
+
+  /// <summary>
+  /// When the affected work currently stands Reviewed, a late note or reopened thread returns the
+  /// exact procedure and result to rework so only a renewed review can restore completion eligibility;
+  /// the earlier review row and every note event are retained (STE-REM-06).
+  /// </summary>
+  private static async Task ReopenReviewedWorkForReworkAsync(IAuditSphereDbContext db, Guid procedureId, Guid resultId, CancellationToken ct)
+  {
+    var procedure = await db.AuditProcedures.SingleOrDefaultAsync(x => x.Id == procedureId, ct);
+    var result = await db.AuditProcedureResults.SingleOrDefaultAsync(x => x.Id == resultId, ct);
+    if (procedure is null || result is null) return;
+    if (procedure.Status != AuditProcedureStatuses.Reviewed && result.Status != AuditProcedureResultStatuses.Reviewed) return;
+    procedure.Status = AuditProcedureStatuses.ChangesRequired;
+    result.Status = AuditProcedureResultStatuses.ChangesRequired;
+    await db.SaveChangesAsync(ct);
   }
 }

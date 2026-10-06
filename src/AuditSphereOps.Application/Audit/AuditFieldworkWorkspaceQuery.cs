@@ -10,7 +10,7 @@ namespace AuditSphereOps.Application.Audit;
 
 public sealed record FieldworkProgram(string ProgramCode, string Version, string SourceHash);
 public sealed record FieldworkProcedure(Guid Id, string SourceProcedureId, int? SourceSectionNumber, string? SourceSectionTitle,
-  string Title, string ApplicabilityStatus, string Status, Guid? RiskId);
+  string Title, string ApplicabilityStatus, string Status, Guid? RiskId, Guid? WorkpaperId = null, long CurrentResultRevision = 0, string? SourceWording = null);
 public sealed record FieldworkRiskOption(Guid Id, string Area, string SignificanceDecision, string? Band,
   string? EffectiveBand, decimal? Balance, string? Currency, decimal? TolerableError, decimal? PlanningMateriality,
   Guid? RiskAssessmentId, Guid? MaterialityAssessmentId, Guid? MaterialityCalculationId, Guid? MappingVersionId,
@@ -82,25 +82,35 @@ public static class AuditFieldworkWorkspaceQuery
       : null;
     FieldworkProgram? program = null;
     List<FieldworkProcedure> procedures = [];
+    var workpaperMap = await db.Workpapers.AsNoTracking()
+      .Where(w => w.FirmId == actor.FirmId && w.EngagementId == engagementId && w.ProcedureId != null)
+      .GroupBy(w => w.ProcedureId!.Value)
+      .Select(g => new { ProcedureId = g.Key, WorkpaperId = g.OrderByDescending(x => x.CreatedAt).Select(x => x.Id).FirstOrDefault() })
+      .ToDictionaryAsync(x => x.ProcedureId, x => x.WorkpaperId, ct);
+
     if (adoption is not null)
     {
       var version = await db.AuditProgramVersions.AsNoTracking().SingleAsync(x => x.Id == adoption.ProgramVersionId && x.FirmId == actor.FirmId, ct);
       program = new(version.ProgramCode, version.Version, version.SourceHash);
-      procedures = await db.AuditProcedures.AsNoTracking()
+      var rows = await db.AuditProcedures.AsNoTracking()
         .Where(x => x.FirmId == actor.FirmId && x.ClientId == engagement!.PracticeClientId && x.EngagementId == engagementId && x.EngagementProgramId == adoption.Id)
         .OrderBy(x => x.SourceSectionNumber).ThenBy(x => x.SourceProcedureId)
-        .Select(x => new FieldworkProcedure(x.Id, x.SourceProcedureId, x.SourceSectionNumber, x.SourceSectionTitle,
-          x.Title, x.ApplicabilityStatus, x.Status, x.RiskId)).ToListAsync(ct);
+        .Select(x => new { x.Id, x.SourceProcedureId, x.SourceSectionNumber, x.SourceSectionTitle, x.Title, x.ApplicabilityStatus, x.Status, x.RiskId, x.CurrentResultRevision, x.SourceWording })
+        .ToListAsync(ct);
+      procedures = rows.Select(x => new FieldworkProcedure(x.Id, x.SourceProcedureId, x.SourceSectionNumber, x.SourceSectionTitle,
+        x.Title, x.ApplicabilityStatus, x.Status, x.RiskId, workpaperMap.GetValueOrDefault(x.Id), x.CurrentResultRevision, x.SourceWording)).ToList();
     }
     else if (authorization.CanViewReviewNotes)
     {
       // A reviewer-only projection exposes only procedures with submitted results to review.
-      procedures = await db.AuditProcedures.AsNoTracking()
+      var rows = await db.AuditProcedures.AsNoTracking()
         .Where(x => x.FirmId == actor.FirmId && x.ClientId == engagement.PracticeClientId && x.EngagementId == engagementId &&
           db.AuditProcedureResults.Any(r => r.FirmId == actor.FirmId && r.ClientId == engagement.PracticeClientId && r.EngagementId == engagementId && r.AuditProcedureId == x.Id))
         .OrderBy(x => x.SourceSectionNumber).ThenBy(x => x.SourceProcedureId)
-        .Select(x => new FieldworkProcedure(x.Id, x.SourceProcedureId, x.SourceSectionNumber, x.SourceSectionTitle,
-          x.Title, x.ApplicabilityStatus, x.Status, x.RiskId)).ToListAsync(ct);
+        .Select(x => new { x.Id, x.SourceProcedureId, x.SourceSectionNumber, x.SourceSectionTitle, x.Title, x.ApplicabilityStatus, x.Status, x.RiskId, x.CurrentResultRevision, x.SourceWording })
+        .ToListAsync(ct);
+      procedures = rows.Select(x => new FieldworkProcedure(x.Id, x.SourceProcedureId, x.SourceSectionNumber, x.SourceSectionTitle,
+        x.Title, x.ApplicabilityStatus, x.Status, x.RiskId, workpaperMap.GetValueOrDefault(x.Id), x.CurrentResultRevision, x.SourceWording)).ToList();
     }
 
     IReadOnlyList<FieldworkRiskOption> risks = [];

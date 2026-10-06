@@ -8,6 +8,9 @@ public static partial class UiEndpoints
 {
   public sealed record ApplicabilityInput(string Decision);
   public sealed record ProcedureRiskInput(Guid? RiskId);
+  public sealed record TailorProcedureInput(string Title, string CustomWording, string? Rationale);
+  public sealed record SubmitProcedureResultInput(long? ExpectedInputGeneration, string WorkPerformed, string? StructuredResultJson, string[]? EvidenceReferences, string Conclusion);
+  public sealed record ReviewProcedureResultInput(string Decision, string? Comment);
   public sealed record AggregateConclusionInput(string Conclusion);
   public sealed record SamplingInput(Guid ProcedureId, Guid ScheduleId, string Method, string? Interval, string? KeyItemThreshold, int? SampleSize, int? Seed,
     string Rationale, string[]? AttributeFields = null, string? ExpectedPreviewDigest = null);
@@ -29,6 +32,14 @@ public static partial class UiEndpoints
       ReadAsync(http, (db, actor, ct) => AuditFieldworkWorkspaceQuery.GetAsync(db, actor, id, ct)));
     group.MapGet("/procedures/{id:guid}/review", (Guid id, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => AuditFieldworkWorkspaceQuery.ProcedureAsync(db, actor, id, ct)));
+    group.MapPost("/procedures/{id:guid}/tailor", (Guid id, TailorProcedureInput i, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AuditProgramService.TailorProcedureAsync(db, actor, new TailorProcedureRequest(id, i.Title ?? "", i.CustomWording ?? "", i.Rationale), ct)));
+    group.MapPost("/procedures/{id:guid}/workpaper", (Guid id, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AuditProgramService.GetOrCreateWorkpaperAsync(db, actor, id, ct)));
+    group.MapPost("/procedures/{id:guid}/results", (Guid id, SubmitProcedureResultInput i, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AuditProgramService.SubmitResultAsync(db, actor, new SubmitProcedureResultRequest(id, i.ExpectedInputGeneration ?? 1, i.WorkPerformed ?? "", i.StructuredResultJson ?? "{}", i.EvidenceReferences ?? [], i.Conclusion ?? ""), ct)));
+    group.MapPost("/procedure-results/{id:guid}/review", (Guid id, ReviewProcedureResultInput i, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AuditProgramService.ReviewResultAsync(db, actor, new ReviewProcedureResultRequest(id, i.Decision ?? "", i.Comment), ct)));
     group.MapPost("/engagements/{id:guid}/fieldwork/program", (Guid id, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => AuditFieldworkWorkspaceQuery.PublishAndAdoptAsync(db, actor, id, AuditFieldworkWorkspaceQuery.DefaultProgramVersion, ct)));
     group.MapPost("/procedures/{id:guid}/applicability", (Guid id, ApplicabilityInput i, HttpContext http) =>

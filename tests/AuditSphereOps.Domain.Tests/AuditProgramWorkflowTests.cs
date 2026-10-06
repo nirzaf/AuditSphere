@@ -253,4 +253,88 @@ public sealed class AuditProgramWorkflowTests
       Assert.Equal(7, cashCoverage.PendingDecision);
     }
   }
+
+  [Fact(DisplayName = "Procedure tailoring and workpaper generation enforce concurrency, lifecycle and invalidation")]
+  public async Task ProcedureTailoringAndWorkpaperGeneration_EnforcesLifecycleAndInvalidation()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PlanningSeed.CreateAsync(pg, role: "Partner");
+    var scope = fixture.Primary;
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var published = await AuditProgramService.PublishAsync(db, scope.Actor,
+      new PublishAuditProgramRequest("2026.1", AuditProgramCatalog.SourceHash));
+    Assert.True(published.Succeeded);
+
+    var adopted = await AuditProgramService.AdoptAsync(db, scope.Actor,
+      new AdoptAuditProgramRequest(scope.EngagementId, published.Value!.ProgramVersionId));
+    Assert.True(adopted.Succeeded);
+
+    var procedure = await db.AuditProcedures.SingleAsync(x => x.EngagementId == scope.EngagementId && x.SourceProcedureId == "AWP-02-01");
+    Assert.Equal(AuditProcedureStatuses.Planned, procedure.Status);
+
+    // Make procedure applicable
+    Assert.True((await AuditProgramService.DecideApplicabilityAsync(db, scope.Actor,
+      new DecideProcedureApplicabilityRequest(procedure.Id, AuditApplicabilityStatuses.Applicable, "Mandatory cash test"))).Succeeded);
+
+    // Initial workpaper generation initializes the workpaper and advances procedure to InProgress
+    var wpResult = await AuditProgramService.GetOrCreateWorkpaperAsync(db, scope.Actor, procedure.Id);
+    Assert.True(wpResult.Succeeded, wpResult.Message);
+    var workpaperId = wpResult.Value;
+
+    var procDb = await db.AuditProcedures.AsNoTracking().SingleAsync(x => x.Id == procedure.Id);
+    Assert.Equal(AuditProcedureStatuses.InProgress, procDb.Status);
+
+    // Idempotent call returns the same workpaper ID
+    var wpRepeat = await AuditProgramService.GetOrCreateWorkpaperAsync(db, scope.Actor, procedure.Id);
+    Assert.True(wpRepeat.Succeeded);
+    Assert.Equal(workpaperId, wpRepeat.Value);
+
+    // Cross-engagement actor cannot generate or access workpaper
+    var foreignUser = new AppUser
+    {
+      Id = Guid.NewGuid(), FirmId = scope.FirmId, Subject = "foreign-" + Guid.NewGuid().ToString("N"),
+      TenantId = "tenant-planning", Email = "foreign@example.test", DisplayName = "Foreign Senior",
+      UserKind = "Staff", SessionEpoch = 1, CreatedAt = DateTimeOffset.UtcNow
+    };
+    db.Users.Add(foreignUser);
+    db.RoleGrants.Add(new RoleGrant
+    {
+      Id = Guid.NewGuid(), FirmId = scope.FirmId, UserId = foreignUser.Id, Role = "Senior",
+      ClientId = fixture.Other.ClientId, EngagementId = fixture.Other.EngagementId,
+      GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = foreignUser.Id
+    });
+    await db.SaveChangesAsync();
+    var foreignActor = new ActorContext(foreignUser.Id, scope.FirmId, 1, ["Senior"]);
+
+    var crossResult = await AuditProgramService.GetOrCreateWorkpaperAsync(db, foreignActor, procedure.Id);
+    Assert.False(crossResult.Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, crossResult.ErrorCode);
+
+    // Tailoring updates title and custom wording
+    var tailorReq = new TailorProcedureRequest(procedure.Id, "Custom Tailored Cash Review", "Perform detailed cash count and trace to general ledger.", "High-risk client location");
+    var tailorResult = await AuditProgramService.TailorProcedureAsync(db, scope.Actor, tailorReq);
+    Assert.True(tailorResult.Succeeded, tailorResult.Message);
+
+    var updatedProc = await db.AuditProcedures.AsNoTracking().SingleAsync(x => x.Id == procedure.Id);
+    Assert.Equal("Custom Tailored Cash Review", updatedProc.Title);
+    Assert.Equal("Perform detailed cash count and trace to general ledger.", updatedProc.SourceWording);
+    Assert.Equal("High-risk client location", updatedProc.ApplicabilityRationale);
+    Assert.Equal(0, updatedProc.CurrentResultRevision);
+
+    // Submit procedure result
+    Assert.True((await AuditProgramService.SubmitResultAsync(db, scope.Actor,
+      new SubmitProcedureResultRequest(procedure.Id, 1, "Completed count successfully.", "{\"count\": 5000}", ["cash-doc-1"], "Audit objective met."))).Succeeded);
+
+    var submittedProc = await db.AuditProcedures.AsNoTracking().SingleAsync(x => x.Id == procedure.Id);
+    Assert.Equal(AuditProcedureStatuses.Submitted, submittedProc.Status);
+
+    // Tailoring an already submitted procedure resets status to InProgress and increments revision to force re-testing
+    var reTailorReq = new TailorProcedureRequest(procedure.Id, "Custom Tailored Cash Review v2", "Updated testing procedures after management query.", "Revised scope");
+    Assert.True((await AuditProgramService.TailorProcedureAsync(db, scope.Actor, reTailorReq)).Succeeded);
+
+    var reTailoredProc = await db.AuditProcedures.AsNoTracking().SingleAsync(x => x.Id == procedure.Id);
+    Assert.Equal(AuditProcedureStatuses.InProgress, reTailoredProc.Status);
+    Assert.Equal(2, reTailoredProc.CurrentResultRevision);
+  }
 }
