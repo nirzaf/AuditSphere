@@ -866,6 +866,33 @@
           "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~GlobalSearchQueryTests'",
           "coverage": "PostgreSQL fixtures seed seven matches each for Client, Engagement, PBC request and Invoice. The authorized Partner/FinanceReviewer receives six hits per kind with truncated=true. Together with existing lead, technical-library and page cases, cap/truncation query evidence now covers all seven result kinds.",
           "boundary": "Test-only. Candidate-window exhaustion, cross-kind ranking, exhaustive role/scope, remaining timeout/in-flight search recovery, Angular per-kind ranking behavior, full solution, Angular CI/build and EF drift remain open. The shared Release build compiled another agent’s uncommitted ConsolidationOverviewQuery.cs edit, which this search query test does not exercise and which was excluded from the commit."
+        },
+        "globalSearchAngularTimeoutAndInvalidation": {
+          "sourceCommit": "477a953f91fb6cc482a59ad0b94de740a0e30ac7",
+          "observedAt": "2026-10-06T01:59:19Z",
+          "status": "PASS_LOCAL",
+          "focusedSuite": {
+            "testFile": "src/AuditSphereOps.Ui/src/app/features/search/search.spec.ts",
+            "passed": 4,
+            "failed": 0,
+            "skipped": 0,
+            "command": "npm --prefix src/AuditSphereOps.Ui run test:ci -- --include=src/app/features/search/search.spec.ts"
+          },
+          "fullAngularCi": {
+            "files": 95,
+            "passed": 495,
+            "failed": 0,
+            "skipped": 0,
+            "command": "npm --prefix src/AuditSphereOps.Ui run test:ci"
+          },
+          "productionBuild": {
+            "status": "PASS_WITH_BUDGET_WARNING",
+            "initialBundle": "349.67 kB",
+            "warning": "src/app/features/commercial/settings.scss is 7.53 kB; component-style budget is 4.00 kB.",
+            "command": "npm --prefix src/AuditSphereOps.Ui run build"
+          },
+          "coverage": "Angular component tests verify a 15-second request timeout renders the safe retry state without stale results and session invalidation cancels the in-flight request and clears previous results.",
+          "boundary": "Component-level Angular evidence only. No backend or EF model changed; built-in browser timeout/invalidation presentation, full .NET solution regression, EF drift, production/canary, assistive technology and overall migration acceptance remain open."
         }
       },
       "practiceBillingLedgerCrosswalk": {
@@ -10840,8 +10867,8 @@
     "packageId": "ASP.NET Core API and Angular 22 presentation migration",
     "implementationStatus": "PARTIAL",
     "acceptanceStatus": "PARTIAL",
-    "scope": "Canonical Angular route ownership is in place. AuditSphereOps.Web and its Razor source remain restored as rollback/reference. API.Tests and E2E.Tests use API-only hosts. All 82 removed E2E methods have assertion crosswalks. The 76-row source/action inventory has one parity-verified row, 73 partial reviews and 2 unanalyzed rows; 28 supporting files remain open. Focused partial-review evidence covers Statement Drilldown, Trial Balance Intake, risk routing, shared confirmation callers, acceptance checklist workspace/role, Global Search identity/invoice/input/cap/audience and technical-library boundaries, portfolio aggregates, contact-create recovery, authenticated and unauthenticated canonical/preview root routing, and the Operations firm-wide Administrator denial message. Global Search technical-library and supported-page destinations have Angular Staff browser journeys; PostgreSQL tests cover library audience/firm isolation and cap/truncation for all seven result kinds; the Angular UI displays refinement hints for capped library and page results. Browser recovery covers synthetic 503/retry, malformed 200 and 401 session clearing; timeout and in-flight invalidation remain open. Other slices retain their documented evidence limits. Overall migration acceptance and Blazor retirement are NOT_READY.",
-    "nextAction": "Continue with the remaining 2 unanalyzed source/action rows and AS-PAR-002 direct query/count/export authorization, remaining search ranking/candidate-boundary and role/scope cases plus timeout/in-flight invalidation, command retry/idempotency checks, and fallback-host route checks. Seventy-three reviewed rows remain partial and still need complete parity evidence; 28 supporting files remain open. Keep the Blazor rollback host until behavior parity, production rollback/canary, human assistive-technology/locale acceptance, live Microsoft gates and separate owner acceptance are complete.",
+    "scope": "Canonical Angular route ownership is in place. AuditSphereOps.Web and its Razor source remain restored as rollback/reference. API.Tests and E2E.Tests use API-only hosts. All 82 removed E2E methods have assertion crosswalks. The 76-row source/action inventory has one parity-verified row, 73 partial reviews and 2 unanalyzed rows; 28 supporting files remain open. Focused partial-review evidence covers Statement Drilldown, Trial Balance Intake, risk routing, shared confirmation callers, acceptance checklist workspace/role, Global Search identity/invoice/input/cap/audience and technical-library boundaries, portfolio aggregates, contact-create recovery, authenticated and unauthenticated canonical/preview root routing, and the Operations firm-wide Administrator denial message. Global Search technical-library and supported-page destinations have Angular Staff browser journeys; PostgreSQL tests cover library audience/firm isolation and cap/truncation for all seven result kinds; the Angular UI displays refinement hints for capped library and page results. Browser recovery covers synthetic 503/retry, malformed 200 and 401 session clearing; Angular component tests cover the 15-second timeout and clearing/cancellation on session invalidation. Other slices retain their documented evidence limits. Overall migration acceptance and Blazor retirement are NOT_READY.",
+    "nextAction": "Continue with the remaining 2 unanalyzed source/action rows and AS-PAR-002 direct query/count/export authorization, remaining search ranking/candidate-boundary and role/scope cases, command retry/idempotency checks, and fallback-host route checks. Seventy-three reviewed rows remain partial and still need complete parity evidence; 28 supporting files remain open. Keep the Blazor rollback host until behavior parity, production rollback/canary, human assistive-technology/locale acceptance, live Microsoft gates and separate owner acceptance are complete.",
     "branch": "master"
   },
   "localEvidence": [

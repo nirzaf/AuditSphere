@@ -119,6 +119,14 @@ authorization and recovery matrices.
   with `truncated=true`. Together with the existing lead, library and page
   cases, per-kind result caps are covered across all seven search types;
   candidate-window exhaustion, ranking and full role/scope remain open.
+- At test commit `477a953f`, the Angular search component suite passed 4/4,
+  and full Angular CI passed 495/495 across 95 files. Added assertions cover
+  the 15-second timeout's safe retry state and clearing/cancellation on session
+  invalidation. The Angular production build passed with the existing
+  `settings.scss` component-style budget warning (7.53 kB against 4.00 kB;
+  349.67 kB initial bundle). Component tests do not replace browser or
+  assistive-technology acceptance; ranking/order, candidate-window and
+  exhaustive role/scope evidence remain open.
 - The existing `AngularClientContactCreationJourneyTests` cohort passed 2/2
   on 2026-10-05 for canonical and `/ui` route ownership. It verifies restored
   tab drafts, exact primary-contact review, lost-response receipt recovery,
