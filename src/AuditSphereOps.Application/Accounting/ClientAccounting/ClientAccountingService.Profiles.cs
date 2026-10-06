@@ -113,9 +113,7 @@ public static partial class ClientAccountingService
     if (sourceMode == ClientAccountingSourceModes.ExternalSource)
       return CommandResult.Ok();
 
-    var accepted = await db.AcceptanceDecisions.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId &&
-      x.PracticeClientId == clientId && x.EngagementId == null && x.ServiceRoute == "BOOKKEEPING" &&
-      x.Decision == "Accepted" && (x.Conditions == null || x.Conditions == string.Empty), ct);
+    var accepted = await ClientBookkeepingAuthorization.IsCurrentDecisionAcceptedAsync(db, actor.FirmId, clientId, ct: ct);
     return accepted
       ? CommandResult.Ok()
       : CommandResult.Fail(ErrorCodes.GateBlocked,

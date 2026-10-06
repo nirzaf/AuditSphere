@@ -1,0 +1,58 @@
+using Microsoft.EntityFrameworkCore;
+using AuditSphereOps.Domain.Accounting;
+using AuditSphereOps.Domain.Practice;
+using AuditSphereOps.Domain.Security;
+
+namespace AuditSphereOps.Infrastructure.Persistence;
+
+public sealed partial class AuditSphereDbContext
+{
+  private static void ConfigureClientOperationalLedger(ModelBuilder b)
+  {
+    var journal = b.Entity<ClientOperationalJournal>();
+    journal.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.Id })
+      .HasName("ak_client_operational_journals_scope_id");
+    journal.Property(x => x.JournalNumber).HasMaxLength(100);
+    journal.Property(x => x.Description).HasMaxLength(1000);
+    journal.Property(x => x.Currency).HasMaxLength(3);
+    journal.Property(x => x.Status).HasMaxLength(20);
+    journal.HasIndex(x => new { x.FirmId, x.ClientId, x.PeriodId, x.JournalNumber }).IsUnique()
+      .HasDatabaseName("ux_client_operational_journal_number");
+    journal.ToTable("client_operational_journals", t => t.HasCheckConstraint("ck_client_operational_journal_values",
+      "length(trim(journal_number)) > 0 AND length(trim(description)) > 0 AND currency ~ '^[A-Z]{3}$' AND revision >= 1" +
+      " AND status IN ('DRAFT','SUBMITTED','RETURNED','APPROVED','POSTED')" +
+      " AND ((status = 'POSTED' AND posted_by_user_id IS NOT NULL AND posted_at IS NOT NULL) OR status <> 'POSTED')"));
+    journal.HasOne<PracticeClient>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    journal.HasOne<ClientReportingPeriod>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.PeriodId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    journal.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var line = b.Entity<ClientOperationalJournalLine>();
+    line.Property(x => x.AccountCode).HasMaxLength(100);
+    line.Property(x => x.AccountName).HasMaxLength(300);
+    line.Property(x => x.Description).HasMaxLength(1000);
+    line.HasIndex(x => new { x.FirmId, x.ClientId, x.JournalId, x.LineNumber }).IsUnique()
+      .HasDatabaseName("ux_client_operational_journal_line_number");
+    line.ToTable("client_operational_journal_lines", t => t.HasCheckConstraint("ck_client_operational_journal_line_values",
+      "line_number > 0 AND length(trim(account_code)) > 0 AND length(trim(account_name)) > 0" +
+      " AND debit >= 0 AND credit >= 0 AND NOT (debit > 0 AND credit > 0) AND (debit > 0 OR credit > 0)"));
+    line.HasOne<ClientOperationalJournal>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.JournalId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    line.HasOne<ClientAccount>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.ClientAccountId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var decision = b.Entity<ClientOperationalJournalDecision>();
+    decision.Property(x => x.Decision).HasMaxLength(20);
+    decision.Property(x => x.Reason).HasMaxLength(2000);
+    decision.HasIndex(x => new { x.FirmId, x.ClientId, x.JournalId, x.JournalRevision }).IsUnique()
+      .HasDatabaseName("ux_client_operational_journal_decision_revision");
+    decision.ToTable("client_operational_journal_decisions", t => t.HasCheckConstraint("ck_client_operational_journal_decision_values",
+      "journal_revision >= 1 AND decision IN ('APPROVE','RETURN') AND length(trim(reason)) > 0"));
+    decision.HasOne<ClientOperationalJournal>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.JournalId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    decision.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, UserId = x.ActorUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+  }
+}

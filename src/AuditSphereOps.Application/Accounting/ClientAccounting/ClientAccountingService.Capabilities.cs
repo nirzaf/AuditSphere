@@ -47,9 +47,8 @@ public static partial class ClientAccountingService
           "An affirmative service-permissibility decision is required before enabling client reporting.");
       if (serviceKind == AccountingCapabilityServiceKinds.ClientBookkeeping)
       {
-        var unconditional = await db.AcceptanceDecisions.AsNoTracking().AnyAsync(x =>
-          x.FirmId == actor.FirmId && x.PracticeClientId == request.ClientId && x.EngagementId == null &&
-          x.ServiceRoute == serviceRoute && x.Decision == "Accepted" && (x.Conditions == null || x.Conditions == string.Empty), ct);
+        var unconditional = await ClientBookkeepingAuthorization.IsCurrentDecisionAcceptedAsync(
+          db, actor.FirmId, request.ClientId.Value, serviceRoute, ct);
         if (!unconditional)
           return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
             "Client bookkeeping requires an accepted client-level service decision without unresolved conditions.");

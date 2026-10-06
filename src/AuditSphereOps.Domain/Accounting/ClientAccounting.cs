@@ -544,6 +544,55 @@ public sealed class GeneralLedgerCompletenessBridge
   public DateTimeOffset? ReviewedAt { get; set; }
 }
 
+/// <summary>Client-owned operational journal. Separate from imported GL and reporting adjustments.</summary>
+public sealed class ClientOperationalJournal
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid PeriodId { get; set; }
+  public string JournalNumber { get; set; } = string.Empty;
+  public string Description { get; set; } = string.Empty;
+  public DateOnly PostingDate { get; set; }
+  public string Currency { get; set; } = string.Empty;
+  public string Status { get; set; } = "DRAFT";
+  public long Revision { get; set; } = 1;
+  public Guid CreatedByUserId { get; set; }
+  public DateTimeOffset CreatedAt { get; set; }
+  public DateTimeOffset? SubmittedAt { get; set; }
+  public Guid? PostedByUserId { get; set; }
+  public DateTimeOffset? PostedAt { get; set; }
+}
+
+public sealed class ClientOperationalJournalLine
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid JournalId { get; set; }
+  public int LineNumber { get; set; }
+  public Guid ClientAccountId { get; set; }
+  public string AccountCode { get; set; } = string.Empty;
+  public string AccountName { get; set; } = string.Empty;
+  public string Description { get; set; } = string.Empty;
+  public decimal Debit { get; set; }
+  public decimal Credit { get; set; }
+}
+
+/// <summary>Immutable maker/checker decision for one exact operational journal revision.</summary>
+public sealed class ClientOperationalJournalDecision
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid JournalId { get; set; }
+  public long JournalRevision { get; set; }
+  public string Decision { get; set; } = string.Empty;
+  public string Reason { get; set; } = string.Empty;
+  public Guid ActorUserId { get; set; }
+  public DateTimeOffset CreatedAt { get; set; }
+}
+
 public sealed class AccountingReconciliation
 {
   public Guid Id { get; set; }
