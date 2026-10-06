@@ -15,6 +15,25 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Completed focused slice: Firm-ledger close outcome recovery
+
+At code/test commit `5afd38fe`,
+`AngularFirmLedgerCloseOutcomeRecoveryJourneyTests.LostCloseResponseIsReconciledBeforeAnyExplicitRetry`
+passed **1/1** in 36 seconds against isolated PostgreSQL and an API-hosted
+Angular session. The first period close succeeded on the server while the
+browser response was dropped; the UI blocked retry until an explicit persisted
+read showed `CLOSED` at revision 2, and no duplicate close was sent. For a
+second period, the request was aborted before reaching the API. The UI verified
+the saved state remained `OPEN` at revision 1 and required an explicit
+acknowledgment before the operator manually retried. PostgreSQL contains one
+close decision per period with the reviewed reason, and there were no browser
+page errors.
+
+The Angular production build passed at 349.67 kB initial size with the
+existing 7.53 kB Commercial Settings stylesheet warning. The EF model was not
+changed. The full solution suite was not rerun; its latest complete result
+remains 1001/1001 at `ead85032`.
+
 ## Completed focused slice: Firm-ledger role capability matrix
 
 At code/test commit `356d48a9`,
