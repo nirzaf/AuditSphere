@@ -12,7 +12,8 @@ public sealed record CounterpartyAmendmentRequest(long ExpectedRevision, string 
 public sealed record CounterpartyAmendmentView(Guid Id, Guid CounterpartyId, string Revision, string DisplayName,
   string Address, string TaxIdentifier, string ContactDetails, string PaymentTerms, string Reason,
   Guid ProposedByUserId, string CreatedAt, string? Decision, string? ReviewReason, Guid? ReviewedByUserId);
-public sealed record CounterpartyHistory(ClientCounterpartyView Current, IReadOnlyList<CounterpartyAmendmentView> Amendments);
+public sealed record CounterpartyHistory(ClientCounterpartyView Current, bool BookkeepingActive, int Page, int PageSize, int Total,
+  CounterpartyAmendmentView? EffectiveAmendment, IReadOnlyList<CounterpartyAmendmentView> Amendments);
 
 public static partial class ClientBookkeepingCounterpartyWorkspace
 {
@@ -92,21 +93,29 @@ public static partial class ClientBookkeepingCounterpartyWorkspace
   }
 
   public static async Task<CommandResult<CounterpartyHistory>> HistoryAsync(IClientAccountingDbContext db, ActorContext actor,
-    Guid clientId, Guid partyId, CancellationToken ct = default)
+    Guid clientId, Guid partyId, int page = 0, int pageSize = 25, CancellationToken ct = default)
   {
+    if (page is < 0 or > 10000 || pageSize is < 1 or > 100) return CommandResult<CounterpartyHistory>.Fail(ErrorCodes.Accounting.MappingInvalid, "Choose a supported history page.");
     if (!(await Authorize(db, actor, clientId, ct)).Succeeded) return CommandResult<CounterpartyHistory>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead, ct);
     var party = await db.ClientBookkeepingCounterparties.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ClientId == clientId && x.Id == partyId, ct);
     if (party is null) return CommandResult<CounterpartyHistory>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var current = await EffectiveView(db, party, ct);
-    var proposals = await db.ClientCounterpartyAmendments.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == clientId && x.CounterpartyId == partyId)
-      .OrderBy(x => x.Revision).ThenBy(x => x.Id).ToListAsync(ct);
-    var decisions = await db.ClientCounterpartyAmendmentDecisions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == clientId && x.CounterpartyId == partyId).ToDictionaryAsync(x => x.AmendmentId, ct);
-    var history = proposals.Select(a => { decisions.TryGetValue(a.Id, out var d); return new CounterpartyAmendmentView(a.Id, partyId,
+    var query = db.ClientCounterpartyAmendments.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == clientId && x.CounterpartyId == partyId);
+    var total = await query.CountAsync(ct);
+    var proposals = await query.OrderByDescending(x => x.Revision).ThenByDescending(x => x.Id).Skip(page * pageSize).Take(pageSize).ToListAsync(ct);
+    var effective = current.EffectiveAmendmentId is { } effectiveId ? await query.SingleAsync(x => x.Id == effectiveId, ct) : null;
+    var ids = proposals.Select(x => x.Id).ToList(); if (effective is not null) ids.Add(effective.Id);
+    var decisions = await db.ClientCounterpartyAmendmentDecisions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == clientId && x.CounterpartyId == partyId && ids.Contains(x.AmendmentId)).ToDictionaryAsync(x => x.AmendmentId, ct);
+    CounterpartyAmendmentView View(ClientCounterpartyAmendment a) { decisions.TryGetValue(a.Id, out var d); return new(a.Id, partyId,
       a.Revision.ToString(System.Globalization.CultureInfo.InvariantCulture), a.DisplayName, a.Address, a.TaxIdentifier, a.ContactDetails,
-      a.PaymentTerms, a.Reason, a.ProposedByUserId, a.CreatedAt.ToUniversalTime().ToString("O"), d?.Decision, d?.Reason, d?.ReviewedByUserId); }).ToArray();
+      a.PaymentTerms, a.Reason, a.ProposedByUserId, a.CreatedAt.ToUniversalTime().ToString("O"), d?.Decision, d?.Reason, d?.ReviewedByUserId); }
+    var history = proposals.Select(View).ToArray();
+    var effectiveView = effective is null ? null : View(effective);
     await tx.CommitAsync(ct);
     if (!(await Authorize(db, actor, clientId, ct)).Succeeded) return CommandResult<CounterpartyHistory>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    return CommandResult<CounterpartyHistory>.Ok(new(current, history));
+    var active = await Active(db, actor, clientId, ct);
+    if (!(await Authorize(db, actor, clientId, ct)).Succeeded) return CommandResult<CounterpartyHistory>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    return CommandResult<CounterpartyHistory>.Ok(new(current, active, page, pageSize, total, effectiveView, history));
   }
 }
