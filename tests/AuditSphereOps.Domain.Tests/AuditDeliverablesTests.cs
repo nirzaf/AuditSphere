@@ -8,6 +8,7 @@ using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Application.Records;
 using AuditSphereOps.Domain.Records;
 using Microsoft.Extensions.Logging.Abstractions;
+using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Practice;
@@ -74,8 +75,43 @@ public sealed partial class AuditDeliverablesTests
       Currency = "QAR", RecordedByUserId = u["senior"].Id, ReviewedByUserId = u["manager"].Id, RecordedAt = now, ReviewedAt = now });
     db.Findings.Add(new Finding { Id = Guid.NewGuid(), FirmId = firmId, ClientId = clientId, EngagementId = engagementId, ActorId = u["senior"].Id, FindingType = "Control deficiency",
       ImpactDescription = "Credit notes approved without review", MonetaryAmount = 12_000m, ManagementResponse = "Approval workflow introduced from March.", CreatedAt = now });
-    await db.SaveChangesAsync();
     await CompletionTestFixtures.SeedTaxonomyAsync(db, firmId, u["partner"].Id);
+    var datasetId = Guid.NewGuid();
+    var mappingId = Guid.NewGuid();
+    var accounts = new (string Code, string Name, decimal Amount, string Destination, string Section)[]
+    {
+      ("1000", "Cash", 100m, "CASH", "ASSETS"),
+      ("4000", "Revenue", -100m, "REVENUE", "INCOME")
+    };
+    db.TrialBalanceDatasets.Add(new TrialBalanceDataset
+    {
+      Id = datasetId, FirmId = firmId, ClientId = clientId, EngagementId = engagementId, SourceKind = "Raw", Currency = "QAR", Balanced = true,
+      ValidationStatus = "Accepted", ImportState = TrialBalanceImportStates.Loading, NormalizedDatasetDigest = Hashing.Sha256Hex(datasetId.ToString()),
+      ImportedAt = now, ImportedByUserId = u["partner2"].Id
+    });
+    db.TrialBalanceRows.AddRange(accounts.Select(a => new TrialBalanceRow
+    {
+      Id = Guid.NewGuid(), DatasetId = datasetId, AccountCode = a.Code, AccountName = a.Name, Amount = a.Amount, Currency = "QAR", Entity = "TEST"
+    }));
+    await db.SaveChangesAsync();
+    await db.TrialBalanceDatasets.Where(x => x.Id == datasetId).ExecuteUpdateAsync(s => s.SetProperty(x => x.ImportState, TrialBalanceImportStates.Sealed));
+    db.MappingVersions.Add(new MappingVersion
+    {
+      Id = mappingId, FirmId = firmId, ClientId = clientId, EngagementId = engagementId, DatasetId = datasetId, TaxonomyVersion = "TEST-IFRS",
+      PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", Status = AccountingPackageStates.MappingApproved, CreatedByUserId = u["partner2"].Id,
+      ApprovedByUserId = u["partner"].Id, ApprovedAt = now, CreatedAt = now
+    });
+    db.MappingAllocations.AddRange(accounts.Select(a => new MappingAllocation
+    {
+      Id = Guid.NewGuid(), FirmId = firmId, ClientId = clientId, EngagementId = engagementId, MappingVersionId = mappingId,
+      SourceAccountCode = a.Code, DestinationCode = a.Destination, StatementSection = a.Section, Fraction = 1m, Rationale = "Mapped", CreatedAt = now
+    }));
+    await db.SaveChangesAsync();
+    var calc = await MaterialityEngineService.CalculateAsync(db, new ActorContext(u["partner2"].Id, firmId, u["partner2"].SessionEpoch, ["Partner"]),
+      new(engagementId, MaterialityBenchmarks.Revenue, null, 1m, 75m, 5m, "Revenue-driven trading entity"));
+    Assert.True(calc.Succeeded, calc.Message);
+    var apprv = await AuditPlanningService.ApproveMaterialityAssessmentAsync(db, new ActorContext(u["partner"].Id, firmId, u["partner"].SessionEpoch, ["Partner"]), calc.Value!.AssessmentId);
+    Assert.True(apprv.Succeeded, apprv.Message);
     var w = new World(firmId, clientId, engagementId, u, procedure.Id, result.Id);
     foreach (var (name, level) in new[] { ("partner", StaffingLevels.EngagementPartner), ("manager", StaffingLevels.AuditManager), ("senior", StaffingLevels.SeniorAuditor),
       ("associate", StaffingLevels.StaffAssociate), ("associate2", StaffingLevels.StaffAssociate) })
@@ -268,7 +304,8 @@ public sealed partial class AuditDeliverablesTests
     await using var db = new AuditSphereDbContext(pg.Options);
     Assert.True((await AuditProgramService.ReviewResultAsync(db, w.A("senior", "Senior"), new(w.ResultId, "REVIEWED", null))).Succeeded);
     var srm = (await AuditDeliverableService.GenerateSummaryReviewMemorandumAsync(db, manager, w.EngagementId, "Ready.")).Value;
-    Assert.True((await AuditDeliverableService.PartnerClearAsync(db, partner, srm, "Risks reviewed.", "Notes reviewed.")).Succeeded);
+    var clearResult = await AuditDeliverableService.PartnerClearAsync(db, partner, srm, "Risks reviewed.", "Notes reviewed.");
+    Assert.True(clearResult.Succeeded, $"PartnerClearAsync failed: {clearResult.ErrorCode} - {clearResult.Message}");
     Assert.True((await AuditDeliverableService.DecideOpinionAsync(db, partner, w.EngagementId, "UNMODIFIED", null, null)).Succeeded);
     var letter = (await AuditDeliverableService.GenerateReportAsync(db, manager, w.EngagementId, DeliverableKinds.RepresentationLetter)).Value!.DeliverableId!.Value;
     var review = (await AuditDeliverableService.ShareWithClientAsync(db, manager, letter)).Value;
@@ -282,7 +319,7 @@ public sealed partial class AuditDeliverablesTests
     var iar = (await AuditDeliverableService.GenerateReportAsync(db, manager, w.EngagementId, DeliverableKinds.IndependentAuditorsReport)).Value!.DeliverableId!.Value;
     Assert.True((await AuditDeliverableService.RegisterSignatureAsync(db, partner, Png(120, 40))).Succeeded);
     var signed = await AuditDeliverableService.SignIndependentReportAsync(db, partner, iar);
-    Assert.True(signed.Succeeded, signed.Message);
+    Assert.True(signed.Succeeded, $"Sign failed with: {signed.ErrorCode} - {signed.Message}");
     return signed.Value;
   }
 

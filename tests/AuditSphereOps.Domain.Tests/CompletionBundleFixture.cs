@@ -28,38 +28,68 @@ public static class CompletionBundleFixture
   public static async Task<(Guid PackageId, Guid ReleaseId)> ReleasedFinancialPackageAsync(DbContextOptions<AuditSphereDbContext> options, CompletionBundleScope w)
   {
     var now = DateTimeOffset.UtcNow;
-    var period = Guid.NewGuid(); var book = Guid.NewGuid(); var dataset = Guid.NewGuid();
+    Guid targetDataset = Guid.Empty;
+    Guid targetMappingId = Guid.Empty;
+    decimal cashAmount = 100m;
+    decimal netIncome = 100m;
     await using (var db = new AuditSphereDbContext(options))
     {
       foreach (var (name, role) in new[] { ("associate", "AccountingPreparer"), ("senior", "AccountingReviewer") })
         db.RoleGrants.Add(new RoleGrant { Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = w.U[name].Id, Role = role, GrantedAt = now, GrantedByUserId = w.U["partner"].Id });
-      db.ClientReportingPeriods.Add(new ClientReportingPeriod { Id = period, FirmId = w.FirmId, ClientId = w.ClientId, PeriodCode = "FY2026", StartDate = new DateOnly(2026,1,1), EndDate = new DateOnly(2026,12,31),
-        Basis = "STATUTORY", Currency = "QAR", Status = AccountingWorkflowStates.Active, CreatedByUserId = w.U["associate"].Id, CreatedAt = now });
-      db.ClientReportingBooks.Add(new ClientReportingBook { Id = book, FirmId = w.FirmId, ClientId = w.ClientId, PeriodId = period, Code = "STATUTORY", Basis = "STATUTORY", InclusionRule = "ALL_ENTITIES",
-        Currency = "QAR", Status = AccountingWorkflowStates.Active, CreatedByUserId = w.U["associate"].Id, CreatedAt = now });
-      db.TrialBalanceDatasets.Add(new TrialBalanceDataset { Id = dataset, FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId, PeriodId = period, BookId = book, Basis = "STATUTORY",
-        SourceKind = "Raw", Currency = "QAR", Balanced = true, ValidationStatus = "Accepted", ImportedAt = now, ImportedByUserId = w.U["associate"].Id });
-      db.TrialBalanceRows.AddRange(new TrialBalanceRow { Id = Guid.NewGuid(), DatasetId = dataset, AccountCode = "1000", AccountName = "Cash", Amount = 100m, Currency = "QAR", Entity = "TEST" },
-        new TrialBalanceRow { Id = Guid.NewGuid(), DatasetId = dataset, AccountCode = "4000", AccountName = "Revenue", Amount = -100m, Currency = "QAR", Entity = "TEST" });
+
+      var existingMapping = await db.MappingVersions.AsNoTracking()
+        .Where(x => x.FirmId == w.FirmId && x.EngagementId == w.EngagementId && x.Status == AccountingPackageStates.MappingApproved)
+        .OrderByDescending(x => x.ApprovedAt).ThenByDescending(x => x.Version)
+        .FirstOrDefaultAsync();
+
+      if (existingMapping is not null)
+      {
+        targetDataset = existingMapping.DatasetId;
+        targetMappingId = existingMapping.Id;
+        var tbRows = await db.TrialBalanceRows.AsNoTracking().Where(x => x.DatasetId == targetDataset).ToListAsync();
+        cashAmount = tbRows.FirstOrDefault(x => x.AccountCode == "1000")?.Amount ?? 100m;
+        var rev = tbRows.Where(x => x.AccountCode.StartsWith("4")).Sum(x => -x.Amount);
+        var exp = tbRows.Where(x => x.AccountCode.StartsWith("5")).Sum(x => x.Amount);
+        netIncome = rev - exp;
+        if (netIncome == 0) netIncome = 100m;
+      }
+      else
+      {
+        var period = Guid.NewGuid(); var book = Guid.NewGuid(); var dataset = Guid.NewGuid();
+        db.ClientReportingPeriods.Add(new ClientReportingPeriod { Id = period, FirmId = w.FirmId, ClientId = w.ClientId, PeriodCode = "FY2026", StartDate = new DateOnly(2026,1,1), EndDate = new DateOnly(2026,12,31),
+          Basis = "STATUTORY", Currency = "QAR", Status = AccountingWorkflowStates.Active, CreatedByUserId = w.U["associate"].Id, CreatedAt = now });
+        db.ClientReportingBooks.Add(new ClientReportingBook { Id = book, FirmId = w.FirmId, ClientId = w.ClientId, PeriodId = period, Code = "STATUTORY", Basis = "STATUTORY", InclusionRule = "ALL_ENTITIES",
+          Currency = "QAR", Status = AccountingWorkflowStates.Active, CreatedByUserId = w.U["associate"].Id, CreatedAt = now });
+        db.TrialBalanceDatasets.Add(new TrialBalanceDataset { Id = dataset, FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId, PeriodId = period, BookId = book, Basis = "STATUTORY",
+          SourceKind = "Raw", Currency = "QAR", Balanced = true, ValidationStatus = "Accepted", ImportedAt = now, ImportedByUserId = w.U["associate"].Id });
+        db.TrialBalanceRows.AddRange(new TrialBalanceRow { Id = Guid.NewGuid(), DatasetId = dataset, AccountCode = "1000", AccountName = "Cash", Amount = 100m, Currency = "QAR", Entity = "TEST" },
+          new TrialBalanceRow { Id = Guid.NewGuid(), DatasetId = dataset, AccountCode = "4000", AccountName = "Revenue", Amount = -100m, Currency = "QAR", Entity = "TEST" });
+        targetDataset = dataset;
+      }
       await db.SaveChangesAsync();
     }
     var preparer = w.A("associate", "AccountingPreparer"); var reviewer = w.A("senior", "AccountingReviewer"); var partner = w.A("partner", "Partner");
     Guid packageId;
     await using (var db = new AuditSphereDbContext(options))
     {
-      var mapping = await FinancialStatementService.CreateMappingVersionAsync(db, preparer, new(dataset, "TEST-IFRS", "2026-01-01", "2026-12-31",
-        [new("1000", "CASH", "ASSETS", 1m, "Cash mapping"), new("4000", "REVENUE", "INCOME", 1m, "Revenue mapping")]));
-      Assert.True(mapping.Succeeded, mapping.Message);
-      Assert.True((await FinancialStatementService.ApproveMappingAsync(db, reviewer, mapping.Value, 1)).Succeeded);
-      var plan = await AdjustmentPlanService.CreatePlanAsync(db, preparer, dataset, []);
+      if (targetMappingId == Guid.Empty)
+      {
+        var mapping = await FinancialStatementService.CreateMappingVersionAsync(db, preparer, new(targetDataset, "TEST-IFRS", "2026-01-01", "2026-12-31",
+          [new("1000", "CASH", "ASSETS", 1m, "Cash mapping"), new("4000", "REVENUE", "INCOME", 1m, "Revenue mapping")]));
+        var mappingRow = await db.MappingVersions.AsNoTracking().SingleAsync(x => x.Id == mapping.Value);
+        var approved = await FinancialStatementService.ApproveMappingAsync(db, reviewer, mapping.Value, mappingRow.Version);
+        Assert.True(approved.Succeeded, $"ApproveMapping failed: {approved.ErrorCode} - {approved.Message}");
+        targetMappingId = mapping.Value;
+      }
+      var plan = await AdjustmentPlanService.CreatePlanAsync(db, preparer, targetDataset, []);
       Assert.True(plan.Succeeded, plan.Message);
       var finalized = await AdjustmentPlanService.FinalizeAsync(db, preparer, plan.Value);
       Assert.True(finalized.Succeeded, finalized.Message);
-      var built = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, new(plan.Value, mapping.Value, "IFRS", "2026-01-01", "2026-12-31", "bundle-test-v1",
-        new FinancialSupplementaryInformation(0m, 100m, [new CashFlowLineInput("OPERATING", "Cash receipts", 100m)],
+      var built = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, new(plan.Value, targetMappingId, "IFRS", "2026-01-01", "2026-12-31", "bundle-test-v1",
+        new FinancialSupplementaryInformation(0m, netIncome, [new CashFlowLineInput("OPERATING", "Cash receipts", netIncome)],
           [new DisclosureInput("CASH_POLICY", "Cash is presented at face value."), new DisclosureInput("COMMITMENTS", "", true, "No commitments in the synthetic management information.")],
-          [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 100m, "equity-test")],
-          NoteLines: [new NoteLineInput("CASH_NOTE", "CASH", 100m, "note-test")])));
+          [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, netIncome, 0m, 0m, 0m, netIncome, "equity-test")],
+          NoteLines: [new NoteLineInput("CASH_NOTE", "CASH", cashAmount, "note-test")])));
       Assert.True(built.Succeeded, built.Message);
       Assert.Equal(AccountingPackageStates.PackageValidated, built.Value!.Status);
       packageId = built.Value.PackageId;

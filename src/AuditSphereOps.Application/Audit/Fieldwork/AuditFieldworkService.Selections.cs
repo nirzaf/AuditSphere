@@ -49,7 +49,7 @@ public static partial class AuditFieldworkService
       if (population is null || population.Status != PopulationStatuses.Approved)
         return CommandResult<SelectionValue>.Fail(ErrorCodes.GateBlocked, "The source population is not approved.");
     }
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     var generation = await CurrentGenerationAsync(db, auth.ClientId, actor.FirmId, ct);
     if (await db.AuditSelections.AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == request.EngagementId &&
         x.ProcedureId == request.ProcedureId && x.ScheduleId == request.ScheduleId && x.PopulationVersionId == request.PopulationVersionId &&
@@ -85,7 +85,7 @@ public static partial class AuditFieldworkService
       InclusionReason = item.InclusionReason.Trim(), CreatedAt = selection.CreatedAt
     }));
     await db.SaveChangesAsync(ct);
-    await tx.CommitAsync(ct);
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult<SelectionValue>.Ok(new(selection.Id, selection.SelectedCount, selection.SelectedSignedTotal, selection.Status));
   }
 
