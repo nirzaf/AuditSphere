@@ -124,12 +124,25 @@ public sealed class AngularBillingWorkspaceJourneyTests
     Assert.Equal(1, creditCalls);
     await page.GetByRole(AriaRole.Button, new() { Name = "Clear unresolved billing draft", Exact = true }).ClickAsync();
     var interceptedReceiptPage = false;
+    var interceptedCreditPage = false;
     await page.RouteAsync("**/api/ui/finance/invoices/**", async interception =>
     {
       if (!interceptedReceiptPage && interception.Request.Method == "GET" &&
           interception.Request.Url.Contains("receiptBefore=", StringComparison.Ordinal))
       {
         interceptedReceiptPage = true;
+        await interception.FulfillAsync(new()
+        {
+          Status = 503,
+          ContentType = "application/json",
+          Body = "{\"code\":\"synthetic.unavailable\",\"message\":\"Synthetic temporary failure\"}"
+        });
+        return;
+      }
+      if (!interceptedCreditPage && interception.Request.Method == "GET" &&
+          interception.Request.Url.Contains("creditBefore=", StringComparison.Ordinal))
+      {
+        interceptedCreditPage = true;
         await interception.FulfillAsync(new()
         {
           Status = 503,
@@ -147,6 +160,11 @@ public sealed class AngularBillingWorkspaceJourneyTests
     Assert.True(interceptedReceiptPage);
     await page.GetByRole(AriaRole.Button, new() { Name = "Load older receipts", Exact = true }).ClickAsync();
     await Assertions.Expect(page.GetByText("SYN-PAGE-R-001", new() { Exact = true })).ToBeVisibleAsync();
+    await page.GetByRole(AriaRole.Button, new() { Name = "Load older credit notes", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Alert).GetByText(
+      "Older credit notes could not be loaded. Try again shortly.", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByText("SYN-PAGE-C-101", new() { Exact = true })).ToBeVisibleAsync();
+    Assert.True(interceptedCreditPage);
     await page.GetByRole(AriaRole.Button, new() { Name = "Load older credit notes", Exact = true }).ClickAsync();
     await Assertions.Expect(page.GetByText("SYN-PAGE-C-001", new() { Exact = true })).ToBeVisibleAsync();
     await using (var db = host.CreateDbContext())
