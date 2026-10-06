@@ -171,12 +171,23 @@ public sealed class CommercialNotification
 {
   public Guid Id { get; set; }
   public Guid FirmId { get; set; }
-  public Guid FeeMilestoneId { get; set; }
-  public Guid DocumentId { get; set; }
+  public string Kind { get; set; } = CommercialNotificationKinds.Receipt;
+  public Guid? FeeMilestoneId { get; set; }
+  public Guid? ProposalId { get; set; }
+  public Guid? PracticeClientId { get; set; }
+  public Guid? DocumentId { get; set; }
+  /// <summary>Exact identity of the dispatched offer (generated artifact hash, or the reviewed offer digest when no document exists).</summary>
+  public string? OfferSha256 { get; set; }
   public string Recipient { get; set; } = string.Empty;
   public string Subject { get; set; } = string.Empty;
   public string Body { get; set; } = string.Empty;
   public string DeliveryState { get; set; } = "QUEUED";
   public DateTimeOffset CreatedAt { get; set; }
   public DateTimeOffset? DeliveredAt { get; set; }
+}
+
+public static class CommercialNotificationKinds
+{
+  public const string Receipt = "RECEIPT";
+  public const string Proposal = "PROPOSAL";
 }

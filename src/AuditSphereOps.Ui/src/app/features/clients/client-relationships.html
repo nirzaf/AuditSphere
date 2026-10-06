@@ -1,0 +1,181 @@
+<audit-state [loading]="loading()" label="client hierarchy and routing" />
+
+@if (error()) {
+  <section role="alert" class="relationships-error">
+    <h2>Client relationships unavailable</h2>
+    <p>{{ error() }}</p>
+    <button matButton (click)="load()">Retry</button>
+  </section>
+}
+
+@if (hierarchy(); as h) {
+  <section class="hierarchy-section" aria-label="Organization hierarchy">
+    <div class="hierarchy-header">
+      <h2>Organization hierarchy & legal entity</h2>
+      @if (h.entityType) {
+        <span class="badge entity-type">{{ h.entityType }}</span>
+      }
+    </div>
+
+    <div class="legal-entity-card">
+      <dl>
+        <dt>Legal Name</dt>
+        <dd>{{ h.legalName }}</dd>
+        <dt>Tax Registration / TIN</dt>
+        <dd>{{ h.taxRegistrationNumber ?? 'Not registered' }}</dd>
+        <dt>Entity Type</dt>
+        <dd>{{ h.entityType ?? 'Standard Corporation' }}</dd>
+      </dl>
+    </div>
+
+    <!-- Parents / Ultimate Holding -->
+    <div class="relationship-group">
+      <h3>Parent companies ({{ h.parents.length }})</h3>
+      @if (!h.parents.length) {
+        <p class="muted">No parent entities configured. This entity operates as an independent ultimate parent or standalone client.</p>
+      } @else {
+        <div class="table-scroll">
+          <table>
+            <caption>Parent corporate entities</caption>
+            <thead>
+              <tr>
+                <th>Parent Entity</th>
+                <th>Ownership %</th>
+                <th>Effective Period</th>
+                <th>Status</th>
+                <th>Inspect</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (rel of h.parents; track rel.id) {
+                <tr>
+                  <td><strong>{{ rel.primaryClientName }}</strong></td>
+                  <td>{{ rel.ownershipPercentage ? rel.ownershipPercentage + '%' : '—' }}</td>
+                  <td>{{ rel.effectiveFrom ?? 'Inception' }} to {{ rel.effectiveTo ?? 'Present' }}</td>
+                  <td><audit-status [value]="rel.isActive ? 'ACTIVE' : 'REVOKED'" /></td>
+                  <td><a [routerLink]="['/app/clients', rel.primaryClientId]">View parent client</a></td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+
+    <!-- Subsidiaries -->
+    <div class="relationship-group">
+      <h3>Subsidiaries ({{ h.subsidiaries.length }})</h3>
+      @if (!h.subsidiaries.length) {
+        <p class="muted">No subsidiaries linked to this entity.</p>
+      } @else {
+        <div class="table-scroll">
+          <table>
+            <caption>Controlled corporate subsidiaries</caption>
+            <thead>
+              <tr>
+                <th>Subsidiary Entity</th>
+                <th>Ownership %</th>
+                <th>Effective Period</th>
+                <th>Status</th>
+                <th>Inspect</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (rel of h.subsidiaries; track rel.id) {
+                <tr>
+                  <td><strong>{{ rel.relatedClientName }}</strong></td>
+                  <td>{{ rel.ownershipPercentage ? rel.ownershipPercentage + '%' : '—' }}</td>
+                  <td>{{ rel.effectiveFrom ?? 'Inception' }} to {{ rel.effectiveTo ?? 'Present' }}</td>
+                  <td><audit-status [value]="rel.isActive ? 'ACTIVE' : 'REVOKED'" /></td>
+                  <td><a [routerLink]="['/app/clients', rel.relatedClientId]">View subsidiary</a></td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+
+    <!-- Affiliates / Joint Ventures -->
+    <div class="relationship-group">
+      <h3>Affiliates & associates ({{ h.affiliates.length }})</h3>
+      @if (!h.affiliates.length) {
+        <p class="muted">No affiliate entities or joint ventures linked.</p>
+      } @else {
+        <div class="table-scroll">
+          <table>
+            <caption>Affiliated entities</caption>
+            <thead>
+              <tr>
+                <th>Affiliated Entity</th>
+                <th>Ownership %</th>
+                <th>Notes</th>
+                <th>Status</th>
+                <th>Inspect</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (rel of h.affiliates; track rel.id) {
+                <tr>
+                  <td><strong>{{ rel.relatedClientName }}</strong></td>
+                  <td>{{ rel.ownershipPercentage ? rel.ownershipPercentage + '%' : '—' }}</td>
+                  <td>{{ rel.notes ?? '—' }}</td>
+                  <td><audit-status [value]="rel.isActive ? 'ACTIVE' : 'REVOKED'" /></td>
+                  <td><a [routerLink]="['/app/clients', rel.relatedClientId]">View affiliate</a></td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+  </section>
+}
+
+@if (routings(); as rList) {
+  <section class="routing-section" aria-label="Correspondence routing">
+    <div class="routing-header">
+      <h2>Correspondence routing & signatory directory</h2>
+      <span class="badge purpose-badge">AS-COMP-04 Verified</span>
+    </div>
+
+    <p class="section-explanation">
+      Automated and formal correspondence requires purpose-specific routing (Commercial, Finance, Audit Fieldwork, Completion).
+      Dispatch fail-closed enforcement requires an unambiguous, active recipient; deactivated contacts are rejected.
+    </p>
+
+    @if (!rList.length) {
+      <p class="alert-empty">No purpose-specific routing configured. Correspondence dispatch will require explicit manual assignment.</p>
+    } @else {
+      <div class="table-scroll">
+        <table>
+          <caption>Designated correspondence routing</caption>
+          <thead>
+            <tr>
+              <th>Purpose</th>
+              <th>Designated Contact</th>
+              <th>Email</th>
+              <th>Role / Title</th>
+              <th>Signatory Authority</th>
+              <th>Primary</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (rt of rList; track rt.id) {
+              <tr>
+                <td><span class="badge purpose-tag">{{ rt.purpose }}</span></td>
+                <td><strong>{{ rt.contactName }}</strong></td>
+                <td>{{ rt.contactEmail }}</td>
+                <td>{{ rt.contactRole ?? '—' }} {{ rt.contactTitle ? '(' + rt.contactTitle + ')' : '' }}</td>
+                <td>{{ rt.signatoryAuthority ?? 'None' }}</td>
+                <td>{{ rt.isPrimaryForPurpose ? 'Primary' : 'Alternate' }}</td>
+                <td><audit-status [value]="rt.isActive ? 'ACTIVE' : 'DEACTIVATED'" /></td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+}

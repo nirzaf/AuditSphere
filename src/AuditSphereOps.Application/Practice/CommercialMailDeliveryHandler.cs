@@ -23,8 +23,10 @@ public sealed class CommercialMailDeliveryHandler(IAuditSphereDbContextFactory f
     try
     {
       using var document = JsonDocument.Parse(request.PayloadJson);
+      // The client binding is optional: a pre-conversion proposal dispatch has no client yet, but the
+      // notification identity itself keys the operation and the send is firm-scoped.
       if (!document.RootElement.TryGetProperty("notificationId", out var id) || !id.TryGetGuid(out var value) ||
-          value != request.TargetId || request.ExpectedRevision != 1 || request.ClientId is null)
+          value != request.TargetId || request.ExpectedRevision != 1)
         throw new OperationBlockedException("invalid-mail-request");
       return JsonSerializer.Serialize(new { notificationId = value.ToString("D") });
     }
@@ -73,19 +75,21 @@ public sealed class CommercialMailDiscovery(
   public async Task<int> EnqueuePendingAsync(CancellationToken ct)
   {
     await using var read = await factory.CreateAsync(ct);
-    var pending = await (from n in read.CommercialNotifications.AsNoTracking()
-                         join m in read.FeeMilestones.AsNoTracking() on n.FeeMilestoneId equals m.Id
-                         join a in read.EngagementFeeAgreements.AsNoTracking() on m.AgreementId equals a.Id
-                         where n.FirmId == options.FirmId && n.DeliveryState == "QUEUED" &&
-                           !read.DurableOperations.Any(o => o.FirmId == n.FirmId && o.TargetId == n.Id && o.OperationKind == CommercialMailDeliveryHandler.Kind)
-                         orderby n.CreatedAt, n.Id
-                         select new { n.Id, a.PracticeClientId }).Take(25).ToListAsync(ct);
+    // Receipt and proposal dispatches alike carry the owning client when one exists, so the mail
+    // worker discovers every queued commercial email without joining through the fee-milestone path;
+    // a pre-conversion proposal dispatch legitimately has no client binding yet.
+    var pending = await read.CommercialNotifications.AsNoTracking()
+      .Where(n => n.FirmId == options.FirmId && n.DeliveryState == "QUEUED" &&
+        !read.DurableOperations.Any(o => o.FirmId == n.FirmId && o.TargetId == n.Id && o.OperationKind == CommercialMailDeliveryHandler.Kind))
+      .OrderBy(n => n.CreatedAt).ThenBy(n => n.Id)
+      .Select(n => new { n.Id, ClientId = n.PracticeClientId })
+      .Take(25).ToListAsync(ct);
     var count = 0;
     foreach (var mail in pending)
     {
       await using var db = await factory.CreateAsync(ct);
       await using var tx = await db.Database.BeginTransactionAsync(ct);
-      var result = await store.EnqueueAsync(db, new OperationRequest(options.FirmId, mail.PracticeClientId, null, CommercialMailDeliveryHandler.Kind,
+      var result = await store.EnqueueAsync(db, new OperationRequest(options.FirmId, mail.ClientId, null, CommercialMailDeliveryHandler.Kind,
         mail.Id, 1, "commercial-mail:" + mail.Id.ToString("D"), JsonSerializer.Serialize(new { notificationId = mail.Id.ToString("D") })), handler, ct);
       if (!result.Succeeded) continue;
       await tx.CommitAsync(ct);

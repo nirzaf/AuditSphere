@@ -92,10 +92,41 @@ public sealed partial class AuditSphereDbContext
       t.HasCheckConstraint("ck_proposal_create_request_hash",
         "create_request_hash IS NULL OR create_request_hash ~ '^[a-f0-9]{64}$'");
     });
+    b.Entity<PracticeClient>().Property(x => x.TaxRegistrationNumber).HasMaxLength(64);
+    b.Entity<PracticeClient>().Property(x => x.EntityType).HasMaxLength(64);
     b.Entity<PracticeClient>().ToTable("practice_clients", t => t.HasCheckConstraint("ck_practice_client_name",
       "length(legal_name) > 0"));
+    b.Entity<ClientContact>().Property(x => x.Phone).HasMaxLength(32);
+    b.Entity<ClientContact>().Property(x => x.Title).HasMaxLength(100);
+    b.Entity<ClientContact>().Property(x => x.SignatoryAuthority).HasMaxLength(64);
     b.Entity<ClientContact>().ToTable("client_contacts", t => t.HasCheckConstraint("ck_client_contact",
       "length(full_name) > 0 AND length(email) > 0 AND length(role) > 0 AND (valid_to IS NULL OR valid_from IS NULL OR valid_to >= valid_from)"));
+    b.Entity<ClientRelationship>().ToTable("client_relationships", t =>
+    {
+      t.HasCheckConstraint("ck_client_relationship_parties", "primary_client_id <> related_client_id");
+      t.HasCheckConstraint("ck_client_relationship_kind", "relationship_kind IN ('PARENT','SUBSIDIARY','AFFILIATE')");
+      t.HasCheckConstraint("ck_client_relationship_ownership", "ownership_percentage IS NULL OR (ownership_percentage >= 0 AND ownership_percentage <= 100)");
+      t.HasCheckConstraint("ck_client_relationship_effective", "effective_to IS NULL OR effective_from IS NULL OR effective_to >= effective_from");
+    });
+    b.Entity<ClientRelationship>().HasIndex(x => new { x.FirmId, x.PrimaryClientId, x.RelatedClientId, x.RelationshipKind })
+      .HasFilter("revoked_at IS NULL").IsUnique();
+    b.Entity<ClientRelationship>().HasIndex(x => new { x.FirmId, x.RelatedClientId });
+    b.Entity<ClientContactRouting>().ToTable("client_contact_routings", t =>
+    {
+      t.HasCheckConstraint("ck_client_contact_routing_purpose", "purpose IN ('COMMERCIAL','FINANCE','AUDIT_FIELDWORK','COMPLETION')");
+      t.HasCheckConstraint("ck_client_contact_routing_effective", "effective_to IS NULL OR effective_from IS NULL OR effective_to >= effective_from");
+    });
+    b.Entity<ClientContactRouting>().HasIndex(x => new { x.FirmId, x.PracticeClientId, x.Purpose, x.ClientContactId })
+      .HasFilter("revoked_at IS NULL");
+    b.Entity<ClientContactRouting>().HasIndex(x => new { x.FirmId, x.PracticeClientId, x.Purpose })
+      .HasFilter("revoked_at IS NULL AND is_primary_for_purpose = true");
+    b.Entity<CorrespondenceDispatchRecord>().ToTable("correspondence_dispatch_records", t =>
+    {
+      t.HasCheckConstraint("ck_correspondence_dispatch_purpose", "purpose IN ('COMMERCIAL','FINANCE','AUDIT_FIELDWORK','COMPLETION')");
+      t.HasCheckConstraint("ck_correspondence_dispatch_content", "length(recipient_name) > 0 AND length(recipient_email) > 0 AND length(document_type) > 0 AND length(document_reference) > 0 AND length(document_sha256) = 64 AND document_revision >= 1");
+    });
+    b.Entity<CorrespondenceDispatchRecord>().HasIndex(x => new { x.FirmId, x.PracticeClientId, x.DispatchedAt });
+    b.Entity<CorrespondenceDispatchRecord>().HasIndex(x => new { x.FirmId, x.EngagementId });
     b.Entity<WorkTask>().ToTable("work_tasks", t => t.HasCheckConstraint("ck_work_task_state",
       "status IN ('OPEN','IN_PROGRESS','COMPLETED','CANCELLED') AND length(title) > 0 AND (engagement_id IS NULL OR client_id IS NOT NULL) AND (reporting_period_id IS NULL OR client_id IS NOT NULL)"));
     b.Entity<TimeEntry>().ToTable("time_entries", t =>

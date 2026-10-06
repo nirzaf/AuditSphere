@@ -26,8 +26,15 @@ describe('Audit Fieldwork Contracts', () => {
           title: 'Preliminary Analytical Review',
           applicabilityStatus: 'APPLICABLE',
           status: 'COMPLETED',
+          riskId: null,
         },
       ],
+      risks: [{ id: id3, area: 'Cash', significanceDecision: 'NORMAL', band: 'GREEN', effectiveBand: 'AMBER',
+        balance: '15000.00', currency: 'USD', tolerableError: '15000.00', planningMateriality: '20000.00',
+        riskAssessmentId: id1, materialityAssessmentId: id2, materialityCalculationId: id2, mappingVersionId: id1,
+        mappingVersionNumber: 1, datasetId: id2, datasetDigest: 'a'.repeat(64), destinationCode: 'CASH',
+        statementSection: 'ASSETS', ruleVersion: 'STE-RISK-BAND-2026.1+STE-FSLI-RISK-2026.1',
+        explanation: 'Absolute balance is at tolerable error.', blocker: null }],
       differences: [
         {
           currency: 'QAR',
@@ -120,6 +127,10 @@ describe('Audit Fieldwork Contracts', () => {
     expect(decoded.program?.programCode).toBe('CORE-AUDIT');
     expect(decoded.procedures.length).toBe(1);
     expect(decoded.procedures[0].sourceProcedureId).toBe('AWP-01');
+    expect(decoded.risks[0].effectiveBand).toBe('AMBER');
+    expect(decoded.risks[0].balance).toBe('15000.00');
+    expect(decoded.risks[0].materialityCalculationId).toBe(id2);
+    expect(decoded.risks[0].datasetDigest).toBe('a'.repeat(64));
     expect(decoded.differences.length).toBe(1);
     expect(decoded.aggregate?.conclusion).toContain('tolerable error');
     expect(decoded.samplingRuns[0].method).toBe('MUS');

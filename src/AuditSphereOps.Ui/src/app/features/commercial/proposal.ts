@@ -52,6 +52,14 @@ interface Proposal {
   sentAt: string | null;
   responseAt: string | null;
   supersedesId: string | null;
+  sentOfferSha256: string | null;
+  dispatchState: string | null;
+  dispatchedAt: string | null;
+  dispatchRecipient: string | null;
+  responseOfferSha256: string | null;
+  respondentName: string | null;
+  respondentEmail: string | null;
+  responseEvidenceReference: string | null;
   versions: History[];
 }
 interface ProposalRevisionIntent {
@@ -97,7 +105,7 @@ export function decodeProposal(value: unknown): Proposal {
     !exactDecimal(v['fee']) ||
     typeof v['canApprove'] !== 'boolean' ||
     !['ownerName', 'authorName', 'reviewerName'].every((k) => typeof v[k] === 'string') ||
-    !['approvedAt', 'sentAt', 'responseAt', 'supersedesId'].every(
+    !['approvedAt', 'sentAt', 'responseAt', 'supersedesId', 'dispatchedAt'].every(
       (k) => v[k] === null || typeof v[k] === 'string',
     ) ||
     (v['supersedesId'] !== null &&
@@ -105,6 +113,15 @@ export function decodeProposal(value: unknown): Proposal {
     (v['clientId'] !== null &&
       (typeof v['clientId'] !== 'string' || !guidPattern.test(v['clientId']))) ||
     (v['responseReason'] !== null && typeof v['responseReason'] !== 'string') ||
+    ![
+      'sentOfferSha256',
+      'dispatchState',
+      'dispatchRecipient',
+      'responseOfferSha256',
+      'respondentName',
+      'respondentEmail',
+      'responseEvidenceReference',
+    ].every((k) => v[k] === null || typeof v[k] === 'string') ||
     !Array.isArray(v['versions']) ||
     v['versions'].length > 100
   )
@@ -194,6 +211,35 @@ export function decodeProposal(value: unknown): Proposal {
               : 'Not recorded'
           }}
         </dd>
+        @if (proposal.dispatchState) {
+          <dt>Email dispatch</dt>
+          <dd>
+            {{
+              proposal.dispatchState +
+                (proposal.dispatchedAt
+                  ? ' · delivered ' + proposal.dispatchedAt.slice(0, 16).replace('T', ' ') + ' UTC'
+                  : ' · awaiting the mail worker') +
+                ' → ' +
+                (proposal.dispatchRecipient ?? 'recipient not recorded')
+            }}
+          </dd>
+        }
+        @if (proposal.sentOfferSha256) {
+          <dt>Offer identity</dt>
+          <dd>
+            <code>{{ proposal.sentOfferSha256 }}</code>
+          </dd>
+        }
+        @if (proposal.respondentName) {
+          <dt>Respondent</dt>
+          <dd>
+            {{
+              proposal.respondentName +
+                (proposal.respondentEmail ? ' <' + proposal.respondentEmail + '>' : '') +
+                (proposal.responseEvidenceReference ? ' · evidence: ' + proposal.responseEvidenceReference : '')
+            }}
+          </dd>
+        }
         @if (proposal.supersedesId) {
           <dt>Supersedes</dt>
           <dd>

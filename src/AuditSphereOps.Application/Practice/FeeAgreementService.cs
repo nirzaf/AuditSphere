@@ -291,7 +291,9 @@ public static class FeeAgreementService
           "Advance paid and receipt generated. No client contact email is on file, so no email was queued."));
       db.CommercialNotifications.Add(new CommercialNotification
       {
-        Id = Guid.CreateVersion7(), FirmId = actor.FirmId, FeeMilestoneId = milestone.Id, DocumentId = document.Id, Recipient = recipient,
+        Id = Guid.CreateVersion7(), FirmId = actor.FirmId, Kind = CommercialNotificationKinds.Receipt,
+        FeeMilestoneId = milestone.Id, PracticeClientId = agreement.PracticeClientId, DocumentId = document.Id,
+        OfferSha256 = document.Sha256Hex, Recipient = recipient,
         Subject = $"Payment receipt {document.FileName.Replace("Receipt-", string.Empty).Replace(".docx", string.Empty)} — {profile.LegalName}",
         Body = $"Dear {client.LegalName},\n\nWe confirm receipt of your advance payment of {invoice.Total.ToString("N2", CultureInfo.InvariantCulture)} {agreement.Currency} " +
                $"(reference {receipt.Reference}) against invoice {invoice.InvoiceNumber}. The remaining balance is invoiced on delivery of the final report.\n\n" +

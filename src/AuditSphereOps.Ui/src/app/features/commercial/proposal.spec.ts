@@ -32,6 +32,14 @@ const proposal = {
   sentAt: null,
   responseAt: null,
   supersedesId: null,
+  sentOfferSha256: null,
+  dispatchState: null,
+  dispatchedAt: null,
+  dispatchRecipient: null,
+  responseOfferSha256: null,
+  respondentName: null,
+  respondentEmail: null,
+  responseEvidenceReference: null,
   versions: [],
 };
 describe('Commercial proposal contract', () => {

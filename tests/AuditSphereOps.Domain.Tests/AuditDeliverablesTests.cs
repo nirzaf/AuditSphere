@@ -66,7 +66,6 @@ public sealed partial class AuditDeliverablesTests
     var result = new AuditProcedureResult { Id = Guid.NewGuid(), FirmId = firmId, ClientId = clientId, EngagementId = engagementId, AuditProcedureId = procedure.Id, Revision = 1, InputGeneration = 1,
       WorkPerformed = "Selected 25 invoices around year end and agreed them to dispatch notes.", StructuredResultJson = "{}", Conclusion = "Revenue is recorded in the correct period.",
       PreparedByUserId = u["associate"].Id, SubmittedAt = now };
-    db.AuditProcedureResults.Add(result);
     db.GoingConcernAssessments.Add(new GoingConcernAssessment { Id = Guid.NewGuid(), FirmId = firmId, ClientId = clientId, EngagementId = engagementId, AssessmentDate = new DateOnly(2027, 2, 1),
       PeriodCoveredTo = new DateOnly(2028, 3, 31), ForecastReviewOutcome = "Reviewed", DisclosureAdequate = true, Conclusion = GoingConcernConclusions.NoMaterialUncertainty, Rationale = "Forecast reviewed",
       Currency = "QAR", RecordedByUserId = u["senior"].Id, ReviewedByUserId = u["manager"].Id, RecordedAt = now, ReviewedAt = now });
@@ -112,6 +111,10 @@ public sealed partial class AuditDeliverablesTests
     Assert.True(calc.Succeeded, calc.Message);
     var apprv = await AuditPlanningService.ApproveMaterialityAssessmentAsync(db, new ActorContext(u["partner"].Id, firmId, u["partner"].SessionEpoch, ["Partner"]), calc.Value!.AssessmentId);
     Assert.True(apprv.Succeeded, apprv.Message);
+    result.InputGeneration = await db.ClientSafetyStates.AsNoTracking()
+      .Where(x => x.FirmId == firmId && x.Id == clientId).Select(x => x.InputGeneration).SingleAsync();
+    db.AuditProcedureResults.Add(result);
+    await db.SaveChangesAsync();
     var w = new World(firmId, clientId, engagementId, u, procedure.Id, result.Id);
     foreach (var (name, level) in new[] { ("partner", StaffingLevels.EngagementPartner), ("manager", StaffingLevels.AuditManager), ("senior", StaffingLevels.SeniorAuditor),
       ("associate", StaffingLevels.StaffAssociate), ("associate2", StaffingLevels.StaffAssociate) })

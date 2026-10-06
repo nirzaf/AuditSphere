@@ -42,7 +42,7 @@ public static class AuditPlanWorkspaceQuery
     var engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(e => e.Id == engagementId && e.FirmId == actor.FirmId, ct);
     if (engagement is null) return CommandResult<AuditPlanWorkspace>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var materiality = await db.MaterialityAssessments.AsNoTracking().Where(m => m.FirmId == actor.FirmId && m.EngagementId == engagementId)
-      .OrderByDescending(m => m.CreatedAt).FirstOrDefaultAsync(ct);
+      .OrderByDescending(m => m.CreatedAt).ThenByDescending(m => m.Id).FirstOrDefaultAsync(ct);
     var approval = materiality is null ? null : await db.MaterialityApprovals.AsNoTracking()
       .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.MaterialityAssessmentId == materiality.Id, ct);
     var partnerApproval = materiality is not null && approval is not null &&
@@ -93,8 +93,8 @@ public static class AuditPlanWorkspaceQuery
           var significant = matchingRisks.Any(r => r.SignificanceDecision == SignificanceDecisions.Significant) ||
                             matchingAssessments.Any(a => a.Significant);
           var fraud = matchingAssessments.Any(a => a.FraudRisk);
-          var critical = matchingRisks.Any(r => r.Description.Contains("estimate", StringComparison.OrdinalIgnoreCase) ||
-                                                r.Drivers.Contains("estimate", StringComparison.OrdinalIgnoreCase));
+          var critical = matchingRisks.Any(r => ProcedureRiskBandEvaluator.HasEstimateIndicator(r.Description) ||
+                                                ProcedureRiskBandEvaluator.HasEstimateIndicator(r.Drivers));
           var highInherent = matchingAssessments.Any(a => a.LikelihoodScore == 3 && a.MagnitudeScore >= 2);
 
           var band = FsliRiskBandRules.Band(balance, calc.TolerableError, calc.PlanningMateriality,
@@ -127,4 +127,3 @@ public static class AuditPlanWorkspaceQuery
       actor.Roles.Any(x => x is "Partner" or "Manager" or "Administrator"), actor.Roles.Contains("Partner"), fsliRows));
   }
 }
-

@@ -7,9 +7,16 @@ import { Api, CommandState, routeGuid } from '../../core/api';
 import { arr, bool, dec, decimalInput, decode, guid, instant, int, nat, nullable, obj, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
 
-const procedure = obj({ id: guid, sourceProcedureId: text, sourceSectionNumber: nullable(int), sourceSectionTitle: nullable(text), title: text, applicabilityStatus: text, status: text });
+const procedure = obj({ id: guid, sourceProcedureId: text, sourceSectionNumber: nullable(int), sourceSectionTitle: nullable(text), title: text,
+  applicabilityStatus: text, status: text, riskId: nullable(guid) });
 export const decodeFieldwork = obj({ engagementId: guid, catalogProcedureCount: nat, catalogVersion: text,
   program: nullable(obj({ programCode: text, version: text, sourceHash: text })), procedures: arr(procedure, 5000),
+  risks: arr(obj({ id: guid, area: text, significanceDecision: text, band: nullable(text), effectiveBand: nullable(text),
+    balance: nullable(dec), currency: nullable(text), tolerableError: nullable(dec), planningMateriality: nullable(dec),
+    riskAssessmentId: nullable(guid), materialityAssessmentId: nullable(guid), materialityCalculationId: nullable(guid),
+    mappingVersionId: nullable(guid), mappingVersionNumber: nullable(nat), datasetId: nullable(guid), datasetDigest: nullable(text),
+    destinationCode: nullable(text), statementSection: nullable(text), ruleVersion: nullable(text),
+    explanation: nullable(text), blocker: nullable(text) }), 1000),
   differences: arr(obj({ currency: text, differenceCount: nat, grossAmount: dec, signedNetAmount: dec, unadjustedGrossAmount: dec, unadjustedSignedNetAmount: dec,
     correctedGrossAmount: dec, correctedSignedNetAmount: dec }), 100),
   aggregate: nullable(obj({ id: guid, status: text, conclusion: text, preparedByMe: bool })), aggregateCurrentAndReviewed: bool,
@@ -302,7 +309,7 @@ type SampleTestDraft = { workPerformed: string; evidenceReferences: string; resu
       @if (w.program) {
         <section class="panel" aria-labelledby="coverage-heading">
           <h2 id="coverage-heading">Procedure applicability and evidence coverage</h2>
-          <p>An applicable procedure cannot be completed from a title alone. Submit work, evidence and a current independent review through the guarded commands.</p>
+          <p>An applicable procedure cannot be completed from a title alone. Link its financial-statement risk so execution and review use current qualitative risk and mapped FSLI exposure. Submit work, evidence and a current independent review through the guarded commands.</p>
           <div class="inline-form">
             <label>Audit section <select name="section" [ngModel]="section() ?? firstSection(w)" (ngModelChange)="section.set($event)">
               <option [ngValue]="0">All sections</option>
@@ -310,9 +317,66 @@ type SampleTestDraft = { workPerformed: string; evidenceReferences: string; resu
             <span>Showing {{ visible(w).length }} of {{ w.procedures.length }} authorized procedures</span>
           </div>
           <div class="table-scroll"><table>
-            <thead><tr><th scope="col">Source</th><th scope="col">Section</th><th scope="col">Procedure</th><th scope="col">Applicability</th><th scope="col">Evidence</th><th scope="col">Action</th></tr></thead>
+            <thead><tr><th scope="col">Source</th><th scope="col">Section</th><th scope="col">Procedure</th><th scope="col">Applicability</th><th scope="col">Linked risk</th><th scope="col">Evidence</th><th scope="col">Action</th></tr></thead>
             <tbody>@for (p of visible(w); track p.id) {
-              <tr [id]="'procedure-' + p.id"><td><code>{{ p.sourceProcedureId }}</code></td><td>{{ p.sourceSectionTitle }}</td><td>{{ p.title }}</td><td>{{ p.applicabilityStatus }}</td><td>{{ p.status }}</td>
+              <tr [id]="'procedure-' + p.id"><td><code>{{ p.sourceProcedureId }}</code></td><td>{{ p.sourceSectionTitle }}</td><td>{{ p.title }}</td><td>{{ p.applicabilityStatus }}</td>
+                <td>
+                  @if (w.canManageFieldwork) {
+                    <div class="inline-form">
+                      <label [attr.for]="'risk-link-' + p.id">Financial-statement risk</label>
+                      <select [id]="'risk-link-' + p.id" [name]="'risk-link-' + p.id" [ngModel]="riskSelection(p)"
+                        (ngModelChange)="setRiskSelection(p.id, $event)">
+                        <option value="">No linked risk</option>
+                        @for (risk of w.risks; track risk.id) {
+                          <option [value]="risk.id">{{ risk.area }} · {{ risk.effectiveBand ?? risk.band ?? 'Not assessed' }}{{ risk.significanceDecision === 'SIGNIFICANT' ? ' · Significant' : '' }}{{ risk.blocker ? ' · Review blocked' : '' }}</option>
+                        }
+                      </select>
+                      <button matButton (click)="saveRiskLink(p.id)" [disabled]="cmd.busy() || riskSelection(p) === (p.riskId ?? '')">Save risk link</button>
+                      @if (riskFor(w, p.riskId); as linkedRisk) {
+                        <div class="facts" aria-label="Current procedure risk basis">
+                          <p><strong>{{ linkedRisk.effectiveBand ?? linkedRisk.band ?? 'Unassessed' }} effective risk</strong>
+                            {{ linkedRisk.significanceDecision === 'SIGNIFICANT' ? '· Significant risk' : '' }}</p>
+                          @if (linkedRisk.blocker) { <p role="alert" class="error-text">{{ linkedRisk.blocker }}</p> }
+                          @if (linkedRisk.balance !== null && linkedRisk.currency) {
+                            <p>Mapped FSLI balance: {{ linkedRisk.balance | money }} {{ linkedRisk.currency }}</p>
+                          }
+                          @if (linkedRisk.tolerableError !== null && linkedRisk.planningMateriality !== null && linkedRisk.currency) {
+                            <p>TE {{ linkedRisk.tolerableError | money }} {{ linkedRisk.currency }} · PM {{ linkedRisk.planningMateriality | money }} {{ linkedRisk.currency }}</p>
+                          }
+                          @if (linkedRisk.explanation) { <p>{{ linkedRisk.explanation }}</p> }
+                          <details>
+                            <summary>Risk and planning source revision</summary>
+                            <p>Risk assessment: <code>{{ linkedRisk.riskAssessmentId ?? 'not assessed' }}</code></p>
+                            <p>Materiality assessment / calculation: <code>{{ linkedRisk.materialityAssessmentId ?? 'not available' }}</code> / <code>{{ linkedRisk.materialityCalculationId ?? 'not available' }}</code></p>
+                            <p>Approved mapping: <code>{{ linkedRisk.mappingVersionId ?? 'not available' }}</code>{{ linkedRisk.mappingVersionNumber !== null ? ' · version ' + linkedRisk.mappingVersionNumber : '' }}</p>
+                            <p>Dataset: <code>{{ linkedRisk.datasetId ?? 'not available' }}</code>{{ linkedRisk.datasetDigest ? ' · SHA-256 ' + linkedRisk.datasetDigest : '' }}</p>
+                            <p>FSLI: {{ linkedRisk.destinationCode ?? 'not matched' }}{{ linkedRisk.statementSection ? ' · ' + linkedRisk.statementSection : '' }} · rules {{ linkedRisk.ruleVersion ?? 'unavailable' }}</p>
+                          </details>
+                        </div>
+                      }
+                    </div>
+                  } @else {
+                    @if (riskFor(w, p.riskId); as linkedRisk) {
+                      <div class="facts" aria-label="Current procedure risk basis">
+                        <p><strong>{{ linkedRisk.effectiveBand ?? linkedRisk.band ?? 'Unassessed' }} effective risk</strong>
+                          {{ linkedRisk.significanceDecision === 'SIGNIFICANT' ? '· Significant risk' : '' }}</p>
+                        @if (linkedRisk.blocker) { <p role="alert" class="error-text">{{ linkedRisk.blocker }}</p> }
+                        @if (linkedRisk.balance !== null && linkedRisk.currency) { <p>Mapped FSLI balance: {{ linkedRisk.balance | money }} {{ linkedRisk.currency }}</p> }
+                        @if (linkedRisk.tolerableError !== null && linkedRisk.planningMateriality !== null && linkedRisk.currency) {
+                          <p>TE {{ linkedRisk.tolerableError | money }} {{ linkedRisk.currency }} · PM {{ linkedRisk.planningMateriality | money }} {{ linkedRisk.currency }}</p>
+                        }
+                        @if (linkedRisk.explanation) { <p>{{ linkedRisk.explanation }}</p> }
+                        <details><summary>Risk and planning source revision</summary>
+                          <p>Risk assessment: <code>{{ linkedRisk.riskAssessmentId ?? 'not assessed' }}</code></p>
+                          <p>Materiality assessment / calculation: <code>{{ linkedRisk.materialityAssessmentId ?? 'not available' }}</code> / <code>{{ linkedRisk.materialityCalculationId ?? 'not available' }}</code></p>
+                          <p>Approved mapping: <code>{{ linkedRisk.mappingVersionId ?? 'not available' }}</code>{{ linkedRisk.mappingVersionNumber !== null ? ' · version ' + linkedRisk.mappingVersionNumber : '' }}</p>
+                          <p>Dataset: <code>{{ linkedRisk.datasetId ?? 'not available' }}</code>{{ linkedRisk.datasetDigest ? ' · SHA-256 ' + linkedRisk.datasetDigest : '' }}</p>
+                          <p>FSLI: {{ linkedRisk.destinationCode ?? 'not matched' }}{{ linkedRisk.statementSection ? ' · ' + linkedRisk.statementSection : '' }} · rules {{ linkedRisk.ruleVersion ?? 'unavailable' }}</p>
+                        </details>
+                      </div>
+                    } @else { <small>{{ riskLabel(w, p.riskId) }}</small> }
+                  }
+                </td><td>{{ p.status }}</td>
                 <td>@switch (p.applicabilityStatus) {
                   @case ('PENDING') { <span class="actions">
                     <button matButton="filled" (click)="decide(p.id, 'APPLICABLE')" [disabled]="cmd.busy()">Applicable</button>
@@ -346,6 +410,7 @@ export class AuditFieldwork {
   selectionReviewComment = '';
   private readonly sampleDrafts = new Map<string, SampleTestDraft>();
   private activeEngagementId: string | null = null;
+  private readonly riskLinkSelections = new Map<string, string>();
   readonly attributeFields = [
     { value: 'ACCOUNT', label: 'Account code' }, { value: 'CURRENCY', label: 'Currency' },
     { value: 'DIRECTION', label: 'Debit / credit / zero direction' }, { value: 'MONTH', label: 'Transaction or posting month' },
@@ -369,6 +434,7 @@ export class AuditFieldwork {
       untracked(() => {
         if (engagementId !== this.activeEngagementId) {
           this.activeEngagementId = engagementId;
+          this.riskLinkSelections.clear();
           this.sampleSet.set(null); this.sampleSetError.set(''); this.sampleDrafts.clear();
         }
         this.aggregateConclusion = w?.aggregate?.conclusion ?? '';
@@ -381,6 +447,19 @@ export class AuditFieldwork {
   }
   count(w: Fieldwork, status: string): number { return w.procedures.filter((p) => p.applicabilityStatus === status).length; }
   reviewed(w: Fieldwork): number { return w.procedures.filter((p) => p.status === 'REVIEWED').length; }
+  riskSelection(p: Fieldwork['procedures'][number]): string { return this.riskLinkSelections.get(p.id) ?? p.riskId ?? ''; }
+  setRiskSelection(procedureId: string, riskId: string): void { this.riskLinkSelections.set(procedureId, riskId); }
+  riskLabel(w: Fieldwork, riskId: string | null): string {
+    if (!riskId) return 'No risk linked';
+    const risk = w.risks.find((x) => x.id === riskId);
+    return risk ? `${risk.area} · ${risk.effectiveBand ?? risk.band ?? 'Not assessed'}${risk.significanceDecision === 'SIGNIFICANT' ? ' · Significant' : ''}` : 'Linked risk is outside this list';
+  }
+  riskFor(w: Fieldwork, riskId: string | null) { return riskId ? w.risks.find((x) => x.id === riskId) : undefined; }
+  saveRiskLink(procedureId: string): void {
+    const riskId = this.riskLinkSelections.get(procedureId) ?? '';
+    void this.send(`/api/ui/procedures/${procedureId}/risk`, { riskId: riskId || null },
+      'Procedure risk link saved. Submitted results must be checked against the refreshed planning basis.');
+  }
   applicable(w: Fieldwork) { return w.procedures.filter((p) => p.applicabilityStatus === 'APPLICABLE'); }
   reviewable(w: Fieldwork) { return w.canManageFieldwork ? this.applicable(w) : w.procedures; }
   sections(w: Fieldwork) {

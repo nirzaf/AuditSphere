@@ -89,4 +89,9 @@
       <p><a matButton="filled" [routerLink]="['/app/clients', client.id, 'contacts', 'new']" [queryParams]="location()">Add client contact</a></p>
     }
   </section>
+  @defer (on viewport) {
+    <audit-client-relationships [clientId]="client.id" />
+  } @placeholder {
+    <p class="muted">Organization hierarchy and correspondence routing</p>
+  }
 }

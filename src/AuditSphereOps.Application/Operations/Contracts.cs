@@ -133,6 +133,9 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<ClientContact> ClientContacts { get; }
   DbSet<ClientContactCreation> ClientContactCreations { get; }
   DbSet<ClientConversion> ClientConversions { get; }
+  DbSet<ClientRelationship> ClientRelationships { get; }
+  DbSet<ClientContactRouting> ClientContactRoutings { get; }
+  DbSet<CorrespondenceDispatchRecord> CorrespondenceDispatchRecords { get; }
   DbSet<WorkTask> WorkTasks { get; }
   DbSet<TimeEntry> TimeEntries { get; }
   DbSet<RateCardVersion> RateCardVersions { get; }

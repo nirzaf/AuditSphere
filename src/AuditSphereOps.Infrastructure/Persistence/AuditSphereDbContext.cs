@@ -127,6 +127,9 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
 
   public DbSet<ClientContactCreation> ClientContactCreations => Set<ClientContactCreation>();
   public DbSet<ClientConversion> ClientConversions => Set<ClientConversion>();
+  public DbSet<ClientRelationship> ClientRelationships => Set<ClientRelationship>();
+  public DbSet<ClientContactRouting> ClientContactRoutings => Set<ClientContactRouting>();
+  public DbSet<CorrespondenceDispatchRecord> CorrespondenceDispatchRecords => Set<CorrespondenceDispatchRecord>();
 
   public DbSet<WorkTask> WorkTasks => Set<WorkTask>();
 

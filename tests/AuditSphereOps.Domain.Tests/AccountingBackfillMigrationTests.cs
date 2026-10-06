@@ -29,8 +29,8 @@ public sealed class AccountingBackfillMigrationTests
         INSERT INTO users (id, firm_id, subject, tenant_id, email, display_name, user_kind, disabled, session_epoch, created_at)
         VALUES ({userId}, {firmId}, 'backfill-user', 'test', 'backfill@example.invalid', 'Backfill fixture', 'Staff', false, 1, {DateTimeOffset.UtcNow})
         """);
-      Add(db, exact);
-      Add(db, ambiguous);
+      await AddAsync(db, exact);
+      await AddAsync(db, ambiguous);
       await db.SaveChangesAsync();
       // This database intentionally predates native creation receipts. Seed the
       // historical mapping column set, then exercise the real forward migrations.
@@ -119,9 +119,12 @@ public sealed class AccountingBackfillMigrationTests
     return new(client, engagement, periods, charts, dataset, mapping);
   }
 
-  private static void Add(AuditSphereDbContext db, Fixture fixture)
+  private static async Task AddAsync(AuditSphereDbContext db, Fixture fixture)
   {
-    db.PracticeClients.Add(fixture.Client);
+    await db.Database.ExecuteSqlInterpolatedAsync($"""
+      INSERT INTO practice_clients (id, firm_id, legal_name, created_at, status)
+      VALUES ({fixture.Client.Id}, {fixture.Client.FirmId}, {fixture.Client.LegalName}, {fixture.Client.CreatedAt}, 'Active')
+      """);
     db.Engagements.Add(fixture.Engagement);
     db.ClientReportingPeriods.AddRange(fixture.Periods);
     db.ClientChartVersions.AddRange(fixture.Charts);

@@ -1,5 +1,6 @@
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Domain.Tests;
 
@@ -21,7 +22,8 @@ internal static class ClientConversionReviewSeed
     if(!approved.Succeeded)throw new InvalidOperationException(approved.ErrorCode);
     var sent=await PracticeCrmService.SendProposalAsync(db,author,proposal.Value);
     if(!sent.Succeeded)throw new InvalidOperationException(sent.ErrorCode);
-    var accepted=await PracticeCrmService.RecordProposalResponseAsync(db,author,proposal.Value,new("ACCEPTED"));
+    var accepted=await PracticeCrmService.RecordProposalResponseAsync(db,author,proposal.Value,
+      new("ACCEPTED",null,(await db.Proposals.AsNoTracking().SingleAsync(x=>x.Id==proposal.Value)).SentOfferSha256,"Primary contact","contact@example.test","Signed acceptance letter"));
     if(!accepted.Succeeded)throw new InvalidOperationException(accepted.ErrorCode);
     return proposal.Value;
   }

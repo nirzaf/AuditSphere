@@ -136,7 +136,9 @@ public sealed class CommercialWorkflowTests
     Assert.True((await QuotationService.SubmitAsync(db, w.Prep, quote.Value)).Succeeded);
     Assert.True((await PracticeCrmService.ApproveProposalAsync(db, w.Partner, proposalId)).Succeeded);
     Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Prep, proposalId)).Succeeded);
-    Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId, new("ACCEPTED"))).Succeeded);
+    var offerSha = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId)).SentOfferSha256;
+    Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
+      new("ACCEPTED", null, offerSha, "A. Owner", "owner@gulf.example.test", "Signed acceptance letter"))).Succeeded);
     var client = await PracticeCrmService.ConvertToClientDraftAsync(db, w.Prep, new(proposalId, "Fee workspace client"));
     var eligible = await FeeAgreementWorkspaceQuery.GetAsync(db, w.Prep, proposalId);
     Assert.True(eligible.Value!.CanCreate);
@@ -396,7 +398,9 @@ public sealed class CommercialWorkflowTests
     Assert.Empty(await db.CommercialDocuments.Where(x => x.Kind == CommercialDocumentKinds.EngagementLetter).ToListAsync());
     Assert.True((await PracticeCrmService.ApproveProposalAsync(db, w.Partner, proposalId)).Succeeded);
     Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Prep, proposalId)).Succeeded);
-    Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId, new("ACCEPTED"))).Succeeded);
+    var offerSha = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId)).SentOfferSha256;
+    Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
+      new("ACCEPTED", null, offerSha, "A. Owner", "owner@gulf.example.test", "Signed acceptance letter"))).Succeeded);
     var clientId = (await PracticeCrmService.ConvertToClientDraftAsync(db, w.Prep, new(proposalId, "Gulf Trading LLC"))).Value;
     Assert.Equal(ErrorCodes.GateBlocked, (await CommercialDocumentService.GenerateEngagementLetterAsync(db, w.Partner, proposalId)).ErrorCode);
     await QuestionnaireSeed.SeedTemplatesAndDefinitionsAsync(db);
@@ -565,7 +569,9 @@ public sealed class CommercialWorkflowTests
     Assert.Equal(ErrorCodes.GateBlocked, (await FeeAgreementService.CreateAgreementAsync(db, w.Prep, proposalId)).ErrorCode); // not accepted yet
     Assert.True((await PracticeCrmService.ApproveProposalAsync(db, w.Partner, proposalId)).Succeeded);
     Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Prep, proposalId)).Succeeded);
-    Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId, new("ACCEPTED"))).Succeeded);
+    var offerSha = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId)).SentOfferSha256;
+    Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
+      new("ACCEPTED", null, offerSha, "A. Owner", "owner@gulf.example.test", "Signed acceptance letter"))).Succeeded);
     var clientId = (await PracticeCrmService.ConvertToClientDraftAsync(db, w.Prep, new(proposalId, "Gulf Trading LLC"))).Value;
 
     var agreementId = (await FeeAgreementService.CreateAgreementAsync(db, w.Prep, proposalId)).Value;
@@ -620,11 +626,11 @@ public sealed class CommercialWorkflowTests
     var receiptText = DocxText(receiptDoc.Bytes);
     Assert.Contains("12,500.00 QAR", receiptText);
     Assert.Contains("Balance due on delivery of the final report", receiptText);
-    var notification = await db.CommercialNotifications.AsNoTracking().SingleAsync();
+    var notification = await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.Kind == CommercialNotificationKinds.Receipt);
     Assert.Equal("owner@gulf.example.test", notification.Recipient);
     Assert.Equal(FeeMilestoneStates.Paid, (await db.FeeMilestones.AsNoTracking().SingleAsync(x => x.Kind == FeeMilestoneKinds.Advance)).State);
 
-    // The isolated mail worker delivers the receipt email exactly once.
+    // The isolated mail worker delivers the receipt email exactly once (the proposal dispatch email is separate).
     var factory = new OperationContextFactory(new PbcSeed.OptionsDbContextFactory(pg.Options));
     var store = new PostgresOperationStore(factory);
     var sender = new RecordingMailSender();
@@ -633,10 +639,13 @@ public sealed class CommercialWorkflowTests
     var worker = new AuditSphereOps.Worker.Worker(new OperationDispatcher(store, new DurableOperationRegistry([handler], options), options),
       [new CommercialMailDiscovery(factory, store, handler, options)], NullLogger<AuditSphereOps.Worker.Worker>.Instance);
     Assert.True(await worker.ProcessNextAsync());
+    Assert.True(await worker.ProcessNextAsync());
     Assert.False(await worker.ProcessNextAsync());
-    Assert.Equal("owner@gulf.example.test", Assert.Single(sender.Plans).Recipient);
-    Assert.Equal(("SENT", true), ((await db.CommercialNotifications.AsNoTracking().SingleAsync()).DeliveryState,
-      (await db.CommercialNotifications.AsNoTracking().SingleAsync()).DeliveredAt is not null));
+    Assert.Equal(2, sender.Plans.Count);
+    Assert.Contains(sender.Plans, p => p.Subject.StartsWith("Payment receipt"));
+    Assert.Contains(sender.Plans, p => p.Subject.Contains("Proposal revision"));
+    var deliveredReceipt = await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.Kind == CommercialNotificationKinds.Receipt);
+    Assert.Equal(("SENT", true), (deliveredReceipt.DeliveryState, deliveredReceipt.DeliveredAt is not null));
 
     // Balance: needs the linked engagement and an issued release (final report delivered and signed off).
     Assert.Equal(ErrorCodes.GateBlocked, (await FeeAgreementService.IssueBalanceInvoiceAsync(db, w.FinanceManager, agreementId)).ErrorCode);

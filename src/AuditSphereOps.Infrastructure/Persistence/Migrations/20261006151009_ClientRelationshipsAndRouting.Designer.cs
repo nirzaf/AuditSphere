@@ -3,6 +3,7 @@ using System;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AuditSphereDbContext))]
-    partial class AuditSphereDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261006151009_ClientRelationshipsAndRouting")]
+    partial class ClientRelationshipsAndRouting
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -18209,34 +18212,17 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("delivery_state");
 
-                    b.Property<Guid?>("DocumentId")
+                    b.Property<Guid>("DocumentId")
                         .HasColumnType("uuid")
                         .HasColumnName("document_id");
 
-                    b.Property<Guid?>("FeeMilestoneId")
+                    b.Property<Guid>("FeeMilestoneId")
                         .HasColumnType("uuid")
                         .HasColumnName("fee_milestone_id");
 
                     b.Property<Guid>("FirmId")
                         .HasColumnType("uuid")
                         .HasColumnName("firm_id");
-
-                    b.Property<string>("Kind")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("kind");
-
-                    b.Property<string>("OfferSha256")
-                        .HasColumnType("text")
-                        .HasColumnName("offer_sha256");
-
-                    b.Property<Guid?>("PracticeClientId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("practice_client_id");
-
-                    b.Property<Guid?>("ProposalId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("proposal_id");
 
                     b.Property<string>("Recipient")
                         .IsRequired()
@@ -18253,15 +18239,11 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasIndex("FirmId", "FeeMilestoneId")
                         .IsUnique();
 
-                    b.HasIndex("FirmId", "ProposalId")
-                        .IsUnique()
-                        .HasFilter("proposal_id IS NOT NULL");
-
                     b.HasIndex("FirmId", "DeliveryState", "CreatedAt");
 
                     b.ToTable("commercial_notifications", null, t =>
                         {
-                            t.HasCheckConstraint("ck_commercial_notification_values", "delivery_state IN ('QUEUED','SENT','FAILED') AND kind IN ('RECEIPT','PROPOSAL') AND length(recipient) > 0 AND length(subject) > 0 AND ((delivery_state = 'SENT') = (delivered_at IS NOT NULL)) AND ((kind = 'RECEIPT') = (fee_milestone_id IS NOT NULL)) AND ((kind = 'PROPOSAL') = (proposal_id IS NOT NULL))");
+                            t.HasCheckConstraint("ck_commercial_notification_values", "delivery_state IN ('QUEUED','SENT','FAILED') AND length(recipient) > 0 AND length(subject) > 0 AND ((delivery_state = 'SENT') = (delivered_at IS NOT NULL))");
                         });
                 });
 
@@ -19982,25 +19964,9 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("prepared_by_user_id");
 
-                    b.Property<string>("RespondentEmail")
-                        .HasColumnType("text")
-                        .HasColumnName("respondent_email");
-
-                    b.Property<string>("RespondentName")
-                        .HasColumnType("text")
-                        .HasColumnName("respondent_name");
-
                     b.Property<DateTimeOffset?>("ResponseAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("response_at");
-
-                    b.Property<string>("ResponseEvidenceReference")
-                        .HasColumnType("text")
-                        .HasColumnName("response_evidence_reference");
-
-                    b.Property<string>("ResponseOfferSha256")
-                        .HasColumnType("text")
-                        .HasColumnName("response_offer_sha256");
 
                     b.Property<string>("ResponseReason")
                         .HasColumnType("text")
@@ -20018,10 +19984,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset?>("SentAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("sent_at");
-
-                    b.Property<string>("SentOfferSha256")
-                        .HasColumnType("text")
-                        .HasColumnName("sent_offer_sha256");
 
                     b.Property<string>("ServiceProfileId")
                         .IsRequired()

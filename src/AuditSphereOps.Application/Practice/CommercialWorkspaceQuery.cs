@@ -14,6 +14,8 @@ public sealed record ProposalWorkspace(Guid Id, Guid OpportunityId, string LeadN
   string Deliverables, string Dependencies, string Fee, string Currency, string PeriodStart, string PeriodEnd,
   string? ResponseReason, Guid? ClientId, bool CanApprove, string OwnerName, string AuthorName, string ReviewerName,
   DateTimeOffset? ApprovedAt, DateTimeOffset? SentAt, DateTimeOffset? ResponseAt, Guid? SupersedesId,
+  string? SentOfferSha256, string? DispatchState, DateTimeOffset? DispatchedAt, string? DispatchRecipient,
+  string? ResponseOfferSha256, string? RespondentName, string? RespondentEmail, string? ResponseEvidenceReference,
   IReadOnlyList<ProposalHistory> Versions);
 
 public sealed record OpportunityItem(Guid Id, string ServiceRoute, string EntityScope, string Stage,
@@ -68,6 +70,9 @@ public static class CommercialWorkspaceQuery
     var names = await db.Users.AsNoTracking().Where(x => x.FirmId == actor.FirmId && involved.Contains(x.Id))
       .ToDictionaryAsync(x => x.Id, x => x.DisplayName, ct);
     string Name(Guid? id, string fallback) => id.HasValue && names.TryGetValue(id.Value, out var n) ? n : fallback;
+    // Truthful dispatch evidence: the queued email's provider-outcome state, not the commercial `SENT` status alone.
+    var dispatch = await db.CommercialNotifications.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ProposalId == p.Id, ct);
     if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct)).Succeeded)
       return CommandResult<ProposalWorkspace>.Fail(ErrorCodes.ScopeDenied, "Proposal unavailable.");
     return CommandResult<ProposalWorkspace>.Ok(new(p.Id, p.OpportunityId, lead.Name, opportunity.ServiceRoute, opportunity.EntityScope,
@@ -78,6 +83,8 @@ public static class CommercialWorkspaceQuery
       p.PreparedByUserId.HasValue ? Name(p.PreparedByUserId, "Author unavailable") : "Not recorded (legacy proposal)",
       p.ApprovedByUserId.HasValue ? Name(p.ApprovedByUserId, "Reviewer unavailable") : "Not recorded",
       p.ApprovedAt, p.SentAt, p.ResponseAt, p.SupersedesId,
+      p.SentOfferSha256, dispatch?.DeliveryState, dispatch?.DeliveredAt, dispatch?.Recipient,
+      p.ResponseOfferSha256, p.RespondentName, p.RespondentEmail, p.ResponseEvidenceReference,
       versions.Select(v => new ProposalHistory(v.Id, v.Revision.ToString(CultureInfo.InvariantCulture), v.Status,
         v.Fee.ToString(CultureInfo.InvariantCulture), v.Currency, v.CreatedAt, v.SentAt, v.ResponseAt)).ToArray()));
   }

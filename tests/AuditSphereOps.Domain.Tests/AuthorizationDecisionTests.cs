@@ -576,6 +576,9 @@ public sealed class AuthorizationDecisionTests
     public DbSet<ClientContact> ClientContacts => db.ClientContacts;
     public DbSet<ClientContactCreation> ClientContactCreations => db.ClientContactCreations;
     public DbSet<ClientConversion> ClientConversions => db.ClientConversions;
+    public DbSet<ClientRelationship> ClientRelationships => db.ClientRelationships;
+    public DbSet<ClientContactRouting> ClientContactRoutings => db.ClientContactRoutings;
+    public DbSet<CorrespondenceDispatchRecord> CorrespondenceDispatchRecords => db.CorrespondenceDispatchRecords;
     public DbSet<AssessmentCommandReceipt> AssessmentCommandReceipts => db.AssessmentCommandReceipts;
     public DbSet<AuditSphereOps.Domain.Practice.ResourcePlanningReceipt> ResourcePlanningReceipts => db.ResourcePlanningReceipts;
     public DbSet<WorkTask> WorkTasks => db.WorkTasks;

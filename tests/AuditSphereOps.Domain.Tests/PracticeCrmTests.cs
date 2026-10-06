@@ -238,8 +238,9 @@ public sealed class PracticeCrmTests
       proposalId = (await PracticeCrmService.ReviseProposalAsync(db, fixture.Actor, Proposal(opportunityId))).Value;
       Assert.True((await PracticeCrmService.ApproveProposalAsync(db, fixture.Reviewer, proposalId)).Succeeded);
       Assert.True((await PracticeCrmService.SendProposalAsync(db, fixture.Actor, proposalId)).Succeeded);
+      var offerSha = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId)).SentOfferSha256;
       Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, fixture.Actor, proposalId,
-        new ProposalResponseRequest(CrmStates.ProposalAccepted))).Succeeded);
+        new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "A. Owner", "owner@example.test", "Signed acceptance letter"))).Succeeded);
     }
 
     Guid clientId;
@@ -397,7 +398,7 @@ public sealed class PracticeCrmTests
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       leadId = (await PracticeCrmService.CreateLeadAsync(db, fixture.Actor,
-        new CreateLeadRequest("Revision Client", "Referral"))).Value;
+        new CreateLeadRequest("Revision Client", "Referral", "R. Owner", "revision-owner@example.test"))).Value;
       await PracticeCrmService.QualifyLeadAsync(db, fixture.Actor, leadId);
       opportunityId = (await PracticeCrmService.CreateOpportunityAsync(db, fixture.Actor, Opportunity(leadId))).Value;
       firstProposalId = (await PracticeCrmService.ReviseProposalAsync(db, fixture.Actor, Proposal(opportunityId))).Value;
@@ -420,6 +421,83 @@ public sealed class PracticeCrmTests
       var stale = await PracticeCrmService.ReviseProposalAsync(db, fixture.Actor, Proposal(opportunityId, 1));
       Assert.False(stale.Succeeded);
       Assert.Equal(ErrorCodes.StaleRevision, stale.ErrorCode);
+    }
+  }
+
+  [Fact]
+  public async Task ProposalDispatch_BindsExactOffer_AndAcceptanceMustCiteIt()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    Guid leadId, opportunityId, firstProposalId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      // A proposal cannot be dispatched without an exact recipient (STE 4.1.2): no email, no send.
+      leadId = (await PracticeCrmService.CreateLeadAsync(db, fixture.Actor,
+        new CreateLeadRequest("Offer Binding Client", "Referral"))).Value;
+      await PracticeCrmService.QualifyLeadAsync(db, fixture.Actor, leadId);
+      opportunityId = (await PracticeCrmService.CreateOpportunityAsync(db, fixture.Actor, Opportunity(leadId))).Value;
+      firstProposalId = (await PracticeCrmService.ReviseProposalAsync(db, fixture.Actor, Proposal(opportunityId))).Value;
+      Assert.True((await PracticeCrmService.ApproveProposalAsync(db, fixture.Reviewer, firstProposalId)).Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, (await PracticeCrmService.SendProposalAsync(db, fixture.Actor, firstProposalId)).ErrorCode);
+      Assert.Empty(await db.CommercialNotifications.Where(x => x.ProposalId == firstProposalId).ToListAsync());
+      Assert.Equal(CrmStates.ProposalInternalReview,
+        (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == firstProposalId)).Status);
+    }
+
+    Guid secondLeadId, secondOpportunityId, sentProposalId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      // Evidence-bound dispatch: the send queues exactly one durable email bound to the exact offer identity.
+      secondLeadId = (await PracticeCrmService.CreateLeadAsync(db, fixture.Actor,
+        new CreateLeadRequest("Offer Bound Sender", "Web", "O. Owner", "offer-owner@example.test"))).Value;
+      await PracticeCrmService.QualifyLeadAsync(db, fixture.Actor, secondLeadId);
+      secondOpportunityId = (await PracticeCrmService.CreateOpportunityAsync(db, fixture.Actor, Opportunity(secondLeadId))).Value;
+      sentProposalId = (await PracticeCrmService.ReviseProposalAsync(db, fixture.Actor, Proposal(secondOpportunityId))).Value;
+      Assert.True((await PracticeCrmService.ApproveProposalAsync(db, fixture.Reviewer, sentProposalId)).Succeeded);
+      Assert.True((await PracticeCrmService.SendProposalAsync(db, fixture.Actor, sentProposalId)).Succeeded);
+      var notification = await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.ProposalId == sentProposalId);
+      var proposal = await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == sentProposalId);
+      Assert.Equal(CommercialNotificationKinds.Proposal, notification.Kind);
+      Assert.Equal("offer-owner@example.test", notification.Recipient);
+      Assert.Equal("QUEUED", notification.DeliveryState);
+      Assert.NotNull(notification.OfferSha256);
+      Assert.Equal(notification.OfferSha256, proposal.SentOfferSha256);
+      // Replaying the send never queues a second dispatch.
+      Assert.True((await PracticeCrmService.SendProposalAsync(db, fixture.Actor, sentProposalId)).Succeeded);
+      Assert.Equal(1, await db.CommercialNotifications.CountAsync(x => x.FirmId == fixture.FirmId && x.ProposalId == sentProposalId));
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var offerSha = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == sentProposalId)).SentOfferSha256;
+      // A superseded revision: accepting a later revision with the earlier offer's identity is refused.
+      var revised = await PracticeCrmService.ReviseProposalAsync(db, fixture.Actor, Proposal(secondOpportunityId, 1));
+      Assert.True(revised.Succeeded, revised.Message);
+      Assert.True((await PracticeCrmService.ApproveProposalAsync(db, fixture.Reviewer, revised.Value)).Succeeded);
+      Assert.True((await PracticeCrmService.SendProposalAsync(db, fixture.Actor, revised.Value)).Succeeded);
+      var currentSha = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == revised.Value)).SentOfferSha256;
+      Assert.NotEqual(offerSha, currentSha);
+      Assert.Equal("crm.stale-offer", (await PracticeCrmService.RecordProposalResponseAsync(db, fixture.Actor, revised.Value,
+        new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "O. Owner", "offer-owner@example.test"))).ErrorCode);
+      Assert.Equal("crm.invalid", (await PracticeCrmService.RecordProposalResponseAsync(db, fixture.Actor, revised.Value,
+        new ProposalResponseRequest(CrmStates.ProposalAccepted))).ErrorCode);
+      Assert.Equal("crm.invalid", (await PracticeCrmService.RecordProposalResponseAsync(db, fixture.Actor, revised.Value,
+        new ProposalResponseRequest(CrmStates.ProposalAccepted, null, currentSha))).ErrorCode);
+      // The current offer accepted with identity and respondent evidence; replay is safe, contradiction conflicts.
+      Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, fixture.Actor, revised.Value,
+        new ProposalResponseRequest(CrmStates.ProposalAccepted, null, currentSha, "O. Owner", "offer-owner@example.test", "Signed acceptance letter"))).Succeeded);
+      var accepted = await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == revised.Value);
+      Assert.Equal(currentSha, accepted.ResponseOfferSha256);
+      Assert.Equal("O. Owner", accepted.RespondentName);
+      Assert.Equal("Signed acceptance letter", accepted.ResponseEvidenceReference);
+      Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, fixture.Actor, revised.Value,
+        new ProposalResponseRequest(CrmStates.ProposalAccepted, null, currentSha, "O. Owner", "offer-owner@example.test"))).Succeeded);
+      Assert.Equal("crm.conflict", (await PracticeCrmService.RecordProposalResponseAsync(db, fixture.Actor, revised.Value,
+        new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "O. Owner", "offer-owner@example.test"))).ErrorCode);
+      // The superseded revision can no longer be accepted through any path.
+      Assert.Equal(ErrorCodes.ProtectedState, (await PracticeCrmService.RecordProposalResponseAsync(db, fixture.Actor, sentProposalId,
+        new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "O. Owner", "offer-owner@example.test"))).ErrorCode);
     }
   }
 
@@ -599,14 +677,15 @@ public sealed class PracticeCrmTests
       await db.SaveChangesAsync();
 
       var lead = await PracticeCrmService.CreateLeadAsync(db, fixture.Actor,
-        new CreateLeadRequest("Candidate LLC", "Referral"));
+        new CreateLeadRequest("Candidate LLC", "Referral", "C. Owner", "candidate-owner@example.test"));
       await PracticeCrmService.QualifyLeadAsync(db, fixture.Actor, lead.Value);
       var opportunity = await PracticeCrmService.CreateOpportunityAsync(db, fixture.Actor, Opportunity(lead.Value));
       var proposal = await PracticeCrmService.ReviseProposalAsync(db, fixture.Actor, Proposal(opportunity.Value));
       await PracticeCrmService.ApproveProposalAsync(db, fixture.Reviewer, proposal.Value);
-      await PracticeCrmService.SendProposalAsync(db, fixture.Actor, proposal.Value);
-      await PracticeCrmService.RecordProposalResponseAsync(db, fixture.Actor, proposal.Value,
-        new ProposalResponseRequest(CrmStates.ProposalAccepted));
+      Assert.True((await PracticeCrmService.SendProposalAsync(db, fixture.Actor, proposal.Value)).Succeeded);
+      var candidateOfferSha = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposal.Value)).SentOfferSha256;
+      Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, fixture.Actor, proposal.Value,
+        new ProposalResponseRequest(CrmStates.ProposalAccepted, null, candidateOfferSha, "C. Owner", "candidate-owner@example.test", "Signed acceptance letter"))).Succeeded);
       proposalId = proposal.Value;
     }
 
@@ -641,14 +720,15 @@ public sealed class PracticeCrmTests
       await db.SaveChangesAsync();
 
       var lead = await PracticeCrmService.CreateLeadAsync(db, fixture.Actor,
-        new CreateLeadRequest("Existing Client", "Referral"));
+        new CreateLeadRequest("Existing Client", "Referral", "E. Owner", "existing-owner@example.test"));
       await PracticeCrmService.QualifyLeadAsync(db, fixture.Actor, lead.Value);
       var opportunity = await PracticeCrmService.CreateOpportunityAsync(db, fixture.Actor, Opportunity(lead.Value));
       var proposal = await PracticeCrmService.ReviseProposalAsync(db, fixture.Actor, Proposal(opportunity.Value));
       await PracticeCrmService.ApproveProposalAsync(db, fixture.Reviewer, proposal.Value);
-      await PracticeCrmService.SendProposalAsync(db, fixture.Actor, proposal.Value);
-      await PracticeCrmService.RecordProposalResponseAsync(db, fixture.Actor, proposal.Value,
-        new ProposalResponseRequest(CrmStates.ProposalAccepted));
+      Assert.True((await PracticeCrmService.SendProposalAsync(db, fixture.Actor, proposal.Value)).Succeeded);
+      var existingOfferSha = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposal.Value)).SentOfferSha256;
+      Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, fixture.Actor, proposal.Value,
+        new ProposalResponseRequest(CrmStates.ProposalAccepted, null, existingOfferSha, "E. Owner", "existing-owner@example.test", "Signed acceptance letter"))).Succeeded);
       proposalId = proposal.Value;
     }
 

@@ -91,13 +91,29 @@ public sealed class PgTestSchema : IAsyncDisposable, ITestPostgresDatabase
     var clientId = Guid.NewGuid();
     var engagementId = Guid.NewGuid();
     await using var db = new AuditSphereDbContext(Options);
-    db.PracticeClients.Add(new AuditSphereOps.Domain.Practice.PracticeClient
+    var hasEntityType = await db.Database.SqlQuery<int>($"""
+      SELECT count(*)::int AS "Value"
+      FROM information_schema.columns
+      WHERE table_schema = current_schema() AND table_name = 'practice_clients'
+        AND column_name = 'entity_type'
+      """).SingleAsync() == 1;
+    if (hasEntityType)
     {
-      Id = clientId,
-      FirmId = firmId,
-      LegalName = "TEST CLIENT " + clientId.ToString("N")[..8],
-      CreatedAt = DateTimeOffset.UtcNow
-    });
+      db.PracticeClients.Add(new AuditSphereOps.Domain.Practice.PracticeClient
+      {
+        Id = clientId,
+        FirmId = firmId,
+        LegalName = "TEST CLIENT " + clientId.ToString("N")[..8],
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+    }
+    else
+    {
+      await db.Database.ExecuteSqlInterpolatedAsync($"""
+        INSERT INTO practice_clients (id, firm_id, legal_name, created_at, status)
+        VALUES ({clientId}, {firmId}, {"TEST CLIENT " + clientId.ToString("N")[..8]}, {DateTimeOffset.UtcNow}, 'Active')
+        """);
+    }
     db.Engagements.Add(new AuditSphereOps.Domain.Engagements.Engagement
     {
       Id = engagementId,

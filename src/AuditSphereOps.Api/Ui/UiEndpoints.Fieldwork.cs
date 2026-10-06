@@ -7,6 +7,7 @@ namespace AuditSphereOps.Api.Ui;
 public static partial class UiEndpoints
 {
   public sealed record ApplicabilityInput(string Decision);
+  public sealed record ProcedureRiskInput(Guid? RiskId);
   public sealed record AggregateConclusionInput(string Conclusion);
   public sealed record SamplingInput(Guid ProcedureId, Guid ScheduleId, string Method, string? Interval, string? KeyItemThreshold, int? SampleSize, int? Seed,
     string Rationale, string[]? AttributeFields = null, string? ExpectedPreviewDigest = null);
@@ -35,6 +36,8 @@ public static partial class UiEndpoints
         ? CommandAsync(http, (db, actor, ct) => AuditProgramService.DecideApplicabilityAsync(db, actor, new DecideProcedureApplicabilityRequest(id, i.Decision,
             i.Decision == AuditApplicabilityStatuses.NotApplicablePendingReview ? "Not applicable pending independent review." : null), ct))
         : Task.FromResult(Invalid("Choose applicable or not applicable pending review.")));
+    group.MapPost("/procedures/{id:guid}/risk", (Guid id, ProcedureRiskInput i, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AuditProgramService.LinkRiskAsync(db, actor, id, i.RiskId, ct)));
     group.MapPost("/engagements/{id:guid}/fieldwork/aggregate", (Guid id, AggregateConclusionInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => AuditFieldworkService.RecordAreaAssessmentAsync(db, actor, new RecordAreaAssessmentRequest(id, null, AuditAreaCodes.AuditDifferences,
         AuditAreaAssessmentKinds.AggregateDifferences, "audit-differences-aggregate.v1", "{}", null, null, null, null, null, null, null, ["aggregate-difference-schedule"], i.Conclusion ?? ""), ct)));

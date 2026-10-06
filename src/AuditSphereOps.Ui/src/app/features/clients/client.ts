@@ -12,6 +12,7 @@ import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
 import { guidPattern } from '../../core/contracts';
 import { Client, ClientLocation, clientLocation, decodeClient, clientUtcTime, portalIntentExplanation } from './client-contracts';
+import { ClientRelationships } from './client-relationships';
 export { decodeClient } from './client-contracts';
 @Component({
   selector: 'audit-client',
@@ -22,6 +23,7 @@ export { decodeClient } from './client-contracts';
     RouterLink,
     MatButtonModule,
     MatProgressBarModule,
+    ClientRelationships,
     ...SHARED,
   ],
   templateUrl: './client.html',

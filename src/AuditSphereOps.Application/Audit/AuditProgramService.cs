@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
@@ -275,16 +276,27 @@ public static class AuditProgramService
     Guid? riskId,
     CancellationToken ct = default)
   {
-    var procedure = await db.AuditProcedures.SingleOrDefaultAsync(x => x.Id == procedureId && x.FirmId == actor.FirmId, ct);
-    if (procedure is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var scope = await ResolveEngagementAsync(db, actor, procedure.EngagementId, ct, procedure.ClientId);
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var snapshot = await db.AuditProcedures.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.Id == procedureId && x.FirmId == actor.FirmId, ct);
+    if (snapshot is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var scope = await ResolveEngagementAsync(db, actor, snapshot.EngagementId, ct, snapshot.ClientId);
     if (scope.Denied is not null) return CommandResult.Fail(scope.Denied, scope.Message);
+
+    var procedure = await db.AuditProcedures.FromSqlInterpolated($"""
+      SELECT * FROM audit_procedures
+      WHERE id = {procedureId} AND firm_id = {actor.FirmId}
+      FOR UPDATE
+      """).SingleOrDefaultAsync(ct);
+    if (procedure is null || procedure.ClientId != scope.ClientId || procedure.EngagementId != snapshot.EngagementId)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
     if (riskId is { } rid && !await db.AuditRisks.AnyAsync(x => x.Id == rid && x.FirmId == actor.FirmId && x.EngagementId == procedure.EngagementId, ct))
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "The risk must belong to the same engagement.");
 
     procedure.RiskId = riskId;
     await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
     return CommandResult.Ok();
   }
 
@@ -300,7 +312,8 @@ public static class AuditProgramService
         string.IsNullOrWhiteSpace(request.Conclusion) || request.EvidenceReferences is null)
       return CommandResult<ProcedureResultValue>.Fail(InvalidCode, "A generation, work performed, evidence and conclusion are required.");
     if (!TryValidateObject(request.StructuredResultJson))
-      return CommandResult<ProcedureResultValue>.Fail(InvalidCode, "Structured result must be a JSON object.");
+      return CommandResult<ProcedureResultValue>.Fail(InvalidCode,
+        $"Structured result must be a JSON object under {ProcedureRiskBandEvaluator.MaximumStructuredResultBytes} bytes and cannot set the reserved risk-basis field.");
     if (request.EvidenceReferences.Any(string.IsNullOrWhiteSpace))
       return CommandResult<ProcedureResultValue>.Fail(InvalidCode, "Evidence references cannot be blank.");
 
@@ -312,53 +325,61 @@ public static class AuditProgramService
     var scope = await ResolveEngagementAsync(db, actor, snapshot.EngagementId, ct, snapshot.ClientId);
     if (scope.Denied is not null)
       return CommandResult<ProcedureResultValue>.Fail(scope.Denied, scope.Message);
-    if (snapshot.ApplicabilityStatus != AuditApplicabilityStatuses.Applicable)
-      return CommandResult<ProcedureResultValue>.Fail(ErrorCodes.GateBlocked,
-        "Only an explicitly applicable procedure can receive test results.");
-
-    var generation = await db.ClientSafetyStates.AsNoTracking()
-      .Where(x => x.FirmId == scope.FirmId && x.Id == scope.ClientId)
-      .Select(x => x.InputGeneration).SingleOrDefaultAsync(ct);
-    generation = generation < 1 ? 1 : generation;
-    if (generation != request.ExpectedInputGeneration)
-      return CommandResult<ProcedureResultValue>.Fail(ErrorCodes.GenerationStale,
-        "The underlying engagement inputs changed.");
 
     var procedure = await db.AuditProcedures.FromSqlInterpolated($"""
       SELECT * FROM audit_procedures
       WHERE id = {request.AuditProcedureId} AND firm_id = {actor.FirmId}
       FOR UPDATE
-      """).SingleOrDefaultAsync(ct);
+    """).SingleOrDefaultAsync(ct);
     if (procedure is null || procedure.ClientId != scope.ClientId || procedure.EngagementId != snapshot.EngagementId)
       return CommandResult<ProcedureResultValue>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (procedure.ApplicabilityStatus != AuditApplicabilityStatuses.Applicable)
+      return CommandResult<ProcedureResultValue>.Fail(ErrorCodes.GateBlocked,
+        "Only an explicitly applicable procedure can receive test results.");
+
+    // Keep the existing broad client-source fence. Risk and materiality revisions are bound below
+    // as a narrower immutable basis and must not invalidate unrelated accounting mappings.
+    var currentGeneration = await AuditPlanningInputGeneration.LockAndReadAsync(db, scope.FirmId, scope.ClientId, ct);
+    if (currentGeneration is null)
+      return CommandResult<ProcedureResultValue>.Fail(ErrorCodes.GateBlocked,
+        "The current client planning revision is unavailable; the procedure result was not submitted.");
+    var generation = currentGeneration.Value < 1 ? 1 : currentGeneration.Value;
+    if (generation != request.ExpectedInputGeneration)
+      return CommandResult<ProcedureResultValue>.Fail(ErrorCodes.GenerationStale,
+        "The underlying engagement inputs changed.");
+
+    var effectiveRisk = await ProcedureRiskBandEvaluator.EvaluateAsync(
+      db, scope.FirmId, procedure.EngagementId, procedure.RiskId, ct);
+    if (effectiveRisk.Blocker is not null)
+      return CommandResult<ProcedureResultValue>.Fail(ErrorCodes.GateBlocked, effectiveRisk.Blocker);
 
     var latest = await db.AuditProcedureResults.AsNoTracking()
       .Where(x => x.FirmId == scope.FirmId && x.AuditProcedureId == procedure.Id)
       .OrderByDescending(x => x.Revision).FirstOrDefaultAsync(ct);
-    if (latest is not null && latest.Status == AuditProcedureResultStatuses.Submitted)
+    if (latest is not null && latest.Status == AuditProcedureResultStatuses.Submitted && latest.InputGeneration == generation &&
+        ProcedureRiskBandEvaluator.CapturedBasisMatches(latest.StructuredResultJson, effectiveRisk.Value))
       return CommandResult<ProcedureResultValue>.Fail(ErrorCodes.ProtectedState,
-        "The current result is awaiting review; create a new revision only after review.");
+        "The current result is awaiting review; create a new revision only after its recorded planning basis changes or it is returned.");
 
-    if (procedure.RiskId is { } riskId)
+    if (effectiveRisk.Value is { } riskBand)
     {
-      var currentRiskBand = await db.RiskBandAssessments.AsNoTracking()
-        .Where(x => x.FirmId == scope.FirmId && x.RiskId == riskId)
-        .OrderByDescending(x => x.AssessedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
-      if (currentRiskBand is not null)
+      var minRank = FsliRiskBandRules.MinimumExecutorRank(riskBand.Band);
+      var staffAssignment = await db.EngagementStaffAssignments.AsNoTracking()
+        .FirstOrDefaultAsync(x => x.FirmId == scope.FirmId && x.EngagementId == procedure.EngagementId && x.UserId == actor.UserId && x.RevokedAt == null, ct);
+      var actorRank = staffAssignment is not null ? StaffingLevels.Rank(staffAssignment.StaffingLevel) :
+        (actor.Roles.Contains("Partner") ? 4 : actor.Roles.Contains("Manager") ? 3 : actor.Roles.Contains("Senior") ? 2 : 1);
+      if (actorRank < minRank)
       {
-        var minRank = RiskBandRules.MinimumExecutorRank(currentRiskBand.Band);
-        var staffAssignment = await db.EngagementStaffAssignments.AsNoTracking()
-          .FirstOrDefaultAsync(x => x.FirmId == scope.FirmId && x.EngagementId == procedure.EngagementId && x.UserId == actor.UserId && x.RevokedAt == null, ct);
-        var actorRank = staffAssignment is not null ? StaffingLevels.Rank(staffAssignment.StaffingLevel) :
-          (actor.Roles.Contains("Partner") ? 4 : actor.Roles.Contains("Manager") ? 3 : actor.Roles.Contains("Senior") ? 2 : 1);
-        if (actorRank < minRank)
-        {
-          var reqLevel = StaffingLevels.All.First(x => StaffingLevels.Rank(x) == minRank);
-          return CommandResult<ProcedureResultValue>.Fail(ErrorCodes.ScopeDenied,
-            $"A {currentRiskBand.Band} risk procedure requires execution by {StaffingLevels.Label(reqLevel)} or above.");
-        }
+        var reqLevel = StaffingLevels.All.First(x => StaffingLevels.Rank(x) == minRank);
+        return CommandResult<ProcedureResultValue>.Fail(ErrorCodes.ScopeDenied,
+          $"A {riskBand.Band} risk procedure requires execution by {StaffingLevels.Label(reqLevel)} or above. {riskBand.Explanation}");
       }
     }
+
+    var structuredResult = ProcedureRiskBandEvaluator.WithCapturedBasis(request.StructuredResultJson, effectiveRisk.Value);
+    if (Encoding.UTF8.GetByteCount(structuredResult) > ProcedureRiskBandEvaluator.MaximumStructuredResultBytes)
+      return CommandResult<ProcedureResultValue>.Fail(InvalidCode,
+        "Structured result is too large to retain with its required planning basis.");
 
     var workpaper = new Workpaper
     {
@@ -393,7 +414,7 @@ public static class AuditProgramService
       Revision = revision,
       InputGeneration = generation,
       WorkPerformed = request.WorkPerformed.Trim(),
-      StructuredResultJson = request.StructuredResultJson.Trim(),
+      StructuredResultJson = structuredResult,
       EvidenceReferencesJson = JsonSerializer.Serialize(request.EvidenceReferences),
       Conclusion = request.Conclusion.Trim(),
       Status = AuditProcedureResultStatuses.Submitted,
@@ -439,57 +460,72 @@ public static class AuditProgramService
       return CommandResult<ProcedureReviewValue>.Fail(role.ErrorCode!, role.Message!);
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
-    var result = await db.AuditProcedureResults
+    var snapshot = await db.AuditProcedureResults.AsNoTracking()
       .SingleOrDefaultAsync(x => x.Id == request.AuditProcedureResultId && x.FirmId == actor.FirmId, ct);
-    if (result is null)
+    if (snapshot is null)
+      return CommandResult<ProcedureReviewValue>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var scope = await ResolveEngagementAsync(db, actor, snapshot.EngagementId, ct, snapshot.ClientId, ReviewRoles);
+    if (scope.Denied is not null)
+      return CommandResult<ProcedureReviewValue>.Fail(scope.Denied, scope.Message);
+    var procedure = await db.AuditProcedures.FromSqlInterpolated($"""
+      SELECT * FROM audit_procedures
+      WHERE id = {snapshot.AuditProcedureId} AND firm_id = {actor.FirmId}
+      FOR UPDATE
+    """).SingleOrDefaultAsync(ct);
+    if (procedure is null || procedure.ClientId != scope.ClientId || procedure.EngagementId != snapshot.EngagementId)
+      return CommandResult<ProcedureReviewValue>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    // Serialize the final review transition after taking the engagement and procedure locks.
+    var result = await db.AuditProcedureResults.FromSqlInterpolated($"""
+      SELECT * FROM audit_procedure_results
+      WHERE id = {request.AuditProcedureResultId} AND firm_id = {actor.FirmId}
+      FOR UPDATE
+      """).SingleOrDefaultAsync(ct);
+    if (result is null || result.AuditProcedureId != procedure.Id || result.EngagementId != procedure.EngagementId || result.ClientId != scope.ClientId)
       return CommandResult<ProcedureReviewValue>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (result.PreparedByUserId == actor.UserId)
       return CommandResult<ProcedureReviewValue>.Fail(ErrorCodes.ScopeDenied, "The preparer cannot review the same result.");
-    var scope = await ResolveEngagementAsync(db, actor, result.EngagementId, ct, result.ClientId, ReviewRoles);
-    if (scope.Denied is not null)
-      return CommandResult<ProcedureReviewValue>.Fail(scope.Denied, scope.Message);
-    // Serialize the final review transition so concurrent approvals cannot miss automatic compilation.
-    await db.Engagements.FromSqlInterpolated($"SELECT * FROM engagements WHERE id = {result.EngagementId} AND firm_id = {actor.FirmId} FOR UPDATE")
-      .SingleAsync(ct);
-    var generation = await db.ClientSafetyStates.AsNoTracking()
-      .Where(x => x.FirmId == scope.FirmId && x.Id == scope.ClientId)
-      .Select(x => x.InputGeneration).SingleOrDefaultAsync(ct);
-    generation = generation < 1 ? 1 : generation;
-    if (result.InputGeneration != generation)
-      return CommandResult<ProcedureReviewValue>.Fail(ErrorCodes.GenerationStale,
-        "The underlying engagement inputs changed; the result must be resubmitted.");
     if (result.Status != AuditProcedureResultStatuses.Submitted)
       return CommandResult<ProcedureReviewValue>.Fail(ErrorCodes.ProtectedState,
         "Only the current submitted result can receive a review decision.");
-    var procedure = await db.AuditProcedures.FromSqlInterpolated($"""
-      SELECT * FROM audit_procedures
-      WHERE id = {result.AuditProcedureId} AND firm_id = {actor.FirmId}
-      FOR UPDATE
-      """).SingleOrDefaultAsync(ct);
-    if (procedure is null || procedure.ClientId != scope.ClientId)
-      return CommandResult<ProcedureReviewValue>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var currentResultId = await db.AuditProcedureResults.AsNoTracking()
+      .Where(x => x.FirmId == scope.FirmId && x.AuditProcedureId == procedure.Id)
+      .OrderByDescending(x => x.Revision).Select(x => x.Id).FirstOrDefaultAsync(ct);
+    if (currentResultId != result.Id)
+      return CommandResult<ProcedureReviewValue>.Fail(ErrorCodes.ProtectedState,
+        "Only the latest submitted procedure revision can receive a review decision.");
+
+    var currentGeneration = await AuditPlanningInputGeneration.LockAndReadAsync(db, scope.FirmId, scope.ClientId, ct);
+    if (currentGeneration is null)
+      return CommandResult<ProcedureReviewValue>.Fail(ErrorCodes.GateBlocked,
+        "The current client planning revision is unavailable; the result was not reviewed.");
+    var generation = currentGeneration.Value < 1 ? 1 : currentGeneration.Value;
+    if (result.InputGeneration != generation)
+      return CommandResult<ProcedureReviewValue>.Fail(ErrorCodes.GenerationStale,
+        "The underlying engagement inputs changed; the result must be resubmitted.");
+
     var hierarchy = await ReviewNotesService.RequireReviewerAboveAsync(db, scope.FirmId, result.EngagementId, result.PreparedByUserId, actor.UserId, ct);
     if (!hierarchy.Succeeded)
       return CommandResult<ProcedureReviewValue>.Fail(hierarchy.ErrorCode!, hierarchy.Message!);
 
-    if (procedure.RiskId is { } riskId)
+    var effectiveRisk = await ProcedureRiskBandEvaluator.EvaluateAsync(
+      db, scope.FirmId, procedure.EngagementId, procedure.RiskId, ct);
+    if (effectiveRisk.Blocker is not null)
+      return CommandResult<ProcedureReviewValue>.Fail(ErrorCodes.GateBlocked, effectiveRisk.Blocker);
+    if (!ProcedureRiskBandEvaluator.CapturedBasisMatches(result.StructuredResultJson, effectiveRisk.Value))
+      return CommandResult<ProcedureReviewValue>.Fail(ErrorCodes.GenerationStale,
+        "The linked risk, materiality calculation, or approved mapping changed; reassess the procedure and submit a current result.");
+    if (effectiveRisk.Value is { } riskBand)
     {
-      var currentRiskBand = await db.RiskBandAssessments.AsNoTracking()
-        .Where(x => x.FirmId == scope.FirmId && x.RiskId == riskId)
-        .OrderByDescending(x => x.AssessedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
-      if (currentRiskBand is not null)
+      var minReviewerRank = FsliRiskBandRules.MinimumReviewerRank(riskBand.Band);
+      var reviewerStaffing = await db.EngagementStaffAssignments.AsNoTracking()
+        .FirstOrDefaultAsync(x => x.FirmId == scope.FirmId && x.EngagementId == result.EngagementId && x.UserId == actor.UserId && x.RevokedAt == null, ct);
+      var reviewerRank = reviewerStaffing is not null ? StaffingLevels.Rank(reviewerStaffing.StaffingLevel) :
+        (actor.Roles.Contains("Partner") ? 4 : actor.Roles.Contains("Manager") ? 3 : actor.Roles.Contains("Senior") ? 2 : 1);
+      if (reviewerRank < minReviewerRank)
       {
-        var minReviewerRank = RiskBandRules.MinimumReviewerRank(currentRiskBand.Band);
-        var reviewerStaffing = await db.EngagementStaffAssignments.AsNoTracking()
-          .FirstOrDefaultAsync(x => x.FirmId == scope.FirmId && x.EngagementId == result.EngagementId && x.UserId == actor.UserId && x.RevokedAt == null, ct);
-        var reviewerRank = reviewerStaffing is not null ? StaffingLevels.Rank(reviewerStaffing.StaffingLevel) :
-          (actor.Roles.Contains("Partner") ? 4 : actor.Roles.Contains("Manager") ? 3 : actor.Roles.Contains("Senior") ? 2 : 1);
-        if (reviewerRank < minReviewerRank)
-        {
-          var reqLevel = StaffingLevels.All.First(x => StaffingLevels.Rank(x) == minReviewerRank);
-          return CommandResult<ProcedureReviewValue>.Fail(ErrorCodes.ScopeDenied,
-            $"A {currentRiskBand.Band} risk procedure requires review by {StaffingLevels.Label(reqLevel)} or above.");
-        }
+        var reqLevel = StaffingLevels.All.First(x => StaffingLevels.Rank(x) == minReviewerRank);
+        return CommandResult<ProcedureReviewValue>.Fail(ErrorCodes.ScopeDenied,
+          $"A {riskBand.Band} risk procedure requires review by {StaffingLevels.Label(reqLevel)} or above. {riskBand.Explanation}");
       }
     }
 
@@ -549,16 +585,8 @@ public static class AuditProgramService
 
   private static bool TryValidateObject(string json)
   {
-    if (string.IsNullOrWhiteSpace(json))
+    if (string.IsNullOrWhiteSpace(json) || Encoding.UTF8.GetByteCount(json) > ProcedureRiskBandEvaluator.MaximumStructuredResultBytes)
       return false;
-    try
-    {
-      using var document = JsonDocument.Parse(json);
-      return document.RootElement.ValueKind == JsonValueKind.Object;
-    }
-    catch (JsonException)
-    {
-      return false;
-    }
+    return !ProcedureRiskBandEvaluator.HasReservedBasisProperty(json);
   }
 }

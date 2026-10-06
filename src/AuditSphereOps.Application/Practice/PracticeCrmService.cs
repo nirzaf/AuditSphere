@@ -50,7 +50,8 @@ public sealed record ReviseProposalRequest(
   long? ExpectedRevision = null,
   Guid? RequestId = null);
 
-public sealed record ProposalResponseRequest(string Decision, string? Reason = null);
+public sealed record ProposalResponseRequest(string Decision, string? Reason = null,
+  string? OfferSha256 = null, string? RespondentName = null, string? RespondentEmail = null, string? EvidenceReference = null);
 
 public sealed record ConvertToClientDraftRequest(
   Guid ProposalId,
@@ -75,7 +76,7 @@ public sealed record CreateClientContactRequest(
 /// Command-only commercial workflow. A proposal can win commercial work, but conversion
 /// creates only a prospect and a pending acceptance handoff; it never activates professional work.
 /// </summary>
-public static class PracticeCrmService
+public static partial class PracticeCrmService
 {
   private static readonly string[] CommercialRoles = ["Administrator", "Partner", "Manager", "RelationshipManager"];
 
@@ -322,9 +323,39 @@ public static class PracticeCrmService
     if (proposal.Status == CrmStates.ProposalSent) return CommandResult.Ok();
     if (proposal.Status != CrmStates.ProposalInternalReview)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Only an internally reviewed proposal can be sent.");
+    var opportunity = await db.Opportunities.SingleAsync(x => x.Id == proposal.OpportunityId && x.FirmId == actor.FirmId, ct);
+    var lead = await db.Leads.AsNoTracking().SingleOrDefaultAsync(x => x.Id == opportunity.LeadId && x.FirmId == actor.FirmId, ct);
+    if (lead is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    // Evidence-bound dispatch (STE 4.1.2–3): the send is refused without an exact recipient, and queues exactly one
+    // email bound to the dispatched offer identity. The mail worker — not this transition — owns the delivery truth.
+    var recipient = (lead.PrimaryContactEmail ?? string.Empty).Trim();
+    if (recipient.Length == 0)
+      return CommandResult.Fail(ErrorCodes.GateBlocked,
+        "Record the lead's primary contact email before dispatch; a proposal cannot be sent without an exact recipient.");
+    var quotation = await db.QuotationVersions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ProposalId == proposal.Id)
+      .OrderByDescending(x => x.Revision).FirstOrDefaultAsync(ct);
+    var document = await db.CommercialDocuments.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.ProposalId == proposal.Id && x.Kind == CommercialDocumentKinds.Quotation)
+      .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+    var offerSha256 = ProposalOfferSha256(proposal, quotation, document);
+    var existing = await db.CommercialNotifications.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ProposalId == proposal.Id, ct);
+    if (existing is null)
+    {
+      db.CommercialNotifications.Add(new CommercialNotification
+      {
+        Id = Guid.CreateVersion7(), FirmId = actor.FirmId, Kind = CommercialNotificationKinds.Proposal,
+        ProposalId = proposal.Id, PracticeClientId = proposal.PracticeClientId ?? opportunity.PracticeClientId,
+        DocumentId = document?.Id, OfferSha256 = offerSha256, Recipient = recipient,
+        Subject = $"Proposal revision {proposal.Revision} — {lead.Name} ({opportunity.ServiceRoute})",
+        Body = $"Dear {lead.PrimaryContactName ?? lead.Name},\n\nPlease find our proposal revision {proposal.Revision} for {opportunity.ServiceRoute} " +
+               $"covering {proposal.PeriodStart} to {proposal.PeriodEnd}, fee {proposal.Fee.ToString("N2", CultureInfo.InvariantCulture)} {proposal.Currency}.\n\n" +
+               $"Offer identity: {offerSha256}\n\n{lead.Name}",
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+    }
     proposal.Status = CrmStates.ProposalSent;
     proposal.SentAt = DateTimeOffset.UtcNow;
-    var opportunity = await db.Opportunities.SingleAsync(x => x.Id == proposal.OpportunityId && x.FirmId == actor.FirmId, ct);
+    proposal.SentOfferSha256 = existing?.OfferSha256 ?? offerSha256;
     opportunity.Stage = CrmStates.OpportunityNegotiation;
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
@@ -347,12 +378,38 @@ public static class PracticeCrmService
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
     var proposal = await db.Proposals.SingleOrDefaultAsync(x => x.Id == proposalId && x.FirmId == actor.FirmId, ct);
     if (proposal is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    if (proposal.Status == decision) return CommandResult.Ok();
+    var citedOffer = (request.OfferSha256 ?? string.Empty).Trim();
+    if (proposal.Status == decision)
+    {
+      // Replay of the same response is safe; a response citing a different offer conflicts instead of silently merging.
+      var sameOffer = citedOffer.Length == 0 ||
+        (proposal.ResponseOfferSha256 is not null && string.Equals(proposal.ResponseOfferSha256, citedOffer, StringComparison.OrdinalIgnoreCase));
+      return sameOffer ? CommandResult.Ok()
+        : CommandResult.Fail("crm.conflict", "A response citing a different offer is already recorded for this proposal.");
+    }
     if (proposal.Status != CrmStates.ProposalSent)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Only a sent proposal can receive a response.");
+    // Client acceptance is bound to the exact dispatched offer (STE 4.1.3): a stale, revised, or superseded
+    // offer cannot become the commercial key, and a respondent identity is recorded with the evidence.
+    if (decision == CrmStates.ProposalAccepted)
+    {
+      if (citedOffer.Length == 0)
+        return CommandResult.Fail("crm.invalid", "Acceptance must cite the exact dispatched offer identity.");
+      if (string.IsNullOrWhiteSpace(request.RespondentName))
+        return CommandResult.Fail("crm.invalid", "Acceptance must record the responding person's name.");
+      if (proposal.SentOfferSha256 is null ||
+        !string.Equals(proposal.SentOfferSha256, citedOffer, StringComparison.OrdinalIgnoreCase))
+        return CommandResult.Fail("crm.stale-offer",
+          "The cited offer does not match the dispatched proposal revision; a superseded or revised offer cannot be accepted.");
+    }
     proposal.Status = decision;
     proposal.ResponseAt = DateTimeOffset.UtcNow;
     proposal.ResponseReason = TrimOrNull(request.Reason);
+    proposal.ResponseOfferSha256 = decision == CrmStates.ProposalAccepted
+      ? citedOffer : proposal.SentOfferSha256;
+    proposal.RespondentName = TrimOrNull(request.RespondentName);
+    proposal.RespondentEmail = TrimOrNull(request.RespondentEmail);
+    proposal.ResponseEvidenceReference = TrimOrNull(request.EvidenceReference);
     var opportunity = await db.Opportunities.SingleAsync(x => x.Id == proposal.OpportunityId && x.FirmId == actor.FirmId, ct);
     opportunity.Stage = decision == CrmStates.ProposalAccepted
       ? CrmStates.OpportunityWon : CrmStates.OpportunityLost;

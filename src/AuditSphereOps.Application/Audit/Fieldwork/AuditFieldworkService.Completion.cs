@@ -39,11 +39,36 @@ public static partial class AuditFieldworkService
       x.FirmId == firmId && x.ClientId == clientId && x.EngagementId == engagementId).ToListAsync(ct);
     var reviews = await db.AuditProcedureReviews.AsNoTracking().Where(x =>
       x.FirmId == firmId && x.ClientId == clientId && x.EngagementId == engagementId).ToListAsync(ct);
+    var latestResults = applicable.ToDictionary(procedure => procedure.Id, procedure => resultRows
+      .Where(result => result.AuditProcedureId == procedure.Id)
+      .OrderByDescending(result => result.Revision).FirstOrDefault());
+    var linkedRiskIds = applicable.Where(procedure => latestResults[procedure.Id] is not null && procedure.RiskId is not null)
+      .Select(procedure => procedure.RiskId!.Value).Distinct().ToArray();
+    var riskEvaluations = await ProcedureRiskBandEvaluator.EvaluateManyAsync(db, firmId, engagementId, linkedRiskIds, ct);
     var reviewed = 0;
     foreach (var procedure in applicable)
     {
-      var result = resultRows.Where(x => x.AuditProcedureId == procedure.Id).OrderByDescending(x => x.Revision).FirstOrDefault();
+      var result = latestResults[procedure.Id];
       var review = result is null ? null : reviews.Where(x => x.AuditProcedureResultId == result.Id).OrderByDescending(x => x.CreatedAt).FirstOrDefault();
+      if (result is not null)
+      {
+        ProcedureRiskBandEvaluation? riskEvaluation = null;
+        if (procedure.RiskId is { } riskId && !riskEvaluations.TryGetValue(riskId, out riskEvaluation))
+        {
+          blockers.Add($"procedure:{procedure.SourceProcedureId}:risk-basis-unavailable");
+          continue;
+        }
+        if (riskEvaluation?.Blocker is not null)
+        {
+          blockers.Add($"procedure:{procedure.SourceProcedureId}:risk-basis-blocked");
+          continue;
+        }
+        if (!ProcedureRiskBandEvaluator.CapturedBasisMatches(result.StructuredResultJson, riskEvaluation?.Value))
+        {
+          blockers.Add($"procedure:{procedure.SourceProcedureId}:risk-basis-stale");
+          continue;
+        }
+      }
       if (result is not null && procedure.Status == AuditProcedureStatuses.Reviewed && review?.Decision == AuditProcedureReviewDecisions.Reviewed)
         reviewed++;
       else
