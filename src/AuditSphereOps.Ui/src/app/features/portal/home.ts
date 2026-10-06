@@ -1,10 +1,10 @@
-import { Component, effect, inject, signal } from '@angular/core';
+import { Component, DestroyRef, effect, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { Api } from '../../core/api';
 import { SHARED } from '../../core/ui';
-import { portalWorkspace } from './contracts';
+import { clientRequestStatusLabel, portalWorkspace } from './contracts';
 import { PortalJournals } from './journals';
 import { PortalDocuments } from './documents';
 import { PortalFinance } from './finance';
@@ -35,7 +35,7 @@ import { SessionService } from '../../core/session';
           @for (r of w.requests; track r.id) {
             <article class="portal-request"><h3><a [routerLink]="['/portal/requests', r.id]">{{ r.area }}</a></h3>
               <p>{{ r.objective }}</p><p>{{ r.periodStart }} to {{ r.periodEnd }} · due {{ r.dueDate }}</p>
-              <audit-status [value]="r.state" /> @if (r.delegated) { <span>Delegated to you</span> }
+              <audit-status [value]="statusLabel(r.state)" /> @if (r.delegated) { <span>Delegated to you</span> }
             </article>
           } @empty { <p>No requests are assigned to this identity.</p> }
           <nav class="actions" aria-label="Request pages">
@@ -83,7 +83,16 @@ export class ClientPortalHome {
   readonly ws = this.api.resource(() => `/api/ui/portal?page=${this.requestPage()}&pageSize=${this.requestPageSize()}`, portalWorkspace, 'Portal unavailable. A current client assignment is required.');
   readonly terms = inject(FormBuilder).nonNullable.group({ acknowledged: [false, Validators.requiredTrue] });
   readonly busy = signal(false); readonly message = signal(''); readonly failed = signal(false);
-  constructor() { effect(() => { this.session.invalidation(); if (!this.session.current()) { this.terms.reset(); this.message.set(''); } }); }
+  statusLabel(state: string): string { return clientRequestStatusLabel(state); }
+  constructor() {
+    effect(() => { this.session.invalidation(); if (!this.session.current()) { this.terms.reset(); this.message.set(''); } });
+    const interval = setInterval(() => {
+      if (!this.busy() && !this.ws.loading() && this.session.current()) {
+        this.ws.reload();
+      }
+    }, 30_000);
+    inject(DestroyRef).onDestroy(() => clearInterval(interval));
+  }
   previousRequestPage(): void { this.requestPage.update(p => Math.max(0, p - 1)); }
   nextRequestPage(): void { this.requestPage.update(p => Math.min(10000, p + 1)); }
   setRequestPageSize(event: Event): void {

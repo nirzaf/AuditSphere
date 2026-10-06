@@ -17,4 +17,28 @@ describe('client portal contracts', () => {
     expect(decode(clientPackage, sample).statementTotals[0].amount).toBe('9007199254740993.25');
     expect(() => decode(clientPackage, { ...sample, statementTotals: [{ statementSection: 'Assets', amount: 1.25 }] })).toThrow();
   });
+  it('maps request states to user-friendly status labels according to AS-COMP-09', async () => {
+    const { clientRequestStatusLabel } = await import('./contracts');
+    expect(clientRequestStatusLabel('SENT')).toBe('Pending Upload');
+    expect(clientRequestStatusLabel('ACKNOWLEDGED')).toBe('Pending Upload');
+    expect(clientRequestStatusLabel('PARTIALLY_RECEIVED')).toBe('Pending Upload');
+    expect(clientRequestStatusLabel('RECEIVED')).toBe('Under Review');
+    expect(clientRequestStatusLabel('UNDER_REVIEW')).toBe('Under Review');
+    expect(clientRequestStatusLabel('RESUBMITTED')).toBe('Under Review');
+    expect(clientRequestStatusLabel('ACCEPTED')).toBe('Approved');
+    expect(clientRequestStatusLabel('CLOSED')).toBe('Approved');
+    expect(clientRequestStatusLabel('CLARIFICATION_REQUIRED')).toBe('Rejected / Re-upload Required');
+  });
+  it('decodes portalRequest with optional clarificationReason', () => {
+    const req = {
+      id: crypto.randomUUID(), area: 'Cash', objective: 'Bank confirmation', instructions: 'Upload statements',
+      requestedFormat: 'PDF', dueDate: '2027-01-31', state: 'CLARIFICATION_REQUIRED', revision: '2',
+      firstSignIn: { completed: true, identityPath: 'EXTERNAL_IDENTITY', canComplete: false, message: 'Done' },
+      canWrite: true, canDelegate: false, delegations: [], candidates: [], uploads: [], conversation: [],
+      clarificationReason: 'Pages 3 and 4 are missing from the statement scan.'
+    };
+    const decoded = decode(portalRequest, req);
+    expect(decoded.clarificationReason).toBe('Pages 3 and 4 are missing from the statement scan.');
+    expect(decoded.state).toBe('CLARIFICATION_REQUIRED');
+  });
 });

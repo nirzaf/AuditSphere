@@ -219,4 +219,115 @@ public sealed class ClientPortalOnboardingTests
     Assert.False(await db.PbcCommunications.AnyAsync(x => x.PbcRequestId == mine && x.Body == "After freeze"));
   }
 
+  [Fact]
+  public async Task PortalRequest_PresentsClarificationReason_WhenAuditorRejectsAndRequestsReUpload()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await PbcSeed.SeedAsync(pg);
+    var clientUser = await AddClientUserAsync(pg, f, f.ClientId, f.EngagementId, onboarded: true);
+    var requestId = await SentRequestAsync(pg, f, clientUser.Id);
+    var staffActor = PbcSeed.Actor(f.Staff, "Staff");
+    var reviewerActor = PbcSeed.Actor(f.Reviewer, "Staff");
+    var clientActor = PbcSeed.Actor(clientUser, "ClientUser");
+
+    // Staff transitions request to UnderReview and then ClarificationRequired
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      await db.PbcRequests.Where(x => x.Id == requestId).ExecuteUpdateAsync(s => s.SetProperty(x => x.State, PbcStates.UnderReview));
+      var current = await db.PbcRequests.SingleAsync(x => x.Id == requestId);
+      const string reason = "Bank statement pages 3 and 4 are missing from the scanned copy.";
+      var reject = await PbcService.ChangeStateAsync(db, staffActor, new PbcStateChangeRequest(requestId, PbcStates.ClarificationRequired, current.Revision, ClarificationReason: reason));
+      Assert.True(reject.Succeeded, reject.Message);
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var query = await ClientPortalWorkspaceQuery.RequestAsync(db, clientActor, requestId);
+      Assert.True(query.Succeeded, query.Message);
+      var w = query.Value!;
+      Assert.Equal(PbcStates.ClarificationRequired, w.State);
+      Assert.Equal("Bank statement pages 3 and 4 are missing from the scanned copy.", w.ClarificationReason);
+      Assert.True(w.CanWrite, "Client must be permitted to re-upload files when clarification/re-upload is requested");
+    }
+  }
+
+  [Fact]
+  public async Task RequireUploadWindow_AllowsUploadsDuringInternalFinancialPackageRelease_AndFreezesOnFinalBundle()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await PbcSeed.SeedAsync(pg);
+    var clientUser = await AddClientUserAsync(pg, f, f.ClientId, f.EngagementId, onboarded: true);
+    var clientActor = PbcSeed.Actor(clientUser, "ClientUser");
+
+    // Seed internal financial package release (which occurs before final deliverable release bundle)
+    var approvalId = Guid.NewGuid();
+    var releaseCandidateId = Guid.NewGuid();
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.Approvals.Add(new AuditSphereOps.Domain.Reviews.Approval
+      {
+        Id = approvalId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        TargetKind = "FINANCIAL_PACKAGE", TargetId = Guid.NewGuid(), TargetRevision = 1,
+        InputGeneration = 1, PolicyGeneration = 1, ManifestDigest = new string('a', 64),
+        Decision = "APPROVED", DecidedByUserId = f.Staff.Id, DecidedAt = DateTimeOffset.UtcNow
+      });
+      db.ReleaseCandidates.Add(new AuditSphereOps.Domain.Completion.ReleaseCandidate
+      {
+        Id = releaseCandidateId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        TargetKind = "FINANCIAL_PACKAGE", TargetId = Guid.NewGuid(), TargetRevision = 1, Revision = 1,
+        InputGeneration = 1, PolicyGeneration = 1, ApprovalId = approvalId, ManifestDigest = new string('b', 64),
+        Status = "READY", CreatedAt = DateTimeOffset.UtcNow
+      });
+      var checkpointId = Guid.NewGuid();
+      db.ReleaseCheckpoints.Add(new AuditSphereOps.Domain.Completion.ReleaseCheckpoint
+      {
+        Id = checkpointId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        ReleaseCandidateId = releaseCandidateId, CandidateRevision = 1, AuthorizedReleaseKey = "test-release-key",
+        ManifestDigest = new string('a', 64), StoredReference = "ref-1", ReadBackDigest = new string('a', 64),
+        VerifiedStatus = "VERIFIED", Verifier = "test", CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.Releases.Add(new AuditSphereOps.Domain.Completion.Release
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        ReleaseCandidateId = releaseCandidateId, PackageId = Guid.NewGuid(), PackageRevision = 1,
+        ManifestDigest = new string('a', 64), AuthorizedReleaseKey = "test-release-key",
+        CheckpointId = checkpointId, ReleasedAt = DateTimeOffset.UtcNow, ReleasedByUserId = f.Staff.Id
+      });
+      await db.SaveChangesAsync();
+    }
+
+    // Client upload window is NOT closed by internal financial package release (§4.4, AS-COMP-09)
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var window = await ClientPortalService.RequireUploadWindowAsync(db, clientActor, f.EngagementId);
+      Assert.True(window.Succeeded, "Internal financial package release must not freeze client uploads prior to final engagement delivery");
+    }
+
+    // Now seed the authoritative final file freeze
+    var reportId = Guid.NewGuid();
+    var signedAt = DateTimeOffset.UtcNow.AddDays(-70);
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.AuditDeliverables.Add(new AuditSphereOps.Domain.Completion.AuditDeliverable
+      {
+        Id = reportId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId, Kind = "INDEPENDENT_AUDITORS_REPORT",
+        InputDigest = new string('a', 64), Content = [1], ContentSha256 = Hashing.Sha256Hex([1]),
+        TemplateVersion = "SYNTHETIC", FileName = "synthetic.pdf", ContentType = "application/pdf", CreatedByUserId = f.Admin.Id, CreatedAt = signedAt
+      });
+      db.EngagementFileFreezes.Add(new AuditSphereOps.Domain.Records.EngagementFileFreeze
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        ReportDeliverableId = reportId, ReportSignedAt = signedAt, DueAt = signedAt.AddDays(60),
+        State = "FROZEN", FrozenAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+    }
+
+    // Now client upload window is frozen
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var window = await ClientPortalService.RequireUploadWindowAsync(db, clientActor, f.EngagementId);
+      Assert.Equal(ErrorCodes.ProtectedState, window.ErrorCode);
+    }
+  }
 }

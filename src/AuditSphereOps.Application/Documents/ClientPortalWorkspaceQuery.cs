@@ -19,7 +19,8 @@ public sealed record PortalConversationItem(Guid Id, string At, string Speaker, 
 public sealed record PortalRequestWorkspace(Guid Id, string Area, string Objective, string Instructions, string RequestedFormat,
   string DueDate, string State, string Revision, FirstSignInStatus FirstSignIn, bool CanWrite, bool CanDelegate,
   IReadOnlyList<PbcDelegationRow> Delegations, IReadOnlyList<PbcDelegateCandidate> Candidates,
-  IReadOnlyList<PortalUploadItem> Uploads, IReadOnlyList<PortalConversationItem> Conversation);
+  IReadOnlyList<PortalUploadItem> Uploads, IReadOnlyList<PortalConversationItem> Conversation,
+  string? ClarificationReason = null);
 
 /// <summary>Client-only DTOs. Participation is additional to current role, scope, commercial and session authorization.</summary>
 public static class ClientPortalWorkspaceQuery
@@ -76,7 +77,8 @@ public static class ClientPortalWorkspaceQuery
       uploads.Select(x => new PortalUploadItem(x.Id, x.FileName, x.ReceivedByteCount.ToString(CultureInfo.InvariantCulture), x.DeclaredByteCount.ToString(CultureInfo.InvariantCulture),
         x.State, x.TransferOperationId is { } op && states.TryGetValue(op, out var state) ? state : null, x.DeclaredSha256Hex, x.CreatedAt.ToUniversalTime().ToString("O"))).ToArray(),
       messages.Select(x => new PortalConversationItem(x.Id, x.CreatedAt.ToUniversalTime().ToString("O"),
-        x.Kind == PbcCommunicationKinds.ClientMessage ? "Client" : x.Kind == PbcCommunicationKinds.Email ? "Email notification" : "Audit team", x.Body)).ToArray()));
+        x.Kind == PbcCommunicationKinds.ClientMessage ? "Client" : x.Kind == PbcCommunicationKinds.Email ? "Email notification" : "Audit team", x.Body)).ToArray(),
+      request.ClarificationReason));
   }
   private static Task<bool> IsClientAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct) =>
     db.Users.AsNoTracking().AnyAsync(x => x.Id == actor.UserId && x.FirmId == actor.FirmId && x.UserKind == "Client" && !x.Disabled, ct);

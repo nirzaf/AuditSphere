@@ -7,7 +7,7 @@ import { Api, routeGuid, UNKNOWN_OUTCOME } from '../../core/api';
 import { decode, guid, nat, obj, sha256, text } from '../../core/decode';
 import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
-import { portalRequest } from './contracts';
+import { clientRequestStatusLabel, portalRequest } from './contracts';
 
 const startReceipt = obj({ uploadIntentId: guid, pbcRequestId: guid, receivedByteCount: nat, capability: sha256 });
 const resumeReceipt = obj({ uploadIntentId: guid, pbcRequestId: guid, state: text, receivedByteCount: nat,
@@ -27,7 +27,15 @@ const fingerprint = async (bytes: ArrayBuffer): Promise<string> =>
     <audit-command-message [message]="message()" [failed]="failed()" />
     @if (ws.data(); as w) {
       <section class="panel"><h2>{{ w.area }}</h2><p>{{ w.objective }}</p><p>{{ w.instructions }}</p>
-        <p>Requested format: {{ w.requestedFormat }} · due {{ w.dueDate }} · revision {{ w.revision }}</p><audit-status [value]="w.state" /></section>
+        <p>Requested format: {{ w.requestedFormat }} · due {{ w.dueDate }} · revision {{ w.revision }}</p>
+        <audit-status [value]="statusLabel(w.state)" />
+        @if (w.clarificationReason) {
+          <aside class="panel clarification-callout" role="alert">
+            <strong>Auditor note / rejection reason:</strong>
+            <p>{{ w.clarificationReason }}</p>
+          </aside>
+        }
+      </section>
       <section class="panel" aria-labelledby="upload-heading"><h2 id="upload-heading">Upload requested files</h2>
         @if (!w.firstSignIn.completed) { <p role="status">Uploads open after your first portal sign-in is complete.</p><a routerLink="/portal">Complete first sign-in</a> }
         @else if (!w.canWrite) { <p role="status">Uploads and replies are closed for this request. Released documents remain available.</p> }
@@ -95,6 +103,7 @@ export class ClientPbcRequest {
   readonly busy = signal(false); readonly uncertain = signal(false); readonly uploadUncertain = signal(false);
   readonly failed = signal(false); readonly message = signal('');
   private abort = new AbortController(); private selection = 0;
+  statusLabel(state: string): string { return clientRequestStatusLabel(state); }
   constructor() {
     effect(() => { this.id(); this.session.invalidation(); if (!this.session.current() || !this.ws.data()) {
       this.abort.abort(); this.abort = new AbortController(); this.selection++; this.file.set(null); this.hash.set('');
@@ -102,7 +111,12 @@ export class ClientPbcRequest {
       this.reply.reset(); this.delegation.reset(); this.sent.set(0);
       if (!this.session.current() || !this.id()) { this.uploadUncertain.set(false); this.uncertain.set(false); }
     } });
-    inject(DestroyRef).onDestroy(() => this.abort.abort());
+    const interval = setInterval(() => {
+      if (!this.busy() && !this.ws.loading() && this.session.current()) {
+        this.ws.reload();
+      }
+    }, 30_000);
+    inject(DestroyRef).onDestroy(() => { this.abort.abort(); clearInterval(interval); });
   }
   timeline(): { id: string; at: string; speaker: string; body: string }[] {
     const w = this.ws.data(); if (!w) return [];

@@ -12,4 +12,25 @@ export const portalRequest = obj({ id: guid, area: text, objective: text, instru
   delegations: arr(obj({ id: guid, delegateUserId: guid, delegateName: text, createdAt: instant }), 500),
   candidates: arr(obj({ userId: guid, name: text }), 500),
   uploads: arr(obj({ id: guid, fileName: text, receivedByteCount: revision, declaredByteCount: revision, state: text, transferState: nullable(text), sha256, createdAt: instant }), 500),
-  conversation: arr(obj({ id: guid, at: instant, speaker: text, body: text }), 2000) });
+  conversation: arr(obj({ id: guid, at: instant, speaker: text, body: text }), 2000),
+  clarificationReason: nullable(text) });
+
+export function clientRequestStatusLabel(state: string): string {
+  switch (state) {
+    case 'SENT':
+    case 'ACKNOWLEDGED':
+    case 'PARTIALLY_RECEIVED':
+      return 'Pending Upload';
+    case 'RECEIVED':
+    case 'UNDER_REVIEW':
+    case 'RESUBMITTED':
+      return 'Under Review';
+    case 'ACCEPTED':
+    case 'CLOSED':
+      return 'Approved';
+    case 'CLARIFICATION_REQUIRED':
+      return 'Rejected / Re-upload Required';
+    default:
+      return state.replace(/_/g, ' ').toLowerCase();
+  }
+}

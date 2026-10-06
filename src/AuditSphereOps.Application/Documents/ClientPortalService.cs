@@ -143,7 +143,7 @@ public static class ClientPortalService
       ? CommandResult.Ok()
       : CommandResult.Fail("portal.first-sign-in.required", "Complete your first portal sign-in before uploading files.");
 
-  /// <summary>Client transfer privileges close at final financial-package release or final bundle assembly.</summary>
+  /// <summary>Client transfer privileges close at authoritative final client deliverable bundle release or final file freeze (§4.4, AS-COMP-09).</summary>
   public static async Task<CommandResult> RequireUploadWindowAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)
   {
     var engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == engagementId, ct);
@@ -151,9 +151,7 @@ public static class ClientPortalService
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new(actor.FirmId, engagement.PracticeClientId, engagementId, ["ClientUser"]), ct);
     if (!auth.Succeeded) return auth;
     var released = await db.EngagementFileFreezes.AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId && x.State == "FROZEN", ct) ||
-      await db.CommercialDeliverableBundles.AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId, ct) ||
-      await db.Releases.AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId && db.ReleaseCandidates.Any(c =>
-        c.FirmId == actor.FirmId && c.Id == x.ReleaseCandidateId && c.TargetKind == "FINANCIAL_PACKAGE"), ct);
+      await db.CommercialDeliverableBundles.AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId, ct);
     return released ? CommandResult.Fail(ErrorCodes.ProtectedState, "Client uploads are frozen after final release. You can still download your released documents.") : CommandResult.Ok();
   }
 
