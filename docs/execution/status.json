@@ -11994,6 +11994,73 @@
         "EF generation required dependency restore before succeeding",
         "Scope fixture referred to non-existent ScopeType; aligned to existing ClientId grants and reran successfully"
       ]
+    },
+    "clientCounterpartyAmendments": {
+      "verifiedSourceCommit": "765f3cd2",
+      "status": "LOCAL_SLICE_VERIFIED",
+      "requirements": "Partial CA-07 reviewed contact-detail amendments; legal identity, merges/reclassification and posted invoice snapshot evidence remain open",
+      "migration": "20261006191000_ClientCounterpartyAmendments",
+      "domainFocused": {
+        "passed": 2,
+        "durationSeconds": 28,
+        "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --configuration Release --filter 'FullyQualifiedName~CounterpartiesAreClientScopedOptionalTaxAndImmutable|FullyQualifiedName~CounterpartyAmendmentRequiresIndependentCurrentRevisionAndPreservesOriginal' --disable-build-servers",
+        "coverage": [
+          "Pending proposals do not alter effective profile",
+          "Self, wrong-client and wrong-revision review refused",
+          "Independent approval projects new contact details; initial profile unchanged",
+          "Stale competing proposal cannot approve but can be rejected",
+          "Paged history retains exact effective approval",
+          "Two concurrent approvals produce exactly one new effective revision",
+          "Direct SQL self-review and proposal/decision mutation refused",
+          "Existing client counterparty scope, optional tax and inactive-service history regression"
+        ]
+      },
+      "angularFocused": {
+        "passed": 7,
+        "command": "npm --prefix src/AuditSphereOps.Ui run test:ci -- --include='src/app/features/accounting/counterparties.spec.ts' --include='src/app/features/accounting/counterparty-history.spec.ts' --include='src/app/features/accounting/counterparty-amendment-workflow.spec.ts'",
+        "coverage": [
+          "Scope/page/identity/decision contracts",
+          "Effective revision tied to independently approved details",
+          "JSON property ordering does not cause false refusal",
+          "Unknown outcome clears old evidence; fresh history plus explicit reset required",
+          "Unauthorized history invalidates session without request loop"
+        ]
+      },
+      "apiOpenApi": {
+        "passed": 5,
+        "durationSeconds": 7,
+        "command": "AUDITSPHERE_EMIT_OPENAPI=/private/tmp/auditsphere-party-amendments-openapi.json dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --configuration Release --filter FullyQualifiedName~OpenApiContractTests --disable-build-servers"
+      },
+      "browserJourney": {
+        "passed": 1,
+        "durationSeconds": 43,
+        "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-build --configuration Release --filter FullyQualifiedName~NativeClientJournalRequiresIndependentReviewAndPostsThroughAngular",
+        "coverage": [
+          "Proposer submits address amendment from exact current profile",
+          "Pending proposal preserves effective original address",
+          "Self-review button disabled",
+          "Independent reviewer approves and sees new effective address",
+          "Initial persisted address remains unchanged",
+          "Existing native journal, posting, reversal, GL/TB and inactive-service regression"
+        ]
+      },
+      "angularBuild": "PASS; existing commercial/settings.scss budget warning",
+      "releaseBuilds": "Domain/E2E/API test projects built successfully in Release",
+      "efPendingModelChanges": "NONE",
+      "fullRegression": "NOT_RUN",
+      "productionMigration": "NOT_RUN",
+      "externalAcceptance": "NOT_RUN",
+      "migrationRollback": "NOT_RUN",
+      "builtInBrowser": "Browser inventory available; owned target was CLEANED before binding. Dynamic browser evidence is the complete automated Chromium journey.",
+      "concurrentIntegration": "Another process committed and merged amendment source into master and removed the first managed worktree before final verification. Recreated managed worktree from exact preserved c599d959 source, completed dynamic tests and committed final verification/UI recovery fixes separately.",
+      "limitations": [
+        "Amendments change display name, address, tax identifier, contact details and payment terms only",
+        "Legal identity, role, country, currency default and external identity remain fixed",
+        "Original profile retained in persistence; dedicated original-profile UI remains separate work",
+        "Merges/reclassification and frozen posted invoice snapshots remain outstanding",
+        "No exact-intent durable proposal receipt; unknown outcomes require refreshed history and explicit separate command",
+        "Full user-story scope incomplete; no final epic merge or production acceptance claimed"
+      ]
     }
   },
   "documentationWork": {

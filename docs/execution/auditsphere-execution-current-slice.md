@@ -13,6 +13,14 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Reviewed client counterparty contact-detail amendments
+
+Client counterparties now support immutable proposed contact-detail revisions and independent append-only approval/rejection decisions. Pending work does not change the effective profile. Approval requires the exact next revision and a reviewer different from the proposer; client locking and database guards fence competing approvals. Effective list/history reads project approved details while retaining the original saved profile and all proposals/decisions.
+
+Angular provides progressive amendment preparation, independent review and paged history. It binds effective details to the exact approved proposal, clears assent when inputs change, blocks another command after an unknown outcome until fresh history and an explicit reset, and clears invalid sessions without a history request loop. Backend concurrency/history checks, focused Angular checks, actual API contract generation and the complete native journal browser journey passed. Exact source, commands, counts and limits are in `verification.clientCounterpartyAmendments` in `status.json`.
+
+Legal identity, role, country, currency default and external identity remain fixed in this editor. Original-profile presentation, reviewed merges/reclassification and invoice posting snapshots remain outstanding. Tax remains optional. Another process integrated the initial amendment source and removed its checkout before final verification; verification and recovery fixes were completed in a recreated managed worktree. This does not establish completion of the user-story epic or authorize its final merge.
+
 ## Client customer and supplier profile foundation
 
 Native client books now offer scoped customer/supplier profiles with optional tax and ancillary details. A combined role appears in both customer and supplier filters without financial netting. Creating a profile requires the current accepted bookkeeping service; retained profiles remain readable under current client authority after that service is withdrawn. Scoped external identities and normalized names fence duplicate creation. Database triggers prevent overwriting or deleting saved profiles.
