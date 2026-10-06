@@ -30,6 +30,17 @@ capability; public APIs are stable across parts. Verified project state lives on
 
 
 
+## Native client operational bookkeeping
+
+- Domain: `Domain/Accounting/ClientAccounting.cs`; client-owned journals, lines and review decisions.
+- Application: `Application/Accounting/ClientOperationalLedgerWorkspace.cs` and `ClientOperationalGeneralLedgerWorkspace.cs`; accepted bookkeeping service gate, balanced journal preparation, independent posting and posted movement queries.
+- API: `Api/Ui/UiEndpoints.ClientOperationalLedger.cs`; authenticated, scope-checked commands and exact decimal string responses.
+- Angular: `Ui/src/app/features/accounting/operational-journals.ts`, composed by the accounting workspace only in native bookkeeping mode.
+- Persistence: `Infrastructure/Persistence/AuditSphereDbContext.ClientOperationalLedger.cs`; dedicated operational journal tables and integrity migration. These are separate from firm ledger entries and reporting adjustments.
+- Tests: `ClientAccountingTests.OperationalLedger.cs` and `AngularClientOperationalJournalJourneyTests.cs`.
+
+Posted movement reports exclude opening balances and imported GL. Native TB/snapshot adaptation, correction lineage and durable command receipts remain subsequent work; this surface does not establish full bookkeeping completion.
+
 ## Accounting setup — profiles, periods, books, charts, taxonomy, capabilities
 
 

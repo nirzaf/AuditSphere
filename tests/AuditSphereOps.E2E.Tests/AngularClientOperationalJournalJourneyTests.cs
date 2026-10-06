@@ -117,8 +117,10 @@ public sealed class AngularClientOperationalJournalJourneyTests
     await journals.GetByRole(AriaRole.Checkbox, new() { Name = "I independently reviewed this exact journal revision and its balanced lines.", Exact = true }).CheckAsync();
     await journals.GetByRole(AriaRole.Button, new() { Name = "Approve and post", Exact = true }).ClickAsync();
     await Assertions.Expect(journals.GetByRole(AriaRole.Heading, new() { Name = "J-UI-001 · POSTED", Exact = true })).ToBeVisibleAsync();
-    await Assertions.Expect(journals.GetByRole(AriaRole.Cell, new() { Name = "6000 · Office expense", Exact = true })).ToBeVisibleAsync();
-    await Assertions.Expect(journals.GetByRole(AriaRole.Cell, new() { Name = "125.250000", Exact = true })).ToHaveCountAsync(2);
+    var ledgerAccounts = journals.GetByRole(AriaRole.Table, new() { Name = "Account debit, credit and net movement", Exact = true });
+    await Assertions.Expect(ledgerAccounts.GetByRole(AriaRole.Cell, new() { Name = "6000 · Office expense", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(ledgerAccounts.GetByRole(AriaRole.Cell, new() { Name = "-125.250000", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(journals.GetByRole(AriaRole.Table, new() { Name = "Posted journal line detail", Exact = true }).GetByRole(AriaRole.Row)).ToHaveCountAsync(3);
     await using (var db = host.CreateDbContext())
     {
       var posted = await db.ClientOperationalJournals.SingleAsync(x => x.Id == journalId);

@@ -42,8 +42,10 @@ public static class ClientOperationalLedgerWorkspace
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     var profile = await NativeProfileAsync(db, actor, request.ClientId, ct);
     if (!profile.Succeeded) return CommandResult<Guid>.Fail(profile.ErrorCode!, profile.Message!);
-    var period = await db.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(x =>
-      x.FirmId == actor.FirmId && x.ClientId == request.ClientId && x.Id == request.PeriodId, ct);
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var period = await db.ClientReportingPeriods.FromSqlInterpolated(
+      $"SELECT * FROM client_reporting_periods WHERE firm_id = {actor.FirmId} AND client_id = {request.ClientId} AND id = {request.PeriodId} FOR UPDATE")
+      .SingleOrDefaultAsync(ct);
     if (period is null || period.Status == AccountingWorkflowStates.Closed || request.PostingDate < period.StartDate ||
         request.PostingDate > period.EndDate || !string.Equals(period.Currency, profile.Value!.FunctionalCurrency, StringComparison.Ordinal))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
@@ -86,6 +88,7 @@ public static class ClientOperationalLedgerWorkspace
       });
     }
     await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(journal.Id);
   }
 

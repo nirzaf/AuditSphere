@@ -44,7 +44,8 @@ export function decodeOperationalLedger(value: unknown, clientId: string, period
     const account = object(raw);
     if (typeof account['accountId'] !== 'string' || !guidPattern.test(account['accountId']) ||
         !['accountCode', 'accountName', 'debitMovement', 'creditMovement', 'netMovement'].every(k => typeof account[k] === 'string') ||
-        ![account['debitMovement'], account['creditMovement'], account['netMovement']].every(x => amountPattern.test(String(x)))) throw new Error('Invalid ledger account');
+        ![account['debitMovement'], account['creditMovement']].every(x => amountPattern.test(String(x))) ||
+        !amountPattern.test(String(account['netMovement']).replace(/^-/, ''))) throw new Error('Invalid ledger account');
   }
   for (const raw of v['entries']) {
     const entry = object(raw);

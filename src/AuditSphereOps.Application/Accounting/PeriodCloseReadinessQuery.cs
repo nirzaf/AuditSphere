@@ -43,6 +43,9 @@ public static class PeriodCloseReadinessQuery
     }
     else
     {
+      if (await db.ClientOperationalJournals.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId &&
+        x.ClientId == period.ClientId && x.PeriodId == period.Id && x.Status != "POSTED", ct))
+        blockers.Add(new PeriodCloseBlocker("native-journals.unposted", "Unposted native client journals block period close."));
       if (await db.AccountingReconciliations.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId &&
             x.ClientId == period.ClientId && x.PeriodId == period.Id && x.Status != AccountingWorkflowStates.Approved, ct))
         blockers.Add(new PeriodCloseBlocker("reconciliations.unapproved",

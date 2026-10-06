@@ -5,6 +5,7 @@ using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace AuditSphereOps.Domain.Tests;
 
@@ -67,6 +68,13 @@ public sealed partial class ClientAccountingTests
       Assert.True(view.Succeeded, view.Message);
       Assert.Equal("DRAFT", view.Value!.Status);
       Assert.Equal("125.000000", view.Value.Lines[0].Debit);
+      await db.ClientOperationalJournalLines.Where(x => x.JournalId == journalId && x.Debit > 0)
+        .ExecuteUpdateAsync(s => s.SetProperty(x => x.Debit, 126m));
+      await AssertNativeRuntimeSqlDeniedAsync(pg, journalId, scope.Reviewer.Id,
+        ["UPDATE client_operational_journals SET status='SUBMITTED', revision=2, submitted_at=now() WHERE id=@journal"]);
+      Assert.Equal("DRAFT", (await db.ClientOperationalJournals.AsNoTracking().SingleAsync(x => x.Id == journalId)).Status);
+      await db.ClientOperationalJournalLines.Where(x => x.JournalId == journalId && x.Debit > 0)
+        .ExecuteUpdateAsync(s => s.SetProperty(x => x.Debit, 125m));
     }
 
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -77,7 +85,36 @@ public sealed partial class ClientAccountingTests
         new ClientOperationalJournalDecisionRequest(2, "APPROVE", "Reviewed"));
       Assert.False(selfApproval.Succeeded);
       Assert.Equal(ErrorCodes.ScopeDenied, selfApproval.ErrorCode);
+      var readiness = await PeriodCloseReadinessQuery.GetReadinessAsync(db, reviewer, periodId);
+      Assert.True(readiness.Succeeded, readiness.Message);
+      Assert.Contains(readiness.Value!.Blockers, x => x.Code == "native-journals.unposted");
+      var prematureClose = await ClientAccountingService.ClosePeriodAsync(db, reviewer, periodId, "Premature close");
+      Assert.False(prematureClose.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, prematureClose.ErrorCode);
+      await AssertNativeRuntimeSqlDeniedAsync(pg, journalId, scope.Reviewer.Id,
+      [
+        "UPDATE client_operational_journals SET status='POSTED', revision=revision+1, posted_by_user_id=@reviewer, posted_at=now() WHERE id=@journal",
+        "UPDATE client_operational_journal_lines SET debit=126 WHERE journal_id=@journal AND debit>0",
+        "UPDATE client_operational_journals SET revision=revision+1 WHERE id=@journal",
+        "UPDATE client_reporting_periods SET status='CLOSED' WHERE id=(SELECT period_id FROM client_operational_journals WHERE id=@journal)"
+      ]);
     }
+
+    async Task<CommandResult> PostOnce()
+    {
+      await using var concurrent = new AuditSphereDbContext(pg.Options);
+      return await ClientOperationalLedgerWorkspace.ReviewAndPostAsync(concurrent, reviewer, scope.ClientA, journalId,
+        new(2, "APPROVE", "Balanced and supported"));
+    }
+    async Task<CommandResult> CloseConcurrently()
+    {
+      await using var concurrent = new AuditSphereDbContext(pg.Options);
+      return await ClientAccountingService.ClosePeriodAsync(concurrent, reviewer, periodId, "Concurrent native close");
+    }
+    var concurrentOutcomes = await Task.WhenAll(PostOnce(), PostOnce(), CloseConcurrently());
+    Assert.True(concurrentOutcomes[0].Succeeded, concurrentOutcomes[0].Message);
+    Assert.True(concurrentOutcomes[1].Succeeded, concurrentOutcomes[1].Message);
+    if (!concurrentOutcomes[2].Succeeded) Assert.Equal(ErrorCodes.GateBlocked, concurrentOutcomes[2].ErrorCode);
 
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
@@ -96,6 +133,66 @@ public sealed partial class ClientAccountingTests
       Assert.Equal(2, ledger.Value!.TotalEntries);
       Assert.Equal("125.000000", ledger.Value.Accounts.Single(x => x.AccountCode == "6000").DebitMovement);
       Assert.Equal("-125.000000", ledger.Value.Accounts.Single(x => x.AccountCode == "1000").NetMovement);
+      await AssertNativeRuntimeSqlDeniedAsync(pg, journalId, scope.Reviewer.Id,
+      [
+        "UPDATE client_operational_journals SET description='Changed' WHERE id=@journal",
+        "DELETE FROM client_operational_journals WHERE id=@journal",
+        "UPDATE client_operational_journal_lines SET debit=126 WHERE journal_id=@journal AND debit>0",
+        "DELETE FROM client_operational_journal_lines WHERE journal_id=@journal",
+        "INSERT INTO client_operational_journal_lines SELECT gen_random_uuid(),firm_id,client_id,journal_id,3,client_account_id,account_code,account_name,description,debit,credit FROM client_operational_journal_lines WHERE journal_id=@journal LIMIT 1",
+        "UPDATE client_operational_journal_decisions SET reason='Changed' WHERE journal_id=@journal",
+        "DELETE FROM client_operational_journal_decisions WHERE journal_id=@journal"
+      ]);
+      if ((await db.ClientReportingPeriods.AsNoTracking().SingleAsync(x => x.Id == periodId)).Status != AccountingWorkflowStates.Closed)
+      {
+        var close = await ClientAccountingService.ClosePeriodAsync(db, reviewer, periodId, "All native journals independently posted");
+        Assert.True(close.Succeeded, close.Message);
+      }
+      var afterClose = await ClientOperationalLedgerWorkspace.CreateDraftAsync(db, preparer,
+        new(scope.ClientA, periodId, "J-CLOSED", "Invalid closed-period journal", new DateOnly(2026, 1, 15),
+          [new("6000", "Expense", 10m, 0m), new("1000", "Cash", 0m, 10m)]));
+      Assert.False(afterClose.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, afterClose.ErrorCode);
+    }
+  }
+
+  private static async Task AssertNativeRuntimeSqlDeniedAsync(PgTestSchema pg, Guid journalId, Guid reviewerId,
+    IReadOnlyList<string> statements)
+  {
+    // The role has application DML only, with no table ownership, schema DDL or trigger controls.
+    var role = "native_writer_" + Guid.NewGuid().ToString("N");
+    await using var connection = new NpgsqlConnection(pg.ConnectionString);
+    await connection.OpenAsync();
+    await using (var setup = new NpgsqlCommand($"""
+      CREATE ROLE {role} NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT;
+      GRANT USAGE ON SCHEMA {pg.Schema} TO {role};
+      GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA {pg.Schema} TO {role};
+      SET ROLE {role};
+      """, connection)) await setup.ExecuteNonQueryAsync();
+    try
+    {
+      await using (var identity = new NpgsqlCommand("SELECT current_user", connection))
+        Assert.Equal(role, await identity.ExecuteScalarAsync());
+      foreach (var sql in statements)
+      {
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("journal", journalId);
+        command.Parameters.AddWithValue("reviewer", reviewerId);
+        var error = await Record.ExceptionAsync(() => command.ExecuteNonQueryAsync());
+        if (error is not PostgresException)
+        {
+          await using var observed = new NpgsqlCommand("SELECT status || ':' || revision::text FROM client_operational_journals WHERE id=@journal", connection);
+          observed.Parameters.AddWithValue("journal", journalId);
+          var state = await observed.ExecuteScalarAsync();
+          Assert.Fail($"Expected database guard rejection for: {sql}; actual: {error?.GetType().Name ?? "no error"}; state: {state}");
+        }
+        Assert.Equal(PostgresErrorCodes.CheckViolation, ((PostgresException)error!).SqlState);
+      }
+    }
+    finally
+    {
+      await using var cleanup = new NpgsqlCommand($"RESET ROLE; DROP OWNED BY {role}; DROP ROLE {role};", connection);
+      await cleanup.ExecuteNonQueryAsync();
     }
   }
 

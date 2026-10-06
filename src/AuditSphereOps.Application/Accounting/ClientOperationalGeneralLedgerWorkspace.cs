@@ -1,3 +1,4 @@
+using System.Data;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
@@ -37,6 +38,7 @@ public static class ClientOperationalGeneralLedgerWorkspace
     if (period is null)
       return CommandResult<ClientOperationalGeneralLedgerView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
+    await using var snapshot = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
     var posted = from line in db.ClientOperationalJournalLines.AsNoTracking()
       join journal in db.ClientOperationalJournals.AsNoTracking()
         on new { line.FirmId, line.ClientId, Id = line.JournalId } equals new { journal.FirmId, journal.ClientId, Id = journal.Id }
@@ -53,9 +55,12 @@ public static class ClientOperationalGeneralLedgerWorkspace
       .ThenBy(x => x.Line.LineNumber).Skip(page * pageSize).Take(pageSize)
       .Select(x => new { x.Journal.Id, x.Journal.JournalNumber, x.Journal.PostingDate, x.Line.LineNumber,
         x.Line.AccountCode, x.Line.AccountName, x.Line.Description, x.Line.Debit, x.Line.Credit }).ToListAsync(ct);
+    await snapshot.CommitAsync(ct);
     if (!(await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, clientId, RequiredRoles: ReaderRoles, InternalOnly: true), ct)).Succeeded)
       return CommandResult<ClientOperationalGeneralLedgerView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (!await ClientBookkeepingAuthorization.IsCurrentDecisionAcceptedAsync(db, actor.FirmId, clientId, ct: ct))
+      return CommandResult<ClientOperationalGeneralLedgerView>.Fail(ErrorCodes.GateBlocked, "The bookkeeping service decision changed while loading the ledger.");
     var accounts = accountRows.Select(x => new ClientOperationalLedgerAccountView(x.ClientAccountId, x.AccountCode,
       x.AccountName, x.Debit.ToString(System.Globalization.CultureInfo.InvariantCulture),
       x.Credit.ToString(System.Globalization.CultureInfo.InvariantCulture),

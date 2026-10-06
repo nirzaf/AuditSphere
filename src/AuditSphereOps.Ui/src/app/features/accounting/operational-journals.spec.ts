@@ -22,9 +22,10 @@ describe('Client operational journal transport contract', () => {
   });
   it('binds posted movement pages to the exact client and period using decimal strings', () => {
     const ledger = { clientId: client, periodId: client, periodCode: '2026', currency: 'QAR', basis: 'STATUTORY', page: 0, pageSize: 100, totalEntries: 2,
-      accounts: [{ accountId: account, accountCode: '6000', accountName: 'Expense', debitMovement: '125.000000', creditMovement: '0.000000', netMovement: '125.000000' }],
+      accounts: [{ accountId: account, accountCode: '1000', accountName: 'Cash', debitMovement: '0.000000', creditMovement: '125.000000', netMovement: '-125.000000' }],
       entries: [{ journalId: journal, journalNumber: 'J-1', postingDate: '2026-01-05', lineNumber: 1, accountCode: '6000', accountName: 'Expense', description: 'Supplies', debit: '125.000000', credit: '0.000000' }] };
     expect(decodeOperationalLedger(ledger, client, client).entries).toHaveLength(1);
+    expect(decodeOperationalLedger(ledger, client, client).accounts[0].netMovement).toBe('-125.000000');
     expect(() => decodeOperationalLedger({ ...ledger, periodId: journal }, client, client)).toThrow();
     expect(() => decodeOperationalLedger({ ...ledger, entries: [{ ...ledger.entries[0], credit: 0 }] }, client, client)).toThrow();
   });
