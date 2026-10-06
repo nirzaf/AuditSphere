@@ -447,8 +447,8 @@
       "source": "src/AuditSphereOps.Web/Components/Pages/InvoiceDetail.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-finance-source-review.md",
-      "reviewedAtCommit": "84ce356704c7241e1f0d587a619297c2c1ae7b2f",
-      "openGaps": ["Complete remaining firm-wide/client-scoped FinanceManager and FinanceReviewer role/scope combinations across billing reads and commands", "Remaining uncertain billing outcomes", "Broader accessibility and locale acceptance"]
+      "reviewedAtCommit": "bc2767649b15ace967ec935815b6b0c57011f20e",
+      "openGaps": ["Complete remaining firm-wide/client-scoped FinanceManager and FinanceReviewer role/scope combinations across billing reads and commands", "Other uncertain billing outcomes and retry/reconciliation branches", "Broader accessibility and locale acceptance"]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/Workpaper.razor",

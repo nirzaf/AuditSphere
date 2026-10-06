@@ -56,6 +56,21 @@ Blazor retirement gate remains `NOT_READY`. The full solution regression was
 not rerun; its last complete result remains recorded at its earlier verified
 commit in `status.json`.
 
+## Completed focused slice: Receipt allocation lost-response recovery
+
+At code/test commit `bc276764`, `AngularBillingWorkspaceJourneyTests` passed
+**1/1** in 33 seconds against isolated PostgreSQL/API hosts. The API accepted
+one 25.00 receipt allocation, then Playwright aborted its response before the
+browser received it. Angular displayed “Verify the saved billing state” and
+required “Refresh persisted billing state”; the refreshed receipt row showed
+25.00 allocated before the unresolved draft could be cleared. PostgreSQL
+contained exactly one allocation. The journey also retained lost-response
+credit-note reconciliation with exactly one persisted note.
+
+The isolated worktree was used because concurrent uncommitted API edits in the
+shared checkout failed compilation. The full solution suite was not rerun; its
+latest complete result remains 1001/1001 at `ead85032`.
+
 ## Completed focused slice: Client-scoped invoice reviewer boundaries
 
 At code/test commit `84ce3567`, `AngularInvoiceScopeJourneyTests` passed **1/1**
