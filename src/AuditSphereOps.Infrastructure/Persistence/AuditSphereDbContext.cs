@@ -274,6 +274,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<AccountingCapabilityAcceptance> AccountingCapabilityAcceptances => Set<AccountingCapabilityAcceptance>();
 
   public DbSet<ClientBookkeepingCounterparty> ClientBookkeepingCounterparties => Set<ClientBookkeepingCounterparty>();
+  public DbSet<ClientSalesInvoiceDraft> ClientSalesInvoiceDrafts => Set<ClientSalesInvoiceDraft>();
   public DbSet<ClientCounterpartyAmendment> ClientCounterpartyAmendments => Set<ClientCounterpartyAmendment>();
   public DbSet<ClientCounterpartyAmendmentDecision> ClientCounterpartyAmendmentDecisions => Set<ClientCounterpartyAmendmentDecision>();
   public DbSet<ClientAccountingProfile> ClientAccountingProfiles => Set<ClientAccountingProfile>();
@@ -305,6 +306,8 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<AccountingBackfillQuarantine> AccountingBackfillQuarantines => Set<AccountingBackfillQuarantine>();
 
   public DbSet<ClientAccount> ClientAccounts => Set<ClientAccount>();
+  public DbSet<ClientAccountRoleConfiguration> ClientAccountRoleConfigurations => Set<ClientAccountRoleConfiguration>();
+  public DbSet<ClientAccountRoleDecision> ClientAccountRoleDecisions => Set<ClientAccountRoleDecision>();
 
   public DbSet<SourceAccountAlias> SourceAccountAliases => Set<SourceAccountAlias>();
 
@@ -545,6 +548,8 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
     ConfigureClientAccounting(b);
     ConfigureClientOperationalLedger(b);
     ConfigureClientCounterparties(b);
+    ConfigureClientSalesInvoices(b);
+    ConfigureClientAccountRoles(b);
     ConfigureAccountingEvidenceActions(b);
     ConfigureAccountingAnalysisPreparations(b);
     ConfigureAccountingCreationPreparations(b);

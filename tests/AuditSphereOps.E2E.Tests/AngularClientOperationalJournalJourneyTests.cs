@@ -78,6 +78,7 @@ public sealed class AngularClientOperationalJournalJourneyTests
     await parties.GetByLabel("Party display name", new() { Exact = true }).FillAsync("Synthetic party");
     await parties.GetByLabel("Party role", new() { Exact = true }).SelectOptionAsync("BOTH");
     await parties.GetByLabel("Party country", new() { Exact = true }).FillAsync("QA");
+    await parties.GetByLabel("Party address (optional)", new() { Exact = true }).FillAsync("Original party address");
     await parties.GetByRole(AriaRole.Checkbox).CheckAsync();
     await parties.GetByRole(AriaRole.Button, new() { Name = "Save client counterparty", Exact = true }).ClickAsync();
     await Assertions.Expect(parties.GetByRole(AriaRole.Cell, new() { Name = "Synthetic party · Synthetic Trading", Exact = true })).ToBeVisibleAsync();
@@ -87,6 +88,19 @@ public sealed class AngularClientOperationalJournalJourneyTests
       await parties.GetByRole(AriaRole.Button, new() { Name = "Refresh counterparties", Exact = true }).ClickAsync();
       await Assertions.Expect(parties.GetByRole(AriaRole.Cell, new() { Name = "Synthetic party · Synthetic Trading", Exact = true })).ToBeVisibleAsync();
     }
+
+    await parties.GetByRole(AriaRole.Button, new() { Name = "Open party revisions", Exact = true }).ClickAsync();
+    var partyHistory = page.Locator("audit-counterparty-history");
+    await Assertions.Expect(partyHistory.GetByText("Effective party revision 1", new() { Exact = false })).ToBeVisibleAsync();
+    await partyHistory.GetByText("Propose a contact detail amendment", new() { Exact = true }).ClickAsync();
+    await partyHistory.GetByLabel("Amended address", new() { Exact = true }).FillAsync("Reviewed party address");
+    await partyHistory.GetByLabel("Amendment reason", new() { Exact = true }).FillAsync("Update confirmed correspondence address");
+    await partyHistory.GetByRole(AriaRole.Checkbox, new() { Name = "I checked the current party revision and proposed details.", Exact = true }).CheckAsync();
+    await partyHistory.GetByRole(AriaRole.Button, new() { Name = "Submit party amendment", Exact = true }).ClickAsync();
+    await Assertions.Expect(partyHistory.GetByText("Proposed revision 2 · PENDING", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(partyHistory.GetByText("Effective address: Original party address", new() { Exact = true })).ToBeVisibleAsync();
+    await partyHistory.GetByText("Proposed revision 2 · PENDING", new() { Exact = true }).ClickAsync();
+    await Assertions.Expect(partyHistory.GetByRole(AriaRole.Button, new() { Name = "Review this party amendment", Exact = true })).ToBeDisabledAsync();
 
     var period = workspace.Locator("form").Filter(new() { Has = page.GetByRole(AriaRole.Heading, new() { Name = "Create reporting period", Exact = true }) });
     await period.GetByLabel("Period code", new() { Exact = true }).FillAsync("2026");
@@ -139,6 +153,18 @@ public sealed class AngularClientOperationalJournalJourneyTests
     var reviewerOrigin = await host.StartApiForIdentityAsync(fixture.Reviewer, new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
     await page.GotoAsync(reviewerOrigin + "/auth/sign-in?returnUrl=%2Fui%2Fapp%2Faccounting");
     await workspace.GetByRole(AriaRole.Button, new() { Name = clientName, Exact = true }).ClickAsync();
+    await parties.GetByRole(AriaRole.Button, new() { Name = "Refresh counterparties", Exact = true }).ClickAsync();
+    await parties.GetByRole(AriaRole.Button, new() { Name = "Open party revisions", Exact = true }).ClickAsync();
+    await partyHistory.GetByText("Proposed revision 2 · PENDING", new() { Exact = true }).ClickAsync();
+    await partyHistory.GetByRole(AriaRole.Button, new() { Name = "Review this party amendment", Exact = true }).ClickAsync();
+    await partyHistory.GetByLabel("Party amendment review reason", new() { Exact = true }).FillAsync("Independent address check completed");
+    await partyHistory.GetByRole(AriaRole.Checkbox, new() { Name = "I independently reviewed this exact party proposal.", Exact = true }).CheckAsync();
+    await partyHistory.GetByRole(AriaRole.Button, new() { Name = "Approve party amendment", Exact = true }).ClickAsync();
+    await Assertions.Expect(partyHistory.GetByText("Effective party revision 2", new() { Exact = false })).ToBeVisibleAsync();
+    await Assertions.Expect(partyHistory.GetByText("Effective address: Reviewed party address", new() { Exact = true })).ToBeVisibleAsync();
+    await using (var db = host.CreateDbContext())
+      Assert.Equal("Original party address", (await db.ClientBookkeepingCounterparties.SingleAsync(x => x.ClientId == fixture.ClientId)).Address);
+
     await journals.GetByLabel("Open a saved journal by ID", new() { Exact = true }).FillAsync(journalId.ToString());
     await journals.GetByRole(AriaRole.Button, new() { Name = "Open journal", Exact = true }).ClickAsync();
     await Assertions.Expect(journals.GetByRole(AriaRole.Heading, new() { Name = "J-UI-001 · SUBMITTED", Exact = true })).ToBeVisibleAsync();

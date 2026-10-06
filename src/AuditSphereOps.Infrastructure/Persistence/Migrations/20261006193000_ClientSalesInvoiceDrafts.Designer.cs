@@ -3,6 +3,7 @@ using System;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AuditSphereDbContext))]
-    partial class AuditSphereDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261006193000_ClientSalesInvoiceDrafts")]
+    partial class ClientSalesInvoiceDrafts
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2474,123 +2477,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.ToTable("client_accounts", null, t =>
                         {
                             t.HasCheckConstraint("ck_client_account_values", "length(trim(stable_identity)) > 0 AND length(trim(account_code)) > 0 AND length(trim(account_name)) > 0 AND length(trim(account_type)) > 0");
-                        });
-                });
-
-            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientAccountRoleConfiguration", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<Guid>("AccountId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("account_id");
-
-                    b.Property<Guid>("ChartVersionId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("chart_version_id");
-
-                    b.Property<Guid>("ClientId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("client_id");
-
-                    b.Property<DateOnly>("EffectiveFrom")
-                        .HasColumnType("date")
-                        .HasColumnName("effective_from");
-
-                    b.Property<DateOnly?>("EffectiveTo")
-                        .HasColumnType("date")
-                        .HasColumnName("effective_to");
-
-                    b.Property<Guid>("FirmId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("firm_id");
-
-                    b.Property<DateTimeOffset>("ProposedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("proposed_at");
-
-                    b.Property<Guid>("ProposedByUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("proposed_by_user_id");
-
-                    b.Property<string>("Reason")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
-                        .HasColumnName("reason");
-
-                    b.Property<string>("Role")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)")
-                        .HasColumnName("role");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("FirmId", "ProposedByUserId");
-
-                    b.HasIndex("FirmId", "ClientId", "AccountId");
-
-                    b.HasIndex("FirmId", "ClientId", "ChartVersionId", "Role", "EffectiveFrom");
-
-                    b.ToTable("client_account_role_configurations", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_client_account_role_config", "role IN ('AR','AP','TAX_RECOVERABLE','TAX_PAYABLE','REVENUE','PURCHASE_EXPENSE','PURCHASE_ASSET','RETAINED_EARNINGS','ROUNDING','FX') AND length(trim(reason))>0 AND (effective_to IS NULL OR effective_to>=effective_from)");
-                        });
-                });
-
-            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientAccountRoleDecision", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<Guid>("ClientId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("client_id");
-
-                    b.Property<Guid>("ConfigurationId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("configuration_id");
-
-                    b.Property<string>("Decision")
-                        .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("character varying(10)")
-                        .HasColumnName("decision");
-
-                    b.Property<Guid>("FirmId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("firm_id");
-
-                    b.Property<string>("Reason")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
-                        .HasColumnName("reason");
-
-                    b.Property<DateTimeOffset>("ReviewedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("reviewed_at");
-
-                    b.Property<Guid>("ReviewedByUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("reviewed_by_user_id");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("FirmId", "ReviewedByUserId");
-
-                    b.HasIndex("FirmId", "ClientId", "ConfigurationId")
-                        .IsUnique();
-
-                    b.ToTable("client_account_role_decisions", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_client_account_role_decision", "decision IN ('APPROVE','REJECT') AND length(trim(reason))>0");
                         });
                 });
 
@@ -23909,47 +23795,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasForeignKey("FirmId", "ClientId", "ParentAccountId")
                         .HasPrincipalKey("FirmId", "ClientId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
-                });
-
-            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientAccountRoleConfiguration", b =>
-                {
-                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ProposedByUserId")
-                        .HasPrincipalKey("FirmId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientAccount", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ClientId", "AccountId")
-                        .HasPrincipalKey("FirmId", "ClientId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientChartVersion", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ClientId", "ChartVersionId")
-                        .HasPrincipalKey("FirmId", "ClientId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientAccountRoleDecision", b =>
-                {
-                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ReviewedByUserId")
-                        .HasPrincipalKey("FirmId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientAccountRoleConfiguration", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ClientId", "ConfigurationId")
-                        .HasPrincipalKey("FirmId", "ClientId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientAccountingDimensionDefinition", b =>

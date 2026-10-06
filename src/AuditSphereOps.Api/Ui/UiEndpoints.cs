@@ -87,6 +87,8 @@ public static partial class UiEndpoints
     MapAccountingEndpoints(group);
     MapClientOperationalLedgerEndpoints(group);
     MapClientCounterpartyEndpoints(group);
+    MapClientSalesInvoiceDraftEndpoints(group);
+    MapClientAccountRoleEndpoints(group);
     MapClientCounterpartyAmendmentEndpoints(group);
     MapChartEndpoints(group);
     MapCurrencyConfigurationEndpoints(group);

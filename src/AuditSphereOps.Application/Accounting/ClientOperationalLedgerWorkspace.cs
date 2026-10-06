@@ -69,6 +69,8 @@ public static partial class ClientOperationalLedgerWorkspace
     var accounts = await db.ClientAccounts.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == request.ClientId &&
       x.ChartVersionId == chart.Id && codes.Contains(x.AccountCode) && x.IsPosting && x.Status == AccountingWorkflowStates.Active)
       .Select(x => new { x.Id, x.AccountCode, x.AccountName }).ToListAsync(ct);
+    if (await ClientAccountRoleWorkspace.UsesControlAsync(db, actor.FirmId, request.ClientId, request.PostingDate, accounts.Select(x => x.Id).ToArray(), ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "AR/AP control activity requires an evidenced counterparty open-item workflow.");
     if (accounts.Count != codes.Length)
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid, "Every journal line must use an active posting account in the approved client chart.");
     if (await db.ClientOperationalJournals.AnyAsync(x => x.FirmId == actor.FirmId && x.ClientId == request.ClientId &&
@@ -280,6 +282,7 @@ public static partial class ClientOperationalLedgerWorkspace
     var accounts = await db.ClientAccounts.AsNoTracking().Where(x => x.FirmId == firmId && x.ClientId == clientId &&
       x.ChartVersionId == chart.Id && ids.Contains(x.Id) && x.IsPosting && x.Status == AccountingWorkflowStates.Active)
       .Select(x => new { x.Id, x.AccountCode, x.AccountName }).ToListAsync(ct);
+    if (await ClientAccountRoleWorkspace.UsesControlAsync(db, firmId, clientId, postingDate, ids, ct)) return false;
     return accounts.Count == ids.Length && lines.All(line => accounts.Any(account => account.Id == line.ClientAccountId &&
       account.AccountCode == line.AccountCode && account.AccountName == line.AccountName));
   }

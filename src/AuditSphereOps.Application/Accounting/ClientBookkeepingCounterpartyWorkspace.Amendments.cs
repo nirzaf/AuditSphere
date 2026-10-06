@@ -78,7 +78,7 @@ public static partial class ClientBookkeepingCounterpartyWorkspace
     await tx.CommitAsync(ct); return CommandResult.Ok();
   }
 
-  private static async Task<ClientCounterpartyView> EffectiveView(IClientAccountingDbContext db, ClientBookkeepingCounterparty party, CancellationToken ct)
+  internal static async Task<ClientCounterpartyView> EffectiveView(IClientAccountingDbContext db, ClientBookkeepingCounterparty party, CancellationToken ct)
   {
     var amendment = await (from a in db.ClientCounterpartyAmendments.AsNoTracking()
       join d in db.ClientCounterpartyAmendmentDecisions.AsNoTracking() on a.Id equals d.AmendmentId

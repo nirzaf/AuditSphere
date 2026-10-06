@@ -238,6 +238,7 @@ public interface IClientAccountingDbContext : IAuditSphereDbContext
   DbSet<AccountingCapabilityProfile> AccountingCapabilityProfiles { get; }
   DbSet<AccountingCapabilityAcceptance> AccountingCapabilityAcceptances { get; }
   DbSet<ClientBookkeepingCounterparty> ClientBookkeepingCounterparties { get; }
+  DbSet<ClientSalesInvoiceDraft> ClientSalesInvoiceDrafts { get; }
   DbSet<ClientCounterpartyAmendment> ClientCounterpartyAmendments { get; }
   DbSet<ClientCounterpartyAmendmentDecision> ClientCounterpartyAmendmentDecisions { get; }
   DbSet<ClientAccountingProfile> ClientAccountingProfiles { get; }
@@ -258,6 +259,8 @@ public interface IClientAccountingDbContext : IAuditSphereDbContext
   DbSet<ClientChartVersion> ClientChartVersions { get; }
   DbSet<AccountingBackfillQuarantine> AccountingBackfillQuarantines { get; }
   DbSet<ClientAccount> ClientAccounts { get; }
+  DbSet<ClientAccountRoleConfiguration> ClientAccountRoleConfigurations { get; }
+  DbSet<ClientAccountRoleDecision> ClientAccountRoleDecisions { get; }
   DbSet<SourceAccountAlias> SourceAccountAliases { get; }
   DbSet<ReportingTaxonomyVersion> ReportingTaxonomyVersions { get; }
   DbSet<ReportingTaxonomyNode> ReportingTaxonomyNodes { get; }

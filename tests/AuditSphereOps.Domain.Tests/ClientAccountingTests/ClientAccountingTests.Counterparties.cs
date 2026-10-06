@@ -120,6 +120,36 @@ public sealed partial class ClientAccountingTests
       var listed = await ClientBookkeepingCounterpartyWorkspace.ListAsync(db, preparer, scope.ClientA);
       Assert.Equal("New address", Assert.Single(listed.Value!.Counterparties).Address);
     }
+    Guid firstConcurrent, secondConcurrent;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      firstConcurrent = (await ClientBookkeepingCounterpartyWorkspace.ProposeAmendmentAsync(db, preparer, scope.ClientA, partyId, request with { ExpectedRevision = 2, Address = "Concurrent A" })).Value;
+      secondConcurrent = (await ClientBookkeepingCounterpartyWorkspace.ProposeAmendmentAsync(db, preparer, scope.ClientA, partyId, request with { ExpectedRevision = 2, Address = "Concurrent B" })).Value;
+      var paged = await ClientBookkeepingCounterpartyWorkspace.HistoryAsync(db, preparer, scope.ClientA, partyId, 1, 1);
+      Assert.True(paged.Succeeded); Assert.Equal(4, paged.Value!.Total); Assert.Single(paged.Value.Amendments);
+      Assert.Equal(amendmentId, paged.Value.EffectiveAmendment!.Id);
+    }
+    async Task<bool> Approve(Guid id)
+    {
+      await using var db = new AuditSphereDbContext(pg.Options);
+      return (await ClientBookkeepingCounterpartyWorkspace.ReviewAmendmentAsync(db, reviewer, scope.ClientA, partyId, id, 3, "APPROVE", "Independent concurrent review")).Succeeded;
+    }
+    var concurrent = await Task.WhenAll(Approve(firstConcurrent), Approve(secondConcurrent));
+    Assert.Single(concurrent, x => x);
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var latest = await ClientBookkeepingCounterpartyWorkspace.HistoryAsync(db, reviewer, scope.ClientA, partyId);
+      Assert.Equal("3", latest.Value!.Current.Revision);
+      Assert.Contains(latest.Value.Current.Address, new[] { "Concurrent A", "Concurrent B" });
+      Assert.Equal("Original address", (await db.ClientBookkeepingCounterparties.AsNoTracking().SingleAsync(x => x.Id == partyId)).Address);
+    }
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var error = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlRawAsync(
+        "INSERT INTO client_counterparty_amendment_decisions (id,firm_id,client_id,counterparty_id,amendment_id,revision,decision,reason,reviewed_by_user_id,created_at) VALUES ({0},{1},{2},{3},{4},3,'REJECT','Self review',{5},now())",
+        Guid.CreateVersion7(), scope.FirmId, scope.ClientA, partyId, firstConcurrent, scope.Preparer.Id));
+      Assert.Equal("23514", error.SqlState);
+    }
     foreach (var sql in new[] { "UPDATE client_counterparty_amendments SET address='Changed' WHERE id={0}", "DELETE FROM client_counterparty_amendments WHERE id={0}", "UPDATE client_counterparty_amendment_decisions SET reason='Changed' WHERE amendment_id={0}" })
     {
       await using var db = new AuditSphereDbContext(pg.Options);
