@@ -13,6 +13,42 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Engagement-scoped CRM, hierarchy and client-finance reads (STE-REM-03)
+
+The pending-features review's commercial scope findings are closed. Correspondence-recipient
+resolution now requires current internal commercial scope for the client: it reuses the
+target-aware `AuthorizationDecision` (client-level coverage, `CommercialRoles`, internal-only),
+returns a nondisclosing `Denied` status when scope is missing, revoked or engagement-only, and
+the authorized-override path no longer bypasses that check. The resolve endpoint maps `Denied`
+to a 403 `scope.denied` refusal; no contact identity is returned on refusal.
+
+Organization-hierarchy exploration now authorizes every counterpart client before returning any
+relationship metadata. Counterpart nodes outside the actor's current commercial scope are
+omitted entirely — no name, identifier or existence disclosure — while authorized relationships
+(including the holding parent seen from an authorized subsidiary) remain visible.
+
+Client-portal finance reads now carry exact grant scope: a client-wide `ClientUser` grant covers
+the client's agreements while an engagement-scoped grant only covers its own engagement's
+agreement — never a sibling engagement's agreement, invoice, receipt or amount. Commercial-document
+downloads for client users now require the exact client and, for engagement documents, the exact
+engagement; the permissive null-client grant fallback is removed; and only explicitly client-shared
+documents (official payment receipts) are downloadable — internal quotations, tenders and letters
+are refused.
+
+Verification in an isolated worktree (the shared checkout carried another session's in-flight
+planning/fieldwork edits): the three new PostgreSQL-backed tests passed 3/3
+(`RecipientResolution_RequiresCurrentCommercialScope_AndOverridesDoNotBypass`,
+`OrganizationHierarchy_HidesCounterpartNodesOutsideCurrentCommercialScope`,
+`PortalFinanceAndReceiptDownloads_RespectExactClientAndEngagementScope`), the full
+`ClientRelationshipsAndRoutingTests` and `CommercialWorkflowTests` classes passed 16/16, the
+routing/portal API contract classes passed 5/5, the Release builds of the Api and both test
+projects passed with zero warnings and errors, and the OpenAPI contract drift check reports the
+committed artifact current (no route changed). The full Domain and Api suites and the browser
+journeys were not rerun: the change surface was the named Application reads, one endpoint
+response mapping and the two touched test classes. Tests used owned isolated PostgreSQL schemas;
+no Development or production state was changed. Blazor retirement remains `NOT_READY`.
+
+
 ## Comparative split financial statement dashboard (AS-COMP-15)
 
 The interactive Financial Statements workspace now provides a comparative split dashboard (§4.3.1, AS-COMP-15):

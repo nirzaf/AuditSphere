@@ -12578,6 +12578,52 @@
       "verificationBoundary": "The server-side acceptance validation, dispatch binding and mail states were implemented and verified earlier (proposalDispatchEvidence) and are reused unchanged. Live mail delivery and client-identity acceptance remain named live gates (STE-REM-30/31). The full PostgreSQL-backed Domain and Api suites were not rerun for this UI-plus-test slice; no Application or Domain code changed.",
       "databaseBoundary": "The browser journeys used owned isolated PostgreSQL schemas and synthetic identities; no Development or production state was changed.",
       "retirementDecision": "NOT_READY"
+    },
+    "crmAndPortalReadScopeIsolation": {
+      "caseId": "STE-REM-03",
+      "sourceCommit": "7f080729eb632babbf39db7ba9619c460bafb1ad",
+      "implementationCommit": "6130ba5f831b5572dfef7d217ca4a91eb3fd9210",
+      "observedAt": "2026-10-06T23:01:15Z",
+      "status": "PASS_LOCAL_SLICE",
+      "coverage": "Recipient resolution requires current client-level commercial scope (AuthorizationDecision, CommercialRoles, internal-only), returns a nondisclosing Denied status for missing, revoked or engagement-only scope, and the resolve endpoint maps Denied to a 403 scope.denied refusal; the authorized-override path does not bypass the check. Organization-hierarchy exploration authorizes every counterpart client and omits inaccessible counterpart nodes entirely (no name, identifier or existence disclosure). Portal finance carries exact grant scope (client-wide vs engagement-scoped; an engagement grant never reaches a sibling engagement's agreement, invoice, receipt or amount). Client-user commercial-document downloads require the exact client and engagement, drop the permissive null-client fallback, and only serve explicitly client-shared payment receipts.",
+      "focusedTests": {
+        "newScopeTests": {
+          "status": "PASS",
+          "passed": 3,
+          "failed": 0,
+          "skipped": 0,
+          "duration": "34s",
+          "names": [
+            "RecipientResolution_RequiresCurrentCommercialScope_AndOverridesDoNotBypass",
+            "OrganizationHierarchy_HidesCounterpartNodesOutsideCurrentCommercialScope",
+            "PortalFinanceAndReceiptDownloads_RespectExactClientAndEngagementScope"
+          ]
+        },
+        "touchedDomainClasses": {
+          "status": "PASS",
+          "passed": 16,
+          "failed": 0,
+          "skipped": 0,
+          "duration": "1m32s",
+          "command": "dotnet test tests/AuditSphereOps.Domain.Tests --no-build --configuration Release --filter 'FullyQualifiedName~ClientRelationshipsAndRoutingTests|FullyQualifiedName~CommercialWorkflowTests'"
+        },
+        "apiContractClasses": {
+          "status": "PASS",
+          "passed": 5,
+          "failed": 0,
+          "skipped": 0,
+          "duration": "37s",
+          "command": "dotnet test tests/AuditSphereOps.Api.Tests --no-build --configuration Release --filter 'FullyQualifiedName~AngularRoutingContractTests|FullyQualifiedName~UiPortalContractTests'"
+        },
+        "openApiContractDrift": {
+          "status": "PASS",
+          "command": "bash scripts/contracts/verify-openapi.sh",
+          "note": "Committed artifact current; no route changed."
+        }
+      },
+      "verificationBoundary": "Verified in an isolated worktree because the shared checkout carried another session's in-flight planning/fieldwork edits. Release builds of the Api and both test projects passed with zero warnings/errors. The full Domain and Api suites and the browser journeys were not rerun; the change surface was the named Application reads, one endpoint response mapping and the two touched test classes.",
+      "databaseBoundary": "Owned isolated PostgreSQL schemas only; no Development or production state was changed.",
+      "retirementDecision": "NOT_READY"
     }
   },
   "documentationWork": {
