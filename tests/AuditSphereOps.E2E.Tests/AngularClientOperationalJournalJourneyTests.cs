@@ -135,8 +135,16 @@ public sealed class AngularClientOperationalJournalJourneyTests
     await journals.GetByLabel("Open a saved journal by ID", new() { Exact = true }).FillAsync(journalId.ToString());
     await journals.GetByRole(AriaRole.Button, new() { Name = "Open journal", Exact = true }).ClickAsync();
     await Assertions.Expect(journals.GetByRole(AriaRole.Heading, new() { Name = "J-UI-001 · RETURNED", Exact = true })).ToBeVisibleAsync();
+    await journals.GetByRole(AriaRole.Button, new() { Name = "Edit returned journal", Exact = true }).ClickAsync();
+    await Assertions.Expect(journals.GetByLabel("Journal number", new() { Exact = true })).ToBeDisabledAsync();
+    await journals.GetByLabel("Description", new() { Exact = true }).FillAsync("Corrected office expense");
+    await journals.GetByLabel("Debit").Nth(0).FillAsync("150.25");
+    await journals.GetByLabel("Credit").Nth(1).FillAsync("150.25");
+    await creatorReview.CheckAsync();
+    await journals.GetByRole(AriaRole.Button, new() { Name = "Save rework draft", Exact = true }).ClickAsync();
+    await Assertions.Expect(journals.GetByRole(AriaRole.Heading, new() { Name = "J-UI-001 · DRAFT", Exact = true })).ToBeVisibleAsync();
     await journals.GetByRole(AriaRole.Button, new() { Name = "Preview accounting effect", Exact = true }).ClickAsync();
-    await Assertions.Expect(journals.GetByRole(AriaRole.Status)).ToContainTextAsync("revision 3");
+    await Assertions.Expect(journals.GetByRole(AriaRole.Status)).ToContainTextAsync("revision 4");
     await submitReview.CheckAsync();
     await journals.GetByRole(AriaRole.Button, new() { Name = "Submit for independent review", Exact = true }).ClickAsync();
     await Assertions.Expect(journals.GetByRole(AriaRole.Heading, new() { Name = "J-UI-001 · SUBMITTED", Exact = true })).ToBeVisibleAsync();
@@ -145,20 +153,20 @@ public sealed class AngularClientOperationalJournalJourneyTests
     await journals.GetByLabel("Open a saved journal by ID", new() { Exact = true }).FillAsync(journalId.ToString());
     await journals.GetByRole(AriaRole.Button, new() { Name = "Open journal", Exact = true }).ClickAsync();
     await journals.GetByRole(AriaRole.Button, new() { Name = "Preview accounting effect", Exact = true }).ClickAsync();
-    await Assertions.Expect(journals.GetByRole(AriaRole.Status)).ToContainTextAsync("revision 4");
+    await Assertions.Expect(journals.GetByRole(AriaRole.Status)).ToContainTextAsync("revision 5");
     await journals.GetByLabel("Review reason", new() { Exact = true }).FillAsync("Independently reviewed and balanced");
     await journals.GetByRole(AriaRole.Checkbox, new() { Name = "I independently reviewed this exact journal revision and its balanced lines.", Exact = true }).CheckAsync();
     await journals.GetByRole(AriaRole.Button, new() { Name = "Approve and post", Exact = true }).ClickAsync();
     await Assertions.Expect(journals.GetByRole(AriaRole.Heading, new() { Name = "J-UI-001 · POSTED", Exact = true })).ToBeVisibleAsync();
     await journals.GetByRole(AriaRole.Button, new() { Name = "View submitted versions", Exact = true }).ClickAsync();
     await Assertions.Expect(journals.GetByText("Submitted revision 2", new() { Exact = true })).ToBeVisibleAsync();
-    await Assertions.Expect(journals.GetByText("Submitted revision 4", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(journals.GetByText("Submitted revision 5", new() { Exact = true })).ToBeVisibleAsync();
     await journals.GetByText("Submitted revision 2", new() { Exact = true }).ClickAsync();
     await Assertions.Expect(journals.GetByRole(AriaRole.Table, new() { Name = "Preserved submitted journal lines", Exact = true }).First
       .GetByRole(AriaRole.Cell, new() { Name = "125.250000", Exact = true })).ToHaveCountAsync(2);
     var ledgerAccounts = journals.GetByRole(AriaRole.Table, new() { Name = "Account debit, credit and net movement", Exact = true });
     await Assertions.Expect(ledgerAccounts.GetByRole(AriaRole.Cell, new() { Name = "6000 · Office expense", Exact = true })).ToBeVisibleAsync();
-    await Assertions.Expect(ledgerAccounts.GetByRole(AriaRole.Cell, new() { Name = "-125.250000", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(ledgerAccounts.GetByRole(AriaRole.Cell, new() { Name = "-150.250000", Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(journals.GetByRole(AriaRole.Table, new() { Name = "Posted journal line detail", Exact = true }).GetByRole(AriaRole.Row)).ToHaveCountAsync(3);
     await using (var db = host.CreateDbContext())
     {

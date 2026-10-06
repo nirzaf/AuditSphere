@@ -139,7 +139,10 @@ function minor(value: string): bigint { if (!nativeJournalAmount(value)) throw n
               <details><summary>Reviewed intent identity</summary><code>{{ p.digest }}</code></details>
             }
           }
-          @if (j.status === 'DRAFT' || j.status === 'RETURNED') {
+          @if (j.status === 'RETURNED' && j.createdByUserId === userId()) {
+            <button matButton type="button" [disabled]="busy() || uncertain() || !!editing()" (click)="editReturned(j)">Edit returned journal</button>
+          }
+          @if ((j.status === 'DRAFT' || j.status === 'RETURNED') && !editing()) {
             <label><input type="checkbox" [checked]="reviewed()" (change)="setReviewed($any($event.target).checked)" /> I reviewed this client, journal, posting date, account selection and exact amounts.</label>
             <button matButton [disabled]="busy() || !preview() || !reviewed() || uncertain()" (click)="submit(j)">Submit for independent review</button>
           }
@@ -167,11 +170,11 @@ function minor(value: string): bigint { if (!nativeJournalAmount(value)) throw n
         }
       </section>
       <form #createForm="ngForm" (ngSubmit)="createForm.valid && create()">
-        <h4>Create manual journal draft</h4>
-        <label>Reporting period <select name="period" [(ngModel)]="periodId" (ngModelChange)="reviewed.set(false)" required>
+        <h4>{{ editing() ? "Rework returned journal" : "Create manual journal draft" }}</h4>
+        <label>Reporting period <select [disabled]="!!editing()" name="period" [(ngModel)]="periodId" (ngModelChange)="reviewed.set(false)" required>
           <option value="">Choose period</option>@for (p of periods(); track p.id) { <option [value]="p.id" [disabled]="p.status === 'CLOSED'">{{ p.code }} · {{ p.currency }} · {{ p.status }}</option> }
         </select></label>
-        <label>Journal number <input name="number" [(ngModel)]="number" (ngModelChange)="reviewed.set(false)" required maxlength="100" /></label>
+        <label>Journal number <input [disabled]="!!editing()" name="number" [(ngModel)]="number" (ngModelChange)="reviewed.set(false)" required maxlength="100" /></label>
         <label>Description <input name="description" [(ngModel)]="description" (ngModelChange)="reviewed.set(false)" required maxlength="1000" /></label>
         <label>Accounting date <input name="date" type="date" [(ngModel)]="postingDate" (ngModelChange)="reviewed.set(false)" required /></label>
         <div class="table-scroll"><table><caption>Balanced journal draft lines</caption><thead><tr><th>Account code</th><th>Description</th><th>Debit</th><th>Credit</th><th></th></tr></thead>
@@ -185,7 +188,8 @@ function minor(value: string): bigint { if (!nativeJournalAmount(value)) throw n
         <p>Debits {{ totalDebit() }} · Credits {{ totalCredit() }} · {{ balanced() ? 'Balanced' : 'Out of balance' }}</p>
         <button matButton type="button" [disabled]="lines().length >= 100" (click)="addLine()">Add line</button>
         <label><input type="checkbox" [checked]="reviewed()" (change)="setReviewed($any($event.target).checked)" name="createReview" /> I reviewed the selected client, period, date and exact balanced intent.</label>
-        <button matButton type="submit" [disabled]="createForm.invalid || !balanced() || !reviewed() || busy() || uncertain()">Save journal draft</button>
+        <button matButton type="submit" [disabled]="createForm.invalid || !balanced() || !reviewed() || busy() || uncertain()">{{ editing() ? "Save rework draft" : "Save journal draft" }}</button>
+        @if (editing()) { <button matButton type="button" [disabled]="busy()" (click)="resetDraft()">Cancel rework</button> }
       </form>
       <label>Open a saved journal by ID <input [(ngModel)]="lookupId" /></label>
       <button matButton type="button" [disabled]="busy()" (click)="load()">Open journal</button>
@@ -200,6 +204,7 @@ export class ClientOperationalJournals {
   private readonly http = inject(HttpClient);
   private readonly changeDetector = inject(ChangeDetectorRef);
   private readonly session = inject(SessionService);
+  readonly editing = signal<Journal | null>(null);
   readonly journal = signal<Journal | null>(null);
   readonly preview = signal<JournalPreview | null>(null);
   readonly snapshots = signal<JournalSnapshot[] | null>(null);
@@ -214,7 +219,7 @@ export class ClientOperationalJournals {
   private operation?: Subscription;
   private readonly invalidate = effect(() => {
     const id = this.clientId(); this.session.invalidation();
-    untracked(() => { this.operation?.unsubscribe(); this.journal.set(null); this.snapshots.set(null); this.preview.set(null); this.ledger.set(null); this.error.set(''); this.ledgerError.set(''); this.uncertain.set(false); this.busy.set(false); this.lookupId = ''; this.reviewed.set(false); });
+    untracked(() => { this.operation?.unsubscribe(); this.journal.set(null); this.snapshots.set(null); this.preview.set(null); this.ledger.set(null); this.error.set(''); this.ledgerError.set(''); this.uncertain.set(false); this.busy.set(false); this.lookupId = ''; this.reason = ''; this.resetDraft(); });
     void id;
   });
   constructor() { inject(DestroyRef).onDestroy(() => this.operation?.unsubscribe()); }
@@ -232,22 +237,39 @@ export class ClientOperationalJournals {
   }
   addLine(): void { this.reviewed.set(false); if (this.lines().length < 100) this.lines.update(lines => [...lines, { accountCode: '', description: '', debit: '0', credit: '0' }]); }
   removeLine(index: number): void { this.reviewed.set(false); if (this.lines().length > 2) this.lines.update(lines => lines.filter((_, i) => i !== index)); }
+  resetDraft(): void {
+    this.editing.set(null); this.periodId = ''; this.number = ''; this.description = ''; this.postingDate = '';
+    this.lines.set([{ accountCode: '', description: '', debit: '0', credit: '0' }, { accountCode: '', description: '', debit: '0', credit: '0' }]);
+    this.reviewed.set(false);
+  }
+  editReturned(journal: Journal): void {
+    if (this.busy() || this.uncertain() || journal.clientId !== this.clientId() || journal.status !== 'RETURNED' || journal.createdByUserId !== this.userId()) return;
+    this.editing.set(journal); this.periodId = journal.periodId; this.number = journal.journalNumber;
+    this.description = journal.description; this.postingDate = journal.postingDate;
+    this.lines.set(journal.lines.map(({ accountCode, description, debit, credit }) => ({ accountCode, description, debit, credit })));
+    this.preview.set(null); this.reviewed.set(false);
+  }
   create(): void {
     const clientId = this.clientId(); const period = this.periods().find(p => p.id === this.periodId && p.status !== 'CLOSED');
     if (!period || !this.reviewed() || !this.balanced() || this.busy() || this.uncertain()) return;
     if (this.postingDate < period.start || this.postingDate > period.end || period.currency !== this.bookCurrency()) { this.error.set('Choose a posting date and period matching the native book currency.'); return; }
+    const edit = this.editing();
+    if (edit && (edit.clientId !== clientId || edit.id !== this.journal()?.id || edit.revision !== this.journal()?.revision || edit.periodId !== period.id)) return;
     const generation = this.session.invalidation(); this.busy.set(true); this.error.set('');
-    this.operation = this.http.post<{ id: string }>(`/api/ui/accounting/clients/${clientId}/operational-journals`, {
+    const url = `/api/ui/accounting/clients/${clientId}/operational-journals` + (edit ? `/${edit.id}/rework` : '');
+    this.operation = this.http.post<{ id: string }>(url, {
+      ...(edit ? { revision: edit.revision } : {}),
       periodId: period.id, journalNumber: this.number.trim(), description: this.description.trim(), postingDate: this.postingDate,
       reviewed: true, lines: this.lines().map(line => ({ ...line, accountCode: line.accountCode.trim(), description: line.description.trim() })),
     }).pipe(timeout(15000)).subscribe({
-      next: value => { if (generation !== this.session.invalidation()) return; this.busy.set(false); if (!value?.id || !guidPattern.test(value.id)) { this.failedUnknown(); return; } this.lookupId = value.id; this.load(); },
+      next: value => { if (generation !== this.session.invalidation()) return; this.busy.set(false); if (!value?.id || !guidPattern.test(value.id)) { this.failedUnknown(); return; } this.editing.set(null); this.lookupId = value.id; this.load(); },
       error: failure => { if (generation !== this.session.invalidation()) return; this.failedUnknown(); if (failure.status === 401) this.session.clear(); },
     });
   }
   load(): void {
     const clientId = this.clientId(); const id = this.lookupId.trim();
     if (!guidPattern.test(id) || this.busy()) { if (id) this.error.set('Enter a valid journal ID.'); return; }
+    this.editing.set(null);
     const generation = this.session.invalidation(); this.preview.set(null); this.snapshots.set(null); this.reviewed.set(false); this.busy.set(true); this.error.set('');
     this.operation = this.http.get<unknown>(`/api/ui/accounting/clients/${clientId}/operational-journals/${id}`).pipe(timeout(15000)).subscribe({
       next: value => { if (generation !== this.session.invalidation()) return; try { const journal = decodeOperationalJournal(value, clientId); if (journal.id !== id) throw new Error(); this.journal.set(journal); this.uncertain.set(false); this.reviewed.set(false); this.busy.set(false); if (journal.status === 'POSTED') this.loadLedger(journal.periodId); } catch { this.busy.set(false); this.error.set('Journal details could not be validated for this client.'); } },
@@ -290,7 +312,7 @@ export class ClientOperationalJournals {
   returnJournal(journal: Journal): void { this.act(journal, 'return', { revision: journal.revision, reason: this.reason.trim(), reviewed: true }, 'Journal returned to its preparer.'); }
   approve(journal: Journal): void { this.act(journal, 'post', { revision: journal.revision, reason: this.reason.trim(), previewDigest: this.preview()?.digest, reviewed: true }, 'Journal approved and posted to the client book.'); }
   private act(journal: Journal, action: string, body: object, success: string): void {
-    if (!this.reviewed() || (action !== 'return' && (!this.preview() || this.preview()?.journalId !== journal.id || this.preview()?.revision !== journal.revision)) || this.busy() || this.uncertain() || journal.clientId !== this.clientId()) return;
+    if (this.editing() || !this.reviewed() || (action !== 'return' && (!this.preview() || this.preview()?.journalId !== journal.id || this.preview()?.revision !== journal.revision)) || this.busy() || this.uncertain() || journal.clientId !== this.clientId()) return;
     const generation = this.session.invalidation(); this.busy.set(true); this.error.set('');
     this.operation = this.http.post(`/api/ui/accounting/clients/${journal.clientId}/operational-journals/${journal.id}/${action}`, body).pipe(timeout(15000)).subscribe({
       next: () => { if (generation !== this.session.invalidation()) return; this.busy.set(false); this.error.set(success); this.reviewed.set(false); this.load(); },

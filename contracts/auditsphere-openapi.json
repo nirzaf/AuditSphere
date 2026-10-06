@@ -5450,6 +5450,83 @@
         ]
       }
     },
+    "/api/ui/accounting/clients/{clientId}/operational-journals/{journalId}/rework": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "journalId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClientOperationalJournalReworkHttpInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
     "/api/ui/accounting/clients/{clientId}/operational-journals/{journalId}/submit": {
       "post": {
         "tags": [
@@ -27453,6 +27530,36 @@
             "items": {
               "$ref": "#/components/schemas/ClientOperationalJournalLineView"
             }
+          }
+        }
+      },
+      "ClientOperationalJournalReworkHttpInput": {
+        "required": [
+          "revision",
+          "description",
+          "postingDate",
+          "lines",
+          "reviewed"
+        ],
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "postingDate": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClientOperationalJournalLineHttpInput"
+            }
+          },
+          "reviewed": {
+            "type": "boolean"
           }
         }
       },

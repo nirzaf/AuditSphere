@@ -147,9 +147,22 @@ public sealed partial class ClientAccountingTests
         "UPDATE client_operational_journal_lines SET description='Overwritten reviewed line' WHERE journal_id=@journal",
         "UPDATE client_operational_journal_decisions SET reason='Overwritten reason' WHERE journal_id=@journal"
       ]);
+      var correction = new ClientOperationalJournalReworkRequest(3, "Corrected office expense", new DateOnly(2026, 1, 15),
+        [new("6000", "Corrected expense", 150m, 0m), new("1000", "Cash", 0m, 150m)]);
+      Assert.False((await ClientOperationalLedgerWorkspace.ReworkAsync(db, reviewer, scope.ClientA, journalId, correction)).Succeeded);
+      Assert.False((await ClientOperationalLedgerWorkspace.ReworkAsync(db, preparer, scope.ClientA, journalId, correction with { ExpectedRevision = 2 })).Succeeded);
+      Assert.False((await ClientOperationalLedgerWorkspace.ReworkAsync(db, preparer, scope.ClientA, journalId, correction with { PostingDate = new DateOnly(2027, 1, 1) })).Succeeded);
+      Assert.False((await ClientOperationalLedgerWorkspace.ReworkAsync(db, preparer, scope.ClientB, journalId, correction)).Succeeded);
+      Assert.False((await ClientOperationalLedgerWorkspace.ReworkAsync(db, preparer, scope.ClientA, journalId, correction with {
+        Lines = [new("6000", "Expense", 151m, 0m), new("1000", "Cash", 0m, 150m)] })).Succeeded);
+      Assert.False((await ClientOperationalLedgerWorkspace.ReworkAsync(db, preparer, scope.ClientA, journalId, correction with {
+        Lines = [new("FOREIGN", "Expense", 150m, 0m), new("1000", "Cash", 0m, 150m)] })).Succeeded);
+      var reworked = await ClientOperationalLedgerWorkspace.ReworkAsync(db, preparer, scope.ClientA, journalId, correction);
+      Assert.True(reworked.Succeeded, reworked.Message);
+      Assert.False((await ClientOperationalLedgerWorkspace.ReworkAsync(db, preparer, scope.ClientA, journalId, correction)).Succeeded);
       var fresh = await ClientOperationalLedgerWorkspace.PreviewAsync(db, preparer, scope.ClientA, journalId);
       Assert.True(fresh.Succeeded, fresh.Message);
-      var resubmitted = await ClientOperationalLedgerWorkspace.SubmitAsync(db, preparer, scope.ClientA, journalId, 3, previewDigest: fresh.Value!.Digest);
+      var resubmitted = await ClientOperationalLedgerWorkspace.SubmitAsync(db, preparer, scope.ClientA, journalId, 4, previewDigest: fresh.Value!.Digest);
       Assert.True(resubmitted.Succeeded, resubmitted.Message);
       var review = await ClientOperationalLedgerWorkspace.PreviewAsync(db, reviewer, scope.ClientA, journalId);
       Assert.True(review.Succeeded, review.Message);
@@ -160,7 +173,7 @@ public sealed partial class ClientAccountingTests
     {
       await using var concurrent = new AuditSphereDbContext(pg.Options);
       return await ClientOperationalLedgerWorkspace.ReviewAndPostAsync(concurrent, reviewer, scope.ClientA, journalId,
-        new(4, "APPROVE", "Balanced and supported", reviewDigest));
+        new(5, "APPROVE", "Balanced and supported", reviewDigest));
     }
     async Task<CommandResult> CloseConcurrently()
     {
@@ -175,10 +188,10 @@ public sealed partial class ClientAccountingTests
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var posted = await ClientOperationalLedgerWorkspace.ReviewAndPostAsync(db, reviewer, scope.ClientA, journalId,
-        new ClientOperationalJournalDecisionRequest(4, "APPROVE", "Balanced and supported", reviewDigest));
+        new ClientOperationalJournalDecisionRequest(5, "APPROVE", "Balanced and supported", reviewDigest));
       Assert.True(posted.Succeeded, posted.Message);
       var replay = await ClientOperationalLedgerWorkspace.ReviewAndPostAsync(db, reviewer, scope.ClientA, journalId,
-        new ClientOperationalJournalDecisionRequest(4, "APPROVE", "Balanced and supported", reviewDigest));
+        new ClientOperationalJournalDecisionRequest(5, "APPROVE", "Balanced and supported", reviewDigest));
       Assert.True(replay.Succeeded, replay.Message);
       Assert.Equal(2, await db.ClientOperationalJournalDecisions.CountAsync(x => x.FirmId == scope.FirmId && x.JournalId == journalId));
       var journal = await db.ClientOperationalJournals.SingleAsync(x => x.FirmId == scope.FirmId && x.Id == journalId);
@@ -186,8 +199,9 @@ public sealed partial class ClientAccountingTests
       Assert.Equal(scope.Reviewer.Id, journal.PostedByUserId);
       var snapshots = await ClientOperationalLedgerWorkspace.GetSnapshotsAsync(db, reviewer, scope.ClientA, journalId);
       Assert.True(snapshots.Succeeded, snapshots.Message);
-      Assert.Equal(new[] { "2", "4" }, snapshots.Value!.Select(x => x.Revision));
-      Assert.All(snapshots.Value!, x => Assert.Equal("125.000000", x.Lines[0].Debit));
+      Assert.Equal(new[] { "2", "5" }, snapshots.Value!.Select(x => x.Revision));
+      Assert.Equal("125.000000", snapshots.Value![0].Lines[0].Debit);
+      Assert.Equal("150.000000", snapshots.Value![1].Lines[0].Debit);
       Assert.False((await ClientOperationalLedgerWorkspace.GetSnapshotsAsync(db, reviewer, scope.ClientB, journalId)).Succeeded);
       await AssertNativeRuntimeSqlDeniedAsync(pg, journalId, scope.Reviewer.Id,
       [
@@ -198,8 +212,8 @@ public sealed partial class ClientAccountingTests
       var ledger = await ClientOperationalGeneralLedgerWorkspace.GetAsync(db, reviewer, scope.ClientA, periodId);
       Assert.True(ledger.Succeeded, ledger.Message);
       Assert.Equal(2, ledger.Value!.TotalEntries);
-      Assert.Equal("125.000000", ledger.Value.Accounts.Single(x => x.AccountCode == "6000").DebitMovement);
-      Assert.Equal("-125.000000", ledger.Value.Accounts.Single(x => x.AccountCode == "1000").NetMovement);
+      Assert.Equal("150.000000", ledger.Value.Accounts.Single(x => x.AccountCode == "6000").DebitMovement);
+      Assert.Equal("-150.000000", ledger.Value.Accounts.Single(x => x.AccountCode == "1000").NetMovement);
       await AssertNativeRuntimeSqlDeniedAsync(pg, journalId, scope.Reviewer.Id,
       [
         "UPDATE client_operational_journals SET description='Changed' WHERE id=@journal",
