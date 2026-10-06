@@ -22,8 +22,10 @@ using OpenTelemetry.Trace;
 using Serilog;
 using AuditSphereOps.Api.Authentication;
 using AuditSphereOps.Api.Diagnostics;
+using AuditSphereOps.Api.HttpBoundary;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Infrastructure.Providers;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace AuditSphereOps.Api;
 
@@ -133,7 +135,7 @@ public static partial class ApiHost
           try { if (File.Exists(path)) File.Delete(path); } catch (IOException) { }
         }
       }
-    });
+    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.FileUpload));
 
     app.MapGet("/api/pbc/uploads/{uploadId:guid}/download", async (
       Guid uploadId,
@@ -191,7 +193,7 @@ public static partial class ApiHost
       http.Response.Headers.CacheControl = "no-store";
       http.Response.Headers["X-Content-Type-Options"] = "nosniff";
       return Results.File(document.Bytes, document.ContentType, document.FileName);
-    });
+    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export));
 
     app.MapGet("/api/deliverables/{deliverableId:guid}/download", async (
       Guid deliverableId,
@@ -208,7 +210,7 @@ public static partial class ApiHost
       http.Response.Headers.CacheControl = "no-store";
       http.Response.Headers["X-Content-Type-Options"] = "nosniff";
       return Results.File(result.Value!.Content, result.Value.ContentType, result.Value.FileName);
-    });
+    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export));
 
     app.MapGet("/api/representation-scans/{scanId:guid}/download", async (
       Guid scanId, HttpContext http, TrustedActorResolver actorResolver, IDbContextFactory<AuditSphereDbContext> dbFactory, CancellationToken ct) =>
@@ -221,7 +223,7 @@ public static partial class ApiHost
       http.Response.Headers.CacheControl = "no-store";
       http.Response.Headers["X-Content-Type-Options"] = "nosniff";
       return Results.File(result.Value!.Content, "application/pdf", $"Management-signed-LOR-{scanId}.pdf");
-    });
+    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export));
     app.MapGet("/api/deliverable-bundles/{bundleId:guid}/download", async (
       Guid bundleId, HttpContext http, TrustedActorResolver actorResolver, IDbContextFactory<AuditSphereDbContext> dbFactory, CancellationToken ct) =>
     {
@@ -233,6 +235,6 @@ public static partial class ApiHost
       http.Response.Headers.CacheControl = "no-store";
       http.Response.Headers["X-Content-Type-Options"] = "nosniff";
       return Results.File(result.Value!.Content, "application/zip", $"Final-audit-bundle-{bundleId}.zip");
-    });
+    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export));
   }
 }

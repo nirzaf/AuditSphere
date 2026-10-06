@@ -1,5 +1,6 @@
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Operations;
+using AuditSphereOps.Api.HttpBoundary;
 namespace AuditSphereOps.Api.Ui;
 
 public static partial class UiEndpoints
@@ -22,7 +23,7 @@ public static partial class UiEndpoints
           return await GeneralLedgerUploadWorkspace.ImportAsync(db, actor, id, file.Value.Name, file.Value.Content,
             form["revision"].ToString(), form["fileSha256"].ToString(), form["reviewed"].ToString() == "true", ct);
         });
-      });
+      }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.FileUpload));
     }
     group.MapGet("/gl-sources/{id:guid}/completeness", (Guid id, int? page, int? openingPage, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => GeneralLedgerCompletenessWorkspace.GetAsync(db, actor, id, page ?? 1, openingPage ?? 1, ct)));

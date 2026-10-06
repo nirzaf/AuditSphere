@@ -2,6 +2,7 @@ using System.Text;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Api.Authentication;
+using AuditSphereOps.Api.HttpBoundary;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.EntityFrameworkCore;
 
@@ -38,6 +39,6 @@ public static partial class UiEndpoints
       var office = await FinancialStatementService.RenderPackageOfficeArtifactAsync(db, actor, id, i.ArtifactVersion ?? "", http.RequestAborted);
       if (!office.Succeeded || office.Value is null || package is null) return Failure(office.ErrorCode, office.Message ?? "Export artifact generation was blocked.");
       return Results.File(office.Value.ArtifactBytes, office.Value.ContentType, $"auditsphere-financial-package-{id:D}-r{package.Revision}.{office.Value.FileExtension}");
-    });
+    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export));
   }
 }

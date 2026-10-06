@@ -52,6 +52,24 @@ public static partial class UiEndpoints
     return options;
   }
 
+  /// <summary>
+  /// Angular static assets: fingerprinted build artifacts are approved for long-lived immutable
+  /// caching; everything else (index.html, source maps, unhashed files) is never cached.
+  /// </summary>
+  internal static StaticFileOptions BuildAngularStaticOptions(string root) => new()
+  {
+    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(root),
+    RequestPath = "/ui",
+    OnPrepareResponse = context =>
+    {
+      var name = Path.GetFileName(context.File.PhysicalPath ?? context.Context.Request.Path.Value ?? "");
+      context.Context.Response.Headers.CacheControl =
+        AngularRouteOwnership.FingerprintedAsset.IsMatch(name)
+          ? "public, max-age=31536000, immutable"
+          : "no-store";
+    }
+  };
+
   /// <summary>Capability endpoint groups added by the Angular migration waves.</summary>
   private static void MapWorkbenchEndpoints(RouteGroupBuilder group)
   {

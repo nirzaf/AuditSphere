@@ -2,6 +2,7 @@ using System.Text;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Api.Authentication;
+using AuditSphereOps.Api.HttpBoundary;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.EntityFrameworkCore;
 
@@ -39,7 +40,7 @@ public static partial class UiEndpoints
       http.Response.Headers["X-Dataset-Id"] = id.ToString("D");
       http.Response.Headers["X-Dataset-Revision"] = export.Value.Revision.ToString(System.Globalization.CultureInfo.InvariantCulture);
       return Results.File(Encoding.UTF8.GetBytes(export.Value.Csv), "text/csv; charset=utf-8", export.Value.FileName);
-    });
+    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export));
     group.MapUiGet("/accounting/mappings", http => ReadAsync(http, (db, actor, ct) => AccountingRecordsQuery.MappingsAsync(db, actor, ct)));
     group.MapUiGet("/accounting/journals", http => ReadAsync(http, (db, actor, ct) => AccountingRecordsQuery.JournalsAsync(db, actor, ct)));
     group.MapUiGet("/accounting/differences", http => ReadAsync(http, (db, actor, ct) => AccountingRecordsQuery.DifferencesAsync(db, actor, ct)));
@@ -59,6 +60,6 @@ public static partial class UiEndpoints
       if (!export.Succeeded || export.Value is null) return Failure(export.ErrorCode, export.Message);
       http.Response.Headers["X-Journal-Revision"] = export.Value.JournalRevision.ToString(System.Globalization.CultureInfo.InvariantCulture);
       return Results.File(Encoding.UTF8.GetBytes(export.Value.Csv), "text/csv; charset=utf-8", export.Value.FileName);
-    });
+    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export));
   }
 }

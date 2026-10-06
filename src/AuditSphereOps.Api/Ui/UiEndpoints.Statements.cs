@@ -1,5 +1,6 @@
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Api.Authentication;
+using AuditSphereOps.Api.HttpBoundary;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.EntityFrameworkCore;
@@ -30,6 +31,6 @@ public static partial class UiEndpoints
       http.Response.Headers["X-Mapping-Id"] = result.Value.MappingId.ToString("D");
       http.Response.Headers["X-Engagement-Id"] = id.ToString("D");
       return Results.File(result.Value.Content, "text/csv; charset=utf-8", result.Value.FileName);
-    });
+    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export));
   }
 }

@@ -3,6 +3,7 @@ using AuditSphereOps.Application.Search;
 using AuditSphereOps.Application.Acceptance;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Api.Authentication;
+using AuditSphereOps.Api.HttpBoundary;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -24,17 +25,10 @@ public static partial class UiEndpoints
       throw new InvalidOperationException("Canonical Angular routes require the standalone API host and enabled Angular assets.");
     if (app.Configuration.GetValue<bool>("AngularUi:Enabled"))
     {
-      var published = Path.Combine(app.Environment.ContentRootPath, "ui");
-      var root = Path.GetFullPath(app.Configuration["AngularUi:BuildPath"] ??
-        (File.Exists(Path.Combine(published, "index.html")) ? published :
-          Path.Combine(app.Environment.ContentRootPath, "../AuditSphereOps.Ui/dist/auditsphere-ui/browser")));
+      var root = AngularRouteOwnership.ResolveBuildRoot(app.Configuration, app.Environment)!;
       if (!File.Exists(Path.Combine(root, "index.html")))
         throw new InvalidOperationException("Angular UI is enabled but its production build is missing.");
-      app.UseStaticFiles(new StaticFileOptions
-      {
-        FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(root),
-        RequestPath = "/ui"
-      });
+      app.UseStaticFiles(BuildAngularStaticOptions(root));
       if (app.Configuration["AngularUi:PreviousBuildPath"] is { Length: > 0 } previousBuild)
       {
         var previous = Path.GetFullPath(previousBuild);
@@ -42,14 +36,9 @@ public static partial class UiEndpoints
           throw new InvalidOperationException("Previous Angular assets require a distinct retained approved build directory.");
         // Existing tabs may still request old lazy chunks. Serve only fingerprinted assets,
         // never an old HTML shell, source map or broad application-route fallback.
-        var asset = new System.Text.RegularExpressions.Regex(@"^[A-Za-z0-9_-]+-[A-Za-z0-9_-]{8,}\.(js|css|woff2?|svg|png|webp)$",
-          System.Text.RegularExpressions.RegexOptions.CultureInvariant | System.Text.RegularExpressions.RegexOptions.NonBacktracking);
+        var asset = AngularRouteOwnership.FingerprintedAsset;
         app.UseWhen(http => http.Request.Path.StartsWithSegments("/ui", out var rest) &&
-          asset.IsMatch(Path.GetFileName(rest.Value ?? "")), branch => branch.UseStaticFiles(new StaticFileOptions
-          {
-            FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(previous),
-            RequestPath = "/ui"
-          }));
+          asset.IsMatch(Path.GetFileName(rest.Value ?? "")), branch => branch.UseStaticFiles(BuildAngularStaticOptions(previous)));
       }
       // Explicit Angular-owned routes only: /auth, /api, /health and unrouted paths never fall back to the SPA.
       foreach (var route in SpaRoutes)
@@ -75,7 +64,11 @@ public static partial class UiEndpoints
           });
       }
     }
-    var group = app.MapGroup("/api/ui");
+    // Every native Angular API endpoint requires an authenticated cookie session before any
+    // handler runs; Application authorization below still decides each business action. The
+    // single boundary rate-limit policy resolves per-request cost classes for these endpoints.
+    var group = app.MapGroup("/api/ui")
+      .RequireAuthorization(HttpPolicies.AuthenticatedSession());
     MapAcceptanceCommands(group);
     MapCommercialEndpoints(group);
     MapPortfolioEndpoints(group);
@@ -242,7 +235,7 @@ public static partial class UiEndpoints
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);
-    });
+    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Search));
     group.MapGet("/engagements/{id:guid}", async (Guid id, int? holdPage, int? holdPageSize, HttpContext http, TrustedActorResolver resolver,
       IDbContextFactory<AuditSphereDbContext> factory) =>
     {

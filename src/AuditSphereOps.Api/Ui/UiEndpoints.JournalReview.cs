@@ -2,6 +2,7 @@ using AuditSphereOps.Application.Accounting;
 using System.Text;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Api.Authentication;
+using AuditSphereOps.Api.HttpBoundary;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.EntityFrameworkCore;
 
@@ -34,7 +35,7 @@ public static partial class UiEndpoints
       http.Response.Headers["X-Journal-Id"] = id.ToString("D");
       http.Response.Headers["X-Journal-Basis"] = input.ReviewBasis;
       return Results.File(Encoding.UTF8.GetBytes(export.Value.Csv), "text/csv; charset=utf-8", export.Value.FileName);
-    });
+    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export));
     group.MapGet("/accounting/journals/{id:guid}/workspace", (Guid id, int? historyPage, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => AdjustmentJournalWorkspace.GetAsync(db, db, actor, id, historyPage ?? 1, ct)));
     group.MapGet("/accounting/journals/{id:guid}/receipts/{requestId:guid}", (Guid id, Guid requestId, string requestHash, HttpContext http) =>

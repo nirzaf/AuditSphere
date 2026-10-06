@@ -1,4 +1,5 @@
 using AuditSphereOps.Api.Diagnostics;
+using AuditSphereOps.Api.HttpBoundary;
 using AuditSphereOps.Api.Ui;
 
 namespace AuditSphereOps.Api;
@@ -22,8 +23,13 @@ public static partial class ApiHost
     var identity = ConfigureAuthentication(builder, legacyPresentation);
     ConfigureProviders(builder, connection, identity.OidcConfigured);
     ConfigureHealth(builder, connection);
+    ConfigureRateLimiting(builder);
+    ConfigureRequestLimits(builder);
+    ConfigureSecurityHeaders(builder);
     var app = builder.Build();
     app.UseMiddleware<RequestCorrelationMiddleware>();
+    app.UseMiddleware<SecurityHeadersMiddleware>();
+    app.UseMiddleware<RequestBodyLimitMiddleware>();
 
     if (!app.Environment.IsDevelopment())
     {
@@ -47,6 +53,8 @@ public static partial class ApiHost
     if (legacyPresentation) app.UseStaticFiles();
     app.UseAuthentication();
     app.UseAuthorization();
+    // After authentication so partitions can use the resolved identity; before endpoints.
+    app.UseRateLimiter();
     app.UseAntiforgery();
     app.MapHealthChecks("/health/live", new() { Predicate = r => r.Name == "self" });
     app.MapHealthChecks("/health/ready", new() { Predicate = r => r.Tags.Contains("ready") });

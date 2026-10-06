@@ -3,8 +3,6 @@ using AuditSphereOps.Application.Microsoft365;
 using AuditSphereOps.Api.Ui;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Antiforgery;
-using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Api;
@@ -22,8 +20,8 @@ public static partial class ApiHost
   private static void MapInstallationEndpoints(WebApplication app)
   {
     // JSON endpoints challenge the established cookie; interactive OIDC starts only at /auth/sign-in.
-    var group = app.MapGroup("/api/setup").RequireAuthorization(new AuthorizationPolicyBuilder(
-      CookieAuthenticationDefaults.AuthenticationScheme).RequireAuthenticatedUser().Build());
+    var group = app.MapGroup("/api/setup")
+      .RequireAuthorization(HttpBoundary.HttpPolicies.AuthenticatedSession());
     group.AddEndpointFilter(async (context, next) =>
     {
       context.HttpContext.Response.Headers.CacheControl = "no-store";

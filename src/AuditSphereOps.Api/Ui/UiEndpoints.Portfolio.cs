@@ -1,5 +1,6 @@
 using System.Text;
 using AuditSphereOps.Api.Authentication;
+using AuditSphereOps.Api.HttpBoundary;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Antiforgery;
@@ -28,6 +29,6 @@ public static partial class UiEndpoints
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null) return Failure("session.unavailable", "Sign in again.", 401);
       http.Response.Headers["X-Portfolio-Clients"] = result.Value!.ClientCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
       return Results.File(Encoding.UTF8.GetBytes(result.Value.Csv), "text/csv; charset=utf-8", result.Value.FileName);
-    });
+    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export));
   }
 }
