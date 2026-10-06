@@ -16,7 +16,7 @@ export function decodeCounterpartyHistory(value: unknown, client: string, party:
   if (current.id !== party || typeof v['bookkeepingActive'] !== 'boolean' || v['page'] !== page || v['pageSize'] !== 25 || !Number.isSafeInteger(v['total']) || Number(v['total']) < 0 || !Array.isArray(v['amendments']) || v['amendments'].length > 25 || v['amendments'].length > Number(v['total'])) throw new Error('Wrong party history');
   const seen = new Set<string>();
   const records = [...v['amendments']];
-  if (v['effectiveAmendment'] !== null) { if (!v['effectiveAmendment'] || typeof v['effectiveAmendment'] !== 'object') throw new Error('Invalid effective amendment'); const e = v['effectiveAmendment'] as Amendment; const listed = records.find(x => x.id === e.id); if (listed && JSON.stringify(listed) !== JSON.stringify(e)) throw new Error('Conflicting effective history'); if (!listed) records.push(e); }
+  if (v['effectiveAmendment'] !== null) { if (!v['effectiveAmendment'] || typeof v['effectiveAmendment'] !== 'object') throw new Error('Invalid effective amendment'); const e = v['effectiveAmendment'] as Amendment; const listed = records.find(x => x.id === e.id); if (listed && !['id', 'counterpartyId', 'revision', 'displayName', 'address', 'taxIdentifier', 'contactDetails', 'paymentTerms', 'reason', 'proposedByUserId', 'createdAt', 'decision', 'reviewReason', 'reviewedByUserId'].every(k => listed[k] === (e as unknown as Record<string, unknown>)[k])) throw new Error('Conflicting effective history'); if (!listed) records.push(e); }
   for (const item of records) {
     if (!item || typeof item !== 'object' || Array.isArray(item)) throw new Error('Invalid amendment');
     const a = item as Record<string, unknown>;
@@ -78,12 +78,12 @@ export class CounterpartyHistoryWorkspace {
   readonly userId = () => this.session.current()?.userId ?? ''; readonly nextRevision = () => (BigInt(this.history()?.current.revision ?? '0') + 1n).toString();
   draft = { displayName: '', address: '', taxIdentifier: '', contactDetails: '', paymentTerms: '', reason: '' }; reviewReason = '';
   private request = 0; private operation?: Subscription;
-  private readonly invalidate = effect(() => { this.clientId(); this.partyId(); this.session.invalidation(); untracked(() => { this.operation?.unsubscribe(); ++this.request; this.history.set(null); this.busy.set(false); this.unknown.set(false); this.error.set(''); this.reset(); this.refresh(); }); });
+  private readonly invalidate = effect(() => { this.clientId(); this.partyId(); this.session.invalidation(); untracked(() => { this.operation?.unsubscribe(); ++this.request; this.history.set(null); this.busy.set(false); this.unknown.set(false); this.error.set(''); this.reset(); if (this.session.current()) this.refresh(); }); });
   constructor() { inject(DestroyRef).onDestroy(() => this.operation?.unsubscribe()); }
   reset(): void { const p = this.history()?.current; this.draft = { displayName: p?.displayName ?? '', address: p?.address ?? '', taxIdentifier: p?.taxIdentifier ?? '', contactDetails: p?.contactDetails ?? '', paymentTerms: p?.paymentTerms ?? '', reason: '' }; this.reviewReason = ''; this.reviewed.set(false); this.target.set(null); this.unknown.set(false); }
   choose(a: Amendment): void { this.target.set(a); this.reviewed.set(false); this.reviewReason = ''; }
   refresh(page = 0): void {
-    if (this.busy()) return;
+    if (this.busy() || !this.session.current()) return;
     const client = this.clientId(), party = this.partyId(), generation = this.session.invalidation(), request = ++this.request;
     this.busy.set(true); this.history.set(null); this.target.set(null); this.reviewed.set(false); this.error.set('');
     this.operation = this.http.get<unknown>(`/api/ui/accounting/clients/${client}/counterparties/${party}`, { params: { page: String(page), pageSize: '25' } }).pipe(timeout(15000)).subscribe({
@@ -97,8 +97,8 @@ export class CounterpartyHistoryWorkspace {
     const client = this.clientId(), party = this.partyId(), generation = this.session.invalidation(), request = ++this.request;
     this.busy.set(true); this.reviewed.set(false); this.error.set('');
     this.operation = this.http.post<unknown>(`/api/ui/accounting/clients/${client}/counterparties/${party}${path}`, body).pipe(timeout(15000)).subscribe({
-      next: value => { if (request !== this.request || generation !== this.session.invalidation() || client !== this.clientId() || party !== this.partyId()) return; this.busy.set(false); const v = value as Record<string, unknown> | null; if (!v || (proposal ? typeof v['id'] !== 'string' || !guidPattern.test(v['id']) : v['decided'] !== true)) { this.unknown.set(true); return; } this.reset(); this.refresh(); this.changed.emit(); },
-      error: failure => { if (request !== this.request || generation !== this.session.invalidation()) return; this.busy.set(false); if (failure.status === 400 || failure.status === 403) this.error.set('Amendment refused. Refresh the exact revision, service status and assigned authority.'); else { this.unknown.set(true); this.error.set('Amendment outcome could not be confirmed.'); } if (failure.status === 401) this.session.clear(); }
+      next: value => { if (request !== this.request || generation !== this.session.invalidation() || client !== this.clientId() || party !== this.partyId()) return; this.busy.set(false); const v = value as Record<string, unknown> | null; if (!v || (proposal ? typeof v['id'] !== 'string' || !guidPattern.test(v['id']) : v['decided'] !== true)) { this.unknown.set(true); this.history.set(null); this.target.set(null); return; } this.reset(); this.refresh(); this.changed.emit(); },
+      error: failure => { if (request !== this.request || generation !== this.session.invalidation()) return; this.busy.set(false); if (failure.status === 400 || failure.status === 403) this.error.set('Amendment refused. Refresh the exact revision, service status and assigned authority.'); else { this.unknown.set(true); this.history.set(null); this.target.set(null); this.error.set('Amendment outcome could not be confirmed. Refresh history before another command.'); } if (failure.status === 401) this.session.clear(); }
     });
   }
 }
