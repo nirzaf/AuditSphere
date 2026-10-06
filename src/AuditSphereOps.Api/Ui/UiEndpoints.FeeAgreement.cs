@@ -78,5 +78,20 @@ public static partial class UiEndpoints
         receiptDocumentId = result.Value.ReceiptDocumentId, emailQueued = result.Value.EmailQueued })
         : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
     });
+    group.MapPost("/fee-agreements/{id:guid}/balance-payment", async (Guid id, FeePaymentInput input, HttpContext http,
+      TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
+    {
+      var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
+      if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      try { await csrf.ValidateRequestAsync(http); }
+      catch (AntiforgeryValidationException) { return Results.Json(new { code = "csrf.invalid" }, statusCode: 403); }
+      if (!input.Reviewed || !DecimalInput(input.Amount, out var amount) || string.IsNullOrWhiteSpace(input.Reference)
+        || input.Reference.Length > 120) return Results.Json(new { code = "request.invalid" }, statusCode: 400);
+      await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
+      var result = await FeeAgreementService.RecordBalancePaymentAsync(db, actor, id, amount, input.Reference, ct: http.RequestAborted);
+      return result.Succeeded ? Results.Ok(new { id = result.Value!.ReceiptId, paid = result.Value.MilestonePaid,
+        receiptDocumentId = result.Value.ReceiptDocumentId, emailQueued = result.Value.EmailQueued })
+        : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
+    });
   }
 }

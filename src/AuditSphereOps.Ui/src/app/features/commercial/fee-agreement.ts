@@ -256,6 +256,42 @@ export function decodeFeeAgreement(value: unknown): Workspace {
                 </p>
               }
             }
+            @if (m.kind === 'BALANCE' && m.invoiceId) {
+              @if (m.state !== 'PAID') {
+                @if (m.invoiceStatus === 'POSTED' || m.invoiceStatus === 'SENT') {
+                  <label
+                    >Amount received<input
+                      [(ngModel)]="amount"
+                      (ngModelChange)="reviewed = false"
+                      inputmode="decimal"
+                      [disabled]="busy()"
+                  /></label>
+                  <label
+                    >Bank or transfer reference<input
+                      [(ngModel)]="reference"
+                      (ngModelChange)="reviewed = false"
+                      maxlength="120"
+                      [disabled]="busy()"
+                  /></label>
+                  <button
+                    matButton
+                    [disabled]="
+                      !w.canFinance || !reviewed || !reference.trim() || busy() || uncertain()
+                    "
+                    (click)="payment('balance')"
+                  >
+                    Record balance payment
+                  </button>
+                } @else {
+                  <p>
+                    The balance invoice must be reviewed and posted in firm finance before recording
+                    payment.
+                  </p>
+                }
+              } @else {
+                <p>Balance paid {{ m.paidAt }}.</p>
+              }
+            }
           }
           @if (!w.engagementId) {
             <h3>Link accepted engagement</h3>
@@ -399,7 +435,7 @@ export class FeeAgreement {
         reviewed: this.reviewed,
       });
   }
-  payment(): void {
+  payment(kind: 'advance' | 'balance' = 'advance'): void {
     const w = this.data();
     if (!w?.agreementId || !w.canFinance) return;
     if (!exactDecimal(this.amount)) {
@@ -407,7 +443,7 @@ export class FeeAgreement {
       return;
     }
     this.command(
-      '/api/ui/fee-agreements/' + w.agreementId + '/advance-payment',
+      '/api/ui/fee-agreements/' + w.agreementId + '/' + kind + '-payment',
       { amount: this.amount, reference: this.reference, reviewed: this.reviewed },
       false,
       true,

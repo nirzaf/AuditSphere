@@ -678,5 +678,109 @@ public sealed class CommercialWorkflowTests
     Assert.NotEqual(advanceInvoice.Value, balance.Value);
     Assert.Equal(25000m, await db.Invoices.Where(x => x.FirmId == w.FirmId).SumAsync(x => x.Total)); // advance + balance = agreed fee
     Assert.Equal(2, await db.BillingSourceAllocations.CountAsync(x => x.SourceKind == FeeAgreementService.MilestoneSourceKind));
+
+    // Balance payment workflow (AS-COMP-08)
+    // 1. Payment blocked while invoice is Draft
+    Assert.Equal(ErrorCodes.GateBlocked, (await FeeAgreementService.RecordBalancePaymentAsync(db, w.FinanceManager, agreementId, 12500m, "TT-BAL-1")).ErrorCode);
+
+    // 2. Submit, approve and post the balance invoice
+    Assert.True((await BillingService.SubmitInvoiceAsync(db, w.FinanceManager, balance.Value)).Succeeded);
+    Assert.True((await BillingService.ApproveInvoiceAsync(db, w.FinanceReviewer, balance.Value)).Succeeded);
+    Assert.True((await BillingService.PostInvoiceAsync(db, w.FinanceManager, balance.Value)).Succeeded);
+
+    // 3. Set up Finance contact routing
+    var financeContact = new ClientContact
+    {
+      Id = Guid.NewGuid(), FirmId = w.FirmId, PracticeClientId = clientId,
+      FullName = "Finance Department", Email = "finance@gulf.example.test", Role = "Finance", IsActive = true
+    };
+    db.ClientContacts.Add(financeContact);
+    db.ClientContactRoutings.Add(new ClientContactRouting
+    {
+      Id = Guid.NewGuid(), FirmId = w.FirmId, PracticeClientId = clientId, ClientContactId = financeContact.Id,
+      Purpose = CorrespondencePurposes.Finance, IsPrimaryForPurpose = true, CreatedByUserId = w.Partner.UserId, CreatedAt = DateTimeOffset.UtcNow
+    });
+    await db.SaveChangesAsync();
+
+    // 4. Partial balance payment
+    var balPartial = await FeeAgreementService.RecordBalancePaymentAsync(db, w.FinanceManager, agreementId, 5000m, "TT-BAL-1");
+    Assert.True(balPartial.Succeeded, balPartial.Message);
+    Assert.False(balPartial.Value!.MilestonePaid);
+    Assert.Equal(7500m, balPartial.Value.Outstanding);
+
+    // 5. Duplicate balance payment with same reference
+    var balRepeated = await FeeAgreementService.RecordBalancePaymentAsync(db, w.FinanceManager, agreementId, 5000m, "TT-BAL-1");
+    Assert.Equal(balPartial.Value.ReceiptId, balRepeated.Value!.ReceiptId);
+
+    // 6. Complete balance payment
+    var balPaid = await FeeAgreementService.RecordBalancePaymentAsync(db, w.FinanceManager, agreementId, 7500m, "TT-BAL-2");
+    Assert.True(balPaid.Succeeded, balPaid.Message);
+    Assert.True(balPaid.Value!.MilestonePaid && balPaid.Value.EmailQueued);
+    Assert.NotNull(balPaid.Value.ReceiptDocumentId);
+
+    // 7. Balance receipt document text: full settlement phrasing
+    var balReceiptDoc = await db.CommercialDocuments.AsNoTracking().SingleAsync(x => x.Id == balPaid.Value.ReceiptDocumentId);
+    var balReceiptText = DocxText(balReceiptDoc.Bytes);
+    Assert.Contains("Total outstanding balance", balReceiptText);
+    Assert.Contains("0.00 QAR", balReceiptText);
+    Assert.Contains("paid in full", balReceiptText);
+
+    // 8. Finance notification routed to finance contact
+    var balNotification = await db.CommercialNotifications.AsNoTracking()
+      .Where(x => x.Kind == CommercialNotificationKinds.Receipt)
+      .OrderByDescending(x => x.CreatedAt)
+      .FirstAsync();
+    Assert.Equal("finance@gulf.example.test", balNotification.Recipient);
+
+    // 9. Client portal user document download
+    var clientUser = new AppUser
+    {
+      Id = Guid.NewGuid(), FirmId = w.FirmId, Subject = "client-finance-" + Guid.NewGuid().ToString("N"),
+      TenantId = "tenant-commercial", Email = "client.portal@gulf.example.test", DisplayName = "Client Portal User",
+      UserKind = "Client", CreatedAt = DateTimeOffset.UtcNow
+    };
+    db.Users.Add(clientUser);
+    db.RoleGrants.Add(new RoleGrant
+    {
+      Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = clientUser.Id, Role = "ClientUser",
+      ClientId = clientId, GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = w.Partner.UserId
+    });
+    await db.SaveChangesAsync();
+
+    var clientActor = new ActorContext(clientUser.Id, w.FirmId, clientUser.SessionEpoch, ["ClientUser"]);
+    var docDownload = await CommercialDocumentService.GetAsync(db, clientActor, balReceiptDoc.Id);
+    Assert.True(docDownload.Succeeded, docDownload.Message);
+    Assert.NotNull(docDownload.Value);
+    Assert.Equal(balReceiptDoc.FileName, docDownload.Value.FileName);
+
+    // Client user without grant to this client is forbidden
+    var otherClient = new PracticeClient { Id = Guid.CreateVersion7(), FirmId = w.FirmId, LegalName = "Other Client LLC", CreatedAt = DateTimeOffset.UtcNow };
+    db.PracticeClients.Add(otherClient);
+    var foreignClientUser = new AppUser
+    {
+      Id = Guid.NewGuid(), FirmId = w.FirmId, Subject = "foreign-client-" + Guid.NewGuid().ToString("N"),
+      TenantId = "tenant-commercial", Email = "unauth@example.test", DisplayName = "Unauth",
+      UserKind = "Client", CreatedAt = DateTimeOffset.UtcNow
+    };
+    db.Users.Add(foreignClientUser);
+    db.RoleGrants.Add(new RoleGrant
+    {
+      Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = foreignClientUser.Id, Role = "ClientUser",
+      ClientId = otherClient.Id, GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = w.Partner.UserId
+    });
+    await db.SaveChangesAsync();
+    var foreignActor = new ActorContext(foreignClientUser.Id, w.FirmId, foreignClientUser.SessionEpoch, ["ClientUser"]);
+    var foreignDoc = await CommercialDocumentService.GetAsync(db, foreignActor, balReceiptDoc.Id);
+    Assert.False(foreignDoc.Succeeded);
+
+    // 10. Client Portal Finance Query
+    var portalFinance = await ClientPortalFinanceQuery.GetAsync(db, clientActor);
+    Assert.True(portalFinance.Succeeded, portalFinance.Message);
+    Assert.NotNull(portalFinance.Value);
+    Assert.Single(portalFinance.Value.Agreements);
+    var agreementFinance = portalFinance.Value.Agreements[0];
+    Assert.Equal(2, agreementFinance.Invoices.Count);
+    Assert.Equal(4, agreementFinance.Receipts.Count); // 2 advance receipts + 2 balance receipts
+    Assert.Equal("0", agreementFinance.OutstandingBalance);
   }
 }

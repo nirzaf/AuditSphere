@@ -46,6 +46,7 @@ describe('Client portal workspace paging', () => {
       TestBed.tick(); fixture.detectChanges();
       http.match('/api/ui/portal/documents').forEach((req) => req.flush({ documents: [], signedLetters: [], bundles: [] }));
       http.match('/api/ui/portal/accounting/journals?page=0').forEach((req) => req.flush({ items: [], page: 0, hasMore: false }));
+      http.match('/api/ui/portal/finance').forEach((req) => req.flush({ agreements: [], invoices: [], receipts: [], totalOutstanding: '0.00', currency: 'QAR' }));
       TestBed.tick(); fixture.detectChanges();
     };
     flushPortal('/api/ui/portal?page=0&pageSize=10', portal(requestRows(10), true));
@@ -112,8 +113,10 @@ describe('Client portal workspace paging', () => {
     expect(root.textContent).not.toContain('Financial packages for management review');
     expect(root.querySelector('audit-portal-documents')).toBeNull();
     expect(root.querySelector('audit-portal-journals')).toBeNull();
+    expect(root.querySelector('audit-portal-finance')).toBeNull();
     http.expectNone('/api/ui/portal/documents');
     http.expectNone('/api/ui/portal/accounting/journals?page=0');
+    http.expectNone('/api/ui/portal/finance');
     fixture.destroy();
   });
 });

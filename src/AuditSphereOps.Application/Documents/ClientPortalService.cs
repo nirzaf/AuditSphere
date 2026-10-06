@@ -60,6 +60,18 @@ public static class ClientPortalService
     return ids;
   }
 
+  public static async Task<IReadOnlyList<Guid>> AuthorizedPortalClientIdsAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct = default)
+  {
+    var now = DateTimeOffset.UtcNow;
+    var grants = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId && x.Role == "ClientUser" &&
+      x.ClientId != null && x.RevokedAt == null && (x.ExpiresAt == null || x.ExpiresAt > now)).Take(500).ToListAsync(ct);
+    var ids = new List<Guid>();
+    foreach (var grant in grants)
+      if ((await AuthorizationDecision.AuthorizeAsync(db, actor, new(actor.FirmId, grant.ClientId, grant.EngagementId, ["ClientUser"]), ct)).Succeeded)
+        if (!ids.Contains(grant.ClientId!.Value)) ids.Add(grant.ClientId.Value);
+    return ids;
+  }
+
   public static async Task<IReadOnlyList<Guid>> AuthorizedPortalEngagementIdsAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct = default)
   {
     var now = DateTimeOffset.UtcNow;

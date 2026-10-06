@@ -248,14 +248,50 @@ public static partial class CommercialDocumentService
     return CommandResult<IReadOnlyList<CommercialDocument>>.Ok(documents);
   }
 
-  /// <summary>Bytes of one document, only for a firm-wide commercial identity in the same firm.</summary>
+  /// <summary>Bytes of one document, for firm staff or authorized client users for their client's documents.</summary>
   public static async Task<CommandResult<CommercialDocument>> GetAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid documentId, CancellationToken ct = default)
   {
-    var auth = await AuthorizeAsync(db, actor, CommercialRoles, ct);
-    if (!auth.Succeeded) return CommandResult<CommercialDocument>.Fail(auth.ErrorCode!, auth.Message!);
     var document = await db.CommercialDocuments.AsNoTracking().SingleOrDefaultAsync(x => x.Id == documentId && x.FirmId == actor.FirmId, ct);
-    return document is null ? CommandResult<CommercialDocument>.Fail(ErrorCodes.ScopeDenied, "Access denied.") : CommandResult<CommercialDocument>.Ok(document);
+    if (document is null) return CommandResult<CommercialDocument>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+    var staffAuth = await AuthorizeAsync(db, actor, CommercialRoles, ct);
+    if (staffAuth.Succeeded) return CommandResult<CommercialDocument>.Ok(document);
+
+    var clientUser = await db.Users.AsNoTracking().SingleOrDefaultAsync(x => x.Id == actor.UserId && x.FirmId == actor.FirmId && x.UserKind == "Client" && !x.Disabled, ct);
+    if (clientUser is not null && clientUser.SessionEpoch == actor.SessionEpoch)
+    {
+      Guid? documentClientId = null;
+      if (document.ProposalId.HasValue)
+      {
+        var proposal = await db.Proposals.AsNoTracking().SingleOrDefaultAsync(x => x.Id == document.ProposalId.Value && x.FirmId == actor.FirmId, ct);
+        documentClientId = proposal?.PracticeClientId;
+      }
+      else if (document.FeeMilestoneId.HasValue)
+      {
+        var milestone = await db.FeeMilestones.AsNoTracking().SingleOrDefaultAsync(x => x.Id == document.FeeMilestoneId.Value && x.FirmId == actor.FirmId, ct);
+        if (milestone is not null)
+        {
+          var agreement = await db.EngagementFeeAgreements.AsNoTracking().SingleOrDefaultAsync(x => x.Id == milestone.AgreementId && x.FirmId == actor.FirmId, ct);
+          documentClientId = agreement?.PracticeClientId;
+        }
+      }
+
+      if (documentClientId.HasValue)
+      {
+        var now = DateTimeOffset.UtcNow;
+        var hasGrant = await db.RoleGrants.AsNoTracking().AnyAsync(g =>
+          g.FirmId == actor.FirmId &&
+          g.UserId == actor.UserId &&
+          g.Role == "ClientUser" &&
+          (g.ClientId == null || g.ClientId == documentClientId.Value) &&
+          g.RevokedAt == null &&
+          (g.ExpiresAt == null || g.ExpiresAt > now), ct);
+        if (hasGrant) return CommandResult<CommercialDocument>.Ok(document);
+      }
+    }
+
+    return CommandResult<CommercialDocument>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
   }
 
   private static string Money(decimal amount, string currency) => $"{amount.ToString("N2", CultureInfo.InvariantCulture)} {currency}";

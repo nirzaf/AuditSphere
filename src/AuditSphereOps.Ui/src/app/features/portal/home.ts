@@ -7,9 +7,10 @@ import { SHARED } from '../../core/ui';
 import { portalWorkspace } from './contracts';
 import { PortalJournals } from './journals';
 import { PortalDocuments } from './documents';
+import { PortalFinance } from './finance';
 import { SessionService } from '../../core/session';
 
-@Component({ selector: 'audit-client-portal', imports: [ReactiveFormsModule, RouterLink, MatButtonModule, PortalDocuments, PortalJournals, ...SHARED],
+@Component({ selector: 'audit-client-portal', imports: [ReactiveFormsModule, RouterLink, MatButtonModule, PortalDocuments, PortalJournals, PortalFinance, ...SHARED],
   template: `
     <audit-page-header title="Client portal" description="Your assigned requests and validated financial packages. Internal audit workpapers remain restricted." />
     <button matButton (click)="ws.reload()" [disabled]="busy() || ws.loading()">Refresh portal</button>
@@ -50,6 +51,7 @@ import { SessionService } from '../../core/session';
         </section>
         <audit-portal-documents />
         <audit-portal-journals />
+        <audit-portal-finance />
         <section class="panel"><h2>Financial packages for management review</h2>
           @for (p of packageRows(w.packages); track p.id) { <p><a [routerLink]="['/portal/accounting/packages', p.id]">{{ p.framework }} · {{ p.periodStart }} to {{ p.periodEnd }} · {{ p.currency }}</a></p> }
           @empty { <p>No validated packages are available for your current scope.</p> }

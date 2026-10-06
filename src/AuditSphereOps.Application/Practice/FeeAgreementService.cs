@@ -173,8 +173,21 @@ public static class FeeAgreementService
   /// paid, produces the official receipt document and queues one email. Partial payments are recorded and leave the
   /// outstanding amount; a repeated payment reference never creates a second receipt, document or email.
   /// </summary>
-  public static async Task<CommandResult<AdvancePaymentOutcome>> RecordAdvancePaymentAsync(
+  public static Task<CommandResult<AdvancePaymentOutcome>> RecordAdvancePaymentAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid agreementId, decimal amount, string paymentReference,
+    DateTimeOffset? receivedAt = null, CancellationToken ct = default)
+    => RecordMilestonePaymentAsync(db, actor, agreementId, FeeMilestoneKinds.Advance, amount, paymentReference, receivedAt, ct);
+
+  /// <summary>
+  /// Records a manual final balance payment against the balance invoice, producing the official settlement receipt.
+  /// </summary>
+  public static Task<CommandResult<AdvancePaymentOutcome>> RecordBalancePaymentAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid agreementId, decimal amount, string paymentReference,
+    DateTimeOffset? receivedAt = null, CancellationToken ct = default)
+    => RecordMilestonePaymentAsync(db, actor, agreementId, FeeMilestoneKinds.Balance, amount, paymentReference, receivedAt, ct);
+
+  private static async Task<CommandResult<AdvancePaymentOutcome>> RecordMilestonePaymentAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid agreementId, string kind, decimal amount, string paymentReference,
     DateTimeOffset? receivedAt = null, CancellationToken ct = default)
   {
     var reference = (paymentReference ?? string.Empty).Trim();
@@ -185,14 +198,15 @@ public static class FeeAgreementService
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new(actor.FirmId, agreement.PracticeClientId, RequiredRoles: ["FinanceManager", "FinanceReviewer"], InternalOnly: true), ct);
     if (!auth.Succeeded) return CommandResult<AdvancePaymentOutcome>.Fail(auth.ErrorCode!, auth.Message!);
-    var milestone = await db.FeeMilestones.SingleAsync(x => x.FirmId == actor.FirmId && x.AgreementId == agreementId && x.Kind == FeeMilestoneKinds.Advance, ct);
+    var milestone = await db.FeeMilestones.SingleAsync(x => x.FirmId == actor.FirmId && x.AgreementId == agreementId && x.Kind == kind, ct);
     if (milestone.InvoiceId is null)
-      return CommandResult<AdvancePaymentOutcome>.Fail(ErrorCodes.GateBlocked, "Issue the advance invoice first.");
+      return CommandResult<AdvancePaymentOutcome>.Fail(ErrorCodes.GateBlocked, $"Issue the {kind.ToLowerInvariant()} invoice first.");
     var invoice = await db.Invoices.AsNoTracking().SingleAsync(x => x.Id == milestone.InvoiceId && x.FirmId == actor.FirmId, ct);
     if (invoice.Status is not (BillingStates.InvoicePosted or BillingStates.InvoiceSent))
-      return CommandResult<AdvancePaymentOutcome>.Fail(ErrorCodes.GateBlocked, "The advance invoice must be approved and posted before a payment is recorded.");
+      return CommandResult<AdvancePaymentOutcome>.Fail(ErrorCodes.GateBlocked, $"The {kind.ToLowerInvariant()} invoice must be approved and posted before a payment is recorded.");
 
-    var storedReference = $"ADV-{agreement.Id.ToString("N")[..8].ToUpperInvariant()}-{reference}";
+    var prefix = kind == FeeMilestoneKinds.Advance ? "ADV" : "BAL";
+    var storedReference = $"{prefix}-{agreement.Id.ToString("N")[..8].ToUpperInvariant()}-{reference}";
     var receipt = await db.Receipts.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.BillingAccountId == invoice.BillingAccountId && x.Reference == storedReference, ct);
     if (receipt is not null && (receipt.Amount != amount || (receivedAt.HasValue && receipt.ReceivedAt != receivedAt)))
       return CommandResult<AdvancePaymentOutcome>.Fail("fee.reference-conflict", "This payment reference already records different payment details.");
@@ -202,7 +216,7 @@ public static class FeeAgreementService
         return CommandResult<AdvancePaymentOutcome>.Fail("fee.invalid", "The amount must be positive.");
       var outstandingBefore = await OutstandingAsync(db, actor.FirmId, invoice, ct);
       if (amount > outstandingBefore)
-        return CommandResult<AdvancePaymentOutcome>.Fail("fee.over-payment", $"The amount exceeds the outstanding advance ({outstandingBefore.ToString("N2", CultureInfo.InvariantCulture)} {agreement.Currency}).");
+        return CommandResult<AdvancePaymentOutcome>.Fail("fee.over-payment", $"The amount exceeds the outstanding {kind.ToLowerInvariant()} ({outstandingBefore.ToString("N2", CultureInfo.InvariantCulture)} {agreement.Currency}).");
       var recorded = await BillingService.RecordReceiptAsync(db, actor, new(invoice.BillingAccountId, amount, storedReference, receivedAt), ct);
       if (!recorded.Succeeded) return CommandResult<AdvancePaymentOutcome>.Fail(recorded.ErrorCode!, recorded.Message!);
       receipt = await db.Receipts.AsNoTracking().SingleAsync(x => x.Id == recorded.Value && x.FirmId == actor.FirmId, ct);
@@ -226,7 +240,7 @@ public static class FeeAgreementService
     var allocated = invoice.Total - outstanding;
     if (outstanding > 0)
       return CommandResult<AdvancePaymentOutcome>.Ok(new(receipt.Id, allocated, outstanding, false, null, false,
-        $"Partial advance recorded; {outstanding.ToString("N2", CultureInfo.InvariantCulture)} {agreement.Currency} remains outstanding."));
+        $"Partial {kind.ToLowerInvariant()} recorded; {outstanding.ToString("N2", CultureInfo.InvariantCulture)} {agreement.Currency} remains outstanding."));
 
     var tracked = await db.FeeMilestones.SingleAsync(x => x.Id == milestone.Id && x.FirmId == actor.FirmId, ct);
     if (tracked.State != FeeMilestoneStates.Paid)
@@ -236,7 +250,10 @@ public static class FeeAgreementService
       tracked.PaidAt = receipt.ReceivedAt;
       await db.SaveChangesAsync(ct);
     }
-    await AuditSphereOps.Application.Documents.ClientPortalService.RefreshCommercialIntentAsync(db, actor.FirmId, agreement.PracticeClientId, ct);
+    if (kind == FeeMilestoneKinds.Advance)
+    {
+      await AuditSphereOps.Application.Documents.ClientPortalService.RefreshCommercialIntentAsync(db, actor.FirmId, agreement.PracticeClientId, ct);
+    }
     return await EnsureReceiptDocumentAndEmailAsync(db, actor, agreement, tracked, invoice, receipt, ct);
   }
 
@@ -247,7 +264,7 @@ public static class FeeAgreementService
     var profile = await db.FirmCommercialProfiles.AsNoTracking().Where(x => x.FirmId == actor.FirmId).OrderByDescending(x => x.Version).FirstOrDefaultAsync(ct);
     if (profile is null)
       return CommandResult<AdvancePaymentOutcome>.Ok(new(receipt.Id, invoice.Total, 0m, true, null, false,
-        "Advance recorded as paid. Configure the firm commercial profile to generate the official receipt."));
+        $"{milestone.Kind} recorded as paid. Configure the firm commercial profile to generate the official receipt."));
     var client = await db.PracticeClients.AsNoTracking().SingleAsync(x => x.Id == agreement.PracticeClientId && x.FirmId == actor.FirmId, ct);
 
     var document = await db.CommercialDocuments.AsNoTracking().SingleOrDefaultAsync(x =>
@@ -256,19 +273,32 @@ public static class FeeAgreementService
     {
       var receiptNumber = $"RCT-{milestone.Id.ToString("N")[..8].ToUpperInvariant()}";
       var balance = agreement.AgreedFee - invoice.Total;
+      var isAdvance = milestone.Kind == FeeMilestoneKinds.Advance;
+      var detailRows = isAdvance
+        ? new List<string[]>
+        {
+          new[] { "Received on", receipt.ReceivedAt.UtcDateTime.ToString("dd MMMM yyyy", CultureInfo.InvariantCulture) },
+          new[] { "Payment reference", receipt.Reference },
+          new[] { "Applied to invoice", invoice.InvoiceNumber },
+          new[] { "Agreed engagement fee", $"{agreement.AgreedFee.ToString("N2", CultureInfo.InvariantCulture)} {agreement.Currency}" },
+          new[] { $"Advance ({agreement.AdvancePercent:0.##}%)", $"{invoice.Total.ToString("N2", CultureInfo.InvariantCulture)} {agreement.Currency} — paid" },
+          new[] { "Balance due on delivery of the final report", $"{balance.ToString("N2", CultureInfo.InvariantCulture)} {agreement.Currency}" },
+        }
+        : new List<string[]>
+        {
+          new[] { "Received on", receipt.ReceivedAt.UtcDateTime.ToString("dd MMMM yyyy", CultureInfo.InvariantCulture) },
+          new[] { "Payment reference", receipt.Reference },
+          new[] { "Applied to invoice", invoice.InvoiceNumber },
+          new[] { "Agreed engagement fee", $"{agreement.AgreedFee.ToString("N2", CultureInfo.InvariantCulture)} {agreement.Currency}" },
+          new[] { "Milestone settlement", $"Final balance ({invoice.Total.ToString("N2", CultureInfo.InvariantCulture)} {agreement.Currency}) — paid in full" },
+          new[] { "Total outstanding balance", $"0.00 {agreement.Currency}" },
+        };
+
       var model = new CommercialDocumentModel(profile, "Official payment receipt", receiptNumber,
         DateOnly.FromDateTime(receipt.ReceivedAt.UtcDateTime), client.LegalName,
         [
           new("Payment received", [$"We acknowledge receipt of {invoice.Total.ToString("N2", CultureInfo.InvariantCulture)} {agreement.Currency} from {client.LegalName}."],
-            new(["Item", "Detail"],
-            [
-              ["Received on", receipt.ReceivedAt.UtcDateTime.ToString("dd MMMM yyyy", CultureInfo.InvariantCulture)],
-              ["Payment reference", receipt.Reference],
-              ["Applied to invoice", invoice.InvoiceNumber],
-              ["Agreed engagement fee", $"{agreement.AgreedFee.ToString("N2", CultureInfo.InvariantCulture)} {agreement.Currency}"],
-              [$"Advance ({agreement.AdvancePercent:0.##}%)", $"{invoice.Total.ToString("N2", CultureInfo.InvariantCulture)} {agreement.Currency} — paid"],
-              ["Balance due on delivery of the final report", $"{balance.ToString("N2", CultureInfo.InvariantCulture)} {agreement.Currency}"],
-            ], [1]))
+            new(["Item", "Detail"], detailRows.ToArray(), [1]))
         ], false);
       var bytes = CommercialDocumentRenderer.RenderDocx(model);
       document = new CommercialDocument
@@ -288,22 +318,32 @@ public static class FeeAgreementService
       var recipient = await ResolveRecipientAsync(db, actor.FirmId, agreement, ct);
       if (recipient is null)
         return CommandResult<AdvancePaymentOutcome>.Ok(new(receipt.Id, invoice.Total, 0m, true, document.Id, false,
-          "Advance paid and receipt generated. No client contact email is on file, so no email was queued."));
+          $"{milestone.Kind} paid and receipt generated. No client contact email is on file, so no email was queued."));
+
+      var isAdvance = milestone.Kind == FeeMilestoneKinds.Advance;
+      var subject = $"Payment receipt {document.FileName.Replace("Receipt-", string.Empty).Replace(".docx", string.Empty)} — {profile.LegalName}";
+      var body = isAdvance
+        ? $"Dear {client.LegalName},\n\nWe confirm receipt of your advance payment of {invoice.Total.ToString("N2", CultureInfo.InvariantCulture)} {agreement.Currency} " +
+          $"(reference {receipt.Reference}) against invoice {invoice.InvoiceNumber}. The remaining balance is invoiced on delivery of the final report.\n\n" +
+          $"Your official receipt voucher is available for authenticated download at /api/commercial/documents/{document.Id}/download and is retained on your engagement record.\n\n{profile.LegalName}"
+        : $"Dear {client.LegalName},\n\nWe confirm receipt of your final balance payment of {invoice.Total.ToString("N2", CultureInfo.InvariantCulture)} {agreement.Currency} " +
+          $"(reference {receipt.Reference}) against invoice {invoice.InvoiceNumber}. The engagement fee is now settled in full.\n\n" +
+          $"Your official receipt voucher is available for authenticated download at /api/commercial/documents/{document.Id}/download and is retained on your engagement record.\n\n{profile.LegalName}";
+
       db.CommercialNotifications.Add(new CommercialNotification
       {
         Id = Guid.CreateVersion7(), FirmId = actor.FirmId, Kind = CommercialNotificationKinds.Receipt,
         FeeMilestoneId = milestone.Id, PracticeClientId = agreement.PracticeClientId, DocumentId = document.Id,
         OfferSha256 = document.Sha256Hex, Recipient = recipient,
-        Subject = $"Payment receipt {document.FileName.Replace("Receipt-", string.Empty).Replace(".docx", string.Empty)} — {profile.LegalName}",
-        Body = $"Dear {client.LegalName},\n\nWe confirm receipt of your advance payment of {invoice.Total.ToString("N2", CultureInfo.InvariantCulture)} {agreement.Currency} " +
-               $"(reference {receipt.Reference}) against invoice {invoice.InvoiceNumber}. The remaining balance is invoiced on delivery of the final report.\n\n" +
-               $"The official receipt is retained on your engagement record.\n\n{profile.LegalName}",
+        Subject = subject,
+        Body = body,
         CreatedAt = DateTimeOffset.UtcNow
       });
       try { await db.SaveChangesAsync(ct); }
       catch (DbUpdateException) { /* a concurrent retry queued it first: the unique index guarantees exactly one */ }
     }
-    return CommandResult<AdvancePaymentOutcome>.Ok(new(receipt.Id, invoice.Total, 0m, true, document.Id, true, "Advance paid: official receipt generated and email queued for delivery."));
+    return CommandResult<AdvancePaymentOutcome>.Ok(new(receipt.Id, invoice.Total, 0m, true, document.Id, true,
+      $"{milestone.Kind} paid: official receipt generated and email queued for delivery."));
   }
 
   public static async Task<CommandResult<FeeAgreementView?>> GetForProposalAsync(
@@ -346,6 +386,21 @@ public static class FeeAgreementService
   private static async Task<string?> ResolveRecipientAsync(IAuditSphereDbContext db, Guid firmId, EngagementFeeAgreement agreement, CancellationToken ct)
   {
     var now = DateTimeOffset.UtcNow;
+    var asOf = DateOnly.FromDateTime(now.UtcDateTime);
+    // 1. Check purpose-specific Finance routing first
+    var financeContact = await (
+      from r in db.ClientContactRoutings.AsNoTracking()
+      where r.FirmId == firmId && r.PracticeClientId == agreement.PracticeClientId && r.Purpose == CorrespondencePurposes.Finance && r.RevokedAt == null
+      where (r.EffectiveFrom == null || r.EffectiveFrom <= asOf) &&
+            (r.EffectiveTo == null || r.EffectiveTo >= asOf)
+      join c in db.ClientContacts.AsNoTracking() on r.ClientContactId equals c.Id
+      where c.IsActive && !string.IsNullOrWhiteSpace(c.Email)
+      orderby r.IsPrimaryForPurpose descending, r.CreatedAt descending
+      select c.Email
+    ).FirstOrDefaultAsync(ct);
+
+    if (!string.IsNullOrWhiteSpace(financeContact)) return financeContact;
+
     var contact = await db.ClientContacts.AsNoTracking().Where(x => x.FirmId == firmId && x.PracticeClientId == agreement.PracticeClientId && x.Primary &&
       (x.ValidFrom == null || x.ValidFrom <= now) && (x.ValidTo == null || x.ValidTo >= now)).Select(x => x.Email).FirstOrDefaultAsync(ct);
     if (!string.IsNullOrWhiteSpace(contact)) return contact;

@@ -24,6 +24,8 @@ public static partial class UiEndpoints
       (db, actor, ct) => ClientPortalWorkspaceQuery.RequestAsync(db, actor, id, ct)));
     group.MapUiGet("/portal/documents", (HttpContext http) => ReadAsync(http,
       (db, actor, ct) => ClientPortalReviewQuery.GetAsync(db, actor, ct)));
+    group.MapUiGet("/portal/finance", (HttpContext http) => ReadAsync(http,
+      (db, actor, ct) => ClientPortalFinanceQuery.GetAsync(db, actor, ct)));
     group.MapGet("/portal/accounting/packages/{id:guid}", (Guid id, HttpContext http) => ReadAsync(http,
       (db, actor, ct) => FinancialPackageReviewService.GetClientViewAsync(db, actor, id, ct)));
     group.MapPost("/portal/accounting/packages/{id:guid}/decision", (Guid id, PortalPackageDecisionInput i, HttpContext http) => CommandAsync(http,
