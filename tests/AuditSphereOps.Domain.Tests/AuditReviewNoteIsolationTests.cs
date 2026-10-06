@@ -75,16 +75,30 @@ public sealed class AuditReviewNoteIsolationTests
 
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      Assert.Equal(ErrorCodes.ScopeDenied,
-        (await ReviewNotesService.AddNoteAsync(db, clientA.Actor,
-          new AddReviewNoteRequest(resultId, ReviewNoteFields.Conclusion, "balance agrees", "Unauthorized sibling note."))).ErrorCode);
-      Assert.Equal(ErrorCodes.ScopeDenied,
-        (await ReviewNotesService.RespondAsync(db, clientA.Actor, noteId, "Unauthorized sibling response.")).ErrorCode);
-      Assert.Equal(ErrorCodes.ScopeDenied,
-        (await ReviewNotesService.ResolveAsync(db, clientA.Actor, noteId, "Unauthorized sibling resolution.")).ErrorCode);
-      Assert.Equal(ErrorCodes.ScopeDenied,
-        (await ReviewNotesService.ReopenAsync(db, clientA.Actor, noteId, "Unauthorized sibling reopen.")).ErrorCode);
+      var siblingResult = await ReviewNotesService.AddNoteAsync(db, clientA.Actor,
+        new AddReviewNoteRequest(resultId, ReviewNoteFields.Conclusion, "balance agrees", "Unauthorized sibling note."));
+      var guessedResult = await ReviewNotesService.AddNoteAsync(db, clientA.Actor,
+        new AddReviewNoteRequest(Guid.NewGuid(), ReviewNoteFields.Conclusion, "balance agrees", "Guessed result note."));
+      Assert.Equal(ErrorCodes.ScopeDenied, siblingResult.ErrorCode);
+      Assert.Equal(siblingResult.ErrorCode, guessedResult.ErrorCode);
+
+      var siblingResponse = await ReviewNotesService.RespondAsync(db, clientA.Actor, noteId, "Unauthorized sibling response.");
+      var guessedResponse = await ReviewNotesService.RespondAsync(db, clientA.Actor, Guid.NewGuid(), "Guessed note response.");
+      Assert.Equal(ErrorCodes.ScopeDenied, siblingResponse.ErrorCode);
+      Assert.Equal(siblingResponse.ErrorCode, guessedResponse.ErrorCode);
+
+      var siblingResolution = await ReviewNotesService.ResolveAsync(db, clientA.Actor, noteId, "Unauthorized sibling resolution.");
+      var guessedResolution = await ReviewNotesService.ResolveAsync(db, clientA.Actor, Guid.NewGuid(), "Guessed note resolution.");
+      Assert.Equal(ErrorCodes.ScopeDenied, siblingResolution.ErrorCode);
+      Assert.Equal(siblingResolution.ErrorCode, guessedResolution.ErrorCode);
+
+      var siblingReopen = await ReviewNotesService.ReopenAsync(db, clientA.Actor, noteId, "Unauthorized sibling reopen.");
+      var guessedReopen = await ReviewNotesService.ReopenAsync(db, clientA.Actor, Guid.NewGuid(), "Guessed note reopen.");
+      Assert.Equal(ErrorCodes.ScopeDenied, siblingReopen.ErrorCode);
+      Assert.Equal(siblingReopen.ErrorCode, guessedReopen.ErrorCode);
+
       Assert.Empty(await ReviewNotesService.ListAsync(db, clientA.Actor, procedureId));
+      Assert.Empty(await ReviewNotesService.ListAsync(db, clientA.Actor, Guid.NewGuid()));
     }
 
     await using (var db = new AuditSphereDbContext(pg.Options))
