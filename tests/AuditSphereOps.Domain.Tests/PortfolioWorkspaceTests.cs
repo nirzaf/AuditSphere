@@ -94,7 +94,7 @@ public sealed class PortfolioWorkspaceTests
   }
 
   [Fact]
-  public async Task ExportEscapesFormulaPrefixesQuotesAndMultilineNamesAndRefusesUnboundedClientSets()
+  public async Task ExportEscapesFormulaPrefixesQuotesMultilineNamesAndHonorsExactClientLimitBoundary()
   {
     await using var pg = await PgTestSchema.CreateAsync(); var f = await PbcSeed.SeedAsync(pg);
     await using var db = new AuditSphereDbContext(pg.Options); var actor = PbcSeed.Actor(f.Admin, "Administrator");
@@ -107,8 +107,19 @@ public sealed class PortfolioWorkspaceTests
       var prefix = value.StartsWith("normal", StringComparison.Ordinal) ? "" : "'";
       Assert.Contains("\"" + prefix + value.Replace("\"", "\"\"") + "\"", export.Value!.Csv);
     }
-    db.PracticeClients.AddRange(Enumerable.Range(0, 1000).Select(i => new PracticeClient {
+    db.PracticeClients.AddRange(Enumerable.Range(0, PortfolioQuery.ExportClientLimit - 1).Select(i => new PracticeClient {
       Id = Guid.NewGuid(), FirmId = f.FirmId, LegalName = "Bounded synthetic " + i, CreatedAt = DateTimeOffset.UtcNow }));
+    await db.SaveChangesAsync();
+    var exactLimit = await PortfolioQuery.ExportAsync(db, actor);
+    Assert.True(exactLimit.Succeeded, exactLimit.Message);
+    Assert.Equal(PortfolioQuery.ExportClientLimit, exactLimit.Value!.ClientCount);
+    Assert.Equal(PortfolioQuery.ExportClientLimit, exactLimit.Value.Csv.Split('\n')
+      .Count(line => line.StartsWith("\"CLIENT\",", StringComparison.Ordinal)));
+
+    db.PracticeClients.Add(new PracticeClient
+    {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, LegalName = "Bounded synthetic overflow", CreatedAt = DateTimeOffset.UtcNow
+    });
     await db.SaveChangesAsync();
     Assert.Equal("export.limit", (await PortfolioQuery.ExportAsync(db, actor)).ErrorCode);
     Assert.True((await PortfolioQuery.ExportAsync(db, actor, "normal")).Succeeded);
