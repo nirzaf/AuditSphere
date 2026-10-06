@@ -12382,6 +12382,74 @@
         "Tax and ancillary modules remain optional and do not gate untaxed draft preparation",
         "Full user-story objective active; final epic merge pending completion"
       ]
+    },
+    "clientAccountRoles": {
+      "verifiedSourceCommit": "99e0127efbedecaa1b0475506514a7c4980e12f2",
+      "status": "FOCUSED_LOCAL_ROLE_SLICE_VERIFIED_SOLUTION_BUILD_RECOVERY_PENDING",
+      "requirements": "Partial CA-04 prerequisite for CA-15 invoice-linked posting; approved-role replacement and open-item paths remain open",
+      "postgreSql": {
+        "passed": 4,
+        "accountRoleCases": 1,
+        "nativeJournalRegressionCases": 3,
+        "durationSeconds": 37,
+        "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --configuration Release --filter 'FullyQualifiedName~AccountRolesRequireIndependentReviewAndBlockGenericControlJournals|FullyQualifiedName~NativeJournal' --disable-build-servers",
+        "coverage": [
+          "Compatible scoped posting accounts in approved chart",
+          "Independent role approval and exact decision replay",
+          "Effective intervals and overlapping-role refusal",
+          "Retained scoped history projection",
+          "AR activation invalidates pre-existing generic drafts",
+          "Generic AR journal preparation blocked",
+          "SQL self-review and overlapping approval refused",
+          "Specific SQL generic control-post trigger refused attempted POSTED transition",
+          "Immutable proposal/decision UPDATE/DELETE refused",
+          "No firm/client posting created; existing native journal regression passed"
+        ]
+      },
+      "angular": {
+        "focusedPassed": 4,
+        "build": "PASS",
+        "warning": "Existing commercial/settings.scss budget warning"
+      },
+      "apiContract": {
+        "passed": 5,
+        "durationSeconds": 6,
+        "artifact": "contracts/auditsphere-openapi.json"
+      },
+      "browser": {
+        "passed": 1,
+        "durationSeconds": 40,
+        "test": "ClientAccountRoleProposalRequiresAnotherReviewerAndBlocksGenericAr",
+        "surface": "Owned PostgreSQL fixture and API-hosted Angular in automated Chromium",
+        "coverage": [
+          "Maker prepares role through Angular",
+          "Self-review action absent",
+          "Separate reviewer approves exact proposal",
+          "Both sessions show retained decision",
+          "Generic AR refused with zero journals",
+          "No page errors"
+        ],
+        "builtIn": "Transient owned listener unavailable when probed; no built-in flow pass claimed"
+      },
+      "efPendingModelChanges": "NONE",
+      "migration": "20261006194113_ClientAccountRoles",
+      "solutionBuild": {
+        "status": "INTERRUPTED_BY_EXTERNAL_WORKTREE_REMOVAL",
+        "sessionId": 74057,
+        "details": "Concurrent process merged through 2da82645 and removed party-revision-verification while the build read its source. Missing-source errors observed; owned PID2082 stopped after verifying deleted cwd. Unified session exit0 after termination is not build success.",
+        "replacementWorktree": "/Users/qts/.codex/worktrees/client-role-verification/AuditSphere"
+      },
+      "concurrentMerge": "Main master 0e11f892 merged through 2da82645, excluding final 99e0127e SQL tests/contract. This task did not perform or claim final epic merge.",
+      "fullRegression": "NOT_RUN at role source. Calculator baseline session85481 remains live in independent exact 1b1ebc16 verification checkout; API210 passed, Domain still running.",
+      "productionMigration": "NOT_RUN",
+      "externalAcceptance": "NOT_RUN",
+      "limitations": [
+        "Role configuration does not create default/system postings or invoice AR/AP documents despite concurrent commit title",
+        "Only proposals and immutable independent decisions; approved-role replacement/end-date amendments remain outstanding",
+        "Generic control activity blocked until supported linked invoice/open-item workflow exists",
+        "Tax/ancillary roles optional and never gate core no-tax bookkeeping",
+        "Full epic, exhaustive scope/concurrency matrices and final merge remain open"
+      ]
     }
   },
   "documentationWork": {

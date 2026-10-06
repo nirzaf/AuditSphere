@@ -13,6 +13,14 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Reviewed client posting account roles
+
+Client books now support immutable role proposals and independent approval/rejection. Approved intervals select compatible posting accounts from an approved client chart; no financial-statement meaning is inferred from account-number prefixes. Roles cover AR/AP, tax recoverable/payable, revenue, purchase expense/asset, retained earnings, rounding and FX. Tax and ancillary roles remain optional.
+
+Client locking and database checks fence overlapping approvals, self-review and control activation over posted generic activity. Generic native journals cannot create unexplained AR/AP activity: preparation, preview/submission/post validation and a specific database posting trigger refuse that path. Earlier drafted journals become ineligible after an applicable control role is approved. Angular offers bounded account search, paged retained history, explicit proposal assent and independent review; unconfirmed commands require fresh history before further preparation. Focused PostgreSQL, Angular, API contract and automated browser checks passed. Exact source and observed counts live in `verification.clientAccountRoles` in `status.json`.
+
+The solution build was interrupted when a concurrent process merged the branch and removed its checkout. The preserved test/contract commit is being verified in a replacement managed worktree. This role slice does not implement default/system invoice postings, AR/AP open items, approved-role replacement or end-date amendments. The full epic remains active; the final merge is pending completion. The calculator-baseline regression continues separately and must not be attributed to this newer model.
+
 ## Immutable client sales invoice preparation
 
 Native client books now offer untaxed, same-currency sales drafts with exact decimal strings, client seller/customer snapshots, document/accounting/supply/due dates, selected income accounts and declared calculation inputs. Each maker edit appends a revision with concurrency checks; previous content remains immutable. A repeated source reference on a different invoice in the same client book produces a preserved warning. Drafts create no client or firm journal, receivable, issued document or delivery event.
