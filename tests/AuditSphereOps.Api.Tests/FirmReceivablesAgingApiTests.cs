@@ -4,9 +4,11 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Practice;
+using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Domain.Tests;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Testing;
+using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Api.Tests;
 
@@ -26,12 +28,46 @@ public sealed class FirmReceivablesAgingApiTests
     {
       db.RoleGrants.AddRange(
         PbcSeed.Grant(seed.FirmId, seed.Admin, "FinanceManager"),
+        PbcSeed.Grant(seed.FirmId, seed.Admin, "Partner"),
         PbcSeed.Grant(seed.Reviewer.FirmId, seed.Reviewer, "FinanceReviewer"));
       await db.SaveChangesAsync();
-      accountId = (await BillingService.CreateBillingAccountAsync(db, manager,
-        new CreateBillingAccountRequest(seed.ClientId, "QAR"))).Value;
-      invoiceId = (await BillingService.CreateInvoiceDraftAsync(db, manager,
-        new CreateInvoiceDraftRequest(accountId, "SYN-AGING-API-001", [new InvoiceLineRequest("Synthetic advance", 1m, 100m)]))).Value;
+
+      var lead = new Lead
+      {
+        Id = Guid.NewGuid(), FirmId = seed.FirmId, Name = "Synthetic API ageing client",
+        Source = "Referral", CreatedAt = now
+      };
+      var opportunity = new Opportunity
+      {
+        Id = Guid.NewGuid(), FirmId = seed.FirmId, LeadId = lead.Id, PracticeClientId = seed.ClientId,
+        ServiceRoute = "FinancialStatementAudit", EntityScope = "TEST", PeriodStart = "2026-01-01",
+        PeriodEnd = "2026-12-31", Currency = "QAR", CreatedAt = now
+      };
+      var proposal = new Proposal
+      {
+        Id = Guid.NewGuid(), FirmId = seed.FirmId, OpportunityId = opportunity.Id, PracticeClientId = seed.ClientId,
+        Status = CrmStates.ProposalAccepted, Currency = "QAR", Fee = 200m,
+        ServiceProfileId = "AUDIT-2026", Scope = "Synthetic API audit scope", Deliverables = "Synthetic API report",
+        PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", CreatedAt = now, ResponseAt = now
+      };
+      db.Leads.Add(lead);
+      db.Opportunities.Add(opportunity);
+      db.Proposals.Add(proposal);
+      db.QuotationVersions.Add(new QuotationVersion
+      {
+        Id = Guid.NewGuid(), FirmId = seed.FirmId, ProposalId = proposal.Id, Currency = "QAR",
+        BaseAmount = 200m, Fee = 200m, InputHash = Hashing.Sha256Hex("synthetic API ageing quotation"),
+        Status = QuotationStates.Approved, CreatedByUserId = seed.Admin.Id, ApprovedAt = now, CreatedAt = now
+      });
+      await db.SaveChangesAsync();
+
+      var agreement = await FeeAgreementService.CreateAgreementAsync(db, PbcSeed.Actor(seed.Admin, "Partner"), proposal.Id);
+      Assert.True(agreement.Succeeded, agreement.Message);
+      var advanceInvoice = await FeeAgreementService.IssueAdvanceInvoiceAsync(db, manager, agreement.Value);
+      Assert.True(advanceInvoice.Succeeded, advanceInvoice.Message);
+      invoiceId = advanceInvoice.Value;
+      accountId = await db.BillingAccounts.Where(x => x.FirmId == seed.FirmId && x.PracticeClientId == seed.ClientId)
+        .Select(x => x.Id).SingleAsync();
       Assert.True((await BillingService.SubmitInvoiceAsync(db, manager, invoiceId)).Succeeded);
       Assert.True((await BillingService.ApproveInvoiceAsync(db, reviewer, invoiceId)).Succeeded);
       db.FirmFinanceProfiles.Add(new FirmFinanceProfile
@@ -42,6 +78,11 @@ public sealed class FirmReceivablesAgingApiTests
       });
       await db.SaveChangesAsync();
       Assert.True((await BillingService.PostInvoiceAsync(db, manager, invoiceId)).Succeeded);
+      var unrelatedInvoice = (await BillingService.CreateInvoiceDraftAsync(db, manager,
+        new CreateInvoiceDraftRequest(accountId, "SYN-AGING-API-UNLINKED", [new InvoiceLineRequest("Unlinked non-fee item", 1m, 500m)]))).Value;
+      Assert.True((await BillingService.SubmitInvoiceAsync(db, manager, unrelatedInvoice)).Succeeded);
+      Assert.True((await BillingService.ApproveInvoiceAsync(db, reviewer, unrelatedInvoice)).Succeeded);
+      Assert.True((await BillingService.PostInvoiceAsync(db, manager, unrelatedInvoice)).Succeeded);
     }
 
     using var managerFactory = Factory(pg, seed.Admin.Subject);
@@ -50,6 +91,9 @@ public sealed class FirmReceivablesAgingApiTests
     var reportPath = $"/api/ui/finance/receivables-aging?asOf={asOf:yyyy-MM-dd}";
     var initial = await managerClient.GetFromJsonAsync<JsonElement>(reportPath);
     var initialRow = Assert.Single(initial.GetProperty("rows").EnumerateArray());
+    Assert.Equal(invoiceId, initialRow.GetProperty("invoiceId").GetGuid());
+    Assert.DoesNotContain(initial.GetProperty("rows").EnumerateArray(), x =>
+      x.GetProperty("invoiceNumber").GetString() == "SYN-AGING-API-UNLINKED");
     Assert.Equal("UNDATED_REVIEW_REQUIRED", initialRow.GetProperty("bucket").GetString());
     Assert.Null(initialRow.GetProperty("dueDate").GetStringOrNull());
 

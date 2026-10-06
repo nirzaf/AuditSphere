@@ -81,6 +81,11 @@ public sealed class FirmReceivablesAgingQueryTests
       Assert.True((await BillingService.SubmitInvoiceAsync(db, manager, invoiceId)).Succeeded);
       Assert.True((await BillingService.ApproveInvoiceAsync(db, reviewer, invoiceId)).Succeeded);
       Assert.True((await BillingService.PostInvoiceAsync(db, manager, invoiceId)).Succeeded);
+      var unrelatedInvoice = (await BillingService.CreateInvoiceDraftAsync(db, manager,
+        new CreateInvoiceDraftRequest(accountId, "SYN-AGING-UNLINKED", [new InvoiceLineRequest("Unlinked non-fee item", 1m, 500m)]))).Value;
+      Assert.True((await BillingService.SubmitInvoiceAsync(db, manager, unrelatedInvoice)).Succeeded);
+      Assert.True((await BillingService.ApproveInvoiceAsync(db, reviewer, unrelatedInvoice)).Succeeded);
+      Assert.True((await BillingService.PostInvoiceAsync(db, manager, unrelatedInvoice)).Succeeded);
 
       var termsRequest = new SetInvoicePaymentTermsRequest(asOf.AddDays(-31),
         InvoicePaymentTermsKinds.ContractualDueDate, "Due 31 calendar days before the report date",
@@ -169,6 +174,7 @@ public sealed class FirmReceivablesAgingQueryTests
       Assert.True(report.Succeeded, report.ErrorCode);
       var row = Assert.Single(report.Value!.Rows);
       Assert.Equal(invoiceId, row.InvoiceId);
+      Assert.DoesNotContain(report.Value.Rows, x => x.InvoiceNumber == "SYN-AGING-UNLINKED");
       Assert.Equal("PBC TEST CLIENT", row.LegalClientName);
       Assert.Null(row.EngagementId);
       Assert.Equal(asOf.AddDays(-31), row.DueDate);

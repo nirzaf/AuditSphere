@@ -446,7 +446,7 @@ identities; provider acceptance (Purview/eSignature) is never claimed.
 
 
 
-- Application: `Application/Practice/PracticeCrmService.cs` (CRM / proposals), `PracticeLeadQuery.cs` (current-access lead list), `WorkspaceQuery.Client.cs` (client-level master metadata, complete scoped counts and bounded contact/engagement pages), `ClientContactCreationWorkspace.cs` (reviewed contact creation and actor-owned immutable receipt recovery), `PracticeTimeService.cs` (time / budgets), `BillingService.cs` (billing), `LedgerService.cs` and `FirmFinanceQuery.cs` (firm financial ledger)
+- Application: `Application/Practice/PracticeCrmService.cs` (CRM / proposals), `PracticeLeadQuery.cs` (current-access lead list), `WorkspaceQuery.Client.cs` (client-level master metadata, complete scoped counts and bounded contact/engagement pages), `ClientContactCreationWorkspace.cs` (reviewed contact creation and actor-owned immutable receipt recovery), `PracticeTimeService.cs` (time / budgets), `BillingService.cs` (billing), `BillingInvoiceWorkspaceQuery.cs` (invoice workspace), `InvoicePaymentTermsService.cs` (evidence-backed maker/checker due-date revisions), `ReceiptAllocationReversalService.cs` (reviewed payment unapply), `FirmReceivablesAgingQuery.cs` (firm-fee ageing and CSV export), `LedgerService.cs` and `FirmFinanceQuery.cs` (firm financial ledger)
 
 
 
@@ -454,9 +454,9 @@ identities; provider acceptance (Purview/eSignature) is never claimed.
 
 
 
-- UI: legacy `Leads.razor`, `Portfolio.razor`, `ClientDetail.razor`, `Finance.razor`, `InvoiceDetail.razor`, `PracticeTime.razor`; native Angular invoice actions in `AuditSphereOps.Ui/src/app/features/finance/invoice.ts` through `Api/UiEndpoints.Finance.cs` and `BillingInvoiceWorkspaceQuery.cs`
+- UI: legacy `Leads.razor`, `Portfolio.razor`, `ClientDetail.razor`, `Finance.razor`, `InvoiceDetail.razor`, `PracticeTime.razor`; native Angular invoice actions and term/reversal review in `AuditSphereOps.Ui/src/app/features/finance/invoice.ts`, plus the firm-fee ageing report/export in `AuditSphereOps.Ui/src/app/features/finance/receivables-aging.ts`, through `Api/UiEndpoints.Finance.cs`
 
-- Verification: `BillingWorkspaceApiTests` checks current authorization, CSRF and exact receipt/allocation/credit balances; `AngularBillingWorkspaceJourneyTests` exercises the native flow and lost-response review.
+- Verification: `BillingWorkspaceApiTests` checks current authorization, CSRF and exact receipt/allocation/credit balances; `FirmReceivablesAgingQueryTests` and `FirmReceivablesAgingApiTests` cover historical balances, terms, reversals, scope denial and protected export; `AngularBillingWorkspaceJourneyTests` exercises the native flow and lost-response review.
 
 
 

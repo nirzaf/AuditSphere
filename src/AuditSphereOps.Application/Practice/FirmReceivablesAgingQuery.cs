@@ -56,7 +56,13 @@ public static class FirmReceivablesAgingQuery
         on new { account.FirmId, account.PracticeClientId } equals new { client.FirmId, PracticeClientId = client.Id }
       where invoice.FirmId == actor.FirmId && invoice.PostedAt != null && invoice.PostedAt < cutoff &&
         (invoice.Status == BillingStates.InvoicePosted || invoice.Status == BillingStates.InvoiceSent ||
-         (invoice.Status == BillingStates.InvoiceCancelled && invoice.CancelledAt >= cutoff))
+         (invoice.Status == BillingStates.InvoiceCancelled && invoice.CancelledAt >= cutoff)) &&
+        db.InvoiceLines.Any(line => line.FirmId == invoice.FirmId && line.InvoiceId == invoice.Id &&
+          line.SourceKind == FeeAgreementService.MilestoneSourceKind && line.SourceId.HasValue &&
+          db.FeeMilestones.Any(milestone => milestone.FirmId == line.FirmId && milestone.Id == line.SourceId &&
+            (milestone.Kind == FeeMilestoneKinds.Advance || milestone.Kind == FeeMilestoneKinds.Balance) &&
+            db.EngagementFeeAgreements.Any(agreement => agreement.FirmId == milestone.FirmId &&
+              agreement.Id == milestone.AgreementId && agreement.PracticeClientId == account.PracticeClientId)))
       orderby invoice.PostedAt, invoice.Id
       select new
       {
@@ -123,14 +129,25 @@ public static class FirmReceivablesAgingQuery
 
     var milestoneLinks = invoiceIds.Length == 0 ? [] : await (
       from line in db.InvoiceLines.AsNoTracking()
+      join invoice in db.Invoices.AsNoTracking()
+        on new { line.FirmId, line.InvoiceId } equals new { invoice.FirmId, InvoiceId = invoice.Id }
+      join account in db.BillingAccounts.AsNoTracking()
+        on new { invoice.FirmId, invoice.BillingAccountId } equals new { account.FirmId, BillingAccountId = account.Id }
       join milestone in db.FeeMilestones.AsNoTracking()
         on new { line.FirmId, MilestoneId = line.SourceId } equals new { milestone.FirmId, MilestoneId = (Guid?)milestone.Id }
       join agreement in db.EngagementFeeAgreements.AsNoTracking()
         on new { milestone.FirmId, milestone.AgreementId } equals new { agreement.FirmId, AgreementId = agreement.Id }
-      where line.FirmId == actor.FirmId && invoiceIds.Contains(line.InvoiceId) && line.SourceKind == FeeAgreementService.MilestoneSourceKind
+      where line.FirmId == actor.FirmId && invoiceIds.Contains(line.InvoiceId) &&
+        line.SourceKind == FeeAgreementService.MilestoneSourceKind &&
+        (milestone.Kind == FeeMilestoneKinds.Advance || milestone.Kind == FeeMilestoneKinds.Balance) &&
+        agreement.PracticeClientId == account.PracticeClientId
       select new { line.InvoiceId, milestone.Kind, agreement.EngagementId }
     ).ToListAsync(ct);
-    var milestoneByInvoice = milestoneLinks.GroupBy(x => x.InvoiceId).ToDictionary(g => g.Key, g => g.First());
+    var milestoneGroups = milestoneLinks.GroupBy(x => x.InvoiceId).ToArray();
+    if (milestoneGroups.Length != invoiceIds.Length || milestoneGroups.Any(g => g.Count() != 1))
+      return CommandResult<FirmReceivablesAgingReport>.Fail("finance.fee-source-invalid",
+        "A posted fee invoice has an ambiguous milestone binding. Contact a firm administrator.");
+    var milestoneByInvoice = milestoneGroups.ToDictionary(g => g.Key, g => g.Single());
     var engagementIds = milestoneLinks.Where(x => x.EngagementId.HasValue).Select(x => x.EngagementId!.Value).Distinct().ToArray();
     var engagementNames = engagementIds.Length == 0 ? new Dictionary<Guid, string>() : await db.Engagements.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && engagementIds.Contains(x.Id))
