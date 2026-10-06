@@ -461,6 +461,11 @@
           "Microsoft.IdentityModel.Logging": "8.0.1"
         }
       },
+      "Microsoft.OpenApi": {
+        "type": "Transitive",
+        "resolved": "2.12.0",
+        "contentHash": "0xB/be+f6qYOhvQPUrVsLrau+fkowYv6gt9RIkajMhwT7sZnqtcA797yW3bS5kgSje+AQW4xZgyLnW641YFioQ=="
+      },
       "Microsoft.TestPlatform.ObjectModel": {
         "type": "Transitive",
         "resolved": "18.10.0",
@@ -699,6 +704,7 @@
           "AuditSphereOps.Domain": "[1.0.0, )",
           "AuditSphereOps.Infrastructure": "[1.0.0, )",
           "Microsoft.AspNetCore.Authentication.OpenIdConnect": "[10.0.0, )",
+          "Microsoft.AspNetCore.OpenApi": "[10.0.12, )",
           "Microsoft.EntityFrameworkCore.Design": "[10.0.12, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.0, )",
           "OpenTelemetry.Exporter.OpenTelemetryProtocol": "[1.18.0, )",
@@ -762,6 +768,15 @@
         "contentHash": "6ATONu+5A2oh/vzmoFhf3cuQcclMaWGHrb1kvjVsYtml+gzuWD48MmbsItM4xAUQkJZ2t8XFmbGp8pZLPxKneA==",
         "dependencies": {
           "Microsoft.IdentityModel.Protocols.OpenIdConnect": "8.0.1"
+        }
+      },
+      "Microsoft.AspNetCore.OpenApi": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.12, )",
+        "resolved": "10.0.12",
+        "contentHash": "7RnQ/UKn+kK3JDLmTpW+vVqNErWthGPAVAy1aIiBzv4ucQ6g9NFvOJUuT0PHcpvcJxGVxctMxj6t+NESWMrgHQ==",
+        "dependencies": {
+          "Microsoft.OpenApi": "[2.12.0, 3.0.0)"
         }
       },
       "Microsoft.EntityFrameworkCore": {

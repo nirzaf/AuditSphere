@@ -15,6 +15,40 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Completed focused slice: HTTP boundary hardening, OpenAPI contract, and IaC baseline
+
+The architecture-hardening user story (HTTP trust boundary, canonical OpenAPI 3.1 contract,
+production infrastructure as code) was implemented in verified slices through commit
+`75005721` plus the rate-limit fix and IaC commits that follow it. Boundary and contract
+evidence lives in `status.json` under `verification.httpBoundaryAndOpenApiContract`.
+
+- **Slice A/B/C (HTTP boundary):** `/api/ui` and `/api/setup` require an authenticated cookie
+  session before any handler runs; native ASP.NET Core rate limiting partitions by immutable
+  `tid`/`oid` identity (IP fallback for anonymous sign-in) with per-class windows and export/upload
+  concurrency budgets; centralized security headers use a build-derived strict script CSP;
+  fingerprinted Angular assets cache immutably; oversized JSON commands receive a structured 413
+  before business processing. `HttpBoundarySecurityTests` passed 12/12. The m365 administration
+  class was raised from 10 to 30 permits/minute after the workspace provisioning flow proved
+  10/min throttles legitimate setup wizards.
+- **Slice D/E (OpenAPI):** native .NET OpenAPI generates the `auditsphere` 3.1 document from the
+  actual endpoints; session-cookie security and boundary 401/429/413 responses are declared on
+  protected operations; financial decimals stay exact strings. The committed contract artifact is
+  drift-checked in CI by `scripts/contracts/verify-openapi.sh` (single no-database generation
+  check; hosted-suite policy unchanged). `OpenApiContractTests` passed 5/5; Angular unit tests
+  passed 500/500 including the new typed-429-refusal case.
+- **Slice F/G/H/I (IaC):** Bicep modules + both environment definitions compile with
+  `az bicep build`; Dockerfiles define immutable SHA-tagged API/worker/migration-bundle images;
+  the dispatch-only release workflow encodes migration-before-traffic, 10% canary with read-only
+  smoke checks, and promote/rollback. Nothing is deployed: live Azure steps remain
+  BLOCKED_EXTERNAL pending owner-approved subscription, ACR, OIDC federation and Key Vault
+  secrets (`infra/auditsphere-deployment-iac-runbook.md` records the verified/unverified split).
+
+Known pre-existing failure (not this slice): `StaffingChangeReviewApiTests.
+ExactReviewCsrfCurrentAuthorityReceiptsAndRetentionMigrationAreEnforced` fails with an
+in-handler InvalidOperationException (503) identically at pre-change baseline commit `03d7eb13`
+(verified via isolated worktree). Remaining story work: live deployment acceptance, canary and
+rollback exercise, production OpenAPI exposure policy decision, and the real-AT walk-through.
+
 ## Completed focused slice: Firm-expense submit/review outcome recovery
 
 At pushed code commit `d21d0382`,

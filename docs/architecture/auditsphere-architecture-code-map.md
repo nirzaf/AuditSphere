@@ -885,3 +885,12 @@ For the complete documentation index, authority hierarchy, current requirements,
 - Persistence: `AuditSphereDbContext.ClientConversions.cs`, migration `NativeClientConversionReview`, append-only and deferred same-firm handover guard with retained-evidence rollback refusal.
 - API: `Ui/UiEndpoints.ClientConversion.cs`; Angular: `features/commercial/client-conversion.*`, native proposal link and guarded route.
 - Tests: `ClientConversionReviewTests`, `ClientConversionReviewApiTests`, `AngularClientConversionJourneyTests`, shared `ClientConversionReviewSeed`; observed results belong to the execution ledger.
+
+## Hardened HTTP boundary and OpenAPI contract
+
+- Boundary policies: `Api/HttpBoundary/HttpPolicies.cs` (authenticated-session policy), `Api/HttpBoundary/ApiRateClass.cs` (cost classes with endpoint markers), `Api/HttpBoundary/ApiRateLimiter.cs` (chained global limiter, per-identity partitions, configurable budgets), `Api/HttpBoundary/SecurityHeaderOptions.cs` + `SecurityHeadersMiddleware.cs` (build-derived strict script CSP and global headers), `Api/HttpBoundary/RequestBodyLimitMiddleware.cs` (Kestrel ceiling plus JSON command 413 guard), `Api/HttpBoundary/ApiError.cs` (stable boundary error body).
+- Host wiring: `ApiHost.cs`, `ApiHost.HttpBoundary.cs` (rate limiting, request limits, security headers, contract registration); group-level session authorization on `/api/ui` (`Ui/UiEndpoints.cs`) and `/api/setup` (`ApiHost.Installation.cs`); export/upload rate-class markers on `UiEndpoints.{Portfolio,Statements,Packages,JournalReview,AccountingRecords,GeneralLedger}.cs` and `ApiHost.DocumentEndpoints.cs`.
+- Contract: `Api/Contracts/ApiContract.cs` (native OpenAPI 3.1 document `auditsphere` with session-cookie scheme, ApiError schema, decimal-as-string rule); committed artifact `contracts/auditsphere-openapi.json`; drift script `scripts/contracts/verify-openapi.sh` wired into CI.
+- Angular side: `core/api.ts` keeps command/outcome semantics (no retries, `outcome.unknown`, typed 429 refusal asserted in `core/api.spec.ts`).
+- Tests: `HttpBoundarySecurityTests.cs`, `OpenApiContractTests.cs`.
+- Authority: [HTTP boundary and contract architecture](auditsphere-architecture-http-boundary-and-contract-current.md); deployment topology in `infra/auditsphere-deployment-iac-runbook.md`.
