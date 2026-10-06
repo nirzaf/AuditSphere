@@ -103,7 +103,7 @@ export class ClientOperationalJournals {
     void id;
   });
   constructor() { inject(DestroyRef).onDestroy(() => this.operation?.unsubscribe()); }
-  userId(): string { return this.session.current()?.staff?.userId ?? ''; }
+  userId(): string { return this.session.current()?.userId ?? ''; }
   totalDebit(): string { return this.total('debit'); }
   totalCredit(): string { return this.total('credit'); }
   balanced(): boolean { try { const d = this.lines().reduce((sum, x) => sum + minor(x.debit), 0n); const c = this.lines().reduce((sum, x) => sum + minor(x.credit), 0n); return d > 0n && d === c; } catch { return false; } }

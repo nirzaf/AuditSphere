@@ -45,7 +45,7 @@ public static partial class ClientAccountingService
       if (!permitted)
         return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
           "An affirmative service-permissibility decision is required before enabling client reporting.");
-      if (serviceKind == AccountingCapabilityServiceKinds.ClientBookkeeping)
+      if (serviceKind == AccountingCapabilityServiceKinds.ClientBookkeeping && request.ClientId.HasValue)
       {
         var unconditional = await ClientBookkeepingAuthorization.IsCurrentDecisionAcceptedAsync(
           db, actor.FirmId, request.ClientId.Value, serviceRoute, ct);
