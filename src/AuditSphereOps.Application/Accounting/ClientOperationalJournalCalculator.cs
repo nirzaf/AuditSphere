@@ -9,9 +9,14 @@ public static class ClientOperationalJournalCalculator
   public const decimal MaximumLineAmount = ClientNativeAmountRules.MaximumStoredAmount;
 
   public static ClientOperationalJournalCalculation Calculate(IReadOnlyList<ClientOperationalJournalLineInput>? lines)
+    => CalculateCore(lines, 100);
+
+  internal static ClientOperationalJournalCalculation CalculateDocument(IReadOnlyList<ClientOperationalJournalLineInput>? lines) => CalculateCore(lines, 101);
+
+  private static ClientOperationalJournalCalculation CalculateCore(IReadOnlyList<ClientOperationalJournalLineInput>? lines, int maximumLines)
   {
-    if (lines is null || lines.Count is < 2 or > 100)
-      return new(false, 0m, 0m, 0m, "A journal needs 2 to 100 substantive lines.");
+    if (lines is null || lines.Count < 2 || lines.Count > maximumLines)
+      return new(false, 0m, 0m, 0m, $"A journal needs 2 to {maximumLines} substantive lines.");
     decimal debit = 0m, credit = 0m;
     foreach (var line in lines)
     {
