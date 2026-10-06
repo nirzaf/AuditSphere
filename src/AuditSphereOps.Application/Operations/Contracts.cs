@@ -237,6 +237,7 @@ public interface IClientAccountingDbContext : IAuditSphereDbContext
   DbSet<AdjustmentPlanAction> AdjustmentPlanActions { get; }
   DbSet<AccountingCapabilityProfile> AccountingCapabilityProfiles { get; }
   DbSet<AccountingCapabilityAcceptance> AccountingCapabilityAcceptances { get; }
+  DbSet<ClientBookkeepingCounterparty> ClientBookkeepingCounterparties { get; }
   DbSet<ClientAccountingProfile> ClientAccountingProfiles { get; }
   DbSet<ClientGroup> ClientGroups { get; }
   DbSet<ClientGroupMembership> ClientGroupMemberships { get; }

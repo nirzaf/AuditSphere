@@ -273,6 +273,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
 
   public DbSet<AccountingCapabilityAcceptance> AccountingCapabilityAcceptances => Set<AccountingCapabilityAcceptance>();
 
+  public DbSet<ClientBookkeepingCounterparty> ClientBookkeepingCounterparties => Set<ClientBookkeepingCounterparty>();
   public DbSet<ClientAccountingProfile> ClientAccountingProfiles => Set<ClientAccountingProfile>();
 
   public DbSet<ClientGroup> ClientGroups => Set<ClientGroup>();
@@ -541,6 +542,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
     ConfigureAccounting(b);
     ConfigureClientAccounting(b);
     ConfigureClientOperationalLedger(b);
+    ConfigureClientCounterparties(b);
     ConfigureAccountingEvidenceActions(b);
     ConfigureAccountingAnalysisPreparations(b);
     ConfigureAccountingCreationPreparations(b);

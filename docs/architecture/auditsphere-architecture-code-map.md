@@ -32,6 +32,8 @@ capability; public APIs are stable across parts. Verified project state lives on
 
 ## Native client operational bookkeeping
 
+- Client customers/suppliers: `Application/Accounting/ClientBookkeepingCounterpartyWorkspace.cs`, `Domain/Accounting/ClientBookkeepingCounterparty.cs`, `Api/Ui/UiEndpoints.ClientCounterparties.cs` and Angular `features/accounting/counterparties.ts`. Client-scoped immutable initial profiles, combined role, optional tax/defaults, duplicate fences and retained reads after service withdrawal. Reviewed amendments/duplicate resolution and frozen invoice snapshots remain separate work; this is a partial CA-07 foundation.
+
 - Domain: `Domain/Accounting/ClientAccounting.cs`; client-owned journals, lines and review decisions.
 - Application: `Application/Accounting/ClientOperationalLedgerWorkspace.cs` and `ClientOperationalGeneralLedgerWorkspace.cs`; accepted bookkeeping service gate, balanced journal preparation, independent posting and posted movement queries.
 - Native activity Trial Balance: `Application/Accounting/ClientOperationalGeneralLedgerWorkspace.cs`; same repeatable-read snapshot as date-filtered GL, opening activity within the selected period, exact movement/closing controls and optional approved zero-activity accounts. Cutover openings, carry-forward, adjusted/source snapshots and exports remain separate work.
