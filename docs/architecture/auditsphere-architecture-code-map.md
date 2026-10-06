@@ -37,6 +37,7 @@ capability; public APIs are stable across parts. Verified project state lives on
 - Submitted content: `Application/Accounting/ClientOperationalLedgerWorkspace.Snapshots.cs`; scoped historical content with exact string amounts, captured atomically by submission triggers in the snapshot migration. Existing uncaptured reviews are not reconstructed.
 - Review return: `Application/Accounting/ClientOperationalLedgerWorkspace.Return.cs`; independent revision-bound return reason, append-only review history and protected returned content.
 - Posting receipts: `Application/Accounting/ClientOperationalLedgerWorkspace.Receipts.cs`; client-scoped exact-intent command identities, atomic immutable outcomes, original-actor recovery and same-key replay. Angular preserves an unknown posting request until scoped recovery or retry of its original intent.
+- Full manual reversals: `Application/Accounting/ClientOperationalLedgerWorkspace.Reversal.cs`; original-lock creation/replay, explicit open correction period/date, immutable reason/evidence-reference lineage and exact swapped lines enforced by deferred database guards. Independent preview/review/posting uses the normal journal workflow.
 - Rework: `Application/Accounting/ClientOperationalLedgerWorkspace.Rework.cs`; original-preparer corrections to a returned journal under revision and period locks, requiring exact preserved submitted content and a return decision before draft replacement. Earlier submissions remain immutable.
 - Preview: `Application/Accounting/ClientOperationalLedgerWorkspace.Preview.cs`; read-only exact totals and digest covering current journal, period, approved chart and accepted mandate, rechecked inside submission/posting transactions.
 - Calculator: `Application/Accounting/ClientOperationalJournalCalculator.cs`; bounded exact native line amounts and balanced totals shared by draft creation and submission/posting validation. Currency-specific rounding policy remains separate work.
@@ -45,7 +46,7 @@ capability; public APIs are stable across parts. Verified project state lives on
 - Persistence: `Infrastructure/Persistence/AuditSphereDbContext.ClientOperationalLedger.cs`; dedicated operational journal tables and integrity migration. These are separate from firm ledger entries and reporting adjustments.
 - Tests: `ClientAccountingTests.OperationalLedger.cs` and `AngularClientOperationalJournalJourneyTests.cs`.
 
-Posted movement reports exclude opening balances and imported GL. Native TB/snapshot adaptation, correction lineage and durable command receipts remain subsequent work; this surface does not establish full bookkeeping completion.
+Posted movement reports exclude opening balances and imported GL. Native TB/snapshot adaptation, remaining document-correction workflows and receipts for other commands remain subsequent work; this surface does not establish full bookkeeping completion.
 
 ## Accounting setup — profiles, periods, books, charts, taxonomy, capabilities
 
