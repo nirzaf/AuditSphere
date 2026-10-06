@@ -26,6 +26,16 @@ describe('API session and unknown outcome fences', () => {
     http.expectOne('/api/ui/source/export').flush(new Blob(['synthetic csv']), {headers:{'Content-Type':'text/csv','Content-Disposition':'attachment; filename=source.csv'}});
     const result = await request; expect(result.ok).toBe(false); if (!result.ok) expect(result.code).toBe('download.context');
   });
+  it('preserves the safe typed refusal for a bounded portfolio export', async () => {
+    const api = TestBed.inject(Api), http = TestBed.inject(HttpTestingController);
+    const request = api.download('/api/ui/portfolio/export', { search: '' });
+    http.expectOne('/api/ui/portfolio/export').flush(new Blob([JSON.stringify({
+      code: 'export.limit', message: 'Narrow the search before exporting. The client export limit was exceeded.',
+    })], { type: 'application/json' }), { status: 400, statusText: 'Bad Request' });
+    const result = await request;
+    expect(result).toEqual({ ok: false, unknown: false, code: 'download.refused', status: 400,
+      message: 'Narrow the search before exporting. The client export limit was exceeded.' });
+  });
   it('does not save a late download after revocation', async () => {
     const api = TestBed.inject(Api), http = TestBed.inject(HttpTestingController);
     const request = api.download('/api/ui/source/export'); TestBed.inject(SessionService).clear();

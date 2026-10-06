@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Tests;
+using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -10,6 +11,43 @@ namespace AuditSphereOps.Api.Tests;
 
 public sealed class PortfolioWorkspaceApiTests
 {
+  [Fact]
+  public async Task ExportLimitReturnsTypedRefusalWithoutCsvOrInternalDiagnostics()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("PORTFOLIO-EXPORT-LIMIT-API");
+    var f = await PbcSeed.SeedAsync(pg);
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var now = DateTimeOffset.UtcNow;
+      db.PracticeClients.AddRange(Enumerable.Range(0, PortfolioQuery.ExportClientLimit).Select(i => new PracticeClient
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, LegalName = $"PORTFOLIO EXPORT LIMIT CLIENT {i:D4}", CreatedAt = now
+      }));
+      await db.SaveChangesAsync();
+    }
+
+    using var factory = new StandaloneApiApplicationFactory(new Dictionary<string, string?> {
+      ["ConnectionStrings:AuditSphere"] = pg.ConnectionString, ["DevelopmentIdentity:Enabled"] = "true",
+      ["DevelopmentIdentity:Subject"] = f.Admin.Subject, ["DevelopmentIdentity:TenantId"] = f.Admin.TenantId,
+      ["Application:AllowSimulationAdapters"] = "true", ["ExternalEffects:Enabled"] = "false" });
+    using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
+    await client.GetAsync("/auth/sign-in");
+    using var session = await client.GetAsync("/api/ui/session");
+    var csrf = session.Headers.GetValues("Set-Cookie")
+      .Single(v => v.StartsWith("XSRF-TOKEN=", StringComparison.Ordinal)).Split(';')[0]["XSRF-TOKEN=".Length..];
+    client.DefaultRequestHeaders.Add("X-XSRF-TOKEN", Uri.UnescapeDataString(csrf));
+
+    using var response = await client.PostAsJsonAsync("/api/ui/portfolio/export", new { search = "" });
+    Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    Assert.Equal("application/json", response.Content.Headers.ContentType!.MediaType);
+    Assert.Null(response.Content.Headers.ContentDisposition);
+    var refusal = await response.Content.ReadFromJsonAsync<Dictionary<string, string>>();
+    Assert.Equal("export.limit", refusal!["code"]);
+    Assert.Equal("Narrow the search before exporting. The client export limit was exceeded.", refusal["message"]);
+    Assert.DoesNotContain("Exception", refusal["message"], StringComparison.OrdinalIgnoreCase);
+    Assert.DoesNotContain("text/csv", response.Content.Headers.ContentType.MediaType, StringComparison.OrdinalIgnoreCase);
+  }
+
   [Fact]
   public async Task CurrentCookieScopeCsrfExportAndRevocationFenceEveryProjection()
   {
