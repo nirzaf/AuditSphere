@@ -15,6 +15,17 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: Page-only search truncation guidance
+
+Extended the PostgreSQL-backed Global Search browser journey to verify the
+page-only overflow path. It checks that the API returns six `Page` hits with
+`truncated=true`, the Angular view renders six links, and the refinement hint
+is visible. `GlobalSearchJourneyTests` passed 2/2 in 46s; test commit
+`0273cbd5` is pushed. This closes the page-only hint case; other result-kind
+caps/ranking and exhaustive role/scope remain open. Timeout and in-flight
+session invalidation remain open, and full migration/retirement acceptance is
+still `NOT_READY`.
+
 ## Current follow-on slice: Global Search safe failure and retry
 
 Extended the PostgreSQL-backed Angular browser journey with a synthetic 503
