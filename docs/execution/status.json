@@ -4,12 +4,12 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "5912f1ba03d8ff61aadf37e854cfa44519dde6fd",
-  "verifiedCommit": "e9b0736081ed2749fc56d82a56f0f48d842f9897",
+  "headCommit": "5198a415cbf7765c391af9a87fb6baa9401874b1",
+  "verifiedCommit": "5198a415cbf7765c391af9a87fb6baa9401874b1",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
   "productionEnabled": false,
-  "verifiedAt": "2026-10-06T19:56:52Z",
+  "verifiedAt": "2026-10-06T20:06:52Z",
   "toolchain": {
     "sdk": ".NET 10",
     "efCore": "10.0.12",
@@ -1913,6 +1913,28 @@
         "sourceCommit": "e654692062a41cea369f070aeffb0face6dc3e3b",
         "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --configuration Release --filter 'FullyQualifiedName~AuditProgramCommandIsolationTests|FullyQualifiedName~AuditConfirmationCommandIsolationTests|FullyQualifiedName~AuditDifferenceCommandIsolationTests|FullyQualifiedName~AuditAreaAssessmentIsolationTests|FullyQualifiedName~AuditPlanningCompletionIsolationTests|FullyQualifiedName~AuditFindingCommandIsolationTests|FullyQualifiedName~AuditPlanningCommandIsolationTests|FullyQualifiedName~AuditSamplingSelectionIsolationTests'"
       }
+    },
+    "asPar002ReviewNoteIdentifierNonDisclosure": {
+      "sourceCommit": "5198a415cbf7765c391af9a87fb6baa9401874b1",
+      "observedAt": "2026-10-06T20:06:52Z",
+      "status": "PASS_LOCAL",
+      "caseId": "AS-PAR-002-REVIEW-NOTE-ID-NONDISCLOSURE-01",
+      "focusedPostgresTest": {
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "test": "AuditReviewNoteIsolationTests.SiblingReviewNoteIds_AreDeniedForCreateReadAndThreadEvents",
+        "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~AuditReviewNoteIsolationTests' --logger 'console;verbosity=minimal'",
+        "coverage": "A client-A scoped actor receives the same ScopeDenied code for sibling versus random result and note IDs across note creation, response, resolution and reopen. Sibling and random procedure reads return no notes. The sibling note body and its three thread events remain unchanged."
+      },
+      "releaseTestBuild": "PASS: affected Domain, Application, Infrastructure, Worker and Domain.Tests projects compiled for the PostgreSQL-backed focused run.",
+      "fullSolutionRegression": "NOT_RUN for this slice; AS-PAR-002 and whole migration acceptance remain partial.",
+      "efModelDrift": "NOT_RUN; no EF entity or model changed.",
+      "browserJourney": "NOT_RUN for this service-layer isolation test; no presentation code changed.",
+      "openGaps": [
+        "Additional Application command families, export/count paths, and cross-firm/revoked-identity cases remain to be audited.",
+        "Independent security review and the broader Blazor source-action parity gates remain open."
+      ]
     },
     "asPar002ScopedPortfolioBillingAndResourceRecovery": {
       "sourceCommit": "cdf18c014919fbfa2a89d125b706d9055036f627",
@@ -10936,7 +10958,7 @@
       },
       "taskPackValidation": "PASS: 75 tasks, 21 work packages, 111 commands/queries, 52 criteria, 30 journeys, 8 fixtures, and 2487 local links; no validation errors.",
       "builtInBrowser": "STALE_LOCAL_HOST: authenticated /ui/app/administration/project-progress rendered on localhost:5099, then showed the safe 'Unsupported response' message because the long-running API does not expose the freshness response contract from this source commit. This is not a pass for the updated endpoint/UI; the isolated API and Playwright journey use the current implementation. No business mutation was submitted.",
-      "fullSolutionRegression": "NOT_RUN for this slice. The later accounting and client-role merges at current HEAD 5912f1ba are also not included in the tested source snapshot.",
+      "fullSolutionRegression": "NOT_RUN for this slice. The later accounting and client-role merges at HEAD 5912f1ba at the time of observation are also not included in the tested source snapshot.",
       "efModelDrift": "NOT_RUN for this slice; no EF entity or model changed.",
       "retirementDecision": "NOT_READY",
       "openGaps": [
