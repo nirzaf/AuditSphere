@@ -11553,6 +11553,45 @@
       "toolchainNote": "Infrastructure/domain tests rebuilt without incremental caching before final PostgreSQL run. Temporary worktree SDK roll-forward restored after browser run.",
       "fullRegression": "NOT_RUN",
       "boundary": "Partial CA-10 workflow. Returned content is protected until immutable revision editing exists; current resubmission preserves the same journal content. Editor/evidence revisions, reversal lineage, durable receipts, currency/FX policy, native TB/reporting snapshots and client invoice/open-item workflows remain open. Full epic unmerged; tax and nonmandatory modules optional."
+    },
+    "clientOperationalJournalSnapshots": {
+      "sourceCommit": "06a892bb",
+      "verifiedAt": "2026-10-06T16:20:43.705811+00:00",
+      "focusedPostgresTests": {
+        "result": "PASS",
+        "passed": 2,
+        "failed": 0,
+        "filter": "FullyQualifiedName~NativeJournal",
+        "coverage": "Submission and resubmission capture distinct immutable revisions 2 and 4. Invalid submission rolls back; post/replay creates no extra versions. Restricted role cannot insert, update or delete snapshots; sibling client reads denied. Exact preserved amounts verified with existing independent posting/close controls."
+      },
+      "angularSpecs": {
+        "result": "PASS",
+        "passed": 7,
+        "failed": 0,
+        "coverage": "Snapshot response binds client/journal identities, rejects duplicate or invalid revisions and numeric money; existing preview/review/ledger checks retained."
+      },
+      "angularProductionBuild": "PASS; preexisting Commercial Settings stylesheet warning.",
+      "apiAndE2eBuild": "PASS; zero warnings/errors.",
+      "browserJourney": {
+        "result": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "duration": "57 seconds",
+        "test": "AngularClientOperationalJournalJourneyTests.NativeClientJournalRequiresIndependentReviewAndPostsThroughAngular",
+        "coverage": "Complete synthetic journal create/preview/submit/return/resubmit/independent post/GL journey; submitted versions 2 and 4 visible and expanded original lines retain exact 125.250000 amounts; no page errors.",
+        "builtInBrowser": "Version inspection NOT_RUN in built-in browser; no active test API appeared in the process inventory at inspection time. Automated owned Chromium provided version UI evidence."
+      },
+      "openApi": {
+        "result": "PASS",
+        "passed": 5,
+        "failed": 0,
+        "inspection": "Generated snapshots endpoint, client/journal identity fields and string-typed debit amounts inspected."
+      },
+      "efModel": "No pending model changes after generated additive snapshot migration; EF tool/runtime warning.",
+      "migration": "20261006180000_ClientOperationalJournalSnapshots; journal content captured by submission trigger in the same financial transaction. No historical content backfill.",
+      "toolchainNote": "Temporary worktree SDK roll-forward restored after browser test.",
+      "fullRegression": "NOT_RUN",
+      "boundary": "Immutable content foundation only. Returned content remains protected until rework editing is implemented. Existing uncaptured reviews remain explicitly unavailable. Editor, reversal, command receipts, currency/FX policy, invoices/open items and native reporting snapshots remain open. Epic unmerged; tax/nonmandatory modules optional."
     }
   },
   "documentationWork": {

@@ -13,6 +13,23 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Native journal immutable submitted content
+
+Submission now captures the journal header and ordered lines in an immutable
+client-scoped content record inside the same database transaction. Subsequent
+return, resubmission and posting preserve earlier captured versions. Database
+triggers refuse direct snapshot inserts and all changes or deletions. The scoped
+API returns exact decimal strings, and Angular exposes submitted versions through
+progressive details. Existing uncaptured review content is not reconstructed;
+the UI discloses its absence.
+
+Focused database, UI, browser, contract and migration evidence lives under
+`verification.clientOperationalJournalSnapshots` in `status.json`. This provides
+the content-history foundation for rework; returned editing remains protected and
+unimplemented. Reversal lineage, durable receipts, currency/FX policy, invoices,
+open items and native TB/reporting snapshots remain open. Full epic completion,
+regression and final merge are not established.
+
 ## Native journal independent return and review history
 
 An independent assigned reviewer can return the exact submitted journal revision
