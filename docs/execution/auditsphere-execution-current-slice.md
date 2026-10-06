@@ -15,6 +15,24 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Completed focused slice: Firm-ledger role capability matrix
+
+At code/test commit `356d48a9`,
+`AngularFirmLedgerRoleMatrixJourneyTests.FinanceManagerCanReadButNotCloseWhileReviewerCanCloseAndPartnerIsDenied`
+passed **1/1** in 42 seconds against isolated PostgreSQL and API-hosted
+Angular sessions. The firm-wide FinanceManager reads the current period and
+accounts but has no close action and receives HTTP 403 for a direct close.
+The FinanceReviewer sees the close action; a Partner receives the safe denial
+in Angular and HTTP 403 from the data endpoint with no finance markers. The
+manager's refused close left the period open at revision 1 with no close
+decision. No browser errors occurred.
+
+The production Angular build passed at 349.67 kB initial size, with the
+existing 7.53 kB Commercial Settings stylesheet budget warning. This
+test-only slice did not change the EF model. The complete solution suite was
+not rerun; its latest complete result remains 1001/1001 at `ead85032`.
+
+
 ## Completed focused slice: Invoice lifecycle lost-response recovery
 
 At code/test commit `d7854fc8`,
