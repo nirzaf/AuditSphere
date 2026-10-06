@@ -34,6 +34,7 @@ export class StatementDrillDown {
   readonly location = computed(() => statementLocation((k) => this.query().get(k)));
   readonly model = signal({ filter: '' });
   readonly fields = form(this.model, (p) => maxLength(p.filter, 80));
+  readonly currentUrl = computed(() => this.router.url);
   private readonly viewUrl = computed(() => {
     const q = this.location();
     return this.id() && q
@@ -44,7 +45,12 @@ export class StatementDrillDown {
     () => this.viewUrl(),
     (value, path) => {
       const v = decodeStatementPage(value, path);
-      if (v.basis.engagementId !== this.id() || v.section !== this.location()?.section)
+      if (
+        v.basis.engagementId !== this.id() ||
+        (this.location()?.section !== 'split' &&
+          v.section !== 'split' &&
+          v.section !== this.location()?.section)
+      )
         throw new Error('Wrong statement context');
       return v;
     },
@@ -58,9 +64,25 @@ export class StatementDrillDown {
   private readonly detailUrl = computed(() => {
     const v = this.view.data(),
       q = this.location();
-    return v && q?.line && !this.stale()
-      ? `${this.base()}/contributions?${new URLSearchParams({ section: q.section, destination: q.line, statementSection: q.lineSection, revision: v.basis.revision, page: String(q.accounts), procedurePage: String(q.procedures) })}`
-      : null;
+    if (!v || !q?.line || this.stale()) return null;
+    const isProfit = [
+      'INCOME',
+      'REVENUE',
+      'P&L',
+      'PROFIT_LOSS',
+      'P_AND_L',
+      'EXPENSE',
+      'EXPENSES',
+    ].includes(q.lineSection.trim().toUpperCase());
+    const reqSec = q.section === 'split' ? (isProfit ? 'profit' : 'position') : q.section;
+    return `${this.base()}/contributions?${new URLSearchParams({
+      section: reqSec,
+      destination: q.line,
+      statementSection: q.lineSection,
+      revision: v.basis.revision,
+      page: String(q.accounts),
+      procedurePage: String(q.procedures),
+    })}`;
   });
   readonly detail = this.api.resource(
     () => this.detailUrl(),
@@ -100,6 +122,61 @@ export class StatementDrillDown {
       ? e
       : null;
   });
+
+  readonly profitLines = computed(() => {
+    const v = this.view.data();
+    if (!v) return [];
+    if (v.profitOrLoss) return v.profitOrLoss.lines;
+    return v.section === 'profit' ? v.lines : [];
+  });
+
+  readonly positionLines = computed(() => {
+    const v = this.view.data();
+    if (!v) return [];
+    if (v.financialPosition) return v.financialPosition.lines;
+    return v.section === 'position' ? v.lines : [];
+  });
+
+  readonly profitSummary = computed(() => {
+    const v = this.view.data();
+    if (!v) return null;
+    if (v.profitOrLoss) return v.profitOrLoss;
+    if (v.section === 'profit') {
+      return {
+        section: 'profit' as const,
+        title: v.title,
+        totalLabel: v.totalLabel,
+        currentTotal: v.total,
+        priorTotal: null,
+        varianceTotal: null,
+        percentageVarianceTotal: null,
+        lineCount: v.lines.length,
+        lines: v.lines,
+      };
+    }
+    return null;
+  });
+
+  readonly positionSummary = computed(() => {
+    const v = this.view.data();
+    if (!v) return null;
+    if (v.financialPosition) return v.financialPosition;
+    if (v.section === 'position') {
+      return {
+        section: 'position' as const,
+        title: v.title,
+        totalLabel: v.totalLabel,
+        currentTotal: v.total,
+        priorTotal: null,
+        varianceTotal: null,
+        percentageVarianceTotal: null,
+        lineCount: v.lines.length,
+        lines: v.lines,
+      };
+    }
+    return null;
+  });
+
   readonly sourceOpen = signal(false);
   readonly downloading = signal(false);
   readonly message = signal('');
@@ -142,7 +219,7 @@ export class StatementDrillDown {
       queryParamsHandling: 'merge',
     });
   }
-  section(section: 'profit' | 'position'): void {
+  section(section: 'profit' | 'position' | 'split'): void {
     this.navigate({
       section,
       page: 1,

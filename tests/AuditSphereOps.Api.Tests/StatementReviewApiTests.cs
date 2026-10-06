@@ -83,6 +83,28 @@ public sealed class StatementReviewApiTests
     Assert.Equal(ErrorCodes.GenerationStale, (await StatementReviewWorkspace.GetAsync(read, PbcSeed.Actor(f.Staff, "Staff"), f.EngagementId)).ErrorCode);
   }
 
+  [Fact]
+  public async Task SplitDashboardReturnsSimultaneousProfitOrLossAndPositionSectionsWithComparativeAndRisk()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("API-STATEMENT-SPLIT"); var f = await PbcSeed.SeedAsync(pg);
+    StatementReviewSeed.Context seed; await using (var db = new AuditSphereDbContext(pg.Options)) seed = await StatementReviewSeed.SeedAsync(db, f, true);
+    using var factory = Factory(pg, f.Staff); using var c = factory.CreateClient(); var csrf = await SignIn(c); var url = Url(f.EngagementId);
+    var s = await Read(c, url + "/split");
+    Assert.True(s.TryGetProperty("profitOrLoss", out var pl));
+    Assert.True(s.TryGetProperty("financialPosition", out var bs));
+    Assert.True(pl.GetProperty("lines").GetArrayLength() > 0);
+    Assert.True(bs.GetProperty("lines").GetArrayLength() > 0);
+    var bsLines = bs.GetProperty("lines").EnumerateArray().ToList();
+    var cashLine = bsLines.First(x => x.GetProperty("destinationCode").GetString() == "CASH");
+    Assert.Equal("100.123486", cashLine.GetProperty("amount").GetString());
+    Assert.True(cashLine.TryGetProperty("riskBand", out var rb));
+    Assert.False(string.IsNullOrEmpty(rb.GetString()));
+    Assert.True(cashLine.TryGetProperty("reviewStatus", out var rs));
+    Assert.False(string.IsNullOrEmpty(rs.GetString()));
+    Assert.True(cashLine.TryGetProperty("assignedPerformer", out _));
+    Assert.True(cashLine.TryGetProperty("requiredReviewer", out _));
+  }
+
   private sealed class LateRead(Func<Task> action) : DbCommandInterceptor
   {
     private bool fired;

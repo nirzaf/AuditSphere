@@ -175,6 +175,8 @@ public sealed class CommercialNotification
   public Guid? FeeMilestoneId { get; set; }
   public Guid? ProposalId { get; set; }
   public Guid? PracticeClientId { get; set; }
+  /// <summary>The approved quotation revision the dispatched offer was built from; downstream letters and fee agreements must use it.</summary>
+  public Guid? QuotationVersionId { get; set; }
   public Guid? DocumentId { get; set; }
   /// <summary>Exact identity of the dispatched offer (generated artifact hash, or the reviewed offer digest when no document exists).</summary>
   public string? OfferSha256 { get; set; }

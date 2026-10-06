@@ -14,6 +14,8 @@ public static partial class UiEndpoints
   {
     group.MapGet("/engagements/{id:guid}/statements/workspace", (Guid id, string? section, string? filter, int? page, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => StatementReviewWorkspace.GetAsync(db, actor, id, section ?? "profit", filter, page ?? 1, ct)));
+    group.MapGet("/engagements/{id:guid}/statements/split", (Guid id, string? filter, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => StatementReviewWorkspace.GetSplitDashboardAsync(db, actor, id, filter, ct)));
     group.MapGet("/engagements/{id:guid}/statements/contributions", (Guid id, string section, string destination, string statementSection, string revision, int? page, int? procedurePage, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => StatementReviewWorkspace.ContributionsAsync(db, actor, id, section, destination, statementSection, revision, page ?? 1, procedurePage ?? 1, ct)));
     group.MapPost("/engagements/{id:guid}/statements/export", async (Guid id, StatementExportInput? input, HttpContext http,

@@ -337,6 +337,11 @@ public static partial class PracticeCrmService
     var document = await db.CommercialDocuments.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.ProposalId == proposal.Id && x.Kind == CommercialDocumentKinds.Quotation)
       .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+    // The offer identity is the artifact bound to one approved quotation revision (STE 4.1.2): a reviewed
+    // document from an older quotation cannot be dispatched under a newer revision — regenerate first.
+    if (document is not null && quotation is not null && document.QuotationVersionId != quotation.Id)
+      return CommandResult.Fail(ErrorCodes.StaleRevision,
+        $"The reviewed quotation artifact belongs to quotation revision {document.QuotationVersionId}, not the current revision {quotation.Id}. Generate the current brief before dispatch.");
     var offerSha256 = ProposalOfferSha256(proposal, quotation, document);
     var existing = await db.CommercialNotifications.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ProposalId == proposal.Id, ct);
     if (existing is null)
@@ -345,6 +350,7 @@ public static partial class PracticeCrmService
       {
         Id = Guid.CreateVersion7(), FirmId = actor.FirmId, Kind = CommercialNotificationKinds.Proposal,
         ProposalId = proposal.Id, PracticeClientId = proposal.PracticeClientId ?? opportunity.PracticeClientId,
+        QuotationVersionId = document?.QuotationVersionId ?? quotation?.Id,
         DocumentId = document?.Id, OfferSha256 = offerSha256, Recipient = recipient,
         Subject = $"Proposal revision {proposal.Revision} — {lead.Name} ({opportunity.ServiceRoute})",
         Body = $"Dear {lead.PrimaryContactName ?? lead.Name},\n\nPlease find our proposal revision {proposal.Revision} for {opportunity.ServiceRoute} " +

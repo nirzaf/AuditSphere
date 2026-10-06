@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Accounting;
@@ -14,9 +15,18 @@ namespace AuditSphereOps.Application.Accounting;
 public sealed record StatementBasis(Guid EngagementId, Guid ClientId, Guid MappingId, long MappingVersion, Guid DatasetId,
   long DatasetRevision, string DatasetDigest, string Currency, string PeriodStart, string PeriodEnd, string TaxonomyVersion,
   Guid? ChartVersionId, long Generation, Guid? ReviewerId, DateTimeOffset? ReviewedAt, string Revision);
-public sealed record StatementReviewLine(string DestinationCode, string StatementSection, string AuditArea, decimal Amount, int AccountCount, int ProcedureCount);
+public sealed record StatementReviewLine(
+  string DestinationCode, string StatementSection, string AuditArea, decimal Amount, int AccountCount, int ProcedureCount,
+  decimal? PriorAmount = null, decimal? Variance = null, string? PercentageVariance = null,
+  string RiskBand = "Green", string RiskLabel = "Low (Green)", string AssignedPerformer = "Staff / Associate",
+  string RequiredReviewer = "Manager", string ReviewStatus = "PLANNED", string ReviewStatusLabel = "Planned",
+  string RiskExplanation = "");
+public sealed record StatementSectionSummary(
+  string Section, string Title, string TotalLabel, decimal CurrentTotal, decimal? PriorTotal, decimal? VarianceTotal,
+  string? PercentageVarianceTotal, int LineCount, IReadOnlyList<StatementReviewLine> Lines);
 public sealed record StatementReviewPage(StatementBasis Basis, string Section, string Title, string TotalLabel, decimal Total,
-  bool Balances, int LineCount, int FilteredCount, int Page, int PageSize, IReadOnlyList<StatementReviewLine> Lines);
+  bool Balances, int LineCount, int FilteredCount, int Page, int PageSize, IReadOnlyList<StatementReviewLine> Lines,
+  StatementSectionSummary? ProfitOrLoss = null, StatementSectionSummary? FinancialPosition = null, string? PolicyNote = null);
 public sealed record StatementContribution(string AccountCode, string AccountName, decimal Amount);
 public sealed record StatementContributionPage(StatementBasis Basis, string Section, string DestinationCode, string StatementSection,
   decimal LineTotal, int AccountCount, int Page, int PageSize, IReadOnlyList<StatementContribution> Accounts,
@@ -29,14 +39,106 @@ public static class StatementReviewWorkspace
 {
   public const int PageSize = 25;
   public const int ExportByteLimit = 8 * 1024 * 1024;
+  public const string PolicyNote = "Variance = Current Year − Prior Year. Percentage variance = (Current Year − Prior Year) / |Prior Year| × 100%. A zero prior denominator produces clearly labelled N/A. Missing prior data is shown as unavailable (—).";
   private static readonly string[] Roles = ["Partner", "Manager", "Senior", "Staff", "Auditor", "Reviewer", "Administrator", "AccountingPreparer", "AccountingReviewer"];
   private sealed record Snapshot(StatementBasis Basis, StatementDrillDownView View, MappedTrialBalanceSource.Source Source,
-    IReadOnlyDictionary<string, string> Names, IReadOnlyList<AuditProcedure> Procedures, IReadOnlyDictionary<Guid, string> RiskAreas);
+    IReadOnlyDictionary<string, string> Names, IReadOnlyList<AuditProcedure> Procedures, IReadOnlyDictionary<Guid, string> RiskAreas,
+    IReadOnlyDictionary<(string DestinationCode, string StatementSection), decimal> PriorBalances,
+    MaterialityCalculationView? Calculation, IReadOnlyList<RiskBandAssessment> Assessments, IReadOnlyList<AuditRisk> Risks);
   private static CommandResult<T> Fail<T>(string code, string message) => CommandResult<T>.Fail(code, message);
-  private static bool Section(string s) => s is "profit" or "position";
+  private static bool Section(string s) => s is "profit" or "position" or "split";
   private static StatementView View(Snapshot s, string section) => section == "profit" ? s.View.ProfitOrLoss : s.View.FinancialPosition;
   private static Task<CommandResult> Authorize(IAuditSphereDbContext db, ActorContext actor, Guid client, Guid engagement, CancellationToken ct) =>
     AuthorizationDecision.AuthorizeAsync(db, actor, new(actor.FirmId, client, engagement, Roles, InternalOnly: true), ct);
+
+  private static async Task<Dictionary<(string DestinationCode, string StatementSection), decimal>> LoadPriorBalancesAsync(
+    IClientAccountingDbContext db, Guid firmId, Guid clientId, Guid engagementId, MappingVersion currentMapping, TrialBalanceDataset currentDataset, CancellationToken ct)
+  {
+    var map = new Dictionary<(string DestinationCode, string StatementSection), decimal>();
+
+    var compPackageId = await db.FinancialPackages.AsNoTracking()
+      .Where(p => p.FirmId == firmId && p.ClientId == clientId && p.EngagementId == engagementId &&
+        p.Status == AccountingPackageStates.PackageValidated && p.ComparativePackageId != null)
+      .Select(p => p.ComparativePackageId)
+      .FirstOrDefaultAsync(ct);
+
+    if (compPackageId is { } cpId)
+    {
+      var compLines = await db.FinancialPackageLines.AsNoTracking()
+        .Where(x => x.FinancialPackageId == cpId && x.FirmId == firmId)
+        .GroupBy(x => new { x.DestinationCode, Section = x.StatementSection.Trim().ToUpperInvariant() })
+        .Select(g => new { g.Key.DestinationCode, g.Key.Section, Total = g.Sum(x => x.Amount) })
+        .ToListAsync(ct);
+
+      foreach (var l in compLines)
+        map[(l.DestinationCode, l.Section)] = MoneyPolicy.Normalize(l.Total);
+
+      if (map.Count > 0) return map;
+    }
+
+    var earlierPackage = await db.FinancialPackages.AsNoTracking()
+      .Where(p => p.FirmId == firmId && p.ClientId == clientId &&
+        p.Status == AccountingPackageStates.PackageValidated &&
+        p.Currency == currentDataset.Currency &&
+        string.Compare(p.PeriodEnd, currentMapping.PeriodStart) <= 0)
+      .OrderByDescending(p => p.PeriodEnd)
+      .ThenByDescending(p => p.Id)
+      .FirstOrDefaultAsync(ct);
+
+    if (earlierPackage is not null)
+    {
+      var earlierLines = await db.FinancialPackageLines.AsNoTracking()
+        .Where(x => x.FinancialPackageId == earlierPackage.Id && x.FirmId == firmId)
+        .GroupBy(x => new { x.DestinationCode, Section = x.StatementSection.Trim().ToUpperInvariant() })
+        .Select(g => new { g.Key.DestinationCode, g.Key.Section, Total = g.Sum(x => x.Amount) })
+        .ToListAsync(ct);
+
+      foreach (var l in earlierLines)
+        map[(l.DestinationCode, l.Section)] = MoneyPolicy.Normalize(l.Total);
+
+      if (map.Count > 0) return map;
+    }
+
+    var earlierMapping = await db.MappingVersions.AsNoTracking()
+      .Where(m => m.FirmId == firmId && m.ClientId == clientId && m.Id != currentMapping.Id &&
+        m.Status == AccountingPackageStates.MappingApproved &&
+        string.Compare(m.PeriodEnd, currentMapping.PeriodStart) <= 0)
+      .OrderByDescending(m => m.PeriodEnd)
+      .ThenByDescending(m => m.ApprovedAt)
+      .FirstOrDefaultAsync(ct);
+
+    if (earlierMapping is not null)
+    {
+      var earlierDataset = await db.TrialBalanceDatasets.AsNoTracking()
+        .SingleOrDefaultAsync(x => x.Id == earlierMapping.DatasetId && x.FirmId == firmId && x.Currency == currentDataset.Currency, ct);
+
+      if (earlierDataset is { ImportState: TrialBalanceImportStates.Sealed, Balanced: true })
+      {
+        var balances = await db.TrialBalanceRows.AsNoTracking()
+          .Where(x => x.DatasetId == earlierDataset.Id)
+          .GroupBy(x => x.AccountCode)
+          .Select(g => new { g.Key, Amount = g.Sum(x => x.Amount) })
+          .ToDictionaryAsync(x => x.Key, x => x.Amount, ct);
+
+        var allocations = await db.MappingAllocations.AsNoTracking()
+          .Where(x => x.FirmId == firmId && x.MappingVersionId == earlierMapping.Id)
+          .ToListAsync(ct);
+
+        if (allocations.Count > 0 && balances.Count > 0)
+        {
+          var built = MappedTrialBalanceSource.Build(earlierMapping, earlierDataset, balances, allocations);
+          var proj = FinancialStatementDrillDownQuery.Project(built, _ => []);
+          foreach (var line in proj.ProfitOrLoss.Lines)
+            map[(line.DestinationCode, line.StatementSection)] = line.Amount;
+          foreach (var line in proj.FinancialPosition.Lines)
+            map[(line.DestinationCode, line.StatementSection)] = line.Amount;
+          return map;
+        }
+      }
+    }
+
+    return map;
+  }
 
   private static async Task<CommandResult<Snapshot>> ReadAsync(IClientAccountingDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct)
   {
@@ -85,8 +187,14 @@ public static class StatementReviewWorkspace
     var revision = Hashing.Sha256Hex(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { actor.FirmId, actor.UserId, actor.SessionEpoch, e, m, d, rows, allocations, procedures, risks, firm, safety, chart, taxonomy, nodes, period, book })));
     auth = await Authorize(db, actor, m.ClientId, engagementId, ct);
     if (!auth.Succeeded) return Fail<Snapshot>(auth.ErrorCode!, auth.Message!);
+
+    var priorBalances = await LoadPriorBalancesAsync(db, actor.FirmId, m.ClientId, engagementId, m, d, ct);
+    var calculation = await MaterialityEngineService.GetLatestAsync(db, actor.FirmId, engagementId, ct);
+    var assessments = await db.RiskBandAssessments.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId).ToListAsync(ct);
+
     var basis = new StatementBasis(engagementId, m.ClientId, m.Id, m.Version, d.Id, d.Revision, digest, d.Currency, m.PeriodStart, m.PeriodEnd, m.TaxonomyVersion, m.ClientChartVersionId, m.Generation, m.ApprovedByUserId, m.ApprovedAt, revision);
-    return CommandResult<Snapshot>.Ok(new(basis, projected, source, accounts.ToDictionary(x => x.AccountCode, x => x.AccountName, StringComparer.Ordinal), procedures, riskAreas));
+    return CommandResult<Snapshot>.Ok(new(basis, projected, source, accounts.ToDictionary(x => x.AccountCode, x => x.AccountName, StringComparer.Ordinal), procedures, riskAreas, priorBalances, calculation, assessments, risks));
   }
 
   private static async Task<CommandResult<Snapshot>> StableAsync(IClientAccountingDbContext db, ActorContext actor, Guid id, string? revision, CancellationToken ct)
@@ -107,16 +215,223 @@ public static class StatementReviewWorkspace
       .Select(p => new DrillDownProcedure(p.Id, p.SourceProcedureId, p.Title, p.Status, p.SourceSectionTitle)).ToArray();
   }
 
+  private static StatementReviewLine MapLine(Snapshot s, StatementLineView line)
+  {
+    var procs = Procedures(s, line);
+    decimal? priorAmount = null;
+    decimal? variance = null;
+    string? percentageVariance = null;
+
+    if (s.PriorBalances.TryGetValue((line.DestinationCode, line.StatementSection), out var prior))
+    {
+      priorAmount = MoneyPolicy.Normalize(prior);
+      variance = MoneyPolicy.Normalize(line.Amount - prior);
+      if (prior == 0m)
+      {
+        percentageVariance = "N/A";
+      }
+      else
+      {
+        var pct = Math.Round(((line.Amount - prior) / Math.Abs(prior)) * 100m, 2, MidpointRounding.AwayFromZero);
+        percentageVariance = (pct > 0 ? "+" : "") + pct.ToString("0.00", CultureInfo.InvariantCulture) + "%";
+      }
+    }
+
+    var matchingRisks = s.Risks.Where(r =>
+      (!string.IsNullOrWhiteSpace(line.AuditArea) && string.Equals(r.AccountArea.Trim(), line.AuditArea.Trim(), StringComparison.OrdinalIgnoreCase)) ||
+      string.Equals(r.AccountArea.Trim(), line.DestinationCode.Trim(), StringComparison.OrdinalIgnoreCase)).ToList();
+
+    var matchingRiskIds = matchingRisks.Select(r => r.Id).ToHashSet();
+    var matchingAssessments = s.Assessments.Where(a => matchingRiskIds.Contains(a.RiskId)).ToList();
+
+    var significant = matchingRisks.Any(r => r.SignificanceDecision == SignificanceDecisions.Significant) ||
+                      matchingAssessments.Any(a => a.Significant);
+    var fraud = matchingAssessments.Any(a => a.FraudRisk);
+    var critical = matchingRisks.Any(r => ProcedureRiskBandEvaluator.HasEstimateIndicator(r.Description) ||
+                                          ProcedureRiskBandEvaluator.HasEstimateIndicator(r.Drivers));
+    var highInherent = matchingAssessments.Any(a => a.LikelihoodScore == 3 && a.MagnitudeScore >= 2);
+
+    string band;
+    string performer;
+    string reviewer;
+    string explanation;
+
+    if (s.Calculation is { State: MaterialityCalculationStates.Approved })
+    {
+      var c = s.Calculation.Calculation;
+      band = FsliRiskBandRules.Band(line.Amount, c.TolerableError, c.PlanningMateriality, critical, highInherent, significant, fraud);
+      performer = FsliRiskBandRules.Route(band);
+      reviewer = FsliRiskBandRules.ReviewerDescription(band);
+      explanation = FsliRiskBandRules.Explain(line.Amount, c.TolerableError, c.PlanningMateriality, band, critical, highInherent, significant, fraud);
+    }
+    else
+    {
+      var qualitativeBand = matchingAssessments.FirstOrDefault()?.Band ?? RiskBandRules.Band(1, 1, significant, fraud);
+      band = critical || highInherent || significant || fraud ? RiskBands.Red : qualitativeBand;
+      performer = FsliRiskBandRules.Route(band);
+      reviewer = FsliRiskBandRules.ReviewerDescription(band);
+      explanation = "Planning materiality calculation pending approval; classification based on qualitative risk assessment.";
+    }
+
+    var riskLabel = band switch
+    {
+      RiskBands.Red => "High (Red)",
+      RiskBands.Amber => "Medium (Amber)",
+      _ => "Low (Green)"
+    };
+
+    string reviewStatus;
+    string reviewStatusLabel;
+
+    if (procs.Count == 0)
+    {
+      reviewStatus = "NO_PROCEDURES";
+      reviewStatusLabel = "No procedures linked";
+    }
+    else if (procs.All(p => p.Status == AuditProcedureStatuses.Reviewed))
+    {
+      reviewStatus = "REVIEWED";
+      reviewStatusLabel = $"{procs.Count} of {procs.Count} reviewed";
+    }
+    else if (procs.Any(p => p.Status == AuditProcedureStatuses.ChangesRequired))
+    {
+      reviewStatus = "CHANGES_REQUIRED";
+      reviewStatusLabel = "Changes required";
+    }
+    else if (procs.Any(p => p.Status is AuditProcedureStatuses.InReview or AuditProcedureStatuses.Submitted))
+    {
+      reviewStatus = "IN_REVIEW";
+      reviewStatusLabel = $"{procs.Count(p => p.Status is AuditProcedureStatuses.Submitted or AuditProcedureStatuses.InReview)} in review";
+    }
+    else if (procs.Any(p => p.Status == AuditProcedureStatuses.InProgress))
+    {
+      reviewStatus = "IN_PROGRESS";
+      reviewStatusLabel = $"{procs.Count(p => p.Status == AuditProcedureStatuses.InProgress)} in progress";
+    }
+    else
+    {
+      reviewStatus = "PLANNED";
+      reviewStatusLabel = $"{procs.Count} planned";
+    }
+
+    return new StatementReviewLine(
+      DestinationCode: line.DestinationCode,
+      StatementSection: line.StatementSection,
+      AuditArea: line.AuditArea,
+      Amount: line.Amount,
+      AccountCount: line.SourceAccountCount,
+      ProcedureCount: procs.Count,
+      PriorAmount: priorAmount,
+      Variance: variance,
+      PercentageVariance: percentageVariance,
+      RiskBand: band,
+      RiskLabel: riskLabel,
+      AssignedPerformer: performer,
+      RequiredReviewer: reviewer,
+      ReviewStatus: reviewStatus,
+      ReviewStatusLabel: reviewStatusLabel,
+      RiskExplanation: explanation
+    );
+  }
+
+  private static StatementSectionSummary BuildSectionSummary(Snapshot s, StatementView view, string sectionKey, string? filter)
+  {
+    var q = filter?.Trim() ?? "";
+    var allMapped = view.Lines.Select(l => MapLine(s, l)).ToList();
+    var filtered = allMapped.Where(x => q.Length == 0 ||
+      x.DestinationCode.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+      x.StatementSection.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+      x.AuditArea.Contains(q, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    decimal? priorTotal = null;
+    decimal? varianceTotal = null;
+    string? percentageVarianceTotal = null;
+
+    var priorPresent = allMapped.Where(x => x.PriorAmount.HasValue).ToList();
+    if (priorPresent.Count > 0)
+    {
+      var sumPrior = priorPresent.Sum(x => x.PriorAmount!.Value);
+      priorTotal = MoneyPolicy.Normalize(sumPrior);
+      varianceTotal = MoneyPolicy.Normalize(view.Total - sumPrior);
+      if (sumPrior == 0m)
+      {
+        percentageVarianceTotal = "N/A";
+      }
+      else
+      {
+        var pct = Math.Round(((view.Total - sumPrior) / Math.Abs(sumPrior)) * 100m, 2, MidpointRounding.AwayFromZero);
+        percentageVarianceTotal = (pct > 0 ? "+" : "") + pct.ToString("0.00", CultureInfo.InvariantCulture) + "%";
+      }
+    }
+
+    return new StatementSectionSummary(
+      Section: sectionKey,
+      Title: view.Title,
+      TotalLabel: view.TotalLabel,
+      CurrentTotal: view.Total,
+      PriorTotal: priorTotal,
+      VarianceTotal: varianceTotal,
+      PercentageVarianceTotal: percentageVarianceTotal,
+      LineCount: filtered.Count,
+      Lines: filtered
+    );
+  }
+
   public static async Task<CommandResult<StatementReviewPage>> GetAsync(IClientAccountingDbContext db, ActorContext actor, Guid id, string section = "profit", string? filter = null, int page = 1, CancellationToken ct = default)
   {
     if (!Section(section) || (filter?.Length ?? 0) > 80 || page < 1 || page > 1_000) return Fail<StatementReviewPage>(ErrorCodes.Accounting.MappingInvalid, "Choose a statement section, bounded filter and valid page.");
     var stable = await StableAsync(db, actor, id, null, ct); if (!stable.Succeeded) return Fail<StatementReviewPage>(stable.ErrorCode!, stable.Message!);
-    var s = stable.Value!; var view = View(s, section); var q = filter?.Trim() ?? "";
-    var filtered = view.Lines.Where(x => q.Length == 0 || x.DestinationCode.Contains(q, StringComparison.OrdinalIgnoreCase) || x.StatementSection.Contains(q, StringComparison.OrdinalIgnoreCase) || x.AuditArea.Contains(q, StringComparison.OrdinalIgnoreCase)).ToArray();
-    if (page > Math.Max(1, (filtered.Length + PageSize - 1) / PageSize)) return Fail<StatementReviewPage>(ErrorCodes.Accounting.MappingInvalid, "The statement page is outside this filtered basis.");
-    return CommandResult<StatementReviewPage>.Ok(new(s.Basis, section, view.Title, view.TotalLabel, view.Total, s.View.Balances, view.Lines.Count, filtered.Length, page, PageSize,
-      filtered.Skip((page - 1) * PageSize).Take(PageSize).Select(x => new StatementReviewLine(x.DestinationCode, x.StatementSection, x.AuditArea, x.Amount, x.SourceAccountCount, Procedures(s, x).Count)).ToArray()));
+    var s = stable.Value!;
+    var profitSummary = BuildSectionSummary(s, s.View.ProfitOrLoss, "profit", filter);
+    var positionSummary = BuildSectionSummary(s, s.View.FinancialPosition, "position", filter);
+
+    if (section == "split")
+    {
+      var allSplitLines = profitSummary.Lines.Concat(positionSummary.Lines).ToList();
+      var pagedSplitLines = allSplitLines.Skip((page - 1) * PageSize).Take(PageSize).ToList();
+      return CommandResult<StatementReviewPage>.Ok(new(
+        Basis: s.Basis,
+        Section: "split",
+        Title: "Financial statements (comparative split dashboard)",
+        TotalLabel: "Profit for the period (P&L) / Net financial position (B/S)",
+        Total: s.View.ProfitOrLoss.Total,
+        Balances: s.View.Balances,
+        LineCount: s.View.ProfitOrLoss.Lines.Count + s.View.FinancialPosition.Lines.Count,
+        FilteredCount: allSplitLines.Count,
+        Page: page,
+        PageSize: PageSize,
+        Lines: pagedSplitLines,
+        ProfitOrLoss: profitSummary,
+        FinancialPosition: positionSummary,
+        PolicyNote: PolicyNote
+      ));
+    }
+
+    var view = View(s, section);
+    var targetSummary = section == "profit" ? profitSummary : positionSummary;
+    var filtered = targetSummary.Lines;
+    if (page > Math.Max(1, (filtered.Count + PageSize - 1) / PageSize)) return Fail<StatementReviewPage>(ErrorCodes.Accounting.MappingInvalid, "The statement page is outside this filtered basis.");
+
+    return CommandResult<StatementReviewPage>.Ok(new(
+      Basis: s.Basis,
+      Section: section,
+      Title: view.Title,
+      TotalLabel: view.TotalLabel,
+      Total: view.Total,
+      Balances: s.View.Balances,
+      LineCount: view.Lines.Count,
+      FilteredCount: filtered.Count,
+      Page: page,
+      PageSize: PageSize,
+      Lines: filtered.Skip((page - 1) * PageSize).Take(PageSize).ToList(),
+      ProfitOrLoss: profitSummary,
+      FinancialPosition: positionSummary,
+      PolicyNote: PolicyNote
+    ));
   }
+
+  public static Task<CommandResult<StatementReviewPage>> GetSplitDashboardAsync(IClientAccountingDbContext db, ActorContext actor, Guid id, string? filter = null, CancellationToken ct = default) =>
+    GetAsync(db, actor, id, "split", filter, 1, ct);
 
   public static async Task<CommandResult<StatementContributionPage>> ContributionsAsync(IClientAccountingDbContext db, ActorContext actor, Guid id, string section, string destination, string statementSection, string revision, int page = 1, int procedurePage = 1, CancellationToken ct = default)
   {

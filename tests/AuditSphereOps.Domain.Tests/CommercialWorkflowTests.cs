@@ -783,4 +783,87 @@ public sealed class CommercialWorkflowTests
     Assert.Equal(4, agreementFinance.Receipts.Count); // 2 advance receipts + 2 balance receipts
     Assert.Equal("0", agreementFinance.OutstandingBalance);
   }
+
+  [Fact]
+  public async Task Dispatch_BindsArtifactToCurrentQuotation_AndDownstreamUsesAcceptedTerms()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var (_, _, proposalId) = await DraftProposalAsync(pg, w);
+    await using var db = new AuditSphereDbContext(pg.Options);
+
+    // Quotation A: approved while the proposal is a draft, priced, and its brief artifact generated.
+    var quoteA = await QuotationService.SaveAsync(db, w.Prep, Quote(proposalId)); // 25,000
+    Assert.True((await QuotationService.SubmitAsync(db, w.Prep, quoteA.Value)).Succeeded);
+    Assert.True((await CommercialDocumentService.SaveProfileAsync(db, w.Partner,
+      new SaveCommercialProfileRequest("Binding Firm", "Doha", "", "", "#2B6CB0", "Closing"))).Succeeded);
+    var artifactA = await CommercialDocumentService.GenerateBriefQuotationAsync(db, w.Prep, proposalId,
+      expectedQuotationId: quoteA.Value, expectedProfileVersion: 1);
+    Assert.True(artifactA.Succeeded, artifactA.Message);
+
+    // A later approved quotation revision B prices the same fee with a different composition while the
+    // proposal is still a draft: the reviewed artifact A is now older than the current quotation, so
+    // dispatch is refused until the current brief is regenerated (STE 4.1.2 — the accepted terms are
+    // the dispatched artifact's, not merely the newest approved pricing revision).
+    var quoteB = await QuotationService.SaveAsync(db, w.Prep,
+      Quote(proposalId, lines: [new QuotationHoursLine("Partner", "Audit", 17.5m), new QuotationHoursLine("Manager", "Audit", 10m)]));
+    Assert.Equal(25000m, (await db.QuotationVersions.AsNoTracking().SingleAsync(x => x.Id == quoteB.Value)).Fee);
+    Assert.True((await QuotationService.SubmitAsync(db, w.Prep, quoteB.Value)).Succeeded);
+    Assert.True((await PracticeCrmService.ApproveProposalAsync(db, w.Partner, proposalId)).Succeeded);
+    Assert.Equal(ErrorCodes.StaleRevision, (await PracticeCrmService.SendProposalAsync(db, w.Prep, proposalId)).ErrorCode);
+    Assert.Empty(await db.CommercialNotifications.Where(x => x.ProposalId == proposalId).ToListAsync());
+
+    // Regenerating the current brief binds dispatch and acceptance to revision B.
+    var artifactB = await CommercialDocumentService.GenerateBriefQuotationAsync(db, w.Prep, proposalId,
+      expectedQuotationId: quoteB.Value, expectedProfileVersion: 1);
+    Assert.True(artifactB.Succeeded, artifactB.Message);
+    Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Prep, proposalId)).Succeeded);
+    var notification = await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.ProposalId == proposalId);
+    Assert.Equal(quoteB.Value, notification.QuotationVersionId);
+    Assert.Equal(artifactB.Value!.Sha256Hex, notification.OfferSha256);
+    var acceptedSha = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId)).SentOfferSha256;
+    Assert.Equal("crm.stale-offer", (await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
+      new("ACCEPTED", null, artifactA.Value!.Sha256Hex, "A. Owner", "owner@gulf.example.test"))).ErrorCode);
+    Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
+      new("ACCEPTED", null, acceptedSha, "A. Owner", "owner@gulf.example.test", "Signed acceptance letter"))).Succeeded);
+
+    // Repricing after the proposal left draft is refused at the source, so an approved revision can
+    // never silently diverge from the accepted artifact downstream; material changes require a new
+    // proposal revision with fresh dispatch and acceptance.
+    Assert.Equal(ErrorCodes.ProtectedState, (await QuotationService.SaveAsync(db, w.Prep, Quote(proposalId))).ErrorCode);
+
+    // A fresh proposal without repricing creates its agreement on exactly the accepted quotation.
+    await using (var db2 = new AuditSphereDbContext(pg.Options))
+    {
+      var lead2 = await PracticeCrmService.CreateLeadAsync(db2, w.Prep,
+        new CreateLeadRequest("Binding Client Lead", "Web", "B. Owner", "binding-client@example.test"));
+      Assert.True(lead2.Succeeded, lead2.Message);
+      Assert.True((await PracticeCrmService.QualifyLeadAsync(db2, w.Prep, lead2.Value)).Succeeded);
+      var opportunity2 = await PracticeCrmService.CreateOpportunityAsync(db2, w.Prep,
+        new CreateOpportunityRequest(lead2.Value, "FinancialStatementAudit", "BINDING-CLIENT", "2026-01-01", "2026-12-31", 30000m, "QAR", 60m));
+      Assert.True(opportunity2.Succeeded, opportunity2.Message);
+      var revised2 = await PracticeCrmService.ReviseProposalAsync(db2, w.Prep,
+        new ReviseProposalRequest(opportunity2.Value, "AUDIT-2026", "Statutory audit of the 2026 financial statements",
+          "Tax advisory", "Independent auditor's report and management letter", "Client supplies the trial balance",
+          25000m, "QAR", "2026-01-01", "2026-12-31"));
+      Assert.True(revised2.Succeeded, revised2.Message);
+    }
+    var proposal2 = (await db.Proposals.AsNoTracking()
+      .Where(x => x.FirmId == w.FirmId && x.Id != proposalId).OrderByDescending(x => x.CreatedAt).FirstAsync()).Id;
+    var quote2 = await QuotationService.SaveAsync(db, w.Prep, Quote(proposal2));
+    Assert.True((await QuotationService.SubmitAsync(db, w.Prep, quote2.Value)).Succeeded);
+    Assert.True((await PracticeCrmService.ApproveProposalAsync(db, w.Partner, proposal2)).Succeeded);
+    Assert.True((await CommercialDocumentService.GenerateBriefQuotationAsync(db, w.Prep, proposal2,
+      expectedQuotationId: quote2.Value, expectedProfileVersion: 1)).Succeeded);
+    Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Prep, proposal2)).Succeeded);
+    var offer2 = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposal2)).SentOfferSha256;
+    Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposal2,
+      new("ACCEPTED", null, offer2, "A. Owner", "owner@gulf.example.test", "Signed acceptance letter"))).Succeeded);
+    var converted2 = await PracticeCrmService.ConvertToClientDraftAsync(db, w.Prep, new(proposal2, "Binding Client LLC"));
+    Assert.True(converted2.Succeeded, converted2.Message);
+    var agreement = await FeeAgreementService.CreateAgreementAsync(db, w.Prep, proposal2);
+    Assert.True(agreement.Succeeded, agreement.Message);
+    var stored = await db.EngagementFeeAgreements.AsNoTracking().SingleAsync(x => x.Id == agreement.Value);
+    Assert.Equal(quote2.Value, stored.QuotationVersionId);
+  }
 }

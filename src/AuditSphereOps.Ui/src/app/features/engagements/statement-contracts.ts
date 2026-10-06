@@ -31,9 +31,38 @@ const basis = obj({
   reviewedAt: nullable(instant),
   revision: sha256,
 });
+const lineShape = obj({
+  destinationCode: str(100),
+  statementSection: str(100),
+  auditArea: str(500),
+  amount: dec,
+  accountCount: nat,
+  procedureCount: nat,
+  priorAmount: nullable(dec),
+  variance: nullable(dec),
+  percentageVariance: nullable(str(30)),
+  riskBand: (v: unknown, p: string) => (typeof v === 'string' && v.length > 0 ? v : 'Green'),
+  riskLabel: (v: unknown, p: string) => (typeof v === 'string' && v.length > 0 ? v : 'Low (Green)'),
+  assignedPerformer: (v: unknown, p: string) => (typeof v === 'string' && v.length > 0 ? v : 'Staff / Associate'),
+  requiredReviewer: (v: unknown, p: string) => (typeof v === 'string' && v.length > 0 ? v : 'Manager'),
+  reviewStatus: (v: unknown, p: string) => (typeof v === 'string' && v.length > 0 ? v : 'PLANNED'),
+  reviewStatusLabel: (v: unknown, p: string) => (typeof v === 'string' && v.length > 0 ? v : 'Planned'),
+  riskExplanation: (v: unknown, p: string) => (typeof v === 'string' ? v : ''),
+});
+const sectionSummaryShape = obj({
+  section: oneOf('profit', 'position'),
+  title: str(200),
+  totalLabel: str(200),
+  currentTotal: dec,
+  priorTotal: nullable(dec),
+  varianceTotal: nullable(dec),
+  percentageVarianceTotal: nullable(str(30)),
+  lineCount: nat,
+  lines: arr(lineShape, 1000),
+});
 const pageShape = obj({
   basis,
-  section: oneOf('profit', 'position'),
+  section: oneOf('profit', 'position', 'split'),
   title: str(200),
   totalLabel: str(200),
   total: dec,
@@ -42,17 +71,10 @@ const pageShape = obj({
   filteredCount: nat,
   page: nat,
   pageSize: nat,
-  lines: arr(
-    obj({
-      destinationCode: str(100),
-      statementSection: str(100),
-      auditArea: str(500),
-      amount: dec,
-      accountCount: nat,
-      procedureCount: nat,
-    }),
-    25,
-  ),
+  lines: arr(lineShape, 2000),
+  profitOrLoss: nullable(sectionSummaryShape),
+  financialPosition: nullable(sectionSummaryShape),
+  policyNote: nullable(str(2000)),
 });
 const detailShape = obj({
   basis,
@@ -121,7 +143,7 @@ export type StatementPage = ReturnType<typeof decodeStatementPage>;
 export type StatementDetail = ReturnType<typeof decodeStatementContributions>;
 
 export interface StatementLocation {
-  section: 'profit' | 'position';
+  section: 'profit' | 'position' | 'split';
   filter: string;
   page: number;
   line: string;
@@ -133,7 +155,7 @@ export interface StatementLocation {
 }
 /** Only bounded navigation metadata lives in the URL. No financial rows or cached totals are restored. */
 export function statementLocation(get: (key: string) => string | null): StatementLocation | null {
-  const section = get('section') ?? 'profit',
+  const section = get('section') ?? 'split',
     filter = get('filter') ?? '',
     line = get('line') ?? '',
     lineSection = get('lineSection') ?? '';
@@ -147,7 +169,7 @@ export function statementLocation(get: (key: string) => string | null): Statemen
     procedure = get('procedure') ?? '',
     revision = get('basis') ?? '';
   if (
-    !['profit', 'position'].includes(section) ||
+    !['profit', 'position', 'split'].includes(section) ||
     filter.length > 80 ||
     line.length > 100 ||
     lineSection.length > 100 ||
@@ -160,7 +182,7 @@ export function statementLocation(get: (key: string) => string | null): Statemen
   )
     return null;
   return {
-    section: section as 'profit' | 'position',
+    section: section as 'profit' | 'position' | 'split',
     filter,
     page,
     line,
@@ -179,7 +201,7 @@ export function sameStatementBasis(
 ): boolean {
   return (
     JSON.stringify(detail.basis) === JSON.stringify(page.basis) &&
-    detail.section === page.section &&
+    (page.section === 'split' || detail.section === page.section) &&
     detail.destinationCode === line &&
     detail.statementSection === section
   );

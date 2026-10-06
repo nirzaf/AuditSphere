@@ -297,4 +297,189 @@ describe('Statement review protected async state', () => {
     expect(f.componentInstance.view.data()).toBeNull();
     expect(f.nativeElement.textContent).not.toContain('100.123456');
   });
+
+  it('renders P&L in the upper section and B/S below simultaneously with comparative columns and action links', () => {
+    const splitSummary = {
+      basis,
+      section: 'split',
+      title: 'Financial statements (comparative split dashboard)',
+      totalLabel: 'Profit for the period (P&L) / Net financial position (B/S)',
+      total: '500.00',
+      balances: true,
+      lineCount: 2,
+      filteredCount: 2,
+      page: 1,
+      pageSize: 25,
+      lines: [
+        {
+          destinationCode: 'REV',
+          statementSection: 'INCOME',
+          auditArea: 'Revenue',
+          amount: '1000.00',
+          accountCount: 2,
+          procedureCount: 2,
+          priorAmount: '800.00',
+          variance: '200.00',
+          percentageVariance: '+25.00%',
+          riskBand: 'Red',
+          riskLabel: 'High (Red)',
+          assignedPerformer: 'Manager / Partner',
+          requiredReviewer: 'Partner',
+          reviewStatus: 'REVIEWED',
+          reviewStatusLabel: '2 of 2 reviewed',
+          riskExplanation: 'Balance exceeds PM',
+        },
+        {
+          destinationCode: 'CASH',
+          statementSection: 'ASSETS',
+          auditArea: 'Cash',
+          amount: '500.00',
+          accountCount: 1,
+          procedureCount: 1,
+          priorAmount: '0.00',
+          variance: '500.00',
+          percentageVariance: 'N/A',
+          riskBand: 'Green',
+          riskLabel: 'Low (Green)',
+          assignedPerformer: 'Staff / Associate',
+          requiredReviewer: 'Manager',
+          reviewStatus: 'PLANNED',
+          reviewStatusLabel: '1 planned',
+          riskExplanation: 'Below TE',
+        },
+      ],
+      profitOrLoss: {
+        section: 'profit',
+        title: 'Statement of profit or loss (P&L)',
+        totalLabel: 'Profit for the period',
+        currentTotal: '500.00',
+        priorTotal: '400.00',
+        varianceTotal: '100.00',
+        percentageVarianceTotal: '+25.00%',
+        lineCount: 1,
+        lines: [
+          {
+            destinationCode: 'REV',
+            statementSection: 'INCOME',
+            auditArea: 'Revenue',
+            amount: '1000.00',
+            accountCount: 2,
+            procedureCount: 2,
+            priorAmount: '800.00',
+            variance: '200.00',
+            percentageVariance: '+25.00%',
+            riskBand: 'Red',
+            riskLabel: 'High (Red)',
+            assignedPerformer: 'Manager / Partner',
+            requiredReviewer: 'Partner',
+            reviewStatus: 'REVIEWED',
+            reviewStatusLabel: '2 of 2 reviewed',
+            riskExplanation: 'Balance exceeds PM',
+          },
+        ],
+      },
+      financialPosition: {
+        section: 'position',
+        title: 'Statement of financial position (B/S)',
+        totalLabel: 'Assets less liabilities and equity',
+        currentTotal: '500.00',
+        priorTotal: '500.00',
+        varianceTotal: '0.00',
+        percentageVarianceTotal: '0.00%',
+        lineCount: 1,
+        lines: [
+          {
+            destinationCode: 'CASH',
+            statementSection: 'ASSETS',
+            auditArea: 'Cash',
+            amount: '500.00',
+            accountCount: 1,
+            procedureCount: 1,
+            priorAmount: '0.00',
+            variance: '500.00',
+            percentageVariance: 'N/A',
+            riskBand: 'Green',
+            riskLabel: 'Low (Green)',
+            assignedPerformer: 'Staff / Associate',
+            requiredReviewer: 'Manager',
+            reviewStatus: 'PLANNED',
+            reviewStatusLabel: '1 planned',
+            riskExplanation: 'Below TE',
+          },
+        ],
+      },
+      policyNote:
+        'Variance = Current Year − Prior Year. Percentage variance = (Current Year − Prior Year) / |Prior Year| × 100%. A zero prior denominator produces clearly labelled N/A. Missing prior data is shown as unavailable (—).',
+    };
+
+    const splitQuery = new BehaviorSubject(convertToParamMap({ section: 'split' }));
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [StatementDrillDown],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            paramMap: new BehaviorSubject(convertToParamMap({ id })),
+            queryParamMap: splitQuery,
+            snapshot: { queryParamMap: splitQuery.value },
+          },
+        },
+      ],
+    });
+    TestBed.inject(SessionService).current.set({
+      userId: id,
+      firmId: id,
+      generation: '0',
+      staff: true,
+    });
+
+    const f = TestBed.createComponent(StatementDrillDown);
+    f.detectChanges();
+    TestBed.tick();
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne((r) => r.url.includes('/statements/workspace')).flush(splitSummary);
+    TestBed.tick();
+    f.detectChanges();
+
+    const text = f.nativeElement.textContent;
+    expect(text).toContain('Statement of profit or loss (P&L)');
+    expect(text).toContain('Statement of financial position (B/S)');
+    expect(text).toContain('Upper section');
+    expect(text).toContain('Lower section');
+
+    // Revenue in P&L
+    expect(text).toContain('REV');
+    expect(text).toContain('1,000.00');
+    expect(text).toContain('800.00');
+    expect(text).toContain('200.00');
+    expect(text).toContain('+25.00%');
+    expect(text).toContain('High (Red)');
+    expect(text).toContain('Manager / Partner');
+    expect(text).toContain('2 of 2 reviewed');
+
+    // Cash in B/S with N/A percentage for zero prior denominator
+    expect(text).toContain('CASH');
+    expect(text).toContain('500.00');
+    expect(text).toContain('N/A');
+    expect(text).toContain('Low (Green)');
+    expect(text).toContain('Staff / Associate');
+    expect(text).toContain('1 planned');
+
+    // Policy note displayed
+    expect(text).toContain('A zero prior denominator produces clearly labelled N/A');
+
+    // Distinct row action buttons exist
+    const arButtons = f.nativeElement.querySelectorAll(
+      'a[aria-label*="Perform analytical review test"]',
+    );
+    const wpButtons = f.nativeElement.querySelectorAll('a[aria-label*="Open audit workprogram"]');
+    expect(arButtons.length).toBe(2);
+    expect(wpButtons.length).toBe(2);
+    expect(arButtons[0].textContent).toContain('AR Test');
+    expect(wpButtons[0].textContent).toContain('Audit Workprogram');
+  });
 });

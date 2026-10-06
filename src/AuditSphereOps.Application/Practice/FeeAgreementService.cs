@@ -60,6 +60,13 @@ public static class FeeAgreementService
       .OrderByDescending(x => x.Revision).FirstOrDefaultAsync(ct);
     if (quotation is null || quotation.Status != QuotationStates.Approved || quotation.Fee != proposal.Fee)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The agreed fee must come from an approved quotation that matches the accepted proposal.");
+    // The agreement must carry the exact accepted commercial terms (STE 4.1.3): a dispatched offer binds one
+    // quotation revision, and a later approved revision needs a new dispatch and fresh acceptance.
+    var dispatch = await db.CommercialNotifications.AsNoTracking().SingleOrDefaultAsync(
+      x => x.FirmId == actor.FirmId && x.ProposalId == proposalId && x.Kind == CommercialNotificationKinds.Proposal, ct);
+    if (dispatch is not null && dispatch.QuotationVersionId is { } acceptedQuotation && acceptedQuotation != quotation.Id)
+      return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision,
+        "The client accepted a different quotation revision than the current one; use a newly approved commercial revision with fresh acceptance before creating the fee agreement.");
 
     var advance = MoneyPolicy.Normalize(proposal.Fee * DefaultAdvancePercent / 100m, QuotationCalculator.CurrencyScale);
     if (advance <= 0m || proposal.Fee - advance <= 0m)

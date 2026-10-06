@@ -74,6 +74,9 @@
     </section>
   }
   <nav class="actions" aria-label="Statement views">
+    <button matButton (click)="section('split')" [attr.aria-pressed]="v.section === 'split'">
+      Split dashboard (P&L & B/S)
+    </button>
     <button matButton (click)="section('profit')" [attr.aria-pressed]="v.section === 'profit'">
       Profit or loss
     </button>
@@ -87,88 +90,375 @@
       Apply statement filter
     </button>
   </form>
-  <section class="panel" [attr.aria-label]="v.title">
-    <h2>{{ v.title }}</h2>
-    <p>
-      {{ v.filteredCount }} of {{ v.lineCount }} lines · Page {{ v.page }} of
-      {{ pages(v.filteredCount) }}
-    </p>
-    <div class="table-scroll" tabindex="0" role="region" aria-label="Statement table scroll area">
-      <table aria-label="Statement lines">
-        <caption>
-          Amounts in
-          {{
-            v.basis.currency
-          }}. Exact values remain available beside display rounding.
-        </caption>
-        <thead>
-          <tr>
-            <th scope="col">Line</th>
-            <th scope="col">Section</th>
-            <th scope="col" class="number">Amount</th>
-            <th scope="col">Accounts / procedures</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (l of v.lines; track l.statementSection + l.destinationCode) {
+  <p class="statement-policy-note muted">
+    {{
+      v.policyNote ??
+        'Variance = Current Year − Prior Year. Percentage variance = (Current Year − Prior Year) / |Prior Year| × 100%. A zero prior denominator produces clearly labelled N/A. Missing prior data is shown as unavailable (—).'
+    }}
+  </p>
+
+  @if (v.section === 'split' || v.section === 'profit' || profitLines().length > 0) {
+    <section class="panel split-section profit-section" aria-label="Statement of profit or loss">
+      <div class="section-header">
+        <h2>Statement of profit or loss (P&L)</h2>
+        <span class="badge">Upper section</span>
+      </div>
+      @if (profitSummary(); as pSum) {
+        <p class="section-meta">{{ pSum.lineCount }} lines in statement</p>
+      }
+      <div
+        class="table-scroll"
+        tabindex="0"
+        role="region"
+        aria-label="Profit or loss table scroll area"
+      >
+        <table aria-label="Profit or loss statement lines">
+          <caption>
+            Amounts in {{ v.basis.currency }}. Prior comparative figures and variances reconciled
+            to approved financial basis.
+          </caption>
+          <thead>
             <tr>
-              <th scope="row">
-                <button
-                  matButton
-                  [attr.aria-label]="'Inspect line ' + l.destinationCode + ' ' + l.statementSection"
-                  [attr.aria-expanded]="
-                    location()?.line === l.destinationCode &&
-                    location()?.lineSection === l.statementSection
-                  "
-                  (click)="choose(l.destinationCode, l.statementSection)"
-                  [disabled]="stale() || downloading()"
-                >
-                  {{ l.destinationCode }}
-                </button>
+              <th scope="col">FSLI Line</th>
+              <th scope="col">Section / Area</th>
+              <th scope="col" class="number">Current Year</th>
+              <th scope="col" class="number">Prior Year</th>
+              <th scope="col" class="number">Variance</th>
+              <th scope="col" class="number">% Variance</th>
+              <th scope="col">Risk Band</th>
+              <th scope="col">Assigned Staff</th>
+              <th scope="col">Review Status</th>
+              <th scope="col">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (l of profitLines(); track l.statementSection + l.destinationCode) {
+              <tr>
+                <th scope="row">
+                  <button
+                    matButton
+                    [attr.aria-label]="
+                      'Inspect line ' + l.destinationCode + ' ' + l.statementSection
+                    "
+                    [attr.aria-expanded]="
+                      location()?.line === l.destinationCode &&
+                      location()?.lineSection === l.statementSection
+                    "
+                    (click)="choose(l.destinationCode, l.statementSection)"
+                    [disabled]="stale() || downloading()"
+                  >
+                    {{ l.destinationCode }}
+                  </button>
+                </th>
+                <td>
+                  <strong>{{ l.statementSection }}</strong>
+                  <small>{{ l.auditArea }}</small>
+                </td>
+                <td class="number">
+                  {{ l.amount | money }}<small>Exact {{ l.amount }}</small>
+                </td>
+                <td class="number">
+                  {{ l.priorAmount !== null ? (l.priorAmount | money) : '—' }}
+                </td>
+                <td class="number">
+                  {{ l.variance !== null ? (l.variance | money) : '—' }}
+                </td>
+                <td class="number">
+                  <span
+                    [class.text-na]="l.percentageVariance === 'N/A'"
+                    [class.text-positive]="
+                      l.percentageVariance && l.percentageVariance.startsWith('+')
+                    "
+                    [class.text-negative]="
+                      l.percentageVariance && l.percentageVariance.startsWith('-')
+                    "
+                  >
+                    {{ l.percentageVariance ?? '—' }}
+                  </span>
+                </td>
+                <td>
+                  <span class="risk-badge" [attr.data-band]="l.riskBand">{{ l.riskLabel }}</span>
+                  <small>{{ l.riskExplanation }}</small>
+                </td>
+                <td>
+                  <span>{{ l.assignedPerformer }}</span>
+                  <small>Reviewer: {{ l.requiredReviewer }}</small>
+                </td>
+                <td>
+                  <span class="status-badge" [attr.data-status]="l.reviewStatus">{{
+                    l.reviewStatusLabel
+                  }}</span>
+                  <small>{{ l.accountCount }} accounts / {{ l.procedureCount }} procedures</small>
+                </td>
+                <td class="cell-actions">
+                  <a
+                    matButton="outlined"
+                    class="action-btn"
+                    [routerLink]="['/app/engagements', id(), 'analysis', 'new']"
+                    [queryParams]="{
+                      area: l.auditArea,
+                      line: l.destinationCode,
+                      section: l.statementSection,
+                      periodStart: v.basis.periodStart,
+                      periodEnd: v.basis.periodEnd,
+                      revision: v.basis.revision,
+                      returnUrl: currentUrl(),
+                    }"
+                    [attr.aria-label]="'Perform analytical review test for ' + l.destinationCode"
+                  >
+                    AR Test
+                  </a>
+                  <a
+                    matButton="outlined"
+                    class="action-btn"
+                    [routerLink]="['/app/engagements', id(), 'audit-fieldwork']"
+                    [queryParams]="{
+                      area: l.auditArea,
+                      line: l.destinationCode,
+                      section: l.statementSection,
+                      revision: v.basis.revision,
+                    }"
+                    [attr.aria-label]="'Open audit workprogram for ' + l.destinationCode"
+                  >
+                    Audit Workprogram
+                  </a>
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="10">
+                  No profit or loss lines match this filter or basis. This does not mean statement
+                  total is zero.
+                </td>
+              </tr>
+            }
+          </tbody>
+          <tfoot>
+            <tr>
+              <th scope="row" colspan="2">
+                {{ profitSummary()?.totalLabel ?? 'Profit for the period (complete P&L)' }}
               </th>
-              <td>{{ l.statementSection }}</td>
               <td class="number">
-                {{ l.amount | money }}<small>Exact {{ l.amount }}</small>
+                {{
+                  profitSummary()
+                    ? (profitSummary()!.currentTotal | money)
+                    : (v.total | money)
+                }}<small>Exact {{ profitSummary()?.currentTotal ?? v.total }}</small>
               </td>
-              <td>{{ l.accountCount }} / {{ l.procedureCount }}</td>
+              <td class="number">
+                {{
+                  profitSummary()?.priorTotal !== null && profitSummary()?.priorTotal !== undefined
+                    ? (profitSummary()!.priorTotal | money)
+                    : '—'
+                }}
+              </td>
+              <td class="number">
+                {{
+                  profitSummary()?.varianceTotal !== null &&
+                  profitSummary()?.varianceTotal !== undefined
+                    ? (profitSummary()!.varianceTotal | money)
+                    : '—'
+                }}
+              </td>
+              <td class="number">
+                {{ profitSummary()?.percentageVarianceTotal ?? '—' }}
+              </td>
+              <td colspan="4"></td>
             </tr>
-          } @empty {
+          </tfoot>
+        </table>
+      </div>
+    </section>
+  }
+
+  @if (v.section === 'split' || v.section === 'position' || positionLines().length > 0) {
+    <section
+      class="panel split-section position-section"
+      aria-label="Statement of financial position"
+    >
+      <div class="section-header">
+        <h2>Statement of financial position (B/S)</h2>
+        <span class="badge">Lower section</span>
+      </div>
+      @if (positionSummary(); as posSum) {
+        <p class="section-meta">{{ posSum.lineCount }} lines in statement</p>
+      }
+      <div
+        class="table-scroll"
+        tabindex="0"
+        role="region"
+        aria-label="Financial position table scroll area"
+      >
+        <table aria-label="Financial position statement lines">
+          <caption>
+            Amounts in {{ v.basis.currency }}. Prior comparative figures and variances reconciled
+            to approved financial basis.
+          </caption>
+          <thead>
             <tr>
+              <th scope="col">FSLI Line</th>
+              <th scope="col">Section / Area</th>
+              <th scope="col" class="number">Current Year</th>
+              <th scope="col" class="number">Prior Year</th>
+              <th scope="col" class="number">Variance</th>
+              <th scope="col" class="number">% Variance</th>
+              <th scope="col">Risk Band</th>
+              <th scope="col">Assigned Staff</th>
+              <th scope="col">Review Status</th>
+              <th scope="col">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (l of positionLines(); track l.statementSection + l.destinationCode) {
+              <tr>
+                <th scope="row">
+                  <button
+                    matButton
+                    [attr.aria-label]="
+                      'Inspect line ' + l.destinationCode + ' ' + l.statementSection
+                    "
+                    [attr.aria-expanded]="
+                      location()?.line === l.destinationCode &&
+                      location()?.lineSection === l.statementSection
+                    "
+                    (click)="choose(l.destinationCode, l.statementSection)"
+                    [disabled]="stale() || downloading()"
+                  >
+                    {{ l.destinationCode }}
+                  </button>
+                </th>
+                <td>
+                  <strong>{{ l.statementSection }}</strong>
+                  <small>{{ l.auditArea }}</small>
+                </td>
+                <td class="number">
+                  {{ l.amount | money }}<small>Exact {{ l.amount }}</small>
+                </td>
+                <td class="number">
+                  {{ l.priorAmount !== null ? (l.priorAmount | money) : '—' }}
+                </td>
+                <td class="number">
+                  {{ l.variance !== null ? (l.variance | money) : '—' }}
+                </td>
+                <td class="number">
+                  <span
+                    [class.text-na]="l.percentageVariance === 'N/A'"
+                    [class.text-positive]="
+                      l.percentageVariance && l.percentageVariance.startsWith('+')
+                    "
+                    [class.text-negative]="
+                      l.percentageVariance && l.percentageVariance.startsWith('-')
+                    "
+                  >
+                    {{ l.percentageVariance ?? '—' }}
+                  </span>
+                </td>
+                <td>
+                  <span class="risk-badge" [attr.data-band]="l.riskBand">{{ l.riskLabel }}</span>
+                  <small>{{ l.riskExplanation }}</small>
+                </td>
+                <td>
+                  <span>{{ l.assignedPerformer }}</span>
+                  <small>Reviewer: {{ l.requiredReviewer }}</small>
+                </td>
+                <td>
+                  <span class="status-badge" [attr.data-status]="l.reviewStatus">{{
+                    l.reviewStatusLabel
+                  }}</span>
+                  <small>{{ l.accountCount }} accounts / {{ l.procedureCount }} procedures</small>
+                </td>
+                <td class="cell-actions">
+                  <a
+                    matButton="outlined"
+                    class="action-btn"
+                    [routerLink]="['/app/engagements', id(), 'analysis', 'new']"
+                    [queryParams]="{
+                      area: l.auditArea,
+                      line: l.destinationCode,
+                      section: l.statementSection,
+                      periodStart: v.basis.periodStart,
+                      periodEnd: v.basis.periodEnd,
+                      revision: v.basis.revision,
+                      returnUrl: currentUrl(),
+                    }"
+                    [attr.aria-label]="'Perform analytical review test for ' + l.destinationCode"
+                  >
+                    AR Test
+                  </a>
+                  <a
+                    matButton="outlined"
+                    class="action-btn"
+                    [routerLink]="['/app/engagements', id(), 'audit-fieldwork']"
+                    [queryParams]="{
+                      area: l.auditArea,
+                      line: l.destinationCode,
+                      section: l.statementSection,
+                      revision: v.basis.revision,
+                    }"
+                    [attr.aria-label]="'Open audit workprogram for ' + l.destinationCode"
+                  >
+                    Audit Workprogram
+                  </a>
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="10">
+                  No financial position lines match this filter or basis. This does not mean
+                  statement total is zero.
+                </td>
+              </tr>
+            }
+          </tbody>
+          <tfoot>
+            <tr>
+              <th scope="row" colspan="2">
+                {{
+                  positionSummary()?.totalLabel ??
+                    'Assets less liabilities and equity (complete B/S)'
+                }}
+              </th>
+              <td class="number">
+                {{
+                  positionSummary()
+                    ? (positionSummary()!.currentTotal | money)
+                    : (v.total | money)
+                }}<small>Exact {{ positionSummary()?.currentTotal ?? v.total }}</small>
+              </td>
+              <td class="number">
+                {{
+                  positionSummary()?.priorTotal !== null &&
+                  positionSummary()?.priorTotal !== undefined
+                    ? (positionSummary()!.priorTotal | money)
+                    : '—'
+                }}
+              </td>
+              <td class="number">
+                {{
+                  positionSummary()?.varianceTotal !== null &&
+                  positionSummary()?.varianceTotal !== undefined
+                    ? (positionSummary()!.varianceTotal | money)
+                    : '—'
+                }}
+              </td>
+              <td class="number">
+                {{ positionSummary()?.percentageVarianceTotal ?? '—' }}
+              </td>
               <td colspan="4">
-                No statement lines match this filter. This does not mean the statement total is
-                zero.
+                <span class="balance-badge" [attr.data-balanced]="v.balances">
+                  {{
+                    v.balances
+                      ? 'Reconciles (assets − claims = profit before closing)'
+                      : 'Unbalanced mapping'
+                  }}
+                </span>
               </td>
             </tr>
-          }
-        </tbody>
-        <tfoot>
-          <tr>
-            <th scope="row" colspan="2">{{ v.totalLabel }} (complete statement)</th>
-            <td class="number">
-              {{ v.total | money }}<small>Exact {{ v.total }}</small>
-            </td>
-            <td></td>
-          </tr>
-        </tfoot>
-      </table>
-    </div>
-    <nav class="actions" aria-label="Statement pages">
-      <button
-        matButton
-        (click)="navigate({ page: v.page - 1 })"
-        [disabled]="v.page === 1 || downloading()"
-      >
-        Previous statement lines
-      </button>
-      <button
-        matButton
-        (click)="navigate({ page: v.page + 1 })"
-        [disabled]="v.page >= pages(v.filteredCount) || downloading()"
-      >
-        Next statement lines
-      </button>
-    </nav>
-  </section>
+          </tfoot>
+        </table>
+      </div>
+    </section>
+  }
   @if (location()?.line && !stale()) {
     <audit-state
       [loading]="detail.loading()"

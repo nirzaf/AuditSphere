@@ -139,6 +139,19 @@ public static partial class CommercialDocumentService
         return CommandResult<CommercialDocument>.Fail(ErrorCodes.GateBlocked, "A current unconditional Partner acceptance decision for this client and service is required.");
       if (riskDecision.Generation != guard.InputGeneration)
         return CommandResult<CommercialDocument>.Fail(ErrorCodes.GenerationStale, "The Partner risk clearance is stale; complete the current acceptance checklist first.");
+      // The letter must use the exact accepted commercial terms (STE 4.1.3): a dispatched offer binds one
+      // quotation revision, and the recorded acceptance must cite that dispatched offer identity.
+      var dispatch = await db.CommercialNotifications.AsNoTracking().SingleOrDefaultAsync(
+        x => x.FirmId == actor.FirmId && x.ProposalId == proposal.Id && x.Kind == CommercialNotificationKinds.Proposal, ct);
+      if (dispatch is not null)
+      {
+        if (dispatch.QuotationVersionId is not { } acceptedQuotation || acceptedQuotation != quotation.Id)
+          return CommandResult<CommercialDocument>.Fail(ErrorCodes.StaleRevision,
+            "The client accepted a different quotation revision than the current one; use a newly approved commercial revision with fresh acceptance for reissue.");
+        if (!string.Equals(dispatch.OfferSha256, proposal.ResponseOfferSha256, StringComparison.OrdinalIgnoreCase))
+          return CommandResult<CommercialDocument>.Fail(ErrorCodes.GenerationStale,
+            "The recorded client acceptance does not cite the dispatched offer identity; re-record the acceptance against the exact dispatched offer.");
+      }
     }
 
     var existing = await db.CommercialDocuments.AsNoTracking()
