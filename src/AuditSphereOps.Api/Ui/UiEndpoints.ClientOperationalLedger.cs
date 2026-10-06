@@ -124,7 +124,8 @@ public static partial class UiEndpoints
       return Results.Ok(result.Value);
     }).Produces<ClientOperationalJournalView>();
 
-    group.MapPost("/accounting/clients/{clientId:guid}/operational-journals/{journalId:guid}/rework", async (Guid clientId,
+    foreach (var editAction in new[] { "rework", "edit" })
+    group.MapPost("/accounting/clients/{clientId:guid}/operational-journals/{journalId:guid}/" + editAction, async (Guid clientId,
       Guid journalId, ClientOperationalJournalReworkHttpInput input, HttpContext http, TrustedActorResolver resolver,
       IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -144,8 +145,10 @@ public static partial class UiEndpoints
         lines.Add(new(line.AccountCode, line.Description, debit, credit));
       }
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
-      var result = await ClientOperationalLedgerWorkspace.ReworkAsync(db, actor, clientId, journalId,
-        new(revision, input.Description, postingDate, lines), http.RequestAborted);
+      var request = new ClientOperationalJournalReworkRequest(revision, input.Description, postingDate, lines);
+      var result = editAction == "edit"
+        ? await ClientOperationalLedgerWorkspace.EditDraftAsync(db, actor, clientId, journalId, request, http.RequestAborted)
+        : await ClientOperationalLedgerWorkspace.ReworkAsync(db, actor, clientId, journalId, request, http.RequestAborted);
       return result.Succeeded ? Results.Ok(new { id = journalId }) :
         Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
     });

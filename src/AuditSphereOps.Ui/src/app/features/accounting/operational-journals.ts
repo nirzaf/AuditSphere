@@ -245,8 +245,11 @@ function minor(value: string): bigint { if (!nativeJournalAmount(value)) throw n
               <details><summary>Reviewed intent identity</summary><code>{{ p.digest }}</code></details>
             }
           }
+          @if (j.status === 'DRAFT' && !j.reversalOf && j.createdByUserId === userId()) {
+            <button matButton type="button" [disabled]="busy() || uncertain() || !!editing() || serviceActive() === false" (click)="editJournal(j)">Edit draft journal</button>
+          }
           @if (j.status === 'RETURNED' && j.createdByUserId === userId()) {
-            <button matButton type="button" [disabled]="busy() || uncertain() || !!editing() || serviceActive() === false" (click)="editReturned(j)">Edit returned journal</button>
+            <button matButton type="button" [disabled]="busy() || uncertain() || !!editing() || serviceActive() === false" (click)="editJournal(j)">Edit returned journal</button>
           }
           @if ((j.status === 'DRAFT' || j.status === 'RETURNED') && !editing()) {
             <label><input type="checkbox" [checked]="reviewed()" (change)="setReviewed($any($event.target).checked)" /> I reviewed this client, journal, posting date, account selection and exact amounts.</label>
@@ -289,7 +292,7 @@ function minor(value: string): bigint { if (!nativeJournalAmount(value)) throw n
         }
       </section>
       <form #createForm="ngForm" (ngSubmit)="createForm.valid && create()">
-        <h4>{{ editing() ? "Rework returned journal" : "Create manual journal draft" }}</h4>
+        <h4>{{ editing() ? (editing()?.status === "DRAFT" ? "Edit saved journal draft" : "Rework returned journal") : "Create manual journal draft" }}</h4>
         <label for="native-journal-period">Reporting period</label><select id="native-journal-period" [disabled]="!!editing()" name="period" [(ngModel)]="periodId" (ngModelChange)="reviewed.set(false)" required>
           <option value="">Choose period</option>@for (p of periods(); track p.id) { <option [value]="p.id" [disabled]="p.status === 'CLOSED'">{{ p.code }} · {{ p.currency }} · {{ p.status }}</option> }
         </select>
@@ -307,8 +310,8 @@ function minor(value: string): bigint { if (!nativeJournalAmount(value)) throw n
         <p>Debits {{ totalDebit() }} · Credits {{ totalCredit() }} · {{ balanced() ? 'Balanced' : 'Out of balance' }}</p>
         <button matButton type="button" [disabled]="lines().length >= 100" (click)="addLine()">Add line</button>
         <label><input type="checkbox" [checked]="reviewed()" (change)="setReviewed($any($event.target).checked)" name="createReview" /> I reviewed the selected client, period, date and exact balanced intent.</label>
-        <button matButton type="submit" [disabled]="serviceActive() === false || createForm.invalid || !balanced() || !reviewed() || busy() || uncertain()">{{ editing() ? "Save rework draft" : "Save journal draft" }}</button>
-        @if (editing()) { <button matButton type="button" [disabled]="busy()" (click)="resetDraft()">Cancel rework</button> }
+        <button matButton type="submit" [disabled]="serviceActive() === false || createForm.invalid || !balanced() || !reviewed() || busy() || uncertain()">{{ editing() ? (editing()?.status === "DRAFT" ? "Save draft changes" : "Save rework draft") : "Save journal draft" }}</button>
+        @if (editing()) { <button matButton type="button" [disabled]="busy()" (click)="resetDraft()">Cancel journal editing</button> }
       </form>
       <label>Open a saved journal by ID <input [(ngModel)]="lookupId" /></label>
       <button matButton type="button" [disabled]="busy()" (click)="load()">Open journal</button>
@@ -393,8 +396,8 @@ export class ClientOperationalJournals {
     this.lines.set([{ accountCode: '', description: '', debit: '0', credit: '0' }, { accountCode: '', description: '', debit: '0', credit: '0' }]);
     this.reviewed.set(false);
   }
-  editReturned(journal: Journal): void {
-    if (this.busy() || this.uncertain() || journal.clientId !== this.clientId() || journal.status !== 'RETURNED' || journal.createdByUserId !== this.userId()) return;
+  editJournal(journal: Journal): void {
+    if (this.busy() || this.uncertain() || journal.clientId !== this.clientId() || !['DRAFT', 'RETURNED'].includes(journal.status) || (journal.status === 'DRAFT' && !!journal.reversalOf) || journal.createdByUserId !== this.userId()) return;
     this.editing.set(journal); this.periodId = journal.periodId; this.number = journal.journalNumber;
     this.description = journal.description; this.postingDate = journal.postingDate;
     this.lines.set(journal.lines.map(({ accountCode, description, debit, credit }) => ({ accountCode, description, debit, credit })));
@@ -407,7 +410,7 @@ export class ClientOperationalJournals {
     const edit = this.editing();
     if (edit && (edit.clientId !== clientId || edit.id !== this.journal()?.id || edit.revision !== this.journal()?.revision || edit.periodId !== period.id)) return;
     const generation = this.session.invalidation(); this.busy.set(true); this.error.set('');
-    const url = `/api/ui/accounting/clients/${clientId}/operational-journals` + (edit ? `/${edit.id}/rework` : '');
+    const url = `/api/ui/accounting/clients/${clientId}/operational-journals` + (edit ? `/${edit.id}/${edit.status === 'DRAFT' ? 'edit' : 'rework'}` : '');
     this.operation = this.http.post<{ id: string }>(url, {
       ...(edit ? { revision: edit.revision } : {}),
       periodId: period.id, journalNumber: this.number.trim(), description: this.description.trim(), postingDate: this.postingDate,

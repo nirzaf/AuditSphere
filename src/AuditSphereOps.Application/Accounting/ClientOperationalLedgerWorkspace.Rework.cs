@@ -11,14 +11,22 @@ public sealed record ClientOperationalJournalReworkRequest(long ExpectedRevision
 
 public static partial class ClientOperationalLedgerWorkspace
 {
-  public static async Task<CommandResult> ReworkAsync(IClientAccountingDbContext db, ActorContext actor, Guid clientId,
+  public static Task<CommandResult> ReworkAsync(IClientAccountingDbContext db, ActorContext actor, Guid clientId,
     Guid journalId, ClientOperationalJournalReworkRequest request, CancellationToken ct = default)
+    => EditContentAsync(db, actor, clientId, journalId, request, "RETURNED", ct);
+
+  public static Task<CommandResult> EditDraftAsync(IClientAccountingDbContext db, ActorContext actor, Guid clientId,
+    Guid journalId, ClientOperationalJournalReworkRequest request, CancellationToken ct = default)
+    => EditContentAsync(db, actor, clientId, journalId, request, "DRAFT", ct);
+
+  private static async Task<CommandResult> EditContentAsync(IClientAccountingDbContext db, ActorContext actor, Guid clientId,
+    Guid journalId, ClientOperationalJournalReworkRequest request, string requiredState, CancellationToken ct)
   {
     var description = (request.Description ?? string.Empty).Trim();
     if (request.ExpectedRevision < 1 || description.Length is 0 or > 1000 ||
         !ClientOperationalJournalCalculator.Calculate(request.Lines).Valid ||
         request.Lines.Any(x => string.IsNullOrWhiteSpace(x.AccountCode) || x.AccountCode.Trim().Length > 100 || x.Description?.Trim().Length > 1000))
-      return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "Rework requires a valid description and exact balanced posting lines.");
+      return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "Editing requires a valid description and exact balanced posting lines.");
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     var auth = await AuthorizeAsync(db, actor, clientId, Preparers, ct);
     if (!auth.Succeeded) return auth;
@@ -26,9 +34,12 @@ public static partial class ClientOperationalLedgerWorkspace
       $"SELECT * FROM client_operational_journals WHERE firm_id={actor.FirmId} AND client_id={clientId} AND id={journalId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
     if (journal is null || journal.CreatedByUserId != actor.UserId)
-      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Only the original assigned preparer can rework this journal.");
-    if (journal.Status != "RETURNED" || journal.Revision != request.ExpectedRevision)
-      return CommandResult.Fail(ErrorCodes.StaleRevision, "Rework requires the current returned revision.");
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Only the original assigned preparer can edit this journal.");
+    if (journal.Status != requiredState || journal.Revision != request.ExpectedRevision)
+      return CommandResult.Fail(ErrorCodes.StaleRevision, "Editing requires the current eligible journal revision.");
+    if (requiredState == "DRAFT" && await db.ClientOperationalJournalReversals.AsNoTracking().AnyAsync(x =>
+        x.FirmId == actor.FirmId && x.ClientId == clientId && x.ReversalJournalId == journalId, ct))
+      return CommandResult.Fail(ErrorCodes.ProtectedState, "Full reversal drafts retain exact original accounting sides; general draft editing is unavailable.");
     var profile = await NativeProfileAsync(db, actor, clientId, ct);
     if (!profile.Succeeded) return CommandResult.Fail(profile.ErrorCode!, profile.Message!);
     var period = await db.ClientReportingPeriods.FromSqlInterpolated(
@@ -37,7 +48,7 @@ public static partial class ClientOperationalLedgerWorkspace
     if (period is null || period.Status == AccountingWorkflowStates.Closed || request.PostingDate < period.StartDate ||
         request.PostingDate > period.EndDate || period.Currency != journal.Currency || journal.Currency != profile.Value!.FunctionalCurrency)
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Choose a date in the open matching client period.");
-    if (!await db.ClientOperationalJournalSnapshots.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId &&
+    if (requiredState == "RETURNED" && !await db.ClientOperationalJournalSnapshots.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId &&
         x.ClientId == clientId && x.JournalId == journalId && x.JournalRevision == journal.Revision - 1, ct))
       return CommandResult.Fail(ErrorCodes.GateBlocked, "The returned content has no preserved submission; historical content cannot be reconstructed for editing.");
     var chart = await ActiveChartAsync(db, actor.FirmId, clientId, request.PostingDate, ct);
@@ -46,7 +57,8 @@ public static partial class ClientOperationalLedgerWorkspace
     var accounts = await db.ClientAccounts.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == clientId &&
       x.ChartVersionId == chart.Id && codes.Contains(x.AccountCode) && x.IsPosting && x.Status == AccountingWorkflowStates.Active).ToListAsync(ct);
     if (accounts.Count != codes.Length) return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "Every line needs an active approved-chart posting account.");
-    // First preserve the reviewed return boundary; line replacement follows under the same row lock and transaction.
+    // Check any reviewed return boundary before line replacement.
+    // Advancing the revision invalidates all earlier draft previews.
     journal.Status = "DRAFT";
     journal.Revision++;
     journal.Description = description;
@@ -65,7 +77,7 @@ public static partial class ClientOperationalLedgerWorkspace
     if (!(await AuthorizeAsync(db, actor, clientId, Preparers, ct)).Succeeded)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (!(await NativeProfileAsync(db, actor, clientId, ct)).Succeeded)
-      return CommandResult.Fail(ErrorCodes.GateBlocked, "The accepted bookkeeping service changed during rework.");
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "The accepted bookkeeping service changed during editing.");
     await tx.CommitAsync(ct);
     return CommandResult.Ok();
   }

@@ -319,6 +319,9 @@ public sealed partial class ClientAccountingTests
         "UPDATE client_operational_journal_lines SET credit=credit+1 WHERE journal_id=@journal AND credit>0",
         "DELETE FROM client_operational_journal_lines WHERE journal_id=@journal"
       ]);
+      var reversalEdit = await ClientOperationalLedgerWorkspace.EditDraftAsync(db, preparer, scope.ClientA, reversalId,
+        new(1, "Change reversal draft", new DateOnly(2027, 1, 15), [new("6000", "Expense", 1m, 0m), new("1000", "Cash", 0m, 1m)]));
+      Assert.False(reversalEdit.Succeeded); Assert.Equal(ErrorCodes.ProtectedState, reversalEdit.ErrorCode);
       var reversalPreview = await ClientOperationalLedgerWorkspace.PreviewAsync(db, preparer, scope.ClientA, reversalId);
       Assert.True(reversalPreview.Succeeded, reversalPreview.Message);
       Assert.True((await ClientOperationalLedgerWorkspace.SubmitAsync(db, preparer, scope.ClientA, reversalId, 1, previewDigest: reversalPreview.Value!.Digest)).Succeeded);
@@ -368,6 +371,89 @@ public sealed partial class ClientAccountingTests
       Assert.False((await ClientOperationalGeneralLedgerWorkspace.GetAsync(db, reviewer, scope.ClientA, periodId)).Succeeded);
       Assert.False((await ClientOperationalLedgerWorkspace.GetAsync(db, reviewer, scope.ClientA, journalId)).Succeeded);
 
+    }
+  }
+
+
+  [Fact]
+  [Trait("ClientOperationalLedger", "Database")]
+  public async Task NativeJournalDraftEditingFencesRevisionAndPreviewWithoutChangingSubmittedHistory()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
+    Guid periodId;
+    Guid chartId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.AcceptanceDecisions.Add(new AcceptanceDecision
+      {
+        Id = Guid.CreateVersion7(), FirmId = scope.FirmId, PracticeClientId = scope.ClientA,
+        ServiceRoute = "BOOKKEEPING", Decision = "Accepted", Generation = 1,
+        Rationale = "Approved test bookkeeping service", EvaluationTemplateVersion = "TEST-1",
+        EvaluationSnapshotDigest = new string('f', 64), DecidedByUserId = scope.Reviewer.Id, DecidedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+      var profile = await ClientAccountingService.CreateProfileAsync(db, reviewer,
+        new ClientAccountingProfileRequest(scope.ClientA, "QA", "QAR", 1, 1, "AUDITSPHERE", "NATIVE-1",
+          ClientAccountingSourceModes.NativeBookkeeping));
+      Assert.True(profile.Succeeded, profile.Message);
+      var period = await ClientAccountingService.CreatePeriodAsync(db, preparer,
+        new ReportingPeriodRequest(scope.ClientA, "2026", new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), "IFRS", "QAR"));
+      Assert.True(period.Succeeded, period.Message);
+      periodId = period.Value;
+      var chart = await ClientAccountingService.CreateChartVersionAsync(db, preparer, scope.ClientA, "AUDITSPHERE", new DateOnly(2026, 1, 1));
+      Assert.True(chart.Succeeded, chart.Message);
+      chartId = chart.Value;
+      var accounts = await ClientAccountingService.AddAccountsAsync(db, preparer, chartId, [
+        new("cash", "1000", "Cash", "ASSET", "DEBIT", true),
+        new("expense", "6000", "Office expense", "EXPENSE", "DEBIT", true),
+        new("unused", "7000", "Unused expense", "EXPENSE", "DEBIT", true)
+      ]);
+      Assert.True(accounts.Succeeded, accounts.Message);
+    }
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var publication = await ClientAccountingService.PublishChartVersionAsync(db, reviewer, chartId);
+      Assert.True(publication.Succeeded, publication.Message);
+    }
+
+
+    Guid draftId;
+    await using (var db = new AuditSphereDbContext(pg.Options)) {
+      var created = await ClientOperationalLedgerWorkspace.CreateDraftAsync(db, preparer,
+        new(scope.ClientA, periodId, "J-EDIT", "Original draft", new DateOnly(2026, 1, 15), [new("6000", "Expense", 10m, 0m), new("1000", "Cash", 0m, 10m)]));
+      Assert.True(created.Succeeded, created.Message); draftId = created.Value;
+    }
+    ClientOperationalJournalPreview oldPreview;
+    var edit = new ClientOperationalJournalReworkRequest(1, "Edited draft", new DateOnly(2026, 1, 16), [new("6000", "Expense revised", 20m, 0m), new("1000", "Cash revised", 0m, 20m)]);
+    await using (var db = new AuditSphereDbContext(pg.Options)) {
+      oldPreview = (await ClientOperationalLedgerWorkspace.PreviewAsync(db, preparer, scope.ClientA, draftId)).Value!;
+      Assert.False((await ClientOperationalLedgerWorkspace.EditDraftAsync(db, reviewer, scope.ClientA, draftId, edit)).Succeeded);
+      Assert.False((await ClientOperationalLedgerWorkspace.EditDraftAsync(db, preparer, scope.ClientB, draftId, edit)).Succeeded);
+      Assert.False((await ClientOperationalLedgerWorkspace.EditDraftAsync(db, preparer, scope.ClientA, draftId, edit with { PostingDate = new DateOnly(2027, 1, 1) })).Succeeded);
+      Assert.False((await ClientOperationalLedgerWorkspace.EditDraftAsync(db, preparer, scope.ClientA, draftId, edit with { Lines = [new("6000", "Expense", 20m, 0m), new("1000", "Cash", 0m, 19m)] })).Succeeded);
+    }
+    async Task<CommandResult> Attempt() {
+      await using var db = new AuditSphereDbContext(pg.Options);
+      return await ClientOperationalLedgerWorkspace.EditDraftAsync(db, preparer, scope.ClientA, draftId, edit);
+    }
+    var edits = await Task.WhenAll(Attempt(), Attempt());
+    Assert.Single(edits, x => x.Succeeded); Assert.Equal(ErrorCodes.StaleRevision, Assert.Single(edits, x => !x.Succeeded).ErrorCode);
+    await using (var db = new AuditSphereDbContext(pg.Options)) {
+      var saved = (await ClientOperationalLedgerWorkspace.GetAsync(db, preparer, scope.ClientA, draftId)).Value!;
+      Assert.Equal("2", saved.Revision); Assert.Equal("DRAFT", saved.Status); Assert.Equal("Edited draft", saved.Description);
+      Assert.Equal("J-EDIT", saved.JournalNumber); Assert.Equal(periodId, saved.PeriodId); Assert.Equal("20.000000", saved.Lines[0].Debit);
+      Assert.Empty(await db.ClientOperationalJournalSnapshots.Where(x => x.JournalId == draftId).ToListAsync());
+      var oldIntent = await ClientOperationalLedgerWorkspace.SubmitAsync(db, preparer, scope.ClientA, draftId, 2, previewDigest: oldPreview.Digest);
+      Assert.False(oldIntent.Succeeded); Assert.Equal(ErrorCodes.StaleRevision, oldIntent.ErrorCode);
+      var fresh = await ClientOperationalLedgerWorkspace.PreviewAsync(db, preparer, scope.ClientA, draftId);
+      Assert.NotEqual(oldPreview.Digest, fresh.Value!.Digest);
+      Assert.True((await ClientOperationalLedgerWorkspace.SubmitAsync(db, preparer, scope.ClientA, draftId, 2, previewDigest: fresh.Value.Digest)).Succeeded);
+      Assert.False((await ClientOperationalLedgerWorkspace.EditDraftAsync(db, preparer, scope.ClientA, draftId, edit with { ExpectedRevision = 3 })).Succeeded);
+      var history = await ClientOperationalLedgerWorkspace.GetSnapshotsAsync(db, reviewer, scope.ClientA, draftId);
+      Assert.Equal("20.000000", Assert.Single(history.Value!).Lines[0].Debit);
     }
   }
 
