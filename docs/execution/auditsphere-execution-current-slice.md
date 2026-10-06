@@ -15,7 +15,27 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
-## Current follow-on slice: Firm books rejection and journal identity
+## Current follow-on slice: Firm books authorization and recovery boundaries
+
+At code/test commit `3bff1eb1`, two PostgreSQL-backed API-host Angular journeys
+passed **2/2**. They verify malformed and oversized evidence upload rejection,
+foreign-firm versus guessed-ID indistinguishable denial for submit/post,
+unchanged foreign expense state, session-epoch revocation clearing, and
+duplicate post recovery: repeated post requests return the same success
+response while PostgreSQL retains one posting. The positive path also keeps
+the independent reviewer, persisted rejection reason, same-date expense
+submission and balanced/reconciled trial-balance checks.
+
+The broad FinanceManager/FinanceReviewer and scope matrix, remaining invalid
+input/content cases, post failure/unknown-outcome reconciliation, invoice
+approve/post/send journeys and whole-application AS-PAR-002 review remain open.
+Blazor retirement stays `NOT_READY`; no role or production access was widened.
+Full suite and EF model-drift checks were not rerun. Current focused evidence
+and the built-in browser's expected read-only denial are recorded in
+`status.json` and the finance source review. Two unrelated concurrent edits
+were left unstaged.
+
+## Completed focused slice: Firm books rejection and journal identity
 
 The Angular firm-expense rejection action now opens a reason dialog, blocks
 empty/whitespace input, trims the retained explanation, and uses the maximum
