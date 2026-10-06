@@ -96,6 +96,11 @@
     } @placeholder {
       <p>Team and budget</p>
     }
+    @defer (on viewport) {
+      <audit-engagement-lifecycle [engagementId]="engagement.id" />
+    } @placeholder {
+      <p>Canonical Engagement Lifecycle</p>
+    }
     <section id="engagement-clearance" aria-label="Holds and clearance gates">
       <h2>Holds and clearance gates</h2>
       <p>

@@ -36,9 +36,20 @@ public static partial class AuditDeliverableService
 
   // ── Facts and currency ────────────────────────────────────────────────────────────────────────────
 
+  private sealed record MaterialitySummary(string? Currency, decimal OverallMateriality, decimal PerformanceMateriality,
+    decimal ClearlyTrivialThreshold, string BenchmarkSource);
+
+  /// <summary>Per-currency uncorrected differences with gross and signed-net amounts, plus AJE linkage counts (STE §4.3.3).</summary>
+  private sealed record DifferenceCurrencySummary(string Currency, int UncorrectedCount, decimal UncorrectedGross, decimal UncorrectedNet,
+    int ProposedAdjustments, int AgreedAdjustments, int RejectedAdjustments, int AppliedAdjustments);
+
+  private sealed record UnresolvedVariance(string AccountArea, string PeriodReference, decimal DifferenceAmount, string Currency, string Conclusion);
+
   private sealed record Facts(
-    string Client, string PeriodEnd, string Currency, object? Materiality, IReadOnlyList<object> Risks, IReadOnlyList<object> Procedures,
-    int OpenReviewNotes, IReadOnlyList<Finding> Findings, decimal UnadjustedDifferences, IReadOnlyList<object> Confirmations, object? GoingConcern,
+    string Client, string PeriodEnd, MaterialitySummary? Materiality, IReadOnlyList<object> Risks, IReadOnlyList<string> RedAreas,
+    IReadOnlyList<object> Procedures, int OpenReviewNotes, IReadOnlyList<Finding> Findings,
+    IReadOnlyList<DifferenceCurrencySummary> UnadjustedDifferences, int ConfirmationsOutstanding, int ConfirmationsCriticalOutstanding,
+    IReadOnlyList<object> Confirmations, object? GoingConcern, IReadOnlyList<UnresolvedVariance> UnresolvedVariances,
     IReadOnlyList<string> Blockers);
 
   private static async Task<Facts> FactsAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct)
@@ -48,35 +59,64 @@ public static partial class AuditDeliverableService
     var materialityAssessment = await db.MaterialityAssessments.AsNoTracking().Where(x =>
       x.FirmId == actor.FirmId && x.ClientId == engagement.PracticeClientId && x.EngagementId == engagementId)
       .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
-    object? materiality = materialityAssessment is { } approvedMateriality &&
-      await MaterialityEngineService.IsPartnerApprovedCurrentAsync(db, approvedMateriality, ct)
-      ? new { approvedMateriality.Id, approvedMateriality.OverallMateriality, approvedMateriality.PerformanceMateriality,
-        approvedMateriality.ClearlyTrivialThreshold, approvedMateriality.BenchmarkSource }
-      : null;
+    var latestCalculation = await MaterialityEngineService.GetLatestAsync(db, actor.FirmId, engagementId, ct);
+    MaterialitySummary? materiality = null;
+    if (materialityAssessment is { } approvedMateriality && await MaterialityEngineService.IsPartnerApprovedCurrentAsync(db, approvedMateriality, ct))
+    {
+      var currency = latestCalculation is { } latest && latest.AssessmentId == approvedMateriality.Id && !string.IsNullOrWhiteSpace(latest.Calculation.Currency)
+        ? latest.Calculation.Currency : null;
+      materiality = new MaterialitySummary(currency, approvedMateriality.OverallMateriality, approvedMateriality.PerformanceMateriality,
+        approvedMateriality.ClearlyTrivialThreshold, approvedMateriality.BenchmarkSource);
+    }
     var routing = await RiskBandService.GetRoutingForAuthorizedScopeAsync(db, actor.FirmId, engagementId, ct);
+    var redAreas = routing.Succeeded
+      ? routing.Value!.Where(r => r.Band == RiskBands.Red).Select(r => r.Area).Distinct().ToList() : [];
     var procedures = await db.AuditProcedures.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId && x.ApplicabilityStatus == AuditApplicabilityStatuses.Applicable)
       .OrderBy(x => x.SourceProcedureId).Select(x => new { x.Id, x.SourceProcedureId, x.Title, x.Status, x.CurrentResultRevision }).ToListAsync(ct);
     var openNotes = 0;
     foreach (var p in procedures) openNotes += await ReviewNotesService.OpenCountAsync(db, actor.FirmId, p.Id, ct);
     var findings = await db.Findings.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId).OrderBy(x => x.CreatedAt).ToListAsync(ct);
-    var unadjusted = await db.AuditDifferences.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId && !x.Corrected).SumAsync(x => (decimal?)x.Amount, ct) ?? 0m;
+    var differenceRows = await db.AuditDifferences.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId).ToListAsync(ct);
+    var unadjustedDifferences = differenceRows
+      .GroupBy(x => x.Currency, StringComparer.OrdinalIgnoreCase).OrderBy(x => x.Key, StringComparer.Ordinal)
+      .Select(g =>
+      {
+        var open = g.Where(x => !x.Corrected).ToList();
+        return new DifferenceCurrencySummary(g.Key.ToUpperInvariant(), open.Count,
+          MoneyPolicy.Normalize(open.Sum(x => Math.Abs(x.Amount))), MoneyPolicy.Normalize(open.Sum(x => x.Amount)),
+          g.Count(x => x.CorrectionState == AuditDifferenceCorrectionStates.Proposed),
+          g.Count(x => x.CorrectionState == AuditDifferenceCorrectionStates.Agreed),
+          g.Count(x => x.CorrectionState == AuditDifferenceCorrectionStates.Rejected),
+          g.Count(x => x.CorrectionState is AuditDifferenceCorrectionStates.AppliedInReporting
+            or AuditDifferenceCorrectionStates.ReportedPostedExternally or AuditDifferenceCorrectionStates.VerifiedReflected));
+      }).ToList();
     var confirmations = await ConfirmationRowsAsync(db, actor.FirmId, engagementId, ct);
+    var outstandingConfirmations = confirmations.Count(c => c.Status != AuditConfirmationStatuses.Closed);
+    var criticalConfirmations = confirmations.Count(c => c.Critical && c.Status != AuditConfirmationStatuses.Closed);
+    var unresolvedVariances = await db.AnalyticalReviewVarianceInvestigations.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId &&
+        (x.Conclusion == VarianceInvestigationConclusions.Unexplained || x.ReviewedByUserId == null))
+      .OrderBy(x => x.RecordedAt)
+      .Select(x => new UnresolvedVariance(x.AccountArea, x.PeriodReference, x.DifferenceAmount, x.Currency, x.Conclusion))
+      .ToListAsync(ct);
     var gc = await db.GoingConcernAssessments.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId).OrderByDescending(x => x.Revision)
       .Select(x => new { x.Id, x.Revision, x.Conclusion, Reviewed = x.ReviewedByUserId != null }).FirstOrDefaultAsync(ct);
     var completion = await AuditFieldworkService.EvaluateCompletionForAuthorizedScopeAsync(db, actor.FirmId, engagement.PracticeClientId, engagementId, ct);
-    return new(client.CommercialName ?? client.LegalName, engagement.PeriodEnd, materiality is null ? "" : "", materiality,
+    return new(client.CommercialName ?? client.LegalName, engagement.PeriodEnd, materiality,
       routing.Succeeded ? routing.Value!.Select(r => (object)new { r.RiskId, r.Area, r.Band, r.PartnerCleared }).ToList() : [],
-      procedures.Select(p => (object)p).ToList(), openNotes, findings, MoneyPolicy.Normalize(unadjusted),
-      confirmations.Select(c => (object)new { c.CaseId, c.Status, c.Critical }).ToList(), gc,
+      redAreas,
+      procedures.Select(p => (object)p).ToList(), openNotes, findings, unadjustedDifferences,
+      outstandingConfirmations, criticalConfirmations,
+      confirmations.Select(c => (object)new { c.CaseId, c.Status, c.Critical }).ToList(), gc, unresolvedVariances,
       completion.Succeeded ? completion.Value!.Blockers : ["completion:unavailable"]);
   }
 
   private static string Digest(object value) => Hashing.Sha256Hex(JsonSerializer.Serialize(value));
 
-  private static string FactsDigest(Facts facts) => Digest(new { facts.Materiality, facts.Risks, facts.Procedures, facts.OpenReviewNotes,
+  private static string FactsDigest(Facts facts) => Digest(new { facts.Materiality, facts.Risks, facts.RedAreas, facts.Procedures, facts.OpenReviewNotes,
     Findings = facts.Findings.Select(f => new { f.Id, f.FindingType, f.Corrected, f.MonetaryAmount, f.ManagementResponse, f.Status,
       f.LetterDesignatedAt, f.LetterRecommendation }),
-    facts.UnadjustedDifferences, facts.Confirmations, facts.GoingConcern, facts.Blockers });
+    facts.UnadjustedDifferences, facts.UnresolvedVariances, facts.Confirmations, facts.GoingConcern, facts.Blockers });
 
   /// <summary>True while the facts a deliverable was generated from are unchanged (a signed copy follows its source).</summary>
   public static async Task<bool> IsCurrentAsync(IAuditSphereDbContext db, ActorContext actor, AuditDeliverable deliverable, CancellationToken ct = default)
@@ -130,19 +170,60 @@ public static partial class AuditDeliverableService
     await CompileSummaryAsync(db, actor, engagementId, recommendation, ct);
   }
 
+  private static string Amount(decimal value) => value.ToString("N2", CultureInfo.InvariantCulture);
+
+  /// <summary>Factual gross/net presentation with SAD/PM comparison where an approved basis exists; never a materiality conclusion.</summary>
+  private static string DifferenceComparison(DifferenceCurrencySummary difference, MaterialitySummary? materiality)
+  {
+    if (materiality is null) return "Unavailable: no Partner-approved materiality is current.";
+    if (string.IsNullOrEmpty(materiality.Currency) || !string.Equals(materiality.Currency, difference.Currency, StringComparison.OrdinalIgnoreCase))
+      return $"Unavailable: no approved translation basis between {difference.Currency} and " +
+        (string.IsNullOrEmpty(materiality.Currency) ? "the materiality currency" : $"{materiality.Currency}") + ".";
+    var comparison = $"Gross {Amount(difference.UncorrectedGross)} vs SAD {Amount(materiality.ClearlyTrivialThreshold)} and PM {Amount(materiality.OverallMateriality)}; " +
+      $"net {Amount(difference.UncorrectedNet)} vs PM {Amount(materiality.OverallMateriality)}.";
+    if (difference.UncorrectedGross > materiality.OverallMateriality) return comparison + " Gross exceeds PM.";
+    if (difference.UncorrectedGross > materiality.ClearlyTrivialThreshold) return comparison + " Gross exceeds SAD.";
+    return comparison;
+  }
+
   private static async Task<CommandResult<Guid>> CompileSummaryAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId,
     string recommendations, CancellationToken ct)
   {
     var facts = await FactsAsync(db, actor, engagementId, ct);
+    var differenceRows = facts.UnadjustedDifferences
+      .Select(d => (IReadOnlyList<string>)[$"{d.Currency}", d.UncorrectedCount.ToString(CultureInfo.InvariantCulture),
+        Amount(d.UncorrectedGross), Amount(d.UncorrectedNet), DifferenceComparison(d, facts.Materiality)]).ToList();
+    var adjustmentLines = facts.UnadjustedDifferences
+      .Where(d => d.ProposedAdjustments + d.AgreedAdjustments + d.RejectedAdjustments + d.AppliedAdjustments > 0)
+      .Select(d => $"{d.Currency}: proposed {d.ProposedAdjustments}, agreed {d.AgreedAdjustments}, rejected {d.RejectedAdjustments}, applied {d.AppliedAdjustments}.")
+      .ToList();
     var sections = new List<DocumentSection>
     {
       new("Engagement", [$"Client: {facts.Client}. Period ended {facts.PeriodEnd}."]),
-      new("Materiality", [facts.Materiality is null ? "No approved materiality." : JsonSerializer.Serialize(facts.Materiality)]),
+      new("Materiality", facts.Materiality is { } mat
+        ? [$"Planning materiality (PM): {Amount(mat.OverallMateriality)}{(mat.Currency is { } c ? $" {c}" : "")}. Tolerable error (TE): {Amount(mat.PerformanceMateriality)}. " +
+           $"Clearly trivial threshold (SAD): {Amount(mat.ClearlyTrivialThreshold)}. Benchmark source: {mat.BenchmarkSource}.",
+          "PM is planning materiality, TE is tolerable error, and SAD is the clearly trivial threshold used to summarise uncorrected differences."]
+        : ["No Partner-approved materiality is current. SAD/PM comparisons below are unavailable; professional conclusions cannot rely on a materiality comparison."]),
       new("Key risk areas", facts.Risks.Count == 0 ? ["No risks recorded."] : [], facts.Risks.Count == 0 ? null
         : new DocumentTable(["Risk", "Band", "Partner review"], facts.Risks.Select(r => { var j = JsonSerializer.SerializeToElement(r);
           return (IReadOnlyList<string>)[j.GetProperty("Area").GetString() ?? "", j.GetProperty("Band").GetString() ?? "not assessed", j.GetProperty("PartnerCleared").GetBoolean() ? "Cleared" : "Open"]; }).ToList())),
+      new("Red areas", facts.RedAreas.Count == 0 ? ["No risk area is currently banded Red."]
+        : [$"The following risk areas are banded Red and require Audit Manager execution with mandatory Engagement Partner review: {string.Join(", ", facts.RedAreas)}."]),
       new("Work performed", [$"{facts.Procedures.Count} applicable procedures; {facts.Procedures.Count(p => JsonSerializer.SerializeToElement(p).GetProperty("Status").GetString() == AuditProcedureStatuses.Reviewed)} reviewed; {facts.OpenReviewNotes} open review note(s)."]),
-      new("Unadjusted differences", [$"Total unadjusted differences: {facts.UnadjustedDifferences.ToString("N2", CultureInfo.InvariantCulture)}."]),
+      new("Uncorrected differences", facts.UnadjustedDifferences.Count == 0
+        ? ["No uncorrected differences are recorded in the audit documentation. This states the documented position; it is not a conclusion that misstatements are absent or immaterial."]
+        : [], facts.UnadjustedDifferences.Count == 0 ? null
+        : new DocumentTable(["Currency", "Count", "Gross", "Net (signed)", "SAD/PM comparison"], differenceRows)),
+      new("Adjusting journal entries", adjustmentLines.Count == 0
+        ? ["No recorded difference is linked to an adjusting journal entry. Adjustment decisions remain the responsible team's human judgment."]
+        : adjustmentLines),
+      new("Significant variances", facts.UnresolvedVariances.Count == 0 ? ["No unresolved analytical-review variance investigations are recorded."] : [],
+        facts.UnresolvedVariances.Count == 0 ? null
+        : new DocumentTable(["Area", "Period", "Difference", "Currency", "Conclusion"],
+          facts.UnresolvedVariances.Select(v => (IReadOnlyList<string>)[v.AccountArea, v.PeriodReference, Amount(v.DifferenceAmount), v.Currency, v.Conclusion]).ToList())),
+      new("Confirmations", [$"{facts.ConfirmationsOutstanding} confirmation(s) are outstanding, of which {facts.ConfirmationsCriticalOutstanding} are critical; " +
+        $"{facts.Confirmations.Count - facts.ConfirmationsOutstanding} are closed. Outstanding critical confirmations block report release."]),
       new("Unresolved issues", facts.Blockers.Count == 0 ? ["None: every completion gate is satisfied."] : facts.Blockers.ToList()),
       new("Reviewer recommendations", [recommendations.Trim()])
     };
@@ -265,7 +346,11 @@ public static partial class AuditDeliverableService
           new("Findings", facts.Findings.Count == 0 ? ["No findings were recorded."] : [], facts.Findings.Count == 0 ? null
             : new DocumentTable(["Type", "Impact", "Amount", "Corrected", "Status"], facts.Findings.Select(f => (IReadOnlyList<string>)[f.FindingType, f.ImpactDescription,
               f.MonetaryAmount?.ToString("N2", CultureInfo.InvariantCulture) ?? "", f.Corrected ? "Yes" : "No", f.Status]).ToList(), [2])),
-          new("Unadjusted differences", [$"Total: {facts.UnadjustedDifferences.ToString("N2", CultureInfo.InvariantCulture)}."])
+          new("Uncorrected differences", facts.UnadjustedDifferences.Count == 0
+            ? ["No uncorrected differences are recorded in the audit documentation."]
+            : [], facts.UnadjustedDifferences.Count == 0 ? null
+            : new DocumentTable(["Currency", "Count", "Gross", "Net (signed)"], facts.UnadjustedDifferences.Select(d =>
+              (IReadOnlyList<string>)[$"{d.Currency}", d.UncorrectedCount.ToString(CultureInfo.InvariantCulture), Amount(d.UncorrectedGross), Amount(d.UncorrectedNet)]).ToList()))
         ];
         break;
       case DeliverableKinds.ManagementLetter:
@@ -283,12 +368,17 @@ public static partial class AuditDeliverableService
         ];
         break;
       case DeliverableKinds.RepresentationLetter:
+        var recordedDifferences = facts.UnadjustedDifferences.Count == 0
+          ? "No uncorrected misstatements were recorded in the audit documentation at the date of this letter."
+          : "Uncorrected misstatements recorded in the audit documentation: " + string.Join("; ",
+              facts.UnadjustedDifferences.Select(d => $"{d.Currency} gross {Amount(d.UncorrectedGross)}, net {Amount(d.UncorrectedNet)}")) + ".";
         sections =
         [
           new("Representations", [$"We confirm, to the best of our knowledge and belief, the following representations made to you in connection with your audit of the financial statements of {facts.Client} for the period ended {facts.PeriodEnd}.",
             "We have fulfilled our responsibilities for the preparation of the financial statements in accordance with the applicable framework.",
             "We have provided you with all relevant information and access, and all transactions have been recorded and reflected in the financial statements.",
-            $"The effects of uncorrected misstatements (total {facts.UnadjustedDifferences.ToString("N2", CultureInfo.InvariantCulture)}) are immaterial, individually and in aggregate."])
+            recordedDifferences,
+            "In management's opinion, the effects of uncorrected misstatements are immaterial, individually and in aggregate, to the financial statements taken as a whole."])
         ];
         signature = "Signed on behalf of management";
         break;

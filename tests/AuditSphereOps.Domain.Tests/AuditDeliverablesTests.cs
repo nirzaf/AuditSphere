@@ -155,6 +155,61 @@ public sealed partial class AuditDeliverablesTests
   }
 
   [Fact]
+  public async Task SrmPresentsCurrencyAwareDifferences_AndDocumentsDoNotAssertAutomaticImmateriality()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var manager = w.A("manager", "Manager");
+    var partner = w.A("partner", "Partner");
+    await using var db = new AuditSphereDbContext(pg.Options);
+    Assert.True((await AuditProgramService.ReviewResultAsync(db, w.A("senior", "Senior"), new(w.ResultId, "REVIEWED", null))).Succeeded);
+
+    // Fixture F08: equal-and-opposite QAR differences must not be hidden by a zero net sum; USD stays separately identified.
+    var qarPositive = await AuditFieldworkService.RecordDifferenceAsync(db, manager, new(w.EngagementId, null, "Revenue", "CLASSIFICATION", "Sales recorded net of VAT", 10_000m, "QAR"));
+    Assert.True(qarPositive.Succeeded, qarPositive.Message);
+    var qarNegative = await AuditFieldworkService.RecordDifferenceAsync(db, manager, new(w.EngagementId, null, "Expenses", "CUTOFF", "Freight expensed in the wrong period", -10_000m, "QAR"));
+    Assert.True(qarNegative.Succeeded, qarNegative.Message);
+    var usd = await AuditFieldworkService.RecordDifferenceAsync(db, manager, new(w.EngagementId, null, "Revenue", "VALUATION", "FX difference on the USD receivable", 5_000m, "USD"));
+    Assert.True(usd.Succeeded, usd.Message);
+
+    // Maker/checker: the preparer cannot set the correction state; the Partner proposes one and rejects another with a reason.
+    Assert.Equal(ErrorCodes.ScopeDenied, (await AuditFieldworkService.SetDifferenceCorrectionStateAsync(db, manager,
+      new(qarPositive.Value!.AuditDifferenceId, AuditDifferenceCorrectionStates.Proposed))).ErrorCode);
+    Assert.True((await AuditFieldworkService.SetDifferenceCorrectionStateAsync(db, partner,
+      new(qarPositive.Value!.AuditDifferenceId, AuditDifferenceCorrectionStates.Proposed))).Succeeded);
+    Assert.True((await AuditFieldworkService.SetDifferenceCorrectionStateAsync(db, partner,
+      new(qarNegative.Value!.AuditDifferenceId, AuditDifferenceCorrectionStates.Rejected, "Rejected: the freight cut-off belongs to the next period."))).Succeeded);
+
+    var srm = (await AuditDeliverableService.GenerateSummaryReviewMemorandumAsync(db, manager, w.EngagementId,
+      "Review the gross versus net presentation with the Partner before clearance.")).Value;
+    var srmText = DocumentText((await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.Id == srm)).Content);
+    Assert.Contains("Gross", srmText);
+    Assert.Contains("20,000.00", srmText);           // QAR gross absolute sum, not the signed zero
+    Assert.Contains("0.00", srmText);                // QAR signed net is zero and still shown
+    Assert.Contains("5,000.00", srmText);            // USD remains separately identified
+    Assert.Contains("no approved translation basis", srmText);
+    Assert.Contains("Gross exceeds PM.", srmText);   // factual SAD/PM comparison (PM is QAR 1.00 in this fixture)
+    Assert.Contains("Planning materiality (PM): 1.00 QAR.", srmText);
+    Assert.Contains("QAR: proposed 1, agreed 0, rejected 1, applied 0.", srmText);
+    Assert.Contains("are outstanding, of which 0 are critical", srmText);
+    Assert.DoesNotContain("Total unadjusted differences:", srmText);
+    Assert.DoesNotContain("immaterial", srmText, StringComparison.OrdinalIgnoreCase);
+
+    var repLetter = (await AuditDeliverableService.GenerateReportAsync(db, manager, w.EngagementId, DeliverableKinds.RepresentationLetter)).Value!.DeliverableId!.Value;
+    var letterText = DocumentText((await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.Id == repLetter)).Content);
+    Assert.Contains("QAR gross 20,000.00, net 0.00", letterText);
+    Assert.Contains("USD gross 5,000.00, net 5,000.00", letterText);
+    Assert.Contains("In management's opinion, the effects of uncorrected misstatements are immaterial", letterText);
+    Assert.DoesNotContain("The effects of uncorrected misstatements (total", letterText);
+
+    var afr = (await AuditDeliverableService.GenerateReportAsync(db, manager, w.EngagementId, DeliverableKinds.AuditFindingsReport)).Value!.DeliverableId!.Value;
+    var afrText = DocumentText((await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.Id == afr)).Content);
+    Assert.Contains("20,000.00", afrText);
+    Assert.Contains("5,000.00", afrText);
+    Assert.DoesNotContain("Total:", afrText);
+  }
+
+  [Fact]
   public async Task SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning()
   {
     await using var pg = await PgTestSchema.CreateAsync();
