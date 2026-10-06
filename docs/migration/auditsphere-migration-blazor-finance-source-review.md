@@ -1,7 +1,7 @@
 # AuditSphere migration source review — firm finance
 
 **Status:** PARTIAL_REVIEWED
-**Reviewed against code/test commit:** `9207a475fb7e2cbb1a39aa060809c229fb80b6f4`
+**Reviewed against code/test commit:** `aca91b1240d3694efe9cd60a22b8c3577ade5d15`
 **Pinned discovery snapshot:** `eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39`
 
 The three legacy page sources below match the SHA-256 values recorded in the
@@ -20,7 +20,7 @@ behavior parity.
 | Legacy behavior | Angular, API and Application owner | Evidence and remaining gap |
 |---|---|---|
 | Firm ledger: show firm periods, accounts and the 25 most recent postings; allow an authorized FinanceReviewer to close an open period with a reason after confirming. | Angular `features/finance/ledger.ts`; API `UiEndpoints.Finance.cs`; Application `FirmFinanceQuery` and `LedgerService`. | `FirmFinanceQuery` requires an internal firm-wide FinanceManager or FinanceReviewer and filters every projection by firm. The period-close journey verifies a reviewer closes an open period only after entering a reason and persists the close decision. A boundary journey verifies a client-scoped FinanceManager is denied both the Angular read and direct API, a reviewer sees only the local period, foreign and random guessed period IDs return indistinguishable 403 close responses without mutation, and revoking the reviewer grant clears visible ledger state. A later validation journey verifies whitespace-only input disables the Angular confirmation, direct API submission returns safe `ledger.invalid`, and the local period stays open without a close decision. The `9207a475` recovery journey verifies an unposted journal blocks close without state mutation; after independent approval and posting, retry closes the period once and persists the reason and actor. An additional browser route/accessibility sweep includes the ledger. Other role combinations and provider failure or concurrent state-conflict recovery remain open. |
-| Firm books: capture a dated operating expense and source document, submit it for independent review, then post the approved journal; calculate a firm trial balance. | Angular `features/finance/books.ts`; API `UiEndpoints.FirmBooks.cs`; Application `FirmBooksWorkspaceQuery`, `FirmExpenseService` and `LedgerService`. | The PostgreSQL API-host Angular journeys verify source-backed capture, independent review and rejection, reason persistence, same-day journal identity, approval/posting and a balanced/reconciled trial balance. A boundary journey verifies malformed and 5 MiB + 1 uploads fail safely, foreign and random guessed IDs return indistinguishable 403 responses for submit/post, and foreign expense state is unchanged. It increments the authorized user's session epoch and verifies that the rendered page clears to “Access unavailable”. The post journey repeats the same post command twice, receives identical successful responses, and verifies one persisted posting. Evidence bytes are omitted from projections; upload size remains bounded to 5 MB. |
+| Firm books: capture a dated operating expense and source document, submit it for independent review, then post the approved journal; calculate a firm trial balance. | Angular `features/finance/books.ts`; API `UiEndpoints.FirmBooks.cs`; Application `FirmBooksWorkspaceQuery`, `FirmExpenseService` and `LedgerService`. | The PostgreSQL API-host Angular journeys verify source-backed capture, independent review and rejection, reason persistence, same-day journal identity, approval/posting and a balanced/reconciled trial balance. A boundary journey verifies malformed and 5 MiB + 1 uploads fail safely, foreign and random guessed IDs return indistinguishable 403 responses for submit/post, and foreign expense state is unchanged. It increments the authorized user's session epoch and verifies that the rendered page clears to “Access unavailable”. At `aca91b12`, the post journey verifies a request aborted before reaching the API reconciles to the exact `APPROVED` expense, and requires acknowledgement before retry; it also aborts an accepted response, refreshes the exact expense as `POSTED`, and confirms one persisted posting with no resend. Repeated direct post commands return identical successful responses. Evidence bytes are omitted from projections; upload size remains bounded to 5 MB. |
 | Invoice detail: show the authorized invoice, lines, receipt allocations and outstanding balance; allow the invoice lifecycle actions according to status and finance authority. | Angular `features/finance/invoice.ts`; API invoice handlers in `UiEndpoints.Finance.cs`; Application `BillingInvoiceWorkspaceQuery` and `BillingService`. | PostgreSQL-backed browser journeys verify client-scoped invoice reads, sibling-client and wrong-client invoice denial with stale-content clearing, immediate clearing after grant revocation, bounded 100-item receipt/credit history paging, and reconciliation after lost receipt-allocation and credit-note responses. The lifecycle journey proves role-specific action visibility and backend enforcement: FinanceManager cannot approve, FinanceReviewer approves independently but cannot post, and an authorized FinanceManager posts and sends. Posting also requires an approved finance profile matching invoice currency; repeated post commands return identical success responses. A boundary journey compares a real foreign-firm invoice ID with a random ID for detail read and approve/post/send; every pair returns the same 403, and the foreign invoice remains unchanged. Invalid cursor shape/empty-ID cases return the same safe 400; transient receipt and credit-history failures preserve loaded rows and succeed on retry. A client-scoped FinanceReviewer can open and approve the assigned client's submitted invoice; sibling-client route and direct approval attempts are denied without markers or state change. Held history responses are discarded after route change and after session revocation. Broader role/scope combinations and remaining uncertain outcomes remain open. |
 
 The application services keep firm books separate from client billing. The
@@ -213,6 +213,15 @@ Assistive-technology and wider-locale review,
 production-like rollback/canary, live Microsoft gates and separate owner
 acceptance remain open.
 
+At `aca91b12`, the firm-books browser journey aborts one post request before it
+reaches the API, verifies persisted state remains `APPROVED`, and requires
+acknowledgement before a new attempt. It then lets the API accept a post,
+aborts the response, refreshes the exact expense as `POSTED`, and confirms one
+persisted posting and no resend. Direct idempotent repeats return the same
+success response. The isolated PostgreSQL/API-host journey passed **1/1** in
+35 seconds; the Angular build passed with a 349.67 kB initial bundle and the
+existing stylesheet warning.
+
 At `9207a475`, the PostgreSQL/API-host browser recovery journey starts with an
 unposted draft journal, verifies the close refusal and unchanged open period,
 then submits, approves and posts the journal through the finance services
@@ -223,10 +232,11 @@ and reason persisted. The Angular production build passed at base code commit
 
 The full solution regression was not rerun for these slices. The latest complete PostgreSQL-backed Release regression remains
 1001/1001 at `ead85032de2ccc4d4c8043398fa8471d395376a9`. The firm-ledger
-reason journey passed at `cfbeed2d`. The firm-ledger recovery, invoice session-revocation,
+reason journey passed at `cfbeed2d`. The firm-books post-recovery, firm-ledger
+recovery, invoice session-revocation,
 client-scoped reviewer, and receipt-allocation lost-response journeys passed
-in clean isolated verification worktrees at `9207a475`, `e3301035`, `84ce3567`,
-and `bc276764` because
+in clean isolated verification worktrees at `aca91b12`, `9207a475`, `e3301035`,
+`84ce3567`, and `bc276764` because
 concurrent uncommitted API changes in the shared checkout failed compilation.
 Only each tested E2E file was copied into its temporary worktree; concurrent
 source and documentation edits were left untouched and excluded. The test

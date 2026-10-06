@@ -15,6 +15,25 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Completed focused slice: Firm-books post outcome reconciliation
+
+At code/test commit `aca91b12`, `AngularFirmBooksJourneyTests` passed **1/1**
+in 35 seconds against isolated PostgreSQL/API hosts. One simulated failure
+aborted the post request before it reached the API; persisted refresh confirmed
+the expense remained `APPROVED`, and the UI required acknowledgement before
+allowing a deliberate retry. A second attempt was accepted by the API but its
+response was aborted. The UI required another persisted refresh, found the
+exact expense `POSTED`, and required acknowledgement; it did not resend the
+request. PostgreSQL contains one posting, and the row no longer offers a post
+action. The journey also confirms repeated direct post commands return the
+same success response. No browser page errors occurred.
+
+The isolated worktree avoided concurrent uncommitted API edits in the shared
+checkout. The production Angular build passed with a 349.67 kB initial bundle
+and the existing 7.53 kB Commercial Settings stylesheet budget warning. The
+complete solution suite was not rerun; its latest result remains 1001/1001 at
+`ead85032`.
+
 ## Completed focused slice: Firm-ledger blocked-close recovery
 
 At code/test commit `9207a475`,
