@@ -23,17 +23,18 @@ else
     <h2 id="econ-heading">Engagement economics</h2>
     <div class="table-wrap">
       <table class="statement-table" aria-label="Engagement economics">
-        <thead><tr><th>Engagement</th><th class="num">Budget h</th><th class="num">Actual h</th><th class="num">Standard value</th><th class="num">Cost</th><th class="num">Billed</th><th class="num">Collected</th><th class="num">Realization</th><th class="num">Collection</th><th class="num">Profit</th><th class="num">Margin</th><th class="num">Contract fee</th><th class="num">Lifetime standard value</th><th class="num">Fee less standard value</th></tr></thead>
+        <thead><tr><th>Engagement</th><th>Currency</th><th class="num">Budget h</th><th class="num">Actual h</th><th class="num">Standard value</th><th class="num">Cost</th><th class="num">Billed</th><th class="num">Collected</th><th class="num">Realization</th><th class="num">Collection</th><th class="num">Profit</th><th class="num">Margin</th><th class="num">Contract fee</th><th class="num">Lifetime standard value</th><th class="num">Fee less standard value</th></tr></thead>
         <tbody>
           @foreach (var r in _view.Engagements)
           {
             <tr>
-              <th scope="row">@r.Label</th>
+              <th scope="row">@r.Label</th><td>@CurrencyLabel(r.Currency)</td>
               <td class="num">@((r.BudgetMinutes / 60m).ToString("N1"))</td><td class="num">@((r.ActualMinutes / 60m).ToString("N1"))</td>
-              <td class="num">@r.StandardValue.ToString("N2")</td><td class="num">@(r.CostComplete ? r.ActualCost.ToString("N2") : $"{r.ActualCost:N2} (partial)")</td>
-              <td class="num">@r.Billed.ToString("N2")</td><td class="num">@r.Collected.ToString("N2")</td>
+              <td class="num">@(r.StandardValue?.ToString("N2") ?? "Unavailable")</td>
+              <td class="num">@(r.ActualCost?.ToString("N2") ?? "Unavailable")@(r.CostComplete || r.Currency is "MIXED" or "UNAVAILABLE" ? "" : " (incomplete)")</td>
+              <td class="num">@(r.Billed?.ToString("N2") ?? "Unavailable")</td><td class="num">@(r.Collected?.ToString("N2") ?? "Unavailable")</td>
               <td class="num">@Pct(r.RealizationPercent)</td><td class="num">@Pct(r.CollectionPercent)</td>
-              <td class="num">@r.Profit.ToString("N2")</td><td class="num">@Pct(r.MarginPercent)</td>
+              <td class="num">@(r.Profit?.ToString("N2") ?? "Unavailable")</td><td class="num">@Pct(r.MarginPercent)</td>
               <td class="num">@(r.ContractedFee?.ToString("N2") ?? "Unavailable") @r.ContractCurrency</td>
               <td class="num">@(r.LifetimeStandardValue?.ToString("N2") ?? "Unavailable") @r.ContractCurrency</td>
               <td class="num">@(r.ContractedFeeLessStandardValue?.ToString("N2") ?? "Unavailable") @r.ContractCurrency</td>
@@ -69,6 +70,12 @@ else
   private string? _message;
 
   private static string Pct(decimal? value) => value is null ? "n/a" : $"{value:0.#}%";
+  private static string CurrencyLabel(string currency) => currency switch
+  {
+    "MIXED" => "Mixed — financial totals unavailable",
+    "UNAVAILABLE" => "Currency unavailable",
+    _ => currency
+  };
 
   protected override Task OnInitializedAsync() => LoadAsync();
 

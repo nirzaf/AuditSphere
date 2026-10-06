@@ -144,9 +144,9 @@ public static class TechnicalLibraryService
 
 // ── Engagement economics and firm analytics (4.3-01..03) ───────────────────────────────────────────
 
-public sealed record EngagementEconomicsRow(Guid EngagementId, string Label, string Currency, int BudgetMinutes, decimal BudgetValue, int ActualMinutes,
-  decimal StandardValue, decimal ActualCost, decimal Billed, decimal Collected, decimal? RealizationPercent, decimal? CollectionPercent,
-  decimal Profit, decimal? MarginPercent, int BudgetVarianceMinutes, bool CostComplete)
+public sealed record EngagementEconomicsRow(Guid EngagementId, string Label, string Currency, int BudgetMinutes, decimal? BudgetValue, int ActualMinutes,
+  decimal? StandardValue, decimal? ActualCost, decimal? Billed, decimal? Collected, decimal? RealizationPercent, decimal? CollectionPercent,
+  decimal? Profit, decimal? MarginPercent, int BudgetVarianceMinutes, bool CostComplete)
 {
   public decimal? ContractedFee { get; init; }
   public string? ContractCurrency { get; init; }
@@ -174,6 +174,8 @@ public static class PracticeAnalyticsQuery
     "Billed = posted invoice lines sourced from the engagement's approved time or fee milestones (credit notes deducted).",
     "Collected = receipt allocations to those invoices, pro rata to the engagement's share of each invoice.",
     "Realization = billed ÷ standard value; collection = collected ÷ billed; margin = (billed − actual cost) ÷ billed.",
+    "Period financial totals are available only when approved time, the current approved budget and posted invoices use one known currency; no foreign-exchange conversion is implied.",
+    "Actual cost and profit are unavailable when an effective staff cost rate is missing or uses a different currency from the approved time entry.",
     "Utilization = approved billable minutes ÷ (weekly capacity × weeks − recorded unavailability); on-time = tasks completed by their due date ÷ tasks due in the period."
   ];
 
@@ -186,9 +188,14 @@ public static class PracticeAnalyticsQuery
     var f = actor.FirmId;
     var time = await db.TimeEntries.AsNoTracking().Where(x => x.FirmId == f && x.Status == PracticeTimeStates.TimeApproved && x.WorkDate >= from && x.WorkDate <= to).ToListAsync(ct);
     var costRates = await db.StaffCostRates.AsNoTracking().Where(x => x.FirmId == f).ToListAsync(ct);
+    static string? NormalizeCurrency(string? currency) => string.IsNullOrWhiteSpace(currency) || currency.Trim().Length != 3
+      ? null : currency.Trim().ToUpperInvariant();
     decimal? Cost(TimeEntry t)
     {
-      var rate = costRates.Where(r => r.UserId == t.UserId && r.EffectiveFrom <= t.WorkDate).OrderByDescending(r => r.EffectiveFrom).FirstOrDefault();
+      var timeCurrency = NormalizeCurrency(t.Currency);
+      if (timeCurrency is null) return null;
+      var rate = costRates.Where(r => r.UserId == t.UserId && r.EffectiveFrom <= t.WorkDate && NormalizeCurrency(r.Currency) == timeCurrency)
+        .OrderByDescending(r => r.EffectiveFrom).FirstOrDefault();
       return rate is null ? null : t.DurationMinutes * rate.HourlyCost / 60m;
     }
     var engagementIds = time.Where(x => x.EngagementId.HasValue).Select(x => x.EngagementId!.Value).Distinct().ToList();
@@ -209,6 +216,9 @@ public static class PracticeAnalyticsQuery
     var lifetimeTime = await db.TimeEntries.AsNoTracking().Where(x => x.FirmId == f && x.Status == PracticeTimeStates.TimeApproved &&
       x.EngagementId != null && engagementIds.Contains(x.EngagementId.Value)).Select(x => new { x.EngagementId, x.DurationMinutes, x.RatePerHour, x.Currency }).ToListAsync(ct);
     var invoiceIds = billedLines.Select(x => x.i.Id).Distinct().ToArray();
+    var billingAccountIds = billedLines.Select(x => x.i.BillingAccountId).Distinct().ToArray();
+    var billingCurrencies = await db.BillingAccounts.AsNoTracking().Where(x => billingAccountIds.Contains(x.Id))
+      .ToDictionaryAsync(x => x.Id, x => x.Currency, ct);
     var allocations = await db.ReceiptAllocations.AsNoTracking().Where(x => x.FirmId == f && invoiceIds.Contains(x.InvoiceId)).GroupBy(x => x.InvoiceId)
       .Select(g => new { g.Key, Amount = g.Sum(x => x.Amount) }).ToDictionaryAsync(x => x.Key, x => x.Amount, ct);
     var reversedAllocations = await (from reversal in db.ReceiptAllocationReversals.AsNoTracking()
@@ -234,6 +244,15 @@ public static class PracticeAnalyticsQuery
       var costs = mine.Select(Cost).ToList();
       var budget = budgets.Where(b => b.EngagementId == id).OrderByDescending(b => b.Version).FirstOrDefault();
       var bl = budget is null ? [] : budgetLines.Where(l => l.EngagementBudgetId == budget.Id).ToList();
+      var currencyInputs = new List<string?>();
+      if (budget is not null) currencyInputs.Add(NormalizeCurrency(budget.Currency));
+      currencyInputs.AddRange(mine.Select(t => NormalizeCurrency(t.Currency)));
+      var engagementInvoices = billedLines.Where(x => x.Engagement == id).GroupBy(x => x.i.Id).Select(x => x.First().i).ToList();
+      currencyInputs.AddRange(engagementInvoices.Select(i => NormalizeCurrency(i.Currency ?? billingCurrencies.GetValueOrDefault(i.BillingAccountId))));
+      var knownCurrencies = currencyInputs.Where(x => x is not null).Distinct(StringComparer.Ordinal).ToArray();
+      var currency = knownCurrencies.Length > 1 ? "MIXED"
+        : currencyInputs.Count == 0 || currencyInputs.Any(x => x is null) ? "UNAVAILABLE" : knownCurrencies[0]!;
+      var currencyIsSafe = currency is not ("MIXED" or "UNAVAILABLE");
       var billed = 0m; var collected = 0m;
       foreach (var invoice in billedLines.Where(x => x.Engagement == id).GroupBy(x => x.i.Id))
       {
@@ -243,18 +262,28 @@ public static class PracticeAnalyticsQuery
         billed += share - credits.GetValueOrDefault(invoice.Key) * ratio;
         collected += Math.Max(0m, allocations.GetValueOrDefault(invoice.Key) - reversedAllocations.GetValueOrDefault(invoice.Key)) * ratio;
       }
-      var standard = MoneyPolicy.Normalize(mine.Sum(t => t.RatePerHour.HasValue ? t.DurationMinutes * t.RatePerHour.Value / 60m : 0m));
-      var cost = MoneyPolicy.Normalize(costs.Sum(c => c ?? 0m));
+      decimal? standard = currencyIsSafe && mine.All(t => t.RatePerHour.HasValue)
+        ? MoneyPolicy.Normalize(mine.Sum(t => t.RatePerHour.HasValue ? t.DurationMinutes * t.RatePerHour.Value / 60m : 0m)) : null;
+      var costComplete = currencyIsSafe && costs.All(c => c.HasValue);
+      decimal? cost = costComplete ? MoneyPolicy.Normalize(costs.Sum(c => c!.Value)) : null;
       billed = MoneyPolicy.Normalize(billed); collected = MoneyPolicy.Normalize(collected);
-      var costComplete = costs.All(c => c.HasValue);
+      decimal? safeBilled = currencyIsSafe ? billed : null;
+      decimal? safeCollected = currencyIsSafe ? collected : null;
+      decimal? budgetValue = budget is not null && currencyIsSafe ? MoneyPolicy.Normalize(bl.Sum(x => x.ForecastCost)) : null;
+      decimal? profit = safeBilled is { } billedForProfit && cost is { } costValue ? billedForProfit - costValue : null;
       var contracts = agreements.Where(x => x.EngagementId == id).ToArray();
       var contract = contracts.Length == 1 ? contracts[0] : null; // Ambiguous contract revisions are unavailable, never silently summed.
       var contribution = contract == null ? null : ContractContributionCalculator.Compute(contract.AgreedFee, contract.Currency,
         lifetimeTime.Where(x => x.EngagementId == id).Select(x => new ContractTimeValue(x.DurationMinutes, x.RatePerHour, x.Currency)).ToArray());
-      return new EngagementEconomicsRow(id, labels.GetValueOrDefault(id, "Engagement"), budget?.Currency ?? mine.FirstOrDefault(t => t.Currency != null)?.Currency ?? "",
-        bl.Sum(x => x.ForecastMinutes), MoneyPolicy.Normalize(bl.Sum(x => x.ForecastCost)), mine.Sum(t => t.DurationMinutes), standard, cost, billed, collected,
-        standard > 0 ? Math.Round(billed / standard * 100m, 1) : null, billed > 0 ? Math.Round(collected / billed * 100m, 1) : null,
-        billed - cost, billed > 0 && costComplete ? Math.Round((billed - cost) / billed * 100m, 1) : null, bl.Sum(x => x.ForecastMinutes) - mine.Sum(t => t.DurationMinutes), costComplete)
+      return new EngagementEconomicsRow(id, labels.GetValueOrDefault(id, "Engagement"), currency,
+        bl.Sum(x => x.ForecastMinutes), budgetValue, mine.Sum(t => t.DurationMinutes), standard, cost, safeBilled, safeCollected,
+        standard is { } standardValue && standardValue > 0m && safeBilled is { } billedForRealization
+          ? Math.Round(billedForRealization / standardValue * 100m, 1) : null,
+        safeBilled is { } billedForCollection && billedForCollection > 0m && safeCollected is { } collectedValue
+          ? Math.Round(collectedValue / billedForCollection * 100m, 1) : null,
+        profit, safeBilled is { } billedForMargin && billedForMargin > 0m && profit is { } profitValue
+          ? Math.Round(profitValue / billedForMargin * 100m, 1) : null,
+        bl.Sum(x => x.ForecastMinutes) - mine.Sum(t => t.DurationMinutes), costComplete)
       { ContractedFee = contract?.AgreedFee, ContractCurrency = contract?.Currency,
         LifetimeStandardValue = contribution?.LifetimeStandardValue, ContractedFeeLessStandardValue = contribution?.FeeLessStandardValue };
     }).OrderBy(x => x.Label).ToList();

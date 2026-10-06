@@ -5,8 +5,8 @@ import { Api } from '../../core/api';
 import { arr, bool, date, dec, guid, int, nat, nullable, obj, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
 
-const row = obj({ engagementId: guid, label: text, currency: text, budgetMinutes: nat, budgetValue: dec, actualMinutes: nat, standardValue: dec,
-  actualCost: dec, billed: dec, collected: dec, realizationPercent: nullable(dec), collectionPercent: nullable(dec), profit: dec,
+const row = obj({ engagementId: guid, label: text, currency: text, budgetMinutes: nat, budgetValue: nullable(dec), actualMinutes: nat, standardValue: nullable(dec),
+  actualCost: nullable(dec), billed: nullable(dec), collected: nullable(dec), realizationPercent: nullable(dec), collectionPercent: nullable(dec), profit: nullable(dec),
   marginPercent: nullable(dec), budgetVarianceMinutes: int, costComplete: bool, contractedFee: nullable(dec), contractCurrency: nullable(text),
   lifetimeStandardValue: nullable(dec), contractedFeeLessStandardValue: nullable(dec) });
 export const decodeAnalytics = obj({ from: date, to: date, engagements: arr(row, 2000),
@@ -34,19 +34,19 @@ export function hours(minutes: number, places = 1): string {
         <h2 id="econ-heading">Engagement economics</h2>
         <div class="table-scroll"><table>
           <caption>Engagement economics {{ v.from }} to {{ v.to }}</caption>
-          <thead><tr><th>Engagement</th><th class="number">Budget h</th><th class="number">Actual h</th><th class="number">Standard value</th><th class="number">Cost</th>
+          <thead><tr><th>Engagement</th><th>Currency</th><th class="number">Budget h</th><th class="number">Actual h</th><th class="number">Standard value</th><th class="number">Cost</th>
             <th class="number">Billed</th><th class="number">Collected</th><th class="number">Realization</th><th class="number">Collection</th><th class="number">Profit</th>
             <th class="number">Margin</th><th class="number">Contract fee</th><th class="number">Lifetime standard value</th><th class="number">Fee less standard value</th></tr></thead>
           <tbody>@for (r of v.engagements; track r.engagementId) {
-            <tr><th scope="row">{{ r.label }}</th><td class="number">{{ hrs(r.budgetMinutes) }}</td><td class="number">{{ hrs(r.actualMinutes) }}</td>
-              <td class="number">{{ r.standardValue | money }}</td><td class="number">{{ r.actualCost | money }}{{ r.costComplete ? '' : ' (partial)' }}</td>
+            <tr><th scope="row">{{ r.label }}</th><td>{{ currencyLabel(r.currency) }}</td><td class="number">{{ hrs(r.budgetMinutes) }}</td><td class="number">{{ hrs(r.actualMinutes) }}</td>
+              <td class="number">{{ r.standardValue | money }}</td><td class="number">{{ r.actualCost | money }}{{ r.costComplete || r.currency === 'MIXED' || r.currency === 'UNAVAILABLE' ? '' : ' (incomplete)' }}</td>
               <td class="number">{{ r.billed | money }}</td><td class="number">{{ r.collected | money }}</td>
               <td class="number">{{ pct(r.realizationPercent) }}</td><td class="number">{{ pct(r.collectionPercent) }}</td>
               <td class="number">{{ r.profit | money }}</td><td class="number">{{ pct(r.marginPercent) }}</td>
               <td class="number">{{ r.contractedFee === null ? 'Unavailable' : (r.contractedFee | money) }} {{ r.contractCurrency }}</td>
               <td class="number">{{ r.lifetimeStandardValue === null ? 'Unavailable' : (r.lifetimeStandardValue | money) }} {{ r.contractCurrency }}</td>
               <td class="number">{{ r.contractedFeeLessStandardValue === null ? 'Unavailable' : (r.contractedFeeLessStandardValue | money) }} {{ r.contractCurrency }}</td></tr>
-          } @empty { <tr><td colspan="14">No engagement activity in this period.</td></tr> }</tbody>
+          } @empty { <tr><td colspan="15">No engagement activity in this period.</td></tr> }</tbody>
         </table></div>
       </section>
       <section class="panel" aria-labelledby="util-heading">
@@ -75,6 +75,11 @@ export class PracticeAnalytics {
     'Practice analytics require a firm-wide Partner, Manager or finance assignment.');
   readonly hrs = hours;
   apply(): void { this.range.set({ from: this.from, to: this.to }); }
+  currencyLabel(currency: string): string {
+    if (currency === 'MIXED') return 'Mixed — financial totals unavailable';
+    if (currency === 'UNAVAILABLE') return 'Currency unavailable';
+    return currency;
+  }
   pct(value: string | null): string {
     if (value === null) return 'n/a';
     const [w, f = ''] = value.split('.');

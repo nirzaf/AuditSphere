@@ -125,13 +125,70 @@ public sealed class FirmOperationsTests
       Assert.Equal(ErrorCodes.ScopeDenied, (await PracticeAnalyticsQuery.GetAsync(db, manager, new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31))).ErrorCode);
       var view = (await PracticeAnalyticsQuery.GetAsync(db, partner, new DateOnly(2026, 10, 5), new DateOnly(2026, 10, 9))).Value!;
       var row = view.Engagements.Single(x => x.EngagementId == w.EngagementId);
-      Assert.Equal((300, 3000m, 1000m, 3000m, 2400m), (row.ActualMinutes, row.StandardValue, row.ActualCost, row.Billed, row.Collected));
-      Assert.Equal((100.0m, 80.0m, 2000m, 66.7m, 300), (row.RealizationPercent!.Value, row.CollectionPercent!.Value, row.Profit, row.MarginPercent!.Value, row.BudgetVarianceMinutes));
+      Assert.Equal("QAR", row.Currency);
+      Assert.Equal(300, row.ActualMinutes);
+      Assert.Equal<decimal?>(6000m, row.BudgetValue);
+      Assert.Equal<decimal?>(3000m, row.StandardValue);
+      Assert.Equal<decimal?>(1000m, row.ActualCost);
+      Assert.Equal<decimal?>(3000m, row.Billed);
+      Assert.Equal<decimal?>(2400m, row.Collected);
+      Assert.Equal((100.0m, 80.0m, 2000m, 66.7m, 300), (row.RealizationPercent!.Value, row.CollectionPercent!.Value, row.Profit!.Value, row.MarginPercent!.Value, row.BudgetVarianceMinutes));
       Assert.True(row.CostComplete);
       var audit = view.Departments.Single(x => x.Department == "Audit");
       Assert.Equal((2400, 300, 12.5m), (audit.CapacityMinutes, audit.ChargeableMinutes, audit.UtilizationPercent!.Value));
       Assert.Equal((1, 1, 100.0m), (view.Milestones.Due, view.Milestones.CompletedOnTime, view.Milestones.OnTimePercent!.Value));
       Assert.Contains(view.Definitions, d => d.Contains("charge-out rates are not costs"));
+    }
+  }
+
+  [Fact]
+  public async Task Analytics_MixedCurrenciesAndMismatchedCostRatesDoNotProduceCombinedTotals()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var administrator = w.A("partner", "Partner");
+    var manager = w.A("manager", "Manager");
+    var staff = w.A("staff", "Staff");
+    var today = DateOnly.FromDateTime(DateTime.UtcNow);
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var qarCard = (await PracticeTimeService.ReviseRateCardAsync(db, manager, new("Staff", "AUDIT", "QAR", 600m))).Value;
+      var usdCard = (await PracticeTimeService.ReviseRateCardAsync(db, manager, new("Staff", "AUDIT", "USD", 600m))).Value;
+      Assert.True((await PracticeTimeService.ApproveRateCardAsync(db, administrator, qarCard)).Succeeded);
+      Assert.True((await PracticeTimeService.ApproveRateCardAsync(db, administrator, usdCard)).Succeeded);
+      var budget = (await PracticeTimeService.ReviseBudgetAsync(db, manager,
+        new(w.EngagementId, "QAR", [new("Staff", "AUDIT", 60, BudgetPhases.Fieldwork)]))).Value;
+      Assert.True((await PracticeTimeService.ApproveBudgetAsync(db, administrator, budget)).Succeeded);
+      var qarTask = (await PracticeTimeService.CreateTaskAsync(db, manager,
+        new("QAR approved work", w.ClientId, w.EngagementId, w.U["staff"].Id))).Value;
+      var usdTask = (await PracticeTimeService.CreateTaskAsync(db, manager,
+        new("USD approved work", w.ClientId, w.EngagementId, w.U["staff"].Id))).Value;
+      var qarEntry = (await PracticeTimeService.SaveTimeDraftAsync(db, staff,
+        new(qarTask, today, 540, 60, "Staff", "AUDIT", Currency: "QAR"))).Value;
+      var usdEntry = (await PracticeTimeService.SaveTimeDraftAsync(db, staff,
+        new(usdTask, today, 600, 60, "Staff", "AUDIT", Currency: "USD"))).Value;
+      Assert.True((await PracticeTimeService.SubmitTimeAsync(db, staff, qarEntry)).Succeeded);
+      Assert.True((await PracticeTimeService.SubmitTimeAsync(db, staff, usdEntry)).Succeeded);
+      Assert.True((await PracticeTimeService.ApproveTimeAsync(db, manager, qarEntry)).Succeeded);
+      Assert.True((await PracticeTimeService.ApproveTimeAsync(db, manager, usdEntry)).Succeeded);
+      Assert.True((await PracticeAnalyticsQuery.RecordCostRateAsync(db, administrator, w.U["staff"].Id, 200m, "QAR", today.AddDays(-1))).Succeeded);
+    }
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var view = (await PracticeAnalyticsQuery.GetAsync(db, administrator, today, today)).Value!;
+      var row = view.Engagements.Single(x => x.EngagementId == w.EngagementId);
+      Assert.Equal("MIXED", row.Currency);
+      Assert.Equal(120, row.ActualMinutes);
+      Assert.False(row.CostComplete);
+      Assert.Null(row.BudgetValue);
+      Assert.Null(row.StandardValue);
+      Assert.Null(row.ActualCost);
+      Assert.Null(row.Billed);
+      Assert.Null(row.Collected);
+      Assert.Null(row.RealizationPercent);
+      Assert.Null(row.CollectionPercent);
+      Assert.Null(row.Profit);
+      Assert.Null(row.MarginPercent);
     }
   }
 
