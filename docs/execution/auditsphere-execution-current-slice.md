@@ -15,6 +15,16 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: Legacy search category ordering parity
+
+The PostgreSQL-backed Angular browser journey captures the response for a
+cross-kind `pbc test` search and asserts the category sequence Client,
+Engagement, PBC request. This matches the legacy Blazor component, which grouped
+hits by kind in first-occurrence order rather than assigning a relevance
+score. `GlobalSearchJourneyTests` passed 2/2 in 47s. Candidate-window cases,
+full role/scope coverage and assistive-technology acceptance remain open;
+Blazor retirement remains `NOT_READY`. Evidence is at `8c220032`.
+
 ## Current follow-on slice: Search timeout and session invalidation
 
 Added Angular component assertions that a 15-second search timeout shows the
@@ -23,7 +33,7 @@ cancels an in-flight request and clears prior results. The focused search
 suite passed 4/4; full Angular CI passed 495/495 across 95 files. The Angular
 production build passed with a warning: `settings.scss` is 7.53 kB against its
 4.00 kB component-style budget; the initial bundle is 349.67 kB. These tests
-cover component behavior; full cross-kind order/ranking, exhaustive role/scope,
+cover component behavior; candidate-window cases, exhaustive role/scope,
 browser assistive-technology acceptance, the full solution and EF drift remain
 open. Evidence is at `477a953f`; migration and Blazor retirement remain
 `NOT_READY`.
