@@ -23,7 +23,7 @@ behavior parity.
 | Show authorized open tasks, the actor's own entries and an independent time-approval queue; create scoped work tasks, record drafts, submit and approve time. | Angular `features/practice/time.ts`; API `UiEndpoints.Time.cs`; Application `PracticeTimeWorkspaceQuery` and `PracticeTimeService`. | The focused cohort verifies a time draft submitted by staff and approved by a different reviewer, plus an engagement-scoped identity that sees its assigned task and entry while sibling-engagement task, narrative and reporting-period markers remain absent. Complete cross-firm/guessed-ID, input validation, revocation during action and every command failure/retry path remain open. |
 | Report engagement economics, utilization by department and milestone performance from approved source records, with formula definitions and an explicit reporting period. | Angular `features/practice/analytics.ts`; API `UiEndpoints.PracticeInsights.cs`; Application `PracticeAnalyticsQuery` in `FirmOperationsServices.cs`. | The firm-operations browser journey opens analytics as a Partner and checks the formula definition that charge-out rates are not costs. The built-in browser showed the authorized empty Development period and all formula definitions. The cohort did not assert populated metric values, missing-input and mixed-currency behavior, department-capacity boundaries or the full analytics authorization matrix. |
 | Publish the implementation task-card snapshot with module/phase summaries, status filtering and untracked-area disclosure; refuse access to non-administrators and fail closed if the packaged snapshot is invalid. | Angular `features/admin/progress.ts`; API `UiEndpoints.Operations.cs`; Application `FirmAdministrationQuery`; API `ProjectProgressReader` and the packaged `project-progress` files. | `AngularRouteAndShellMigrationSweepTests` checks the page's published counts, filters, static task-card bars, untracked-area explanation and a staff denial with no tracker data. `ProjectProgressReaderTests` checks the packaged manifest, unique task counts and path-escape refusal. The remaining task-state, malformed-file, stale-publication and admin-boundary cases are not all covered. |
-| Search the firm technical library; read published entries and history; prepare a new entry/version and have a distinct Partner or Administrator publish the immutable version for its configured audience. | Angular `features/library/library.ts`; API `UiEndpoints.PracticeInsights.cs`; Application `TechnicalLibraryWorkspaceQuery` and `TechnicalLibraryService`. | The firm-operations journey opens a Manager-prepared draft, publishes it as a Partner, searches its published content and verifies the version result. The fixture creates the draft through the Application service; it does not exercise Angular's create-entry or prepare-version form. Audience isolation, duplicate-code, second-approver denial, historical-version and full input/error cases remain open. |
+| Search the firm technical library; read published entries and history; prepare a new entry/version and have a distinct Partner or Administrator publish the immutable version for its configured audience. | Angular `features/library/library.ts`; API `UiEndpoints.PracticeInsights.cs`; Application `TechnicalLibraryWorkspaceQuery` and `TechnicalLibraryService`. | The existing firm-operations journey verifies published-content search and version results. The PostgreSQL-backed `AngularTechnicalLibraryParityJourneyTests` follow-up at `4cb6faffc4bdac3a97b2e70eb4031a018e72ef51` now drives Angular entry creation and version drafting; checks required-field validation, duplicate-code refusal without a second row, distinct Partner publication, Manager publication denial with draft preservation, superseded history navigation, and staff catalogue/direct-ID audience denial. The wider role/scope, firm-isolation, invalid-input, stale/error/recovery and accessibility acceptance matrix remains open. |
 
 The native API resolves the trusted actor and composes Application queries and
 commands; Angular does not access EF Core directly. The technical library
@@ -49,6 +49,24 @@ the 20-route Angular accessibility contract including these practice routes.
 The suite compiled Domain, Application, Infrastructure, API, Worker and E2E
 projects in Release before running the browser tests.
 
+### Technical library Angular-form follow-up
+
+At `4cb6faffc4bdac3a97b2e70eb4031a018e72ef51`, the focused
+`AngularTechnicalLibraryParityJourneyTests` Release API-host journey passed
+1/1 against an owned isolated PostgreSQL database. It submits the Angular
+create and version forms, verifies blank-code required validation, duplicate
+code refusal, independent publishing and denial, retained immutable version
+history, and staff audience isolation. The focused Angular UI tests passed
+13/13. The Angular production build passed with the existing Commercial
+Settings component-style budget warning (7.53 kB against 4 kB).
+
+The built-in browser rendered `/app/library` from the current assets on a
+temporary API host at port 5102. Required form attributes were present and
+there were no console errors or warnings. This was read-only: no form was
+submitted, and the temporary host was stopped. The separate Development host
+on port 5099 continued serving stale asset hashes during this check and was
+left untouched.
+
 The Codex built-in browser rendered the Development Time, Analytics, Technical
 Library and Project Progress routes. Time and the library showed authorized
 empty states, Analytics displayed its empty-period result and formula list,
@@ -60,15 +78,18 @@ business command was submitted. No browser-console claim is made.
 All four source/action rows remain `PARTIAL`. The practice-time tests do not
 establish every role, firm/client scope, input, revoked-session and uncertain
 outcome. Analytics still needs populated result and edge-case assertions. The
-library still needs UI create/version journeys and audience/curator/publisher
-denial coverage. The progress page still needs its complete corrupt/stale
-snapshot matrix. Actual assistive-technology, wider-locale, production,
-canary/rollback and separate owner acceptance remain open.
+library's focused UI journey closes the basic create/version, duplicate,
+distinct-publisher, history and staff-audience gaps; broader role/scope and
+firm-isolation matrices, invalid inputs, stale/error/recovery paths and
+accessibility acceptance remain open. The progress page still needs its
+complete corrupt/stale snapshot matrix. Actual assistive-technology,
+wider-locale, production, canary/rollback and separate owner acceptance remain
+open.
 
-The full solution regression and EF pending-model check were not rerun for this
-slice. The latest complete PostgreSQL-backed Release solution regression
-remains 1001/1001 at `ead85032de2ccc4d4c8043398fa8471d395376a9`, an earlier
-checkpoint. A concurrent unstaged edit to
+The full solution regression and EF pending-model check were not rerun for the
+technical-library follow-up; no EF model changed. The latest complete
+PostgreSQL-backed Release solution regression remains 1001/1001 at
+`ead85032de2ccc4d4c8043398fa8471d395376a9`, an earlier checkpoint. A concurrent unstaged edit to
 `src/AuditSphereOps.Application/Accounting/ConsolidationOverviewQuery.cs` was
 present during the focused build and test run; it compiled successfully but
 was not part of this review or its eventual documentation commit. The separate

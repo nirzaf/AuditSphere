@@ -239,8 +239,8 @@
     {
       "id": "US-040",
       "title": "Migrate the technical library, analytics and project progress",
-      "status": "COMPLETED",
-      "scope": "Native technical library (/app/library), catalogue, versioned entry editor, and practice analytics; verified via unit tests."
+      "status": "PARTIAL",
+      "scope": "The native technical library has a PostgreSQL-backed Angular-form parity journey for entry/version creation, required validation, duplicate refusal, independent publishing, immutable history and audience isolation. Practice analytics still lacks populated-result and edge-case parity; project progress still lacks complete malformed/stale snapshot and administrator-boundary acceptance. Broader role/scope, failure/recovery, accessibility and production acceptance remain open."
     },
     {
       "id": "US-041",

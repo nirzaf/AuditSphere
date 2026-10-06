@@ -426,8 +426,8 @@
       "source": "src/AuditSphereOps.Web/Components/Pages/TechnicalLibrary.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-practice-operations-source-review.md",
-      "reviewedAtCommit": "10444247ba77285f51dfe69eae8217dcd96ec853",
-      "openGaps": ["Exercise entry creation and version drafting from the Angular forms", "Audience isolation, duplicate code and distinct publisher denial matrix", "Full validation, error/recovery and accessibility acceptance"]
+      "reviewedAtCommit": "4cb6faffc4bdac3a97b2e70eb4031a018e72ef51",
+      "openGaps": ["Broader role/scope and firm-isolation matrix", "Invalid inputs and stale/error/recovery paths", "Full accessibility and assistive-technology acceptance"]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/Finance.razor",
