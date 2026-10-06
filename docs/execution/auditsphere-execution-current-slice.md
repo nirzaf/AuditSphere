@@ -15,6 +15,25 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: Operations authorization-denial recovery control
+
+The Operations page now removes its refresh action after the safe firm-wide
+Administrator-denial state, so a scoped Staff user does not see a request
+control that can only return the same denial. Refresh remains available after
+transient service errors, and a successful explicit retry clears the error.
+Server-side Administrator authorization and the nondisclosing no-data response
+are unchanged.
+
+`operations.spec.ts` passed 6/6, including the denial/no-refresh and 503/retry
+recovery cases. The PostgreSQL-backed API-host Operations browser journey
+passed 1/1, including an assertion that Staff sees no refresh action or
+operation data. The built-in Development browser confirmed the denial message
+without the refresh button. The Angular production build passed with the
+existing commercial-settings stylesheet budget warning. No API, Application,
+Domain, persistence or EF model changed. The full solution and EF checks were
+not rerun; the latest complete-solution checkpoint remains 1001/1001 at
+`ead85032`. Migration acceptance and Blazor retirement remain `NOT_READY`.
+
 ## Current follow-on slice: Deterministic Global Search lead ordering
 
 The lead query now uses the lead ID as a stable secondary order when names tie,
