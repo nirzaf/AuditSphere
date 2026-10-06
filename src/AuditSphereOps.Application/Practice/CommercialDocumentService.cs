@@ -275,6 +275,7 @@ public static partial class CommercialDocumentService
     if (clientUser is not null && clientUser.SessionEpoch == actor.SessionEpoch)
     {
       Guid? documentClientId = null;
+      Guid? documentEngagementId = null;
       if (document.ProposalId.HasValue)
       {
         var proposal = await db.Proposals.AsNoTracking().SingleOrDefaultAsync(x => x.Id == document.ProposalId.Value && x.FirmId == actor.FirmId, ct);
@@ -287,17 +288,24 @@ public static partial class CommercialDocumentService
         {
           var agreement = await db.EngagementFeeAgreements.AsNoTracking().SingleOrDefaultAsync(x => x.Id == milestone.AgreementId && x.FirmId == actor.FirmId, ct);
           documentClientId = agreement?.PracticeClientId;
+          documentEngagementId = agreement?.EngagementId;
         }
       }
 
-      if (documentClientId.HasValue)
+      // Client users only receive explicitly client-shared documents (official payment receipts);
+      // internal quotations, tenders and letters are never downloadable through the portal. The
+      // grant must cover the exact client and, for engagement documents, the exact engagement:
+      // an engagement-scoped grant never reaches a sibling engagement, and no null-client grant
+      // widens access (STE-REM-03).
+      if (documentClientId.HasValue && document.Kind == CommercialDocumentKinds.PaymentReceipt)
       {
         var now = DateTimeOffset.UtcNow;
         var hasGrant = await db.RoleGrants.AsNoTracking().AnyAsync(g =>
           g.FirmId == actor.FirmId &&
           g.UserId == actor.UserId &&
           g.Role == "ClientUser" &&
-          (g.ClientId == null || g.ClientId == documentClientId.Value) &&
+          g.ClientId == documentClientId.Value &&
+          (g.EngagementId == null || (documentEngagementId.HasValue && g.EngagementId == documentEngagementId.Value)) &&
           g.RevokedAt == null &&
           (g.ExpiresAt == null || g.ExpiresAt > now), ct);
         if (hasGrant) return CommandResult<CommercialDocument>.Ok(document);

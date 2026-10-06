@@ -318,4 +318,136 @@ public sealed class ClientRelationshipsAndRoutingTests
       seed.ClientId, null, CorrespondencePurposes.Commercial, deactContactId, "Proposal", "PROP-002", 1, docHash));
     Assert.Equal(ErrorCodes.GateBlocked, deactDispatch.ErrorCode);
   }
+
+  [Fact]
+  public async Task RecipientResolution_RequiresCurrentCommercialScope_AndOverridesDoNotBypass()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var seed = await PbcSeed.SeedAsync(pg);
+    var partner = PbcSeed.Actor(seed.Admin, "Partner");
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    db.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, seed.Admin, "Partner"));
+    var contactId = Guid.NewGuid();
+    db.ClientContacts.Add(new ClientContact
+    {
+      Id = contactId, FirmId = seed.FirmId, PracticeClientId = seed.ClientId,
+      FullName = "Fatima Al-Kuwari", Email = "fatima.md@client.test", Role = "Managing Director", IsActive = true
+    });
+    await db.SaveChangesAsync();
+    Assert.True((await PracticeCrmService.AssignContactRoutingAsync(db, partner,
+      new AssignContactRoutingRequest(seed.ClientId, contactId, CorrespondencePurposes.Commercial))).Succeeded);
+
+    var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+    // A firm-wide commercial grant resolves the routing normally.
+    var resolved = await PracticeCrmService.ResolveCorrespondenceRecipientAsync(db, partner, seed.ClientId, CorrespondencePurposes.Commercial, today);
+    Assert.Equal(RecipientResolutionStatus.Resolved, resolved.Status);
+    Assert.Equal(contactId, resolved.ClientContactId);
+
+    // An engagement-scoped grant never covers client-level routing configuration.
+    var engagementScoped = PbcSeed.User(seed.FirmId, "Staff");
+    db.Users.Add(engagementScoped);
+    db.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, engagementScoped, "Manager", clientId: seed.ClientId, engagementId: seed.EngagementId));
+    await db.SaveChangesAsync();
+    var engagementResolved = await PracticeCrmService.ResolveCorrespondenceRecipientAsync(db,
+      PbcSeed.Actor(engagementScoped, "Manager"), seed.ClientId, CorrespondencePurposes.Commercial, today);
+    Assert.Equal(RecipientResolutionStatus.Denied, engagementResolved.Status);
+    Assert.Null(engagementResolved.ClientContactId);
+    Assert.Null(engagementResolved.Email);
+
+    // A current client-wide commercial grant resolves.
+    var clientWide = PbcSeed.User(seed.FirmId, "Staff");
+    db.Users.Add(clientWide);
+    db.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, clientWide, "RelationshipManager", clientId: seed.ClientId));
+    await db.SaveChangesAsync();
+    var clientWideResolved = await PracticeCrmService.ResolveCorrespondenceRecipientAsync(db,
+      PbcSeed.Actor(clientWide, "RelationshipManager"), seed.ClientId, CorrespondencePurposes.Commercial, today);
+    Assert.Equal(RecipientResolutionStatus.Resolved, clientWideResolved.Status);
+    Assert.Equal(contactId, clientWideResolved.ClientContactId);
+
+    // A revoked grant is denied, and the override path never bypasses the scope check.
+    var revokedUser = PbcSeed.User(seed.FirmId, "Staff");
+    var revokedGrant = PbcSeed.Grant(seed.FirmId, revokedUser, "Manager", clientId: seed.ClientId);
+    revokedGrant.RevokedAt = DateTimeOffset.UtcNow;
+    db.Users.Add(revokedUser);
+    db.RoleGrants.Add(revokedGrant);
+    await db.SaveChangesAsync();
+    var revokedActor = PbcSeed.Actor(revokedUser, "Manager");
+    var revokedResolved = await PracticeCrmService.ResolveCorrespondenceRecipientAsync(db, revokedActor, seed.ClientId, CorrespondencePurposes.Commercial, today);
+    Assert.Equal(RecipientResolutionStatus.Denied, revokedResolved.Status);
+    var revokedOverride = await PracticeCrmService.ResolveCorrespondenceRecipientAsync(db, revokedActor, seed.ClientId,
+      CorrespondencePurposes.Commercial, today, overrideContactId: contactId, overrideReason: "Board designation");
+    Assert.Equal(RecipientResolutionStatus.Denied, revokedOverride.Status);
+    Assert.Null(revokedOverride.ClientContactId);
+    Assert.False(revokedOverride.WasOverridden);
+
+    // Unknown and foreign client identifiers are refused without existence disclosure.
+    var unknown = await PracticeCrmService.ResolveCorrespondenceRecipientAsync(db, partner, Guid.NewGuid(), CorrespondencePurposes.Commercial, today);
+    Assert.Equal(RecipientResolutionStatus.Denied, unknown.Status);
+    Assert.Null(unknown.ClientContactId);
+    var foreignFirmClient = Guid.NewGuid();
+    db.PracticeClients.Add(new PracticeClient { Id = foreignFirmClient, FirmId = Guid.NewGuid(), LegalName = "Foreign Firm Client", Status = "Active", CreatedAt = DateTimeOffset.UtcNow });
+    await db.SaveChangesAsync();
+    var foreign = await PracticeCrmService.ResolveCorrespondenceRecipientAsync(db, partner, foreignFirmClient, CorrespondencePurposes.Commercial, today);
+    Assert.Equal(RecipientResolutionStatus.Denied, foreign.Status);
+    Assert.Null(foreign.ClientContactId);
+  }
+
+  [Fact]
+  public async Task OrganizationHierarchy_HidesCounterpartNodesOutsideCurrentCommercialScope()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var seed = await PbcSeed.SeedAsync(pg);
+    var admin = PbcSeed.Actor(seed.Admin, "Partner");
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    db.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, seed.Admin, "Partner"));
+
+    var visibleSubId = Guid.NewGuid();
+    var hiddenSubId = Guid.NewGuid();
+    var hiddenAffiliateId = Guid.NewGuid();
+    db.PracticeClients.AddRange(
+      new PracticeClient { Id = visibleSubId, FirmId = seed.FirmId, LegalName = "Visible Logistics W.L.L.", Status = "Active", CreatedAt = DateTimeOffset.UtcNow },
+      new PracticeClient { Id = hiddenSubId, FirmId = seed.FirmId, LegalName = "Restricted Real Estate Co.", Status = "Active", CreatedAt = DateTimeOffset.UtcNow },
+      new PracticeClient { Id = hiddenAffiliateId, FirmId = seed.FirmId, LegalName = "Restricted Energy JV", Status = "Active", CreatedAt = DateTimeOffset.UtcNow });
+    await db.SaveChangesAsync();
+
+    Assert.True((await PracticeCrmService.CreateClientRelationshipAsync(db, admin,
+      new CreateClientRelationshipRequest(seed.ClientId, visibleSubId, ClientRelationshipKinds.Parent))).Succeeded);
+    Assert.True((await PracticeCrmService.CreateClientRelationshipAsync(db, admin,
+      new CreateClientRelationshipRequest(seed.ClientId, hiddenSubId, ClientRelationshipKinds.Parent))).Succeeded);
+    Assert.True((await PracticeCrmService.CreateClientRelationshipAsync(db, admin,
+      new CreateClientRelationshipRequest(seed.ClientId, hiddenAffiliateId, ClientRelationshipKinds.Affiliate))).Succeeded);
+
+    // The scoped manager covers the holding client and one subsidiary only.
+    var scoped = PbcSeed.User(seed.FirmId, "Staff");
+    db.Users.Add(scoped);
+    db.RoleGrants.AddRange(
+      PbcSeed.Grant(seed.FirmId, scoped, "Manager", clientId: seed.ClientId),
+      PbcSeed.Grant(seed.FirmId, scoped, "Manager", clientId: visibleSubId));
+    await db.SaveChangesAsync();
+    var scopedActor = PbcSeed.Actor(scoped, "Manager");
+
+    var tree = await PracticeCrmService.GetClientHierarchyAsync(db, scopedActor, seed.ClientId);
+    Assert.True(tree.Succeeded, tree.Message);
+    Assert.Single(tree.Value!.Subsidiaries);
+    Assert.Equal(visibleSubId, tree.Value.Subsidiaries[0].RelatedClientId);
+    Assert.Equal("Visible Logistics W.L.L.", tree.Value.Subsidiaries[0].RelatedClientName);
+    Assert.Empty(tree.Value.Affiliates);
+    Assert.Empty(tree.Value.Parents);
+
+    // Inaccessible counterpart nodes leave no name, identifier or existence disclosure anywhere.
+    var serialized = System.Text.Json.JsonSerializer.Serialize(tree.Value);
+    Assert.DoesNotContain(hiddenSubId.ToString("D"), serialized, StringComparison.OrdinalIgnoreCase);
+    Assert.DoesNotContain(hiddenAffiliateId.ToString("D"), serialized, StringComparison.OrdinalIgnoreCase);
+    Assert.DoesNotContain("Restricted Real Estate Co.", serialized, StringComparison.Ordinal);
+    Assert.DoesNotContain("Restricted Energy JV", serialized, StringComparison.Ordinal);
+
+    // From the authorized subsidiary, the holding parent stays visible.
+    var subTree = await PracticeCrmService.GetClientHierarchyAsync(db, scopedActor, visibleSubId);
+    Assert.True(subTree.Succeeded);
+    Assert.Single(subTree.Value!.Parents);
+    Assert.Equal(seed.ClientId, subTree.Value.Parents[0].PrimaryClientId);
+  }
 }

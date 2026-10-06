@@ -866,4 +866,121 @@ public sealed class CommercialWorkflowTests
     var stored = await db.EngagementFeeAgreements.AsNoTracking().SingleAsync(x => x.Id == agreement.Value);
     Assert.Equal(quote2.Value, stored.QuotationVersionId);
   }
+
+  [Fact]
+  public async Task PortalFinanceAndReceiptDownloads_RespectExactClientAndEngagementScope()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+
+    // Agreement A goes through the real acceptance → conversion → agreement path.
+    var (_, _, proposalA) = await DraftProposalAsync(pg, w);
+    var quoteA = await QuotationService.SaveAsync(db, w.Prep, Quote(proposalA));
+    Assert.True((await QuotationService.SubmitAsync(db, w.Prep, quoteA.Value)).Succeeded);
+    Assert.True((await PracticeCrmService.ApproveProposalAsync(db, w.Partner, proposalA)).Succeeded);
+    Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Prep, proposalA)).Succeeded);
+    var offerA = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalA)).SentOfferSha256;
+    Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalA,
+      new("ACCEPTED", null, offerA, "A. Owner", "owner@gulf.example.test", "Signed acceptance letter"))).Succeeded);
+    var converted = await PracticeCrmService.ConvertToClientDraftAsync(db, w.Prep, new(proposalA, "Scoped Group Client"));
+    Assert.True(converted.Succeeded, converted.Message);
+    var clientId = converted.Value;
+    var agreementA = await FeeAgreementService.CreateAgreementAsync(db, w.Prep, proposalA);
+    Assert.True(agreementA.Succeeded, agreementA.Message);
+
+    // A second distinct lead supplies the proposal identity for the sibling engagement's agreement.
+    var leadB = await PracticeCrmService.CreateLeadAsync(db, w.Prep, new CreateLeadRequest("Scoped Sibling Lead", "Referral", "B. Owner", "sibling@gulf.example.test"));
+    Assert.True(leadB.Succeeded, leadB.Message);
+    Assert.True((await PracticeCrmService.QualifyLeadAsync(db, w.Prep, leadB.Value)).Succeeded);
+    var opportunityB = await PracticeCrmService.CreateOpportunityAsync(db, w.Prep, new CreateOpportunityRequest(leadB.Value, "FinancialStatementAudit",
+      "SCOPED-SIBLING", "2026-01-01", "2026-12-31", 30000m, "QAR", 60m));
+    Assert.True(opportunityB.Succeeded, opportunityB.Message);
+    var proposalB = await PracticeCrmService.ReviseProposalAsync(db, w.Prep, new ReviseProposalRequest(opportunityB.Value, "AUDIT-2026-B",
+      "Statutory audit of the sibling engagement", "Tax advisory", "Independent auditor's report and management letter",
+      "Client supplies the trial balance", 1m, "QAR", "2026-01-01", "2026-12-31"));
+    Assert.True(proposalB.Succeeded, proposalB.Message);
+
+    var engagementA = Guid.CreateVersion7();
+    var engagementB = Guid.CreateVersion7();
+    db.Engagements.AddRange(
+      new Engagement { Id = engagementA, FirmId = w.FirmId, PracticeClientId = clientId, Status = "Active", ProfessionalWorkBlocked = false, CreatedAt = DateTimeOffset.UtcNow },
+      new Engagement { Id = engagementB, FirmId = w.FirmId, PracticeClientId = clientId, Status = "Active", ProfessionalWorkBlocked = false, CreatedAt = DateTimeOffset.UtcNow });
+    await db.SaveChangesAsync();
+    Assert.True((await FeeAgreementService.LinkEngagementAsync(db, w.Prep, agreementA.Value, engagementA)).Succeeded);
+
+    var agreementB = new EngagementFeeAgreement
+    {
+      Id = Guid.CreateVersion7(), FirmId = w.FirmId, ProposalId = proposalB.Value, QuotationVersionId = Guid.CreateVersion7(),
+      PracticeClientId = clientId, EngagementId = engagementB, Currency = "QAR", AgreedFee = 30000m,
+      AdvancePercent = 50m, CreatedByUserId = w.PartnerUser.Id, CreatedAt = DateTimeOffset.UtcNow.AddMinutes(1)
+    };
+    db.EngagementFeeAgreements.Add(agreementB);
+    // Agreement A's advance/balance milestones already exist from the real agreement command.
+    var milestoneA = await db.FeeMilestones.AsNoTracking().SingleAsync(x =>
+      x.FirmId == w.FirmId && x.AgreementId == agreementA.Value && x.Kind == FeeMilestoneKinds.Advance);
+    var milestoneB = new FeeMilestone { Id = Guid.CreateVersion7(), FirmId = w.FirmId, AgreementId = agreementB.Id, Kind = FeeMilestoneKinds.Advance, Amount = 15000m, CreatedAt = DateTimeOffset.UtcNow };
+    db.FeeMilestones.Add(milestoneB);
+
+    CommercialDocument Receipt(FeeMilestone milestone) => new()
+    {
+      Id = Guid.CreateVersion7(), FirmId = w.FirmId, FeeMilestoneId = milestone.Id, Kind = CommercialDocumentKinds.PaymentReceipt,
+      TemplateVersion = "receipt-v1", ProfileVersion = 1, FileName = $"receipt-{milestone.Id:N}.docx",
+      ContentType = CommercialDocumentRenderer.DocxContentType, Bytes = [1, 2, 3], Sha256Hex = new string('a', 64),
+      CreatedByUserId = w.PartnerUser.Id, CreatedAt = DateTimeOffset.UtcNow
+    };
+    var receiptA = Receipt(milestoneA);
+    var receiptB = Receipt(milestoneB);
+    // An internal commercial artifact (comprehensive proposal) is never a client-downloadable document.
+    var internalDoc = new CommercialDocument
+    {
+      Id = Guid.CreateVersion7(), FirmId = w.FirmId, FeeMilestoneId = milestoneA.Id, Kind = CommercialDocumentKinds.ComprehensiveProposal,
+      QuotationVersionId = Guid.CreateVersion7(), TemplateVersion = "tender-v1", ProfileVersion = 1, FileName = "proposal.docx",
+      ContentType = CommercialDocumentRenderer.DocxContentType, Bytes = [4, 5, 6], Sha256Hex = new string('b', 64),
+      CreatedByUserId = w.PartnerUser.Id, CreatedAt = DateTimeOffset.UtcNow
+    };
+    db.CommercialDocuments.AddRange(receiptA, receiptB, internalDoc);
+
+    var engagementScopedUser = User(w.FirmId, "engagement-scoped-client");
+    engagementScopedUser.UserKind = "Client";
+    var clientWideUser = User(w.FirmId, "client-wide-client");
+    clientWideUser.UserKind = "Client";
+    var nullClientUser = User(w.FirmId, "null-client-grant");
+    nullClientUser.UserKind = "Client";
+    db.Users.AddRange(engagementScopedUser, clientWideUser, nullClientUser);
+    db.RoleGrants.AddRange(
+      new RoleGrant { Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = engagementScopedUser.Id, Role = "ClientUser", ClientId = clientId, EngagementId = engagementA, GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = w.PartnerUser.Id },
+      new RoleGrant { Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = clientWideUser.Id, Role = "ClientUser", ClientId = clientId, GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = w.PartnerUser.Id },
+      new RoleGrant { Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = nullClientUser.Id, Role = "ClientUser", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = w.PartnerUser.Id });
+    await db.SaveChangesAsync();
+
+    var engagementScopedActor = Actor(engagementScopedUser, "ClientUser");
+    var clientWideActor = Actor(clientWideUser, "ClientUser");
+    var nullClientActor = Actor(nullClientUser, "ClientUser");
+
+    // The engagement-scoped grant sees exactly its engagement's agreement — never the sibling.
+    var scopedFinance = await ClientPortalFinanceQuery.GetAsync(db, engagementScopedActor);
+    Assert.True(scopedFinance.Succeeded, scopedFinance.Message);
+    var scopedAgreement = Assert.Single(scopedFinance.Value!.Agreements);
+    Assert.Equal(agreementA.Value, scopedAgreement.AgreementId);
+    Assert.Equal(engagementA, scopedAgreement.EngagementId);
+    Assert.StartsWith("25000", scopedAgreement.AgreedFee, StringComparison.Ordinal);
+
+    // Its own engagement's official receipt downloads; the sibling engagement's does not.
+    Assert.True((await CommercialDocumentService.GetAsync(db, engagementScopedActor, receiptA.Id)).Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, (await CommercialDocumentService.GetAsync(db, engagementScopedActor, receiptB.Id)).ErrorCode);
+    // Internal commercial artifacts are never client-downloadable.
+    Assert.Equal(ErrorCodes.ScopeDenied, (await CommercialDocumentService.GetAsync(db, engagementScopedActor, internalDoc.Id)).ErrorCode);
+
+    // The client-wide grant covers both engagements of its client but still never internal artifacts.
+    var wideFinance = await ClientPortalFinanceQuery.GetAsync(db, clientWideActor);
+    Assert.True(wideFinance.Succeeded, wideFinance.Message);
+    Assert.Equal(2, wideFinance.Value!.Agreements.Count);
+    Assert.True((await CommercialDocumentService.GetAsync(db, clientWideActor, receiptB.Id)).Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, (await CommercialDocumentService.GetAsync(db, clientWideActor, internalDoc.Id)).ErrorCode);
+
+    // A null-client ClientUser grant is not a firm-wide fallback.
+    Assert.Equal(ErrorCodes.ScopeDenied, (await CommercialDocumentService.GetAsync(db, nullClientActor, receiptA.Id)).ErrorCode);
+    Assert.Empty((await ClientPortalFinanceQuery.GetAsync(db, nullClientActor)).Value!.Agreements);
+  }
 }

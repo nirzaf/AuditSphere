@@ -53,21 +53,30 @@ public static class ClientPortalFinanceQuery
       return CommandResult<PortalClientFinanceView>.Fail(ErrorCodes.ScopeDenied, "Finance documents unavailable.");
 
     var now = DateTimeOffset.UtcNow;
-    var clientIds = await db.RoleGrants.AsNoTracking()
+    // Client grants carry an exact scope: a client-wide grant (no engagement) covers the client's
+    // agreements, while an engagement-scoped grant only covers that engagement's agreement. The
+    // query never widens an engagement-only grant to sibling engagements (STE-REM-03).
+    var grants = await db.RoleGrants.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId && x.Role == "ClientUser" &&
         x.ClientId != null && x.RevokedAt == null && (x.ExpiresAt == null || x.ExpiresAt > now))
-      .Select(x => x.ClientId!.Value)
-      .Distinct()
+      .Select(x => new { ClientId = x.ClientId!.Value, x.EngagementId })
       .ToListAsync(ct);
 
-    if (clientIds.Count == 0)
+    if (grants.Count == 0)
       return CommandResult<PortalClientFinanceView>.Ok(new([]));
+
+    var clientIds = grants.Select(x => x.ClientId).Distinct().ToList();
+    var clientWide = grants.Where(x => x.EngagementId == null).Select(x => x.ClientId).ToHashSet();
+    var engagementScoped = grants.Where(x => x.EngagementId != null)
+      .Select(x => (x.ClientId, EngagementId: x.EngagementId!.Value)).ToHashSet();
 
     var agreements = await db.EngagementFeeAgreements.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && clientIds.Contains(x.PracticeClientId))
       .OrderByDescending(x => x.CreatedAt)
       .Take(50)
       .ToListAsync(ct);
+    agreements = agreements.Where(x => clientWide.Contains(x.PracticeClientId) ||
+      (x.EngagementId.HasValue && engagementScoped.Contains((x.PracticeClientId, x.EngagementId.Value)))).ToList();
 
     var agreementViews = new List<PortalClientFinanceAgreement>();
 

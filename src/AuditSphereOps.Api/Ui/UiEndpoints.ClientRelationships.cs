@@ -1,6 +1,7 @@
 using System.Globalization;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Practice;
+using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Api.Authentication;
 using Microsoft.AspNetCore.Antiforgery;
@@ -203,7 +204,11 @@ public static partial class UiEndpoints
       var result = await PracticeCrmService.ResolveCorrespondenceRecipientAsync(db, actor, id, purpose, effectiveDate,
         overrideContactId, overrideReason, http.RequestAborted);
 
-      return Results.Ok(result);
+      // A denied resolution is a boundary refusal, never a business answer (STE-REM-03); the
+      // refusal message is nondisclosing and no client/contact identity is returned.
+      return result.Status == RecipientResolutionStatus.Denied
+        ? Results.Json(new { code = ErrorCodes.ScopeDenied, message = result.Message }, statusCode: 403)
+        : Results.Ok(result);
     });
   }
 }

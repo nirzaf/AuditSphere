@@ -24,7 +24,8 @@ public enum RecipientResolutionStatus
   Resolved,
   NoRecipient,
   Ambiguous,
-  Overridden
+  Overridden,
+  Denied
 }
 
 public sealed record RecipientResolutionResult(
@@ -52,6 +53,11 @@ public sealed record RecipientResolutionResult(
 
   public static RecipientResolutionResult Ambiguous(string purpose, int count) =>
     new(RecipientResolutionStatus.Ambiguous, null, null, null, null, null, purpose, $"Multiple ({count}) active contacts configured for {purpose} without a designated primary recipient. Explicit selection required.");
+
+  /// <summary>Nondisclosing refusal: the caller has no current commercial scope for the client (STE-REM-03).</summary>
+  public static RecipientResolutionResult Denied(string purpose) =>
+    new(RecipientResolutionStatus.Denied, null, null, null, null, null, purpose,
+      "Recipient resolution requires current commercial access to this client.");
 }
 
 public sealed record RecordCorrespondenceDispatchRequest(
@@ -202,6 +208,12 @@ public static partial class PracticeCrmService
     Guid? overrideContactId = null, string? overrideReason = null, CancellationToken ct = default)
   {
     var normalizedPurpose = purpose.Trim().ToUpperInvariant();
+
+    // Recipient routing is client-level commercial data: resolution (including the override path)
+    // requires current internal commercial scope for this client and never bypasses it (STE-REM-03).
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, ClientId: clientId, RequiredRoles: CommercialRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded) return RecipientResolutionResult.Denied(normalizedPurpose);
 
     if (overrideContactId.HasValue)
     {

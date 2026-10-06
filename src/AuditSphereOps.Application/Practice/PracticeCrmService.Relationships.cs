@@ -258,6 +258,22 @@ public static partial class PracticeCrmService
       .Where(x => x.FirmId == actor.FirmId && (x.PrimaryClientId == clientId || x.RelatedClientId == clientId) && x.RevokedAt == null)
       .ToListAsync(ct);
 
+    // Counterpart nodes are separate client records with their own scope: the hierarchy may only
+    // reveal relationship metadata for counterpart clients the actor can currently access. An
+    // inaccessible counterpart is omitted entirely (no name, identifier or existence disclosure),
+    // the consistent safe policy for restricted group nodes (STE-REM-03).
+    var counterpartIds = allRels
+      .Select(r => r.PrimaryClientId == clientId ? r.RelatedClientId : r.PrimaryClientId)
+      .Distinct()
+      .ToList();
+    var authorizedCounterparts = new HashSet<Guid>();
+    foreach (var counterpartId in counterpartIds)
+    {
+      var counterpartAuth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+        new AuthorizationRequest(actor.FirmId, ClientId: counterpartId, RequiredRoles: CommercialRoles, InternalOnly: true), ct);
+      if (counterpartAuth.Succeeded) authorizedCounterparts.Add(counterpartId);
+    }
+
     var clientIds = allRels.Select(r => r.PrimaryClientId).Concat(allRels.Select(r => r.RelatedClientId)).Distinct().ToList();
     var names = await db.PracticeClients.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && clientIds.Contains(x.Id))
@@ -269,6 +285,9 @@ public static partial class PracticeCrmService
 
     foreach (var r in allRels)
     {
+      var counterpartId = r.PrimaryClientId == clientId ? r.RelatedClientId : r.PrimaryClientId;
+      if (!authorizedCounterparts.Contains(counterpartId)) continue;
+
       var dto = new ClientRelationshipDto(
         r.Id,
         r.PrimaryClientId,
