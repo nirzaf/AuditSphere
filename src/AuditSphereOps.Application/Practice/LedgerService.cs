@@ -60,13 +60,26 @@ public static class LedgerService
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
-    if (await db.FirmAccounts.AnyAsync(x => x.FirmId == actor.FirmId && x.Code == request.Code.Trim(), ct))
-      return CommandResult<Guid>.Fail("ledger.duplicate", "Account code is already used.");
+    var code = request.Code.Trim();
+    var name = request.Name.Trim();
+    var accountType = request.AccountType.Trim().ToUpperInvariant();
+    var normalSide = request.NormalSide.Trim().ToUpperInvariant();
+    var existing = await db.FirmAccounts.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.Code == code, ct);
+    if (existing is not null)
+    {
+      if (existing.Name != name || existing.AccountType != accountType || existing.NormalSide != normalSide ||
+          existing.PostingAllowed != request.PostingAllowed)
+        return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict,
+          "This account code is already bound to a different account definition.");
+      await tx.CommitAsync(ct);
+      return CommandResult<Guid>.Ok(existing.Id);
+    }
     var account = new FirmAccount
     {
-      Id = Guid.CreateVersion7(), FirmId = actor.FirmId, Code = request.Code.Trim(),
-      Name = request.Name.Trim(), AccountType = request.AccountType.Trim().ToUpperInvariant(),
-      NormalSide = request.NormalSide.Trim().ToUpperInvariant(), PostingAllowed = request.PostingAllowed
+      Id = Guid.CreateVersion7(), FirmId = actor.FirmId, Code = code,
+      Name = name, AccountType = accountType,
+      NormalSide = normalSide, PostingAllowed = request.PostingAllowed
     };
     db.FirmAccounts.Add(account);
     await db.SaveChangesAsync(ct);
@@ -86,8 +99,13 @@ public static class LedgerService
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
     var periodCode = request.PeriodCode.Trim();
-    if (await db.FirmPeriods.AnyAsync(x => x.FirmId == actor.FirmId && x.PeriodCode == periodCode, ct))
-      return CommandResult<Guid>.Fail("ledger.duplicate", "Period code is already used.");
+    var existing = await db.FirmPeriods.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.PeriodCode == periodCode, ct);
+    if (existing is not null)
+    {
+      await tx.CommitAsync(ct);
+      return CommandResult<Guid>.Ok(existing.Id);
+    }
     var period = new FirmPeriod { Id = Guid.CreateVersion7(), FirmId = actor.FirmId, PeriodCode = periodCode };
     db.FirmPeriods.Add(period);
     await db.SaveChangesAsync(ct);

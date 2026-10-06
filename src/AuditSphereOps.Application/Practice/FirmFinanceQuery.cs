@@ -8,13 +8,14 @@ using Microsoft.EntityFrameworkCore;
 namespace AuditSphereOps.Application.Practice;
 
 public sealed record FirmFinanceSnapshot(
-  bool CanClosePeriod, List<FirmPeriod> Periods,
+  bool CanCreateSetup, bool CanClosePeriod, List<FirmPeriod> Periods,
   List<FirmAccount> Accounts, List<FirmPosting> RecentPostings);
 
 /// <summary>Firm-ledger projection for a currently authorized finance user.</summary>
 public static class FirmFinanceQuery
 {
   private static readonly string[] FinanceRoles = ["FinanceManager", "FinanceReviewer"];
+  private static readonly string[] ManagerRoles = ["FinanceManager"];
 
   public static async Task<CommandResult<FirmFinanceSnapshot>> GetAsync(
     IAuditSphereDbContext db, ActorContext actor, CancellationToken ct = default)
@@ -25,6 +26,9 @@ public static class FirmFinanceQuery
     if (!auth.Succeeded)
       return CommandResult<FirmFinanceSnapshot>.Fail(auth.ErrorCode!, auth.Message!);
 
+    var canCreateSetup = await db.RoleGrants.AsNoTracking().AnyAsync(x =>
+      x.FirmId == actor.FirmId && x.UserId == actor.UserId && x.RevokedAt == null &&
+      x.Role == ManagerRoles[0] && x.ClientId == null && x.EngagementId == null, ct);
     var canClosePeriod = await db.RoleGrants.AsNoTracking().AnyAsync(x =>
       x.FirmId == actor.FirmId && x.UserId == actor.UserId && x.RevokedAt == null &&
       x.Role == "FinanceReviewer" && x.ClientId == null && x.EngagementId == null, ct);
@@ -45,7 +49,7 @@ public static class FirmFinanceQuery
     auth = await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct);
     return auth.Succeeded
       ? CommandResult<FirmFinanceSnapshot>.Ok(new FirmFinanceSnapshot(
-          canClosePeriod, periods, accounts, recentPostings))
+          canCreateSetup, canClosePeriod, periods, accounts, recentPostings))
       : CommandResult<FirmFinanceSnapshot>.Fail(auth.ErrorCode!, auth.Message!);
   }
 }

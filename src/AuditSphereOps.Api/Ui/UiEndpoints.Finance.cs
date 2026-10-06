@@ -12,6 +12,8 @@ namespace AuditSphereOps.Api.Ui;
 
 public static partial class UiEndpoints
 {
+  public sealed record FirmAccountInput(string Code, string Name, string AccountType, string NormalSide, bool PostingAllowed = true);
+  public sealed record FirmPeriodInput(string PeriodCode);
   public sealed record FiscalCloseInput(string Reason);
   public sealed record ReceiptInput(string Amount, string Reference, bool Reviewed);
   public sealed record ReceiptAllocationInput(Guid InvoiceId, string Amount, bool Reviewed);
@@ -56,6 +58,7 @@ public static partial class UiEndpoints
       return r.Succeeded
         ? CommandResult<object>.Ok(new
           {
+            CanCreateSetup = r.Value!.CanCreateSetup,
             r.Value!.CanClosePeriod,
             Periods = r.Value.Periods.Select(p => new { p.Id, p.PeriodCode, p.Status, p.Revision, p.ClosedAt }),
             Accounts = r.Value.Accounts.Select(a => new { a.Id, a.Code, a.Name, a.AccountType, a.NormalSide, a.PostingAllowed }),
@@ -63,6 +66,12 @@ public static partial class UiEndpoints
           })
         : CommandResult<object>.Fail(r.ErrorCode!, r.Message!);
     }));
+    group.MapPost("/finance/accounts", (FirmAccountInput input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => LedgerService.CreateFirmAccountAsync(db, actor,
+        new CreateFirmAccountRequest(input.Code ?? "", input.Name ?? "", input.AccountType ?? "", input.NormalSide ?? "", input.PostingAllowed), ct)));
+    group.MapPost("/finance/periods", (FirmPeriodInput input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => LedgerService.CreateFirmPeriodAsync(db, actor,
+        new CreateFirmPeriodRequest(input.PeriodCode ?? ""), ct)));
     group.MapPost("/finance/periods/{id:guid}/close", (Guid id, FiscalCloseInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => LedgerService.CloseFiscalPeriodAsync(db, actor, id, i.Reason ?? "", ct)));
     group.MapGet("/finance/invoices/{id:guid}", (

@@ -88,6 +88,35 @@ public sealed class LedgerTests
   }
 
   [Fact]
+  public async Task FirmAccountAndPeriodSetup_IsIdempotentByNaturalKeyAndRejectsConflictingAccountDefinition()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+
+    var accountRequest = new CreateFirmAccountRequest("1000", "Operating bank", LedgerStates.AccountAsset,
+      LedgerStates.Debit, PostingAllowed: true);
+    var firstAccount = await LedgerService.CreateFirmAccountAsync(db, fixture.ManagerActor, accountRequest);
+    var retriedAccount = await LedgerService.CreateFirmAccountAsync(db, fixture.ManagerActor, accountRequest);
+    Assert.True(firstAccount.Succeeded, firstAccount.Message);
+    Assert.True(retriedAccount.Succeeded, retriedAccount.Message);
+    Assert.Equal(firstAccount.Value, retriedAccount.Value);
+
+    var changedAccount = await LedgerService.CreateFirmAccountAsync(db, fixture.ManagerActor,
+      accountRequest with { Name = "Different bank definition" });
+    Assert.Equal(ErrorCodes.IdempotencyConflict, changedAccount.ErrorCode);
+
+    var periodRequest = new CreateFirmPeriodRequest("2026-12");
+    var firstPeriod = await LedgerService.CreateFirmPeriodAsync(db, fixture.ManagerActor, periodRequest);
+    var retriedPeriod = await LedgerService.CreateFirmPeriodAsync(db, fixture.ManagerActor, periodRequest);
+    Assert.True(firstPeriod.Succeeded, firstPeriod.Message);
+    Assert.True(retriedPeriod.Succeeded, retriedPeriod.Message);
+    Assert.Equal(firstPeriod.Value, retriedPeriod.Value);
+    Assert.Equal(1, await db.FirmAccounts.CountAsync(x => x.FirmId == fixture.FirmId && x.Code == "1000"));
+    Assert.Equal(1, await db.FirmPeriods.CountAsync(x => x.FirmId == fixture.FirmId && x.PeriodCode == "2026-12"));
+  }
+
+  [Fact]
   public async Task UnbalancedPosting_IsRejectedByCommandAndDeferredDatabaseGuard()
   {
     await using var pg = await PgTestSchema.CreateAsync();
