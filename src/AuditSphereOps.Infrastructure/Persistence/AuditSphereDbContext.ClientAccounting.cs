@@ -60,7 +60,9 @@ public sealed partial class AuditSphereDbContext
     profile.Property(x => x.Status).HasMaxLength(30);
     profile.HasIndex(x => new { x.FirmId, x.ClientId }).IsUnique().HasDatabaseName("ux_client_accounting_profile_client");
     profile.ToTable("client_accounting_profiles", t => t.HasCheckConstraint("ck_client_accounting_profile_values",
-      "length(trim(jurisdiction)) > 0 AND functional_currency ~ '^[A-Z]{3}$' AND fiscal_year_start_month BETWEEN 1 AND 12 AND fiscal_year_start_day BETWEEN 1 AND 31"));
+      "length(trim(jurisdiction)) > 0 AND functional_currency ~ '^[A-Z]{3}$' AND fiscal_year_start_month BETWEEN 1 AND 12 AND fiscal_year_start_day BETWEEN 1 AND 31")
+      .HasCheckConstraint("ck_client_accounting_profile_source_mode",
+        "source_mode IN ('EXTERNAL_SOURCE', 'NATIVE_BOOKKEEPING')"));
     profile.HasOne<PracticeClient>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 

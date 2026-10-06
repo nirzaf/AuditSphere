@@ -38,6 +38,9 @@ public static partial class ClientAccountingService
     auth = await AuthorizeClientAsync(db, actor, request.ClientId, roles, ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    if (sourceMode == ClientAccountingSourceModes.NativeBookkeeping &&
+        await db.ClientReportingPeriods.AnyAsync(x => x.FirmId == actor.FirmId && x.ClientId == request.ClientId, ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "A client with existing reporting periods requires a reviewed cutover before native bookkeeping can be enabled.");
     if (await db.ClientAccountingProfiles.AnyAsync(x => x.FirmId == actor.FirmId && x.ClientId == request.ClientId, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict, "The client already has an accounting profile.");
 
