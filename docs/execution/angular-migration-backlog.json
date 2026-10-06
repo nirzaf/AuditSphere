@@ -240,7 +240,7 @@
       "id": "US-040",
       "title": "Migrate the technical library, analytics and project progress",
       "status": "PARTIAL",
-      "scope": "The native technical library has a PostgreSQL-backed Angular-form parity journey for entry/version creation, required validation, duplicate refusal, independent publishing, immutable history and audience isolation. Project progress rejects empty/invalid snapshot metadata and has a PostgreSQL-backed firm-wide Administrator-only API/browser role matrix; snapshot freshness and expired/revoked/cross-firm Administrator cases remain open. Practice analytics still lacks populated-result and edge-case parity. Broader role/scope, failure/recovery, accessibility and production acceptance remain open."
+      "scope": "The native technical library has a PostgreSQL-backed Angular-form parity journey for entry/version creation, required validation, duplicate refusal, independent publishing, immutable history and audience isolation. Project progress rejects empty/invalid snapshot metadata and has a PostgreSQL-backed firm-wide Administrator-only API/browser role matrix; snapshot freshness and expired/revoked/cross-firm Administrator cases remain open. Practice analytics now has a populated same-currency QAR Angular journey plus PostgreSQL-backed mixed-currency and mismatched-cost fail-closed coverage; broader invoice currency fallback, missing captured-rate, role/scope and stale/error/recovery matrices remain open. Accessibility and production acceptance remain open."
     },
     {
       "id": "US-041",
