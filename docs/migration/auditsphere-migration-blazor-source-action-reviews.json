@@ -419,8 +419,8 @@
       "source": "src/AuditSphereOps.Web/Components/Pages/ProjectProgress.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-practice-operations-source-review.md",
-      "reviewedAtCommit": "10444247ba77285f51dfe69eae8217dcd96ec853",
-      "openGaps": ["Complete malformed, missing, stale and inconsistent snapshot matrix", "Full administrator, cross-firm and error-state acceptance", "Actual assistive-technology and locale acceptance"]
+      "reviewedAtCommit": "41ee0b2c67468bbae8d176c6f6822ebcd451785e",
+      "openGaps": ["Define and verify a snapshot freshness/staleness acceptance window", "Expired/revoked Administrator session and cross-firm Administrator identity matrix", "Remaining corrupt-file recovery plus assistive-technology and locale acceptance"]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/TechnicalLibrary.razor",

@@ -10872,6 +10872,37 @@
       ],
       "retirementDecision": "NOT_READY"
     },
+    "angularProjectProgressSafety": {
+      "sourceCommit": "41ee0b2c67468bbae8d176c6f6822ebcd451785e",
+      "observedAt": "2026-10-06T19:06:54Z",
+      "status": "PASS_LOCAL_SLICE",
+      "caseId": "ANGULAR-PROJECT-PROGRESS-ADMIN-BOUNDARY-01",
+      "focusedApiTests": {
+        "status": "PASS",
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "command": "dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~ProjectProgressReaderTests'"
+      },
+      "authorizationJourney": {
+        "status": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~AngularProjectProgressAuthorizationJourneyTests' --logger 'console;verbosity=minimal'",
+        "coverage": "Firm-wide Administrator receives the published snapshot. Partner, Manager, Staff, AccountingPreparer, AccountingReviewer and ClientUser receive HTTP 403 without snapshot/task fields; internal non-administrators see the safe denial and ClientUser is redirected to the client portal. The journey used an owned isolated PostgreSQL database and synthetic identities."
+      },
+      "builtInBrowser": "PARTIAL_LOCAL_READ_ONLY: the current Angular assets loaded on temporary port 5102, but no valid session was available on that temporary origin; the app showed Access unavailable with a sign-in link and no protected tracker data. No sign-in was attempted. The temporary host was stopped. Authenticated authorization behavior is verified by the Playwright journey; no manual console-clean claim is made.",
+      "failureHandling": "Empty or malformed task-card publications fail closed; invalid metadata, JSON and file access exceptions map to the safe progress.unavailable API response.",
+      "fullSolutionRegression": "NOT_RUN for this slice; latest complete PostgreSQL-backed Release solution result remains 1001/1001 at ead85032de2ccc4d4c8043398fa8471d395376a9.",
+      "efModelDrift": "NOT_RUN for this slice; no EF entity/model changed.",
+      "openGaps": [
+        "No snapshot freshness/staleness acceptance window is defined or verified.",
+        "Expired/revoked Administrator session and cross-firm Administrator identity cases remain unverified.",
+        "Full corrupt-file recovery, human assistive-technology and wider-locale acceptance remain open."
+      ],
+      "retirementDecision": "NOT_READY"
+    },
     "angularBlazorPracticeOperationsSourceReview": {
       "sourceCommit": "10444247ba77285f51dfe69eae8217dcd96ec853",
       "observedAt": "2026-10-05T16:10:50Z",
