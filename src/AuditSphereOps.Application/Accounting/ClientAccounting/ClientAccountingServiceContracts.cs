@@ -13,7 +13,7 @@ namespace AuditSphereOps.Application.Accounting;
 public sealed record ClientAccountingProfileRequest(
   Guid ClientId, string Jurisdiction, string FunctionalCurrency,
   int FiscalYearStartMonth, int FiscalYearStartDay, string SourceSystem,
-  string SourceSystemIdentifier);
+  string SourceSystemIdentifier, string SourceMode = ClientAccountingSourceModes.ExternalSource);
 
 public sealed record ReportingPeriodRequest(
   Guid ClientId, string PeriodCode, DateOnly StartDate, DateOnly EndDate,

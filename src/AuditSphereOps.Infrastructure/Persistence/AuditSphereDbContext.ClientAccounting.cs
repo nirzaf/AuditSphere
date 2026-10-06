@@ -56,6 +56,7 @@ public sealed partial class AuditSphereDbContext
     profile.Property(x => x.FunctionalCurrency).HasMaxLength(3);
     profile.Property(x => x.SourceSystem).HasMaxLength(100);
     profile.Property(x => x.SourceSystemIdentifier).HasMaxLength(200);
+    profile.Property(x => x.SourceMode).HasMaxLength(30).HasDefaultValue(ClientAccountingSourceModes.ExternalSource);
     profile.Property(x => x.Status).HasMaxLength(30);
     profile.HasIndex(x => new { x.FirmId, x.ClientId }).IsUnique().HasDatabaseName("ux_client_accounting_profile_client");
     profile.ToTable("client_accounting_profiles", t => t.HasCheckConstraint("ck_client_accounting_profile_values",
