@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "d21d03827aa715e2e7979fa94d381f953eea74e2",
+  "headCommit": "83a6c62482bb745e7faf11a10b4dd5da2dfcf263",
   "verifiedCommit": "ead85032de2ccc4d4c8043398fa8471d395376a9",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -18,6 +18,55 @@
     "postgres": "18.6 loopback development profile"
   },
   "verification": {
+    "firmReceivablesAging": {
+      "sourceCommit": "83a6c62482bb745e7faf11a10b4dd5da2dfcf263",
+      "observedAt": "2026-10-06T12:48:42Z",
+      "status": "PASS_LOCAL_SLICE",
+      "caseId": "AS-COMP-28",
+      "coverage": "Firm-fee ageing includes posted advance and final fee milestones only. It uses an exclusive UTC date cutoff, independently approved payment-term revisions, allocated receipts, approved allocation reversals and issued credits; unallocated cash is excluded. Rows and subtotals remain separated by client, engagement and currency, with current firm-wide finance authorization rechecked for report and export.",
+      "focusedPostgresTests": {
+        "status": "PASS",
+        "passed": 10,
+        "failed": 0,
+        "skipped": 0,
+        "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~FirmReceivablesAging'"
+      },
+      "apiJourney": {
+        "status": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "command": "dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~FirmReceivablesAgingApiTests'"
+      },
+      "angularProductionBuild": {
+        "status": "PASS_WITH_COMPONENT_STYLE_WARNING",
+        "initialBundle": "349.63 kB raw and 93.94 kB estimated transfer.",
+        "remainingWarning": "Commercial Settings component stylesheet is 7.53 kB against the 4 kB component-style budget."
+      },
+      "angularUnitTests": {
+        "status": "PASS",
+        "files": 96,
+        "passed": 502,
+        "failed": 0,
+        "skipped": 0,
+        "command": "npm --prefix src/AuditSphereOps.Ui run test:ci"
+      },
+      "releaseBuild": {
+        "status": "PASS",
+        "warnings": 0,
+        "errors": 0,
+        "command": "dotnet build AuditSphereOps.slnx --no-restore --configuration Release -m:1"
+      },
+      "efModelDrift": {
+        "status": "PASS",
+        "result": "No pending model changes.",
+        "command": "dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Api --no-build --configuration Release"
+      },
+      "builtInBrowser": "PASS_LOCAL_READ_ONLY: the fresh API/Angular build served /ui/app/finance/receivables-aging with HTTP 200. The page title, report date input, refresh control and authorization message rendered. The current browser identity lacks a firm-wide FinanceManager or FinanceReviewer grant, so data remained denied and CSV export stayed disabled. No business mutation was submitted.",
+      "fullSolutionRegression": "INCOMPLETE: the serialized Release solution test command was stopped after 15 minutes while the API test host was still active and before any project summary. No full-suite pass or test counts are claimed. The focused Domain and API aging tests passed separately.",
+      "databaseBoundary": "No Development or production migration was applied. PostgreSQL behavior was exercised through isolated test databases; browser verification was read-only.",
+      "retirementDecision": "NOT_READY"
+    },
     "angularShellInitialBundleSplit": {
       "sourceCommit": "bf8c0d2082c061de6b818c866b2f1dc0770cd706",
       "observedAt": "2026-10-05T17:34:50Z",

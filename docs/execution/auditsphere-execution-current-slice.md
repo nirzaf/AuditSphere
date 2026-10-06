@@ -5939,3 +5939,42 @@ browser still denies operation data to the current staff identity and records
 no console errors. Full solution regression and EF drift were not rerun; no
 Application, API or EF model code changed. The source/action row and AS-PAR-002
 remain partial, and Blazor retirement remains `NOT_READY`.
+
+## Firm fee receivables ageing (AS-COMP-28)
+
+At code commit `83a6c624`, the report query now includes only posted advance
+and final invoices bound to a fee milestone whose agreement belongs to the
+invoice's billing client. It fails closed if a returned invoice has an
+ambiguous milestone binding, preventing unrelated posted billing from being
+presented as collectible fee receivables. The accompanying regression fixtures
+create real accepted-proposal fee agreements and also post a generic invoice;
+the report and export journey proves the generic invoice is excluded.
+
+The full slice adds evidence-backed, independently reviewed due-date revisions;
+historical UTC as-of calculations for invoice postings, allocated receipts,
+approved allocation reversals and issued credits; date-only ageing bands;
+undated and settled states; client/engagement/currency subtotals; finance
+follow-up contacts; a protected CSV export; and a native Angular finance route.
+Receipt unapply is maker/checker reviewed and does not change a report balance
+until approval. A pending or rejected terms change does not replace the last
+approved due date. Unallocated cash is excluded, amounts in unlike currencies
+are not combined, and there is no separate dispute status in the current billing
+model, so outstanding disputed amounts remain aged until credited or reversed.
+
+Verification on the pushed `master` source: the focused PostgreSQL aging suite
+passed **10/10**, the API authorization/terms/reversal/export journey passed
+**1/1**, Angular CI passed **502/502** across 96 files, the Angular production
+build passed with the existing 7.53 kB Commercial Settings stylesheet budget
+warning, the Release solution build passed with zero warnings/errors, and EF
+reported no pending model changes. In the built-in browser the fresh route
+served successfully and rendered the report header, date input, refresh action
+and safe authorization state. The current browser identity lacks a firm-wide
+FinanceManager/FinanceReviewer grant, so the report data remained denied and
+CSV export stayed disabled; the authorized route behavior is covered by the API
+journey. No business mutation or database migration was performed by the browser
+check.
+
+The serialized full solution regression was attempted but stopped after 15
+minutes while the API test host was still active and before any project summary.
+It is recorded as incomplete, with no whole-suite pass or totals claimed. The
+exact commands and outcomes are in `docs/execution/status.json`.
