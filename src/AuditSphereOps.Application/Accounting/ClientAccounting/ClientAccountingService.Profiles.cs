@@ -27,6 +27,9 @@ public static partial class ClientAccountingService
     var auth = await AuthorizeClientAsync(db, actor, request.ClientId, roles, ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    if (sourceMode == ClientAccountingSourceModes.NativeBookkeeping &&
+        await db.ClientReportingPeriods.AnyAsync(x => x.FirmId == actor.FirmId && x.ClientId == request.ClientId, ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "A client with existing reporting periods requires a reviewed cutover before native bookkeeping can be enabled.");
     var modeGate = await ValidateSourceModeAsync(db, actor, request.ClientId, sourceMode, ct);
     if (!modeGate.Succeeded)
       return CommandResult<Guid>.Fail(modeGate.ErrorCode!, modeGate.Message!);

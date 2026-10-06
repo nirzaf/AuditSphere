@@ -10,7 +10,7 @@ namespace AuditSphereOps.Application.Accounting;
 public sealed record AccountingClientItem(Guid Id, string Name, bool ProfileConfigured);
 public sealed record AccountingClientPage(IReadOnlyList<AccountingClientItem> Items, int Total, int Page, int PageSize);
 public sealed record AccountingProfileItem(Guid Id, string Revision, string Jurisdiction, string Currency,
-  int FiscalMonth, int FiscalDay, string SourceSystem, string SourceIdentifier, string Status);
+  int FiscalMonth, int FiscalDay, string SourceSystem, string SourceIdentifier, string SourceMode, string Status);
 public sealed record AccountingPeriodItem(Guid Id, string Revision, string Code, string Start, string End,
   string Basis, string Currency, string Status);
 public sealed record AccountingBookItem(Guid Id, Guid PeriodId, string Revision, string Code, string Basis,
@@ -88,7 +88,7 @@ public static class AccountingWorkspaceQuery
       return CommandResult<AccountingClientWorkspace>.Fail(ErrorCodes.ScopeDenied, "Accounting unavailable.");
     return CommandResult<AccountingClientWorkspace>.Ok(new(clientId, client.LegalName,
       p is null ? null : new(p.Id, p.Revision.ToString(CultureInfo.InvariantCulture), p.Jurisdiction, p.FunctionalCurrency,
-        p.FiscalYearStartMonth, p.FiscalYearStartDay, p.SourceSystem, p.SourceSystemIdentifier, p.Status),
+        p.FiscalYearStartMonth, p.FiscalYearStartDay, p.SourceSystem, p.SourceSystemIdentifier, p.SourceMode, p.Status),
       periods.Take(100).Select(x => new AccountingPeriodItem(x.Id, x.Revision.ToString(CultureInfo.InvariantCulture),
         x.PeriodCode, x.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
         x.EndDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), x.Basis, x.Currency, x.Status)).ToArray(), periods.Count > 100,
