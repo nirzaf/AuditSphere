@@ -11592,6 +11592,46 @@
       "toolchainNote": "Temporary worktree SDK roll-forward restored after browser test.",
       "fullRegression": "NOT_RUN",
       "boundary": "Immutable content foundation only. Returned content remains protected until rework editing is implemented. Existing uncaptured reviews remain explicitly unavailable. Editor, reversal, command receipts, currency/FX policy, invoices/open items and native reporting snapshots remain open. Epic unmerged; tax/nonmandatory modules optional."
+    },
+    "clientOperationalJournalRework": {
+      "sourceCommit": "54056f35",
+      "verifiedAt": "2026-10-06T16:35:09.601308+00:00",
+      "focusedPostgresTests": {
+        "result": "PASS",
+        "passed": 2,
+        "failed": 0,
+        "filter": "FullyQualifiedName~NativeJournal",
+        "duration": "31 seconds",
+        "coverage": "Original preparer reworks returned revision 3 to draft 4; reviewer, sibling client, stale revision, out-of-period date, unknown account and unbalanced correction denied. Fresh submission 5 retains immutable original submission 2 at 125 and corrected 5 at 150. Independent concurrent posting/replay/close and immutable snapshot controls retained."
+      },
+      "angularSpecs": {
+        "result": "PASS",
+        "passed": 7,
+        "failed": 0
+      },
+      "angularProductionBuild": "PASS; preexisting Commercial Settings stylesheet budget warning.",
+      "apiAndE2eBuild": "PASS; zero warnings/errors.",
+      "browserJourney": {
+        "result": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "duration": "49 seconds",
+        "test": "AngularClientOperationalJournalJourneyTests.NativeClientJournalRequiresIndependentReviewAndPostsThroughAngular",
+        "coverage": "Synthetic Angular create, preview, submit, reviewer return, original-preparer edit to 150.25, save draft, fresh preview/resubmit and independent posting. Journal number locked during editor. Earlier submission 2 retains 125.250000; submission 5 visible; posted GL reflects -150.250000. No page errors.",
+        "builtInBrowser": "Rework editor inspection NOT_RUN in built-in browser. Owned ephemeral API hosts had terminated when listening URLs were retrieved; automated Chromium supplies this flow evidence."
+      },
+      "openApi": {
+        "result": "PASS",
+        "passed": 5,
+        "failed": 0,
+        "duration": "11 seconds",
+        "inspection": "Generated rework path and input schema inspected; revision and debit/credit remain strings and reviewed acknowledgment remains boolean."
+      },
+      "efModel": "No pending model changes; existing EF tool/runtime version warning.",
+      "migration": "20261006181000_ClientOperationalJournalRework; SQL-only transition requires exact immutable submitted content and independent return decision. Journal period/number/currency fixed; no historical reconstruction.",
+      "fullRegression": "NOT_RUN",
+      "toolchainNote": "Temporary SDK roll-forward restored after browser journey.",
+      "boundary": "Partial CA-10 returned-journal rework. Editing uncaptured historical returns fails closed. General draft editing, correction/reversal lineage, maker evidence, durable receipts, currency/FX policy, client invoices/open items, opening balances and native TB/reporting snapshots remain open. Full epic unmerged; tax and nonmandatory modules optional. No Development or production database migration or external acceptance claimed."
     }
   },
   "documentationWork": {

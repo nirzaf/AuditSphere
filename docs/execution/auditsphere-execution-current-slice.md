@@ -13,6 +13,25 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Native journal returned-content rework
+
+The original preparer can edit a returned journal's description, date and balanced
+posting lines within its existing open period. The command locks the current
+revision and period, checks the accepted bookkeeping mandate and approved chart,
+and saves a new draft revision atomically. The database requires the prior returned
+content to match its immutable submission and independent return decision. Journal
+number, period and currency stay fixed. Earlier submitted content and review
+reasons remain intact; corrected content needs a fresh preview and independent
+review before posting. Uncaptured historical returns cannot be reconstructed.
+
+Angular exposes the returned editor and clears its context when the selected
+client or session changes. Focused synthetic database, browser, Angular, API and
+migration evidence is recorded in `verification.clientOperationalJournalRework`
+in `status.json`. General draft editing, reversal lineage, maker evidence, durable
+receipts, currency/FX policy, invoices, open items and native TB/reporting snapshots
+remain open. The full epic and final merge remain pending. Tax and other
+nonmandatory modules remain optional and do not gate the core bookkeeping path.
+
 ## Native journal immutable submitted content
 
 Submission now captures the journal header and ordered lines in an immutable
