@@ -89,6 +89,11 @@ public sealed class AngularFirmLedgerBoundaryJourneyTests
       new() { Name = "Firm ledger & financial operations", Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(reviewerPage.GetByText("2026-10", new() { Exact = true })).ToBeVisibleAsync();
     Assert.DoesNotContain(foreignPeriodMarker, await reviewerPage.Locator("main").InnerTextAsync(), StringComparison.Ordinal);
+    await reviewerPage.GetByRole(AriaRole.Button, new() { Name = "Close period", Exact = true }).ClickAsync();
+    await reviewerPage.GetByLabel("Close reason").FillAsync("   ");
+    await Assertions.Expect(reviewerPage.GetByRole(AriaRole.Button,
+      new() { Name = "Confirm close", Exact = true })).ToBeDisabledAsync();
+    await reviewerPage.GetByRole(AriaRole.Button, new() { Name = "Cancel", Exact = true }).ClickAsync();
 
     var closeResponses = await reviewerPage.EvaluateAsync<string>("""
       async () => {
@@ -104,15 +109,29 @@ public sealed class AngularFirmLedgerBoundaryJourneyTests
           });
           return { status: response.status, body: await response.text() };
         };
+        const invalid = await fetch('/api/ui/finance/periods/__LOCAL_PERIOD_ID__/close', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': token },
+          body: JSON.stringify({ reason: '   ' })
+        });
+        const invalidBody = await invalid.text();
         const foreign = await send('__FOREIGN_PERIOD_ID__');
         const guessed = await send('__GUESSED_PERIOD_ID__');
-        return JSON.stringify({ foreign, guessed });
+        return JSON.stringify({ invalid: { status: invalid.status, body: invalidBody }, foreign, guessed });
       }
       """.Replace("__FOREIGN_PERIOD_ID__", foreignPeriodId.ToString("D"), StringComparison.Ordinal)
+        .Replace("__LOCAL_PERIOD_ID__", localPeriodId.ToString("D"), StringComparison.Ordinal)
         .Replace("__GUESSED_PERIOD_ID__", Guid.NewGuid().ToString("D"), StringComparison.Ordinal));
     using (var responses = System.Text.Json.JsonDocument.Parse(closeResponses))
     {
       var root = responses.RootElement;
+      var invalid = root.GetProperty("invalid");
+      Assert.Equal(400, invalid.GetProperty("status").GetInt32());
+      using (var body = System.Text.Json.JsonDocument.Parse(invalid.GetProperty("body").GetString()!))
+      {
+        Assert.Equal("ledger.invalid", body.RootElement.GetProperty("code").GetString());
+        Assert.Equal("A close reason is required.", body.RootElement.GetProperty("message").GetString());
+      }
       Assert.Equal(403, root.GetProperty("foreign").GetProperty("status").GetInt32());
       Assert.Equal(403, root.GetProperty("guessed").GetProperty("status").GetInt32());
       Assert.Equal(root.GetProperty("foreign").GetProperty("body").GetString(),
@@ -126,8 +145,10 @@ public sealed class AngularFirmLedgerBoundaryJourneyTests
       Assert.Equal(LedgerStates.PeriodOpen, foreign.Status);
       Assert.Equal(1, foreign.Revision);
       Assert.Empty(await db.PeriodCloseDecisions.AsNoTracking().Where(x => x.PeriodId == foreignPeriodId).ToListAsync());
-      Assert.Equal(LedgerStates.PeriodOpen,
-        await db.FirmPeriods.Where(x => x.Id == localPeriodId).Select(x => x.Status).SingleAsync());
+      var local = await db.FirmPeriods.AsNoTracking().SingleAsync(x => x.Id == localPeriodId);
+      Assert.Equal(LedgerStates.PeriodOpen, local.Status);
+      Assert.Equal(1, local.Revision);
+      Assert.Empty(await db.PeriodCloseDecisions.AsNoTracking().Where(x => x.PeriodId == localPeriodId).ToListAsync());
 
       var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(db, administrator,
         new RevokeRoleGrantRequest(financeReviewerGrantId));
