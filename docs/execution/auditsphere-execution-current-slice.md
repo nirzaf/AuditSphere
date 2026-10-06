@@ -15,6 +15,25 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Completed focused slice: Firm-expense submit/review outcome recovery
+
+At pushed code commit `d21d0382`,
+`AngularFirmExpenseActionRecoveryJourneyTests.SubmitAndReviewRequirePersistedStateCheckAfterUnconfirmedResponses`
+passed **1/1** in 39 seconds against isolated PostgreSQL and API-hosted
+Angular sessions. A submit request aborted before reaching the API left the
+expense `DRAFT`; the UI required an exact persisted-state read and explicit
+acknowledgment before enabling a deliberate retry. A reviewer approval accepted
+by the API with its browser response dropped was confirmed from persisted
+`APPROVED` state without resending. PostgreSQL contains exactly one journal with
+the expected reviewer and reason, and the browser recorded no page errors.
+
+The Angular production build passed at 349.67 kB initial size with the existing
+7.53 kB Commercial Settings stylesheet warning. This presentation/E2E slice did
+not change the EF model. The full solution suite was not rerun; its latest
+complete result remains 1001/1001 at `ead85032`. Expense-record creation after
+an unknown response, remaining finance authorization/recovery cases, overall
+AS-PAR-002 acceptance and Blazor retirement remain open.
+
 ## Completed focused slice: Firm-ledger close outcome recovery
 
 At code/test commit `5afd38fe`,
