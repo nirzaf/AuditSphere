@@ -13,6 +13,14 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Shared native invoice and credit calculation foundation
+
+A pure client invoice/credit engine now calculates declared quantity, unit price, discount, line net, additive tax components, gross and separately disclosed signed rounding residuals. Precision and midpoint behavior are explicit caller inputs. Untaxed and zero-rated treatments are distinct; an untaxed line requires no tax component or optional tax-module activation. Inclusive residuals require a named bounded adjustment policy, and unsupported FX is refused without an assumed rate.
+
+The native journal and invoice calculators share a neutral storage amount guard with unchanged exact native journal semantics. Focused arithmetic and PostgreSQL journal regressions passed. The fixed-commit Angular build and serialized Release solution build passed, and the full PostgreSQL-backed solution regression is running in an independent verification checkout. The exact source, process handle, commands and observed evidence are in `verification.clientInvoiceCalculation` in `status.json`; resume that live handle rather than starting another run.
+
+This is calculation machinery, not an available client invoice workflow or approved tax policy. Persisted policy approval, native journal policy fencing, saved client invoice drafts, scoped evidence/accounts, posting/open items, frozen historical rendering and delivery remain outstanding. Tax and ancillary capabilities remain optional. The full user-story objective remains active and its final merge is pending completion.
+
 ## Reviewed client counterparty contact-detail amendments
 
 Client counterparties now support immutable proposed contact-detail revisions and independent append-only approval/rejection decisions. Pending work does not change the effective profile. Approval requires the exact next revision and a reviewer different from the proposer; client locking and database guards fence competing approvals. Effective list/history reads project approved details while retaining the original saved profile and all proposals/decisions.

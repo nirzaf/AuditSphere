@@ -12061,6 +12061,70 @@
         "No exact-intent durable proposal receipt; unknown outcomes require refreshed history and explicit separate command",
         "Full user-story scope incomplete; no final epic merge or production acceptance claimed"
       ]
+    },
+    "clientInvoiceCalculation": {
+      "verifiedSourceCommit": "1b1ebc1641d8edc31c20768039ea38b62948024d",
+      "status": "LOCAL_CALCULATION_FOUNDATION_VERIFIED_REGRESSION_RUNNING",
+      "requirements": "Partial CA-13/CA-14 shared invoice/credit arithmetic foundation; saved draft, approved policy, tax-profile and posting workflows remain outstanding",
+      "focused": {
+        "passed": 16,
+        "invoiceCalculatorCases": 13,
+        "nativeJournalPostgreSqlCases": 3,
+        "durationSeconds": 32,
+        "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --configuration Release --filter 'FullyQualifiedName~ClientInvoiceCalculatorTests|FullyQualifiedName~NativeJournal' --disable-build-servers",
+        "coverage": [
+          "Explicit zero/two/three-decimal midpoint rounding",
+          "Shared invoice/credit arithmetic and preserved quantity/price/discount inputs",
+          "Mixed additive tax-inclusive/exclusive lines",
+          "Untaxed versus explicitly zero-rated components",
+          "Named bounded signed rounding residuals and document reconciliation",
+          "Unsupported FX/policies/rates/malformed inputs and storage/total bounds refused",
+          "One consistency test loops over 600 configured price/precision/midpoint combinations",
+          "Existing native journal balance/review/posting/history regression with unchanged storage guard"
+        ]
+      },
+      "managedSolutionBuild": {
+        "status": "PASS",
+        "durationSeconds": 50.98,
+        "warnings": 1,
+        "errors": 0,
+        "warning": "MSB3026 temporary Application assembly copy retry"
+      },
+      "isolatedSolutionBuild": {
+        "status": "PASS",
+        "durationSeconds": 51.83,
+        "warnings": 0,
+        "errors": 0,
+        "command": "dotnet build AuditSphereOps.slnx --no-restore --configuration Release --disable-build-servers -m:1"
+      },
+      "angularBuild": "PASS at exact source; existing commercial/settings.scss budget warning; no Angular source changed in this calculation slice",
+      "fullRegression": {
+        "status": "RUNNING",
+        "sourceCommit": "1b1ebc1641d8edc31c20768039ea38b62948024d",
+        "verificationCheckout": "/private/tmp/auditsphere-draft-edit-verification",
+        "sessionId": 85481,
+        "command": "dotnet test AuditSphereOps.slnx --no-build --configuration Release -m:1 --logger trx --results-directory /private/tmp/auditsphere-invoice-1b1ebc16-regression",
+        "resultsDirectory": "/private/tmp/auditsphere-invoice-1b1ebc16-regression"
+      },
+      "efPendingModelChanges": "NOT_RUN for this slice; no model/migration source changes",
+      "invoiceApiAndUi": "NOT_IMPLEMENTED by this arithmetic slice",
+      "productionMigration": "NOT_RUN; no schema change",
+      "externalAcceptance": "NOT_RUN",
+      "initialFailures": [
+        "Nullable-policy failure output did not permit missing policy; represented invalid result with nullable policy and rebuilt",
+        "Target-typed constructors on individual params tax components were ambiguous; explicit types fixed and all checks reran"
+      ],
+      "limitations": [
+        "Caller-declared calculation policy is not persisted approval or jurisdiction/issuance authority",
+        "Only same-currency documents supported; FX inputs are refused",
+        "Tax basis is additive components on individually rounded line net; compound/document-level methods not implemented",
+        "Up to five explicit tax components with combined rate at most 100 percent",
+        "Residual account policy permits at most three minor units per line and document; approved scoped account resolution remains a workflow responsibility",
+        "No saved client invoice, source evidence, approval/posting, frozen rendering or delivery workflow is claimed",
+        "Native journal currency-policy configuration/fencing and original posting policy snapshots remain outstanding",
+        "Tax remains optional; untaxed arithmetic requires no tax component or tax-module activation",
+        "Full user-story goal remains active; no final epic merge authorized or claimed"
+      ]
     }
   },
   "documentationWork": {
