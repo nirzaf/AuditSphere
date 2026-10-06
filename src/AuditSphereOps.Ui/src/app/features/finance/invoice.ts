@@ -19,6 +19,9 @@ export const decodeInvoice = obj({
   creditNotes: arr(obj({ id: guid, noteNumber: text, currency: text, amount: dec, reason: text, createdAt: instant }), 100),
   creditNotesHaveMore: bool,
   canIssueCreditNote: bool,
+  canApproveInvoice: bool,
+  canPostInvoice: bool,
+  canSendInvoice: bool,
 });
 
 @Component({
@@ -117,9 +120,17 @@ export const decodeInvoice = obj({
         <section class="panel" aria-labelledby="workflow-heading">
           <h2 id="workflow-heading">Invoice workflow actions</h2>
           @switch (i.status) {
-            @case ('REVIEW_REQUIRED') { <button matButton="filled" (click)="act(i.id, 'approve', 'Invoice approved.')" [disabled]="busy() || uncertain()">Approve invoice</button> }
-            @case ('APPROVED') { <button matButton="filled" (click)="act(i.id, 'post', 'Invoice posted and frozen.')" [disabled]="busy() || uncertain()">Post invoice (freeze & emit ledger event)</button> }
-            @case ('POSTED') { <button matButton="filled" (click)="act(i.id, 'send', 'Invoice marked as sent.')" [disabled]="busy() || uncertain()">Mark sent to client</button> }
+            @case ('REVIEW_REQUIRED') {
+              @if (i.canApproveInvoice) { <button matButton="filled" (click)="act(i.id, 'approve', 'Invoice approved.')" [disabled]="busy() || uncertain()">Approve invoice</button> }
+              @else { <p>Approval requires a separate authorized FinanceReviewer.</p> }
+            }
+            @case ('APPROVED') {
+              @if (i.canPostInvoice) { <button matButton="filled" (click)="act(i.id, 'post', 'Invoice posted and frozen.')" [disabled]="busy() || uncertain()">Post invoice (freeze & emit ledger event)</button> }
+              @else { <p>Posting requires an authorized FinanceManager and an approved firm finance profile in the invoice currency.</p> }
+            }
+            @case ('POSTED') {
+              @if (i.canSendInvoice) { <button matButton="filled" (click)="act(i.id, 'send', 'Invoice marked as sent.')" [disabled]="busy() || uncertain()">Mark sent to client</button> }
+            }
           }
         </section>
       }

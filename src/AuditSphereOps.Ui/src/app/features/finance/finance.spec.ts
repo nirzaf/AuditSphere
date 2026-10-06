@@ -79,6 +79,9 @@ describe('Finance & Firm Ledger Contracts', () => {
       creditNotes: [{ id: '33333333-3333-4333-8333-333333333333', noteNumber: 'CN-001', currency: 'QAR', amount: '1000.00', reason: 'Reviewed adjustment', createdAt: '2026-10-01T10:00:00Z' }],
       creditNotesHaveMore: false,
       canIssueCreditNote: true,
+      canApproveInvoice: false,
+      canPostInvoice: true,
+      canSendInvoice: true,
     };
 
     const decoded = decodeInvoice(raw, 'invoice');
@@ -89,6 +92,9 @@ describe('Finance & Firm Ledger Contracts', () => {
     expect(decoded.receipts[0].remaining).toBe('5000.00');
     expect(decoded.creditNotes[0].noteNumber).toBe('CN-001');
     expect(decoded.canIssueCreditNote).toBe(true);
+    expect(decoded.canApproveInvoice).toBe(false);
+    expect(decoded.canPostInvoice).toBe(true);
+    expect(decoded.canSendInvoice).toBe(true);
   });
 
   it('decodes a valid firm books payload', () => {

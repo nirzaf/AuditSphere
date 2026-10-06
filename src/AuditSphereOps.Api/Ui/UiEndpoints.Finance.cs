@@ -47,6 +47,9 @@ public static partial class UiEndpoints
         CreditNotes = r.Value.CreditNotes,
         r.Value.CreditNotesHaveMore,
         r.Value.CanIssueCreditNote,
+        CanApproveInvoice = r.Value.CanApproveInvoice,
+        CanPostInvoice = r.Value.CanPostInvoice,
+        CanSendInvoice = r.Value.CanSendInvoice,
         CanAct = true,
       });
     }));

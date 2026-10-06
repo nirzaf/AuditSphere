@@ -17,13 +17,15 @@ public sealed record BillingInvoiceWorkspace(
   InvoiceDetailView Detail, Guid BillingAccountId,
   IReadOnlyList<BillingReceiptOption> Receipts, bool ReceiptsHaveMore,
   IReadOnlyList<BillingCreditNoteSummary> CreditNotes, bool CreditNotesHaveMore,
-  bool CanIssueCreditNote);
+  bool CanIssueCreditNote, bool CanApproveInvoice, bool CanPostInvoice, bool CanSendInvoice);
 
 /// <summary>Bounded invoice payment and credit-note context for the authorized finance workspace.</summary>
 public static class BillingInvoiceWorkspaceQuery
 {
   private const int PageLimit = 100;
   private static readonly string[] CreditRoles = ["FinanceManager"];
+  private static readonly string[] ReviewerRoles = ["FinanceReviewer"];
+  private static readonly string[] BillingRoles = ["FinanceManager", "FinanceReviewer"];
 
   public static async Task<CommandResult<BillingInvoiceWorkspace>> GetAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid invoiceId,
@@ -83,12 +85,20 @@ public static class BillingInvoiceWorkspaceQuery
       .ToListAsync(ct);
     var canIssue = (await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, account.PracticeClientId, RequiredRoles: CreditRoles, InternalOnly: true), ct)).Succeeded;
+    var canApprove = detail.Value.Invoice.CreatedByUserId != actor.UserId &&
+      (await AuthorizationDecision.AuthorizeAsync(db, actor,
+        new AuthorizationRequest(actor.FirmId, account.PracticeClientId, RequiredRoles: ReviewerRoles, InternalOnly: true), ct)).Succeeded;
+    var canPost = canIssue && await db.FirmFinanceProfiles.AsNoTracking().AnyAsync(x =>
+      x.FirmId == actor.FirmId && x.Approved && x.FunctionalCurrency == account.Currency, ct);
+    var canSend = (await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, account.PracticeClientId, RequiredRoles: BillingRoles, InternalOnly: true), ct)).Succeeded;
 
     if (!await BillingService.CanOpenInvoiceAsync(db, actor, invoiceId, ct))
       return CommandResult<BillingInvoiceWorkspace>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
     return CommandResult<BillingInvoiceWorkspace>.Ok(new BillingInvoiceWorkspace(
       detail.Value, account.Id, receipts, hasMoreReceipts,
-      creditRows.Take(PageLimit).ToArray(), creditRows.Count > PageLimit, canIssue));
+      creditRows.Take(PageLimit).ToArray(), creditRows.Count > PageLimit, canIssue,
+      canApprove, canPost, canSend));
   }
 }
