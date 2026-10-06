@@ -241,6 +241,94 @@ public sealed partial class AuditDeliverablesTests
     Assert.Single(await db.FrozenAccessAttempts.Where(x => x.EngagementId == w.EngagementId && x.Action == "add review note").ToListAsync());
   }
 
+  [Fact]
+  public async Task CriticalUnreturnedConfirmationKeepsBlockingAfterAlternativeClosureAndCriticalityReassessment()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var senior = w.A("senior", "Senior");
+    var manager = w.A("manager", "Manager");
+    var partner = w.A("partner", "Partner");
+    Guid bankId = Guid.NewGuid();
+    Guid debtorId = Guid.NewGuid();
+    await using var db = new AuditSphereDbContext(pg.Options);
+    Assert.True((await AuditProgramService.ReviewResultAsync(db, senior, new(w.ResultId, "REVIEWED", null))).Succeeded);
+    foreach (var (id, area, respondent) in new[] { (bankId, "BANK", "Qatar National Bank"), (debtorId, "RECEIVABLES", "Gulf Trading Customer") })
+    {
+      db.AuditConfirmationCases.Add(new AuditConfirmationCase
+      {
+        Id = id, FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId, AreaCode = area,
+        SourceRecordId = "ACC-" + area, BookedAmount = 500_000m, Currency = "QAR", ConfirmationDate = new DateOnly(2026, 12, 31), Respondent = respondent,
+        ContactValidationSource = "Verified channel", Status = AuditConfirmationStatuses.Dispatched, DispatchReference = "DISP-" + area,
+        DispatchedAt = DateTimeOffset.UtcNow.AddDays(-25), CreatedByUserId = w.U["senior"].Id, CreatedAt = DateTimeOffset.UtcNow.AddDays(-26)
+      });
+    }
+    await db.SaveChangesAsync();
+    Assert.True((await AuditDeliverableService.SetConfirmationCriticalityAsync(db, manager, bankId, true, "Bank is material to cash and the opinion")).Succeeded);
+    Assert.True((await AuditDeliverableService.SetConfirmationCriticalityAsync(db, manager, debtorId, true, "Receivables are material")).Succeeded);
+
+    // The bank case receives no response; reviewed alternative work cannot close a critical case.
+    Assert.True((await AuditFieldworkService.RecordConfirmationResponseAsync(db, senior, new RecordConfirmationResponseRequest(bankId,
+      "No response after two follow-ups", "Verified bank email channel", "FOLLOW-UP-2", null, "Follow-up sent to the authenticated domain", AuditConfirmationDecisions.NoResponse))).Succeeded);
+    var bankResponseId = await db.AuditConfirmationResponses.AsNoTracking().Where(x => x.ConfirmationCaseId == bankId).Select(x => x.Id).SingleAsync();
+    Assert.True((await AuditFieldworkService.ReviewConfirmationResponseAsync(db, manager, new ReviewConfirmationResponseRequest(bankResponseId))).Succeeded);
+    var alt = await AuditFieldworkService.RecordAlternativeProcedureAsync(db, senior, new RecordAlternativeProcedureRequest(bankId,
+      "Agree the bank balance to the reconciliation and the independently obtained bank statement", ["source:bank-statement"], "Balance agrees; no difference."));
+    Assert.True(alt.Succeeded, alt.Message);
+    var altId = await db.AuditAlternativeProcedures.AsNoTracking().Where(x => x.ConfirmationCaseId == bankId).Select(x => x.Id).SingleAsync();
+    Assert.True((await AuditFieldworkService.ReviewAlternativeProcedureAsync(db, manager, new ReviewAlternativeProcedureRequest(altId, "Reviewed."))).Succeeded);
+    var criticalClose = await AuditFieldworkService.CloseConfirmationAsync(db, manager, new CloseConfirmationRequest(bankId, "Alternative work performed."));
+    Assert.Equal(ErrorCodes.GateBlocked, criticalClose.ErrorCode);
+    Assert.Contains("critical confirmation closes only on its returned and independently evaluated response", criticalClose.Message);
+
+    // A noncritical case may close on reviewed alternative work; the criticality history is retained.
+    Assert.True((await AuditDeliverableService.SetConfirmationCriticalityAsync(db, manager, bankId, false, "Reduced to noncritical after the cash review")).Succeeded);
+    Assert.True((await AuditFieldworkService.CloseConfirmationAsync(db, manager, new CloseConfirmationRequest(bankId, "Alternative work performed and reviewed."))).Succeeded);
+    var history = await db.ConfirmationCriticalities.AsNoTracking().Where(x => x.ConfirmationCaseId == bankId).OrderBy(x => x.SetAt).ToListAsync();
+    Assert.Equal(2, history.Count);
+    Assert.Equal((true, false), (history[0].Critical, history[1].Critical));
+    Assert.All(history, x => Assert.Equal(w.U["manager"].Id, x.SetByUserId));
+
+    // The debtor case closes on its returned and independently evaluated response.
+    Assert.True((await AuditFieldworkService.RecordConfirmationResponseAsync(db, senior, new RecordConfirmationResponseRequest(debtorId,
+      "Signed balance confirmation", "Verified customer email channel", "CONF-AR-1", 500_000m, "Authenticated customer signatory", AuditConfirmationDecisions.Agreed))).Succeeded);
+    var debtorResponseId = await db.AuditConfirmationResponses.AsNoTracking().Where(x => x.ConfirmationCaseId == debtorId).Select(x => x.Id).SingleAsync();
+    Assert.True((await AuditFieldworkService.ReviewConfirmationResponseAsync(db, manager, new ReviewConfirmationResponseRequest(debtorResponseId))).Succeeded);
+    Assert.True((await AuditFieldworkService.CloseConfirmationAsync(db, manager, new CloseConfirmationRequest(debtorId, "Response received, evaluated and agreed."))).Succeeded);
+
+    // A post-closure criticality reassessment on the closed bank case keeps blocking the report: the
+    // exact outstanding critical set produces the holding letter instead of the report (STE-REM-08).
+    Assert.True((await AuditDeliverableService.SetConfirmationCriticalityAsync(db, manager, bankId, true, "Reassessed critical after the Partner briefing")).Succeeded);
+    var dashboard = await AuditDeliverableService.ConfirmationDashboardAsync(db, manager, w.EngagementId);
+    var bankRow = dashboard.Value!.Single(x => x.CaseId == bankId);
+    var debtorRow = dashboard.Value!.Single(x => x.CaseId == debtorId);
+    Assert.True(bankRow.Critical);
+    Assert.False(bankRow.ReturnedEvaluatedResponse);
+    Assert.True(debtorRow.ReturnedEvaluatedResponse);
+
+    var srm = (await AuditDeliverableService.GenerateSummaryReviewMemorandumAsync(db, manager, w.EngagementId, "Confirmations reviewed.")).Value;
+    Assert.True((await AuditDeliverableService.PartnerClearAsync(db, partner, srm, "Risk areas reviewed.", "Notes reviewed.")).Succeeded);
+    Assert.True((await AuditDeliverableService.DecideOpinionAsync(db, partner, w.EngagementId, "UNMODIFIED", null, null)).Succeeded);
+    var held = (await AuditDeliverableService.GenerateReportAsync(db, manager, w.EngagementId, DeliverableKinds.IndependentAuditorsReport)).Value!;
+    Assert.Null(held.DeliverableId);
+    Assert.NotNull(held.HoldingLetterId);
+    Assert.Contains("remain without a returned and independently evaluated response", held.Message);
+    Assert.Contains("Qatar National Bank", DocumentText((await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.Id == held.HoldingLetterId)).Content));
+
+    // With the reassessment lifted the report generates (the clearance chain is redone because the
+    // changed facts stale the earlier SRM, clearance and opinion), and a further reassessment blocks
+    // the signature.
+    Assert.True((await AuditDeliverableService.SetConfirmationCriticalityAsync(db, manager, bankId, false, "Noncritical again after further procedures")).Succeeded);
+    var srm2 = (await AuditDeliverableService.GenerateSummaryReviewMemorandumAsync(db, manager, w.EngagementId, "Confirmations cleared for signature.")).Value;
+    Assert.True((await AuditDeliverableService.PartnerClearAsync(db, partner, srm2, "Risk areas reviewed.", "Notes reviewed.")).Succeeded);
+    Assert.True((await AuditDeliverableService.DecideOpinionAsync(db, partner, w.EngagementId, "UNMODIFIED", null, null)).Succeeded);
+    var iar = (await AuditDeliverableService.GenerateReportAsync(db, manager, w.EngagementId, DeliverableKinds.IndependentAuditorsReport)).Value!.DeliverableId!.Value;
+    Assert.True((await AuditDeliverableService.SetConfirmationCriticalityAsync(db, manager, bankId, true, "Critical again: the bank reply is still missing")).Succeeded);
+    var signAttempt = await AuditDeliverableService.SignIndependentReportAsync(db, partner, iar);
+    Assert.Equal(ErrorCodes.GateBlocked, signAttempt.ErrorCode);
+    Assert.Contains("critical confirmation", signAttempt.Message);
+  }
+
 
 
   [Fact]
@@ -354,7 +442,16 @@ public sealed partial class AuditDeliverablesTests
     // Closing the confirmation changes the reviewed facts: SRM, clearance and opinion go stale and must be redone.
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      await db.AuditConfirmationCases.Where(x => x.Id == confirmationId).ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, AuditConfirmationStatuses.Closed));
+      // The critical confirmation closes through its real returned and independently evaluated response;
+      // a direct status edit no longer represents a valid critical closure (STE-REM-08).
+      var recorded = await AuditFieldworkService.RecordConfirmationResponseAsync(db, w.A("senior", "Senior"),
+        new RecordConfirmationResponseRequest(confirmationId, "Direct bank confirmation", "Verified bank email channel", "BANK-CONF-1", 800_000m,
+          "Authenticated bank domain and signatory", AuditConfirmationDecisions.Agreed));
+      Assert.True(recorded.Succeeded, recorded.Message);
+      var responseId = await db.AuditConfirmationResponses.AsNoTracking()
+        .Where(x => x.ConfirmationCaseId == confirmationId).OrderByDescending(x => x.Revision).Select(x => x.Id).FirstAsync();
+      Assert.True((await AuditFieldworkService.ReviewConfirmationResponseAsync(db, manager, new ReviewConfirmationResponseRequest(responseId))).Succeeded);
+      Assert.True((await AuditFieldworkService.CloseConfirmationAsync(db, manager, new CloseConfirmationRequest(confirmationId, "Response received, evaluated and agreed."))).Succeeded);
       var stale = await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.Id == srm);
       Assert.False(await AuditDeliverableService.IsCurrentAsync(db, partner, stale));
       Assert.Null(await AuditDeliverableService.CurrentOpinionAsync(db, partner, w.EngagementId));

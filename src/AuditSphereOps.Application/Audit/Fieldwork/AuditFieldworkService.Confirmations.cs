@@ -203,6 +203,15 @@ public static partial class AuditFieldworkService
       latestAlternative.ReviewedByUserId != latestAlternative.CreatedByUserId;
     if (!hasResponse && !hasAlternative)
       return CommandResult<ConfirmationValue>.Fail(ErrorCodes.GateBlocked, "A confirmation cannot close without a response or reviewed alternative work.");
+    // A case that currently stands Critical closes only on its returned and independently evaluated
+    // response: reviewed alternative work preserves the appropriate noncritical path but never clears
+    // the specification's critical-unreturned-confirmation blocker (STE-REM-08).
+    var currentCriticality = await db.ConfirmationCriticalities.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.ConfirmationCaseId == locked.Id)
+      .OrderByDescending(x => x.SetAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+    if (currentCriticality?.Critical == true && !hasResponse)
+      return CommandResult<ConfirmationValue>.Fail(ErrorCodes.GateBlocked,
+        "A critical confirmation closes only on its returned and independently evaluated response; reviewed alternative work cannot close it.");
     var snapshot = JsonSerializer.Serialize(new { SchemaVersion = 1, Case = locked, CurrentResponse = latestResponse, CurrentAlternative = latestAlternative });
     db.AuditConfirmationClosures.Add(new AuditConfirmationClosure
     {

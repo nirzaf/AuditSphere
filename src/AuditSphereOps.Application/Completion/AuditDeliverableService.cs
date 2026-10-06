@@ -16,7 +16,7 @@ namespace AuditSphereOps.Application.Completion;
 public sealed record DeliverableView(Guid Id, string Kind, string Title, int Version, bool Signed, bool Current, string ContentSha256, DateTimeOffset CreatedAt);
 public sealed record ReportAttempt(Guid? DeliverableId, Guid? HoldingLetterId, string Message);
 public sealed record ConfirmationDashboardRow(Guid CaseId, string Type, string Respondent, decimal BookedAmount, string Currency, string Status,
-  string Monitoring, int? DaysSinceDispatch, bool Critical, string? CriticalityRationale);
+  string Monitoring, int? DaysSinceDispatch, bool Critical, string? CriticalityRationale, bool ReturnedEvaluatedResponse = false);
 
 /// <summary>
 /// Completion deliverables. Every generated document records a digest of the reviewed facts it was built from; a
@@ -91,7 +91,9 @@ public static partial class AuditDeliverableService
       }).ToList();
     var confirmations = await ConfirmationRowsAsync(db, actor.FirmId, engagementId, ct);
     var outstandingConfirmations = confirmations.Count(c => c.Status != AuditConfirmationStatuses.Closed);
-    var criticalConfirmations = confirmations.Count(c => c.Critical && c.Status != AuditConfirmationStatuses.Closed);
+    // The report-release blocking count: critical cases without a returned and independently evaluated
+    // response, which stays blocking even after alternative-only closure (STE-REM-08).
+    var criticalConfirmations = confirmations.Count(c => c.Critical && !c.ReturnedEvaluatedResponse);
     var unresolvedVariances = await db.AnalyticalReviewVarianceInvestigations.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId &&
         (x.Conclusion == VarianceInvestigationConclusions.Unexplained || x.ReviewedByUserId == null))
@@ -385,7 +387,10 @@ public static partial class AuditDeliverableService
         var opinion = await CurrentOpinionAsync(db, actor, engagementId, ct);
         if (opinion is null)
           return CommandResult<ReportAttempt>.Fail(ErrorCodes.GateBlocked, "Record the Partner's opinion on a current clearance before the Independent Auditor's Report.");
-        var critical = (await ConfirmationRowsAsync(db, actor.FirmId, engagementId, ct)).Where(c => c.Critical && c.Status != AuditConfirmationStatuses.Closed).ToList();
+        // The specification's literal critical-unreturned rule (STE-REM-08): a case that remains Critical
+        // without its current returned and independently evaluated response keeps holding the report,
+        // regardless of alternative-only closure or a later criticality reassessment.
+        var critical = (await ConfirmationRowsAsync(db, actor.FirmId, engagementId, ct)).Where(c => c.Critical && !c.ReturnedEvaluatedResponse).ToList();
         if (critical.Count > 0)
         {
           var holding = await StoreAsync(db, actor, engagementId, DeliverableKinds.HoldingLetter, Digest(critical.Select(c => new { c.CaseId, c.Status })), new { Outstanding = critical.Count },
@@ -396,7 +401,7 @@ public static partial class AuditDeliverableService
                 critical.Select(c => (IReadOnlyList<string>)[c.Type, c.Respondent, c.BookedAmount.ToString("N2", CultureInfo.InvariantCulture), c.Monitoring, c.DaysSinceDispatch?.ToString(CultureInfo.InvariantCulture) ?? "not dispatched"]).ToList(), [2]))
             ], null, null, ct);
           return CommandResult<ReportAttempt>.Ok(new(null, holding.Value,
-            $"The Independent Auditor's Report is held: {critical.Count} critical confirmation(s) are outstanding. A Pending Confirmation / Holding Letter was generated."));
+            $"The Independent Auditor's Report is held: {critical.Count} critical confirmation(s) remain without a returned and independently evaluated response. A Pending Confirmation / Holding Letter was generated."));
         }
         sections = [.. OpinionSections(opinion, facts.Client, facts.PeriodEnd),
           new("Responsibilities", ["Management is responsible for the preparation of the financial statements. Our responsibility is to express an opinion on them based on our audit."])];
@@ -441,6 +446,13 @@ public static partial class AuditDeliverableService
     await LockDeliverableEngagementAsync(db, actor.FirmId, report.EngagementId, ct);
     auth = await AuthorizePartnerAsync(db, actor, report.EngagementId, ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    // The current critical set is rechecked at signing: a critical confirmation without its returned and
+    // independently evaluated response blocks the signature even after alternative-only closure or a
+    // later criticality reassessment (STE-REM-08).
+    var unreturnedCritical = (await ConfirmationRowsAsync(db, actor.FirmId, report.EngagementId, ct)).Where(c => c.Critical && !c.ReturnedEvaluatedResponse).ToList();
+    if (unreturnedCritical.Count > 0)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+        $"{unreturnedCritical.Count} critical confirmation(s) remain without a returned and independently evaluated response; the report cannot be signed. Issue the holding letter and obtain the response first.");
     if (!await IsCurrentAsync(db, actor, report, ct)) return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "This report version is no longer current; generate it again.");
     var opinion = await CurrentOpinionAsync(db, actor, report.EngagementId, ct);
     if (opinion is null || opinion.DecidedByUserId != actor.UserId)
@@ -595,6 +607,7 @@ public static partial class AuditDeliverableService
     var ids = cases.Select(x => x.Id).ToArray();
     var criticality = (await db.ConfirmationCriticalities.AsNoTracking().Where(x => ids.Contains(x.ConfirmationCaseId)).ToListAsync(ct))
       .GroupBy(x => x.ConfirmationCaseId).ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.SetAt).First());
+    var responses = await db.AuditConfirmationResponses.AsNoTracking().Where(x => ids.Contains(x.ConfirmationCaseId)).ToListAsync(ct);
     var now = DateTimeOffset.UtcNow;
     return cases.Select(c =>
     {
@@ -610,7 +623,15 @@ public static partial class AuditDeliverableService
         _ => "NOT_DISPATCHED"
       };
       var c2 = criticality.GetValueOrDefault(c.Id);
-      return new ConfirmationDashboardRow(c.Id, TypeLabel(c.AreaCode), c.Respondent, c.BookedAmount, c.Currency, c.Status, monitoring, days, c2?.Critical ?? false, c2?.Rationale);
+      // Returned-response evidence, independent evaluation, criticality and workflow closure are
+      // distinct facts (STE-REM-08): the flag is true only for the current response revision that was
+      // returned (Agreed/Difference) and independently evaluated by another reviewer.
+      var latestResponse = responses.Where(x => x.ConfirmationCaseId == c.Id).OrderByDescending(x => x.Revision).FirstOrDefault();
+      var returnedEvaluated = latestResponse is not null &&
+        latestResponse.Decision is AuditConfirmationDecisions.Agreed or AuditConfirmationDecisions.Difference &&
+        latestResponse.ReviewedByUserId is not null && latestResponse.ReviewedAt is not null &&
+        latestResponse.ReviewedByUserId != latestResponse.CreatedByUserId;
+      return new ConfirmationDashboardRow(c.Id, TypeLabel(c.AreaCode), c.Respondent, c.BookedAmount, c.Currency, c.Status, monitoring, days, c2?.Critical ?? false, c2?.Rationale, returnedEvaluated);
     }).ToList();
   }
 
