@@ -15,6 +15,24 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: Portfolio CSV exact export limit
+
+The portfolio export acceptance now pins both sides of its configured
+1,000-client limit. The PostgreSQL test succeeds with exactly 1,000 visible
+client rows, verifies all rows are exported, then adds one more and confirms
+the service refuses the export with `export.limit`. A narrowed search remains
+exportable, and the same case retains CSV formula-prefix, quote and multiline
+neutralization checks.
+
+`PortfolioWorkspaceTests` and `PortfolioQueryTests` passed 5/5 at test commit
+`abb798ea`. Existing coverage also verifies sibling-client count/export
+isolation, scoped aggregate projections and refusal when a grant is revoked
+during projection. No production Application, API, Angular or EF model code
+changed. The full solution, Angular CI/build and EF check were not rerun; the
+latest complete solution result remains 1001/1001 at `ead85032`. Broader
+portfolio role/tenant and error-state parity remains open, as do overall
+migration acceptance and Blazor retirement (`NOT_READY`).
+
 ## Current follow-on slice: Global Search overflow and deterministic ordering
 
 The bounded search queries now have stable ID tie-breakers for equal-ranked
