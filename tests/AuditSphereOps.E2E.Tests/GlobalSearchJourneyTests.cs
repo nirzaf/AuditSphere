@@ -337,6 +337,76 @@ public sealed class GlobalSearchJourneyTests
   }
 
   [Fact]
+  [Trait("Category", "AuthorizationAndScope")]
+  [Trait("CaseId", "AS-PAR-002-ANG-GLOBAL-SEARCH-SESSION-01")]
+  public async Task SessionEpochRevocationCancelsPendingSearchAndRejectsItsLateResult()
+  {
+    await using var host = await OwnedHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-ANG-GLOBAL-SEARCH-SESSION-01");
+    var staff = host.Fixture.Staff;
+    var origin = await host.StartApiForIdentityAsync(staff);
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var diagnostics = new List<string>();
+    page.PageError += (_, error) => diagnostics.Add($"page-error: {error}");
+    await page.GotoAsync($"{origin}/auth/sign-in?returnUrl={Uri.EscapeDataString("/app")}");
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Portfolio" }).First
+      .WaitForAsync(new() { Timeout = 15000 });
+
+    var search = page.GetByRole(AriaRole.Combobox, new() { Name = "Search your workspace" });
+    var results = page.GetByRole(AriaRole.Region, new() { Name = "Global search" });
+    var intercepted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    var lateResponseFinished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    await page.RouteAsync("**/api/ui/search**", async route =>
+    {
+      if (!new Uri(route.Request.Url).Query.Contains("term=ZQXREVOKEDFLIGHT", StringComparison.Ordinal))
+      {
+        await route.ContinueAsync();
+        return;
+      }
+
+      intercepted.TrySetResult();
+      await Task.Delay(TimeSpan.FromSeconds(2));
+      try
+      {
+        await route.FulfillAsync(new()
+        {
+          Status = 200,
+          ContentType = "application/json",
+          Body = "{\"term\":\"ZQXREVOKEDFLIGHT\",\"hits\":[{\"kind\":\"Page\",\"title\":\"STALE AFTER SESSION INVALIDATION\",\"detail\":\"Page\",\"href\":\"/app/practice/time\"}],\"truncated\":false}"
+        });
+      }
+      catch (PlaywrightException)
+      {
+        // Session invalidation may abort the pending browser request before the fake reply is sent.
+      }
+      finally
+      {
+        lateResponseFinished.TrySetResult();
+      }
+    });
+
+    await search.FillAsync("ZQXREVOKEDFLIGHT");
+    await results.GetByRole(AriaRole.Button, new() { Name = "Search", Exact = true }).ClickAsync();
+    await intercepted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+    await using (var db = host.CreateDbContext())
+      await db.Users.Where(user => user.Id == staff.Id)
+        .ExecuteUpdateAsync(users => users.SetProperty(user => user.SessionEpoch, user => user.SessionEpoch + 1));
+
+    var revokedWorkspace = page.WaitForResponseAsync(response =>
+      response.Url.Contains("/api/ui/portfolio/workspace", StringComparison.Ordinal) && response.Status == 401);
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh", Exact = true }).ClickAsync();
+    await revokedWorkspace;
+    await Assertions.Expect(results).ToHaveCountAsync(0, new() { Timeout = 15000 });
+    await lateResponseFinished.Task.WaitAsync(TimeSpan.FromSeconds(5));
+    var body = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain("STALE AFTER SESSION INVALIDATION", body, StringComparison.Ordinal);
+    Assert.DoesNotContain(diagnostics, error => error.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+
+  [Fact]
   [Trait("CaseId", "AS-PAR-002-ANG-GLOBAL-SEARCH-API-01")]
   public async Task SearchApiEnforcesFirmGrantAndIdentityBoundariesWithoutLeakingCounts()
   {
