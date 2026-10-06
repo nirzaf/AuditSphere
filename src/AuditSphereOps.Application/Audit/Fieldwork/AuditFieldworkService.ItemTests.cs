@@ -17,18 +17,18 @@ public static partial class AuditFieldworkService
   public static async Task<CommandResult<ItemTestValue>> RecordItemTestAsync(
     IAuditSphereDbContext db, ActorContext actor, RecordItemTestRequest request, CancellationToken ct = default)
   {
-    var result = request.Result.Trim().ToUpperInvariant();
-    if (string.IsNullOrWhiteSpace(request.WorkPerformed) || request.EvidenceReferences is null ||
-        result is not (AuditItemTestResults.Pending or AuditItemTestResults.Pass or AuditItemTestResults.Exception or AuditItemTestResults.Limitation) ||
-        result is AuditItemTestResults.Pass or AuditItemTestResults.Exception && request.EvidenceReferences.Count == 0 ||
-        result is AuditItemTestResults.Exception or AuditItemTestResults.Limitation && string.IsNullOrWhiteSpace(request.FollowUp))
-      return Invalid<ItemTestValue>("Item tests require work and a bounded result; pass/exception outcomes need evidence, and exceptions or limitations need follow-up.");
     var item = await db.AuditSelectionItems.AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.SelectionItemId && x.FirmId == actor.FirmId, ct);
     if (item is null)
       return Denied<ItemTestValue>();
     var auth = await AuthorizeEntityAsync(db, actor, item, PlanningRoles, ct);
     if (!auth.Succeeded)
       return CommandResult<ItemTestValue>.Fail(auth.ErrorCode!, auth.Message!);
+    var result = request.Result.Trim().ToUpperInvariant();
+    if (string.IsNullOrWhiteSpace(request.WorkPerformed) || request.EvidenceReferences is null ||
+        result is not (AuditItemTestResults.Pending or AuditItemTestResults.Pass or AuditItemTestResults.Exception or AuditItemTestResults.Limitation) ||
+        result is AuditItemTestResults.Pass or AuditItemTestResults.Exception && request.EvidenceReferences.Count == 0 ||
+        result is AuditItemTestResults.Exception or AuditItemTestResults.Limitation && string.IsNullOrWhiteSpace(request.FollowUp))
+      return Invalid<ItemTestValue>("Item tests require work and a bounded result; pass/exception outcomes need evidence, and exceptions or limitations need follow-up.");
     var selection = await db.AuditSelections.AsNoTracking().SingleAsync(x => x.Id == item.SelectionId && x.FirmId == actor.FirmId, ct);
     if (selection.Status != AuditSelectionStatuses.Reviewed)
       return CommandResult<ItemTestValue>.Fail(ErrorCodes.GateBlocked, "The selection must be reviewed before item testing.");

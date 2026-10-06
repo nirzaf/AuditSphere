@@ -392,7 +392,8 @@ public sealed class FieldworkConnectionsTests
         new ReviewSelectionRequest(recoveredSelection.Id, AuditSelectionStatuses.Reviewed, "Independently reviewed the exact selected rows."))).Succeeded);
       var sampleSet = await AuditSamplingService.GetSampleSetAsync(db, w.Auditor, recoveredSelection.Id);
       Assert.True(sampleSet.Succeeded, sampleSet.Message);
-      var sampledItem = Assert.Single(sampleSet.Value!.Items);
+      Assert.Equal(5, sampleSet.Value!.Items.Count);
+      var sampledItem = sampleSet.Value.Items[0];
       Assert.Equal(AuditItemTestResults.Pending, sampledItem.TestResult);
       var missingFollowUp = await AuditFieldworkService.RecordItemTestAsync(db, w.Auditor,
         new RecordItemTestRequest(sampledItem.SelectionItemId, "Compared the item with source evidence.", ["sales-invoice-001"],
@@ -405,18 +406,21 @@ public sealed class FieldworkConnectionsTests
       Assert.True(recordedTest.Succeeded, recordedTest.Message);
       var preparedView = await AuditSamplingService.GetSampleSetAsync(db, w.Auditor, recoveredSelection.Id);
       Assert.True(preparedView.Succeeded, preparedView.Message);
-      Assert.Equal(AuditItemTestResults.Exception, preparedView.Value!.Items.Single().TestResult);
-      Assert.Equal(100m, preparedView.Value.Items.Single().ExceptionAmount);
-      Assert.Equal("Assess cut-off and obtain the delivery note.", preparedView.Value.Items.Single().FollowUp);
-      Assert.Equal(["sales-invoice-001"], preparedView.Value.Items.Single().EvidenceReferences);
+      var preparedItem = preparedView.Value!.Items.Single(x => x.SelectionItemId == sampledItem.SelectionItemId);
+      Assert.Equal(AuditItemTestResults.Exception, preparedItem.TestResult);
+      Assert.Equal(100m, preparedItem.ExceptionAmount);
+      Assert.Equal("Assess cut-off and obtain the delivery note.", preparedItem.FollowUp);
+      Assert.Equal(["sales-invoice-001"], preparedItem.EvidenceReferences);
       var reviewerView = await AuditSamplingService.GetSampleSetAsync(db, w.Manager, recoveredSelection.Id);
-      Assert.True(reviewerView.Value!.Items.Single().CanReviewTest);
+      var reviewerItem = reviewerView.Value!.Items.Single(x => x.SelectionItemId == sampledItem.SelectionItemId);
+      Assert.True(reviewerItem.CanReviewTest);
       Assert.True((await AuditFieldworkService.ReviewItemTestAsync(db, w.Manager,
         new ReviewItemTestRequest(recordedTest.Value!.AuditItemTestId, AuditItemTestReviewDecisions.Reviewed,
           "Exception and follow-up reviewed."))).Succeeded);
       var completedSampleSet = await AuditSamplingService.GetSampleSetAsync(db, w.Manager, recoveredSelection.Id);
-      Assert.True(completedSampleSet.Value!.Items.Single().TestReviewed);
-      Assert.False(completedSampleSet.Value.Items.Single().CanReviewTest);
+      var completedItem = completedSampleSet.Value!.Items.Single(x => x.SelectionItemId == sampledItem.SelectionItemId);
+      Assert.True(completedItem.TestReviewed);
+      Assert.False(completedItem.CanReviewTest);
 
       await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"UPDATE audit_sampling_runs SET seed = 7 WHERE id = {random.Value.Run.Id}"));
 

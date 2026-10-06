@@ -114,6 +114,7 @@ public static partial class AuditFieldworkService
     catch (DbUpdateException)
     {
       await transaction.RollbackAsync(ct);
+      (db as DbContext)?.ChangeTracker.Clear();
       prior = await ExistingSamplingRunAsync(db, actor.FirmId, request.ExpectedPreviewDigest, ct);
       if (prior is not null && await ExistingRunMatchesRequestAsync(db, actor, request, prior, ct))
         return await GetSamplingRunAsync(db, actor, prior.Id, ct);

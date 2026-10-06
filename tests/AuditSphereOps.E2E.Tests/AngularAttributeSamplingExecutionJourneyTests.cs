@@ -163,21 +163,23 @@ public sealed class AngularAttributeSamplingExecutionJourneyTests
     Assert.Equal(2, staffSampleDocument.RootElement.GetProperty("items").GetArrayLength());
     await Assertions.Expect(staffPage.Locator("[data-sample-item]")).ToHaveCountAsync(2);
     var firstItem = staffPage.Locator("[data-sample-item]").First;
+    var firstApiItem = staffSampleDocument.RootElement.GetProperty("items")[0];
+    var stableRowId = await firstItem.GetAttributeAsync("data-sample-item");
+    Assert.Equal(firstApiItem.GetProperty("stableRowId").GetString(), stableRowId);
+    selectedItemId = Guid.Parse(firstApiItem.GetProperty("selectionItemId").GetString()!);
     var resultSelect = firstItem.Locator("select").First;
-    var resultName = await resultSelect.GetAttributeAsync("name");
-    Assert.StartsWith("result-", resultName);
-    selectedItemId = Guid.Parse(resultName!["result-".Length..]);
-    Assert.Equal(Guid.Parse(staffSampleDocument.RootElement.GetProperty("items")[0]
-      .GetProperty("selectionItemId").GetString()!), selectedItemId);
+    Assert.Equal(1, await resultSelect.EvaluateAsync<int>("element => element.labels.length"));
     await resultSelect.SelectOptionAsync("EXCEPTION");
-    await firstItem.Locator($"textarea[name='work-{selectedItemId:D}']")
+    var textareas = firstItem.Locator("textarea");
+    Assert.Equal(4, await textareas.CountAsync());
+    await textareas.Nth(0)
       .FillAsync("Agreed this selected transaction to the synthetic invoice and approval record.");
-    await firstItem.Locator($"textarea[name='evidence-{selectedItemId:D}']")
+    await textareas.Nth(1)
       .FillAsync("invoice:AS-COMP-17-001\napproval:AS-COMP-17-001");
-    await firstItem.Locator($"input[name='amount-{selectedItemId:D}']").FillAsync("25.00");
-    await firstItem.Locator($"textarea[name='contradiction-{selectedItemId:D}']")
+    await firstItem.Locator("input").Last.FillAsync("25.00");
+    await textareas.Nth(2)
       .FillAsync("Invoice date falls after the recorded transaction date.");
-    await firstItem.Locator($"textarea[name='followup-{selectedItemId:D}']")
+    await textareas.Nth(3)
       .FillAsync("Resolve the date discrepancy with the engagement reviewer.");
     await firstItem.GetByRole(AriaRole.Button, new() { Name = "Record item test", Exact = true }).ClickAsync();
     await Assertions.Expect(firstItem).ToContainTextAsync("EXCEPTION");
