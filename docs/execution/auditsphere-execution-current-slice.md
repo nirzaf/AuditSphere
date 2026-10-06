@@ -15,6 +15,22 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: Deterministic Global Search lead ordering
+
+The lead query now uses the lead ID as a stable secondary order when names tie,
+before applying the six-hit limit. A PostgreSQL regression inserts eight
+equal-name matches in reverse ID order, verifies the six lowest IDs are
+returned on repeated searches, and confirms the result signals truncation.
+
+`GlobalSearchQueryTests` passed 17/17 in 1m28s and the full API-host
+`GlobalSearchJourneyTests` cohort passed 4/4 in 1m33s at code commit
+`c5887ee8`. The built-in browser on Development rendered one authorized
+“Firm finance” navigation result for a read-only search; the temporary query
+and results were cleared. The full solution and EF checks were not rerun; the
+complete-solution checkpoint remains 1001/1001 at `ead85032`. Exhaustive
+role/scope and other result-kind candidate/ranking matrices remain open; the
+Blazor retirement decision remains `NOT_READY`.
+
 ## Current follow-on slice: Operations expiry and cross-firm isolation
 
 A focused API-host browser journey exposed concurrent Angular bootstrap/API
