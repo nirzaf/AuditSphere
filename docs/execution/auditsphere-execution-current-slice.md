@@ -15,6 +15,24 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Completed focused slice: Firm-ledger blocked-close recovery
+
+At code/test commit `9207a475`,
+`FirmLedgerCloseBlockedByUnpostedJournalCanRecoverAfterPosting` passed **1/1**
+in 29 seconds against isolated PostgreSQL/API hosts. The Angular close attempt
+was refused while a draft journal remained unposted. PostgreSQL confirmed the
+period stayed `OPEN` at revision 1 with no close decision. After the manager
+submitted and posted the journal and the reviewer approved it, retrying the
+close in the same UI session succeeded. The period reached `CLOSED` at
+revision 2 with exactly one immutable close decision, the reviewed reason and
+the reviewer as actor. No page errors occurred.
+
+The isolated worktree avoided concurrent uncommitted API edits in the shared
+checkout. The Angular production build passed at base commit `7e284455` with
+the existing Commercial Settings stylesheet budget warning. The complete
+solution suite was not rerun; its latest result remains 1001/1001 at
+`ead85032`.
+
 ## Current focused slice: Invoice lifecycle authorization and recovery
 
 At code commit `7834ddec`, the Angular invoice detail projects current
