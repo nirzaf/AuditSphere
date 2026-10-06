@@ -306,6 +306,8 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<AccountingBackfillQuarantine> AccountingBackfillQuarantines => Set<AccountingBackfillQuarantine>();
 
   public DbSet<ClientAccount> ClientAccounts => Set<ClientAccount>();
+  public DbSet<ClientAccountRoleConfiguration> ClientAccountRoleConfigurations => Set<ClientAccountRoleConfiguration>();
+  public DbSet<ClientAccountRoleDecision> ClientAccountRoleDecisions => Set<ClientAccountRoleDecision>();
 
   public DbSet<SourceAccountAlias> SourceAccountAliases => Set<SourceAccountAlias>();
 
@@ -547,6 +549,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
     ConfigureClientOperationalLedger(b);
     ConfigureClientCounterparties(b);
     ConfigureClientSalesInvoices(b);
+    ConfigureClientAccountRoles(b);
     ConfigureAccountingEvidenceActions(b);
     ConfigureAccountingAnalysisPreparations(b);
     ConfigureAccountingCreationPreparations(b);

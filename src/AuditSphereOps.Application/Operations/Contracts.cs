@@ -259,6 +259,8 @@ public interface IClientAccountingDbContext : IAuditSphereDbContext
   DbSet<ClientChartVersion> ClientChartVersions { get; }
   DbSet<AccountingBackfillQuarantine> AccountingBackfillQuarantines { get; }
   DbSet<ClientAccount> ClientAccounts { get; }
+  DbSet<ClientAccountRoleConfiguration> ClientAccountRoleConfigurations { get; }
+  DbSet<ClientAccountRoleDecision> ClientAccountRoleDecisions { get; }
   DbSet<SourceAccountAlias> SourceAccountAliases { get; }
   DbSet<ReportingTaxonomyVersion> ReportingTaxonomyVersions { get; }
   DbSet<ReportingTaxonomyNode> ReportingTaxonomyNodes { get; }
