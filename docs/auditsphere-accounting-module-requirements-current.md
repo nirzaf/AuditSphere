@@ -52,6 +52,10 @@
   * **ISA 570:** Going Concern.
   * **ISA 700 & 705:** Forming an Opinion and Reporting on Financial Statements.
 
+### Client accounting service boundary
+
+AuditSphere continues to support import-first accounting preparation, audit, and consolidation. For a specifically authorized client accounting service, the product may additionally support native client-owned double-entry bookkeeping, client sales and purchase invoices and credit notes, GL/TB, and financial statements. VAT/tax and other ancillary modules are optional and independently gated; they do not block the core bookkeeping path. This does not authorize inventory, procurement operations, payroll execution, payment initiation, external tax filing, or changes to the firm's ledger or group-consolidation boundaries. Existing clients retain their current external-source behavior unless an explicit, reviewed cutover changes it. Firm invoices remain firm revenue; client invoices and proposed audit adjustments must never be represented as firm ledger activity or client-book postings respectively. Client isolation, balanced postings, review, and immutable history are mandatory across all modes. These new capabilities are delivered incrementally and are not considered available until their native API/UI paths and controls are verified.
+
 ---
 
 ## 1.2 User Personas & Responsibility Matrix

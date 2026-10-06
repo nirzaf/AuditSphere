@@ -13,6 +13,31 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Client bookkeeping epic — scope baseline
+
+The owner-requested Ekwo-inspired user stories are suitable as a bounded extension
+to this repository's modular monolith. The project scope now permits native client
+bookkeeping only for specifically authorized services. Existing external-source
+clients, firm billing, audit adjustments, and group consolidation retain separate
+ownership. VAT/tax and ancillary modules are optional; client isolation, balanced
+postings, human review, and immutable lineage are core requirements.
+
+| Capability | Current reuse surface | Remaining gap for the requested client-bookkeeping mode |
+|---|---|---|
+| Client book setup, chart and periods | `ClientAccountingProfile`, reporting books/periods, chart/taxonomy services, and opening-balance workflows | Explicit managed-vs-external source mode, authorized service mandate, and reviewed cutover are not yet a complete workflow. |
+| Double-entry ledger | Client reporting adjustments and external GL intake | A client-owned operational journal/posting ledger with its own review, period lock, idempotency, and correction lineage is not established by those surfaces. |
+| GL/TB | Existing TB/GL import, completeness, query and calculation paths | Add a reproducible view sourced from native postings while preserving the separate external-source path and official-vs-adjusted distinction. |
+| Sales invoices and credits | `Practice` invoice/billing flows | Those invoices belong to the firm; client-owned sales documents and their ledger/open-item effects need a separate capability. |
+| Purchase invoices and supplier credits | Document/PBC intake and client accounting evidence | Reviewed client AP documents, postings, and supplier open items are not a complete workflow. |
+| VAT/tax (optional) | No verified client transaction-tax calculation and reconciliation workflow identified | Optional jurisdiction-specific, versioned rules and reviewed workings; do not select a production rate without owner approval. |
+| Financial statements | Existing mappings, financial-package calculation, rendering, review and release | Reuse this pipeline through an accepted native-ledger snapshot adapter; preserve comparatives and audit-adjustment source reflection. |
+
+This is a source-level reuse/gap inventory, not runtime or production acceptance
+evidence. Delivery follows the approved incremental sequence: client book foundation,
+controlled ledger, optional evidence/tax modules, invoices/open items, then reporting
+and release. The implementation branch must keep existing external-source behavior
+as the default.
+
 ## Angular migration and Blazor retirement — NOT READY
 
 ## Completed focused slice: HTTP boundary hardening, OpenAPI contract, and IaC baseline
