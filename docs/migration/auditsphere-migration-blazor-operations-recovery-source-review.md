@@ -54,6 +54,13 @@ recovery remain owned by Application `OperationRecoveryService`.
   PostgreSQL confirms one revocation, one session-epoch increment, and one
   system-attributed expiry evidence row. The pending operation remains intact.
   `RoleAssignmentTests` and `OperationRecoveryTests` passed 16/16.
+- At code commit `f7bc5e4e`, the focused Operations browser cohort passed 3/3
+  in 56s. It verifies a current-firm Administrator cannot list, retry or cancel
+  a foreign-firm operation by guessed ID: reads omit the foreign ID, kind and
+  request bytes; both commands return 403 `scope.denied`; and PostgreSQL confirms
+  the operation and event history are unchanged. The same cohort covers Staff
+  denial and concurrent expiry of an Administrator grant with one event and one
+  session-epoch increment.
 - The built-in Development browser loaded `/ui/app/operations` read-only. Its
   signed-in Staff preview displays: “Operations is limited to firm-wide
   AuditSphere Administrators. Your current account does not have that access;
@@ -64,4 +71,4 @@ recovery remain owned by Application `OperationRecoveryService`.
 
 ## Remaining gaps
 
-This source row remains `PARTIAL`. Expired Administrator grant revocation now has a focused concurrent-request regression, but cross-firm access, concurrent command, non-accepted/ambiguous retry, quarantine restart approval, operational rollback, and assistive-technology acceptance matrices remain open. The broader AS-PAR-002 retry/idempotency and authorization crosswalk remains open. This slice changed Application `RoleGrantExpiry` transaction handling; it did not change Domain models, API endpoints, EF mappings or schema. The full solution regression and EF pending-model check were not rerun; the latest complete solution checkpoint remains the earlier **1001/1001** result at `ead85032`. The rollback Web host and Blazor sources remain required until the source/action and external retirement gates pass.
+This source row remains `PARTIAL`. Expired Administrator grant revocation and foreign-firm operation list/retry/cancel denial now have focused browser regressions. Other cross-firm capability boundaries, concurrent command, non-accepted/ambiguous retry, quarantine restart approval, operational rollback, and assistive-technology acceptance matrices remain open. The broader AS-PAR-002 retry/idempotency and authorization crosswalk remains open. This slice changed Application `RoleGrantExpiry` transaction handling; it did not change Domain models, API endpoints, EF mappings or schema. The full solution regression and EF pending-model check were not rerun; the latest complete solution checkpoint remains the earlier **1001/1001** result at `ead85032`. The rollback Web host and Blazor sources remain required until the source/action and external retirement gates pass.
