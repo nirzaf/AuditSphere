@@ -6,7 +6,7 @@ import { Subscription, timeout } from 'rxjs';
 import { SessionService } from '../../core/session';
 import { guidPattern } from '../../core/contracts';
 
-interface Party { id: string; clientId: string; legalName: string; displayName: string; role: string; address: string; country: string; taxIdentifier: string; contactDetails: string; paymentTerms: string; defaultCurrency: string; externalSystem: string; externalReference: string; createdByUserId: string; createdAt: string }
+interface Party { id: string; clientId: string; legalName: string; displayName: string; role: string; address: string; country: string; taxIdentifier: string; contactDetails: string; paymentTerms: string; defaultCurrency: string; externalSystem: string; externalReference: string; createdByUserId: string; createdAt: string; revision: string; effectiveAmendmentId: string | null }
 interface PartyList { clientId: string; role: string | null; page: number; pageSize: number; total: number; bookkeepingActive: boolean; counterparties: Party[] }
 export function decodeCounterparties(value: unknown, client: string, role: string | null, page: number): PartyList {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid party list');
@@ -21,6 +21,7 @@ export function decodeCounterparties(value: unknown, client: string, role: strin
         typeof p['createdByUserId'] !== 'string' || !guidPattern.test(p['createdByUserId']) ||
         !['CUSTOMER', 'SUPPLIER', 'BOTH'].includes(String(p['role'])) || (role && p['role'] !== role && !(role !== 'BOTH' && p['role'] === 'BOTH')) ||
         !['legalName', 'displayName', 'address', 'country', 'taxIdentifier', 'contactDetails', 'paymentTerms', 'defaultCurrency', 'externalSystem', 'externalReference', 'createdAt'].every(k => typeof p[k] === 'string') ||
+        typeof p['revision'] !== 'string' || !/^[1-9][0-9]{0,18}$/.test(p['revision']) || (p['effectiveAmendmentId'] !== null && (typeof p['effectiveAmendmentId'] !== 'string' || !guidPattern.test(p['effectiveAmendmentId']))) ||
         !String(p['legalName']).trim() || !String(p['displayName']).trim() || !/^[A-Z]{2}$/.test(String(p['country'])) || !/^(?:[A-Z]{3})?$/.test(String(p['defaultCurrency']))) throw new Error('Invalid party profile');
     seen.add(p['id']);
   }

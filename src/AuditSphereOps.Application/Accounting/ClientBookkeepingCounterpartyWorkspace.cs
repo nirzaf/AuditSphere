@@ -16,11 +16,11 @@ public sealed record ClientCounterpartyCreateRequest(string LegalName, string Di
   string ExternalSystem, string ExternalReference);
 public sealed record ClientCounterpartyView(Guid Id, Guid ClientId, string LegalName, string DisplayName, string Role,
   string Address, string Country, string TaxIdentifier, string ContactDetails, string PaymentTerms, string DefaultCurrency,
-  string ExternalSystem, string ExternalReference, Guid CreatedByUserId, string CreatedAt);
+  string ExternalSystem, string ExternalReference, Guid CreatedByUserId, string CreatedAt, string Revision, Guid? EffectiveAmendmentId);
 public sealed record ClientCounterpartyList(Guid ClientId, string? Role, int Page, int PageSize, int Total,
   bool BookkeepingActive, IReadOnlyList<ClientCounterpartyView> Counterparties);
 
-public static class ClientBookkeepingCounterpartyWorkspace
+public static partial class ClientBookkeepingCounterpartyWorkspace
 {
   private static readonly string[] Roles = ["AccountingPreparer", "AccountingReviewer", "Manager", "Partner", "Administrator"];
   private static string Trim(string? value) => (value ?? "").Trim();
@@ -80,11 +80,11 @@ public static class ClientBookkeepingCounterpartyWorkspace
     if (role is not null) query = query.Where(x => x.Role == role || (role != "BOTH" && x.Role == "BOTH"));
     var total = await query.CountAsync(ct);
     var rows = await query.OrderBy(x => x.NormalizedLegalName).ThenBy(x => x.Id).Skip(page * pageSize).Take(pageSize).ToListAsync(ct);
+    var views = new List<ClientCounterpartyView>();
+    foreach (var row in rows) views.Add(await EffectiveView(db, row, ct));
     await snapshot.CommitAsync(ct);
     var active = await Active(db, actor, clientId, ct);
     if (!(await Authorize(db, actor, clientId, ct)).Succeeded) return CommandResult<ClientCounterpartyList>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    return CommandResult<ClientCounterpartyList>.Ok(new(clientId, role, page, pageSize, total, active, rows.Select(x => new ClientCounterpartyView(
-      x.Id, x.ClientId, x.LegalName, x.DisplayName, x.Role, x.Address, x.Country, x.TaxIdentifier, x.ContactDetails, x.PaymentTerms,
-      x.DefaultCurrency, x.ExternalSystem, x.ExternalReference, x.CreatedByUserId, x.CreatedAt.ToUniversalTime().ToString("O"))).ToArray()));
+    return CommandResult<ClientCounterpartyList>.Ok(new(clientId, role, page, pageSize, total, active, views));
   }
 }

@@ -36,5 +36,32 @@ public sealed partial class AuditSphereDbContext
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     party.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var amendment = b.Entity<ClientCounterpartyAmendment>();
+    amendment.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.CounterpartyId, x.Id, x.Revision });
+    amendment.Property(x => x.DisplayName).HasMaxLength(300);
+    amendment.Property(x => x.Address).HasMaxLength(2000);
+    amendment.Property(x => x.TaxIdentifier).HasMaxLength(200);
+    amendment.Property(x => x.ContactDetails).HasMaxLength(1000);
+    amendment.Property(x => x.PaymentTerms).HasMaxLength(500);
+    amendment.Property(x => x.Reason).HasMaxLength(2000);
+    amendment.ToTable("client_counterparty_amendments", t => t.HasCheckConstraint("ck_client_counterparty_amendment",
+      "revision>1 AND length(trim(display_name))>0 AND length(trim(reason))>0"));
+    amendment.HasOne<ClientBookkeepingCounterparty>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.CounterpartyId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    amendment.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.ProposedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    var decision = b.Entity<ClientCounterpartyAmendmentDecision>();
+    decision.HasIndex(x => new { x.FirmId, x.ClientId, x.AmendmentId }).IsUnique();
+    decision.HasIndex(x => new { x.FirmId, x.ClientId, x.CounterpartyId, x.Revision }).IsUnique().HasFilter("decision = 'APPROVE'");
+    decision.Property(x => x.Decision).HasMaxLength(20);
+    decision.Property(x => x.Reason).HasMaxLength(2000);
+    decision.ToTable("client_counterparty_amendment_decisions", t => t.HasCheckConstraint("ck_client_counterparty_amendment_decision",
+      "revision>1 AND decision IN ('APPROVE','REJECT') AND length(trim(reason))>0"));
+    decision.HasOne<ClientCounterpartyAmendment>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.CounterpartyId, x.AmendmentId, x.Revision })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.CounterpartyId, x.Id, x.Revision }).OnDelete(DeleteBehavior.Restrict);
+    decision.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.ReviewedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
   }
 }

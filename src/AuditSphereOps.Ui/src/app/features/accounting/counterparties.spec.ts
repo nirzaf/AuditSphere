@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { decodeCounterparties } from './counterparties';
 const client = '11111111-1111-4111-8111-111111111111';
 const id = '22222222-2222-4222-8222-222222222222';
-const party = { id, clientId: client, legalName: 'Example', displayName: 'Example', role: 'BOTH', address: '', country: 'QA', taxIdentifier: '', contactDetails: '', paymentTerms: '', defaultCurrency: '', externalSystem: '', externalReference: '', createdByUserId: id, createdAt: '2026-10-06T00:00:00Z' };
+const party = { id, clientId: client, legalName: 'Example', displayName: 'Example', role: 'BOTH', address: '', country: 'QA', taxIdentifier: '', contactDetails: '', paymentTerms: '', defaultCurrency: '', externalSystem: '', externalReference: '', createdByUserId: id, createdAt: '2026-10-06T00:00:00Z', revision: '1', effectiveAmendmentId: null };
 const list = { clientId: client, role: null, page: 0, pageSize: 25, total: 1, bookkeepingActive: true, counterparties: [party] };
 describe('Client counterparty transport', () => {
   it('accepts optional tax and a combined customer and supplier role', () => {
