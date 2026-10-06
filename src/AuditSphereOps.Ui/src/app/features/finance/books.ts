@@ -1,11 +1,14 @@
-import { Component, DestroyRef, inject, signal } from '@angular/core';
+import { Component, DestroyRef, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MAT_DIALOG_DATA, MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
-import { Api, CommandState } from '../../core/api';
+import { Api, CommandState, UNKNOWN_OUTCOME } from '../../core/api';
 import { Drafts } from '../../core/drafts';
+import { SessionService } from '../../core/session';
+import { TabDrafts } from '../../core/tab-drafts';
 import { arr, bool, date, dec, decimalInput, guid, nat, nullable, obj, str, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
+import { decodeExpenseCreateLookup, decodeExpenseId, ExpenseCreateReference, expenseCreateReference, hashExpenseCreation } from './books-contracts';
 
 const expense = obj({ id: guid, expenseDate: date, category: text, payee: text, description: text, amount: dec, currency: str(3),
   evidenceFileName: text, evidenceSha256: text, status: text, reviewComment: nullable(text), preparedByMe: bool });
@@ -19,7 +22,7 @@ export const decodeBooks = obj({
 const tbRow = obj({ accountId: guid, code: text, name: text, accountType: text, openingDebit: dec, openingCredit: dec,
   movementDebit: dec, movementCredit: dec, closingDebit: dec, closingCredit: dec });
 export const decodeTrialBalance = obj({ fromPeriod: text, toPeriod: text, rows: arr(tbRow), totalDebit: dec, totalCredit: dec, balanced: bool,
-  revenue: dec, expenses: dec, profit: dec, assets: dec, liabilities: dec, equity: dec, positionReconciles: bool });
+  revenue: dec, expenses: dec, profit: dec, cumulativeProfit: dec, assets: dec, liabilities: dec, equity: dec, positionReconciles: bool });
 
 @Component({
   selector: 'audit-firm-expense-rejection-dialog',
@@ -62,19 +65,41 @@ export class FirmExpenseRejectionDialog {
         <h2 id="expense-heading">Operating expenses</h2>
         @if (b.canPrepare) {
           <form class="inline-form" (submit)="$event.preventDefault(); record()">
-            <label>Date <input type="date" name="date" [(ngModel)]="draft.date" (ngModelChange)="touch()" required /></label>
-            <label>Category <select name="category" [(ngModel)]="draft.category" (ngModelChange)="touch()">@for (c of b.categories; track c) { <option [value]="c">{{ c.replaceAll('_', ' ').toLowerCase() }}</option> }</select></label>
-            <label>Payee <input name="payee" [(ngModel)]="draft.payee" (ngModelChange)="touch()" maxlength="200" required /></label>
-            <label>Description <input name="description" [(ngModel)]="draft.description" (ngModelChange)="touch()" maxlength="500" required /></label>
-            <label>Amount <input name="amount" inputmode="decimal" [(ngModel)]="draft.amount" (ngModelChange)="touch()" required /></label>
-            <label>Currency <input name="currency" [(ngModel)]="draft.currency" (ngModelChange)="touch()" maxlength="3" required /></label>
-            <label>Expense account <select name="expenseAccount" [(ngModel)]="draft.expenseAccount" (ngModelChange)="touch()"><option value="">Select</option>
+            <label>Date <input type="date" name="date" [(ngModel)]="draft.date" (ngModelChange)="touch()" [disabled]="cmd.busy() || hashingExpense() || !!pendingExpenseCreate()" required /></label>
+            <label>Category <select name="category" [(ngModel)]="draft.category" (ngModelChange)="touch()" [disabled]="cmd.busy() || hashingExpense() || !!pendingExpenseCreate()">@for (c of b.categories; track c) { <option [value]="c">{{ c.replaceAll('_', ' ').toLowerCase() }}</option> }</select></label>
+            <label>Payee <input name="payee" [(ngModel)]="draft.payee" (ngModelChange)="touch()" maxlength="200" [disabled]="cmd.busy() || hashingExpense() || !!pendingExpenseCreate()" required /></label>
+            <label>Description <input name="description" [(ngModel)]="draft.description" (ngModelChange)="touch()" maxlength="500" [disabled]="cmd.busy() || hashingExpense() || !!pendingExpenseCreate()" required /></label>
+            <label>Amount <input name="amount" inputmode="decimal" [(ngModel)]="draft.amount" (ngModelChange)="touch()" [disabled]="cmd.busy() || hashingExpense() || !!pendingExpenseCreate()" required /></label>
+            <label>Currency <input name="currency" [(ngModel)]="draft.currency" (ngModelChange)="touch()" maxlength="3" [disabled]="cmd.busy() || hashingExpense() || !!pendingExpenseCreate()" required /></label>
+            <label>Expense account <select name="expenseAccount" [(ngModel)]="draft.expenseAccount" (ngModelChange)="touch()" [disabled]="cmd.busy() || hashingExpense() || !!pendingExpenseCreate()"><option value="">Select</option>
               @for (a of b.accounts; track a.id) { @if (a.accountType === 'EXPENSE') { <option [value]="a.id">{{ a.code }} {{ a.name }}</option> } }</select></label>
-            <label>Paid from <select name="paymentAccount" [(ngModel)]="draft.paymentAccount" (ngModelChange)="touch()"><option value="">Select</option>
+            <label>Paid from <select name="paymentAccount" [(ngModel)]="draft.paymentAccount" (ngModelChange)="touch()" [disabled]="cmd.busy() || hashingExpense() || !!pendingExpenseCreate()"><option value="">Select</option>
               @for (a of b.accounts; track a.id) { @if (a.accountType === 'ASSET' || a.accountType === 'LIABILITY') { <option [value]="a.id">{{ a.code }} {{ a.name }}</option> } }</select></label>
-            <label>Source document <input type="file" (change)="pick($event, b.maxEvidenceBytes)" /></label>
-            <button matButton="filled" type="submit" [disabled]="cmd.busy() || cmd.uncertain()">Record expense</button>
+            <label>Source document <input type="file" (change)="pick($event, b.maxEvidenceBytes)" [disabled]="cmd.busy() || hashingExpense() || !!pendingExpenseCreate() && !expenseCreateAbsent()" /></label>
+            @if (pendingExpenseCreate()) {
+              <button matButton="filled" type="submit" [disabled]="cmd.busy() || hashingExpense() || !expenseCreateAbsent() || !hasExpenseFile()">Retry exact expense request</button>
+            } @else {
+              <button matButton="filled" type="submit" [disabled]="cmd.busy() || hashingExpense() || cmd.uncertain()">Record expense</button>
+            }
           </form>
+        }
+        @if (pendingExpenseCreate(); as pending) {
+          <section class="panel" aria-labelledby="expense-create-recovery-heading">
+            <h3 id="expense-create-recovery-heading">Verify the saved expense</h3>
+            <p>The creation response was not confirmed. Check the exact request reference before any retry. AuditSphere will not create it again automatically.</p>
+            @if (expenseCreateMessage()) { <p role="status">{{ expenseCreateMessage() }}</p> }
+            @if (expenseCreateReceipt(); as receipt) {
+              <p role="status">Persisted state confirms expense {{ receipt.expenseId }} is {{ receipt.status }}.</p>
+              <button matButton="outlined" type="button" (click)="acknowledgeExpenseCreation()">Acknowledge saved expense</button>
+            } @else {
+              <button matButton="outlined" type="button" (click)="verifyExpenseCreation()" [disabled]="verifyingExpenseCreate()">
+                {{ verifyingExpenseCreate() ? 'Checking the saved expense…' : 'Check saved expense' }}
+              </button>
+              @if (expenseCreateAbsent()) {
+                <p role="status">No receipt is retained for this request yet. Keep the fields unchanged, select the exact same source file, then deliberately retry this request.</p>
+              }
+            }
+          </section>
         }
         <div class="table-scroll"><table>
           <caption>Firm expenses</caption>
@@ -115,8 +140,9 @@ export class FirmExpenseRejectionDialog {
             }</tbody>
             <tfoot><tr><th>Totals</th><td></td><td></td><td></td><td></td><td class="number"><strong>{{ t.totalDebit | money }}</strong></td><td class="number"><strong>{{ t.totalCredit | money }}</strong></td></tr></tfoot>
           </table></div>
-          <p aria-label="Firm financial summary">{{ t.balanced ? 'Balanced.' : 'NOT balanced.' }} Revenue {{ t.revenue | money }}, expenses {{ t.expenses | money }}, profit {{ t.profit | money }}.
-            Assets {{ t.assets | money }} = liabilities {{ t.liabilities | money }} + equity {{ t.equity | money }} + profit: {{ t.positionReconciles ? 'reconciles' : 'does not reconcile' }}.</p>
+          <p aria-label="Firm financial summary">{{ t.balanced ? 'Balanced.' : 'NOT balanced.' }} Selected-period P&amp;L: revenue {{ t.revenue | money }}, expenses {{ t.expenses | money }}, profit {{ t.profit | money }}.
+            Closing position: assets {{ t.assets | money }} = liabilities {{ t.liabilities | money }} + equity {{ t.equity | money }} + cumulative P&amp;L {{ t.cumulativeProfit | money }}: {{ t.positionReconciles ? 'reconciles' : 'does not reconcile' }}.</p>
+          <p><small>Posted journals are included by their effective ledger period. Year-end closing journals marked YEAR_END_CLOSE remain in the trial balance and are excluded from operating P&amp;L.</small></p>
         }
       </section>
     }
@@ -156,7 +182,7 @@ export class FirmExpenseRejectionDialog {
         </section>
       }
     }
-    @if (!cmd.uncertain() || !pendingPostId() && !pendingExpenseAction()) {
+    @if (!cmd.uncertain() || !pendingPostId() && !pendingExpenseAction() && !pendingExpenseCreate()) {
       <audit-command-message [message]="cmd.message()" [failed]="cmd.failed()" />
     }
   `,
@@ -164,6 +190,8 @@ export class FirmExpenseRejectionDialog {
 export class FirmBooks {
   private readonly api = inject(Api);
   private readonly drafts = inject(Drafts);
+  private readonly tabDrafts = inject(TabDrafts);
+  private readonly session = inject(SessionService);
   private readonly dialog = inject(MatDialog);
   readonly books = this.api.resource(() => '/api/ui/finance/books', decodeBooks, 'Firm books require a firm-wide finance assignment.');
   readonly cmd = new CommandState(this.api);
@@ -176,6 +204,13 @@ export class FirmBooks {
   readonly postReconciliation = signal<'POSTED' | 'APPROVED' | 'UNVERIFIABLE' | null>(null);
   readonly postVerificationMessage = signal('');
   readonly verifyingPost = signal(false);
+  readonly pendingExpenseCreate = signal<ExpenseCreateReference | null>(null);
+  readonly expenseCreateReceipt = signal<ReturnType<typeof decodeExpenseCreateLookup>['receipt']>(null);
+  readonly expenseCreateAbsent = signal(false);
+  readonly expenseCreateMessage = signal('');
+  readonly verifyingExpenseCreate = signal(false);
+  readonly hasExpenseFile = signal(false);
+  readonly hashingExpense = signal(false);
   readonly tb = signal<ReturnType<typeof decodeTrialBalance> | null>(null);
   readonly tbError = signal('');
   readonly tbBusy = signal(false);
@@ -185,6 +220,7 @@ export class FirmBooks {
   draft = { date: new Date().toISOString().slice(0, 10), category: 'RENT', payee: '', description: '', amount: '', currency: 'QAR', expenseAccount: '', paymentAccount: '' };
   private file: File | null = null;
   private draftTimer?: ReturnType<typeof setTimeout>;
+  private readonly expenseCreateScope = { entity: 'firm-books/expense-create', baseRevision: '0'.repeat(64) };
 
   private static validDraft(value: unknown): FirmBooks['draft'] | null {
     if (!value || typeof value !== 'object') return null;
@@ -199,6 +235,36 @@ export class FirmBooks {
   constructor() {
     const saved = this.drafts.load('firm-books-expense', FirmBooks.validDraft);
     if (saved) this.draft = saved;
+    let generation = this.session.invalidation();
+    effect(() => {
+      const nextGeneration = this.session.invalidation();
+      this.session.current();
+      this.books.data();
+      untracked(() => {
+        if (nextGeneration !== generation) {
+          generation = nextGeneration;
+          this.pendingExpenseCreate.set(null);
+          this.expenseCreateReceipt.set(null);
+          this.expenseCreateAbsent.set(false);
+          this.cmd.uncertain.set(false);
+          this.cmd.failed.set(false);
+          this.file = null;
+          this.hasExpenseFile.set(false);
+          return;
+        }
+        if (this.pendingExpenseCreate()) return;
+        const pending = this.tabDrafts.readPendingRequest(this.expenseCreateScope);
+        if (pending.state === 'ready') {
+          this.pendingExpenseCreate.set(pending.draft.value);
+          this.expenseCreateReceipt.set(null);
+          this.expenseCreateAbsent.set(false);
+          this.cmd.uncertain.set(true);
+          this.cmd.failed.set(true);
+          this.cmd.message.set(UNKNOWN_OUTCOME);
+          this.expenseCreateMessage.set(UNKNOWN_OUTCOME);
+        }
+      });
+    });
     inject(DestroyRef).onDestroy(() => clearTimeout(this.draftTimer));
   }
   touch(): void {
@@ -209,24 +275,176 @@ export class FirmBooks {
   pick(event: Event, max: number): void {
     const f = (event.target as HTMLInputElement).files?.[0] ?? null;
     this.file = f && f.size > 0 && f.size <= max ? f : null;
-    if (f && !this.file) { this.cmd.failed.set(true); this.cmd.message.set('The source document must be between 1 byte and 5 MB.'); }
+    this.hasExpenseFile.set(this.file !== null);
+    if (f && !this.file) {
+      this.cmd.failed.set(true);
+      this.cmd.message.set('The source document must be between 1 byte and 5 MB.');
+      this.expenseCreateMessage.set('The source document must be between 1 byte and 5 MB.');
+    }
   }
-  record(): void {
+  async record(): Promise<void> {
+    if (this.cmd.busy()) return;
+    if (this.hashingExpense()) return;
+    const pending = this.pendingExpenseCreate();
+    if (pending && (!this.cmd.uncertain() || !this.expenseCreateAbsent())) return;
+    if (!pending && this.cmd.uncertain()) return;
+    const sourceFile = this.file;
     const amount = decimalInput(this.draft.amount, 2);
-    if (!amount || !this.file || !this.draft.expenseAccount || !this.draft.paymentAccount) {
+    if (!amount || !sourceFile || !this.draft.expenseAccount || !this.draft.paymentAccount) {
       this.cmd.failed.set(true);
       this.cmd.message.set('Enter a valid amount (up to 2 decimals), both accounts and a source document.');
+      if (pending) this.expenseCreateMessage.set('The original request is still unresolved. Restore its exact fields and source file before retrying.');
       return;
     }
+    const session = this.session.current();
+    if (!session?.staff) {
+      this.cmd.failed.set(true);
+      this.cmd.message.set('Sign in with an authorized FinanceManager account to record an expense.');
+      return;
+    }
+    const requestId = pending?.requestId ?? crypto.randomUUID();
+    const startingGeneration = this.session.invalidation();
+    const startingUserId = session.userId;
+    const startingFirmId = session.firmId;
+    let requestHash: string;
+    this.hashingExpense.set(true);
+    try {
+      requestHash = await hashExpenseCreation({ firmId: session.firmId, actorId: session.userId, requestId,
+        date: this.draft.date, category: this.draft.category, payee: this.draft.payee,
+        description: this.draft.description, amount, currency: this.draft.currency,
+        expenseAccountId: this.draft.expenseAccount, paymentAccountId: this.draft.paymentAccount, file: sourceFile });
+    } catch {
+      this.cmd.failed.set(true);
+      this.cmd.message.set('The exact expense request could not be secured in this browser. No expense was sent.');
+      return;
+    } finally {
+      this.hashingExpense.set(false);
+    }
+    const currentSession = this.session.current();
+    if (startingGeneration !== this.session.invalidation() || !currentSession?.staff ||
+        currentSession.userId !== startingUserId || currentSession.firmId !== startingFirmId) {
+      this.cmd.failed.set(true);
+      this.cmd.message.set('Your authorized session changed while securing this request. No expense was sent; sign in again and verify the saved request.');
+      return;
+    }
+    if (pending && pending.requestHash !== requestHash) {
+      this.expenseCreateMessage.set('The selected source file or form fields differ from the unresolved request. Restore the exact original values; this reference cannot be reused for changed content.');
+      return;
+    }
+    const reference = pending ?? { requestId, requestHash };
+    if (!pending && !this.tabDrafts.save(this.expenseCreateScope, reference, expenseCreateReference, true)) {
+      this.cmd.failed.set(true);
+      this.cmd.message.set('Recovery storage is unavailable in this tab. No expense was sent.');
+      return;
+    }
+    if (!pending) this.pendingExpenseCreate.set(reference);
+    this.expenseCreateReceipt.set(null);
+    this.expenseCreateAbsent.set(false);
+    this.expenseCreateMessage.set('');
+    this.cmd.uncertain.set(false);
+    this.cmd.failed.set(false);
+    this.cmd.message.set('');
+    this.cmd.busy.set(true);
+    this.drafts.save('firm-books-expense', this.draft);
     const form = new FormData();
     form.set('expenseDate', this.draft.date); form.set('category', this.draft.category); form.set('payee', this.draft.payee);
     form.set('description', this.draft.description); form.set('amount', amount); form.set('currency', this.draft.currency.toUpperCase());
-    form.set('expenseAccountId', this.draft.expenseAccount); form.set('paymentAccountId', this.draft.paymentAccount); form.set('evidence', this.file);
-    this.cmd.run('/api/ui/finance/books/expenses', form, 'Expense recorded as a draft.', () => {
-      this.draft = { ...this.draft, payee: '', description: '', amount: '' };
-      this.drafts.save('firm-books-expense', this.draft);
-      this.file = null;
-    }).finally(() => this.books.reload());
+    form.set('expenseAccountId', this.draft.expenseAccount); form.set('paymentAccountId', this.draft.paymentAccount); form.set('evidence', sourceFile);
+    form.set('requestId', reference.requestId);
+    form.set('requestHash', reference.requestHash);
+    try {
+      const result = await this.api.upload<unknown>('/api/ui/finance/books/expenses', form);
+      if (!result.ok) {
+        this.cmd.failed.set(true);
+        this.cmd.message.set(result.message);
+        if (result.unknown || pending) {
+          this.cmd.uncertain.set(true);
+          this.expenseCreateMessage.set(result.message);
+        } else {
+          this.clearExpenseCreateReference();
+        }
+        return;
+      }
+      try {
+        decodeExpenseId(result.value, 'expenseId');
+        this.clearExpenseCreateReference();
+        this.draft = { ...this.draft, payee: '', description: '', amount: '' };
+        this.drafts.save('firm-books-expense', this.draft);
+        this.file = null;
+        this.hasExpenseFile.set(false);
+        this.cmd.failed.set(false);
+        this.cmd.message.set('Expense recorded as a draft.');
+      } catch {
+        this.cmd.failed.set(true);
+        this.cmd.uncertain.set(true);
+        this.cmd.message.set(UNKNOWN_OUTCOME);
+        this.expenseCreateMessage.set(UNKNOWN_OUTCOME);
+      }
+    } catch {
+      this.cmd.failed.set(true);
+      this.cmd.uncertain.set(true);
+      this.cmd.message.set(UNKNOWN_OUTCOME);
+      this.expenseCreateMessage.set(UNKNOWN_OUTCOME);
+    } finally {
+      this.cmd.busy.set(false);
+      this.books.reload();
+    }
+  }
+
+  private clearExpenseCreateReference(): void {
+    this.tabDrafts.clear(this.expenseCreateScope.entity);
+    this.pendingExpenseCreate.set(null);
+    this.expenseCreateReceipt.set(null);
+    this.expenseCreateAbsent.set(false);
+    this.expenseCreateMessage.set('');
+    this.cmd.uncertain.set(false);
+  }
+
+  async verifyExpenseCreation(): Promise<void> {
+    const pending = this.pendingExpenseCreate();
+    if (!pending || this.verifyingExpenseCreate()) return;
+    this.cmd.uncertain.set(true);
+    this.verifyingExpenseCreate.set(true);
+    this.expenseCreateReceipt.set(null);
+    this.expenseCreateMessage.set('');
+    this.expenseCreateAbsent.set(false);
+    try {
+      const lookup = await this.api.get(`/api/ui/finance/books/expenses/receipts/${pending.requestId}?requestHash=${pending.requestHash}`, decodeExpenseCreateLookup);
+      if (lookup.found && lookup.receipt && this.matchesExpenseCreateReceipt(lookup.receipt, pending)) {
+        this.expenseCreateReceipt.set(lookup.receipt);
+        this.expenseCreateMessage.set('The retained receipt confirms the exact expense was saved.');
+        this.books.reload();
+      } else if (!lookup.found) {
+        this.expenseCreateAbsent.set(true);
+        this.expenseCreateMessage.set('No matching expense receipt is retained yet. A retry stays bound to the same request reference and exact source file.');
+        this.books.reload();
+      } else {
+        this.expenseCreateMessage.set('The saved expense did not match this exact request reference. Keep the action unresolved and contact a firm administrator.');
+      }
+    } catch {
+      this.expenseCreateMessage.set('The saved expense could not be verified. Keep this request unresolved and check again.');
+    } finally {
+      this.verifyingExpenseCreate.set(false);
+    }
+  }
+
+  private matchesExpenseCreateReceipt(receipt: NonNullable<ReturnType<typeof decodeExpenseCreateLookup>['receipt']>, reference: ExpenseCreateReference): boolean {
+    return receipt.actorId === this.session.current()?.userId && receipt.requestId === reference.requestId &&
+      receipt.requestHash === reference.requestHash && receipt.status.length > 0;
+  }
+
+  acknowledgeExpenseCreation(): void {
+    const receipt = this.expenseCreateReceipt();
+    const pending = this.pendingExpenseCreate();
+    if (!receipt || !pending || !this.matchesExpenseCreateReceipt(receipt, pending)) return;
+    this.clearExpenseCreateReference();
+    this.draft = { ...this.draft, payee: '', description: '', amount: '' };
+    this.drafts.save('firm-books-expense', this.draft);
+    this.file = null;
+    this.hasExpenseFile.set(false);
+    this.cmd.failed.set(false);
+    this.cmd.message.set('Persisted state confirms the saved expense. The request was not repeated.');
+    this.books.reload();
   }
   act(id: string, action: 'submit' | 'post', success: string): void {
     if (action === 'post') {

@@ -299,11 +299,14 @@ public static class PracticeAnalyticsQuery
 // ── Firm expenses and trial balance (4.4-01..02) ───────────────────────────────────────────────────
 
 public sealed record RecordFirmExpenseRequest(DateOnly ExpenseDate, string Category, string Payee, string Description, decimal Amount, string Currency,
-  Guid ExpenseAccountId, Guid PaymentAccountId, string EvidenceFileName, string EvidenceContentType, byte[] EvidenceContent);
+  Guid ExpenseAccountId, Guid PaymentAccountId, string EvidenceFileName, string EvidenceContentType, byte[] EvidenceContent,
+  Guid? RequestId = null, string? RequestHash = null);
+public sealed record FirmExpenseCreationReceipt(Guid ExpenseId, Guid ActorId, Guid RequestId, string RequestHash, string Status);
+public sealed record FirmExpenseCreationLookup(bool Found, FirmExpenseCreationReceipt? Receipt);
 public sealed record FirmTrialBalanceRow(Guid AccountId, string Code, string Name, string AccountType, decimal OpeningDebit, decimal OpeningCredit,
   decimal MovementDebit, decimal MovementCredit, decimal ClosingDebit, decimal ClosingCredit);
 public sealed record FirmTrialBalanceView(string FromPeriod, string ToPeriod, IReadOnlyList<FirmTrialBalanceRow> Rows, decimal TotalDebit, decimal TotalCredit, bool Balanced,
-  decimal Revenue, decimal Expenses, decimal Profit, decimal Assets, decimal Liabilities, decimal Equity, bool PositionReconciles);
+  decimal Revenue, decimal Expenses, decimal Profit, decimal CumulativeProfit, decimal Assets, decimal Liabilities, decimal Equity, bool PositionReconciles);
 
 /// <summary>
 /// The firm's own operating expenses (rent, salaries, petty cash…) with source evidence, prepared by finance,
@@ -317,28 +320,108 @@ public static class FirmExpenseService
   public const int MaxEvidenceBytes = 5 * 1024 * 1024;
   public const int MaxReviewCommentLength = 1000;
 
+  private static string Part(string value) => $"{System.Text.Encoding.UTF8.GetByteCount(value)}:{value}";
+  private static string CreationHash(ActorContext actor, RecordFirmExpenseRequest request, string category,
+    string payee, string description, string currency, string fileName, string contentType, string evidenceSha256) =>
+    Hashing.Sha256Hex(string.Concat(new[]
+    {
+      "firm-expense-create-v1", actor.FirmId.ToString("D"), actor.UserId.ToString("D"),
+      request.RequestId!.Value.ToString("D"), request.ExpenseDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+      category, payee, description, MoneyPolicy.Normalize(request.Amount, 2).ToString("0.00", CultureInfo.InvariantCulture),
+      currency, request.ExpenseAccountId.ToString("D"), request.PaymentAccountId.ToString("D"), fileName, contentType, evidenceSha256
+    }.Select(Part)));
+
+  public static string CreateRequestHash(ActorContext actor, RecordFirmExpenseRequest request)
+  {
+    var contentType = string.IsNullOrWhiteSpace(request.EvidenceContentType) ? "application/octet-stream" : request.EvidenceContentType.Trim();
+    return CreationHash(actor, request, (request.Category ?? "").Trim().ToUpperInvariant(), request.Payee.Trim(),
+      request.Description.Trim(), request.Currency.Trim().ToUpperInvariant(), request.EvidenceFileName.Trim(),
+      contentType, Hashing.Sha256Hex(request.EvidenceContent));
+  }
+
   public static async Task<CommandResult<Guid>> RecordAsync(IClientAccountingDbContext db, ActorContext actor, RecordFirmExpenseRequest request, CancellationToken ct = default)
   {
     var category = (request.Category ?? "").Trim().ToUpperInvariant();
-    if (!FirmExpenseCategories.All.Contains(category) || request.Amount <= 0 || string.IsNullOrWhiteSpace(request.Payee) || string.IsNullOrWhiteSpace(request.Description) ||
+    if (!FirmExpenseCategories.All.Contains(category) || request.Amount <= 0 || MoneyPolicy.Normalize(request.Amount, 2) != request.Amount ||
+        string.IsNullOrWhiteSpace(request.Payee) || string.IsNullOrWhiteSpace(request.Description) ||
         (request.Currency ?? "").Trim().Length != 3 || request.EvidenceContent is not { Length: > 0 and <= MaxEvidenceBytes } || string.IsNullOrWhiteSpace(request.EvidenceFileName))
       return CommandResult<Guid>.Fail("expense.invalid", "Category, payee, description, a positive amount, currency and a source document (up to 5 MB) are required.");
+    if ((request.RequestId is null) != (request.RequestHash is null) || request.RequestId == Guid.Empty)
+      return CommandResult<Guid>.Fail("request.invalid", "An exact expense creation reference is required.");
+    var evidenceSha256 = Hashing.Sha256Hex(request.EvidenceContent);
+    var normalizedPayee = request.Payee.Trim();
+    var normalizedDescription = request.Description.Trim();
+    var currency = request.Currency!.Trim().ToUpperInvariant();
+    var fileName = request.EvidenceFileName.Trim();
+    var contentType = string.IsNullOrWhiteSpace(request.EvidenceContentType) ? "application/octet-stream" : request.EvidenceContentType.Trim();
+    var requestHash = request.RequestId is null ? null : CreationHash(actor, request, category, normalizedPayee,
+      normalizedDescription, currency, fileName, contentType, evidenceSha256);
+    if (request.RequestHash is not null && (request.RequestHash.Length != 64 ||
+        request.RequestHash.Any(c => c is not (>= '0' and <= '9') and not (>= 'a' and <= 'f')) || request.RequestHash != requestHash))
+      return CommandResult<Guid>.Fail("request.invalid", "The expense creation reference does not match these exact fields and source bytes.");
     var auth = await AuthorizeAsync(db, actor, Preparers, ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+
+    await using var transaction = request.RequestId is null ? null : await db.Database.BeginTransactionAsync(ct);
+    if (request.RequestId is { } requestId)
+    {
+      var lockedActor = await db.Users.FromSqlInterpolated(
+        $"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR UPDATE")
+        .AsNoTracking().SingleOrDefaultAsync(ct);
+      if (lockedActor is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+      auth = await AuthorizeAsync(db, actor, Preparers, ct);
+      if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+      var existing = await db.FirmExpenses.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
+        x.PreparedByUserId == actor.UserId && x.CreateRequestId == requestId, ct);
+      if (existing is not null)
+      {
+        if (existing.CreateRequestHash != requestHash)
+          return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict, "This expense reference is already bound to different exact source evidence or fields.");
+        await transaction!.CommitAsync(ct);
+        return CommandResult<Guid>.Ok(existing.Id);
+      }
+    }
+
     var accounts = await db.FirmAccounts.AsNoTracking().Where(x => x.FirmId == actor.FirmId && (x.Id == request.ExpenseAccountId || x.Id == request.PaymentAccountId)).ToListAsync(ct);
     if (accounts.SingleOrDefault(x => x.Id == request.ExpenseAccountId)?.AccountType != LedgerStates.AccountExpense ||
         accounts.SingleOrDefault(x => x.Id == request.PaymentAccountId) is not { } payment || payment.AccountType is not (LedgerStates.AccountAsset or LedgerStates.AccountLiability))
       return CommandResult<Guid>.Fail("expense.invalid", "Choose an expense account and a cash, bank, petty-cash or payable account.");
     var expense = new FirmExpense
     {
-      Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ExpenseDate = request.ExpenseDate, Category = category, Payee = request.Payee.Trim(), Description = request.Description.Trim(),
-      Amount = MoneyPolicy.Normalize(request.Amount), Currency = request.Currency!.Trim().ToUpperInvariant(), ExpenseAccountId = request.ExpenseAccountId, PaymentAccountId = request.PaymentAccountId,
-      EvidenceFileName = request.EvidenceFileName.Trim(), EvidenceContentType = string.IsNullOrWhiteSpace(request.EvidenceContentType) ? "application/octet-stream" : request.EvidenceContentType.Trim(),
-      EvidenceContent = request.EvidenceContent, EvidenceSha256 = Hashing.Sha256Hex(request.EvidenceContent), PreparedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
+      Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ExpenseDate = request.ExpenseDate, Category = category, Payee = normalizedPayee, Description = normalizedDescription,
+      Amount = MoneyPolicy.Normalize(request.Amount, 2), Currency = currency, ExpenseAccountId = request.ExpenseAccountId, PaymentAccountId = request.PaymentAccountId,
+      EvidenceFileName = fileName, EvidenceContentType = contentType, EvidenceContent = request.EvidenceContent, EvidenceSha256 = evidenceSha256,
+      CreateRequestId = request.RequestId, CreateRequestHash = requestHash, PreparedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     };
     db.FirmExpenses.Add(expense);
     await db.SaveChangesAsync(ct);
+    if (transaction is not null) await transaction.CommitAsync(ct);
     return CommandResult<Guid>.Ok(expense.Id);
+  }
+
+  public static async Task<CommandResult<FirmExpenseCreationLookup>> LookupCreationAsync(IClientAccountingDbContext db,
+    ActorContext actor, Guid requestId, string? requestHash, CancellationToken ct = default)
+  {
+    if (requestId == Guid.Empty || requestHash is not { Length: 64 } ||
+        requestHash.Any(c => c is not (>= '0' and <= '9') and not (>= 'a' and <= 'f')))
+      return CommandResult<FirmExpenseCreationLookup>.Fail("request.invalid", "The expense reference is invalid.");
+    var auth = await AuthorizeAsync(db, actor, Preparers, ct);
+    if (!auth.Succeeded) return CommandResult<FirmExpenseCreationLookup>.Fail(ErrorCodes.ScopeDenied, "The expense creation receipt is unavailable.");
+    var existing = await db.FirmExpenses.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
+      x.PreparedByUserId == actor.UserId && x.CreateRequestId == requestId, ct);
+    if (existing is null)
+    {
+      auth = await AuthorizeAsync(db, actor, Preparers, ct);
+      return auth.Succeeded
+        ? CommandResult<FirmExpenseCreationLookup>.Ok(new(false, null))
+        : CommandResult<FirmExpenseCreationLookup>.Fail(ErrorCodes.ScopeDenied, "The expense creation receipt is unavailable.");
+    }
+    if (existing.CreateRequestHash != requestHash)
+      return CommandResult<FirmExpenseCreationLookup>.Fail(ErrorCodes.IdempotencyConflict, "This reference is bound to a different expense intent.");
+    auth = await AuthorizeAsync(db, actor, Preparers, ct);
+    return auth.Succeeded
+      ? CommandResult<FirmExpenseCreationLookup>.Ok(new(true, new(existing.Id, actor.UserId, requestId, requestHash, existing.Status)))
+      : CommandResult<FirmExpenseCreationLookup>.Fail(ErrorCodes.ScopeDenied, "The expense creation receipt is unavailable.");
   }
 
   /// <summary>Submits the expense and drafts its balanced journal (Dr expense, Cr payment account) for review.</summary>
@@ -416,7 +499,11 @@ public static class FirmExpenseService
           ReviewComment = x.ReviewComment, PostingId = x.PostingId, CreatedAt = x.CreatedAt }).ToListAsync(ct)
       : [];
 
-  /// <summary>Opening balances are postings in periods before <paramref name="fromPeriod"/>; movements are the periods through <paramref name="toPeriod"/>.</summary>
+  /// <summary>
+  /// The trial balance shows cumulative opening, movement and closing balances. Revenue, expenses and profit are
+  /// posted activity within the selected periods; YEAR_END_CLOSE postings remain in the trial balance but are
+  /// excluded from operating activity. Cumulative P&amp;L is retained separately for the closing-position check.
+  /// </summary>
   public static async Task<CommandResult<FirmTrialBalanceView>> TrialBalanceAsync(IClientAccountingDbContext db, ActorContext actor, string fromPeriod, string toPeriod, CancellationToken ct = default)
   {
     if (!IsPeriod(fromPeriod) || !IsPeriod(toPeriod) || string.CompareOrdinal(fromPeriod, toPeriod) > 0)
@@ -426,7 +513,8 @@ public static class FirmExpenseService
     var periods = await db.FirmPeriods.AsNoTracking().Where(x => x.FirmId == actor.FirmId && string.Compare(x.PeriodCode, toPeriod) <= 0).ToListAsync(ct);
     var openingIds = periods.Where(p => string.CompareOrdinal(p.PeriodCode, fromPeriod) < 0).Select(p => p.Id).ToHashSet();
     var periodIds = periods.Select(p => p.Id).ToArray();
-    var lines = await db.FirmPostingLines.AsNoTracking().Join(db.FirmPostings.AsNoTracking(), l => l.PostingId, p => p.Id, (l, p) => new { l, p.PeriodId })
+    var lines = await db.FirmPostingLines.AsNoTracking().Join(db.FirmPostings.AsNoTracking(), l => l.PostingId, p => p.Id, (l, p) => new { l, p.PeriodId, p.JournalId })
+      .Join(db.FirmJournals.AsNoTracking(), x => x.JournalId, j => j.Id, (x, j) => new { x.l, x.PeriodId, j.PostingPurpose })
       .Where(x => x.l.FirmId == actor.FirmId && periodIds.Contains(x.PeriodId)).ToListAsync(ct);
     var accounts = await db.FirmAccounts.AsNoTracking().Where(x => x.FirmId == actor.FirmId).OrderBy(x => x.Code).ToListAsync(ct);
     static (decimal Debit, decimal Credit) Net(decimal debit, decimal credit) => debit >= credit ? (MoneyPolicy.Normalize(debit - credit), 0m) : (0m, MoneyPolicy.Normalize(credit - debit));
@@ -442,14 +530,18 @@ public static class FirmExpenseService
     var totalDebit = rows.Sum(r => r.ClosingDebit);
     var totalCredit = rows.Sum(r => r.ClosingCredit);
     decimal Balance(string type, bool debitNormal) => rows.Where(r => r.AccountType == type).Sum(r => debitNormal ? r.ClosingDebit - r.ClosingCredit : r.ClosingCredit - r.ClosingDebit);
-    var revenue = Balance(LedgerStates.AccountRevenue, false);
-    var expenses = Balance(LedgerStates.AccountExpense, true);
+    var operatingLines = lines.Where(x => !openingIds.Contains(x.PeriodId) && x.PostingPurpose != LedgerStates.YearEndClosingPurpose).ToList();
+    var revenueAccountIds = accounts.Where(x => x.AccountType == LedgerStates.AccountRevenue).Select(x => x.Id).ToHashSet();
+    var expenseAccountIds = accounts.Where(x => x.AccountType == LedgerStates.AccountExpense).Select(x => x.Id).ToHashSet();
+    var revenue = MoneyPolicy.Normalize(operatingLines.Where(x => revenueAccountIds.Contains(x.l.FirmAccountId)).Sum(x => x.l.Credit - x.l.Debit));
+    var expenses = MoneyPolicy.Normalize(operatingLines.Where(x => expenseAccountIds.Contains(x.l.FirmAccountId)).Sum(x => x.l.Debit - x.l.Credit));
     var assets = Balance(LedgerStates.AccountAsset, true);
     var liabilities = Balance(LedgerStates.AccountLiability, false);
     var equity = Balance(LedgerStates.AccountEquity, false);
     var profit = revenue - expenses;
+    var cumulativeProfit = Balance(LedgerStates.AccountRevenue, false) - Balance(LedgerStates.AccountExpense, true);
     return CommandResult<FirmTrialBalanceView>.Ok(new(fromPeriod, toPeriod, rows, totalDebit, totalCredit, totalDebit == totalCredit,
-      revenue, expenses, profit, assets, liabilities, equity, assets == liabilities + equity + profit));
+      revenue, expenses, profit, cumulativeProfit, assets, liabilities, equity, assets == liabilities + equity + cumulativeProfit));
   }
 
   private static bool IsPeriod(string value) => DateOnly.TryParseExact((value ?? "") + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _);

@@ -101,6 +101,8 @@ public sealed class FirmExpense
   public string EvidenceContentType { get; set; } = string.Empty;
   public byte[] EvidenceContent { get; set; } = [];
   public string EvidenceSha256 { get; set; } = string.Empty;
+  public Guid? CreateRequestId { get; set; }
+  public string? CreateRequestHash { get; set; }
   public string Status { get; set; } = FirmExpenseStates.Draft;
   public Guid PreparedByUserId { get; set; }
   public Guid? ReviewedByUserId { get; set; }

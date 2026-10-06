@@ -34,11 +34,14 @@ public sealed partial class AuditSphereDbContext
     b.Entity<FirmExpense>(e =>
     {
       e.HasIndex(x => new { x.FirmId, x.ExpenseDate });
+      e.HasIndex(x => new { x.FirmId, x.PreparedByUserId, x.CreateRequestId }).IsUnique()
+        .HasFilter("create_request_id IS NOT NULL");
       e.HasOne<FirmAccount>().WithMany().HasForeignKey(x => x.ExpenseAccountId).OnDelete(DeleteBehavior.Restrict);
       e.HasOne<FirmAccount>().WithMany().HasForeignKey(x => x.PaymentAccountId).OnDelete(DeleteBehavior.Restrict);
       e.Property(x => x.Amount).HasPrecision(18, 2);
+      e.Property(x => x.CreateRequestHash).HasMaxLength(64);
       e.ToTable("firm_expenses", t => t.HasCheckConstraint("ck_firm_expense_values",
-        "category IN ('RENT','SALARIES','PETTY_CASH','UTILITIES','OTHER') AND status IN ('DRAFT','SUBMITTED','APPROVED','POSTED','REJECTED') AND amount > 0 AND currency ~ '^[A-Z]{3}$' AND length(evidence_sha256) = 64 AND octet_length(evidence_content) BETWEEN 1 AND 5242880 AND (reviewed_by_user_id IS NULL OR reviewed_by_user_id <> prepared_by_user_id) AND ((status = 'POSTED') = (posting_id IS NOT NULL))"));
+        "category IN ('RENT','SALARIES','PETTY_CASH','UTILITIES','OTHER') AND status IN ('DRAFT','SUBMITTED','APPROVED','POSTED','REJECTED') AND amount > 0 AND currency ~ '^[A-Z]{3}$' AND length(evidence_sha256) = 64 AND octet_length(evidence_content) BETWEEN 1 AND 5242880 AND (reviewed_by_user_id IS NULL OR reviewed_by_user_id <> prepared_by_user_id) AND ((status = 'POSTED') = (posting_id IS NOT NULL)) AND ((create_request_id IS NULL AND create_request_hash IS NULL) OR (create_request_id IS NOT NULL AND create_request_hash ~ '^[0-9a-f]{64}$'))"));
     });
   }
 }
