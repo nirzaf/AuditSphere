@@ -11736,6 +11736,41 @@
       "commandNote": "Dotnet commands used absolute worktree project paths from /tmp to use installed SDK. Temporary roll-forward override for spawned browser API hosts was restored after each terminal run.",
       "fullRegression": "NOT_RUN",
       "boundary": "Partial CA-11 native journal posting/recovery. Draft creation and other command receipts, numbering policy, general draft editing, evidence capture, reversal/correction lineage, currency/FX policy, client invoices/open items, opening balances and native TB/reporting bridge remain open. Full epic unmerged. Tax/nonmandatory modules optional; mandatory financial controls retained. No Development/production migration or external acceptance claimed."
+    },
+    "clientOperationalJournalReversals": {
+      "sourceCommit": "0b42d506",
+      "implementationCommit": "4fb11b20",
+      "integratedCommitObserved": "62297dff",
+      "status": "LOCAL_SLICE_VERIFIED",
+      "domainFocused": {
+        "passed": 2,
+        "durationSeconds": 30
+      },
+      "angularFocused": {
+        "passed": 9
+      },
+      "apiOpenApi": {
+        "passed": 5,
+        "durationSeconds": 9
+      },
+      "browserJourney": {
+        "passed": 1,
+        "durationSeconds": 49,
+        "initialFailure": "Exact reversal period label lookup timed out; explicit label association fixed and browser journey rerun passed."
+      },
+      "angularBuild": "PASS; existing commercial/settings.scss budget warning",
+      "releaseBuilds": "API tests and E2E tests PASS with zero compiler warnings or errors",
+      "efPendingModelChanges": "NONE",
+      "fullRegression": "NOT_RUN",
+      "productionMigration": "NOT_RUN",
+      "externalAcceptance": "NOT_RUN",
+      "limitations": [
+        "Full manual reversal only; broader epic remains incomplete.",
+        "Evidence reference retained; immutable uploaded bytes not implemented in this slice.",
+        "Frozen original accounts must remain approved at correction date.",
+        "Concurrent process committed implementation with temporary SDK roll-forward override; override restored in sourceCommit.",
+        "Concurrent process merged branch and removed checkout; final epic merge was not performed by this task."
+      ]
     }
   },
   "documentationWork": {

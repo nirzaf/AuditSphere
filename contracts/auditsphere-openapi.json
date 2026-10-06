@@ -5745,6 +5745,83 @@
         ]
       }
     },
+    "/api/ui/accounting/clients/{clientId}/operational-journals/{journalId}/reversal": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "journalId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClientOperationalJournalReversalHttpInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
     "/api/ui/accounting/clients/{clientId}/operational-journals/{journalId}/post": {
       "post": {
         "tags": [
@@ -27625,6 +27702,84 @@
           }
         }
       },
+      "ClientOperationalJournalReversalHttpInput": {
+        "required": [
+          "revision",
+          "periodId",
+          "journalNumber",
+          "postingDate",
+          "reason",
+          "evidenceReference",
+          "reviewed"
+        ],
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "string"
+          },
+          "periodId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "journalNumber": {
+            "type": "string"
+          },
+          "postingDate": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "evidenceReference": {
+            "type": "string"
+          },
+          "reviewed": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ClientOperationalJournalReversalView": {
+        "required": [
+          "originalJournalId",
+          "reversalJournalId",
+          "originalRevision",
+          "reason",
+          "evidenceReference",
+          "preparedByUserId",
+          "preparedAt",
+          "reversalStatus"
+        ],
+        "type": "object",
+        "properties": {
+          "originalJournalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reversalJournalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "originalRevision": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "evidenceReference": {
+            "type": "string"
+          },
+          "preparedByUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "preparedAt": {
+            "type": "string"
+          },
+          "reversalStatus": {
+            "type": "string"
+          }
+        }
+      },
       "ClientOperationalJournalReworkHttpInput": {
         "required": [
           "revision",
@@ -27805,6 +27960,26 @@
             "items": {
               "$ref": "#/components/schemas/ClientOperationalJournalDecisionView"
             }
+          },
+          "reversalOf": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientOperationalJournalReversalView"
+              }
+            ]
+          },
+          "reversedBy": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientOperationalJournalReversalView"
+              }
+            ]
           }
         }
       },
@@ -27886,6 +28061,26 @@
           },
           "credit": {
             "type": "string"
+          },
+          "reversesJournalId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "reversedByJournalId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "reversedByStatus": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

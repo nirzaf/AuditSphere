@@ -13,6 +13,12 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Native manual journal full reversals
+
+Posted native manual journals now support a full reversal in an explicitly selected open correction period. The original remains posted; immutable lineage retains the reason and evidence reference, and database guards require exact swapped debit and credit lines. Identical concurrent preparation requests return the same draft. The reversal follows the normal preview, submission, independent approval and posting workflow. Journal and general-ledger readback show both directions of the correction relationship.
+
+Focused backend, Angular, API contract and automated browser checks passed; EF reports no pending model changes. Exact evidence is recorded in `status.json`. This slice retains an evidence reference rather than uploaded evidence bytes. Original frozen accounts must remain approved for the correction date; unsupported chart replacement fails closed. Invoice credits, settlement and refund recording, opening balances, reporting bridges and other requested capabilities remain outstanding. Tax and ancillary modules remain optional. A concurrent process integrated the branch and removed its checkout before evidence recording; work continues in a fresh managed worktree. This is not full epic or production acceptance.
+
 ## Native journal exact posting receipts and recovery
 
 Native posting now requires a stable client-scoped command identity and a hash of
