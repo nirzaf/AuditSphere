@@ -12,6 +12,118 @@ namespace AuditSphereOps.E2E.Tests;
 public sealed class AngularFirmLedgerBoundaryJourneyTests
 {
   [Fact]
+  [Trait("CaseId", "AS-PAR-002-ANGULAR-FIRM-LEDGER-CLOSE-RECOVERY-01")]
+  public async Task FirmLedgerCloseBlockedByUnpostedJournalCanRecoverAfterPosting()
+  {
+    await using var host = await OwnedHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-ANGULAR-FIRM-LEDGER-CLOSE-RECOVERY-01");
+    var f = host.Fixture;
+    var manager = PbcSeed.Actor(f.Admin, "FinanceManager");
+    var reviewer = PbcSeed.Actor(f.Reviewer, "FinanceReviewer");
+    Guid periodId, journalId;
+
+    await using (var db = host.CreateDbContext())
+    {
+      db.RoleGrants.AddRange(
+        PbcSeed.Grant(f.FirmId, f.Admin, "FinanceManager"),
+        PbcSeed.Grant(f.FirmId, f.Reviewer, "FinanceReviewer"));
+      db.FirmFinanceProfiles.Add(new FirmFinanceProfile
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, FunctionalCurrency = "QAR",
+        ProfileKind = BillingStates.TestProfile, Approved = true,
+        ApprovedByUserId = f.Reviewer.Id, ApprovedAt = DateTimeOffset.UtcNow,
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+
+      var period = await LedgerService.CreateFirmPeriodAsync(db, manager,
+        new CreateFirmPeriodRequest("2026-12"));
+      Assert.True(period.Succeeded, period.Message);
+      periodId = period.Value;
+      var debitAccount = await LedgerService.CreateFirmAccountAsync(db, manager,
+        new CreateFirmAccountRequest("REC-CASH", "Recovery cash", LedgerStates.AccountAsset,
+          LedgerStates.Debit));
+      Assert.True(debitAccount.Succeeded, debitAccount.Message);
+      var creditAccount = await LedgerService.CreateFirmAccountAsync(db, manager,
+        new CreateFirmAccountRequest("REC-EQUITY", "Recovery equity", LedgerStates.AccountEquity,
+          LedgerStates.Credit));
+      Assert.True(creditAccount.Succeeded, creditAccount.Message);
+      var journal = await LedgerService.CreateFirmJournalDraftAsync(db, manager,
+        new CreateFirmJournalDraftRequest(periodId, "REC-JRN-001", "MANUAL", "RECOVERY-001", 1,
+          "SYNTHETIC_RECOVERY", "QAR", [
+            new(debitAccount.Value, "Recovery debit", 100m, 0m),
+            new(creditAccount.Value, "Recovery credit", 0m, 100m)
+          ]));
+      Assert.True(journal.Succeeded, journal.Message);
+      journalId = journal.Value;
+      Assert.Equal(LedgerStates.JournalDraft,
+        await db.FirmJournals.AsNoTracking().Where(x => x.Id == journalId)
+          .Select(x => x.Status).SingleAsync());
+    }
+
+    var settings = new Dictionary<string, string>
+    {
+      ["AngularUi__Enabled"] = "true",
+      ["AngularUi__CanonicalRoutes"] = "true"
+    };
+    var origin = await host.StartApiForIdentityAsync(f.Reviewer, settings);
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    var page = await browser.NewPageAsync();
+    var pageErrors = new List<string>();
+    page.PageError += (_, error) => pageErrors.Add(error);
+
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" +
+      Uri.EscapeDataString("/app/finance"));
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "Firm ledger & financial operations", Exact = true })).ToBeVisibleAsync();
+    var row = page.GetByRole(AriaRole.Row).Filter(new() { HasText = "2026-12" });
+    await row.GetByRole(AriaRole.Button, new() { Name = "Close period", Exact = true }).ClickAsync();
+    await page.GetByLabel("Close reason", new() { Exact = true }).FillAsync("Recovered after posting all journals");
+    await page.GetByRole(AriaRole.Button, new() { Name = "Confirm close", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.Locator("audit-command-message"))
+      .ToContainTextAsync("All journals must be posted before period close.");
+
+    await using (var db = host.CreateDbContext())
+    {
+      var blockedPeriod = await db.FirmPeriods.AsNoTracking().SingleAsync(x => x.Id == periodId);
+      Assert.Equal(LedgerStates.PeriodOpen, blockedPeriod.Status);
+      Assert.Equal(1, blockedPeriod.Revision);
+      Assert.Empty(await db.PeriodCloseDecisions.AsNoTracking()
+        .Where(x => x.PeriodId == periodId).ToListAsync());
+      Assert.Equal(LedgerStates.JournalDraft,
+        await db.FirmJournals.AsNoTracking().Where(x => x.Id == journalId)
+          .Select(x => x.Status).SingleAsync());
+    }
+
+    await using (var db = host.CreateDbContext())
+    {
+      Assert.True((await LedgerService.SubmitFirmJournalAsync(db, manager, journalId)).Succeeded);
+      Assert.True((await LedgerService.ApproveFirmJournalAsync(db, reviewer, journalId)).Succeeded);
+      Assert.True((await LedgerService.PostFirmJournalAsync(db, manager, journalId)).Succeeded);
+    }
+
+    await page.GetByRole(AriaRole.Button, new() { Name = "Confirm close", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.Locator("audit-command-message"))
+      .ToContainTextAsync("Fiscal period successfully closed.");
+    await Assertions.Expect(row).ToContainTextAsync("closed");
+    await Assertions.Expect(row).ToContainTextAsync("Rev 2");
+
+    await using (var db = host.CreateDbContext())
+    {
+      var closed = await db.FirmPeriods.AsNoTracking().SingleAsync(x => x.Id == periodId);
+      Assert.Equal(LedgerStates.PeriodClosed, closed.Status);
+      Assert.Equal(2, closed.Revision);
+      var decision = await db.PeriodCloseDecisions.AsNoTracking()
+        .SingleAsync(x => x.PeriodId == periodId);
+      Assert.Equal("CLOSE", decision.DecisionKind);
+      Assert.Equal("Recovered after posting all journals", decision.Reason);
+      Assert.Equal(f.Reviewer.Id, decision.DecidedByUserId);
+      Assert.Empty(pageErrors);
+    }
+  }
+
+  [Fact]
   [Trait("CaseId", "AS-PAR-002-ANGULAR-FIRM-LEDGER-BOUNDARIES-01")]
   public async Task FirmLedgerDeniesScopedReadsAndForeignPeriodCloseWithoutLeakingData()
   {
