@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "4b019b0c50f8df3eaa18bf0e9007b868865eb294",
+  "headCommit": "4a9ebb6a883b83c28e04bd083e647c60bc74512a",
   "verifiedCommit": "ead85032de2ccc4d4c8043398fa8471d395376a9",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -9541,11 +9541,14 @@
         "observation": "Authenticated Users & Access route rendered with workspace navigation and access controls in the built-in browser. Synthetic revocation behavior was verified in the isolated PostgreSQL Playwright journey."
       },
       "fullSolutionRegression": {
-        "status": "RUNNING",
+        "status": "COMPLETED_WITH_FAILURES",
         "command": "dotnet test AuditSphereOps.slnx --no-build --configuration Release -m:1",
-        "scope": "Shared worktree includes one unrelated unstaged edit to src/AuditSphereOps.Application/Accounting/ConsolidationOverviewQuery.cs; that file is excluded from this commit."
+        "sourceHead": "84a8f2cf625bde5889dff22a88a278849da04ec9",
+        "results": "API 191/191 and Domain 666/666 passed; E2E 188/190 passed, with two failures: AngularCommercialJourneyTests.QuotationPreview_Save_AndApprovalUsePersistedServerState used stale accessible-label/copy selectors, and AngularFirmScopeRevocationParityJourneyTests.ErroneousClientAdministratorGrantIsDeniedAndRevocationClearsNativeWorkspaces raced with revocation replacing its refresh button.",
+        "postRepair": "The two affected PostgreSQL-backed Playwright cases passed together 2/2 in 50s; the seven-test AngularCommercialJourneyTests cohort passed 7/7 in 1m38s. The full solution suite has not been rerun after these repairs.",
+        "sharedWorktreeBoundary": "The shared checkout included the other agent's uncommitted docs/execution/angular-source-inventory.json and src/AuditSphereOps.Application/Accounting/ConsolidationOverviewQuery.cs changes. They were not included in this commit."
       },
-      "sharedWorktreeBoundary": "An unrelated unstaged edit to src/AuditSphereOps.Application/Accounting/ConsolidationOverviewQuery.cs was present during focused E2E execution and solution build; it was excluded from this commit.",
+      "sharedWorktreeBoundary": "The other agent's uncommitted docs/execution/angular-source-inventory.json and src/AuditSphereOps.Application/Accounting/ConsolidationOverviewQuery.cs files were present during shared verification and excluded from this code commit.",
       "retirementDecision": "NOT_READY"
     },
     "angularClientScopeAuthorizationParityCrosswalk": {
@@ -10795,6 +10798,60 @@
       "builtInBrowser": "PASS_LOCAL_READ_ONLY: /ui/app/releases/{guessed-id} showed the generic unavailable state with no candidate, digest, or gate evidence; successful issue/recovery was exercised in the isolated synthetic API-host Playwright journey.",
       "fullSolutionRegression": "NOT_RUN for this slice; the latest complete PostgreSQL-backed Release result remains 1001/1001 at ead85032de2ccc4d4c8043398fa8471d395376a9.",
       "efModelDrift": "NOT_RUN; no EF model code changed.",
+      "retirementDecision": "NOT_READY"
+    },
+    "angularCommercialSettingsAndRevocationStabilization": {
+      "sourceCommit": "4a9ebb6a883b83c28e04bd083e647c60bc74512a",
+      "observedAt": "2026-10-06T04:08:06Z",
+      "status": "PASS_LOCAL_SLICE",
+      "scope": "Commercial settings accessible naming and browser journey assertions now match the current Angular form; the required text marker stays visible while native required semantics provide the accessible state. The revocation journey tolerates the refresh control being replaced during session invalidation but still requires the protected workspace to show Access unavailable.",
+      "angularProductionBuild": {
+        "status": "PASS_WITH_COMPONENT_STYLE_WARNING",
+        "initialBundle": "349.67 kB raw and 94.06 kB estimated transfer; no initial-bundle warning.",
+        "remainingWarning": "settings.scss is 7.53 kB against the 4.00 kB component-style budget.",
+        "command": "npm --prefix src/AuditSphereOps.Ui run build"
+      },
+      "angularUnitTests": {
+        "status": "PASS",
+        "files": 95,
+        "passed": 495,
+        "failed": 0,
+        "skipped": 0,
+        "command": "npm --prefix src/AuditSphereOps.Ui run test:ci"
+      },
+      "focusedPostgresPlaywright": {
+        "status": "PASS",
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "duration": "50s",
+        "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --configuration Release -m:1 --filter 'FullyQualifiedName~AngularCommercialJourneyTests.QuotationPreview_Save_AndApprovalUsePersistedServerState|FullyQualifiedName~AngularFirmScopeRevocationParityJourneyTests.ErroneousClientAdministratorGrantIsDeniedAndRevocationClearsNativeWorkspaces'"
+      },
+      "commercialJourneyCohort": {
+        "status": "PASS",
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "duration": "1m38s",
+        "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-build --configuration Release -m:1 --filter 'FullyQualifiedName~AngularCommercialJourneyTests'"
+      },
+      "releaseSolutionBuild": {
+        "status": "PASS",
+        "warnings": 0,
+        "errors": 0,
+        "command": "dotnet build AuditSphereOps.slnx --no-restore --configuration Release -m:1"
+      },
+      "efModelDrift": {
+        "status": "NONE",
+        "command": "dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Api --no-build --configuration Release"
+      },
+      "builtInBrowser": {
+        "status": "PASS_READ_ONLY",
+        "route": "http://localhost:5099/ui/app/practice/commercial-settings",
+        "observation": "The form rendered in the built-in browser and exposed Legal name as the field's accessible name. No settings were submitted or changed."
+      },
+      "fullSolutionRegression": "The shared full solution run at sourceHead 84a8f2cf completed API 191/191, Domain 666/666 and E2E 188/190. Both reported E2E failures are repaired and pass in the focused rerun above; the full suite has not been rerun after the repairs.",
+      "sharedWorktreeBoundary": "Another agent's two uncommitted files were present during the full solution run and were not changed or included in this code commit.",
       "retirementDecision": "NOT_READY"
     }
   },

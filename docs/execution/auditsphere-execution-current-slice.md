@@ -15,6 +15,26 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: Commercial settings and revocation browser regressions
+
+The commercial-settings browser journey had drifted from the Angular form's
+accessible labels and current copy. The visible Required marker remains, while
+the native required state now supplies the accessible requirement without
+changing the field name. Journey assertions now follow the current version,
+threshold, confirmation and empty-state copy. The revocation journey also
+allows the page to replace its refresh control during session invalidation;
+it still requires the protected workspace to reach Access unavailable.
+
+Both repaired journeys passed together, and the commercial journey cohort
+passed. Angular CI, Release build, EF model check and built-in-browser
+read-only inspection also passed. The production Angular build retains the
+documented commercial-settings stylesheet budget warning. A shared full
+solution run reported two E2E failures before these repairs; that full suite
+has not been rerun afterward, so it is not recorded as green. The exact counts,
+commands and shared-worktree boundary are in `status.json`. Code is committed
+as `4a9ebb6a`; overall migration acceptance and Blazor retirement remain
+`NOT_READY`.
+
 ## Current follow-on slice: Capability-specific Global Search roles and scopes
 
 Added a PostgreSQL-backed matrix covering twelve representative role and
