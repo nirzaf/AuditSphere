@@ -254,29 +254,30 @@ public sealed class GlobalSearchQueryTests
     await using var w = await SeedAsync();
     const string term = "MULTIKINDCAP";
     var now = DateTimeOffset.UtcNow;
+    static Guid OrderedId(int index) => Guid.Parse($"00000000-0000-0000-0000-{index + 1:D12}");
     await using (var db = w.Db())
     {
       // Deliberately exceed the query's 25-row candidate window. The actor can open
-      // every candidate, so the first seven establish six visible hits plus truncation.
+      // every candidate. Tied sort keys pin ID ordering for engagement, PBC and invoice hits.
       const int matchCount = 31;
-      var clients = Enumerable.Range(0, matchCount).Select(index => new PracticeClient
+      var seededClients = Enumerable.Range(0, matchCount).Select(index => new PracticeClient
       {
-        Id = Guid.NewGuid(), FirmId = w.Own.FirmId, LegalName = $"{term} Client {index:D2}", CreatedAt = now
+        Id = OrderedId(index), FirmId = w.Own.FirmId, LegalName = $"{term} Client {index:D2}", CreatedAt = now
       }).ToArray();
-      db.PracticeClients.AddRange(clients);
-      db.ClientSafetyStates.AddRange(clients.Select(client => new ClientSafetyState
+      db.PracticeClients.AddRange(seededClients);
+      db.ClientSafetyStates.AddRange(seededClients.Select(client => new ClientSafetyState
       {
         Id = client.Id, FirmId = w.Own.FirmId
       }));
       db.Engagements.AddRange(Enumerable.Range(0, matchCount).Select(index => new Engagement
       {
-        Id = Guid.NewGuid(), FirmId = w.Own.FirmId, PracticeClientId = w.Own.ClientId,
+        Id = OrderedId(index), FirmId = w.Own.FirmId, PracticeClientId = w.Own.ClientId,
         ServiceRoute = $"{term} Engagement {index:D2}", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31",
         Status = "Active", ProfessionalWorkBlocked = false, CreatedAt = now
       }));
       db.PbcRequests.AddRange(Enumerable.Range(0, matchCount).Select(index => new PbcRequest
       {
-        Id = Guid.NewGuid(), FirmId = w.Own.FirmId, ClientId = w.Own.ClientId, EngagementId = w.Own.EngagementId,
+        Id = OrderedId(index), FirmId = w.Own.FirmId, ClientId = w.Own.ClientId, EngagementId = w.Own.EngagementId,
         Objective = $"{term} PBC request {index:D2}", EntityScope = "TEST ENTITY", PeriodStart = "2026-01-01",
         PeriodEnd = "2026-12-31", Area = "Cash", RequestedFormat = "PDF", ControlTotals = "12 months",
         ClientOwnerUserId = w.Own.Client.Id, FirmOwnerUserId = w.Own.Staff.Id, ReviewerUserId = w.Own.Reviewer.Id,
@@ -292,25 +293,30 @@ public sealed class GlobalSearchQueryTests
       });
       db.Invoices.AddRange(Enumerable.Range(0, matchCount).Select(index => new Invoice
       {
-        Id = Guid.NewGuid(), FirmId = w.Own.FirmId, BillingAccountId = billingAccountId,
+        Id = OrderedId(index), FirmId = w.Own.FirmId, BillingAccountId = billingAccountId,
         InvoiceNumber = $"{term}-INV-{index:D2}", Currency = "QAR", Subtotal = 100, Total = 100,
-        Status = BillingStates.InvoiceDraft, CreatedAt = now.AddSeconds(index)
+        Status = BillingStates.InvoiceDraft, CreatedAt = now
       }));
       await db.SaveChangesAsync();
     }
 
     var (_, actor) = await UserAsync(w, ("Partner", null, null), ("FinanceReviewer", null, null));
     var result = await SearchAsync(w, actor, term);
-    foreach (var kind in new[]
-      {
-        GlobalSearchQuery.Kinds.Client, GlobalSearchQuery.Kinds.Engagement,
-        GlobalSearchQuery.Kinds.PbcRequest, GlobalSearchQuery.Kinds.Invoice
-      })
-    {
-      var hits = result.Hits.Where(hit => hit.Kind == kind).ToArray();
-      Assert.Equal(6, hits.Length);
-      Assert.All(hits, hit => Assert.Contains(term, hit.Title, StringComparison.OrdinalIgnoreCase));
-    }
+    var clientHits = result.Hits.Where(hit => hit.Kind == GlobalSearchQuery.Kinds.Client).ToArray();
+    Assert.Equal(6, clientHits.Length);
+    Assert.Equal(Enumerable.Range(0, 6).Select(index => $"/app/clients/{OrderedId(index):D}"), clientHits.Select(hit => hit.Href));
+
+    var engagements = result.Hits.Where(hit => hit.Kind == GlobalSearchQuery.Kinds.Engagement).ToArray();
+    Assert.Equal(6, engagements.Length);
+    Assert.Equal(Enumerable.Range(0, 6).Select(index => $"{term} Engagement {index:D2}"), engagements.Select(hit => hit.Title.Split(" — ")[1]));
+
+    var requests = result.Hits.Where(hit => hit.Kind == GlobalSearchQuery.Kinds.PbcRequest).ToArray();
+    Assert.Equal(6, requests.Length);
+    Assert.Equal(Enumerable.Range(25, 6).Reverse().Select(index => $"{term} PBC request {index:D2}"), requests.Select(hit => hit.Title));
+
+    var invoices = result.Hits.Where(hit => hit.Kind == GlobalSearchQuery.Kinds.Invoice).ToArray();
+    Assert.Equal(6, invoices.Length);
+    Assert.Equal(Enumerable.Range(25, 6).Reverse().Select(index => $"{term}-INV-{index:D2}"), invoices.Select(hit => hit.Title));
     Assert.True(result.Truncated);
   }
 
