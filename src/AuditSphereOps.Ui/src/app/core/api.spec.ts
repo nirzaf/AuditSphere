@@ -60,4 +60,15 @@ describe('API session and unknown outcome fences', () => {
     expect(await first).toBe(false); expect(state.uncertain()).toBe(true);
     expect(await state.run('/api/ui/example', { reviewed: true }, 'Accepted')).toBe(false); http.expectNone('/api/ui/example');
   });
+  it('surfaces a rate-limited command as a typed refusal and never retries it', async () => {
+    const api = TestBed.inject(Api), http = TestBed.inject(HttpTestingController);
+    const request = api.command('/api/ui/example', { reviewed: true });
+    http.expectOne('/api/ui/example').flush(
+      { code: 'request.throttled', message: 'Too many requests. Wait briefly and try again.', correlationId: 'synthetic' },
+      { status: 429, statusText: 'Too Many Requests' });
+    const result = await request;
+    expect(result).toEqual({ ok: false, unknown: false, code: 'request.throttled', status: 429,
+      message: 'Too many requests. Wait briefly and try again.' });
+    http.expectNone('/api/ui/example');
+  });
 });

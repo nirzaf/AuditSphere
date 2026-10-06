@@ -1,3 +1,4 @@
+using AuditSphereOps.Api.Contracts;
 using AuditSphereOps.Api.Diagnostics;
 using AuditSphereOps.Api.HttpBoundary;
 using AuditSphereOps.Api.Ui;
@@ -26,6 +27,7 @@ public static partial class ApiHost
     ConfigureRateLimiting(builder);
     ConfigureRequestLimits(builder);
     ConfigureSecurityHeaders(builder);
+    ConfigureApiContract(builder);
     var app = builder.Build();
     app.UseMiddleware<RequestCorrelationMiddleware>();
     app.UseMiddleware<SecurityHeadersMiddleware>();
@@ -62,6 +64,7 @@ public static partial class ApiHost
     MapAuthenticationEndpoints(app, identity, legacyPresentation);
     MapDocumentEndpoints(app);
     MapInstallationEndpoints(app);
+    ApiContract.Map(app);
     app.MapUiEndpoints(legacyPresentation);
     mapPresentation?.Invoke(app);
     return app;

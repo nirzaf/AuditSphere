@@ -1,5 +1,6 @@
 using System.Text;
 using System.Threading.RateLimiting;
+using AuditSphereOps.Api.Contracts;
 using AuditSphereOps.Api.HttpBoundary;
 using AuditSphereOps.Api.Ui;
 using Microsoft.AspNetCore.Http;
@@ -47,6 +48,9 @@ public static partial class ApiHost
     builder.WebHost.ConfigureKestrel(kestrel => kestrel.Limits.MaxRequestBodySize = limits.MaxRequestBodyBytes);
     builder.Services.AddSingleton(limits);
   }
+
+  /// <summary>Canonical OpenAPI 3.1 contract generation from the actual endpoints; exposed outside production.</summary>
+  private static void ConfigureApiContract(WebApplicationBuilder builder) => ApiContract.Configure(builder);
 
   /// <summary>
   /// Builds the centralized browser-security header policy. When the approved Angular build is

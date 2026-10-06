@@ -136,6 +136,12 @@ jobs:
           test ! -f "$RUNNER_TEMP/auditsphere-api/AuditSphereOps.Web.dll"
           test ! -f "$RUNNER_TEMP/auditsphere-api/MudBlazor.dll"
 
+      # Contract drift gate: regenerate the canonical OpenAPI 3.1 document in-memory (no
+      # database needed) and fail when the committed artifact is stale. Not a hosted test
+      # suite: a single in-process generation check, consistent with the build-gate policy.
+      - name: Verify OpenAPI contract drift
+        run: bash scripts/contracts/verify-openapi.sh
+
       - name: Summarize
         if: ${{ always() }}
         env:
