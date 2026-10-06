@@ -44,8 +44,10 @@ malformed/empty invoice-history cursors. Each returns the same safe HTTP 400
 response. Simulated 503 responses while loading older receipts and credit notes
 preserve their already-loaded rows and display safe retry messages; retries
 then load the remaining history. This API-host browser journey passed **1/1**
-in 34 seconds. Stale in-flight history requests and session-revocation behavior
-remain open.
+in 34 seconds. At test commit `793d29dd`, another journey held a history
+response while navigating to a different client's invoice, then released it;
+the old invoice's receipt rows did not reappear. That check passed **1/1** in
+35 seconds. Session revocation during an in-flight request remains open.
 
 The 76 source/action rows remain at one parity
 verified, 73 partial, and two unanalyzed; AS-PAR-002 remains partial and the
