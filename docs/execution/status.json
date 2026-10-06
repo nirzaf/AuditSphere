@@ -11445,6 +11445,37 @@
         "Client invoices and AR/AP workflows",
         "Complete story-by-story acceptance audit"
       ]
+    },
+    "clientOperationalJournalExactAmounts": {
+      "sourceCommit": "d1698d35",
+      "verifiedAt": "2026-10-06T15:41:29.460652+00:00",
+      "focusedDomainTests": {
+        "result": "PASS",
+        "passed": 8,
+        "failed": 0,
+        "filter": "FullyQualifiedName~ClientOperationalJournalCalculatorTests|FullyQualifiedName~NativeJournal",
+        "coverage": "Maximum numeric(19,6), decimal maximum refusal without overflow, excessive scale, exact six-decimal balance, zero/both-sided lines, line counts, native PostgreSQL approval/isolation/integrity tests."
+      },
+      "angularSpecs": {
+        "result": "PASS",
+        "passed": 4,
+        "failed": 0
+      },
+      "angularProductionBuild": "PASS; preexisting Commercial Settings stylesheet warning.",
+      "e2eBuild": "PASS; zero warnings/errors.",
+      "browserJourney": {
+        "result": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "duration": "47 seconds",
+        "test": "AngularClientOperationalJournalJourneyTests.NativeClientJournalRequiresIndependentReviewAndPostsThroughAngular",
+        "coverage": "Oversized balanced intent cannot save. Restoring valid amounts visibly revokes consent; fresh consent permits draft, submission, independent posting and GL display; no page errors."
+      },
+      "diagnosticHistory": "Earlier browser runs exposed stale checkbox state after amount edits. Consent now uses a signal, direct checked-state binding and immediate acknowledgement rendering. Final browser run passed.",
+      "toolchainNote": "Temporary worktree-only SDK latestFeature roll-forward restored after each browser run.",
+      "efModel": "No Domain/persistence/model/schema changes in this slice; EF pending-model check not rerun.",
+      "fullRegression": "NOT_RUN",
+      "boundary": "Storage-scale and exact balance control only. Currency-specific precision/rounding, FX policy, preview/review digests and command receipts remain open. Epic incomplete and branch unmerged; tax/nonmandatory modules optional."
     }
   },
   "documentationWork": {

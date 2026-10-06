@@ -13,6 +13,21 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Native journal exact amount rules
+
+Draft creation and submission/posting now share a pure native journal calculator.
+Each line must fit the existing database precision without rounding, have exactly
+one positive side, and contribute to exact balanced totals. Angular draft entry
+uses the same storage bound. This prevents oversized decimal values from reaching
+the database and avoids overflow while validating hostile input. Editing amounts
+or adding/removing a line also visibly clears review consent; the browser journey
+checks that valid correction requires fresh consent before saving.
+
+This is storage and balance validation, not completion of the currency-policy
+story. Configured currency scale, rounding policy, FX provenance, authoritative
+preview/review digests and durable command receipts remain open. Verification is
+recorded under `verification.clientOperationalJournalExactAmounts` in `status.json`.
+
 ## Native client journals — ledger integrity slice
 
 The managed bookkeeping worktree now adds database protection for submitted and
