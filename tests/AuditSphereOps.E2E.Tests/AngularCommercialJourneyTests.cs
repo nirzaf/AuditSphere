@@ -686,15 +686,15 @@ public sealed class AngularCommercialJourneyTests
     await page.GetByRole(AriaRole.Textbox, new() { Name = "Legal name", Exact = true }).FillAsync("Synthetic Angular Revised Firm");
     await page.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed this firm profile and confirm the new version.", Exact = true }).CheckAsync();
     await page.GetByRole(AriaRole.Button, new() { Name = "Save letterhead version", Exact = true }).ClickAsync();
-    await Assertions.Expect(page.GetByText("Version 2.", new() { Exact = false })).ToBeVisibleAsync();
-    await page.GetByRole(AriaRole.Textbox, new() { Name = "Threshold %", Exact = true }).FillAsync("5");
+    await Assertions.Expect(page.GetByText("Version 2", new() { Exact = true })).ToBeVisibleAsync();
+    await page.GetByRole(AriaRole.Textbox, new() { Name = "Discount threshold", Exact = true }).FillAsync("5");
     await page.GetByRole(AriaRole.Combobox, new() { Name = "Required approver role", Exact = true }).SelectOptionAsync("Manager");
     await page.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed the effect on future quotation approvals.", Exact = true }).CheckAsync();
     await page.GetByRole(AriaRole.Button, new() { Name = "Save approval rule", Exact = true }).ClickAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Review deactivation", Exact = true })).ToBeVisibleAsync();
     await page.GetByRole(AriaRole.Button, new() { Name = "Review deactivation", Exact = true }).ClickAsync();
-    await page.GetByRole(AriaRole.Button, new() { Name = "Confirm rule deactivation", Exact = true }).ClickAsync();
-    await Assertions.Expect(page.GetByRole(AriaRole.Cell, new() { Name = "No configured rules; the safe default applies.", Exact = true })).ToBeVisibleAsync();
+    await page.GetByRole(AriaRole.Button, new() { Name = "Confirm deactivation", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Cell, new() { Name = "No configured rules. The safe default described above applies.", Exact = true })).ToBeVisibleAsync();
     await using (var db = host.CreateDbContext())
     {
       Assert.Equal(2, await db.FirmCommercialProfiles.Where(p => p.FirmId == host.Fixture.FirmId).CountAsync());

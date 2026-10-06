@@ -158,8 +158,17 @@ public sealed class AngularFirmScopeRevocationParityJourneyTests
     foreach (var page in new[] { accessPage, operationsPage })
     {
       var refresh = page.GetByRole(AriaRole.Button, new() { Name = page == accessPage ? "Refresh access" : "Refresh operations", Exact = true });
-      await refresh.ClickAsync();
-      await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable", Exact = true })).ToBeVisibleAsync(new() { Timeout = 15000 });
+      var unavailable = page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable", Exact = true });
+      if (!await unavailable.IsVisibleAsync())
+      {
+        try { await refresh.ClickAsync(new() { Timeout = 5000 }); }
+        catch (PlaywrightException)
+        {
+          // A revocation epoch can replace the refresh control while its click is in flight.
+          // The protected workspace must still converge to the denied state below.
+        }
+      }
+      await Assertions.Expect(unavailable).ToBeVisibleAsync(new() { Timeout = 15000 });
     }
     await leadsPage.GetByRole(AriaRole.Button, new() { Name = "Refresh leads", Exact = true }).ClickAsync();
     await Assertions.Expect(leadsPage.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable", Exact = true })).ToBeVisibleAsync(new() { Timeout = 15000 });
