@@ -1,4 +1,5 @@
 using AuditSphereOps.Application.Accounting;
+using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Api.Authentication;
 using Microsoft.EntityFrameworkCore;
