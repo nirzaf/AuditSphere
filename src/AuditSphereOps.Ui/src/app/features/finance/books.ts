@@ -9,6 +9,9 @@ import { SHARED } from '../../core/ui';
 
 const expense = obj({ id: guid, expenseDate: date, category: text, payee: text, description: text, amount: dec, currency: str(3),
   evidenceFileName: text, evidenceSha256: text, status: text, reviewComment: nullable(text), preparedByMe: bool });
+type ExpenseAction = { expenseId: string; action: 'submit'; target: null } |
+  { expenseId: string; action: 'review'; target: 'APPROVED' | 'REJECTED' };
+type ExpenseActionReconciliation = 'APPLIED' | 'UNCHANGED' | 'UNVERIFIABLE' | null;
 export const decodeBooks = obj({
   accounts: arr(obj({ id: guid, code: text, name: text, accountType: text })),
   expenses: arr(expense, 200), categories: arr(text, 20), canPrepare: bool, canReview: bool, maxEvidenceBytes: nat, maxReviewCommentLength: nat,
@@ -133,7 +136,29 @@ export class FirmExpenseRejectionDialog {
         }
       </section>
     }
-    <audit-command-message [message]="cmd.message()" [failed]="cmd.failed()" />
+    @if (cmd.uncertain()) {
+      @if (pendingExpenseAction(); as pending) {
+        <section class="panel" aria-labelledby="expense-action-recovery-heading">
+          <h2 id="expense-action-recovery-heading">Verify the saved expense action</h2>
+          <p>The {{ pending.action === 'submit' ? 'submission' : pending.target === 'APPROVED' ? 'approval' : 'rejection' }} response was not confirmed. Refresh the exact expense before repeating anything. AuditSphere will not retry this action automatically.</p>
+          @if (expenseActionVerificationMessage()) { <p role="status">{{ expenseActionVerificationMessage() }}</p> }
+          @if (expenseActionReconciliation() === 'APPLIED') {
+            <p role="status">Persisted state confirms the requested expense action was saved.</p>
+            <button matButton="outlined" (click)="clearUnresolvedExpenseAction()">Acknowledge verified expense action</button>
+          } @else if (expenseActionReconciliation() === 'UNCHANGED') {
+            <p role="status">The exact expense is still {{ unchangedExpenseStatus() }}. Review it before allowing a deliberate retry.</p>
+            <button matButton="outlined" (click)="clearUnresolvedExpenseAction()">Acknowledge unchanged state and allow deliberate retry</button>
+          } @else {
+            <button matButton="outlined" (click)="verifyExpenseAction()" [disabled]="verifyingExpenseAction()">
+              {{ verifyingExpenseAction() ? 'Refreshing persisted expense state…' : 'Refresh persisted expense state' }}
+            </button>
+          }
+        </section>
+      }
+    }
+    @if (!cmd.uncertain() || !pendingPostId() && !pendingExpenseAction()) {
+      <audit-command-message [message]="cmd.message()" [failed]="cmd.failed()" />
+    }
   `,
 })
 export class FirmBooks {
@@ -143,6 +168,11 @@ export class FirmBooks {
   readonly books = this.api.resource(() => '/api/ui/finance/books', decodeBooks, 'Firm books require a firm-wide finance assignment.');
   readonly cmd = new CommandState(this.api);
   readonly pendingPostId = signal<string | null>(null);
+  readonly pendingExpenseAction = signal<ExpenseAction | null>(null);
+  readonly expenseActionReconciliation = signal<ExpenseActionReconciliation>(null);
+  readonly expenseActionVerificationMessage = signal('');
+  readonly unchangedExpenseStatus = signal('');
+  readonly verifyingExpenseAction = signal(false);
   readonly postReconciliation = signal<'POSTED' | 'APPROVED' | 'UNVERIFIABLE' | null>(null);
   readonly postVerificationMessage = signal('');
   readonly verifyingPost = signal(false);
@@ -203,9 +233,14 @@ export class FirmBooks {
       this.pendingPostId.set(id);
       this.postReconciliation.set(null);
       this.postVerificationMessage.set('');
+    } else {
+      this.pendingExpenseAction.set({ expenseId: id, action, target: null });
+      this.expenseActionReconciliation.set(null);
+      this.expenseActionVerificationMessage.set('');
     }
     void this.cmd.run(`/api/ui/finance/books/expenses/${id}/${action}`, {}, success).then(succeeded => {
       if (action === 'post' && (succeeded || !this.cmd.uncertain())) this.pendingPostId.set(null);
+      if (action === 'submit' && (succeeded || !this.cmd.uncertain())) this.pendingExpenseAction.set(null);
     }).finally(() => this.books.reload());
   }
   review(id: string, approve: boolean, maxReviewCommentLength = 1000): void {
@@ -224,8 +259,66 @@ export class FirmBooks {
   }
 
   private submitReview(id: string, approve: boolean, comment: string): void {
+    this.pendingExpenseAction.set({ expenseId: id, action: 'review', target: approve ? 'APPROVED' : 'REJECTED' });
+    this.expenseActionReconciliation.set(null);
+    this.expenseActionVerificationMessage.set('');
     this.cmd.run(`/api/ui/finance/books/expenses/${id}/review`, { approve, comment },
-      approve ? 'Approved.' : 'Rejected with the recorded reason.').finally(() => this.books.reload());
+      approve ? 'Approved.' : 'Rejected with the recorded reason.').then(succeeded => {
+        if (succeeded || !this.cmd.uncertain()) this.pendingExpenseAction.set(null);
+      }).finally(() => this.books.reload());
+  }
+
+  async verifyExpenseAction(): Promise<void> {
+    const pending = this.pendingExpenseAction();
+    if (!pending || !this.cmd.uncertain() || this.verifyingExpenseAction()) return;
+    this.verifyingExpenseAction.set(true);
+    this.expenseActionReconciliation.set(null);
+    this.expenseActionVerificationMessage.set('');
+    this.unchangedExpenseStatus.set('');
+    try {
+      const persisted = await this.api.get('/api/ui/finance/books', decodeBooks);
+      const target = persisted.expenses.find(expense => expense.id === pending.expenseId);
+      if (!target) {
+        this.expenseActionReconciliation.set('UNVERIFIABLE');
+        this.expenseActionVerificationMessage.set('The exact expense was not present in the refreshed list. Keep this action unresolved and refresh again.');
+      } else {
+        const applied = pending.action === 'submit'
+          ? ['SUBMITTED', 'APPROVED', 'REJECTED', 'POSTED'].includes(target.status)
+          : target.status === pending.target || pending.target === 'APPROVED' && target.status === 'POSTED';
+        const unchanged = pending.action === 'submit' ? target.status === 'DRAFT' : target.status === 'SUBMITTED';
+        if (applied) {
+          this.expenseActionReconciliation.set('APPLIED');
+          this.expenseActionVerificationMessage.set('The exact expense was found in refreshed persisted firm-books state.');
+        } else if (unchanged) {
+          this.expenseActionReconciliation.set('UNCHANGED');
+          this.unchangedExpenseStatus.set(target.status);
+          this.expenseActionVerificationMessage.set('The exact expense was found in refreshed persisted firm-books state.');
+        } else {
+          this.expenseActionReconciliation.set('UNVERIFIABLE');
+          this.expenseActionVerificationMessage.set('The expense changed to a different state while the request was unresolved. Keep the action unresolved and review the latest state.');
+        }
+      }
+      this.books.reload();
+    } catch {
+      this.expenseActionReconciliation.set('UNVERIFIABLE');
+      this.expenseActionVerificationMessage.set('Persisted firm-books state could not be verified. Keep this action unresolved and retry the refresh.');
+    } finally {
+      this.verifyingExpenseAction.set(false);
+    }
+  }
+
+  clearUnresolvedExpenseAction(): void {
+    if (this.verifyingExpenseAction() || !['APPLIED', 'UNCHANGED'].includes(this.expenseActionReconciliation() ?? '')) return;
+    const applied = this.expenseActionReconciliation() === 'APPLIED';
+    this.cmd.uncertain.set(false);
+    this.cmd.failed.set(false);
+    this.cmd.message.set(applied
+      ? 'Persisted state confirms the saved expense action. The lost request was not repeated.'
+      : 'Persisted state confirms the expense remains unchanged. A deliberate retry is available after review.');
+    this.pendingExpenseAction.set(null);
+    this.expenseActionReconciliation.set(null);
+    this.expenseActionVerificationMessage.set('');
+    this.unchangedExpenseStatus.set('');
   }
 
   async verifyPostState(): Promise<void> {
