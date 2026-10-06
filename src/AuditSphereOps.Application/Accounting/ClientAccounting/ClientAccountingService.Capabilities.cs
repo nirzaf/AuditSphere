@@ -21,7 +21,7 @@ public static partial class ClientAccountingService
     var validScope = serviceKind switch
     {
       AccountingCapabilityServiceKinds.GroupReporting => request.GroupId.HasValue && !request.ClientId.HasValue,
-      AccountingCapabilityServiceKinds.EntityReporting or AccountingCapabilityServiceKinds.AuditOnly =>
+      AccountingCapabilityServiceKinds.EntityReporting or AccountingCapabilityServiceKinds.AuditOnly or AccountingCapabilityServiceKinds.ClientBookkeeping =>
         request.ClientId.HasValue && !request.GroupId.HasValue,
       _ => false
     };
@@ -35,7 +35,7 @@ public static partial class ClientAccountingService
          consolidationMethod is not (ConsolidationCalculator.RestrictedMethod or ConsolidationCalculator.ForeignOperationMethod) &&
          !AdvancedConsolidationMethods.All.Contains(consolidationMethod)))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The requested accounting or consolidation method is not enabled.");
-    if (serviceKind is AccountingCapabilityServiceKinds.EntityReporting or AccountingCapabilityServiceKinds.AuditOnly)
+    if (serviceKind is AccountingCapabilityServiceKinds.EntityReporting or AccountingCapabilityServiceKinds.AuditOnly or AccountingCapabilityServiceKinds.ClientBookkeeping)
     {
       if (serviceRoute.Length == 0)
         return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "A client capability must identify its approved service route.");
@@ -45,6 +45,15 @@ public static partial class ClientAccountingService
       if (!permitted)
         return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
           "An affirmative service-permissibility decision is required before enabling client reporting.");
+      if (serviceKind == AccountingCapabilityServiceKinds.ClientBookkeeping)
+      {
+        var unconditional = await db.AcceptanceDecisions.AsNoTracking().AnyAsync(x =>
+          x.FirmId == actor.FirmId && x.PracticeClientId == request.ClientId && x.EngagementId == null &&
+          x.ServiceRoute == serviceRoute && x.Decision == "Accepted" && (x.Conditions == null || x.Conditions == string.Empty), ct);
+        if (!unconditional)
+          return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+            "Client bookkeeping requires an accepted client-level service decision without unresolved conditions.");
+      }
     }
     var auth = request.ClientId.HasValue
       ? await AuthorizeClientAsync(db, actor, request.ClientId.Value, ReviewerRoles, ct)
