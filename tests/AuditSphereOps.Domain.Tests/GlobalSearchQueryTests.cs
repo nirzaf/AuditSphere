@@ -3,6 +3,8 @@ using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Application.Search;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Completion;
+using AuditSphereOps.Domain.Documents;
+using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
@@ -181,6 +183,69 @@ public sealed class GlobalSearchQueryTests
     var leads = result.Hits.Where(x => x.Kind == GlobalSearchQuery.Kinds.Lead).ToArray();
     Assert.Equal(6, leads.Length);
     Assert.All(leads, hit => Assert.Contains(term, hit.Title, StringComparison.OrdinalIgnoreCase));
+    Assert.True(result.Truncated);
+  }
+
+  [Fact]
+  public async Task ClientEngagementPbcAndInvoiceCapsSignalWhenMoreThanSixMatchesExist()
+  {
+    await using var w = await SeedAsync();
+    const string term = "MULTIKINDCAP";
+    var now = DateTimeOffset.UtcNow;
+    await using (var db = w.Db())
+    {
+      var clients = Enumerable.Range(0, 7).Select(index => new PracticeClient
+      {
+        Id = Guid.NewGuid(), FirmId = w.Own.FirmId, LegalName = $"{term} Client {index:D2}", CreatedAt = now
+      }).ToArray();
+      db.PracticeClients.AddRange(clients);
+      db.ClientSafetyStates.AddRange(clients.Select(client => new ClientSafetyState
+      {
+        Id = client.Id, FirmId = w.Own.FirmId
+      }));
+      db.Engagements.AddRange(Enumerable.Range(0, 7).Select(index => new Engagement
+      {
+        Id = Guid.NewGuid(), FirmId = w.Own.FirmId, PracticeClientId = w.Own.ClientId,
+        ServiceRoute = $"{term} Engagement {index:D2}", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31",
+        Status = "Active", ProfessionalWorkBlocked = false, CreatedAt = now
+      }));
+      db.PbcRequests.AddRange(Enumerable.Range(0, 7).Select(index => new PbcRequest
+      {
+        Id = Guid.NewGuid(), FirmId = w.Own.FirmId, ClientId = w.Own.ClientId, EngagementId = w.Own.EngagementId,
+        Objective = $"{term} PBC request {index:D2}", EntityScope = "TEST ENTITY", PeriodStart = "2026-01-01",
+        PeriodEnd = "2026-12-31", Area = "Cash", RequestedFormat = "PDF", ControlTotals = "12 months",
+        ClientOwnerUserId = w.Own.Client.Id, FirmOwnerUserId = w.Own.Staff.Id, ReviewerUserId = w.Own.Reviewer.Id,
+        DueDate = "2027-01-31", Confidentiality = "Confidential", AcceptanceCriteria = "Complete period.",
+        State = PbcStates.Sent, CreatedAt = now, CreatedByUserId = w.Own.Staff.Id, UpdatedAt = now
+      }));
+
+      var billingAccountId = Guid.NewGuid();
+      db.BillingAccounts.Add(new BillingAccount
+      {
+        Id = billingAccountId, FirmId = w.Own.FirmId, PracticeClientId = w.Own.ClientId,
+        Currency = "QAR", CreatedAt = now
+      });
+      db.Invoices.AddRange(Enumerable.Range(0, 7).Select(index => new Invoice
+      {
+        Id = Guid.NewGuid(), FirmId = w.Own.FirmId, BillingAccountId = billingAccountId,
+        InvoiceNumber = $"{term}-INV-{index:D2}", Currency = "QAR", Subtotal = 100, Total = 100,
+        Status = BillingStates.InvoiceDraft, CreatedAt = now.AddSeconds(index)
+      }));
+      await db.SaveChangesAsync();
+    }
+
+    var (_, actor) = await UserAsync(w, ("Partner", null, null), ("FinanceReviewer", null, null));
+    var result = await SearchAsync(w, actor, term);
+    foreach (var kind in new[]
+      {
+        GlobalSearchQuery.Kinds.Client, GlobalSearchQuery.Kinds.Engagement,
+        GlobalSearchQuery.Kinds.PbcRequest, GlobalSearchQuery.Kinds.Invoice
+      })
+    {
+      var hits = result.Hits.Where(hit => hit.Kind == kind).ToArray();
+      Assert.Equal(6, hits.Length);
+      Assert.All(hits, hit => Assert.Contains(term, hit.Title, StringComparison.OrdinalIgnoreCase));
+    }
     Assert.True(result.Truncated);
   }
 
