@@ -440,8 +440,8 @@
       "source": "src/AuditSphereOps.Web/Components/Pages/FirmBooks.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-finance-source-review.md",
-      "reviewedAtCommit": "aca91b1240d3694efe9cd60a22b8c3577ade5d15",
-      "openGaps": ["Complete FinanceManager/FinanceReviewer and scope matrix across firm books reads and commands", "Remaining invalid field/content validation and unknown outcomes for expense record, submit and review; stale/revoked recovery across all finance routes", "Invoice lifecycle parity and broader AS-PAR-002 query/count/export, role/scope and recovery evidence"]
+      "reviewedAtCommit": "fa9c21d28db228be43c86b58bed0a5418397bd61",
+      "openGaps": ["Complete remaining FinanceManager/FinanceReviewer scope combinations and direct commands across firm books", "Remaining invalid field/content validation and unknown outcomes for expense record, submit and review; stale/revoked recovery across all finance routes", "Invoice lifecycle parity and broader AS-PAR-002 query/count/export, role/scope and recovery evidence"]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/InvoiceDetail.razor",

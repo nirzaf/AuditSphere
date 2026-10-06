@@ -15,6 +15,24 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Completed focused slice: Firm-books role and scope matrix
+
+At code/test commit `fa9c21d2`,
+`FirmBooksSeparatesFirmWideFinanceRolesAndDeniesScopedOrExternalIdentities`
+passed **1/1** in 42 seconds against isolated PostgreSQL/API hosts. The
+firm-wide FinanceManager can prepare expenses but cannot review; the
+firm-wide FinanceReviewer can review but cannot prepare. Both can read the
+same firm expense. A client-scoped FinanceManager and firm-wide Partner receive
+the safe firm-books denial and HTTP 403, while an external client identity is
+redirected to the Client portal and receives HTTP 403 from the direct
+firm-books API. No denied response contains the expense marker. PostgreSQL
+confirms the fixture remained a draft with no journal, review decision or
+posting.
+
+The test ran in an isolated worktree because of concurrent uncommitted API
+edits in the shared checkout. The full solution suite was not rerun; the latest
+complete result remains 1001/1001 at `ead85032`.
+
 ## Completed focused slice: Firm-books post outcome reconciliation
 
 At code/test commit `aca91b12`, `AngularFirmBooksJourneyTests` passed **1/1**
