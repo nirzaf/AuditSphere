@@ -28,7 +28,8 @@ public sealed record AuditPlanWorkspace(Guid EngagementId, bool ProfessionalWork
   IReadOnlyList<PlanRisk> Risks, IReadOnlyList<PlanPopulation> Populations, IReadOnlyList<PlanFinding> Findings, IReadOnlyList<PlanWorkpaper> Workpapers,
   MaterialitySourceView? MaterialitySource, string? MaterialitySourceMessage, PlanCalculation? LatestCalculation, IReadOnlyList<PlanPolicyRange> RateRanges,
   decimal PerformanceMin, decimal PerformanceMax, decimal TrivialMin, decimal TrivialMax, string RiskRuleVersion, IReadOnlyList<RiskRoutingRow> Routing,
-  IReadOnlyList<StaffAssignmentRow> Team, bool CanAssignOwners, bool IsPartner, IReadOnlyList<PlanFsliRiskRow> FsliStratification);
+  IReadOnlyList<StaffAssignmentRow> Team, bool CanAssignOwners, bool IsPartner, IReadOnlyList<PlanFsliRiskRow> FsliStratification,
+  MilestonePlanView? MilestonePlan = null);
 
 /// <summary>Engagement-scoped audit plan projection: planning records, the materiality engine state and risk routing.</summary>
 public static class AuditPlanWorkspaceQuery
@@ -64,6 +65,7 @@ public static class AuditPlanWorkspaceQuery
     if (latest?.AssessmentId != materiality?.Id) latest = null;
     var routing = await RiskBandService.GetRoutingAsync(db, actor, engagementId, ct);
     var team = await StaffingService.ListAsync(db, actor, engagementId, ct);
+    var milestonePlan = await StatutoryMilestoneService.GetMilestonesAsync(db, actor, engagementId, ct);
     var c = latest?.Calculation;
 
     var fsliRows = new List<PlanFsliRiskRow>();
@@ -124,6 +126,7 @@ public static class AuditPlanWorkspaceQuery
       MaterialityCalculator.RateRanges.Select(x => new PlanPolicyRange(x.Key, x.Value.MinRatePercent, x.Value.MaxRatePercent)).ToList(),
       MaterialityCalculator.PerformanceRange.Min, MaterialityCalculator.PerformanceRange.Max, MaterialityCalculator.TrivialRange.Min, MaterialityCalculator.TrivialRange.Max,
       RiskBandRules.RuleVersion, routing.Succeeded ? routing.Value! : [], team.Succeeded ? team.Value! : [],
-      actor.Roles.Any(x => x is "Partner" or "Manager" or "Administrator"), actor.Roles.Contains("Partner"), fsliRows));
+      actor.Roles.Any(x => x is "Partner" or "Manager" or "Administrator"), actor.Roles.Contains("Partner"), fsliRows,
+      milestonePlan.Succeeded ? milestonePlan.Value : null));
   }
 }

@@ -1,4 +1,5 @@
 using AuditSphereOps.Application.Audit;
+using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Shared;
 
 namespace AuditSphereOps.Api.Ui;
@@ -13,6 +14,13 @@ public static partial class UiEndpoints
   public sealed record RiskBandInput(int Likelihood, int Magnitude, bool Fraud, string Rationale);
   public sealed record RiskOwnerInput(Guid OwnerUserId);
   public sealed record PartnerClearInput(string Note);
+  public sealed record MilestonePlanInput(
+    string StatutoryFilingCutoff,
+    string? FieldworkStartDate = null,
+    string? DraftReportDate = null,
+    string? FinalReportDate = null,
+    string? AdjustmentReason = null,
+    string? WarningOverrideReason = null);
 
   private static void MapAuditPlanEndpoints(RouteGroupBuilder group)
   {
@@ -46,5 +54,27 @@ public static partial class UiEndpoints
       CommandAsync(http, (db, actor, ct) => RiskBandService.AssignOwnerAsync(db, actor, riskId, i.OwnerUserId, ct)));
     group.MapPost("/risks/{riskId:guid}/partner-review", (Guid riskId, PartnerClearInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => RiskBandService.PartnerClearAsync(db, actor, riskId, i.Note ?? "", ct)));
+    group.MapGet("/engagements/{id:guid}/milestones", (Guid id, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => StatutoryMilestoneService.GetMilestonesAsync(db, actor, id, ct)));
+    group.MapPost("/engagements/{id:guid}/milestones/calculate", (Guid id, MilestonePlanInput i, HttpContext http) =>
+    {
+      if (!TryDate(i.StatutoryFilingCutoff, out var cutoff))
+        return Task.FromResult(Invalid("Enter the statutory filing cutoff date in YYYY-MM-DD format."));
+      DateOnly? fieldwork = TryDate(i.FieldworkStartDate, out var f) ? f : null;
+      DateOnly? draft = TryDate(i.DraftReportDate, out var d) ? d : null;
+      DateOnly? final = TryDate(i.FinalReportDate, out var fn) ? fn : null;
+      return CommandAsync(http, (db, actor, ct) => StatutoryMilestoneService.CalculatePreviewAsync(db, actor,
+        new PreviewMilestonesRequest(id, cutoff, fieldwork, draft, final, i.AdjustmentReason, i.WarningOverrideReason), ct));
+    });
+    group.MapPost("/engagements/{id:guid}/milestones", (Guid id, MilestonePlanInput i, HttpContext http) =>
+    {
+      if (!TryDate(i.StatutoryFilingCutoff, out var cutoff))
+        return Task.FromResult(Invalid("Enter the statutory filing cutoff date in YYYY-MM-DD format."));
+      DateOnly? fieldwork = TryDate(i.FieldworkStartDate, out var f) ? f : null;
+      DateOnly? draft = TryDate(i.DraftReportDate, out var d) ? d : null;
+      DateOnly? final = TryDate(i.FinalReportDate, out var fn) ? fn : null;
+      return CommandAsync(http, (db, actor, ct) => StatutoryMilestoneService.SaveMilestonesAsync(db, actor,
+        new SaveMilestonesRequest(id, cutoff, fieldwork, draft, final, i.AdjustmentReason, i.WarningOverrideReason), ct));
+    });
   }
 }

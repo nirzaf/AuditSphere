@@ -13,6 +13,20 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Statutory milestone planning and 60-day archive freeze (AS-COMP-10)
+
+Statutory filing deadlines are now explicitly stored and never silently assumed or hardcoded (§4.2.2, AS-COMP-10). The engagement milestone plan entity (`EngagementMilestonePlan`) captures the explicit statutory filing cutoff, fieldwork commencement target, draft report delivery target, final signed report date, and the mandatory 60-day archive deadline under ISA 230 (§4.4.3).
+
+A pure calculator (`StatutoryMilestoneCalculator`) evaluates chronological consistency and overridable scheduling warnings:
+- Enforces strict chronology: period end < statutory filing cutoff, fieldwork commencement >= period end, draft delivery >= fieldwork commencement, final signed report >= draft delivery, final signed report <= statutory filing cutoff, and archive freeze >= final report.
+- Detects compressed scheduling conditions (fieldwork window < 14 days, review window < 7 days, statutory filing buffer < 5 days).
+- Distinguishes forbidden validation errors from overridable scheduling warnings: saving with scheduling warnings strictly requires a documented partner or manager override reason.
+- Requires documented adjustment reasons whenever altering calculated defaults.
+
+The application service (`StatutoryMilestoneService`) enforces scope-checked authorization (`Partner`, `Manager`, `SeniorManager`, `Administrator` can configure; planning roles can preview/read; unauthorized access is denied). Angular decodes the milestone plan, displaying the operational schedule, 60-day archive freeze, scheduling warnings, override reasons, and an interactive schedule configuration form.
+
+Focused PostgreSQL-backed database integration and calculator tests passed (9/9). Full Angular unit tests passed (540/540 tests across 104 suites) and production build succeeded. Release solution build passed with 0 warnings and 0 errors, and EF Core reports no pending model changes.
+
 ## Reviewed client posting account roles
 
 Client books now support immutable role proposals and independent approval/rejection. Approved intervals select compatible posting accounts from an approved client chart; no financial-statement meaning is inferred from account-number prefixes. Roles cover AR/AP, tax recoverable/payable, revenue, purchase expense/asset, retained earnings, rounding and FX. Tax and ancillary roles remain optional.

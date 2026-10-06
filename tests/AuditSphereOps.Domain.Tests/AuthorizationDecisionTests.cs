@@ -492,6 +492,7 @@ public sealed class AuthorizationDecisionTests
     public DbSet<AuditSphereOps.Domain.Audit.AuditAreaAssessment> AuditAreaAssessments => db.AuditAreaAssessments;
     public DbSet<AuditSphereOps.Domain.Audit.AuditDifference> AuditDifferences => db.AuditDifferences;
     public DbSet<AuditSphereOps.Domain.Audit.Finding> Findings => db.Findings;
+    public DbSet<AuditSphereOps.Domain.Audit.EngagementMilestonePlan> EngagementMilestonePlans => db.EngagementMilestonePlans;
     public DbSet<AuditSphereOps.Domain.Reviews.ReviewPoint> ReviewPoints => db.ReviewPoints;
     public DbSet<AuditSphereOps.Domain.Reviews.Approval> Approvals => db.Approvals;
     public DbSet<AuditSphereOps.Domain.Reviews.ApprovalApplicability> ApprovalApplicabilities => db.ApprovalApplicabilities;

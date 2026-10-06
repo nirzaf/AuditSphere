@@ -322,5 +322,19 @@ public sealed partial class AuditSphereDbContext
     finding.HasOne<AppUser>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ActorId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var milestones = b.Entity<EngagementMilestonePlan>();
+    milestones.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_engagement_milestone_plans_firm_id_id");
+    milestones.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).HasName("AK_engagement_milestone_plans_scope_id");
+    milestones.HasIndex(x => new { x.FirmId, x.EngagementId, x.Revision }).IsUnique().HasDatabaseName("ix_engagement_milestone_plans_firm_engagement_revision");
+    milestones.Property(x => x.AdjustmentReason).HasMaxLength(1000);
+    milestones.Property(x => x.WarningOverrideReason).HasMaxLength(1000);
+    milestones.Property(x => x.WarningsJson).HasColumnType("jsonb");
+    milestones.ToTable("engagement_milestone_plans", t => t.HasCheckConstraint("ck_engagement_milestone_plan_dates",
+      "statutory_filing_cutoff >= final_report_date AND final_report_date >= draft_report_date AND draft_report_date >= fieldwork_start_date AND archive_deadline_date >= final_report_date AND revision >= 1"));
+    ScopeToEngagement(milestones, nameof(EngagementMilestonePlan.FirmId), nameof(EngagementMilestonePlan.ClientId), nameof(EngagementMilestonePlan.EngagementId));
+    milestones.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ScheduledByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
   }
 }

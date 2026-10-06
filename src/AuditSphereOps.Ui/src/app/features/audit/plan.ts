@@ -21,6 +21,12 @@ const fsliRow = obj({
   currency: text, tolerableError: dec, planningMateriality: dec, band: text, criticalEstimate: bool,
   highInherentRisk: bool, significantRisk: bool, fraudRisk: bool, performerRole: text, reviewerRole: text, explanation: text
 });
+const milestonePlan = obj({
+  id: guid, engagementId: guid, periodEnd: text, statutoryFilingCutoff: text,
+  fieldworkStartDate: text, draftReportDate: text, finalReportDate: text, archiveDeadlineDate: text,
+  adjustmentReason: nullable(text), warningOverrideReason: nullable(text), warnings: arr(text, 50),
+  revision: nat, scheduledByUserId: guid, scheduledAt: instant, canConfigure: bool
+});
 export const decodePlan = obj({ engagementId: guid, professionalWorkBlocked: bool, materiality: nullable(materiality), canApproveMateriality: bool,
   risks: arr(obj({ id: guid, accountArea: text, description: text, assertion: text, severity: text, status: text }), 2000),
   populations: arr(obj({ id: guid, purpose: text, assertion: text, rowCount: nat, monetaryControlTotal: dec, currency: text, status: text }), 2000),
@@ -30,7 +36,8 @@ export const decodePlan = obj({ engagementId: guid, professionalWorkBlocked: boo
   rateRanges: arr(obj({ kind: text, minRatePercent: dec, maxRatePercent: dec }), 50), performanceMin: dec, performanceMax: dec, trivialMin: dec, trivialMax: dec,
   riskRuleVersion: text, routing: arr(routing, 2000),
   team: arr(obj({ assignmentId: guid, userId: guid, name: text, level: text, levelLabel: text, authorizationRole: text, certified: bool }), 500),
-  canAssignOwners: bool, isPartner: bool, fsliStratification: arr(fsliRow, 500) });
+  canAssignOwners: bool, isPartner: bool, fsliStratification: arr(fsliRow, 500),
+  milestonePlan: nullable(milestonePlan) });
 type Plan = ReturnType<typeof decodePlan>;
 interface RowInput { likelihood: number; magnitude: number; fraud: boolean; rationale: string; owner: string; note: string }
 
@@ -51,6 +58,46 @@ interface RowInput { likelihood: number; magnitude: number; fraud: boolean; rati
       <p role="status">{{ p.risks.length }} identified risks · {{ p.populations.length }} populations · {{ p.findings.length }} findings · {{ p.workpapers.length }} workpapers</p>
       @if (p.professionalWorkBlocked) { <p role="alert">Professional work is blocked on this engagement; planning commands are refused until the hold is cleared.</p> }
       <button matButton="outlined" (click)="plan.reload()">Refresh plan</button>
+
+      <section class="panel" aria-labelledby="milestones-heading">
+        <h2 id="milestones-heading">Statutory filing & operational schedule (§4.2.2)</h2>
+        <p>Statutory filing deadlines must be explicitly stored and never silently assumed. Milestones calculate fieldwork commencement, draft delivery, final signed report, and the 60-day archive freeze (ISA 230). Scheduling warnings require documented partner or manager override.</p>
+        @if (p.milestonePlan; as m) {
+          <dl class="facts" aria-label="Statutory milestones">
+            <div><dt>Period end</dt><dd>{{ m.periodEnd }}</dd></div>
+            <div><dt>Statutory filing cutoff</dt><dd><strong>{{ m.statutoryFilingCutoff }}</strong></dd></div>
+            <div><dt>Fieldwork start</dt><dd>{{ m.fieldworkStartDate }}</dd></div>
+            <div><dt>Draft report delivery</dt><dd>{{ m.draftReportDate }}</dd></div>
+            <div><dt>Final signed report</dt><dd>{{ m.finalReportDate }}</dd></div>
+            <div><dt>60-day archive freeze (ISA 230)</dt><dd><strong>{{ m.archiveDeadlineDate }}</strong></dd></div>
+            <div><dt>Revision</dt><dd>{{ m.revision }}</dd></div>
+          </dl>
+          @if (m.warnings.length > 0) {
+            <div role="alert">
+              <strong>Scheduling warnings:</strong>
+              <ul>@for (w of m.warnings; track w) { <li>{{ w }}</li> }</ul>
+              @if (m.warningOverrideReason) { <p><em>Override reason:</em> {{ m.warningOverrideReason }}</p> }
+            </div>
+          }
+          @if (m.adjustmentReason) { <p><em>Adjustment reason:</em> {{ m.adjustmentReason }}</p> }
+        } @else {
+          <p>No statutory milestone plan has been recorded for this engagement yet.</p>
+        }
+        @if (p.canAssignOwners && !p.professionalWorkBlocked) {
+          <details>
+            <summary>{{ p.milestonePlan ? 'Update statutory milestones & schedule' : 'Configure statutory milestones' }}</summary>
+            <form (ngSubmit)="saveMilestones()">
+              <label>Statutory filing cutoff (YYYY-MM-DD) <input name="mc" type="date" [(ngModel)]="milestone.cutoff" required /></label>
+              <label>Fieldwork commencement date (optional override) <input name="mf" type="date" [(ngModel)]="milestone.fieldwork" /></label>
+              <label>Draft report delivery date (optional override) <input name="md" type="date" [(ngModel)]="milestone.draft" /></label>
+              <label>Final signed report date (optional override) <input name="mr" type="date" [(ngModel)]="milestone.finalReport" /></label>
+              <label>Adjustment reason (required if modifying defaults) <textarea name="ma" [(ngModel)]="milestone.adjustment" rows="2"></textarea></label>
+              <label>Warning override reason (required if warnings triggered) <textarea name="mo" [(ngModel)]="milestone.override" rows="2"></textarea></label>
+              <button matButton="filled" type="submit" [disabled]="cmd.busy()">Save milestone schedule</button>
+            </form>
+          </details>
+        }
+      </section>
 
       <section class="panel" aria-labelledby="materiality-engine-heading">
         <h2 id="materiality-engine-heading">Materiality calculator</h2>
@@ -223,6 +270,20 @@ export class AuditPlan {
   risk = { area: '', assertion: '', description: '', drivers: '', significance: 'NORMAL', response: '' };
   pop = { purpose: '', assertion: '', receipt: '', extraction: '', rows: 0, total: '', currency: '' };
   finding = { type: '', impact: '', amount: '' };
+  milestone = { cutoff: '', fieldwork: '', draft: '', finalReport: '', adjustment: '', override: '' };
+
+  saveMilestones(): void {
+    const cutoff = this.milestone.cutoff.trim();
+    if (!cutoff) return this.invalid('Enter the statutory filing cutoff date in YYYY-MM-DD format.');
+    this.send(`/api/ui/engagements/${this.id()}/milestones`, {
+      statutoryFilingCutoff: cutoff,
+      fieldworkStartDate: this.milestone.fieldwork.trim() || null,
+      draftReportDate: this.milestone.draft.trim() || null,
+      finalReportDate: this.milestone.finalReport.trim() || null,
+      adjustmentReason: this.milestone.adjustment.trim() || null,
+      warningOverrideReason: this.milestone.override.trim() || null,
+    }, 'Statutory milestones and archive deadline recorded.');
+  }
 
   option(p: Plan): string {
     if (this.calc.option) return this.calc.option;

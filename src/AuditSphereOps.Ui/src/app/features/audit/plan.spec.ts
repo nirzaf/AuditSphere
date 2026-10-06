@@ -146,6 +146,23 @@ describe('Audit Plan Contracts', () => {
       canAssignOwners: true,
       isPartner: true,
       fsliStratification: [],
+      milestonePlan: {
+        id: id2,
+        engagementId: id1,
+        periodEnd: '2026-12-31',
+        statutoryFilingCutoff: '2027-04-30',
+        fieldworkStartDate: '2027-01-07',
+        draftReportDate: '2027-03-13',
+        finalReportDate: '2027-04-15',
+        archiveDeadlineDate: '2027-06-14',
+        adjustmentReason: null,
+        warningOverrideReason: null,
+        warnings: [],
+        revision: 1,
+        scheduledByUserId: id3,
+        scheduledAt: '2026-10-06T12:00:00Z',
+        canConfigure: true,
+      },
     };
 
     const decoded = decodePlan(raw, 'plan');
@@ -161,6 +178,8 @@ describe('Audit Plan Contracts', () => {
     expect(decoded.routing[0].fraudRisk).toBe(true);
     expect(decoded.team[0].name).toBe('Audit Senior');
     expect(decoded.isPartner).toBe(true);
+    expect(decoded.milestonePlan?.statutoryFilingCutoff).toBe('2027-04-30');
+    expect(decoded.milestonePlan?.archiveDeadlineDate).toBe('2027-06-14');
   });
 
   it('rejects invalid plan payloads', () => {

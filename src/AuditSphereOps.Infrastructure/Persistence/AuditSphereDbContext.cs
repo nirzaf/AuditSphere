@@ -101,6 +101,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<global::AuditSphereOps.Domain.Audit.RiskBandAssessment> RiskBandAssessments => Set<global::AuditSphereOps.Domain.Audit.RiskBandAssessment>();
   public DbSet<global::AuditSphereOps.Domain.Audit.RiskPartnerClearance> RiskPartnerClearances => Set<global::AuditSphereOps.Domain.Audit.RiskPartnerClearance>();
   public DbSet<global::AuditSphereOps.Domain.Audit.RiskOwnerAssignment> RiskOwnerAssignments => Set<global::AuditSphereOps.Domain.Audit.RiskOwnerAssignment>();
+  public DbSet<global::AuditSphereOps.Domain.Audit.EngagementMilestonePlan> EngagementMilestonePlans => Set<global::AuditSphereOps.Domain.Audit.EngagementMilestonePlan>();
   public DbSet<global::AuditSphereOps.Domain.Documents.ClientPortalFirstSignIn> ClientPortalFirstSignIns => Set<global::AuditSphereOps.Domain.Documents.ClientPortalFirstSignIn>();
   public DbSet<global::AuditSphereOps.Domain.Documents.PbcRequestDelegation> PbcRequestDelegations => Set<global::AuditSphereOps.Domain.Documents.PbcRequestDelegation>();
   public DbSet<global::AuditSphereOps.Domain.Documents.ClientPortalIntent> ClientPortalIntents => Set<global::AuditSphereOps.Domain.Documents.ClientPortalIntent>();
