@@ -15,6 +15,23 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: Operations expired Administrator grant concurrency
+
+A focused API-host browser journey exposed concurrent Angular bootstrap/API
+requests processing the same expired Administrator grant more than once.
+`RoleGrantExpiry` now locks and rechecks the expired grant rows in a database
+transaction before writing evidence or advancing the session epoch. The stale
+Operations request remains denied and exposes no durable-operation data.
+
+The Operations recovery and expired-grant browser cohort passed 2/2 in 41s at
+code commit `cb4efe8f`. PostgreSQL-backed `RoleAssignmentTests` and
+`OperationRecoveryTests` passed 16/16 in 1m20s. Read-back confirms exactly one
+expiry evidence row and session-epoch increment, while the pending operation
+remains unchanged. No EF model or schema changed. The full solution and EF checks
+were not rerun; the complete-solution checkpoint remains 1001/1001 at
+`ead85032`. Cross-firm Operations access, ambiguous recovery and broader
+migration acceptance remain open; Blazor retirement remains `NOT_READY`.
+
 ## Current follow-on slice: Global Search timeout, late-response and session-revocation recovery
 
 Added an API-host browser regression for the Angular Global Search 15-second
