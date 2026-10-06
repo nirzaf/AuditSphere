@@ -119,7 +119,7 @@ describe('Native portfolio reads and export fences', () => {
     finish({ ok: true, value: { fileName: metadata.fileName, headers: {} } }); await pending;
     expect(f.componentInstance.message()).toBe('');
   });
-  it('shows the client-limit refusal and lets the user retry after narrowing scope', async () => {
+  it('shows the client-limit refusal and lets the user retry after narrowing the search', async () => {
     const f = open(); read().flush(payload); TestBed.tick();
     const api = TestBed.inject(Api);
     const download = vi.spyOn(api, 'download')
@@ -135,8 +135,11 @@ describe('Native portfolio reads and export fences', () => {
       .find((button) => button.textContent?.includes('Download scoped CSV'))!;
     expect(exportButton.disabled).toBe(false);
 
+    params.next(convertToParamMap({ search: 'client' })); TestBed.tick();
+    read().flush({ ...payload, search: 'client' }); TestBed.tick();
     await f.componentInstance.download(); TestBed.tick();
     expect(download).toHaveBeenCalledTimes(2);
+    expect(download).toHaveBeenNthCalledWith(2, '/api/ui/portfolio/export', { search: 'client' }, expect.any(Function));
     expect(f.componentInstance.failed()).toBe(false);
     expect(f.nativeElement.textContent).toContain('Scoped CSV downloaded. The recent-record window is included; this export is not release approval.');
     expect(f.nativeElement.textContent).not.toContain('client export limit was exceeded');
