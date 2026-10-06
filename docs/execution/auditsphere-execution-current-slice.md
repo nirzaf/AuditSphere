@@ -13,6 +13,14 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Client customer and supplier profile foundation
+
+Native client books now offer scoped customer/supplier profiles with optional tax and ancillary details. A combined role appears in both customer and supplier filters without financial netting. Creating a profile requires the current accepted bookkeeping service; retained profiles remain readable under current client authority after that service is withdrawn. Scoped external identities and normalized names fence duplicate creation. Database triggers prevent overwriting or deleting saved profiles.
+
+Angular exposes creation, explicit refresh, role filters and progressive saved details. Unknown creation outcomes require inspecting retained records before an explicit separate draft. Backend scope, duplicate, mandate and history checks, Angular contract checks, actual API contract generation and the browser journal journey passed locally. Exact source, counts and verification limits are in `verification.clientBookkeepingCounterparties` in `status.json`.
+
+This is a partial counterparty foundation. Reviewed amendments, duplicate resolution, merges/reclassification, frozen invoice profiles and AR/AP open items remain outstanding. The broader user-story implementation remains active; VAT/tax and other ancillary modules remain optional and do not gate core bookkeeping. No final epic merge, production migration or external acceptance has been claimed.
+
 ## Ordinary native draft editing and preview fencing
 
 The original assigned preparer can now edit an ordinary unsubmitted native journal's description, accounting date and balanced posting lines within its existing open period. Editing locks the journal and period, checks the current accepted mandate and approved posting accounts, advances the revision and replaces draft lines atomically. Earlier previews cannot authorize submission of the edited content. Returned rework continues to require the matching immutable submission and independent return decision; submitted and posted content remains protected. Full-reversal drafts retain their exact original accounting sides and are excluded from general draft editing.
