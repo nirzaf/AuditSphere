@@ -21,8 +21,8 @@ public static partial class AuditFieldworkService
     if (string.IsNullOrWhiteSpace(request.WorkPerformed) || request.EvidenceReferences is null ||
         result is not (AuditItemTestResults.Pending or AuditItemTestResults.Pass or AuditItemTestResults.Exception or AuditItemTestResults.Limitation) ||
         result is AuditItemTestResults.Pass or AuditItemTestResults.Exception && request.EvidenceReferences.Count == 0 ||
-        result == AuditItemTestResults.Limitation && string.IsNullOrWhiteSpace(request.FollowUp))
-      return Invalid<ItemTestValue>("Item tests require work, a bounded result and evidence or an explicit limitation follow-up.");
+        result is AuditItemTestResults.Exception or AuditItemTestResults.Limitation && string.IsNullOrWhiteSpace(request.FollowUp))
+      return Invalid<ItemTestValue>("Item tests require work and a bounded result; pass/exception outcomes need evidence, and exceptions or limitations need follow-up.");
     var item = await db.AuditSelectionItems.AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.SelectionItemId && x.FirmId == actor.FirmId, ct);
     if (item is null)
       return Denied<ItemTestValue>();

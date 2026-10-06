@@ -4,6 +4,7 @@ using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace AuditSphereOps.Application.Audit;
 
@@ -11,8 +12,10 @@ public sealed record FieldworkProgram(string ProgramCode, string Version, string
 public sealed record FieldworkProcedure(Guid Id, string SourceProcedureId, int? SourceSectionNumber, string? SourceSectionTitle, string Title, string ApplicabilityStatus, string Status);
 public sealed record FieldworkAggregate(Guid Id, string Status, string Conclusion, bool PreparedByMe);
 public sealed record FieldworkSchedule(Guid Id, string ScheduleType, int RowCount, string Currency);
-public sealed record FieldworkSamplingRun(Guid Id, DateTimeOffset CreatedAt, string Method, decimal? Interval, decimal? KeyItemThreshold, int? SampleSize, int? Seed,
-  int SelectedCount, int PopulationCount, decimal CoveragePercent, string SourceDigest, bool Reproduces);
+public sealed record FieldworkSamplingRun(Guid Id, Guid SelectionId, string SelectionStatus, bool PreparedByMe, bool CanReviewSelection,
+  DateTimeOffset CreatedAt, string Method, decimal? Interval, decimal? KeyItemThreshold, int? SampleSize, int? Seed,
+  int SelectedCount, int PopulationCount, decimal CoveragePercent, string SourceDigest, string SelectionDigest, string EngineVersion,
+  string? PreviewDigest, string? OrderingPolicy, IReadOnlyList<string> AttributeFields, bool Reproduces);
 public sealed record FieldworkMovement(string ToLocation, DateTimeOffset MovedAt);
 public sealed record FieldworkPhysicalItem(Guid Id, string FileIndex, string BoxReference, string Description, string CurrentLocation,
   IReadOnlyList<FieldworkMovement> Movements, IReadOnlyList<string> ProcedureTitles);
@@ -20,7 +23,7 @@ public sealed record AuditFieldworkWorkspace(Guid EngagementId, int CatalogProce
   IReadOnlyList<FieldworkProcedure> Procedures, IReadOnlyList<AuditDifferenceSummary> Differences, FieldworkAggregate? Aggregate, bool AggregateCurrentAndReviewed,
   IReadOnlyList<FieldworkSchedule> Schedules, IReadOnlyList<string> SamplingMethods, IReadOnlyList<FieldworkSamplingRun> SamplingRuns,
   IReadOnlyList<EvidenceCandidate> EvidenceCandidates, IReadOnlyList<FieldworkPhysicalItem> PhysicalItems, bool CanManageFieldwork,
-  bool CanViewReviewNotes, bool CanAddOrResolveReviewNotes, bool CanRespondToReviewNotes);
+  bool CanReviewSelections, bool CanViewReviewNotes, bool CanAddOrResolveReviewNotes, bool CanRespondToReviewNotes);
 public sealed record FieldworkResultView(Guid Id, long Revision, string WorkPerformed, string? Conclusion);
 public sealed record ProcedureReviewWorkspace(Guid ProcedureId, FieldworkResultView? CurrentResult, IReadOnlyList<ReviewNoteView> Notes, IReadOnlyList<ProcedureEvidenceView> Evidence);
 
@@ -33,15 +36,16 @@ public static class AuditFieldworkWorkspaceQuery
   public const string DefaultProgramVersion = "2026.1";
   private static readonly string[] FieldworkRoles = ["Partner", "Manager", "SeniorManager", "Senior", "Staff", "Auditor", "EngagementLeader", "Administrator"];
   private static readonly string[] ReviewRoles = ["Reviewer", "Senior", "Manager", "Partner", "Administrator"];
+  private static readonly string[] SelectionReviewRoles = ["Reviewer", "Manager", "Partner", "Administrator"];
   private static readonly string[] ReviewParticipantRoles = ["Reviewer", "Senior", "Staff", "Manager", "Partner", "Administrator", "Auditor"];
 
   private sealed record WorkspaceAuthorization(Domain.Engagements.Engagement? Engagement, CommandResult Auth,
-    bool CanManageFieldwork, bool CanViewReviewNotes, bool CanAddOrResolveReviewNotes, bool CanRespondToReviewNotes);
+    bool CanManageFieldwork, bool CanReviewSelections, bool CanViewReviewNotes, bool CanAddOrResolveReviewNotes, bool CanRespondToReviewNotes);
 
   private static async Task<WorkspaceAuthorization> AuthorizeAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct)
   {
     var engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x => x.Id == engagementId && x.FirmId == actor.FirmId, ct);
-    if (engagement is null) return new(null, CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied."), false, false, false, false);
+    if (engagement is null) return new(null, CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied."), false, false, false, false, false);
 
     async Task<CommandResult> AuthorizeRolesAsync(string[] roles) => await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagement.Id, roles, true, true), ct);
@@ -49,13 +53,14 @@ public static class AuditFieldworkWorkspaceQuery
     var access = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagement.Id,
         FieldworkRoles.Concat(ReviewParticipantRoles).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(), true, true), ct);
-    if (!access.Succeeded) return new(engagement, access, false, false, false, false);
+    if (!access.Succeeded) return new(engagement, access, false, false, false, false, false);
 
     var canManage = (await AuthorizeRolesAsync(FieldworkRoles)).Succeeded;
+    var canReviewSelections = (await AuthorizeRolesAsync(SelectionReviewRoles)).Succeeded;
     var canViewNotes = (await AuthorizeRolesAsync(ReviewParticipantRoles)).Succeeded;
     var canAddOrResolveNotes = (await AuthorizeRolesAsync(ReviewRoles)).Succeeded;
     var canRespondToNotes = canViewNotes;
-    return new(engagement, CommandResult.Ok(), canManage, canViewNotes, canAddOrResolveNotes, canRespondToNotes);
+    return new(engagement, CommandResult.Ok(), canManage, canReviewSelections, canViewNotes, canAddOrResolveNotes, canRespondToNotes);
   }
 
   public static async Task<CommandResult<AuditFieldworkWorkspace>> GetAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)
@@ -89,9 +94,21 @@ public static class AuditFieldworkWorkspaceQuery
         .Select(x => new FieldworkProcedure(x.Id, x.SourceProcedureId, x.SourceSectionNumber, x.SourceSectionTitle, x.Title, x.ApplicabilityStatus, x.Status)).ToListAsync(ct);
     }
 
+    var runs = new List<FieldworkSamplingRun>();
+    foreach (var run in (await AuditFieldworkService.ListSamplingRunsAsync(db, actor, engagementId, ct)).Take(10))
+      if ((await AuditFieldworkService.GetSamplingRunAsync(db, actor, run.Id, ct)).Value is { } view)
+      {
+        var selection = await db.AuditSelections.AsNoTracking().SingleAsync(x => x.Id == view.Run.SelectionId && x.FirmId == actor.FirmId, ct);
+        runs.Add(new(view.Run.Id, selection.Id, selection.Status, selection.CreatedByUserId == actor.UserId,
+          authorization.CanReviewSelections && selection.CreatedByUserId != actor.UserId && selection.Status != AuditSelectionStatuses.Reviewed,
+          view.Run.CreatedAt, view.Run.Method, view.Run.Interval, view.Run.KeyItemThreshold, view.Run.SampleSize, view.Run.Seed,
+          view.Run.SelectedCount, view.Run.PopulationCount, view.Run.CoveragePercent, view.Run.SourceDigest, view.Run.SelectionDigest, view.Run.EngineVersion,
+          view.Run.PreviewDigest, view.Run.OrderingPolicy, ReadSamplingFields(view.Run.AttributeFields), view.Reproduces));
+      }
+
     if (!authorization.CanManageFieldwork)
-      return CommandResult<AuditFieldworkWorkspace>.Ok(new(engagementId, 0, string.Empty, null, procedures, [], null, false, [], [], [], [], [],
-        false, authorization.CanViewReviewNotes, authorization.CanAddOrResolveReviewNotes, authorization.CanRespondToReviewNotes));
+      return CommandResult<AuditFieldworkWorkspace>.Ok(new(engagementId, 0, string.Empty, null, procedures, [], null, false, [], [], runs, [], [],
+        false, authorization.CanReviewSelections, authorization.CanViewReviewNotes, authorization.CanAddOrResolveReviewNotes, authorization.CanRespondToReviewNotes));
 
     var differences = await AuditFieldworkService.GetDifferenceSummariesAsync(db, actor, engagementId, ct);
     var aggregate = await db.AuditAreaAssessments.AsNoTracking()
@@ -107,18 +124,20 @@ public static class AuditFieldworkWorkspaceQuery
     }
     var schedules = await db.AuditSchedules.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId && x.Status == AuditScheduleStatuses.Approved)
       .Select(x => new FieldworkSchedule(x.Id, x.ScheduleType, x.RowCount, x.Currency)).ToListAsync(ct);
-    var runs = new List<FieldworkSamplingRun>();
-    foreach (var run in (await AuditFieldworkService.ListSamplingRunsAsync(db, actor, engagementId, ct)).Take(10))
-      if ((await AuditFieldworkService.GetSamplingRunAsync(db, actor, run.Id, ct)).Value is { } view)
-        runs.Add(new(view.Run.Id, view.Run.CreatedAt, view.Run.Method, view.Run.Interval, view.Run.KeyItemThreshold, view.Run.SampleSize, view.Run.Seed,
-          view.Run.SelectedCount, view.Run.PopulationCount, view.Run.CoveragePercent, view.Run.SourceDigest, view.Reproduces));
     var candidates = await AuditFieldworkService.EvidenceCandidatesAsync(db, actor, engagementId, ct);
     var physical = (await AuditFieldworkService.PhysicalItemsAsync(db, actor, engagementId, ct)).Select(x => new FieldworkPhysicalItem(x.Id, x.FileIndex, x.BoxReference,
       x.Description, x.CurrentLocation, x.Movements.Select(m => new FieldworkMovement(m.ToLocation, m.MovedAt)).ToList(), x.Procedures.Select(p => p.Title).ToList())).ToList();
     return CommandResult<AuditFieldworkWorkspace>.Ok(new(engagementId, AuditProgramCatalog.Items.Count, DefaultProgramVersion, program, procedures, summaries,
       aggregate is null ? null : new FieldworkAggregate(aggregate.Id, aggregate.Status, aggregate.Conclusion, aggregate.CreatedByUserId == actor.UserId),
-      currentAndReviewed, schedules, AuditSamplingMethods.All, runs, candidates, physical, true, authorization.CanViewReviewNotes,
+      currentAndReviewed, schedules, AuditSamplingMethods.All, runs, candidates, physical, authorization.CanManageFieldwork, authorization.CanReviewSelections, authorization.CanViewReviewNotes,
       authorization.CanAddOrResolveReviewNotes, authorization.CanRespondToReviewNotes));
+  }
+
+  private static IReadOnlyList<string> ReadSamplingFields(string? json)
+  {
+    if (string.IsNullOrWhiteSpace(json)) return [];
+    try { return JsonSerializer.Deserialize<string[]>(json) ?? []; }
+    catch (JsonException) { return []; }
   }
 
   /// <summary>Current submitted result, its anchored review notes and linked client evidence for one procedure.</summary>

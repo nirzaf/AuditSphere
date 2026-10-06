@@ -76,17 +76,22 @@ public static class AuditSamplingEngine
     ArgumentNullException.ThrowIfNull(plan);
     if (!AuditSamplingMethods.All.Contains(plan.Method))
       throw new ArgumentException($"Unsupported sampling method '{plan.Method}'.", nameof(plan));
-    if (population.Select(x => x.StableRowId).Distinct(StringComparer.Ordinal).Count() != population.Count)
+    var normalizedPopulation = population.Select(x =>
+    {
+      if (x is null || string.IsNullOrWhiteSpace(x.StableRowId))
+        throw new ArgumentException("Population rows require a stable, non-empty identity.", nameof(population));
+      return x with { StableRowId = x.StableRowId.Trim() };
+    }).ToList();
+    if (normalizedPopulation.Select(x => x.StableRowId).Distinct(StringComparer.Ordinal).Count() != normalizedPopulation.Count)
       throw new ArgumentException("Population row identities must be unique.", nameof(population));
 
     // Systematic sampling and attribute strata select row positions including zero-amount
     // transactions (a zero-value row still carries attributes worth stratifying). Existing
     // monetary-exposure methods preserve their original population contract.
-    var ordered = population
-      .Select(x => new SamplingPopulationItem(x.StableRowId.Trim(), x.SignedAmount, x.Attributes))
+    var ordered = normalizedPopulation
       .Where(x => plan.Method == AuditSamplingMethods.Systematic || plan.Method == AuditSamplingMethods.AttributeStrata || Abs(x.SignedAmount) > 0m)
       .ToList();
-    var signedTotal = population.Sum(x => x.SignedAmount);
+    var signedTotal = normalizedPopulation.Sum(x => x.SignedAmount);
     var absoluteTotal = ordered.Sum(x => Abs(x.SignedAmount));
 
     List<SampledItem> selected;
@@ -135,11 +140,19 @@ public static class AuditSamplingEngine
   {
     if (fields is null || fields.Count == 0)
       throw new ArgumentException("Attribute strata sampling requires reviewer-defined attribute fields.", nameof(fields));
-    var keys = fields.Select(f => f.Trim().ToUpperInvariant()).Distinct(StringComparer.Ordinal).ToArray();
+    var keys = fields.Select(f => f?.Trim().ToUpperInvariant() ?? string.Empty).ToArray();
+    if (keys.Length != keys.Distinct(StringComparer.Ordinal).Count())
+      throw new ArgumentException("Choose each attribute field only once.", nameof(fields));
     if (keys.Any(f => !SamplingAttributeFields.All.Contains(f)))
       throw new ArgumentException("Attribute strata fields must be chosen from the supported reviewer-defined attribute set.", nameof(fields));
     if (ordered.Any(x => x.Attributes is null))
       throw new ArgumentException("Attribute strata sampling requires population rows that carry the imported row attributes.", nameof(ordered));
+    if ((keys.Contains(SamplingAttributeFields.Account, StringComparer.Ordinal) && ordered.Any(x => string.IsNullOrWhiteSpace(x.Attributes!.AccountCode))) ||
+        (keys.Contains(SamplingAttributeFields.Currency, StringComparer.Ordinal) && ordered.Any(x => string.IsNullOrWhiteSpace(x.Attributes!.Currency))) ||
+        (keys.Contains(SamplingAttributeFields.Month, StringComparer.Ordinal) && ordered.Any(x => x.Attributes!.TransactionDate is null && x.Attributes.PostingDate is null)))
+      throw new ArgumentException("Every population row must contain a value for each selected attribute field.", nameof(ordered));
+    if (sampleSize > ordered.Count)
+      throw new ArgumentException("The sample size cannot exceed the number of rows in the approved population.", nameof(sampleSize));
 
     var groups = new SortedDictionary<string, List<int>>(StringComparer.Ordinal);
     for (var i = 0; i < ordered.Count; i++)
@@ -152,14 +165,30 @@ public static class AuditSamplingEngine
       throw new ArgumentException(
         $"The sample size must provide at least one slot for each of the {groups.Count} strata present in the population.", nameof(fields));
 
-    var baseSlots = Math.DivRem(sampleSize, groups.Count, out var remainder);
     var cumulativeByRow = CumulativeIndex(ordered);
     var selected = new List<SampledItem>(sampleSize);
     var strata = new List<AttributeStratumSummary>(groups.Count);
+    var allocations = groups.ToDictionary(x => x.Key, _ => 1, StringComparer.Ordinal);
+    var slotsRemaining = sampleSize - groups.Count;
+    while (slotsRemaining > 0)
+    {
+      var allocatedThisRound = 0;
+      foreach (var (key, indexes) in groups)
+      {
+        if (slotsRemaining == 0) break;
+        if (allocations[key] >= indexes.Count) continue;
+        allocations[key]++;
+        slotsRemaining--;
+        allocatedThisRound++;
+      }
+      if (allocatedThisRound == 0)
+        throw new ArgumentException("The requested sample cannot be allocated across the available strata.", nameof(sampleSize));
+    }
+
     var ordinal = 0;
     foreach (var (key, indexes) in groups)
     {
-      var slots = Math.Min(baseSlots + (ordinal < remainder ? 1 : 0), indexes.Count);
+      var slots = allocations[key];
       var stratumSeed = unchecked(seed + ordinal);
       foreach (var index in DrawIndexesFrom(indexes, slots, stratumSeed))
       {
@@ -168,7 +197,7 @@ public static class AuditSamplingEngine
           $"Attribute strata '{key}': {slots} of {indexes.Count} rows drawn with per-stratum seed {stratumSeed}.",
           cumulativeByRow[index]));
       }
-      strata.Add(new AttributeStratumSummary(key, indexes.Count, slots, Math.Min(slots, indexes.Count)));
+      strata.Add(new AttributeStratumSummary(key, indexes.Count, slots, slots));
       ordinal++;
     }
     return (selected, strata);

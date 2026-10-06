@@ -153,4 +153,60 @@ public sealed class AuditSamplingEngineTests
     Assert.Equal(-400m, outcome.PopulationSignedTotal);
     Assert.Equal(1200m, outcome.PopulationAbsoluteTotal);
   }
+
+  [Fact(DisplayName = "Attribute strata carries source metadata and allocates exactly across uneven stratum capacities")]
+  public void AttributeStrata_PreservesFieldsAndFillsAvailableSlots()
+  {
+    var population = Enumerable.Range(0, 10).Select(i => new SamplingPopulationItem($" row-{i:00} ", i == 0 ? 0m : i,
+      new SamplingRowAttributes(i == 0 ? "1000" : "2000", "QAR", new DateOnly(2026, i < 5 ? 1 : 2, 1), null))).ToArray();
+    var plan = new SamplingPlan(AuditSamplingMethods.AttributeStrata, SampleSize: 5, Seed: 71,
+      AttributeFields: [SamplingAttributeFields.Account]);
+
+    var outcome = AuditSamplingEngine.Select(population, plan);
+    var repeated = AuditSamplingEngine.Select(population, plan);
+
+    Assert.Equal(5, outcome.SelectedCount);
+    Assert.Equal(outcome.Items.Select(x => x.StableRowId), repeated.Items.Select(x => x.StableRowId));
+    var strata = outcome.Strata!;
+    Assert.Equal(5, strata.Sum(x => x.SelectedCount));
+    Assert.Collection(strata.OrderBy(x => x.StratumKey),
+      one => Assert.Equal(("1000", 1, 1), (one.StratumKey, one.PopulationCount, one.SelectedCount)),
+      many => Assert.Equal(("2000", 9, 4), (many.StratumKey, many.PopulationCount, many.SelectedCount)));
+    Assert.Contains(outcome.Items, x => x.StableRowId == "row-00" && x.SignedAmount == 0m);
+  }
+
+  [Fact(DisplayName = "Attribute strata forms account, currency, direction and month from source rows")]
+  public void AttributeStrata_UsesImportedAttributesAndSignedDirection()
+  {
+    var population = new[]
+    {
+      new SamplingPopulationItem("cash-debit", 0m, new SamplingRowAttributes("1000", "QAR", new DateOnly(2026, 1, 5), null)),
+      new SamplingPopulationItem("cash-credit", -1m, new SamplingRowAttributes("1000", "QAR", null, new DateOnly(2026, 1, 8))),
+      new SamplingPopulationItem("usd-debit", 1m, new SamplingRowAttributes("2000", "USD", new DateOnly(2026, 2, 1), null)),
+    };
+    var outcome = AuditSamplingEngine.Select(population, new SamplingPlan(AuditSamplingMethods.AttributeStrata, SampleSize: 3, Seed: 5,
+      AttributeFields: [SamplingAttributeFields.Account, SamplingAttributeFields.Currency, SamplingAttributeFields.Direction, SamplingAttributeFields.Month]));
+
+    Assert.Equal(3, outcome.SelectedCount);
+    Assert.Contains(outcome.Strata!, x => x.StratumKey == "1000|QAR|ZERO|2026-01");
+    Assert.Contains(outcome.Strata!, x => x.StratumKey == "1000|QAR|CREDIT|2026-01");
+    Assert.Contains(outcome.Strata!, x => x.StratumKey == "2000|USD|DEBIT|2026-02");
+  }
+
+  [Fact(DisplayName = "Attribute strata rejects malformed identities, missing selected fields and impossible sizes")]
+  public void AttributeStrata_RejectsInvalidPopulation()
+  {
+    var plan = new SamplingPlan(AuditSamplingMethods.AttributeStrata, SampleSize: 1, Seed: 1,
+      AttributeFields: [SamplingAttributeFields.Account]);
+    Assert.Throws<ArgumentException>(() => AuditSamplingEngine.Select(
+      [new(" row ", 1m, new SamplingRowAttributes("1000", "QAR", null, null)), new("row", 1m, new SamplingRowAttributes("1000", "QAR", null, null))], plan));
+    Assert.Throws<ArgumentException>(() => AuditSamplingEngine.Select(
+      [new("row", 1m, new SamplingRowAttributes("", "QAR", null, null))], plan));
+    Assert.Throws<ArgumentException>(() => AuditSamplingEngine.Select(
+      [new("row", 1m, new SamplingRowAttributes("1000", "QAR", null, null))], plan with { AttributeFields = [SamplingAttributeFields.Month] }));
+    Assert.Throws<ArgumentException>(() => AuditSamplingEngine.Select(
+      [new("row", 1m, new SamplingRowAttributes("1000", "QAR", null, null))], plan with { SampleSize = 2 }));
+    Assert.Throws<ArgumentException>(() => AuditSamplingEngine.Select(
+      [new("row", 1m, new SamplingRowAttributes("1000", "QAR", null, null))], plan with { AttributeFields = [SamplingAttributeFields.Account, SamplingAttributeFields.Account] }));
+  }
 }

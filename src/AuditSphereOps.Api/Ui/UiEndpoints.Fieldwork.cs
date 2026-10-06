@@ -8,7 +8,12 @@ public static partial class UiEndpoints
 {
   public sealed record ApplicabilityInput(string Decision);
   public sealed record AggregateConclusionInput(string Conclusion);
-  public sealed record SamplingInput(Guid ProcedureId, Guid ScheduleId, string Method, string? Interval, string? KeyItemThreshold, int? SampleSize, int? Seed, string Rationale);
+  public sealed record SamplingInput(Guid ProcedureId, Guid ScheduleId, string Method, string? Interval, string? KeyItemThreshold, int? SampleSize, int? Seed,
+    string Rationale, string[]? AttributeFields = null, string? ExpectedPreviewDigest = null);
+  public sealed record SelectionReviewInput(string Decision, string? Comment);
+  public sealed record SamplingItemTestInput(string WorkPerformed, string[]? EvidenceReferences, string Result, string? ExceptionAmount,
+    string? ContradictoryEvidence, string? FollowUp);
+  public sealed record SamplingItemTestReviewInput(string Decision, string? Comment);
   public sealed record EvidenceLinkInput(Guid UploadIntentId, string? Note);
   public sealed record PhysicalItemInput(string FileIndex, string BoxReference, string Description, string Location);
   public sealed record PhysicalLinkInput(Guid ProcedureId);
@@ -35,22 +40,55 @@ public static partial class UiEndpoints
         AuditAreaAssessmentKinds.AggregateDifferences, "audit-differences-aggregate.v1", "{}", null, null, null, null, null, null, null, ["aggregate-difference-schedule"], i.Conclusion ?? ""), ct)));
     group.MapPost("/area-assessments/{id:guid}/review", (Guid id, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => AuditFieldworkService.ReviewAreaAssessmentAsync(db, actor, new ReviewAreaAssessmentRequest(id, AuditAreaAssessmentStatuses.Reviewed, null), ct)));
+    group.MapPost("/engagements/{id:guid}/fieldwork/sampling/preview", (Guid id, SamplingInput i, HttpContext http) =>
+    {
+      decimal? interval = TryDecimal(i.Interval, out var iv) ? iv : null, key = TryDecimal(i.KeyItemThreshold, out var k) ? k : null;
+      if ((!string.IsNullOrWhiteSpace(i.Interval) && interval is null) || (!string.IsNullOrWhiteSpace(i.KeyItemThreshold) && key is null))
+        return Task.FromResult(Invalid("Enter the interval and key-item threshold as numbers."));
+      return CommandAsync(http, async (db, actor, ct) =>
+      {
+        var r = await AuditFieldworkService.PreviewSamplingAsync(db, actor, new RunSamplingRequest(id, i.ProcedureId, i.ScheduleId, i.Method,
+          interval, key, i.SampleSize, i.Seed, i.Rationale ?? "", i.AttributeFields), ct);
+        return r.Succeeded
+          ? CommandResult<object>.Ok(r.Value!)
+          : CommandResult<object>.Fail(r.ErrorCode!, r.Message!);
+      });
+    });
     group.MapPost("/engagements/{id:guid}/fieldwork/sampling", (Guid id, SamplingInput i, HttpContext http) =>
     {
       decimal? interval = TryDecimal(i.Interval, out var iv) ? iv : null, key = TryDecimal(i.KeyItemThreshold, out var k) ? k : null;
       if ((!string.IsNullOrWhiteSpace(i.Interval) && interval is null) || (!string.IsNullOrWhiteSpace(i.KeyItemThreshold) && key is null))
         return Task.FromResult(Invalid("Enter the interval and key-item threshold as numbers."));
-      var countBased = i.Method is AuditSamplingMethods.Random or AuditSamplingMethods.Systematic or AuditSamplingMethods.Stratified;
       return CommandAsync(http, async (db, actor, ct) =>
       {
         var r = await AuditFieldworkService.RunSamplingAsync(db, actor, new RunSamplingRequest(id, i.ProcedureId, i.ScheduleId, i.Method,
-          i.Method == AuditSamplingMethods.MonetaryUnit ? interval : null, i.Method is AuditSamplingMethods.KeyItem or AuditSamplingMethods.Stratified ? key : null,
-          countBased ? i.SampleSize : null, countBased ? i.Seed : null, i.Rationale ?? ""), ct);
+          interval, key, i.SampleSize, i.Seed, i.Rationale ?? "", i.AttributeFields, i.ExpectedPreviewDigest), ct);
         return r.Succeeded
-          ? CommandResult<object>.Ok(new { r.Value!.Run.SelectedCount, r.Value.Run.PopulationCount, r.Value.Run.CoveragePercent })
+          ? CommandResult<object>.Ok(new { r.Value!.Run.SelectedCount, r.Value.Run.PopulationCount, r.Value.Run.CoveragePercent,
+            selectionId = r.Value.Run.SelectionId, previewDigest = r.Value.Run.PreviewDigest })
           : CommandResult<object>.Fail(r.ErrorCode!, r.Message!);
       });
     });
+    group.MapGet("/selections/{id:guid}/sample-set", (Guid id, int? page, int? pageSize, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => AuditSamplingService.GetSampleSetAsync(db, actor, id, page ?? 1, pageSize ?? 100, ct)));
+    group.MapPost("/selections/{id:guid}/review", (Guid id, SelectionReviewInput i, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AuditFieldworkService.ReviewSelectionAsync(db, actor,
+        new ReviewSelectionRequest(id, i.Decision ?? "", i.Comment), ct)));
+    group.MapPost("/selection-items/{id:guid}/tests", (Guid id, SamplingItemTestInput i, HttpContext http) =>
+    {
+      decimal? exceptionAmount = null;
+      if (!string.IsNullOrWhiteSpace(i.ExceptionAmount))
+      {
+        if (!TryDecimal(i.ExceptionAmount, out var parsed)) return Task.FromResult(Invalid("Enter the exception amount as a decimal."));
+        exceptionAmount = parsed;
+      }
+      return CommandAsync(http, (db, actor, ct) => AuditFieldworkService.RecordItemTestAsync(db, actor,
+        new RecordItemTestRequest(id, i.WorkPerformed ?? "", i.EvidenceReferences ?? [], i.Result ?? "", exceptionAmount,
+          i.ContradictoryEvidence, i.FollowUp), ct));
+    });
+    group.MapPost("/item-tests/{id:guid}/review", (Guid id, SamplingItemTestReviewInput i, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AuditFieldworkService.ReviewItemTestAsync(db, actor,
+        new ReviewItemTestRequest(id, i.Decision ?? "", i.Comment), ct)));
     group.MapPost("/procedures/{id:guid}/evidence", (Guid id, EvidenceLinkInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => AuditFieldworkService.LinkClientEvidenceAsync(db, actor, id, i.UploadIntentId, i.Note, ct)));
     group.MapPost("/engagements/{id:guid}/fieldwork/physical", (Guid id, PhysicalItemInput i, HttpContext http) =>
