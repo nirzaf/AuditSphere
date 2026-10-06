@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "sourceCommit": "f9a3dc8a6ba56d6a393f5cce1afd0ea1a07fb6fe",
+  "sourceCommit": "71722283cb2f3d63a7f7c07742d66c30234b65dc",
   "coverage": "Source discovery only; dynamic actions, scope and parity tests require manual review.",
   "items": [
     {
@@ -3169,7 +3169,7 @@
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/PracticeAnalytics.razor",
-      "sourceSha256": "f18185fa9b719b8166a73cefcb1cec8cffdd3341b2d4c6a2901c0359ec7018f9",
+      "sourceSha256": "efffb372115bdea3922475345351ba3211f025c6770be148c8dca2e6a8eab510",
       "routes": [
         "/app/practice/analytics"
       ],
@@ -3261,7 +3261,7 @@
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/ProjectProgress.razor",
-      "sourceSha256": "4380115c3ae65676877d0b1949134632e64e171b2f075fa483041b257ef345dd",
+      "sourceSha256": "c2fe9b457ad86ba4d3b5cdb0c3fb4e4d0678aa9e4aa4d7fe5b6082bb7980fb74",
       "routes": [
         "/app/administration/project-progress"
       ],
