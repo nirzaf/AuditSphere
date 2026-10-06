@@ -132,12 +132,14 @@ authorization and recovery matrices.
   in first-occurrence order; the legacy component did not apply relevance
   scoring. Candidate-window boundary cases, complete role/scope coverage and
   assistive-technology acceptance remain open.
-- At test commit `042a7668`, `GlobalSearchQueryTests` passed 16/16 in 1m17s.
-  `SearchResultKindsFollowCapabilitySpecificRolesAndScopes` verifies six
-  additional combinations: CommercialManager client-only, EngagementLeader
-  client/engagement, Auditor engagement/PBC, Accountant PBC-only,
-  FinanceManager invoice-only, and RelationshipManager lead-only. These are
-  representative cases; the exhaustive role/scope matrix remains open.
+- At test commit `df8a62f5`, `GlobalSearchQueryTests` passed 16/16 in 1m19s.
+  `SearchResultKindsFollowCapabilitySpecificRolesAndScopes` verifies twelve
+  role/scope combinations, including client-only, engagement-only, PBC-only,
+  finance-only and leads-only access. It covers CommercialManager,
+  EngagementLeader, Auditor, Reviewer, Accountant, AccountingPreparer,
+  AccountingReviewer, FinanceManager, FinanceReviewer, RelationshipManager,
+  Senior and Administrator. These are representative cases; exhaustive
+  role/scope coverage remains open.
 - The existing `AngularClientContactCreationJourneyTests` cohort passed 2/2
   on 2026-10-05 for canonical and `/ui` route ownership. It verifies restored
   tab drafts, exact primary-contact review, lost-response receipt recovery,

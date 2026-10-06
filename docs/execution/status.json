@@ -908,8 +908,8 @@
           "boundary": "One cross-kind term and category-order parity only. Candidate-window exhaustion, full role/scope, assistive technology, broader migration acceptance and production behavior remain open."
         },
         "globalSearchCapabilityRoleScopeMatrix": {
-          "sourceCommit": "042a7668e1c6961193b76bacaf9c12cf82bd401b",
-          "observedAt": "2026-10-06T02:11:22Z",
+          "sourceCommit": "df8a62f551b7728f5537ad8f882b63d9bbb48262",
+          "observedAt": "2026-10-06T02:16:43Z",
           "status": "PASS_LOCAL",
           "focusedCase": {
             "test": "GlobalSearchQueryTests.SearchResultKindsFollowCapabilitySpecificRolesAndScopes",
@@ -923,11 +923,11 @@
             "passed": 16,
             "failed": 0,
             "skipped": 0,
-            "duration": "1m 17s"
+            "duration": "1m 19s"
           },
           "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~GlobalSearchQueryTests'",
-          "coverage": "PostgreSQL-backed assertions verify CommercialManager client-only; EngagementLeader client plus engagement; Auditor engagement plus PBC; Accountant PBC-only; FinanceManager invoice-only; and RelationshipManager lead-only results.",
-          "boundary": "Representative route-role combinations only. This does not complete the full role/scope matrix, group-grant search behavior, all search endpoint matrices, full solution regression, Angular revalidation or EF drift."
+          "coverage": "PostgreSQL-backed assertions cover CommercialManager client-only; EngagementLeader client plus engagement; Auditor engagement plus PBC; Reviewer, Accountant, AccountingPreparer and AccountingReviewer PBC-only; FinanceManager and FinanceReviewer invoice-only under client scope; RelationshipManager lead-only; Senior client/engagement/PBC; and Administrator lead visibility.",
+          "boundary": "Twelve representative role/scope combinations only. This does not complete the full role/scope matrix, group-grant search behavior, all search endpoint matrices, full solution regression, Angular revalidation or EF drift."
         }
       },
       "practiceBillingLedgerCrosswalk": {
