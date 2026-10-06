@@ -13,6 +13,34 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Critical-unreturned confirmations keep blocking the report and signature (STE-REM-08)
+
+The pending-features review's confirmation finding is closed. Confirmation rows now carry the distinct
+returned-and-independently-evaluated response fact (the current response revision with an
+Agreed/Difference decision independently reviewed by another user); criticality, returned-response
+evidence, independent evaluation and workflow closure remain separate facts. A case that currently
+stands Critical closes only on that returned and evaluated response — reviewed alternative work keeps
+its appropriate noncritical path — and a critical case without it keeps holding the auditor report
+even after alternative-only closure or a later criticality reassessment, with the holding letter
+generated for the exact blocking set. The signature rechecks the current critical set before the
+staleness fence, so a report generated before a case became critical cannot be signed. Criticality
+reassessments retain every actor/rationale history row. The existing signing fixture now closes its
+critical confirmation through the real response record/review/closure path instead of a direct status
+edit, and the committed OpenAPI artifact was regenerated for the parallel session's four additive
+AS-COMP-16 fieldwork endpoints (the drift check passes with no removals).
+
+Verification in an isolated worktree at the pushed AS-COMP-16 head plus this slice: the new focused
+PostgreSQL test passed 1/1
+(`CriticalUnreturnedConfirmationKeepsBlockingAfterAlternativeClosureAndCriticalityReassessment`), the
+full `AuditDeliverablesTests` and `AuditConfirmationCommandIsolationTests` classes passed 11/11, the
+Release builds of the Api and test projects passed with zero warnings and errors, and the OpenAPI
+contract drift check reports the committed artifact current (the additive dashboard field needs no
+Angular change: the decoders read only their declared keys). The full Domain and Api suites and the
+browser journeys were not rerun: the change surface was the confirmation closure gate, the dashboard
+fact, the report/signing predicates and the focused tests. Tests used owned isolated PostgreSQL
+schemas; no Development or production state was changed. Blazor retirement remains `NOT_READY`.
+
+
 ## Procedural workpapers, evidence links, and safe collaboration (AS-COMP-16)
 
 Fieldwork procedure tailoring, workpaper generation, evidence linkage, and independent review lifecycle are verified (§§4.3.2–4.3.3, AS-COMP-16):

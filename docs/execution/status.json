@@ -12669,6 +12669,43 @@
       "verificationBoundary": "Verified in an isolated worktree because the shared checkout carried the parallel session's in-flight edits. The slice landed inside the parallel session's AS-COMP-16 commit d51c189f (its verification covered the combined tree and the combined-tree rerun of the focused tests passed). The full Domain and Api suites and the browser journeys were not rerun by this slice; the change surface was the review note service, the canonical completion blockers, the SRM facts count and the focused tests.",
       "databaseBoundary": "Owned isolated PostgreSQL schemas only; no Development or production state was changed.",
       "retirementDecision": "NOT_READY"
+    },
+    "criticalUnreturnedConfirmationBlocking": {
+      "caseId": "STE-REM-08",
+      "sourceCommit": "7f080729eb632babbf39db7ba9619c460bafb1ad",
+      "implementationCommit": "bb206876168392a0fe9f90ba6cf2ce35663e387a",
+      "contractRepairCommit": "1ebdc075",
+      "observedAt": "2026-10-06T23:26:00Z",
+      "status": "PASS_LOCAL_SLICE",
+      "coverage": "Confirmation rows carry the distinct returned-and-independently-evaluated response fact (current response revision, Agreed/Difference, independently reviewed). A critical case closes only on that response; reviewed alternative work keeps its noncritical path. A critical case without the returned/evaluated response keeps holding the auditor report after alternative-only closure or a later criticality reassessment, the holding letter generates for the exact blocking set, and the signature rechecks the current critical set before the staleness fence. Criticality reassessments retain every actor/rationale row. The existing signing fixture closes its critical confirmation through the real response record/review/closure path instead of a direct status edit. The committed OpenAPI artifact was regenerated for the parallel session's four additive AS-COMP-16 fieldwork endpoints (drift check passes; no removals).",
+      "focusedTests": {
+        "newConfirmationBlockingTest": {
+          "status": "PASS",
+          "passed": 1,
+          "failed": 0,
+          "skipped": 0,
+          "duration": "25s",
+          "names": [
+            "CriticalUnreturnedConfirmationKeepsBlockingAfterAlternativeClosureAndCriticalityReassessment"
+          ]
+        },
+        "touchedDomainClasses": {
+          "status": "PASS",
+          "passed": 11,
+          "failed": 0,
+          "skipped": 0,
+          "duration": "1m15s",
+          "command": "dotnet test tests/AuditSphereOps.Domain.Tests --no-build --configuration Release --filter 'FullyQualifiedName~AuditDeliverablesTests|FullyQualifiedName~AuditConfirmationCommandIsolationTests'"
+        },
+        "openApiContractDrift": {
+          "status": "PASS",
+          "command": "bash scripts/contracts/verify-openapi.sh",
+          "note": "Regenerated artifact committed in 1ebdc075; check reports current."
+        }
+      },
+      "verificationBoundary": "Verified in an isolated worktree at the pushed AS-COMP-16 head plus this slice (the shared checkout carried the parallel session's in-flight finance edits). The full Domain and Api suites and the browser journeys were not rerun; the change surface was the confirmation closure gate, the dashboard fact, the report/signing predicates and the focused tests. The additive dashboard field needs no Angular change: the decoders read only their declared keys.",
+      "databaseBoundary": "Owned isolated PostgreSQL schemas only; no Development or production state was changed.",
+      "retirementDecision": "NOT_READY"
     }
   },
   "documentationWork": {
