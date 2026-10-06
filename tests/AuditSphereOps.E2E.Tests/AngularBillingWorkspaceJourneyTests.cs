@@ -223,6 +223,72 @@ public sealed class AngularBillingWorkspaceJourneyTests
     await page.EvaluateAsync("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
     Assert.DoesNotContain("SYN-PAGE-R-001", await page.Locator("main").InnerTextAsync(), StringComparison.Ordinal);
     Assert.True(historyRequestIntercepted);
+
+    await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+      $"/app/practice/invoices/{invoiceId:D}");
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "SYN-ANG-E2E-INV-001", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Button,
+      new() { Name = "Load older receipts", Exact = true })).ToBeVisibleAsync();
+
+    var authorizedHistoryResponse = new TaskCompletionSource<(int Status, string Body)>(TaskCreationOptions.RunContinuationsAsynchronously);
+    var releaseAuthorizedHistoryResponse = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+    var revocationHistoryIntercepted = false;
+    await page.RouteAsync("**/api/ui/finance/invoices/**", async interception =>
+    {
+      if (!revocationHistoryIntercepted && interception.Request.Method == "GET" &&
+          interception.Request.Url.Contains("receiptBefore=", StringComparison.Ordinal))
+      {
+        revocationHistoryIntercepted = true;
+        var upstream = await interception.FetchAsync();
+        var body = await upstream.TextAsync();
+        authorizedHistoryResponse.TrySetResult((upstream.Status, body));
+        await releaseAuthorizedHistoryResponse.Task.WaitAsync(TimeSpan.FromSeconds(15));
+        await interception.FulfillAsync(new()
+        {
+          Status = upstream.Status,
+          ContentType = upstream.Headers.TryGetValue("content-type", out var contentType)
+            ? contentType : "application/json",
+          Body = body
+        });
+        return;
+      }
+      await interception.ContinueAsync();
+    });
+
+    var lateHistoryResponse = page.WaitForResponseAsync(response =>
+      response.Url.Contains("receiptBefore=", StringComparison.Ordinal) && response.Status == 200);
+    await page.GetByRole(AriaRole.Button, new() { Name = "Load older receipts", Exact = true }).ClickAsync();
+    var capturedHistory = await authorizedHistoryResponse.Task.WaitAsync(TimeSpan.FromSeconds(15));
+    Assert.Equal(200, capturedHistory.Status);
+    Assert.Contains("SYN-PAGE-R-001", capturedHistory.Body, StringComparison.Ordinal);
+
+    await using (var db = host.CreateDbContext())
+      await db.Users.Where(user => user.Id == f.Admin.Id)
+        .ExecuteUpdateAsync(users => users.SetProperty(user => user.SessionEpoch, user => user.SessionEpoch + 1));
+
+    var deniedInvoiceRefresh = page.WaitForResponseAsync(response =>
+      response.Url.EndsWith($"/api/ui/finance/invoices/{invoiceId:D}", StringComparison.Ordinal) && response.Status == 401);
+    var deniedSessionRefresh = page.WaitForResponseAsync(response =>
+      response.Url.EndsWith("/api/ui/session", StringComparison.Ordinal) && response.Status == 401);
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh invoice", Exact = true }).ClickAsync();
+    await deniedInvoiceRefresh;
+    await deniedSessionRefresh;
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "Access unavailable", Exact = true })).ToBeVisibleAsync();
+    var revokedBody = await page.Locator("main").InnerTextAsync();
+    Assert.DoesNotContain("SYN-ANG-E2E-INV-001", revokedBody, StringComparison.Ordinal);
+    Assert.DoesNotContain("SYN-PAGE-R-001", revokedBody, StringComparison.Ordinal);
+
+    releaseAuthorizedHistoryResponse.TrySetResult(true);
+    var deliveredHistoryResponse = await lateHistoryResponse;
+    Assert.Equal(200, deliveredHistoryResponse.Status);
+    await page.EvaluateAsync("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+    var afterLateResponse = await page.Locator("main").InnerTextAsync();
+    Assert.Contains("Access unavailable", afterLateResponse, StringComparison.Ordinal);
+    Assert.DoesNotContain("SYN-ANG-E2E-INV-001", afterLateResponse, StringComparison.Ordinal);
+    Assert.DoesNotContain("SYN-PAGE-R-001", afterLateResponse, StringComparison.Ordinal);
+    Assert.True(revocationHistoryIntercepted);
     Assert.Empty(errors);
   }
 
