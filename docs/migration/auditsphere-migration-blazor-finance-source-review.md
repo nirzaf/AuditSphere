@@ -1,7 +1,7 @@
 # AuditSphere migration source review — firm finance
 
 **Status:** PARTIAL_REVIEWED
-**Reviewed against code/test commit:** `5a554a0931703974074cfe182dcad0dd992d43a5`
+**Reviewed against code/test commit:** `788bc218b095185124cca7ac421f244e415dd381`
 **Pinned discovery snapshot:** `eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39`
 
 The three legacy page sources below match the SHA-256 values recorded in the
@@ -20,7 +20,7 @@ behavior parity.
 | Legacy behavior | Angular, API and Application owner | Evidence and remaining gap |
 |---|---|---|
 | Firm ledger: show firm periods, accounts and the 25 most recent postings; allow an authorized FinanceReviewer to close an open period with a reason after confirming. | Angular `features/finance/ledger.ts`; API `UiEndpoints.Finance.cs`; Application `FirmFinanceQuery` and `LedgerService`. | `FirmFinanceQuery` requires an internal firm-wide FinanceManager or FinanceReviewer and filters every projection by firm. The period-close journey verifies a reviewer closes a period only after entering a reason and checks the persisted close decision. An additional browser route/accessibility sweep includes the ledger. Complete role combinations, cross-firm/guessed-ID responses, invalid/stale/revoked close attempts and failure/reconciliation behavior remain open. |
-| Firm books: capture a dated operating expense and source document, submit it for independent review, then post the approved journal; calculate a firm trial balance. | Angular `features/finance/books.ts`; API `UiEndpoints.FirmBooks.cs`; Application `FirmBooksWorkspaceQuery`, `FirmExpenseService` and `LedgerService`. | The new API-host Angular journey drives expense capture with PDF evidence, submission, approval by a distinct FinanceReviewer, posting, and the balanced/reconciled trial balance. It checks the persisted preparer/reviewer identities, evidence digest, expense state and single posting. The projection omits evidence bytes, and the upload endpoint is bounded to 5 MB. Angular rejection, self-review denial, malformed/oversized upload cases, cross-firm/guessed-ID isolation, duplicate post/retry and revoked-session states still need direct tests. |
+| Firm books: capture a dated operating expense and source document, submit it for independent review, then post the approved journal; calculate a firm trial balance. | Angular `features/finance/books.ts`; API `UiEndpoints.FirmBooks.cs`; Application `FirmBooksWorkspaceQuery`, `FirmExpenseService` and `LedgerService`. | The PostgreSQL API-host Angular journey verifies source-backed capture, submission, hidden self-review controls plus direct API self-review denial, a required reviewer-authored rejection reason persisted with the decision, and a second same-day expense independently approved and posted to a balanced/reconciled trial balance. It checks preparer/reviewer identities and immutable expense/posting state. The projection omits evidence bytes, and the upload endpoint is bounded to 5 MB. Malformed/oversized upload cases, cross-firm/guessed-ID isolation, duplicate post/retry and revoked-session states remain open. The second submission also exposed and fixed a journal-number collision caused by using only the time-ordered GUID prefix; generated expense journal numbers now include the full immutable expense ID. |
 | Invoice detail: show the authorized invoice, lines, receipt allocations and outstanding balance; allow the invoice lifecycle actions according to status and finance authority. | Angular `features/finance/invoice.ts`; API invoice handlers in `UiEndpoints.Finance.cs`; Application `BillingInvoiceWorkspaceQuery` and `BillingService`. | PostgreSQL-backed browser journeys verify client-scoped invoice reads, sibling-client and wrong-client invoice denial with stale-content clearing, immediate clearing after grant revocation, bounded 100-item receipt/credit history paging, receipt allocation and credit-note recovery after a lost response. Angular also exposes review, post and send actions. Current browser coverage does not exercise every invoice lifecycle action, all firm-wide/client-scoped role combinations, cross-firm/guessed IDs, invalid cursors, history failures or each uncertain outcome. |
 
 The application services keep firm books separate from client billing. The
@@ -40,22 +40,39 @@ sweep. One selected supporting test,
 still runs through the retained legacy host and is not counted as Angular
 evidence.
 
-The dedicated native Angular firm-books journey then passed **1/1** at
-`5a554a09`:
+The dedicated native Angular firm-books journey passed **1/1** at
+`788bc218`:
 
 ```bash
 dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~AngularFirmBooksJourneyTests'
 ```
 
-It signs in separate FinanceManager and FinanceReviewer identities, records
-and submits an expense with source evidence, uses a separate FinanceReviewer,
-confirms the distinct preparer/reviewer identities in PostgreSQL, posts the
-approved expense and checks that the trial balance is balanced and reconciles.
-At 390 px viewport width, the Angular document has no horizontal overflow.
+It signs in separate FinanceManager and FinanceReviewer identities. The
+FinanceManager also holds a reviewer grant for the negative self-review case;
+the page hides its review action for its own submitted expense, and a direct
+same-identity API rejection attempt returns 403 without changing the submitted
+record. The independent reviewer opens the rejection dialog, cannot submit an
+empty reason, enters a reason and verifies it is persisted with the rejected
+decision. A second expense for the same date then submits successfully, is
+approved by the distinct reviewer, posts once, and produces a balanced and
+reconciled trial balance. At 390 px viewport width, the Angular document has
+no horizontal overflow.
 
-The Angular production build passed. It retained the existing 506.60 kB initial
-bundle warning (6.60 kB above the 500 kB warning budget) and the commercial
-settings component-style warning (7.53 kB, above its 4 kB warning budget).
+Additional focused evidence at the same source commit:
+
+```bash
+npm --prefix src/AuditSphereOps.Ui run test:ci -- --include=src/app/features/finance/books.spec.ts --include=src/app/features/finance/finance.spec.ts
+dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~FirmOperationsTests'
+```
+
+The Angular finance contracts and rejection-reason tests passed **5/5**;
+`FirmOperationsTests` passed **3/3**, including whitespace and overlength
+reason refusal with no state mutation, followed by a trimmed persisted reason.
+The Angular production build passed with 349.67 kB of initial chunks in this
+run. It emitted the existing commercial-settings stylesheet warning (7.53 kB
+against a 4 kB component budget). EF reported no pending model changes. The
+full solution regression was not rerun; its latest complete checkpoint remains
+1001/1001 at `ead85032`.
 
 The built-in browser rendered the Development Firm ledger and Firm books
 routes read-only. Its current identity has no firm-wide finance grant; both
@@ -66,15 +83,15 @@ that browser session.
 ## Open parity and retirement gates
 
 All three source/action rows remain `PARTIAL`. The firm-books path now has a
-direct Angular end-to-end journey, but the full finance-manager/reviewer and
-scope matrix, firm and guessed-ID isolation, rejection, input/evidence
-validation, close and post retry/recovery, and invoice approve/post/send paths
-still need broader assertions. Assistive-technology and wider-locale review,
+direct Angular end-to-end journey covering rejection, required reason,
+self-review denial, same-date submissions and independent approval. The full
+finance-manager/reviewer and scope matrix, firm and guessed-ID isolation,
+input/evidence validation, close and post retry/recovery, and invoice
+approve/post/send paths still need broader assertions. Assistive-technology and wider-locale review,
 production-like rollback/canary, live Microsoft gates and separate owner
 acceptance remain open.
 
-The full solution regression and EF pending-model check were not rerun for
-this slice. The latest complete PostgreSQL-backed Release regression remains
+The full solution regression was not rerun for this slice. The latest complete PostgreSQL-backed Release regression remains
 1001/1001 at `ead85032de2ccc4d4c8043398fa8471d395376a9`. The focused E2E build
 compiled a concurrent unstaged change in
 `src/AuditSphereOps.Application/Accounting/ConsolidationOverviewQuery.cs`; it

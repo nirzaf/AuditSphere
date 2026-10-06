@@ -15,6 +15,36 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: Firm books rejection and journal identity
+
+The Angular firm-expense rejection action now opens a reason dialog, blocks
+empty/whitespace input, trims the retained explanation, and uses the maximum
+length returned by the Application workspace contract. The service enforces
+the same 1,000-character boundary. Finance reviewers still cannot review their
+own preparation: the UI hides the action and the API returns 403 for a direct
+same-preparer attempt.
+
+The PostgreSQL API-host Angular firm-books journey passed 1/1 at code commit
+`788bc218`. It records and submits a documented expense, verifies self-review
+denial and an unchanged row, rejects it with a reason verified in PostgreSQL,
+then submits a second expense for the same date, has an independent reviewer
+approve it, posts it and checks the balanced/reconciled firm trial balance. The
+second same-day submission exposed a journal-number collision: the old number
+used only the timestamp-bearing first eight characters of a time-ordered GUID.
+Expense journal numbers now include the full immutable expense ID.
+
+Focused Angular finance tests passed 5/5, `FirmOperationsTests` passed 3/3,
+and the production Angular build passed with the existing commercial-settings
+stylesheet warning (7.53 kB against 4 kB). EF reported no pending model
+changes. The latest complete PostgreSQL-backed solution checkpoint remains
+1001/1001 at `ead85032`; it was not rerun for this slice. The Development
+browser identity still has no firm-wide finance assignment, so privileged
+expense review was verified in the owned PostgreSQL/Playwright journey rather
+than by granting access to the shared Development account. The finance source
+review remains partial: malformed/oversized uploads, cross-firm isolation,
+retry/revocation matrices, invoices, and overall migration acceptance remain
+open. Blazor retirement remains `NOT_READY`.
+
 ## Current follow-on slice: Local Blazor rollback-host route smoke
 
 The retained Web rollback/reference host built in Release with zero warnings

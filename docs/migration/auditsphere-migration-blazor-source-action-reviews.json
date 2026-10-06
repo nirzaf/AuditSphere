@@ -440,8 +440,8 @@
       "source": "src/AuditSphereOps.Web/Components/Pages/FirmBooks.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-finance-source-review.md",
-      "reviewedAtCommit": "5a554a0931703974074cfe182dcad0dd992d43a5",
-      "openGaps": ["Angular rejection workflow, required rejection reason and same-preparer review denial", "Invalid and oversized evidence upload, malformed form, cross-firm and guessed-ID cases", "Post idempotency/retry and stale or revoked session behavior"]
+      "reviewedAtCommit": "788bc218b095185124cca7ac421f244e415dd381",
+      "openGaps": ["Invalid and oversized evidence upload, malformed form, cross-firm and guessed-ID cases", "Post idempotency/retry and stale or revoked session behavior"]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/InvoiceDetail.razor",
