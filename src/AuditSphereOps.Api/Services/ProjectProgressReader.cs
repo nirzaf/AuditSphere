@@ -5,6 +5,8 @@ namespace AuditSphereOps.Api.Services;
 /// <summary>Reads the published R2R task-card snapshot; never changes task status or application data.</summary>
 public static class ProjectProgressReader
 {
+  public const int FreshnessWindowDays = 30;
+  private static readonly TimeSpan AllowedClockSkew = TimeSpan.FromMinutes(5);
   public static IReadOnlyList<ProjectUntrackedArea> UntrackedAreas { get; } =
   [
     new("Practice leads", "/app/practice/leads"),
@@ -32,14 +34,24 @@ public static class ProjectProgressReader
     [20] = "Audit completion"
   };
 
-  public static ProjectProgressSnapshot Read(string contentDirectory)
+  public static ProjectProgressSnapshot Read(string contentDirectory, DateTimeOffset? nowUtc = null)
   {
     var root = Path.GetFullPath(contentDirectory);
     using var manifest = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "tracking", "pack_manifest.json")));
-    if (manifest.RootElement.ValueKind != JsonValueKind.Object ||
-        !manifest.RootElement.TryGetProperty("tasks", out var taskEntries) ||
-        taskEntries.ValueKind != JsonValueKind.Array)
+    if (manifest.RootElement.ValueKind != JsonValueKind.Object)
       throw new InvalidDataException("Published task-card manifest is invalid.");
+    if (!manifest.RootElement.TryGetProperty("published_at_utc", out var publishedAtValue) ||
+        publishedAtValue.ValueKind != JsonValueKind.String || !publishedAtValue.TryGetDateTimeOffset(out var publishedAtUtc) ||
+        publishedAtUtc.Offset != TimeSpan.Zero)
+      throw new InvalidDataException("Published task-card manifest has no valid UTC publication time.");
+    var observedAtUtc = (nowUtc ?? DateTimeOffset.UtcNow).ToUniversalTime();
+    if (publishedAtUtc > observedAtUtc + AllowedClockSkew)
+      throw new InvalidDataException("Published task-card manifest has a future publication time.");
+    if (!manifest.RootElement.TryGetProperty("tasks", out var taskEntries) || taskEntries.ValueKind != JsonValueKind.Array)
+      throw new InvalidDataException("Published task-card manifest is invalid.");
+    var publicationAge = observedAtUtc - publishedAtUtc;
+    var publicationAgeDays = Math.Max(0, (int)Math.Floor(publicationAge.TotalDays));
+    var isStale = publicationAge > TimeSpan.FromDays(FreshnessWindowDays);
     var publishedTasks = taskEntries.EnumerateArray().ToArray();
     if (publishedTasks.Length == 0)
       throw new InvalidDataException("Published task-card manifest contains no task cards.");
@@ -89,7 +101,8 @@ public static class ProjectProgressReader
       rows.Where(x => x.Modules.Count == 0 && !x.WorkPackage.StartsWith("AUD-", StringComparison.Ordinal))
         .OrderBy(x => x.Id, StringComparer.Ordinal).ToArray(),
       AuditPhaseNames.Select(x => new ProjectModuleProgress(x.Key, x.Value,
-        rows.Where(t => t.WorkPackage == $"AUD-{x.Key}").OrderBy(t => t.Id, StringComparer.Ordinal).ToArray())).ToArray());
+        rows.Where(t => t.WorkPackage == $"AUD-{x.Key}").OrderBy(t => t.Id, StringComparer.Ordinal).ToArray())).ToArray(),
+      publishedAtUtc, publicationAgeDays, isStale);
   }
 
   private static readonly HashSet<string> TaskStates =
@@ -109,8 +122,10 @@ public sealed record ProjectModuleProgress(int Number, string Name, IReadOnlyLis
 }
 public sealed record ProjectProgressSnapshot(IReadOnlyList<ProjectTaskProgress> Tasks,
   IReadOnlyList<ProjectModuleProgress> Modules, IReadOnlyList<ProjectTaskProgress> AuditTasks,
-  IReadOnlyList<ProjectTaskProgress> SharedTasks, IReadOnlyList<ProjectModuleProgress> AuditPhases)
+  IReadOnlyList<ProjectTaskProgress> SharedTasks, IReadOnlyList<ProjectModuleProgress> AuditPhases,
+  DateTimeOffset PublishedAtUtc, int PublicationAgeDays, bool IsStale)
 {
+  public int FreshnessWindowDays => ProjectProgressReader.FreshnessWindowDays;
   public int AuditCompleted => AuditTasks.Count(x => x.Status == "COMPLETED");
   public int SharedCompleted => SharedTasks.Count(x => x.Status == "COMPLETED");
   public int Completed => Tasks.Count(x => x.Status == "COMPLETED");

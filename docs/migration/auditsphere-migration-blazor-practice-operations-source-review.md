@@ -21,8 +21,8 @@ behavior parity.
 | Legacy behavior | Angular, API and Application owner | Current evidence and remaining gap |
 |---|---|---|
 | Show authorized open tasks, the actor's own entries and an independent time-approval queue; create scoped work tasks, record drafts, submit and approve time. | Angular `features/practice/time.ts`; API `UiEndpoints.Time.cs`; Application `PracticeTimeWorkspaceQuery` and `PracticeTimeService`. | The focused cohort verifies a time draft submitted by staff and approved by a different reviewer, plus an engagement-scoped identity that sees its assigned task and entry while sibling-engagement task, narrative and reporting-period markers remain absent. Complete cross-firm/guessed-ID, input validation, revocation during action and every command failure/retry path remain open. |
-| Report engagement economics, utilization by department and milestone performance from approved source records, with formula definitions and an explicit reporting period. | Angular `features/practice/analytics.ts`; API `UiEndpoints.PracticeInsights.cs`; Application `PracticeAnalyticsQuery` in `FirmOperationsServices.cs`. | The firm-operations browser journey opens analytics as a Partner and checks the formula definition that charge-out rates are not costs. The built-in browser showed the authorized empty Development period and all formula definitions. The cohort did not assert populated metric values, missing-input and mixed-currency behavior, department-capacity boundaries or the full analytics authorization matrix. |
-| Publish the implementation task-card snapshot with module/phase summaries, status filtering and untracked-area disclosure; refuse access to non-administrators and fail closed if the packaged snapshot is invalid. | Angular `features/admin/progress.ts`; API `UiEndpoints.Operations.cs`; Application `FirmAdministrationQuery`; API `ProjectProgressReader` and the packaged `project-progress` files. | Existing route tests cover published counts, filters, untracked-area disclosure and staff denial. The safety follow-up at `41ee0b2c67468bbae8d176c6f6822ebcd451785e` adds empty/invalid snapshot rejection and maps invalid or unreadable publication errors to the safe unavailable response. A PostgreSQL-backed browser role matrix allows only firm-wide Administrator and denies Partner, Manager, Staff, AccountingPreparer, AccountingReviewer and ClientUser without snapshot data. Snapshot freshness/staleness policy, expired/revoked admin sessions, cross-firm admin identities and human accessibility remain open. |
+| Report engagement economics, utilization by department and milestone performance from approved source records, with formula definitions and an explicit reporting period. | Angular `features/practice/analytics.ts`; API `UiEndpoints.PracticeInsights.cs`; Application `PracticeAnalyticsQuery` in `FirmOperationsServices.cs`. | The PostgreSQL-backed Angular journey now verifies populated same-currency QAR measures and that mixed approved-time currencies fail closed with unavailable monetary totals. The analytics formula display is also covered. Invoice-currency fallback, missing captured rates, department-capacity boundaries, broader role/scope, and stale/error/recovery behavior remain open. |
+| Publish the implementation task-card snapshot with module/phase summaries, status filtering and untracked-area disclosure; refuse access to non-administrators and fail closed if the packaged snapshot is invalid. | Angular `features/admin/progress.ts`; API `UiEndpoints.Operations.cs`; Application `FirmAdministrationQuery`; API `ProjectProgressReader` and the packaged `project-progress` files. | Existing route tests cover published counts, filters, untracked-area disclosure and staff denial. The safety follow-up at `41ee0b2c67468bbae8d176c6f6822ebcd451785e` adds empty/invalid snapshot rejection and maps invalid or unreadable publication errors to the safe unavailable response. The freshness follow-up requires an explicit UTC publication timestamp, rejects missing/malformed/future dates, marks snapshots stale after 30 days, and displays the publication age plus a stale warning. A PostgreSQL-backed browser role matrix allows only firm-wide Administrator and denies Partner, Manager, Staff, AccountingPreparer, AccountingReviewer and ClientUser without snapshot data. Expired/revoked admin sessions, cross-firm admin identities and human accessibility remain open. |
 | Search the firm technical library; read published entries and history; prepare a new entry/version and have a distinct Partner or Administrator publish the immutable version for its configured audience. | Angular `features/library/library.ts`; API `UiEndpoints.PracticeInsights.cs`; Application `TechnicalLibraryWorkspaceQuery` and `TechnicalLibraryService`. | The existing firm-operations journey verifies published-content search and version results. The PostgreSQL-backed `AngularTechnicalLibraryParityJourneyTests` follow-up at `4cb6faffc4bdac3a97b2e70eb4031a018e72ef51` now drives Angular entry creation and version drafting; checks required-field validation, duplicate-code refusal without a second row, distinct Partner publication, Manager publication denial with draft preservation, superseded history navigation, and staff catalogue/direct-ID audience denial. The wider role/scope, firm-isolation, invalid-input, stale/error/recovery and accessibility acceptance matrix remains open. |
 
 The native API resolves the trusted actor and composes Application queries and
@@ -81,6 +81,25 @@ AccountingPreparer, AccountingReviewer and ClientUser received HTTP 403 with
 no snapshot fields. The staff UI displayed its safe denial state; the client
 was redirected to the client portal.
 
+### Project-progress snapshot freshness follow-up
+
+The task-pack manifest now records its observed publication time in UTC. The
+API rejects missing, malformed, non-UTC or materially future timestamps. It
+reports the publication age and marks the snapshot stale after 30 days; the
+Angular and retained Blazor views show the timestamp and a visible stale
+warning while preserving the separate firm-wide Administrator authorization
+gate. The 30-day boundary is tested deterministically.
+
+`ProjectProgressReaderTests` passed 10/10, including the exact freshness
+boundary, malformed/missing/future publication metadata, empty task packs,
+invalid task state and path traversal. The PostgreSQL-backed
+`AngularProjectProgressAuthorizationJourneyTests` passed 1/1 and verifies the
+publication metadata is visible only with the administrator snapshot. Angular
+production build passed with the existing 7.53 kB Commercial Settings style
+warning; the full Release solution build passed with zero warnings/errors.
+The full solution regression and EF pending-model check were not rerun; no EF
+model changed.
+
 The built-in browser loaded the current Angular assets on a temporary host at
 port 5102. With no valid session on that temporary origin, it rendered the
 generic Access unavailable screen and sign-in link, with no protected tracker
@@ -98,15 +117,17 @@ business command was submitted. No browser-console claim is made.
 
 All four source/action rows remain `PARTIAL`. The practice-time tests do not
 establish every role, firm/client scope, input, revoked-session and uncertain
-outcome. Analytics still needs populated result and edge-case assertions. The
-library's focused UI journey closes the basic create/version, duplicate,
+outcome. Practice analytics now has populated same-currency measures and a
+mixed-currency fail-closed browser case; invoice-currency fallback, missing
+captured rates, broader authorization, capacity edges and error/recovery remain
+open. The library's focused UI journey closes the basic create/version, duplicate,
 distinct-publisher, history and staff-audience gaps; broader role/scope and
 firm-isolation matrices, invalid inputs, stale/error/recovery paths and
 accessibility acceptance remain open. Project progress now rejects empty and
 invalid task metadata and has an explicit same-firm role boundary matrix.
-Snapshot freshness/staleness has no defined acceptance window and remains
-unverified, as do expired/revoked admin sessions and cross-firm administrator
-identities. Actual assistive-technology,
+Snapshot freshness is now explicit: the manifest carries the as-of timestamp
+and a 30-day stale threshold drives a warning. Expired/revoked admin sessions
+and cross-firm administrator identities remain unverified. Actual assistive-technology,
 wider-locale, production, canary/rollback and separate owner acceptance remain
 open.
 

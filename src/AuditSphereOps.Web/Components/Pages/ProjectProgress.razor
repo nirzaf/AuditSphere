@@ -32,6 +32,11 @@ else if (_progress is not null)
       <div><strong>@_progress.Pending</strong><span>Pending or reopened</span></div>
       <div><strong>@_progress.Blocked</strong><span>Blocked</span></div>
     </div>
+    <p><strong>Snapshot published:</strong> @_progress.PublishedAtUtc.ToString("O") UTC · @_progress.PublicationAgeDays days old · stale after @_progress.FreshnessWindowDays days.</p>
+    @if (_progress.IsStale)
+    {
+      <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" role="alert"><strong>Snapshot is stale.</strong> Review the task-card statuses and publish a current snapshot. Displayed statuses may be outdated.</MudAlert>
+    }
     <ProjectTaskStatusBar Tasks="_progress.Tasks" Label="Overall task-card progress" />
     <p class="audit-progress-legend" aria-label="Progress bar key"><span class="audit-task-key-completed">Completed</span><span class="audit-task-key-active">Active or in review</span><span class="audit-task-key-pending">Pending or reopened</span><span class="audit-task-key-blocked">Blocked</span></p>
     <MudText Typo="Typo.caption">A card becomes complete only after its documented review and evidence gates. The same cross-module card may appear in more than one module below; the total counts each card once.</MudText>

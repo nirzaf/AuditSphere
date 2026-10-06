@@ -3,13 +3,14 @@ import { MatButtonModule } from '@angular/material/button';
 import { RouterLink } from '@angular/router';
 import { workspaceRoute } from '../../core/navigation';
 import { Api } from '../../core/api';
-import { arr, int, nat, nullable, obj, text } from '../../core/decode';
+import { arr, bool, int, nat, nullable, obj, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
 
 const task = obj({ id: text, title: text, status: text, workPackage: text, modules: arr(int, 100), blockedReason: text });
 const group = obj({ number: int, name: text, tasks: arr(task, 5000), completed: nat, completionPercent: nat, active: nat, blocked: nat, pending: nat });
 export const decodeProgress = obj({ snapshot: obj({ tasks: arr(task, 5000), modules: arr(group, 200), auditTasks: arr(task, 5000), sharedTasks: arr(task, 5000),
-  auditPhases: arr(group, 200), auditCompleted: nat, sharedCompleted: nat, completed: nat, completionPercent: nat, active: nat, blocked: nat, pending: nat }),
+  auditPhases: arr(group, 200), publishedAtUtc: text, publicationAgeDays: nat, isStale: bool, freshnessWindowDays: nat,
+  auditCompleted: nat, sharedCompleted: nat, completed: nat, completionPercent: nat, active: nat, blocked: nat, pending: nat }),
   untracked: arr(obj({ name: text, route: nullable(text) }), 100) });
 type Task = ReturnType<typeof task>;
 const FILTERS: [string, string][] = [['All', 'All'], ['Completed', 'Completed'], ['Active', 'Active or in review'], ['Pending', 'Pending or reopened'], ['Blocked', 'Blocked']];
@@ -40,6 +41,10 @@ export class TaskBar {
     @if (p.data(); as d) {
       @let s = d.snapshot;
       <section class="panel" aria-label="Task-card totals">
+        <p><strong>Snapshot published:</strong> {{ s.publishedAtUtc }} UTC · {{ s.publicationAgeDays }} days old · stale after {{ s.freshnessWindowDays }} days.</p>
+        @if (s.isStale) {
+          <div class="notice" role="alert" aria-label="Stale task-card snapshot"><strong>Snapshot is stale.</strong> Review the task-card statuses and publish a current snapshot. Displayed statuses may be outdated.</div>
+        }
         <p><strong>{{ s.completed }} / {{ s.tasks.length }} ({{ s.completionPercent }}%)</strong> completed · {{ s.active }} active or in review · {{ s.pending }} pending or reopened · {{ s.blocked }} blocked</p>
         <audit-task-bar [tasks]="s.tasks" label="Overall task-card progress" />
         <p><small>A card becomes complete only after its documented review and evidence gates. The same cross-module card may appear in more than one module below; the total counts each card once.</small></p></section>

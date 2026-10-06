@@ -19,6 +19,8 @@ public sealed class ProjectProgressReaderTests
     Assert.NotEmpty(progress.SharedTasks);
     Assert.Equal(progress.Tasks.Count, progress.Completed + progress.Active + progress.Blocked + progress.Pending);
     Assert.Equal(progress.Completed * 100 / progress.Tasks.Count, progress.CompletionPercent);
+    Assert.Equal(TimeSpan.Zero, progress.PublishedAtUtc.Offset);
+    Assert.True(progress.PublishedAtUtc > DateTimeOffset.UnixEpoch);
     Assert.All(progress.Modules, module =>
       Assert.Equal(module.Completed * 100 / module.Tasks.Count, module.CompletionPercent));
     Assert.Equal(6, ProjectProgressReader.UntrackedAreas.Count);
@@ -33,7 +35,7 @@ public sealed class ProjectProgressReaderTests
       Directory.CreateDirectory(Path.Combine(root, "tracking"));
       Directory.CreateDirectory(Path.Combine(root, "tasks"));
       File.WriteAllText(Path.Combine(root, "tracking", "pack_manifest.json"), """
-        {"tasks":[
+        {"published_at_utc":"2026-09-28T19:26:35Z","tasks":[
           {"id":"T001","file":"tasks/one.md","work_package":"R2R-00","module_ids":[20,21]},
           {"id":"T002","file":"tasks/two.md","work_package":"R2R-01","module_ids":[20]},
           {"id":"T003","file":"tasks/three.md","work_package":"R2R-02","module_ids":[]}
@@ -65,7 +67,7 @@ public sealed class ProjectProgressReaderTests
     {
       Directory.CreateDirectory(Path.Combine(root, "tracking"));
       File.WriteAllText(Path.Combine(root, "tracking", "pack_manifest.json"),
-        """{"tasks":[{"id":"T001","file":"../outside.md","work_package":"R2R-00","module_ids":[20]}]}""");
+        """{"published_at_utc":"2026-09-28T19:26:35Z","tasks":[{"id":"T001","file":"../outside.md","work_package":"R2R-00","module_ids":[20]}]}""");
       Assert.Throws<InvalidDataException>(() => ProjectProgressReader.Read(root));
     }
     finally { Directory.Delete(root, recursive: true); }
@@ -78,7 +80,7 @@ public sealed class ProjectProgressReaderTests
     try
     {
       Directory.CreateDirectory(Path.Combine(root, "tracking"));
-      File.WriteAllText(Path.Combine(root, "tracking", "pack_manifest.json"), """{"tasks": []}""");
+      File.WriteAllText(Path.Combine(root, "tracking", "pack_manifest.json"), """{"published_at_utc":"2026-09-28T19:26:35Z","tasks": []}""");
       Assert.Throws<InvalidDataException>(() => ProjectProgressReader.Read(root));
     }
     finally { Directory.Delete(root, recursive: true); }
@@ -95,9 +97,56 @@ public sealed class ProjectProgressReaderTests
       Directory.CreateDirectory(Path.Combine(root, "tracking"));
       Directory.CreateDirectory(Path.Combine(root, "tasks"));
       File.WriteAllText(Path.Combine(root, "tracking", "pack_manifest.json"),
-        """{"tasks":[{"id":"T001","file":"tasks/one.md","work_package":"R2R-00","module_ids":[20]}]}""");
+        """{"published_at_utc":"2026-09-28T19:26:35Z","tasks":[{"id":"T001","file":"tasks/one.md","work_package":"R2R-00","module_ids":[20]}]}""");
       File.WriteAllText(Path.Combine(root, "tasks", "one.md"), $"---\nid: \"T001\"\nstatus: \"{status}\"\n---\n# Task\n");
       Assert.Throws<InvalidDataException>(() => ProjectProgressReader.Read(root));
+    }
+    finally { Directory.Delete(root, recursive: true); }
+  }
+
+  [Fact]
+  public void PublicationFreshnessBecomesStaleAfterThirtyDays()
+  {
+    var directory = Path.Combine(Path.GetDirectoryName(typeof(ProjectProgressReader).Assembly.Location)!, "project-progress");
+    var publishedAt = ProjectProgressReader.Read(directory,
+      new DateTimeOffset(2026, 10, 6, 0, 0, 0, TimeSpan.Zero)).PublishedAtUtc;
+    var freshAtBoundary = ProjectProgressReader.Read(directory, publishedAt.AddDays(ProjectProgressReader.FreshnessWindowDays));
+    var staleAfterBoundary = ProjectProgressReader.Read(directory,
+      publishedAt.AddDays(ProjectProgressReader.FreshnessWindowDays).AddTicks(1));
+
+    Assert.False(freshAtBoundary.IsStale);
+    Assert.Equal(ProjectProgressReader.FreshnessWindowDays, freshAtBoundary.PublicationAgeDays);
+    Assert.True(staleAfterBoundary.IsStale);
+    Assert.Equal(ProjectProgressReader.FreshnessWindowDays, staleAfterBoundary.PublicationAgeDays);
+  }
+
+  [Theory]
+  [InlineData("{\"tasks\":[]}")]
+  [InlineData("{\"published_at_utc\":\"not-a-date\",\"tasks\":[]}")]
+  public void MissingOrInvalidPublicationTimeFailsClosed(string manifest)
+  {
+    var root = Path.Combine(Path.GetTempPath(), "auditsphere-progress-" + Guid.NewGuid().ToString("N"));
+    try
+    {
+      Directory.CreateDirectory(Path.Combine(root, "tracking"));
+      File.WriteAllText(Path.Combine(root, "tracking", "pack_manifest.json"), manifest);
+      Assert.Throws<InvalidDataException>(() => ProjectProgressReader.Read(root,
+        new DateTimeOffset(2026, 10, 6, 0, 0, 0, TimeSpan.Zero)));
+    }
+    finally { Directory.Delete(root, recursive: true); }
+  }
+
+  [Fact]
+  public void FuturePublicationTimeFailsClosed()
+  {
+    var root = Path.Combine(Path.GetTempPath(), "auditsphere-progress-" + Guid.NewGuid().ToString("N"));
+    try
+    {
+      Directory.CreateDirectory(Path.Combine(root, "tracking"));
+      File.WriteAllText(Path.Combine(root, "tracking", "pack_manifest.json"),
+        """{"published_at_utc":"2026-10-06T00:10:00Z","tasks":[]}""");
+      Assert.Throws<InvalidDataException>(() => ProjectProgressReader.Read(root,
+        new DateTimeOffset(2026, 10, 6, 0, 0, 0, TimeSpan.Zero)));
     }
     finally { Directory.Delete(root, recursive: true); }
   }

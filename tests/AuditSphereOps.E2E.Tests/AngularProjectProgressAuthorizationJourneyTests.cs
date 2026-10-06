@@ -1,4 +1,5 @@
 using System.Text.Json;
+using AuditSphereOps.Api.Services;
 using AuditSphereOps.Domain.Tests;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Playwright;
@@ -64,8 +65,14 @@ public sealed class AngularProjectProgressAuthorizationJourneyTests
         Assert.Equal(StatusCodes.Status200OK, status);
         using var payload = JsonDocument.Parse(body);
         Assert.True(payload.RootElement.GetProperty("snapshot").GetProperty("tasks").GetArrayLength() > 0);
+        Assert.True(DateTimeOffset.TryParse(payload.RootElement.GetProperty("snapshot").GetProperty("publishedAtUtc").GetString(), out var publishedAt));
+        Assert.Equal(TimeSpan.Zero, publishedAt.Offset);
+        Assert.Equal(ProjectProgressReader.FreshnessWindowDays,
+          payload.RootElement.GetProperty("snapshot").GetProperty("freshnessWindowDays").GetInt32());
         await Assertions.Expect(page.GetByRole(AriaRole.Heading,
           new() { Name = "Project task progress", Exact = true })).ToBeVisibleAsync();
+        await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "Task-card totals", Exact = true }))
+          .ToContainTextAsync($"stale after {ProjectProgressReader.FreshnessWindowDays} days.");
         await Assertions.Expect(page.Locator("audit-task-bar").First).ToBeVisibleAsync();
       }
       else
