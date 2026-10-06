@@ -249,14 +249,17 @@ public sealed class GlobalSearchQueryTests
   }
 
   [Fact]
-  public async Task ClientEngagementPbcAndInvoiceCapsSignalWhenMoreThanSixMatchesExist()
+  public async Task ClientEngagementPbcAndInvoiceCapsStayBoundedBeyondCandidateWindow()
   {
     await using var w = await SeedAsync();
     const string term = "MULTIKINDCAP";
     var now = DateTimeOffset.UtcNow;
     await using (var db = w.Db())
     {
-      var clients = Enumerable.Range(0, 7).Select(index => new PracticeClient
+      // Deliberately exceed the query's 25-row candidate window. The actor can open
+      // every candidate, so the first seven establish six visible hits plus truncation.
+      const int matchCount = 31;
+      var clients = Enumerable.Range(0, matchCount).Select(index => new PracticeClient
       {
         Id = Guid.NewGuid(), FirmId = w.Own.FirmId, LegalName = $"{term} Client {index:D2}", CreatedAt = now
       }).ToArray();
@@ -265,13 +268,13 @@ public sealed class GlobalSearchQueryTests
       {
         Id = client.Id, FirmId = w.Own.FirmId
       }));
-      db.Engagements.AddRange(Enumerable.Range(0, 7).Select(index => new Engagement
+      db.Engagements.AddRange(Enumerable.Range(0, matchCount).Select(index => new Engagement
       {
         Id = Guid.NewGuid(), FirmId = w.Own.FirmId, PracticeClientId = w.Own.ClientId,
         ServiceRoute = $"{term} Engagement {index:D2}", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31",
         Status = "Active", ProfessionalWorkBlocked = false, CreatedAt = now
       }));
-      db.PbcRequests.AddRange(Enumerable.Range(0, 7).Select(index => new PbcRequest
+      db.PbcRequests.AddRange(Enumerable.Range(0, matchCount).Select(index => new PbcRequest
       {
         Id = Guid.NewGuid(), FirmId = w.Own.FirmId, ClientId = w.Own.ClientId, EngagementId = w.Own.EngagementId,
         Objective = $"{term} PBC request {index:D2}", EntityScope = "TEST ENTITY", PeriodStart = "2026-01-01",
@@ -287,7 +290,7 @@ public sealed class GlobalSearchQueryTests
         Id = billingAccountId, FirmId = w.Own.FirmId, PracticeClientId = w.Own.ClientId,
         Currency = "QAR", CreatedAt = now
       });
-      db.Invoices.AddRange(Enumerable.Range(0, 7).Select(index => new Invoice
+      db.Invoices.AddRange(Enumerable.Range(0, matchCount).Select(index => new Invoice
       {
         Id = Guid.NewGuid(), FirmId = w.Own.FirmId, BillingAccountId = billingAccountId,
         InvoiceNumber = $"{term}-INV-{index:D2}", Currency = "QAR", Subtotal = 100, Total = 100,

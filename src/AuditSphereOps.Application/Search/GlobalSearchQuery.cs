@@ -109,7 +109,7 @@ public static class GlobalSearchQuery
       .Where(c => c.FirmId == actor.FirmId && (firmWide || clientIds.Contains(c.Id)) &&
         (c.LegalName.ToLower().Contains(lowered) || (c.CommercialName != null && c.CommercialName.ToLower().Contains(lowered)) ||
          (c.RegistrationNumber != null && c.RegistrationNumber.ToLower().Contains(lowered))))
-      .OrderBy(c => c.LegalName).Take(Candidates)
+      .OrderBy(c => c.LegalName).ThenBy(c => c.Id).Take(Candidates)
       .Select(c => new { c.Id, c.LegalName, c.CommercialName, c.Status })
       .ToListAsync(ct);
     truncated |= await AddAuthorizedAsync(hits, clients, async c => (await AuthorizationDecision.AuthorizeAsync(db, actor,
@@ -124,7 +124,7 @@ public static class GlobalSearchQuery
         join c in db.PracticeClients.AsNoTracking() on new { e.FirmId, Id = e.PracticeClientId } equals new { c.FirmId, c.Id }
         where e.FirmId == actor.FirmId && (firmWide || engagementIds.Contains(e.Id) || clientIds.Contains(e.PracticeClientId)) &&
           (c.LegalName.ToLower().Contains(lowered) || e.ServiceRoute.ToLower().Contains(lowered))
-        orderby c.LegalName, e.PeriodEnd descending
+        orderby c.LegalName, e.PeriodEnd descending, e.Id
         select new { e.Id, e.ServiceRoute, e.PeriodStart, e.PeriodEnd, e.Status, ClientName = c.LegalName })
       .Take(Candidates).ToListAsync(ct);
     truncated |= await AddAuthorizedAsync(hits, engagements, async e => (await AuthorizationDecision.AuthorizeAsync(db, actor,
@@ -138,7 +138,7 @@ public static class GlobalSearchQuery
         join c in db.PracticeClients.AsNoTracking() on new { r.FirmId, Id = r.ClientId } equals new { c.FirmId, c.Id }
         where r.FirmId == actor.FirmId && (firmWide || engagementIds.Contains(r.EngagementId) || clientIds.Contains(r.ClientId)) &&
           (r.Objective.ToLower().Contains(lowered) || r.Area.ToLower().Contains(lowered) || c.LegalName.ToLower().Contains(lowered))
-        orderby r.UpdatedAt descending
+        orderby r.UpdatedAt descending, r.Id descending
         select new { r.Id, r.ClientId, r.EngagementId, r.Objective, r.Area, r.State, ClientName = c.LegalName })
       .Take(Candidates).ToListAsync(ct);
     truncated |= await AddAuthorizedAsync(hits, requests, async r => (await AuthorizationDecision.AuthorizeAsync(db, actor,
@@ -167,7 +167,7 @@ public static class GlobalSearchQuery
         join c in db.PracticeClients.AsNoTracking() on new { a.FirmId, Id = a.PracticeClientId } equals new { c.FirmId, c.Id }
         where i.FirmId == actor.FirmId && (firmWide || clientIds.Contains(a.PracticeClientId)) &&
           (i.InvoiceNumber.ToLower().Contains(lowered) || c.LegalName.ToLower().Contains(lowered))
-        orderby i.CreatedAt descending
+        orderby i.CreatedAt descending, i.Id descending
         select new { i.Id, i.InvoiceNumber, i.Status, i.Total, i.Currency, ClientName = c.LegalName })
       .Take(Candidates).ToListAsync(ct);
     truncated |= await AddAuthorizedAsync(hits, invoices, i => BillingService.CanOpenInvoiceAsync(db, actor, i.Id, ct),
