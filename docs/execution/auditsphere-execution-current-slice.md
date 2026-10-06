@@ -15,6 +15,19 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: Per-kind search caps across all result types
+
+Added `ClientEngagementPbcAndInvoiceCapsSignalWhenMoreThanSixMatchesExist`.
+The PostgreSQL-backed test seeds seven authorized matches each for Client,
+Engagement, PBC request and Invoice, then verifies six results per kind and
+`truncated=true`. With the existing Lead, Technical Library and Page cases,
+query cap/truncation evidence now covers all seven result types.
+`GlobalSearchQueryTests` passed 15/15 in 1m16s. Candidate-window exhaustion,
+cross-kind ranking, exhaustive role/scope, search timeout/in-flight
+invalidation, Angular CI/build, the full solution and EF drift remain open.
+This evidence is at `9c4e24e3`; overall migration and Blazor retirement remain
+`NOT_READY`.
+
 ## Current follow-on slice: Page-only search truncation guidance
 
 Extended the PostgreSQL-backed Global Search browser journey to verify the
