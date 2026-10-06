@@ -114,8 +114,27 @@ public sealed class AngularBillingWorkspaceJourneyTests
     await page.GetByLabel("Receipt and available balance", new() { Exact = true }).SelectOptionAsync(receiptId.ToString("D"));
     await page.GetByLabel("Amount to allocate (QAR)", new() { Exact = true }).FillAsync("25");
     await page.GetByLabel("I reviewed this receipt, invoice and allocation amount.", new() { Exact = true }).CheckAsync();
+    var allocationCalls = 0;
+    await page.RouteAsync($"**/api/ui/finance/receipts/{receiptId:D}/allocations", async interception =>
+    {
+      if (interception.Request.Method == "POST")
+      {
+        Interlocked.Increment(ref allocationCalls);
+        var response = await interception.FetchAsync();
+        Assert.Equal(200, response.Status);
+        await interception.AbortAsync();
+        return;
+      }
+      await interception.ContinueAsync();
+    });
     await page.GetByRole(AriaRole.Button, new() { Name = "Allocate receipt", Exact = true }).ClickAsync();
-    await Assertions.Expect(page.GetByText("Receipt allocation recorded against this invoice.", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "Verify the saved billing state", Exact = true })).ToBeVisibleAsync();
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh persisted billing state", Exact = true }).ClickAsync();
+    var allocatedReceiptRow = page.GetByRole(AriaRole.Row).Filter(new() { HasText = "SYN-ANG-BANK-001" });
+    await Assertions.Expect(allocatedReceiptRow).ToContainTextAsync("25.00");
+    Assert.Equal(1, allocationCalls);
+    await page.GetByRole(AriaRole.Button, new() { Name = "Clear unresolved billing draft", Exact = true }).ClickAsync();
 
     await page.GetByLabel("Credit note number", new() { Exact = true }).FillAsync("SYN-ANG-CN-001");
     await page.GetByLabel("Credit amount (QAR)", new() { Exact = true }).FillAsync("10");
@@ -183,6 +202,7 @@ public sealed class AngularBillingWorkspaceJourneyTests
     await using (var db = host.CreateDbContext())
     {
       Assert.Equal(1, await db.CreditNotes.CountAsync(x => x.InvoiceId == invoiceId && x.NoteNumber == "SYN-ANG-CN-001"));
+      Assert.Equal(1, await db.ReceiptAllocations.CountAsync(x => x.InvoiceId == invoiceId));
       Assert.Equal(25m, await db.ReceiptAllocations.Where(x => x.InvoiceId == invoiceId).SumAsync(x => x.Amount));
     }
 
