@@ -13,6 +13,14 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Ordinary native draft editing and preview fencing
+
+The original assigned preparer can now edit an ordinary unsubmitted native journal's description, accounting date and balanced posting lines within its existing open period. Editing locks the journal and period, checks the current accepted mandate and approved posting accounts, advances the revision and replaces draft lines atomically. Earlier previews cannot authorize submission of the edited content. Returned rework continues to require the matching immutable submission and independent return decision; submitted and posted content remains protected. Full-reversal drafts retain their exact original accounting sides and are excluded from general draft editing.
+
+Angular offers an explicit draft editor, clears the earlier preview and assent, and requires a new server preview after saving. Journal number, period and currency remain fixed. Dynamic backend concurrency, stale-preview, scope and immutable-content checks passed; the browser journey verifies edited amounts and fresh revision along with existing posting, reversal, Trial Balance and inactive-service behavior. Exact source, commands, counts and verification limits are in `verification.clientOperationalDraftEditing` in `status.json`.
+
+A concurrent process integrated the implementation and removed its checkout during verification. The integrated source and final amount assertion were subsequently checked in an isolated verification checkout; this is local slice evidence, not full epic acceptance. Native opening postings, cutover/carry-forward, evidence-byte capture, currency policy, invoices/open items, reporting integration and stable exports remain outstanding. Tax and ancillary modules stay optional. No final epic merge was performed by this task.
+
 ## Saved native journals and inactive-service history
 
 The native Angular workspace now discovers saved journals through client-scoped period/status filters and paged results. Users reopen the exact saved journal from its number without copying a GUID. Counts and rows use one repeatable-read transaction; each page or refresh is a current-state query, not a retained financial-report snapshot. Decoding fences client, period, status, page, journal identity and service-state changes. Navigation to details rechecks current authorization.

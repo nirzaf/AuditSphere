@@ -11878,6 +11878,68 @@
         "Exports and broader recovery/cutover/rollout scope remain incomplete.",
         "Full CA-01 through CA-36 scope remains active; no final merge by this task."
       ]
+    },
+    "clientOperationalDraftEditing": {
+      "implementationCommit": "6ca061384f39e16a7752cc68afc9c8ab8d4f7873",
+      "verifiedBrowserAndContractCommit": "64165cdca05faa2e4c172645d21152202f96738d",
+      "status": "LOCAL_SLICE_VERIFIED",
+      "requirements": "CA-10-AC04 ordinary draft revision and changed-preview foundation; editor remains partial for evidence/party/dimensions",
+      "domainFocused": {
+        "passed": 3,
+        "durationSeconds": 34,
+        "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore --configuration Release --filter FullyQualifiedName~NativeJournal",
+        "coverage": [
+          "Exactly one concurrent edit commits the expected revision",
+          "Wrong creator/client, invalid date and unbalanced edits refused",
+          "Earlier preview refused against new revision",
+          "Fresh exact preview permits submission with preserved edited content",
+          "Submitted edits refused",
+          "Full-reversal draft edit refused",
+          "Existing posting/history/discovery/inactive-service regression"
+        ]
+      },
+      "angularFocused": {
+        "passed": 11,
+        "command": "npm --prefix src/AuditSphereOps.Ui run test:ci -- --include='src/app/features/accounting/operational-journals.spec.ts'"
+      },
+      "apiOpenApi": {
+        "passed": 5,
+        "durationSeconds": 7,
+        "implementationCommit": "6ca06138",
+        "command": "AUDITSPHERE_EMIT_OPENAPI=/tmp/auditsphere-draft-edit-openapi.json dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-build --configuration Release --filter FullyQualifiedName~OpenApiContractTests"
+      },
+      "browserJourney": {
+        "passed": 1,
+        "durationSeconds": 43,
+        "sourceCommit": "64165cdc",
+        "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-build --configuration Release --filter FullyQualifiedName~AngularClientOperationalJournalJourneyTests",
+        "coverage": [
+          "Create ordinary draft and preview revision one",
+          "Edit saved draft and require new preview",
+          "Revision two exact debit and credit 20.000000",
+          "Existing posting, reversal, GL/TB, discovery and inactive-service history flows"
+        ]
+      },
+      "angularBuild": "PASS; existing commercial/settings.scss budget warning",
+      "releaseBuilds": "Isolated API tests build PASS in 44.78 seconds and final E2E build PASS in 50.51 seconds; zero compiler warnings/errors",
+      "efPendingModelChanges": "NONE at implementationCommit; model unchanged in final contract/assertion commit",
+      "initialFailures": [
+        "xUnit2031 analyzer rejected filtered Assert.Single calls; fixed predicate overloads and reran focused tests.",
+        "Initial isolated Angular build exited 134 without diagnostic cause; retry passed.",
+        "Restricted-network isolated package restore stalled; owned build stopped and authorized network-enabled retry passed."
+      ],
+      "concurrentIntegration": "Another process committed/integrated implementation and removed managed checkout during verification. Three backend tests reported PASS; owned lingering MSBuild teardown nodes were stopped. Integrated source and final exact-amount browser assertion verified from an isolated checkout.",
+      "builtInBrowser": "Owned ephemeral host lookup did not produce a live target before fixture teardown; full browser-flow evidence is automated Chromium.",
+      "fullRegression": "NOT_RUN",
+      "productionMigration": "NOT_RUN; no schema change in this slice",
+      "externalAcceptance": "NOT_RUN",
+      "limitations": [
+        "Draft editing keeps journal number, period and currency fixed.",
+        "Full-reversal drafts cannot use general draft editor.",
+        "Draft-edit command has revision fencing but no durable receipt; unknown outcomes require saved-journal readback.",
+        "Party/dimension/evidence editor scope, openings, currency policy, invoices/open items and reporting bridge remain incomplete.",
+        "Full CA-01 through CA-36 scope remains active; no final epic merge performed by this task."
+      ]
     }
   },
   "documentationWork": {
