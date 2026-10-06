@@ -36,9 +36,18 @@ public static class ProjectProgressReader
   {
     var root = Path.GetFullPath(contentDirectory);
     using var manifest = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "tracking", "pack_manifest.json")));
+    if (manifest.RootElement.ValueKind != JsonValueKind.Object ||
+        !manifest.RootElement.TryGetProperty("tasks", out var taskEntries) ||
+        taskEntries.ValueKind != JsonValueKind.Array)
+      throw new InvalidDataException("Published task-card manifest is invalid.");
+    var publishedTasks = taskEntries.EnumerateArray().ToArray();
+    if (publishedTasks.Length == 0)
+      throw new InvalidDataException("Published task-card manifest contains no task cards.");
     var rows = new List<ProjectTaskProgress>();
-    foreach (var item in manifest.RootElement.GetProperty("tasks").EnumerateArray())
+    foreach (var item in publishedTasks)
     {
+      if (item.ValueKind != JsonValueKind.Object)
+        throw new InvalidDataException("Published task-card entry is invalid.");
       var id = item.GetProperty("id").GetString() ?? throw new InvalidDataException("Task ID is missing.");
       var relative = item.GetProperty("file").GetString() ?? throw new InvalidDataException($"Task {id} has no file.");
       var full = Path.GetFullPath(Path.Combine(root, relative.Replace('/', Path.DirectorySeparatorChar)));
@@ -58,7 +67,7 @@ public static class ProjectProgressReader
         catch (JsonException) { /* Array and Boolean fields are not displayed by this read model. */ }
       }
       if (index == lines.Length || fields.GetValueOrDefault("id") != id ||
-          !TaskStates.Contains(fields.GetValueOrDefault("status") ?? string.Empty))
+          !fields.TryGetValue("status", out var status) || !TaskStates.Contains(status))
         throw new InvalidDataException($"Task {id} has inconsistent tracking metadata.");
       var title = lines.Skip(index + 1).FirstOrDefault(x => x.StartsWith("# ", StringComparison.Ordinal))?[2..] ?? id;
       if (title.StartsWith(id + " — ", StringComparison.Ordinal)) title = title[(id.Length + 3)..];
@@ -70,7 +79,7 @@ public static class ProjectProgressReader
       if (workPackage.StartsWith("AUD-", StringComparison.Ordinal) &&
           !AuditPhaseNames.Keys.Any(phase => workPackage == $"AUD-{phase}"))
         throw new InvalidDataException($"Task {id} has an unknown audit phase.");
-      rows.Add(new(id, title, fields["status"], workPackage,
+      rows.Add(new(id, title, status, workPackage,
         modules, fields.GetValueOrDefault("blocked_reason") ?? string.Empty));
     }
     return new(rows.OrderBy(x => x.Id, StringComparer.Ordinal).ToArray(),

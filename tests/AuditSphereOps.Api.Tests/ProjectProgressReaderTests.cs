@@ -70,4 +70,35 @@ public sealed class ProjectProgressReaderTests
     }
     finally { Directory.Delete(root, recursive: true); }
   }
+
+  [Fact]
+  public void EmptyPublishedTaskPackFailsClosed()
+  {
+    var root = Path.Combine(Path.GetTempPath(), "auditsphere-progress-" + Guid.NewGuid().ToString("N"));
+    try
+    {
+      Directory.CreateDirectory(Path.Combine(root, "tracking"));
+      File.WriteAllText(Path.Combine(root, "tracking", "pack_manifest.json"), """{"tasks": []}""");
+      Assert.Throws<InvalidDataException>(() => ProjectProgressReader.Read(root));
+    }
+    finally { Directory.Delete(root, recursive: true); }
+  }
+
+  [Theory]
+  [InlineData("UNKNOWN")]
+  [InlineData("")]
+  public void InvalidPublishedTaskStateFailsClosed(string status)
+  {
+    var root = Path.Combine(Path.GetTempPath(), "auditsphere-progress-" + Guid.NewGuid().ToString("N"));
+    try
+    {
+      Directory.CreateDirectory(Path.Combine(root, "tracking"));
+      Directory.CreateDirectory(Path.Combine(root, "tasks"));
+      File.WriteAllText(Path.Combine(root, "tracking", "pack_manifest.json"),
+        """{"tasks":[{"id":"T001","file":"tasks/one.md","work_package":"R2R-00","module_ids":[20]}]}""");
+      File.WriteAllText(Path.Combine(root, "tasks", "one.md"), $"---\nid: \"T001\"\nstatus: \"{status}\"\n---\n# Task\n");
+      Assert.Throws<InvalidDataException>(() => ProjectProgressReader.Read(root));
+    }
+    finally { Directory.Delete(root, recursive: true); }
+  }
 }

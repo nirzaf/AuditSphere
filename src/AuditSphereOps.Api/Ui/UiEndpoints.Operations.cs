@@ -41,7 +41,7 @@ public static partial class UiEndpoints
         var snapshot = ProjectProgressReader.Read(Path.Combine(AppContext.BaseDirectory, "project-progress"));
         return CommandResult<object>.Ok(new { Snapshot = snapshot, Untracked = ProjectProgressReader.UntrackedAreas });
       }
-      catch (Exception ex) when (ex is IOException or JsonException or InvalidOperationException or KeyNotFoundException or ArgumentException)
+      catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or JsonException or InvalidOperationException or KeyNotFoundException or ArgumentException)
       {
         return CommandResult<object>.Fail("progress.unavailable", "The published task-card snapshot could not be read or is invalid.");
       }
