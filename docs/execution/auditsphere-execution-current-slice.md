@@ -13,6 +13,23 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Native client journals — ledger integrity slice
+
+The managed bookkeeping worktree now adds database protection for submitted and
+posted native journals, balanced-line validation, independent approval evidence,
+active approved-chart accounts, and period-close serialization. Application close
+readiness reports pending native journals; closed periods refuse new drafts.
+Posted ledger reads use a consistent database snapshot, and the Angular ledger
+accepts signed net movements while retaining unsigned debit and credit values.
+Focused verification evidence is recorded under
+`verification.clientOperationalLedgerIntegrity` in `status.json`.
+
+This is a partial implementation of the owner-requested epic. Native TB and
+financial-package snapshot adaptation, opening balance integration, preview and
+durable command receipts, correction lineage, client invoices and AR/AP remain
+open. VAT/tax and other nonmandatory modules stay optional. This branch is not
+ready for the requested final merge or production acceptance.
+
 ## Client bookkeeping epic — scope baseline
 
 The owner-requested Ekwo-inspired user stories are suitable as a bounded extension
@@ -25,8 +42,8 @@ postings, human review, and immutable lineage are core requirements.
 | Capability | Current reuse surface | Remaining gap for the requested client-bookkeeping mode |
 |---|---|---|
 | Client book setup, chart and periods | `ClientAccountingProfile`, reporting books/periods, chart/taxonomy services, and opening-balance workflows | Explicit managed-vs-external source mode, authorized service mandate, and reviewed cutover are not yet a complete workflow. |
-| Double-entry ledger | Client reporting adjustments and external GL intake | A client-owned operational journal/posting ledger with its own review, period lock, idempotency, and correction lineage is not established by those surfaces. |
-| GL/TB | Existing TB/GL import, completeness, query and calculation paths | Add a reproducible view sourced from native postings while preserving the separate external-source path and official-vs-adjusted distinction. |
+| Double-entry ledger | Client reporting adjustments and external GL intake | The native journal slice now supports balanced drafts, independent posting, immutable posted evidence and period locks. Durable command receipts and correction lineage remain open. |
+| GL/TB | Existing TB/GL import, completeness, query and calculation paths | A posted native movement view exists. Complete native TB/opening balances and accepted reporting snapshots while preserving external-source and adjusted-reporting distinctions. |
 | Sales invoices and credits | `Practice` invoice/billing flows | Those invoices belong to the firm; client-owned sales documents and their ledger/open-item effects need a separate capability. |
 | Purchase invoices and supplier credits | Document/PBC intake and client accounting evidence | Reviewed client AP documents, postings, and supplier open items are not a complete workflow. |
 | VAT/tax (optional) | No verified client transaction-tax calculation and reconciliation workflow identified | Optional jurisdiction-specific, versioned rules and reviewed workings; do not select a production rate without owner approval. |

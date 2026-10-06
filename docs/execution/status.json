@@ -11408,6 +11408,43 @@
       "focusedDomainTests": "3 passed, including accepted unconditional BOOKKEEPING capability and refusal for missing route or unresolved conditions",
       "boundary": "Focused Application and PostgreSQL-backed verification only; no production acceptance.",
       "efModel": "No pending model changes at source commit aaabb505"
+    },
+    "clientOperationalLedgerIntegrity": {
+      "sourceCommit": "8959a7ec",
+      "verifiedAt": "2026-10-06T15:29:48.758543+00:00",
+      "focusedDomainTests": {
+        "result": "PASS",
+        "passed": 4,
+        "failed": 0,
+        "filter": "FullyQualifiedName~NativeJournal|FullyQualifiedName~PeriodClose",
+        "coverage": "Restricted PostgreSQL role mutation denials, balanced submission, immutable submitted revision and posted evidence, independent approval, duplicate/concurrent posting, close/readiness gates and closed-period draft refusal."
+      },
+      "angularFocusedSpecs": {
+        "result": "PASS",
+        "passed": 3,
+        "failed": 0,
+        "coverage": "Native journal controls and signed net movement decoding."
+      },
+      "angularProductionBuild": "PASS; existing Commercial Settings stylesheet exceeds its warning budget.",
+      "e2eBuild": "PASS; zero warnings and errors.",
+      "browserJourney": {
+        "result": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "test": "AngularClientOperationalJournalJourneyTests.NativeClientJournalRequiresIndependentReviewAndPostsThroughAngular",
+        "coverage": "API-hosted Angular native profile, period, draft, submission and independent posting; ledger table negative net movement and two posted lines; no page errors."
+      },
+      "efModel": "No pending model changes; tooling 10.0.9/runtime10.0.12 version warning.",
+      "toolchainNote": "Migration guard verification required a nonincremental Infrastructure rebuild after an older compiled migration omitted the submitted revision guard. Final focused run used fresh schemas and passed. E2E used temporary worktree-only latestFeature SDK roll-forward; global.json restored.",
+      "boundary": "Focused local synthetic verification only. Full regression and production acceptance not established. Epic incomplete; branch not merged. VAT/tax and other nonmandatory modules optional.",
+      "remaining": [
+        "Native TB and accepted reporting snapshot adapter",
+        "Opening balances integrated with native ledger",
+        "Preview and durable command receipts",
+        "Corrections and reversal lineage",
+        "Client invoices and AR/AP workflows",
+        "Complete story-by-story acceptance audit"
+      ]
     }
   },
   "documentationWork": {
