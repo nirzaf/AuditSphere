@@ -11994,6 +11994,77 @@
         "EF generation required dependency restore before succeeding",
         "Scope fixture referred to non-existent ScopeType; aligned to existing ClientId grants and reran successfully"
       ]
+    },
+    "proposalDispatchEvidence": {
+      "caseId": "AS-COMP-06",
+      "sourceCommit": "525debbd",
+      "implementationCommit": "0725a47610969739e765c3493ab12dc089219681",
+      "implementationCommitNote": "The dispatch-evidence slice files landed on master inside the parallel session's commercial commit; their content is byte-identical to the verified state below, and the focused tests were re-run green at that head.",
+      "observedAt": "2026-10-06T18:33:32Z",
+      "status": "PASS_LOCAL_SLICE",
+      "implementationFiles": [
+        "src/AuditSphereOps.Application/Practice/PracticeCrmService.Dispatch.cs",
+        "src/AuditSphereOps.Application/Practice/PracticeCrmService.cs",
+        "src/AuditSphereOps.Application/Practice/CommercialMailDeliveryHandler.cs",
+        "src/AuditSphereOps.Application/Practice/FeeAgreementService.cs",
+        "src/AuditSphereOps.Application/Practice/CommercialWorkspaceQuery.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Commercial.cs",
+        "src/AuditSphereOps.Domain/Practice/Commercial.cs",
+        "src/AuditSphereOps.Domain/Practice/Crm.cs",
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.Commercial.cs",
+        "src/AuditSphereOps.Infrastructure/Persistence/Migrations/20261006163448_CommercialDispatchEvidence.cs",
+        "src/AuditSphereOps.Ui/src/app/features/commercial/proposal.ts",
+        "tests/AuditSphereOps.Domain.Tests/PracticeCrmTests.cs"
+      ],
+      "coverage": "Proposal dispatch is evidence-bound (STE 4.1.2-3): the send is refused without an exact recipient, queues exactly one durable email (unique filtered index on firm+proposal) bound to the offer identity - the generated quotation artifact hash when a reviewed document exists, otherwise a deterministic digest of the reviewed proposal revision and approved quotation - and records it as SentOfferSha256. The commercial SENT status no longer claims delivery: truth is the notification's QUEUED/SENT/FAILED state with DeliveredAt, surfaced in the proposal workspace and Angular page alongside recipient and offer identity. Client acceptance must cite the exact dispatched offer hash plus a respondent name; stale, revised, or superseded offers are refused (crm.stale-offer), replay of the same response is safe, and a response citing a different offer conflicts instead of silently merging. Declines keep their mandatory reason. The mail worker discovery now covers both receipt and proposal notifications without the fee-milestone join, and pre-conversion proposal dispatches enqueue with a null client scope, which the operation store and handler explicitly accept. The receipt notification additionally binds its document hash and client for the same discovery path.",
+      "focusedTest": {
+        "status": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "duration": "25s",
+        "name": "PracticeCrmTests.ProposalDispatch_BindsExactOffer_AndAcceptanceMustCiteIt",
+        "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --configuration Release -m:1 --filter 'FullyQualifiedName~ProposalDispatch_BindsExactOffer'"
+      },
+      "fullDomainSuite": {
+        "status": "PASS",
+        "passed": 699,
+        "failed": 0,
+        "skipped": 0,
+        "duration": "43m8s",
+        "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --configuration Release -m:1"
+      },
+      "apiSuite": {
+        "status": "PASS",
+        "passed": 210,
+        "failed": 0,
+        "skipped": 0,
+        "duration": "28m53s",
+        "command": "dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-build --configuration Release -m:1"
+      },
+      "angularUnitTests": {
+        "status": "PASS",
+        "files": 98,
+        "passed": 511,
+        "failed": 0,
+        "skipped": 0,
+        "command": "npm --prefix src/AuditSphereOps.Ui run test:ci"
+      },
+      "angularProductionBuild": {
+        "status": "PASS_WITH_COMPONENT_STYLE_WARNING",
+        "remainingWarning": "Commercial Settings component stylesheet is 7.53 kB against the 4 kB component-style budget (pre-existing)."
+      },
+      "releaseBuild": {
+        "status": "PASS",
+        "warnings": 0,
+        "errors": 0,
+        "command": "dotnet build AuditSphereOps.slnx --no-restore --configuration Release"
+      },
+      "efModelChanges": "NONE (dotnet ef migrations has-pending-model-changes reported no changes at the final state)",
+      "migrationNote": "CommercialDispatchEvidence makes fee_milestone_id and document_id nullable, adds kind (default RECEIPT for existing rows), proposal_id, practice_client_id and offer_sha256 on commercial_notifications, adds sent/response offer hashes and respondent evidence on proposals, a unique filtered dispatch index, and a kind/binding check constraint. It was exercised only in owned isolated PostgreSQL test schemas; Development and production databases were not migrated.",
+      "verificationBoundary": "The full Domain and Api suites ran on the combined checkout containing this slice and the parallel session's then-present client-relationship, routing and planning work, all green. The parallel session's later portal/fee-agreement edits landed after those runs; the Release build and the dispatch plus commercial-workflow tests were re-run green at the final head, but the full suites were not rerun after them. Actual mail delivery and client-identity acceptance remain named live gates (AS-COMP-31).",
+      "databaseBoundary": "Tests used owned isolated PostgreSQL schemas; no Development or production data, migration, or external provider state was changed.",
+      "retirementDecision": "NOT_READY"
     }
   },
   "documentationWork": {

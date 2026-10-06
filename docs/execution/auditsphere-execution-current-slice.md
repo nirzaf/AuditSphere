@@ -6241,3 +6241,39 @@ identical committed content passes in isolation. E2E/browser journeys and the se
 whole-solution regression were not rerun for this slice: no API route, contract or Angular
 surface changed. Tests used owned isolated PostgreSQL schemas; no Development or production
 state was changed. Blazor retirement remains `NOT_READY`.
+
+## Evidence-bound proposal dispatch and acceptance (AS-COMP-06)
+
+Revalidating the completion backlog against the current head, the next P0 gap in the
+commercial lane was the review finding that `SendProposalAsync` (and invoice send) meant
+only a database transition. The invoice balance-payment side landed in the parallel
+session's AS-COMP-08 work; this slice closes the proposal dispatch half.
+
+The send is now refused without an exact recipient and queues exactly one durable email
+(unique filtered index on firm and proposal) bound to the offer identity: the generated
+quotation artifact hash when a reviewed document exists, otherwise a deterministic digest
+of the reviewed proposal revision and its approved quotation. The commercial `SENT`
+status no longer claims delivery — the truthful QUEUED/SENT/FAILED state with
+`DeliveredAt` lives on the notification, is surfaced in the proposal workspace and the
+Angular proposal page together with the recipient and offer identity, and the mail
+worker's discovery now covers proposal dispatches without the fee-milestone join,
+including pre-conversion sends with a null client scope that the operation store and
+handler explicitly accept. Client acceptance must cite the exact dispatched offer hash
+plus a respondent name: stale, revised or superseded offers are refused
+(`crm.stale-offer`), replay of the same response is safe, and a response citing a
+different offer conflicts instead of silently merging. The declined path keeps its
+mandatory reason. The receipt notification binds its document hash and client for the
+same discovery path.
+
+Verification on the shared checkout: the focused dispatch journey passed 1/1 (refusal
+without a recipient, exactly one queued dispatch on replay, stale-offer and missing
+respondent refusals, evidence persistence, superseded-revision protection), the
+commercial and CRM classes passed 24/24 including the two-mail worker delivery, the full
+Domain suite passed 699/699, the Api suite passed 210/210, Angular CI passed 511/511
+across 98 files, the Angular production build passed with the pre-existing 7.53 kB
+settings stylesheet warning, the Release solution build passed with zero warnings and
+errors, and EF reported no pending model changes. The focused and commercial tests were
+re-run green at the final pushed head after the parallel session's portal edits landed.
+Actual mail delivery and client-identity acceptance remain named live gates under
+AS-COMP-31. The migration ran only in owned isolated PostgreSQL test schemas; no
+Development or production state was changed. Blazor retirement remains `NOT_READY`.
