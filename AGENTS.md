@@ -82,7 +82,7 @@ AuditSphereOps is an audit, accounting, and assurance operations platform built 
 
 
 
-> **Scope Boundary:** This is an import-first preparation, audit, and consolidation workspace, **not** an operational client ERP. Exclude client sales/purchase/inventory operations, payroll execution, and payment initiation.
+> **Scope Boundary:** AuditSphere supports import-first accounting preparation, audit, and consolidation. For a specifically authorized client accounting service, it may additionally support native client double-entry bookkeeping, client sales/purchase invoices and credit notes, GL/TB, and financial statements. VAT/tax and other ancillary modules are optional, independently gated capabilities and do not block the core bookkeeping path. This does not authorize inventory, procurement operations, payroll execution, payment initiation, external tax filing, or changes to the firm's ledger and group-consolidation boundaries. Existing clients remain on their current external-source mode unless explicitly migrated through an approved cutover. Client isolation, balanced postings, review, and immutable history remain mandatory for all modes.
 
 
 
