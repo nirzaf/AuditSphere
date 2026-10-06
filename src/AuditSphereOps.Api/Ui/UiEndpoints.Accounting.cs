@@ -10,7 +10,8 @@ namespace AuditSphereOps.Api.Ui;
 public static partial class UiEndpoints
 {
   public sealed record AccountingProfileInput(Guid? ProfileId, string Revision, string Jurisdiction, string Currency,
-    int FiscalMonth, int FiscalDay, string SourceSystem, string SourceIdentifier, bool Reviewed);
+    int FiscalMonth, int FiscalDay, string SourceSystem, string SourceIdentifier, bool Reviewed,
+    string SourceMode = ClientAccountingSourceModes.ExternalSource);
   public sealed record AccountingPeriodInput(string Code, string Start, string End, string Basis, string Currency,
     Guid? PriorPeriodId, bool Reviewed);
   public sealed record AccountingBookInput(Guid PeriodId, string Code, string Basis, string InclusionRule, string Currency, bool Reviewed);
@@ -151,7 +152,7 @@ public static partial class UiEndpoints
         return Results.Json(new { code = "request.invalid" }, statusCode: 400);
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var request = new ClientAccountingProfileRequest(id, input.Jurisdiction, input.Currency, input.FiscalMonth,
-        input.FiscalDay, input.SourceSystem, input.SourceIdentifier);
+        input.FiscalDay, input.SourceSystem, input.SourceIdentifier, input.SourceMode);
       if (input.ProfileId is { } profileId)
       {
         var result = await ClientAccountingService.ReviseProfileAsync(db, actor, profileId, request, revision, http.RequestAborted);

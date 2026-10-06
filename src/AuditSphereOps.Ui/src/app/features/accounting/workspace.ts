@@ -11,7 +11,7 @@ import { exactDecimal, guidPattern } from '../../core/contracts';
 
 interface ClientPage { items: { id: string; name: string; profileConfigured: boolean }[]; total: number; page: number; pageSize: number }
 interface TaskOwnerSummary { hasAssignedEngagements: boolean; hasMoreOwners: boolean; owners: { owner: string; activeTaskCount: number }[] }
-interface Profile { id: string; revision: string; jurisdiction: string; currency: string; fiscalMonth: number; fiscalDay: number; sourceSystem: string; sourceIdentifier: string; status: string }
+interface Profile { id: string; revision: string; jurisdiction: string; currency: string; fiscalMonth: number; fiscalDay: number; sourceSystem: string; sourceIdentifier: string; sourceMode: string; status: string }
 interface Period { id: string; revision: string; code: string; start: string; end: string; basis: string; currency: string; status: string }
 interface Book { id: string; periodId: string; revision: string; code: string; basis: string; inclusionRule: string; currency: string; status: string }
 interface Amendment { id: string; periodId: string; previousRevision: string; revision: string; reason: string; actorId: string; recordedAt: string }
@@ -73,7 +73,8 @@ export function decodeWorkspace(value: unknown): Workspace {
   const identity = (r: Record<string, unknown>) => typeof r['id'] === 'string' && guidPattern.test(r['id']) && typeof r['revision'] === 'string' && /^[1-9]\d{0,18}$/.test(r['revision']);
   if (v['profile'] !== null) {
     const p = record(v['profile']);
-    if (!identity(p) || !['jurisdiction', 'currency', 'sourceSystem', 'sourceIdentifier', 'status'].every(k => typeof p[k] === 'string') ||
+    if (!identity(p) || !['jurisdiction', 'currency', 'sourceSystem', 'sourceIdentifier', 'sourceMode', 'status'].every(k => typeof p[k] === 'string') ||
+      !['EXTERNAL_SOURCE', 'NATIVE_BOOKKEEPING'].includes(String(p['sourceMode'])) ||
       !Number.isInteger(p['fiscalMonth']) || Number(p['fiscalMonth']) < 1 || Number(p['fiscalMonth']) > 12 ||
       !Number.isInteger(p['fiscalDay']) || Number(p['fiscalDay']) < 1 || Number(p['fiscalDay']) > 31) throw new Error('Invalid profile');
   }
@@ -146,6 +147,7 @@ export function decodeWorkspace(value: unknown): Workspace {
         @placeholder { <button matButton #chartTrigger type="button">Open chart of accounts</button> }
         @if (w.profile; as p) { <h3>Accounting profile</h3><dl><dt>Jurisdiction</dt><dd>{{ p.jurisdiction }}</dd>
           <dt>Functional currency</dt><dd>{{ p.currency }}</dd><dt>Fiscal year start</dt><dd>{{ p.fiscalMonth }}/{{ p.fiscalDay }}</dd>
+          <dt>Book source mode</dt><dd>{{ p.sourceMode === 'NATIVE_BOOKKEEPING' ? 'Native client bookkeeping' : 'External source' }}</dd>
           <dt>Source system</dt><dd>{{ p.sourceSystem }}</dd><dt>Source identifier</dt><dd>{{ p.sourceIdentifier }}</dd>
           <dt>Status / revision</dt><dd>{{ p.status }} / {{ p.revision }}</dd></dl>
         } @else { <p>Accounting profile is not configured.</p> }
@@ -156,6 +158,9 @@ export function decodeWorkspace(value: unknown): Workspace {
           <label>Fiscal start day <input name="day" type="number" [(ngModel)]="form.day" required min="1" max="31" /></label>
           <label>Source system <input name="source" [(ngModel)]="form.source" required maxlength="100" /></label>
           <label>Source identifier <input name="identifier" [(ngModel)]="form.identifier" maxlength="200" /></label>
+          <label>Book source mode <select name="sourceMode" [(ngModel)]="form.sourceMode" [disabled]="w.profile?.sourceMode === 'NATIVE_BOOKKEEPING'">
+            <option value="EXTERNAL_SOURCE">External source</option><option value="NATIVE_BOOKKEEPING">Native client bookkeeping</option></select></label>
+          <p>Native mode requires an accepted client-level BOOKKEEPING service decision. Enabling it after reporting periods exist requires a reviewed cutover. VAT/tax and ancillary modules remain optional.</p>
           <label><input name="reviewed" type="checkbox" [(ngModel)]="reviewed" /> I reviewed this client profile and revision {{ w.profile?.revision ?? '0' }}.</label>
           <button matButton type="submit" [disabled]="profileForm.invalid || !reviewed || saving() || uncertain()">Save profile</button>
           @if (uncertain()) { <p role="alert">The outcome is unconfirmed. Refresh the client and review persisted setup before another change.</p> }
@@ -284,7 +289,7 @@ export class AccountingWorkspace {
   book = { periodId: '', code: '', basis: '', inclusionRule: '', currency: '' };
   periodReviewed = false;
   period = { code: '', start: '', end: '', basis: '', currency: '', prior: '' };
-  form = { jurisdiction: '', currency: '', month: 1, day: 1, source: '', identifier: '' };
+  form = { jurisdiction: '', currency: '', month: 1, day: 1, source: '', identifier: '', sourceMode: 'EXTERNAL_SOURCE' };
   dimReviewed = false;
   dim = { type: 'BRANCH', code: '', name: '' };
   readonly dimensions = signal<Dimension[] | null>(null);
@@ -302,7 +307,7 @@ export class AccountingWorkspace {
   constructor() {
     effect(() => {
       this.session.invalidation(); const staff = this.session.current()?.staff;
-      untracked(() => { this.request?.unsubscribe(); this.taskOwnerRead?.unsubscribe(); this.detail?.unsubscribe(); this.write?.unsubscribe(); this.dimRead?.unsubscribe(); this.sourceRead?.unsubscribe(); this.taskOwnerSummary.set(null); this.taskOwnerLoading.set(false); this.taskOwnerError.set(''); this.sources.set(null); this.dimensions.set(null); this.dimensionsLoading.set(false); this.dimensionsError.set(''); this.dimensionsTruncated.set(false); this.selectedSource = ''; this.saving.set(false); this.reviewed = false; this.openingReviewed = ''; this.rollReviewed = false; this.dimReviewed = false; this.roll = { prior: '', code: '', start: '', end: '', basis: '', currency: '', closing: '', opening: '', hash: '', evidence: '' }; this.bookReviewed = false; this.book = { periodId: '', code: '', basis: '', inclusionRule: '', currency: '' }; this.periodReviewed = false; this.period = { code: '', start: '', end: '', basis: '', currency: '', prior: '' }; this.dim = { type: 'BRANCH', code: '', name: '' }; this.form = { jurisdiction: '', currency: '', month: 1, day: 1, source: '', identifier: '' }; this.data.set(null); this.workspace.set(null); this.clearSources(); this.decisionPeriod.set(''); this.error.set(''); this.loading.set(false); if (staff) this.load(); });
+      untracked(() => { this.request?.unsubscribe(); this.taskOwnerRead?.unsubscribe(); this.detail?.unsubscribe(); this.write?.unsubscribe(); this.dimRead?.unsubscribe(); this.sourceRead?.unsubscribe(); this.taskOwnerSummary.set(null); this.taskOwnerLoading.set(false); this.taskOwnerError.set(''); this.sources.set(null); this.dimensions.set(null); this.dimensionsLoading.set(false); this.dimensionsError.set(''); this.dimensionsTruncated.set(false); this.selectedSource = ''; this.saving.set(false); this.reviewed = false; this.openingReviewed = ''; this.rollReviewed = false; this.dimReviewed = false; this.roll = { prior: '', code: '', start: '', end: '', basis: '', currency: '', closing: '', opening: '', hash: '', evidence: '' }; this.bookReviewed = false; this.book = { periodId: '', code: '', basis: '', inclusionRule: '', currency: '' }; this.periodReviewed = false; this.period = { code: '', start: '', end: '', basis: '', currency: '', prior: '' }; this.dim = { type: 'BRANCH', code: '', name: '' }; this.form = { jurisdiction: '', currency: '', month: 1, day: 1, source: '', identifier: '', sourceMode: 'EXTERNAL_SOURCE' }; this.data.set(null); this.workspace.set(null); this.clearSources(); this.decisionPeriod.set(''); this.error.set(''); this.loading.set(false); if (staff) this.load(); });
     });
     inject(DestroyRef).onDestroy(() => { this.request?.unsubscribe(); this.taskOwnerRead?.unsubscribe(); this.detail?.unsubscribe(); this.write?.unsubscribe(); this.dimRead?.unsubscribe(); this.sourceRead?.unsubscribe(); this.sources.set(null); this.taskOwnerSummary.set(null); this.dimensions.set(null); this.selectedSource = ''; });
   }
@@ -341,7 +346,7 @@ export class AccountingWorkspace {
     this.detail?.unsubscribe(); this.dimRead?.unsubscribe(); this.workspace.set(null); this.dimensions.set(null); this.clearSources(); this.decisionPeriod.set(''); this.error.set(''); this.loading.set(true);
     const generation = this.session.invalidation();
     this.detail = this.http.get<unknown>('/api/ui/accounting/clients/' + id).pipe(timeout(15000)).subscribe({
-      next: value => { if (generation !== this.session.invalidation()) return; try { const w = decodeWorkspace(value); if (w.clientId !== id) throw new Error('Identity mismatch'); this.workspace.set(w); const p = w.profile; this.form = { jurisdiction: p?.jurisdiction ?? '', currency: p?.currency ?? '', month: p?.fiscalMonth ?? 1, day: p?.fiscalDay ?? 1, source: p?.sourceSystem ?? '', identifier: p?.sourceIdentifier ?? '' }; this.reviewed = false; this.uncertain.set(false); this.loadDimensions(id, generation); } catch { this.error.set('Unsupported accounting response.'); } this.loading.set(false); },
+      next: value => { if (generation !== this.session.invalidation()) return; try { const w = decodeWorkspace(value); if (w.clientId !== id) throw new Error('Identity mismatch'); this.workspace.set(w); const p = w.profile; this.form = { jurisdiction: p?.jurisdiction ?? '', currency: p?.currency ?? '', month: p?.fiscalMonth ?? 1, day: p?.fiscalDay ?? 1, source: p?.sourceSystem ?? '', identifier: p?.sourceIdentifier ?? '', sourceMode: p?.sourceMode ?? 'EXTERNAL_SOURCE' }; this.reviewed = false; this.uncertain.set(false); this.loadDimensions(id, generation); } catch { this.error.set('Unsupported accounting response.'); } this.loading.set(false); },
       error: failure => { if (generation !== this.session.invalidation()) return; this.loading.set(false); this.error.set('Client accounting unavailable. Refresh your assignments.'); if (failure.status === 401) this.session.clear(); },
     });
   }
@@ -378,7 +383,7 @@ export class AccountingWorkspace {
     this.write = this.http.post('/api/ui/accounting/clients/' + w.clientId + '/profile', {
       profileId: w.profile?.id ?? null, revision: w.profile?.revision ?? '0', jurisdiction: this.form.jurisdiction,
       currency: this.form.currency, fiscalMonth: this.form.month, fiscalDay: this.form.day,
-      sourceSystem: this.form.source, sourceIdentifier: this.form.identifier, reviewed: true,
+      sourceSystem: this.form.source, sourceIdentifier: this.form.identifier, sourceMode: this.form.sourceMode, reviewed: true,
     }).pipe(timeout(15000)).subscribe({
       next: () => { if (generation !== this.session.invalidation()) return; this.saving.set(false); this.select(w.clientId); },
       error: failure => { if (generation !== this.session.invalidation()) return; this.saving.set(false); this.reviewed = false;
