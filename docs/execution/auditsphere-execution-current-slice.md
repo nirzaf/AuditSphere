@@ -35,6 +35,30 @@ to a 403 `scope.denied` refusal; no contact identity is returned on refusal.
 
 Organization-hierarchy exploration now authorizes every counterpart client before returning any
 relationship metadata. Counterpart nodes outside the actor's current commercial scope are
+## Late and reopened review notes block completion (STE-REM-06)
+
+The pending-features review's finding that a regenerated Summary Review Memorandum could bypass a
+late or reopened review thread is closed. The canonical completion evaluation now includes every
+unresolved thread on the engagement as a `review-note:{id}:unresolved` blocker — across all result
+revisions and including reopened threads — and the SRM facts use the same engagement-level
+open-thread count, so regeneration, applicability changes and clearance comments never resolve a
+thread. A note added after the work was reviewed, or a thread reopened afterwards, returns the
+exact procedure and result to `CHANGES_REQUIRED` while retaining the earlier review decision, so
+Partner clearance, signing and publication stay blocked until the required response, reviewer
+resolution, resubmission and renewed review restore the current work. A frozen file refuses the
+note attempt under the existing write barrier and records the refused attempt separately.
+
+This slice landed inside the parallel session's AS-COMP-16 commit `d51c189f` (its verification
+covered the combined tree); the focused STE-REM-06 evidence was verified on an isolated worktree
+before that commit and re-verified at `d51c189f`: the two new PostgreSQL tests passed 2/2
+(`LateAndReopenedNotesBlockClearanceUntilRespondedResolvedAndReviewed`,
+`FrozenFileRefusesReviewNoteAttemptsAndRecordsTheRefusedWrite`), the full `AuditDeliverablesTests`
+and `AuditReviewNoteIsolationTests` classes passed 10/10, `AuditProgramWorkflowTests` passed 4/4,
+and the OpenAPI contract drift check reports the committed artifact current (no route changed).
+Tests used owned isolated PostgreSQL schemas; no Development or production state was changed.
+Blazor retirement remains `NOT_READY`.
+
+
 omitted entirely — no name, identifier or existence disclosure — while authorized relationships
 (including the holding parent seen from an authorized subsidiary) remain visible.
 

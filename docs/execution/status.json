@@ -12624,6 +12624,51 @@
       "verificationBoundary": "Verified in an isolated worktree because the shared checkout carried another session's in-flight planning/fieldwork edits. Release builds of the Api and both test projects passed with zero warnings/errors. The full Domain and Api suites and the browser journeys were not rerun; the change surface was the named Application reads, one endpoint response mapping and the two touched test classes.",
       "databaseBoundary": "Owned isolated PostgreSQL schemas only; no Development or production state was changed.",
       "retirementDecision": "NOT_READY"
+    },
+    "reviewNotesBlockCompletion": {
+      "caseId": "STE-REM-06",
+      "sourceCommit": "7f080729eb632babbf39db7ba9619c460bafb1ad",
+      "implementationCommit": "d51c189f60165cccc4bde4d261576d0ed0469dc2",
+      "observedAt": "2026-10-06T23:15:00Z",
+      "status": "PASS_LOCAL_SLICE",
+      "coverage": "The canonical completion evaluation includes every unresolved review thread on the engagement as a review-note:{id}:unresolved blocker across all result revisions, including reopened threads; SRM facts use the same engagement-level open-thread count, so regenerating the memorandum, changing applicability or adding a clearance comment never resolves a thread. A note added after review, or a resolved thread reopened afterwards, returns the exact procedure and result to CHANGES_REQUIRED while retaining the earlier review decision, so Partner clearance, signing and publication stay blocked until response, reviewer resolution, resubmission and a renewed review restore the current work. A frozen file refuses the note attempt under the existing write barrier and records the refused attempt separately.",
+      "focusedTests": {
+        "newNoteBlockingTests": {
+          "status": "PASS",
+          "passed": 2,
+          "failed": 0,
+          "skipped": 0,
+          "duration": "38s",
+          "names": [
+            "LateAndReopenedNotesBlockClearanceUntilRespondedResolvedAndReviewed",
+            "FrozenFileRefusesReviewNoteAttemptsAndRecordsTheRefusedWrite"
+          ]
+        },
+        "touchedDomainClasses": {
+          "status": "PASS",
+          "passed": 10,
+          "failed": 0,
+          "skipped": 0,
+          "duration": "1m8s",
+          "command": "dotnet test tests/AuditSphereOps.Domain.Tests --no-build --configuration Release --filter 'FullyQualifiedName~AuditDeliverablesTests|FullyQualifiedName~AuditReviewNoteIsolationTests'"
+        },
+        "programWorkflowClass": {
+          "status": "PASS",
+          "passed": 4,
+          "failed": 0,
+          "skipped": 0,
+          "duration": "38s",
+          "command": "dotnet test tests/AuditSphereOps.Domain.Tests --no-build --configuration Release --filter 'FullyQualifiedName~AuditProgramWorkflowTests'"
+        },
+        "openApiContractDrift": {
+          "status": "PASS",
+          "command": "bash scripts/contracts/verify-openapi.sh",
+          "note": "Committed artifact current; no route changed."
+        }
+      },
+      "verificationBoundary": "Verified in an isolated worktree because the shared checkout carried the parallel session's in-flight edits. The slice landed inside the parallel session's AS-COMP-16 commit d51c189f (its verification covered the combined tree and the combined-tree rerun of the focused tests passed). The full Domain and Api suites and the browser journeys were not rerun by this slice; the change surface was the review note service, the canonical completion blockers, the SRM facts count and the focused tests.",
+      "databaseBoundary": "Owned isolated PostgreSQL schemas only; no Development or production state was changed.",
+      "retirementDecision": "NOT_READY"
     }
   },
   "documentationWork": {
