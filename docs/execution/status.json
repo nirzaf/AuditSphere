@@ -11476,6 +11476,45 @@
       "efModel": "No Domain/persistence/model/schema changes in this slice; EF pending-model check not rerun.",
       "fullRegression": "NOT_RUN",
       "boundary": "Storage-scale and exact balance control only. Currency-specific precision/rounding, FX policy, preview/review digests and command receipts remain open. Epic incomplete and branch unmerged; tax/nonmandatory modules optional."
+    },
+    "clientOperationalJournalPreview": {
+      "sourceCommit": "8141a732",
+      "verifiedAt": "2026-10-06T15:51:52.309652+00:00",
+      "focusedPostgresTests": {
+        "result": "PASS",
+        "passed": 2,
+        "failed": 0,
+        "filter": "FullyQualifiedName~NativeJournal",
+        "coverage": "Stable read-only preview, exact totals, missing preview refusal, changed draft digest refusal, draft-to-submitted digest invalidation, independent approval and existing native integrity/concurrency checks."
+      },
+      "angularSpecs": {
+        "result": "PASS",
+        "passed": 5,
+        "failed": 0,
+        "coverage": "Preview binds journal/client/period/revision/status/currency and exact saved lines; invalid digest, numeric totals, imbalance and altered lines refused."
+      },
+      "angularBuild": "PASS; preexisting Commercial Settings stylesheet warning.",
+      "apiAndE2eBuild": "PASS; zero warnings/errors.",
+      "browserJourney": {
+        "result": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "duration": "40 seconds",
+        "test": "AngularClientOperationalJournalJourneyTests.NativeClientJournalRequiresIndependentReviewAndPostsThroughAngular",
+        "coverage": "Submission disabled until authoritative preview; preparer and reviewer preview the respective exact revisions, independently approve/post, inspect posted GL; no page errors.",
+        "builtInBrowser": "Attempted read-only inspection; temporary test API had terminated by navigation and returned ERR_CONNECTION_REFUSED. Automated Chromium journey is the runtime evidence."
+      },
+      "openApi": {
+        "result": "PASS",
+        "passed": 5,
+        "failed": 0,
+        "generatedArtifact": "contracts/auditsphere-openapi.json",
+        "inspection": "Preview path, submit previewDigest and post previewDigest verified in generated schema."
+      },
+      "toolchainNote": "Temporary worktree-only SDK roll-forward restored after browser run.",
+      "efModel": "No model/schema changes; pending-model check not rerun for this slice.",
+      "fullRegression": "NOT_RUN",
+      "boundary": "Partial CA-10/11 implementation. No command receipts, correction lineage, invoice/open-item workflow, native reporting snapshot adapter or full epic acceptance. Branch not merged; VAT/tax and nonmandatory modules optional."
     }
   },
   "documentationWork": {

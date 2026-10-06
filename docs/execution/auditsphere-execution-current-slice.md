@@ -13,6 +13,22 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Native journal authoritative preview and review binding
+
+The native journal workspace now previews saved unposted journals without financial
+writes. It returns normalized lines and exact server totals after validating the
+current accepted service, approved chart/accounts and open matching period. Its
+intent digest includes the journal revision/content and current accounting context.
+Submit and approval recompute the digest under transaction locks and refuse missing
+or stale previews. Angular exposes the server preview before the separate preparer
+or reviewer consent and clears it when loading another saved journal.
+
+Focused PostgreSQL, Angular, API-contract and browser evidence is under
+`verification.clientOperationalJournalPreview` in `status.json`. This does not
+complete journal evidence capture, editing/return/reversal workflows, durable
+command receipts or currency/FX policy. Native TB/reporting snapshots and client
+invoice/open-item capabilities remain open; the full epic remains unmerged.
+
 ## Native journal exact amount rules
 
 Draft creation and submission/posting now share a pure native journal calculator.
