@@ -64,6 +64,31 @@ public sealed class AngularBillingWorkspaceJourneyTests
     await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(route));
     await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "SYN-ANG-E2E-INV-001" })).ToBeVisibleAsync();
 
+    var invalidCursorResponses = await page.EvaluateAsync<string>("""
+      async () => {
+        const base = '/api/ui/finance/invoices/__INVOICE_ID__';
+        const queries = [
+          '?receiptBefore=2026-10-01T00%3A00%3A00Z',
+          '?receiptBefore=2026-10-01T00%3A00%3A00Z&receiptBeforeId=00000000-0000-0000-0000-000000000000',
+          '?creditBefore=2026-10-01T00%3A00%3A00Z'
+        ];
+        const responses = [];
+        for (const query of queries) {
+          const response = await fetch(base + query);
+          responses.push({ status: response.status, body: await response.text() });
+        }
+        return JSON.stringify(responses);
+      }
+      """.Replace("__INVOICE_ID__", invoiceId.ToString("D"), StringComparison.Ordinal));
+    using (var responses = System.Text.Json.JsonDocument.Parse(invalidCursorResponses))
+    {
+      var invalid = responses.RootElement.EnumerateArray().ToArray();
+      Assert.Equal(3, invalid.Length);
+      Assert.All(invalid, response => Assert.Equal(400, response.GetProperty("status").GetInt32()));
+      Assert.All(invalid, response => Assert.Equal(invalid[0].GetProperty("body").GetString(), response.GetProperty("body").GetString()));
+      Assert.DoesNotContain("SYN-ANG-E2E-INV-001", invalid[0].GetProperty("body").GetString(), StringComparison.Ordinal);
+    }
+
     await page.GetByLabel("Payment amount (QAR)", new() { Exact = true }).FillAsync("40");
     await page.GetByLabel("Bank or cheque transaction reference", new() { Exact = true }).FillAsync("SYN-ANG-BANK-001");
     await page.GetByLabel("I reviewed the payment amount and transaction reference.", new() { Exact = true }).CheckAsync();
@@ -98,6 +123,28 @@ public sealed class AngularBillingWorkspaceJourneyTests
     await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Clear unresolved billing draft", Exact = true })).ToBeVisibleAsync();
     Assert.Equal(1, creditCalls);
     await page.GetByRole(AriaRole.Button, new() { Name = "Clear unresolved billing draft", Exact = true }).ClickAsync();
+    var interceptedReceiptPage = false;
+    await page.RouteAsync("**/api/ui/finance/invoices/**", async interception =>
+    {
+      if (!interceptedReceiptPage && interception.Request.Method == "GET" &&
+          interception.Request.Url.Contains("receiptBefore=", StringComparison.Ordinal))
+      {
+        interceptedReceiptPage = true;
+        await interception.FulfillAsync(new()
+        {
+          Status = 503,
+          ContentType = "application/json",
+          Body = "{\"code\":\"synthetic.unavailable\",\"message\":\"Synthetic temporary failure\"}"
+        });
+        return;
+      }
+      await interception.ContinueAsync();
+    });
+    await page.GetByRole(AriaRole.Button, new() { Name = "Load older receipts", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Alert).GetByText(
+      "Older receipts could not be loaded. Try again shortly.", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByText("SYN-PAGE-R-101", new() { Exact = true })).ToBeVisibleAsync();
+    Assert.True(interceptedReceiptPage);
     await page.GetByRole(AriaRole.Button, new() { Name = "Load older receipts", Exact = true }).ClickAsync();
     await Assertions.Expect(page.GetByText("SYN-PAGE-R-001", new() { Exact = true })).ToBeVisibleAsync();
     await page.GetByRole(AriaRole.Button, new() { Name = "Load older credit notes", Exact = true }).ClickAsync();
