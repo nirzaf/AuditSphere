@@ -15,14 +15,14 @@ public static partial class UiEndpoints
   private static bool PartyRevision(string? value, out long revision) => long.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out revision) && revision > 0 && value == revision.ToString(CultureInfo.InvariantCulture);
   private static void MapClientCounterpartyAmendmentEndpoints(RouteGroupBuilder group)
   {
-    group.MapGet("/accounting/clients/{clientId:guid}/counterparties/{partyId:guid}", async (Guid clientId, Guid partyId,
+    group.MapGet("/accounting/clients/{clientId:guid}/counterparties/{partyId:guid}", async (Guid clientId, Guid partyId, int? page, int? pageSize,
       HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) => {
       var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
       if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
-      var result = await ClientBookkeepingCounterpartyWorkspace.HistoryAsync(db, actor, clientId, partyId, http.RequestAborted);
+      var result = await ClientBookkeepingCounterpartyWorkspace.HistoryAsync(db, actor, clientId, partyId, page ?? 0, pageSize ?? 25, http.RequestAborted);
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
-      return result.Succeeded ? Results.Ok(result.Value) : Results.Json(new { code = result.ErrorCode }, statusCode: 403);
+      return result.Succeeded ? Results.Ok(result.Value) : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
     }).Produces<CounterpartyHistory>();
     group.MapPost("/accounting/clients/{clientId:guid}/counterparties/{partyId:guid}/amendments", async (Guid clientId, Guid partyId,
       CounterpartyAmendmentHttpInput input, HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf,

@@ -5,7 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { Subscription, timeout } from 'rxjs';
 import { SessionService } from '../../core/session';
 import { guidPattern } from '../../core/contracts';
-import { decodeCounterparties } from './counterparties';
+import { decodeCounterparties } from './counterparties-contract';
 
 interface Amendment { id: string; counterpartyId: string; revision: string; displayName: string; address: string; taxIdentifier: string; contactDetails: string; paymentTerms: string; reason: string; proposedByUserId: string; createdAt: string; decision: 'APPROVE' | 'REJECT' | null; reviewReason: string | null; reviewedByUserId: string | null }
 interface History { current: ReturnType<typeof decodeCounterparties>['counterparties'][number]; amendments: Amendment[] }

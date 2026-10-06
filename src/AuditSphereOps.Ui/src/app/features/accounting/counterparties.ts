@@ -6,30 +6,13 @@ import { Subscription, timeout } from 'rxjs';
 import { SessionService } from '../../core/session';
 import { guidPattern } from '../../core/contracts';
 
-interface Party { id: string; clientId: string; legalName: string; displayName: string; role: string; address: string; country: string; taxIdentifier: string; contactDetails: string; paymentTerms: string; defaultCurrency: string; externalSystem: string; externalReference: string; createdByUserId: string; createdAt: string; revision: string; effectiveAmendmentId: string | null }
-interface PartyList { clientId: string; role: string | null; page: number; pageSize: number; total: number; bookkeepingActive: boolean; counterparties: Party[] }
-export function decodeCounterparties(value: unknown, client: string, role: string | null, page: number): PartyList {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid party list');
-  const v = value as Record<string, unknown>;
-  if (v['clientId'] !== client || v['role'] !== role || v['page'] !== page || v['pageSize'] !== 25 || typeof v['bookkeepingActive'] !== 'boolean' ||
-      !Number.isSafeInteger(v['total']) || Number(v['total']) < 0 || !Array.isArray(v['counterparties']) || v['counterparties'].length > 25 || v['counterparties'].length > Number(v['total'])) throw new Error('Invalid scoped party list');
-  const seen = new Set<string>();
-  for (const item of v['counterparties']) {
-    if (!item || typeof item !== 'object' || Array.isArray(item)) throw new Error('Invalid party');
-    const p = item as Record<string, unknown>;
-    if (p['clientId'] !== client || typeof p['id'] !== 'string' || !guidPattern.test(p['id']) || seen.has(p['id']) ||
-        typeof p['createdByUserId'] !== 'string' || !guidPattern.test(p['createdByUserId']) ||
-        !['CUSTOMER', 'SUPPLIER', 'BOTH'].includes(String(p['role'])) || (role && p['role'] !== role && !(role !== 'BOTH' && p['role'] === 'BOTH')) ||
-        !['legalName', 'displayName', 'address', 'country', 'taxIdentifier', 'contactDetails', 'paymentTerms', 'defaultCurrency', 'externalSystem', 'externalReference', 'createdAt'].every(k => typeof p[k] === 'string') ||
-        typeof p['revision'] !== 'string' || !/^[1-9][0-9]{0,18}$/.test(p['revision']) || (p['effectiveAmendmentId'] !== null && (typeof p['effectiveAmendmentId'] !== 'string' || !guidPattern.test(p['effectiveAmendmentId']))) ||
-        !String(p['legalName']).trim() || !String(p['displayName']).trim() || !/^[A-Z]{2}$/.test(String(p['country'])) || !/^(?:[A-Z]{3})?$/.test(String(p['defaultCurrency']))) throw new Error('Invalid party profile');
-    seen.add(p['id']);
-  }
-  return value as PartyList;
-}
+import { CounterpartyHistoryWorkspace } from './counterparty-history';
+import { decodeCounterparties } from './counterparties-contract';
+export { decodeCounterparties } from './counterparties-contract';
+type PartyList = ReturnType<typeof decodeCounterparties>;
 const emptyParty = () => ({ legalName: '', displayName: '', role: 'CUSTOMER', address: '', country: '', taxIdentifier: '', contactDetails: '', paymentTerms: '', defaultCurrency: '', externalSystem: '', externalReference: '' });
 @Component({
-  selector: 'audit-client-counterparties', imports: [FormsModule, MatButtonModule],
+  selector: 'audit-client-counterparties', imports: [FormsModule, MatButtonModule, CounterpartyHistoryWorkspace],
   template: `<section aria-labelledby="client-counterparties-heading">
     <h3 id="client-counterparties-heading">Client customers and suppliers</h3>
     <p>These parties belong to the selected client's books. A combined role does not automatically net customer and supplier balances.</p>
@@ -40,12 +23,13 @@ const emptyParty = () => ({ legalName: '', displayName: '', role: 'CUSTOMER', ad
       <p>{{ l.total }} matching counterparties · Page {{ l.page + 1 }}</p>
       @if (!l.bookkeepingActive) { <p>Bookkeeping is inactive. Saved profiles remain readable; new profiles are blocked.</p> }
       <div class="table-scroll"><table><caption>Saved client counterparties</caption><thead><tr><th>Name</th><th>Role</th><th>Country</th><th>Reference</th><th>Details</th></tr></thead>
-      <tbody>@for (p of l.counterparties; track p.id) { <tr><td>{{ p.displayName }} · {{ p.legalName }}</td><td>{{ p.role }}</td><td>{{ p.country }}</td><td>{{ p.externalSystem }} · {{ p.externalReference }}</td><td><details><summary>View saved party details</summary><p>{{ p.address }}</p><p>Contact: {{ p.contactDetails }}</p><p>Terms: {{ p.paymentTerms }} · Currency default: {{ p.defaultCurrency || 'Not set' }}</p><p>Tax identifier: {{ p.taxIdentifier || 'Not supplied' }}</p></details></td></tr> }</tbody></table></div>
+      <tbody>@for (p of l.counterparties; track p.id) { <tr><td>{{ p.displayName }} · {{ p.legalName }}</td><td>{{ p.role }}</td><td>{{ p.country }}</td><td>{{ p.externalSystem }} · {{ p.externalReference }}</td><td><details><summary>View saved party details</summary><p>Effective revision {{ p.revision }}</p><p>{{ p.address }}</p><p>Contact: {{ p.contactDetails }}</p><p>Terms: {{ p.paymentTerms }} · Currency default: {{ p.defaultCurrency || 'Not set' }}</p><p>Tax identifier: {{ p.taxIdentifier || 'Not supplied' }}</p></details><button matButton type="button" (click)="selectedParty.set(p.id)">Open party revisions</button></td></tr> }</tbody></table></div>
       <button matButton type="button" [disabled]="busy() || l.page === 0" (click)="refresh(l.page - 1)">Previous counterparties</button>
       <button matButton type="button" [disabled]="busy() || (l.page + 1) * l.pageSize >= l.total" (click)="refresh(l.page + 1)">Next counterparties</button>
     }
+    @if (selectedParty(); as party) { <audit-counterparty-history [clientId]="clientId()" [partyId]="party" (changed)="refresh(0)" /> }
     <details><summary>Add a customer or supplier</summary>
-      <p>Saved profiles are retained as entered. Amendments and reviewed duplicate resolution are not yet available.</p>
+      <p>Saved profiles are retained as entered. Contact detail amendments require independent review. Legal identity changes, reclassification and reviewed duplicate resolution are not yet available.</p>
       @if (unknown()) { <p role="status">Creation outcome is unknown. Inspect saved counterparties before starting a separate draft.</p> }
       <form #partyForm="ngForm" (ngSubmit)="partyForm.valid && create()"><fieldset [disabled]="busy() || unknown()"><legend>New client counterparty</legend>
         <label>Party legal name <input name="legalName" [(ngModel)]="draft.legalName" (ngModelChange)="reviewed.set(false)" required maxlength="300" /></label>
@@ -68,9 +52,10 @@ const emptyParty = () => ({ legalName: '', displayName: '', role: 'CUSTOMER', ad
 })
 export class ClientCounterparties {
   readonly clientId = input.required<string>(); private readonly http = inject(HttpClient); private readonly session = inject(SessionService);
+  readonly selectedParty = signal<string | null>(null);
   readonly list = signal<PartyList | null>(null); readonly error = signal(''); readonly busy = signal(false); readonly unknown = signal(false); readonly reviewed = signal(false);
   draft = emptyParty(); filter = ''; private request = 0; private operation?: Subscription;
-  private readonly invalidate = effect(() => { this.clientId(); this.session.invalidation(); untracked(() => { this.operation?.unsubscribe(); ++this.request; this.list.set(null); this.error.set(''); this.busy.set(false); this.filter = ''; this.resetDraft(); }); });
+  private readonly invalidate = effect(() => { this.clientId(); this.session.invalidation(); untracked(() => { this.operation?.unsubscribe(); ++this.request; this.list.set(null); this.error.set(''); this.busy.set(false); this.filter = ''; this.selectedParty.set(null); this.resetDraft(); }); });
   constructor() { inject(DestroyRef).onDestroy(() => this.operation?.unsubscribe()); }
   resetDraft(): void { this.draft = emptyParty(); this.reviewed.set(false); this.unknown.set(false); }
   refresh(page = 0): void {
