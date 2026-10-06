@@ -192,6 +192,15 @@ public sealed class AngularClientOperationalJournalJourneyTests
     await Assertions.Expect(ledgerAccounts.GetByRole(AriaRole.Cell, new() { Name = "6000 · Office expense", Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(ledgerAccounts.GetByRole(AriaRole.Cell, new() { Name = "-150.250000", Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(journals.GetByRole(AriaRole.Table, new() { Name = "Posted journal line detail", Exact = true }).GetByRole(AriaRole.Row)).ToHaveCountAsync(3);
+    var tb = journals.GetByRole(AriaRole.Table, new() { Name = "Official native Trial Balance", Exact = false });
+    await Assertions.Expect(tb.GetByRole(AriaRole.Row)).ToHaveCountAsync(4);
+    await Assertions.Expect(tb.GetByRole(AriaRole.Cell, new() { Name = "150.25", Exact = true })).ToHaveCountAsync(8);
+    await journals.GetByLabel("Ledger from date", new() { Exact = true }).FillAsync("2026-02-01");
+    await journals.GetByRole(AriaRole.Button, new() { Name = "Refresh posted ledger", Exact = true }).ClickAsync();
+    await Assertions.Expect(journals.GetByText("No posted native journal lines in this period.", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(tb.GetByRole(AriaRole.Cell, new() { Name = "150.25", Exact = true })).ToHaveCountAsync(8);
+    await journals.GetByLabel("Ledger from date", new() { Exact = true }).FillAsync("");
+    await journals.GetByRole(AriaRole.Button, new() { Name = "Refresh posted ledger", Exact = true }).ClickAsync();
     await using (var db = host.CreateDbContext())
     {
       var posted = await db.ClientOperationalJournals.SingleAsync(x => x.Id == journalId);

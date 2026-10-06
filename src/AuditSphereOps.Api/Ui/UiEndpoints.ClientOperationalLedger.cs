@@ -36,12 +36,12 @@ public static partial class UiEndpoints
     }).Produces<ClientOperationalPostingReceiptView>();
 
     group.MapGet("/accounting/clients/{clientId:guid}/operational-ledger", async (Guid clientId, Guid periodId,
-      int page, int pageSize, HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
+      int page, int pageSize, DateOnly? fromDate, DateOnly? toDate, bool? includeZeroAccounts, HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
       var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
       if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
-      var result = await ClientOperationalGeneralLedgerWorkspace.GetAsync(db, actor, clientId, periodId, page, pageSize, http.RequestAborted);
+      var result = await ClientOperationalGeneralLedgerWorkspace.GetAsync(db, actor, clientId, periodId, page, pageSize, http.RequestAborted, fromDate, toDate, includeZeroAccounts ?? false);
       if (!result.Succeeded) return Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);

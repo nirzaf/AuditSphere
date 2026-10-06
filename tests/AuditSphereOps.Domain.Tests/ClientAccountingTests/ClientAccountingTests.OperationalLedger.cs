@@ -46,7 +46,8 @@ public sealed partial class ClientAccountingTests
       chartId = chart.Value;
       var accounts = await ClientAccountingService.AddAccountsAsync(db, preparer, chartId, [
         new("cash", "1000", "Cash", "ASSET", "DEBIT", true),
-        new("expense", "6000", "Office expense", "EXPENSE", "DEBIT", true)
+        new("expense", "6000", "Office expense", "EXPENSE", "DEBIT", true),
+        new("unused", "7000", "Unused expense", "EXPENSE", "DEBIT", true)
       ]);
       Assert.True(accounts.Succeeded, accounts.Message);
     }
@@ -251,6 +252,20 @@ public sealed partial class ClientAccountingTests
       Assert.Equal(2, ledger.Value!.TotalEntries);
       Assert.Equal("150.000000", ledger.Value.Accounts.Single(x => x.AccountCode == "6000").DebitMovement);
       Assert.Equal("-150.000000", ledger.Value.Accounts.Single(x => x.AccountCode == "1000").NetMovement);
+      Assert.Equal(2, ledger.Value.TrialBalance.Rows.Count);
+      Assert.Equal("150", ledger.Value.TrialBalance.ClosingDebit);
+      Assert.Equal("150", ledger.Value.TrialBalance.ClosingCredit);
+      var later = await ClientOperationalGeneralLedgerWorkspace.GetAsync(db, reviewer, scope.ClientA, periodId,
+        pageSize: 1, fromDate: new DateOnly(2026, 2, 1), toDate: new DateOnly(2026, 12, 31), includeZeroAccounts: true);
+      Assert.True(later.Succeeded, later.Message);
+      Assert.Empty(later.Value!.Entries);
+      Assert.Equal(3, later.Value.TrialBalance.Rows.Count);
+      Assert.Equal("0", later.Value.TrialBalance.Rows.Single(x => x.AccountCode == "7000").ClosingDebit);
+      Assert.Equal("150", later.Value.TrialBalance.OpeningDebit);
+      Assert.Equal("0", later.Value.TrialBalance.PeriodDebit);
+      Assert.Equal("150", later.Value.TrialBalance.ClosingDebit);
+      Assert.False((await ClientOperationalGeneralLedgerWorkspace.GetAsync(db, reviewer, scope.ClientA, periodId,
+        fromDate: new DateOnly(2025, 1, 1))).Succeeded);
       await AssertNativeRuntimeSqlDeniedAsync(pg, journalId, scope.Reviewer.Id,
       [
         "UPDATE client_operational_journals SET description='Changed' WHERE id=@journal",

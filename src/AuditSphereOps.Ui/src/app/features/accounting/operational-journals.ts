@@ -15,12 +15,15 @@ interface JournalSnapshot { journalId: string; clientId: string; revision: strin
   description: string; postingDate: string; currency: string; lines: JournalLine[] }
 interface JournalPreview { journalId: string; clientId: string; periodId: string; revision: string; status: string; currency: string;
   totalDebit: string; totalCredit: string; digest: string; lines: JournalLine[] }
-interface LedgerView { clientId: string; periodId: string; periodCode: string; currency: string; basis: string; page: number; pageSize: number; totalEntries: number;
+interface TrialBalanceRow { accountId: string; accountCode: string; accountName: string; openingDebit: string; openingCredit: string; periodDebit: string; periodCredit: string; closingDebit: string; closingCredit: string }
+interface TrialBalance { fromDate: string; toDate: string; source: string; openingDebit: string; openingCredit: string; periodDebit: string; periodCredit: string; closingDebit: string; closingCredit: string; rows: TrialBalanceRow[] }
+interface LedgerView { trialBalance: TrialBalance; clientId: string; periodId: string; periodCode: string; currency: string; basis: string; page: number; pageSize: number; totalEntries: number;
   accounts: { accountId: string; accountCode: string; accountName: string; debitMovement: string; creditMovement: string; netMovement: string }[];
   entries: { journalId: string; journalNumber: string; postingDate: string; lineNumber: number; accountCode: string; accountName: string; description: string; debit: string; credit: string; reversesJournalId?: string | null; reversedByJournalId?: string | null; reversedByStatus?: string | null }[] }
 interface PostingReceipt { commandId: string; clientId: string; journalId: string; actorUserId: string; submittedRevision: string;
   postedRevision: string; previewDigest: string; intentHash: string; recordedAt: string; status: string }
 interface PendingPosting { journal: Journal; commandId: string; previewDigest: string; reason: string; actorUserId: string }
+const reportAmountPattern = /^(?:0|[1-9]\d{0,28})(?:\.\d{1,6})?$/;
 const amountPattern = /^(?:0|[1-9]\d{0,14})(?:\.\d{1,6})?$/;
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid journal response');
@@ -66,12 +69,25 @@ export function decodeOperationalLedger(value: unknown, clientId: string, period
       !['page', 'pageSize', 'totalEntries'].every(k => Number.isSafeInteger(v[k]) && Number(v[k]) >= 0) ||
       Number(v['pageSize']) < 1 || Number(v['pageSize']) > 200 ||
       !Array.isArray(v['accounts']) || v['accounts'].length > 10000 || !Array.isArray(v['entries']) || v['entries'].length > 200) throw new Error('Invalid ledger response');
+  const tb = object(v['trialBalance']);
+  const columns = ['openingDebit', 'openingCredit', 'periodDebit', 'periodCredit', 'closingDebit', 'closingCredit'];
+  const exact = (value: unknown): bigint => { if (typeof value !== 'string' || !reportAmountPattern.test(value)) throw new Error('Invalid trial balance amount'); const [whole, fraction = ''] = value.split('.'); return BigInt(whole) * 1000000n + BigInt(fraction.padEnd(6, '0')); };
+  if (tb['source'] !== 'NATIVE_POSTED_PERIOD_ACTIVITY' || !['fromDate', 'toDate'].every(k => typeof tb[k] === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(String(tb[k]))) || String(tb['fromDate']) > String(tb['toDate']) || !Array.isArray(tb['rows']) || tb['rows'].length > 10000) throw new Error('Invalid trial balance context');
+  const totals = columns.map(() => 0n); const identities = new Set<string>();
+  for (const value of tb['rows']) {
+    const row = object(value);
+    if (typeof row['accountId'] !== 'string' || !guidPattern.test(row['accountId']) || identities.has(row['accountId']) || !['accountCode', 'accountName'].every(k => typeof row[k] === 'string')) throw new Error('Invalid trial balance account');
+    identities.add(row['accountId']); const amounts = columns.map(k => exact(row[k])); amounts.forEach((x, i) => totals[i] += x);
+    if ((amounts[0] > 0n && amounts[1] > 0n) || (amounts[4] > 0n && amounts[5] > 0n) || amounts[4] - amounts[5] !== amounts[0] - amounts[1] + amounts[2] - amounts[3]) throw new Error('Trial balance does not reconcile');
+  }
+  columns.forEach((k, i) => { if (exact(tb[k]) !== totals[i]) throw new Error('Invalid trial balance totals'); });
+  if (totals[0] !== totals[1] || totals[2] !== totals[3] || totals[4] !== totals[5]) throw new Error('Trial balance is not balanced');
   for (const raw of v['accounts']) {
     const account = object(raw);
     if (typeof account['accountId'] !== 'string' || !guidPattern.test(account['accountId']) ||
         !['accountCode', 'accountName', 'debitMovement', 'creditMovement', 'netMovement'].every(k => typeof account[k] === 'string') ||
-        ![account['debitMovement'], account['creditMovement']].every(x => amountPattern.test(String(x))) ||
-        !amountPattern.test(String(account['netMovement']).replace(/^-/, ''))) throw new Error('Invalid ledger account');
+        ![account['debitMovement'], account['creditMovement']].every(x => reportAmountPattern.test(String(x))) ||
+        !reportAmountPattern.test(String(account['netMovement']).replace(/^-/, ''))) throw new Error('Invalid ledger account');
   }
   for (const raw of v['entries']) {
     const entry = object(raw);
@@ -207,11 +223,22 @@ function minor(value: string): bigint { if (!nativeJournalAmount(value)) throw n
       }
       <section aria-labelledby="posted-ledger-heading">
         <h4 id="posted-ledger-heading">Posted General Ledger activity</h4>
-        <p>Native client journal movements for the selected period. This view does not include opening balances, imported GL, or reporting adjustments.</p>
-        <button matButton type="button" [disabled]="busy() || !periodId" (click)="loadLedger()">Refresh posted ledger</button>
+        <p>Native client journal movements for the selected period. Opening activity is from earlier posted dates within this period. Reviewed cutover openings, prior-period carry-forward, imported GL and reporting adjustments are not included.</p>
+        <label for="native-ledger-period">Ledger reporting period</label><select id="native-ledger-period" [ngModel]="ledgerPeriodId" (ngModelChange)="ledgerPeriodId = $event; ledgerFrom = ''; ledgerTo = ''; ledger.set(null)">
+          <option value="">Choose period</option>@for (p of periods(); track p.id) { <option [value]="p.id">{{ p.code }} · {{ p.currency }} · {{ p.status }}</option> }
+        </select>
+        <label>Ledger from date <input type="date" [ngModel]="ledgerFrom" (ngModelChange)="ledgerFrom = $event; ledger.set(null)" /></label>
+        <label>Ledger to date <input type="date" [ngModel]="ledgerTo" (ngModelChange)="ledgerTo = $event; ledger.set(null)" /></label>
+        <label><input type="checkbox" [ngModel]="includeZeroAccounts" (ngModelChange)="includeZeroAccounts = $event; ledger.set(null)" /> Include accounts with no posted activity</label>
+        <button matButton type="button" [disabled]="busy() || !(ledgerPeriodId || periodId)" (click)="loadLedger()">Refresh posted ledger</button>
         @if (ledgerError()) { <p role="alert">{{ ledgerError() }}</p> }
         @if (ledger(); as l) {
           <p>{{ l.periodCode }} · {{ l.basis }} · {{ l.currency }} · {{ l.totalEntries }} posted lines</p>
+          <div class="table-scroll"><table><caption>Official native Trial Balance · {{ l.trialBalance.fromDate }} to {{ l.trialBalance.toDate }}</caption>
+            <thead><tr><th>Account</th><th>Opening debit</th><th>Opening credit</th><th>Period debits</th><th>Period credits</th><th>Closing debit</th><th>Closing credit</th></tr></thead>
+            <tbody>@for (a of l.trialBalance.rows; track a.accountId) { <tr><td>{{ a.accountCode }} · {{ a.accountName }}</td><td>{{ a.openingDebit }}</td><td>{{ a.openingCredit }}</td><td>{{ a.periodDebit }}</td><td>{{ a.periodCredit }}</td><td>{{ a.closingDebit }}</td><td>{{ a.closingCredit }}</td></tr> }</tbody>
+            <tfoot><tr><th>Full result totals</th><td>{{ l.trialBalance.openingDebit }}</td><td>{{ l.trialBalance.openingCredit }}</td><td>{{ l.trialBalance.periodDebit }}</td><td>{{ l.trialBalance.periodCredit }}</td><td>{{ l.trialBalance.closingDebit }}</td><td>{{ l.trialBalance.closingCredit }}</td></tr></tfoot>
+          </table></div>
           @if (!l.entries.length) { <p>No posted native journal lines in this period.</p> }
           @if (l.accounts.length) { <div class="table-scroll"><table><caption>Account debit, credit and net movement</caption><thead><tr><th>Account</th><th>Debits</th><th>Credits</th><th>Net movement</th></tr></thead>
             <tbody>@for (a of l.accounts; track a.accountId) { <tr><td>{{ a.accountCode }} · {{ a.accountName }}</td><td>{{ a.debitMovement }}</td><td>{{ a.creditMovement }}</td><td>{{ a.netMovement }}</td></tr> }</tbody></table></div> }
@@ -287,6 +314,9 @@ export class ClientOperationalJournals {
   readonly journal = signal<Journal | null>(null);
   readonly preview = signal<JournalPreview | null>(null);
   readonly snapshots = signal<JournalSnapshot[] | null>(null);
+  private ledgerRequest = 0;
+  ledgerPeriodId = '';
+  ledgerFrom = ''; ledgerTo = ''; includeZeroAccounts = false;
   readonly ledger = signal<LedgerView | null>(null);
   readonly busy = signal(false);
   readonly error = signal('');
@@ -298,7 +328,7 @@ export class ClientOperationalJournals {
   private operation?: Subscription;
   private readonly invalidate = effect(() => {
     const id = this.clientId(); this.session.invalidation();
-    untracked(() => { this.operation?.unsubscribe(); this.journal.set(null); this.snapshots.set(null); this.preview.set(null); this.ledger.set(null); this.error.set(''); this.ledgerError.set(''); this.uncertain.set(false); this.busy.set(false); this.lookupId = ''; this.reason = ''; this.reversalPeriodId = ''; this.reversalNumber = ''; this.reversalDate = ''; this.reversalReason = ''; this.reversalEvidence = ''; this.receiptKey = ''; this.postingReceipt.set(null); this.pendingPosting.set(null); this.retryOriginal.set(false); this.resetDraft(); });
+    untracked(() => { this.operation?.unsubscribe(); this.journal.set(null); this.snapshots.set(null); this.preview.set(null); this.ledger.set(null); this.ledgerPeriodId = ''; this.ledgerFrom = ''; this.ledgerTo = ''; this.includeZeroAccounts = false; this.error.set(''); this.ledgerError.set(''); this.uncertain.set(false); this.busy.set(false); this.lookupId = ''; this.reason = ''; this.reversalPeriodId = ''; this.reversalNumber = ''; this.reversalDate = ''; this.reversalReason = ''; this.reversalEvidence = ''; this.receiptKey = ''; this.postingReceipt.set(null); this.pendingPosting.set(null); this.retryOriginal.set(false); this.resetDraft(); });
     void id;
   });
   constructor() { inject(DestroyRef).onDestroy(() => this.operation?.unsubscribe()); }
@@ -372,16 +402,21 @@ export class ClientOperationalJournals {
       error: failure => { if (generation !== this.session.invalidation()) return; this.busy.set(false); this.error.set('Journal could not be loaded in this client scope.'); if (failure.status === 401) this.session.clear(); },
     });
   }
-  loadLedger(forPeriodId = this.periodId): void {
+  loadLedger(forPeriodId = this.ledgerPeriodId || this.periodId): void {
     const clientId = this.clientId(); const period = this.periods().find(p => p.id === forPeriodId);
     if (!period || this.busy()) return;
-    const generation = this.session.invalidation(); this.ledgerError.set('');
+    this.ledgerPeriodId = forPeriodId;
+    const generation = this.session.invalidation(); this.ledgerError.set(''); this.ledger.set(null);
+    const request = ++this.ledgerRequest; const zeroAccounts = this.includeZeroAccounts;
+    const fromDate = this.ledgerFrom; const toDate = this.ledgerTo;
+    const params: Record<string, string> = { periodId: forPeriodId, page: '0', pageSize: '100', includeZeroAccounts: String(this.includeZeroAccounts) };
+    if (fromDate) params['fromDate'] = fromDate; if (toDate) params['toDate'] = toDate;
     this.operation = this.http.get<unknown>(`/api/ui/accounting/clients/${clientId}/operational-ledger`, {
-      params: { periodId: forPeriodId, page: '0', pageSize: '100' },
+      params,
     }).pipe(timeout(15000)).subscribe({
-      next: value => { if (generation !== this.session.invalidation()) return; try { this.ledger.set(decodeOperationalLedger(value, clientId, forPeriodId)); }
+      next: value => { if (generation !== this.session.invalidation() || request !== this.ledgerRequest) return; try { const decoded = decodeOperationalLedger(value, clientId, forPeriodId); if ((fromDate && decoded.trialBalance.fromDate !== fromDate) || (toDate && decoded.trialBalance.toDate !== toDate) || this.ledgerFrom !== fromDate || this.ledgerTo !== toDate || this.ledgerPeriodId !== forPeriodId || this.includeZeroAccounts !== zeroAccounts) return; this.ledger.set(decoded); }
         catch { this.ledger.set(null); this.ledgerError.set('Posted ledger response did not match this client and period.'); } },
-      error: failure => { if (generation === this.session.invalidation()) { this.ledger.set(null); this.ledgerError.set('Posted client ledger is unavailable. Retry or refresh the client.'); if (failure.status === 401) this.session.clear(); } },
+      error: failure => { if (generation === this.session.invalidation() && request === this.ledgerRequest) { this.ledger.set(null); this.ledgerError.set('Posted client ledger is unavailable. Retry or refresh the client.'); if (failure.status === 401) this.session.clear(); } },
     });
   }
   loadSnapshots(journal: Journal): void {

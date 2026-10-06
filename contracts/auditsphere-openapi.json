@@ -1826,6 +1826,448 @@
         ]
       }
     },
+    "/api/ui/clients/{id}/hierarchy": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/clients/{id}/relationships": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRelationshipInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/clients/{id}/relationships/{relationshipId}": {
+      "delete": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "relationshipId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeRelationshipInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/clients/{id}/routings": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignRoutingInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/clients/{id}/routings/{routingId}": {
+      "delete": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "routingId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeRoutingInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/clients/{id}/routings/resolve": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "asOfDate",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "overrideContactId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "overrideReason",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
     "/api/ui/engagements/{id}/activation-review": {
       "get": {
         "tags": [
@@ -5210,6 +5652,29 @@
               ],
               "format": "int32"
             }
+          },
+          {
+            "name": "fromDate",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "toDate",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "includeZeroAccounts",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -7058,6 +7523,18 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "activityPage",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
           }
         ],
         "responses": {
@@ -7076,6 +7553,63 @@
           },
           "429": {
             "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/finance/books/trial-balance/export": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FirmTrialBalanceExportInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10542,6 +11076,74 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ApplicabilityInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/procedures/{id}/risk": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProcedureRiskInput"
               }
             }
           },
@@ -25960,6 +26562,54 @@
         ]
       }
     },
+    "/api/ui/engagements/{id}/lifecycle": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
     "/api/ui/clients/{id}": {
       "get": {
         "tags": [
@@ -26900,6 +27550,40 @@
           }
         }
       },
+      "AssignRoutingInput": {
+        "required": [
+          "clientContactId",
+          "purpose",
+          "effectiveFrom",
+          "effectiveTo"
+        ],
+        "type": "object",
+        "properties": {
+          "clientContactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "effectiveTo": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "isPrimaryForPurpose": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      },
       "AvailabilityInput": {
         "required": [
           "userId",
@@ -27412,7 +28096,8 @@
           "pageSize",
           "totalEntries",
           "accounts",
-          "entries"
+          "entries",
+          "trialBalance"
         ],
         "type": "object",
         "properties": {
@@ -27468,6 +28153,9 @@
             "items": {
               "$ref": "#/components/schemas/ClientOperationalLedgerEntryView"
             }
+          },
+          "trialBalance": {
+            "$ref": "#/components/schemas/ClientOperationalTrialBalanceView"
           }
         }
       },
@@ -28135,6 +28823,100 @@
           }
         }
       },
+      "ClientOperationalTrialBalanceRow": {
+        "required": [
+          "accountId",
+          "accountCode",
+          "accountName",
+          "openingDebit",
+          "openingCredit",
+          "periodDebit",
+          "periodCredit",
+          "closingDebit",
+          "closingCredit"
+        ],
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accountCode": {
+            "type": "string"
+          },
+          "accountName": {
+            "type": "string"
+          },
+          "openingDebit": {
+            "type": "string"
+          },
+          "openingCredit": {
+            "type": "string"
+          },
+          "periodDebit": {
+            "type": "string"
+          },
+          "periodCredit": {
+            "type": "string"
+          },
+          "closingDebit": {
+            "type": "string"
+          },
+          "closingCredit": {
+            "type": "string"
+          }
+        }
+      },
+      "ClientOperationalTrialBalanceView": {
+        "required": [
+          "fromDate",
+          "toDate",
+          "source",
+          "openingDebit",
+          "openingCredit",
+          "periodDebit",
+          "periodCredit",
+          "closingDebit",
+          "closingCredit",
+          "rows"
+        ],
+        "type": "object",
+        "properties": {
+          "fromDate": {
+            "type": "string"
+          },
+          "toDate": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "openingDebit": {
+            "type": "string"
+          },
+          "openingCredit": {
+            "type": "string"
+          },
+          "periodDebit": {
+            "type": "string"
+          },
+          "periodCredit": {
+            "type": "string"
+          },
+          "closingDebit": {
+            "type": "string"
+          },
+          "closingCredit": {
+            "type": "string"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClientOperationalTrialBalanceRow"
+            }
+          }
+        }
+      },
       "CommentResolutionInput": {
         "required": [
           "resolution"
@@ -28554,6 +29336,53 @@
               "string"
             ],
             "format": "uuid"
+          }
+        }
+      },
+      "CreateRelationshipInput": {
+        "required": [
+          "relatedClientId",
+          "relationshipKind",
+          "ownershipPercentage",
+          "effectiveFrom",
+          "effectiveTo",
+          "notes"
+        ],
+        "type": "object",
+        "properties": {
+          "relatedClientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "relationshipKind": {
+            "type": "string"
+          },
+          "ownershipPercentage": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "effectiveFrom": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "effectiveTo": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "notes": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -29114,6 +29943,21 @@
         "type": "object",
         "properties": {
           "periodCode": {
+            "type": "string"
+          }
+        }
+      },
+      "FirmTrialBalanceExportInput": {
+        "required": [
+          "fromPeriod",
+          "toPeriod"
+        ],
+        "type": "object",
+        "properties": {
+          "fromPeriod": {
+            "type": "string"
+          },
+          "toPeriod": {
             "type": "string"
           }
         }
@@ -30216,6 +31060,21 @@
           }
         }
       },
+      "ProcedureRiskInput": {
+        "required": [
+          "riskId"
+        ],
+        "type": "object",
+        "properties": {
+          "riskId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
       "ProposalResponseInput": {
         "required": [
           "decision",
@@ -30227,6 +31086,30 @@
             "type": "string"
           },
           "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "offerSha256": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "respondentName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "respondentEmail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "evidenceReference": {
             "type": [
               "null",
               "string"
@@ -30932,6 +31815,28 @@
             "type": "string"
           },
           "expectedStatus": {
+            "type": "string"
+          }
+        }
+      },
+      "RevokeRelationshipInput": {
+        "required": [
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "RevokeRoutingInput": {
+        "required": [
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "reason": {
             "type": "string"
           }
         }

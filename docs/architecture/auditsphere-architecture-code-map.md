@@ -34,6 +34,7 @@ capability; public APIs are stable across parts. Verified project state lives on
 
 - Domain: `Domain/Accounting/ClientAccounting.cs`; client-owned journals, lines and review decisions.
 - Application: `Application/Accounting/ClientOperationalLedgerWorkspace.cs` and `ClientOperationalGeneralLedgerWorkspace.cs`; accepted bookkeeping service gate, balanced journal preparation, independent posting and posted movement queries.
+- Native activity Trial Balance: `Application/Accounting/ClientOperationalGeneralLedgerWorkspace.cs`; same repeatable-read snapshot as date-filtered GL, opening activity within the selected period, exact movement/closing controls and optional approved zero-activity accounts. Cutover openings, carry-forward, adjusted/source snapshots and exports remain separate work.
 - Submitted content: `Application/Accounting/ClientOperationalLedgerWorkspace.Snapshots.cs`; scoped historical content with exact string amounts, captured atomically by submission triggers in the snapshot migration. Existing uncaptured reviews are not reconstructed.
 - Review return: `Application/Accounting/ClientOperationalLedgerWorkspace.Return.cs`; independent revision-bound return reason, append-only review history and protected returned content.
 - Posting receipts: `Application/Accounting/ClientOperationalLedgerWorkspace.Receipts.cs`; client-scoped exact-intent command identities, atomic immutable outcomes, original-actor recovery and same-key replay. Angular preserves an unknown posting request until scoped recovery or retry of its original intent.

@@ -22,9 +22,15 @@ describe('Client operational journal transport contract', () => {
   });
   it('binds posted movement pages to the exact client and period using decimal strings', () => {
     const ledger = { clientId: client, periodId: client, periodCode: '2026', currency: 'QAR', basis: 'STATUTORY', page: 0, pageSize: 100, totalEntries: 2,
+      trialBalance: { fromDate: '2026-01-01', toDate: '2026-12-31', source: 'NATIVE_POSTED_PERIOD_ACTIVITY', openingDebit: '0', openingCredit: '0', periodDebit: '125', periodCredit: '125', closingDebit: '125', closingCredit: '125', rows: [
+        { accountId: account, accountCode: '1000', accountName: 'Cash', openingDebit: '0', openingCredit: '0', periodDebit: '0', periodCredit: '125', closingDebit: '0', closingCredit: '125' },
+        { accountId: actor, accountCode: '6000', accountName: 'Expense', openingDebit: '0', openingCredit: '0', periodDebit: '125', periodCredit: '0', closingDebit: '125', closingCredit: '0' }] },
       accounts: [{ accountId: account, accountCode: '1000', accountName: 'Cash', debitMovement: '0.000000', creditMovement: '125.000000', netMovement: '-125.000000' }],
       entries: [{ journalId: journal, journalNumber: 'J-1', postingDate: '2026-01-05', lineNumber: 1, accountCode: '6000', accountName: 'Expense', description: 'Supplies', debit: '125.000000', credit: '0.000000' }] };
     expect(decodeOperationalLedger(ledger, client, client).entries).toHaveLength(1);
+    expect(() => decodeOperationalLedger({ ...ledger, trialBalance: { ...ledger.trialBalance, closingDebit: '124' } }, client, client)).toThrow();
+    expect(() => decodeOperationalLedger({ ...ledger, trialBalance: { ...ledger.trialBalance, rows: [{ ...ledger.trialBalance.rows[0], openingDebit: 0 }, ledger.trialBalance.rows[1]] } }, client, client)).toThrow();
+    expect(() => decodeOperationalLedger({ ...ledger, trialBalance: { ...ledger.trialBalance, source: 'EXTERNAL' } }, client, client)).toThrow();
     expect(decodeOperationalLedger(ledger, client, client).accounts[0].netMovement).toBe('-125.000000');
     expect(() => decodeOperationalLedger({ ...ledger, periodId: journal }, client, client)).toThrow();
     expect(() => decodeOperationalLedger({ ...ledger, entries: [{ ...ledger.entries[0], credit: 0 }] }, client, client)).toThrow();
