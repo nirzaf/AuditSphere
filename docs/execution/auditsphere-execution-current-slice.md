@@ -15,7 +15,32 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
-## Current follow-on slice: Firm ledger scope and revocation boundaries
+## Current focused slice: Invoice lifecycle authorization and recovery
+
+At code commit `7834ddec`, the Angular invoice detail projects current
+Application capabilities into its action controls. FinanceManager cannot
+approve; an independent FinanceReviewer can approve but cannot post; a
+FinanceManager can post only when the approved finance profile matches the
+invoice currency, and send remains separately authorized. API authorization
+continues to enforce these boundaries for direct requests.
+
+The PostgreSQL-backed API-host Angular lifecycle, invoice scope and billing
+recovery cohort passed **3/3**. It verifies denied direct approve/post requests,
+independent approval, currency-profile-gated posting, sending, persisted actor
+and lifecycle state, repeated post response identity, invoice scope, and the
+existing receipt/credit recovery path. Focused Angular finance tests passed
+**4/4**; the production Angular build passed with the existing commercial
+settings stylesheet budget warning; EF reported no pending model changes.
+
+Invoice history cursor/paging failures, cross-firm and guessed command IDs,
+remaining uncertain outcomes, and the full FinanceManager/FinanceReviewer
+scope matrix remain open. The 76 source/action rows remain at one parity
+verified, 73 partial, and two unanalyzed; AS-PAR-002 remains partial and the
+Blazor retirement gate remains `NOT_READY`. The full solution regression was
+not rerun; its last complete result remains recorded at its earlier verified
+commit in `status.json`.
+
+## Completed focused slice: Firm ledger scope and revocation boundaries
 
 At code/test commit `dc43a898`, the PostgreSQL API-host Angular ledger
 boundary journey passed **1/1**. It verifies a client-scoped FinanceManager
@@ -26,10 +51,9 @@ changing either firm's period state. Revoking the reviewer grant clears the
 visible ledger after reload.
 
 The remaining firm-ledger gaps are invalid close reasons, state-conflict and
-failure/recovery behavior, and the broader role matrix. Finance invoice
-approve/post/send and remaining firm-books outcome cases are still open. The
-full solution and EF model checks were not rerun; the whole AS-PAR-002 audit
-and Blazor retirement remain partial/`NOT_READY`.
+failure/recovery behavior, and the broader role matrix. Remaining firm-books
+outcome cases and invoice history/error cases are open. The whole AS-PAR-002
+audit and Blazor retirement remain partial/`NOT_READY`.
 
 ## Completed focused slice: Firm books authorization and recovery boundaries
 

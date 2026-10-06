@@ -447,8 +447,8 @@
       "source": "src/AuditSphereOps.Web/Components/Pages/InvoiceDetail.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-finance-source-review.md",
-      "reviewedAtCommit": "5a554a0931703974074cfe182dcad0dd992d43a5",
-      "openGaps": ["Full firm-wide and client-scoped role matrix, cross-firm and guessed-ID denial", "Browser journeys for invoice approve, post and send actions with independent authority", "Invalid history cursors, paging failures and each uncertain billing outcome"]
+      "reviewedAtCommit": "7834ddec7b5a724c999243ffd7271f9d91f496e6",
+      "openGaps": ["Complete firm-wide/client-scoped role matrix and cross-firm or guessed-ID command denial", "Invalid history cursors, paging failures and stale-content recovery", "Remaining uncertain billing outcomes and broader accessibility and locale acceptance"]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/Workpaper.razor",
