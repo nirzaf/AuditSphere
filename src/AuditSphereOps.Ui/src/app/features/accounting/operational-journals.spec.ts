@@ -6,7 +6,7 @@ const journal = '22222222-2222-4222-8222-222222222222';
 const account = '33333333-3333-4333-8333-333333333333';
 const actor = '44444444-4444-4444-8444-444444444444';
 const view = { id: journal, clientId: client, periodId: client, journalNumber: 'J-1', description: 'Office supplies', postingDate: '2026-01-05',
-  currency: 'QAR', status: 'DRAFT', revision: '1', createdByUserId: actor, createdAt: '2026-01-05T00:00:00Z', postedByUserId: null, postedAt: null,
+  decisions: [], currency: 'QAR', status: 'DRAFT', revision: '1', createdByUserId: actor, createdAt: '2026-01-05T00:00:00Z', postedByUserId: null, postedAt: null,
   lines: [{ lineNumber: 1, accountId: account, accountCode: '6000', accountName: 'Expense', description: 'Supplies', debit: '125.000000', credit: '0.000000' },
     { lineNumber: 2, accountId: account, accountCode: '1000', accountName: 'Cash', description: 'Cash', debit: '0.000000', credit: '125.000000' }] };
 
@@ -49,5 +49,14 @@ describe('Server journal preview binding', () => {
       { digest: 'bad' }, { totalDebit: 125 }, { totalCredit: '126.000000' },
       { lines: [{ ...view.lines[0], description: 'Changed intent' }, view.lines[1]] }])
       expect(() => decodeJournalPreview({ ...preview, ...change }, saved)).toThrow();
+  });
+});
+
+describe('Journal review history', () => {
+  it('keeps a scoped reviewer reason and revision while rejecting malformed history', () => {
+    const decision = { revision: '2', decision: 'RETURN', reason: 'Explain the supporting expense', actorUserId: actor, createdAt: '2026-01-05T01:00:00Z' };
+    expect(decodeOperationalJournal({ ...view, decisions: [decision] }, client).decisions[0].reason).toBe(decision.reason);
+    for (const change of [{ revision: '0' }, { decision: 'EDIT' }, { reason: '' }, { actorUserId: 'bad' }])
+      expect(() => decodeOperationalJournal({ ...view, decisions: [{ ...decision, ...change }] }, client)).toThrow();
   });
 });

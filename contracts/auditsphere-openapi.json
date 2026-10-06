@@ -5150,7 +5150,14 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientOperationalGeneralLedgerView"
+                }
+              }
+            }
           },
           "401": {
             "description": "The request has no current AuditSphere session.",
@@ -5207,7 +5214,14 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientOperationalJournalPreview"
+                }
+              }
+            }
           },
           "401": {
             "description": "The request has no current AuditSphere session.",
@@ -5332,7 +5346,14 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientOperationalJournalView"
+                }
+              }
+            }
           },
           "401": {
             "description": "The request has no current AuditSphere session.",
@@ -5392,6 +5413,83 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ClientOperationalJournalSubmitHttpInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/operational-journals/{journalId}/return": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "journalId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClientOperationalJournalPostHttpInput"
               }
             }
           },
@@ -27018,6 +27116,76 @@
           }
         }
       },
+      "ClientOperationalGeneralLedgerView": {
+        "required": [
+          "clientId",
+          "periodId",
+          "periodCode",
+          "currency",
+          "basis",
+          "page",
+          "pageSize",
+          "totalEntries",
+          "accounts",
+          "entries"
+        ],
+        "type": "object",
+        "properties": {
+          "clientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "periodId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "periodCode": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "basis": {
+            "type": "string"
+          },
+          "page": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "pageSize": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "totalEntries": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "accounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClientOperationalLedgerAccountView"
+            }
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClientOperationalLedgerEntryView"
+            }
+          }
+        }
+      },
       "ClientOperationalJournalCreateHttpInput": {
         "required": [
           "periodId",
@@ -27053,6 +27221,34 @@
           }
         }
       },
+      "ClientOperationalJournalDecisionView": {
+        "required": [
+          "revision",
+          "decision",
+          "reason",
+          "actorUserId",
+          "createdAt"
+        ],
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "string"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "actorUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        }
+      },
       "ClientOperationalJournalLineHttpInput": {
         "required": [
           "accountCode",
@@ -27063,6 +27259,47 @@
         "type": "object",
         "properties": {
           "accountCode": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "debit": {
+            "type": "string"
+          },
+          "credit": {
+            "type": "string"
+          }
+        }
+      },
+      "ClientOperationalJournalLineView": {
+        "required": [
+          "lineNumber",
+          "accountId",
+          "accountCode",
+          "accountName",
+          "description",
+          "debit",
+          "credit"
+        ],
+        "type": "object",
+        "properties": {
+          "lineNumber": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accountCode": {
+            "type": "string"
+          },
+          "accountName": {
             "type": "string"
           },
           "description": {
@@ -27099,6 +27336,59 @@
           }
         }
       },
+      "ClientOperationalJournalPreview": {
+        "required": [
+          "journalId",
+          "clientId",
+          "periodId",
+          "revision",
+          "status",
+          "currency",
+          "totalDebit",
+          "totalCredit",
+          "digest",
+          "lines"
+        ],
+        "type": "object",
+        "properties": {
+          "journalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "clientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "periodId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "totalDebit": {
+            "type": "string"
+          },
+          "totalCredit": {
+            "type": "string"
+          },
+          "digest": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClientOperationalJournalLineView"
+            }
+          }
+        }
+      },
       "ClientOperationalJournalSubmitHttpInput": {
         "required": [
           "revision",
@@ -27115,6 +27405,173 @@
           "previewDigest": {
             "type": "string",
             "default": ""
+          }
+        }
+      },
+      "ClientOperationalJournalView": {
+        "required": [
+          "id",
+          "clientId",
+          "periodId",
+          "journalNumber",
+          "description",
+          "postingDate",
+          "currency",
+          "status",
+          "revision",
+          "createdByUserId",
+          "createdAt",
+          "postedByUserId",
+          "postedAt",
+          "lines"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "clientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "periodId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "journalNumber": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "postingDate": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "string"
+          },
+          "createdByUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "postedByUserId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "postedAt": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClientOperationalJournalLineView"
+            }
+          },
+          "decisions": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/ClientOperationalJournalDecisionView"
+            }
+          }
+        }
+      },
+      "ClientOperationalLedgerAccountView": {
+        "required": [
+          "accountId",
+          "accountCode",
+          "accountName",
+          "debitMovement",
+          "creditMovement",
+          "netMovement"
+        ],
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accountCode": {
+            "type": "string"
+          },
+          "accountName": {
+            "type": "string"
+          },
+          "debitMovement": {
+            "type": "string"
+          },
+          "creditMovement": {
+            "type": "string"
+          },
+          "netMovement": {
+            "type": "string"
+          }
+        }
+      },
+      "ClientOperationalLedgerEntryView": {
+        "required": [
+          "journalId",
+          "journalNumber",
+          "postingDate",
+          "lineNumber",
+          "accountCode",
+          "accountName",
+          "description",
+          "debit",
+          "credit"
+        ],
+        "type": "object",
+        "properties": {
+          "journalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "journalNumber": {
+            "type": "string"
+          },
+          "postingDate": {
+            "type": "string"
+          },
+          "lineNumber": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "accountCode": {
+            "type": "string"
+          },
+          "accountName": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "debit": {
+            "type": "string"
+          },
+          "credit": {
+            "type": "string"
           }
         }
       },

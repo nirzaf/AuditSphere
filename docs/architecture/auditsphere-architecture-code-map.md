@@ -34,6 +34,7 @@ capability; public APIs are stable across parts. Verified project state lives on
 
 - Domain: `Domain/Accounting/ClientAccounting.cs`; client-owned journals, lines and review decisions.
 - Application: `Application/Accounting/ClientOperationalLedgerWorkspace.cs` and `ClientOperationalGeneralLedgerWorkspace.cs`; accepted bookkeeping service gate, balanced journal preparation, independent posting and posted movement queries.
+- Review return: `Application/Accounting/ClientOperationalLedgerWorkspace.Return.cs`; independent revision-bound return reason, append-only review history and protected returned content pending revision editing.
 - Preview: `Application/Accounting/ClientOperationalLedgerWorkspace.Preview.cs`; read-only exact totals and digest covering current journal, period, approved chart and accepted mandate, rechecked inside submission/posting transactions.
 - Calculator: `Application/Accounting/ClientOperationalJournalCalculator.cs`; bounded exact native line amounts and balanced totals shared by draft creation and submission/posting validation. Currency-specific rounding policy remains separate work.
 - API: `Api/Ui/UiEndpoints.ClientOperationalLedger.cs`; authenticated, scope-checked commands and exact decimal string responses.

@@ -124,15 +124,43 @@ public sealed partial class ClientAccountingTests
         "UPDATE client_operational_journals SET status='POSTED', revision=revision+1, posted_by_user_id=@reviewer, posted_at=now() WHERE id=@journal",
         "UPDATE client_operational_journal_lines SET debit=126 WHERE journal_id=@journal AND debit>0",
         "UPDATE client_operational_journals SET revision=revision+1 WHERE id=@journal",
+        "UPDATE client_operational_journals SET status='RETURNED', revision=revision+1 WHERE id=@journal",
         "UPDATE client_reporting_periods SET status='CLOSED' WHERE id=(SELECT period_id FROM client_operational_journals WHERE id=@journal)"
       ]);
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.False((await ClientOperationalLedgerWorkspace.ReturnAsync(db, preparer, scope.ClientA, journalId, 2, "Self return")).Succeeded);
+      Assert.False((await ClientOperationalLedgerWorkspace.ReturnAsync(db, reviewer, scope.ClientA, journalId, 2, " ")).Succeeded);
+      var returned = await ClientOperationalLedgerWorkspace.ReturnAsync(db, reviewer, scope.ClientA, journalId, 2, "Clarify expense evidence");
+      Assert.True(returned.Succeeded, returned.Message);
+      var history = await ClientOperationalLedgerWorkspace.GetAsync(db, preparer, scope.ClientA, journalId);
+      Assert.Equal("RETURNED", history.Value!.Status);
+      Assert.Equal("Clarify expense evidence", Assert.Single(history.Value.Decisions!).Reason);
+      Assert.Equal("2", history.Value.Decisions![0].Revision);
+      Assert.Equal(scope.Reviewer.Id, history.Value.Decisions[0].ActorUserId);
+      Assert.Equal("125.000000", history.Value.Lines[0].Debit);
+      await AssertNativeRuntimeSqlDeniedAsync(pg, journalId, scope.Reviewer.Id,
+      [
+        "UPDATE client_operational_journals SET description='Overwritten return history' WHERE id=@journal",
+        "UPDATE client_operational_journal_lines SET description='Overwritten reviewed line' WHERE journal_id=@journal",
+        "UPDATE client_operational_journal_decisions SET reason='Overwritten reason' WHERE journal_id=@journal"
+      ]);
+      var fresh = await ClientOperationalLedgerWorkspace.PreviewAsync(db, preparer, scope.ClientA, journalId);
+      Assert.True(fresh.Succeeded, fresh.Message);
+      var resubmitted = await ClientOperationalLedgerWorkspace.SubmitAsync(db, preparer, scope.ClientA, journalId, 3, previewDigest: fresh.Value!.Digest);
+      Assert.True(resubmitted.Succeeded, resubmitted.Message);
+      var review = await ClientOperationalLedgerWorkspace.PreviewAsync(db, reviewer, scope.ClientA, journalId);
+      Assert.True(review.Succeeded, review.Message);
+      reviewDigest = review.Value!.Digest;
     }
 
     async Task<CommandResult> PostOnce()
     {
       await using var concurrent = new AuditSphereDbContext(pg.Options);
       return await ClientOperationalLedgerWorkspace.ReviewAndPostAsync(concurrent, reviewer, scope.ClientA, journalId,
-        new(2, "APPROVE", "Balanced and supported", reviewDigest));
+        new(4, "APPROVE", "Balanced and supported", reviewDigest));
     }
     async Task<CommandResult> CloseConcurrently()
     {
@@ -147,12 +175,12 @@ public sealed partial class ClientAccountingTests
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var posted = await ClientOperationalLedgerWorkspace.ReviewAndPostAsync(db, reviewer, scope.ClientA, journalId,
-        new ClientOperationalJournalDecisionRequest(2, "APPROVE", "Balanced and supported", reviewDigest));
+        new ClientOperationalJournalDecisionRequest(4, "APPROVE", "Balanced and supported", reviewDigest));
       Assert.True(posted.Succeeded, posted.Message);
       var replay = await ClientOperationalLedgerWorkspace.ReviewAndPostAsync(db, reviewer, scope.ClientA, journalId,
-        new ClientOperationalJournalDecisionRequest(2, "APPROVE", "Balanced and supported", reviewDigest));
+        new ClientOperationalJournalDecisionRequest(4, "APPROVE", "Balanced and supported", reviewDigest));
       Assert.True(replay.Succeeded, replay.Message);
-      Assert.Equal(1, await db.ClientOperationalJournalDecisions.CountAsync(x => x.FirmId == scope.FirmId && x.JournalId == journalId));
+      Assert.Equal(2, await db.ClientOperationalJournalDecisions.CountAsync(x => x.FirmId == scope.FirmId && x.JournalId == journalId));
       var journal = await db.ClientOperationalJournals.SingleAsync(x => x.FirmId == scope.FirmId && x.Id == journalId);
       Assert.Equal("POSTED", journal.Status);
       Assert.Equal(scope.Reviewer.Id, journal.PostedByUserId);

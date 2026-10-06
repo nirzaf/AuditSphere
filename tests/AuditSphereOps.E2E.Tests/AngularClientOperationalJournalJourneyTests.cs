@@ -125,9 +125,28 @@ public sealed class AngularClientOperationalJournalJourneyTests
     await journals.GetByLabel("Open a saved journal by ID", new() { Exact = true }).FillAsync(journalId.ToString());
     await journals.GetByRole(AriaRole.Button, new() { Name = "Open journal", Exact = true }).ClickAsync();
     await Assertions.Expect(journals.GetByRole(AriaRole.Heading, new() { Name = "J-UI-001 · SUBMITTED", Exact = true })).ToBeVisibleAsync();
+    await journals.GetByLabel("Review reason", new() { Exact = true }).FillAsync("Clarify expense evidence");
+    await journals.GetByRole(AriaRole.Checkbox, new() { Name = "I independently reviewed this exact journal revision and its balanced lines.", Exact = true }).CheckAsync();
+    await journals.GetByRole(AriaRole.Button, new() { Name = "Return for rework", Exact = true }).ClickAsync();
+    await Assertions.Expect(journals.GetByRole(AriaRole.Heading, new() { Name = "J-UI-001 · RETURNED", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(journals.GetByRole(AriaRole.Region, new() { Name = "Journal review history", Exact = true })).ToContainTextAsync("Clarify expense evidence");
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=%2Fui%2Fapp%2Faccounting");
+    await workspace.GetByRole(AriaRole.Button, new() { Name = clientName, Exact = true }).ClickAsync();
+    await journals.GetByLabel("Open a saved journal by ID", new() { Exact = true }).FillAsync(journalId.ToString());
+    await journals.GetByRole(AriaRole.Button, new() { Name = "Open journal", Exact = true }).ClickAsync();
+    await Assertions.Expect(journals.GetByRole(AriaRole.Heading, new() { Name = "J-UI-001 · RETURNED", Exact = true })).ToBeVisibleAsync();
     await journals.GetByRole(AriaRole.Button, new() { Name = "Preview accounting effect", Exact = true }).ClickAsync();
-    await Assertions.Expect(journals.GetByRole(AriaRole.Status)).ToContainTextAsync("revision 2");
-    await journals.GetByLabel("Approval reason", new() { Exact = true }).FillAsync("Independently reviewed and balanced");
+    await Assertions.Expect(journals.GetByRole(AriaRole.Status)).ToContainTextAsync("revision 3");
+    await submitReview.CheckAsync();
+    await journals.GetByRole(AriaRole.Button, new() { Name = "Submit for independent review", Exact = true }).ClickAsync();
+    await Assertions.Expect(journals.GetByRole(AriaRole.Heading, new() { Name = "J-UI-001 · SUBMITTED", Exact = true })).ToBeVisibleAsync();
+    await page.GotoAsync(reviewerOrigin + "/auth/sign-in?returnUrl=%2Fui%2Fapp%2Faccounting");
+    await workspace.GetByRole(AriaRole.Button, new() { Name = clientName, Exact = true }).ClickAsync();
+    await journals.GetByLabel("Open a saved journal by ID", new() { Exact = true }).FillAsync(journalId.ToString());
+    await journals.GetByRole(AriaRole.Button, new() { Name = "Open journal", Exact = true }).ClickAsync();
+    await journals.GetByRole(AriaRole.Button, new() { Name = "Preview accounting effect", Exact = true }).ClickAsync();
+    await Assertions.Expect(journals.GetByRole(AriaRole.Status)).ToContainTextAsync("revision 4");
+    await journals.GetByLabel("Review reason", new() { Exact = true }).FillAsync("Independently reviewed and balanced");
     await journals.GetByRole(AriaRole.Checkbox, new() { Name = "I independently reviewed this exact journal revision and its balanced lines.", Exact = true }).CheckAsync();
     await journals.GetByRole(AriaRole.Button, new() { Name = "Approve and post", Exact = true }).ClickAsync();
     await Assertions.Expect(journals.GetByRole(AriaRole.Heading, new() { Name = "J-UI-001 · POSTED", Exact = true })).ToBeVisibleAsync();
@@ -140,7 +159,11 @@ public sealed class AngularClientOperationalJournalJourneyTests
       var posted = await db.ClientOperationalJournals.SingleAsync(x => x.Id == journalId);
       Assert.Equal("POSTED", posted.Status);
       Assert.Equal(fixture.Reviewer.Id, posted.PostedByUserId);
-      Assert.Single(await db.ClientOperationalJournalDecisions.Where(x => x.JournalId == journalId).ToListAsync());
+      var decisions = await db.ClientOperationalJournalDecisions.Where(x => x.JournalId == journalId).OrderBy(x => x.JournalRevision).ToListAsync();
+      Assert.Equal(2, decisions.Count);
+      Assert.Equal("RETURN", decisions[0].Decision);
+      Assert.Equal("Clarify expense evidence", decisions[0].Reason);
+      Assert.Equal("APPROVE", decisions[1].Decision);
     }
     Assert.Empty(errors);
   }

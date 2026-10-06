@@ -8,7 +8,8 @@ import { guidPattern } from '../../core/contracts';
 
 interface PeriodOption { id: string; code: string; start: string; end: string; currency: string; status: string }
 interface JournalLine { lineNumber: number; accountId: string; accountCode: string; accountName: string; description: string; debit: string; credit: string }
-interface Journal { id: string; clientId: string; periodId: string; journalNumber: string; description: string; postingDate: string; currency: string; status: string; revision: string; createdByUserId: string; lines: JournalLine[] }
+interface ReviewDecision { revision: string; decision: string; reason: string; actorUserId: string; createdAt: string }
+interface Journal { id: string; clientId: string; periodId: string; journalNumber: string; description: string; postingDate: string; currency: string; status: string; revision: string; createdByUserId: string; lines: JournalLine[]; decisions: ReviewDecision[] }
 interface JournalPreview { journalId: string; clientId: string; periodId: string; revision: string; status: string; currency: string;
   totalDebit: string; totalCredit: string; digest: string; lines: JournalLine[] }
 interface LedgerView { clientId: string; periodId: string; periodCode: string; currency: string; basis: string; page: number; pageSize: number; totalEntries: number;
@@ -32,6 +33,14 @@ export function decodeOperationalJournal(value: unknown, clientId: string): Jour
         typeof line['accountId'] !== 'string' || !guidPattern.test(line['accountId']) ||
         !['accountCode', 'accountName', 'description', 'debit', 'credit'].every(k => typeof line[k] === 'string') ||
         !amountPattern.test(String(line['debit'])) || !amountPattern.test(String(line['credit']))) throw new Error('Invalid journal line');
+  }
+  if (!Array.isArray(v['decisions']) || v['decisions'].length > 10000) throw new Error('Invalid journal review history');
+  for (const raw of v['decisions']) {
+    const d = object(raw);
+    if (typeof d['revision'] !== 'string' || !/^[1-9]\d{0,18}$/.test(d['revision']) ||
+        !['APPROVE', 'RETURN'].includes(String(d['decision'])) || typeof d['reason'] !== 'string' || !d['reason'].trim() ||
+        typeof d['actorUserId'] !== 'string' || !guidPattern.test(d['actorUserId']) || typeof d['createdAt'] !== 'string')
+      throw new Error('Invalid journal review history');
   }
   return v as unknown as Journal;
 }
@@ -87,6 +96,13 @@ function minor(value: string): bigint { if (!nativeJournalAmount(value)) throw n
           <p>{{ j.description }} · {{ j.postingDate }} · {{ j.currency }} · revision {{ j.revision }}</p>
           <div class="table-scroll"><table><caption>Immutable journal lines</caption><thead><tr><th>Account</th><th>Description</th><th>Debit</th><th>Credit</th></tr></thead>
             <tbody>@for (line of j.lines; track line.lineNumber) { <tr><td>{{ line.accountCode }} · {{ line.accountName }}</td><td>{{ line.description }}</td><td>{{ line.debit }}</td><td>{{ line.credit }}</td></tr> }</tbody></table></div>
+          @if (j.decisions.length) {
+            <section aria-label="Journal review history"><h5>Review history</h5>
+              @for (d of j.decisions; track d.revision + ':' + d.decision) {
+                <p>Revision {{ d.revision }} · {{ d.decision }} · {{ d.reason }} · {{ d.createdAt }}</p>
+              }
+            </section>
+          }
           @if (j.status !== 'POSTED') {
             <button matButton type="button" [disabled]="busy() || uncertain()" (click)="loadPreview(j)">Preview accounting effect</button>
             @if (preview(); as p) {
@@ -100,8 +116,9 @@ function minor(value: string): bigint { if (!nativeJournalAmount(value)) throw n
           }
           @if (j.status === 'SUBMITTED') {
             <label><input type="checkbox" [checked]="reviewed()" (change)="setReviewed($any($event.target).checked)" /> I independently reviewed this exact journal revision and its balanced lines.</label>
-            <label>Approval reason <input [(ngModel)]="reason" maxlength="2000" /></label>
+            <label>Review reason <input [(ngModel)]="reason" maxlength="2000" /></label>
             <button matButton [disabled]="busy() || !preview() || !reviewed() || !reason.trim() || j.createdByUserId === userId() || uncertain()" (click)="approve(j)">Approve and post</button>
+            <button matButton type="button" [disabled]="busy() || !reviewed() || !reason.trim() || j.createdByUserId === userId() || uncertain()" (click)="returnJournal(j)">Return for rework</button>
           }
         </article>
       }
@@ -230,9 +247,10 @@ export class ClientOperationalJournals {
     });
   }
   submit(journal: Journal): void { this.act(journal, 'submit', { revision: journal.revision, previewDigest: this.preview()?.digest, reviewed: true }, 'Journal submitted for independent review.'); }
+  returnJournal(journal: Journal): void { this.act(journal, 'return', { revision: journal.revision, reason: this.reason.trim(), reviewed: true }, 'Journal returned to its preparer.'); }
   approve(journal: Journal): void { this.act(journal, 'post', { revision: journal.revision, reason: this.reason.trim(), previewDigest: this.preview()?.digest, reviewed: true }, 'Journal approved and posted to the client book.'); }
   private act(journal: Journal, action: string, body: object, success: string): void {
-    if (!this.reviewed() || !this.preview() || this.preview()?.journalId !== journal.id || this.preview()?.revision !== journal.revision || this.busy() || this.uncertain() || journal.clientId !== this.clientId()) return;
+    if (!this.reviewed() || (action !== 'return' && (!this.preview() || this.preview()?.journalId !== journal.id || this.preview()?.revision !== journal.revision)) || this.busy() || this.uncertain() || journal.clientId !== this.clientId()) return;
     const generation = this.session.invalidation(); this.busy.set(true); this.error.set('');
     this.operation = this.http.post(`/api/ui/accounting/clients/${journal.clientId}/operational-journals/${journal.id}/${action}`, body).pipe(timeout(15000)).subscribe({
       next: () => { if (generation !== this.session.invalidation()) return; this.busy.set(false); this.error.set(success); this.reviewed.set(false); this.load(); },

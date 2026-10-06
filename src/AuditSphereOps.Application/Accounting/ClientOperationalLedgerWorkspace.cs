@@ -13,10 +13,11 @@ public sealed record ClientOperationalJournalCreateRequest(Guid ClientId, Guid P
 public sealed record ClientOperationalJournalDecisionRequest(long ExpectedRevision, string Decision, string Reason, string PreviewDigest = "");
 public sealed record ClientOperationalJournalLineView(int LineNumber, Guid AccountId, string AccountCode,
   string AccountName, string Description, string Debit, string Credit);
+public sealed record ClientOperationalJournalDecisionView(string Revision, string Decision, string Reason, Guid ActorUserId, string CreatedAt);
 public sealed record ClientOperationalJournalView(Guid Id, Guid ClientId, Guid PeriodId, string JournalNumber,
   string Description, string PostingDate, string Currency, string Status, string Revision,
   Guid CreatedByUserId, string CreatedAt, Guid? PostedByUserId, string? PostedAt,
-  IReadOnlyList<ClientOperationalJournalLineView> Lines);
+  IReadOnlyList<ClientOperationalJournalLineView> Lines, IReadOnlyList<ClientOperationalJournalDecisionView>? Decisions = null);
 
 /// <summary>Native client-book manual journal draft, independent review, and immutable posting.</summary>
 public static partial class ClientOperationalLedgerWorkspace
@@ -103,7 +104,13 @@ public static partial class ClientOperationalLedgerWorkspace
       x.ClientId == clientId && x.JournalId == journalId).OrderBy(x => x.LineNumber).ToListAsync(ct);
     if (!(await AuthorizeAsync(db, actor, clientId, Preparers, ct)).Succeeded)
       return CommandResult<ClientOperationalJournalView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    return CommandResult<ClientOperationalJournalView>.Ok(View(journal, lines));
+    var decisions = await db.ClientOperationalJournalDecisions.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+      x.ClientId == clientId && x.JournalId == journalId).OrderBy(x => x.JournalRevision).ThenBy(x => x.CreatedAt).ToListAsync(ct);
+    if (!(await AuthorizeAsync(db, actor, clientId, Preparers, ct)).Succeeded)
+      return CommandResult<ClientOperationalJournalView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    return CommandResult<ClientOperationalJournalView>.Ok(View(journal, lines) with {
+      Decisions = decisions.Select(x => new ClientOperationalJournalDecisionView(x.JournalRevision.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        x.Decision, x.Reason, x.ActorUserId, x.CreatedAt.ToUniversalTime().ToString("O", System.Globalization.CultureInfo.InvariantCulture))).ToArray() });
   }
 
   public static async Task<CommandResult> SubmitAsync(IClientAccountingDbContext db, ActorContext actor,
