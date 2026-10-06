@@ -252,6 +252,91 @@ public sealed class GlobalSearchJourneyTests
   }
 
   [Fact]
+  [Trait("Category", "AuthorizationAndScope")]
+  [Trait("CaseId", "AS-PAR-002-ANG-GLOBAL-SEARCH-TIMEOUT-01")]
+  public async Task TimedOutSearchRejectsLateResultsAndAllowsAnExplicitRetry()
+  {
+    await using var host = await OwnedHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-ANG-GLOBAL-SEARCH-TIMEOUT-01");
+    var origin = await host.StartApiForIdentityAsync(host.Fixture.Staff);
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var diagnostics = new List<string>();
+    page.PageError += (_, error) => diagnostics.Add($"page-error: {error}");
+    page.Console += (_, message) =>
+    {
+      if (message.Type == "error") diagnostics.Add($"console-error: {message.Text}");
+    };
+    await page.GotoAsync($"{origin}/auth/sign-in?returnUrl={Uri.EscapeDataString("/app")}");
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Portfolio" }).First
+      .WaitForAsync(new() { Timeout = 15000 });
+
+    var search = page.GetByRole(AriaRole.Combobox, new() { Name = "Search your workspace" });
+    var results = page.GetByRole(AriaRole.Region, new() { Name = "Global search" });
+    var attempts = 0;
+    var lateResponseFinished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    await page.RouteAsync("**/api/ui/search**", async route =>
+    {
+      if (!new Uri(route.Request.Url).Query.Contains("term=ZQXTIMEOUTPROBE", StringComparison.Ordinal))
+      {
+        await route.ContinueAsync();
+        return;
+      }
+
+      if (Interlocked.Increment(ref attempts) == 1)
+      {
+        // Respond after the Angular 15-second request timeout; its cancelled subscription must ignore this result.
+        await Task.Delay(TimeSpan.FromSeconds(16));
+        try
+        {
+          await route.FulfillAsync(new()
+          {
+            Status = 200,
+            ContentType = "application/json",
+            Body = "{\"term\":\"ZQXTIMEOUTPROBE\",\"hits\":[{\"kind\":\"Page\",\"title\":\"STALE TIMED OUT RESULT\",\"detail\":\"Page\",\"href\":\"/app/practice/time\"}],\"truncated\":false}"
+          });
+        }
+        catch (PlaywrightException)
+        {
+          // The browser may already have aborted the request after the Angular timeout.
+        }
+        finally
+        {
+          lateResponseFinished.TrySetResult();
+        }
+        return;
+      }
+
+      await route.FulfillAsync(new()
+      {
+        Status = 200,
+        ContentType = "application/json",
+        Body = "{\"term\":\"ZQXTIMEOUTPROBE\",\"hits\":[{\"kind\":\"Page\",\"title\":\"Search recovered after timeout\",\"detail\":\"Page\",\"href\":\"/app/practice/time\"}],\"truncated\":false}"
+      });
+    });
+
+    await search.FillAsync("ZQXTIMEOUTPROBE");
+    await results.GetByRole(AriaRole.Button, new() { Name = "Search", Exact = true }).ClickAsync();
+    var alert = results.GetByRole(AriaRole.Alert);
+    await Assertions.Expect(alert).ToHaveTextAsync("Search unavailable. Check your access or retry.",
+      new() { Timeout = 20000 });
+    Assert.Equal(0, await results.GetByRole(AriaRole.Link).CountAsync());
+    Assert.DoesNotContain("STALE TIMED OUT RESULT", await results.InnerTextAsync(), StringComparison.Ordinal);
+
+    await results.GetByRole(AriaRole.Button, new() { Name = "Search", Exact = true }).ClickAsync();
+    await Assertions.Expect(results.GetByRole(AriaRole.Link,
+      new() { Name = "Search recovered after timeout", Exact = true })).ToBeVisibleAsync();
+    await lateResponseFinished.Task.WaitAsync(TimeSpan.FromSeconds(5));
+    Assert.Equal(2, attempts);
+    Assert.DoesNotContain("STALE TIMED OUT RESULT", await results.InnerTextAsync(), StringComparison.Ordinal);
+    Assert.DoesNotContain("Search unavailable.", await results.InnerTextAsync(), StringComparison.Ordinal);
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+    Assert.DoesNotContain(diagnostics, x => x.StartsWith("console-error:", StringComparison.Ordinal));
+  }
+
+  [Fact]
   [Trait("CaseId", "AS-PAR-002-ANG-GLOBAL-SEARCH-API-01")]
   public async Task SearchApiEnforcesFirmGrantAndIdentityBoundariesWithoutLeakingCounts()
   {
