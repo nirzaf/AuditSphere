@@ -49,6 +49,20 @@ public sealed partial class ClientAccountingTests
       Assert.Equal(0,await db.ClientOperationalJournals.CountAsync(x=>x.Status=="POSTED"));
       Assert.Equal(0,await db.FirmJournals.CountAsync());
     }
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var pending = await ClientAccountRoleWorkspace.ProposeAsync(db, maker, s.ClientA, new(chartId, expenseId, "ROUNDING", new(2026,1,1), null, "Optional explicit rounding role"));
+      Assert.True(pending.Succeeded);
+      var self = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO client_account_role_decisions (id,firm_id,client_id,configuration_id,decision,reason,reviewed_by_user_id,reviewed_at) VALUES ({Guid.CreateVersion7()},{s.FirmId},{s.ClientA},{pending.Value},'APPROVE','Forged self review',{s.Preparer.Id},now())"));
+      Assert.Equal("23514", self.SqlState);
+      var overlap = await ClientAccountRoleWorkspace.ProposeAsync(db, maker, s.ClientA, new(chartId, assetId, "AR", new(2026,1,1), null, "Overlapping SQL attempt"));
+      Assert.True(overlap.Succeeded);
+      var denied = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO client_account_role_decisions (id,firm_id,client_id,configuration_id,decision,reason,reviewed_by_user_id,reviewed_at) VALUES ({Guid.CreateVersion7()},{s.FirmId},{s.ClientA},{overlap.Value},'APPROVE','Forged overlap',{s.Reviewer.Id},now())"));
+      Assert.Equal("23514", denied.SqlState);
+      var control = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"UPDATE client_operational_journals SET status='POSTED' WHERE id={draftId}"));
+      Assert.Equal("23514", control.SqlState); Assert.Contains("Generic journal cannot create unexplained AR/AP", control.MessageText);
+      Assert.Equal("DRAFT", (await db.ClientOperationalJournals.AsNoTracking().SingleAsync(x => x.Id == draftId)).Status);
+    }
     foreach(var sql in new[]{"UPDATE client_account_role_configurations SET role='AP' WHERE id={0}","DELETE FROM client_account_role_configurations WHERE id={0}","UPDATE client_account_role_decisions SET reason='rewrite' WHERE configuration_id={0}"})
     {
       await using var db=new AuditSphereDbContext(pg.Options); var ex=await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlRawAsync(sql,roleId));Assert.Equal("23514",ex.SqlState);
