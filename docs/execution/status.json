@@ -12449,7 +12449,7 @@
     },
     "clientAccountRoles": {
       "verifiedSourceCommit": "99e0127efbedecaa1b0475506514a7c4980e12f2",
-      "status": "FOCUSED_LOCAL_ROLE_SLICE_VERIFIED_SOLUTION_BUILD_RECOVERY_PENDING",
+      "status": "LOCAL_ROLE_SLICE_VERIFIED",
       "requirements": "Partial CA-04 prerequisite for CA-15 invoice-linked posting; approved-role replacement and open-item paths remain open",
       "postgreSql": {
         "passed": 4,
@@ -12498,10 +12498,23 @@
       "efPendingModelChanges": "NONE",
       "migration": "20261006194113_ClientAccountRoles",
       "solutionBuild": {
-        "status": "INTERRUPTED_BY_EXTERNAL_WORKTREE_REMOVAL",
-        "sessionId": 74057,
-        "details": "Concurrent process merged through 2da82645 and removed party-revision-verification while the build read its source. Missing-source errors observed; owned PID2082 stopped after verifying deleted cwd. Unified session exit0 after termination is not build success.",
-        "replacementWorktree": "/Users/qts/.codex/worktrees/client-role-verification/AuditSphere"
+        "status": "PASS",
+        "sourceCommit": "99e0127efbedecaa1b0475506514a7c4980e12f2",
+        "verificationCheckout": "/private/tmp/auditsphere-role-99-verification",
+        "durationSeconds": 57.58,
+        "warnings": 0,
+        "errors": 0,
+        "command": "dotnet build AuditSphereOps.slnx --no-restore --configuration Release --disable-build-servers -m:1",
+        "interruptedManagedAttempts": [
+          {
+            "sessionId": 74057,
+            "reason": "party-revision-verification removed during source compilation; missing-source errors; owned build PID2082 terminated after verifying deleted cwd"
+          },
+          {
+            "sessionId": 79002,
+            "reason": "replacement client-role-verification also removed during compilation; missing output path/cwd errors; owned build PID3438 terminated after verifying deleted cwd"
+          }
+        ]
       },
       "concurrentMerge": "Main master 0e11f892 merged through 2da82645, excluding final 99e0127e SQL tests/contract. This task did not perform or claim final epic merge.",
       "fullRegression": "NOT_RUN at role source. Calculator baseline session85481 remains live in independent exact 1b1ebc16 verification checkout; API210 passed, Domain still running.",
@@ -12513,7 +12526,9 @@
         "Generic control activity blocked until supported linked invoice/open-item workflow exists",
         "Tax/ancillary roles optional and never gate core no-tax bookkeeping",
         "Full epic, exhaustive scope/concurrency matrices and final merge remain open"
-      ]
+      ],
+      "continuationWorktree": "/Users/qts/.codex/worktrees/client-invoice-posting/AuditSphere",
+      "coordination": "User explicitly authorized messaging the other AuditSphere chat; preservation/cleanup coordination request sent. No final epic merge by this task."
     }
   },
   "documentationWork": {
