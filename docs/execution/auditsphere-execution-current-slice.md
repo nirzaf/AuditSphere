@@ -33,6 +33,20 @@ test-only slice did not change the EF model. The complete solution suite was
 not rerun; its latest complete result remains 1001/1001 at `ead85032`.
 
 
+## Completed focused slice: Client-scoped reviewer denied firm ledger
+
+At code/test commit `2cee13da`,
+`AngularFirmLedgerScopedReviewerJourneyTests.ClientScopedFinanceReviewerCannotReadOrCloseFirmWideLedgerPeriod`
+passed **1/1** in 31 seconds against an isolated PostgreSQL fixture and an
+API-hosted Angular session. A FinanceReviewer with a client-scoped grant sees
+the safe firm-ledger denial and no period marker; direct firm-ledger read and
+close requests both return HTTP 403. PostgreSQL confirms the firm period
+remains `OPEN` at revision 1 with no close decision, and the browser reports
+no page errors.
+
+This test-only slice did not change the EF model. The full solution suite was
+not rerun; its latest complete result remains 1001/1001 at `ead85032`.
+
 ## Completed focused slice: Invoice lifecycle lost-response recovery
 
 At code/test commit `d7854fc8`,
