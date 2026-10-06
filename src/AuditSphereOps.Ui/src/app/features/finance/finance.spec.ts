@@ -11,6 +11,7 @@ const hash64 = 'b'.repeat(64);
 describe('Finance & Firm Ledger Contracts', () => {
   it('decodes a valid firm ledger payload', () => {
     const raw = {
+      canCreateSetup: true,
       canClosePeriod: true,
       periods: [
         {
