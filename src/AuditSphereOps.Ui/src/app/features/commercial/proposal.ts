@@ -276,8 +276,9 @@ export function decodeProposal(value: unknown): Proposal {
       </section>
       <h2>Commercial workflow</h2>
       <p>
-        Marking sent records status only. No email is sent here. A commercial acceptance does not
-        activate professional work.
+        Sending queues exactly one durable email bound to the exact dispatched offer identity; its
+        delivery state is tracked by the mail worker below. A commercial acceptance does not activate
+        professional work.
       </p>
       <label
         ><input type="checkbox" [(ngModel)]="reviewed" [disabled]="busy()" /> I reviewed this
@@ -301,26 +302,79 @@ export function decodeProposal(value: unknown): Proposal {
           Mark as sent
         </button>
       }
+      @if (proposal.dispatchState) {
+        <dl class="kv">
+          <dt>Offer dispatch</dt>
+          <dd>
+            {{
+              proposal.dispatchState === 'SENT'
+                ? 'Email delivered to ' + (proposal.dispatchRecipient ?? 'the recorded recipient') +
+                  ' at ' + (proposal.dispatchedAt ?? 'an unrecorded time').slice(0, 16).replace('T', ' ') + ' UTC'
+                : proposal.dispatchState === 'FAILED'
+                  ? 'Email delivery failed for ' + (proposal.dispatchRecipient ?? 'the recorded recipient') +
+                    '; recover delivery before relying on client receipt.'
+                  : 'Email queued for ' + (proposal.dispatchRecipient ?? 'the recorded recipient') +
+                    '; awaiting the isolated mail worker.'
+            }}
+          </dd>
+          <dt>Dispatched offer identity</dt>
+          <dd><code>{{ proposal.sentOfferSha256 ?? 'Not recorded' }}</code></dd>
+        </dl>
+      }
       @if (proposal.status === 'SENT') {
+        <p>
+          Fee under review: {{ proposal.fee }} {{ proposal.currency }} · revision
+          {{ proposal.revision }}. Record the response against the dispatched offer identity
+          shown above; a superseded or revised offer cannot be accepted.
+        </p>
+        <label
+          >Respondent name<input
+            type="text"
+            [(ngModel)]="respondentName"
+            (ngModelChange)="reviewed = false"
+            maxlength="200"
+            [disabled]="busy()"
+            name="respondentName"
+        /></label>
+        <label
+          >Respondent email<input
+            type="email"
+            [(ngModel)]="respondentEmail"
+            (ngModelChange)="reviewed = false"
+            maxlength="320"
+            [disabled]="busy()"
+            name="respondentEmail"
+        /></label>
+        <label
+          >Evidence reference<input
+            type="text"
+            [(ngModel)]="evidenceReference"
+            (ngModelChange)="reviewed = false"
+            maxlength="300"
+            [disabled]="busy()"
+            name="evidenceReference"
+            placeholder="e.g. signed acceptance letter received 2026-10-07"
+        /></label>
         <label
           >Client response reason<textarea
             [(ngModel)]="reason"
             (ngModelChange)="reviewed = false"
             maxlength="1000"
             [disabled]="busy()"
+            name="responseReason"
           ></textarea>
         </label>
         <button
           matButton
-          [disabled]="!reviewed || busy() || uncertain()"
-          (click)="action('response', { decision: 'ACCEPTED', reason })"
+          [disabled]="!reviewed || busy() || uncertain() || !respondentName"
+          (click)="recordResponse('ACCEPTED')"
         >
           Record client acceptance
         </button>
         <button
           matButton
           [disabled]="!reviewed || busy() || uncertain() || !reason"
-          (click)="action('response', { decision: 'DECLINED', reason })"
+          (click)="recordResponse('DECLINED')"
         >
           Record client decline
         </button>
@@ -594,6 +648,9 @@ export class ProposalDetail {
   readonly commandStatus = signal('');
   reviewed = false;
   reason = '';
+  respondentName = '';
+  respondentEmail = '';
+  evidenceReference = '';
   legalName = '';
   draft = {
     serviceProfile: '',
@@ -846,6 +903,20 @@ export class ProposalDetail {
     if (!this.uncertain() || this.revisionCreatePending() || this.busy()) return;
     this.commandStatus.set('Refreshing persisted proposal state…');
     this.load();
+  }
+  /** Records the client response bound to the exact dispatched offer identity (STE 4.1.3). */
+  recordResponse(decision: 'ACCEPTED' | 'DECLINED'): void {
+    const proposal = this.data();
+    if (!proposal || !this.reviewed || this.busy() || this.uncertain()) return;
+    if (decision === 'ACCEPTED' && (!this.respondentName.trim() || !proposal.sentOfferSha256)) return;
+    this.action('response', {
+      decision,
+      reason: this.reason,
+      offerSha256: proposal.sentOfferSha256,
+      respondentName: this.respondentName.trim() || null,
+      respondentEmail: this.respondentEmail.trim() || null,
+      evidenceReference: this.evidenceReference.trim() || null,
+    });
   }
   action(path: string, body: object = {}): void {
     if (!this.data() || !this.reviewed || this.busy() || this.uncertain()) return;

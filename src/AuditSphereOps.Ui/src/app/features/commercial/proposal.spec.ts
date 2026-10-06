@@ -63,6 +63,48 @@ describe('Commercial proposal contract', () => {
   });
 });
 
+describe('client response binding', () => {
+  const offerSha = 'a'.repeat(64);
+  function responseWorkspace(overrides: Record<string, unknown> = {}) {
+    const sent = { ...proposal, status: 'SENT', sentOfferSha256: offerSha };
+    const actions: Array<{ path: string; body: object }> = [];
+    const w = {
+      data: signal<unknown>(sent), reviewed: true, busy: signal(false), uncertain: signal(false),
+      respondentName: 'A. Owner', respondentEmail: 'owner@example.test', evidenceReference: 'Signed letter',
+      action: (path: string, body: object) => { actions.push({ path, body }); },
+      ...overrides,
+    };
+    return { w, actions };
+  }
+  it('sends the dispatched offer identity and respondent evidence with an acceptance', () => {
+    const { w, actions } = responseWorkspace();
+    ProposalDetail.prototype.recordResponse.call(w as unknown as ProposalDetail, 'ACCEPTED');
+    expect(actions).toHaveLength(1);
+    expect(actions[0].path).toBe('response');
+    expect(actions[0].body).toMatchObject({
+      decision: 'ACCEPTED', offerSha256: offerSha, respondentName: 'A. Owner',
+      respondentEmail: 'owner@example.test', evidenceReference: 'Signed letter',
+    });
+  });
+  it('refuses acceptance without a respondent or a dispatched offer identity', () => {
+    const noRespondent = responseWorkspace({ respondentName: '   ' });
+    ProposalDetail.prototype.recordResponse.call(noRespondent.w as unknown as ProposalDetail, 'ACCEPTED');
+    expect(noRespondent.actions).toHaveLength(0);
+    const noOffer = responseWorkspace({ data: signal({ ...proposal, status: 'SENT', sentOfferSha256: null }) });
+    ProposalDetail.prototype.recordResponse.call(noOffer.w as unknown as ProposalDetail, 'ACCEPTED');
+    expect(noOffer.actions).toHaveLength(0);
+    const noAssent = responseWorkspace({ reviewed: false });
+    ProposalDetail.prototype.recordResponse.call(noAssent.w as unknown as ProposalDetail, 'ACCEPTED');
+    expect(noAssent.actions).toHaveLength(0);
+  });
+  it('keeps the decline path working without a respondent name', () => {
+    const decline = responseWorkspace({ respondentName: '', respondentEmail: '', evidenceReference: '' });
+    ProposalDetail.prototype.recordResponse.call(decline.w as unknown as ProposalDetail, 'DECLINED');
+    expect(decline.actions).toHaveLength(1);
+    expect(decline.actions[0].body).toMatchObject({ decision: 'DECLINED', offerSha256: offerSha, respondentName: null });
+  });
+});
+
 describe('proposal refresh draft preservation', () => {
   function workspace(dirty: boolean) {
     return {

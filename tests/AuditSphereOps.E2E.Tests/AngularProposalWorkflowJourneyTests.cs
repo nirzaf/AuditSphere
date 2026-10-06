@@ -76,17 +76,25 @@ public sealed class AngularProposalWorkflowJourneyTests
     await page.GetByRole(AriaRole.Button,
       new() { Name = "Submit for independent internal review", Exact = true }).ClickAsync();
     await Assertions.Expect(page.GetByText("INTERNAL_REVIEW · Revision 1", new() { Exact = true })).ToBeVisibleAsync();
-    await Assertions.Expect(page.GetByText("Marking sent records status only. No email is sent here. A commercial acceptance does not activate professional work.",
+    await Assertions.Expect(page.GetByText(
+      "Sending queues exactly one durable email bound to the exact dispatched offer identity; its delivery state is tracked by the mail worker below. A commercial acceptance does not activate professional work.",
       new() { Exact = true })).ToBeVisibleAsync();
 
     await assent.CheckAsync();
     await page.GetByRole(AriaRole.Button, new() { Name = "Mark as sent", Exact = true }).ClickAsync();
     await Assertions.Expect(page.GetByText("SENT · Revision 1", new() { Exact = true })).ToBeVisibleAsync();
+    // The dispatch evidence is visible before any response is recorded: one queued email bound to the offer.
+    await Assertions.Expect(page.GetByText("Offer dispatch", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByText("Email queued for workflow@example.test; awaiting the isolated mail worker.",
+      new() { Exact = true })).ToBeVisibleAsync();
 
     const string declineReason = "The client declined the synthetic proposal.";
     var decision = accepted ? "ACCEPTED" : "DECLINED";
     if (accepted)
     {
+      await page.GetByLabel("Respondent name", new() { Exact = true }).FillAsync("Synthetic contact");
+      await page.GetByLabel("Respondent email", new() { Exact = true }).FillAsync("workflow@example.test");
+      await page.GetByLabel("Evidence reference", new() { Exact = true }).FillAsync("Signed acceptance letter received by email");
       await assent.CheckAsync();
       await page.GetByRole(AriaRole.Button, new() { Name = "Record client acceptance", Exact = true }).ClickAsync();
       await Assertions.Expect(page.GetByRole(AriaRole.Link,
@@ -108,6 +116,11 @@ public sealed class AngularProposalWorkflowJourneyTests
       Assert.Equal(fixture.Reviewer.Id, proposal.ApprovedByUserId);
       Assert.NotNull(proposal.ApprovedAt);
       Assert.NotNull(proposal.SentAt);
+      // The response is bound to the exact dispatched offer identity with respondent evidence (STE-REM-01).
+      Assert.False(string.IsNullOrWhiteSpace(proposal.SentOfferSha256));
+      Assert.Equal(proposal.SentOfferSha256, proposal.ResponseOfferSha256);
+      Assert.Equal(accepted ? "Synthetic contact" : null, proposal.RespondentName);
+      Assert.Equal(accepted ? "Signed acceptance letter received by email" : null, proposal.ResponseEvidenceReference);
       Assert.NotNull(proposal.ResponseAt);
       Assert.Equal(accepted ? null : declineReason, proposal.ResponseReason);
       var opportunity = await db.Opportunities.SingleAsync(x => x.Id == proposal.OpportunityId);

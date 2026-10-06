@@ -12529,6 +12529,55 @@
       ],
       "continuationWorktree": "/Users/qts/.codex/worktrees/client-invoice-posting/AuditSphere",
       "coordination": "User explicitly authorized messaging the other AuditSphere chat; preservation/cleanup coordination request sent. No final epic merge by this task."
+    },
+    "nativeClientAcceptanceRestored": {
+      "caseId": "STE-REM-01+STE-REM-29a",
+      "sourceCommit": "7f080729eb632babbf39db7ba9619c460bafb1ad",
+      "implementationCommit": "cee5aaeabcc8cc41e5248ef05bddddc032c19b04",
+      "observedAt": "2026-10-06T21:48:58Z",
+      "status": "PASS_LOCAL_SLICE",
+      "baselineRepair": {
+        "what": "Regenerated contracts/auditsphere-openapi.json (five additive endpoints from landed commercial/portal/statement work, including the statements/split endpoint of the parallel session's in-flight lane) and docs/execution/angular-source-inventory.json (commit stamp plus two Razor hash changes; 76 pages discovered, no structural drift). Both repository drift checks now pass locally; no check was weakened.",
+        "commands": [
+          "python3 scripts/ui/inventory.py",
+          "AUDITSPHERE_EMIT_OPENAPI=<path> dotnet test tests/AuditSphereOps.Api.Tests --no-build --configuration Release --filter 'FullyQualifiedName~ContractSerializationIsDeterministicForDriftDetection'"
+        ]
+      },
+      "coverage": "The native Angular proposal page now records a client response bound to the exact dispatched offer identity: the SENT state shows the offer dispatch state (queued for / delivered to / failed for the recorded recipient), the dispatched offer hash, and the reviewed fee/currency/revision, and the typed response form carries respondent name (required for acceptance), respondent email and evidence reference into the existing validated backend fields. The stale 'status only / no email' copy was replaced with truthful dispatch semantics. Acceptance is refused client-side without the respondent and offer identity and server-side for stale, superseded, or conflicting responses; the decline path keeps its mandatory reason. The proposal browser journey was updated to exercise the real Angular -> API -> Application acceptance and decline paths and now asserts the persisted offer binding, respondent name and evidence reference, and the queued-dispatch display.",
+      "focusedTests": {
+        "proposalBrowserJourney": {
+          "status": "PASS",
+          "passed": 2,
+          "failed": 0,
+          "skipped": 0,
+          "duration": "1m2s",
+          "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-build --configuration Release -m:1 --filter 'FullyQualifiedName~AngularProposalWorkflowJourney'"
+        },
+        "crmDomainClass": {
+          "status": "PASS",
+          "passed": 15,
+          "failed": 0,
+          "skipped": 0,
+          "duration": "1m28s",
+          "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --configuration Release -m:1 --filter 'FullyQualifiedName~PracticeCrmTests'"
+        },
+        "angularUnitTests": {
+          "status": "PASS",
+          "files": 104,
+          "passed": 544,
+          "failed": 0,
+          "skipped": 0,
+          "note": "One gl-upload flake in a first run passed on immediate rerun and on the recorded run.",
+          "command": "npm --prefix src/AuditSphereOps.Ui run test:ci"
+        }
+      },
+      "angularProductionBuild": {
+        "status": "PASS",
+        "remainingWarning": "none new; pre-existing settings stylesheet budget warning persists"
+      },
+      "verificationBoundary": "The server-side acceptance validation, dispatch binding and mail states were implemented and verified earlier (proposalDispatchEvidence) and are reused unchanged. Live mail delivery and client-identity acceptance remain named live gates (STE-REM-30/31). The full PostgreSQL-backed Domain and Api suites were not rerun for this UI-plus-test slice; no Application or Domain code changed.",
+      "databaseBoundary": "The browser journeys used owned isolated PostgreSQL schemas and synthetic identities; no Development or production state was changed.",
+      "retirementDecision": "NOT_READY"
     }
   },
   "documentationWork": {

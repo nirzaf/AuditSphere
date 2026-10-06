@@ -6323,3 +6323,34 @@ re-run green at the final pushed head after the parallel session's portal edits 
 Actual mail delivery and client-identity acceptance remain named live gates under
 AS-COMP-31. The migration ran only in owned isolated PostgreSQL test schemas; no
 Development or production state was changed. Blazor retirement remains `NOT_READY`.
+
+## STE-REM-29 baseline repair and STE-REM-01 native client acceptance
+
+Against the new pending-features review (baseline `7f080729`), the delivery sequence's
+first item was restoring the exact-source validation baseline. The UI source-discovery
+inventory regenerated with only the commit stamp and two Razor hash changes (76 pages,
+no structural drift), and the committed OpenAPI artifact was regenerated with five
+additive endpoints from landed commercial, milestone, portal-finance and statement work
+(no removals). Both repository drift checks now pass locally and no check was weakened.
+
+The review's most consequential finding — that Angular cannot record a client acceptance
+because the native form predates the required offer-hash/respondent fields — is closed.
+The proposal page's SENT state now shows the truthful dispatch evidence (queued for /
+delivered to / failed for the recorded recipient, the dispatched offer hash, and the
+reviewed fee, currency and revision) and its typed response form carries the respondent
+name (required for acceptance), respondent email and evidence reference into the exact
+backend fields introduced with evidence-bound dispatch. The stale "status only / no
+email" copy was replaced with truthful mail-worker semantics. The proposal browser
+journey exercises the real Angular → API → Application acceptance and decline paths and
+asserts the persisted offer binding (`ResponseOfferSha256` equals the dispatched hash),
+the respondent name and evidence reference, and the queued-dispatch display.
+
+Focused verification: the proposal browser journey passed 2/2 (accepted and declined
+variants), the CRM domain class passed 15/15, Angular CI passed 544/544 across 104
+files (one unrelated gl-upload flake in a first run passed on immediate rerun), and the
+Angular production build passed. The server-side acceptance validation, dispatch
+binding and mail states were verified earlier and are reused unchanged; no Application
+or Domain code changed in this slice, so the full Domain and Api suites were not rerun.
+Live mail delivery and client-identity acceptance remain named live gates under
+STE-REM-30/31. The browser journeys used owned isolated PostgreSQL schemas; no
+Development or production state was changed. Blazor retirement remains `NOT_READY`.
