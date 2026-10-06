@@ -87,6 +87,30 @@ describe('Angular Operations pager', () => {
     expect(alert?.textContent).toContain('Your current account does not have that access');
     expect(alert?.textContent).not.toContain('Sign in');
     expect(root.querySelector('table')).toBeNull();
+    expect(Array.from(root.querySelectorAll('button')).some((button) => button.textContent?.trim() === 'Refresh operations')).toBe(false);
+    http.expectNone('/api/ui/operations');
+    fixture.destroy();
+  });
+
+  it('keeps refresh available for temporary failures and recovers after an explicit retry', () => {
+    const fixture = TestBed.createComponent(Operations);
+    const http = TestBed.inject(HttpTestingController);
+    fixture.detectChanges();
+    http.expectOne('/api/ui/operations').flush({}, { status: 503, statusText: 'Unavailable' });
+    TestBed.tick();
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const refresh = Array.from(root.querySelectorAll('button')).find((button) => button.textContent?.trim() === 'Refresh operations');
+    expect(refresh).toBeDefined();
+    refresh!.click();
+    fixture.detectChanges();
+    http.expectOne('/api/ui/operations').flush({ operatingMode: 'LOCAL_ONLY', retryableStates: [], operations: [] });
+    TestBed.tick();
+    fixture.detectChanges();
+
+    expect(root.textContent).toContain('No durable operations are recorded for this firm.');
+    expect(root.textContent).not.toContain('Temporarily unavailable. Retry shortly.');
     fixture.destroy();
   });
 

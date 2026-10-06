@@ -1,4 +1,4 @@
-import { Component, effect, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -10,6 +10,7 @@ export const decodeOperations = obj({ operatingMode: text, retryableStates: arr(
   operations: arr(obj({ id: guid, kind: text, status: text, attemptCount: int, nextAttemptAt: nullable(instant), errorCode: nullable(text), cancellationDisposition: nullable(text) }), 500) });
 const QUEUED = ['PENDING', 'RETRY_WAIT'], PROCESSING = ['CLAIMED', 'REMOTE_STARTED', 'VERIFYING', 'CANCEL_REQUESTED'],
   ATTENTION = ['AUTHORIZATION_BLOCKED', 'PROVIDER_BLOCKED', 'RESULT_UNCERTAIN', 'DEAD_LETTER'];
+const ADMIN_ACCESS_UNAVAILABLE = 'Operations is limited to firm-wide AuditSphere Administrators. Your current account does not have that access; switch to an authorized administrator account or ask a firm administrator to review your access.';
 
 @Component({
   selector: 'audit-operations',
@@ -17,7 +18,9 @@ const QUEUED = ['PENDING', 'RETRY_WAIT'], PROCESSING = ['CLAIMED', 'REMOTE_START
   template: `
     <a routerLink="/app">← Back to portfolio</a>
     <audit-page-header title="Operations" eyebrow="Firm recovery" description="Review the current firm's redacted durable work and take guarded recovery actions." />
-    <button matButton="outlined" (click)="ops.reload()" [disabled]="cmd.busy()">Refresh operations</button>
+    @if (!accessDenied()) {
+      <button matButton="outlined" (click)="ops.reload()" [disabled]="cmd.busy() || ops.loading()">Refresh operations</button>
+    }
     <audit-state [loading]="ops.loading()" [error]="ops.error()" label="the durable operation ledger" />
     @if (ops.data(); as o) {
       <section class="panel" aria-labelledby="operating-mode-heading"><h2 id="operating-mode-heading">Firm operating mode</h2>
@@ -58,7 +61,8 @@ const QUEUED = ['PENDING', 'RETRY_WAIT'], PROCESSING = ['CLAIMED', 'REMOTE_START
 export class Operations {
   private readonly api = inject(Api);
   readonly ops = this.api.resource(() => '/api/ui/operations', decodeOperations,
-    'Operations is limited to firm-wide AuditSphere Administrators. Your current account does not have that access; switch to an authorized administrator account or ask a firm administrator to review your access.');
+    ADMIN_ACCESS_UNAVAILABLE);
+  readonly accessDenied = computed(() => this.ops.error() === ADMIN_ACCESS_UNAVAILABLE);
   readonly cmd = new CommandState(this.api);
   readonly retryReconciliationId = signal<string | null>(null);
   readonly queued = QUEUED; readonly processing = PROCESSING; readonly attention = ATTENTION;

@@ -160,6 +160,7 @@ public sealed class AngularOperationsRecoveryJourneyTests
     await Assertions.Expect(staffPage.GetByRole(AriaRole.Heading, new() { Name = "Operations", Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(staffPage.GetByRole(AriaRole.Alert))
       .ToContainTextAsync("Operations is limited to firm-wide AuditSphere Administrators. Your current account does not have that access;");
+    await Assertions.Expect(staffPage.GetByRole(AriaRole.Button, new() { Name = "Refresh operations", Exact = true })).ToHaveCountAsync(0);
     var deniedStatus = await staffPage.EvaluateAsync<int>("async () => (await fetch('/api/ui/operations')).status");
     Assert.Equal(403, deniedStatus);
     var deniedBody = await staffPage.Locator("body").InnerTextAsync();
