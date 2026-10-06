@@ -13,6 +13,28 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Native journal exact posting receipts and recovery
+
+Native posting now requires a stable client-scoped command identity and a hash of
+the exact journal, actor, submitted revision, preview and review reason. Identical
+concurrent commands recover the same immutable outcome; different intent using the
+same key is refused. A new key cannot claim another posting of an already posted
+journal. The posting, approval and receipt commit together, with final scope and
+mandate revalidation. Scoped recovery is available to the original assigned actor.
+
+Angular retains an unknown posting request and its original identity. The user can
+retrieve the committed receipt or explicitly retry that same reviewed request if
+no receipt is found. Original amounts and reason remain inspectable. Confirmed
+server refusals require a fresh saved-journal preview; transport/readback failures
+stay unknown. This adds no generic automatic retry to other commands.
+
+Focused database rollback/concurrency, Angular contracts, browser loss/recovery,
+API and migration evidence lives in `verification.clientOperationalPostingReceipts`
+in `status.json`. Draft creation/other command receipts, numbering policy, general
+draft editing, evidence, reversals, currency/FX policy, invoices/open items, opening
+balances and native TB/reporting bridge remain open. The full epic and final merge
+remain pending. Tax and other nonmandatory modules remain optional.
+
 ## Native journal returned-content rework
 
 The original preparer can edit a returned journal's description, date and balanced
