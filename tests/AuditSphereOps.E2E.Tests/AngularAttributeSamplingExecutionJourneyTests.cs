@@ -163,9 +163,13 @@ public sealed class AngularAttributeSamplingExecutionJourneyTests
     Assert.Equal(2, staffSampleDocument.RootElement.GetProperty("items").GetArrayLength());
     await Assertions.Expect(staffPage.Locator("[data-sample-item]")).ToHaveCountAsync(2);
     var firstItem = staffPage.Locator("[data-sample-item]").First;
-    var firstItemHtml = await firstItem.EvaluateAsync<string>("element => element.outerHTML");
-    Assert.Contains("Record item test", firstItemHtml);
-    await firstItem.Locator($"select[name='result-{selectedItemId:D}']").SelectOptionAsync("EXCEPTION");
+    var resultSelect = firstItem.Locator("select").First;
+    var resultName = await resultSelect.GetAttributeAsync("name");
+    Assert.StartsWith("result-", resultName);
+    selectedItemId = Guid.Parse(resultName!["result-".Length..]);
+    Assert.Equal(Guid.Parse(staffSampleDocument.RootElement.GetProperty("items")[0]
+      .GetProperty("selectionItemId").GetString()!), selectedItemId);
+    await resultSelect.SelectOptionAsync("EXCEPTION");
     await firstItem.Locator($"textarea[name='work-{selectedItemId:D}']")
       .FillAsync("Agreed this selected transaction to the synthetic invoice and approval record.");
     await firstItem.Locator($"textarea[name='evidence-{selectedItemId:D}']")
