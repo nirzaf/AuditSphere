@@ -275,10 +275,8 @@ public static class BillingService
         !string.Equals(lockedInvoice.Currency, lockedAccount.Currency, StringComparison.OrdinalIgnoreCase))
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Receipt allocation requires a posted invoice in the billing currency.");
 
-    var receiptAllocated = await db.ReceiptAllocations.Where(x =>
-      x.FirmId == actor.FirmId && x.ReceiptId == lockedReceipt.Id).SumAsync(x => (decimal?)x.Amount, ct) ?? 0;
-    var invoiceAllocated = await db.ReceiptAllocations.Where(x =>
-      x.FirmId == actor.FirmId && x.InvoiceId == lockedInvoice.Id).SumAsync(x => (decimal?)x.Amount, ct) ?? 0;
+    var receiptAllocated = await GetNetAppliedToReceiptAsync(db, actor.FirmId, lockedReceipt.Id, ct);
+    var invoiceAllocated = await GetNetAppliedToInvoiceAsync(db, actor.FirmId, lockedInvoice.Id, ct);
     var credited = await db.CreditNotes.Where(x =>
       x.FirmId == actor.FirmId && x.InvoiceId == lockedInvoice.Id && x.Status == BillingStates.CreditIssued)
       .SumAsync(x => (decimal?)x.Amount, ct) ?? 0;
@@ -333,7 +331,8 @@ public static class BillingService
     var credited = await db.CreditNotes.Where(x =>
       x.FirmId == actor.FirmId && x.InvoiceId == lockedInvoice.Id && x.Status == BillingStates.CreditIssued)
       .SumAsync(x => (decimal?)x.Amount, ct) ?? 0;
-    if (request.Amount > lockedInvoice.Total - credited)
+    var allocated = await GetNetAppliedToInvoiceAsync(db, actor.FirmId, lockedInvoice.Id, ct);
+    if (request.Amount > lockedInvoice.Total - credited - allocated)
       return CommandResult<Guid>.Fail("billing.over-credit", "Credit notes cannot exceed the invoice value.");
     if (await db.CreditNotes.AnyAsync(x => x.FirmId == actor.FirmId &&
         x.NoteNumber == request.NoteNumber.Trim(), ct))
@@ -360,8 +359,7 @@ public static class BillingService
     var account = resolved.Value.Account;
     var credited = await db.CreditNotes.Where(x => x.FirmId == actor.FirmId && x.InvoiceId == invoiceId &&
       x.Status == BillingStates.CreditIssued).SumAsync(x => (decimal?)x.Amount, ct) ?? 0;
-    var allocated = await db.ReceiptAllocations.Where(x => x.FirmId == actor.FirmId && x.InvoiceId == invoiceId)
-      .SumAsync(x => (decimal?)x.Amount, ct) ?? 0;
+    var allocated = await GetNetAppliedToInvoiceAsync(db, actor.FirmId, invoiceId, ct);
     var currency = invoice.Currency ?? account.Currency;
     return CommandResult<InvoiceBalance>.Ok(new InvoiceBalance(invoice.Id, currency, invoice.Total,
       MoneyPolicy.Normalize(credited), MoneyPolicy.Normalize(allocated),
@@ -386,12 +384,42 @@ public static class BillingService
     var credited = await db.CreditNotes.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
       x.InvoiceId == invoiceId && x.Status == BillingStates.CreditIssued)
       .SumAsync(x => (decimal?)x.Amount, ct) ?? 0;
-    var allocated = allocations.Sum(x => x.Amount);
+    var allocated = await GetNetAppliedToInvoiceAsync(db, actor.FirmId, invoiceId, ct);
     var currency = context.Invoice.Currency ?? context.Account.Currency;
     var balance = new InvoiceBalance(context.Invoice.Id, currency, context.Invoice.Total,
       MoneyPolicy.Normalize(credited), MoneyPolicy.Normalize(allocated),
       MoneyPolicy.Normalize(context.Invoice.Total - credited - allocated));
     return CommandResult<InvoiceDetailView>.Ok(new(context.Invoice, lines, allocations, balance));
+  }
+
+  /// <summary>Receipt allocations less independently approved reversals; pending requests do not affect cash application.</summary>
+  public static async Task<decimal> GetNetAppliedToReceiptAsync(
+    IAuditSphereDbContext db, Guid firmId, Guid receiptId, CancellationToken ct = default)
+  {
+    var applied = await db.ReceiptAllocations.AsNoTracking().Where(x => x.FirmId == firmId && x.ReceiptId == receiptId)
+      .SumAsync(x => (decimal?)x.Amount, ct) ?? 0m;
+    var reversed = await (from reversal in db.ReceiptAllocationReversals.AsNoTracking()
+      join allocation in db.ReceiptAllocations.AsNoTracking()
+        on new { reversal.FirmId, reversal.ReceiptAllocationId } equals new { allocation.FirmId, ReceiptAllocationId = allocation.Id }
+      where reversal.FirmId == firmId && allocation.ReceiptId == receiptId &&
+        reversal.Status == ReceiptAllocationReversalStates.Approved
+      select (decimal?)reversal.Amount).SumAsync(ct) ?? 0m;
+    return MoneyPolicy.Normalize(applied - reversed);
+  }
+
+  /// <summary>Receipt allocations less independently approved reversals; pending requests do not affect invoice balance.</summary>
+  public static async Task<decimal> GetNetAppliedToInvoiceAsync(
+    IAuditSphereDbContext db, Guid firmId, Guid invoiceId, CancellationToken ct = default)
+  {
+    var applied = await db.ReceiptAllocations.AsNoTracking().Where(x => x.FirmId == firmId && x.InvoiceId == invoiceId)
+      .SumAsync(x => (decimal?)x.Amount, ct) ?? 0m;
+    var reversed = await (from reversal in db.ReceiptAllocationReversals.AsNoTracking()
+      join allocation in db.ReceiptAllocations.AsNoTracking()
+        on new { reversal.FirmId, reversal.ReceiptAllocationId } equals new { allocation.FirmId, ReceiptAllocationId = allocation.Id }
+      where reversal.FirmId == firmId && allocation.InvoiceId == invoiceId &&
+        reversal.Status == ReceiptAllocationReversalStates.Approved
+      select (decimal?)reversal.Amount).SumAsync(ct) ?? 0m;
+    return MoneyPolicy.Normalize(applied - reversed);
   }
 
   private static async Task<CommandResult<AuthorizedInvoice>> ResolveAuthorizedInvoiceAsync(

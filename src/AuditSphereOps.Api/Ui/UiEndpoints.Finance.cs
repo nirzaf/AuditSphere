@@ -1,5 +1,12 @@
+using System.Globalization;
+using System.Text;
+using AuditSphereOps.Api.Authentication;
+using AuditSphereOps.Api.HttpBoundary;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Shared;
+using AuditSphereOps.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Api.Ui;
 
@@ -9,9 +16,40 @@ public static partial class UiEndpoints
   public sealed record ReceiptInput(string Amount, string Reference, bool Reviewed);
   public sealed record ReceiptAllocationInput(Guid InvoiceId, string Amount, bool Reviewed);
   public sealed record CreditNoteInput(string NoteNumber, string Amount, string Reason, bool Reviewed);
+  public sealed record PaymentTermsInput(DateOnly DueDate, string Basis, string TermsDescription, string EvidenceReference, long ExpectedRevision, bool Reviewed);
+  public sealed record PaymentTermsReviewInput(bool Approve, string Reason, bool Reviewed);
+  public sealed record AllocationReversalInput(string Amount, string Reference, string Reason, long ExpectedRevision, bool Reviewed);
+  public sealed record AllocationReversalReviewInput(bool Approve, string Reason, bool Reviewed);
+  public sealed record ReceivablesAgingExportInput(string AsOfDate);
 
   private static void MapFinanceEndpoints(RouteGroupBuilder group)
   {
+    group.MapUiGet("/finance/receivables-aging", http => ReadAsync(http, (db, actor, ct) =>
+    {
+      var asOf = ParseAsOfDate(http.Request.Query["asOf"].FirstOrDefault());
+      return asOf is null
+        ? Task.FromResult(CommandResult<FirmReceivablesAgingReport>.Fail("finance.as-of-invalid", "Provide the report date in YYYY-MM-DD format."))
+        : FirmReceivablesAgingQuery.GetAsync(db, actor, asOf.Value, ct);
+    }));
+    group.MapPost("/finance/receivables-aging/export", async (ReceivablesAgingExportInput input, HttpContext http,
+      TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
+    {
+      var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
+      if (actor is null) return Failure("session.unavailable", "Sign in again.", 401);
+      try { await csrf.ValidateRequestAsync(http); }
+      catch (AntiforgeryValidationException) { return Failure("csrf.invalid", "Refresh the page and try again.", 403); }
+      var asOf = ParseAsOfDate(input?.AsOfDate);
+      if (asOf is null) return Failure("finance.as-of-invalid", "Provide the report date in YYYY-MM-DD format.", 400);
+      await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
+      var result = await FirmReceivablesAgingQuery.ExportAsync(db, actor, asOf.Value, http.RequestAborted);
+      if (!result.Succeeded) return Failure(result.ErrorCode, result.Message,
+        result.ErrorCode == ErrorCodes.ScopeDenied ? 403 : 400);
+      if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
+        return Failure("session.unavailable", "Sign in again.", 401);
+      http.Response.Headers["X-Receivables-As-Of"] = asOf.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+      return Results.File(Encoding.UTF8.GetBytes(result.Value!.Csv), "text/csv; charset=utf-8", result.Value.FileName);
+    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export));
+
     group.MapUiGet("/finance", http => ReadAsync(http, async (db, actor, ct) =>
     {
       var r = await FirmFinanceQuery.GetAsync(db, actor, ct);
@@ -41,11 +79,15 @@ public static partial class UiEndpoints
         v.Invoice.CreatedAt, v.Invoice.PostedAt, Outstanding = v.Balance.Outstanding,
         Credited = v.Balance.Credited, Allocated = v.Balance.Allocated,
         Lines = v.Lines.Select(l => new { l.Description, l.Quantity, l.UnitPrice, l.LineTotal }),
-        Allocations = v.Allocations.Select(a => new { a.ReceiptId, a.CreatedAt, a.Amount }),
+        Allocations = r.Value.Allocations,
         Receipts = r.Value.Receipts,
         r.Value.ReceiptsHaveMore,
         CreditNotes = r.Value.CreditNotes,
         r.Value.CreditNotesHaveMore,
+        PaymentTerms = r.Value.PaymentTerms,
+        r.Value.PaymentTermsHaveMore,
+        r.Value.CanSubmitPaymentTerms,
+        r.Value.CanReviewPaymentTerms,
         r.Value.CanIssueCreditNote,
         CanApproveInvoice = r.Value.CanApproveInvoice,
         CanPostInvoice = r.Value.CanPostInvoice,
@@ -53,6 +95,24 @@ public static partial class UiEndpoints
         CanAct = true,
       });
     }));
+    group.MapPost("/finance/invoices/{id:guid}/payment-terms", (Guid id, PaymentTermsInput input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => InvoicePaymentTermsService.SubmitAsync(db, actor, id,
+        new SetInvoicePaymentTermsRequest(input.DueDate, input.Basis ?? "", input.TermsDescription ?? "",
+          input.EvidenceReference ?? "", input.ExpectedRevision, input.Reviewed), ct)));
+    group.MapPost("/finance/invoice-payment-terms/{id:guid}/review", (Guid id, PaymentTermsReviewInput input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => InvoicePaymentTermsService.ReviewAsync(db, actor, id,
+        new ReviewInvoicePaymentTermsRequest(input.Approve, input.Reason ?? "", input.Reviewed), ct)));
+    group.MapPost("/finance/allocations/{id:guid}/reversals", (Guid id, AllocationReversalInput input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) =>
+      {
+        if (!TryDecimal(input.Amount, out var amount))
+          return Task.FromResult(CommandResult<Guid>.Fail("billing.reversal-invalid", "Review a positive exact reversal amount."));
+        return ReceiptAllocationReversalService.SubmitAsync(db, actor, id,
+          new RequestReceiptAllocationReversal(amount, input.Reference ?? "", input.Reason ?? "", input.ExpectedRevision, input.Reviewed), ct);
+      }));
+    group.MapPost("/finance/allocation-reversals/{id:guid}/review", (Guid id, AllocationReversalReviewInput input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => ReceiptAllocationReversalService.ReviewAsync(db, actor, id,
+        new ReviewReceiptAllocationReversal(input.Approve, input.Reason ?? "", input.Reviewed), ct)));
     group.MapPost("/finance/billing-accounts/{id:guid}/receipts", (Guid id, ReceiptInput input, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) =>
       {
@@ -84,6 +144,10 @@ public static partial class UiEndpoints
     })
       group.MapPost("/finance/invoices/{id:guid}/" + action, (Guid id, HttpContext http) => CommandAsync(http, (db, actor, ct) => command(db, actor, id, ct)));
   }
+
+  private static DateOnly? ParseAsOfDate(string? value) =>
+    DateOnly.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
+      ? parsed : null;
 
   private static async Task<CommandResult<bool>> AsBoolean(Task<CommandResult> command)
   {

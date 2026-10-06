@@ -110,8 +110,19 @@ public static class RiskBandRules
     return score >= 6 ? RiskBands.Red : score >= 3 ? RiskBands.Amber : RiskBands.Green;
   }
 
-  /// <summary>Minimum staffing rank that may own the response: green any, amber senior, red manager.</summary>
+  /// <summary>Financial-threshold FSLI classification under STE 2.1 §4.2.4.</summary>
+  public static string FsliBand(decimal balance, decimal tolerableError, decimal planningMateriality,
+    bool criticalEstimate = false, bool highInherentRisk = false, bool significantRisk = false, bool fraudRisk = false) =>
+    FsliRiskBandRules.Band(balance, tolerableError, planningMateriality, criticalEstimate, highInherentRisk, significantRisk, fraudRisk);
+
+  /// <summary>Minimum staffing rank that may own the response: green any (1), amber senior (2), red manager (3).</summary>
   public static int MinimumOwnerRank(string band) => band switch { RiskBands.Red => 3, RiskBands.Amber => 2, _ => 1 };
+
+  /// <summary>Minimum staffing rank that may perform/submit testing: green staff (1), amber senior (2), red manager (3).</summary>
+  public static int MinimumExecutorRank(string band) => band switch { RiskBands.Red => 3, RiskBands.Amber => 2, _ => 1 };
+
+  /// <summary>Minimum staffing rank that may review testing: green senior (2), amber manager (3), red partner (4).</summary>
+  public static int MinimumReviewerRank(string band) => band switch { RiskBands.Red => 4, RiskBands.Amber => 3, _ => 2 };
 
   public static string Route(string band) => band switch
   {
@@ -119,4 +130,70 @@ public static class RiskBandRules
     RiskBands.Amber => "Senior Auditor or above performs; Audit Manager reviews.",
     _ => "Assignable to a Staff Associate; standard review."
   };
+}
+
+/// <summary>
+/// Pure financial-statement line item (FSLI) risk band rules (STE 2.1 §4.2.4 &amp; Fixture F05):
+/// |Balance| &lt; TE -&gt; GREEN; TE &lt;= |Balance| &lt;= PM -&gt; AMBER; |Balance| &gt; PM -&gt; RED.
+/// Qualitative triggers (critical estimate, high inherent risk, significant risk, fraud risk) always yield RED.
+/// </summary>
+public static class FsliRiskBandRules
+{
+  public const string RuleVersion = "STE-FSLI-RISK-2026.1";
+
+  public static string Band(decimal balance, decimal tolerableError, decimal planningMateriality,
+    bool criticalEstimate = false, bool highInherentRisk = false, bool significantRisk = false, bool fraudRisk = false)
+  {
+    if (tolerableError <= 0 || planningMateriality <= 0 || tolerableError > planningMateriality)
+      throw new ArgumentException("TE and PM must be positive with TE <= PM.");
+    if (criticalEstimate || highInherentRisk || significantRisk || fraudRisk)
+      return RiskBands.Red;
+    var abs = Math.Abs(balance);
+    if (abs > planningMateriality) return RiskBands.Red;
+    if (abs >= tolerableError) return RiskBands.Amber;
+    return RiskBands.Green;
+  }
+
+  public static int MinimumExecutorRank(string band) => RiskBandRules.MinimumExecutorRank(band);
+  public static int MinimumReviewerRank(string band) => RiskBandRules.MinimumReviewerRank(band);
+
+  public static string PerformerDescription(string band) => band switch
+  {
+    RiskBands.Red => "Audit Manager or above",
+    RiskBands.Amber => "Senior Auditor or above",
+    _ => "Staff Associate or above"
+  };
+
+  public static string ReviewerDescription(string band) => band switch
+  {
+    RiskBands.Red => "Engagement Partner",
+    RiskBands.Amber => "Audit Manager or above",
+    _ => "Senior Auditor or above"
+  };
+
+  public static string Route(string band) => band switch
+  {
+    RiskBands.Red => "Audit Manager or above executes; Engagement Partner review is mandatory.",
+    RiskBands.Amber => "Senior Auditor or above executes; Audit Manager or above reviews.",
+    _ => "Staff Associate or above executes; standard supervisory review."
+  };
+
+  public static string Explain(decimal balance, decimal tolerableError, decimal planningMateriality, string band,
+    bool criticalEstimate = false, bool highInherentRisk = false, bool significantRisk = false, bool fraudRisk = false)
+  {
+    var reasons = new List<string>();
+    if (criticalEstimate) reasons.Add("Critical accounting estimate");
+    if (highInherentRisk) reasons.Add("High inherent risk identified");
+    if (significantRisk) reasons.Add("Significant risk flag");
+    if (fraudRisk) reasons.Add("Presumed or identified fraud risk");
+
+    var abs = Math.Abs(balance);
+    if (reasons.Count > 0)
+      return $"Classified as {band} due to qualitative risk factors: {string.Join(", ", reasons)}.";
+    if (abs > planningMateriality)
+      return $"Classified as {band}: absolute balance ({abs:N2}) exceeds Planning Materiality ({planningMateriality:N2}).";
+    if (abs >= tolerableError)
+      return $"Classified as {band}: absolute balance ({abs:N2}) is between Tolerable Error ({tolerableError:N2}) and Planning Materiality ({planningMateriality:N2}).";
+    return $"Classified as {band}: absolute balance ({abs:N2}) is below Tolerable Error ({tolerableError:N2}).";
+  }
 }

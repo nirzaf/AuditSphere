@@ -16,6 +16,11 @@ const calculation = obj({ assessmentId: guid, state: text, route: text, benchmar
   tolerableError: dec, sadThreshold: dec, policyVersion: text });
 const routing = obj({ riskId: guid, area: text, assertion: text, significanceDecision: text, assessmentId: nullable(guid), band: nullable(text), likelihood: nullable(int),
   magnitude: nullable(int), fraudRisk: bool, route: text, partnerReviewRequired: bool, partnerCleared: bool, partnerName: nullable(text), ownerName: nullable(text), ownerLevel: nullable(text) });
+const fsliRow = obj({
+  destinationCode: text, statementSection: text, auditArea: nullable(text), balance: dec, absoluteBalance: dec,
+  currency: text, tolerableError: dec, planningMateriality: dec, band: text, criticalEstimate: bool,
+  highInherentRisk: bool, significantRisk: bool, fraudRisk: bool, performerRole: text, reviewerRole: text, explanation: text
+});
 export const decodePlan = obj({ engagementId: guid, professionalWorkBlocked: bool, materiality: nullable(materiality), canApproveMateriality: bool,
   risks: arr(obj({ id: guid, accountArea: text, description: text, assertion: text, severity: text, status: text }), 2000),
   populations: arr(obj({ id: guid, purpose: text, assertion: text, rowCount: nat, monetaryControlTotal: dec, currency: text, status: text }), 2000),
@@ -25,7 +30,7 @@ export const decodePlan = obj({ engagementId: guid, professionalWorkBlocked: boo
   rateRanges: arr(obj({ kind: text, minRatePercent: dec, maxRatePercent: dec }), 50), performanceMin: dec, performanceMax: dec, trivialMin: dec, trivialMax: dec,
   riskRuleVersion: text, routing: arr(routing, 2000),
   team: arr(obj({ assignmentId: guid, userId: guid, name: text, level: text, levelLabel: text, authorizationRole: text, certified: bool }), 500),
-  canAssignOwners: bool, isPartner: bool });
+  canAssignOwners: bool, isPartner: bool, fsliStratification: arr(fsliRow, 500) });
 type Plan = ReturnType<typeof decodePlan>;
 interface RowInput { likelihood: number; magnitude: number; fraud: boolean; rationale: string; owner: string; note: string }
 
@@ -142,6 +147,28 @@ interface RowInput { likelihood: number; magnitude: number; fraud: boolean; rati
           </article>
         } @empty { <p>No risks are recorded yet.</p> }
       </section>
+
+      @if (p.fsliStratification.length) {
+        <section class="panel" aria-labelledby="fsli-stratification-heading">
+          <h2 id="fsli-stratification-heading">FSLI Risk Stratification</h2>
+          <p><small>Financial statement line items classified against Tolerable Error (TE) and Planning Materiality (PM) under STE 2.1 §4.2.4. Green: balance &lt; TE; Amber: TE &le; balance &le; PM; Red: balance &gt; PM or qualitative triggers (critical estimates, high inherent risk, fraud risk).</small></p>
+          <div class="table-scroll"><table>
+            <thead><tr><th scope="col">Code</th><th scope="col">Section</th><th scope="col">Area</th><th scope="col" class="number">Balance</th><th scope="col">Band</th><th scope="col">Execution</th><th scope="col">Review</th><th scope="col">Explanation</th></tr></thead>
+            <tbody>@for (row of p.fsliStratification; track row.destinationCode + row.statementSection) {
+              <tr>
+                <td><code>{{ row.destinationCode }}</code></td>
+                <td>{{ row.statementSection }}</td>
+                <td>{{ row.auditArea ?? '—' }}</td>
+                <td class="number">{{ row.balance | money }} {{ row.currency }}</td>
+                <td><span class="status-chip" [attr.aria-label]="'Band ' + row.band">{{ row.band }}</span></td>
+                <td><small>{{ row.performerRole }}</small></td>
+                <td><small>{{ row.reviewerRole }}</small></td>
+                <td><small>{{ row.explanation }}</small></td>
+              </tr>
+            }</tbody>
+          </table></div>
+        </section>
+      }
 
       <section class="panel" aria-labelledby="populations-heading">
         <h2 id="populations-heading">Populations (§20.1)</h2>

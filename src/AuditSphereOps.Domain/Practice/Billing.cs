@@ -59,6 +59,71 @@ public sealed class Invoice
   public DateTimeOffset CreatedAt { get; set; }
 }
 
+public static class InvoicePaymentTermsStates
+{
+  public const string PendingReview = "PENDING_REVIEW";
+  public const string Approved = "APPROVED";
+  public const string Rejected = "REJECTED";
+}
+
+public static class InvoicePaymentTermsKinds
+{
+  public const string ContractualDueDate = "CONTRACTUAL_DUE_DATE";
+  public const string ReviewedTermsSnapshot = "REVIEWED_TERMS_SNAPSHOT";
+}
+
+public static class FirmReceivablesAgingPolicy
+{
+  public const string Current = "CURRENT_NOT_YET_DUE";
+  public const string Overdue1To30 = "OVERDUE_1_30";
+  public const string Overdue31To60 = "OVERDUE_31_60";
+  public const string Overdue61To90 = "OVERDUE_61_90";
+  public const string OverdueOver90 = "OVERDUE_OVER_90";
+  public const string Undated = "UNDATED_REVIEW_REQUIRED";
+  public const string Settled = "SETTLED";
+
+  /// <summary>Days use calendar-date arithmetic: a due date equal to the as-of date is not overdue.</summary>
+  public static int? DaysOverdue(DateOnly? dueDate, DateOnly asOfDate) =>
+    dueDate is { } due && due < asOfDate ? asOfDate.DayNumber - due.DayNumber : dueDate is null ? null : 0;
+
+  public static string Bucket(DateOnly? dueDate, DateOnly asOfDate, decimal outstanding)
+  {
+    if (outstanding == 0m) return Settled;
+    if (dueDate is null) return Undated;
+    var days = DaysOverdue(dueDate, asOfDate) ?? 0;
+    return days switch
+    {
+      <= 0 => Current,
+      <= 30 => Overdue1To30,
+      <= 60 => Overdue31To60,
+      <= 90 => Overdue61To90,
+      _ => OverdueOver90
+    };
+  }
+}
+
+/// <summary>
+/// Append-only invoice terms revision. Submission is the only mutable transition: a separate finance reviewer
+/// approves or rejects it. Revisions become effective on their review date and are never backdated by user input.
+/// </summary>
+public sealed class InvoicePaymentTermsRevision
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid InvoiceId { get; set; }
+  public long Revision { get; set; }
+  public DateOnly DueDate { get; set; }
+  public string Basis { get; set; } = InvoicePaymentTermsKinds.ContractualDueDate;
+  public string TermsDescription { get; set; } = string.Empty;
+  public string EvidenceReference { get; set; } = string.Empty;
+  public string Status { get; set; } = InvoicePaymentTermsStates.PendingReview;
+  public Guid SubmittedByUserId { get; set; }
+  public DateTimeOffset SubmittedAt { get; set; }
+  public Guid? ReviewedByUserId { get; set; }
+  public DateTimeOffset? ReviewedAt { get; set; }
+  public string? ReviewReason { get; set; }
+}
+
 public sealed class InvoiceLine
 {
   public Guid Id { get; set; }
@@ -94,6 +159,31 @@ public sealed class ReceiptAllocation
   public Guid InvoiceId { get; set; }
   public decimal Amount { get; set; }
   public DateTimeOffset CreatedAt { get; set; }
+}
+
+public static class ReceiptAllocationReversalStates
+{
+  public const string PendingReview = "PENDING_REVIEW";
+  public const string Approved = "APPROVED";
+  public const string Rejected = "REJECTED";
+}
+
+/// <summary>An immutable, independently reviewed partial or full reversal of a receipt allocation.</summary>
+public sealed class ReceiptAllocationReversal
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ReceiptAllocationId { get; set; }
+  public long Revision { get; set; }
+  public decimal Amount { get; set; }
+  public string Reference { get; set; } = string.Empty;
+  public string Reason { get; set; } = string.Empty;
+  public string Status { get; set; } = ReceiptAllocationReversalStates.PendingReview;
+  public Guid SubmittedByUserId { get; set; }
+  public DateTimeOffset SubmittedAt { get; set; }
+  public Guid? ReviewedByUserId { get; set; }
+  public DateTimeOffset? ReviewedAt { get; set; }
+  public string? ReviewReason { get; set; }
 }
 
 public sealed class CreditNote

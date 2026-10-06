@@ -144,11 +144,15 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
 
   public DbSet<Invoice> Invoices => Set<Invoice>();
 
+  public DbSet<InvoicePaymentTermsRevision> InvoicePaymentTermsRevisions => Set<InvoicePaymentTermsRevision>();
+
   public DbSet<InvoiceLine> InvoiceLines => Set<InvoiceLine>();
 
   public DbSet<Receipt> Receipts => Set<Receipt>();
 
   public DbSet<ReceiptAllocation> ReceiptAllocations => Set<ReceiptAllocation>();
+
+  public DbSet<ReceiptAllocationReversal> ReceiptAllocationReversals => Set<ReceiptAllocationReversal>();
 
   public DbSet<CreditNote> CreditNotes => Set<CreditNote>();
 

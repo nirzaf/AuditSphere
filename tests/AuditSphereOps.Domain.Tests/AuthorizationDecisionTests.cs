@@ -586,9 +586,11 @@ public sealed class AuthorizationDecisionTests
     public DbSet<BillingAccount> BillingAccounts => db.BillingAccounts;
     public DbSet<FirmFinanceProfile> FirmFinanceProfiles => db.FirmFinanceProfiles;
     public DbSet<Invoice> Invoices => db.Invoices;
+    public DbSet<InvoicePaymentTermsRevision> InvoicePaymentTermsRevisions => db.InvoicePaymentTermsRevisions;
     public DbSet<InvoiceLine> InvoiceLines => db.InvoiceLines;
     public DbSet<Receipt> Receipts => db.Receipts;
     public DbSet<ReceiptAllocation> ReceiptAllocations => db.ReceiptAllocations;
+    public DbSet<ReceiptAllocationReversal> ReceiptAllocationReversals => db.ReceiptAllocationReversals;
     public DbSet<CreditNote> CreditNotes => db.CreditNotes;
     public DbSet<BillingSourceAllocation> BillingSourceAllocations => db.BillingSourceAllocations;
     public DbSet<FirmAccount> FirmAccounts => db.FirmAccounts;

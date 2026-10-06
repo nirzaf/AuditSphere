@@ -3,6 +3,7 @@ using System;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AuditSphereDbContext))]
-    partial class AuditSphereDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261006115618_InvoicePaymentTermsRevisions")]
+    partial class InvoicePaymentTermsRevisions
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -19827,88 +19830,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("AuditSphereOps.Domain.Practice.ReceiptAllocationReversal", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<decimal>("Amount")
-                        .HasColumnType("numeric(19,6)")
-                        .HasColumnName("amount");
-
-                    b.Property<Guid>("FirmId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("firm_id");
-
-                    b.Property<string>("Reason")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("reason");
-
-                    b.Property<Guid>("ReceiptAllocationId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("receipt_allocation_id");
-
-                    b.Property<string>("Reference")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("reference");
-
-                    b.Property<string>("ReviewReason")
-                        .HasColumnType("text")
-                        .HasColumnName("review_reason");
-
-                    b.Property<DateTimeOffset?>("ReviewedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("reviewed_at");
-
-                    b.Property<Guid?>("ReviewedByUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("reviewed_by_user_id");
-
-                    b.Property<long>("Revision")
-                        .HasColumnType("bigint")
-                        .HasColumnName("revision");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("status");
-
-                    b.Property<DateTimeOffset>("SubmittedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("submitted_at");
-
-                    b.Property<Guid>("SubmittedByUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("submitted_by_user_id");
-
-                    b.HasKey("Id");
-
-                    b.HasAlternateKey("FirmId", "Id")
-                        .HasName("AK_receipt_allocation_reversals_firm_id_id");
-
-                    b.HasIndex("FirmId", "ReceiptAllocationId")
-                        .IsUnique()
-                        .HasFilter("status = 'PENDING_REVIEW'");
-
-                    b.HasIndex("FirmId", "ReviewedByUserId");
-
-                    b.HasIndex("FirmId", "SubmittedByUserId");
-
-                    b.HasIndex("FirmId", "ReceiptAllocationId", "Revision")
-                        .IsUnique();
-
-                    b.ToTable("receipt_allocation_reversals", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_receipt_allocation_reversal_review", "(status = 'PENDING_REVIEW' AND reviewed_by_user_id IS NULL AND reviewed_at IS NULL AND review_reason IS NULL) OR (status IN ('APPROVED','REJECTED') AND reviewed_by_user_id IS NOT NULL AND reviewed_at IS NOT NULL AND length(review_reason) > 0)");
-
-                            t.HasCheckConstraint("ck_receipt_allocation_reversal_values", "revision >= 1 AND amount > 0 AND length(reference) > 0 AND length(reason) > 0 AND status IN ('PENDING_REVIEW','APPROVED','REJECTED')");
-                        });
-                });
-
             modelBuilder.Entity("AuditSphereOps.Domain.Practice.ResourcePlanningReceipt", b =>
                 {
                     b.Property<Guid>("Id")
@@ -26171,29 +26092,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasOne("AuditSphereOps.Domain.Practice.Receipt", null)
                         .WithMany()
                         .HasForeignKey("FirmId", "ReceiptId")
-                        .HasPrincipalKey("FirmId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("AuditSphereOps.Domain.Practice.ReceiptAllocationReversal", b =>
-                {
-                    b.HasOne("AuditSphereOps.Domain.Practice.ReceiptAllocation", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ReceiptAllocationId")
-                        .HasPrincipalKey("FirmId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ReviewedByUserId")
-                        .HasPrincipalKey("FirmId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "SubmittedByUserId")
                         .HasPrincipalKey("FirmId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();

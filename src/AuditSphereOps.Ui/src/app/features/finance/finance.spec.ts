@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { decodeLedger } from './ledger';
 import { decodeInvoice } from './invoice';
 import { decodeBooks, decodeTrialBalance } from './books';
+import { decodeReceivablesAging } from './receivables-aging';
 
 const id1 = '11111111-1111-4111-8111-111111111111';
 const id2 = '22222222-2222-4222-8222-222222222222';
@@ -73,11 +74,17 @@ describe('Finance & Firm Ledger Contracts', () => {
           lineTotal: '50000.00',
         },
       ],
-      allocations: [],
+      allocations: [{ id: id1, receiptId: id2, receiptReference: 'BANK-001', currency: 'QAR',
+        createdAt: '2026-10-01T09:00:00Z', amount: '20.00', appliedAfterReversals: '15.00', reversed: '5.00',
+        remainingToReverse: '15.00', latestReversalRevision: 1, canRequestReversal: true, canReviewReversal: false, reversals: [] }],
       receipts: [{ id: id2, reference: 'BANK-001', currency: 'QAR', amount: '5000.00', allocated: '0.00', remaining: '5000.00', receivedAt: '2026-10-01T09:00:00Z' }],
       receiptsHaveMore: false,
       creditNotes: [{ id: '33333333-3333-4333-8333-333333333333', noteNumber: 'CN-001', currency: 'QAR', amount: '1000.00', reason: 'Reviewed adjustment', createdAt: '2026-10-01T10:00:00Z' }],
       creditNotesHaveMore: false,
+      paymentTerms: [],
+      paymentTermsHaveMore: false,
+      canSubmitPaymentTerms: true,
+      canReviewPaymentTerms: false,
       canIssueCreditNote: true,
       canApproveInvoice: false,
       canPostInvoice: true,
@@ -90,11 +97,37 @@ describe('Finance & Firm Ledger Contracts', () => {
     expect(decoded.lines.length).toBe(1);
     expect(decoded.outstanding).toBe('50000.00');
     expect(decoded.receipts[0].remaining).toBe('5000.00');
+    expect(decoded.allocations[0].appliedAfterReversals).toBe('15.00');
+    expect(decoded.allocations[0].reversed).toBe('5.00');
     expect(decoded.creditNotes[0].noteNumber).toBe('CN-001');
     expect(decoded.canIssueCreditNote).toBe(true);
     expect(decoded.canApproveInvoice).toBe(false);
     expect(decoded.canPostInvoice).toBe(true);
     expect(decoded.canSendInvoice).toBe(true);
+  });
+
+  it('decodes exact firm receivables balances, date-only ageing, and currency subtotals', () => {
+    const report = decodeReceivablesAging({
+      asOfDate: '2026-10-06',
+      dateBasis: 'UTC posting, receipt received/allocated, credit issued, and terms-review dates.',
+      bucketPolicy: 'Due on or after the as-of date is current.',
+      rows: [{ invoiceId: id1, clientId: id2, legalClientName: 'Synthetic client', engagementId: null,
+        engagementName: null, invoiceType: 'ADVANCE', invoiceNumber: 'SYN-001', dueDate: '2026-09-05',
+        originalAmount: '100.00', appliedReceipts: '20.00', reversedReceipts: '5.00', appliedCredits: '10.00', outstanding: '75.00',
+        daysOverdue: 31, bucket: 'OVERDUE_31_60', currency: 'QAR', paymentTermsStatus: 'APPROVED',
+        financeRecipients: ['Finance <finance@example.test>'] }],
+      clientCurrencySubtotals: [{ clientId: id2, legalClientName: 'Synthetic client', engagementId: null, engagementName: null,
+        currency: 'QAR', invoiceCount: 1,
+        originalAmount: '100.00', appliedReceipts: '20.00', reversedReceipts: '5.00', appliedCredits: '10.00', outstanding: '75.00' }],
+      engagementCurrencySubtotals: [],
+      currencySubtotals: [{ clientId: null, legalClientName: null, engagementId: null, engagementName: null, currency: 'QAR', invoiceCount: 1,
+        originalAmount: '100.00', appliedReceipts: '20.00', reversedReceipts: '5.00', appliedCredits: '10.00', outstanding: '75.00' }],
+    }, 'receivables');
+    expect(report.asOfDate).toBe('2026-10-06');
+    expect(report.rows[0].reversedReceipts).toBe('5.00');
+    expect(report.rows[0].outstanding).toBe('75.00');
+    expect(report.rows[0].daysOverdue).toBe(31);
+    expect(report.currencySubtotals[0].currency).toBe('QAR');
   });
 
   it('decodes a valid firm books payload', () => {

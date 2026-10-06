@@ -3,6 +3,7 @@ using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Audit;
+using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 
@@ -267,6 +268,26 @@ public static class AuditProgramService
       procedure.ApplicabilityStatus, procedure.Status));
   }
 
+  public static async Task<CommandResult> LinkRiskAsync(
+    IAuditSphereDbContext db,
+    ActorContext actor,
+    Guid procedureId,
+    Guid? riskId,
+    CancellationToken ct = default)
+  {
+    var procedure = await db.AuditProcedures.SingleOrDefaultAsync(x => x.Id == procedureId && x.FirmId == actor.FirmId, ct);
+    if (procedure is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var scope = await ResolveEngagementAsync(db, actor, procedure.EngagementId, ct, procedure.ClientId);
+    if (scope.Denied is not null) return CommandResult.Fail(scope.Denied, scope.Message);
+
+    if (riskId is { } rid && !await db.AuditRisks.AnyAsync(x => x.Id == rid && x.FirmId == actor.FirmId && x.EngagementId == procedure.EngagementId, ct))
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "The risk must belong to the same engagement.");
+
+    procedure.RiskId = riskId;
+    await db.SaveChangesAsync(ct);
+    return CommandResult.Ok();
+  }
+
   public static async Task<CommandResult<ProcedureResultValue>> SubmitResultAsync(
     IAuditSphereDbContext db,
     ActorContext actor,
@@ -317,6 +338,27 @@ public static class AuditProgramService
     if (latest is not null && latest.Status == AuditProcedureResultStatuses.Submitted)
       return CommandResult<ProcedureResultValue>.Fail(ErrorCodes.ProtectedState,
         "The current result is awaiting review; create a new revision only after review.");
+
+    if (procedure.RiskId is { } riskId)
+    {
+      var currentRiskBand = await db.RiskBandAssessments.AsNoTracking()
+        .Where(x => x.FirmId == scope.FirmId && x.RiskId == riskId)
+        .OrderByDescending(x => x.AssessedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+      if (currentRiskBand is not null)
+      {
+        var minRank = RiskBandRules.MinimumExecutorRank(currentRiskBand.Band);
+        var staffAssignment = await db.EngagementStaffAssignments.AsNoTracking()
+          .FirstOrDefaultAsync(x => x.FirmId == scope.FirmId && x.EngagementId == procedure.EngagementId && x.UserId == actor.UserId && x.RevokedAt == null, ct);
+        var actorRank = staffAssignment is not null ? StaffingLevels.Rank(staffAssignment.StaffingLevel) :
+          (actor.Roles.Contains("Partner") ? 4 : actor.Roles.Contains("Manager") ? 3 : actor.Roles.Contains("Senior") ? 2 : 1);
+        if (actorRank < minRank)
+        {
+          var reqLevel = StaffingLevels.All.First(x => StaffingLevels.Rank(x) == minRank);
+          return CommandResult<ProcedureResultValue>.Fail(ErrorCodes.ScopeDenied,
+            $"A {currentRiskBand.Band} risk procedure requires execution by {StaffingLevels.Label(reqLevel)} or above.");
+        }
+      }
+    }
 
     var workpaper = new Workpaper
     {
@@ -429,6 +471,28 @@ public static class AuditProgramService
     var hierarchy = await ReviewNotesService.RequireReviewerAboveAsync(db, scope.FirmId, result.EngagementId, result.PreparedByUserId, actor.UserId, ct);
     if (!hierarchy.Succeeded)
       return CommandResult<ProcedureReviewValue>.Fail(hierarchy.ErrorCode!, hierarchy.Message!);
+
+    if (procedure.RiskId is { } riskId)
+    {
+      var currentRiskBand = await db.RiskBandAssessments.AsNoTracking()
+        .Where(x => x.FirmId == scope.FirmId && x.RiskId == riskId)
+        .OrderByDescending(x => x.AssessedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+      if (currentRiskBand is not null)
+      {
+        var minReviewerRank = RiskBandRules.MinimumReviewerRank(currentRiskBand.Band);
+        var reviewerStaffing = await db.EngagementStaffAssignments.AsNoTracking()
+          .FirstOrDefaultAsync(x => x.FirmId == scope.FirmId && x.EngagementId == result.EngagementId && x.UserId == actor.UserId && x.RevokedAt == null, ct);
+        var reviewerRank = reviewerStaffing is not null ? StaffingLevels.Rank(reviewerStaffing.StaffingLevel) :
+          (actor.Roles.Contains("Partner") ? 4 : actor.Roles.Contains("Manager") ? 3 : actor.Roles.Contains("Senior") ? 2 : 1);
+        if (reviewerRank < minReviewerRank)
+        {
+          var reqLevel = StaffingLevels.All.First(x => StaffingLevels.Rank(x) == minReviewerRank);
+          return CommandResult<ProcedureReviewValue>.Fail(ErrorCodes.ScopeDenied,
+            $"A {currentRiskBand.Band} risk procedure requires review by {StaffingLevels.Label(reqLevel)} or above.");
+        }
+      }
+    }
+
     if (decision == AuditProcedureReviewDecisions.Reviewed && await ReviewNotesService.OpenCountAsync(db, scope.FirmId, procedure.Id, ct) is > 0 and var open)
       return CommandResult<ProcedureReviewValue>.Fail(ErrorCodes.GateBlocked, $"{open} review note(s) are still open; resolve them before approving.");
 

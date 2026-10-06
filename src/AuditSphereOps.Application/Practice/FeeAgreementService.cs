@@ -207,7 +207,15 @@ public static class FeeAgreementService
       if (!recorded.Succeeded) return CommandResult<AdvancePaymentOutcome>.Fail(recorded.ErrorCode!, recorded.Message!);
       receipt = await db.Receipts.AsNoTracking().SingleAsync(x => x.Id == recorded.Value && x.FirmId == actor.FirmId, ct);
     }
-    var allocatedToInvoice = await db.ReceiptAllocations.Where(x => x.FirmId == actor.FirmId && x.ReceiptId == receipt.Id && x.InvoiceId == invoice.Id).SumAsync(x => (decimal?)x.Amount, ct) ?? 0m;
+    var allocatedToInvoice = await db.ReceiptAllocations.Where(x => x.FirmId == actor.FirmId && x.ReceiptId == receipt.Id && x.InvoiceId == invoice.Id)
+      .SumAsync(x => (decimal?)x.Amount, ct) ?? 0m;
+    var reversedFromInvoice = await (from reversal in db.ReceiptAllocationReversals.AsNoTracking()
+      join allocation in db.ReceiptAllocations.AsNoTracking()
+        on new { reversal.FirmId, reversal.ReceiptAllocationId } equals new { allocation.FirmId, ReceiptAllocationId = allocation.Id }
+      where reversal.FirmId == actor.FirmId && allocation.ReceiptId == receipt.Id && allocation.InvoiceId == invoice.Id &&
+        reversal.Status == ReceiptAllocationReversalStates.Approved
+      select (decimal?)reversal.Amount).SumAsync(ct) ?? 0m;
+    allocatedToInvoice = MoneyPolicy.Normalize(Math.Max(0m, allocatedToInvoice - reversedFromInvoice));
     if (allocatedToInvoice < receipt.Amount)
     {
       var allocation = await BillingService.AllocateReceiptAsync(db, actor, new(receipt.Id, invoice.Id, receipt.Amount - allocatedToInvoice), ct);
@@ -319,7 +327,7 @@ public static class FeeAgreementService
 
   private static async Task<decimal> OutstandingAsync(IAuditSphereDbContext db, Guid firmId, Invoice invoice, CancellationToken ct)
   {
-    var allocated = await db.ReceiptAllocations.Where(x => x.FirmId == firmId && x.InvoiceId == invoice.Id).SumAsync(x => (decimal?)x.Amount, ct) ?? 0m;
+    var allocated = await BillingService.GetNetAppliedToInvoiceAsync(db, firmId, invoice.Id, ct);
     var credited = await db.CreditNotes.Where(x => x.FirmId == firmId && x.InvoiceId == invoice.Id && x.Status == BillingStates.CreditIssued).SumAsync(x => (decimal?)x.Amount, ct) ?? 0m;
     return MoneyPolicy.Normalize(invoice.Total - allocated - credited);
   }

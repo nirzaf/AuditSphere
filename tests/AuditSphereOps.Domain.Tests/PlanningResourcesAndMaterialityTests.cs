@@ -483,4 +483,134 @@ public sealed partial class PlanningResourcesAndMaterialityTests
       Assert.Equal(240, grid.Rows.Single(x => x.UserId == w.Users["senior"].Id).Weeks[0].ApprovedActualMinutes);
     }
   }
+
+  [Fact]
+  public void FsliRiskBandRules_PureCalculator_EnforcesThresholdsAndQualitativeTriggers()
+  {
+    // STE 2.1 §4.2.4 & Fixture F05:
+    // TE = 37,500, PM = 50,000
+    const decimal te = 37_500m;
+    const decimal pm = 50_000m;
+
+    // Green: |balance| < TE
+    Assert.Equal(RiskBands.Green, FsliRiskBandRules.Band(10_000m, te, pm));
+    Assert.Equal(RiskBands.Green, FsliRiskBandRules.Band(-10_000m, te, pm));
+    Assert.Equal(RiskBands.Green, FsliRiskBandRules.Band(37_499.99m, te, pm));
+
+    // Amber: TE <= |balance| <= PM
+    Assert.Equal(RiskBands.Amber, FsliRiskBandRules.Band(37_500m, te, pm));
+    Assert.Equal(RiskBands.Amber, FsliRiskBandRules.Band(-37_500m, te, pm));
+    Assert.Equal(RiskBands.Amber, FsliRiskBandRules.Band(45_000m, te, pm));
+    Assert.Equal(RiskBands.Amber, FsliRiskBandRules.Band(50_000m, te, pm));
+    Assert.Equal(RiskBands.Amber, FsliRiskBandRules.Band(-50_000m, te, pm));
+
+    // Red: |balance| > PM
+    Assert.Equal(RiskBands.Red, FsliRiskBandRules.Band(50_000.01m, te, pm));
+    Assert.Equal(RiskBands.Red, FsliRiskBandRules.Band(-60_000m, te, pm));
+    Assert.Equal(RiskBands.Red, FsliRiskBandRules.Band(100_000m, te, pm));
+
+    // Qualitative triggers always override low balance to Red
+    Assert.Equal(RiskBands.Red, FsliRiskBandRules.Band(5_000m, te, pm, criticalEstimate: true));
+    Assert.Equal(RiskBands.Red, FsliRiskBandRules.Band(5_000m, te, pm, highInherentRisk: true));
+    Assert.Equal(RiskBands.Red, FsliRiskBandRules.Band(5_000m, te, pm, significantRisk: true));
+    Assert.Equal(RiskBands.Red, FsliRiskBandRules.Band(5_000m, te, pm, fraudRisk: true));
+
+    // Invalid parameters throw ArgumentException
+    Assert.Throws<ArgumentException>(() => FsliRiskBandRules.Band(10_000m, 0m, pm));
+    Assert.Throws<ArgumentException>(() => FsliRiskBandRules.Band(10_000m, te, 0m));
+    Assert.Throws<ArgumentException>(() => FsliRiskBandRules.Band(10_000m, 60_000m, 50_000m)); // TE > PM
+
+    // Minimum staffing ranks
+    Assert.Equal(1, FsliRiskBandRules.MinimumExecutorRank(RiskBands.Green));
+    Assert.Equal(2, FsliRiskBandRules.MinimumExecutorRank(RiskBands.Amber));
+    Assert.Equal(3, FsliRiskBandRules.MinimumExecutorRank(RiskBands.Red));
+
+    Assert.Equal(2, FsliRiskBandRules.MinimumReviewerRank(RiskBands.Green));
+    Assert.Equal(3, FsliRiskBandRules.MinimumReviewerRank(RiskBands.Amber));
+    Assert.Equal(4, FsliRiskBandRules.MinimumReviewerRank(RiskBands.Red));
+  }
+
+  [Fact]
+  public async Task AuditProcedure_ExecutionAndReviewStaffingRanks_EnforcesRiskBandRules()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var partner = w.Actor("partner", "Partner");
+    var partner2 = w.Actor("partner2", "Partner");
+    var manager = w.Actor("manager", "Manager");
+    var senior = w.Actor("senior", "Senior");
+    var associate = w.Actor("associate", "Staff");
+
+    // Add certifications and staffing assignments
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.True((await ResourcePlanningService.AddCertificationAsync(db, manager, new(w.Users["partner2"].Id, "CPA", "AICPA", null))).Succeeded);
+      Assert.True((await ResourcePlanningService.AddCertificationAsync(db, manager, new(w.Users["manager"].Id, "ACCA", "ACCA", null))).Succeeded);
+
+      Assert.True((await StaffingService.AssignAsync(db, partner, new(w.EngagementId, w.Users["partner2"].Id, StaffingLevels.EngagementPartner))).Succeeded);
+      Assert.True((await StaffingService.AssignAsync(db, partner, new(w.EngagementId, w.Users["manager"].Id, StaffingLevels.AuditManager))).Succeeded);
+      Assert.True((await StaffingService.AssignAsync(db, manager, new(w.EngagementId, w.Users["senior"].Id, StaffingLevels.SeniorAuditor))).Succeeded);
+      Assert.True((await StaffingService.AssignAsync(db, manager, new(w.EngagementId, w.Users["associate"].Id, StaffingLevels.StaffAssociate))).Succeeded);
+    }
+
+    // Publish and adopt program
+    Guid procedureId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var pub = await AuditProgramService.PublishAsync(db, partner, new PublishAuditProgramRequest("2026.1", AuditProgramCatalog.SourceHash));
+      Assert.True(pub.Succeeded);
+      var adopt = await AuditProgramService.AdoptAsync(db, partner, new AdoptAuditProgramRequest(w.EngagementId, pub.Value!.ProgramVersionId));
+      Assert.True(adopt.Succeeded);
+      var proc = await db.AuditProcedures.FirstAsync(x => x.EngagementId == w.EngagementId);
+      procedureId = proc.Id;
+      Assert.True((await AuditProgramService.DecideApplicabilityAsync(db, partner, new(proc.Id, AuditApplicabilityStatuses.Applicable, null))).Succeeded);
+    }
+
+    // Create a Red risk and assess it
+    Guid redRiskId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var r = await AuditPlanningService.CreateAuditRiskAsync(db, senior,
+        new CreateAuditRiskRequest(w.EngagementId, "Revenue", "Completeness", "Presumed fraud in revenue recognition", "Volume", SignificanceDecisions.Significant, null, "Detailed testing"));
+      Assert.True(r.Succeeded);
+      redRiskId = r.Value!.RiskId;
+      var assess = await RiskBandService.AssessAsync(db, partner, new AssessRiskBandRequest(redRiskId, 1, 1, true, "Presumed fraud risk"));
+      Assert.True(assess.Succeeded);
+      var routing = (await RiskBandService.GetRoutingAsync(db, senior, w.EngagementId)).Value!.Single(x => x.RiskId == redRiskId);
+      Assert.Equal(RiskBands.Red, routing.Band);
+
+      // Link procedure to the Red risk
+      var link = await AuditProgramService.LinkRiskAsync(db, partner, procedureId, redRiskId);
+      Assert.True(link.Succeeded);
+    }
+
+    // Associate attempts to execute Red procedure -> Rejected (minimum executor rank is 3 - Manager)
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var submitAssoc = await AuditProgramService.SubmitResultAsync(db, associate,
+        new SubmitProcedureResultRequest(procedureId, 1, "Tested revenue", "{\"result\":\"PASS\"}", ["ref:rev-1"], "Conclusion"));
+      Assert.Equal(ErrorCodes.ScopeDenied, submitAssoc.ErrorCode);
+      Assert.Contains("requires execution by Audit Manager or above", submitAssoc.Message);
+
+      // Senior attempts to execute Red procedure -> Rejected
+      var submitSenior = await AuditProgramService.SubmitResultAsync(db, senior,
+        new SubmitProcedureResultRequest(procedureId, 1, "Tested revenue", "{\"result\":\"PASS\"}", ["ref:rev-1"], "Conclusion"));
+      Assert.Equal(ErrorCodes.ScopeDenied, submitSenior.ErrorCode);
+      Assert.Contains("requires execution by Audit Manager or above", submitSenior.Message);
+
+      // Manager executes Red procedure -> Succeeded!
+      var submitMgr = await AuditProgramService.SubmitResultAsync(db, manager,
+        new SubmitProcedureResultRequest(procedureId, 1, "Tested revenue thoroughly", "{\"result\":\"PASS\"}", ["ref:rev-1"], "Conclusion confirmed"));
+      Assert.True(submitMgr.Succeeded, submitMgr.Message);
+
+      // Senior attempts to review Red procedure -> Rejected (minimum reviewer rank is 4 - Partner)
+      var revSenior = await AuditProgramService.ReviewResultAsync(db, senior, new(submitMgr.Value!.AuditProcedureResultId, "REVIEWED", null));
+      Assert.Equal(ErrorCodes.ScopeDenied, revSenior.ErrorCode);
+
+      // Partner2 reviews Red procedure -> Succeeded!
+      var revPartner = await AuditProgramService.ReviewResultAsync(db, partner2, new(submitMgr.Value!.AuditProcedureResultId, "REVIEWED", null));
+      Assert.True(revPartner.Succeeded, revPartner.Message);
+    }
+  }
 }
+

@@ -28,9 +28,11 @@ public sealed partial class AuditSphereDbContext
     b.Entity<BillingAccount>().HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_billing_accounts_firm_id_id");
     b.Entity<FirmFinanceProfile>().HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_finance_profiles_firm_id_id");
     b.Entity<Invoice>().HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_invoices_firm_id_id");
+    b.Entity<InvoicePaymentTermsRevision>().HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_invoice_payment_terms_firm_id_id");
     b.Entity<InvoiceLine>().HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_invoice_lines_firm_id_id");
     b.Entity<Receipt>().HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_receipts_firm_id_id");
     b.Entity<ReceiptAllocation>().HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_receipt_allocations_firm_id_id");
+    b.Entity<ReceiptAllocationReversal>().HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_receipt_allocation_reversals_firm_id_id");
     b.Entity<CreditNote>().HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_credit_notes_firm_id_id");
     b.Entity<BillingSourceAllocation>().HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_billing_sources_firm_id_id");
     b.Entity<FirmAccount>().HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_firm_accounts_firm_id_id");
@@ -55,9 +57,15 @@ public sealed partial class AuditSphereDbContext
     b.Entity<BillingAccount>().HasIndex(x => new { x.FirmId, x.PracticeClientId }).IsUnique();
     b.Entity<FirmFinanceProfile>().HasIndex(x => x.FirmId).IsUnique();
     b.Entity<Invoice>().HasIndex(x => new { x.FirmId, x.InvoiceNumber }).IsUnique();
+    b.Entity<InvoicePaymentTermsRevision>().HasIndex(x => new { x.FirmId, x.InvoiceId, x.Revision }).IsUnique();
+    b.Entity<InvoicePaymentTermsRevision>().HasIndex(x => new { x.FirmId, x.InvoiceId })
+      .HasFilter("status = 'PENDING_REVIEW'").IsUnique();
     b.Entity<InvoiceLine>().HasIndex(x => new { x.FirmId, x.InvoiceId });
     b.Entity<Receipt>().HasIndex(x => new { x.FirmId, x.BillingAccountId, x.ReceivedAt });
     b.Entity<ReceiptAllocation>().HasIndex(x => new { x.FirmId, x.ReceiptId, x.InvoiceId }).IsUnique();
+    b.Entity<ReceiptAllocationReversal>().HasIndex(x => new { x.FirmId, x.ReceiptAllocationId, x.Revision }).IsUnique();
+    b.Entity<ReceiptAllocationReversal>().HasIndex(x => new { x.FirmId, x.ReceiptAllocationId })
+      .HasFilter("status = 'PENDING_REVIEW'").IsUnique();
     b.Entity<CreditNote>().HasIndex(x => new { x.FirmId, x.NoteNumber }).IsUnique();
     b.Entity<BillingSourceAllocation>().HasIndex(x => new { x.FirmId, x.SourceKind, x.SourceId, x.SourceRevision }).IsUnique();
     b.Entity<FirmAccount>().HasIndex(x => new { x.FirmId, x.Code }).IsUnique();
@@ -117,12 +125,26 @@ public sealed partial class AuditSphereDbContext
       t.HasCheckConstraint("ck_invoice_values", "length(invoice_number) > 0 AND (currency IS NULL OR currency ~ '^[A-Z]{3}$') AND subtotal >= 0 AND tax >= 0 AND total >= 0 AND total = subtotal + tax");
       t.HasCheckConstraint("ck_invoice_cancel", "(status = 'CANCELLED' AND cancelled_at IS NOT NULL AND length(cancellation_reason) > 0) OR status <> 'CANCELLED'");
     });
+    b.Entity<InvoicePaymentTermsRevision>().ToTable("invoice_payment_terms_revisions", t =>
+    {
+      t.HasCheckConstraint("ck_invoice_payment_terms_values",
+        "revision >= 1 AND basis IN ('CONTRACTUAL_DUE_DATE','REVIEWED_TERMS_SNAPSHOT') AND length(terms_description) > 0 AND length(evidence_reference) > 0 AND status IN ('PENDING_REVIEW','APPROVED','REJECTED')");
+      t.HasCheckConstraint("ck_invoice_payment_terms_review",
+        "(status = 'PENDING_REVIEW' AND reviewed_by_user_id IS NULL AND reviewed_at IS NULL AND review_reason IS NULL) OR (status = 'APPROVED' AND reviewed_by_user_id IS NOT NULL AND reviewed_at IS NOT NULL AND length(review_reason) > 0) OR (status = 'REJECTED' AND reviewed_by_user_id IS NOT NULL AND reviewed_at IS NOT NULL AND length(review_reason) > 0)");
+    });
     b.Entity<InvoiceLine>().ToTable("invoice_lines", t => t.HasCheckConstraint("ck_invoice_line_values",
       "length(description) > 0 AND quantity > 0 AND unit_price >= 0 AND line_total >= 0 AND line_total = round(quantity * unit_price, 6) AND ((length(source_kind) = 0 AND source_id IS NULL AND source_revision IS NULL) OR (length(source_kind) > 0 AND source_id IS NOT NULL AND source_revision >= 1))"));
     b.Entity<Receipt>().ToTable("receipts", t => t.HasCheckConstraint("ck_receipt_values",
       "amount > 0 AND (currency IS NULL OR currency ~ '^[A-Z]{3}$') AND length(reference) > 0 AND status = 'RECORDED'"));
     b.Entity<ReceiptAllocation>().ToTable("allocations", t => t.HasCheckConstraint("ck_receipt_allocation_amount",
       "amount > 0"));
+    b.Entity<ReceiptAllocationReversal>().ToTable("receipt_allocation_reversals", t =>
+    {
+      t.HasCheckConstraint("ck_receipt_allocation_reversal_values",
+        "revision >= 1 AND amount > 0 AND length(reference) > 0 AND length(reason) > 0 AND status IN ('PENDING_REVIEW','APPROVED','REJECTED')");
+      t.HasCheckConstraint("ck_receipt_allocation_reversal_review",
+        "(status = 'PENDING_REVIEW' AND reviewed_by_user_id IS NULL AND reviewed_at IS NULL AND review_reason IS NULL) OR (status IN ('APPROVED','REJECTED') AND reviewed_by_user_id IS NOT NULL AND reviewed_at IS NOT NULL AND length(review_reason) > 0)");
+    });
     b.Entity<CreditNote>().ToTable("credit_notes", t => t.HasCheckConstraint("ck_credit_note_values",
       "length(note_number) > 0 AND currency ~ '^[A-Z]{3}$' AND amount > 0 AND length(reason) > 0 AND status = 'ISSUED'"));
     b.Entity<BillingSourceAllocation>().ToTable("billing_source_allocations", t => t.HasCheckConstraint("ck_billing_source_values",
@@ -237,6 +259,15 @@ public sealed partial class AuditSphereDbContext
     b.Entity<Invoice>().HasOne<BillingAccount>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.BillingAccountId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<InvoicePaymentTermsRevision>().HasOne<Invoice>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.InvoiceId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<InvoicePaymentTermsRevision>().HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.SubmittedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<InvoicePaymentTermsRevision>().HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ReviewedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     b.Entity<Invoice>().HasOne<AppUser>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
@@ -257,6 +288,15 @@ public sealed partial class AuditSphereDbContext
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     b.Entity<ReceiptAllocation>().HasOne<Invoice>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.InvoiceId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<ReceiptAllocationReversal>().HasOne<ReceiptAllocation>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ReceiptAllocationId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<ReceiptAllocationReversal>().HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.SubmittedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<ReceiptAllocationReversal>().HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ReviewedByUserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     b.Entity<CreditNote>().HasOne<BillingAccount>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.BillingAccountId })

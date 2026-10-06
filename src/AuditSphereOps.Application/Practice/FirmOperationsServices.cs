@@ -209,9 +209,17 @@ public static class PracticeAnalyticsQuery
     var lifetimeTime = await db.TimeEntries.AsNoTracking().Where(x => x.FirmId == f && x.Status == PracticeTimeStates.TimeApproved &&
       x.EngagementId != null && engagementIds.Contains(x.EngagementId.Value)).Select(x => new { x.EngagementId, x.DurationMinutes, x.RatePerHour, x.Currency }).ToListAsync(ct);
     var invoiceIds = billedLines.Select(x => x.i.Id).Distinct().ToArray();
-    var allocations = await db.ReceiptAllocations.AsNoTracking().Where(x => invoiceIds.Contains(x.InvoiceId)).GroupBy(x => x.InvoiceId)
+    var allocations = await db.ReceiptAllocations.AsNoTracking().Where(x => x.FirmId == f && invoiceIds.Contains(x.InvoiceId)).GroupBy(x => x.InvoiceId)
       .Select(g => new { g.Key, Amount = g.Sum(x => x.Amount) }).ToDictionaryAsync(x => x.Key, x => x.Amount, ct);
-    var credits = await db.CreditNotes.AsNoTracking().Where(x => invoiceIds.Contains(x.InvoiceId)).GroupBy(x => x.InvoiceId)
+    var reversedAllocations = await (from reversal in db.ReceiptAllocationReversals.AsNoTracking()
+      join allocation in db.ReceiptAllocations.AsNoTracking()
+        on new { reversal.FirmId, reversal.ReceiptAllocationId } equals new { allocation.FirmId, ReceiptAllocationId = allocation.Id }
+      where reversal.FirmId == f && invoiceIds.Contains(allocation.InvoiceId) &&
+        reversal.Status == ReceiptAllocationReversalStates.Approved
+      group reversal by allocation.InvoiceId into reversals
+      select new { InvoiceId = reversals.Key, Amount = reversals.Sum(x => x.Amount) })
+      .ToDictionaryAsync(x => x.InvoiceId, x => x.Amount, ct);
+    var credits = await db.CreditNotes.AsNoTracking().Where(x => x.FirmId == f && invoiceIds.Contains(x.InvoiceId)).GroupBy(x => x.InvoiceId)
       .Select(g => new { g.Key, Amount = g.Sum(x => x.Amount) }).ToDictionaryAsync(x => x.Key, x => x.Amount, ct);
     var labels = await db.Engagements.AsNoTracking().Where(x => engagementIds.Contains(x.Id))
       .Join(db.PracticeClients.AsNoTracking(), e => e.PracticeClientId, c => c.Id, (e, c) => new { e.Id, Label = (c.CommercialName ?? c.LegalName) + " · " + e.ServiceRoute + " " + e.PeriodEnd })
@@ -233,7 +241,7 @@ public static class PracticeAnalyticsQuery
         var total = invoice.First().i.Total;
         var ratio = total == 0 ? 0 : share / total;
         billed += share - credits.GetValueOrDefault(invoice.Key) * ratio;
-        collected += allocations.GetValueOrDefault(invoice.Key) * ratio;
+        collected += Math.Max(0m, allocations.GetValueOrDefault(invoice.Key) - reversedAllocations.GetValueOrDefault(invoice.Key)) * ratio;
       }
       var standard = MoneyPolicy.Normalize(mine.Sum(t => t.RatePerHour.HasValue ? t.DurationMinutes * t.RatePerHour.Value / 60m : 0m));
       var cost = MoneyPolicy.Normalize(costs.Sum(c => c ?? 0m));

@@ -1,4 +1,5 @@
 using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Application.Security;
@@ -19,11 +20,15 @@ public sealed record PlanCalculation(Guid AssessmentId, string State, string Rou
   int SourceLineCount, long MappingVersionNumber, decimal RatePercent, decimal PerformancePercent, decimal TrivialPercent, decimal PlanningMateriality,
   decimal TolerableError, decimal SadThreshold, string PolicyVersion);
 public sealed record PlanPolicyRange(string Kind, decimal MinRatePercent, decimal MaxRatePercent);
+public sealed record PlanFsliRiskRow(
+  string DestinationCode, string StatementSection, string? AuditArea, decimal Balance, decimal AbsoluteBalance,
+  string Currency, decimal TolerableError, decimal PlanningMateriality, string Band, bool CriticalEstimate,
+  bool HighInherentRisk, bool SignificantRisk, bool FraudRisk, string PerformerRole, string ReviewerRole, string Explanation);
 public sealed record AuditPlanWorkspace(Guid EngagementId, bool ProfessionalWorkBlocked, PlanMateriality? Materiality, bool CanApproveMateriality,
   IReadOnlyList<PlanRisk> Risks, IReadOnlyList<PlanPopulation> Populations, IReadOnlyList<PlanFinding> Findings, IReadOnlyList<PlanWorkpaper> Workpapers,
   MaterialitySourceView? MaterialitySource, string? MaterialitySourceMessage, PlanCalculation? LatestCalculation, IReadOnlyList<PlanPolicyRange> RateRanges,
   decimal PerformanceMin, decimal PerformanceMax, decimal TrivialMin, decimal TrivialMax, string RiskRuleVersion, IReadOnlyList<RiskRoutingRow> Routing,
-  IReadOnlyList<StaffAssignmentRow> Team, bool CanAssignOwners, bool IsPartner);
+  IReadOnlyList<StaffAssignmentRow> Team, bool CanAssignOwners, bool IsPartner, IReadOnlyList<PlanFsliRiskRow> FsliStratification);
 
 /// <summary>Engagement-scoped audit plan projection: planning records, the materiality engine state and risk routing.</summary>
 public static class AuditPlanWorkspaceQuery
@@ -60,6 +65,52 @@ public static class AuditPlanWorkspaceQuery
     var routing = await RiskBandService.GetRoutingAsync(db, actor, engagementId, ct);
     var team = await StaffingService.ListAsync(db, actor, engagementId, ct);
     var c = latest?.Calculation;
+
+    var fsliRows = new List<PlanFsliRiskRow>();
+    if (latest?.Calculation is { } calc && calc.PlanningMateriality > 0 && calc.TolerableError > 0)
+    {
+      var rawSource = await MappedTrialBalanceSource.LoadAsync(db, actor.FirmId, engagementId, ct);
+      if (rawSource is not null)
+      {
+        var risksForEngagement = await db.AuditRisks.AsNoTracking().Where(r => r.FirmId == actor.FirmId && r.EngagementId == engagementId).ToListAsync(ct);
+        var assessmentsForEngagement = await db.RiskBandAssessments.AsNoTracking().Where(a => a.FirmId == actor.FirmId && a.EngagementId == engagementId).ToListAsync(ct);
+
+        var grouped = rawSource.Lines.GroupBy(l => (l.DestinationCode, l.StatementSection, l.AuditArea));
+        foreach (var g in grouped)
+        {
+          var balance = g.Sum(x => x.Amount);
+          var destCode = g.Key.DestinationCode;
+          var section = g.Key.StatementSection;
+          var area = g.Key.AuditArea;
+
+          var matchingRisks = risksForEngagement.Where(r =>
+            (!string.IsNullOrWhiteSpace(area) && string.Equals(r.AccountArea, area, StringComparison.OrdinalIgnoreCase)) ||
+            string.Equals(r.AccountArea, destCode, StringComparison.OrdinalIgnoreCase)).ToList();
+
+          var matchingRiskIds = matchingRisks.Select(r => r.Id).ToHashSet();
+          var matchingAssessments = assessmentsForEngagement.Where(a => matchingRiskIds.Contains(a.RiskId)).ToList();
+
+          var significant = matchingRisks.Any(r => r.SignificanceDecision == SignificanceDecisions.Significant) ||
+                            matchingAssessments.Any(a => a.Significant);
+          var fraud = matchingAssessments.Any(a => a.FraudRisk);
+          var critical = matchingRisks.Any(r => r.Description.Contains("estimate", StringComparison.OrdinalIgnoreCase) ||
+                                                r.Drivers.Contains("estimate", StringComparison.OrdinalIgnoreCase));
+          var highInherent = matchingAssessments.Any(a => a.LikelihoodScore == 3 && a.MagnitudeScore >= 2);
+
+          var band = FsliRiskBandRules.Band(balance, calc.TolerableError, calc.PlanningMateriality,
+            critical, highInherent, significant, fraud);
+          var performer = FsliRiskBandRules.Route(band);
+          var reviewer = FsliRiskBandRules.ReviewerDescription(band);
+          var explanation = FsliRiskBandRules.Explain(balance, calc.TolerableError, calc.PlanningMateriality,
+            band, critical, highInherent, significant, fraud);
+
+          fsliRows.Add(new PlanFsliRiskRow(destCode, section, area, balance, Math.Abs(balance), rawSource.Dataset.Currency,
+            calc.TolerableError, calc.PlanningMateriality, band, critical, highInherent, significant, fraud,
+            performer, reviewer, explanation));
+        }
+      }
+    }
+
     return CommandResult<AuditPlanWorkspace>.Ok(new(engagementId, engagement.ProfessionalWorkBlocked,
       materiality is null ? null : new PlanMateriality(materiality.Id, materiality.ActorId, materiality.BenchmarkSource, materiality.BenchmarkVersion, materiality.Rationale,
         materiality.BenchmarkAmount, materiality.RateApplied, materiality.OverallMateriality, materiality.PerformanceMateriality, materiality.ClearlyTrivialThreshold,
@@ -73,6 +124,7 @@ public static class AuditPlanWorkspaceQuery
       MaterialityCalculator.RateRanges.Select(x => new PlanPolicyRange(x.Key, x.Value.MinRatePercent, x.Value.MaxRatePercent)).ToList(),
       MaterialityCalculator.PerformanceRange.Min, MaterialityCalculator.PerformanceRange.Max, MaterialityCalculator.TrivialRange.Min, MaterialityCalculator.TrivialRange.Max,
       RiskBandRules.RuleVersion, routing.Succeeded ? routing.Value! : [], team.Succeeded ? team.Value! : [],
-      actor.Roles.Any(x => x is "Partner" or "Manager" or "Administrator"), actor.Roles.Contains("Partner")));
+      actor.Roles.Any(x => x is "Partner" or "Manager" or "Administrator"), actor.Roles.Contains("Partner"), fsliRows));
   }
 }
+

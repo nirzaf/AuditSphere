@@ -52,6 +52,8 @@ export const routes: Routes = [
     loadComponent: () => import('./features/audit/records').then(m => m.ArchiveRecord) },
   { path: 'app/finance', canActivate: [staffGuard], pathMatch: 'full', title: 'Firm ledger · AuditSphere',
     loadComponent: () => import('./features/finance/ledger').then(m => m.FirmLedger) },
+  { path: 'app/finance/receivables-aging', canActivate: [staffGuard], title: 'Firm receivables ageing · AuditSphere',
+    loadComponent: () => import('./features/finance/receivables-aging').then(m => m.FirmReceivablesAging) },
   { path: 'app/practice/invoices/:id', canActivate: [staffGuard], title: 'Invoice · AuditSphere',
     loadComponent: () => import('./features/finance/invoice').then(m => m.InvoiceDetail) },
   { path: 'app/accounting/currency-configuration', canActivate: [staffGuard], canDeactivate: [unsavedChangesGuard], title: 'FX rates & policies · AuditSphere',

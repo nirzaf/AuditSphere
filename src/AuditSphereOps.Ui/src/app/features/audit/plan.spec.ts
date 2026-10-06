@@ -145,6 +145,7 @@ describe('Audit Plan Contracts', () => {
       ],
       canAssignOwners: true,
       isPartner: true,
+      fsliStratification: [],
     };
 
     const decoded = decodePlan(raw, 'plan');
