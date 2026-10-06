@@ -47,13 +47,31 @@ then load the remaining history. This API-host browser journey passed **1/1**
 in 34 seconds. At test commit `793d29dd`, another journey held a history
 response while navigating to a different client's invoice, then released it;
 the old invoice's receipt rows did not reappear. That check passed **1/1** in
-35 seconds. Session revocation during an in-flight request remains open.
+35 seconds. The remaining FinanceManager/FinanceReviewer and firm/client
+scope combinations and uncertain billing outcomes are still open.
 
 The 76 source/action rows remain at one parity
 verified, 73 partial, and two unanalyzed; AS-PAR-002 remains partial and the
 Blazor retirement gate remains `NOT_READY`. The full solution regression was
 not rerun; its last complete result remains recorded at its earlier verified
 commit in `status.json`.
+
+## Completed focused slice: Invoice-history response after session revocation
+
+At code/test commit `e3301035`, the PostgreSQL-backed API-host Angular
+`AngularBillingWorkspaceJourneyTests` passed **1/1** in 34 seconds. The browser
+held delivery of a real receipt-history response fetched while the session was
+valid, then the user's session epoch was revoked. Invoice refresh and session
+revalidation returned 401, the page cleared to Access unavailable, and
+delivering the delayed HTTP 200 did not restore invoice or receipt rows. There
+were no browser page errors.
+
+The test and Angular production build ran in a clean isolated worktree because
+concurrent uncommitted API changes in the shared checkout failed compilation.
+The Angular build passed with the existing 7.53 kB Commercial Settings
+stylesheet warning against its 4 kB budget. The shared changes were not
+modified or included in the test commit. The complete suite was not rerun; its
+latest result remains 1001/1001 at `ead85032`.
 
 ## Completed focused slice: Firm-ledger close-reason validation
 
