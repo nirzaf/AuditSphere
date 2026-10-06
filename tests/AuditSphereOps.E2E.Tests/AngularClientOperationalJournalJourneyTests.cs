@@ -110,6 +110,9 @@ public sealed class AngularClientOperationalJournalJourneyTests
     await journals.GetByRole(AriaRole.Button, new() { Name = "Save journal draft", Exact = true }).ClickAsync();
     await Assertions.Expect(journals.GetByRole(AriaRole.Heading, new() { Name = "J-UI-001 · DRAFT", Exact = true })).ToBeVisibleAsync();
     var submitReview = journals.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed this client, journal, posting date, account selection and exact amounts.", Exact = true });
+    await Assertions.Expect(journals.GetByRole(AriaRole.Button, new() { Name = "Submit for independent review", Exact = true })).ToBeDisabledAsync();
+    await journals.GetByRole(AriaRole.Button, new() { Name = "Preview accounting effect", Exact = true }).ClickAsync();
+    await Assertions.Expect(journals.GetByRole(AriaRole.Status)).ToContainTextAsync("Server-validated preview");
     await submitReview.CheckAsync();
     await journals.GetByRole(AriaRole.Button, new() { Name = "Submit for independent review", Exact = true }).ClickAsync();
     await Assertions.Expect(journals.GetByRole(AriaRole.Heading, new() { Name = "J-UI-001 · SUBMITTED", Exact = true })).ToBeVisibleAsync();
@@ -122,6 +125,8 @@ public sealed class AngularClientOperationalJournalJourneyTests
     await journals.GetByLabel("Open a saved journal by ID", new() { Exact = true }).FillAsync(journalId.ToString());
     await journals.GetByRole(AriaRole.Button, new() { Name = "Open journal", Exact = true }).ClickAsync();
     await Assertions.Expect(journals.GetByRole(AriaRole.Heading, new() { Name = "J-UI-001 · SUBMITTED", Exact = true })).ToBeVisibleAsync();
+    await journals.GetByRole(AriaRole.Button, new() { Name = "Preview accounting effect", Exact = true }).ClickAsync();
+    await Assertions.Expect(journals.GetByRole(AriaRole.Status)).ToContainTextAsync("revision 2");
     await journals.GetByLabel("Approval reason", new() { Exact = true }).FillAsync("Independently reviewed and balanced");
     await journals.GetByRole(AriaRole.Checkbox, new() { Name = "I independently reviewed this exact journal revision and its balanced lines.", Exact = true }).CheckAsync();
     await journals.GetByRole(AriaRole.Button, new() { Name = "Approve and post", Exact = true }).ClickAsync();

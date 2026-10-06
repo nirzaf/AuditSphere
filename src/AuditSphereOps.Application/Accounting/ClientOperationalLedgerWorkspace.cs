@@ -10,7 +10,7 @@ namespace AuditSphereOps.Application.Accounting;
 public sealed record ClientOperationalJournalLineInput(string AccountCode, string Description, decimal Debit, decimal Credit);
 public sealed record ClientOperationalJournalCreateRequest(Guid ClientId, Guid PeriodId, string JournalNumber,
   string Description, DateOnly PostingDate, IReadOnlyList<ClientOperationalJournalLineInput> Lines);
-public sealed record ClientOperationalJournalDecisionRequest(long ExpectedRevision, string Decision, string Reason);
+public sealed record ClientOperationalJournalDecisionRequest(long ExpectedRevision, string Decision, string Reason, string PreviewDigest = "");
 public sealed record ClientOperationalJournalLineView(int LineNumber, Guid AccountId, string AccountCode,
   string AccountName, string Description, string Debit, string Credit);
 public sealed record ClientOperationalJournalView(Guid Id, Guid ClientId, Guid PeriodId, string JournalNumber,
@@ -19,7 +19,7 @@ public sealed record ClientOperationalJournalView(Guid Id, Guid ClientId, Guid P
   IReadOnlyList<ClientOperationalJournalLineView> Lines);
 
 /// <summary>Native client-book manual journal draft, independent review, and immutable posting.</summary>
-public static class ClientOperationalLedgerWorkspace
+public static partial class ClientOperationalLedgerWorkspace
 {
   private static readonly string[] Preparers = ["AccountingPreparer", "AccountingReviewer", "Manager", "Partner", "Administrator"];
   private static readonly string[] Reviewers = ["AccountingReviewer", "Manager", "Partner", "Administrator"];
@@ -107,7 +107,7 @@ public static class ClientOperationalLedgerWorkspace
   }
 
   public static async Task<CommandResult> SubmitAsync(IClientAccountingDbContext db, ActorContext actor,
-    Guid clientId, Guid journalId, long expectedRevision, CancellationToken ct = default)
+    Guid clientId, Guid journalId, long expectedRevision, CancellationToken ct = default, string? previewDigest = null)
   {
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     var journal = await db.ClientOperationalJournals.FromSqlInterpolated(
@@ -137,6 +137,9 @@ public static class ClientOperationalLedgerWorkspace
       .OrderBy(x => x.LineNumber).ToListAsync(ct);
     if (!await ValidatePostingLinesAsync(db, actor.FirmId, clientId, journal.PostingDate, lines, ct))
       return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "The journal no longer matches a unique approved chart and balanced active posting accounts.");
+    var preview = await BuildPreviewAsync(db, actor, journal, lines, ct);
+    if (!preview.Succeeded || !string.Equals(preview.Value!.Digest, previewDigest, StringComparison.Ordinal))
+      return CommandResult.Fail(ErrorCodes.StaleRevision, "Preview this exact journal and current accounting context before submitting.");
     journal.Status = "SUBMITTED";
     journal.SubmittedAt = DateTimeOffset.UtcNow;
     journal.Revision++;
@@ -181,6 +184,9 @@ public static class ClientOperationalLedgerWorkspace
       .OrderBy(x => x.LineNumber).ToListAsync(ct);
     if (!await ValidatePostingLinesAsync(db, actor.FirmId, clientId, journal.PostingDate, lines, ct))
       return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "The journal no longer matches a unique approved chart and balanced active posting accounts.");
+    var preview = await BuildPreviewAsync(db, actor, journal, lines, ct);
+    if (!preview.Succeeded || !string.Equals(preview.Value!.Digest, request.PreviewDigest, StringComparison.Ordinal))
+      return CommandResult.Fail(ErrorCodes.StaleRevision, "Preview this exact submitted journal and current accounting context before posting.");
     var decisionRecord = new ClientOperationalJournalDecision
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = clientId, JournalId = journalId,

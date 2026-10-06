@@ -19,6 +19,7 @@ public sealed partial class ClientAccountingTests
     var scope = await SeedAsync(pg);
     var preparer = Actor(scope.Preparer, "AccountingPreparer");
     var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
+    string reviewDigest = "";
     Guid periodId;
     Guid chartId;
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -79,8 +80,35 @@ public sealed partial class ClientAccountingTests
 
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      var submitted = await ClientOperationalLedgerWorkspace.SubmitAsync(db, preparer, scope.ClientA, journalId, 1);
+      var preview = await ClientOperationalLedgerWorkspace.PreviewAsync(db, preparer, scope.ClientA, journalId);
+      Assert.True(preview.Succeeded, preview.Message);
+      Assert.Equal("125.000000", preview.Value!.TotalDebit);
+      Assert.Equal(64, preview.Value.Digest.Length);
+      Assert.Equal(preview.Value.Digest, (await ClientOperationalLedgerWorkspace.PreviewAsync(db, preparer, scope.ClientA, journalId)).Value!.Digest);
+      Assert.Empty(await db.ClientOperationalJournalDecisions.ToListAsync());
+      var missingPreview = await ClientOperationalLedgerWorkspace.SubmitAsync(db, preparer, scope.ClientA, journalId, 1);
+      Assert.False(missingPreview.Succeeded);
+      Assert.Equal(ErrorCodes.StaleRevision, missingPreview.ErrorCode);
+      await db.ClientOperationalJournals.Where(x => x.Id == journalId).ExecuteUpdateAsync(x => x.SetProperty(j => j.Description, "Changed draft intent"));
+      db.ChangeTracker.Clear();
+      var stalePreview = await ClientOperationalLedgerWorkspace.SubmitAsync(db, preparer, scope.ClientA, journalId, 1, previewDigest: preview.Value.Digest);
+      Assert.False(stalePreview.Succeeded);
+      Assert.Equal(ErrorCodes.StaleRevision, stalePreview.ErrorCode);
+      db.ChangeTracker.Clear();
+      var refreshed = await ClientOperationalLedgerWorkspace.PreviewAsync(db, preparer, scope.ClientA, journalId);
+      Assert.True(refreshed.Succeeded, refreshed.Message);
+      Assert.NotEqual(preview.Value.Digest, refreshed.Value!.Digest);
+      var submitted = await ClientOperationalLedgerWorkspace.SubmitAsync(db, preparer, scope.ClientA, journalId, 1, previewDigest: refreshed.Value.Digest);
+
       Assert.True(submitted.Succeeded, submitted.Message);
+      var reviewPreview = await ClientOperationalLedgerWorkspace.PreviewAsync(db, reviewer, scope.ClientA, journalId);
+      Assert.True(reviewPreview.Succeeded, reviewPreview.Message);
+      reviewDigest = reviewPreview.Value!.Digest;
+      Assert.NotEqual(refreshed.Value.Digest, reviewDigest);
+      var staleApproval = await ClientOperationalLedgerWorkspace.ReviewAndPostAsync(db, reviewer, scope.ClientA, journalId,
+        new(2, "APPROVE", "Old draft preview", refreshed.Value.Digest));
+      Assert.False(staleApproval.Succeeded);
+      Assert.Equal(ErrorCodes.StaleRevision, staleApproval.ErrorCode);
       var selfApproval = await ClientOperationalLedgerWorkspace.ReviewAndPostAsync(db, preparer, scope.ClientA, journalId,
         new ClientOperationalJournalDecisionRequest(2, "APPROVE", "Reviewed"));
       Assert.False(selfApproval.Succeeded);
@@ -104,7 +132,7 @@ public sealed partial class ClientAccountingTests
     {
       await using var concurrent = new AuditSphereDbContext(pg.Options);
       return await ClientOperationalLedgerWorkspace.ReviewAndPostAsync(concurrent, reviewer, scope.ClientA, journalId,
-        new(2, "APPROVE", "Balanced and supported"));
+        new(2, "APPROVE", "Balanced and supported", reviewDigest));
     }
     async Task<CommandResult> CloseConcurrently()
     {
@@ -119,10 +147,10 @@ public sealed partial class ClientAccountingTests
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var posted = await ClientOperationalLedgerWorkspace.ReviewAndPostAsync(db, reviewer, scope.ClientA, journalId,
-        new ClientOperationalJournalDecisionRequest(2, "APPROVE", "Balanced and supported"));
+        new ClientOperationalJournalDecisionRequest(2, "APPROVE", "Balanced and supported", reviewDigest));
       Assert.True(posted.Succeeded, posted.Message);
       var replay = await ClientOperationalLedgerWorkspace.ReviewAndPostAsync(db, reviewer, scope.ClientA, journalId,
-        new ClientOperationalJournalDecisionRequest(2, "APPROVE", "Balanced and supported"));
+        new ClientOperationalJournalDecisionRequest(2, "APPROVE", "Balanced and supported", reviewDigest));
       Assert.True(replay.Succeeded, replay.Message);
       Assert.Equal(1, await db.ClientOperationalJournalDecisions.CountAsync(x => x.FirmId == scope.FirmId && x.JournalId == journalId));
       var journal = await db.ClientOperationalJournals.SingleAsync(x => x.FirmId == scope.FirmId && x.Id == journalId);

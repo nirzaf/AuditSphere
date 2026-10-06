@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeOperationalJournal, decodeOperationalLedger, nativeJournalAmount } from './operational-journals';
+import { decodeOperationalJournal, decodeOperationalLedger, nativeJournalAmount, decodeJournalPreview } from './operational-journals';
 
 const client = '11111111-1111-4111-8111-111111111111';
 const journal = '22222222-2222-4222-8222-222222222222';
@@ -36,5 +36,18 @@ describe('Native journal storage amount limits', () => {
     expect(nativeJournalAmount('9999999999999.999999')).toBe(true);
     expect(nativeJournalAmount('0.000001')).toBe(true);
     for (const amount of ['10000000000000', '0.0000001', '-1', '1e2', 'NaN']) expect(nativeJournalAmount(amount)).toBe(false);
+  });
+});
+
+describe('Server journal preview binding', () => {
+  it('requires the exact saved client, journal, revision, currency and line intent', () => {
+    const saved = decodeOperationalJournal(view, client);
+    const preview = { journalId: journal, clientId: client, periodId: client, revision: '1', status: 'DRAFT', currency: 'QAR',
+      totalDebit: '125.000000', totalCredit: '125.000000', digest: 'a'.repeat(64), lines: view.lines };
+    expect(decodeJournalPreview(preview, saved).totalDebit).toBe('125.000000');
+    for (const change of [{ clientId: journal }, { journalId: client }, { revision: '2' }, { currency: 'USD' },
+      { digest: 'bad' }, { totalDebit: 125 }, { totalCredit: '126.000000' },
+      { lines: [{ ...view.lines[0], description: 'Changed intent' }, view.lines[1]] }])
+      expect(() => decodeJournalPreview({ ...preview, ...change }, saved)).toThrow();
   });
 });

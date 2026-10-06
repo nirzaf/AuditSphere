@@ -9,6 +9,8 @@ import { guidPattern } from '../../core/contracts';
 interface PeriodOption { id: string; code: string; start: string; end: string; currency: string; status: string }
 interface JournalLine { lineNumber: number; accountId: string; accountCode: string; accountName: string; description: string; debit: string; credit: string }
 interface Journal { id: string; clientId: string; periodId: string; journalNumber: string; description: string; postingDate: string; currency: string; status: string; revision: string; createdByUserId: string; lines: JournalLine[] }
+interface JournalPreview { journalId: string; clientId: string; periodId: string; revision: string; status: string; currency: string;
+  totalDebit: string; totalCredit: string; digest: string; lines: JournalLine[] }
 interface LedgerView { clientId: string; periodId: string; periodCode: string; currency: string; basis: string; page: number; pageSize: number; totalEntries: number;
   accounts: { accountId: string; accountCode: string; accountName: string; debitMovement: string; creditMovement: string; netMovement: string }[];
   entries: { journalId: string; journalNumber: string; postingDate: string; lineNumber: number; accountCode: string; accountName: string; description: string; debit: string; credit: string }[] }
@@ -57,6 +59,17 @@ export function decodeOperationalLedger(value: unknown, clientId: string, period
   }
   return v as unknown as LedgerView;
 }
+export function decodeJournalPreview(value: unknown, journal: Journal): JournalPreview {
+  const p = object(value);
+  if (p['journalId'] !== journal.id || p['clientId'] !== journal.clientId || p['periodId'] !== journal.periodId ||
+      p['revision'] !== journal.revision || p['status'] !== journal.status || p['currency'] !== journal.currency ||
+      typeof p['digest'] !== 'string' || !/^[a-f0-9]{64}$/.test(p['digest']) ||
+      typeof p['totalDebit'] !== 'string' || typeof p['totalCredit'] !== 'string' ||
+      !amountPattern.test(p['totalDebit']) || p['totalDebit'] !== p['totalCredit']) throw new Error('Invalid journal preview');
+  const parsed = decodeOperationalJournal({ ...journal, lines: p['lines'] }, journal.clientId);
+  if (JSON.stringify(parsed.lines) !== JSON.stringify(journal.lines)) throw new Error('Preview lines changed');
+  return p as unknown as JournalPreview;
+}
 export function nativeJournalAmount(value: string): boolean { return /^(?:0|[1-9]\d{0,12})(?:\.\d{1,6})?$/.test(value); }
 function minor(value: string): bigint { if (!nativeJournalAmount(value)) throw new Error('Invalid native journal amount'); const [whole, fraction = ''] = value.split('.'); return BigInt(whole) * 1_000_000n + BigInt(fraction.padEnd(6, '0')); }
 
@@ -74,14 +87,21 @@ function minor(value: string): bigint { if (!nativeJournalAmount(value)) throw n
           <p>{{ j.description }} · {{ j.postingDate }} · {{ j.currency }} · revision {{ j.revision }}</p>
           <div class="table-scroll"><table><caption>Immutable journal lines</caption><thead><tr><th>Account</th><th>Description</th><th>Debit</th><th>Credit</th></tr></thead>
             <tbody>@for (line of j.lines; track line.lineNumber) { <tr><td>{{ line.accountCode }} · {{ line.accountName }}</td><td>{{ line.description }}</td><td>{{ line.debit }}</td><td>{{ line.credit }}</td></tr> }</tbody></table></div>
+          @if (j.status !== 'POSTED') {
+            <button matButton type="button" [disabled]="busy() || uncertain()" (click)="loadPreview(j)">Preview accounting effect</button>
+            @if (preview(); as p) {
+              <p role="status">Server-validated preview · {{ p.currency }} · Debits {{ p.totalDebit }} · Credits {{ p.totalCredit }} · revision {{ p.revision }}</p>
+              <details><summary>Reviewed intent identity</summary><code>{{ p.digest }}</code></details>
+            }
+          }
           @if (j.status === 'DRAFT' || j.status === 'RETURNED') {
             <label><input type="checkbox" [checked]="reviewed()" (change)="setReviewed($any($event.target).checked)" /> I reviewed this client, journal, posting date, account selection and exact amounts.</label>
-            <button matButton [disabled]="busy() || !reviewed() || uncertain()" (click)="submit(j)">Submit for independent review</button>
+            <button matButton [disabled]="busy() || !preview() || !reviewed() || uncertain()" (click)="submit(j)">Submit for independent review</button>
           }
           @if (j.status === 'SUBMITTED') {
             <label><input type="checkbox" [checked]="reviewed()" (change)="setReviewed($any($event.target).checked)" /> I independently reviewed this exact journal revision and its balanced lines.</label>
             <label>Approval reason <input [(ngModel)]="reason" maxlength="2000" /></label>
-            <button matButton [disabled]="busy() || !reviewed() || !reason.trim() || j.createdByUserId === userId() || uncertain()" (click)="approve(j)">Approve and post</button>
+            <button matButton [disabled]="busy() || !preview() || !reviewed() || !reason.trim() || j.createdByUserId === userId() || uncertain()" (click)="approve(j)">Approve and post</button>
           }
         </article>
       }
@@ -135,6 +155,7 @@ export class ClientOperationalJournals {
   private readonly changeDetector = inject(ChangeDetectorRef);
   private readonly session = inject(SessionService);
   readonly journal = signal<Journal | null>(null);
+  readonly preview = signal<JournalPreview | null>(null);
   readonly ledger = signal<LedgerView | null>(null);
   readonly busy = signal(false);
   readonly error = signal('');
@@ -146,7 +167,7 @@ export class ClientOperationalJournals {
   private operation?: Subscription;
   private readonly invalidate = effect(() => {
     const id = this.clientId(); this.session.invalidation();
-    untracked(() => { this.operation?.unsubscribe(); this.journal.set(null); this.ledger.set(null); this.error.set(''); this.ledgerError.set(''); this.uncertain.set(false); this.busy.set(false); this.lookupId = ''; this.reviewed.set(false); });
+    untracked(() => { this.operation?.unsubscribe(); this.journal.set(null); this.preview.set(null); this.ledger.set(null); this.error.set(''); this.ledgerError.set(''); this.uncertain.set(false); this.busy.set(false); this.lookupId = ''; this.reviewed.set(false); });
     void id;
   });
   constructor() { inject(DestroyRef).onDestroy(() => this.operation?.unsubscribe()); }
@@ -180,7 +201,7 @@ export class ClientOperationalJournals {
   load(): void {
     const clientId = this.clientId(); const id = this.lookupId.trim();
     if (!guidPattern.test(id) || this.busy()) { if (id) this.error.set('Enter a valid journal ID.'); return; }
-    const generation = this.session.invalidation(); this.busy.set(true); this.error.set('');
+    const generation = this.session.invalidation(); this.preview.set(null); this.reviewed.set(false); this.busy.set(true); this.error.set('');
     this.operation = this.http.get<unknown>(`/api/ui/accounting/clients/${clientId}/operational-journals/${id}`).pipe(timeout(15000)).subscribe({
       next: value => { if (generation !== this.session.invalidation()) return; try { const journal = decodeOperationalJournal(value, clientId); if (journal.id !== id) throw new Error(); this.journal.set(journal); this.uncertain.set(false); this.reviewed.set(false); this.busy.set(false); if (journal.status === 'POSTED') this.loadLedger(journal.periodId); } catch { this.busy.set(false); this.error.set('Journal details could not be validated for this client.'); } },
       error: failure => { if (generation !== this.session.invalidation()) return; this.busy.set(false); this.error.set('Journal could not be loaded in this client scope.'); if (failure.status === 401) this.session.clear(); },
@@ -198,10 +219,20 @@ export class ClientOperationalJournals {
       error: failure => { if (generation === this.session.invalidation()) { this.ledger.set(null); this.ledgerError.set('Posted client ledger is unavailable. Retry or refresh the client.'); if (failure.status === 401) this.session.clear(); } },
     });
   }
-  submit(journal: Journal): void { this.act(journal, 'submit', { revision: journal.revision, reviewed: true }, 'Journal submitted for independent review.'); }
-  approve(journal: Journal): void { this.act(journal, 'post', { revision: journal.revision, reason: this.reason.trim(), reviewed: true }, 'Journal approved and posted to the client book.'); }
+  loadPreview(journal: Journal): void {
+    if (this.busy() || this.uncertain() || journal.clientId !== this.clientId()) return;
+    const generation = this.session.invalidation(); this.busy.set(true); this.preview.set(null); this.reviewed.set(false); this.error.set('');
+    this.operation = this.http.get<unknown>(`/api/ui/accounting/clients/${journal.clientId}/operational-journals/${journal.id}/preview`).pipe(timeout(15000)).subscribe({
+      next: value => { if (generation !== this.session.invalidation() || journal.clientId !== this.clientId()) return;
+        this.busy.set(false); try { this.preview.set(decodeJournalPreview(value, journal)); }
+        catch { this.error.set('The server preview does not match this saved journal. Reload it before reviewing.'); } },
+      error: failure => { if (generation !== this.session.invalidation()) return; this.busy.set(false); this.error.set('The journal preview is unavailable or its accounting context is no longer valid.'); if (failure.status === 401) this.session.clear(); },
+    });
+  }
+  submit(journal: Journal): void { this.act(journal, 'submit', { revision: journal.revision, previewDigest: this.preview()?.digest, reviewed: true }, 'Journal submitted for independent review.'); }
+  approve(journal: Journal): void { this.act(journal, 'post', { revision: journal.revision, reason: this.reason.trim(), previewDigest: this.preview()?.digest, reviewed: true }, 'Journal approved and posted to the client book.'); }
   private act(journal: Journal, action: string, body: object, success: string): void {
-    if (!this.reviewed() || this.busy() || this.uncertain() || journal.clientId !== this.clientId()) return;
+    if (!this.reviewed() || !this.preview() || this.preview()?.journalId !== journal.id || this.preview()?.revision !== journal.revision || this.busy() || this.uncertain() || journal.clientId !== this.clientId()) return;
     const generation = this.session.invalidation(); this.busy.set(true); this.error.set('');
     this.operation = this.http.post(`/api/ui/accounting/clients/${journal.clientId}/operational-journals/${journal.id}/${action}`, body).pipe(timeout(15000)).subscribe({
       next: () => { if (generation !== this.session.invalidation()) return; this.busy.set(false); this.error.set(success); this.reviewed.set(false); this.load(); },
