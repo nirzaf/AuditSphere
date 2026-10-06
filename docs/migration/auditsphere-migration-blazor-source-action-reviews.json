@@ -307,8 +307,8 @@
       "source": "src/AuditSphereOps.Web/Components/Layout/GlobalSearch.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-shell-portfolio-source-review.md",
-      "reviewedAtCommit": "8c22003239aef444a30ad3b9a607cf4a523f36c1",
-      "openGaps": ["Candidate-window exhaustion and complete ordering beyond the verified Client-Engagement-PBC sequence", "Complete role/scope matrix beyond focused scoped Staff, finance-role, client-denial, revoked-grant and stale-session cases", "Assistive-technology acceptance and browser-level timeout/session-invalidation presentation"]
+      "reviewedAtCommit": "042a7668e1c6961193b76bacaf9c12cf82bd401b",
+      "openGaps": ["Candidate-window exhaustion and complete ordering beyond the verified Client-Engagement-PBC sequence", "Complete role/scope matrix beyond scoped Staff, CommercialManager, EngagementLeader, Auditor, Accountant, FinanceManager, RelationshipManager, client-denial, revoked-grant and stale-session cases", "Assistive-technology acceptance and browser-level timeout/session-invalidation presentation"]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/Home.razor",

@@ -906,6 +906,28 @@
           "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~GlobalSearchJourneyTests'",
           "coverage": "The PostgreSQL-backed Angular browser journey captures a cross-kind pbc test API response and asserts first-seen kind order Client, Engagement, PBC request. The Angular view renders this response order; the legacy Blazor component grouped results by kind in first-occurrence order and did not apply relevance scoring.",
           "boundary": "One cross-kind term and category-order parity only. Candidate-window exhaustion, full role/scope, assistive technology, broader migration acceptance and production behavior remain open."
+        },
+        "globalSearchCapabilityRoleScopeMatrix": {
+          "sourceCommit": "042a7668e1c6961193b76bacaf9c12cf82bd401b",
+          "observedAt": "2026-10-06T02:11:22Z",
+          "status": "PASS_LOCAL",
+          "focusedCase": {
+            "test": "GlobalSearchQueryTests.SearchResultKindsFollowCapabilitySpecificRolesAndScopes",
+            "passed": 1,
+            "failed": 0,
+            "skipped": 0,
+            "duration": "21s"
+          },
+          "cohort": {
+            "test": "GlobalSearchQueryTests",
+            "passed": 16,
+            "failed": 0,
+            "skipped": 0,
+            "duration": "1m 17s"
+          },
+          "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~GlobalSearchQueryTests'",
+          "coverage": "PostgreSQL-backed assertions verify CommercialManager client-only; EngagementLeader client plus engagement; Auditor engagement plus PBC; Accountant PBC-only; FinanceManager invoice-only; and RelationshipManager lead-only results.",
+          "boundary": "Representative route-role combinations only. This does not complete the full role/scope matrix, group-grant search behavior, all search endpoint matrices, full solution regression, Angular revalidation or EF drift."
         }
       },
       "practiceBillingLedgerCrosswalk": {
@@ -10880,7 +10902,7 @@
     "packageId": "ASP.NET Core API and Angular 22 presentation migration",
     "implementationStatus": "PARTIAL",
     "acceptanceStatus": "PARTIAL",
-    "scope": "Canonical Angular route ownership is in place. AuditSphereOps.Web and its Razor source remain restored as rollback/reference. API.Tests and E2E.Tests use API-only hosts. All 82 removed E2E methods have assertion crosswalks. The 76-row source/action inventory has one parity-verified row, 73 partial reviews and 2 unanalyzed rows; 28 supporting files remain open. Focused partial-review evidence covers Statement Drilldown, Trial Balance Intake, risk routing, shared confirmation callers, acceptance checklist workspace/role, Global Search identity/invoice/input/cap/audience and technical-library boundaries, portfolio aggregates, contact-create recovery, authenticated and unauthenticated canonical/preview root routing, and the Operations firm-wide Administrator denial message. Global Search technical-library and supported-page destinations have Angular Staff browser journeys; PostgreSQL tests cover library audience/firm isolation and cap/truncation for all seven result kinds; the Angular UI displays refinement hints for capped library and page results; a PostgreSQL-backed browser journey verifies Client, Engagement, PBC category order against the legacy kind grouping. Browser recovery covers synthetic 503/retry, malformed 200 and 401 session clearing; Angular component tests cover the 15-second timeout and clearing/cancellation on session invalidation. Other slices retain their documented evidence limits. Overall migration acceptance and Blazor retirement are NOT_READY.",
+    "scope": "Canonical Angular route ownership is in place. AuditSphereOps.Web and its Razor source remain restored as rollback/reference. API.Tests and E2E.Tests use API-only hosts. All 82 removed E2E methods have assertion crosswalks. The 76-row source/action inventory has one parity-verified row, 73 partial reviews and 2 unanalyzed rows; 28 supporting files remain open. Focused partial-review evidence covers Statement Drilldown, Trial Balance Intake, risk routing, shared confirmation callers, acceptance checklist workspace/role, Global Search identity/invoice/input/cap/audience, technical-library boundaries and representative role/scope combinations, portfolio aggregates, contact-create recovery, authenticated and unauthenticated canonical/preview root routing, and the Operations firm-wide Administrator denial message. Global Search technical-library and supported-page destinations have Angular Staff browser journeys; PostgreSQL tests cover library audience/firm isolation and cap/truncation for all seven result kinds; the Angular UI displays refinement hints for capped library and page results; a PostgreSQL-backed browser journey verifies Client, Engagement, PBC category order against the legacy kind grouping. Browser recovery covers synthetic 503/retry, malformed 200 and 401 session clearing; Angular component tests cover the 15-second timeout and clearing/cancellation on session invalidation. Other slices retain their documented evidence limits. Overall migration acceptance and Blazor retirement are NOT_READY.",
     "nextAction": "Continue with the remaining 2 unanalyzed source/action rows and AS-PAR-002 direct query/count/export authorization, remaining search candidate-boundary and role/scope cases, command retry/idempotency checks, and fallback-host route checks. Seventy-three reviewed rows remain partial and still need complete parity evidence; 28 supporting files remain open. Keep the Blazor rollback host until behavior parity, production rollback/canary, human assistive-technology/locale acceptance, live Microsoft gates and separate owner acceptance are complete.",
     "branch": "master"
   },

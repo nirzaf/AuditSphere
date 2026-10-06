@@ -15,6 +15,19 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: Capability-specific Global Search roles and scopes
+
+Added a PostgreSQL-backed matrix for result kinds across six additional role
+and scope combinations. CommercialManager receives Client only;
+EngagementLeader receives Client and Engagement; Auditor receives Engagement
+and PBC; Accountant receives PBC only; FinanceManager receives Invoice only;
+RelationshipManager receives Lead only. The focused case passed 1/1 and the
+full `GlobalSearchQueryTests` cohort passed 16/16 in 1m17s. This is
+representative route-role coverage, not the exhaustive authorization matrix;
+candidate-window, assistive-technology, full solution and EF checks remain
+open. Evidence is at `042a7668`; migration and Blazor retirement remain
+`NOT_READY`.
+
 ## Current follow-on slice: Legacy search category ordering parity
 
 The PostgreSQL-backed Angular browser journey captures the response for a
