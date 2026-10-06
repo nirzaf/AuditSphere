@@ -16,17 +16,23 @@ public static partial class ClientAccountingService
     IClientAccountingDbContext db, ActorContext actor, ClientAccountingProfileRequest request,
     CancellationToken ct = default)
   {
+    var sourceMode = (request.SourceMode ?? string.Empty).Trim().ToUpperInvariant();
     var currency = (string.IsNullOrWhiteSpace(request.FunctionalCurrency) ? AccountingDefaults.DefaultCurrency : request.FunctionalCurrency).Trim().ToUpperInvariant();
     if (request.ClientId == Guid.Empty || currency.Length != 3 || currency.Any(c => c is < 'A' or > 'Z') ||
         request.FiscalYearStartMonth is < 1 or > 12 || request.FiscalYearStartDay is < 1 or > 31 ||
-        string.IsNullOrWhiteSpace(request.Jurisdiction) || string.IsNullOrWhiteSpace(request.SourceSystem))
+        string.IsNullOrWhiteSpace(request.Jurisdiction) || string.IsNullOrWhiteSpace(request.SourceSystem) ||
+        !ClientAccountingSourceModes.IsSupported(sourceMode))
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid, "A valid client accounting profile is required.");
-    var auth = await AuthorizeClientAsync(db, actor, request.ClientId, PreparerRoles, ct);
+    var roles = sourceMode == ClientAccountingSourceModes.NativeBookkeeping ? ReviewerRoles : PreparerRoles;
+    var auth = await AuthorizeClientAsync(db, actor, request.ClientId, roles, ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    var modeGate = await ValidateSourceModeAsync(db, actor, request.ClientId, sourceMode, ct);
+    if (!modeGate.Succeeded)
+      return CommandResult<Guid>.Fail(modeGate.ErrorCode!, modeGate.Message!);
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
-    auth = await AuthorizeClientAsync(db, actor, request.ClientId, PreparerRoles, ct);
+    auth = await AuthorizeClientAsync(db, actor, request.ClientId, roles, ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     if (await db.ClientAccountingProfiles.AnyAsync(x => x.FirmId == actor.FirmId && x.ClientId == request.ClientId, ct))
@@ -38,6 +44,7 @@ public static partial class ClientAccountingService
       Jurisdiction = request.Jurisdiction.Trim(), FunctionalCurrency = currency,
       FiscalYearStartMonth = request.FiscalYearStartMonth, FiscalYearStartDay = request.FiscalYearStartDay,
       SourceSystem = request.SourceSystem.Trim(), SourceSystemIdentifier = request.SourceSystemIdentifier.Trim(),
+      SourceMode = sourceMode,
       CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     };
     db.ClientAccountingProfiles.Add(profile);
@@ -50,10 +57,12 @@ public static partial class ClientAccountingService
     IClientAccountingDbContext db, ActorContext actor, Guid profileId, ClientAccountingProfileRequest request,
     long expectedRevision, CancellationToken ct = default)
   {
+    var sourceMode = (request.SourceMode ?? string.Empty).Trim().ToUpperInvariant();
     var currency = (string.IsNullOrWhiteSpace(request.FunctionalCurrency) ? AccountingDefaults.DefaultCurrency : request.FunctionalCurrency).Trim().ToUpperInvariant();
     if (request.ClientId == Guid.Empty || currency.Length != 3 || currency.Any(c => c is < 'A' or > 'Z') ||
         request.FiscalYearStartMonth is < 1 or > 12 || request.FiscalYearStartDay is < 1 or > 31 ||
-        string.IsNullOrWhiteSpace(request.Jurisdiction) || string.IsNullOrWhiteSpace(request.SourceSystem))
+        string.IsNullOrWhiteSpace(request.Jurisdiction) || string.IsNullOrWhiteSpace(request.SourceSystem) ||
+        !ClientAccountingSourceModes.IsSupported(sourceMode))
       return CommandResult<long>.Fail(ErrorCodes.Accounting.MappingInvalid, "A valid client accounting profile is required.");
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
@@ -62,9 +71,20 @@ public static partial class ClientAccountingService
       return CommandResult<long>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (profile.ClientId != request.ClientId)
       return CommandResult<long>.Fail(ErrorCodes.ScopeDenied, "The profile belongs to a different client.");
-    var auth = await AuthorizeClientAsync(db, actor, request.ClientId, PreparerRoles, ct);
+    var roles = sourceMode == ClientAccountingSourceModes.NativeBookkeeping ? ReviewerRoles : PreparerRoles;
+    var auth = await AuthorizeClientAsync(db, actor, request.ClientId, roles, ct);
     if (!auth.Succeeded)
       return CommandResult<long>.Fail(auth.ErrorCode!, auth.Message!);
+    if (profile.SourceMode == ClientAccountingSourceModes.NativeBookkeeping && sourceMode != profile.SourceMode)
+      return CommandResult<long>.Fail(ErrorCodes.GateBlocked, "Changing a native bookkeeping book back to external-source mode requires a reviewed cutover.");
+    if (profile.SourceMode != sourceMode)
+    {
+      if (await db.ClientReportingPeriods.AnyAsync(x => x.FirmId == actor.FirmId && x.ClientId == request.ClientId, ct))
+        return CommandResult<long>.Fail(ErrorCodes.GateBlocked, "A populated external-source client requires a reviewed cutover before native bookkeeping can be enabled.");
+    }
+    var modeGate = await ValidateSourceModeAsync(db, actor, request.ClientId, sourceMode, ct);
+    if (!modeGate.Succeeded)
+      return CommandResult<long>.Fail(modeGate.ErrorCode!, modeGate.Message!);
     if (profile.Revision != expectedRevision)
       return CommandResult<long>.Fail(ErrorCodes.StaleRevision, "The profile revision is outdated.");
 
@@ -74,9 +94,25 @@ public static partial class ClientAccountingService
     profile.FiscalYearStartDay = request.FiscalYearStartDay;
     profile.SourceSystem = request.SourceSystem.Trim();
     profile.SourceSystemIdentifier = request.SourceSystemIdentifier.Trim();
+    profile.SourceMode = sourceMode;
     profile.Revision++;
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
     return CommandResult<long>.Ok(profile.Revision);
+  }
+
+  private static async Task<CommandResult> ValidateSourceModeAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid clientId, string sourceMode, CancellationToken ct)
+  {
+    if (sourceMode == ClientAccountingSourceModes.ExternalSource)
+      return CommandResult.Ok();
+
+    var accepted = await db.AcceptanceDecisions.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId &&
+      x.PracticeClientId == clientId && x.EngagementId == null && x.ServiceRoute == "BOOKKEEPING" &&
+      x.Decision == "Accepted" && (x.Conditions == null || x.Conditions == string.Empty), ct);
+    return accepted
+      ? CommandResult.Ok()
+      : CommandResult.Fail(ErrorCodes.GateBlocked,
+        "Native bookkeeping requires an accepted client-level BOOKKEEPING service decision without unresolved conditions.");
   }
 }

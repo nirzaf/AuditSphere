@@ -91,6 +91,13 @@ public static class AccountingCapabilityServiceKinds
   public const string AuditOnly = "AUDIT_ONLY";
 }
 
+public static class ClientAccountingSourceModes
+{
+  public const string ExternalSource = "EXTERNAL_SOURCE";
+  public const string NativeBookkeeping = "NATIVE_BOOKKEEPING";
+  public static bool IsSupported(string value) => value is ExternalSource or NativeBookkeeping;
+}
+
 public sealed class AccountingCapabilityProfile
 {
   public Guid Id { get; set; }
@@ -138,6 +145,7 @@ public sealed class ClientAccountingProfile
   public int FiscalYearStartDay { get; set; } = 1;
   public string SourceSystem { get; set; } = string.Empty;
   public string SourceSystemIdentifier { get; set; } = string.Empty;
+  public string SourceMode { get; set; } = ClientAccountingSourceModes.ExternalSource;
   public string Status { get; set; } = AccountingWorkflowStates.Draft;
   public long Revision { get; set; } = 1;
   public Guid CreatedByUserId { get; set; }
