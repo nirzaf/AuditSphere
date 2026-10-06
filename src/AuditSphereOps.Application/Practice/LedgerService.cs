@@ -32,7 +32,10 @@ public sealed record CreateFirmJournalDraftRequest(
   long SourceRevision,
   string PostingPurpose,
   string Currency,
-  IReadOnlyList<FirmJournalLineRequest> Lines);
+  IReadOnlyList<FirmJournalLineRequest> Lines,
+  string? SupportingEvidenceFileName = null,
+  string? SupportingEvidenceContentType = null,
+  byte[]? SupportingEvidenceContent = null);
 
 public sealed record ReverseFirmPostingRequest(Guid PostingId, Guid PeriodId, string Reason);
 
@@ -42,12 +45,12 @@ public sealed record ReverseFirmPostingRequest(Guid PostingId, Guid PeriodId, st
 /// </summary>
 public static class LedgerService
 {
-  private static readonly string[] FinanceRoles = ["FinanceManager", "FinanceReviewer"];
   private static readonly string[] ManagerRoles = ["FinanceManager"];
   private static readonly string[] ReviewerRoles = ["FinanceReviewer"];
   private static readonly string[] AccountTypes = [
     LedgerStates.AccountAsset, LedgerStates.AccountLiability, LedgerStates.AccountEquity,
     LedgerStates.AccountRevenue, LedgerStates.AccountExpense];
+  public const int MaxJournalEvidenceBytes = 5 * 1024 * 1024;
 
   public static async Task<CommandResult<Guid>> CreateFirmAccountAsync(
     IAuditSphereDbContext db, ActorContext actor, CreateFirmAccountRequest request,
@@ -122,7 +125,7 @@ public static class LedgerService
     var period = await db.FirmPeriods.AsNoTracking().SingleOrDefaultAsync(x =>
       x.Id == request.PeriodId && x.FirmId == actor.FirmId, ct);
     if (period is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var auth = await AuthorizeFirmAsync(db, actor, FinanceRoles, ct);
+    var auth = await AuthorizeFirmAsync(db, actor, ManagerRoles, ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     var profile = await db.FirmFinanceProfiles.AsNoTracking().SingleOrDefaultAsync(x =>
       x.FirmId == actor.FirmId && x.Approved, ct);
@@ -178,6 +181,15 @@ public static class LedgerService
       PostingPurpose = request.PostingPurpose.Trim().ToUpperInvariant(), Currency = request.Currency.Trim().ToUpperInvariant(),
       CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     };
+    if (request.SupportingEvidenceContent is { Length: > 0 } evidenceContent)
+    {
+      journal.SupportingEvidenceFileName = SafeEvidenceFileName(request.SupportingEvidenceFileName!);
+      journal.SupportingEvidenceContentType = request.SupportingEvidenceContentType!.Trim();
+      journal.SupportingEvidenceContent = evidenceContent.ToArray();
+      journal.SupportingEvidenceSha256 = Hashing.Sha256Hex(evidenceContent);
+      journal.SupportingEvidenceUploadedByUserId = actor.UserId;
+      journal.SupportingEvidenceUploadedAt = DateTimeOffset.UtcNow;
+    }
     db.FirmJournals.Add(journal);
     foreach (var line in request.Lines)
       db.FirmJournalLines.Add(new FirmJournalLine
@@ -194,7 +206,7 @@ public static class LedgerService
   public static Task<CommandResult> SubmitFirmJournalAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid journalId, CancellationToken ct = default) =>
     TransitionJournalAsync(db, actor, journalId, LedgerStates.JournalDraft,
-      LedgerStates.JournalReviewRequired, FinanceRoles, null, validateBalanced: true, ct);
+      LedgerStates.JournalReviewRequired, ManagerRoles, null, validateBalanced: true, ct);
 
   public static Task<CommandResult> ApproveFirmJournalAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid journalId, CancellationToken ct = default) =>
@@ -503,8 +515,26 @@ public static class LedgerService
     var currencyError = CurrencyError(request.Currency);
     if (currencyError is not null) return currencyError;
     if (request.SourceKind.Trim().Equals("MANUAL", StringComparison.OrdinalIgnoreCase) &&
-        request.PostingPurpose.Trim().ToUpperInvariant() is not ("MANUAL" or "OPENING_BALANCE" or "PARTNER_DRAWING"))
+        request.PostingPurpose.Trim().ToUpperInvariant() is not ("MANUAL" or "OPENING_BALANCE" or "PARTNER_DRAWING" or
+          "CAPITAL" or "MONTHLY_REVENUE" or LedgerStates.YearEndClosingPurpose))
       return "Manual journal purpose is invalid.";
+    var hasEvidence = request.SupportingEvidenceContent is { Length: > 0 };
+    var safeEvidenceFileName = string.IsNullOrWhiteSpace(request.SupportingEvidenceFileName)
+      ? string.Empty
+      : SafeEvidenceFileName(request.SupportingEvidenceFileName);
+    var anyEvidenceField = request.SupportingEvidenceContent is not null ||
+      request.SupportingEvidenceFileName is not null || request.SupportingEvidenceContentType is not null;
+    var purpose = request.PostingPurpose.Trim().ToUpperInvariant();
+    if (request.SourceKind.Trim().Equals("MANUAL", StringComparison.OrdinalIgnoreCase) &&
+        (purpose is "OPENING_BALANCE" or "PARTNER_DRAWING") && !hasEvidence)
+      return "Attach the source document for opening balances and Partner drawings (up to 5 MB).";
+    if (anyEvidenceField && (!hasEvidence ||
+        string.IsNullOrWhiteSpace(request.SupportingEvidenceFileName) ||
+        string.IsNullOrWhiteSpace(request.SupportingEvidenceContentType) ||
+        request.SupportingEvidenceContent!.Length > MaxJournalEvidenceBytes ||
+        safeEvidenceFileName.Length is < 1 or > 255 ||
+        request.SupportingEvidenceContentType.Trim().Length > 255))
+      return "The supporting document must have a file name, content type, and between 1 byte and 5 MB of content.";
     foreach (var line in request.Lines)
     {
       if (line.FirmAccountId == Guid.Empty || string.IsNullOrWhiteSpace(line.Description) ||
@@ -528,12 +558,19 @@ public static class LedgerService
     FirmJournal existing, IReadOnlyList<FirmJournalLine> existingLines,
     CreateFirmJournalDraftRequest request, string sourceKind, string purpose)
   {
+    var evidenceHash = request.SupportingEvidenceContent is null
+      ? null
+      : Hashing.Sha256Hex(request.SupportingEvidenceContent);
     if (existing.PeriodId != request.PeriodId ||
         existing.JournalNumber != request.JournalNumber.Trim() ||
         existing.SourceKind != sourceKind || existing.SourceKey != request.SourceKey.Trim() ||
         existing.SourceRevision != request.SourceRevision || existing.PostingPurpose != purpose ||
         !string.Equals(existing.Currency, request.Currency.Trim(), StringComparison.OrdinalIgnoreCase) ||
-        existingLines.Count != request.Lines.Count)
+        existingLines.Count != request.Lines.Count ||
+        existing.SupportingEvidenceFileName != (request.SupportingEvidenceFileName is null
+          ? null : SafeEvidenceFileName(request.SupportingEvidenceFileName)) ||
+        existing.SupportingEvidenceContentType != request.SupportingEvidenceContentType?.Trim() ||
+        existing.SupportingEvidenceSha256 != evidenceHash)
       return false;
 
     static IOrderedEnumerable<(Guid AccountId, string Description, decimal Debit, decimal Credit)> Sort(
@@ -547,6 +584,9 @@ public static class LedgerService
       (x.FirmAccountId, x.Description.Trim(), x.Debit, x.Credit)));
     return persisted.SequenceEqual(proposed);
   }
+
+  private static string SafeEvidenceFileName(string value) =>
+    value.Trim().Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries).LastOrDefault() ?? string.Empty;
 
   private static string? CurrencyError(string currency) =>
     !string.IsNullOrWhiteSpace(currency) && currency.Trim().Length == 3 && currency.All(char.IsLetter)

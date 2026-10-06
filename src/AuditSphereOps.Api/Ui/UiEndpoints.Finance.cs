@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using System.Text.Json;
 using AuditSphereOps.Api.Authentication;
 using AuditSphereOps.Api.HttpBoundary;
 using AuditSphereOps.Application.Practice;
@@ -66,7 +67,7 @@ public static partial class UiEndpoints
           r.Value!.CanClosePeriod,
           r.Value.CanReviewJournals,
           r.Value.CanPostJournals,
-          CanCreateJournals = true,
+          CanCreateJournals = r.Value.CanCreateJournals,
             Periods = r.Value.Periods.Select(p => new { p.Id, p.PeriodCode, p.Status, p.Revision, p.ClosedAt }),
             Accounts = r.Value.Accounts.Select(a => new { a.Id, a.Code, a.Name, a.AccountType, a.NormalSide, a.PostingAllowed }),
             Postings = r.Value.RecentPostings.Select(p => new { p.Id, p.PostedAt, p.Currency, p.PostedByUserId, p.ReversalOfPostingId }),
@@ -74,6 +75,7 @@ public static partial class UiEndpoints
             {
               j.Id, j.PeriodId, j.PeriodCode, j.JournalNumber, j.SourceKind, j.SourceKey, j.SourceRevision,
               j.PostingPurpose, j.Currency, j.Status, j.CreatedByUserId, j.ApprovedByUserId,
+              j.SupportingEvidenceFileName, j.SupportingEvidenceSha256,
               j.CreatedAt, j.ApprovedAt, j.PostedAt,
               Lines = j.Lines.Select(l => new
               {
@@ -91,22 +93,48 @@ public static partial class UiEndpoints
     group.MapPost("/finance/periods", (FirmPeriodInput input, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => LedgerService.CreateFirmPeriodAsync(db, actor,
         new CreateFirmPeriodRequest(input.PeriodCode ?? ""), ct)));
-    group.MapPost("/finance/journals", (FirmJournalInput input, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) =>
+    group.MapUiPost("/finance/journals", async http =>
+    {
+      if (!http.Request.HasFormContentType) return Invalid("Send the journal details and supporting document as a multipart form.");
+      var form = await http.Request.ReadFormAsync(http.RequestAborted);
+      FirmJournalInput? input;
+      try { input = JsonSerializer.Deserialize<FirmJournalInput>(form["journal"].ToString(), UiJson); }
+      catch (JsonException) { return Invalid("The journal details are invalid."); }
+      if (input is null) return Invalid("Journal details are required.");
+      var evidenceFile = form.Files.GetFile("evidence");
+      var evidence = await ReadUploadAsync(http, "evidence", LedgerService.MaxJournalEvidenceBytes);
+      if (evidenceFile is not null && evidence is null)
+        return Invalid("The supporting document must be between 1 byte and 5 MB.");
+      if (input.Lines is null || input.Lines.Count is < 2 or > 200)
+        return Invalid("A journal needs 2 to 200 reviewed lines.");
+      var lines = new List<FirmJournalLineRequest>(input.Lines.Count);
+      foreach (var line in input.Lines)
       {
-        if (input.Lines is null || input.Lines.Count is < 2 or > 200)
-          return Task.FromResult(CommandResult<Guid>.Fail("ledger.invalid", "A journal needs 2 to 200 reviewed lines."));
-        var lines = new List<FirmJournalLineRequest>(input.Lines.Count);
-        foreach (var line in input.Lines)
-        {
-          if (line is null || !TryDecimal(line.Debit, out var debit) || !TryDecimal(line.Credit, out var credit))
-            return Task.FromResult(CommandResult<Guid>.Fail("ledger.invalid", "Enter each debit and credit as an exact decimal amount."));
-          lines.Add(new FirmJournalLineRequest(line.FirmAccountId, line.Description ?? "", debit, credit));
-        }
-        return LedgerService.CreateFirmJournalDraftAsync(db, actor,
-          new CreateFirmJournalDraftRequest(input.PeriodId, input.JournalNumber ?? "", "MANUAL",
-            input.SourceKey ?? "", 1, input.PostingPurpose ?? "", input.Currency ?? "", lines), ct);
-      }));
+        if (line is null || !TryDecimal(line.Debit, out var debit) || !TryDecimal(line.Credit, out var credit))
+          return Invalid("Enter each debit and credit as an exact decimal amount.");
+        lines.Add(new FirmJournalLineRequest(line.FirmAccountId, line.Description ?? "", debit, credit));
+      }
+      return await CommandAsync(http, (db, actor, ct) => LedgerService.CreateFirmJournalDraftAsync(db, actor,
+        new CreateFirmJournalDraftRequest(input.PeriodId, input.JournalNumber ?? "", "MANUAL",
+          input.SourceKey ?? "", 1, input.PostingPurpose ?? "", input.Currency ?? "", lines,
+          evidence?.Name, evidence?.ContentType, evidence?.Content), ct));
+    });
+    group.MapPost("/finance/journals/{id:guid}/evidence", async (Guid id, HttpContext http,
+      TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
+    {
+      var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
+      if (actor is null) return Failure("session.unavailable", "Sign in again.", 401);
+      try { await csrf.ValidateRequestAsync(http); }
+      catch (AntiforgeryValidationException) { return Failure("csrf.invalid", "Refresh the page and try again.", 403); }
+      await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
+      var result = await FirmFinanceQuery.GetJournalEvidenceAsync(db, actor, id, http.RequestAborted);
+      if (!result.Succeeded || result.Value is null) return Failure(result.ErrorCode, result.Message);
+      if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
+        return Failure("session.unavailable", "Sign in again.", 401);
+      http.Response.Headers["X-Firm-Journal-Evidence-SHA256"] = result.Value.Sha256;
+      http.Response.Headers["X-Content-Type-Options"] = "nosniff";
+      return Results.File(result.Value.Content, "application/octet-stream", result.Value.FileName);
+    });
     group.MapPost("/finance/journals/{id:guid}/submit", (Guid id, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => LedgerService.SubmitFirmJournalAsync(db, actor, id, ct)));
     group.MapPost("/finance/journals/{id:guid}/review", (Guid id, FirmJournalActionInput input, HttpContext http) =>

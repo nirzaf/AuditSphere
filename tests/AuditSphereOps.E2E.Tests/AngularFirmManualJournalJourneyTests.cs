@@ -3,6 +3,8 @@ using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Tests;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace AuditSphereOps.E2E.Tests;
 
@@ -16,10 +18,11 @@ public sealed class AngularFirmManualJournalJourneyTests
     await using var host = await OwnedHost.StartAsync(startWorker: false,
       caseId: "AS-COMP-26-FIRM-MANUAL-JOURNAL-01");
     var f = host.Fixture;
-    var reviewer = PbcSeed.User(f.FirmId, "Finance Reviewer");
+    var reviewer = PbcSeed.User(f.FirmId, "Staff");
     const string periodCode = "2026-10";
     const string journalNumber = "UI-MANUAL-OPEN-001";
     const string sourceKey = "opening-balance-schedule-test-01";
+    var evidenceBytes = Encoding.UTF8.GetBytes("opening balance schedule; authorized and reviewed");
     Guid periodId;
     Guid cashAccountId;
     Guid equityAccountId;
@@ -60,6 +63,8 @@ public sealed class AngularFirmManualJournalJourneyTests
     await managerPage.GotoAsync(managerOrigin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString("/app/finance"));
     await Assertions.Expect(managerPage.GetByRole(AriaRole.Heading,
       new() { Name = "Manual journals", Exact = true })).ToBeVisibleAsync();
+    var ledgerText = await managerPage.Locator("body").InnerTextAsync();
+    Assert.Contains("Save draft journal", ledgerText);
 
     var createAttempts = 0;
     await managerPage.RouteAsync("**/api/ui/finance/journals", async route =>
@@ -74,16 +79,24 @@ public sealed class AngularFirmManualJournalJourneyTests
       else await route.ContinueAsync();
     });
 
-    await managerPage.GetByLabel("Fiscal period", new() { Exact = true }).SelectOptionAsync(periodId.ToString());
-    await managerPage.GetByLabel("Journal number", new() { Exact = true }).FillAsync(journalNumber);
-    await managerPage.GetByLabel("Entry type", new() { Exact = true }).SelectOptionAsync("OPENING_BALANCE");
-    await managerPage.GetByLabel("Source record reference", new() { Exact = true }).FillAsync(sourceKey);
-    await managerPage.GetByLabel("Functional currency", new() { Exact = true }).FillAsync("QAR");
-    await managerPage.Locator("select[name='journalAccount0']").SelectOptionAsync(cashAccountId.ToString());
-    await managerPage.GetByLabel("Description", new() { Exact = true }).Nth(0).FillAsync("Opening bank balance");
+    await managerPage.Locator("select[name='journalPeriod']").SelectOptionAsync(periodId.ToString());
+    await managerPage.Locator("input[name='journalNumber']").FillAsync(journalNumber);
+    await managerPage.Locator("select[name='journalPurpose']").SelectOptionAsync("OPENING_BALANCE");
+    await managerPage.Locator("input[name='sourceReference']").FillAsync(sourceKey);
+    await managerPage.Locator("input[name='journalEvidence']").SetInputFilesAsync(new FilePayload
+    {
+      Name = "opening-balance.csv", MimeType = "text/csv", Buffer = evidenceBytes
+    });
+    await managerPage.Locator("input[name='journalCurrency']").FillAsync("QAR");
+    var accountSelects = managerPage.Locator("fieldset.journal-lines select");
+    var accountSelectCount = await accountSelects.CountAsync();
+    Assert.True(accountSelectCount >= 2,
+      $"Expected two journal account choices. Found {accountSelectCount}. Selects: {string.Join(" | ", await managerPage.Locator("select").EvaluateAllAsync<string[]>("elements => elements.map(element => (element.getAttribute('name') || '(no name)') + ': ' + element.outerHTML)"))}");
+    await accountSelects.Nth(0).SelectOptionAsync(cashAccountId.ToString());
+    await managerPage.Locator("input[name='journalDescription0']").FillAsync("Opening bank balance");
     await managerPage.Locator("input[name='journalDebit0']").FillAsync("1250.00");
-    await managerPage.Locator("select[name='journalAccount1']").SelectOptionAsync(equityAccountId.ToString());
-    await managerPage.GetByLabel("Description", new() { Exact = true }).Nth(1).FillAsync("Opening retained balance");
+    await accountSelects.Nth(1).SelectOptionAsync(equityAccountId.ToString());
+    await managerPage.Locator("input[name='journalDescription1']").FillAsync("Opening retained balance");
     await managerPage.Locator("input[name='journalCredit1']").FillAsync("1250.00");
     await managerPage.GetByRole(AriaRole.Button, new() { Name = "Save draft journal", Exact = true }).ClickAsync();
     await Assertions.Expect(managerPage.GetByRole(AriaRole.Heading,
@@ -92,7 +105,7 @@ public sealed class AngularFirmManualJournalJourneyTests
     await Assertions.Expect(managerPage.GetByText($"Persisted state confirms journal {journalNumber} is DRAFT.",
       new() { Exact = true })).ToBeVisibleAsync();
     await managerPage.GetByRole(AriaRole.Button, new() { Name = "Acknowledge saved journal", Exact = true }).ClickAsync();
-    await Assertions.Expect(managerPage.GetByRole(AriaRole.Row).Filter(new() { HasText = journalNumber })).ToBeVisibleAsync();
+    await Assertions.Expect(managerPage.Locator("tbody > tr:has(> th[scope='row'])").Filter(new() { HasText = journalNumber })).ToBeVisibleAsync();
 
     var submitAttempts = 0;
     await managerPage.RouteAsync("**/api/ui/finance/journals/*/submit", async route =>
@@ -115,8 +128,18 @@ public sealed class AngularFirmManualJournalJourneyTests
     var reviewerPage = await browser.NewPageAsync();
     reviewerPage.PageError += (_, error) => pageErrors.Add(error);
     await reviewerPage.GotoAsync(reviewerOrigin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString("/app/finance"));
-    var journalRow = reviewerPage.GetByRole(AriaRole.Row).Filter(new() { HasText = journalNumber });
-    await Assertions.Expect(journalRow).ToContainTextAsync("REVIEW_REQUIRED");
+    Assert.DoesNotContain("Save draft journal", await reviewerPage.Locator("body").InnerTextAsync(), StringComparison.Ordinal);
+    var journalRow = reviewerPage.Locator("tbody > tr:has(> th[scope='row'])").Filter(new() { HasText = journalNumber });
+    await Assertions.Expect(journalRow).ToContainTextAsync("review required", new() { IgnoreCase = true });
+    var evidenceDownload = await reviewerPage.RunAndWaitForDownloadAsync(() =>
+      journalRow.GetByRole(AriaRole.Button, new() { Name = "Download source: opening-balance.csv", Exact = true }).ClickAsync());
+    Assert.Equal("opening-balance.csv", evidenceDownload.SuggestedFilename);
+    await using (var stream = await evidenceDownload.CreateReadStreamAsync())
+    {
+      using var contents = new MemoryStream();
+      await stream.CopyToAsync(contents);
+      Assert.Equal(evidenceBytes, contents.ToArray());
+    }
     await journalRow.GetByRole(AriaRole.Button, new() { Name = "Review and approve", Exact = true }).ClickAsync();
     await Assertions.Expect(reviewerPage.GetByText("Journal approved.", new() { Exact = true })).ToBeVisibleAsync();
 
@@ -124,6 +147,9 @@ public sealed class AngularFirmManualJournalJourneyTests
     {
       var journal = await db.FirmJournals.AsNoTracking().SingleAsync(x => x.FirmId == f.FirmId && x.JournalNumber == journalNumber);
       Assert.Equal(LedgerStates.JournalApproved, journal.Status);
+      Assert.Equal("opening-balance.csv", journal.SupportingEvidenceFileName);
+      Assert.Equal(Convert.ToHexString(SHA256.HashData(evidenceBytes)).ToLowerInvariant(), journal.SupportingEvidenceSha256);
+      Assert.Equal(f.Admin.Id, journal.SupportingEvidenceUploadedByUserId);
       Assert.Equal(reviewer.Id, journal.ApprovedByUserId);
       Assert.NotNull(journal.ApprovedAt);
       Assert.Equal(2, await db.FirmJournalLines.CountAsync(x => x.FirmId == f.FirmId && x.JournalId == journal.Id));

@@ -155,8 +155,16 @@ public sealed partial class AuditSphereDbContext
     {
       t.HasCheckConstraint("ck_firm_period_values", "period_code ~ '^[0-9]{4}-(0[1-9]|1[0-2])$' AND status IN ('OPEN','CLOSED','REOPEN_REQUESTED') AND revision >= 1 AND ((status = 'OPEN' AND closed_at IS NULL) OR (status IN ('CLOSED','REOPEN_REQUESTED') AND closed_at IS NOT NULL))");
     });
-    b.Entity<FirmJournal>().ToTable("firm_journals", t => t.HasCheckConstraint("ck_firm_journal_values",
-      "length(journal_number) > 0 AND length(source_kind) > 0 AND length(source_key) > 0 AND source_revision >= 1 AND length(posting_purpose) > 0 AND currency ~ '^[A-Z]{3}$' AND status IN ('DRAFT','REVIEW_REQUIRED','APPROVED','POSTED')"));
+    b.Entity<FirmJournal>().Property(x => x.SupportingEvidenceFileName).HasMaxLength(255);
+    b.Entity<FirmJournal>().Property(x => x.SupportingEvidenceContentType).HasMaxLength(255);
+    b.Entity<FirmJournal>().Property(x => x.SupportingEvidenceSha256).HasMaxLength(64);
+    b.Entity<FirmJournal>().ToTable("firm_journals", t =>
+    {
+      t.HasCheckConstraint("ck_firm_journal_values",
+        "length(journal_number) > 0 AND length(source_kind) > 0 AND length(source_key) > 0 AND source_revision >= 1 AND length(posting_purpose) > 0 AND currency ~ '^[A-Z]{3}$' AND status IN ('DRAFT','REVIEW_REQUIRED','APPROVED','POSTED')");
+      t.HasCheckConstraint("ck_firm_journal_supporting_evidence",
+        "(supporting_evidence_content IS NULL AND supporting_evidence_file_name IS NULL AND supporting_evidence_content_type IS NULL AND supporting_evidence_sha256 IS NULL AND supporting_evidence_uploaded_by_user_id IS NULL AND supporting_evidence_uploaded_at IS NULL) OR (supporting_evidence_content IS NOT NULL AND octet_length(supporting_evidence_content) BETWEEN 1 AND 5242880 AND length(supporting_evidence_file_name) BETWEEN 1 AND 255 AND length(supporting_evidence_content_type) BETWEEN 1 AND 255 AND supporting_evidence_sha256 ~ '^[0-9a-f]{64}$' AND supporting_evidence_uploaded_by_user_id IS NOT NULL AND supporting_evidence_uploaded_at IS NOT NULL)");
+    });
     b.Entity<FirmJournalLine>().ToTable("firm_journal_lines", t => t.HasCheckConstraint("ck_firm_journal_line_values",
       "length(description) > 0 AND debit >= 0 AND credit >= 0 AND ((debit > 0 AND credit = 0) OR (credit > 0 AND debit = 0))"));
     b.Entity<FirmPosting>().ToTable("firm_postings", t => t.HasCheckConstraint("ck_firm_posting_currency",
@@ -318,6 +326,9 @@ public sealed partial class AuditSphereDbContext
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     b.Entity<FirmJournal>().HasOne<AppUser>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ApprovedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<FirmJournal>().HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.SupportingEvidenceUploadedByUserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     b.Entity<FirmJournalLine>().HasOne<FirmJournal>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.JournalId })

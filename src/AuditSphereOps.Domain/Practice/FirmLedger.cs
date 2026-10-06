@@ -56,6 +56,12 @@ public sealed class FirmJournal
   public string Currency { get; set; } = string.Empty;
   public string Status { get; set; } = LedgerStates.JournalDraft;
   public Guid CreatedByUserId { get; set; }
+  public string? SupportingEvidenceFileName { get; set; }
+  public string? SupportingEvidenceContentType { get; set; }
+  public byte[]? SupportingEvidenceContent { get; set; }
+  public string? SupportingEvidenceSha256 { get; set; }
+  public Guid? SupportingEvidenceUploadedByUserId { get; set; }
+  public DateTimeOffset? SupportingEvidenceUploadedAt { get; set; }
   public Guid? ApprovedByUserId { get; set; }
   public DateTimeOffset? ApprovedAt { get; set; }
   public DateTimeOffset? PostedAt { get; set; }

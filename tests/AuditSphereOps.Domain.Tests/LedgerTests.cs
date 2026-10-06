@@ -7,6 +7,7 @@ using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using System.Text;
 
 namespace AuditSphereOps.Domain.Tests;
 
@@ -131,15 +132,18 @@ public sealed class LedgerTests
     await using var pg = await PgTestSchema.CreateAsync();
     var fixture = await SeedAsync(pg);
     await using var db = new AuditSphereDbContext(pg.Options);
-    var expiredAt = DateTimeOffset.UtcNow.AddMinutes(-1);
+    var now = DateTimeOffset.UtcNow;
+    var expiredAt = now.AddMinutes(-1);
 
     var managerGrant = await db.RoleGrants.SingleAsync(x =>
       x.FirmId == fixture.FirmId && x.UserId == fixture.Manager.Id && x.Role == "FinanceManager");
+    managerGrant.GrantedAt = now.AddMinutes(-2);
     managerGrant.ExpiresAt = expiredAt;
     db.RoleGrants.Add(Grant(fixture.FirmId, fixture.Manager, "FinanceReviewer"));
 
     var reviewerGrant = await db.RoleGrants.SingleAsync(x =>
       x.FirmId == fixture.FirmId && x.UserId == fixture.Reviewer.Id && x.Role == "FinanceReviewer");
+    reviewerGrant.GrantedAt = now.AddMinutes(-2);
     reviewerGrant.ExpiresAt = expiredAt;
     db.RoleGrants.Add(Grant(fixture.FirmId, fixture.Reviewer, "FinanceManager"));
     await db.SaveChangesAsync();
@@ -147,6 +151,7 @@ public sealed class LedgerTests
     var managerView = await FirmFinanceQuery.GetAsync(db, fixture.ManagerActor);
     Assert.True(managerView.Succeeded, managerView.Message);
     Assert.False(managerView.Value!.CanCreateSetup);
+    Assert.False(managerView.Value.CanCreateJournals);
     Assert.True(managerView.Value.CanClosePeriod);
     Assert.True(managerView.Value.CanReviewJournals);
     Assert.False(managerView.Value.CanPostJournals);
@@ -154,9 +159,89 @@ public sealed class LedgerTests
     var reviewerView = await FirmFinanceQuery.GetAsync(db, fixture.ReviewerActor);
     Assert.True(reviewerView.Succeeded, reviewerView.Message);
     Assert.True(reviewerView.Value!.CanCreateSetup);
+    Assert.True(reviewerView.Value.CanCreateJournals);
     Assert.False(reviewerView.Value.CanClosePeriod);
     Assert.False(reviewerView.Value.CanReviewJournals);
     Assert.True(reviewerView.Value.CanPostJournals);
+  }
+
+  [Fact]
+  public async Task FinanceReviewerCanReviewButCannotAuthorOrSubmitFirmJournal()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var cash = (await LedgerService.CreateFirmAccountAsync(db, fixture.ManagerActor,
+      new CreateFirmAccountRequest("ROLE-CASH", "Cash", LedgerStates.AccountAsset, LedgerStates.Debit))).Value;
+    var equity = (await LedgerService.CreateFirmAccountAsync(db, fixture.ManagerActor,
+      new CreateFirmAccountRequest("ROLE-EQUITY", "Opening equity", LedgerStates.AccountEquity, LedgerStates.Credit))).Value;
+    var period = (await LedgerService.CreateFirmPeriodAsync(db, fixture.ManagerActor,
+      new CreateFirmPeriodRequest("2026-12"))).Value;
+
+    var reviewerProjection = await FirmFinanceQuery.GetAsync(db, fixture.ReviewerActor);
+    Assert.True(reviewerProjection.Succeeded, reviewerProjection.Message);
+    Assert.False(reviewerProjection.Value!.CanCreateJournals);
+    Assert.True(reviewerProjection.Value.CanReviewJournals);
+    Assert.False(reviewerProjection.Value.CanPostJournals);
+
+    var request = new CreateFirmJournalDraftRequest(period, "ROLE-BOUNDARY", "MANUAL", "ROLE-BOUNDARY-01", 1,
+      "OPENING_BALANCE", "QAR", [
+        new FirmJournalLineRequest(cash, "Opening cash", 500, 0),
+        new FirmJournalLineRequest(equity, "Opening equity", 0, 500)
+      ], "opening-source.txt", "text/plain", Encoding.UTF8.GetBytes("approved opening source"));
+    var created = await LedgerService.CreateFirmJournalDraftAsync(db, fixture.ManagerActor, request);
+    Assert.True(created.Succeeded, created.Message);
+    var createDenied = await LedgerService.CreateFirmJournalDraftAsync(db, fixture.ReviewerActor,
+      request with { JournalNumber = "REVIEWER-CANNOT-CREATE" });
+    Assert.Equal(ErrorCodes.ScopeDenied, createDenied.ErrorCode);
+    Assert.True((await LedgerService.SubmitFirmJournalAsync(db, fixture.ManagerActor, created.Value)).Succeeded);
+    var submitDenied = await LedgerService.SubmitFirmJournalAsync(db, fixture.ReviewerActor, created.Value);
+    Assert.Equal(ErrorCodes.ScopeDenied, submitDenied.ErrorCode);
+    Assert.True((await LedgerService.ApproveFirmJournalAsync(db, fixture.ReviewerActor, created.Value)).Succeeded);
+  }
+
+  [Fact]
+  public async Task OpeningBalanceBindsExactEvidenceAndPreventsEvidenceMutation()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var cash = (await LedgerService.CreateFirmAccountAsync(db, fixture.ManagerActor,
+      new CreateFirmAccountRequest("EVIDENCE-CASH", "Opening cash", LedgerStates.AccountAsset, LedgerStates.Debit))).Value;
+    var equity = (await LedgerService.CreateFirmAccountAsync(db, fixture.ManagerActor,
+      new CreateFirmAccountRequest("EVIDENCE-EQUITY", "Opening equity", LedgerStates.AccountEquity, LedgerStates.Credit))).Value;
+    var period = (await LedgerService.CreateFirmPeriodAsync(db, fixture.ManagerActor,
+      new CreateFirmPeriodRequest("2026-12"))).Value;
+    var lines = new[] {
+      new FirmJournalLineRequest(cash, "Opening cash", 500, 0),
+      new FirmJournalLineRequest(equity, "Opening equity", 0, 500)
+    };
+    var request = new CreateFirmJournalDraftRequest(period, "EVIDENCE-BOUND", "MANUAL", "OPENING-SOURCE-01", 1,
+      "OPENING_BALANCE", "QAR", lines);
+    var missingEvidence = await LedgerService.CreateFirmJournalDraftAsync(db, fixture.ManagerActor, request);
+    Assert.Equal("ledger.invalid", missingEvidence.ErrorCode);
+
+    var content = Encoding.UTF8.GetBytes("opening schedule v1; reviewed 2026-12-01");
+    var supported = request with
+    {
+      SupportingEvidenceFileName = "opening-schedule.txt",
+      SupportingEvidenceContentType = "text/plain",
+      SupportingEvidenceContent = content
+    };
+    var created = await LedgerService.CreateFirmJournalDraftAsync(db, fixture.ManagerActor, supported);
+    Assert.True(created.Succeeded, created.Message);
+    var retry = await LedgerService.CreateFirmJournalDraftAsync(db, fixture.ManagerActor, supported);
+    Assert.Equal(created.Value, retry.Value);
+    var changedEvidence = await LedgerService.CreateFirmJournalDraftAsync(db, fixture.ManagerActor,
+      supported with { SupportingEvidenceContent = Encoding.UTF8.GetBytes("different opening schedule") });
+    Assert.Equal(ErrorCodes.IdempotencyConflict, changedEvidence.ErrorCode);
+
+    var journal = await db.FirmJournals.AsNoTracking().SingleAsync(x => x.Id == created.Value);
+    Assert.Equal("opening-schedule.txt", journal.SupportingEvidenceFileName);
+    Assert.Equal(Hashing.Sha256Hex(content), journal.SupportingEvidenceSha256);
+    Assert.Equal(fixture.Manager.Id, journal.SupportingEvidenceUploadedByUserId);
+    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      $"UPDATE firm_journals SET supporting_evidence_content = {Encoding.UTF8.GetBytes("tampered")} WHERE firm_id = {fixture.FirmId} AND id = {journal.Id}"));
   }
 
   [Fact]
@@ -179,7 +264,7 @@ public sealed class LedgerTests
         "PARTNER_DRAWING", "QAR", [
           new FirmJournalLineRequest(expense, "Partner drawing", 25, 0),
           new FirmJournalLineRequest(cash, "Cash withdrawal", 0, 25)
-        ]));
+        ], "partner-draw-approval.txt", "text/plain", "approved draw request"u8.ToArray()));
     Assert.Equal("ledger.drawing-accounts-invalid", invalid.ErrorCode);
 
     var valid = await LedgerService.CreateFirmJournalDraftAsync(db, fixture.ManagerActor,
@@ -187,7 +272,7 @@ public sealed class LedgerTests
         "PARTNER_DRAWING", "QAR", [
           new FirmJournalLineRequest(drawings, "Partner drawing", 25, 0),
           new FirmJournalLineRequest(cash, "Cash withdrawal", 0, 25)
-        ]));
+        ], "partner-draw-approval.txt", "text/plain", "approved draw request"u8.ToArray()));
     Assert.True(valid.Succeeded, valid.Message);
   }
 

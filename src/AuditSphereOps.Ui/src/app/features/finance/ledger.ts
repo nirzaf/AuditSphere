@@ -1,4 +1,4 @@
-import { Component, effect, inject, signal, untracked } from '@angular/core';
+import { Component, ElementRef, effect, inject, signal, untracked, ViewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -15,11 +15,13 @@ export const decodeLedger = obj({ canCreateSetup: bool, canClosePeriod: bool, ca
   journals: arr(obj({ id: guid, periodId: guid, periodCode: text, journalNumber: text, sourceKind: text, sourceKey: text,
     sourceRevision: nat, postingPurpose: text, currency: text, status: text, createdByUserId: guid,
     approvedByUserId: nullable(guid), createdAt: instant, approvedAt: nullable(instant), postedAt: nullable(instant),
+    supportingEvidenceFileName: nullable(text), supportingEvidenceSha256: nullable(text),
     lines: arr(obj({ firmAccountId: guid, accountCode: text, accountName: text, description: text, debit: text, credit: text }), 200) }), 50) });
 
 interface JournalDraftLine { firmAccountId: string; description: string; debit: string; credit: string }
 interface JournalDraft {
   periodId: string; journalNumber: string; sourceKey: string; postingPurpose: string; currency: string; lines: JournalDraftLine[];
+  supportingEvidence: File | null; supportingEvidenceSha256: string | null;
 }
 type JournalCreateState = 'checking' | 'saved' | 'absent' | 'conflict' | 'error' | null;
 type JournalActionKind = 'submit' | 'review' | 'post';
@@ -171,25 +173,29 @@ interface PendingClose {
               <option value="PARTNER_DRAWING">Partner drawing</option>
             </select></label>
             <label>Source record reference <input name="sourceReference" [(ngModel)]="journalDraft.sourceKey" maxlength="200" [disabled]="journalCreateLocked()" required />
-              <small>Use a unique source reference. For opening balances and drawings, this identifies the supporting record.</small></label>
+              <small>Use a unique reference from the supporting schedule or authorization.</small></label>
+            <label>Supporting document <input #journalEvidenceInput name="journalEvidence" type="file" [disabled]="journalCreateLocked()" [required]="requiresJournalEvidence()" (change)="setJournalEvidence($event)" />
+              <small>Required for opening balances and Partner drawings; maximum 5 MB. The exact file is retained with the journal.</small></label>
+            @if (journalDraft.supportingEvidence) { <p role="status">Attached: {{ journalDraft.supportingEvidence.name }} ({{ journalDraft.supportingEvidence.size }} bytes)</p> }
+            @if (evidenceMessage()) { <p role="alert">{{ evidenceMessage() }}</p> }
             <label>Functional currency <input name="journalCurrency" [(ngModel)]="journalDraft.currency" maxlength="3" [disabled]="journalCreateLocked()" required /></label>
             <fieldset class="journal-lines">
               <legend>Journal lines</legend>
               @for (line of journalDraft.lines; track $index; let row = $index) {
                 <div class="workspace-grid">
-                  <label>Line {{ row + 1 }} account <select [name]="'journalAccount' + row" [(ngModel)]="line.firmAccountId" [disabled]="journalCreateLocked()" required>
+                  <label>Line {{ row + 1 }} account <select [name]="'journalAccount' + row" [attr.name]="'journalAccount' + row" [(ngModel)]="line.firmAccountId" [disabled]="journalCreateLocked()" required>
                     <option value="">Select account</option>
                     @for (a of l.accounts; track a.id) { @if (a.postingAllowed) { <option [value]="a.id">{{ a.code }} · {{ a.name }} ({{ a.accountType }})</option> } }
                   </select></label>
-                  <label>Description <input [name]="'journalDescription' + row" [(ngModel)]="line.description" maxlength="300" [disabled]="journalCreateLocked()" required /></label>
-                  <label>Debit <input [name]="'journalDebit' + row" inputmode="decimal" [(ngModel)]="line.debit" [disabled]="journalCreateLocked()" /></label>
-                  <label>Credit <input [name]="'journalCredit' + row" inputmode="decimal" [(ngModel)]="line.credit" [disabled]="journalCreateLocked()" /></label>
+                  <label>Description <input [name]="'journalDescription' + row" [attr.name]="'journalDescription' + row" [(ngModel)]="line.description" maxlength="300" [disabled]="journalCreateLocked()" required /></label>
+                  <label>Debit <input [name]="'journalDebit' + row" [attr.name]="'journalDebit' + row" inputmode="decimal" [(ngModel)]="line.debit" [disabled]="journalCreateLocked()" /></label>
+                  <label>Credit <input [name]="'journalCredit' + row" [attr.name]="'journalCredit' + row" inputmode="decimal" [(ngModel)]="line.credit" [disabled]="journalCreateLocked()" /></label>
                   <button matButton="outlined" type="button" (click)="removeJournalLine(row)" [disabled]="journalCreateLocked() || journalDraft.lines.length <= 2">Remove line</button>
                 </div>
               }
               <button matButton="outlined" type="button" (click)="addJournalLine()" [disabled]="journalCreateLocked() || journalDraft.lines.length >= 200">Add journal line</button>
             </fieldset>
-            <button matButton="filled" type="submit" [disabled]="journalCreateLocked() || !journalDraft.periodId || !journalDraft.journalNumber.trim() || !journalDraft.sourceKey.trim() || !journalLinesReady()">Save draft journal</button>
+            <button matButton="filled" type="submit" [disabled]="journalCreateLocked() || !journalDraft.periodId || !journalDraft.journalNumber.trim() || !journalDraft.sourceKey.trim() || !journalEvidenceReady() || !journalLinesReady()">Save draft journal</button>
           </form>
           @if (pendingJournal(); as pending) {
             <section class="panel" aria-labelledby="journal-create-recovery-heading">
@@ -234,7 +240,9 @@ interface PendingClose {
           <caption>Recent firm journal drafts and their review status</caption>
           <thead><tr><th scope="col">Journal</th><th scope="col">Period</th><th scope="col">Source / type</th><th scope="col">Currency</th><th scope="col">Status</th><th scope="col">Lines</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
           <tbody>@for (j of l.journals; track j.id) {
-            <tr><th scope="row">{{ j.journalNumber }}</th><td>{{ j.periodCode }}</td><td>{{ j.sourceKind }} · {{ j.postingPurpose }}<small>{{ j.sourceKey }}</small></td>
+            <tr><th scope="row">{{ j.journalNumber }}</th><td>{{ j.periodCode }}</td><td>{{ j.sourceKind }} · {{ j.postingPurpose }}<small>{{ j.sourceKey }}</small>
+              @if (j.supportingEvidenceSha256) { <button matButton type="button" (click)="downloadJournalEvidence(j.id, j.supportingEvidenceSha256!)">Download source: {{ j.supportingEvidenceFileName }}</button> }
+            </td>
               <td>{{ j.currency }}</td><td><audit-status [value]="j.status" /></td><td>{{ j.lines.length }}</td>
               <td class="actions">
                 @if (j.status === 'DRAFT' && l.canCreateJournals) { <button matButton (click)="actOnJournal(j.id, 'submit')" [disabled]="journalActionLocked()">Submit for review</button> }
@@ -251,6 +259,7 @@ interface PendingClose {
         </table></div>
         <audit-command-message [message]="journalCommand.message()" [failed]="journalCommand.failed()" />
         <audit-command-message [message]="journalActionCommand.message()" [failed]="journalActionCommand.failed()" />
+        @if (evidenceDownloadMessage()) { <p role="status">{{ evidenceDownloadMessage() }}</p> }
       </section>
       <section class="panel" aria-labelledby="postings-heading">
         <h2 id="postings-heading">Recent firm postings</h2>
@@ -266,6 +275,7 @@ interface PendingClose {
 export class FirmLedger {
   private readonly api = inject(Api);
   private readonly session = inject(SessionService);
+  @ViewChild('journalEvidenceInput') private journalEvidenceInput?: ElementRef<HTMLInputElement>;
   readonly ledger = this.api.resource(() => '/api/ui/finance', decodeLedger, 'Sign in with an authorized finance identity to access the firm ledger.');
   readonly cmd = new CommandState(this.api);
   readonly setupCommand = new CommandState(this.api);
@@ -283,6 +293,8 @@ export class FirmLedger {
   readonly pendingJournalAction = signal<PendingJournalAction | null>(null);
   readonly journalActionState = signal<JournalActionState>(null);
   readonly journalActionMessage = signal('');
+  readonly evidenceMessage = signal('');
+  readonly evidenceDownloadMessage = signal('');
   readonly closing = signal<string | null>(null);
   readonly closeVerification = signal<CloseVerification>('idle');
   readonly verifiedRevision = signal<number | null>(null);
@@ -305,7 +317,7 @@ export class FirmLedger {
         this.accountDraft.code = '';
         this.accountDraft.name = '';
         this.periodDraft.periodCode = '';
-        this.journalDraft = this.emptyJournalDraft();
+        this.clearJournalDraft();
         this.pendingJournal.set(null);
         this.journalCreateState.set(null);
         this.journalCreateMessage.set('');
@@ -420,7 +432,44 @@ export class FirmLedger {
 
   private emptyJournalDraft(): JournalDraft {
     return { periodId: '', journalNumber: '', sourceKey: '', postingPurpose: 'MANUAL', currency: '',
-      lines: [this.emptyJournalLine(), this.emptyJournalLine()] };
+      lines: [this.emptyJournalLine(), this.emptyJournalLine()], supportingEvidence: null, supportingEvidenceSha256: null };
+  }
+
+  private clearJournalDraft(): void {
+    this.journalDraft = this.emptyJournalDraft();
+    if (this.journalEvidenceInput) this.journalEvidenceInput.nativeElement.value = '';
+    this.evidenceMessage.set('');
+  }
+
+  requiresJournalEvidence(): boolean {
+    return this.journalDraft.postingPurpose === 'OPENING_BALANCE' || this.journalDraft.postingPurpose === 'PARTNER_DRAWING';
+  }
+
+  journalEvidenceReady(): boolean {
+    return !this.requiresJournalEvidence() || !!this.journalDraft.supportingEvidence &&
+      this.journalDraft.supportingEvidence.size > 0 && this.journalDraft.supportingEvidence.size <= 5 * 1024 * 1024;
+  }
+
+  setJournalEvidence(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.item(0) ?? null;
+    if (file && (file.size < 1 || file.size > 5 * 1024 * 1024 || file.name.trim().length > 255)) {
+      this.journalDraft.supportingEvidence = null;
+      this.journalDraft.supportingEvidenceSha256 = null;
+      input.value = '';
+      this.evidenceMessage.set('Choose a document with a file name up to 255 characters and a size from 1 byte to 5 MB.');
+      return;
+    }
+    this.journalDraft.supportingEvidence = file;
+    this.journalDraft.supportingEvidenceSha256 = null;
+    this.evidenceMessage.set('');
+  }
+
+  async downloadJournalEvidence(id: string, sha256: string): Promise<void> {
+    this.evidenceDownloadMessage.set('');
+    const result = await this.api.download(`/api/ui/finance/journals/${id}/evidence`, {}, metadata =>
+      metadata.headers['x-firm-journal-evidence-sha256'] === sha256 && metadata.byteCount > 0);
+    this.evidenceDownloadMessage.set(result.ok ? `Supporting document downloaded: ${result.value.fileName}.` : result.message);
   }
 
   private emptyJournalLine(): JournalDraftLine {
@@ -471,7 +520,18 @@ export class FirmLedger {
       currency: this.journalDraft.currency.trim().toUpperCase(),
       lines: this.journalDraft.lines.map(line => ({ ...line, description: line.description.trim(),
         debit: line.debit.trim() || '0', credit: line.credit.trim() || '0' })),
+      supportingEvidence: this.journalDraft.supportingEvidence,
+      supportingEvidenceSha256: this.journalDraft.supportingEvidenceSha256,
     };
+    if (request.supportingEvidence) {
+      try {
+        const digest = await crypto.subtle.digest('SHA-256', await request.supportingEvidence.arrayBuffer());
+        request.supportingEvidenceSha256 = Array.from(new Uint8Array(digest), value => value.toString(16).padStart(2, '0')).join('');
+      } catch {
+        this.evidenceMessage.set('The supporting document could not be verified by this browser. Choose it again before saving.');
+        return;
+      }
+    }
     this.pendingJournal.set(request);
     this.journalCreateState.set(null);
     this.journalCreateMessage.set('');
@@ -481,12 +541,16 @@ export class FirmLedger {
   private async sendJournal(request: JournalDraft, retry = false): Promise<void> {
     if (this.journalCommand.busy() || !this.ledger.data()?.canCreateJournals) return;
     if (!retry && this.pendingJournal() !== request) return;
-    const saved = await this.journalCommand.run('/api/ui/finance/journals', request,
+    const form = new FormData();
+    form.append('journal', JSON.stringify({ periodId: request.periodId, journalNumber: request.journalNumber,
+      sourceKey: request.sourceKey, postingPurpose: request.postingPurpose, currency: request.currency, lines: request.lines }));
+    if (request.supportingEvidence) form.append('evidence', request.supportingEvidence, request.supportingEvidence.name);
+    const saved = await this.journalCommand.run('/api/ui/finance/journals', form,
       'Draft journal saved.', () => {
         this.pendingJournal.set(null);
         this.journalCreateState.set(null);
         this.journalCreateMessage.set('');
-        this.journalDraft = this.emptyJournalDraft();
+        this.clearJournalDraft();
         this.ledger.reload();
       });
     if (!saved && !this.journalCommand.uncertain()) this.pendingJournal.set(null);
@@ -535,7 +599,7 @@ export class FirmLedger {
     if (this.journalCreateState() !== 'saved') return;
     this.clearUnresolvedJournal();
     this.journalCommand.message.set('Persisted firm ledger state confirms the journal request. It was not repeated.');
-    this.journalDraft = this.emptyJournalDraft();
+    this.clearJournalDraft();
     this.ledger.reload();
   }
 
@@ -716,6 +780,7 @@ function canonicalDecimal(value: string): string | null {
 function journalMatchesDraft(journal: DecodedFirmJournal, draft: JournalDraft): boolean {
   if (journal.periodId !== draft.periodId || journal.journalNumber !== draft.journalNumber ||
       journal.currency !== draft.currency.toUpperCase() || journal.postingPurpose !== draft.postingPurpose ||
+      journal.supportingEvidenceSha256 !== draft.supportingEvidenceSha256 ||
       journal.lines.length !== draft.lines.length) return false;
   const fingerprint = (lines: readonly { firmAccountId: string; description: string; debit: string; credit: string }[]) =>
     lines.map(line => {
