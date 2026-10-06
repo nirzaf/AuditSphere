@@ -13,6 +13,18 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Comparative split financial statement dashboard (AS-COMP-15)
+
+The interactive Financial Statements workspace now provides a comparative split dashboard (§4.3.1, AS-COMP-15):
+- Upper Statement of Profit or Loss (P&L) and lower Statement of Financial Position (B/S) are rendered simultaneously in the desktop workbench (responsively stacked on narrow viewports).
+- Columns for each line and section summary show Current Year balance, Prior Year comparative balance, Absolute Variance, and Percentage Variance adhering to sign convention `(Current - Prior) / |Prior| * 100%`, with zero prior denominator displayed as `N/A` and unavailable prior data displayed as `—`.
+- Prior period comparative figures are resolved systematically from the validated financial package comparative reference, earlier validated financial package for the client/currency, or earlier approved mapping and sealed trial balance.
+- FSLI rows display risk band badges ("Low", "Medium", "High") derived from engagement materiality assessments or FSLI defaults, along with assigned performer and required reviewer ranks.
+- Procedure execution status indicators ("Reviewed", "In progress", "Planned", "Changes required", "No procedures") reflect underlying audit substantive testing progress.
+- Distinct interactive triggers are provided per row: `[AR Test]` (navigating to analytical review preparation) and `[Audit Workprogram]` (navigating to fieldwork substantive procedures).
+- Backend endpoint `GET /engagements/{id}/statements/split` returns both sections simultaneously.
+- Verified with PostgreSQL-backed API tests (5/5 passing in `StatementReviewApiTests`), full Angular test suite (541/541 passing across 104 suites), Angular production build, Release solution compilation (0 errors, 0 warnings), and zero EF Core model drift.
+
 ## Statutory milestone planning and 60-day archive freeze (AS-COMP-10)
 
 Statutory filing deadlines are now explicitly stored and never silently assumed or hardcoded (§4.2.2, AS-COMP-10). The engagement milestone plan entity (`EngagementMilestonePlan`) captures the explicit statutory filing cutoff, fieldwork commencement target, draft report delivery target, final signed report date, and the mandatory 60-day archive deadline under ISA 230 (§4.4.3).
