@@ -28,6 +28,11 @@ public static class ErrorCodes
   public const string ManifestMismatch = "manifest.mismatch";
   public const string ExternalEffectsFenced = "external-effects.fenced";
 
+  public static class TechnicalLibrary
+  {
+    public const string DuplicateCode = "library.duplicate-code";
+  }
+
   // Stable catalogs. Existing wire values remain unchanged; new code should use
   // the owning catalog instead of parsing or inventing message text.
   public static class Accounting
@@ -84,6 +89,7 @@ public static class ErrorCatalog
     ErrorCodes.GenerationStale => "The underlying inputs changed. Reload the current version and try again.",
     ErrorCodes.GateBlocked => "This operation is currently blocked by a required prerequisite.",
     ErrorCodes.IdempotencyConflict => "This retry conflicts with an earlier request.",
+    ErrorCodes.TechnicalLibrary.DuplicateCode => "That library code already exists. Choose another code or open the entry to prepare a new version.",
     ErrorCodes.Drafts.NotFound => "No active draft is available.",
     ErrorCodes.Drafts.Conflict => "The draft could not be saved because it changed.",
     ErrorCodes.Drafts.TargetChanged => "The workpaper changed. Reload it before editing.",

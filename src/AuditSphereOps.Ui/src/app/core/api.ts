@@ -98,8 +98,12 @@ export class Api {
       if (status === 0 || status >= 500 || !(e instanceof HttpErrorResponse)) return { ok: false, unknown: true, code: 'outcome.unknown', message: UNKNOWN_OUTCOME, status };
       if (status === 401) this.session.refresh();
       const code = typeof e.error?.code === 'string' ? e.error.code : 'request.failed';
-      return { ok: false, unknown: false, code, status,
-        message: status === 409 ? 'This record changed since you loaded it. Refresh and review the current revision.' : Api.message(e, 'The request was not accepted.') };
+      const message = code === 'library.duplicate-code'
+        ? 'That library code already exists. Choose another code or open the entry to prepare a new version.'
+        : status === 409
+          ? 'This record changed since you loaded it. Refresh and review the current revision.'
+          : Api.message(e, 'The request was not accepted.');
+      return { ok: false, unknown: false, code, status, message };
     }
   }
 

@@ -20,6 +20,18 @@ describe('API session and unknown outcome fences', () => {
     session.clear(); http.expectOne('/api/ui/example').flush({ value: 'accepted' });
     const result = await request; expect(result.ok).toBe(false); if(!result.ok) expect(result.unknown).toBe(true);
   });
+  it('maps a typed duplicate library code conflict to a safe corrective message', async () => {
+    const api = TestBed.inject(Api), http = TestBed.inject(HttpTestingController);
+    const request = api.command('/api/ui/library', { code: 'DUPLICATE' });
+    http.expectOne('/api/ui/library').flush(
+      { code: 'library.duplicate-code', message: 'server implementation detail must not be shown' },
+      { status: 409, statusText: 'Conflict' });
+    const result = await request;
+    expect(result).toEqual({
+      ok: false, unknown: false, code: 'library.duplicate-code', status: 409,
+      message: 'That library code already exists. Choose another code or open the entry to prepare a new version.',
+    });
+  });
   it('does not save a file whose source metadata failed the caller context fence', async () => {
     const api = TestBed.inject(Api), http = TestBed.inject(HttpTestingController);
     const request = api.download('/api/ui/source/export', {revision:1}, () => false);
