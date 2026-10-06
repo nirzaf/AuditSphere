@@ -19,7 +19,7 @@ public sealed record ClientOperationalLedgerEntryView(Guid JournalId, string Jou
   int LineNumber, string AccountCode, string AccountName, string Description, string Debit, string Credit, Guid? ReversesJournalId = null, Guid? ReversedByJournalId = null, string? ReversedByStatus = null);
 public sealed record ClientOperationalGeneralLedgerView(Guid ClientId, Guid PeriodId, string PeriodCode, string Currency,
   string Basis, int Page, int PageSize, int TotalEntries, IReadOnlyList<ClientOperationalLedgerAccountView> Accounts,
-  IReadOnlyList<ClientOperationalLedgerEntryView> Entries, ClientOperationalTrialBalanceView TrialBalance);
+  IReadOnlyList<ClientOperationalLedgerEntryView> Entries, ClientOperationalTrialBalanceView TrialBalance, bool BookkeepingActive);
 
 /// <summary>Read-only GL projection of posted native client journals. It is not an imported or adjusted audit ledger.</summary>
 public static class ClientOperationalGeneralLedgerWorkspace
@@ -36,8 +36,8 @@ public static class ClientOperationalGeneralLedgerWorkspace
     if (!auth.Succeeded) return CommandResult<ClientOperationalGeneralLedgerView>.Fail(auth.ErrorCode!, "Access denied.");
     var profile = await db.ClientAccountingProfiles.AsNoTracking().SingleOrDefaultAsync(x =>
       x.FirmId == actor.FirmId && x.ClientId == clientId && x.SourceMode == ClientAccountingSourceModes.NativeBookkeeping, ct);
-    if (profile is null || !await ClientBookkeepingAuthorization.IsCurrentDecisionAcceptedAsync(db, actor.FirmId, clientId, ct: ct))
-      return CommandResult<ClientOperationalGeneralLedgerView>.Fail(ErrorCodes.GateBlocked, "The current accepted native bookkeeping service is required.");
+    if (profile is null)
+      return CommandResult<ClientOperationalGeneralLedgerView>.Fail(ErrorCodes.GateBlocked, "This client has no configured native bookkeeping workspace.");
     var period = await db.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(x =>
       x.FirmId == actor.FirmId && x.ClientId == clientId && x.Id == periodId, ct);
     if (period is null)
@@ -99,8 +99,7 @@ public static class ClientOperationalGeneralLedgerWorkspace
     if (!(await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, clientId, RequiredRoles: ReaderRoles, InternalOnly: true), ct)).Succeeded)
       return CommandResult<ClientOperationalGeneralLedgerView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    if (!await ClientBookkeepingAuthorization.IsCurrentDecisionAcceptedAsync(db, actor.FirmId, clientId, ct: ct))
-      return CommandResult<ClientOperationalGeneralLedgerView>.Fail(ErrorCodes.GateBlocked, "The bookkeeping service decision changed while loading the ledger.");
+    var bookkeepingActive = await ClientBookkeepingAuthorization.IsCurrentDecisionAcceptedAsync(db, actor.FirmId, clientId, ct: ct);
     var accounts = accountRows.Select(x => new ClientOperationalLedgerAccountView(x.ClientAccountId, x.AccountCode,
       x.AccountName, x.Debit.ToString(System.Globalization.CultureInfo.InvariantCulture),
       x.Credit.ToString(System.Globalization.CultureInfo.InvariantCulture),
@@ -113,7 +112,7 @@ public static class ClientOperationalGeneralLedgerWorkspace
       links.SingleOrDefault(l => l.OriginalJournalId == x.Id)?.ReversalJournalId,
       links.SingleOrDefault(l => l.OriginalJournalId == x.Id)?.Status)).ToArray();
     return CommandResult<ClientOperationalGeneralLedgerView>.Ok(new(clientId, periodId, period.PeriodCode,
-      period.Currency, period.Basis, page, pageSize, total, accounts, entries, trialBalance));
+      period.Currency, period.Basis, page, pageSize, total, accounts, entries, trialBalance, bookkeepingActive));
   }
   private static string Format(decimal value) => value.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
   private static ClientOperationalTrialBalanceRow BalanceRow(Guid id, string code, string name, decimal opening, decimal debit, decimal credit)

@@ -11,13 +11,15 @@ interface JournalLine { lineNumber: number; accountId: string; accountCode: stri
 interface ReviewDecision { revision: string; decision: string; reason: string; actorUserId: string; createdAt: string }
 interface ReversalLink { originalJournalId: string; reversalJournalId: string; originalRevision: string; reason: string; evidenceReference: string; preparedByUserId: string; preparedAt: string; reversalStatus: string }
 interface Journal { id: string; clientId: string; periodId: string; journalNumber: string; description: string; postingDate: string; currency: string; status: string; revision: string; createdByUserId: string; lines: JournalLine[]; decisions: ReviewDecision[]; reversalOf?: ReversalLink | null; reversedBy?: ReversalLink | null }
+interface JournalSummary { id: string; periodId: string; journalNumber: string; description: string; postingDate: string; currency: string; status: string; revision: string; createdByUserId: string }
+interface JournalList { clientId: string; periodId: string | null; status: string | null; page: number; pageSize: number; totalJournals: number; bookkeepingActive: boolean; journals: JournalSummary[] }
 interface JournalSnapshot { journalId: string; clientId: string; revision: string; capturedAt: string; journalNumber: string;
   description: string; postingDate: string; currency: string; lines: JournalLine[] }
 interface JournalPreview { journalId: string; clientId: string; periodId: string; revision: string; status: string; currency: string;
   totalDebit: string; totalCredit: string; digest: string; lines: JournalLine[] }
 interface TrialBalanceRow { accountId: string; accountCode: string; accountName: string; openingDebit: string; openingCredit: string; periodDebit: string; periodCredit: string; closingDebit: string; closingCredit: string }
 interface TrialBalance { fromDate: string; toDate: string; source: string; openingDebit: string; openingCredit: string; periodDebit: string; periodCredit: string; closingDebit: string; closingCredit: string; rows: TrialBalanceRow[] }
-interface LedgerView { trialBalance: TrialBalance; clientId: string; periodId: string; periodCode: string; currency: string; basis: string; page: number; pageSize: number; totalEntries: number;
+interface LedgerView { bookkeepingActive: boolean; trialBalance: TrialBalance; clientId: string; periodId: string; periodCode: string; currency: string; basis: string; page: number; pageSize: number; totalEntries: number;
   accounts: { accountId: string; accountCode: string; accountName: string; debitMovement: string; creditMovement: string; netMovement: string }[];
   entries: { journalId: string; journalNumber: string; postingDate: string; lineNumber: number; accountCode: string; accountName: string; description: string; debit: string; credit: string; reversesJournalId?: string | null; reversedByJournalId?: string | null; reversedByStatus?: string | null }[] }
 interface PostingReceipt { commandId: string; clientId: string; journalId: string; actorUserId: string; submittedRevision: string;
@@ -62,9 +64,25 @@ export function decodeOperationalJournal(value: unknown, clientId: string): Jour
   }
   return v as unknown as Journal;
 }
+export function decodeJournalList(value: unknown, clientId: string, periodId: string | null, status: string | null, page: number): JournalList {
+  const v = object(value);
+  if (v['clientId'] !== clientId || v['periodId'] !== periodId || v['status'] !== status || v['page'] !== page || v['pageSize'] !== 25 ||
+      typeof v['bookkeepingActive'] !== 'boolean' || !Number.isSafeInteger(v['totalJournals']) || Number(v['totalJournals']) < 0 ||
+      !Array.isArray(v['journals']) || v['journals'].length > 25 || v['journals'].length > Number(v['totalJournals'])) throw new Error('Invalid journal list');
+  const identities = new Set<string>();
+  for (const raw of v['journals']) {
+    const row = object(raw);
+    if (!['id', 'periodId', 'createdByUserId'].every(k => typeof row[k] === 'string' && guidPattern.test(String(row[k]))) || identities.has(String(row['id'])) ||
+        (periodId !== null && row['periodId'] !== periodId) || !['DRAFT', 'SUBMITTED', 'RETURNED', 'POSTED'].includes(String(row['status'])) ||
+        (status !== null && row['status'] !== status) || typeof row['revision'] !== 'string' || !/^[1-9]\d{0,18}$/.test(row['revision']) ||
+        !['journalNumber', 'description', 'postingDate', 'currency'].every(k => typeof row[k] === 'string')) throw new Error('Invalid journal summary');
+    identities.add(String(row['id']));
+  }
+  return value as JournalList;
+}
 export function decodeOperationalLedger(value: unknown, clientId: string, periodId: string): LedgerView {
   const v = object(value);
-  if (v['clientId'] !== clientId || v['periodId'] !== periodId ||
+  if (typeof v['bookkeepingActive'] !== 'boolean' || v['clientId'] !== clientId || v['periodId'] !== periodId ||
       !['periodCode', 'currency', 'basis'].every(k => typeof v[k] === 'string') ||
       !['page', 'pageSize', 'totalEntries'].every(k => Number.isSafeInteger(v[k]) && Number(v[k]) >= 0) ||
       Number(v['pageSize']) < 1 || Number(v['pageSize']) > 200 ||
@@ -148,6 +166,27 @@ function minor(value: string): bigint { if (!nativeJournalAmount(value)) throw n
     <section aria-labelledby="operational-journals-heading">
       <h3 id="operational-journals-heading">Client bookkeeping journals</h3>
       <p>Native client book · {{ bookCurrency() }}. These official-book journals are separate from imported GL and reporting adjustments.</p>
+      <section aria-label="Saved client journals">
+        <h4>Saved journals</h4>
+        <label for="native-list-period">Saved journal period</label><select id="native-list-period" [ngModel]="listPeriod" (ngModelChange)="listPeriod = $event; journalList.set(null)">
+          <option value="">All periods</option>@for (p of periods(); track p.id) { <option [value]="p.id">{{ p.code }} · {{ p.currency }}</option> }
+        </select>
+        <label for="native-list-status">Saved journal status</label><select id="native-list-status" [ngModel]="listStatus" (ngModelChange)="listStatus = $event; journalList.set(null)">
+          <option value="">All statuses</option><option value="DRAFT">Draft</option><option value="SUBMITTED">Awaiting independent review</option><option value="RETURNED">Returned</option><option value="POSTED">Posted</option>
+        </select>
+        <button matButton type="button" [disabled]="listLoading()" (click)="loadList(0)">Refresh saved journals</button>
+        @if (listError()) { <p role="alert">{{ listError() }}</p> }
+        @if (journalList(); as result) {
+          <p>{{ result.totalJournals }} saved journals · Page {{ result.page + 1 }}. Each refresh uses current saved state.</p>
+          @if (!result.journals.length) { <p>No journals match the selected filters.</p> }
+          <div class="table-scroll"><table><caption>Saved native client journals</caption><thead><tr><th>Journal</th><th>Date</th><th>Description</th><th>Currency</th><th>Status</th><th>Revision</th></tr></thead>
+            <tbody>@for (j of result.journals; track j.id) { <tr><td><button matButton type="button" [disabled]="busy()" (click)="lookupId = j.id; load()">{{ j.journalNumber }}</button></td><td>{{ j.postingDate }}</td><td>{{ j.description }}</td><td>{{ j.currency }}</td><td>{{ j.status }}</td><td>{{ j.revision }}</td></tr> }</tbody>
+          </table></div>
+          <button matButton type="button" [disabled]="listLoading() || result.page === 0" (click)="loadList(result.page - 1)">Previous journals</button>
+          <button matButton type="button" [disabled]="listLoading() || (result.page + 1) * result.pageSize >= result.totalJournals" (click)="loadList(result.page + 1)">Next journals</button>
+        }
+      </section>
+      @if (serviceActive() === false) { <p role="status">Bookkeeping service is inactive. Retained journals, submitted history and posted reports remain available to authorized users. New bookkeeping commands are blocked.</p> }
       @if (error()) { <p role="alert">{{ error() }}</p> }
       @if (journal(); as j) {
         <article aria-label="Selected client journal">
@@ -174,7 +213,7 @@ function minor(value: string): bigint { if (!nativeJournalAmount(value)) throw n
               <label>Correction reason <input [(ngModel)]="reversalReason" (ngModelChange)="reviewed.set(false)" maxlength="2000" /></label>
               <label>Correction evidence reference <input [(ngModel)]="reversalEvidence" (ngModelChange)="reviewed.set(false)" maxlength="1000" /></label>
               <label><input type="checkbox" [checked]="reviewed()" (change)="setReviewed($any($event.target).checked)" /> I reviewed the original, correction date, full reversed amounts, reason and evidence reference.</label>
-              <button matButton type="button" [disabled]="busy() || uncertain() || !reviewed() || !reversalPeriodId || !reversalNumber.trim() || !reversalDate || !reversalReason.trim() || !reversalEvidence.trim()" (click)="createReversal(j)">Save reversal draft</button>
+              <button matButton type="button" [disabled]="busy() || uncertain() || !reviewed() || !reversalPeriodId || !reversalNumber.trim() || !reversalDate || !reversalReason.trim() || !reversalEvidence.trim() || serviceActive() === false" (click)="createReversal(j)">Save reversal draft</button>
             </details>
           }
           <div class="table-scroll"><table><caption>Immutable journal lines</caption><thead><tr><th>Account</th><th>Description</th><th>Debit</th><th>Credit</th></tr></thead>
@@ -207,17 +246,17 @@ function minor(value: string): bigint { if (!nativeJournalAmount(value)) throw n
             }
           }
           @if (j.status === 'RETURNED' && j.createdByUserId === userId()) {
-            <button matButton type="button" [disabled]="busy() || uncertain() || !!editing()" (click)="editReturned(j)">Edit returned journal</button>
+            <button matButton type="button" [disabled]="busy() || uncertain() || !!editing() || serviceActive() === false" (click)="editReturned(j)">Edit returned journal</button>
           }
           @if ((j.status === 'DRAFT' || j.status === 'RETURNED') && !editing()) {
             <label><input type="checkbox" [checked]="reviewed()" (change)="setReviewed($any($event.target).checked)" /> I reviewed this client, journal, posting date, account selection and exact amounts.</label>
-            <button matButton [disabled]="busy() || !preview() || !reviewed() || uncertain()" (click)="submit(j)">Submit for independent review</button>
+            <button matButton [disabled]="busy() || !preview() || !reviewed() || uncertain() || serviceActive() === false" (click)="submit(j)">Submit for independent review</button>
           }
           @if (j.status === 'SUBMITTED') {
             <label><input type="checkbox" [checked]="reviewed()" (change)="setReviewed($any($event.target).checked)" /> I independently reviewed this exact journal revision and its balanced lines.</label>
             <label>Review reason <input [(ngModel)]="reason" maxlength="2000" /></label>
-            <button matButton [disabled]="busy() || !preview() || !reviewed() || !reason.trim() || j.createdByUserId === userId() || uncertain()" (click)="approve(j)">Approve and post</button>
-            <button matButton type="button" [disabled]="busy() || !reviewed() || !reason.trim() || j.createdByUserId === userId() || uncertain()" (click)="returnJournal(j)">Return for rework</button>
+            <button matButton [disabled]="busy() || !preview() || !reviewed() || !reason.trim() || j.createdByUserId === userId() || uncertain() || serviceActive() === false" (click)="approve(j)">Approve and post</button>
+            <button matButton type="button" [disabled]="busy() || !reviewed() || !reason.trim() || j.createdByUserId === userId() || uncertain() || serviceActive() === false" (click)="returnJournal(j)">Return for rework</button>
           }
         </article>
       }
@@ -268,7 +307,7 @@ function minor(value: string): bigint { if (!nativeJournalAmount(value)) throw n
         <p>Debits {{ totalDebit() }} · Credits {{ totalCredit() }} · {{ balanced() ? 'Balanced' : 'Out of balance' }}</p>
         <button matButton type="button" [disabled]="lines().length >= 100" (click)="addLine()">Add line</button>
         <label><input type="checkbox" [checked]="reviewed()" (change)="setReviewed($any($event.target).checked)" name="createReview" /> I reviewed the selected client, period, date and exact balanced intent.</label>
-        <button matButton type="submit" [disabled]="createForm.invalid || !balanced() || !reviewed() || busy() || uncertain()">{{ editing() ? "Save rework draft" : "Save journal draft" }}</button>
+        <button matButton type="submit" [disabled]="serviceActive() === false || createForm.invalid || !balanced() || !reviewed() || busy() || uncertain()">{{ editing() ? "Save rework draft" : "Save journal draft" }}</button>
         @if (editing()) { <button matButton type="button" [disabled]="busy()" (click)="resetDraft()">Cancel rework</button> }
       </form>
       <label>Open a saved journal by ID <input [(ngModel)]="lookupId" /></label>
@@ -314,6 +353,9 @@ export class ClientOperationalJournals {
   readonly journal = signal<Journal | null>(null);
   readonly preview = signal<JournalPreview | null>(null);
   readonly snapshots = signal<JournalSnapshot[] | null>(null);
+  readonly journalList = signal<JournalList | null>(null);
+  readonly listLoading = signal(false); readonly listError = signal(''); readonly serviceActive = signal<boolean | null>(null);
+  listPeriod = ''; listStatus = ''; private listRequest = 0; private listOperation?: Subscription;
   private ledgerRequest = 0;
   ledgerPeriodId = '';
   ledgerFrom = ''; ledgerTo = ''; includeZeroAccounts = false;
@@ -328,10 +370,10 @@ export class ClientOperationalJournals {
   private operation?: Subscription;
   private readonly invalidate = effect(() => {
     const id = this.clientId(); this.session.invalidation();
-    untracked(() => { this.operation?.unsubscribe(); this.journal.set(null); this.snapshots.set(null); this.preview.set(null); this.ledger.set(null); this.ledgerPeriodId = ''; this.ledgerFrom = ''; this.ledgerTo = ''; this.includeZeroAccounts = false; this.error.set(''); this.ledgerError.set(''); this.uncertain.set(false); this.busy.set(false); this.lookupId = ''; this.reason = ''; this.reversalPeriodId = ''; this.reversalNumber = ''; this.reversalDate = ''; this.reversalReason = ''; this.reversalEvidence = ''; this.receiptKey = ''; this.postingReceipt.set(null); this.pendingPosting.set(null); this.retryOriginal.set(false); this.resetDraft(); });
+    untracked(() => { this.operation?.unsubscribe(); this.listOperation?.unsubscribe(); ++this.listRequest; this.journalList.set(null); this.listLoading.set(false); this.listError.set(''); this.listPeriod = ''; this.listStatus = ''; this.serviceActive.set(null); this.journal.set(null); this.snapshots.set(null); this.preview.set(null); this.ledger.set(null); this.ledgerPeriodId = ''; this.ledgerFrom = ''; this.ledgerTo = ''; this.includeZeroAccounts = false; this.error.set(''); this.ledgerError.set(''); this.uncertain.set(false); this.busy.set(false); this.lookupId = ''; this.reason = ''; this.reversalPeriodId = ''; this.reversalNumber = ''; this.reversalDate = ''; this.reversalReason = ''; this.reversalEvidence = ''; this.receiptKey = ''; this.postingReceipt.set(null); this.pendingPosting.set(null); this.retryOriginal.set(false); this.resetDraft(); });
     void id;
   });
-  constructor() { inject(DestroyRef).onDestroy(() => this.operation?.unsubscribe()); }
+  constructor() { inject(DestroyRef).onDestroy(() => { this.operation?.unsubscribe(); this.listOperation?.unsubscribe(); }); }
   setReviewed(value: boolean): void {
     this.reviewed.set(value);
     // Render the acknowledged value before a subsequent edit can revoke it.
@@ -402,6 +444,21 @@ export class ClientOperationalJournals {
       error: failure => { if (generation !== this.session.invalidation()) return; this.busy.set(false); this.error.set('Journal could not be loaded in this client scope.'); if (failure.status === 401) this.session.clear(); },
     });
   }
+  loadList(page = 0): void {
+    this.listOperation?.unsubscribe(); const request = ++this.listRequest; const client = this.clientId();
+    const generation = this.session.invalidation(); const period = this.listPeriod || null; const status = this.listStatus || null;
+    const params: Record<string, string> = { page: String(page), pageSize: '25' };
+    if (period) params['periodId'] = period; if (status) params['status'] = status;
+    this.listLoading.set(true); this.listError.set(''); this.journalList.set(null);
+    this.listOperation = this.http.get<unknown>(`/api/ui/accounting/clients/${client}/operational-journals`, { params }).pipe(timeout(15000)).subscribe({
+      next: value => { if (request !== this.listRequest || generation !== this.session.invalidation() || client !== this.clientId()) return;
+        this.listLoading.set(false); if ((this.listPeriod || null) !== period || (this.listStatus || null) !== status) return;
+        try { const decoded = decodeJournalList(value, client, period, status, page); this.journalList.set(decoded); this.serviceActive.set(decoded.bookkeepingActive); }
+        catch { this.listError.set('Saved journals could not be validated for these filters.'); } },
+      error: failure => { if (request !== this.listRequest || generation !== this.session.invalidation() || client !== this.clientId()) return;
+        this.listLoading.set(false); this.listError.set('Saved journals are unavailable. Refresh or retry.'); if (failure.status === 401) this.session.clear(); }
+    });
+  }
   loadLedger(forPeriodId = this.ledgerPeriodId || this.periodId): void {
     const clientId = this.clientId(); const period = this.periods().find(p => p.id === forPeriodId);
     if (!period || this.busy()) return;
@@ -414,7 +471,7 @@ export class ClientOperationalJournals {
     this.operation = this.http.get<unknown>(`/api/ui/accounting/clients/${clientId}/operational-ledger`, {
       params,
     }).pipe(timeout(15000)).subscribe({
-      next: value => { if (generation !== this.session.invalidation() || request !== this.ledgerRequest) return; try { const decoded = decodeOperationalLedger(value, clientId, forPeriodId); if ((fromDate && decoded.trialBalance.fromDate !== fromDate) || (toDate && decoded.trialBalance.toDate !== toDate) || this.ledgerFrom !== fromDate || this.ledgerTo !== toDate || this.ledgerPeriodId !== forPeriodId || this.includeZeroAccounts !== zeroAccounts) return; this.ledger.set(decoded); }
+      next: value => { if (generation !== this.session.invalidation() || request !== this.ledgerRequest) return; try { const decoded = decodeOperationalLedger(value, clientId, forPeriodId); if ((fromDate && decoded.trialBalance.fromDate !== fromDate) || (toDate && decoded.trialBalance.toDate !== toDate) || this.ledgerFrom !== fromDate || this.ledgerTo !== toDate || this.ledgerPeriodId !== forPeriodId || this.includeZeroAccounts !== zeroAccounts) return; this.ledger.set(decoded); this.serviceActive.set(decoded.bookkeepingActive); }
         catch { this.ledger.set(null); this.ledgerError.set('Posted ledger response did not match this client and period.'); } },
       error: failure => { if (generation === this.session.invalidation() && request === this.ledgerRequest) { this.ledger.set(null); this.ledgerError.set('Posted client ledger is unavailable. Retry or refresh the client.'); if (failure.status === 401) this.session.clear(); } },
     });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeOperationalJournal, decodeOperationalLedger, nativeJournalAmount, decodeJournalPreview, decodeJournalSnapshots, decodePostingReceipt } from './operational-journals';
+import { decodeOperationalJournal, decodeOperationalLedger, nativeJournalAmount, decodeJournalPreview, decodeJournalSnapshots, decodePostingReceipt, decodeJournalList } from './operational-journals';
 
 const client = '11111111-1111-4111-8111-111111111111';
 const journal = '22222222-2222-4222-8222-222222222222';
@@ -21,7 +21,7 @@ describe('Client operational journal transport contract', () => {
     expect(() => decodeOperationalJournal({ ...view, lines: Array.from({ length: 101 }, () => view.lines[0]) }, client)).toThrow();
   });
   it('binds posted movement pages to the exact client and period using decimal strings', () => {
-    const ledger = { clientId: client, periodId: client, periodCode: '2026', currency: 'QAR', basis: 'STATUTORY', page: 0, pageSize: 100, totalEntries: 2,
+    const ledger = { bookkeepingActive: true, clientId: client, periodId: client, periodCode: '2026', currency: 'QAR', basis: 'STATUTORY', page: 0, pageSize: 100, totalEntries: 2,
       trialBalance: { fromDate: '2026-01-01', toDate: '2026-12-31', source: 'NATIVE_POSTED_PERIOD_ACTIVITY', openingDebit: '0', openingCredit: '0', periodDebit: '125', periodCredit: '125', closingDebit: '125', closingCredit: '125', rows: [
         { accountId: account, accountCode: '1000', accountName: 'Cash', openingDebit: '0', openingCredit: '0', periodDebit: '0', periodCredit: '125', closingDebit: '0', closingCredit: '125' },
         { accountId: actor, accountCode: '6000', accountName: 'Expense', openingDebit: '0', openingCredit: '0', periodDebit: '125', periodCredit: '0', closingDebit: '125', closingCredit: '0' }] },
@@ -98,5 +98,19 @@ describe('Full reversal lineage', () => {
     for (const change of [{ reversalJournalId: account }, { originalJournalId: 'bad' }, { reason: '' }, { evidenceReference: '' }, { preparedByUserId: 'bad' }, { originalRevision: 6 }])
       expect(() => decodeOperationalJournal({ ...view, reversalOf: { ...link, ...change } }, client)).toThrow();
     expect(() => decodeOperationalJournal({ ...view, reversedBy: link }, client)).toThrow();
+  });
+});
+
+
+describe('Saved native journals', () => {
+  const listed = { clientId: client, periodId: null, status: null, page: 0, pageSize: 25, totalJournals: 1, bookkeepingActive: false,
+    journals: [{ id: journal, periodId: client, journalNumber: 'J-1', description: 'Retained history', postingDate: '2026-01-15', currency: 'QAR', status: 'POSTED', revision: '3', createdByUserId: actor }] };
+  it('retains scoped history while disclosing an inactive service', () => {
+    expect(decodeJournalList(listed, client, null, null, 0).bookkeepingActive).toBe(false);
+  });
+  it('refuses changed scope, filters, pages, identities, revisions and service flags', () => {
+    for (const changed of [{ ...listed, clientId: journal }, { ...listed, periodId: client }, { ...listed, status: 'DRAFT' }, { ...listed, page: 1 },
+      { ...listed, bookkeepingActive: 'false' }, { ...listed, totalJournals: 0 }, { ...listed, journals: [listed.journals[0], listed.journals[0]] },
+      { ...listed, journals: [{ ...listed.journals[0], revision: 3 }] }]) expect(() => decodeJournalList(changed, client, null, null, 0)).toThrow();
   });
 });

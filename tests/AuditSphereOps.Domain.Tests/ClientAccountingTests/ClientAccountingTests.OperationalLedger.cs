@@ -334,6 +334,40 @@ public sealed partial class ClientAccountingTests
       var originalLedger = await ClientOperationalGeneralLedgerWorkspace.GetAsync(db, reviewer, scope.ClientA, periodId);
       Assert.Equal("150.000000", originalLedger.Value!.Accounts.Single(x => x.AccountCode == "6000").DebitMovement);
       Assert.All(originalLedger.Value.Entries, x => { Assert.Equal(reversalId, x.ReversedByJournalId); Assert.Equal("POSTED", x.ReversedByStatus); });
+      var listed = await ClientOperationalLedgerWorkspace.ListAsync(db, reviewer, scope.ClientA, status: "POSTED", pageSize: 1);
+      Assert.True(listed.Succeeded, listed.Message);
+      Assert.Equal(2, listed.Value!.TotalJournals);
+      Assert.Single(listed.Value.Journals);
+      var secondPage = await ClientOperationalLedgerWorkspace.ListAsync(db, reviewer, scope.ClientA, status: "POSTED", page: 1, pageSize: 1);
+      Assert.NotEqual(listed.Value.Journals[0].Id, Assert.Single(secondPage.Value!.Journals).Id);
+      Assert.Single((await ClientOperationalLedgerWorkspace.ListAsync(db, reviewer, scope.ClientA, periodId)).Value!.Journals);
+      var sibling = await ClientOperationalLedgerWorkspace.ListAsync(db, preparer, scope.ClientB);
+      Assert.True(sibling.Succeeded); Assert.Empty(sibling.Value!.Journals);
+      await db.RoleGrants.Where(x => x.UserId == scope.Preparer.Id).ExecuteUpdateAsync(x => x.SetProperty(g => g.ClientId, scope.ClientA));
+      Assert.False((await ClientOperationalLedgerWorkspace.ListAsync(db, preparer, scope.ClientB)).Succeeded);
+      Assert.False((await ClientOperationalLedgerWorkspace.ListAsync(db, reviewer, scope.ClientA, Guid.NewGuid())).Succeeded);
+      Assert.False((await ClientOperationalLedgerWorkspace.ListAsync(db, reviewer, scope.ClientA, status: "INVALID")).Succeeded);
+      db.AcceptanceDecisions.Add(new AcceptanceDecision {
+        Id = Guid.CreateVersion7(), FirmId = scope.FirmId, PracticeClientId = scope.ClientA, ServiceRoute = "BOOKKEEPING",
+        Decision = "Declined", Generation = 2, Rationale = "Synthetic service stopped", EvaluationTemplateVersion = "TEST-1",
+        EvaluationSnapshotDigest = new string('b', 64), DecidedByUserId = scope.Reviewer.Id, DecidedAt = DateTimeOffset.UtcNow });
+      await db.SaveChangesAsync();
+      var retainedList = await ClientOperationalLedgerWorkspace.ListAsync(db, reviewer, scope.ClientA);
+      Assert.True(retainedList.Succeeded, retainedList.Message); Assert.False(retainedList.Value!.BookkeepingActive);
+      var retainedLedger = await ClientOperationalGeneralLedgerWorkspace.GetAsync(db, reviewer, scope.ClientA, periodId);
+      Assert.True(retainedLedger.Succeeded, retainedLedger.Message); Assert.False(retainedLedger.Value!.BookkeepingActive);
+      Assert.Equal(originalLedger.Value.TrialBalance.ClosingDebit, retainedLedger.Value.TrialBalance.ClosingDebit);
+      Assert.True((await ClientOperationalLedgerWorkspace.GetAsync(db, reviewer, scope.ClientA, journalId)).Succeeded);
+      Assert.True((await ClientOperationalLedgerWorkspace.GetSnapshotsAsync(db, reviewer, scope.ClientA, journalId)).Succeeded);
+      Assert.True((await ClientOperationalLedgerWorkspace.GetPostingReceiptAsync(db, reviewer, scope.ClientA, commandId)).Succeeded);
+      var blockedDraft = await ClientOperationalLedgerWorkspace.CreateDraftAsync(db, preparer,
+        new(scope.ClientA, next.Value, "J-INACTIVE", "Blocked service", new DateOnly(2027, 1, 20), [new("6000", "Expense", 1m, 0m), new("1000", "Cash", 0m, 1m)]));
+      Assert.False(blockedDraft.Succeeded); Assert.Equal(ErrorCodes.GateBlocked, blockedDraft.ErrorCode);
+      await db.RoleGrants.Where(x => x.UserId == scope.Reviewer.Id).ExecuteUpdateAsync(x => x.SetProperty(g => g.RevokedAt, DateTimeOffset.UtcNow));
+      Assert.False((await ClientOperationalLedgerWorkspace.ListAsync(db, reviewer, scope.ClientA)).Succeeded);
+      Assert.False((await ClientOperationalGeneralLedgerWorkspace.GetAsync(db, reviewer, scope.ClientA, periodId)).Succeeded);
+      Assert.False((await ClientOperationalLedgerWorkspace.GetAsync(db, reviewer, scope.ClientA, journalId)).Succeeded);
+
     }
   }
 

@@ -254,6 +254,27 @@ public sealed class AngularClientOperationalJournalJourneyTests
       Assert.Equal(2, await db.ClientOperationalPostingReceipts.CountAsync(x => x.ClientId == fixture.ClientId));
       Assert.Single(await db.ClientOperationalJournalReversals.Where(x => x.OriginalJournalId == journalId).ToListAsync());
     }
+    await journals.GetByLabel("Saved journal status", new() { Exact = true }).SelectOptionAsync("POSTED");
+    await journals.GetByRole(AriaRole.Button, new() { Name = "Refresh saved journals", Exact = true }).ClickAsync();
+    var savedJournals = journals.GetByRole(AriaRole.Table, new() { Name = "Saved native client journals", Exact = true });
+    await Assertions.Expect(savedJournals.GetByRole(AriaRole.Row)).ToHaveCountAsync(3);
+    await savedJournals.GetByRole(AriaRole.Button, new() { Name = "J-UI-001", Exact = true }).ClickAsync();
+    await Assertions.Expect(journals.GetByRole(AriaRole.Heading, new() { Name = "J-UI-001 · POSTED", Exact = true })).ToBeVisibleAsync();
+    await using (var db = host.CreateDbContext()) {
+      db.AcceptanceDecisions.Add(new AcceptanceDecision {
+        Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, PracticeClientId = fixture.ClientId, ServiceRoute = "BOOKKEEPING",
+        Decision = "Declined", Generation = 2, Rationale = "Synthetic service stopped", EvaluationTemplateVersion = "TEST-1",
+        EvaluationSnapshotDigest = new string('b', 64), DecidedByUserId = fixture.Reviewer.Id, DecidedAt = DateTimeOffset.UtcNow });
+      await db.SaveChangesAsync();
+    }
+    await journals.GetByRole(AriaRole.Button, new() { Name = "Refresh saved journals", Exact = true }).ClickAsync();
+    await Assertions.Expect(journals.GetByText("Bookkeeping service is inactive.", new() { Exact = false })).ToBeVisibleAsync();
+    await Assertions.Expect(savedJournals.GetByRole(AriaRole.Row)).ToHaveCountAsync(3);
+    await journals.GetByRole(AriaRole.Button, new() { Name = "Refresh posted ledger", Exact = true }).ClickAsync();
+    await Assertions.Expect(journals.GetByRole(AriaRole.Table, new() { Name = "Official native Trial Balance", Exact = false })).ToBeVisibleAsync();
+    await Assertions.Expect(journals.GetByRole(AriaRole.Button, new() { Name = "Save journal draft", Exact = true })).ToBeDisabledAsync();
+    await journals.GetByRole(AriaRole.Button, new() { Name = "View submitted versions", Exact = true }).ClickAsync();
+    await Assertions.Expect(journals.GetByText("Submitted revision 2", new() { Exact = true })).ToBeVisibleAsync();
     Assert.Empty(errors);
   }
 }
