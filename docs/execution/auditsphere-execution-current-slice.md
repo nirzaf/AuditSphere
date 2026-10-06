@@ -15,6 +15,24 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: Global Search overflow and deterministic ordering
+
+The bounded search queries now have stable ID tie-breakers for equal-ranked
+Client, Engagement, PBC and Invoice candidates. A PostgreSQL fixture with 31
+valid authorized matches per kind exceeds the 25-row candidate window and
+verifies six visible results, `truncated=true`, and the expected stable order.
+The configured composite PBC foreign key already prevents mismatched
+client/engagement links, so the regression uses only valid persisted states.
+
+`GlobalSearchQueryTests` passed 16/16 at test commit `0fa19701`; the Angular
+search browser cohort passed 2/2 at code commit `5357c887`. The built-in
+Development browser also showed five authorized synthetic Client, Engagement
+and PBC hits in a read-only smoke check. No Angular or EF model code changed.
+The full solution, Angular CI/build and EF check were not rerun; the latest
+complete solution result remains 1001/1001 at `ead85032`. Exhaustive
+role/scope, broader ranking and query/recovery coverage remain open. Migration
+acceptance and Blazor retirement remain `NOT_READY`.
+
 ## Current follow-on slice: Commercial settings and revocation browser regressions
 
 The commercial-settings browser journey had drifted from the Angular form's
