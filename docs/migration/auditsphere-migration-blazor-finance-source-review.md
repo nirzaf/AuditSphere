@@ -1,7 +1,7 @@
 # AuditSphere migration source review — firm finance
 
 **Status:** PARTIAL_REVIEWED
-**Reviewed against code/test commit:** `3bff1eb15e10070d13a7319265b0d6b1dd9473cb`
+**Reviewed against code/test commit:** `dc43a898726bccd747e75ad16523d92cd986fe04`
 **Pinned discovery snapshot:** `eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39`
 
 The three legacy page sources below match the SHA-256 values recorded in the
@@ -19,7 +19,7 @@ behavior parity.
 
 | Legacy behavior | Angular, API and Application owner | Evidence and remaining gap |
 |---|---|---|
-| Firm ledger: show firm periods, accounts and the 25 most recent postings; allow an authorized FinanceReviewer to close an open period with a reason after confirming. | Angular `features/finance/ledger.ts`; API `UiEndpoints.Finance.cs`; Application `FirmFinanceQuery` and `LedgerService`. | `FirmFinanceQuery` requires an internal firm-wide FinanceManager or FinanceReviewer and filters every projection by firm. The period-close journey verifies a reviewer closes a period only after entering a reason and checks the persisted close decision. An additional browser route/accessibility sweep includes the ledger. Complete role combinations, cross-firm/guessed-ID responses, invalid/stale/revoked close attempts and failure/reconciliation behavior remain open. |
+| Firm ledger: show firm periods, accounts and the 25 most recent postings; allow an authorized FinanceReviewer to close an open period with a reason after confirming. | Angular `features/finance/ledger.ts`; API `UiEndpoints.Finance.cs`; Application `FirmFinanceQuery` and `LedgerService`. | `FirmFinanceQuery` requires an internal firm-wide FinanceManager or FinanceReviewer and filters every projection by firm. The period-close journey verifies a reviewer closes an open period only after entering a reason and persists the close decision. A boundary journey verifies a client-scoped FinanceManager is denied both the Angular read and direct API, a reviewer sees only the local period, foreign and random guessed period IDs return indistinguishable 403 close responses without mutation, and revoking the reviewer grant clears visible ledger state. An additional browser route/accessibility sweep includes the ledger. Other role combinations, invalid close reasons, state-conflict/provider failure and retry/recovery behavior remain open. |
 | Firm books: capture a dated operating expense and source document, submit it for independent review, then post the approved journal; calculate a firm trial balance. | Angular `features/finance/books.ts`; API `UiEndpoints.FirmBooks.cs`; Application `FirmBooksWorkspaceQuery`, `FirmExpenseService` and `LedgerService`. | The PostgreSQL API-host Angular journeys verify source-backed capture, independent review and rejection, reason persistence, same-day journal identity, approval/posting and a balanced/reconciled trial balance. A boundary journey verifies malformed and 5 MiB + 1 uploads fail safely, foreign and random guessed IDs return indistinguishable 403 responses for submit/post, and foreign expense state is unchanged. It increments the authorized user's session epoch and verifies that the rendered page clears to “Access unavailable”. The post journey repeats the same post command twice, receives identical successful responses, and verifies one persisted posting. Evidence bytes are omitted from projections; upload size remains bounded to 5 MB. |
 | Invoice detail: show the authorized invoice, lines, receipt allocations and outstanding balance; allow the invoice lifecycle actions according to status and finance authority. | Angular `features/finance/invoice.ts`; API invoice handlers in `UiEndpoints.Finance.cs`; Application `BillingInvoiceWorkspaceQuery` and `BillingService`. | PostgreSQL-backed browser journeys verify client-scoped invoice reads, sibling-client and wrong-client invoice denial with stale-content clearing, immediate clearing after grant revocation, bounded 100-item receipt/credit history paging, receipt allocation and credit-note recovery after a lost response. Angular also exposes review, post and send actions. Current browser coverage does not exercise every invoice lifecycle action, all firm-wide/client-scoped role combinations, cross-firm/guessed IDs, invalid cursors, history failures or each uncertain outcome. |
 
@@ -39,6 +39,21 @@ sweep. One selected supporting test,
 `FirmOperationsJourneyTests.LibraryPublishAnalyticsAndExpenseToTrialBalance`,
 still runs through the retained legacy host and is not counted as Angular
 evidence.
+
+The firm-ledger authorization journey passed **1/1** at `dc43a898`:
+
+```bash
+dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~AngularFirmLedgerBoundaryJourneyTests'
+```
+
+On isolated PostgreSQL state, a client-scoped FinanceManager receives an
+access-unavailable screen and HTTP 403 from the ledger endpoint without the
+foreign period marker. A firm-wide reviewer sees the local period only;
+closing an actual foreign-firm period ID and a random unknown ID returns
+identical HTTP 403 bodies. The foreign period remains open at its original
+revision with no close decision. Revoking the reviewer grant then clears the
+page to the Access unavailable state and removes the local period content.
+The journey passed **1/1** with no page errors.
 
 The dedicated native Angular firm-books and boundary journeys passed **2/2** at
 `3bff1eb1`:
@@ -92,7 +107,10 @@ that browser session.
 
 ## Open parity and retirement gates
 
-All three source/action rows remain `PARTIAL`. Firm books now has focused
+All three source/action rows remain `PARTIAL`. The firm-ledger path now has
+focused scoped-read, foreign/guessed close-ID, unchanged-state and revoked
+session clearing evidence. Invalid close reason and state-conflict/failure
+recovery remain open. Firm books now has focused
 evidence for malformed/oversized upload handling, foreign/guessed submit and
 post isolation, session-epoch clearing, and idempotent post retry. The full
 FinanceManager/FinanceReviewer and scope matrix, remaining input/evidence
@@ -101,7 +119,7 @@ approve/post/send paths still need broader assertions. Assistive-technology and 
 production-like rollback/canary, live Microsoft gates and separate owner
 acceptance remain open.
 
-The full solution regression was not rerun for this slice. The latest complete PostgreSQL-backed Release regression remains
+The full solution regression was not rerun for these slices. The latest complete PostgreSQL-backed Release regression remains
 1001/1001 at `ead85032de2ccc4d4c8043398fa8471d395376a9`. The focused E2E build
 compiled a concurrent unstaged change in
 `src/AuditSphereOps.Application/Accounting/ConsolidationOverviewQuery.cs`; it

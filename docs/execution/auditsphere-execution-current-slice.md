@@ -15,7 +15,23 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
-## Current follow-on slice: Firm books authorization and recovery boundaries
+## Current follow-on slice: Firm ledger scope and revocation boundaries
+
+At code/test commit `dc43a898`, the PostgreSQL API-host Angular ledger
+boundary journey passed **1/1**. It verifies a client-scoped FinanceManager
+cannot view the firm-wide ledger, authorized output omits a foreign firm's
+period, and a firm-wide reviewer's close requests for a real foreign period
+and a random guessed ID receive indistinguishable 403 responses without
+changing either firm's period state. Revoking the reviewer grant clears the
+visible ledger after reload.
+
+The remaining firm-ledger gaps are invalid close reasons, state-conflict and
+failure/recovery behavior, and the broader role matrix. Finance invoice
+approve/post/send and remaining firm-books outcome cases are still open. The
+full solution and EF model checks were not rerun; the whole AS-PAR-002 audit
+and Blazor retirement remain partial/`NOT_READY`.
+
+## Completed focused slice: Firm books authorization and recovery boundaries
 
 At code/test commit `3bff1eb1`, two PostgreSQL-backed API-host Angular journeys
 passed **2/2**. They verify malformed and oversized evidence upload rejection,

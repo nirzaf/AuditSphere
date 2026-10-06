@@ -433,8 +433,8 @@
       "source": "src/AuditSphereOps.Web/Components/Pages/Finance.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-finance-source-review.md",
-      "reviewedAtCommit": "5a554a0931703974074cfe182dcad0dd992d43a5",
-      "openGaps": ["Complete FinanceManager/FinanceReviewer role and scope matrix, including firm and guessed-ID denials", "Period-close invalid, stale/revoked-session, failure and recovery states", "Complete read and command authorization assertions across current routes"]
+      "reviewedAtCommit": "dc43a898726bccd747e75ad16523d92cd986fe04",
+      "openGaps": ["Complete FinanceManager/FinanceReviewer and scope matrix across firm-wide ledger reads and close actions", "Invalid close reason and state-conflict/failure recovery behavior", "Broader read and command authorization assertions across current finance routes"]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/FirmBooks.razor",
