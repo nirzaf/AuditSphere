@@ -15,7 +15,7 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
-## Current follow-on slice: Portfolio CSV exact export limit
+## Current follow-on slice: Portfolio CSV export bound and recoverable limit state
 
 The portfolio export acceptance now pins both sides of its configured
 1,000-client limit. The PostgreSQL test succeeds with exactly 1,000 visible
@@ -27,11 +27,28 @@ neutralization checks.
 `PortfolioWorkspaceTests` and `PortfolioQueryTests` passed 5/5 at test commit
 `abb798ea`. Existing coverage also verifies sibling-client count/export
 isolation, scoped aggregate projections and refusal when a grant is revoked
-during projection. No production Application, API, Angular or EF model code
-changed. The full solution, Angular CI/build and EF check were not rerun; the
-latest complete solution result remains 1001/1001 at `ead85032`. Broader
-portfolio role/tenant and error-state parity remains open, as do overall
-migration acceptance and Blazor retirement (`NOT_READY`).
+during projection.
+
+At test commit `4fc08ea5`, the PostgreSQL API cohort passed 2/2. Its new
+1,001-client administrator case verifies HTTP 400, the `export.limit` code,
+the safe narrowing message, and a JSON response without CSV attachment. The
+Angular API and portfolio component tests passed 19/19 across two files: the
+download client preserves that typed refusal, the page clears its busy state,
+and a successful explicit retry replaces the error with the completion
+message. The component test changes the search to a bounded match, reloads the
+workspace, and verifies that the retry request carries the narrowed term.
+The API refusal is separately exercised against the PostgreSQL-backed host.
+
+The current built-in browser's Operations screenshot is also confirmed as the
+expected denial for the scoped Staff Workspace preview identity: no operation
+rows or recovery commands are shown. Existing API/E2E evidence pins 403 and
+no-data behavior; no role policy changed.
+
+No production Application, API, Angular or EF model code changed in this
+portfolio slice. The full solution and EF check were not rerun; the latest
+complete solution result remains 1001/1001 at `ead85032`. Broader portfolio
+role/tenant, additional recovery, and overall migration acceptance remain
+open; Blazor retirement remains `NOT_READY`.
 
 ## Current follow-on slice: Global Search overflow and deterministic ordering
 

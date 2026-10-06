@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "abb798eaf01b581bacba4feafa33673ebe731db8",
+  "headCommit": "4fc08ea52a09a55a7f8a5c39f26a9e367ac6fdf9",
   "verifiedCommit": "ead85032de2ccc4d4c8043398fa8471d395376a9",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -10853,6 +10853,34 @@
       "fullSolutionRegression": "The shared full solution run at sourceHead 84a8f2cf completed API 191/191, Domain 666/666 and E2E 188/190. Both reported E2E failures are repaired and pass in the focused rerun above; the full suite has not been rerun after the repairs.",
       "sharedWorktreeBoundary": "Another agent's two uncommitted files were present during the full solution run and were not changed or included in this code commit.",
       "retirementDecision": "NOT_READY"
+    },
+    "portfolioExportLimitRecovery": {
+      "sourceCommit": "4fc08ea52a09a55a7f8a5c39f26a9e367ac6fdf9",
+      "observedAt": "2026-10-06T04:42:29Z",
+      "status": "PASS_LOCAL_SLICE",
+      "caseId": "AS-PAR-002-PORTFOLIO-EXPORT-LIMIT-RECOVERY-01",
+      "apiTests": {
+        "status": "PASS",
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "command": "dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-build --no-restore --configuration Release --filter FullyQualifiedName~PortfolioWorkspaceApiTests -m:1",
+        "coverage": "PostgreSQL-backed API host with 1,001 firm-visible clients returns HTTP 400, code export.limit, the safe narrowing message, JSON content and no CSV attachment. Existing sibling-scope, CSRF, grant-revocation and stale-session cases also pass."
+      },
+      "angularTests": {
+        "status": "PASS",
+        "files": 2,
+        "passed": 19,
+        "failed": 0,
+        "skipped": 0,
+        "command": "npm run test:ci -- --include src/app/core/api.spec.ts --include src/app/features/portfolio/portfolio-workspace.spec.ts",
+        "coverage": "The Api download test preserves the safe typed refusal. The portfolio component clears its busy state and presents the refusal, then reloads the portfolio for a narrowed search and sends that search on a user-triggered export retry; a successful controlled response clears the error. No automatic retry is introduced."
+      },
+      "operationsBrowserObservation": "PASS_READ_ONLY: the built-in browser at /ui/app/operations shows the firm-wide Administrator denial for the signed-in scoped Staff Workspace preview account, with no operation rows or recovery commands. Existing API/E2E checks pin 403 and no-data behavior; no access policy was changed.",
+      "productChanges": "Test-only slice; no Application, Domain, Infrastructure, API, Angular runtime, EF model or database changes.",
+      "fullSolutionRegression": "NOT_RUN; latest complete PostgreSQL-backed Release suite remains 1001/1001 at ead85032de2ccc4d4c8043398fa8471d395376a9.",
+      "efModelDrift": "NOT_RUN; no EF model code changed.",
+      "migrationDecision": "NOT_READY"
     }
   },
   "documentationWork": {
@@ -10959,7 +10987,7 @@
     "packageId": "ASP.NET Core API and Angular 22 presentation migration",
     "implementationStatus": "PARTIAL",
     "acceptanceStatus": "PARTIAL",
-    "scope": "Canonical Angular route ownership is in place. AuditSphereOps.Web and its Razor source remain restored as rollback/reference. API.Tests and E2E.Tests use API-only hosts. All 82 removed E2E methods have assertion crosswalks. The 76-row source/action inventory has one parity-verified row, 73 partial reviews and 2 unanalyzed rows; 28 supporting files remain open. Focused partial-review evidence covers Statement Drilldown, Trial Balance Intake, risk routing, shared confirmation callers, acceptance checklist workspace/role, Global Search identity/invoice/input/cap/audience, technical-library boundaries and representative role/scope combinations, portfolio aggregates, contact-create recovery, authenticated and unauthenticated canonical/preview root routing, and the Operations firm-wide Administrator denial message. Global Search technical-library and supported-page destinations have Angular Staff browser journeys; PostgreSQL tests cover library audience/firm isolation and cap/truncation for all seven result kinds; the Angular UI displays refinement hints for capped library and page results; a PostgreSQL-backed browser journey verifies Client, Engagement, PBC category order against the legacy kind grouping. At 0fa19701, 31 authorized matches per Client, Engagement, PBC and Invoice prove six-hit caps, truncation, and stable tie ordering beyond the 25-row candidate window. At abb798ea, the PostgreSQL portfolio export test proves exactly 1,000 client rows succeed and 1,001 are refused while narrowed export and formula neutralization remain covered. Browser recovery covers synthetic 503/retry, malformed 200 and 401 session clearing; Angular component tests cover the 15-second timeout and clearing/cancellation on session invalidation. Other slices retain their documented evidence limits. Overall migration acceptance and Blazor retirement are NOT_READY.",
+    "scope": "Canonical Angular route ownership is in place. AuditSphereOps.Web and its Razor source remain restored as rollback/reference. API.Tests and E2E.Tests use API-only hosts. All 82 removed E2E methods have assertion crosswalks. The 76-row source/action inventory has one parity-verified row, 73 partial reviews and 2 unanalyzed rows; 28 supporting files remain open. Focused partial-review evidence covers Statement Drilldown, Trial Balance Intake, risk routing, shared confirmation callers, acceptance checklist workspace/role, Global Search identity/invoice/input/cap/audience, technical-library boundaries and representative role/scope combinations, portfolio aggregates, contact-create recovery, authenticated and unauthenticated canonical/preview root routing, and the Operations firm-wide Administrator denial message. Global Search technical-library and supported-page destinations have Angular Staff browser journeys; PostgreSQL tests cover library audience/firm isolation and cap/truncation for all seven result kinds; the Angular UI displays refinement hints for capped library and page results; a PostgreSQL-backed browser journey verifies Client, Engagement, PBC category order against the legacy kind grouping. At 0fa19701, 31 authorized matches per Client, Engagement, PBC and Invoice prove six-hit caps, truncation, and stable tie ordering beyond the 25-row candidate window. At abb798ea, the PostgreSQL portfolio export test proves exactly 1,000 client rows succeed and 1,001 are refused while narrowed export and formula neutralization remain covered. At 4fc08ea5, the API-host refusal and Angular recovery boundaries are pinned: the 1,001-client API response is typed HTTP 400 JSON without a CSV attachment, and the UI clears the refusal after a narrowed search reload and explicit export retry. The built-in browser Operations view remains correctly denied to the scoped Staff preview identity and shows no operation data or commands; authorization was not changed. Browser recovery covers synthetic 503/retry, malformed 200 and 401 session clearing; Angular component tests cover the 15-second timeout and clearing/cancellation on session invalidation. Other slices retain their documented evidence limits. Overall migration acceptance and Blazor retirement are NOT_READY.",
     "nextAction": "Continue with the remaining 2 unanalyzed source/action rows and AS-PAR-002 direct query/count/export authorization, remaining search ranking/error-recovery and exhaustive role/scope cases, command retry/idempotency checks, and fallback-host route checks. Seventy-three reviewed rows remain partial and still need complete parity evidence; 28 supporting files remain open. Keep the Blazor rollback host until behavior parity, production rollback/canary, human assistive-technology/locale acceptance, live Microsoft gates and separate owner acceptance are complete.",
     "branch": "master"
   },
@@ -12003,6 +12031,11 @@
       "item": "Portfolio CSV exact client export limit (2026-10-06)",
       "status": "LOCAL_VERIFIED",
       "details": "At test commit abb798ea, PortfolioWorkspaceTests and PortfolioQueryTests passed 5/5 in 37s. PostgreSQL-backed export coverage proves exactly 1,000 client rows succeed and all 1,000 CLIENT rows are emitted, while 1,001 clients fail with export.limit; a narrowed search still exports successfully. The same case retains formula-prefix, quote and multiline escaping assertions, alongside existing sibling isolation, scoped aggregate counts and revocation-during-read tests. No production Application, API, Angular or EF model code changed. Full solution, Angular CI/build and EF check were not rerun; the latest complete solution result remains 1001/1001 at ead85032de2ccc4d4c8043398fa8471d395376a9. Other-agent files were excluded from the commit."
+    },
+    {
+      "item": "AS-PAR-002 portfolio export limit and retry recovery (2026-10-06)",
+      "status": "LOCAL_VERIFIED",
+      "details": "At test commit 4fc08ea5, Angular api.spec.ts and portfolio-workspace.spec.ts passed 19/19 across two files. The API download service preserves the typed export.limit response; the portfolio view presents the safe refusal, releases its busy state, reloads after the search is narrowed, and includes that narrowed term in the explicit retry request. The PostgreSQL-backed PortfolioWorkspaceApiTests cohort passed 2/2 with 1,001 firm-visible clients; the endpoint returned typed HTTP 400 JSON with no CSV attachment. Existing exact-1,000 success/1,001 refusal and CSV escaping assertions passed 5/5 at test commit abb798ea. Built-in-browser inspection confirmed the Operations denial for the scoped Staff preview account and no operation data/actions; existing E2E/API coverage already pins 403. No product runtime, authorization or EF code changed. Full solution regression and EF check were not rerun; latest full suite remains 1001/1001 at ead85032. The overall migration and Blazor retirement remain NOT_READY."
     }
   ],
   "remainingLocalWork": [
