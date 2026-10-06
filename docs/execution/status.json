@@ -11392,6 +11392,22 @@
       },
       "ci": "Contract drift gate added to the dotnet-build job as a single no-database generation check (build-gate policy preserved).",
       "scope": "HTTP boundary hardening, canonical OpenAPI contract, and production IaC baseline. No Domain, Application business logic, EF model or database schema changes."
+    },
+    "clientBookkeepingSourceMode": {
+      "sourceCommit": "99fa9a7f",
+      "verifiedAt": "2026-10-06T13:23:42Z",
+      "focusedDomainTests": "3 passed: default external source, accepted native service with reviewer, and populated-period cutover refusal",
+      "angularWorkspaceTests": "4 passed",
+      "browserJourney": "AngularAccountingJourneyTests.ReviewedSetupPersistsProfilePeriodAndBook passed 1/1 at source commit 9b9699c3",
+      "toolchainNote": "The E2E host used a temporary worktree-only global.json latestFeature roll-forward to installed SDK 10.0.400; global.json was restored afterward.",
+      "boundary": "Focused local verification only; native operational journal posting is not implemented."
+    },
+    "clientBookkeepingCapabilityAuthorization": {
+      "sourceCommit": "aaabb505",
+      "verifiedAt": "2026-10-06T13:37:00Z",
+      "focusedDomainTests": "3 passed, including accepted unconditional BOOKKEEPING capability and refusal for missing route or unresolved conditions",
+      "boundary": "Focused Application and PostgreSQL-backed verification only; no production acceptance.",
+      "efModel": "No pending model changes at source commit aaabb505"
     }
   },
   "documentationWork": {

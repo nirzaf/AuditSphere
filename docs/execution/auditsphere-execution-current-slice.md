@@ -38,6 +38,20 @@ controlled ledger, optional evidence/tax modules, invoices/open items, then repo
 and release. The implementation branch must keep existing external-source behavior
 as the default.
 
+## Completed focused slice: Client bookkeeping service-mode gate
+
+The client profile persists an explicit source mode, defaulting to external source.
+A reviewer can select native bookkeeping only when a client-level `BOOKKEEPING`
+acceptance decision is accepted without unresolved conditions; existing reporting
+periods block inline conversion and require a reviewed cutover. The matching
+capability kind is recognized by Application validation and fails closed when its
+service route is missing or only conditionally accepted. The Angular profile
+workspace displays and submits the mode. This setup slice does not implement native
+journal posting, invoices, AR/AP, or tax; those remain later stories. Focused .NET,
+Angular, and browser results are recorded under `verification.clientBookkeepingSourceMode`
+and `verification.clientBookkeepingCapabilityAuthorization` in `status.json`. Local
+results do not establish production acceptance.
+
 ## Angular migration and Blazor retirement — NOT READY
 
 ## Completed focused slice: HTTP boundary hardening, OpenAPI contract, and IaC baseline

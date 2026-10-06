@@ -75,11 +75,37 @@ public sealed partial class ClientAccountingTests
     Assert.False(invalidKind.Succeeded);
     Assert.Equal(ErrorCodes.Accounting.MappingInvalid, invalidKind.ErrorCode);
 
-    var unsupportedKind = await ClientAccountingService.CreateCapabilityProfileAsync(db, reviewer,
+    var missingRoute = await ClientAccountingService.CreateCapabilityProfileAsync(db, reviewer,
       new CapabilityProfileRequest(scope.ClientA, null, "BOOKKEEPING", "IFRS", "2026", "ANNUAL", "",
         "STATUTORY", "", "PARTNER", "ENTITY"));
-    Assert.False(unsupportedKind.Succeeded);
-    Assert.Equal(ErrorCodes.Accounting.MappingInvalid, unsupportedKind.ErrorCode);
+    Assert.False(missingRoute.Succeeded);
+    Assert.Equal(ErrorCodes.GateBlocked, missingRoute.ErrorCode);
+
+    db.AcceptanceDecisions.AddRange(
+      new AcceptanceDecision
+      {
+        Id = Guid.CreateVersion7(), FirmId = scope.FirmId, PracticeClientId = scope.ClientB,
+        ServiceRoute = "BOOKKEEPING", Decision = "Accepted", Generation = 1,
+        Rationale = "Approved bookkeeping service", EvaluationTemplateVersion = "TEST-1",
+        EvaluationSnapshotDigest = new string('d', 64), DecidedByUserId = scope.Reviewer.Id, DecidedAt = DateTimeOffset.UtcNow
+      },
+      new AcceptanceDecision
+      {
+        Id = Guid.CreateVersion7(), FirmId = scope.FirmId, PracticeClientId = scope.ClientB,
+        ServiceRoute = "BOOKKEEPING_CONDITIONAL", Decision = "AcceptedWithConditions", Conditions = "independence review pending", Generation = 1,
+        Rationale = "Conditional test decision", EvaluationTemplateVersion = "TEST-1",
+        EvaluationSnapshotDigest = new string('e', 64), DecidedByUserId = scope.Reviewer.Id, DecidedAt = DateTimeOffset.UtcNow
+      });
+    await db.SaveChangesAsync();
+    var bookkeeping = await ClientAccountingService.CreateCapabilityProfileAsync(db, reviewer,
+      new CapabilityProfileRequest(scope.ClientB, null, "BOOKKEEPING", "IFRS", "2026", "ANNUAL", "",
+        "STATUTORY", "", "PARTNER", "BOOKKEEPING", "BOOKKEEPING"));
+    Assert.True(bookkeeping.Succeeded, bookkeeping.Message);
+    var conditional = await ClientAccountingService.CreateCapabilityProfileAsync(db, reviewer,
+      new CapabilityProfileRequest(scope.ClientB, null, "BOOKKEEPING", "IFRS", "2026", "ANNUAL", "",
+        "STATUTORY", "", "PARTNER", "BOOKKEEPING", "BOOKKEEPING_CONDITIONAL"));
+    Assert.False(conditional.Succeeded);
+    Assert.Equal(ErrorCodes.GateBlocked, conditional.ErrorCode);
   }
 
   [Fact]

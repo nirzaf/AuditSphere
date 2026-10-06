@@ -89,6 +89,7 @@ public static class AccountingCapabilityServiceKinds
   public const string EntityReporting = "ENTITY_REPORTING";
   public const string GroupReporting = "GROUP_REPORTING";
   public const string AuditOnly = "AUDIT_ONLY";
+  public const string ClientBookkeeping = "BOOKKEEPING";
 }
 
 public static class ClientAccountingSourceModes
