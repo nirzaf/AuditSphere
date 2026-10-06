@@ -13,6 +13,9 @@ describe('Finance & Firm Ledger Contracts', () => {
     const raw = {
       canCreateSetup: true,
       canClosePeriod: true,
+      canReviewJournals: true,
+      canPostJournals: true,
+      canCreateJournals: true,
       periods: [
         {
           id: id1,
@@ -41,10 +44,12 @@ describe('Finance & Firm Ledger Contracts', () => {
           reversalOfPostingId: null,
         },
       ],
+      journals: [],
     };
 
     const decoded = decodeLedger(raw, 'ledger');
     expect(decoded.canClosePeriod).toBe(true);
+    expect(decoded.canCreateJournals).toBe(true);
     expect(decoded.periods.length).toBe(1);
     expect(decoded.accounts[0].code).toBe('1000');
     expect(decoded.postings[0].currency).toBe('QAR');

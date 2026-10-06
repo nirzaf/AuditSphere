@@ -37,11 +37,20 @@ public sealed class LedgerTests
         new CreateFirmAccountRequest("4100", "Revenue", LedgerStates.AccountRevenue, LedgerStates.Credit))).Value;
       periodId = (await LedgerService.CreateFirmPeriodAsync(db, fixture.ManagerActor,
         new CreateFirmPeriodRequest("2026-09"))).Value;
-      journalId = (await LedgerService.CreateFirmJournalDraftAsync(db, fixture.ManagerActor,
-        new CreateFirmJournalDraftRequest(periodId, "J-100", "INVOICE", "INV-100", 1, "REVENUE", "QAR", [
-          new FirmJournalLineRequest(debitAccountId, "Receivable", 100, 0),
-          new FirmJournalLineRequest(creditAccountId, "Revenue", 0, 100)
-        ]))).Value;
+      var draftRequest = new CreateFirmJournalDraftRequest(periodId, "J-100", "INVOICE", "INV-100", 1, "REVENUE", "QAR", [
+        new FirmJournalLineRequest(debitAccountId, "Receivable", 100, 0),
+        new FirmJournalLineRequest(creditAccountId, "Revenue", 0, 100)
+      ]);
+      journalId = (await LedgerService.CreateFirmJournalDraftAsync(db, fixture.ManagerActor, draftRequest)).Value;
+      var retryDraft = await LedgerService.CreateFirmJournalDraftAsync(db, fixture.ManagerActor, draftRequest);
+      Assert.True(retryDraft.Succeeded, retryDraft.Message);
+      Assert.Equal(journalId, retryDraft.Value);
+      var changedDraft = await LedgerService.CreateFirmJournalDraftAsync(db, fixture.ManagerActor,
+        draftRequest with { Lines = [
+          new FirmJournalLineRequest(debitAccountId, "Receivable", 101, 0),
+          new FirmJournalLineRequest(creditAccountId, "Revenue", 0, 101)
+        ] });
+      Assert.Equal(ErrorCodes.IdempotencyConflict, changedDraft.ErrorCode);
       var submitted = await LedgerService.SubmitFirmJournalAsync(db, fixture.ManagerActor, journalId);
       Assert.True(submitted.Succeeded, submitted.Message);
       Assert.Equal(LedgerStates.JournalReviewRequired, (await db.FirmJournals.AsNoTracking().SingleAsync(x => x.Id == journalId)).Status);
@@ -59,7 +68,7 @@ public sealed class LedgerTests
           new FirmJournalLineRequest(creditAccountId, "Revenue", 0, 100)
         ]));
       Assert.False(duplicateSource.Succeeded);
-      Assert.Equal("ledger.duplicate", duplicateSource.ErrorCode);
+      Assert.Equal(ErrorCodes.IdempotencyConflict, duplicateSource.ErrorCode);
     }
 
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -117,7 +126,73 @@ public sealed class LedgerTests
   }
 
   [Fact]
-  public async Task UnbalancedPosting_IsRejectedByCommandAndDeferredDatabaseGuard()
+  public async Task FinanceCapabilityProjection_ExcludesExpiredRoleGrants()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var expiredAt = DateTimeOffset.UtcNow.AddMinutes(-1);
+
+    var managerGrant = await db.RoleGrants.SingleAsync(x =>
+      x.FirmId == fixture.FirmId && x.UserId == fixture.Manager.Id && x.Role == "FinanceManager");
+    managerGrant.ExpiresAt = expiredAt;
+    db.RoleGrants.Add(Grant(fixture.FirmId, fixture.Manager, "FinanceReviewer"));
+
+    var reviewerGrant = await db.RoleGrants.SingleAsync(x =>
+      x.FirmId == fixture.FirmId && x.UserId == fixture.Reviewer.Id && x.Role == "FinanceReviewer");
+    reviewerGrant.ExpiresAt = expiredAt;
+    db.RoleGrants.Add(Grant(fixture.FirmId, fixture.Reviewer, "FinanceManager"));
+    await db.SaveChangesAsync();
+
+    var managerView = await FirmFinanceQuery.GetAsync(db, fixture.ManagerActor);
+    Assert.True(managerView.Succeeded, managerView.Message);
+    Assert.False(managerView.Value!.CanCreateSetup);
+    Assert.True(managerView.Value.CanClosePeriod);
+    Assert.True(managerView.Value.CanReviewJournals);
+    Assert.False(managerView.Value.CanPostJournals);
+
+    var reviewerView = await FirmFinanceQuery.GetAsync(db, fixture.ReviewerActor);
+    Assert.True(reviewerView.Succeeded, reviewerView.Message);
+    Assert.True(reviewerView.Value!.CanCreateSetup);
+    Assert.False(reviewerView.Value.CanClosePeriod);
+    Assert.False(reviewerView.Value.CanReviewJournals);
+    Assert.True(reviewerView.Value.CanPostJournals);
+  }
+
+  [Fact]
+  public async Task PartnerDrawingJournal_OnlyDebitsEquityAndCreditsAssets()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var cash = (await LedgerService.CreateFirmAccountAsync(db, fixture.ManagerActor,
+      new CreateFirmAccountRequest("DRAW-CASH", "Partner cash", LedgerStates.AccountAsset, LedgerStates.Debit))).Value;
+    var drawings = (await LedgerService.CreateFirmAccountAsync(db, fixture.ManagerActor,
+      new CreateFirmAccountRequest("DRAW-EQUITY", "Partner drawings", LedgerStates.AccountEquity, LedgerStates.Debit))).Value;
+    var expense = (await LedgerService.CreateFirmAccountAsync(db, fixture.ManagerActor,
+      new CreateFirmAccountRequest("DRAW-EXPENSE", "Invalid drawing expense", LedgerStates.AccountExpense, LedgerStates.Debit))).Value;
+    var period = (await LedgerService.CreateFirmPeriodAsync(db, fixture.ManagerActor,
+      new CreateFirmPeriodRequest("2026-12"))).Value;
+
+    var invalid = await LedgerService.CreateFirmJournalDraftAsync(db, fixture.ManagerActor,
+      new CreateFirmJournalDraftRequest(period, "DRAW-INVALID", "MANUAL", "PARTNER-DRAW-INVALID", 1,
+        "PARTNER_DRAWING", "QAR", [
+          new FirmJournalLineRequest(expense, "Partner drawing", 25, 0),
+          new FirmJournalLineRequest(cash, "Cash withdrawal", 0, 25)
+        ]));
+    Assert.Equal("ledger.drawing-accounts-invalid", invalid.ErrorCode);
+
+    var valid = await LedgerService.CreateFirmJournalDraftAsync(db, fixture.ManagerActor,
+      new CreateFirmJournalDraftRequest(period, "DRAW-VALID", "MANUAL", "PARTNER-DRAW-VALID", 1,
+        "PARTNER_DRAWING", "QAR", [
+          new FirmJournalLineRequest(drawings, "Partner drawing", 25, 0),
+          new FirmJournalLineRequest(cash, "Cash withdrawal", 0, 25)
+        ]));
+    Assert.True(valid.Succeeded, valid.Message);
+  }
+
+  [Fact]
+  public async Task UnbalancedJournal_CannotBeSubmittedOrPostedAndDatabaseRejectsDirectPosting()
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var fixture = await SeedAsync(pg);
@@ -135,11 +210,15 @@ public sealed class LedgerTests
           new FirmJournalLineRequest(debitAccountId, "Debit", 100, 0),
           new FirmJournalLineRequest(creditAccountId, "Credit", 0, 99)
         ]))).Value;
-      Assert.True((await LedgerService.SubmitFirmJournalAsync(db, fixture.ManagerActor, journalId)).Succeeded);
-      Assert.True((await LedgerService.ApproveFirmJournalAsync(db, fixture.ReviewerActor, journalId)).Succeeded);
+      var submit = await LedgerService.SubmitFirmJournalAsync(db, fixture.ManagerActor, journalId);
+      Assert.False(submit.Succeeded);
+      Assert.Equal("ledger.unbalanced", submit.ErrorCode);
+      Assert.Equal(LedgerStates.JournalDraft,
+        (await db.FirmJournals.AsNoTracking().SingleAsync(x => x.Id == journalId)).Status);
+      var approve = await LedgerService.ApproveFirmJournalAsync(db, fixture.ReviewerActor, journalId);
+      Assert.False(approve.Succeeded);
       var rejected = await LedgerService.PostFirmJournalAsync(db, fixture.ManagerActor, journalId);
       Assert.False(rejected.Succeeded);
-      Assert.Equal("ledger.unbalanced", rejected.ErrorCode);
     }
 
     await using var direct = new AuditSphereDbContext(pg.Options);

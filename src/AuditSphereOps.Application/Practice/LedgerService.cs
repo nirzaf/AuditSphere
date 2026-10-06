@@ -136,10 +136,26 @@ public static class LedgerService
     if (lockedPeriod is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (lockedPeriod.Status != LedgerStates.PeriodOpen)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "A closed period cannot receive a journal draft.");
+    var sourceKind = request.SourceKind.Trim().ToUpperInvariant();
+    var sourceKey = request.SourceKey.Trim();
+    var purpose = request.PostingPurpose.Trim().ToUpperInvariant();
+    var existingSource = await db.FirmJournals.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.SourceKind == sourceKind && x.SourceKey == sourceKey &&
+      x.SourceRevision == request.SourceRevision && x.PostingPurpose == purpose, ct);
+    if (existingSource is not null)
+    {
+      var existingLines = await db.FirmJournalLines.AsNoTracking()
+        .Where(x => x.FirmId == actor.FirmId && x.JournalId == existingSource.Id).ToListAsync(ct);
+      if (MatchesJournalRequest(existingSource, existingLines, request, sourceKind, purpose))
+      {
+        await tx.CommitAsync(ct);
+        return CommandResult<Guid>.Ok(existingSource.Id);
+      }
+      return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict,
+        "This journal source is already bound to a different saved journal.");
+    }
     if (await db.FirmJournals.AnyAsync(x => x.FirmId == actor.FirmId &&
-        (x.JournalNumber == request.JournalNumber.Trim() ||
-         (x.SourceKind == request.SourceKind.Trim().ToUpperInvariant() && x.SourceKey == request.SourceKey.Trim() &&
-          x.SourceRevision == request.SourceRevision && x.PostingPurpose == request.PostingPurpose.Trim())), ct))
+        x.JournalNumber == request.JournalNumber.Trim(), ct))
       return CommandResult<Guid>.Fail("ledger.duplicate", "Journal or source identity is already used.");
     var accountIds = request.Lines.Select(x => x.FirmAccountId).Distinct().ToArray();
     var accounts = await db.FirmAccounts.Where(x => x.FirmId == actor.FirmId && accountIds.Contains(x.Id))
@@ -148,6 +164,12 @@ public static class LedgerService
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "A journal account is outside the firm scope.");
     if (accounts.Values.Any(x => !x.PostingAllowed))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "A journal uses an account that is not open for posting.");
+    if (purpose == "PARTNER_DRAWING" &&
+        (request.Lines.Any(x => x.Debit > 0 && accounts[x.FirmAccountId].AccountType != LedgerStates.AccountEquity) ||
+         request.Lines.Any(x => x.Credit > 0 && accounts[x.FirmAccountId].AccountType != LedgerStates.AccountAsset) ||
+         !request.Lines.Any(x => x.Debit > 0) || !request.Lines.Any(x => x.Credit > 0)))
+      return CommandResult<Guid>.Fail("ledger.drawing-accounts-invalid",
+        "Partner drawings must debit equity accounts and credit asset accounts such as cash.");
     var journal = new FirmJournal
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, PeriodId = lockedPeriod.Id,
@@ -172,12 +194,12 @@ public static class LedgerService
   public static Task<CommandResult> SubmitFirmJournalAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid journalId, CancellationToken ct = default) =>
     TransitionJournalAsync(db, actor, journalId, LedgerStates.JournalDraft,
-      LedgerStates.JournalReviewRequired, FinanceRoles, null, ct);
+      LedgerStates.JournalReviewRequired, FinanceRoles, null, validateBalanced: true, ct);
 
   public static Task<CommandResult> ApproveFirmJournalAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid journalId, CancellationToken ct = default) =>
     TransitionJournalAsync(db, actor, journalId, LedgerStates.JournalReviewRequired,
-      LedgerStates.JournalApproved, ReviewerRoles, actor.UserId, ct);
+      LedgerStates.JournalApproved, ReviewerRoles, actor.UserId, validateBalanced: true, ct);
 
   public static async Task<CommandResult<Guid>> PostFirmJournalAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid journalId, CancellationToken ct = default)
@@ -416,7 +438,7 @@ public static class LedgerService
 
   private static async Task<CommandResult> TransitionJournalAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid journalId, string expected, string next,
-    string[] roles, Guid? forbidActor, CancellationToken ct)
+    string[] roles, Guid? forbidActor, bool validateBalanced, CancellationToken ct)
   {
     var journal = await db.FirmJournals.AsNoTracking().SingleOrDefaultAsync(x =>
       x.Id == journalId && x.FirmId == actor.FirmId, ct);
@@ -434,6 +456,13 @@ public static class LedgerService
       return CommandResult.Fail(ErrorCodes.ProtectedState, "The journal or period is not in the required state.");
     if (forbidActor.HasValue && locked.CreatedByUserId == forbidActor.Value)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Journal preparers cannot approve their own journal.");
+    if (validateBalanced)
+    {
+      var lines = await db.FirmJournalLines.AsNoTracking().Where(x =>
+        x.FirmId == actor.FirmId && x.JournalId == locked.Id).ToListAsync(ct);
+      var balance = ValidatePostingLines(lines);
+      if (balance is not null) return CommandResult.Fail("ledger.unbalanced", balance);
+    }
     var changed = next == LedgerStates.JournalApproved
       ? await db.FirmJournals.Where(x => x.Id == locked.Id && x.FirmId == actor.FirmId && x.Status == expected)
         .ExecuteUpdateAsync(setters => setters
@@ -473,6 +502,9 @@ public static class LedgerService
         request.SourceRevision < 1) return "Journal source identity is invalid.";
     var currencyError = CurrencyError(request.Currency);
     if (currencyError is not null) return currencyError;
+    if (request.SourceKind.Trim().Equals("MANUAL", StringComparison.OrdinalIgnoreCase) &&
+        request.PostingPurpose.Trim().ToUpperInvariant() is not ("MANUAL" or "OPENING_BALANCE" or "PARTNER_DRAWING"))
+      return "Manual journal purpose is invalid.";
     foreach (var line in request.Lines)
     {
       if (line.FirmAccountId == Guid.Empty || string.IsNullOrWhiteSpace(line.Description) ||
@@ -490,6 +522,30 @@ public static class LedgerService
     var debit = MoneyPolicy.Normalize(lines.Sum(x => x.Debit));
     var credit = MoneyPolicy.Normalize(lines.Sum(x => x.Credit));
     return debit == credit ? null : "Debit and credit totals must balance exactly.";
+  }
+
+  private static bool MatchesJournalRequest(
+    FirmJournal existing, IReadOnlyList<FirmJournalLine> existingLines,
+    CreateFirmJournalDraftRequest request, string sourceKind, string purpose)
+  {
+    if (existing.PeriodId != request.PeriodId ||
+        existing.JournalNumber != request.JournalNumber.Trim() ||
+        existing.SourceKind != sourceKind || existing.SourceKey != request.SourceKey.Trim() ||
+        existing.SourceRevision != request.SourceRevision || existing.PostingPurpose != purpose ||
+        !string.Equals(existing.Currency, request.Currency.Trim(), StringComparison.OrdinalIgnoreCase) ||
+        existingLines.Count != request.Lines.Count)
+      return false;
+
+    static IOrderedEnumerable<(Guid AccountId, string Description, decimal Debit, decimal Credit)> Sort(
+      IEnumerable<(Guid AccountId, string Description, decimal Debit, decimal Credit)> lines) =>
+      lines.OrderBy(x => x.AccountId).ThenBy(x => x.Description, StringComparer.Ordinal)
+        .ThenBy(x => x.Debit).ThenBy(x => x.Credit);
+
+    var persisted = Sort(existingLines.Select(x =>
+      (x.FirmAccountId, x.Description, x.Debit, x.Credit)));
+    var proposed = Sort(request.Lines.Select(x =>
+      (x.FirmAccountId, x.Description.Trim(), x.Debit, x.Credit)));
+    return persisted.SequenceEqual(proposed);
   }
 
   private static string? CurrencyError(string currency) =>

@@ -14,6 +14,10 @@ public static partial class UiEndpoints
 {
   public sealed record FirmAccountInput(string Code, string Name, string AccountType, string NormalSide, bool PostingAllowed = true);
   public sealed record FirmPeriodInput(string PeriodCode);
+  public sealed record FirmJournalLineInput(Guid FirmAccountId, string Description, string Debit, string Credit);
+  public sealed record FirmJournalInput(Guid PeriodId, string JournalNumber, string SourceKey,
+    string PostingPurpose, string Currency, IReadOnlyList<FirmJournalLineInput> Lines);
+  public sealed record FirmJournalActionInput(bool Confirmed);
   public sealed record FiscalCloseInput(string Reason);
   public sealed record ReceiptInput(string Amount, string Reference, bool Reviewed);
   public sealed record ReceiptAllocationInput(Guid InvoiceId, string Amount, bool Reviewed);
@@ -58,11 +62,26 @@ public static partial class UiEndpoints
       return r.Succeeded
         ? CommandResult<object>.Ok(new
           {
-            CanCreateSetup = r.Value!.CanCreateSetup,
-            r.Value!.CanClosePeriod,
+          CanCreateSetup = r.Value!.CanCreateSetup,
+          r.Value!.CanClosePeriod,
+          r.Value.CanReviewJournals,
+          r.Value.CanPostJournals,
+          CanCreateJournals = true,
             Periods = r.Value.Periods.Select(p => new { p.Id, p.PeriodCode, p.Status, p.Revision, p.ClosedAt }),
             Accounts = r.Value.Accounts.Select(a => new { a.Id, a.Code, a.Name, a.AccountType, a.NormalSide, a.PostingAllowed }),
             Postings = r.Value.RecentPostings.Select(p => new { p.Id, p.PostedAt, p.Currency, p.PostedByUserId, p.ReversalOfPostingId }),
+            Journals = r.Value.RecentJournals.Select(j => new
+            {
+              j.Id, j.PeriodId, j.PeriodCode, j.JournalNumber, j.SourceKind, j.SourceKey, j.SourceRevision,
+              j.PostingPurpose, j.Currency, j.Status, j.CreatedByUserId, j.ApprovedByUserId,
+              j.CreatedAt, j.ApprovedAt, j.PostedAt,
+              Lines = j.Lines.Select(l => new
+              {
+                l.FirmAccountId, l.AccountCode, l.AccountName, l.Description,
+                Debit = l.Debit.ToString(CultureInfo.InvariantCulture),
+                Credit = l.Credit.ToString(CultureInfo.InvariantCulture)
+              })
+            })
           })
         : CommandResult<object>.Fail(r.ErrorCode!, r.Message!);
     }));
@@ -72,6 +91,32 @@ public static partial class UiEndpoints
     group.MapPost("/finance/periods", (FirmPeriodInput input, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => LedgerService.CreateFirmPeriodAsync(db, actor,
         new CreateFirmPeriodRequest(input.PeriodCode ?? ""), ct)));
+    group.MapPost("/finance/journals", (FirmJournalInput input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) =>
+      {
+        if (input.Lines is null || input.Lines.Count is < 2 or > 200)
+          return Task.FromResult(CommandResult<Guid>.Fail("ledger.invalid", "A journal needs 2 to 200 reviewed lines."));
+        var lines = new List<FirmJournalLineRequest>(input.Lines.Count);
+        foreach (var line in input.Lines)
+        {
+          if (line is null || !TryDecimal(line.Debit, out var debit) || !TryDecimal(line.Credit, out var credit))
+            return Task.FromResult(CommandResult<Guid>.Fail("ledger.invalid", "Enter each debit and credit as an exact decimal amount."));
+          lines.Add(new FirmJournalLineRequest(line.FirmAccountId, line.Description ?? "", debit, credit));
+        }
+        return LedgerService.CreateFirmJournalDraftAsync(db, actor,
+          new CreateFirmJournalDraftRequest(input.PeriodId, input.JournalNumber ?? "", "MANUAL",
+            input.SourceKey ?? "", 1, input.PostingPurpose ?? "", input.Currency ?? "", lines), ct);
+      }));
+    group.MapPost("/finance/journals/{id:guid}/submit", (Guid id, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => LedgerService.SubmitFirmJournalAsync(db, actor, id, ct)));
+    group.MapPost("/finance/journals/{id:guid}/review", (Guid id, FirmJournalActionInput input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => input.Confirmed
+        ? LedgerService.ApproveFirmJournalAsync(db, actor, id, ct)
+        : Task.FromResult(CommandResult.Fail("ledger.review-unconfirmed", "Confirm the journal review before approval."))));
+    group.MapPost("/finance/journals/{id:guid}/post", (Guid id, FirmJournalActionInput input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => input.Confirmed
+        ? LedgerService.PostFirmJournalAsync(db, actor, id, ct)
+        : Task.FromResult(CommandResult<Guid>.Fail("ledger.post-unconfirmed", "Confirm the journal posting before continuing."))));
     group.MapPost("/finance/periods/{id:guid}/close", (Guid id, FiscalCloseInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => LedgerService.CloseFiscalPeriodAsync(db, actor, id, i.Reason ?? "", ct)));
     group.MapGet("/finance/invoices/{id:guid}", (
@@ -162,5 +207,11 @@ public static partial class UiEndpoints
   {
     var result = await command;
     return result.Succeeded ? CommandResult<bool>.Ok(true) : CommandResult<bool>.Fail(result.ErrorCode!, result.Message!);
+  }
+
+  private static async Task<CommandResult> AsCommand<T>(Task<CommandResult<T>> command)
+  {
+    var result = await command;
+    return result.Succeeded ? CommandResult.Ok() : CommandResult.Fail(result.ErrorCode!, result.Message!);
   }
 }

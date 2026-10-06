@@ -7,10 +7,24 @@ import { arr, bool, guid, instant, nat, nullable, obj, text } from '../../core/d
 import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
 
-export const decodeLedger = obj({ canCreateSetup: bool, canClosePeriod: bool,
+export const decodeLedger = obj({ canCreateSetup: bool, canClosePeriod: bool, canReviewJournals: bool,
+  canPostJournals: bool, canCreateJournals: bool,
   periods: arr(obj({ id: guid, periodCode: text, status: text, revision: nat, closedAt: nullable(instant) }), 5000),
   accounts: arr(obj({ id: guid, code: text, name: text, accountType: text, normalSide: text, postingAllowed: bool }), 5000),
-  postings: arr(obj({ id: guid, postedAt: instant, currency: text, postedByUserId: guid, reversalOfPostingId: nullable(guid) }), 5000) });
+  postings: arr(obj({ id: guid, postedAt: instant, currency: text, postedByUserId: guid, reversalOfPostingId: nullable(guid) }), 5000),
+  journals: arr(obj({ id: guid, periodId: guid, periodCode: text, journalNumber: text, sourceKind: text, sourceKey: text,
+    sourceRevision: nat, postingPurpose: text, currency: text, status: text, createdByUserId: guid,
+    approvedByUserId: nullable(guid), createdAt: instant, approvedAt: nullable(instant), postedAt: nullable(instant),
+    lines: arr(obj({ firmAccountId: guid, accountCode: text, accountName: text, description: text, debit: text, credit: text }), 200) }), 50) });
+
+interface JournalDraftLine { firmAccountId: string; description: string; debit: string; credit: string }
+interface JournalDraft {
+  periodId: string; journalNumber: string; sourceKey: string; postingPurpose: string; currency: string; lines: JournalDraftLine[];
+}
+type JournalCreateState = 'checking' | 'saved' | 'absent' | 'conflict' | 'error' | null;
+type JournalActionKind = 'submit' | 'review' | 'post';
+type JournalActionState = 'checking' | 'saved' | 'unchanged' | 'changed' | 'error' | null;
+interface PendingJournalAction { id: string; action: JournalActionKind; previousStatus: string; nextStatus: string }
 
 type FirmLedgerSetupRequest =
   | { kind: 'account'; value: { code: string; name: string; accountType: string; normalSide: string; postingAllowed: boolean } }
@@ -141,6 +155,103 @@ interface PendingClose {
           <tbody>@for (a of l.accounts; track a.id) { <tr><td><code>{{ a.code }}</code></td><td>{{ a.name }}</td><td>{{ a.accountType }}</td><td>{{ a.normalSide }}</td><td>{{ a.postingAllowed ? 'Yes' : 'No' }}</td></tr> }
           @empty { <tr><td colspan="5">No firm posting accounts are configured.</td></tr> }</tbody></table></div>
       </section>
+      <section class="panel" aria-labelledby="journal-heading">
+        <h2 id="journal-heading">Manual journals</h2>
+        <p>Prepare balanced firm-book entries for an open fiscal period. Submission and approval are separate steps; the person who prepares a journal cannot approve it.</p>
+        @if (l.canCreateJournals) {
+          <form class="inline-form" (submit)="$event.preventDefault(); createJournal()">
+            <label>Fiscal period <select name="journalPeriod" [(ngModel)]="journalDraft.periodId" [disabled]="journalCreateLocked()" required>
+              <option value="">Select an open period</option>
+              @for (p of l.periods; track p.id) { @if (p.status === 'OPEN') { <option [value]="p.id">{{ p.periodCode }}</option> } }
+            </select></label>
+            <label>Journal number <input name="journalNumber" [(ngModel)]="journalDraft.journalNumber" maxlength="64" [disabled]="journalCreateLocked()" required /></label>
+            <label>Entry type <select name="journalPurpose" [(ngModel)]="journalDraft.postingPurpose" [disabled]="journalCreateLocked()">
+              <option value="MANUAL">Manual adjustment</option>
+              <option value="OPENING_BALANCE">Opening balance</option>
+              <option value="PARTNER_DRAWING">Partner drawing</option>
+            </select></label>
+            <label>Source record reference <input name="sourceReference" [(ngModel)]="journalDraft.sourceKey" maxlength="200" [disabled]="journalCreateLocked()" required />
+              <small>Use a unique source reference. For opening balances and drawings, this identifies the supporting record.</small></label>
+            <label>Functional currency <input name="journalCurrency" [(ngModel)]="journalDraft.currency" maxlength="3" [disabled]="journalCreateLocked()" required /></label>
+            <fieldset class="journal-lines">
+              <legend>Journal lines</legend>
+              @for (line of journalDraft.lines; track $index; let row = $index) {
+                <div class="workspace-grid">
+                  <label>Line {{ row + 1 }} account <select [name]="'journalAccount' + row" [(ngModel)]="line.firmAccountId" [disabled]="journalCreateLocked()" required>
+                    <option value="">Select account</option>
+                    @for (a of l.accounts; track a.id) { @if (a.postingAllowed) { <option [value]="a.id">{{ a.code }} · {{ a.name }} ({{ a.accountType }})</option> } }
+                  </select></label>
+                  <label>Description <input [name]="'journalDescription' + row" [(ngModel)]="line.description" maxlength="300" [disabled]="journalCreateLocked()" required /></label>
+                  <label>Debit <input [name]="'journalDebit' + row" inputmode="decimal" [(ngModel)]="line.debit" [disabled]="journalCreateLocked()" /></label>
+                  <label>Credit <input [name]="'journalCredit' + row" inputmode="decimal" [(ngModel)]="line.credit" [disabled]="journalCreateLocked()" /></label>
+                  <button matButton="outlined" type="button" (click)="removeJournalLine(row)" [disabled]="journalCreateLocked() || journalDraft.lines.length <= 2">Remove line</button>
+                </div>
+              }
+              <button matButton="outlined" type="button" (click)="addJournalLine()" [disabled]="journalCreateLocked() || journalDraft.lines.length >= 200">Add journal line</button>
+            </fieldset>
+            <button matButton="filled" type="submit" [disabled]="journalCreateLocked() || !journalDraft.periodId || !journalDraft.journalNumber.trim() || !journalDraft.sourceKey.trim() || !journalLinesReady()">Save draft journal</button>
+          </form>
+          @if (pendingJournal(); as pending) {
+            <section class="panel" aria-labelledby="journal-create-recovery-heading">
+              <h3 id="journal-create-recovery-heading">Verify the saved journal</h3>
+              <p>The save response was not confirmed. Check the exact source reference and journal contents before any retry.</p>
+              @if (journalCreateMessage()) { <p [attr.role]="journalCreateState() === 'conflict' || journalCreateState() === 'error' ? 'alert' : 'status'">{{ journalCreateMessage() }}</p> }
+              @switch (journalCreateState()) {
+                @case ('checking') { <p role="status">Checking persisted journal state…</p> }
+                @case ('saved') { <button matButton="filled" type="button" (click)="acknowledgeSavedJournal()">Acknowledge saved journal</button> }
+                @case ('absent') {
+                  <p role="status">No journal with this exact source reference is present. You can deliberately retry the unchanged request.</p>
+                  <button matButton="filled" type="button" (click)="retryExactJournal()" [disabled]="journalCommand.busy()">Retry exact journal</button>
+                  <button matButton="outlined" type="button" (click)="discardUnresolvedJournal()">Discard unresolved journal</button>
+                }
+                @case ('conflict') { <button matButton="outlined" type="button" (click)="discardUnresolvedJournal()">Discard and refresh</button> }
+                @case ('error') { <button matButton="outlined" type="button" (click)="verifyJournal()">Retry state check</button> }
+                @default { <button matButton="outlined" type="button" (click)="verifyJournal()" [disabled]="journalCommand.busy()">Check saved journal</button> }
+              }
+            </section>
+          }
+        }
+        @if (pendingJournalAction(); as action) {
+          <section class="panel" aria-labelledby="journal-action-recovery-heading">
+            <h3 id="journal-action-recovery-heading">Verify the journal action</h3>
+            <p>The {{ action.action }} response was not confirmed. Refresh the exact journal and reconcile its persisted status before another command.</p>
+            @if (journalActionMessage()) { <p [attr.role]="journalActionState() === 'changed' || journalActionState() === 'error' ? 'alert' : 'status'">{{ journalActionMessage() }}</p> }
+            @switch (journalActionState()) {
+              @case ('checking') { <p role="status">Checking saved journal status…</p> }
+              @case ('saved') { <button matButton="filled" type="button" (click)="acknowledgeJournalAction()">Acknowledge saved action</button> }
+              @case ('unchanged') {
+                <p role="status">The journal is still {{ action.previousStatus }}. Deliberately retry the same action or discard this attempt.</p>
+                <button matButton="filled" type="button" (click)="retryJournalAction()" [disabled]="journalActionCommand.busy()">Retry exact action</button>
+                <button matButton="outlined" type="button" (click)="discardJournalAction()">Discard unresolved action</button>
+              }
+              @case ('changed') { <button matButton="outlined" type="button" (click)="discardJournalAction()">Discard and refresh</button> }
+              @case ('error') { <button matButton="outlined" type="button" (click)="verifyJournalAction()">Retry state check</button> }
+              @default { <button matButton="outlined" type="button" (click)="verifyJournalAction()" [disabled]="journalActionCommand.busy()">Check saved status</button> }
+            }
+          </section>
+        }
+        <div class="table-scroll"><table>
+          <caption>Recent firm journal drafts and their review status</caption>
+          <thead><tr><th scope="col">Journal</th><th scope="col">Period</th><th scope="col">Source / type</th><th scope="col">Currency</th><th scope="col">Status</th><th scope="col">Lines</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+          <tbody>@for (j of l.journals; track j.id) {
+            <tr><th scope="row">{{ j.journalNumber }}</th><td>{{ j.periodCode }}</td><td>{{ j.sourceKind }} · {{ j.postingPurpose }}<small>{{ j.sourceKey }}</small></td>
+              <td>{{ j.currency }}</td><td><audit-status [value]="j.status" /></td><td>{{ j.lines.length }}</td>
+              <td class="actions">
+                @if (j.status === 'DRAFT' && l.canCreateJournals) { <button matButton (click)="actOnJournal(j.id, 'submit')" [disabled]="journalActionLocked()">Submit for review</button> }
+                @if (j.status === 'REVIEW_REQUIRED' && l.canReviewJournals && !journalPreparedByCurrentUser(j.createdByUserId)) { <button matButton="filled" (click)="actOnJournal(j.id, 'review')" [disabled]="journalActionLocked()">Review and approve</button> }
+                @if (j.status === 'REVIEW_REQUIRED' && l.canReviewJournals && journalPreparedByCurrentUser(j.createdByUserId)) { <span>Prepared by you; another reviewer must approve</span> }
+                @if (j.status === 'APPROVED' && l.canPostJournals) { <button matButton="filled" (click)="actOnJournal(j.id, 'post')" [disabled]="journalActionLocked()">Post</button> }
+              </td></tr>
+            <tr><td colspan="7"><details><summary>Review {{ j.journalNumber }} lines</summary>
+              <div class="table-scroll"><table><caption>Lines for {{ j.journalNumber }}</caption><thead><tr><th scope="col">Account</th><th scope="col">Description</th><th scope="col" class="number">Debit</th><th scope="col" class="number">Credit</th></tr></thead>
+                <tbody>@for (line of j.lines; track $index) { <tr><td>{{ line.accountCode }} · {{ line.accountName }}</td><td>{{ line.description }}</td><td class="number">{{ line.debit }}</td><td class="number">{{ line.credit }}</td></tr> }</tbody></table></div>
+              <p>Prepared {{ j.createdAt.slice(0, 16).replace('T', ' ') }} UTC · {{ j.approvedByUserId ? 'Approved by ' + j.approvedByUserId : 'Not approved' }}{{ j.postedAt ? ' · Posted ' + j.postedAt.slice(0, 16).replace('T', ' ') + ' UTC' : '' }}</p>
+            </details></td></tr>
+          } @empty { <tr><td colspan="7">No manual or system journals are recorded in the recent firm ledger.</td></tr> }</tbody>
+        </table></div>
+        <audit-command-message [message]="journalCommand.message()" [failed]="journalCommand.failed()" />
+        <audit-command-message [message]="journalActionCommand.message()" [failed]="journalActionCommand.failed()" />
+      </section>
       <section class="panel" aria-labelledby="postings-heading">
         <h2 id="postings-heading">Recent firm postings</h2>
         <div class="table-scroll"><table><thead><tr><th>Posting ID</th><th>Posted date</th><th>Currency</th><th>Posted by</th><th>Reversal</th></tr></thead>
@@ -158,11 +269,20 @@ export class FirmLedger {
   readonly ledger = this.api.resource(() => '/api/ui/finance', decodeLedger, 'Sign in with an authorized finance identity to access the firm ledger.');
   readonly cmd = new CommandState(this.api);
   readonly setupCommand = new CommandState(this.api);
+  readonly journalCommand = new CommandState(this.api);
+  readonly journalActionCommand = new CommandState(this.api);
   readonly pendingSetup = signal<FirmLedgerSetupRequest | null>(null);
   readonly setupResolution = signal<FirmLedgerSetupResolution>(null);
   readonly setupVerificationMessage = signal('');
   readonly accountDraft = { code: '', name: '', accountType: 'ASSET', normalSide: 'DEBIT', postingAllowed: true };
   readonly periodDraft = { periodCode: '' };
+  journalDraft: JournalDraft = this.emptyJournalDraft();
+  readonly pendingJournal = signal<JournalDraft | null>(null);
+  readonly journalCreateState = signal<JournalCreateState>(null);
+  readonly journalCreateMessage = signal('');
+  readonly pendingJournalAction = signal<PendingJournalAction | null>(null);
+  readonly journalActionState = signal<JournalActionState>(null);
+  readonly journalActionMessage = signal('');
   readonly closing = signal<string | null>(null);
   readonly closeVerification = signal<CloseVerification>('idle');
   readonly verifiedRevision = signal<number | null>(null);
@@ -185,6 +305,17 @@ export class FirmLedger {
         this.accountDraft.code = '';
         this.accountDraft.name = '';
         this.periodDraft.periodCode = '';
+        this.journalDraft = this.emptyJournalDraft();
+        this.pendingJournal.set(null);
+        this.journalCreateState.set(null);
+        this.journalCreateMessage.set('');
+        this.journalCommand.uncertain.set(false);
+        this.journalCommand.failed.set(false);
+        this.pendingJournalAction.set(null);
+        this.journalActionState.set(null);
+        this.journalActionMessage.set('');
+        this.journalActionCommand.uncertain.set(false);
+        this.journalActionCommand.failed.set(false);
       });
     });
   }
@@ -287,6 +418,223 @@ export class FirmLedger {
     this.setupVerificationMessage.set('');
   }
 
+  private emptyJournalDraft(): JournalDraft {
+    return { periodId: '', journalNumber: '', sourceKey: '', postingPurpose: 'MANUAL', currency: '',
+      lines: [this.emptyJournalLine(), this.emptyJournalLine()] };
+  }
+
+  private emptyJournalLine(): JournalDraftLine {
+    return { firmAccountId: '', description: '', debit: '0', credit: '0' };
+  }
+
+  journalLinesReady(): boolean {
+    if (this.journalDraft.lines.length < 2 || this.journalDraft.lines.length > 200) return false;
+    return this.journalDraft.lines.every(line => {
+      const debit = canonicalDecimal(line.debit.trim() || '0');
+      const credit = canonicalDecimal(line.credit.trim() || '0');
+      return !!line.firmAccountId && !!line.description.trim() && debit !== null && credit !== null &&
+        (debit !== '0' || credit !== '0') && !(debit !== '0' && credit !== '0');
+    });
+  }
+
+  journalCreateLocked(): boolean {
+    return this.journalCommand.busy() || this.journalCommand.uncertain() || this.pendingJournal() !== null ||
+      this.pendingJournalAction() !== null || !this.ledger.data()?.canCreateJournals;
+  }
+
+  journalActionLocked(): boolean {
+    return this.journalActionCommand.busy() || this.journalActionCommand.uncertain() ||
+      this.pendingJournalAction() !== null || this.pendingJournal() !== null;
+  }
+
+  journalPreparedByCurrentUser(userId: string): boolean {
+    return this.session.current()?.userId === userId;
+  }
+
+  addJournalLine(): void {
+    if (!this.journalCreateLocked() && this.journalDraft.lines.length < 200)
+      this.journalDraft.lines.push(this.emptyJournalLine());
+  }
+
+  removeJournalLine(index: number): void {
+    if (!this.journalCreateLocked() && this.journalDraft.lines.length > 2)
+      this.journalDraft.lines.splice(index, 1);
+  }
+
+  async createJournal(): Promise<void> {
+    if (this.journalCreateLocked() || !this.journalLinesReady()) return;
+    const request: JournalDraft = {
+      periodId: this.journalDraft.periodId,
+      journalNumber: this.journalDraft.journalNumber.trim(),
+      sourceKey: this.journalDraft.sourceKey.trim(),
+      postingPurpose: this.journalDraft.postingPurpose,
+      currency: this.journalDraft.currency.trim().toUpperCase(),
+      lines: this.journalDraft.lines.map(line => ({ ...line, description: line.description.trim(),
+        debit: line.debit.trim() || '0', credit: line.credit.trim() || '0' })),
+    };
+    this.pendingJournal.set(request);
+    this.journalCreateState.set(null);
+    this.journalCreateMessage.set('');
+    await this.sendJournal(request);
+  }
+
+  private async sendJournal(request: JournalDraft, retry = false): Promise<void> {
+    if (this.journalCommand.busy() || !this.ledger.data()?.canCreateJournals) return;
+    if (!retry && this.pendingJournal() !== request) return;
+    const saved = await this.journalCommand.run('/api/ui/finance/journals', request,
+      'Draft journal saved.', () => {
+        this.pendingJournal.set(null);
+        this.journalCreateState.set(null);
+        this.journalCreateMessage.set('');
+        this.journalDraft = this.emptyJournalDraft();
+        this.ledger.reload();
+      });
+    if (!saved && !this.journalCommand.uncertain()) this.pendingJournal.set(null);
+  }
+
+  async verifyJournal(): Promise<void> {
+    const pending = this.pendingJournal();
+    if (!pending || this.journalCreateState() === 'checking') return;
+    this.journalCreateState.set('checking');
+    this.journalCreateMessage.set('');
+    try {
+      const saved = await this.api.get('/api/ui/finance', decodeLedger);
+      const sameSource = saved.journals.find(j => j.sourceKind === 'MANUAL' &&
+        j.sourceKey === pending.sourceKey && j.postingPurpose === pending.postingPurpose);
+      const sameNumber = saved.journals.find(j => j.journalNumber === pending.journalNumber);
+      if (!sameSource) {
+        this.journalCreateState.set(sameNumber ? 'conflict' : 'absent');
+        this.journalCreateMessage.set(sameNumber
+          ? 'The journal number is already assigned to a different source.'
+          : 'No journal with this exact source reference is present in persisted firm ledger state.');
+      } else if (journalMatchesDraft(sameSource, pending)) {
+        this.journalCreateState.set('saved');
+        this.journalCreateMessage.set(`Persisted state confirms journal ${sameSource.journalNumber} is ${sameSource.status}.`);
+      } else {
+        this.journalCreateState.set('conflict');
+        this.journalCreateMessage.set('This source reference is bound to a different journal definition. Do not retry with changed content.');
+      }
+      this.ledger.reload();
+    } catch {
+      this.journalCreateState.set('error');
+      this.journalCreateMessage.set('Persisted journal state could not be verified. Keep the request unresolved and retry the state check.');
+    }
+  }
+
+  async retryExactJournal(): Promise<void> {
+    const pending = this.pendingJournal();
+    if (!pending || this.journalCreateState() !== 'absent' || this.journalCommand.busy()) return;
+    this.journalCommand.uncertain.set(false);
+    this.journalCommand.failed.set(false);
+    this.journalCreateState.set(null);
+    this.journalCreateMessage.set('');
+    await this.sendJournal(pending, true);
+  }
+
+  acknowledgeSavedJournal(): void {
+    if (this.journalCreateState() !== 'saved') return;
+    this.clearUnresolvedJournal();
+    this.journalCommand.message.set('Persisted firm ledger state confirms the journal request. It was not repeated.');
+    this.journalDraft = this.emptyJournalDraft();
+    this.ledger.reload();
+  }
+
+  discardUnresolvedJournal(): void {
+    if (!['absent', 'conflict'].includes(this.journalCreateState() ?? '')) return;
+    this.clearUnresolvedJournal();
+    this.journalCommand.message.set('The unresolved journal request was discarded. Refresh and review the source before preparing another entry.');
+    this.ledger.reload();
+  }
+
+  private clearUnresolvedJournal(): void {
+    this.journalCommand.uncertain.set(false);
+    this.journalCommand.failed.set(false);
+    this.pendingJournal.set(null);
+    this.journalCreateState.set(null);
+    this.journalCreateMessage.set('');
+  }
+
+  async actOnJournal(id: string, action: JournalActionKind, retry = false): Promise<void> {
+    if (this.journalActionCommand.busy()) return;
+    const journal = this.ledger.data()?.journals.find(x => x.id === id);
+    if (!journal) return;
+    const states = { submit: ['DRAFT', 'REVIEW_REQUIRED'], review: ['REVIEW_REQUIRED', 'APPROVED'], post: ['APPROVED', 'POSTED'] } as const;
+    const [previousStatus, nextStatus] = states[action];
+    if (!retry) {
+      if (this.journalActionLocked() || journal.status !== previousStatus) return;
+      this.pendingJournalAction.set({ id, action, previousStatus, nextStatus });
+      this.journalActionState.set(null);
+      this.journalActionMessage.set('');
+    }
+    const endpoint = action === 'submit' ? 'submit' : action === 'review' ? 'review' : 'post';
+    const body = action === 'submit' ? {} : { confirmed: true };
+    const success = await this.journalActionCommand.run(`/api/ui/finance/journals/${id}/${endpoint}`, body,
+      action === 'submit' ? 'Journal submitted for independent review.' : action === 'review' ? 'Journal approved.' : 'Journal posted to the firm ledger.', () => {
+        this.pendingJournalAction.set(null);
+        this.journalActionState.set(null);
+        this.journalActionMessage.set('');
+        this.ledger.reload();
+      });
+    if (!success && !this.journalActionCommand.uncertain()) this.pendingJournalAction.set(null);
+  }
+
+  async verifyJournalAction(): Promise<void> {
+    const pending = this.pendingJournalAction();
+    if (!pending || this.journalActionState() === 'checking') return;
+    this.journalActionState.set('checking');
+    this.journalActionMessage.set('');
+    try {
+      const saved = await this.api.get('/api/ui/finance', decodeLedger);
+      const journal = saved.journals.find(x => x.id === pending.id);
+      if (!journal) this.journalActionState.set('changed');
+      else if (journal.status === pending.nextStatus) {
+        this.journalActionState.set('saved');
+        this.journalActionMessage.set(`Persisted state confirms the journal is ${journal.status}.`);
+      } else if (journal.status === pending.previousStatus) {
+        this.journalActionState.set('unchanged');
+        this.journalActionMessage.set(`Persisted state confirms the journal remains ${journal.status}.`);
+      } else {
+        this.journalActionState.set('changed');
+        this.journalActionMessage.set(`The journal changed to ${journal.status}. Review its current state before continuing.`);
+      }
+      this.ledger.reload();
+    } catch {
+      this.journalActionState.set('error');
+      this.journalActionMessage.set('Persisted journal state could not be verified. Keep this action unresolved and retry the state check.');
+    }
+  }
+
+  async retryJournalAction(): Promise<void> {
+    const pending = this.pendingJournalAction();
+    if (!pending || this.journalActionState() !== 'unchanged' || this.journalActionCommand.busy()) return;
+    this.journalActionCommand.uncertain.set(false);
+    this.journalActionCommand.failed.set(false);
+    this.journalActionState.set(null);
+    await this.actOnJournal(pending.id, pending.action, true);
+  }
+
+  acknowledgeJournalAction(): void {
+    if (this.journalActionState() !== 'saved') return;
+    this.clearUnresolvedJournalAction();
+    this.journalActionCommand.message.set('Persisted journal state confirms the action. It was not repeated.');
+    this.ledger.reload();
+  }
+
+  discardJournalAction(): void {
+    if (!['unchanged', 'changed'].includes(this.journalActionState() ?? '')) return;
+    this.clearUnresolvedJournalAction();
+    this.journalActionCommand.message.set('The unresolved action was discarded. Refresh and review the journal before continuing.');
+    this.ledger.reload();
+  }
+
+  private clearUnresolvedJournalAction(): void {
+    this.journalActionCommand.uncertain.set(false);
+    this.journalActionCommand.failed.set(false);
+    this.pendingJournalAction.set(null);
+    this.journalActionState.set(null);
+    this.journalActionMessage.set('');
+  }
+
   async close(id: string): Promise<void> {
     const period = this.ledger.data()?.periods.find(x => x.id === id);
     this.pendingClose.set({ periodId: id, reason: this.reason.trim(), revision: period?.revision ?? null });
@@ -353,4 +701,30 @@ export class FirmLedger {
     this.cmd.failed.set(false);
     this.cmd.message.set('');
   }
+}
+
+type DecodedFirmJournal = ReturnType<typeof decodeLedger>['journals'][number];
+
+function canonicalDecimal(value: string): string | null {
+  const match = /^(\d{1,14})(?:\.(\d{1,6}))?$/.exec(value.trim());
+  if (!match) return null;
+  const whole = BigInt(match[1]).toString();
+  const fraction = (match[2] ?? '').replace(/0+$/, '');
+  return fraction ? `${whole}.${fraction}` : whole;
+}
+
+function journalMatchesDraft(journal: DecodedFirmJournal, draft: JournalDraft): boolean {
+  if (journal.periodId !== draft.periodId || journal.journalNumber !== draft.journalNumber ||
+      journal.currency !== draft.currency.toUpperCase() || journal.postingPurpose !== draft.postingPurpose ||
+      journal.lines.length !== draft.lines.length) return false;
+  const fingerprint = (lines: readonly { firmAccountId: string; description: string; debit: string; credit: string }[]) =>
+    lines.map(line => {
+      const debit = canonicalDecimal(line.debit);
+      const credit = canonicalDecimal(line.credit);
+      return debit === null || credit === null ? null :
+        `${line.firmAccountId}\u0000${line.description.trim()}\u0000${debit}\u0000${credit}`;
+    }).sort();
+  const persisted = fingerprint(journal.lines);
+  const proposed = fingerprint(draft.lines);
+  return !persisted.includes(null) && !proposed.includes(null) && JSON.stringify(persisted) === JSON.stringify(proposed);
 }
