@@ -81,7 +81,15 @@ public sealed class GlobalSearchJourneyTests
       await Assertions.Expect(search).ToBeFocusedAsync();
       await Assertions.Expect(search).ToHaveValueAsync(string.Empty);
 
+      var pbcSearchResponse = page.WaitForResponseAsync(response =>
+        response.Url.Contains("/api/ui/search?term=pbc%20test", StringComparison.Ordinal));
       await search.FillAsync("pbc test");
+      using (var pbcPayload = JsonDocument.Parse(await (await pbcSearchResponse).TextAsync()))
+      {
+        var kindOrder = pbcPayload.RootElement.GetProperty("hits").EnumerateArray()
+          .Select(hit => hit.GetProperty("kind").GetString()!).Distinct().ToArray();
+        Assert.Equal(["Client", "Engagement", "PBC request"], kindOrder);
+      }
       await Assertions.Expect(results.GetByRole(AriaRole.Link, new() { Name = "PBC TEST CLIENT" }).First).ToBeVisibleAsync(new() { Timeout = 15000 });
       await Assertions.Expect(results).ToContainTextAsync("Documents and emails are not searched.");
       Assert.DoesNotContain(Marker, await results.InnerTextAsync(), StringComparison.OrdinalIgnoreCase);
