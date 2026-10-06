@@ -25,6 +25,7 @@ public static class MaterialityCalculationStates
   public const string Approved = "APPROVED";
   /// <summary>The approved mapping or trial balance it was derived from has been replaced.</summary>
   public const string Stale = "STALE";
+  public const string BlockedPolicy = "BLOCKED_POLICY";
 }
 
 public sealed record MaterialityCalculationView(Guid AssessmentId, MaterialityCalculation Calculation, string State, string Route);
@@ -39,10 +40,9 @@ public static class MaterialityEngineService
   private static readonly (string Kind, string Label)[] StandardBenchmarks =
   [
     (MaterialityBenchmarks.Revenue, "Revenue (income section)"),
-    (MaterialityBenchmarks.ProfitBeforeTax, "Profit before tax (income and expense, excluding tax lines)"),
+    (MaterialityBenchmarks.ProfitBeforeTax, "Profit before tax (mapped balances, excluding tax; no normalization applied)"),
     (MaterialityBenchmarks.TotalAssets, "Total assets"),
-    (MaterialityBenchmarks.NetAssets, "Net assets (assets less liabilities)"),
-    (MaterialityBenchmarks.TotalExpenses, "Total expenses")
+    (MaterialityBenchmarks.NetAssets, "Equity / net assets (assets less liabilities)")
   ];
 
   public static async Task<CommandResult<MaterialitySourceView>> GetSourceAsync(
@@ -62,13 +62,7 @@ public static class MaterialityEngineService
     {
       var derived = MaterialityCalculator.DeriveBenchmark(b.Kind, null, lines);
       return new MaterialityBenchmarkOption(b.Kind, null, b.Label, derived?.Amount, derived?.LineCount ?? 0);
-    }).Concat(lines.GroupBy(x => x.DestinationCode, StringComparer.OrdinalIgnoreCase).OrderBy(x => x.Key, StringComparer.Ordinal)
-      .Select(g =>
-      {
-        var derived = MaterialityCalculator.DeriveBenchmark(MaterialityBenchmarks.MappedLine, g.Key, lines);
-        return new MaterialityBenchmarkOption(MaterialityBenchmarks.MappedLine, g.Key, $"Mapped line {g.Key} ({g.First().StatementSection})",
-          derived?.Amount, derived?.LineCount ?? 0);
-      })).ToList();
+    }).ToList();
     return CommandResult<MaterialitySourceView>.Ok(new(mapping.Id, mapping.Version, dataset.Id, DatasetDigest(dataset), dataset.Currency, options));
   }
 
@@ -136,13 +130,18 @@ public static class MaterialityEngineService
       .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
     if (calculation is null) return null;
     var current = await IsCurrentAsync(db, calculation, ct);
-    var approved = await db.MaterialityApprovals.AsNoTracking().AnyAsync(x => x.FirmId == firmId && x.MaterialityAssessmentId == calculation.MaterialityAssessmentId, ct);
-    var state = !current ? MaterialityCalculationStates.Stale : approved ? MaterialityCalculationStates.Approved : MaterialityCalculationStates.Draft;
+    var assessment = await db.MaterialityAssessments.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == firmId && x.Id == calculation.MaterialityAssessmentId, ct);
+    var policyCurrent = assessment is not null && MatchesCurrentPolicy(assessment, calculation);
+    var approved = assessment is not null && await HasIndependentPartnerApprovalAsync(db, assessment, ct);
+    var state = !current ? MaterialityCalculationStates.Stale : !policyCurrent ? MaterialityCalculationStates.BlockedPolicy :
+      approved ? MaterialityCalculationStates.Approved : MaterialityCalculationStates.Draft;
     var route = state switch
     {
       MaterialityCalculationStates.Stale => "The approved mapping or trial balance changed. Recalculate; this calculation no longer supports difference evaluation.",
+      MaterialityCalculationStates.BlockedPolicy => "This historical calculation does not meet the current materiality policy. Recalculate before approval.",
       MaterialityCalculationStates.Approved => "Approved and bound to the current mapping and trial balance.",
-      _ => "Awaiting independent approval by a Manager or Partner who did not prepare it."
+      _ => "Awaiting independent Engagement Partner materiality approval."
     };
     return new(calculation.MaterialityAssessmentId, calculation, state, route);
   }
@@ -155,6 +154,48 @@ public static class MaterialityEngineService
   {
     var calculation = await db.MaterialityCalculations.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == firmId && x.MaterialityAssessmentId == assessmentId, ct);
     return calculation is null || await IsCurrentAsync(db, calculation, ct);
+  }
+
+  public static bool MatchesCurrentPolicy(MaterialityAssessment assessment, MaterialityCalculation calculation)
+  {
+    if (calculation.PolicyVersion != MaterialityCalculator.PolicyVersion ||
+        MaterialityCalculator.Validate(calculation.BenchmarkKind, calculation.RatePercent,
+          calculation.PerformancePercent, calculation.TrivialPercent) is not null || calculation.BenchmarkAmount <= 0)
+      return false;
+    var figures = MaterialityCalculator.Calculate(calculation.BenchmarkAmount, calculation.SourceLineCount,
+      calculation.RatePercent, calculation.PerformancePercent, calculation.TrivialPercent);
+    var expectedHash = MaterialityCalculator.InputHash(calculation.MappingVersionId, calculation.DatasetDigest,
+      calculation.BenchmarkKind, calculation.DestinationCode, calculation.BenchmarkAmount,
+      calculation.RatePercent, calculation.PerformancePercent, calculation.TrivialPercent);
+    return calculation.InputHash == expectedHash && figures.PlanningMateriality == calculation.PlanningMateriality &&
+      figures.TolerableError == calculation.TolerableError && figures.SadThreshold == calculation.SadThreshold &&
+      assessment.OverallMateriality == figures.PlanningMateriality && assessment.PerformanceMateriality == figures.TolerableError &&
+      assessment.ClearlyTrivialThreshold == figures.SadThreshold;
+  }
+
+  /// <summary>True only for a separate Partner with a Partner grant valid for this exact scope at approval time.</summary>
+  public static async Task<bool> HasIndependentPartnerApprovalAsync(
+    IAuditSphereDbContext db, MaterialityAssessment assessment, CancellationToken ct = default)
+  {
+    var approval = await db.MaterialityApprovals.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == assessment.FirmId && x.ClientId == assessment.ClientId && x.EngagementId == assessment.EngagementId &&
+      x.MaterialityAssessmentId == assessment.Id, ct);
+    if (approval is null || approval.ApprovedByUserId == assessment.ActorId) return false;
+    return await db.RoleGrants.AsNoTracking().AnyAsync(x => x.FirmId == assessment.FirmId &&
+      x.UserId == approval.ApprovedByUserId && x.Role == "Partner" && x.GrantedAt <= approval.ApprovedAt &&
+      (x.RevokedAt == null || x.RevokedAt >= approval.ApprovedAt) && (x.ExpiresAt == null || x.ExpiresAt > approval.ApprovedAt) &&
+      ((x.ClientId == null && x.EngagementId == null) ||
+       (x.ClientId == assessment.ClientId && x.EngagementId == null) ||
+       (x.ClientId == assessment.ClientId && x.EngagementId == assessment.EngagementId)), ct);
+  }
+
+  public static async Task<bool> IsPartnerApprovedCurrentAsync(
+    IAuditSphereDbContext db, MaterialityAssessment assessment, CancellationToken ct = default)
+  {
+    var calculation = await db.MaterialityCalculations.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == assessment.FirmId && x.MaterialityAssessmentId == assessment.Id, ct);
+    return calculation is not null && MatchesCurrentPolicy(assessment, calculation) &&
+      await IsCurrentAsync(db, calculation, ct) && await HasIndependentPartnerApprovalAsync(db, assessment, ct);
   }
 
   private static async Task<bool> IsCurrentAsync(IAuditSphereDbContext db, MaterialityCalculation calculation, CancellationToken ct)

@@ -255,7 +255,7 @@ public static class AuditPlanningService
             return CommandResult<MaterialityResult>.Fail(scope.Denied, scope.Message);
         var approval = await AuthorizationDecision.AuthorizeAsync(db, actor,
             new AuthorizationRequest(actor.FirmId, existing.ClientId, existing.EngagementId,
-                ["Manager", "Partner"], InternalOnly: true), ct);
+                ["Partner"], InternalOnly: true), ct);
         if (!approval.Succeeded)
             return CommandResult<MaterialityResult>.Fail(approval.ErrorCode!, approval.Message!);
         if (existing.ActorId == actor.UserId)
@@ -268,6 +268,14 @@ public static class AuditPlanningService
             x.FirmId == existing.FirmId && x.MaterialityAssessmentId == existing.Id, ct))
             return CommandResult<MaterialityResult>.Fail(ErrorCodes.ProtectedState,
                 "Only a draft materiality assessment can be approved.");
+        var calculation = await db.MaterialityCalculations.AsNoTracking().SingleOrDefaultAsync(x =>
+            x.FirmId == existing.FirmId && x.MaterialityAssessmentId == existing.Id, ct);
+        if (calculation is null)
+            return CommandResult<MaterialityResult>.Fail(ErrorCodes.GateBlocked,
+                "A manually entered or legacy materiality draft cannot be newly approved. Recalculate it from the current approved mapping and sealed trial balance.");
+        if (!MaterialityEngineService.MatchesCurrentPolicy(existing, calculation))
+            return CommandResult<MaterialityResult>.Fail(ErrorCodes.GateBlocked,
+                "The saved materiality inputs or thresholds do not reconcile to the current policy. Recalculate before Partner approval.");
         var approvalRecord = new MaterialityApproval
         {
             Id = Guid.CreateVersion7(), FirmId = existing.FirmId, ClientId = existing.ClientId,

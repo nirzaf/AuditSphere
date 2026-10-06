@@ -18,6 +18,8 @@ public static class LedgerStates
   public const string JournalReviewRequired = "REVIEW_REQUIRED";
   public const string JournalApproved = "APPROVED";
   public const string JournalPosted = "POSTED";
+  /// <summary>Posted-period purpose used for year-end transfers out of revenue and expense accounts.</summary>
+  public const string YearEndClosingPurpose = "YEAR_END_CLOSE";
 }
 
 public sealed class FirmAccount

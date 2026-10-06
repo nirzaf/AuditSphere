@@ -49,6 +49,7 @@ interface RowInput { likelihood: number; magnitude: number; fraud: boolean; rati
 
       <section class="panel" aria-labelledby="materiality-engine-heading">
         <h2 id="materiality-engine-heading">Materiality calculator</h2>
+        <p>PM means planning materiality: the selected benchmark amount multiplied by the base rate. TE (tolerable error) is 50–75% of PM; SAD (clearly trivial threshold) is 3–5% of PM. The benchmark-rate ranges follow the active STE policy. Profit before tax is currently derived from mapped balances excluding tax and has no normalization-adjustment workflow; do not treat it as normalized when adjustments are needed.</p>
         @if (p.latestCalculation; as c) {
           <p><audit-status [value]="c.state" /> {{ c.route }}</p>
           <dl class="facts" aria-label="Materiality thresholds">
@@ -57,18 +58,18 @@ interface RowInput { likelihood: number; magnitude: number; fraud: boolean; rati
             <dt>SAD threshold</dt><dd>{{ c.sadThreshold | money }} {{ c.currency }}</dd>
           </dl>
           <p><small>{{ c.benchmarkKind }}{{ c.destinationCode ? ' (' + c.destinationCode + ')' : '' }} of {{ c.benchmarkAmount | money }} {{ c.currency }} from {{ c.sourceLineCount }} mapped line(s), mapping version {{ c.mappingVersionNumber }}; rate {{ c.ratePercent }}%, TE {{ c.performancePercent }}% of PM, SAD {{ c.trivialPercent }}% of PM ({{ c.policyVersion }}).</small></p>
-          @if (c.state === 'DRAFT' && p.canApproveMateriality) { <button matButton="outlined" (click)="send('/api/ui/materiality/' + c.assessmentId + '/approve', {}, 'Materiality approved.')" [disabled]="cmd.busy()">Approve calculated materiality</button> }
+          @if (c.state === 'DRAFT' && p.canApproveMateriality) { <button matButton="outlined" (click)="send('/api/ui/materiality/' + c.assessmentId + '/approve', {}, 'Partner materiality approval recorded.')" [disabled]="cmd.busy()">Approve calculated materiality</button> }
         }
         @if (p.materialitySource; as s) {
           <p>Source: mapping version {{ s.mappingVersion }} over trial balance <code>{{ s.datasetDigest.slice(0, 12) }}</code> ({{ s.currency }}).</p>
           <div class="inline-form">
             <label>Benchmark <select name="option" [(ngModel)]="calc.option">
               @for (o of s.options; track o.kind + (o.destinationCode ?? '')) { @if (o.amount !== null) { <option [value]="o.kind + '|' + (o.destinationCode ?? '')">{{ o.label }} — {{ o.amount | money }}</option> } }</select></label>
-            <label>Rate % <input name="rate" inputmode="decimal" [(ngModel)]="calc.rate" /></label>
+            <label>Base rate % <input name="rate" inputmode="decimal" [(ngModel)]="calc.rate" /></label>
             <label>TE % of PM <input name="te" inputmode="decimal" [(ngModel)]="calc.performance" /></label>
             <label>SAD % of PM <input name="sad" inputmode="decimal" [(ngModel)]="calc.trivial" /></label>
           </div>
-          @if (range(p); as r) { <p><small>Policy range for this benchmark: {{ r.minRatePercent }}%–{{ r.maxRatePercent }}%; TE {{ p.performanceMin }}–{{ p.performanceMax }}%; SAD {{ p.trivialMin }}–{{ p.trivialMax }}%.</small></p> }
+          @if (range(p); as r) { <p><small>Policy range for this benchmark: {{ r.minRatePercent }}%–{{ r.maxRatePercent }}%; TE {{ p.performanceMin }}–{{ p.performanceMax }}% of PM; SAD {{ p.trivialMin }}–{{ p.trivialMax }}% of PM.</small></p> }
           <label>Rationale for the benchmark <textarea name="calcRationale" [(ngModel)]="calc.rationale" maxlength="2000" rows="2"></textarea></label>
           <button matButton="filled" (click)="calculate(p)" [disabled]="cmd.busy() || !option(p)">Calculate materiality</button>
         } @else { <p>{{ p.materialitySourceMessage ?? 'The mapped trial balance is unavailable.' }}</p> }
@@ -82,22 +83,14 @@ interface RowInput { likelihood: number; magnitude: number; fraud: boolean; rati
             <dt>Clearly trivial</dt><dd>{{ m.clearlyTrivialThreshold | money }}</dd><dt>Benchmark</dt><dd>{{ m.benchmarkSource }} ({{ m.benchmarkVersion }})</dd>
             <dt>Benchmark amount</dt><dd>{{ m.benchmarkAmount | money }} × {{ m.rateApplied }}</dd><dt>Rationale</dt><dd>{{ m.rationale }}</dd><dt>Status</dt><dd>{{ m.status }}</dd>
           </dl>
-          @if (p.canApproveMateriality && !p.latestCalculation) { <button matButton="filled" (click)="send('/api/ui/materiality/' + m.id + '/approve', {}, 'The materiality assessment was independently approved.')" [disabled]="cmd.busy()">Approve materiality</button> }
+          @if (p.canApproveMateriality) { <button matButton="filled" (click)="send('/api/ui/materiality/' + m.id + '/approve', {}, 'Partner materiality approval recorded.')" [disabled]="cmd.busy()">Approve materiality</button> }
           @if (m.approvedAt) { <p><small>Approved by {{ m.approvedByUserId }} at {{ m.approvedAt.slice(0, 16).replace('T', ' ') }}.</small></p> }
+          @if (m.status === 'RECALCULATION_REQUIRED') { <p class="warning-text">A prior approval is not a verified independent Partner approval under the current policy. Recalculate and obtain Partner approval.</p> }
           @if (m.qualitativeConsiderations) { <p>Qualitative considerations: {{ m.qualitativeConsiderations }}</p> }
         } @else { <p>No materiality assessment has been recorded for this engagement.</p> }
-        <details><summary>Record a materiality assessment</summary>
-          <form class="inline-form" (submit)="$event.preventDefault(); recordMateriality()">
-            <label>Benchmark source <input name="mb" [(ngModel)]="mat.benchmark" maxlength="200" required /></label>
-            <label>Benchmark version <input name="mv" [(ngModel)]="mat.version" maxlength="100" required /></label>
-            <label>Benchmark amount <input name="ma" inputmode="decimal" [(ngModel)]="mat.amount" required /></label>
-            <label>Applied rate (0–1) <input name="mr" inputmode="decimal" [(ngModel)]="mat.rate" required /></label>
-            <label>Overall materiality <input name="mo" inputmode="decimal" [(ngModel)]="mat.overall" required /></label>
-            <label>Performance materiality <input name="mp" inputmode="decimal" [(ngModel)]="mat.performance" required /></label>
-            <label>Clearly trivial threshold <input name="mt" inputmode="decimal" [(ngModel)]="mat.trivial" required /></label>
-            <label>Rationale <textarea name="mra" [(ngModel)]="mat.rationale" rows="2" required></textarea></label>
-            <button matButton="filled" type="submit" [disabled]="cmd.busy() || p.professionalWorkBlocked">Record assessment</button>
-          </form></details>
+        @if (p.materiality && !p.latestCalculation) {
+          <p class="muted">This historical/manual assessment is read-only and cannot receive a new approval. Recalculate materiality from the current approved mapping and sealed trial balance.</p>
+        }
       </section>
 
       <section class="panel" aria-labelledby="risks-heading">
@@ -200,7 +193,6 @@ export class AuditPlan {
   readonly cmd = new CommandState(this.api);
   private readonly inputs = new Map<string, RowInput>();
   calc = { option: '', rate: '1', performance: '75', trivial: '5', rationale: '' };
-  mat = { benchmark: '', version: '', amount: '', rate: '', overall: '', performance: '', trivial: '', rationale: '' };
   risk = { area: '', assertion: '', description: '', drivers: '', significance: 'NORMAL', response: '' };
   pop = { purpose: '', assertion: '', receipt: '', extraction: '', rows: 0, total: '', currency: '' };
   finding = { type: '', impact: '', amount: '' };
@@ -226,16 +218,7 @@ export class AuditPlan {
     const rate = decimalInput(this.calc.rate), performance = decimalInput(this.calc.performance), trivial = decimalInput(this.calc.trivial);
     if (!kind || rate === null || performance === null || trivial === null) return this.invalid('Choose a benchmark and enter the percentages as numbers.');
     this.send(this.base() + '/materiality/calculate', { benchmarkKind: kind, destinationCode: destination || null, ratePercent: rate, performancePercent: performance,
-      trivialPercent: trivial, rationale: this.calc.rationale }, 'Materiality calculated; an independent Manager or Partner must approve it.');
-  }
-  recordMateriality(): void {
-    const m = this.mat;
-    const values = [m.amount, m.overall, m.performance, m.trivial].map((v) => decimalInput(v, 6));
-    const rate = decimalInput(m.rate, 6);
-    if (values.some((v) => v === null) || rate === null) return this.invalid('Enter every materiality amount and the rate as numbers.');
-    this.send(this.base() + '/materiality', { benchmarkSource: m.benchmark, benchmarkVersion: m.version, rationale: m.rationale, benchmarkAmount: values[0], rateApplied: rate,
-      overallMateriality: values[1], performanceMateriality: values[2], clearlyTrivialThreshold: values[3] }, 'The materiality assessment was recorded as a draft.',
-      () => (this.mat = { benchmark: '', version: '', amount: '', rate: '', overall: '', performance: '', trivial: '', rationale: '' }));
+      trivialPercent: trivial, rationale: this.calc.rationale }, 'Materiality calculated; independent Engagement Partner materiality approval is required.');
   }
   recordRisk(): void {
     const r = this.risk;

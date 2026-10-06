@@ -160,9 +160,10 @@ describe('Finance & Firm Ledger Contracts', () => {
       revenue: '50000.00',
       expenses: '20000.00',
       profit: '30000.00',
+      cumulativeProfit: '30000.00',
       assets: '130000.00',
       liabilities: '0.00',
-      equity: '130000.00',
+      equity: '100000.00',
       positionReconciles: true,
     };
 

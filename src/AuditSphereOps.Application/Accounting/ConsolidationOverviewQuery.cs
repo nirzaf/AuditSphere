@@ -135,6 +135,7 @@ public static class ConsolidationOverviewQuery
           ApprovedAdvancedScheduleCount = advancedSchedules?.Approved ?? 0,
           AdvancedExecutionCount = advancedExecutions?.Count ?? 0,
           ApprovedAdvancedExecutionCount = advancedExecutions?.Approved ?? 0,
+          IsAdvanced = advancedRequired,
           AdvancedScheduleStatus = advancedStatus,
           AdvancedScheduleGuidance = advancedRequired
             ? "Readiness requires an approved current/comparative statement execution and separate reviewer approval; local evidence does not prove methodology or live acceptance."

@@ -80,11 +80,6 @@ else
                     <dt>Rationale</dt><dd>@_materiality.Rationale</dd>
                     <dt>Status</dt><dd>@(_materialityApproval is null ? _materiality.Status : MaterialityStatuses.Approved)</dd>
                 </dl>
-                @if (_materialityApproval is null && _actor is not null &&
-                    _materiality.ActorId != _actor.UserId && _actor.Roles.Any(x => x is "Manager" or "Partner"))
-                {
-                    <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-small" OnClick="ApproveMaterialityAsync" Disabled="@_busy">Approve materiality</MudButton>
-                }
                 @if (_materialityApproval is not null)
                 {
                     <p class="muted">Approved by @_materialityApproval.ApprovedByUserId at @_materialityApproval.ApprovedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm").</p>
@@ -99,42 +94,7 @@ else
                 <p class="empty-state">No materiality assessment has been recorded for this engagement.</p>
             }
 
-            <fieldset class="inline-form">
-                <legend>Record a materiality assessment</legend>
-                <div class="form-group">
-                    <label for="mat-benchmark">Benchmark source</label>
-                    <MudTextField T="string" @bind-Value="_matBenchmark" MaxLength="200" id="mat-benchmark" required />
-                </div>
-                <div class="form-group">
-                    <label for="mat-version">Benchmark version</label>
-                    <MudTextField T="string" @bind-Value="_matVersion" MaxLength="100" id="mat-version" required />
-                </div>
-                <div class="form-group">
-                    <label for="mat-amount">Benchmark amount</label>
-                    <MudNumericField T="decimal" @bind-Value="_matAmount" Step="0.000001m" id="mat-amount" required />
-                </div>
-                <div class="form-group">
-                    <label for="mat-rate">Applied rate (0–1)</label>
-                    <MudNumericField T="decimal" @bind-Value="_matRate" Step="0.0001m" id="mat-rate" required />
-                </div>
-                <div class="form-group">
-                    <label for="mat-overall">Overall materiality</label>
-                    <MudNumericField T="decimal" @bind-Value="_matOverall" Step="0.000001m" id="mat-overall" required />
-                </div>
-                <div class="form-group">
-                    <label for="mat-performance">Performance materiality</label>
-                    <MudNumericField T="decimal" @bind-Value="_matPerformance" Step="0.000001m" id="mat-performance" required />
-                </div>
-                <div class="form-group">
-                    <label for="mat-trivial">Clearly trivial threshold</label>
-                    <MudNumericField T="decimal" @bind-Value="_matTrivial" Step="0.000001m" id="mat-trivial" required />
-                </div>
-                <div class="form-group">
-                    <label for="mat-rationale">Rationale</label>
-                    <MudTextField T="string" @bind-Value="_matRationale" Lines="2" id="mat-rationale" required />
-                </div>
-                <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-small" OnClick="CreateMaterialityAsync" Disabled="@(_busy || _engagement.ProfessionalWorkBlocked)">Record assessment</MudButton>
-            </fieldset>
+            <p class="muted">New assessments must be calculated from the current approved mapping and sealed trial balance. Historical manual assessments remain readable but cannot be newly approved.</p>
         </MudPaper>
 
         <!-- Risks -->
@@ -340,14 +300,6 @@ else
     List<FindingRecord> _findings = [];
     List<WorkpaperRecord> _workpapers = [];
 
-    string _matBenchmark = "";
-    string _matVersion = "";
-    string _matRationale = "";
-    decimal _matAmount;
-    decimal _matRate;
-    decimal _matOverall;
-    decimal _matPerformance;
-    decimal _matTrivial;
 
     string _riskArea = "";
     string _riskAssertion = "";
@@ -493,8 +445,6 @@ else
         _status = "IN_PROGRESS";
         _result = null;
         _successMessage = null;
-        _matBenchmark = _matVersion = _matRationale = "";
-        _matAmount = _matRate = _matOverall = _matPerformance = _matTrivial = 0;
         _riskArea = _riskAssertion = _riskDescription = _riskDrivers = _riskResponse = "";
         _riskSignificance = SignificanceDecisions.Normal;
         _popPurpose = _popAssertion = _popReceiptRef = _popExtraction = _popCurrency = "";
@@ -510,46 +460,6 @@ else
         _successMessage = result.Succeeded ? successMessage : null;
         if (!result.Succeeded && result.ErrorCode is ErrorCodes.ScopeDenied or ErrorCodes.GenerationStale)
             ClearPlan();
-    }
-
-    private async Task CreateMaterialityAsync()
-    {
-        var actor = _actor;
-        var engagement = _engagement;
-        var generation = _loadGeneration;
-        if (actor is null || engagement is null || _busy) return;
-        _busy = true;
-        try
-        {
-            await using var db = await DbFactory.CreateDbContextAsync();
-            var created = await AuditPlanningService.CreateMaterialityAssessmentAsync(db, actor,
-                new CreateMaterialityRequest(engagement.Id, _matBenchmark, _matVersion, _matRationale,
-                    _matAmount, _matRate, _matOverall, _matPerformance, _matTrivial, null));
-            if (generation != _loadGeneration) return;
-            ApplyCommandResult(created.Succeeded ? CommandResult.Ok() : CommandResult.Fail(created.ErrorCode!, created.Message ?? "The command was refused."),
-                "The materiality assessment was recorded as a draft.");
-            if (created.Succeeded) await RefreshAsync(generation);
-        }
-        finally { _busy = false; }
-    }
-
-    private async Task ApproveMaterialityAsync()
-    {
-        var actor = _actor;
-        var assessment = _materiality;
-        var generation = _loadGeneration;
-        if (actor is null || assessment is null || _busy) return;
-        _busy = true;
-        try
-        {
-            await using var db = await DbFactory.CreateDbContextAsync();
-            var result = await AuditPlanningService.ApproveMaterialityAssessmentAsync(db, actor, assessment.Id);
-            if (generation != _loadGeneration) return;
-            ApplyCommandResult(result.Succeeded ? CommandResult.Ok() : CommandResult.Fail(result.ErrorCode!, result.Message ?? "The command was refused."),
-                "The materiality assessment was independently approved.");
-            if (result.Succeeded) await RefreshAsync(generation);
-        }
-        finally { _busy = false; }
     }
 
     private async Task CreateRiskAsync()

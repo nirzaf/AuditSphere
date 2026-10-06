@@ -25,13 +25,15 @@ public sealed class PlanningAndResourcesJourneyTests
     await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "AS-STE-PLANNING-01");
     var f = host.Fixture;
     var partner = PbcSeed.User(f.FirmId, "Staff"); partner.DisplayName = "Pat Partner";
+    var partnerReviewer = PbcSeed.User(f.FirmId, "Staff"); partnerReviewer.DisplayName = "Rae Reviewing Partner";
     var manager = PbcSeed.User(f.FirmId, "Staff"); manager.DisplayName = "Mona Manager";
     var senior = PbcSeed.User(f.FirmId, "Staff"); senior.DisplayName = "Sam Senior";
     Guid redRisk;
     await using (var db = host.CreateDbContext())
     {
-      db.Users.AddRange(partner, manager, senior);
-      db.RoleGrants.AddRange(PbcSeed.Grant(f.FirmId, partner, "Partner"), PbcSeed.Grant(f.FirmId, manager, "Manager", f.ClientId, f.EngagementId));
+      db.Users.AddRange(partner, partnerReviewer, manager, senior);
+      db.RoleGrants.AddRange(PbcSeed.Grant(f.FirmId, partner, "Partner"), PbcSeed.Grant(f.FirmId, partnerReviewer, "Partner", f.ClientId, f.EngagementId),
+        PbcSeed.Grant(f.FirmId, manager, "Manager", f.ClientId, f.EngagementId));
       db.StaffCertifications.Add(new StaffCertification { Id = Guid.NewGuid(), FirmId = f.FirmId, UserId = manager.Id, Name = "ACCA", RecordedAt = DateTimeOffset.UtcNow, RecordedByUserId = partner.Id });
       var datasetId = Guid.NewGuid();
       var mappingId = Guid.NewGuid();
@@ -108,12 +110,17 @@ public sealed class PlanningAndResourcesJourneyTests
     var calculator = page.GetByRole(AriaRole.Region, new() { Name = "Materiality calculator", Exact = true });
     await calculator.GetByRole(AriaRole.Heading, new() { Name = "Materiality calculator" }).WaitForAsync(new() { Timeout = 20000 });
     await SettleAsync();
+    await Assertions.Expect(calculator).ToContainTextAsync("PM means planning materiality");
+    await Assertions.Expect(calculator).ToContainTextAsync("SAD (clearly trivial threshold) is 3–5% of PM");
+    await Assertions.Expect(page.GetByText("Record a materiality assessment", new() { Exact = true })).ToHaveCountAsync(0);
+    var manualEndpointStatus = await page.EvaluateAsync<int>("async engagementId => (await fetch(`/api/ui/engagements/${engagementId}/audit-plan/materiality`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ benchmarkSource: 'manual', benchmarkVersion: 'manual', rationale: 'test', benchmarkAmount: '1000000', rateApplied: '0.05', overallMateriality: '50000', performanceMateriality: '37500', clearlyTrivialThreshold: '2500' }) })).status", f.EngagementId.ToString("D"));
+    Assert.Equal(404, manualEndpointStatus);
     var benchmark = calculator.GetByRole(AriaRole.Combobox, new() { Name = "Benchmark", Exact = true });
     await benchmark.SelectOptionAsync(new SelectOptionValue { Label = "Revenue (income section) — 1,500,000.00" });
     await page.GetByLabel("Rationale for the benchmark", new() { Exact = true }).FillAsync("Revenue drives user focus for this trading entity.");
     await page.GetByLabel("Rationale for the benchmark", new() { Exact = true }).PressAsync("Tab");
     await page.GetByRole(AriaRole.Button, new() { Name = "Calculate materiality" }).ClickAsync();
-    await Assertions.Expect(page.GetByText("Materiality calculated; an independent Manager or Partner must approve it.")).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByText("Materiality calculated; independent Engagement Partner materiality approval is required.")).ToBeVisibleAsync();
     var thresholds = page.Locator("[aria-label='Materiality thresholds']");
     await Assertions.Expect(thresholds).ToContainTextAsync("15,000.00 QAR");
     await Assertions.Expect(thresholds).ToContainTextAsync("11,250.00 QAR");
@@ -121,18 +128,27 @@ public sealed class PlanningAndResourcesJourneyTests
     await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Approve calculated materiality", Exact = true })).ToHaveCountAsync(0);
     await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Approve materiality", Exact = true })).ToHaveCountAsync(0);
 
-    // The preparer cannot approve their own calculation; an independent Manager can.
+    // Neither the preparer nor a Manager may give the final Partner materiality approval.
     var managerOrigin = await host.StartApiForIdentityAsync(manager,
       new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
     var managerPage = await (await browser.NewContextAsync()).NewPageAsync();
     await managerPage.GotoAsync($"{managerOrigin}/auth/sign-in?returnUrl={Uri.EscapeDataString($"/app/engagements/{f.EngagementId:D}/audit-plan")}");
     var materialityApproval = managerPage.GetByRole(AriaRole.Button,
       new() { Name = "Approve calculated materiality", Exact = true });
-    await Assertions.Expect(materialityApproval).ToBeVisibleAsync();
+    await Assertions.Expect(materialityApproval).ToHaveCountAsync(0);
     await Assertions.Expect(managerPage.GetByRole(AriaRole.Button,
       new() { Name = "Approve materiality", Exact = true })).ToHaveCountAsync(0);
-    await materialityApproval.ClickAsync();
-    await Assertions.Expect(managerPage.GetByText("Materiality approved.", new() { Exact = true })).ToBeVisibleAsync();
+
+    var reviewerOrigin = await host.StartApiForIdentityAsync(partnerReviewer,
+      new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
+    var reviewerPage = await (await browser.NewContextAsync()).NewPageAsync();
+    await reviewerPage.GotoAsync($"{reviewerOrigin}/auth/sign-in?returnUrl={Uri.EscapeDataString($"/app/engagements/{f.EngagementId:D}/audit-plan")}");
+    var reviewerApproval = reviewerPage.GetByRole(AriaRole.Button,
+      new() { Name = "Approve calculated materiality", Exact = true });
+    await Assertions.Expect(reviewerApproval).ToBeVisibleAsync();
+    await Assertions.Expect(reviewerPage.GetByText("Awaiting independent Engagement Partner materiality approval.")).ToBeVisibleAsync();
+    await reviewerApproval.ClickAsync();
+    await Assertions.Expect(reviewerPage.GetByText("Partner materiality approval recorded.", new() { Exact = true })).ToBeVisibleAsync();
     await using (var db = host.CreateDbContext())
     {
       var assessment = await db.MaterialityAssessments.AsNoTracking()
@@ -140,7 +156,7 @@ public sealed class PlanningAndResourcesJourneyTests
       var approval = await db.MaterialityApprovals.AsNoTracking()
         .SingleAsync(x => x.MaterialityAssessmentId == assessment.Id);
       Assert.Equal(partner.Id, assessment.ActorId);
-      Assert.Equal(manager.Id, approval.ApprovedByUserId);
+      Assert.Equal(partnerReviewer.Id, approval.ApprovedByUserId);
     }
 
     // Create, assess and assign a separate risk through Angular's route controls.

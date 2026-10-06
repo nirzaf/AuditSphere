@@ -5,8 +5,6 @@ namespace AuditSphereOps.Api.Ui;
 
 public static partial class UiEndpoints
 {
-  public sealed record MaterialityInput(string BenchmarkSource, string BenchmarkVersion, string Rationale, string BenchmarkAmount, string RateApplied,
-    string OverallMateriality, string PerformanceMateriality, string ClearlyTrivialThreshold);
   public sealed record RiskInput(string Area, string Assertion, string Description, string Drivers, string Significance, string Response);
   public sealed record PopulationInput(string Purpose, string Assertion, string SourceReceiptReference, string ExtractionParameters, int RowCount,
     string MonetaryControlTotal, string Currency);
@@ -20,12 +18,6 @@ public static partial class UiEndpoints
   {
     group.MapGet("/engagements/{id:guid}/audit-plan", (Guid id, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => AuditPlanWorkspaceQuery.GetAsync(db, actor, id, ct)));
-    group.MapPost("/engagements/{id:guid}/audit-plan/materiality", (Guid id, MaterialityInput i, HttpContext http) =>
-      TryDecimal(i.BenchmarkAmount, out var amount) && TryDecimal(i.RateApplied, out var rate) && TryDecimal(i.OverallMateriality, out var overall) &&
-      TryDecimal(i.PerformanceMateriality, out var performance) && TryDecimal(i.ClearlyTrivialThreshold, out var trivial)
-        ? CommandAsync(http, (db, actor, ct) => AuditPlanningService.CreateMaterialityAssessmentAsync(db, actor,
-            new CreateMaterialityRequest(id, i.BenchmarkSource, i.BenchmarkVersion, i.Rationale, amount, rate, overall, performance, trivial, null), ct))
-        : Task.FromResult(Invalid("Enter every materiality amount and the rate as numbers.")));
     group.MapPost("/materiality/{assessmentId:guid}/approve", (Guid assessmentId, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => AuditPlanningService.ApproveMaterialityAssessmentAsync(db, actor, assessmentId, ct)));
     group.MapPost("/engagements/{id:guid}/audit-plan/materiality/calculate", (Guid id, MaterialityCalculationInput i, HttpContext http) =>

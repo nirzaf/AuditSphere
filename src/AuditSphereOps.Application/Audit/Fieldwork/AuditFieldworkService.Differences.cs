@@ -126,12 +126,11 @@ public static partial class AuditFieldworkService
         x.ClientId == clientId && x.EngagementId == engagementId)
       .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
     if (materiality is null) return null;
+    if (!await MaterialityEngineService.IsPartnerApprovedCurrentAsync(db, materiality, ct)) return null;
     var approval = await db.MaterialityApprovals.AsNoTracking().SingleOrDefaultAsync(x =>
       x.FirmId == firmId && x.ClientId == clientId && x.EngagementId == engagementId &&
       x.MaterialityAssessmentId == materiality.Id, ct);
     if (approval is null) return null;
-    // A calculation derived from a replaced mapping or trial balance no longer supports evaluation.
-    if (!await MaterialityEngineService.IsAssessmentCurrentAsync(db, firmId, materiality.Id, ct)) return null;
     var differences = await db.AuditDifferences.AsNoTracking().Where(x => x.FirmId == firmId &&
         x.ClientId == clientId && x.EngagementId == engagementId)
       .OrderBy(x => x.Id)

@@ -142,13 +142,14 @@ public sealed class FirmOperationsTests
     var w = await SeedAsync(pg);
     var finance = w.A("finance", "FinanceManager");
     var reviewer = w.A("reviewer", "FinanceReviewer");
-    Guid cash, capital, rent, salaries;
+    Guid cash, capital, rent, salaries, revenueAccount;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       cash = (await LedgerService.CreateFirmAccountAsync(db, finance, new CreateFirmAccountRequest("1000", "Bank", LedgerStates.AccountAsset, LedgerStates.Debit))).Value;
       capital = (await LedgerService.CreateFirmAccountAsync(db, finance, new CreateFirmAccountRequest("3000", "Partners' capital", LedgerStates.AccountEquity, LedgerStates.Credit))).Value;
       rent = (await LedgerService.CreateFirmAccountAsync(db, finance, new CreateFirmAccountRequest("6100", "Office rent", LedgerStates.AccountExpense, LedgerStates.Debit))).Value;
       salaries = (await LedgerService.CreateFirmAccountAsync(db, finance, new CreateFirmAccountRequest("6200", "Staff salaries", LedgerStates.AccountExpense, LedgerStates.Debit))).Value;
+      revenueAccount = (await LedgerService.CreateFirmAccountAsync(db, finance, new CreateFirmAccountRequest("4000", "Service revenue", LedgerStates.AccountRevenue, LedgerStates.Credit))).Value;
       foreach (var period in new[] { "2026-01", "2026-02" })
         Assert.True((await LedgerService.CreateFirmPeriodAsync(db, finance, new CreateFirmPeriodRequest(period))).Succeeded);
       var january = await db.FirmPeriods.AsNoTracking().SingleAsync(x => x.FirmId == w.FirmId && x.PeriodCode == "2026-01");
@@ -157,6 +158,11 @@ public sealed class FirmOperationsTests
       Assert.True((await LedgerService.SubmitFirmJournalAsync(db, finance, capitalJournal)).Succeeded);
       Assert.True((await LedgerService.ApproveFirmJournalAsync(db, reviewer, capitalJournal)).Succeeded);
       Assert.True((await LedgerService.PostFirmJournalAsync(db, finance, capitalJournal)).Succeeded);
+      var revenueJournal = (await LedgerService.CreateFirmJournalDraftAsync(db, finance, new CreateFirmJournalDraftRequest(january.Id, "J-REV", "MANUAL", "REV-1", 1, "MONTHLY_REVENUE", "QAR",
+        [new FirmJournalLineRequest(cash, "January client service", 10_000m, 0m), new FirmJournalLineRequest(revenueAccount, "January client service", 0m, 10_000m)]))).Value;
+      Assert.True((await LedgerService.SubmitFirmJournalAsync(db, finance, revenueJournal)).Succeeded);
+      Assert.True((await LedgerService.ApproveFirmJournalAsync(db, reviewer, revenueJournal)).Succeeded);
+      Assert.True((await LedgerService.PostFirmJournalAsync(db, finance, revenueJournal)).Succeeded);
     }
 
     async Task<Guid> ExpenseAsync(DateOnly date, string category, Guid account, decimal amount, string payee)
@@ -176,18 +182,37 @@ public sealed class FirmOperationsTests
     await ExpenseAsync(new DateOnly(2026, 2, 1), FirmExpenseCategories.Rent, rent, 6_500m, "West Bay Towers");
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
+      var february = await db.FirmPeriods.AsNoTracking().SingleAsync(x => x.FirmId == w.FirmId && x.PeriodCode == "2026-02");
+      var closing = await LedgerService.CreateFirmJournalDraftAsync(db, finance, new CreateFirmJournalDraftRequest(february.Id, "J-CLOSE", "MANUAL", "CLOSE-2026", 1,
+        LedgerStates.YearEndClosingPurpose, "QAR",
+        [new FirmJournalLineRequest(revenueAccount, "Close annual revenue", 10_000m, 0m),
+         new FirmJournalLineRequest(salaries, "Close annual expenses", 0m, 18_000m),
+         new FirmJournalLineRequest(rent, "Close annual expenses", 0m, 6_500m),
+         new FirmJournalLineRequest(capital, "Transfer annual loss to equity", 14_500m, 0m)]));
+      Assert.True(closing.Succeeded, closing.Message);
+      Assert.True((await LedgerService.SubmitFirmJournalAsync(db, finance, closing.Value)).Succeeded);
+      Assert.True((await LedgerService.ApproveFirmJournalAsync(db, reviewer, closing.Value)).Succeeded);
+      Assert.True((await LedgerService.PostFirmJournalAsync(db, finance, closing.Value)).Succeeded);
+    }
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
       // Validation: an income account cannot be the expense account; a missing source document is refused.
       Assert.Equal("expense.invalid", (await FirmExpenseService.RecordAsync(db, finance, new(new DateOnly(2026, 2, 3), "PETTY_CASH", "Shop", "Tea", 50m, "QAR", capital, cash, "r.pdf", "application/pdf", [1]))).ErrorCode);
       Assert.Equal("expense.invalid", (await FirmExpenseService.RecordAsync(db, finance, new(new DateOnly(2026, 2, 3), "PETTY_CASH", "Shop", "Tea", 50m, "QAR", rent, cash, "r.pdf", "application/pdf", []))).ErrorCode);
 
+      var januaryTb = (await FirmExpenseService.TrialBalanceAsync(db, w.A("partner", "Partner"), "2026-01", "2026-01")).Value!;
+      Assert.Equal((10_000m, 18_000m, -8_000m, -8_000m),
+        (januaryTb.Revenue, januaryTb.Expenses, januaryTb.Profit, januaryTb.CumulativeProfit));
+      Assert.True(januaryTb.PositionReconciles);
+
       var tb = (await FirmExpenseService.TrialBalanceAsync(db, w.A("partner", "Partner"), "2026-02", "2026-02")).Value!;
       Assert.True(tb.Balanced);
       var bank = tb.Rows.Single(x => x.Code == "1000");
-      Assert.Equal((32_000m, 0m, 0m, 6_500m, 25_500m), (bank.OpeningDebit, bank.MovementDebit, bank.OpeningCredit, bank.MovementCredit, bank.ClosingDebit));
+      Assert.Equal((42_000m, 0m, 0m, 6_500m, 35_500m), (bank.OpeningDebit, bank.MovementDebit, bank.OpeningCredit, bank.MovementCredit, bank.ClosingDebit));
       var rentRow = tb.Rows.Single(x => x.Code == "6100");
-      Assert.Equal((0m, 6_500m, 6_500m), (rentRow.OpeningDebit, rentRow.MovementDebit, rentRow.ClosingDebit));
-      Assert.Equal((0m, 24_500m, -24_500m), (tb.Revenue, tb.Expenses, tb.Profit));
-      Assert.Equal((25_500m, 0m, 50_000m), (tb.Assets, tb.Liabilities, tb.Equity));
+      Assert.Equal((0m, 6_500m, 0m), (rentRow.OpeningDebit, rentRow.MovementDebit, rentRow.ClosingDebit));
+      Assert.Equal((0m, 6_500m, -6_500m, 0m), (tb.Revenue, tb.Expenses, tb.Profit, tb.CumulativeProfit));
+      Assert.Equal((35_500m, 0m, 35_500m), (tb.Assets, tb.Liabilities, tb.Equity));
       Assert.True(tb.PositionReconciles);
       Assert.Equal(tb.TotalDebit, tb.TotalCredit);
       Assert.Equal(ErrorCodes.ScopeDenied, (await FirmExpenseService.TrialBalanceAsync(db, w.A("staff", "Staff"), "2026-02", "2026-02")).ErrorCode);

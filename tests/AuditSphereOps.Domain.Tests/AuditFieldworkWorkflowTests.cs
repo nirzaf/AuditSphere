@@ -238,12 +238,47 @@ public sealed class AuditFieldworkWorkflowTests
         null, null, null, null, null, ["aggregate-difference-schedule"], "Prepared conclusion."));
     Assert.False(unapprovedAggregate.Succeeded);
     Assert.Equal(ErrorCodes.GateBlocked, unapprovedAggregate.ErrorCode);
-    var materiality = await AuditPlanningService.CreateMaterialityAssessmentAsync(db, scope.Actor,
-      new CreateMaterialityRequest(scope.EngagementId, "Total assets", "AFS-v1", "Stable benchmark",
-        1_000_000m, 0.05m, 50_000m, 37_500m, 2_500m, null));
-    Assert.True(materiality.Succeeded);
-    Assert.True((await AuditPlanningService.ApproveMaterialityAssessmentAsync(db, reviewer,
-      materiality.Value!.AssessmentId)).Succeeded);
+    var datasetId = Guid.CreateVersion7();
+    var mappingId = Guid.CreateVersion7();
+    var accounts = new (string Code, string Name, decimal Amount, string Destination, string Section)[]
+    {
+      ("1000", "Cash", 10_000m, "CASH", "ASSETS"), ("3000", "Equity", -5_000m, "EQUITY", "EQUITY"),
+      ("4000", "Revenue", -10_000m, "REVENUE", "INCOME"), ("5000", "Expense", 5_000m, "EXPENSE", "EXPENSE")
+    };
+    db.TrialBalanceDatasets.Add(new TrialBalanceDataset
+    {
+      Id = datasetId, FirmId = scope.FirmId, ClientId = scope.ClientId, EngagementId = scope.EngagementId,
+      Currency = "QAR", Balanced = true, ValidationStatus = "Accepted", ImportState = TrialBalanceImportStates.Loading,
+      NormalizedDatasetDigest = Hashing.Sha256Hex(datasetId.ToString()), ImportedAt = DateTimeOffset.UtcNow,
+      ImportedByUserId = scope.Actor.UserId
+    });
+    db.TrialBalanceRows.AddRange(accounts.Select(x => new TrialBalanceRow
+    {
+      Id = Guid.CreateVersion7(), DatasetId = datasetId, AccountCode = x.Code, AccountName = x.Name,
+      Amount = x.Amount, Currency = "QAR", Entity = "TEST"
+    }));
+    await db.SaveChangesAsync();
+    await db.TrialBalanceDatasets.Where(x => x.Id == datasetId)
+      .ExecuteUpdateAsync(s => s.SetProperty(x => x.ImportState, TrialBalanceImportStates.Sealed));
+    db.MappingVersions.Add(new MappingVersion
+    {
+      Id = mappingId, FirmId = scope.FirmId, ClientId = scope.ClientId, EngagementId = scope.EngagementId,
+      DatasetId = datasetId, TaxonomyVersion = "tax-v1", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31",
+      Status = AccountingPackageStates.MappingApproved, CreatedByUserId = scope.Actor.UserId,
+      ApprovedByUserId = reviewer.UserId, ApprovedAt = DateTimeOffset.UtcNow, CreatedAt = DateTimeOffset.UtcNow
+    });
+    db.MappingAllocations.AddRange(accounts.Select(x => new MappingAllocation
+    {
+      Id = Guid.CreateVersion7(), FirmId = scope.FirmId, ClientId = scope.ClientId, EngagementId = scope.EngagementId,
+      MappingVersionId = mappingId, SourceAccountCode = x.Code, DestinationCode = x.Destination,
+      StatementSection = x.Section, Fraction = 1m, Rationale = "Reviewed source mapping", CreatedAt = DateTimeOffset.UtcNow
+    }));
+    await db.SaveChangesAsync();
+    var materiality = await MaterialityEngineService.CalculateAsync(db, scope.Actor,
+      new(scope.EngagementId, MaterialityBenchmarks.Revenue, null, 1m, 75m, 5m, "Revenue is the stable benchmark."));
+    Assert.True(materiality.Succeeded, materiality.Message);
+    Assert.True((await AuditPlanningService.ApproveMaterialityAssessmentAsync(db, reviewer, materiality.Value!.AssessmentId)).Succeeded);
+    await db.SaveChangesAsync();
     var aggregate = await AuditFieldworkService.RecordAreaAssessmentAsync(db, scope.Actor,
       new RecordAreaAssessmentRequest(scope.EngagementId, null, AuditAreaCodes.AuditDifferences,
         AuditAreaAssessmentKinds.AggregateDifferences, "audit-differences-aggregate.v1", "{}", null, null, null,

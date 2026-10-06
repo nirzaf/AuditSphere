@@ -15,7 +15,9 @@ public static class RoleGrantExpiry
   public static async Task<bool> RevokeExpiredForUserAsync(IAuditSphereDbContext db, Guid firmId, Guid userId,
     DateTimeOffset now, CancellationToken ct = default)
   {
-    await using var transaction = await db.Database.BeginTransactionAsync(ct);
+    await using var transaction = db.Database.CurrentTransaction is null
+      ? await db.Database.BeginTransactionAsync(ct)
+      : null;
     // Authentication can resolve several Angular/API requests for one browser session
     // concurrently. Lock the expired grants and re-check the predicate in PostgreSQL so
     // only the first request records revocation evidence and advances the session epoch.
@@ -27,7 +29,7 @@ public static class RoleGrantExpiry
       """).ToListAsync(ct);
     if (expired.Count == 0)
     {
-      await transaction.CommitAsync(ct);
+      if (transaction is not null) await transaction.CommitAsync(ct);
       return false;
     }
 
@@ -45,7 +47,7 @@ public static class RoleGrantExpiry
     }
     user.SessionEpoch++;
     await db.SaveChangesAsync(ct);
-    await transaction.CommitAsync(ct);
+    if (transaction is not null) await transaction.CommitAsync(ct);
     return true;
   }
 }

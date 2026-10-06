@@ -20,19 +20,17 @@ public sealed record MaterialityFigures(
 /// </summary>
 public static class MaterialityCalculator
 {
-  public const string PolicyVersion = "STE-MATERIALITY-2026.1";
+  public const string PolicyVersion = "STE-MATERIALITY-2026.2";
   public static readonly (decimal Min, decimal Max) PerformanceRange = (50m, 75m);
-  public static readonly (decimal Min, decimal Max) TrivialRange = (1m, 5m);
+  public static readonly (decimal Min, decimal Max) TrivialRange = (3m, 5m);
 
-  /// <summary>Default methodology rate ranges per benchmark (percent). Firms change these through methodology approval.</summary>
+  /// <summary>Active STE 2.1 benchmark rates (percent); unsupported extensions remain historical until separately governed.</summary>
   public static readonly IReadOnlyDictionary<string, MaterialityPolicyRange> RateRanges = new Dictionary<string, MaterialityPolicyRange>
   {
     [MaterialityBenchmarks.Revenue] = new(0.5m, 2m),
-    [MaterialityBenchmarks.ProfitBeforeTax] = new(3m, 10m),
-    [MaterialityBenchmarks.TotalAssets] = new(0.5m, 2m),
-    [MaterialityBenchmarks.NetAssets] = new(1m, 5m),
-    [MaterialityBenchmarks.TotalExpenses] = new(0.5m, 2m),
-    [MaterialityBenchmarks.MappedLine] = new(0.5m, 10m)
+    [MaterialityBenchmarks.ProfitBeforeTax] = new(5m, 10m),
+    [MaterialityBenchmarks.TotalAssets] = new(0.5m, 1m),
+    [MaterialityBenchmarks.NetAssets] = new(1m, 2m)
   };
 
   private static readonly string[] IncomeSections = ["INCOME", "REVENUE", "P&L", "PROFIT_LOSS", "P_AND_L"];

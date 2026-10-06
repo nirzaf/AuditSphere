@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "sourceCommit": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
+  "sourceCommit": "f9a3dc8a6ba56d6a393f5cce1afd0ea1a07fb6fe",
   "coverage": "Source discovery only; dynamic actions, scope and parity tests require manual review.",
   "items": [
     {
@@ -1572,15 +1572,13 @@
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/AuditPlan.razor",
-      "sourceSha256": "ead897f096fb17336f95e2a42e16ff46a7d3c2fdada58ee2fda0c848c6b71356",
+      "sourceSha256": "90f8a5869aa2efed88f63d92364639adec1c89693a50714a55f23633df048883",
       "routes": [
         "/app/audit/plans/{Id:guid}",
         "/app/engagements/{EngagementId:guid}/audit-plan"
       ],
       "actions": [
-        "ApproveMaterialityAsync",
         "CreateFindingAsync",
-        "CreateMaterialityAsync",
         "CreatePopulationAsync",
         "CreateRiskAsync",
         "RefreshPlanAsync"
@@ -1608,14 +1606,10 @@
         "@($"
       ],
       "asyncCalls": [
-        "ApproveMaterialityAssessmentAsync",
-        "ApproveMaterialityAsync",
         "AuthorizeAsync",
         "CreateAuditRiskAsync",
         "CreateDbContextAsync",
         "CreateFindingAsync",
-        "CreateMaterialityAssessmentAsync",
-        "CreateMaterialityAsync",
         "CreatePopulationAsync",
         "CreatePopulationVersionAsync",
         "CreateRiskAsync",
@@ -1629,7 +1623,6 @@
       ],
       "draftHooks": [],
       "authorizationLines": [
-        "_materiality.ActorId != _actor.UserId && _actor.Roles.Any(x => x is \"Manager\" or \"Partner\"))",
         "var authorization = await AuthorizationDecision.AuthorizeAsync(db, actor,",
         "new AuthorizationRequest(actor.FirmId, EngagementId: engagementId,"
       ],

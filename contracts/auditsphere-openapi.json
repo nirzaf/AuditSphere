@@ -6327,6 +6327,62 @@
         ]
       }
     },
+    "/api/ui/finance/books/expenses/receipts/{requestId}": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "requestHash",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
     "/api/ui/finance/books/expenses/{id}/submit": {
       "post": {
         "tags": [
@@ -8979,74 +9035,6 @@
           },
           "429": {
             "description": "The boundary rate limit rejected the request.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "sessionCookie": [ ]
-          }
-        ]
-      }
-    },
-    "/api/ui/engagements/{id}/audit-plan/materiality": {
-      "post": {
-        "tags": [
-          "AuditSphereOps.Api"
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/MaterialityInput"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "401": {
-            "description": "The request has no current AuditSphere session.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "The boundary rate limit rejected the request.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "413": {
-            "description": "The JSON command body exceeded the accepted size.",
             "content": {
               "application/json": {
                 "schema": {
@@ -26979,45 +26967,6 @@
             "type": "string"
           },
           "rationale": {
-            "type": "string"
-          }
-        }
-      },
-      "MaterialityInput": {
-        "required": [
-          "benchmarkSource",
-          "benchmarkVersion",
-          "rationale",
-          "benchmarkAmount",
-          "rateApplied",
-          "overallMateriality",
-          "performanceMateriality",
-          "clearlyTrivialThreshold"
-        ],
-        "type": "object",
-        "properties": {
-          "benchmarkSource": {
-            "type": "string"
-          },
-          "benchmarkVersion": {
-            "type": "string"
-          },
-          "rationale": {
-            "type": "string"
-          },
-          "benchmarkAmount": {
-            "type": "string"
-          },
-          "rateApplied": {
-            "type": "string"
-          },
-          "overallMateriality": {
-            "type": "string"
-          },
-          "performanceMateriality": {
-            "type": "string"
-          },
-          "clearlyTrivialThreshold": {
             "type": "string"
           }
         }

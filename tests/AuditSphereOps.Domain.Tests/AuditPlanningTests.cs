@@ -65,8 +65,8 @@ public sealed class AuditPlanningTests
     Assert.Equal(MaterialityStatuses.Draft, saved.Status);
   }
 
-  [Fact(DisplayName = "Materiality approval requires an independently scoped manager or partner")]
-  public async Task Materiality_ApprovalRequiresIndependentReviewer()
+  [Fact(DisplayName = "Materiality approval requires an independent reviewer and a source-bound calculation")]
+  public async Task Materiality_ApprovalRejectsManualDrafts()
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var fixture = await PlanningSeed.CreateAsync(pg, role: "Senior");
@@ -97,20 +97,12 @@ public sealed class AuditPlanningTests
     var reviewer = new ActorContext(reviewerId, fixture.Primary.FirmId, 1, ["Partner"]);
     var approved = await AuditPlanningService.ApproveMaterialityAssessmentAsync(ctx, reviewer,
       created.Value.AssessmentId);
-    Assert.True(approved.Succeeded, approved.Message);
+    Assert.False(approved.Succeeded);
+    Assert.Equal(ErrorCodes.GateBlocked, approved.ErrorCode);
+    Assert.Contains("current approved mapping and sealed trial balance", approved.Message, StringComparison.Ordinal);
     var saved = await ctx.MaterialityAssessments.AsNoTracking().SingleAsync(x => x.Id == created.Value.AssessmentId);
     Assert.Equal(MaterialityStatuses.Draft, saved.Status);
-    var approval = await ctx.MaterialityApprovals.AsNoTracking().SingleAsync(x => x.MaterialityAssessmentId == saved.Id);
-    Assert.Equal(reviewerId, approval.ApprovedByUserId);
-    Assert.NotEqual(Guid.Empty, approval.Id);
-    var replay = await AuditPlanningService.ApproveMaterialityAssessmentAsync(ctx, reviewer, saved.Id);
-    Assert.False(replay.Succeeded);
-    Assert.Equal(ErrorCodes.ProtectedState, replay.ErrorCode);
-    await using var mutationDb = new AuditSphereDbContext(pg.Options);
-    var immutableApproval = await mutationDb.MaterialityApprovals.SingleAsync(x => x.Id == approval.Id);
-    immutableApproval.ApprovedAt = immutableApproval.ApprovedAt.AddSeconds(1);
-    var mutation = await Assert.ThrowsAsync<InvalidOperationException>(() => mutationDb.SaveChangesAsync());
-    Assert.Contains("Materiality approvals are immutable evidence.", mutation.ToString(), StringComparison.Ordinal);
+    Assert.False(await ctx.MaterialityApprovals.AnyAsync(x => x.MaterialityAssessmentId == saved.Id));
   }
 
   // ── NT-21.2 ─────────────────────────────────────────────────────────────

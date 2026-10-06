@@ -93,8 +93,14 @@ public static partial class AuditFieldworkService
     }
     blockers.AddRange(await RiskBandService.BlockersAsync(db, firmId, engagementId, ct));
     blockers.AddRange(await StandardFormBlockersAsync(db, firmId, engagementId, ct));
-    if (await MaterialityEngineService.GetLatestAsync(db, firmId, engagementId, ct) is { State: MaterialityCalculationStates.Stale })
+    var latestMateriality = await db.MaterialityAssessments.AsNoTracking().Where(x => x.FirmId == firmId &&
+        x.ClientId == clientId && x.EngagementId == engagementId)
+      .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+    var latestCalculation = await MaterialityEngineService.GetLatestAsync(db, firmId, engagementId, ct);
+    if (latestCalculation is { State: MaterialityCalculationStates.Stale })
       blockers.Add("materiality:stale");
+    else if (latestMateriality is null || !await MaterialityEngineService.IsPartnerApprovedCurrentAsync(db, latestMateriality, ct))
+      blockers.Add("materiality:partner-approval-required");
     var evaluation = new AuditCompletionEvaluation(blockers.Count == 0, procedures.Count, applicable.Length, reviewed, blockers);
     return CommandResult<AuditCompletionEvaluation>.Ok(evaluation);
   }

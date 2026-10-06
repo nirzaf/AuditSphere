@@ -221,8 +221,8 @@ public sealed partial class PlanningResourcesAndMaterialityTests
       Assert.Equal(550_000m, Amount(MaterialityBenchmarks.ProfitBeforeTax)); // tax line excluded
       Assert.Equal(1_000_000m, Amount(MaterialityBenchmarks.TotalAssets));
       Assert.Equal(700_000m, Amount(MaterialityBenchmarks.NetAssets));
-      Assert.Equal(1_500_000m, Amount(MaterialityBenchmarks.TotalExpenses));
-      Assert.Equal(400_000m, Amount(MaterialityBenchmarks.MappedLine, "RECEIVABLES"));
+      Assert.Equal(4, source.Options.Count);
+      Assert.DoesNotContain(source.Options, x => x.Kind is MaterialityBenchmarks.TotalExpenses or MaterialityBenchmarks.MappedLine);
     }
 
     Guid assessmentId;
@@ -243,8 +243,16 @@ public sealed partial class PlanningResourcesAndMaterialityTests
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       Assert.Equal(ErrorCodes.ScopeDenied, (await AuditPlanningService.ApproveMaterialityAssessmentAsync(db, preparer, assessmentId)).ErrorCode);
+      Assert.Equal(ErrorCodes.ScopeDenied, (await AuditPlanningService.ApproveMaterialityAssessmentAsync(db, w.Actor("manager", "Manager"), assessmentId)).ErrorCode);
       Assert.True((await AuditPlanningService.ApproveMaterialityAssessmentAsync(db, w.Actor("partner", "Partner"), assessmentId)).Succeeded);
       Assert.Equal(MaterialityCalculationStates.Approved, (await MaterialityEngineService.GetLatestAsync(db, w.FirmId, w.EngagementId))!.State);
+    }
+    await using (var immutableDb = new AuditSphereDbContext(pg.Options))
+    {
+      var approval = await immutableDb.MaterialityApprovals.SingleAsync(x => x.MaterialityAssessmentId == assessmentId);
+      approval.ApprovedAt = approval.ApprovedAt.AddSeconds(1);
+      var mutation = await Assert.ThrowsAsync<InvalidOperationException>(() => immutableDb.SaveChangesAsync());
+      Assert.Contains("Materiality approvals are immutable evidence.", mutation.ToString(), StringComparison.Ordinal);
     }
 
     // A replacement approved mapping makes the approved calculation stale; a fresh one bound to the old source cannot be approved.
@@ -274,9 +282,24 @@ public sealed partial class PlanningResourcesAndMaterialityTests
     Assert.Equal(-50m, loss!.Value.Amount);
     Assert.Throws<ArgumentOutOfRangeException>(() => MaterialityCalculator.Calculate(loss.Value.Amount, 2, 5m, 75m, 5m));
     Assert.Null(MaterialityCalculator.DeriveBenchmark(MaterialityBenchmarks.TotalAssets, null, [L("INCOME", -1m)]));
-    Assert.NotNull(MaterialityCalculator.Validate(MaterialityBenchmarks.ProfitBeforeTax, 2m, 75m, 5m));
+    Assert.NotNull(MaterialityCalculator.Validate(MaterialityBenchmarks.ProfitBeforeTax, 4.99m, 75m, 5m));
     Assert.NotNull(MaterialityCalculator.Validate(MaterialityBenchmarks.Revenue, 1m, 80m, 5m));
-    Assert.Null(MaterialityCalculator.Validate(MaterialityBenchmarks.ProfitBeforeTax, 5m, 50m, 1m));
+    Assert.NotNull(MaterialityCalculator.Validate(MaterialityBenchmarks.ProfitBeforeTax, 5m, 50m, 1m));
+    Assert.Null(MaterialityCalculator.Validate(MaterialityBenchmarks.ProfitBeforeTax, 5m, 50m, 3m));
+    Assert.Null(MaterialityCalculator.Validate(MaterialityBenchmarks.ProfitBeforeTax, 10m, 75m, 5m));
+    Assert.NotNull(MaterialityCalculator.Validate(MaterialityBenchmarks.ProfitBeforeTax, 10.01m, 75m, 5m));
+    Assert.Null(MaterialityCalculator.Validate(MaterialityBenchmarks.TotalAssets, 0.5m, 50m, 3m));
+    Assert.Null(MaterialityCalculator.Validate(MaterialityBenchmarks.TotalAssets, 1m, 75m, 5m));
+    Assert.NotNull(MaterialityCalculator.Validate(MaterialityBenchmarks.TotalAssets, 1.01m, 75m, 5m));
+    Assert.Null(MaterialityCalculator.Validate(MaterialityBenchmarks.NetAssets, 1m, 50m, 3m));
+    Assert.Null(MaterialityCalculator.Validate(MaterialityBenchmarks.NetAssets, 2m, 75m, 5m));
+    Assert.NotNull(MaterialityCalculator.Validate(MaterialityBenchmarks.NetAssets, 2.01m, 75m, 5m));
+    Assert.Null(MaterialityCalculator.Validate(MaterialityBenchmarks.Revenue, 0.5m, 50m, 3m));
+    Assert.Null(MaterialityCalculator.Validate(MaterialityBenchmarks.Revenue, 2m, 75m, 5m));
+    Assert.NotNull(MaterialityCalculator.Validate(MaterialityBenchmarks.TotalExpenses, 1m, 50m, 3m));
+    Assert.NotNull(MaterialityCalculator.Validate(MaterialityBenchmarks.MappedLine, 1m, 50m, 3m));
+    Assert.NotNull(MaterialityCalculator.Validate(MaterialityBenchmarks.Revenue, 1m, 50m, 2.99m));
+    Assert.NotNull(MaterialityCalculator.Validate(MaterialityBenchmarks.Revenue, 1m, 50m, 5.01m));
     Assert.Equal(RiskBands.Green, RiskBandRules.Band(1, 2, false, false));
     Assert.Equal(RiskBands.Amber, RiskBandRules.Band(1, 3, false, false));
     Assert.Equal(RiskBands.Amber, RiskBandRules.Band(2, 2, false, false));

@@ -40,6 +40,12 @@ public static class AuditPlanWorkspaceQuery
       .OrderByDescending(m => m.CreatedAt).FirstOrDefaultAsync(ct);
     var approval = materiality is null ? null : await db.MaterialityApprovals.AsNoTracking()
       .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.MaterialityAssessmentId == materiality.Id, ct);
+    var partnerApproval = materiality is not null && approval is not null &&
+      await MaterialityEngineService.HasIndependentPartnerApprovalAsync(db, materiality, ct);
+    var hasSourceBoundCalculation = materiality is not null && await db.MaterialityCalculations.AsNoTracking()
+      .AnyAsync(x => x.FirmId == actor.FirmId && x.MaterialityAssessmentId == materiality.Id, ct);
+    var materialitySourceCurrent = hasSourceBoundCalculation && await MaterialityEngineService.IsAssessmentCurrentAsync(
+      db, actor.FirmId, materiality!.Id, ct);
     var risks = await db.AuditRisks.AsNoTracking().Where(r => r.FirmId == actor.FirmId && r.EngagementId == engagementId).OrderBy(r => r.CreatedAt)
       .Select(r => new PlanRisk(r.Id, r.AccountArea, r.Description, r.Assertion, r.Severity, r.Status)).ToListAsync(ct);
     var populations = await db.PopulationVersions.AsNoTracking().Where(p => p.FirmId == actor.FirmId && p.EngagementId == engagementId).OrderByDescending(p => p.CreatedAt)
@@ -50,14 +56,17 @@ public static class AuditPlanWorkspaceQuery
       .Select(w => new PlanWorkpaper(w.Id, w.Index, w.Title, w.Status, w.Revision)).ToListAsync(ct);
     var source = await MaterialityEngineService.GetSourceAsync(db, actor, engagementId, ct);
     var latest = await MaterialityEngineService.GetLatestAsync(db, actor.FirmId, engagementId, ct);
+    if (latest?.AssessmentId != materiality?.Id) latest = null;
     var routing = await RiskBandService.GetRoutingAsync(db, actor, engagementId, ct);
     var team = await StaffingService.ListAsync(db, actor, engagementId, ct);
     var c = latest?.Calculation;
     return CommandResult<AuditPlanWorkspace>.Ok(new(engagementId, engagement.ProfessionalWorkBlocked,
       materiality is null ? null : new PlanMateriality(materiality.Id, materiality.ActorId, materiality.BenchmarkSource, materiality.BenchmarkVersion, materiality.Rationale,
         materiality.BenchmarkAmount, materiality.RateApplied, materiality.OverallMateriality, materiality.PerformanceMateriality, materiality.ClearlyTrivialThreshold,
-        materiality.QualitativeConsiderations, approval is null ? materiality.Status : MaterialityStatuses.Approved, approval?.ApprovedByUserId, approval?.ApprovedAt),
-      materiality is not null && approval is null && materiality.ActorId != actor.UserId && actor.Roles.Any(x => x is "Manager" or "Partner"),
+        materiality.QualitativeConsiderations, approval is null ? materiality.Status : partnerApproval ? MaterialityStatuses.Approved : "RECALCULATION_REQUIRED",
+        partnerApproval ? approval!.ApprovedByUserId : null, partnerApproval ? approval!.ApprovedAt : null),
+      materiality is not null && hasSourceBoundCalculation && materialitySourceCurrent && latest?.State == MaterialityCalculationStates.Draft && approval is null &&
+        materiality.ActorId != actor.UserId && actor.Roles.Contains("Partner"),
       risks, populations, findings, workpapers, source.Succeeded ? source.Value : null, source.Succeeded ? null : source.Message,
       latest is null ? null : new PlanCalculation(latest.AssessmentId, latest.State, latest.Route, c!.BenchmarkKind, c.DestinationCode, c.BenchmarkAmount, c.Currency,
         c.SourceLineCount, c.MappingVersionNumber, c.RatePercent, c.PerformancePercent, c.TrivialPercent, c.PlanningMateriality, c.TolerableError, c.SadThreshold, c.PolicyVersion),

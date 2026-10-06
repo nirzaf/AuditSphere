@@ -45,9 +45,14 @@ public static partial class AuditDeliverableService
   {
     var engagement = await db.Engagements.AsNoTracking().SingleAsync(x => x.Id == engagementId && x.FirmId == actor.FirmId, ct);
     var client = await db.PracticeClients.AsNoTracking().SingleAsync(x => x.Id == engagement.PracticeClientId, ct);
-    var materiality = await db.MaterialityAssessments.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId &&
-        db.MaterialityApprovals.Any(a => a.MaterialityAssessmentId == x.Id))
-      .OrderByDescending(x => x.CreatedAt).Select(x => new { x.Id, x.OverallMateriality, x.PerformanceMateriality, x.ClearlyTrivialThreshold, x.BenchmarkSource }).FirstOrDefaultAsync(ct);
+    var materialityAssessment = await db.MaterialityAssessments.AsNoTracking().Where(x =>
+      x.FirmId == actor.FirmId && x.ClientId == engagement.PracticeClientId && x.EngagementId == engagementId)
+      .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+    object? materiality = materialityAssessment is { } approvedMateriality &&
+      await MaterialityEngineService.IsPartnerApprovedCurrentAsync(db, approvedMateriality, ct)
+      ? new { approvedMateriality.Id, approvedMateriality.OverallMateriality, approvedMateriality.PerformanceMateriality,
+        approvedMateriality.ClearlyTrivialThreshold, approvedMateriality.BenchmarkSource }
+      : null;
     var routing = await RiskBandService.GetRoutingForAuthorizedScopeAsync(db, actor.FirmId, engagementId, ct);
     var procedures = await db.AuditProcedures.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId && x.ApplicabilityStatus == AuditApplicabilityStatuses.Applicable)
       .OrderBy(x => x.SourceProcedureId).Select(x => new { x.Id, x.SourceProcedureId, x.Title, x.Status, x.CurrentResultRevision }).ToListAsync(ct);
