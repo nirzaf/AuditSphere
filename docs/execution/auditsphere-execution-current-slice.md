@@ -32,9 +32,13 @@ existing receipt/credit recovery path. Focused Angular finance tests passed
 **4/4**; the production Angular build passed with the existing commercial
 settings stylesheet budget warning; EF reported no pending model changes.
 
-Invoice history cursor/paging failures, cross-firm and guessed command IDs,
-remaining uncertain outcomes, and the full FinanceManager/FinanceReviewer
-scope matrix remain open. The 76 source/action rows remain at one parity
+The focused invoice boundary journey now compares a real foreign-firm invoice
+with an unknown ID for the authorized FinanceManager's detail read and
+approve/post/send endpoints. Each pair returns the same 403 response; the
+foreign invoice remains in review-required state with no approval, post or send
+timestamps. Broader FinanceManager/FinanceReviewer and client/firm scope
+combinations, invoice history cursor/paging failures, and remaining uncertain
+outcomes remain open. The 76 source/action rows remain at one parity
 verified, 73 partial, and two unanalyzed; AS-PAR-002 remains partial and the
 Blazor retirement gate remains `NOT_READY`. The full solution regression was
 not rerun; its last complete result remains recorded at its earlier verified
