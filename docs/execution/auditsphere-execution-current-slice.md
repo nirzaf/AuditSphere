@@ -56,6 +56,22 @@ Blazor retirement gate remains `NOT_READY`. The full solution regression was
 not rerun; its last complete result remains recorded at its earlier verified
 commit in `status.json`.
 
+## Completed focused slice: Client-scoped invoice reviewer boundaries
+
+At code/test commit `84ce3567`, `AngularInvoiceScopeJourneyTests` passed **1/1**
+in 42 seconds against isolated PostgreSQL/API hosts. A FinanceReviewer with a
+client-scoped grant can read and approve that client's submitted invoice. The
+same reviewer receives HTTP 403 when directly approving a sibling-client
+invoice; navigating to it shows the safe “not found in the current firm scope”
+message without invoice, line or amount markers. PostgreSQL confirms the
+sibling invoice remains `DRAFT` with no approver. The existing FinanceManager
+client-scope route checks also passed in the journey.
+
+This run used a clean isolated verification worktree because concurrent
+uncommitted API changes in the shared checkout failed compilation. The shared
+changes were not modified or committed. The complete solution suite was not
+rerun; its latest result remains 1001/1001 at `ead85032`.
+
 ## Completed focused slice: Invoice-history response after session revocation
 
 At code/test commit `e3301035`, the PostgreSQL-backed API-host Angular
