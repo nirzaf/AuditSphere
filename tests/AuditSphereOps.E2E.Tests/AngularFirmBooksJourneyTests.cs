@@ -23,6 +23,7 @@ public sealed class AngularFirmBooksJourneyTests
     {
       db.RoleGrants.AddRange(
         PbcSeed.Grant(f.FirmId, f.Admin, "FinanceManager"),
+        PbcSeed.Grant(f.FirmId, f.Admin, "FinanceReviewer"),
         PbcSeed.Grant(f.FirmId, f.Reviewer, "FinanceReviewer"));
       await db.SaveChangesAsync();
 
@@ -87,6 +88,30 @@ public sealed class AngularFirmBooksJourneyTests
       Assert.Equal(6500m, expense.Amount);
     }
 
+    var selfReviewResponse = await preparerPage.EvaluateAsync<int>("""
+      async () => {
+        await fetch('/api/ui/session');
+        const cookie = document.cookie.split(';').map(value => value.trim())
+          .find(value => value.startsWith('XSRF-TOKEN='));
+        const token = cookie ? decodeURIComponent(cookie.slice('XSRF-TOKEN='.length)) : '';
+        const response = await fetch('/api/ui/finance/books/expenses/__EXPENSE_ID__/review', {
+          method: 'POST', headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': token },
+          body: JSON.stringify({ approve: false, comment: 'Synthetic self-review attempt' })
+        });
+        return response.status;
+      }
+      """.Replace("__EXPENSE_ID__", expenseId.ToString("D"), StringComparison.Ordinal));
+    Assert.Equal(403, selfReviewResponse);
+    var ownExpenseRow = preparerPage.GetByRole(AriaRole.Row).Filter(new() { HasText = "Synthetic office landlord" });
+    Assert.Equal(0, await ownExpenseRow.GetByRole(AriaRole.Button, new() { Name = "Reject", Exact = true }).CountAsync());
+    await using (var db = host.CreateDbContext())
+    {
+      var expense = await db.FirmExpenses.AsNoTracking().SingleAsync(x => x.Id == expenseId);
+      Assert.Equal(FirmExpenseStates.Submitted, expense.Status);
+      Assert.Null(expense.ReviewedByUserId);
+      Assert.Null(expense.ReviewComment);
+    }
+
     var reviewerPage = await browser.NewPageAsync();
     reviewerPage.PageError += (_, error) => errors.Add($"reviewer: {error}");
     await reviewerPage.GotoAsync(reviewerOrigin + "/auth/sign-in?returnUrl=" +
@@ -94,18 +119,41 @@ public sealed class AngularFirmBooksJourneyTests
     await Assertions.Expect(reviewerPage.GetByRole(AriaRole.Heading,
       new() { Name = "Firm books", Exact = true })).ToBeVisibleAsync();
     var reviewRow = reviewerPage.GetByRole(AriaRole.Row).Filter(new() { HasText = "Synthetic office landlord" });
-    await reviewRow.GetByRole(AriaRole.Button, new() { Name = "Approve", Exact = true }).ClickAsync();
-    await Assertions.Expect(reviewerPage.GetByText("Approved.", new() { Exact = true })).ToBeVisibleAsync();
+    await reviewRow.GetByRole(AriaRole.Button, new() { Name = "Reject", Exact = true }).ClickAsync();
+    var rejectionDialog = reviewerPage.GetByRole(AriaRole.Dialog);
+    var rejectionReason = rejectionDialog.GetByLabel("Rejection reason", new() { Exact = true });
+    var rejectExpense = rejectionDialog.GetByRole(AriaRole.Button, new() { Name = "Reject expense", Exact = true });
+    Assert.False(await rejectExpense.IsEnabledAsync());
+    await rejectionReason.FillAsync("Receipt does not show the expense date.");
+    Assert.True(await rejectExpense.IsEnabledAsync());
+    await rejectExpense.ClickAsync();
+    await Assertions.Expect(reviewerPage.GetByText("Rejected with the recorded reason.", new() { Exact = true })).ToBeVisibleAsync();
     await using (var db = host.CreateDbContext())
     {
       var expense = await db.FirmExpenses.AsNoTracking().SingleAsync(x => x.Id == expenseId);
-      Assert.Equal(FirmExpenseStates.Approved, expense.Status);
+      Assert.Equal(FirmExpenseStates.Rejected, expense.Status);
       Assert.Equal(f.Reviewer.Id, expense.ReviewedByUserId);
       Assert.NotEqual(expense.PreparedByUserId, expense.ReviewedByUserId);
+      Assert.Equal("Receipt does not show the expense date.", expense.ReviewComment);
     }
 
+    await preparerPage.GetByLabel("Payee", new() { Exact = true }).FillAsync("Synthetic approved office landlord");
+    await preparerPage.GetByLabel("Description", new() { Exact = true }).FillAsync("September office rent supported by receipt");
+    await preparerPage.GetByLabel("Amount", new() { Exact = true }).FillAsync("6500.00");
+    await preparerPage.GetByLabel("Source document", new() { Exact = true }).SetInputFilesAsync(
+      new FilePayload { Name = "synthetic-rent-approved.pdf", MimeType = "application/pdf", Buffer = "%PDF synthetic approved rent evidence"u8.ToArray() });
+    await preparerPage.GetByRole(AriaRole.Button, new() { Name = "Record expense", Exact = true }).ClickAsync();
+    await Assertions.Expect(preparerPage.GetByText("Expense recorded as a draft.", new() { Exact = true })).ToBeVisibleAsync();
+    var secondPreparerRow = preparerPage.GetByRole(AriaRole.Row).Filter(new() { HasText = "Synthetic approved office landlord" });
+    await secondPreparerRow.GetByRole(AriaRole.Button, new() { Name = "Submit", Exact = true }).ClickAsync();
+    await Assertions.Expect(preparerPage.GetByText("Submitted; its journal awaits review.", new() { Exact = true })).ToBeVisibleAsync();
+    await reviewerPage.ReloadAsync();
+    var secondReviewRow = reviewerPage.GetByRole(AriaRole.Row).Filter(new() { HasText = "Synthetic approved office landlord" });
+    await secondReviewRow.GetByRole(AriaRole.Button, new() { Name = "Approve", Exact = true }).ClickAsync();
+    await Assertions.Expect(reviewerPage.GetByText("Approved.", new() { Exact = true })).ToBeVisibleAsync();
+
     await preparerPage.ReloadAsync();
-    var approvedRow = preparerPage.GetByRole(AriaRole.Row).Filter(new() { HasText = "Synthetic office landlord" });
+    var approvedRow = preparerPage.GetByRole(AriaRole.Row).Filter(new() { HasText = "Synthetic approved office landlord" });
     await approvedRow.GetByRole(AriaRole.Button, new() { Name = "Post to ledger", Exact = true }).ClickAsync();
     await Assertions.Expect(preparerPage.GetByText("Posted to the firm ledger.", new() { Exact = true })).ToBeVisibleAsync();
     await preparerPage.GetByRole(AriaRole.Button, new() { Name = "Calculate", Exact = true }).ClickAsync();
@@ -118,9 +166,12 @@ public sealed class AngularFirmBooksJourneyTests
 
     await using (var db = host.CreateDbContext())
     {
-      var expense = await db.FirmExpenses.AsNoTracking().SingleAsync(x => x.Id == expenseId);
-      Assert.Equal(FirmExpenseStates.Posted, expense.Status);
-      Assert.NotNull(expense.PostingId);
+      var rejected = await db.FirmExpenses.AsNoTracking().SingleAsync(x => x.Id == expenseId);
+      Assert.Equal(FirmExpenseStates.Rejected, rejected.Status);
+      Assert.Equal("Receipt does not show the expense date.", rejected.ReviewComment);
+      var posted = await db.FirmExpenses.AsNoTracking().SingleAsync(x => x.Payee == "Synthetic approved office landlord");
+      Assert.Equal(FirmExpenseStates.Posted, posted.Status);
+      Assert.NotNull(posted.PostingId);
       Assert.Equal(LedgerStates.PeriodOpen,
         await db.FirmPeriods.Where(x => x.Id == periodId).Select(x => x.Status).SingleAsync());
       Assert.Single(await db.FirmPostings.Where(x => x.PeriodId == periodId).ToListAsync());

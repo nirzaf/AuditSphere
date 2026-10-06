@@ -193,6 +193,22 @@ public sealed class FirmOperationsTests
       Assert.Equal(ErrorCodes.ScopeDenied, (await FirmExpenseService.TrialBalanceAsync(db, w.A("staff", "Staff"), "2026-02", "2026-02")).ErrorCode);
       var listed = await FirmExpenseService.ListAsync(db, reviewer);
       Assert.All(listed, x => Assert.Equal(FirmExpenseStates.Posted, x.Status));
+
+      var returned = await FirmExpenseService.RecordAsync(db, finance, new(new DateOnly(2026, 2, 3), FirmExpenseCategories.Rent,
+        "Synthetic property manager", "February rent", 6_500m, "QAR", rent, cash, "return.pdf", "application/pdf", "%PDF source"u8.ToArray()));
+      Assert.True(returned.Succeeded, returned.Message);
+      Assert.True((await FirmExpenseService.SubmitAsync(db, finance, returned.Value)).Succeeded);
+      Assert.Equal("expense.invalid", (await FirmExpenseService.ReviewAsync(db, reviewer, returned.Value, false, "  ")).ErrorCode);
+      Assert.Equal("expense.invalid", (await FirmExpenseService.ReviewAsync(db, reviewer, returned.Value, false,
+        new string('r', FirmExpenseService.MaxReviewCommentLength + 1))).ErrorCode);
+      var beforeReview = await db.FirmExpenses.AsNoTracking().SingleAsync(x => x.Id == returned.Value);
+      Assert.Equal(FirmExpenseStates.Submitted, beforeReview.Status);
+      Assert.Null(beforeReview.ReviewedByUserId);
+      Assert.Null(beforeReview.ReviewComment);
+      Assert.True((await FirmExpenseService.ReviewAsync(db, reviewer, returned.Value, false, "  Missing receipt date.  ")).Succeeded);
+      var rejected = await db.FirmExpenses.AsNoTracking().SingleAsync(x => x.Id == returned.Value);
+      Assert.Equal(FirmExpenseStates.Rejected, rejected.Status);
+      Assert.Equal("Missing receipt date.", rejected.ReviewComment);
     }
   }
 }

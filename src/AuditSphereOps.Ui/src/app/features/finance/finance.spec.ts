@@ -121,6 +121,7 @@ describe('Finance & Firm Ledger Contracts', () => {
       canPrepare: true,
       canReview: true,
       maxEvidenceBytes: 10485760,
+      maxReviewCommentLength: 1000,
     };
 
     const decoded = decodeBooks(raw, 'books');

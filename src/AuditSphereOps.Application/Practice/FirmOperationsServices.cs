@@ -315,6 +315,7 @@ public static class FirmExpenseService
   private static readonly string[] Preparers = ["FinanceManager"];
   private static readonly string[] Reviewers = ["FinanceReviewer"];
   public const int MaxEvidenceBytes = 5 * 1024 * 1024;
+  public const int MaxReviewCommentLength = 1000;
 
   public static async Task<CommandResult<Guid>> RecordAsync(IClientAccountingDbContext db, ActorContext actor, RecordFirmExpenseRequest request, CancellationToken ct = default)
   {
@@ -351,7 +352,8 @@ public static class FirmExpenseService
     var periodCode = expense.ExpenseDate.ToString("yyyy-MM", CultureInfo.InvariantCulture);
     var period = await db.FirmPeriods.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.PeriodCode == periodCode, ct);
     if (period is null) return CommandResult.Fail(ErrorCodes.GateBlocked, $"Open the firm period {periodCode} first.");
-    var journal = await LedgerService.CreateFirmJournalDraftAsync(db, actor, new CreateFirmJournalDraftRequest(period.Id, $"EXP-{expense.ExpenseDate:yyyyMMdd}-{expense.Id.ToString("N")[..8].ToUpperInvariant()}",
+    var journalNumber = $"EXP-{expense.ExpenseDate.ToString("yyyyMMdd", CultureInfo.InvariantCulture)}-{expense.Id.ToString("N", CultureInfo.InvariantCulture).ToUpperInvariant()}";
+    var journal = await LedgerService.CreateFirmJournalDraftAsync(db, actor, new CreateFirmJournalDraftRequest(period.Id, journalNumber,
       "EXPENSE", expense.Id.ToString("D"), 1, $"Firm expense: {expense.Category.ToLowerInvariant().Replace('_', ' ')}", expense.Currency,
       [new FirmJournalLineRequest(expense.ExpenseAccountId, $"{expense.Payee}: {expense.Description}", expense.Amount, 0m),
        new FirmJournalLineRequest(expense.PaymentAccountId, $"{expense.Payee}: {expense.Description}", 0m, expense.Amount)]), ct);
@@ -374,6 +376,9 @@ public static class FirmExpenseService
     if (expense.PreparedByUserId == actor.UserId) return CommandResult.Fail(ErrorCodes.ScopeDenied, "The preparer cannot review their own expense.");
     if (expense.Status != FirmExpenseStates.Submitted) return CommandResult.Fail(ErrorCodes.ProtectedState, "Only a submitted expense can be reviewed.");
     if (!approve && string.IsNullOrWhiteSpace(comment)) return CommandResult.Fail("expense.invalid", "Explain why the expense is rejected.");
+    var normalizedComment = string.IsNullOrWhiteSpace(comment) ? null : comment.Trim();
+    if (normalizedComment?.Length > MaxReviewCommentLength)
+      return CommandResult.Fail("expense.invalid", $"The review comment must be {MaxReviewCommentLength} characters or fewer.");
     if (approve)
     {
       var approved = await LedgerService.ApproveFirmJournalAsync(db, actor, expense.JournalId!.Value, ct);
@@ -383,7 +388,7 @@ public static class FirmExpenseService
     live.Status = approve ? FirmExpenseStates.Approved : FirmExpenseStates.Rejected;
     live.ReviewedByUserId = actor.UserId;
     live.ReviewedAt = DateTimeOffset.UtcNow;
-    live.ReviewComment = string.IsNullOrWhiteSpace(comment) ? null : comment.Trim();
+    live.ReviewComment = normalizedComment;
     await db.SaveChangesAsync(ct);
     return CommandResult.Ok();
   }

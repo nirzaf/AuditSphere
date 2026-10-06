@@ -1,6 +1,7 @@
 import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MAT_DIALOG_DATA, MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { Api, CommandState } from '../../core/api';
 import { Drafts } from '../../core/drafts';
 import { arr, bool, date, dec, decimalInput, guid, nat, nullable, obj, str, text } from '../../core/decode';
@@ -10,7 +11,7 @@ const expense = obj({ id: guid, expenseDate: date, category: text, payee: text, 
   evidenceFileName: text, evidenceSha256: text, status: text, reviewComment: nullable(text), preparedByMe: bool });
 export const decodeBooks = obj({
   accounts: arr(obj({ id: guid, code: text, name: text, accountType: text })),
-  expenses: arr(expense, 200), categories: arr(text, 20), canPrepare: bool, canReview: bool, maxEvidenceBytes: nat,
+  expenses: arr(expense, 200), categories: arr(text, 20), canPrepare: bool, canReview: bool, maxEvidenceBytes: nat, maxReviewCommentLength: nat,
 });
 const tbRow = obj({ accountId: guid, code: text, name: text, accountType: text, openingDebit: dec, openingCredit: dec,
   movementDebit: dec, movementCredit: dec, closingDebit: dec, closingCredit: dec });
@@ -18,8 +19,37 @@ export const decodeTrialBalance = obj({ fromPeriod: text, toPeriod: text, rows: 
   revenue: dec, expenses: dec, profit: dec, assets: dec, liabilities: dec, equity: dec, positionReconciles: bool });
 
 @Component({
+  selector: 'audit-firm-expense-rejection-dialog',
+  imports: [FormsModule, MatButtonModule, MatDialogModule],
+  template: `
+    <h2 mat-dialog-title>Return expense for correction</h2>
+    <mat-dialog-content>
+      <p>Explain what needs to be corrected. This reason will be retained with the review.</p>
+      <label for="expense-rejection-reason">Rejection reason</label>
+      <textarea id="expense-rejection-reason" name="reason" [(ngModel)]="reason" [attr.maxlength]="maxLength" rows="4"
+        required aria-describedby="expense-rejection-help"></textarea>
+      <p id="expense-rejection-help">Enter a clear, specific reason (up to {{ maxLength }} characters).</p>
+    </mat-dialog-content>
+    <mat-dialog-actions align="end">
+      <button matButton mat-dialog-close type="button">Cancel</button>
+      <button matButton="filled" type="button" (click)="submit()" [disabled]="!reason.trim()">Reject expense</button>
+    </mat-dialog-actions>
+  `,
+})
+export class FirmExpenseRejectionDialog {
+  readonly maxLength = inject<number>(MAT_DIALOG_DATA);
+  readonly dialog = inject(MatDialogRef<FirmExpenseRejectionDialog, string>);
+  reason = '';
+
+  submit(): void {
+    const reason = this.reason.trim();
+    if (reason) this.dialog.close(reason);
+  }
+}
+
+@Component({
   selector: 'audit-firm-books',
-  imports: [FormsModule, MatButtonModule, ...SHARED],
+  imports: [FormsModule, MatButtonModule, MatDialogModule, ...SHARED],
   template: `
     <audit-page-header title="Firm books" eyebrow="Economics"
       description="The firm's own operating expenses with source documents, posted through the firm ledger after independent review, and the calculated firm trial balance." />
@@ -56,7 +86,7 @@ export const decodeTrialBalance = obj({ fromPeriod: text, toPeriod: text, rows: 
                   @if (e.status === 'DRAFT' && b.canPrepare) { <button matButton (click)="act(e.id, 'submit', 'Submitted; its journal awaits review.')" [disabled]="cmd.busy()">Submit</button> }
                   @if (e.status === 'SUBMITTED' && b.canReview && !e.preparedByMe) {
                     <button matButton (click)="review(e.id, true)" [disabled]="cmd.busy()">Approve</button>
-                    <button matButton (click)="review(e.id, false)" [disabled]="cmd.busy()">Reject</button>
+                    <button matButton (click)="review(e.id, false, b.maxReviewCommentLength)" [disabled]="cmd.busy()">Reject</button>
                   }
                   @if (e.status === 'APPROVED' && b.canPrepare) { <button matButton (click)="act(e.id, 'post', 'Posted to the firm ledger.')" [disabled]="cmd.busy()">Post to ledger</button> }
                 </td></tr>
@@ -93,6 +123,7 @@ export const decodeTrialBalance = obj({ fromPeriod: text, toPeriod: text, rows: 
 export class FirmBooks {
   private readonly api = inject(Api);
   private readonly drafts = inject(Drafts);
+  private readonly dialog = inject(MatDialog);
   readonly books = this.api.resource(() => '/api/ui/finance/books', decodeBooks, 'Firm books require a firm-wide finance assignment.');
   readonly cmd = new CommandState(this.api);
   readonly tb = signal<ReturnType<typeof decodeTrialBalance> | null>(null);
@@ -150,9 +181,24 @@ export class FirmBooks {
   act(id: string, action: 'submit' | 'post', success: string): void {
     this.cmd.run(`/api/ui/finance/books/expenses/${id}/${action}`, {}, success).finally(() => this.books.reload());
   }
-  review(id: string, approve: boolean): void {
-    this.cmd.run(`/api/ui/finance/books/expenses/${id}/review`, { approve, comment: approve ? 'Agreed to the source document.' : 'Returned for correction.' },
-      approve ? 'Approved.' : 'Rejected.').finally(() => this.books.reload());
+  review(id: string, approve: boolean, maxReviewCommentLength = 1000): void {
+    if (approve) {
+      this.submitReview(id, true, 'Agreed to the source document.');
+      return;
+    }
+
+    this.dialog.open(FirmExpenseRejectionDialog, {
+      width: 'min(560px, calc(100vw - 32px))',
+      ariaLabel: 'Return expense for correction',
+      data: maxReviewCommentLength,
+    }).afterClosed().subscribe((reason: string | undefined) => {
+      if (reason) this.submitReview(id, false, reason);
+    });
+  }
+
+  private submitReview(id: string, approve: boolean, comment: string): void {
+    this.cmd.run(`/api/ui/finance/books/expenses/${id}/review`, { approve, comment },
+      approve ? 'Approved.' : 'Rejected with the recorded reason.').finally(() => this.books.reload());
   }
   async trialBalance(): Promise<void> {
     this.tbBusy.set(true); this.tbError.set(''); this.tb.set(null);
