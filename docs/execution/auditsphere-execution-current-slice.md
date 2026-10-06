@@ -6003,3 +6003,26 @@ The serialized full solution regression was attempted but stopped after 15
 minutes while the API test host was still active and before any project summary.
 It is recorded as incomplete, with no whole-suite pass or totals claimed. The
 exact commands and outcomes are in `docs/execution/status.json`.
+
+
+## Firm expense creation outcome recovery (AS-PAR-002)
+
+The existing implementation at `dbd8a375` was reverified on the current
+`bcf9e912` checkout. `AngularFirmExpenseCreationRecoveryJourneyTests` passed
+**1/1** in 36 seconds using the API-hosted Angular journey and an owned
+PostgreSQL database. A response lost after a saved create was reconciled by the
+exact actor/request ID/request hash receipt without a second POST. A request
+that never reached the API remained unresolved until explicit retry with the
+same form and file bytes. Duplicate identical intent returned the original
+expense ID; changed intent conflicted; the database retained one row per
+request. A reviewer without the preparer capability received a safe denial
+without expense identity or payee data.
+
+This closes the specific expense-record creation recovery gap in the finance
+source review. Broader firm-books authoring is still incomplete: the native
+ledger exposes account and period lists plus period close, while firm chart,
+period, and manual journal authoring do not yet have a complete Angular/API
+workflow. AS-COMP-26 remains open. The full solution regression was not rerun;
+the latest complete result remains 1001/1001 at `ead85032`. The test compiled
+the shared checkout alongside another agent's unrelated uncommitted engagement
+lifecycle route, which the tested finance journey did not exercise.
