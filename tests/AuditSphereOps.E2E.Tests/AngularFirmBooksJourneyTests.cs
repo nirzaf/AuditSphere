@@ -156,6 +156,34 @@ public sealed class AngularFirmBooksJourneyTests
     var approvedRow = preparerPage.GetByRole(AriaRole.Row).Filter(new() { HasText = "Synthetic approved office landlord" });
     await approvedRow.GetByRole(AriaRole.Button, new() { Name = "Post to ledger", Exact = true }).ClickAsync();
     await Assertions.Expect(preparerPage.GetByText("Posted to the firm ledger.", new() { Exact = true })).ToBeVisibleAsync();
+    Guid approvedExpenseId;
+    await using (var db = host.CreateDbContext())
+      approvedExpenseId = await db.FirmExpenses.AsNoTracking()
+        .Where(x => x.Payee == "Synthetic approved office landlord").Select(x => x.Id).SingleAsync();
+    var repeatedPostResponses = await preparerPage.EvaluateAsync<string>("""
+      async () => {
+        await fetch('/api/ui/session');
+        const cookie = document.cookie.split(';').map(value => value.trim())
+          .find(value => value.startsWith('XSRF-TOKEN='));
+        const token = cookie ? decodeURIComponent(cookie.slice('XSRF-TOKEN='.length)) : '';
+        const url = '/api/ui/finance/books/expenses/__EXPENSE_ID__/post';
+        const send = async () => {
+          const response = await fetch(url, { method: 'POST', headers: { 'X-XSRF-TOKEN': token }, body: '{}' });
+          return { status: response.status, body: await response.text() };
+        };
+        const first = await send();
+        const retry = await send();
+        return JSON.stringify({ first, retry });
+      }
+      """.Replace("__EXPENSE_ID__", approvedExpenseId.ToString("D"), StringComparison.Ordinal));
+    using (var retryResponses = System.Text.Json.JsonDocument.Parse(repeatedPostResponses))
+    {
+      var root = retryResponses.RootElement;
+      Assert.Equal(200, root.GetProperty("first").GetProperty("status").GetInt32());
+      Assert.Equal(200, root.GetProperty("retry").GetProperty("status").GetInt32());
+      Assert.Equal(root.GetProperty("first").GetProperty("body").GetString(),
+        root.GetProperty("retry").GetProperty("body").GetString());
+    }
     await preparerPage.GetByRole(AriaRole.Button, new() { Name = "Calculate", Exact = true }).ClickAsync();
     await Assertions.Expect(preparerPage.GetByRole(AriaRole.Rowheader,
       new() { Name = "SYN-EXP-6100 Synthetic office rent", Exact = true })).ToBeVisibleAsync();
