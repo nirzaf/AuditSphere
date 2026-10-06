@@ -99,9 +99,10 @@ public sealed class AngularTechnicalLibraryParityJourneyTests
     await Assertions.Expect(managerPage.GetByRole(AriaRole.Heading, new() { Name = $"{code} — {title}", Exact = true }))
       .ToBeVisibleAsync();
     await managerPage.GetByText("Prepare a new version", new() { Exact = true }).ClickAsync();
-    await managerPage.Locator("textarea[name='body']").FillAsync(bodyV2);
-    await managerPage.Locator("input[name='source']").FillAsync("Internal assurance methodology v2");
-    await managerPage.GetByRole(AriaRole.Button, new() { Name = "Save draft version", Exact = true }).ClickAsync();
+    var versionForm = managerPage.Locator("section.panel[aria-labelledby='entry-heading'] form");
+    await versionForm.Locator("textarea[name='body']").FillAsync(bodyV2);
+    await versionForm.Locator("input[name='source']").FillAsync("Internal assurance methodology v2");
+    await versionForm.GetByRole(AriaRole.Button, new() { Name = "Save draft version", Exact = true }).ClickAsync();
     await Assertions.Expect(managerPage.Locator(".command-result").Last).ToContainTextAsync("Draft version saved");
 
     await Assertions.Expect(managerPage.GetByRole(AriaRole.Button, new() { Name = "Publish v2 (second approver)", Exact = true }))
