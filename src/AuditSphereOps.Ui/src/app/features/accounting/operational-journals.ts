@@ -17,6 +17,9 @@ interface JournalPreview { journalId: string; clientId: string; periodId: string
 interface LedgerView { clientId: string; periodId: string; periodCode: string; currency: string; basis: string; page: number; pageSize: number; totalEntries: number;
   accounts: { accountId: string; accountCode: string; accountName: string; debitMovement: string; creditMovement: string; netMovement: string }[];
   entries: { journalId: string; journalNumber: string; postingDate: string; lineNumber: number; accountCode: string; accountName: string; description: string; debit: string; credit: string }[] }
+interface PostingReceipt { commandId: string; clientId: string; journalId: string; actorUserId: string; submittedRevision: string;
+  postedRevision: string; previewDigest: string; intentHash: string; recordedAt: string; status: string }
+interface PendingPosting { journal: Journal; commandId: string; previewDigest: string; reason: string; actorUserId: string }
 const amountPattern = /^(?:0|[1-9]\d{0,14})(?:\.\d{1,6})?$/;
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid journal response');
@@ -94,6 +97,17 @@ export function decodeJournalSnapshots(value: unknown, journal: Journal): Journa
     decodeOperationalJournal({ ...journal, ...v, id: journal.id, status: 'SUBMITTED', decisions: [] }, journal.clientId);
   }
   return value as JournalSnapshot[];
+}
+export function decodePostingReceipt(value: unknown, clientId: string, commandId: string, actorUserId: string): PostingReceipt {
+  const v = object(value);
+  if (v['clientId'] !== clientId || v['commandId'] !== commandId || v['actorUserId'] !== actorUserId ||
+      typeof v['journalId'] !== 'string' || !guidPattern.test(v['journalId']) || v['status'] !== 'POSTED' ||
+      typeof v['submittedRevision'] !== 'string' || !/^[1-9]\d{0,18}$/.test(v['submittedRevision']) ||
+      typeof v['postedRevision'] !== 'string' || !/^[1-9]\d{0,18}$/.test(v['postedRevision']) ||
+      BigInt(v['postedRevision']) !== BigInt(v['submittedRevision']) + 1n || typeof v['recordedAt'] !== 'string' ||
+      !['previewDigest', 'intentHash'].every(k => typeof v[k] === 'string' && /^[a-f0-9]{64}$/.test(String(v[k]))))
+    throw new Error('Invalid posting receipt');
+  return v as unknown as PostingReceipt;
 }
 export function nativeJournalAmount(value: string): boolean { return /^(?:0|[1-9]\d{0,12})(?:\.\d{1,6})?$/.test(value); }
 function minor(value: string): bigint { if (!nativeJournalAmount(value)) throw new Error('Invalid native journal amount'); const [whole, fraction = ''] = value.split('.'); return BigInt(whole) * 1_000_000n + BigInt(fraction.padEnd(6, '0')); }
@@ -193,6 +207,27 @@ function minor(value: string): bigint { if (!nativeJournalAmount(value)) throw n
       </form>
       <label>Open a saved journal by ID <input [(ngModel)]="lookupId" /></label>
       <button matButton type="button" [disabled]="busy()" (click)="load()">Open journal</button>
+      <section aria-label="Posting command recovery">
+        <label>Posting command ID <input [readonly]="!!pendingPosting()" [(ngModel)]="receiptKey" /></label>
+        <button matButton type="button" [disabled]="busy()" (click)="recoverPosting()">Recover posting receipt</button>
+        @if (postingReceipt(); as r) {
+          <p>Confirmed posting · {{ r.journalId }} · submitted revision {{ r.submittedRevision }} · posted revision {{ r.postedRevision }} · {{ r.recordedAt }}</p>
+        }
+        @if (pendingPosting(); as p) {
+          <p>Original posting request · {{ p.journal.journalNumber }} · {{ p.journal.clientId }} · {{ p.journal.postingDate }} · {{ p.journal.currency }} · revision {{ p.journal.revision }} · command {{ p.commandId }}</p>
+          <details><summary>Original posting amounts and review reason</summary>
+            <p>{{ p.reason }}</p>
+            <div class="table-scroll"><table><caption>Original posting request lines</caption>
+              <thead><tr><th>Account</th><th>Description</th><th>Debit</th><th>Credit</th></tr></thead>
+              <tbody>@for (line of p.journal.lines; track line.lineNumber) { <tr><td>{{ line.accountCode }} · {{ line.accountName }}</td><td>{{ line.description }}</td><td>{{ line.debit }}</td><td>{{ line.credit }}</td></tr> }</tbody>
+            </table></div>
+          </details>
+          @if (retryOriginal()) {
+            <label><input type="checkbox" [checked]="reviewed()" (change)="setReviewed($any($event.target).checked)" /> I reviewed the original posting request and want to retry that same command.</label>
+            <button matButton type="button" [disabled]="busy() || !reviewed()" (click)="retryPosting()">Retry original posting</button>
+          }
+        }
+      </section>
       @if (uncertain()) { <p role="alert">The last action outcome is unknown. Open the authorized journal by ID and inspect its persisted state before any further action.</p> }
     </section>
   `,
@@ -204,6 +239,10 @@ export class ClientOperationalJournals {
   private readonly http = inject(HttpClient);
   private readonly changeDetector = inject(ChangeDetectorRef);
   private readonly session = inject(SessionService);
+  readonly postingReceipt = signal<PostingReceipt | null>(null);
+  readonly pendingPosting = signal<PendingPosting | null>(null);
+  readonly retryOriginal = signal(false);
+  receiptKey = '';
   readonly editing = signal<Journal | null>(null);
   readonly journal = signal<Journal | null>(null);
   readonly preview = signal<JournalPreview | null>(null);
@@ -219,7 +258,7 @@ export class ClientOperationalJournals {
   private operation?: Subscription;
   private readonly invalidate = effect(() => {
     const id = this.clientId(); this.session.invalidation();
-    untracked(() => { this.operation?.unsubscribe(); this.journal.set(null); this.snapshots.set(null); this.preview.set(null); this.ledger.set(null); this.error.set(''); this.ledgerError.set(''); this.uncertain.set(false); this.busy.set(false); this.lookupId = ''; this.reason = ''; this.resetDraft(); });
+    untracked(() => { this.operation?.unsubscribe(); this.journal.set(null); this.snapshots.set(null); this.preview.set(null); this.ledger.set(null); this.error.set(''); this.ledgerError.set(''); this.uncertain.set(false); this.busy.set(false); this.lookupId = ''; this.reason = ''; this.receiptKey = ''; this.postingReceipt.set(null); this.pendingPosting.set(null); this.retryOriginal.set(false); this.resetDraft(); });
     void id;
   });
   constructor() { inject(DestroyRef).onDestroy(() => this.operation?.unsubscribe()); }
@@ -272,7 +311,7 @@ export class ClientOperationalJournals {
     this.editing.set(null);
     const generation = this.session.invalidation(); this.preview.set(null); this.snapshots.set(null); this.reviewed.set(false); this.busy.set(true); this.error.set('');
     this.operation = this.http.get<unknown>(`/api/ui/accounting/clients/${clientId}/operational-journals/${id}`).pipe(timeout(15000)).subscribe({
-      next: value => { if (generation !== this.session.invalidation()) return; try { const journal = decodeOperationalJournal(value, clientId); if (journal.id !== id) throw new Error(); this.journal.set(journal); this.uncertain.set(false); this.reviewed.set(false); this.busy.set(false); if (journal.status === 'POSTED') this.loadLedger(journal.periodId); } catch { this.busy.set(false); this.error.set('Journal details could not be validated for this client.'); } },
+      next: value => { if (generation !== this.session.invalidation()) return; try { const journal = decodeOperationalJournal(value, clientId); if (journal.id !== id) throw new Error(); this.journal.set(journal); this.uncertain.set(!!this.pendingPosting()); this.reviewed.set(false); this.busy.set(false); if (journal.status === 'POSTED') this.loadLedger(journal.periodId); } catch { this.busy.set(false); this.error.set('Journal details could not be validated for this client.'); } },
       error: failure => { if (generation !== this.session.invalidation()) return; this.busy.set(false); this.error.set('Journal could not be loaded in this client scope.'); if (failure.status === 401) this.session.clear(); },
     });
   }
@@ -310,7 +349,59 @@ export class ClientOperationalJournals {
   }
   submit(journal: Journal): void { this.act(journal, 'submit', { revision: journal.revision, previewDigest: this.preview()?.digest, reviewed: true }, 'Journal submitted for independent review.'); }
   returnJournal(journal: Journal): void { this.act(journal, 'return', { revision: journal.revision, reason: this.reason.trim(), reviewed: true }, 'Journal returned to its preparer.'); }
-  approve(journal: Journal): void { this.act(journal, 'post', { revision: journal.revision, reason: this.reason.trim(), previewDigest: this.preview()?.digest, reviewed: true }, 'Journal approved and posted to the client book.'); }
+  approve(journal: Journal): void {
+    if (this.pendingPosting() || !this.reviewed() || !this.preview() || this.preview()?.journalId !== journal.id ||
+        this.preview()?.revision !== journal.revision || !this.reason.trim() || this.busy() || this.uncertain() ||
+        journal.clientId !== this.clientId() || journal.createdByUserId === this.userId()) return;
+    const command = { journal, commandId: crypto.randomUUID(), previewDigest: this.preview()!.digest, reason: this.reason.trim(), actorUserId: this.userId() };
+    this.pendingPosting.set(command); this.receiptKey = command.commandId; this.postingReceipt.set(null);
+    this.dispatchPosting(command);
+  }
+  recoverPosting(): void {
+    const clientId = this.clientId(), commandId = this.receiptKey.trim(), actorUserId = this.userId();
+    if (!guidPattern.test(commandId) || this.busy()) return;
+    const generation = this.session.invalidation(); this.busy.set(true); this.retryOriginal.set(false); this.reviewed.set(false);
+    this.operation = this.http.get<unknown>(`/api/ui/accounting/clients/${clientId}/operational-posting-receipts/${commandId}`).pipe(timeout(15000)).subscribe({
+      next: value => { if (generation !== this.session.invalidation()) return;
+        try { const receipt = decodePostingReceipt(value, clientId, commandId, actorUserId); this.validatePendingReceipt(receipt);
+          this.postingReceipt.set(receipt); this.pendingPosting.set(null); this.uncertain.set(false); this.busy.set(false);
+          this.lookupId = receipt.journalId; this.load();
+        } catch { this.failedUnknown(); } },
+      error: failure => { if (generation !== this.session.invalidation()) return; this.busy.set(false);
+        if (failure.status === 404 && this.pendingPosting()?.commandId === commandId) {
+          this.retryOriginal.set(true); this.uncertain.set(true); this.error.set('No committed receipt was found. You may retry the original request using its same command identity.');
+        } else { this.error.set('The original posting receipt is unavailable in this client and user scope.'); }
+        if (failure.status === 401) this.session.clear(); },
+    });
+  }
+  retryPosting(): void {
+    const command = this.pendingPosting();
+    if (!command || !this.retryOriginal() || !this.reviewed() || this.busy() || command.journal.clientId !== this.clientId() || command.actorUserId !== this.userId()) return;
+    this.dispatchPosting(command);
+  }
+  private validatePendingReceipt(receipt: PostingReceipt): void {
+    const pending = this.pendingPosting();
+    if (pending && (receipt.commandId !== pending.commandId || receipt.journalId !== pending.journal.id ||
+      receipt.submittedRevision !== pending.journal.revision || receipt.previewDigest !== pending.previewDigest)) throw new Error('Receipt differs from the original request');
+  }
+  private dispatchPosting(command: PendingPosting): void {
+    const generation = this.session.invalidation(); this.busy.set(true); this.retryOriginal.set(false); this.error.set('');
+    this.operation = this.http.post<unknown>(`/api/ui/accounting/clients/${command.journal.clientId}/operational-journals/${command.journal.id}/post`, {
+      revision: command.journal.revision, reason: command.reason, previewDigest: command.previewDigest, reviewed: true, commandId: command.commandId,
+    }).pipe(timeout(15000)).subscribe({
+      next: value => { if (generation !== this.session.invalidation()) return;
+        try { const receipt = decodePostingReceipt(value, command.journal.clientId, command.commandId, command.actorUserId);
+          this.validatePendingReceipt(receipt); this.postingReceipt.set(receipt); this.pendingPosting.set(null);
+          this.uncertain.set(false); this.busy.set(false); this.reviewed.set(false); this.lookupId = receipt.journalId; this.load();
+        } catch { this.failedUnknown(); } },
+      error: failure => { if (generation !== this.session.invalidation()) return;
+        if (failure.status === 400 && ['request.invalid', 'revision.stale', 'gate.blocked', 'mapping.invalid', 'idempotency.conflict'].includes(failure.error?.code)) {
+          this.busy.set(false); this.pendingPosting.set(null); this.retryOriginal.set(false); this.uncertain.set(false); this.reviewed.set(false);
+          this.preview.set(null); this.error.set('The server refused this posting request. Reload the journal and obtain a fresh preview before another review.');
+        } else { this.failedUnknown(); }
+        if (failure.status === 401) this.session.clear(); },
+    });
+  }
   private act(journal: Journal, action: string, body: object, success: string): void {
     if (this.editing() || !this.reviewed() || (action !== 'return' && (!this.preview() || this.preview()?.journalId !== journal.id || this.preview()?.revision !== journal.revision)) || this.busy() || this.uncertain() || journal.clientId !== this.clientId()) return;
     const generation = this.session.invalidation(); this.busy.set(true); this.error.set('');

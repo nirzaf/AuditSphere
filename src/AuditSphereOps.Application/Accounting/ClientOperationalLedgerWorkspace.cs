@@ -10,7 +10,7 @@ namespace AuditSphereOps.Application.Accounting;
 public sealed record ClientOperationalJournalLineInput(string AccountCode, string Description, decimal Debit, decimal Credit);
 public sealed record ClientOperationalJournalCreateRequest(Guid ClientId, Guid PeriodId, string JournalNumber,
   string Description, DateOnly PostingDate, IReadOnlyList<ClientOperationalJournalLineInput> Lines);
-public sealed record ClientOperationalJournalDecisionRequest(long ExpectedRevision, string Decision, string Reason, string PreviewDigest = "");
+public sealed record ClientOperationalJournalDecisionRequest(long ExpectedRevision, string Decision, string Reason, string PreviewDigest = "", Guid CommandId = default);
 public sealed record ClientOperationalJournalLineView(int LineNumber, Guid AccountId, string AccountCode,
   string AccountName, string Description, string Debit, string Credit);
 public sealed record ClientOperationalJournalDecisionView(string Revision, string Decision, string Reason, Guid ActorUserId, string CreatedAt);
@@ -164,7 +164,24 @@ public static partial class ClientOperationalLedgerWorkspace
     var decision = (request.Decision ?? string.Empty).Trim().ToUpperInvariant();
     if (request.ExpectedRevision < 1 || reason.Length is 0 or > 2000 || decision != "APPROVE")
       return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "An approval requires the current revision and a reason.");
+    if (request.CommandId == Guid.Empty)
+      return CommandResult.Fail(ErrorCodes.IdempotencyConflict, "Posting requires a stable command identity.");
+    var initialAuth = await AuthorizeAsync(db, actor, clientId, Reviewers, ct);
+    if (!initialAuth.Succeeded) return initialAuth;
+    var intentHash = PostingIntent(actor, clientId, journalId, request);
     await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({PostingCommandLock(actor.FirmId, clientId, request.CommandId)})", ct);
+    var existingReceipt = await db.ClientOperationalPostingReceipts.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
+      x.ClientId == clientId && x.CommandId == request.CommandId, ct);
+    if (existingReceipt is not null)
+    {
+      if (existingReceipt.ActorUserId != actor.UserId || existingReceipt.JournalId != journalId || existingReceipt.IntentHash != intentHash)
+        return CommandResult.Fail(ErrorCodes.IdempotencyConflict, "This command identity already belongs to different posting intent.");
+      if (!(await AuthorizeAsync(db, actor, clientId, Reviewers, ct)).Succeeded)
+        return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+      await tx.CommitAsync(ct);
+      return CommandResult.Ok();
+    }
     var journal = await db.ClientOperationalJournals.FromSqlInterpolated(
       $"SELECT * FROM client_operational_journals WHERE firm_id = {actor.FirmId} AND client_id = {clientId} AND id = {journalId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
@@ -174,10 +191,7 @@ public static partial class ClientOperationalLedgerWorkspace
     var profile = await NativeProfileAsync(db, actor, clientId, ct);
     if (!profile.Succeeded) return CommandResult.Fail(profile.ErrorCode!, profile.Message!);
     if (journal.Status == "POSTED")
-    {
-      await tx.CommitAsync(ct);
-      return CommandResult.Ok();
-    }
+      return CommandResult.Fail(ErrorCodes.IdempotencyConflict, "The journal is already posted. Recover the original command receipt instead of creating another command.");
     if (journal.CreatedByUserId == actor.UserId)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "The journal preparer cannot approve their own journal.");
     if (journal.Status != "SUBMITTED" || journal.Revision != request.ExpectedRevision)
@@ -206,8 +220,15 @@ public static partial class ClientOperationalLedgerWorkspace
     journal.PostedAt = DateTimeOffset.UtcNow;
     journal.Revision++;
     await db.SaveChangesAsync(ct);
+    db.ClientOperationalPostingReceipts.Add(new ClientOperationalPostingReceipt {
+      Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = clientId, CommandId = request.CommandId,
+      JournalId = journalId, ActorUserId = actor.UserId, SubmittedRevision = request.ExpectedRevision,
+      PostedRevision = journal.Revision, IntentHash = intentHash, PreviewDigest = request.PreviewDigest, RecordedAt = journal.PostedAt!.Value });
+    await db.SaveChangesAsync(ct);
     if (!(await AuthorizeAsync(db, actor, clientId, Reviewers, ct)).Succeeded)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (!(await NativeProfileAsync(db, actor, clientId, ct)).Succeeded)
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "The accepted bookkeeping service changed during posting.");
     await tx.CommitAsync(ct);
     return CommandResult.Ok();
   }

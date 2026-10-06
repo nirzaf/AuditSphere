@@ -25,7 +25,7 @@ public sealed class OpenApiContractTests
   private static async Task<JsonElement> FetchContractAsync(HttpClient client)
   {
     using var response = await client.GetAsync($"/api/contract/{ApiContract.DocumentName}.json");
-    Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
+    Assert.True(response.StatusCode == System.Net.HttpStatusCode.OK, $"Contract request returned {response.StatusCode}: {await response.Content.ReadAsStringAsync()}");
     await using var stream = await response.Content.ReadAsStreamAsync();
     var json = await JsonDocument.ParseAsync(stream);
     return json.RootElement.Clone();

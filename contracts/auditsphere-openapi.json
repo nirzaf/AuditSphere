@@ -5097,6 +5097,70 @@
         ]
       }
     },
+    "/api/ui/accounting/clients/{clientId}/operational-posting-receipts/{commandId}": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "commandId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientOperationalPostingReceiptView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
     "/api/ui/accounting/clients/{clientId}/operational-ledger": {
       "get": {
         "tags": [
@@ -5710,7 +5774,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ClientOperationalJournalPostHttpInput"
+                "$ref": "#/components/schemas/ClientOperationalJournalPostingHttpInput"
               }
             }
           },
@@ -27480,6 +27544,34 @@
           }
         }
       },
+      "ClientOperationalJournalPostingHttpInput": {
+        "required": [
+          "revision",
+          "reason",
+          "reviewed",
+          "previewDigest",
+          "commandId"
+        ],
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "reviewed": {
+            "type": "boolean"
+          },
+          "previewDigest": {
+            "type": "string"
+          },
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
       "ClientOperationalJournalPreview": {
         "required": [
           "journalId",
@@ -27793,6 +27885,57 @@
             "type": "string"
           },
           "credit": {
+            "type": "string"
+          }
+        }
+      },
+      "ClientOperationalPostingReceiptView": {
+        "required": [
+          "commandId",
+          "clientId",
+          "journalId",
+          "actorUserId",
+          "submittedRevision",
+          "postedRevision",
+          "previewDigest",
+          "intentHash",
+          "recordedAt",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "clientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "journalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actorUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "submittedRevision": {
+            "type": "string"
+          },
+          "postedRevision": {
+            "type": "string"
+          },
+          "previewDigest": {
+            "type": "string"
+          },
+          "intentHash": {
+            "type": "string"
+          },
+          "recordedAt": {
+            "type": "string"
+          },
+          "status": {
             "type": "string"
           }
         }

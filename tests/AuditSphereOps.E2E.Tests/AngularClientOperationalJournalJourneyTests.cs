@@ -5,6 +5,7 @@ using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Tests;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
+using System.Text.Json;
 
 namespace AuditSphereOps.E2E.Tests;
 
@@ -156,7 +157,30 @@ public sealed class AngularClientOperationalJournalJourneyTests
     await Assertions.Expect(journals.GetByRole(AriaRole.Status)).ToContainTextAsync("revision 5");
     await journals.GetByLabel("Review reason", new() { Exact = true }).FillAsync("Independently reviewed and balanced");
     await journals.GetByRole(AriaRole.Checkbox, new() { Name = "I independently reviewed this exact journal revision and its balanced lines.", Exact = true }).CheckAsync();
+    // Commit the real request, then simulate losing its response. Recovery must use the original receipt, not repost.
+    var postingKeys = new List<string>();
+    await page.RouteAsync("**/operational-journals/*/post", async route => {
+      using var body = JsonDocument.Parse(route.Request.PostData!);
+      postingKeys.Add(body.RootElement.GetProperty("commandId").GetString()!);
+      if (postingKeys.Count == 1) {
+        await route.FulfillAsync(new() { Status = 503, ContentType = "application/json", Body = "{\"code\":\"synthetic.request-not-delivered\"}" });
+        return;
+      }
+      var response = await route.FetchAsync();
+      Assert.Equal(200, response.Status);
+      await route.FulfillAsync(new() { Status = 503, ContentType = "application/json", Body = "{\"code\":\"synthetic.response-lost\"}" });
+    });
     await journals.GetByRole(AriaRole.Button, new() { Name = "Approve and post", Exact = true }).ClickAsync();
+    await Assertions.Expect(journals.GetByText("The journal action outcome could not be confirmed. Inspect the persisted journal before retrying.", new() { Exact = true })).ToBeVisibleAsync();
+    await journals.GetByRole(AriaRole.Button, new() { Name = "Recover posting receipt", Exact = true }).ClickAsync();
+    await Assertions.Expect(journals.GetByRole(AriaRole.Button, new() { Name = "Retry original posting", Exact = true })).ToBeVisibleAsync();
+    await journals.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed the original posting request and want to retry that same command.", Exact = true }).CheckAsync();
+    await journals.GetByRole(AriaRole.Button, new() { Name = "Retry original posting", Exact = true }).ClickAsync();
+    await Assertions.Expect(journals.GetByText("The journal action outcome could not be confirmed. Inspect the persisted journal before retrying.", new() { Exact = true })).ToBeVisibleAsync();
+    await journals.GetByRole(AriaRole.Button, new() { Name = "Recover posting receipt", Exact = true }).ClickAsync();
+    Assert.Equal(2, postingKeys.Count);
+    Assert.Equal(postingKeys[0], postingKeys[1]);
+    await Assertions.Expect(journals.GetByRole(AriaRole.Region, new() { Name = "Posting command recovery", Exact = true })).ToContainTextAsync("Confirmed posting");
     await Assertions.Expect(journals.GetByRole(AriaRole.Heading, new() { Name = "J-UI-001 · POSTED", Exact = true })).ToBeVisibleAsync();
     await journals.GetByRole(AriaRole.Button, new() { Name = "View submitted versions", Exact = true }).ClickAsync();
     await Assertions.Expect(journals.GetByText("Submitted revision 2", new() { Exact = true })).ToBeVisibleAsync();
@@ -172,6 +196,7 @@ public sealed class AngularClientOperationalJournalJourneyTests
     {
       var posted = await db.ClientOperationalJournals.SingleAsync(x => x.Id == journalId);
       Assert.Equal("POSTED", posted.Status);
+      Assert.Single(await db.ClientOperationalPostingReceipts.Where(x => x.JournalId == journalId).ToListAsync());
       Assert.Equal(fixture.Reviewer.Id, posted.PostedByUserId);
       var decisions = await db.ClientOperationalJournalDecisions.Where(x => x.JournalId == journalId).OrderBy(x => x.JournalRevision).ToListAsync();
       Assert.Equal(2, decisions.Count);

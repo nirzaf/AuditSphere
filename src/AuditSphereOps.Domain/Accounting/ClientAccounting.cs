@@ -1307,3 +1307,19 @@ public sealed class ClientOperationalJournalSnapshot
   public string SnapshotJson { get; set; } = string.Empty;
   public DateTimeOffset CapturedAt { get; set; }
 }
+
+/// <summary>Immutable outcome of one exact client-scoped native journal posting command.</summary>
+public sealed class ClientOperationalPostingReceipt
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid CommandId { get; set; }
+  public Guid JournalId { get; set; }
+  public Guid ActorUserId { get; set; }
+  public long SubmittedRevision { get; set; }
+  public long PostedRevision { get; set; }
+  public string IntentHash { get; set; } = string.Empty;
+  public string PreviewDigest { get; set; } = string.Empty;
+  public DateTimeOffset RecordedAt { get; set; }
+}

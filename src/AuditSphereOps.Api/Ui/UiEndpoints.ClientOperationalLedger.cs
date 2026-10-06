@@ -16,9 +16,22 @@ public static partial class UiEndpoints
     IReadOnlyList<ClientOperationalJournalLineHttpInput> Lines, bool Reviewed);
   public sealed record ClientOperationalJournalSubmitHttpInput(string Revision, bool Reviewed, string PreviewDigest = "");
   public sealed record ClientOperationalJournalPostHttpInput(string Revision, string Reason, bool Reviewed, string PreviewDigest = "");
+  public sealed record ClientOperationalJournalPostingHttpInput(string Revision, string Reason, bool Reviewed, string PreviewDigest, Guid CommandId);
 
   private static void MapClientOperationalLedgerEndpoints(RouteGroupBuilder group)
   {
+    group.MapGet("/accounting/clients/{clientId:guid}/operational-posting-receipts/{commandId:guid}", async (Guid clientId,
+      Guid commandId, HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
+    {
+      var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
+      if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
+      var result = await ClientOperationalLedgerWorkspace.GetPostingReceiptAsync(db, actor, clientId, commandId, http.RequestAborted);
+      if (!result.Succeeded) return Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "command.receipt-not-found" ? 404 : 403);
+      if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      return Results.Ok(result.Value);
+    }).Produces<ClientOperationalPostingReceiptView>();
+
     group.MapGet("/accounting/clients/{clientId:guid}/operational-ledger", async (Guid clientId, Guid periodId,
       int page, int pageSize, HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -155,7 +168,7 @@ public static partial class UiEndpoints
     });
 
     group.MapPost("/accounting/clients/{clientId:guid}/operational-journals/{journalId:guid}/post", async (Guid clientId,
-      Guid journalId, ClientOperationalJournalPostHttpInput input, HttpContext http, TrustedActorResolver resolver,
+      Guid journalId, ClientOperationalJournalPostingHttpInput input, HttpContext http, TrustedActorResolver resolver,
       IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
       var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
@@ -166,9 +179,10 @@ public static partial class UiEndpoints
         return Results.Json(new { code = "request.invalid" }, statusCode: 400);
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await ClientOperationalLedgerWorkspace.ReviewAndPostAsync(db, actor, clientId, journalId,
-        new(revision, "APPROVE", input.Reason, input.PreviewDigest), http.RequestAborted);
-      return result.Succeeded ? Results.Ok(new { posted = true }) :
-        Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
+        new(revision, "APPROVE", input.Reason, input.PreviewDigest, input.CommandId), http.RequestAborted);
+      if (!result.Succeeded) return Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
+      var receipt = await ClientOperationalLedgerWorkspace.GetPostingReceiptAsync(db, actor, clientId, input.CommandId, http.RequestAborted);
+      return receipt.Succeeded ? Results.Ok(receipt.Value) : Results.Json(new { code = receipt.ErrorCode }, statusCode: 403);
     });
   }
 }

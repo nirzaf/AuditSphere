@@ -20,6 +20,7 @@ public sealed partial class ClientAccountingTests
     var preparer = Actor(scope.Preparer, "AccountingPreparer");
     var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
     string reviewDigest = "";
+    var commandId = Guid.CreateVersion7();
     Guid periodId;
     Guid chartId;
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -106,11 +107,11 @@ public sealed partial class ClientAccountingTests
       reviewDigest = reviewPreview.Value!.Digest;
       Assert.NotEqual(refreshed.Value.Digest, reviewDigest);
       var staleApproval = await ClientOperationalLedgerWorkspace.ReviewAndPostAsync(db, reviewer, scope.ClientA, journalId,
-        new(2, "APPROVE", "Old draft preview", refreshed.Value.Digest));
+        new(2, "APPROVE", "Old draft preview", refreshed.Value.Digest, Guid.CreateVersion7()));
       Assert.False(staleApproval.Succeeded);
       Assert.Equal(ErrorCodes.StaleRevision, staleApproval.ErrorCode);
       var selfApproval = await ClientOperationalLedgerWorkspace.ReviewAndPostAsync(db, preparer, scope.ClientA, journalId,
-        new ClientOperationalJournalDecisionRequest(2, "APPROVE", "Reviewed"));
+        new ClientOperationalJournalDecisionRequest(2, "APPROVE", "Reviewed", CommandId: Guid.CreateVersion7()));
       Assert.False(selfApproval.Succeeded);
       Assert.Equal(ErrorCodes.ScopeDenied, selfApproval.ErrorCode);
       var readiness = await PeriodCloseReadinessQuery.GetReadinessAsync(db, reviewer, periodId);
@@ -169,11 +170,32 @@ public sealed partial class ClientAccountingTests
       reviewDigest = review.Value!.Digest;
     }
 
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.False((await ClientOperationalLedgerWorkspace.GetPostingReceiptAsync(db, reviewer, scope.ClientA, commandId)).Succeeded);
+      await db.Database.ExecuteSqlRawAsync("""
+        CREATE FUNCTION fail_native_receipt_for_test() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN RAISE EXCEPTION 'Synthetic receipt failure' USING ERRCODE='23514'; END $$;
+        CREATE TRIGGER zz_fail_native_receipt BEFORE INSERT ON client_operational_posting_receipts
+          FOR EACH ROW EXECUTE FUNCTION fail_native_receipt_for_test();
+        """);
+      try
+      {
+        await using var failed = new AuditSphereDbContext(pg.Options);
+        await Assert.ThrowsAsync<DbUpdateException>(() => ClientOperationalLedgerWorkspace.ReviewAndPostAsync(failed, reviewer, scope.ClientA, journalId,
+          new(5, "APPROVE", "Balanced and supported", reviewDigest, commandId)));
+        Assert.Equal("SUBMITTED", (await db.ClientOperationalJournals.AsNoTracking().SingleAsync(x => x.Id == journalId)).Status);
+        Assert.Equal(1, await db.ClientOperationalJournalDecisions.CountAsync(x => x.JournalId == journalId));
+        Assert.Empty(await db.ClientOperationalPostingReceipts.ToListAsync());
+      }
+      finally { await db.Database.ExecuteSqlRawAsync("DROP TRIGGER zz_fail_native_receipt ON client_operational_posting_receipts; DROP FUNCTION fail_native_receipt_for_test();"); }
+    }
+
     async Task<CommandResult> PostOnce()
     {
       await using var concurrent = new AuditSphereDbContext(pg.Options);
       return await ClientOperationalLedgerWorkspace.ReviewAndPostAsync(concurrent, reviewer, scope.ClientA, journalId,
-        new(5, "APPROVE", "Balanced and supported", reviewDigest));
+        new(5, "APPROVE", "Balanced and supported", reviewDigest, commandId));
     }
     async Task<CommandResult> CloseConcurrently()
     {
@@ -188,11 +210,24 @@ public sealed partial class ClientAccountingTests
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var posted = await ClientOperationalLedgerWorkspace.ReviewAndPostAsync(db, reviewer, scope.ClientA, journalId,
-        new ClientOperationalJournalDecisionRequest(5, "APPROVE", "Balanced and supported", reviewDigest));
+        new ClientOperationalJournalDecisionRequest(5, "APPROVE", "Balanced and supported", reviewDigest, commandId));
       Assert.True(posted.Succeeded, posted.Message);
       var replay = await ClientOperationalLedgerWorkspace.ReviewAndPostAsync(db, reviewer, scope.ClientA, journalId,
-        new ClientOperationalJournalDecisionRequest(5, "APPROVE", "Balanced and supported", reviewDigest));
+        new ClientOperationalJournalDecisionRequest(5, "APPROVE", "Balanced and supported", reviewDigest, commandId));
       Assert.True(replay.Succeeded, replay.Message);
+      var receipt = await ClientOperationalLedgerWorkspace.GetPostingReceiptAsync(db, reviewer, scope.ClientA, commandId);
+      Assert.True(receipt.Succeeded, receipt.Message);
+      Assert.Equal(journalId, receipt.Value!.JournalId);
+      Assert.Equal("5", receipt.Value.SubmittedRevision);
+      Assert.Equal("6", receipt.Value.PostedRevision);
+      Assert.Single(await db.ClientOperationalPostingReceipts.Where(x => x.ClientId == scope.ClientA).ToListAsync());
+      var conflicting = await ClientOperationalLedgerWorkspace.ReviewAndPostAsync(db, reviewer, scope.ClientA, journalId,
+        new(5, "APPROVE", "Different review reason", reviewDigest, commandId));
+      Assert.Equal(ErrorCodes.IdempotencyConflict, conflicting.ErrorCode);
+      Assert.False((await ClientOperationalLedgerWorkspace.ReviewAndPostAsync(db, reviewer, scope.ClientA, journalId,
+        new(5, "APPROVE", "Balanced and supported", reviewDigest, Guid.CreateVersion7()))).Succeeded);
+      Assert.False((await ClientOperationalLedgerWorkspace.GetPostingReceiptAsync(db, preparer, scope.ClientA, commandId)).Succeeded);
+      Assert.False((await ClientOperationalLedgerWorkspace.GetPostingReceiptAsync(db, reviewer, scope.ClientB, commandId)).Succeeded);
       Assert.Equal(2, await db.ClientOperationalJournalDecisions.CountAsync(x => x.FirmId == scope.FirmId && x.JournalId == journalId));
       var journal = await db.ClientOperationalJournals.SingleAsync(x => x.FirmId == scope.FirmId && x.Id == journalId);
       Assert.Equal("POSTED", journal.Status);
@@ -205,6 +240,8 @@ public sealed partial class ClientAccountingTests
       Assert.False((await ClientOperationalLedgerWorkspace.GetSnapshotsAsync(db, reviewer, scope.ClientB, journalId)).Succeeded);
       await AssertNativeRuntimeSqlDeniedAsync(pg, journalId, scope.Reviewer.Id,
       [
+        "UPDATE client_operational_posting_receipts SET intent_hash=repeat('a',64) WHERE journal_id=@journal",
+        "DELETE FROM client_operational_posting_receipts WHERE journal_id=@journal",
         "UPDATE client_operational_journal_snapshots SET snapshot_json='{}'::jsonb WHERE journal_id=@journal",
         "DELETE FROM client_operational_journal_snapshots WHERE journal_id=@journal",
         "INSERT INTO client_operational_journal_snapshots SELECT gen_random_uuid(),firm_id,client_id,journal_id,99,capture_kind,snapshot_json,captured_at FROM client_operational_journal_snapshots WHERE journal_id=@journal LIMIT 1"

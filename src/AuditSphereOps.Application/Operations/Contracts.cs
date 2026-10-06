@@ -239,6 +239,7 @@ public interface IClientAccountingDbContext : IAuditSphereDbContext
   DbSet<ClientGroupMembership> ClientGroupMemberships { get; }
   DbSet<GroupAccessGrant> GroupAccessGrants { get; }
   DbSet<ClientReportingPeriod> ClientReportingPeriods { get; }
+  DbSet<ClientOperationalPostingReceipt> ClientOperationalPostingReceipts { get; }
   DbSet<ClientOperationalJournalSnapshot> ClientOperationalJournalSnapshots { get; }
   DbSet<ClientOperationalJournal> ClientOperationalJournals { get; }
   DbSet<ClientOperationalJournalLine> ClientOperationalJournalLines { get; }

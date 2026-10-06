@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeOperationalJournal, decodeOperationalLedger, nativeJournalAmount, decodeJournalPreview, decodeJournalSnapshots } from './operational-journals';
+import { decodeOperationalJournal, decodeOperationalLedger, nativeJournalAmount, decodeJournalPreview, decodeJournalSnapshots, decodePostingReceipt } from './operational-journals';
 
 const client = '11111111-1111-4111-8111-111111111111';
 const journal = '22222222-2222-4222-8222-222222222222';
@@ -70,5 +70,16 @@ describe('Preserved submitted versions', () => {
     expect(() => decodeJournalSnapshots([{ ...snapshot, clientId: journal }], saved)).toThrow();
     expect(() => decodeJournalSnapshots([snapshot, snapshot], saved)).toThrow();
     expect(() => decodeJournalSnapshots([{ ...snapshot, lines: [{ ...view.lines[0], debit: 125 }, view.lines[1]] }], saved)).toThrow();
+  });
+});
+
+describe('Posting receipt recovery', () => {
+  it('binds the committed outcome to command, client, actor and consecutive exact revisions', () => {
+    const receipt = { commandId: account, clientId: client, journalId: journal, actorUserId: actor, submittedRevision: '9007199254740993',
+      postedRevision: '9007199254740994', previewDigest: 'a'.repeat(64), intentHash: 'b'.repeat(64), recordedAt: '2026-01-05T01:00:00Z', status: 'POSTED' };
+    expect(decodePostingReceipt(receipt, client, account, actor).postedRevision).toBe('9007199254740994');
+    for (const change of [{ commandId: client }, { clientId: journal }, { actorUserId: account }, { journalId: 'bad' },
+      { submittedRevision: 2 }, { postedRevision: '9007199254740995' }, { previewDigest: 'bad' }, { intentHash: 'bad' }, { status: 'PENDING' }])
+      expect(() => decodePostingReceipt({ ...receipt, ...change }, client, account, actor)).toThrow();
   });
 });
