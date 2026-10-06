@@ -11,7 +11,7 @@ namespace AuditSphereOps.Application.Accounting;
 public sealed record ClientOperationalLedgerAccountView(Guid AccountId, string AccountCode, string AccountName,
   string DebitMovement, string CreditMovement, string NetMovement);
 public sealed record ClientOperationalLedgerEntryView(Guid JournalId, string JournalNumber, string PostingDate,
-  int LineNumber, string AccountCode, string AccountName, string Description, string Debit, string Credit);
+  int LineNumber, string AccountCode, string AccountName, string Description, string Debit, string Credit, Guid? ReversesJournalId = null, Guid? ReversedByJournalId = null, string? ReversedByStatus = null);
 public sealed record ClientOperationalGeneralLedgerView(Guid ClientId, Guid PeriodId, string PeriodCode, string Currency,
   string Basis, int Page, int PageSize, int TotalEntries, IReadOnlyList<ClientOperationalLedgerAccountView> Accounts,
   IReadOnlyList<ClientOperationalLedgerEntryView> Entries);
@@ -55,6 +55,12 @@ public static class ClientOperationalGeneralLedgerWorkspace
       .ThenBy(x => x.Line.LineNumber).Skip(page * pageSize).Take(pageSize)
       .Select(x => new { x.Journal.Id, x.Journal.JournalNumber, x.Journal.PostingDate, x.Line.LineNumber,
         x.Line.AccountCode, x.Line.AccountName, x.Line.Description, x.Line.Debit, x.Line.Credit }).ToListAsync(ct);
+    var journalIds = entryRows.Select(x => x.Id).Distinct().ToArray();
+    var links = await (from link in db.ClientOperationalJournalReversals.AsNoTracking()
+      join reversal in db.ClientOperationalJournals.AsNoTracking()
+        on new { link.FirmId, link.ClientId, Id = link.ReversalJournalId } equals new { reversal.FirmId, reversal.ClientId, Id = reversal.Id }
+      where link.FirmId == actor.FirmId && link.ClientId == clientId && (journalIds.Contains(link.OriginalJournalId) || journalIds.Contains(link.ReversalJournalId))
+      select new { link.OriginalJournalId, link.ReversalJournalId, reversal.Status }).ToListAsync(ct);
     await snapshot.CommitAsync(ct);
     if (!(await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, clientId, RequiredRoles: ReaderRoles, InternalOnly: true), ct)).Succeeded)
@@ -68,7 +74,10 @@ public static class ClientOperationalGeneralLedgerWorkspace
     var entries = entryRows.Select(x => new ClientOperationalLedgerEntryView(x.Id, x.JournalNumber,
       x.PostingDate.ToString("yyyy-MM-dd"), x.LineNumber, x.AccountCode, x.AccountName, x.Description,
       x.Debit.ToString(System.Globalization.CultureInfo.InvariantCulture),
-      x.Credit.ToString(System.Globalization.CultureInfo.InvariantCulture))).ToArray();
+      x.Credit.ToString(System.Globalization.CultureInfo.InvariantCulture),
+      links.SingleOrDefault(l => l.ReversalJournalId == x.Id)?.OriginalJournalId,
+      links.SingleOrDefault(l => l.OriginalJournalId == x.Id)?.ReversalJournalId,
+      links.SingleOrDefault(l => l.OriginalJournalId == x.Id)?.Status)).ToArray();
     return CommandResult<ClientOperationalGeneralLedgerView>.Ok(new(clientId, periodId, period.PeriodCode,
       period.Currency, period.Basis, page, pageSize, total, accounts, entries));
   }

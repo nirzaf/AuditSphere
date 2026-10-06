@@ -17,7 +17,8 @@ public sealed record ClientOperationalJournalDecisionView(string Revision, strin
 public sealed record ClientOperationalJournalView(Guid Id, Guid ClientId, Guid PeriodId, string JournalNumber,
   string Description, string PostingDate, string Currency, string Status, string Revision,
   Guid CreatedByUserId, string CreatedAt, Guid? PostedByUserId, string? PostedAt,
-  IReadOnlyList<ClientOperationalJournalLineView> Lines, IReadOnlyList<ClientOperationalJournalDecisionView>? Decisions = null);
+  IReadOnlyList<ClientOperationalJournalLineView> Lines, IReadOnlyList<ClientOperationalJournalDecisionView>? Decisions = null,
+  ClientOperationalJournalReversalView? ReversalOf = null, ClientOperationalJournalReversalView? ReversedBy = null);
 
 /// <summary>Native client-book manual journal draft, independent review, and immutable posting.</summary>
 public static partial class ClientOperationalLedgerWorkspace
@@ -27,6 +28,12 @@ public static partial class ClientOperationalLedgerWorkspace
 
   public static async Task<CommandResult<Guid>> CreateDraftAsync(IClientAccountingDbContext db, ActorContext actor,
     ClientOperationalJournalCreateRequest request, CancellationToken ct = default)
+  {
+    return await CreateDraftCoreAsync(db, actor, request, true, ct);
+  }
+
+  private static async Task<CommandResult<Guid>> CreateDraftCoreAsync(IClientAccountingDbContext db, ActorContext actor,
+    ClientOperationalJournalCreateRequest request, bool ownsTransaction, CancellationToken ct)
   {
     var number = (request.JournalNumber ?? string.Empty).Trim();
     var description = (request.Description ?? string.Empty).Trim();
@@ -42,7 +49,7 @@ public static partial class ClientOperationalLedgerWorkspace
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     var profile = await NativeProfileAsync(db, actor, request.ClientId, ct);
     if (!profile.Succeeded) return CommandResult<Guid>.Fail(profile.ErrorCode!, profile.Message!);
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await using var tx = ownsTransaction ? await db.Database.BeginTransactionAsync(ct) : null;
     var period = await db.ClientReportingPeriods.FromSqlInterpolated(
       $"SELECT * FROM client_reporting_periods WHERE firm_id = {actor.FirmId} AND client_id = {request.ClientId} AND id = {request.PeriodId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
@@ -88,7 +95,7 @@ public static partial class ClientOperationalLedgerWorkspace
       });
     }
     await db.SaveChangesAsync(ct);
-    await tx.CommitAsync(ct);
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(journal.Id);
   }
 
@@ -108,7 +115,11 @@ public static partial class ClientOperationalLedgerWorkspace
       x.ClientId == clientId && x.JournalId == journalId).OrderBy(x => x.JournalRevision).ThenBy(x => x.CreatedAt).ToListAsync(ct);
     if (!(await AuthorizeAsync(db, actor, clientId, Preparers, ct)).Succeeded)
       return CommandResult<ClientOperationalJournalView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var relationships = await ReversalRelationshipsAsync(db, actor.FirmId, clientId, journalId, ct);
+    if (!(await AuthorizeAsync(db, actor, clientId, Preparers, ct)).Succeeded)
+      return CommandResult<ClientOperationalJournalView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     return CommandResult<ClientOperationalJournalView>.Ok(View(journal, lines) with {
+      ReversalOf = relationships.Original, ReversedBy = relationships.Reversal,
       Decisions = decisions.Select(x => new ClientOperationalJournalDecisionView(x.JournalRevision.ToString(System.Globalization.CultureInfo.InvariantCulture),
         x.Decision, x.Reason, x.ActorUserId, x.CreatedAt.ToUniversalTime().ToString("O", System.Globalization.CultureInfo.InvariantCulture))).ToArray() });
   }

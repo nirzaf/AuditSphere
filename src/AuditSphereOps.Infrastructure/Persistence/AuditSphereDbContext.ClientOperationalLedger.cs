@@ -29,6 +29,22 @@ public sealed partial class AuditSphereDbContext
     journal.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
+    var reversal = b.Entity<ClientOperationalJournalReversal>();
+    reversal.Property(x => x.Reason).HasMaxLength(2000);
+    reversal.Property(x => x.EvidenceReference).HasMaxLength(1000);
+    reversal.Property(x => x.IntentHash).HasMaxLength(64);
+    reversal.HasIndex(x => new { x.FirmId, x.ClientId, x.OriginalJournalId }).IsUnique();
+    reversal.HasIndex(x => new { x.FirmId, x.ClientId, x.ReversalJournalId }).IsUnique();
+    reversal.HasOne<ClientOperationalJournal>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.OriginalJournalId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    reversal.HasOne<ClientOperationalJournal>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.ReversalJournalId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    reversal.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, UserId = x.PreparedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    reversal.ToTable("client_operational_journal_reversals", t => t.HasCheckConstraint("ck_client_operational_journal_reversal",
+      "original_journal_id<>reversal_journal_id AND original_revision>=1 AND length(trim(reason))>0" +
+      " AND length(trim(evidence_reference))>0 AND intent_hash ~ '^[a-f0-9]{64}$'"));
+
     var receipt = b.Entity<ClientOperationalPostingReceipt>();
     receipt.Property(x => x.IntentHash).HasMaxLength(64);
     receipt.Property(x => x.PreviewDigest).HasMaxLength(64);

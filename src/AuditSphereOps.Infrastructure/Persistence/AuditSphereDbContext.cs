@@ -279,6 +279,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<GroupAccessGrant> GroupAccessGrants => Set<GroupAccessGrant>();
 
   public DbSet<ClientReportingPeriod> ClientReportingPeriods => Set<ClientReportingPeriod>();
+  public DbSet<ClientOperationalJournalReversal> ClientOperationalJournalReversals => Set<ClientOperationalJournalReversal>();
   public DbSet<ClientOperationalPostingReceipt> ClientOperationalPostingReceipts => Set<ClientOperationalPostingReceipt>();
   public DbSet<ClientOperationalJournalSnapshot> ClientOperationalJournalSnapshots => Set<ClientOperationalJournalSnapshot>();
   public DbSet<ClientOperationalJournal> ClientOperationalJournals => Set<ClientOperationalJournal>();

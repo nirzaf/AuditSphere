@@ -9,14 +9,15 @@ import { guidPattern } from '../../core/contracts';
 interface PeriodOption { id: string; code: string; start: string; end: string; currency: string; status: string }
 interface JournalLine { lineNumber: number; accountId: string; accountCode: string; accountName: string; description: string; debit: string; credit: string }
 interface ReviewDecision { revision: string; decision: string; reason: string; actorUserId: string; createdAt: string }
-interface Journal { id: string; clientId: string; periodId: string; journalNumber: string; description: string; postingDate: string; currency: string; status: string; revision: string; createdByUserId: string; lines: JournalLine[]; decisions: ReviewDecision[] }
+interface ReversalLink { originalJournalId: string; reversalJournalId: string; originalRevision: string; reason: string; evidenceReference: string; preparedByUserId: string; preparedAt: string; reversalStatus: string }
+interface Journal { id: string; clientId: string; periodId: string; journalNumber: string; description: string; postingDate: string; currency: string; status: string; revision: string; createdByUserId: string; lines: JournalLine[]; decisions: ReviewDecision[]; reversalOf?: ReversalLink | null; reversedBy?: ReversalLink | null }
 interface JournalSnapshot { journalId: string; clientId: string; revision: string; capturedAt: string; journalNumber: string;
   description: string; postingDate: string; currency: string; lines: JournalLine[] }
 interface JournalPreview { journalId: string; clientId: string; periodId: string; revision: string; status: string; currency: string;
   totalDebit: string; totalCredit: string; digest: string; lines: JournalLine[] }
 interface LedgerView { clientId: string; periodId: string; periodCode: string; currency: string; basis: string; page: number; pageSize: number; totalEntries: number;
   accounts: { accountId: string; accountCode: string; accountName: string; debitMovement: string; creditMovement: string; netMovement: string }[];
-  entries: { journalId: string; journalNumber: string; postingDate: string; lineNumber: number; accountCode: string; accountName: string; description: string; debit: string; credit: string }[] }
+  entries: { journalId: string; journalNumber: string; postingDate: string; lineNumber: number; accountCode: string; accountName: string; description: string; debit: string; credit: string; reversesJournalId?: string | null; reversedByJournalId?: string | null; reversedByStatus?: string | null }[] }
 interface PostingReceipt { commandId: string; clientId: string; journalId: string; actorUserId: string; submittedRevision: string;
   postedRevision: string; previewDigest: string; intentHash: string; recordedAt: string; status: string }
 interface PendingPosting { journal: Journal; commandId: string; previewDigest: string; reason: string; actorUserId: string }
@@ -47,6 +48,15 @@ export function decodeOperationalJournal(value: unknown, clientId: string): Jour
         typeof d['actorUserId'] !== 'string' || !guidPattern.test(d['actorUserId']) || typeof d['createdAt'] !== 'string')
       throw new Error('Invalid journal review history');
   }
+  for (const key of ['reversalOf', 'reversedBy']) {
+    if (v[key] == null) continue;
+    const link = object(v[key]);
+    if (!['originalJournalId', 'reversalJournalId', 'preparedByUserId'].every(k => typeof link[k] === 'string' && guidPattern.test(String(link[k]))) ||
+        typeof link['originalRevision'] !== 'string' || !/^[1-9]\d{0,18}$/.test(link['originalRevision']) ||
+        !['reason', 'evidenceReference', 'preparedAt', 'reversalStatus'].every(k => typeof link[k] === 'string' && String(link[k]).trim()) ||
+        !['DRAFT', 'SUBMITTED', 'RETURNED', 'POSTED'].includes(String(link['reversalStatus'])) ||
+        link[key === 'reversalOf' ? 'reversalJournalId' : 'originalJournalId'] !== v['id']) throw new Error('Invalid reversal lineage');
+  }
   return v as unknown as Journal;
 }
 export function decodeOperationalLedger(value: unknown, clientId: string, periodId: string): LedgerView {
@@ -65,6 +75,9 @@ export function decodeOperationalLedger(value: unknown, clientId: string, period
   }
   for (const raw of v['entries']) {
     const entry = object(raw);
+    for (const key of ['reversesJournalId', 'reversedByJournalId'])
+      if (entry[key] != null && (typeof entry[key] !== 'string' || !guidPattern.test(String(entry[key])))) throw new Error('Invalid ledger correction identity');
+    if (entry['reversedByJournalId'] != null && !['DRAFT', 'SUBMITTED', 'RETURNED', 'POSTED'].includes(String(entry['reversedByStatus']))) throw new Error('Invalid ledger correction status');
     if (typeof entry['journalId'] !== 'string' || !guidPattern.test(entry['journalId']) ||
         !['journalNumber', 'postingDate', 'accountCode', 'accountName', 'description', 'debit', 'credit'].every(k => typeof entry[k] === 'string') ||
         !/^\d{4}-\d{2}-\d{2}$/.test(String(entry['postingDate'])) ||
@@ -124,6 +137,30 @@ function minor(value: string): bigint { if (!nativeJournalAmount(value)) throw n
         <article aria-label="Selected client journal">
           <h4>{{ j.journalNumber }} · {{ j.status }}</h4>
           <p>{{ j.description }} · {{ j.postingDate }} · {{ j.currency }} · revision {{ j.revision }}</p>
+          @if (j.reversalOf; as link) {
+            <section aria-label="Reversal lineage"><p>Full reversal of {{ link.originalJournalId }} · {{ link.reason }} · evidence {{ link.evidenceReference }}</p>
+              <button matButton type="button" [disabled]="busy()" (click)="lookupId = link.originalJournalId; load()">Open original journal</button>
+            </section>
+          }
+          @if (j.reversedBy; as link) {
+            <section aria-label="Linked correction"><p>Linked full reversal · {{ link.reversalStatus }}. The original gross posting is preserved; only a posted reversal changes ledger movement.</p>
+              <button matButton type="button" [disabled]="busy()" (click)="lookupId = link.reversalJournalId; load()">Open reversal journal</button>
+            </section>
+          }
+          @if (j.status === 'POSTED' && !j.reversedBy) {
+            <details><summary>Prepare a full reversal</summary>
+              <p>The original stays posted. A new balanced journal swaps its exact accounting sides and requires fresh independent review. Choose an explicit open correction period and date.</p>
+              <label for="native-reversal-period">Reversal reporting period</label><select id="native-reversal-period" [(ngModel)]="reversalPeriodId" (ngModelChange)="reviewed.set(false)">
+                <option value="">Choose open period</option>@for (p of periods(); track p.id) { <option [value]="p.id" [disabled]="p.status === 'CLOSED'">{{ p.code }} · {{ p.currency }} · {{ p.status }}</option> }
+              </select>
+              <label>Reversal journal number <input [(ngModel)]="reversalNumber" (ngModelChange)="reviewed.set(false)" maxlength="100" /></label>
+              <label>Reversal accounting date <input type="date" [(ngModel)]="reversalDate" (ngModelChange)="reviewed.set(false)" /></label>
+              <label>Correction reason <input [(ngModel)]="reversalReason" (ngModelChange)="reviewed.set(false)" maxlength="2000" /></label>
+              <label>Correction evidence reference <input [(ngModel)]="reversalEvidence" (ngModelChange)="reviewed.set(false)" maxlength="1000" /></label>
+              <label><input type="checkbox" [checked]="reviewed()" (change)="setReviewed($any($event.target).checked)" /> I reviewed the original, correction date, full reversed amounts, reason and evidence reference.</label>
+              <button matButton type="button" [disabled]="busy() || uncertain() || !reviewed() || !reversalPeriodId || !reversalNumber.trim() || !reversalDate || !reversalReason.trim() || !reversalEvidence.trim()" (click)="createReversal(j)">Save reversal draft</button>
+            </details>
+          }
           <div class="table-scroll"><table><caption>Immutable journal lines</caption><thead><tr><th>Account</th><th>Description</th><th>Debit</th><th>Credit</th></tr></thead>
             <tbody>@for (line of j.lines; track line.lineNumber) { <tr><td>{{ line.accountCode }} · {{ line.accountName }}</td><td>{{ line.description }}</td><td>{{ line.debit }}</td><td>{{ line.credit }}</td></tr> }</tbody></table></div>
           @if (j.decisions.length) {
@@ -178,16 +215,18 @@ function minor(value: string): bigint { if (!nativeJournalAmount(value)) throw n
           @if (!l.entries.length) { <p>No posted native journal lines in this period.</p> }
           @if (l.accounts.length) { <div class="table-scroll"><table><caption>Account debit, credit and net movement</caption><thead><tr><th>Account</th><th>Debits</th><th>Credits</th><th>Net movement</th></tr></thead>
             <tbody>@for (a of l.accounts; track a.accountId) { <tr><td>{{ a.accountCode }} · {{ a.accountName }}</td><td>{{ a.debitMovement }}</td><td>{{ a.creditMovement }}</td><td>{{ a.netMovement }}</td></tr> }</tbody></table></div> }
-          @if (l.entries.length) { <div class="table-scroll"><table><caption>Posted journal line detail</caption><thead><tr><th>Date / journal</th><th>Account</th><th>Description</th><th>Debit</th><th>Credit</th></tr></thead>
+          @if (l.entries.length) { <div class="table-scroll"><table><caption>Posted journal line detail</caption><thead><tr><th>Date / journal</th><th>Correction</th><th>Account</th><th>Description</th><th>Debit</th><th>Credit</th></tr></thead>
             <tbody>@for (e of l.entries; track e.journalId + ':' + e.lineNumber) { <tr><td><button matButton type="button" (click)="lookupId = e.journalId; load()">{{ e.postingDate }} · {{ e.journalNumber }}</button></td>
+              <td>@if (e.reversesJournalId) { Full reversal of {{ e.reversesJournalId }} }
+                @if (e.reversedByJournalId) { Correction {{ e.reversedByJournalId }} · {{ e.reversedByStatus }} }</td>
               <td>{{ e.accountCode }} · {{ e.accountName }}</td><td>{{ e.description }}</td><td>{{ e.debit }}</td><td>{{ e.credit }}</td></tr> }</tbody></table></div> }
         }
       </section>
       <form #createForm="ngForm" (ngSubmit)="createForm.valid && create()">
         <h4>{{ editing() ? "Rework returned journal" : "Create manual journal draft" }}</h4>
-        <label>Reporting period <select [disabled]="!!editing()" name="period" [(ngModel)]="periodId" (ngModelChange)="reviewed.set(false)" required>
+        <label for="native-journal-period">Reporting period</label><select id="native-journal-period" [disabled]="!!editing()" name="period" [(ngModel)]="periodId" (ngModelChange)="reviewed.set(false)" required>
           <option value="">Choose period</option>@for (p of periods(); track p.id) { <option [value]="p.id" [disabled]="p.status === 'CLOSED'">{{ p.code }} · {{ p.currency }} · {{ p.status }}</option> }
-        </select></label>
+        </select>
         <label>Journal number <input [disabled]="!!editing()" name="number" [(ngModel)]="number" (ngModelChange)="reviewed.set(false)" required maxlength="100" /></label>
         <label>Description <input name="description" [(ngModel)]="description" (ngModelChange)="reviewed.set(false)" required maxlength="1000" /></label>
         <label>Accounting date <input name="date" type="date" [(ngModel)]="postingDate" (ngModelChange)="reviewed.set(false)" required /></label>
@@ -243,6 +282,7 @@ export class ClientOperationalJournals {
   readonly pendingPosting = signal<PendingPosting | null>(null);
   readonly retryOriginal = signal(false);
   receiptKey = '';
+  reversalPeriodId = ''; reversalNumber = ''; reversalDate = ''; reversalReason = ''; reversalEvidence = '';
   readonly editing = signal<Journal | null>(null);
   readonly journal = signal<Journal | null>(null);
   readonly preview = signal<JournalPreview | null>(null);
@@ -258,7 +298,7 @@ export class ClientOperationalJournals {
   private operation?: Subscription;
   private readonly invalidate = effect(() => {
     const id = this.clientId(); this.session.invalidation();
-    untracked(() => { this.operation?.unsubscribe(); this.journal.set(null); this.snapshots.set(null); this.preview.set(null); this.ledger.set(null); this.error.set(''); this.ledgerError.set(''); this.uncertain.set(false); this.busy.set(false); this.lookupId = ''; this.reason = ''; this.receiptKey = ''; this.postingReceipt.set(null); this.pendingPosting.set(null); this.retryOriginal.set(false); this.resetDraft(); });
+    untracked(() => { this.operation?.unsubscribe(); this.journal.set(null); this.snapshots.set(null); this.preview.set(null); this.ledger.set(null); this.error.set(''); this.ledgerError.set(''); this.uncertain.set(false); this.busy.set(false); this.lookupId = ''; this.reason = ''; this.reversalPeriodId = ''; this.reversalNumber = ''; this.reversalDate = ''; this.reversalReason = ''; this.reversalEvidence = ''; this.receiptKey = ''; this.postingReceipt.set(null); this.pendingPosting.set(null); this.retryOriginal.set(false); this.resetDraft(); });
     void id;
   });
   constructor() { inject(DestroyRef).onDestroy(() => this.operation?.unsubscribe()); }
@@ -302,6 +342,23 @@ export class ClientOperationalJournals {
       reviewed: true, lines: this.lines().map(line => ({ ...line, accountCode: line.accountCode.trim(), description: line.description.trim() })),
     }).pipe(timeout(15000)).subscribe({
       next: value => { if (generation !== this.session.invalidation()) return; this.busy.set(false); if (!value?.id || !guidPattern.test(value.id)) { this.failedUnknown(); return; } this.editing.set(null); this.lookupId = value.id; this.load(); },
+      error: failure => { if (generation !== this.session.invalidation()) return; this.failedUnknown(); if (failure.status === 401) this.session.clear(); },
+    });
+  }
+  createReversal(journal: Journal): void {
+    const period = this.periods().find(p => p.id === this.reversalPeriodId && p.status !== 'CLOSED');
+    if (!period || !this.reviewed() || this.busy() || this.uncertain() || journal.clientId !== this.clientId() || journal.status !== 'POSTED' || journal.reversedBy) return;
+    if (this.reversalDate < period.start || this.reversalDate > period.end || period.currency !== journal.currency) {
+      this.error.set('Choose an explicit correction date within the open matching-currency period.'); return;
+    }
+    const generation = this.session.invalidation(); this.busy.set(true); this.error.set('');
+    this.operation = this.http.post<{ id: string }>(`/api/ui/accounting/clients/${journal.clientId}/operational-journals/${journal.id}/reversal`, {
+      revision: journal.revision, periodId: period.id, journalNumber: this.reversalNumber.trim(), postingDate: this.reversalDate,
+      reason: this.reversalReason.trim(), evidenceReference: this.reversalEvidence.trim(), reviewed: true,
+    }).pipe(timeout(15000)).subscribe({
+      next: value => { if (generation !== this.session.invalidation()) return; this.busy.set(false);
+        if (!value?.id || !guidPattern.test(value.id)) { this.failedUnknown(); return; }
+        this.lookupId = value.id; this.reviewed.set(false); this.load(); },
       error: failure => { if (generation !== this.session.invalidation()) return; this.failedUnknown(); if (failure.status === 401) this.session.clear(); },
     });
   }

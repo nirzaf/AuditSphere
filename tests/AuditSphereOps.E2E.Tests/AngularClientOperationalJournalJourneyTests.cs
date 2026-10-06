@@ -204,6 +204,47 @@ public sealed class AngularClientOperationalJournalJourneyTests
       Assert.Equal("Clarify expense evidence", decisions[0].Reason);
       Assert.Equal("APPROVE", decisions[1].Decision);
     }
+    await page.UnrouteAsync("**/operational-journals/*/post");
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=%2Fui%2Fapp%2Faccounting");
+    await workspace.GetByRole(AriaRole.Button, new() { Name = clientName, Exact = true }).ClickAsync();
+    await journals.GetByLabel("Open a saved journal by ID", new() { Exact = true }).FillAsync(journalId.ToString());
+    await journals.GetByRole(AriaRole.Button, new() { Name = "Open journal", Exact = true }).ClickAsync();
+    await journals.GetByText("Prepare a full reversal", new() { Exact = true }).ClickAsync();
+    await journals.GetByLabel("Reversal reporting period", new() { Exact = true }).SelectOptionAsync(periodId.ToString());
+    await journals.GetByLabel("Reversal journal number", new() { Exact = true }).FillAsync("J-UI-REV-001");
+    await journals.GetByLabel("Reversal accounting date", new() { Exact = true }).FillAsync("2026-01-16");
+    await journals.GetByLabel("Correction reason", new() { Exact = true }).FillAsync("Reverse duplicate office expense");
+    await journals.GetByLabel("Correction evidence reference", new() { Exact = true }).FillAsync("SYN-REVERSAL-EVIDENCE-001");
+    await journals.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed the original, correction date, full reversed amounts, reason and evidence reference.", Exact = true }).CheckAsync();
+    await journals.GetByRole(AriaRole.Button, new() { Name = "Save reversal draft", Exact = true }).ClickAsync();
+    await Assertions.Expect(journals.GetByRole(AriaRole.Heading, new() { Name = "J-UI-REV-001 · DRAFT", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(journals.GetByRole(AriaRole.Region, new() { Name = "Reversal lineage", Exact = true })).ToContainTextAsync("SYN-REVERSAL-EVIDENCE-001");
+    Guid reversalId;
+    await using (var db = host.CreateDbContext()) reversalId = await db.ClientOperationalJournalReversals.Where(x => x.OriginalJournalId == journalId).Select(x => x.ReversalJournalId).SingleAsync();
+    await journals.GetByRole(AriaRole.Button, new() { Name = "Preview accounting effect", Exact = true }).ClickAsync();
+    await submitReview.CheckAsync();
+    await journals.GetByRole(AriaRole.Button, new() { Name = "Submit for independent review", Exact = true }).ClickAsync();
+    await Assertions.Expect(journals.GetByRole(AriaRole.Heading, new() { Name = "J-UI-REV-001 · SUBMITTED", Exact = true })).ToBeVisibleAsync();
+    await page.GotoAsync(reviewerOrigin + "/auth/sign-in?returnUrl=%2Fui%2Fapp%2Faccounting");
+    await workspace.GetByRole(AriaRole.Button, new() { Name = clientName, Exact = true }).ClickAsync();
+    await journals.GetByLabel("Open a saved journal by ID", new() { Exact = true }).FillAsync(reversalId.ToString());
+    await journals.GetByRole(AriaRole.Button, new() { Name = "Open journal", Exact = true }).ClickAsync();
+    await journals.GetByRole(AriaRole.Button, new() { Name = "Preview accounting effect", Exact = true }).ClickAsync();
+    await journals.GetByLabel("Review reason", new() { Exact = true }).FillAsync("Independently checked full reversal and evidence");
+    await journals.GetByRole(AriaRole.Checkbox, new() { Name = "I independently reviewed this exact journal revision and its balanced lines.", Exact = true }).CheckAsync();
+    await journals.GetByRole(AriaRole.Button, new() { Name = "Approve and post", Exact = true }).ClickAsync();
+    await Assertions.Expect(journals.GetByRole(AriaRole.Heading, new() { Name = "J-UI-REV-001 · POSTED", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(ledgerAccounts.GetByRole(AriaRole.Cell, new() { Name = "0.000000", Exact = true })).ToHaveCountAsync(2);
+    await Assertions.Expect(journals.GetByRole(AriaRole.Table, new() { Name = "Posted journal line detail", Exact = true }).GetByRole(AriaRole.Row)).ToHaveCountAsync(5);
+    await journals.GetByRole(AriaRole.Button, new() { Name = "Open original journal", Exact = true }).ClickAsync();
+    await Assertions.Expect(journals.GetByRole(AriaRole.Heading, new() { Name = "J-UI-001 · POSTED", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(journals.GetByRole(AriaRole.Region, new() { Name = "Linked correction", Exact = true })).ToContainTextAsync("POSTED");
+    await Assertions.Expect(journals.GetByText("Prepare a full reversal", new() { Exact = true })).ToHaveCountAsync(0);
+    await using (var db = host.CreateDbContext()) {
+      Assert.Equal("POSTED", (await db.ClientOperationalJournals.SingleAsync(x => x.Id == journalId)).Status);
+      Assert.Equal(2, await db.ClientOperationalPostingReceipts.CountAsync(x => x.ClientId == fixture.ClientId));
+      Assert.Single(await db.ClientOperationalJournalReversals.Where(x => x.OriginalJournalId == journalId).ToListAsync());
+    }
     Assert.Empty(errors);
   }
 }
