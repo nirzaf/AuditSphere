@@ -164,6 +164,51 @@ public sealed class GlobalSearchQueryTests
   }
 
   [Fact]
+  public async Task SearchResultKindsFollowCapabilitySpecificRolesAndScopes()
+  {
+    await using var w = await SeedAsync();
+    await using (var db = w.Db())
+    {
+      var accountId = Guid.NewGuid();
+      db.BillingAccounts.Add(new BillingAccount
+      {
+        Id = accountId, FirmId = w.Own.FirmId, PracticeClientId = w.Own.ClientId,
+        Currency = "QAR", CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.Invoices.Add(new Invoice
+      {
+        Id = Guid.NewGuid(), FirmId = w.Own.FirmId, BillingAccountId = accountId,
+        InvoiceNumber = "ROLE-MATRIX-INVOICE", Currency = "QAR", Subtotal = 100, Total = 100,
+        Status = BillingStates.InvoiceDraft, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+    }
+
+    var (_, commercialManager) = await UserAsync(w, ("CommercialManager", w.Own.ClientId, null));
+    var (_, engagementLeader) = await UserAsync(w, ("EngagementLeader", w.Own.ClientId, null));
+    var (_, auditor) = await UserAsync(w, ("Auditor", w.Own.ClientId, w.Own.EngagementId));
+    var (_, accountant) = await UserAsync(w, ("Accountant", w.Own.ClientId, w.Own.EngagementId));
+    var (_, financeManager) = await UserAsync(w, ("FinanceManager", w.Own.ClientId, null));
+    var (_, relationshipManager) = await UserAsync(w, ("RelationshipManager", null, null));
+
+    static string[] RecordKinds(GlobalSearchResult result) => result.Hits
+      .Where(hit => hit.Kind != GlobalSearchQuery.Kinds.Page)
+      .Select(hit => hit.Kind).Distinct(StringComparer.Ordinal).ToArray();
+
+    Assert.Equal([GlobalSearchQuery.Kinds.Client], RecordKinds(await SearchAsync(w, commercialManager, "PBC TEST CLIENT")));
+    Assert.Equal([GlobalSearchQuery.Kinds.Client, GlobalSearchQuery.Kinds.Engagement],
+      RecordKinds(await SearchAsync(w, engagementLeader, "PBC TEST CLIENT")));
+    Assert.Equal([GlobalSearchQuery.Kinds.Engagement, GlobalSearchQuery.Kinds.PbcRequest],
+      RecordKinds(await SearchAsync(w, auditor, "PBC TEST CLIENT")));
+    Assert.Equal([GlobalSearchQuery.Kinds.PbcRequest],
+      RecordKinds(await SearchAsync(w, accountant, "PBC TEST CLIENT")));
+    Assert.Equal([GlobalSearchQuery.Kinds.Invoice],
+      RecordKinds(await SearchAsync(w, financeManager, "PBC TEST CLIENT")));
+    Assert.Equal([GlobalSearchQuery.Kinds.Lead],
+      RecordKinds(await SearchAsync(w, relationshipManager, Marker)));
+  }
+
+  [Fact]
   public async Task SearchCapsEachKindAndSignalsThatMoreMatchesExist()
   {
     await using var w = await SeedAsync();
