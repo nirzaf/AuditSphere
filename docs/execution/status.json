@@ -11820,6 +11820,64 @@
         "Source acceptance, reporting overlays, comparisons and exports incomplete.",
         "Full CA-01 through CA-36 scope remains active; no final merge performed by this task."
       ]
+    },
+    "clientOperationalJournalDiscovery": {
+      "sourceCommit": "4bb7c2d0",
+      "status": "LOCAL_SLICE_VERIFIED",
+      "requirements": "CA-32 native journal discovery; CA-35-AC05 retained reads under stopped service, partial rollout capability",
+      "domainFocused": {
+        "passed": 2,
+        "durationSeconds": 29,
+        "coverage": [
+          "Current firm/client scope and period validation",
+          "Status filters and bounded paging",
+          "Saved original/reversal discovery",
+          "Service disablement preserves journals, snapshots, posting receipts and GL/TB",
+          "Inactive service refuses new draft",
+          "Role revocation denies list, journal and ledger reads"
+        ]
+      },
+      "angularFocused": {
+        "passed": 11,
+        "coverage": [
+          "Saved-journal client/filter/page binding",
+          "Unique scoped identities and string revisions",
+          "Boolean service state",
+          "Existing exact money and journal contracts"
+        ]
+      },
+      "browserJourney": {
+        "passed": 1,
+        "durationSeconds": 44,
+        "coverage": [
+          "Original/reversal posting and Trial Balance regression",
+          "Posted journal list and reopening",
+          "Inactive service disclosure",
+          "Retained list, Trial Balance and submitted content",
+          "Disabled new draft action"
+        ]
+      },
+      "initialFailures": [
+        "Cross-client denial assertion used a firm-wide fixture; corrected to explicit client-only grant while preserving legitimate empty sibling-client list behavior.",
+        "Synthetic stopped-service fixture used unsupported Rejected decision; corrected to existing Declined enum and reran backend/browser tests."
+      ],
+      "apiOpenApi": {
+        "passed": 5,
+        "durationSeconds": 7
+      },
+      "releaseBuilds": "API test and E2E test builds PASS; zero compiler warnings/errors",
+      "angularBuild": "PASS; existing commercial/settings.scss budget warning",
+      "efPendingModelChanges": "NONE",
+      "builtInBrowser": "Opened owned synthetic accounting host; fixture teardown changed page to Access unavailable before saved-list inspection. No warn/error console entries observed. Full retained-history evidence is automated Chromium.",
+      "fullRegression": "NOT_RUN",
+      "productionMigration": "NOT_RUN; no schema change",
+      "externalAcceptance": "NOT_RUN",
+      "limitations": [
+        "Each list page/refresh queries current saved state; not an immutable report export identity.",
+        "Service disablement tested with a new Declined client bookkeeping decision; current role authority is still required.",
+        "Exports and broader recovery/cutover/rollout scope remain incomplete.",
+        "Full CA-01 through CA-36 scope remains active; no final merge by this task."
+      ]
     }
   },
   "documentationWork": {

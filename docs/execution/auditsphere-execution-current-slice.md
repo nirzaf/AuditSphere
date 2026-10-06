@@ -13,6 +13,14 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Saved native journals and inactive-service history
+
+The native Angular workspace now discovers saved journals through client-scoped period/status filters and paged results. Users reopen the exact saved journal from its number without copying a GUID. Counts and rows use one repeatable-read transaction; each page or refresh is a current-state query, not a retained financial-report snapshot. Decoding fences client, period, status, page, journal identity and service-state changes. Navigation to details rechecks current authorization.
+
+Stopping the bookkeeping service no longer prevents authorized reads of posted native GL/TB. Saved journal lists and reports disclose the inactive service; history, snapshots and original-actor posting receipts remain available under existing scoped role checks. New commands still require a current accepted mandate, and Angular disables mutation actions after observing inactive state. Revoking a role denies history rather than converting service suspension into an access grant. No data is deleted or reconstructed.
+
+Focused PostgreSQL, Angular, API and automated Chromium evidence lives in `verification.clientOperationalJournalDiscovery` in `status.json`. Browser verification includes retained submitted history and Trial Balance after service disablement. The broader epic remains incomplete: native opening postings, cutover/carry-forward, invoices/open items, reporting integration, evidence-byte capture, stable report exports and other outstanding criteria remain active. Tax and ancillary modules stay optional; no final merge or production acceptance was performed by this task.
+
 ## Native activity Trial Balance and report date selection
 
 The native ledger report now returns a Trial Balance from the same repeatable-read database snapshot as its GL rows and full-result movement totals. Users select a reporting period independently of journal preparation, choose dates within that period and optionally include approved chart accounts with no posted activity. Per-account opening activity, period debits/credits and closing balances reconcile exactly. Only posted native journals contribute. Angular validates exact decimal strings, unique account identities, row equations and overall controls, and fences stale filter responses.
