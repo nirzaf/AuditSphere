@@ -1294,3 +1294,48 @@ public sealed class CurrencyRemeasurementItem
   public decimal ForeignExchangeAdjustment { get; set; }
   public decimal RoundingAdjustment { get; set; }
 }
+
+/// <summary>Immutable content captured by the database when a native journal is submitted.</summary>
+public sealed class ClientOperationalJournalSnapshot
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid JournalId { get; set; }
+  public long JournalRevision { get; set; }
+  public string CaptureKind { get; set; } = "SUBMISSION";
+  public string SnapshotJson { get; set; } = string.Empty;
+  public DateTimeOffset CapturedAt { get; set; }
+}
+
+/// <summary>Immutable outcome of one exact client-scoped native journal posting command.</summary>
+public sealed class ClientOperationalPostingReceipt
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid CommandId { get; set; }
+  public Guid JournalId { get; set; }
+  public Guid ActorUserId { get; set; }
+  public long SubmittedRevision { get; set; }
+  public long PostedRevision { get; set; }
+  public string IntentHash { get; set; } = string.Empty;
+  public string PreviewDigest { get; set; } = string.Empty;
+  public DateTimeOffset RecordedAt { get; set; }
+}
+
+/// <summary>Immutable full manual-journal correction lineage; neither journal is unposted.</summary>
+public sealed class ClientOperationalJournalReversal
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid OriginalJournalId { get; set; }
+  public Guid ReversalJournalId { get; set; }
+  public long OriginalRevision { get; set; }
+  public string Reason { get; set; } = string.Empty;
+  public string EvidenceReference { get; set; } = string.Empty;
+  public string IntentHash { get; set; } = string.Empty;
+  public Guid PreparedByUserId { get; set; }
+  public DateTimeOffset PreparedAt { get; set; }
+}

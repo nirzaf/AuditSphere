@@ -3,6 +3,7 @@ using System;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AuditSphereDbContext))]
-    partial class AuditSphereDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261006182000_ClientOperationalPostingReceipts")]
+    partial class ClientOperationalPostingReceipts
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -3038,75 +3041,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.ToTable("client_operational_journal_lines", null, t =>
                         {
                             t.HasCheckConstraint("ck_client_operational_journal_line_values", "line_number > 0 AND length(trim(account_code)) > 0 AND length(trim(account_name)) > 0 AND debit >= 0 AND credit >= 0 AND NOT (debit > 0 AND credit > 0) AND (debit > 0 OR credit > 0)");
-                        });
-                });
-
-            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientOperationalJournalReversal", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<Guid>("ClientId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("client_id");
-
-                    b.Property<string>("EvidenceReference")
-                        .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)")
-                        .HasColumnName("evidence_reference");
-
-                    b.Property<Guid>("FirmId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("firm_id");
-
-                    b.Property<string>("IntentHash")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
-                        .HasColumnName("intent_hash");
-
-                    b.Property<Guid>("OriginalJournalId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("original_journal_id");
-
-                    b.Property<long>("OriginalRevision")
-                        .HasColumnType("bigint")
-                        .HasColumnName("original_revision");
-
-                    b.Property<DateTimeOffset>("PreparedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("prepared_at");
-
-                    b.Property<Guid>("PreparedByUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("prepared_by_user_id");
-
-                    b.Property<string>("Reason")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
-                        .HasColumnName("reason");
-
-                    b.Property<Guid>("ReversalJournalId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("reversal_journal_id");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("FirmId", "PreparedByUserId");
-
-                    b.HasIndex("FirmId", "ClientId", "OriginalJournalId")
-                        .IsUnique();
-
-                    b.HasIndex("FirmId", "ClientId", "ReversalJournalId")
-                        .IsUnique();
-
-                    b.ToTable("client_operational_journal_reversals", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_client_operational_journal_reversal", "original_journal_id<>reversal_journal_id AND original_revision>=1 AND length(trim(reason))>0 AND length(trim(evidence_reference))>0 AND intent_hash ~ '^[a-f0-9]{64}$'");
                         });
                 });
 
@@ -17862,15 +17796,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("full_name");
 
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean")
-                        .HasColumnName("is_active");
-
-                    b.Property<string>("Phone")
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)")
-                        .HasColumnName("phone");
-
                     b.Property<Guid>("PracticeClientId")
                         .HasColumnType("uuid")
                         .HasColumnName("practice_client_id");
@@ -17883,16 +17808,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("role");
-
-                    b.Property<string>("SignatoryAuthority")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
-                        .HasColumnName("signatory_authority");
-
-                    b.Property<string>("Title")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("title");
 
                     b.Property<DateTimeOffset?>("ValidFrom")
                         .HasColumnType("timestamp with time zone")
@@ -17991,78 +17906,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("AuditSphereOps.Domain.Practice.ClientContactRouting", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<Guid>("ClientContactId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("client_contact_id");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<Guid>("CreatedByUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("created_by_user_id");
-
-                    b.Property<DateOnly?>("EffectiveFrom")
-                        .HasColumnType("date")
-                        .HasColumnName("effective_from");
-
-                    b.Property<DateOnly?>("EffectiveTo")
-                        .HasColumnType("date")
-                        .HasColumnName("effective_to");
-
-                    b.Property<Guid>("FirmId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("firm_id");
-
-                    b.Property<bool>("IsPrimaryForPurpose")
-                        .HasColumnType("boolean")
-                        .HasColumnName("is_primary_for_purpose");
-
-                    b.Property<Guid>("PracticeClientId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("practice_client_id");
-
-                    b.Property<string>("Purpose")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("purpose");
-
-                    b.Property<string>("RevocationReason")
-                        .HasColumnType("text")
-                        .HasColumnName("revocation_reason");
-
-                    b.Property<DateTimeOffset?>("RevokedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("revoked_at");
-
-                    b.Property<Guid?>("RevokedByUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("revoked_by_user_id");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("FirmId", "PracticeClientId", "Purpose")
-                        .HasFilter("revoked_at IS NULL AND is_primary_for_purpose = true");
-
-                    b.HasIndex("FirmId", "PracticeClientId", "Purpose", "ClientContactId")
-                        .HasFilter("revoked_at IS NULL");
-
-                    b.ToTable("client_contact_routings", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_client_contact_routing_effective", "effective_to IS NULL OR effective_from IS NULL OR effective_to >= effective_from");
-
-                            t.HasCheckConstraint("ck_client_contact_routing_purpose", "purpose IN ('COMMERCIAL','FINANCE','AUDIT_FIELDWORK','COMPLETION')");
-                        });
-                });
-
             modelBuilder.Entity("AuditSphereOps.Domain.Practice.ClientConversion", b =>
                 {
                     b.Property<Guid>("Id")
@@ -18128,86 +17971,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.ToTable("client_conversions", null, t =>
                         {
                             t.HasCheckConstraint("ck_client_conversion", "actor_epoch >= 1 AND request_id <> '00000000-0000-0000-0000-000000000000'::uuid AND request_hash ~ '^[0-9a-f]{64}$' AND review_basis ~ '^[0-9a-f]{64}$' AND length(preview_json) BETWEEN 1 AND 200000");
-                        });
-                });
-
-            modelBuilder.Entity("AuditSphereOps.Domain.Practice.ClientRelationship", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<Guid>("CreatedByUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("created_by_user_id");
-
-                    b.Property<DateOnly?>("EffectiveFrom")
-                        .HasColumnType("date")
-                        .HasColumnName("effective_from");
-
-                    b.Property<DateOnly?>("EffectiveTo")
-                        .HasColumnType("date")
-                        .HasColumnName("effective_to");
-
-                    b.Property<Guid>("FirmId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("firm_id");
-
-                    b.Property<string>("Notes")
-                        .HasColumnType("text")
-                        .HasColumnName("notes");
-
-                    b.Property<decimal?>("OwnershipPercentage")
-                        .HasColumnType("numeric(19,6)")
-                        .HasColumnName("ownership_percentage");
-
-                    b.Property<Guid>("PrimaryClientId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("primary_client_id");
-
-                    b.Property<Guid>("RelatedClientId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("related_client_id");
-
-                    b.Property<string>("RelationshipKind")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("relationship_kind");
-
-                    b.Property<string>("RevocationReason")
-                        .HasColumnType("text")
-                        .HasColumnName("revocation_reason");
-
-                    b.Property<DateTimeOffset?>("RevokedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("revoked_at");
-
-                    b.Property<Guid?>("RevokedByUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("revoked_by_user_id");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("FirmId", "RelatedClientId");
-
-                    b.HasIndex("FirmId", "PrimaryClientId", "RelatedClientId", "RelationshipKind")
-                        .IsUnique()
-                        .HasFilter("revoked_at IS NULL");
-
-                    b.ToTable("client_relationships", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_client_relationship_effective", "effective_to IS NULL OR effective_from IS NULL OR effective_to >= effective_from");
-
-                            t.HasCheckConstraint("ck_client_relationship_kind", "relationship_kind IN ('PARENT','SUBSIDIARY','AFFILIATE')");
-
-                            t.HasCheckConstraint("ck_client_relationship_ownership", "ownership_percentage IS NULL OR (ownership_percentage >= 0 AND ownership_percentage <= 100)");
-
-                            t.HasCheckConstraint("ck_client_relationship_parties", "primary_client_id <> related_client_id");
                         });
                 });
 
@@ -18394,34 +18157,17 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("delivery_state");
 
-                    b.Property<Guid?>("DocumentId")
+                    b.Property<Guid>("DocumentId")
                         .HasColumnType("uuid")
                         .HasColumnName("document_id");
 
-                    b.Property<Guid?>("FeeMilestoneId")
+                    b.Property<Guid>("FeeMilestoneId")
                         .HasColumnType("uuid")
                         .HasColumnName("fee_milestone_id");
 
                     b.Property<Guid>("FirmId")
                         .HasColumnType("uuid")
                         .HasColumnName("firm_id");
-
-                    b.Property<string>("Kind")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("kind");
-
-                    b.Property<string>("OfferSha256")
-                        .HasColumnType("text")
-                        .HasColumnName("offer_sha256");
-
-                    b.Property<Guid?>("PracticeClientId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("practice_client_id");
-
-                    b.Property<Guid?>("ProposalId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("proposal_id");
 
                     b.Property<string>("Recipient")
                         .IsRequired()
@@ -18438,106 +18184,11 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasIndex("FirmId", "FeeMilestoneId")
                         .IsUnique();
 
-                    b.HasIndex("FirmId", "ProposalId")
-                        .IsUnique()
-                        .HasFilter("proposal_id IS NOT NULL");
-
                     b.HasIndex("FirmId", "DeliveryState", "CreatedAt");
 
                     b.ToTable("commercial_notifications", null, t =>
                         {
-                            t.HasCheckConstraint("ck_commercial_notification_values", "delivery_state IN ('QUEUED','SENT','FAILED') AND kind IN ('RECEIPT','PROPOSAL') AND length(recipient) > 0 AND length(subject) > 0 AND ((delivery_state = 'SENT') = (delivered_at IS NOT NULL)) AND ((kind = 'RECEIPT') = (fee_milestone_id IS NOT NULL)) AND ((kind = 'PROPOSAL') = (proposal_id IS NOT NULL))");
-                        });
-                });
-
-            modelBuilder.Entity("AuditSphereOps.Domain.Practice.CorrespondenceDispatchRecord", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<DateTimeOffset>("DispatchedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("dispatched_at");
-
-                    b.Property<Guid>("DispatchedByUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("dispatched_by_user_id");
-
-                    b.Property<string>("DocumentReference")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("document_reference");
-
-                    b.Property<long>("DocumentRevision")
-                        .HasColumnType("bigint")
-                        .HasColumnName("document_revision");
-
-                    b.Property<string>("DocumentSha256")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("document_sha256");
-
-                    b.Property<string>("DocumentType")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("document_type");
-
-                    b.Property<Guid?>("EngagementId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("engagement_id");
-
-                    b.Property<Guid>("FirmId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("firm_id");
-
-                    b.Property<Guid?>("OverriddenByUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("overridden_by_user_id");
-
-                    b.Property<string>("OverrideReason")
-                        .HasColumnType("text")
-                        .HasColumnName("override_reason");
-
-                    b.Property<Guid>("PracticeClientId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("practice_client_id");
-
-                    b.Property<string>("Purpose")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("purpose");
-
-                    b.Property<Guid>("RecipientContactId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("recipient_contact_id");
-
-                    b.Property<string>("RecipientEmail")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("recipient_email");
-
-                    b.Property<string>("RecipientName")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("recipient_name");
-
-                    b.Property<bool>("WasOverridden")
-                        .HasColumnType("boolean")
-                        .HasColumnName("was_overridden");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("FirmId", "EngagementId");
-
-                    b.HasIndex("FirmId", "PracticeClientId", "DispatchedAt");
-
-                    b.ToTable("correspondence_dispatch_records", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_correspondence_dispatch_content", "length(recipient_name) > 0 AND length(recipient_email) > 0 AND length(document_type) > 0 AND length(document_reference) > 0 AND length(document_sha256) = 64 AND document_revision >= 1");
-
-                            t.HasCheckConstraint("ck_correspondence_dispatch_purpose", "purpose IN ('COMMERCIAL','FINANCE','AUDIT_FIELDWORK','COMPLETION')");
+                            t.HasCheckConstraint("ck_commercial_notification_values", "delivery_state IN ('QUEUED','SENT','FAILED') AND length(recipient) > 0 AND length(subject) > 0 AND ((delivery_state = 'SENT') = (delivered_at IS NOT NULL))");
                         });
                 });
 
@@ -20046,11 +19697,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
-                    b.Property<string>("EntityType")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
-                        .HasColumnName("entity_type");
-
                     b.Property<Guid>("FirmId")
                         .HasColumnType("uuid")
                         .HasColumnName("firm_id");
@@ -20076,11 +19722,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("status");
-
-                    b.Property<string>("TaxRegistrationNumber")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
-                        .HasColumnName("tax_registration_number");
 
                     b.HasKey("Id");
 
@@ -20167,25 +19808,9 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("prepared_by_user_id");
 
-                    b.Property<string>("RespondentEmail")
-                        .HasColumnType("text")
-                        .HasColumnName("respondent_email");
-
-                    b.Property<string>("RespondentName")
-                        .HasColumnType("text")
-                        .HasColumnName("respondent_name");
-
                     b.Property<DateTimeOffset?>("ResponseAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("response_at");
-
-                    b.Property<string>("ResponseEvidenceReference")
-                        .HasColumnType("text")
-                        .HasColumnName("response_evidence_reference");
-
-                    b.Property<string>("ResponseOfferSha256")
-                        .HasColumnType("text")
-                        .HasColumnName("response_offer_sha256");
 
                     b.Property<string>("ResponseReason")
                         .HasColumnType("text")
@@ -20203,10 +19828,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset?>("SentAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("sent_at");
-
-                    b.Property<string>("SentOfferSha256")
-                        .HasColumnType("text")
-                        .HasColumnName("sent_offer_sha256");
 
                     b.Property<string>("ServiceProfileId")
                         .IsRequired()
@@ -23508,31 +23129,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasPrincipalKey("FirmId", "ClientId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientOperationalJournalReversal", b =>
-                {
-                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "PreparedByUserId")
-                        .HasPrincipalKey("FirmId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientOperationalJournal", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ClientId", "OriginalJournalId")
-                        .HasPrincipalKey("FirmId", "ClientId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientOperationalJournal", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ClientId", "ReversalJournalId")
-                        .HasPrincipalKey("FirmId", "ClientId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("FK_client_operational_journal_reversals_client_operational_jo~1");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientOperationalJournalSnapshot", b =>

@@ -11461,6 +11461,281 @@
       "verificationBoundary": "Verified in an isolated worktree at 24eadbdb plus the two slice files, then repeated at committed head 68500767 for the deliverables class and Release build. E2E/browser journeys and the whole-solution serialized regression were not rerun for this slice: no API route, contract or Angular surface changed, and the changed content is exercised by the Domain deliverables suite and the Api authorization suite.",
       "databaseBoundary": "Tests used owned isolated PostgreSQL schemas; no Development or production data, migration, or external provider state was changed.",
       "retirementDecision": "NOT_READY"
+    },
+    "clientOperationalLedgerIntegrity": {
+      "sourceCommit": "8959a7ec",
+      "verifiedAt": "2026-10-06T15:29:48.758543+00:00",
+      "focusedDomainTests": {
+        "result": "PASS",
+        "passed": 4,
+        "failed": 0,
+        "filter": "FullyQualifiedName~NativeJournal|FullyQualifiedName~PeriodClose",
+        "coverage": "Restricted PostgreSQL role mutation denials, balanced submission, immutable submitted revision and posted evidence, independent approval, duplicate/concurrent posting, close/readiness gates and closed-period draft refusal."
+      },
+      "angularFocusedSpecs": {
+        "result": "PASS",
+        "passed": 3,
+        "failed": 0,
+        "coverage": "Native journal controls and signed net movement decoding."
+      },
+      "angularProductionBuild": "PASS; existing Commercial Settings stylesheet exceeds its warning budget.",
+      "e2eBuild": "PASS; zero warnings and errors.",
+      "browserJourney": {
+        "result": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "test": "AngularClientOperationalJournalJourneyTests.NativeClientJournalRequiresIndependentReviewAndPostsThroughAngular",
+        "coverage": "API-hosted Angular native profile, period, draft, submission and independent posting; ledger table negative net movement and two posted lines; no page errors."
+      },
+      "efModel": "No pending model changes; tooling 10.0.9/runtime10.0.12 version warning.",
+      "toolchainNote": "Migration guard verification required a nonincremental Infrastructure rebuild after an older compiled migration omitted the submitted revision guard. Final focused run used fresh schemas and passed. E2E used temporary worktree-only latestFeature SDK roll-forward; global.json restored.",
+      "boundary": "Focused local synthetic verification only. Full regression and production acceptance not established. Epic incomplete; branch not merged. VAT/tax and other nonmandatory modules optional.",
+      "remaining": [
+        "Native TB and accepted reporting snapshot adapter",
+        "Opening balances integrated with native ledger",
+        "Preview and durable command receipts",
+        "Corrections and reversal lineage",
+        "Client invoices and AR/AP workflows",
+        "Complete story-by-story acceptance audit"
+      ]
+    },
+    "clientOperationalJournalExactAmounts": {
+      "sourceCommit": "d1698d35",
+      "verifiedAt": "2026-10-06T15:41:29.460652+00:00",
+      "focusedDomainTests": {
+        "result": "PASS",
+        "passed": 8,
+        "failed": 0,
+        "filter": "FullyQualifiedName~ClientOperationalJournalCalculatorTests|FullyQualifiedName~NativeJournal",
+        "coverage": "Maximum numeric(19,6), decimal maximum refusal without overflow, excessive scale, exact six-decimal balance, zero/both-sided lines, line counts, native PostgreSQL approval/isolation/integrity tests."
+      },
+      "angularSpecs": {
+        "result": "PASS",
+        "passed": 4,
+        "failed": 0
+      },
+      "angularProductionBuild": "PASS; preexisting Commercial Settings stylesheet warning.",
+      "e2eBuild": "PASS; zero warnings/errors.",
+      "browserJourney": {
+        "result": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "duration": "47 seconds",
+        "test": "AngularClientOperationalJournalJourneyTests.NativeClientJournalRequiresIndependentReviewAndPostsThroughAngular",
+        "coverage": "Oversized balanced intent cannot save. Restoring valid amounts visibly revokes consent; fresh consent permits draft, submission, independent posting and GL display; no page errors."
+      },
+      "diagnosticHistory": "Earlier browser runs exposed stale checkbox state after amount edits. Consent now uses a signal, direct checked-state binding and immediate acknowledgement rendering. Final browser run passed.",
+      "toolchainNote": "Temporary worktree-only SDK latestFeature roll-forward restored after each browser run.",
+      "efModel": "No Domain/persistence/model/schema changes in this slice; EF pending-model check not rerun.",
+      "fullRegression": "NOT_RUN",
+      "boundary": "Storage-scale and exact balance control only. Currency-specific precision/rounding, FX policy, preview/review digests and command receipts remain open. Epic incomplete and branch unmerged; tax/nonmandatory modules optional."
+    },
+    "clientOperationalJournalPreview": {
+      "sourceCommit": "8141a732",
+      "verifiedAt": "2026-10-06T15:51:52.309652+00:00",
+      "focusedPostgresTests": {
+        "result": "PASS",
+        "passed": 2,
+        "failed": 0,
+        "filter": "FullyQualifiedName~NativeJournal",
+        "coverage": "Stable read-only preview, exact totals, missing preview refusal, changed draft digest refusal, draft-to-submitted digest invalidation, independent approval and existing native integrity/concurrency checks."
+      },
+      "angularSpecs": {
+        "result": "PASS",
+        "passed": 5,
+        "failed": 0,
+        "coverage": "Preview binds journal/client/period/revision/status/currency and exact saved lines; invalid digest, numeric totals, imbalance and altered lines refused."
+      },
+      "angularBuild": "PASS; preexisting Commercial Settings stylesheet warning.",
+      "apiAndE2eBuild": "PASS; zero warnings/errors.",
+      "browserJourney": {
+        "result": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "duration": "40 seconds",
+        "test": "AngularClientOperationalJournalJourneyTests.NativeClientJournalRequiresIndependentReviewAndPostsThroughAngular",
+        "coverage": "Submission disabled until authoritative preview; preparer and reviewer preview the respective exact revisions, independently approve/post, inspect posted GL; no page errors.",
+        "builtInBrowser": "Attempted read-only inspection; temporary test API had terminated by navigation and returned ERR_CONNECTION_REFUSED. Automated Chromium journey is the runtime evidence."
+      },
+      "openApi": {
+        "result": "PASS",
+        "passed": 5,
+        "failed": 0,
+        "generatedArtifact": "contracts/auditsphere-openapi.json",
+        "inspection": "Preview path, submit previewDigest and post previewDigest verified in generated schema."
+      },
+      "toolchainNote": "Temporary worktree-only SDK roll-forward restored after browser run.",
+      "efModel": "No model/schema changes; pending-model check not rerun for this slice.",
+      "fullRegression": "NOT_RUN",
+      "boundary": "Partial CA-10/11 implementation. No command receipts, correction lineage, invoice/open-item workflow, native reporting snapshot adapter or full epic acceptance. Branch not merged; VAT/tax and nonmandatory modules optional."
+    },
+    "clientOperationalJournalReturn": {
+      "sourceCommit": "a234b62c",
+      "verifiedAt": "2026-10-06T16:04:29.376688+00:00",
+      "focusedPostgresTests": {
+        "result": "PASS",
+        "passed": 2,
+        "failed": 0,
+        "filter": "FullyQualifiedName~NativeJournal",
+        "coverage": "Independent return reason and revision, self/empty-reason refusal, read-visible history, direct return without matching decision denied, returned content/reason mutations denied to restricted runtime role, fresh-preview resubmission, concurrent approval/posting and closing with original ledger effect preserved."
+      },
+      "angularSpecs": {
+        "result": "PASS",
+        "passed": 6,
+        "failed": 0,
+        "coverage": "Existing exact journal/ledger/preview transport checks plus revision, decision, reviewer identity and reason history validation."
+      },
+      "angularProductionBuild": "PASS; preexisting Commercial Settings stylesheet warning.",
+      "apiAndE2eBuild": "PASS; zero warnings/errors.",
+      "browserJourney": {
+        "result": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "duration": "41 seconds",
+        "test": "AngularClientOperationalJournalJourneyTests.NativeClientJournalRequiresIndependentReviewAndPostsThroughAngular",
+        "coverage": "Reviewer returns submitted journal with reason, maker sees preserved reason and resubmits with fresh revision preview, different reviewer previews new submitted revision and approves/posts; both decisions retained, expected posted GL and no page errors.",
+        "builtInBrowser": "Synthetic client identity routed from requested accounting sign-in to restricted portal; rendered portal inspected and console returned no warnings/errors. Staff return flow verified by automated Chromium journey."
+      },
+      "openApi": {
+        "result": "PASS",
+        "passed": 5,
+        "failed": 0,
+        "inspection": "Generated return endpoint, ClientOperationalJournalView decisions field, ClientOperationalJournalDecisionView and preview response schemas inspected. Explicit GET response metadata added after initial schema inspection showed omission."
+      },
+      "efModel": "No pending model changes after SQL-only return integrity migration; EF tooling/runtime version warning.",
+      "toolchainNote": "Infrastructure/domain tests rebuilt without incremental caching before final PostgreSQL run. Temporary worktree SDK roll-forward restored after browser run.",
+      "fullRegression": "NOT_RUN",
+      "boundary": "Partial CA-10 workflow. Returned content is protected until immutable revision editing exists; current resubmission preserves the same journal content. Editor/evidence revisions, reversal lineage, durable receipts, currency/FX policy, native TB/reporting snapshots and client invoice/open-item workflows remain open. Full epic unmerged; tax and nonmandatory modules optional."
+    },
+    "clientOperationalJournalSnapshots": {
+      "sourceCommit": "06a892bb",
+      "verifiedAt": "2026-10-06T16:20:43.705811+00:00",
+      "focusedPostgresTests": {
+        "result": "PASS",
+        "passed": 2,
+        "failed": 0,
+        "filter": "FullyQualifiedName~NativeJournal",
+        "coverage": "Submission and resubmission capture distinct immutable revisions 2 and 4. Invalid submission rolls back; post/replay creates no extra versions. Restricted role cannot insert, update or delete snapshots; sibling client reads denied. Exact preserved amounts verified with existing independent posting/close controls."
+      },
+      "angularSpecs": {
+        "result": "PASS",
+        "passed": 7,
+        "failed": 0,
+        "coverage": "Snapshot response binds client/journal identities, rejects duplicate or invalid revisions and numeric money; existing preview/review/ledger checks retained."
+      },
+      "angularProductionBuild": "PASS; preexisting Commercial Settings stylesheet warning.",
+      "apiAndE2eBuild": "PASS; zero warnings/errors.",
+      "browserJourney": {
+        "result": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "duration": "57 seconds",
+        "test": "AngularClientOperationalJournalJourneyTests.NativeClientJournalRequiresIndependentReviewAndPostsThroughAngular",
+        "coverage": "Complete synthetic journal create/preview/submit/return/resubmit/independent post/GL journey; submitted versions 2 and 4 visible and expanded original lines retain exact 125.250000 amounts; no page errors.",
+        "builtInBrowser": "Version inspection NOT_RUN in built-in browser; no active test API appeared in the process inventory at inspection time. Automated owned Chromium provided version UI evidence."
+      },
+      "openApi": {
+        "result": "PASS",
+        "passed": 5,
+        "failed": 0,
+        "inspection": "Generated snapshots endpoint, client/journal identity fields and string-typed debit amounts inspected."
+      },
+      "efModel": "No pending model changes after generated additive snapshot migration; EF tool/runtime warning.",
+      "migration": "20261006180000_ClientOperationalJournalSnapshots; journal content captured by submission trigger in the same financial transaction. No historical content backfill.",
+      "toolchainNote": "Temporary worktree SDK roll-forward restored after browser test.",
+      "fullRegression": "NOT_RUN",
+      "boundary": "Immutable content foundation only. Returned content remains protected until rework editing is implemented. Existing uncaptured reviews remain explicitly unavailable. Editor, reversal, command receipts, currency/FX policy, invoices/open items and native reporting snapshots remain open. Epic unmerged; tax/nonmandatory modules optional."
+    },
+    "clientOperationalJournalRework": {
+      "sourceCommit": "54056f35",
+      "verifiedAt": "2026-10-06T16:35:09.601308+00:00",
+      "focusedPostgresTests": {
+        "result": "PASS",
+        "passed": 2,
+        "failed": 0,
+        "filter": "FullyQualifiedName~NativeJournal",
+        "duration": "31 seconds",
+        "coverage": "Original preparer reworks returned revision 3 to draft 4; reviewer, sibling client, stale revision, out-of-period date, unknown account and unbalanced correction denied. Fresh submission 5 retains immutable original submission 2 at 125 and corrected 5 at 150. Independent concurrent posting/replay/close and immutable snapshot controls retained."
+      },
+      "angularSpecs": {
+        "result": "PASS",
+        "passed": 7,
+        "failed": 0
+      },
+      "angularProductionBuild": "PASS; preexisting Commercial Settings stylesheet budget warning.",
+      "apiAndE2eBuild": "PASS; zero warnings/errors.",
+      "browserJourney": {
+        "result": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "duration": "49 seconds",
+        "test": "AngularClientOperationalJournalJourneyTests.NativeClientJournalRequiresIndependentReviewAndPostsThroughAngular",
+        "coverage": "Synthetic Angular create, preview, submit, reviewer return, original-preparer edit to 150.25, save draft, fresh preview/resubmit and independent posting. Journal number locked during editor. Earlier submission 2 retains 125.250000; submission 5 visible; posted GL reflects -150.250000. No page errors.",
+        "builtInBrowser": "Rework editor inspection NOT_RUN in built-in browser. Owned ephemeral API hosts had terminated when listening URLs were retrieved; automated Chromium supplies this flow evidence."
+      },
+      "openApi": {
+        "result": "PASS",
+        "passed": 5,
+        "failed": 0,
+        "duration": "11 seconds",
+        "inspection": "Generated rework path and input schema inspected; revision and debit/credit remain strings and reviewed acknowledgment remains boolean."
+      },
+      "efModel": "No pending model changes; existing EF tool/runtime version warning.",
+      "migration": "20261006181000_ClientOperationalJournalRework; SQL-only transition requires exact immutable submitted content and independent return decision. Journal period/number/currency fixed; no historical reconstruction.",
+      "fullRegression": "NOT_RUN",
+      "toolchainNote": "Temporary SDK roll-forward restored after browser journey.",
+      "boundary": "Partial CA-10 returned-journal rework. Editing uncaptured historical returns fails closed. General draft editing, correction/reversal lineage, maker evidence, durable receipts, currency/FX policy, client invoices/open items, opening balances and native TB/reporting snapshots remain open. Full epic unmerged; tax and nonmandatory modules optional. No Development or production database migration or external acceptance claimed."
+    },
+    "clientOperationalPostingReceipts": {
+      "sourceCommit": "5ce5ab0d",
+      "verifiedAt": "2026-10-06T17:02:03.919681+00:00",
+      "focusedPostgresTests": {
+        "result": "PASS",
+        "passed": 2,
+        "failed": 0,
+        "filter": "FullyQualifiedName~NativeJournal",
+        "duration": "34 seconds",
+        "coverage": "Exact identical concurrent posting commands return one immutable receipt; same key/different reason and a new key for an already posted journal are refused. Receipt lookup denies preparer and sibling client. Injected receipt insertion failure rolls back posting and approval; retry succeeds without orphan state. Receipt updates/deletion denied. Existing immutable submissions, corrected amounts, close concurrency and posted GL controls retained."
+      },
+      "angularSpecs": {
+        "result": "PASS",
+        "passed": 8,
+        "failed": 0,
+        "coverage": "Receipt command/client/actor and posted identity binding, consecutive decimal-string revisions beyond JavaScript integer precision, digest shape and existing journal/preview/snapshot/ledger contracts."
+      },
+      "angularProductionBuild": "PASS; existing Commercial Settings stylesheet budget warning.",
+      "apiAndE2eBuild": "PASS; zero compiler warnings/errors.",
+      "browserJourney": {
+        "result": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "duration": "43 seconds",
+        "test": "AngularClientOperationalJournalJourneyTests.NativeClientJournalRequiresIndependentReviewAndPostsThroughAngular",
+        "coverage": "Complete synthetic create/submit/return/edit/resubmit/independent posting. First posting request is not delivered; receipt lookup finds no commit; explicit retry preserves identical command key. Second request commits then its response is lost; scoped recovery obtains original receipt without another posting. Exactly one receipt and two posted lines; original amounts retained; no page errors.",
+        "builtInBrowser": "Live synthetic staff accounting workspace opened and native recovery controls/optional-tax statement inspected. No warning/error console entries observed. Fixture teardown changed the browser to Access unavailable before ledger/recovery actions could be exercised; full flow evidence comes from automated Chromium."
+      },
+      "openApi": {
+        "result": "PASS",
+        "passed": 5,
+        "failed": 0,
+        "duration": "7 seconds",
+        "inspection": "Generated receipt recovery path, UUID posting command identity and exact string revision fields inspected. Initial shared optional Guid input caused generation failure; a dedicated posting input without that default restored contract generation. Safe failure diagnostics added to contract test helper."
+      },
+      "efModel": "No pending model changes after immutable receipt and per-journal uniqueness model; existing EF tool/runtime version warning.",
+      "migration": "20261006182000_ClientOperationalPostingReceipts; additive client/command and client/journal uniqueness, scoped FKs, exact revision/hash checks and immutable receipt trigger tied to actual posted journal and independent approval. No historical receipt reconstruction.",
+      "commands": [
+        "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore --configuration Release --filter FullyQualifiedName~NativeJournal",
+        "npm --prefix src/AuditSphereOps.Ui run build",
+        "npm --prefix src/AuditSphereOps.Ui run test:ci -- --include=src/app/features/accounting/operational-journals.spec.ts",
+        "dotnet build tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-restore --configuration Release",
+        "dotnet build tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release",
+        "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-build --configuration Release --filter FullyQualifiedName~AngularClientOperationalJournalJourneyTests",
+        "AUDITSPHERE_EMIT_OPENAPI=/tmp/auditsphere-posting-receipts-openapi.json dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-restore --configuration Release --filter FullyQualifiedName~OpenApiContractTests",
+        "dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Api --no-build --configuration Release"
+      ],
+      "commandNote": "Dotnet commands used absolute worktree project paths from /tmp to use installed SDK. Temporary roll-forward override for spawned browser API hosts was restored after each terminal run.",
+      "fullRegression": "NOT_RUN",
+      "boundary": "Partial CA-11 native journal posting/recovery. Draft creation and other command receipts, numbering policy, general draft editing, evidence capture, reversal/correction lineage, currency/FX policy, client invoices/open items, opening balances and native TB/reporting bridge remain open. Full epic unmerged. Tax/nonmandatory modules optional; mandatory financial controls retained. No Development/production migration or external acceptance claimed."
     }
   },
   "documentationWork": {

@@ -12,7 +12,8 @@ namespace AuditSphereOps.Api.Contracts;
 /// document describes transport behavior only: URLs, methods, authentication requirements and
 /// boundary-produced responses. It is never the business authorization authority. Financial
 /// decimal values are described as exact strings, matching the DecimalStringConverter wire
-/// behavior; commands are never retried by clients and uncertain outcomes stay uncertain.
+/// behavior. Unknown command outcomes require explicit recovery. Native client journal posting alone supports
+/// user-confirmed retry of the original durable command identity; no generic automatic retry is implied.
 /// </summary>
 public static class ApiContract
 {
