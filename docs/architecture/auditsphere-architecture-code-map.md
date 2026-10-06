@@ -68,6 +68,12 @@ Critical invariants: firm-wide configuration rejects client-scoped grants; perio
 
 current reviews for matching packages; reopen/restatement create immutable revision lineage.
 
+Client bookkeeping source mode is explicit on `ClientAccountingProfile`; existing and new
+profiles default to `EXTERNAL_SOURCE`. `NATIVE_BOOKKEEPING` requires reviewer access and an
+unconditional client-level `BOOKKEEPING` acceptance decision. Inline enablement is blocked
+when reporting periods already exist; a reviewed cutover workflow is still required for those
+clients. This setup does not itself provide native journal posting.
+
 
 
 

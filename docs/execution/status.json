@@ -19,24 +19,24 @@
   },
   "verification": {
     "firmExpenseCreationRecovery": {
-          "sourceCommit": "bcf9e912f0a407d59e113dba6aba763d8cbdc18a",
-          "implementationCommit": "dbd8a375",
-          "observedAt": "2026-10-06T12:55:27Z",
-          "status": "PASS_LOCAL_SLICE",
-          "caseId": "AS-PAR-002-ANG-FIRM-EXP-CREATE-RECOVERY-01",
-          "focusedBrowserJourney": {
-                "status": "PASS",
-                "passed": 1,
-                "failed": 0,
-                "skipped": 0,
-                "duration": "36s",
-                "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~AngularFirmExpenseCreationRecoveryJourneyTests' --logger 'console;verbosity=minimal'"
-          },
-          "coverage": "A dropped response after an accepted create is reconciled from the exact actor/request ID/request hash receipt without resending. A request aborted before API dispatch is looked up as absent and only retried after the user explicitly chooses the same request with unchanged form fields and source bytes. Replaying identical create intent returns the same expense ID; changed intent conflicts; only one row is persisted per reference. Receipt lookup is denied to an unauthorized reviewer without exposing the payee or expense ID. Evidence bytes stay in the request and are never stored in browser recovery storage.",
-          "databaseBoundary": "The journey used an owned isolated PostgreSQL database and API-hosted Angular sessions with synthetic identities. No Development or production data, migration, or external provider state was changed.",
-          "sharedWorktreeBoundary": "The current shared checkout also contained another agent’s uncommitted engagement-lifecycle endpoint/query/test work; that unrelated route was not exercised by this finance journey and was excluded from this documentation change.",
-          "fullSolutionRegression": "NOT_RUN for this slice. Latest complete PostgreSQL-backed Release solution regression remains 1001/1001 at ead85032de2ccc4d4c8043398fa8471d395376a9.",
-          "retirementDecision": "NOT_READY"
+      "sourceCommit": "bcf9e912f0a407d59e113dba6aba763d8cbdc18a",
+      "implementationCommit": "dbd8a375",
+      "observedAt": "2026-10-06T12:55:27Z",
+      "status": "PASS_LOCAL_SLICE",
+      "caseId": "AS-PAR-002-ANG-FIRM-EXP-CREATE-RECOVERY-01",
+      "focusedBrowserJourney": {
+        "status": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "duration": "36s",
+        "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~AngularFirmExpenseCreationRecoveryJourneyTests' --logger 'console;verbosity=minimal'"
+      },
+      "coverage": "A dropped response after an accepted create is reconciled from the exact actor/request ID/request hash receipt without resending. A request aborted before API dispatch is looked up as absent and only retried after the user explicitly chooses the same request with unchanged form fields and source bytes. Replaying identical create intent returns the same expense ID; changed intent conflicts; only one row is persisted per reference. Receipt lookup is denied to an unauthorized reviewer without exposing the payee or expense ID. Evidence bytes stay in the request and are never stored in browser recovery storage.",
+      "databaseBoundary": "The journey used an owned isolated PostgreSQL database and API-hosted Angular sessions with synthetic identities. No Development or production data, migration, or external provider state was changed.",
+      "sharedWorktreeBoundary": "The current shared checkout also contained another agent\u2019s uncommitted engagement-lifecycle endpoint/query/test work; that unrelated route was not exercised by this finance journey and was excluded from this documentation change.",
+      "fullSolutionRegression": "NOT_RUN for this slice. Latest complete PostgreSQL-backed Release solution regression remains 1001/1001 at ead85032de2ccc4d4c8043398fa8471d395376a9.",
+      "retirementDecision": "NOT_READY"
     },
     "firmReceivablesAging": {
       "sourceCommit": "83a6c62482bb745e7faf11a10b4dd5da2dfcf263",
@@ -11392,6 +11392,22 @@
       },
       "ci": "Contract drift gate added to the dotnet-build job as a single no-database generation check (build-gate policy preserved).",
       "scope": "HTTP boundary hardening, canonical OpenAPI contract, and production IaC baseline. No Domain, Application business logic, EF model or database schema changes."
+    },
+    "clientBookkeepingSourceMode": {
+      "sourceCommit": "99fa9a7f",
+      "verifiedAt": "2026-10-06T13:23:42Z",
+      "focusedDomainTests": "3 passed: default external source, accepted native service with reviewer, and populated-period cutover refusal",
+      "angularWorkspaceTests": "4 passed",
+      "browserJourney": "AngularAccountingJourneyTests.ReviewedSetupPersistsProfilePeriodAndBook passed 1/1 at source commit 9b9699c3",
+      "toolchainNote": "The E2E host used a temporary worktree-only global.json latestFeature roll-forward to installed SDK 10.0.400; global.json was restored afterward.",
+      "boundary": "Focused local verification only; native operational journal posting is not implemented."
+    },
+    "clientBookkeepingCapabilityAuthorization": {
+      "sourceCommit": "aaabb505",
+      "verifiedAt": "2026-10-06T13:37:00Z",
+      "focusedDomainTests": "3 passed, including accepted unconditional BOOKKEEPING capability and refusal for missing route or unresolved conditions",
+      "boundary": "Focused Application and PostgreSQL-backed verification only; no production acceptance.",
+      "efModel": "No pending model changes at source commit aaabb505"
     }
   },
   "documentationWork": {
