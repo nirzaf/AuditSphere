@@ -15,6 +15,22 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Current follow-on slice: Global Search timeout and late-response recovery
+
+Added an API-host browser regression for the Angular Global Search 15-second
+timeout. The first synthetic response is held for 16 seconds; the UI shows its
+safe retry state, renders no stale result, and succeeds when the user submits
+the search again. The journey checks the late route completion, confirms the
+retry count, and reports no page or console errors.
+
+The full `GlobalSearchJourneyTests` class passed 3/3 in 1m12s at test commit
+`09065013`. Existing Angular unit tests cover cancellation and clearing on
+session invalidation; they were not rerun in this slice. No runtime, API,
+Domain, persistence or EF model code changed. The full solution and EF checks
+were not rerun; the complete-solution checkpoint remains 1001/1001 at
+`ead85032`. In-flight invalidation across all app routes, broader migration
+acceptance and Blazor retirement remain open (`NOT_READY`).
+
 ## Current follow-on slice: Portfolio CSV export bound and recoverable limit state
 
 The portfolio export acceptance now pins both sides of its configured
