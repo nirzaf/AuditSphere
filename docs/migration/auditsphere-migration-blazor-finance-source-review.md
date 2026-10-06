@@ -1,7 +1,7 @@
 # AuditSphere migration source review — firm finance
 
 **Status:** PARTIAL_REVIEWED
-**Reviewed against code/test commit:** `7b709324f9ac9e43c9d7d650283157448e7c8d61`
+**Reviewed against code/test commit:** `de27c966922dd4972714b5e22ada236a32f903f0`
 **Pinned discovery snapshot:** `eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39`
 
 The three legacy page sources below match the SHA-256 values recorded in the
@@ -21,7 +21,7 @@ behavior parity.
 |---|---|---|
 | Firm ledger: show firm periods, accounts and the 25 most recent postings; allow an authorized FinanceReviewer to close an open period with a reason after confirming. | Angular `features/finance/ledger.ts`; API `UiEndpoints.Finance.cs`; Application `FirmFinanceQuery` and `LedgerService`. | `FirmFinanceQuery` requires an internal firm-wide FinanceManager or FinanceReviewer and filters every projection by firm. The period-close journey verifies a reviewer closes an open period only after entering a reason and persists the close decision. A boundary journey verifies a client-scoped FinanceManager is denied both the Angular read and direct API, a reviewer sees only the local period, foreign and random guessed period IDs return indistinguishable 403 close responses without mutation, and revoking the reviewer grant clears visible ledger state. An additional browser route/accessibility sweep includes the ledger. Other role combinations, invalid close reasons, state-conflict/provider failure and retry/recovery behavior remain open. |
 | Firm books: capture a dated operating expense and source document, submit it for independent review, then post the approved journal; calculate a firm trial balance. | Angular `features/finance/books.ts`; API `UiEndpoints.FirmBooks.cs`; Application `FirmBooksWorkspaceQuery`, `FirmExpenseService` and `LedgerService`. | The PostgreSQL API-host Angular journeys verify source-backed capture, independent review and rejection, reason persistence, same-day journal identity, approval/posting and a balanced/reconciled trial balance. A boundary journey verifies malformed and 5 MiB + 1 uploads fail safely, foreign and random guessed IDs return indistinguishable 403 responses for submit/post, and foreign expense state is unchanged. It increments the authorized user's session epoch and verifies that the rendered page clears to “Access unavailable”. The post journey repeats the same post command twice, receives identical successful responses, and verifies one persisted posting. Evidence bytes are omitted from projections; upload size remains bounded to 5 MB. |
-| Invoice detail: show the authorized invoice, lines, receipt allocations and outstanding balance; allow the invoice lifecycle actions according to status and finance authority. | Angular `features/finance/invoice.ts`; API invoice handlers in `UiEndpoints.Finance.cs`; Application `BillingInvoiceWorkspaceQuery` and `BillingService`. | PostgreSQL-backed browser journeys verify client-scoped invoice reads, sibling-client and wrong-client invoice denial with stale-content clearing, immediate clearing after grant revocation, bounded 100-item receipt/credit history paging, receipt allocation and credit-note recovery after a lost response. The lifecycle journey proves role-specific action visibility and backend enforcement: FinanceManager cannot approve, FinanceReviewer approves independently but cannot post, and an authorized FinanceManager posts and sends. Posting also requires an approved finance profile matching invoice currency; repeated post commands return identical success responses. A boundary journey compares a real foreign-firm invoice ID with a random ID for detail read and approve/post/send; every pair returns the same 403, and the foreign invoice remains unchanged. Invalid cursor shape/empty-ID cases return the same safe 400; transient receipt-history failure preserves loaded history and succeeds on retry. Broader role/scope combinations, credit-note page failure, stale in-flight history and remaining uncertain outcomes remain open. |
+| Invoice detail: show the authorized invoice, lines, receipt allocations and outstanding balance; allow the invoice lifecycle actions according to status and finance authority. | Angular `features/finance/invoice.ts`; API invoice handlers in `UiEndpoints.Finance.cs`; Application `BillingInvoiceWorkspaceQuery` and `BillingService`. | PostgreSQL-backed browser journeys verify client-scoped invoice reads, sibling-client and wrong-client invoice denial with stale-content clearing, immediate clearing after grant revocation, bounded 100-item receipt/credit history paging, receipt allocation and credit-note recovery after a lost response. The lifecycle journey proves role-specific action visibility and backend enforcement: FinanceManager cannot approve, FinanceReviewer approves independently but cannot post, and an authorized FinanceManager posts and sends. Posting also requires an approved finance profile matching invoice currency; repeated post commands return identical success responses. A boundary journey compares a real foreign-firm invoice ID with a random ID for detail read and approve/post/send; every pair returns the same 403, and the foreign invoice remains unchanged. Invalid cursor shape/empty-ID cases return the same safe 400; transient receipt and credit-history failures preserve loaded rows and succeed on retry. Broader role/scope combinations, stale in-flight history and remaining uncertain outcomes remain open. |
 
 The application services keep firm books separate from client billing. The
 firm ledger query rechecks authorization after reading its bounded projection;
@@ -86,7 +86,7 @@ invoice marker. PostgreSQL confirms the foreign invoice remains
 `REVIEW_REQUIRED`, with no approval, posting or sent timestamps. The focused
 API-host Angular browser journey passed **1/1** in 35 seconds with no failures.
 
-The billing workspace journey was extended at `7b709324` for history failure
+The billing workspace journey was extended at `de27c966` for history failure
 and cursor recovery:
 
 ```bash
@@ -94,12 +94,12 @@ dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-
 ```
 
 Three malformed or empty cursor combinations return the same safe HTTP 400
-body, without invoice details. The journey then injects a one-time 503 response
-for the older-receipt request. The Angular page retains a previously loaded
-receipt, presents “Older receipts could not be loaded. Try again shortly.”,
-and a user retry retrieves the remaining receipt. The browser test passed
-**1/1** in 32 seconds with no page errors. Credit-note page failure, stale
-in-flight history cancellation and the broader authority matrix remain open.
+body, without invoice details. The journey injects a one-time 503 for both the
+older-receipt and older-credit-note requests. The Angular page retains the
+previously loaded rows, presents safe retry messages for both, and user retries
+retrieve the remaining history. The browser test passed **1/1** in 34 seconds
+with no page errors. Stale in-flight history cancellation and the broader
+authority matrix remain open.
 
 The dedicated native Angular firm-books and boundary journeys passed **2/2** at
 `3bff1eb1`:
@@ -158,18 +158,18 @@ approve/post/send actions by the Application capability projection, and the
 role-separated lifecycle journey covers approval, posting, sending and repeat
 post recovery. One invoice browser journey compares cross-firm and guessed IDs
 for detail, approve, post and send without disclosing or mutating the foreign
-invoice. Invalid invoice cursor pairs and receipt-history transient failure
-and retry are covered. Broader role/scope combinations, credit-note page
-failure, stale in-flight history cancellation and remaining uncertain outcomes
-remain open. The firm-ledger path has
+invoice. Invalid invoice cursor pairs and receipt/credit-history transient
+failures and retries are covered. Broader role/scope combinations, stale
+in-flight history cancellation and remaining uncertain outcomes remain open.
+The firm-ledger path has
 focused scoped-read, foreign/guessed close-ID, unchanged-state and revoked
 session clearing evidence. Invalid close reason and state-conflict/failure
 recovery remain open. Firm books now has focused
 evidence for malformed/oversized upload handling, foreign/guessed submit and
 post isolation, session-epoch clearing, and idempotent post retry. The full
 FinanceManager/FinanceReviewer and scope matrix, remaining input/evidence
-validation, post failure/unknown-outcome recovery, and invoice credit-history
-failure/stale in-flight history handling still need broader assertions.
+validation, post failure/unknown-outcome recovery, and invoice stale in-flight
+history handling still need broader assertions.
 Assistive-technology and wider-locale review,
 production-like rollback/canary, live Microsoft gates and separate owner
 acceptance remain open.

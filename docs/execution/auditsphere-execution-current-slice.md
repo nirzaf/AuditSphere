@@ -39,12 +39,13 @@ foreign invoice remains in review-required state with no approval, post or send
 timestamps. Broader FinanceManager/FinanceReviewer and client/firm scope
 combinations and remaining uncertain outcomes remain open.
 
-At test commit `7b709324`, the billing workspace journey also checks three
+At test commit `de27c966`, the billing workspace journey also checks three
 malformed/empty invoice-history cursors. Each returns the same safe HTTP 400
-response. A simulated 503 while loading older receipts preserves the already
-loaded history and displays a retry message; retry then loads the remaining
-receipt. This API-host browser journey passed **1/1**. Credit-note page failure
-and stale in-flight history requests remain open.
+response. Simulated 503 responses while loading older receipts and credit notes
+preserve their already-loaded rows and display safe retry messages; retries
+then load the remaining history. This API-host browser journey passed **1/1**
+in 34 seconds. Stale in-flight history requests and session-revocation behavior
+remain open.
 
 The 76 source/action rows remain at one parity
 verified, 73 partial, and two unanalyzed; AS-PAR-002 remains partial and the
