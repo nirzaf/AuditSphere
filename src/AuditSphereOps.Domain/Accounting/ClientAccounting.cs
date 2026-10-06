@@ -1323,3 +1323,19 @@ public sealed class ClientOperationalPostingReceipt
   public string PreviewDigest { get; set; } = string.Empty;
   public DateTimeOffset RecordedAt { get; set; }
 }
+
+/// <summary>Immutable full manual-journal correction lineage; neither journal is unposted.</summary>
+public sealed class ClientOperationalJournalReversal
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid OriginalJournalId { get; set; }
+  public Guid ReversalJournalId { get; set; }
+  public long OriginalRevision { get; set; }
+  public string Reason { get; set; } = string.Empty;
+  public string EvidenceReference { get; set; } = string.Empty;
+  public string IntentHash { get; set; } = string.Empty;
+  public Guid PreparedByUserId { get; set; }
+  public DateTimeOffset PreparedAt { get; set; }
+}

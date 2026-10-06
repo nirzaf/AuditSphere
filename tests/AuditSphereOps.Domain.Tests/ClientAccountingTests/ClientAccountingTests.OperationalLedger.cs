@@ -271,6 +271,54 @@ public sealed partial class ClientAccountingTests
           [new("6000", "Expense", 10m, 0m), new("1000", "Cash", 0m, 10m)]));
       Assert.False(afterClose.Succeeded);
       Assert.Equal(ErrorCodes.GateBlocked, afterClose.ErrorCode);
+      var correction = new ClientOperationalJournalReversalRequest(6, periodId, "J-REV-001", new DateOnly(2026, 1, 15), "Reverse duplicate expense", "SYN-EVIDENCE-CORRECTION-1");
+      Assert.False((await ClientOperationalLedgerWorkspace.CreateReversalAsync(db, preparer, scope.ClientB, journalId, correction)).Succeeded);
+      Assert.False((await ClientOperationalLedgerWorkspace.CreateReversalAsync(db, preparer, scope.ClientA, journalId, correction with { ExpectedRevision = 5 })).Succeeded);
+      Assert.False((await ClientOperationalLedgerWorkspace.CreateReversalAsync(db, preparer, scope.ClientA, journalId, correction with { EvidenceReference = "" })).Succeeded);
+      var lockedCorrection = await ClientOperationalLedgerWorkspace.CreateReversalAsync(db, preparer, scope.ClientA, journalId, correction);
+      Assert.Equal(ErrorCodes.GateBlocked, lockedCorrection.ErrorCode);
+      var next = await ClientAccountingService.CreatePeriodAsync(db, preparer,
+        new ReportingPeriodRequest(scope.ClientA, "2027", new DateOnly(2027, 1, 1), new DateOnly(2027, 12, 31), "IFRS", "QAR"));
+      Assert.True(next.Succeeded, next.Message);
+      correction = correction with { PeriodId = next.Value, PostingDate = new DateOnly(2027, 1, 15) };
+      async Task<CommandResult<Guid>> PrepareReversal() {
+        await using var concurrent = new AuditSphereDbContext(pg.Options);
+        return await ClientOperationalLedgerWorkspace.CreateReversalAsync(concurrent, preparer, scope.ClientA, journalId, correction);
+      }
+      var prepared = await Task.WhenAll(PrepareReversal(), PrepareReversal());
+      Assert.All(prepared, x => Assert.True(x.Succeeded, x.Message));
+      Assert.Equal(prepared[0].Value, prepared[1].Value);
+      var reversalId = prepared[0].Value;
+      Assert.False((await ClientOperationalLedgerWorkspace.CreateReversalAsync(db, preparer, scope.ClientA, journalId,
+        correction with { Reason = "Different intent" })).Succeeded);
+      var reversal = await ClientOperationalLedgerWorkspace.GetAsync(db, preparer, scope.ClientA, reversalId);
+      Assert.Equal("DRAFT", reversal.Value!.Status);
+      Assert.Equal(journalId, reversal.Value.ReversalOf!.OriginalJournalId);
+      Assert.Equal(correction.EvidenceReference, reversal.Value.ReversalOf.EvidenceReference);
+      Assert.Equal("150.000000", reversal.Value.Lines[0].Credit);
+      Assert.Equal(reversalId, (await ClientOperationalLedgerWorkspace.GetAsync(db, reviewer, scope.ClientA, journalId)).Value!.ReversedBy!.ReversalJournalId);
+      await AssertNativeRuntimeSqlDeniedAsync(pg, reversalId, scope.Reviewer.Id,
+      [
+        "UPDATE client_operational_journal_reversals SET reason='Changed reason' WHERE reversal_journal_id=@journal",
+        "DELETE FROM client_operational_journal_reversals WHERE reversal_journal_id=@journal",
+        "UPDATE client_operational_journal_lines SET credit=credit+1 WHERE journal_id=@journal AND credit>0",
+        "DELETE FROM client_operational_journal_lines WHERE journal_id=@journal"
+      ]);
+      var reversalPreview = await ClientOperationalLedgerWorkspace.PreviewAsync(db, preparer, scope.ClientA, reversalId);
+      Assert.True(reversalPreview.Succeeded, reversalPreview.Message);
+      Assert.True((await ClientOperationalLedgerWorkspace.SubmitAsync(db, preparer, scope.ClientA, reversalId, 1, previewDigest: reversalPreview.Value!.Digest)).Succeeded);
+      var reviewerPreview = await ClientOperationalLedgerWorkspace.PreviewAsync(db, reviewer, scope.ClientA, reversalId);
+      Assert.False((await ClientOperationalLedgerWorkspace.ReviewAndPostAsync(db, preparer, scope.ClientA, reversalId,
+        new(2, "APPROVE", "Self approval", reviewerPreview.Value!.Digest, Guid.CreateVersion7()))).Succeeded);
+      var reversed = await ClientOperationalLedgerWorkspace.ReviewAndPostAsync(db, reviewer, scope.ClientA, reversalId,
+        new(2, "APPROVE", "Independent full reversal review", reviewerPreview.Value!.Digest, Guid.CreateVersion7()));
+      Assert.True(reversed.Succeeded, reversed.Message);
+      var nextLedger = await ClientOperationalGeneralLedgerWorkspace.GetAsync(db, reviewer, scope.ClientA, next.Value);
+      Assert.Equal("-150.000000", nextLedger.Value!.Accounts.Single(x => x.AccountCode == "6000").NetMovement);
+      Assert.All(nextLedger.Value.Entries, x => Assert.Equal(journalId, x.ReversesJournalId));
+      var originalLedger = await ClientOperationalGeneralLedgerWorkspace.GetAsync(db, reviewer, scope.ClientA, periodId);
+      Assert.Equal("150.000000", originalLedger.Value!.Accounts.Single(x => x.AccountCode == "6000").DebitMovement);
+      Assert.All(originalLedger.Value.Entries, x => { Assert.Equal(reversalId, x.ReversedByJournalId); Assert.Equal("POSTED", x.ReversedByStatus); });
     }
   }
 

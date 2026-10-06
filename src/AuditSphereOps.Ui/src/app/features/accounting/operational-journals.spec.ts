@@ -83,3 +83,14 @@ describe('Posting receipt recovery', () => {
       expect(() => decodePostingReceipt({ ...receipt, ...change }, client, account, actor)).toThrow();
   });
 });
+
+describe('Full reversal lineage', () => {
+  it('requires exact journal direction and preserved reason, evidence and preparer identities', () => {
+    const link = { originalJournalId: account, reversalJournalId: journal, originalRevision: '6', reason: 'Duplicate expense',
+      evidenceReference: 'SYN-EVIDENCE-1', preparedByUserId: actor, preparedAt: '2026-01-06T00:00:00Z', reversalStatus: 'DRAFT' };
+    expect(decodeOperationalJournal({ ...view, reversalOf: link }, client).reversalOf?.evidenceReference).toBe('SYN-EVIDENCE-1');
+    for (const change of [{ reversalJournalId: account }, { originalJournalId: 'bad' }, { reason: '' }, { evidenceReference: '' }, { preparedByUserId: 'bad' }, { originalRevision: 6 }])
+      expect(() => decodeOperationalJournal({ ...view, reversalOf: { ...link, ...change } }, client)).toThrow();
+    expect(() => decodeOperationalJournal({ ...view, reversedBy: link }, client)).toThrow();
+  });
+});

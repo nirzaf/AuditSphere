@@ -18,6 +18,9 @@ public static partial class UiEndpoints
   public sealed record ClientOperationalJournalPostHttpInput(string Revision, string Reason, bool Reviewed, string PreviewDigest = "");
   public sealed record ClientOperationalJournalPostingHttpInput(string Revision, string Reason, bool Reviewed, string PreviewDigest, Guid CommandId);
 
+  public sealed record ClientOperationalJournalReversalHttpInput(string Revision, Guid PeriodId, string JournalNumber,
+    string PostingDate, string Reason, string EvidenceReference, bool Reviewed);
+
   private static void MapClientOperationalLedgerEndpoints(RouteGroupBuilder group)
   {
     group.MapGet("/accounting/clients/{clientId:guid}/operational-posting-receipts/{commandId:guid}", async (Guid clientId,
@@ -165,6 +168,23 @@ public static partial class UiEndpoints
       var result = await ClientOperationalLedgerWorkspace.ReturnAsync(db, actor, clientId, journalId, revision, input.Reason, http.RequestAborted);
       return result.Succeeded ? Results.Ok(new { returned = true }) :
         Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
+    });
+
+    group.MapPost("/accounting/clients/{clientId:guid}/operational-journals/{journalId:guid}/reversal", async (Guid clientId,
+      Guid journalId, ClientOperationalJournalReversalHttpInput input, HttpContext http, TrustedActorResolver resolver,
+      IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
+    {
+      var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
+      if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      try { await csrf.ValidateRequestAsync(http); }
+      catch (AntiforgeryValidationException) { return Results.Json(new { code = "csrf.invalid" }, statusCode: 403); }
+      if (!input.Reviewed || !long.TryParse(input.Revision, NumberStyles.None, CultureInfo.InvariantCulture, out var revision) || revision < 1 ||
+          !DateOnly.TryParseExact(input.PostingDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var postingDate))
+        return Results.Json(new { code = "request.invalid" }, statusCode: 400);
+      await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
+      var result = await ClientOperationalLedgerWorkspace.CreateReversalAsync(db, actor, clientId, journalId,
+        new(revision, input.PeriodId, input.JournalNumber, postingDate, input.Reason, input.EvidenceReference), http.RequestAborted);
+      return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
     });
 
     group.MapPost("/accounting/clients/{clientId:guid}/operational-journals/{journalId:guid}/post", async (Guid clientId,

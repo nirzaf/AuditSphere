@@ -61,11 +61,14 @@ public static partial class ClientOperationalLedgerWorkspace
     var normalized = View(journal, lines).Lines.Select(x => x with {
       Debit = decimal.Parse(x.Debit, CultureInfo.InvariantCulture).ToString("F6", CultureInfo.InvariantCulture),
       Credit = decimal.Parse(x.Credit, CultureInfo.InvariantCulture).ToString("F6", CultureInfo.InvariantCulture) }).ToArray();
-    var bytes = JsonSerializer.SerializeToUtf8Bytes(new { Version = "native-journal-preview-v1", actor.FirmId,
+    var correction = await db.ClientOperationalJournalReversals.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+      x.ClientId == journal.ClientId && x.ReversalJournalId == journal.Id)
+      .Select(x => new { x.OriginalJournalId, x.OriginalRevision, x.Reason, x.EvidenceReference, x.IntentHash, x.PreparedByUserId }).SingleOrDefaultAsync(ct);
+    var bytes = JsonSerializer.SerializeToUtf8Bytes(new { Version = "native-journal-preview-v2", actor.FirmId,
       journal.ClientId, journal.Id, journal.PeriodId, journal.Revision, journal.Status, journal.JournalNumber,
       journal.Description, journal.PostingDate, journal.Currency, journal.CreatedByUserId,
       ProfileId = profile.Value!.Id, profile.Value.SourceMode, ChartId = chart.Id, chart.EffectiveFrom, chart.EffectiveTo,
-      PeriodStatus = period.Status, period.StartDate, period.EndDate, period.Basis, Mandate = mandate, Lines = normalized });
+      Correction = correction, PeriodStatus = period.Status, period.StartDate, period.EndDate, period.Basis, Mandate = mandate, Lines = normalized });
     var digest = Convert.ToHexStringLower(SHA256.HashData(bytes));
     return CommandResult<ClientOperationalJournalPreview>.Ok(new(journal.Id, journal.ClientId, journal.PeriodId,
       journal.Revision.ToString(CultureInfo.InvariantCulture), journal.Status, journal.Currency,
