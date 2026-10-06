@@ -84,6 +84,13 @@ public sealed class UiWorkbenchContractTests
     var reviewed = await accessPreview.Content.ReadFromJsonAsync<JsonElement>();
     Assert.Equal(64, reviewed.GetProperty("value").GetProperty("digest").GetString()!.Length);
 
+    var expenseBytes = "%PDF receipt"u8.ToArray();
+    var expenseRequestId = Guid.CreateVersion7();
+    const decimal expenseAmount = 12345678.12m;
+    var expenseRequest = new RecordFirmExpenseRequest(new DateOnly(2026, 2, 3), "RENT", "Landlord", "February rent", expenseAmount, "QAR",
+      expenseAccount, bankAccount, "receipt.pdf", "application/octet-stream", expenseBytes, expenseRequestId);
+    var expenseRequestHash = FirmExpenseService.CreateRequestHash(PbcSeed.Actor(seed.Admin, "FinanceManager"), expenseRequest);
+
     Assert.Equal(HttpStatusCode.BadRequest, (await admin.GetAsync("/api/ui/practice/analytics?from=bad&to=2026-12-31")).StatusCode);
     Assert.Equal(HttpStatusCode.OK, (await admin.GetAsync("/api/ui/practice/analytics?from=2026-01-01&to=2026-12-31")).StatusCode);
     var resources = await admin.GetFromJsonAsync<JsonElement>("/api/ui/practice/resources?weeks=2");
@@ -108,16 +115,17 @@ public sealed class UiWorkbenchContractTests
       var form = new MultipartFormDataContent
       {
         { new StringContent("2026-02-03"), "expenseDate" }, { new StringContent("RENT"), "category" }, { new StringContent("Landlord"), "payee" },
-        { new StringContent("February rent"), "description" }, { new StringContent("12345678.125"), "amount" }, { new StringContent("QAR"), "currency" },
+        { new StringContent("February rent"), "description" }, { new StringContent(expenseAmount.ToString(System.Globalization.CultureInfo.InvariantCulture)), "amount" }, { new StringContent("QAR"), "currency" },
         { new StringContent(expenseAccount.ToString()), "expenseAccountId" }, { new StringContent(bankAccount.ToString()), "paymentAccountId" },
+        { new StringContent(expenseRequestId.ToString("D")), "requestId" }, { new StringContent(expenseRequestHash), "requestHash" },
       };
-      form.Add(new ByteArrayContent("%PDF receipt"u8.ToArray()), "evidence", "receipt.pdf");
+      form.Add(new ByteArrayContent(expenseBytes), "evidence", "receipt.pdf");
       return form;
     }
     Assert.Equal(HttpStatusCode.Forbidden, (await PostAsync(admin, "/api/ui/finance/books/expenses", Expense(), null)).StatusCode);
     Assert.Equal(HttpStatusCode.OK, (await PostAsync(admin, "/api/ui/finance/books/expenses", Expense(), proof)).StatusCode);
     var listed = (await admin.GetFromJsonAsync<JsonElement>("/api/ui/finance/books")).GetProperty("expenses")[0];
-    Assert.Equal("12345678.125000", listed.GetProperty("amount").GetString());
+    Assert.Equal("12345678.120000", listed.GetProperty("amount").GetString());
     Assert.False(listed.TryGetProperty("evidenceContent", out _));
     Assert.Equal(HttpStatusCode.BadRequest, (await admin.GetAsync("/api/ui/finance/books/trial-balance?from=2026-13&to=2026-01")).StatusCode);
   }
