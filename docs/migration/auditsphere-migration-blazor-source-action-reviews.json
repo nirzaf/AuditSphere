@@ -447,8 +447,8 @@
       "source": "src/AuditSphereOps.Web/Components/Pages/InvoiceDetail.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-finance-source-review.md",
-      "reviewedAtCommit": "1b439f25516eb8bf9785cf30a8cd1f77e1acb3d6",
-      "openGaps": ["Complete firm-wide/client-scoped role combinations across billing reads, commands and alternative finance scopes", "Invalid history cursors, paging failures and stale-content recovery", "Remaining uncertain billing outcomes and broader accessibility and locale acceptance"]
+      "reviewedAtCommit": "7b709324f9ac9e43c9d7d650283157448e7c8d61",
+      "openGaps": ["Complete firm-wide/client-scoped role combinations across billing reads, commands and alternative finance scopes", "Credit-note history paging failure and stale in-flight history/session-revocation behavior", "Remaining uncertain billing outcomes and broader accessibility and locale acceptance"]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/Workpaper.razor",
