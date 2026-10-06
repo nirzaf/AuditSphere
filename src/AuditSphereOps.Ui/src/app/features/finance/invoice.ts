@@ -136,7 +136,7 @@ export const decodeInvoice = obj({
       }
     }
     @if (uncertain()) { <section class="panel" aria-labelledby="uncertain-heading"><h2 id="uncertain-heading">Verify the saved billing state</h2>
-      <p>The last command response was lost. Check the refreshed receipt reference, allocation balance or credit note number before preparing another command.</p>
+      <p>The last command response was lost. Refresh the invoice and billing history to confirm the saved status or record before preparing another action.</p>
       @if (!reconciliationLoaded()) { <button matButton="outlined" (click)="reconcile()" [disabled]="busy()">Refresh persisted billing state</button> }
       @else { <p role="status">Persisted state was refreshed. Matching records remain in the history above; the unresolved form stays disabled until you clear it and prepare a fresh reviewed action.</p>
         <button matButton="outlined" (click)="clearUnresolved()" [disabled]="busy()">Clear unresolved billing draft</button> }
