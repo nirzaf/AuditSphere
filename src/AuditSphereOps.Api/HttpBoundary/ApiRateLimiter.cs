@@ -21,7 +21,9 @@ public sealed class ApiRateLimitOptions
   // Anonymous traffic is IP-partitioned and therefore shared behind office NAT or a reverse
   // proxy; 60/minute stays far below read budgets while tolerating legitimate shared origins.
   public ClassLimit Authentication { get; set; } = new(60, 60);
-  public ClassLimit M365Administration { get; set; } = new(10, 60);
+  // Administrative M365 verification and consent workflows legitimately burst during setup
+  // wizards; 30/minute keeps them the most conservative authenticated class.
+  public ClassLimit M365Administration { get; set; } = new(30, 60);
 
   /// <summary>Per-identity concurrent export generations; excess exports queue briefly instead of stacking.</summary>
   public int ExportConcurrency { get; set; } = 4;
