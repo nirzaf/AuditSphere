@@ -6,7 +6,7 @@ public sealed record ClientOperationalJournalCalculation(bool Valid, decimal Tot
 /// <summary>Exact native journal rules shared by preparation and posting. No currency rounding is inferred.</summary>
 public static class ClientOperationalJournalCalculator
 {
-  public const decimal MaximumLineAmount = 9_999_999_999_999.999999m;
+  public const decimal MaximumLineAmount = ClientNativeAmountRules.MaximumStoredAmount;
 
   public static ClientOperationalJournalCalculation Calculate(IReadOnlyList<ClientOperationalJournalLineInput>? lines)
   {
@@ -26,6 +26,5 @@ public static class ClientOperationalJournalCalculator
       debit == credit ? null : "Exact total debits must equal total credits.");
   }
 
-  public static bool ValidAmount(decimal amount) => amount >= 0m && amount <= MaximumLineAmount &&
-    decimal.Round(amount, 6) == amount;
+  public static bool ValidAmount(decimal amount) => ClientNativeAmountRules.ValidStoredAmount(amount);
 }
