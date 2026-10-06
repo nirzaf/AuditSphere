@@ -108,7 +108,10 @@ public sealed class AngularTechnicalLibraryParityJourneyTests
     await Assertions.Expect(managerPage.GetByRole(AriaRole.Button, new() { Name = "Publish v2 (second approver)", Exact = true }))
       .ToBeVisibleAsync();
     await managerPage.GetByRole(AriaRole.Button, new() { Name = "Publish v2 (second approver)", Exact = true }).ClickAsync();
-    await Assertions.Expect(managerPage.GetByRole(AriaRole.Alert)).ToContainTextAsync("Another Partner or administrator must publish");
+    await Assertions.Expect(managerPage.GetByRole(AriaRole.Alert)).ToContainTextAsync("Access denied.");
+    await using (var db = host.CreateDbContext())
+      Assert.Equal("DRAFT", await db.TechnicalLibraryVersions.AsNoTracking().Where(x => x.DocumentId == documentId && x.Version == 2)
+        .Select(x => x.Status).SingleAsync());
 
     await partnerPage.GotoAsync($"{partnerOrigin}{entryPath}");
     await partnerPage.GetByRole(AriaRole.Button, new() { Name = "Publish v2 (second approver)", Exact = true }).ClickAsync();
