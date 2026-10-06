@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeOperationalJournal, decodeOperationalLedger } from './operational-journals';
+import { decodeOperationalJournal, decodeOperationalLedger, nativeJournalAmount } from './operational-journals';
 
 const client = '11111111-1111-4111-8111-111111111111';
 const journal = '22222222-2222-4222-8222-222222222222';
@@ -28,5 +28,13 @@ describe('Client operational journal transport contract', () => {
     expect(decodeOperationalLedger(ledger, client, client).accounts[0].netMovement).toBe('-125.000000');
     expect(() => decodeOperationalLedger({ ...ledger, periodId: journal }, client, client)).toThrow();
     expect(() => decodeOperationalLedger({ ...ledger, entries: [{ ...ledger.entries[0], credit: 0 }] }, client, client)).toThrow();
+  });
+});
+
+describe('Native journal storage amount limits', () => {
+  it('allows exact storage-scale values and refuses overflow and rounding', () => {
+    expect(nativeJournalAmount('9999999999999.999999')).toBe(true);
+    expect(nativeJournalAmount('0.000001')).toBe(true);
+    for (const amount of ['10000000000000', '0.0000001', '-1', '1e2', 'NaN']) expect(nativeJournalAmount(amount)).toBe(false);
   });
 });

@@ -29,12 +29,11 @@ public static class ClientOperationalLedgerWorkspace
   {
     var number = (request.JournalNumber ?? string.Empty).Trim();
     var description = (request.Description ?? string.Empty).Trim();
+    var calculation = ClientOperationalJournalCalculator.Calculate(request.Lines);
     if (request.ClientId == Guid.Empty || request.PeriodId == Guid.Empty || number.Length is 0 or > 100 ||
         description.Length is 0 or > 1000 || request.Lines is null || request.Lines.Count is < 2 or > 100 ||
-        request.Lines.Any(x => string.IsNullOrWhiteSpace(x.AccountCode) || x.AccountCode.Trim().Length > 100 ||
-          x.Description?.Trim().Length > 1000 || !ValidAmount(x.Debit) || !ValidAmount(x.Credit) ||
-          x.Debit < 0 || x.Credit < 0 || (x.Debit == 0) == (x.Credit == 0)) ||
-        request.Lines.Sum(x => x.Debit) <= 0 || request.Lines.Sum(x => x.Debit) != request.Lines.Sum(x => x.Credit))
+        request.Lines.Any(x => x is null || string.IsNullOrWhiteSpace(x.AccountCode) || x.AccountCode.Trim().Length > 100 ||
+          x.Description?.Trim().Length > 1000) || !calculation.Valid)
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid,
         "A client journal needs 2 to 100 valid, balanced debit and credit lines.");
 
@@ -228,7 +227,8 @@ public static class ClientOperationalLedgerWorkspace
   private static async Task<bool> ValidatePostingLinesAsync(IClientAccountingDbContext db, Guid firmId, Guid clientId,
     DateOnly postingDate, IReadOnlyList<ClientOperationalJournalLine> lines, CancellationToken ct)
   {
-    if (lines.Count < 2 || lines.Sum(x => x.Debit) <= 0 || lines.Sum(x => x.Debit) != lines.Sum(x => x.Credit)) return false;
+    if (!ClientOperationalJournalCalculator.Calculate(lines.Select(x =>
+        new ClientOperationalJournalLineInput(x.AccountCode, x.Description, x.Debit, x.Credit)).ToArray()).Valid) return false;
     var chart = await ActiveChartAsync(db, firmId, clientId, postingDate, ct);
     if (chart is null) return false;
     var ids = lines.Select(x => x.ClientAccountId).Distinct().ToArray();
@@ -238,8 +238,6 @@ public static class ClientOperationalLedgerWorkspace
     return accounts.Count == ids.Length && lines.All(line => accounts.Any(account => account.Id == line.ClientAccountId &&
       account.AccountCode == line.AccountCode && account.AccountName == line.AccountName));
   }
-
-  private static bool ValidAmount(decimal amount) => decimal.Round(amount, 6) == amount;
 
   private static ClientOperationalJournalView View(ClientOperationalJournal j, IReadOnlyList<ClientOperationalJournalLine> lines) =>
     new(j.Id, j.ClientId, j.PeriodId, j.JournalNumber, j.Description, j.PostingDate.ToString("yyyy-MM-dd"), j.Currency,

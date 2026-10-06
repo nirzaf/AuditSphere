@@ -98,6 +98,15 @@ public sealed class AngularClientOperationalJournalJourneyTests
     var creatorReview = journals.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed the selected client, period, date and exact balanced intent.", Exact = true });
     await Assertions.Expect(journals.GetByRole(AriaRole.Button, new() { Name = "Save journal draft", Exact = true })).ToBeDisabledAsync();
     await creatorReview.CheckAsync();
+    await journals.GetByLabel("Debit").Nth(0).FillAsync("10000000000000");
+    await journals.GetByLabel("Credit").Nth(1).FillAsync("10000000000000");
+    await creatorReview.CheckAsync();
+    await Assertions.Expect(journals.GetByRole(AriaRole.Button, new() { Name = "Save journal draft", Exact = true })).ToBeDisabledAsync();
+    await journals.GetByLabel("Debit").Nth(0).FillAsync("125.25");
+    await journals.GetByLabel("Credit").Nth(1).FillAsync("125.25");
+    await Assertions.Expect(creatorReview).Not.ToBeCheckedAsync();
+    await creatorReview.CheckAsync();
+    await Assertions.Expect(journals.GetByRole(AriaRole.Button, new() { Name = "Save journal draft", Exact = true })).ToBeEnabledAsync();
     await journals.GetByRole(AriaRole.Button, new() { Name = "Save journal draft", Exact = true }).ClickAsync();
     await Assertions.Expect(journals.GetByRole(AriaRole.Heading, new() { Name = "J-UI-001 · DRAFT", Exact = true })).ToBeVisibleAsync();
     var submitReview = journals.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed this client, journal, posting date, account selection and exact amounts.", Exact = true });

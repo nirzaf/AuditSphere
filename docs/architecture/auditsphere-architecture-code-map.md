@@ -34,6 +34,7 @@ capability; public APIs are stable across parts. Verified project state lives on
 
 - Domain: `Domain/Accounting/ClientAccounting.cs`; client-owned journals, lines and review decisions.
 - Application: `Application/Accounting/ClientOperationalLedgerWorkspace.cs` and `ClientOperationalGeneralLedgerWorkspace.cs`; accepted bookkeeping service gate, balanced journal preparation, independent posting and posted movement queries.
+- Calculator: `Application/Accounting/ClientOperationalJournalCalculator.cs`; bounded exact native line amounts and balanced totals shared by draft creation and submission/posting validation. Currency-specific rounding policy remains separate work.
 - API: `Api/Ui/UiEndpoints.ClientOperationalLedger.cs`; authenticated, scope-checked commands and exact decimal string responses.
 - Angular: `Ui/src/app/features/accounting/operational-journals.ts`, composed by the accounting workspace only in native bookkeeping mode.
 - Persistence: `Infrastructure/Persistence/AuditSphereDbContext.ClientOperationalLedger.cs`; dedicated operational journal tables and integrity migration. These are separate from firm ledger entries and reporting adjustments.
