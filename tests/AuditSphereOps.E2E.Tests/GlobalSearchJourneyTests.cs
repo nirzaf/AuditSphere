@@ -86,6 +86,12 @@ public sealed class GlobalSearchJourneyTests
       await Assertions.Expect(results).ToContainTextAsync("Documents and emails are not searched.");
       Assert.DoesNotContain(Marker, await results.InnerTextAsync(), StringComparison.OrdinalIgnoreCase);
 
+      // Page-only overflow exposes the same refinement hint as capped record results.
+      await search.FillAsync("re");
+      await Assertions.Expect(results.GetByRole(AriaRole.Status))
+        .ToContainTextAsync("Refine your search for more specific results", new() { Timeout = 15000 });
+      Assert.Equal(6, await results.GetByRole(AriaRole.Link).CountAsync());
+
       // A published library result is rendered as a real Angular route the scoped Staff user can open.
       await search.FillAsync(libraryTerm);
       var libraryLink = results.GetByRole(AriaRole.Link,
