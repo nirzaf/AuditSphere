@@ -43,6 +43,10 @@ on:
       acr_name:
         description: Azure Container Registry login server name without .azurecr.io
         required: true
+      name_prefix:
+        description: Deployment name prefix used by the environment definition
+        required: true
+        default: auditsphere-prod
 
 permissions:
   contents: read
@@ -73,14 +77,17 @@ jobs:
         with:
           global-json-file: global.json
 
+      # Unpinned intentionally: pin azure/login by verified commit SHA during the owner
+      # plumbing approval; a fabricated pin would be worse than an explicit reviewable tag.
       - name: Azure login (OIDC, no stored secrets)
-        uses: azure/login@6c251865a4ad93a88f0b1de7d8bf2c8b7d8f5e8a
+        uses: azure/login@v2
         with:
           client-id: ${{ inputs.azure_client_id }}
           tenant-id: ${{ inputs.azure_tenant_id }}
           subscription-id: ${{ inputs.azure_subscription_id }}
 
       - name: Build immutable artifacts tagged with the commit SHA
+        id: build
         run: |
           set -euo pipefail
           sha="${GITHUB_SHA}"
@@ -98,7 +105,7 @@ jobs:
       - name: Run the migration job (blocking)
         run: |
           set -euo pipefail
-          job="${{ inputs.namePrefix || 'auditsphere-prod' }}-migrations"
+          job="${{ inputs.name_prefix }}-migrations"
           az containerapp job start --name "$job" \
             --resource-group "${{ inputs.azure_resource_group }}"
           # The job exits non-zero on failed migrations; poll until it terminates.
