@@ -21,8 +21,13 @@ export const decodeBooks = obj({
 });
 const tbRow = obj({ accountId: guid, code: text, name: text, accountType: text, openingDebit: dec, openingCredit: dec,
   movementDebit: dec, movementCredit: dec, closingDebit: dec, closingCredit: dec });
+const pnlActivity = obj({ lineId: guid, postingId: guid, journalId: guid, periodCode: text, postedAt: text,
+  journalNumber: text, postingPurpose: text, accountId: guid, accountCode: text, accountName: text, description: text,
+  revenueActivity: dec, expenseActivity: dec });
 export const decodeTrialBalance = obj({ fromPeriod: text, toPeriod: text, rows: arr(tbRow), totalDebit: dec, totalCredit: dec, balanced: bool,
-  revenue: dec, expenses: dec, profit: dec, cumulativeProfit: dec, assets: dec, liabilities: dec, equity: dec, positionReconciles: bool });
+  revenue: dec, expenses: dec, profit: dec, cumulativeProfit: dec, assets: dec, liabilities: dec, equity: dec, positionReconciles: bool,
+  currency: nullable(text), activityPage: nat, activityPageSize: nat, totalActivityCount: nat, hasMoreActivity: bool,
+  profitLossActivity: arr(pnlActivity, 100) });
 
 @Component({
   selector: 'audit-firm-expense-rejection-dialog',
@@ -128,8 +133,10 @@ export class FirmExpenseRejectionDialog {
           <label>From period <input name="from" [(ngModel)]="from" maxlength="7" placeholder="YYYY-MM" /></label>
           <label>To period <input name="to" [(ngModel)]="to" maxlength="7" placeholder="YYYY-MM" /></label>
           <button matButton="outlined" type="submit" [disabled]="tbBusy()">Calculate</button>
+          <button matButton="outlined" type="button" (click)="exportTrialBalance()" [disabled]="tbBusy() || exportingTb() || !tb()">{{ exportingTb() ? 'Preparing export…' : 'Export trial balance and P&L' }}</button>
         </form>
         @if (tbError()) { <p role="alert" class="error-text">{{ tbError() }}</p> }
+        @if (tbExportMessage()) { <p [attr.role]="tbExportFailed() ? 'alert' : 'status'" [class.error-text]="tbExportFailed()">{{ tbExportMessage() }}</p> }
         @if (tb(); as t) {
           <div class="table-scroll"><table>
             <caption>Firm trial balance {{ t.fromPeriod }} to {{ t.toPeriod }}</caption>
@@ -140,9 +147,24 @@ export class FirmExpenseRejectionDialog {
             }</tbody>
             <tfoot><tr><th>Totals</th><td></td><td></td><td></td><td></td><td class="number"><strong>{{ t.totalDebit | money }}</strong></td><td class="number"><strong>{{ t.totalCredit | money }}</strong></td></tr></tfoot>
           </table></div>
-          <p aria-label="Firm financial summary">{{ t.balanced ? 'Balanced.' : 'NOT balanced.' }} Selected-period P&amp;L: revenue {{ t.revenue | money }}, expenses {{ t.expenses | money }}, profit {{ t.profit | money }}.
+          <p aria-label="Firm financial summary">{{ t.balanced ? 'Balanced.' : 'NOT balanced.' }} Selected-period P&amp;L ({{ t.currency ?? 'currency not configured' }}): revenue {{ t.revenue | money }}, expenses {{ t.expenses | money }}, profit {{ t.profit | money }}.
             Closing position: assets {{ t.assets | money }} = liabilities {{ t.liabilities | money }} + equity {{ t.equity | money }} + cumulative P&amp;L {{ t.cumulativeProfit | money }}: {{ t.positionReconciles ? 'reconciles' : 'does not reconcile' }}.</p>
-          <p><small>Posted journals are included by their effective ledger period. Year-end closing journals marked YEAR_END_CLOSE remain in the trial balance and are excluded from operating P&amp;L.</small></p>
+          <p><small>Accounting-period basis: posted journals are assigned to the period shown below; the posted timestamp is audit context. Reversals and adjustments affect their assigned period. Opening-balance and YEAR_END_CLOSE journals remain in the trial balance but are excluded from operating P&amp;L. Mixed currencies fail closed until separately translated.</small></p>
+          <h3>Profit and loss journal detail</h3>
+          <p>These posted revenue and expense lines reconcile to the P&amp;L totals above. {{ t.totalActivityCount }} activity lines; page {{ t.activityPage }}.</p>
+          <div class="table-scroll"><table>
+            <caption>Profit and loss activity from {{ t.fromPeriod }} to {{ t.toPeriod }} in {{ t.currency ?? 'unconfigured currency' }}</caption>
+            <thead><tr><th>Period</th><th>Posted at</th><th>Journal</th><th>Purpose</th><th>Account</th><th>Description</th><th class="number">Revenue activity</th><th class="number">Expense activity</th></tr></thead>
+            <tbody>@for (a of t.profitLossActivity; track a.lineId) {
+              <tr><td>{{ a.periodCode }}</td><td>{{ a.postedAt }}</td><td><code>{{ a.journalNumber }}</code></td><td>{{ a.postingPurpose }}</td>
+                <th scope="row">{{ a.accountCode }} {{ a.accountName }}</th><td>{{ a.description }}</td>
+                <td class="number">{{ a.revenueActivity | money }}</td><td class="number">{{ a.expenseActivity | money }}</td></tr>
+            } @empty { <tr><td colspan="8">No posted revenue or expense activity in the selected periods.</td></tr> }</tbody>
+          </table></div>
+          <div class="inline-form" aria-label="Profit and loss activity pages">
+            <button matButton="outlined" type="button" (click)="trialBalance(t.activityPage - 1)" [disabled]="tbBusy() || t.activityPage <= 1">Previous activity page</button>
+            <button matButton="outlined" type="button" (click)="trialBalance(t.activityPage + 1)" [disabled]="tbBusy() || !t.hasMoreActivity">Next activity page</button>
+          </div>
         }
       </section>
     }
@@ -214,6 +236,9 @@ export class FirmBooks {
   readonly tb = signal<ReturnType<typeof decodeTrialBalance> | null>(null);
   readonly tbError = signal('');
   readonly tbBusy = signal(false);
+  readonly exportingTb = signal(false);
+  readonly tbExportMessage = signal('');
+  readonly tbExportFailed = signal(false);
   private readonly month = new Date().toISOString().slice(0, 7);
   from = this.month;
   to = this.month;
@@ -574,12 +599,31 @@ export class FirmBooks {
     this.postVerificationMessage.set('');
   }
 
-  async trialBalance(): Promise<void> {
-    this.tbBusy.set(true); this.tbError.set(''); this.tb.set(null);
+  async trialBalance(activityPage = 1): Promise<void> {
+    const from = this.from.trim();
+    const to = this.to.trim();
+    this.tbBusy.set(true); this.tbError.set(''); this.tbExportMessage.set(''); this.tb.set(null);
     try {
-      this.tb.set(await this.api.get(`/api/ui/finance/books/trial-balance?from=${encodeURIComponent(this.from)}&to=${encodeURIComponent(this.to)}`, decodeTrialBalance));
+      this.tb.set(await this.api.get(`/api/ui/finance/books/trial-balance?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&activityPage=${activityPage}`, decodeTrialBalance));
     } catch (e) {
       this.tbError.set(e instanceof Error && e.message ? e.message : 'Trial balance unavailable.');
     } finally { this.tbBusy.set(false); }
+  }
+
+  async exportTrialBalance(): Promise<void> {
+    const report = this.tb();
+    if (!report || this.exportingTb() || this.tbBusy()) return;
+    this.exportingTb.set(true); this.tbExportMessage.set(''); this.tbExportFailed.set(false);
+    const result = await this.api.download('/api/ui/finance/books/trial-balance/export',
+      { fromPeriod: report.fromPeriod, toPeriod: report.toPeriod }, metadata =>
+        metadata.fileName === `firm-trial-balance-${report.fromPeriod}-${report.toPeriod}.csv` &&
+        metadata.contentType.startsWith('text/csv') && metadata.byteCount <= 8_000_000 &&
+        metadata.headers['x-firm-trial-balance-from'] === report.fromPeriod &&
+        metadata.headers['x-firm-trial-balance-to'] === report.toPeriod &&
+        metadata.headers['x-firm-trial-balance-currency'] === (report.currency ?? ''));
+    this.exportingTb.set(false); this.tbExportFailed.set(!result.ok);
+    this.tbExportMessage.set(result.ok
+      ? `The trial balance and P&L detail for ${report.fromPeriod} to ${report.toPeriod} were exported.`
+      : result.message);
   }
 }

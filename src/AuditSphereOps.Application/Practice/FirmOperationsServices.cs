@@ -313,8 +313,14 @@ public sealed record FirmExpenseCreationReceipt(Guid ExpenseId, Guid ActorId, Gu
 public sealed record FirmExpenseCreationLookup(bool Found, FirmExpenseCreationReceipt? Receipt);
 public sealed record FirmTrialBalanceRow(Guid AccountId, string Code, string Name, string AccountType, decimal OpeningDebit, decimal OpeningCredit,
   decimal MovementDebit, decimal MovementCredit, decimal ClosingDebit, decimal ClosingCredit);
+public sealed record FirmProfitLossActivity(Guid LineId, Guid PostingId, Guid JournalId, string PeriodCode, DateTimeOffset PostedAt,
+  string JournalNumber, string PostingPurpose, Guid AccountId, string AccountCode, string AccountName, string Description,
+  decimal RevenueActivity, decimal ExpenseActivity);
 public sealed record FirmTrialBalanceView(string FromPeriod, string ToPeriod, IReadOnlyList<FirmTrialBalanceRow> Rows, decimal TotalDebit, decimal TotalCredit, bool Balanced,
-  decimal Revenue, decimal Expenses, decimal Profit, decimal CumulativeProfit, decimal Assets, decimal Liabilities, decimal Equity, bool PositionReconciles);
+  decimal Revenue, decimal Expenses, decimal Profit, decimal CumulativeProfit, decimal Assets, decimal Liabilities, decimal Equity, bool PositionReconciles,
+  string? Currency, int ActivityPage, int ActivityPageSize, int TotalActivityCount, bool HasMoreActivity,
+  IReadOnlyList<FirmProfitLossActivity> ProfitLossActivity);
+public sealed record FirmTrialBalanceCsvExport(string FileName, string Currency, string Csv);
 
 /// <summary>
 /// The firm's own operating expenses (rent, salaries, petty cash…) with source evidence, prepared by finance,
@@ -512,44 +518,152 @@ public static class FirmExpenseService
   /// posted activity within the selected periods; YEAR_END_CLOSE postings remain in the trial balance but are
   /// excluded from operating activity. Cumulative P&amp;L is retained separately for the closing-position check.
   /// </summary>
-  public static async Task<CommandResult<FirmTrialBalanceView>> TrialBalanceAsync(IClientAccountingDbContext db, ActorContext actor, string fromPeriod, string toPeriod, CancellationToken ct = default)
+  public const int TrialBalanceActivityPageSize = 100;
+  public const int MaxTrialBalanceExportActivityRows = 5000;
+
+  public static async Task<CommandResult<FirmTrialBalanceView>> TrialBalanceAsync(IClientAccountingDbContext db, ActorContext actor,
+    string fromPeriod, string toPeriod, CancellationToken ct = default, int activityPage = 1, bool includeAllActivities = false)
   {
-    if (!IsPeriod(fromPeriod) || !IsPeriod(toPeriod) || string.CompareOrdinal(fromPeriod, toPeriod) > 0)
-      return CommandResult<FirmTrialBalanceView>.Fail("ledger.invalid", "Choose periods as YYYY-MM with the first not after the last.");
+    if (!IsPeriod(fromPeriod) || !IsPeriod(toPeriod) || string.CompareOrdinal(fromPeriod, toPeriod) > 0 || activityPage is < 1 or > 100_000)
+      return CommandResult<FirmTrialBalanceView>.Fail("ledger.invalid", "Choose a valid YYYY-MM period range and activity page.");
     var auth = await AuthorizeAsync(db, actor, [.. Preparers, .. Reviewers, "Partner", "Administrator"], ct);
     if (!auth.Succeeded) return CommandResult<FirmTrialBalanceView>.Fail(auth.ErrorCode!, auth.Message!);
     var periods = await db.FirmPeriods.AsNoTracking().Where(x => x.FirmId == actor.FirmId && string.Compare(x.PeriodCode, toPeriod) <= 0).ToListAsync(ct);
     var openingIds = periods.Where(p => string.CompareOrdinal(p.PeriodCode, fromPeriod) < 0).Select(p => p.Id).ToHashSet();
     var periodIds = periods.Select(p => p.Id).ToArray();
-    var lines = await db.FirmPostingLines.AsNoTracking().Join(db.FirmPostings.AsNoTracking(), l => l.PostingId, p => p.Id, (l, p) => new { l, p.PeriodId, p.JournalId })
-      .Join(db.FirmJournals.AsNoTracking(), x => x.JournalId, j => j.Id, (x, j) => new { x.l, x.PeriodId, j.PostingPurpose })
-      .Where(x => x.l.FirmId == actor.FirmId && periodIds.Contains(x.PeriodId)).ToListAsync(ct);
+    var lines = await (from line in db.FirmPostingLines.AsNoTracking()
+      join posting in db.FirmPostings.AsNoTracking()
+        on new { line.FirmId, PostingId = line.PostingId } equals new { posting.FirmId, PostingId = posting.Id }
+      join journal in db.FirmJournals.AsNoTracking()
+        on new { posting.FirmId, JournalId = posting.JournalId } equals new { journal.FirmId, JournalId = journal.Id }
+      where line.FirmId == actor.FirmId && periodIds.Contains(posting.PeriodId)
+      select new
+      {
+        line.FirmAccountId, line.Debit, line.Credit, PostingId = posting.Id,
+        posting.ReversalOfPostingId, posting.PeriodId, posting.Currency, journal.PostingPurpose
+      }).ToListAsync(ct);
     var accounts = await db.FirmAccounts.AsNoTracking().Where(x => x.FirmId == actor.FirmId).OrderBy(x => x.Code).ToListAsync(ct);
+    var currencies = lines.Select(x => x.Currency).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+    if (currencies.Length > 1)
+      return CommandResult<FirmTrialBalanceView>.Fail("ledger.currency-mixed",
+        "This report contains posted amounts in more than one currency. Filter or translate each currency separately before reconciling it.");
+    var currency = currencies.SingleOrDefault() ?? await db.FirmFinanceProfiles.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.Approved)
+      .OrderByDescending(x => x.ApprovedAt).Select(x => x.FunctionalCurrency).FirstOrDefaultAsync(ct);
     static (decimal Debit, decimal Credit) Net(decimal debit, decimal credit) => debit >= credit ? (MoneyPolicy.Normalize(debit - credit), 0m) : (0m, MoneyPolicy.Normalize(credit - debit));
     var rows = accounts.Select(a =>
     {
-      var mine = lines.Where(x => x.l.FirmAccountId == a.Id).ToList();
-      var opening = Net(mine.Where(x => openingIds.Contains(x.PeriodId)).Sum(x => x.l.Debit), mine.Where(x => openingIds.Contains(x.PeriodId)).Sum(x => x.l.Credit));
-      var movementDebit = MoneyPolicy.Normalize(mine.Where(x => !openingIds.Contains(x.PeriodId)).Sum(x => x.l.Debit));
-      var movementCredit = MoneyPolicy.Normalize(mine.Where(x => !openingIds.Contains(x.PeriodId)).Sum(x => x.l.Credit));
+      var mine = lines.Where(x => x.FirmAccountId == a.Id).ToList();
+      var opening = Net(mine.Where(x => openingIds.Contains(x.PeriodId)).Sum(x => x.Debit), mine.Where(x => openingIds.Contains(x.PeriodId)).Sum(x => x.Credit));
+      var movementDebit = MoneyPolicy.Normalize(mine.Where(x => !openingIds.Contains(x.PeriodId)).Sum(x => x.Debit));
+      var movementCredit = MoneyPolicy.Normalize(mine.Where(x => !openingIds.Contains(x.PeriodId)).Sum(x => x.Credit));
       var closing = Net(opening.Debit + movementDebit, opening.Credit + movementCredit);
       return new FirmTrialBalanceRow(a.Id, a.Code, a.Name, a.AccountType, opening.Debit, opening.Credit, movementDebit, movementCredit, closing.Debit, closing.Credit);
     }).Where(r => r.OpeningDebit + r.OpeningCredit + r.MovementDebit + r.MovementCredit != 0).ToList();
     var totalDebit = rows.Sum(r => r.ClosingDebit);
     var totalCredit = rows.Sum(r => r.ClosingCredit);
     decimal Balance(string type, bool debitNormal) => rows.Where(r => r.AccountType == type).Sum(r => debitNormal ? r.ClosingDebit - r.ClosingCredit : r.ClosingCredit - r.ClosingDebit);
-    var operatingLines = lines.Where(x => !openingIds.Contains(x.PeriodId) && x.PostingPurpose != LedgerStates.YearEndClosingPurpose).ToList();
+    var yearEndClosingPostingIds = lines.Where(x => string.Equals(x.PostingPurpose,
+      LedgerStates.YearEndClosingPurpose, StringComparison.OrdinalIgnoreCase)).Select(x => x.PostingId).ToHashSet();
+    var operatingLines = lines.Where(x => !openingIds.Contains(x.PeriodId) &&
+      !string.Equals(x.PostingPurpose, LedgerStates.YearEndClosingPurpose, StringComparison.OrdinalIgnoreCase) &&
+      !string.Equals(x.PostingPurpose, "OPENING_BALANCE", StringComparison.OrdinalIgnoreCase) &&
+      (x.ReversalOfPostingId is null || !yearEndClosingPostingIds.Contains(x.ReversalOfPostingId.Value))).ToList();
     var revenueAccountIds = accounts.Where(x => x.AccountType == LedgerStates.AccountRevenue).Select(x => x.Id).ToHashSet();
     var expenseAccountIds = accounts.Where(x => x.AccountType == LedgerStates.AccountExpense).Select(x => x.Id).ToHashSet();
-    var revenue = MoneyPolicy.Normalize(operatingLines.Where(x => revenueAccountIds.Contains(x.l.FirmAccountId)).Sum(x => x.l.Credit - x.l.Debit));
-    var expenses = MoneyPolicy.Normalize(operatingLines.Where(x => expenseAccountIds.Contains(x.l.FirmAccountId)).Sum(x => x.l.Debit - x.l.Credit));
+    var revenue = MoneyPolicy.Normalize(operatingLines.Where(x => revenueAccountIds.Contains(x.FirmAccountId)).Sum(x => x.Credit - x.Debit));
+    var expenses = MoneyPolicy.Normalize(operatingLines.Where(x => expenseAccountIds.Contains(x.FirmAccountId)).Sum(x => x.Debit - x.Credit));
+    var revenueAndExpenseAccountIds = revenueAccountIds.Concat(expenseAccountIds).ToArray();
+    var openingPeriodIds = openingIds.ToArray();
+    var closingPostingIds = yearEndClosingPostingIds.ToArray();
+    var activityQuery =
+      from line in db.FirmPostingLines.AsNoTracking()
+      join posting in db.FirmPostings.AsNoTracking()
+        on new { line.FirmId, PostingId = line.PostingId } equals new { posting.FirmId, PostingId = posting.Id }
+      join journal in db.FirmJournals.AsNoTracking()
+        on new { posting.FirmId, JournalId = posting.JournalId } equals new { journal.FirmId, JournalId = journal.Id }
+      join period in db.FirmPeriods.AsNoTracking()
+        on new { posting.FirmId, PeriodId = posting.PeriodId } equals new { period.FirmId, PeriodId = period.Id }
+      join account in db.FirmAccounts.AsNoTracking()
+        on new { line.FirmId, AccountId = line.FirmAccountId } equals new { account.FirmId, AccountId = account.Id }
+      where line.FirmId == actor.FirmId && periodIds.Contains(posting.PeriodId) &&
+        !openingPeriodIds.Contains(posting.PeriodId) &&
+        journal.PostingPurpose != LedgerStates.YearEndClosingPurpose &&
+        journal.PostingPurpose != "OPENING_BALANCE" &&
+        !closingPostingIds.Contains(posting.ReversalOfPostingId ?? Guid.Empty) &&
+        revenueAndExpenseAccountIds.Contains(line.FirmAccountId)
+      select new
+      {
+        LineId = line.Id, PostingId = posting.Id, JournalId = journal.Id, PeriodCode = period.PeriodCode,
+        posting.PostedAt, journal.JournalNumber, journal.PostingPurpose, AccountId = account.Id,
+        AccountCode = account.Code, AccountName = account.Name, account.AccountType,
+        Description = db.FirmJournalLines.AsNoTracking()
+          .Where(jline => jline.FirmId == line.FirmId && jline.JournalId == journal.Id &&
+            jline.FirmAccountId == line.FirmAccountId && jline.Debit == line.Debit && jline.Credit == line.Credit)
+          .OrderBy(jline => jline.Id).Select(jline => jline.Description).FirstOrDefault() ?? journal.PostingPurpose,
+        line.Debit, line.Credit
+      };
+    var totalActivityCount = await activityQuery.CountAsync(ct);
+    if (includeAllActivities && totalActivityCount > MaxTrialBalanceExportActivityRows)
+      return CommandResult<FirmTrialBalanceView>.Fail("ledger.export.limit",
+        $"This report has more than {MaxTrialBalanceExportActivityRows} profit-and-loss journal lines. Narrow the period range before exporting.");
+    var activityOffset = (activityPage - 1) * TrialBalanceActivityPageSize;
+    var activityPageRows = await activityQuery.OrderBy(x => x.PeriodCode).ThenBy(x => x.PostedAt)
+      .ThenBy(x => x.JournalNumber).ThenBy(x => x.AccountId).ThenBy(x => x.LineId)
+      .Skip(includeAllActivities ? 0 : activityOffset)
+      .Take(includeAllActivities ? MaxTrialBalanceExportActivityRows : TrialBalanceActivityPageSize + 1)
+      .ToListAsync(ct);
+    var hasMoreActivity = !includeAllActivities && totalActivityCount > activityOffset + TrialBalanceActivityPageSize;
+    if (hasMoreActivity) activityPageRows.RemoveAt(activityPageRows.Count - 1);
+    var profitLossActivity = activityPageRows.Select(x => new FirmProfitLossActivity(
+      x.LineId, x.PostingId, x.JournalId, x.PeriodCode, x.PostedAt, x.JournalNumber, x.PostingPurpose,
+      x.AccountId, x.AccountCode, x.AccountName, x.Description,
+      x.AccountType == LedgerStates.AccountRevenue ? MoneyPolicy.Normalize(x.Credit - x.Debit) : 0m,
+      x.AccountType == LedgerStates.AccountExpense ? MoneyPolicy.Normalize(x.Debit - x.Credit) : 0m)).ToList();
     var assets = Balance(LedgerStates.AccountAsset, true);
     var liabilities = Balance(LedgerStates.AccountLiability, false);
     var equity = Balance(LedgerStates.AccountEquity, false);
     var profit = revenue - expenses;
     var cumulativeProfit = Balance(LedgerStates.AccountRevenue, false) - Balance(LedgerStates.AccountExpense, true);
+    var finalAuth = await AuthorizeAsync(db, actor, [.. Preparers, .. Reviewers, "Partner", "Administrator"], ct);
+    if (!finalAuth.Succeeded)
+      return CommandResult<FirmTrialBalanceView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     return CommandResult<FirmTrialBalanceView>.Ok(new(fromPeriod, toPeriod, rows, totalDebit, totalCredit, totalDebit == totalCredit,
-      revenue, expenses, profit, cumulativeProfit, assets, liabilities, equity, assets == liabilities + equity + cumulativeProfit));
+      revenue, expenses, profit, cumulativeProfit, assets, liabilities, equity, assets == liabilities + equity + cumulativeProfit,
+      currency, activityPage, TrialBalanceActivityPageSize, totalActivityCount, hasMoreActivity, profitLossActivity));
+  }
+
+  public static async Task<CommandResult<FirmTrialBalanceCsvExport>> ExportTrialBalanceAsync(IClientAccountingDbContext db,
+    ActorContext actor, string fromPeriod, string toPeriod, CancellationToken ct = default)
+  {
+    var report = await TrialBalanceAsync(db, actor, fromPeriod, toPeriod, ct, activityPage: 1, includeAllActivities: true);
+    if (!report.Succeeded || report.Value is null)
+      return CommandResult<FirmTrialBalanceCsvExport>.Fail(report.ErrorCode!, report.Message!);
+    var value = report.Value;
+    static string SafeText(string? text)
+    {
+      var value = text ?? string.Empty;
+      var firstMeaningful = value.FirstOrDefault(character => !char.IsWhiteSpace(character));
+      if (firstMeaningful is '=' or '+' or '-' or '@' or '\t' or '\r' or '\n')
+        value = "'" + value;
+      return value;
+    }
+    static string Cell(string? text) => "\"" + (text ?? string.Empty).Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
+    static string Amount(decimal amount) => amount.ToString(CultureInfo.InvariantCulture);
+    var csv = new System.Text.StringBuilder();
+    csv.AppendLine("record_type,from_period,to_period,currency,account_code,account_name,opening_debit,opening_credit,movement_debit,movement_credit,closing_debit,closing_credit,period,posted_at,journal_number,posting_purpose,description,revenue_activity,expense_activity,profit");
+    csv.AppendLine(string.Join(",", new[] { "PROFIT_LOSS_SUMMARY", value.FromPeriod, value.ToPeriod, SafeText(value.Currency), "", "", "", "", "", "", "", "", "", "", "", "", "", Amount(value.Revenue), Amount(value.Expenses), Amount(value.Profit) }.Select(Cell)));
+    foreach (var row in value.Rows)
+      csv.AppendLine(string.Join(",", new[] { "TRIAL_BALANCE", value.FromPeriod, value.ToPeriod, SafeText(value.Currency), SafeText(row.Code), SafeText(row.Name),
+        Amount(row.OpeningDebit), Amount(row.OpeningCredit), Amount(row.MovementDebit), Amount(row.MovementCredit), Amount(row.ClosingDebit),
+        Amount(row.ClosingCredit), "", "", "", "", "", "", "", "" }.Select(Cell)));
+    foreach (var activityLine in value.ProfitLossActivity)
+      csv.AppendLine(string.Join(",", new[] { "PROFIT_LOSS_ACTIVITY", value.FromPeriod, value.ToPeriod, SafeText(value.Currency), SafeText(activityLine.AccountCode),
+        SafeText(activityLine.AccountName), "", "", "", "", "", "", activityLine.PeriodCode, activityLine.PostedAt.ToString("O", CultureInfo.InvariantCulture),
+        SafeText(activityLine.JournalNumber), SafeText(activityLine.PostingPurpose), SafeText(activityLine.Description), Amount(activityLine.RevenueActivity),
+        Amount(activityLine.ExpenseActivity), "" }.Select(Cell)));
+    return CommandResult<FirmTrialBalanceCsvExport>.Ok(new(
+      $"firm-trial-balance-{value.FromPeriod}-{value.ToPeriod}.csv", value.Currency ?? string.Empty, csv.ToString()));
   }
 
   private static bool IsPeriod(string value) => DateOnly.TryParseExact((value ?? "") + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _);

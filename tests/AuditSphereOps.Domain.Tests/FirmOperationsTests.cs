@@ -159,7 +159,7 @@ public sealed class FirmOperationsTests
       Assert.True((await LedgerService.ApproveFirmJournalAsync(db, reviewer, capitalJournal)).Succeeded);
       Assert.True((await LedgerService.PostFirmJournalAsync(db, finance, capitalJournal)).Succeeded);
       var revenueJournal = (await LedgerService.CreateFirmJournalDraftAsync(db, finance, new CreateFirmJournalDraftRequest(january.Id, "J-REV", "MANUAL", "REV-1", 1, "MONTHLY_REVENUE", "QAR",
-        [new FirmJournalLineRequest(cash, "January client service", 10_000m, 0m), new FirmJournalLineRequest(revenueAccount, "January client service", 0m, 10_000m)]))).Value;
+        [new FirmJournalLineRequest(cash, "January client service", 10_000m, 0m), new FirmJournalLineRequest(revenueAccount, "=HYPERLINK(\"https://example.invalid\",\"open\")", 0m, 10_000m)]))).Value;
       Assert.True((await LedgerService.SubmitFirmJournalAsync(db, finance, revenueJournal)).Succeeded);
       Assert.True((await LedgerService.ApproveFirmJournalAsync(db, reviewer, revenueJournal)).Succeeded);
       Assert.True((await LedgerService.PostFirmJournalAsync(db, finance, revenueJournal)).Succeeded);
@@ -183,6 +183,16 @@ public sealed class FirmOperationsTests
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var february = await db.FirmPeriods.AsNoTracking().SingleAsync(x => x.FirmId == w.FirmId && x.PeriodCode == "2026-02");
+      var openingBalance = await LedgerService.CreateFirmJournalDraftAsync(db, finance,
+        new CreateFirmJournalDraftRequest(february.Id, "J-OPEN", "MANUAL", "OPEN-2026-02", 1,
+          "OPENING_BALANCE", "QAR",
+          [new FirmJournalLineRequest(salaries, "Brought-forward adjustment", 50m, 0m),
+           new FirmJournalLineRequest(cash, "Brought-forward adjustment", 0m, 50m)],
+          "opening-balance.csv", "text/csv", "opening schedule"u8.ToArray()));
+      Assert.True(openingBalance.Succeeded, openingBalance.Message);
+      Assert.True((await LedgerService.SubmitFirmJournalAsync(db, finance, openingBalance.Value)).Succeeded);
+      Assert.True((await LedgerService.ApproveFirmJournalAsync(db, reviewer, openingBalance.Value)).Succeeded);
+      Assert.True((await LedgerService.PostFirmJournalAsync(db, finance, openingBalance.Value)).Succeeded);
       var closing = await LedgerService.CreateFirmJournalDraftAsync(db, finance, new CreateFirmJournalDraftRequest(february.Id, "J-CLOSE", "MANUAL", "CLOSE-2026", 1,
         LedgerStates.YearEndClosingPurpose, "QAR",
         [new FirmJournalLineRequest(revenueAccount, "Close annual revenue", 10_000m, 0m),
@@ -192,7 +202,20 @@ public sealed class FirmOperationsTests
       Assert.True(closing.Succeeded, closing.Message);
       Assert.True((await LedgerService.SubmitFirmJournalAsync(db, finance, closing.Value)).Succeeded);
       Assert.True((await LedgerService.ApproveFirmJournalAsync(db, reviewer, closing.Value)).Succeeded);
-      Assert.True((await LedgerService.PostFirmJournalAsync(db, finance, closing.Value)).Succeeded);
+      var closingPosting = await LedgerService.PostFirmJournalAsync(db, finance, closing.Value);
+      Assert.True(closingPosting.Succeeded, closingPosting.Message);
+      Assert.True((await LedgerService.ReverseFirmPostingAsync(db, reviewer,
+        new ReverseFirmPostingRequest(closingPosting.Value, february.Id, "Reopen the year-end transfer for correction."))).Succeeded);
+      var drawing = await LedgerService.CreateFirmJournalDraftAsync(db, finance,
+        new CreateFirmJournalDraftRequest(february.Id, "J-DRAW", "MANUAL", "DRAW-2026-02", 1,
+          "PARTNER_DRAWING", "QAR",
+          [new FirmJournalLineRequest(capital, "Partner distribution", 100m, 0m),
+           new FirmJournalLineRequest(cash, "Partner distribution", 0m, 100m)],
+          "partner-drawing.pdf", "application/pdf", "%PDF approved partner drawing"u8.ToArray()));
+      Assert.True(drawing.Succeeded, drawing.Message);
+      Assert.True((await LedgerService.SubmitFirmJournalAsync(db, finance, drawing.Value)).Succeeded);
+      Assert.True((await LedgerService.ApproveFirmJournalAsync(db, reviewer, drawing.Value)).Succeeded);
+      Assert.True((await LedgerService.PostFirmJournalAsync(db, finance, drawing.Value)).Succeeded);
     }
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
@@ -203,18 +226,37 @@ public sealed class FirmOperationsTests
       var januaryTb = (await FirmExpenseService.TrialBalanceAsync(db, w.A("partner", "Partner"), "2026-01", "2026-01")).Value!;
       Assert.Equal((10_000m, 18_000m, -8_000m, -8_000m),
         (januaryTb.Revenue, januaryTb.Expenses, januaryTb.Profit, januaryTb.CumulativeProfit));
+      Assert.Equal("QAR", januaryTb.Currency);
+      Assert.Equal(2, januaryTb.TotalActivityCount);
+      Assert.Contains(januaryTb.ProfitLossActivity, x => x.JournalNumber == "J-REV" && x.RevenueActivity == 10_000m);
+      Assert.Contains(januaryTb.ProfitLossActivity, x => x.AccountCode == "6200" && x.ExpenseActivity == 18_000m);
       Assert.True(januaryTb.PositionReconciles);
 
       var tb = (await FirmExpenseService.TrialBalanceAsync(db, w.A("partner", "Partner"), "2026-02", "2026-02")).Value!;
       Assert.True(tb.Balanced);
       var bank = tb.Rows.Single(x => x.Code == "1000");
-      Assert.Equal((42_000m, 0m, 0m, 6_500m, 35_500m), (bank.OpeningDebit, bank.MovementDebit, bank.OpeningCredit, bank.MovementCredit, bank.ClosingDebit));
+      Assert.Equal((42_000m, 0m, 0m, 6_650m, 35_350m), (bank.OpeningDebit, bank.MovementDebit, bank.OpeningCredit, bank.MovementCredit, bank.ClosingDebit));
       var rentRow = tb.Rows.Single(x => x.Code == "6100");
-      Assert.Equal((0m, 6_500m, 0m), (rentRow.OpeningDebit, rentRow.MovementDebit, rentRow.ClosingDebit));
-      Assert.Equal((0m, 6_500m, -6_500m, 0m), (tb.Revenue, tb.Expenses, tb.Profit, tb.CumulativeProfit));
-      Assert.Equal((35_500m, 0m, 35_500m), (tb.Assets, tb.Liabilities, tb.Equity));
+      Assert.Equal((0m, 13_000m, 6_500m), (rentRow.OpeningDebit, rentRow.MovementDebit, rentRow.ClosingDebit));
+      Assert.Equal(18_050m, tb.Rows.Single(x => x.Code == "6200").MovementDebit);
+      Assert.Equal((0m, 6_500m, -6_500m, -14_550m), (tb.Revenue, tb.Expenses, tb.Profit, tb.CumulativeProfit));
+      Assert.Equal((35_350m, 0m, 49_900m), (tb.Assets, tb.Liabilities, tb.Equity));
       Assert.True(tb.PositionReconciles);
+      Assert.Equal("QAR", tb.Currency);
+      Assert.Equal(1, tb.TotalActivityCount);
+      Assert.Equal("6100", Assert.Single(tb.ProfitLossActivity).AccountCode);
+      Assert.Equal(6_500m, tb.ProfitLossActivity[0].ExpenseActivity);
+      Assert.DoesNotContain(tb.ProfitLossActivity, x => x.JournalNumber is "J-OPEN" or "J-CLOSE");
       Assert.Equal(tb.TotalDebit, tb.TotalCredit);
+      var export = await FirmExpenseService.ExportTrialBalanceAsync(db, w.A("partner", "Partner"), "2026-02", "2026-02");
+      Assert.True(export.Succeeded, export.Message);
+      Assert.Contains("PROFIT_LOSS_SUMMARY", export.Value!.Csv);
+      Assert.Contains("PROFIT_LOSS_ACTIVITY", export.Value.Csv);
+      Assert.Contains("6500", export.Value.Csv);
+      Assert.DoesNotContain("J-OPEN", export.Value.Csv);
+      var januaryExport = await FirmExpenseService.ExportTrialBalanceAsync(db, w.A("partner", "Partner"), "2026-01", "2026-01");
+      Assert.True(januaryExport.Succeeded, januaryExport.Message);
+      Assert.Contains("'=HYPERLINK", januaryExport.Value!.Csv);
       Assert.Equal(ErrorCodes.ScopeDenied, (await FirmExpenseService.TrialBalanceAsync(db, w.A("staff", "Staff"), "2026-02", "2026-02")).ErrorCode);
       var listed = await FirmExpenseService.ListAsync(db, reviewer);
       Assert.All(listed, x => Assert.Equal(FirmExpenseStates.Posted, x.Status));
@@ -235,5 +277,42 @@ public sealed class FirmOperationsTests
       Assert.Equal(FirmExpenseStates.Rejected, rejected.Status);
       Assert.Equal("Missing receipt date.", rejected.ReviewComment);
     }
+  }
+
+  [Fact]
+  public async Task FirmTrialBalance_FailsClosedWhenPostedHistoryMixesCurrencies()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var finance = w.A("finance", "FinanceManager");
+    var reviewer = w.A("reviewer", "FinanceReviewer");
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var cash = (await LedgerService.CreateFirmAccountAsync(db, finance,
+      new CreateFirmAccountRequest("1000", "Bank", LedgerStates.AccountAsset, LedgerStates.Debit))).Value;
+    var capital = (await LedgerService.CreateFirmAccountAsync(db, finance,
+      new CreateFirmAccountRequest("3000", "Partners' capital", LedgerStates.AccountEquity, LedgerStates.Credit))).Value;
+    var period = (await LedgerService.CreateFirmPeriodAsync(db, finance,
+      new CreateFirmPeriodRequest("2026-03"))).Value;
+    foreach (var (currency, number) in new[] { ("QAR", "J-QAR"), ("USD", "J-USD") })
+    {
+      if (currency == "USD")
+      {
+        var profile = await db.FirmFinanceProfiles.SingleAsync(x => x.FirmId == w.FirmId && x.Approved);
+        profile.FunctionalCurrency = currency;
+        await db.SaveChangesAsync();
+      }
+      var draft = await LedgerService.CreateFirmJournalDraftAsync(db, finance,
+        new CreateFirmJournalDraftRequest(period, number, "MANUAL", $"CURRENCY-{currency}", 1, "CAPITAL", currency,
+          [new FirmJournalLineRequest(cash, "Opening capital", 100m, 0m),
+           new FirmJournalLineRequest(capital, "Opening capital", 0m, 100m)]));
+      Assert.True(draft.Succeeded, draft.Message);
+      var journal = draft.Value;
+      Assert.True((await LedgerService.SubmitFirmJournalAsync(db, finance, journal)).Succeeded);
+      Assert.True((await LedgerService.ApproveFirmJournalAsync(db, reviewer, journal)).Succeeded);
+      Assert.True((await LedgerService.PostFirmJournalAsync(db, finance, journal)).Succeeded);
+    }
+
+    var report = await FirmExpenseService.TrialBalanceAsync(db, w.A("partner", "Partner"), "2026-03", "2026-03");
+    Assert.Equal("ledger.currency-mixed", report.ErrorCode);
   }
 }

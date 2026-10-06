@@ -245,11 +245,34 @@ public sealed class AngularFirmBooksJourneyTests
       Assert.Equal(root.GetProperty("first").GetProperty("body").GetString(),
         root.GetProperty("retry").GetProperty("body").GetString());
     }
+    await preparerPage.GetByLabel("From period", new() { Exact = true }).FillAsync("2026-09");
+    await preparerPage.GetByLabel("To period", new() { Exact = true }).FillAsync("2026-09");
     await preparerPage.GetByRole(AriaRole.Button, new() { Name = "Calculate", Exact = true }).ClickAsync();
-    await Assertions.Expect(preparerPage.GetByRole(AriaRole.Rowheader,
+    var trialBalanceTable = preparerPage.GetByRole(AriaRole.Table,
+      new() { Name = "Firm trial balance 2026-09 to 2026-09", Exact = true });
+    await Assertions.Expect(trialBalanceTable.GetByRole(AriaRole.Rowheader,
       new() { Name = "SYN-EXP-6100 Synthetic office rent", Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(preparerPage.GetByLabel("Firm financial summary", new() { Exact = true })).ToContainTextAsync("Balanced.");
     await Assertions.Expect(preparerPage.GetByLabel("Firm financial summary", new() { Exact = true })).ToContainTextAsync("reconciles");
+    var activityTable = preparerPage.GetByRole(AriaRole.Table,
+      new() { Name = "Profit and loss activity from 2026-09 to 2026-09 in QAR", Exact = true });
+    await Assertions.Expect(activityTable).ToContainTextAsync("September office rent supported by receipt");
+    await Assertions.Expect(activityTable).ToContainTextAsync("SYN-EXP-6100 Synthetic office rent");
+    var exportDownloadTask = preparerPage.WaitForDownloadAsync();
+    await preparerPage.GetByRole(AriaRole.Button,
+      new() { Name = "Export trial balance and P&L", Exact = true }).ClickAsync();
+    var exportDownload = await exportDownloadTask;
+    Assert.Equal("firm-trial-balance-2026-09-2026-09.csv", exportDownload.SuggestedFilename);
+    await using (var exportStream = await exportDownload.CreateReadStreamAsync())
+    using (var exportReader = new StreamReader(exportStream))
+    {
+      var exportCsv = await exportReader.ReadToEndAsync();
+      Assert.Contains("PROFIT_LOSS_SUMMARY", exportCsv);
+      Assert.Contains("PROFIT_LOSS_ACTIVITY", exportCsv);
+      Assert.Contains("QAR", exportCsv);
+      Assert.Contains("6500", exportCsv);
+      Assert.Contains("September office rent supported by receipt", exportCsv);
+    }
     await preparerPage.SetViewportSizeAsync(390, 844);
     Assert.True(await preparerPage.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));
 

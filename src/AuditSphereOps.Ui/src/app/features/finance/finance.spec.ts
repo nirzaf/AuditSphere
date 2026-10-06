@@ -204,11 +204,19 @@ describe('Finance & Firm Ledger Contracts', () => {
       liabilities: '0.00',
       equity: '100000.00',
       positionReconciles: true,
+      currency: 'QAR',
+      activityPage: 1,
+      activityPageSize: 100,
+      totalActivityCount: 0,
+      hasMoreActivity: false,
+      profitLossActivity: [],
     };
 
     const decoded = decodeTrialBalance(raw, 'trialBalance');
     expect(decoded.balanced).toBe(true);
     expect(decoded.positionReconciles).toBe(true);
+    expect(decoded.currency).toBe('QAR');
+    expect(decoded.activityPageSize).toBe(100);
     expect(decoded.rows.length).toBe(1);
   });
 });
