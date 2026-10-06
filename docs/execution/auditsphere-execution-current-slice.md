@@ -13,6 +13,23 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Native journal independent return and review history
+
+An independent assigned reviewer can return the exact submitted journal revision
+with a reason. The return decision and status transition commit together; database
+protection refuses a return without matching independent review evidence. Journal
+details expose append-only decisions, reasons, reviewer identities and timestamps.
+The Angular workbench shows the history and supports return, fresh-preview
+resubmission and subsequent independent approval without duplicating ledger effect.
+
+Returned content remains protected until immutable revision editing is implemented.
+This slice verifies resubmission of preserved content, not corrected-content editing.
+Evidence capture/revision snapshots, rework editing, reversals, durable receipts,
+native reporting snapshots and client invoices remain open. Focused runtime and
+contract evidence lives under `verification.clientOperationalJournalReturn` in
+`status.json`. The full bookkeeping epic remains unmerged; tax and other
+nonmandatory modules stay optional.
+
 ## Native journal authoritative preview and review binding
 
 The native journal workspace now previews saved unposted journals without financial

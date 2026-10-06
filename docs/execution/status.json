@@ -11515,6 +11515,44 @@
       "efModel": "No model/schema changes; pending-model check not rerun for this slice.",
       "fullRegression": "NOT_RUN",
       "boundary": "Partial CA-10/11 implementation. No command receipts, correction lineage, invoice/open-item workflow, native reporting snapshot adapter or full epic acceptance. Branch not merged; VAT/tax and nonmandatory modules optional."
+    },
+    "clientOperationalJournalReturn": {
+      "sourceCommit": "a234b62c",
+      "verifiedAt": "2026-10-06T16:04:29.376688+00:00",
+      "focusedPostgresTests": {
+        "result": "PASS",
+        "passed": 2,
+        "failed": 0,
+        "filter": "FullyQualifiedName~NativeJournal",
+        "coverage": "Independent return reason and revision, self/empty-reason refusal, read-visible history, direct return without matching decision denied, returned content/reason mutations denied to restricted runtime role, fresh-preview resubmission, concurrent approval/posting and closing with original ledger effect preserved."
+      },
+      "angularSpecs": {
+        "result": "PASS",
+        "passed": 6,
+        "failed": 0,
+        "coverage": "Existing exact journal/ledger/preview transport checks plus revision, decision, reviewer identity and reason history validation."
+      },
+      "angularProductionBuild": "PASS; preexisting Commercial Settings stylesheet warning.",
+      "apiAndE2eBuild": "PASS; zero warnings/errors.",
+      "browserJourney": {
+        "result": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "duration": "41 seconds",
+        "test": "AngularClientOperationalJournalJourneyTests.NativeClientJournalRequiresIndependentReviewAndPostsThroughAngular",
+        "coverage": "Reviewer returns submitted journal with reason, maker sees preserved reason and resubmits with fresh revision preview, different reviewer previews new submitted revision and approves/posts; both decisions retained, expected posted GL and no page errors.",
+        "builtInBrowser": "Synthetic client identity routed from requested accounting sign-in to restricted portal; rendered portal inspected and console returned no warnings/errors. Staff return flow verified by automated Chromium journey."
+      },
+      "openApi": {
+        "result": "PASS",
+        "passed": 5,
+        "failed": 0,
+        "inspection": "Generated return endpoint, ClientOperationalJournalView decisions field, ClientOperationalJournalDecisionView and preview response schemas inspected. Explicit GET response metadata added after initial schema inspection showed omission."
+      },
+      "efModel": "No pending model changes after SQL-only return integrity migration; EF tooling/runtime version warning.",
+      "toolchainNote": "Infrastructure/domain tests rebuilt without incremental caching before final PostgreSQL run. Temporary worktree SDK roll-forward restored after browser run.",
+      "fullRegression": "NOT_RUN",
+      "boundary": "Partial CA-10 workflow. Returned content is protected until immutable revision editing exists; current resubmission preserves the same journal content. Editor/evidence revisions, reversal lineage, durable receipts, currency/FX policy, native TB/reporting snapshots and client invoice/open-item workflows remain open. Full epic unmerged; tax and nonmandatory modules optional."
     }
   },
   "documentationWork": {
