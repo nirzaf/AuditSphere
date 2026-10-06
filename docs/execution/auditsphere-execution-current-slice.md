@@ -13,6 +13,129 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Native journal exact posting receipts and recovery
+
+Native posting now requires a stable client-scoped command identity and a hash of
+the exact journal, actor, submitted revision, preview and review reason. Identical
+concurrent commands recover the same immutable outcome; different intent using the
+same key is refused. A new key cannot claim another posting of an already posted
+journal. The posting, approval and receipt commit together, with final scope and
+mandate revalidation. Scoped recovery is available to the original assigned actor.
+
+Angular retains an unknown posting request and its original identity. The user can
+retrieve the committed receipt or explicitly retry that same reviewed request if
+no receipt is found. Original amounts and reason remain inspectable. Confirmed
+server refusals require a fresh saved-journal preview; transport/readback failures
+stay unknown. This adds no generic automatic retry to other commands.
+
+Focused database rollback/concurrency, Angular contracts, browser loss/recovery,
+API and migration evidence lives in `verification.clientOperationalPostingReceipts`
+in `status.json`. Draft creation/other command receipts, numbering policy, general
+draft editing, evidence, reversals, currency/FX policy, invoices/open items, opening
+balances and native TB/reporting bridge remain open. The full epic and final merge
+remain pending. Tax and other nonmandatory modules remain optional.
+
+## Native journal returned-content rework
+
+The original preparer can edit a returned journal's description, date and balanced
+posting lines within its existing open period. The command locks the current
+revision and period, checks the accepted bookkeeping mandate and approved chart,
+and saves a new draft revision atomically. The database requires the prior returned
+content to match its immutable submission and independent return decision. Journal
+number, period and currency stay fixed. Earlier submitted content and review
+reasons remain intact; corrected content needs a fresh preview and independent
+review before posting. Uncaptured historical returns cannot be reconstructed.
+
+Angular exposes the returned editor and clears its context when the selected
+client or session changes. Focused synthetic database, browser, Angular, API and
+migration evidence is recorded in `verification.clientOperationalJournalRework`
+in `status.json`. General draft editing, reversal lineage, maker evidence, durable
+receipts, currency/FX policy, invoices, open items and native TB/reporting snapshots
+remain open. The full epic and final merge remain pending. Tax and other
+nonmandatory modules remain optional and do not gate the core bookkeeping path.
+
+## Native journal immutable submitted content
+
+Submission now captures the journal header and ordered lines in an immutable
+client-scoped content record inside the same database transaction. Subsequent
+return, resubmission and posting preserve earlier captured versions. Database
+triggers refuse direct snapshot inserts and all changes or deletions. The scoped
+API returns exact decimal strings, and Angular exposes submitted versions through
+progressive details. Existing uncaptured review content is not reconstructed;
+the UI discloses its absence.
+
+Focused database, UI, browser, contract and migration evidence lives under
+`verification.clientOperationalJournalSnapshots` in `status.json`. This provides
+the content-history foundation for rework; returned editing remains protected and
+unimplemented. Reversal lineage, durable receipts, currency/FX policy, invoices,
+open items and native TB/reporting snapshots remain open. Full epic completion,
+regression and final merge are not established.
+
+## Native journal independent return and review history
+
+An independent assigned reviewer can return the exact submitted journal revision
+with a reason. The return decision and status transition commit together; database
+protection refuses a return without matching independent review evidence. Journal
+details expose append-only decisions, reasons, reviewer identities and timestamps.
+The Angular workbench shows the history and supports return, fresh-preview
+resubmission and subsequent independent approval without duplicating ledger effect.
+
+Returned content remains protected until immutable revision editing is implemented.
+This slice verifies resubmission of preserved content, not corrected-content editing.
+Evidence capture/revision snapshots, rework editing, reversals, durable receipts,
+native reporting snapshots and client invoices remain open. Focused runtime and
+contract evidence lives under `verification.clientOperationalJournalReturn` in
+`status.json`. The full bookkeeping epic remains unmerged; tax and other
+nonmandatory modules stay optional.
+
+## Native journal authoritative preview and review binding
+
+The native journal workspace now previews saved unposted journals without financial
+writes. It returns normalized lines and exact server totals after validating the
+current accepted service, approved chart/accounts and open matching period. Its
+intent digest includes the journal revision/content and current accounting context.
+Submit and approval recompute the digest under transaction locks and refuse missing
+or stale previews. Angular exposes the server preview before the separate preparer
+or reviewer consent and clears it when loading another saved journal.
+
+Focused PostgreSQL, Angular, API-contract and browser evidence is under
+`verification.clientOperationalJournalPreview` in `status.json`. This does not
+complete journal evidence capture, editing/return/reversal workflows, durable
+command receipts or currency/FX policy. Native TB/reporting snapshots and client
+invoice/open-item capabilities remain open; the full epic remains unmerged.
+
+## Native journal exact amount rules
+
+Draft creation and submission/posting now share a pure native journal calculator.
+Each line must fit the existing database precision without rounding, have exactly
+one positive side, and contribute to exact balanced totals. Angular draft entry
+uses the same storage bound. This prevents oversized decimal values from reaching
+the database and avoids overflow while validating hostile input. Editing amounts
+or adding/removing a line also visibly clears review consent; the browser journey
+checks that valid correction requires fresh consent before saving.
+
+This is storage and balance validation, not completion of the currency-policy
+story. Configured currency scale, rounding policy, FX provenance, authoritative
+preview/review digests and durable command receipts remain open. Verification is
+recorded under `verification.clientOperationalJournalExactAmounts` in `status.json`.
+
+## Native client journals — ledger integrity slice
+
+The managed bookkeeping worktree now adds database protection for submitted and
+posted native journals, balanced-line validation, independent approval evidence,
+active approved-chart accounts, and period-close serialization. Application close
+readiness reports pending native journals; closed periods refuse new drafts.
+Posted ledger reads use a consistent database snapshot, and the Angular ledger
+accepts signed net movements while retaining unsigned debit and credit values.
+Focused verification evidence is recorded under
+`verification.clientOperationalLedgerIntegrity` in `status.json`.
+
+This is a partial implementation of the owner-requested epic. Native TB and
+financial-package snapshot adaptation, opening balance integration, preview and
+durable command receipts, correction lineage, client invoices and AR/AP remain
+open. VAT/tax and other nonmandatory modules stay optional. This branch is not
+ready for the requested final merge or production acceptance.
+
 ## Client bookkeeping epic — scope baseline
 
 The owner-requested Ekwo-inspired user stories are suitable as a bounded extension
@@ -25,8 +148,8 @@ postings, human review, and immutable lineage are core requirements.
 | Capability | Current reuse surface | Remaining gap for the requested client-bookkeeping mode |
 |---|---|---|
 | Client book setup, chart and periods | `ClientAccountingProfile`, reporting books/periods, chart/taxonomy services, and opening-balance workflows | Explicit managed-vs-external source mode, authorized service mandate, and reviewed cutover are not yet a complete workflow. |
-| Double-entry ledger | Client reporting adjustments and external GL intake | A client-owned operational journal/posting ledger with its own review, period lock, idempotency, and correction lineage is not established by those surfaces. |
-| GL/TB | Existing TB/GL import, completeness, query and calculation paths | Add a reproducible view sourced from native postings while preserving the separate external-source path and official-vs-adjusted distinction. |
+| Double-entry ledger | Client reporting adjustments and external GL intake | The native journal slice now supports balanced drafts, independent posting, immutable posted evidence and period locks. Durable command receipts and correction lineage remain open. |
+| GL/TB | Existing TB/GL import, completeness, query and calculation paths | A posted native movement view exists. Complete native TB/opening balances and accepted reporting snapshots while preserving external-source and adjusted-reporting distinctions. |
 | Sales invoices and credits | `Practice` invoice/billing flows | Those invoices belong to the firm; client-owned sales documents and their ledger/open-item effects need a separate capability. |
 | Purchase invoices and supplier credits | Document/PBC intake and client accounting evidence | Reviewed client AP documents, postings, and supplier open items are not a complete workflow. |
 | VAT/tax (optional) | No verified client transaction-tax calculation and reconciliation workflow identified | Optional jurisdiction-specific, versioned rules and reviewed workings; do not select a production rate without owner approval. |

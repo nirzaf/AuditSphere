@@ -153,6 +153,9 @@ public static partial class ClientAccountingService
       return CommandResult.Fail(ErrorCodes.ProtectedState, "The reporting period is already closed.");
     if (string.IsNullOrWhiteSpace(reason))
       return CommandResult.Fail(ErrorCodes.GateBlocked, "A close decision needs a reason.");
+    if (await db.ClientOperationalJournals.AnyAsync(x => x.FirmId == actor.FirmId && x.ClientId == period.ClientId &&
+      x.PeriodId == period.Id && x.Status != "POSTED", ct))
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "Unposted native client journals block period close.");
     var unresolved = await db.AccountingReconciliations.AnyAsync(x => x.FirmId == actor.FirmId && x.ClientId == period.ClientId &&
       x.PeriodId == period.Id && x.Status != AccountingWorkflowStates.Approved, ct);
     if (unresolved)

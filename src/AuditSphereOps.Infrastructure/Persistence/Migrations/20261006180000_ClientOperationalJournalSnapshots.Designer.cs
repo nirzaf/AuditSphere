@@ -3,6 +3,7 @@ using System;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AuditSphereDbContext))]
-    partial class AuditSphereDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261006180000_ClientOperationalJournalSnapshots")]
+    partial class ClientOperationalJournalSnapshots
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -3087,73 +3090,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.ToTable("client_operational_journal_snapshots", null, t =>
                         {
                             t.HasCheckConstraint("ck_client_operational_snapshot_revision", "journal_revision >= 1 AND capture_kind = 'SUBMISSION' AND jsonb_typeof(snapshot_json) = 'object'");
-                        });
-                });
-
-            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientOperationalPostingReceipt", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<Guid>("ActorUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("actor_user_id");
-
-                    b.Property<Guid>("ClientId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("client_id");
-
-                    b.Property<Guid>("CommandId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("command_id");
-
-                    b.Property<Guid>("FirmId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("firm_id");
-
-                    b.Property<string>("IntentHash")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
-                        .HasColumnName("intent_hash");
-
-                    b.Property<Guid>("JournalId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("journal_id");
-
-                    b.Property<long>("PostedRevision")
-                        .HasColumnType("bigint")
-                        .HasColumnName("posted_revision");
-
-                    b.Property<string>("PreviewDigest")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
-                        .HasColumnName("preview_digest");
-
-                    b.Property<DateTimeOffset>("RecordedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("recorded_at");
-
-                    b.Property<long>("SubmittedRevision")
-                        .HasColumnType("bigint")
-                        .HasColumnName("submitted_revision");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("FirmId", "ActorUserId");
-
-                    b.HasIndex("FirmId", "ClientId", "CommandId")
-                        .IsUnique();
-
-                    b.HasIndex("FirmId", "ClientId", "JournalId")
-                        .IsUnique();
-
-                    b.ToTable("client_operational_posting_receipts", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_client_operational_posting_receipt", "command_id <> '00000000-0000-0000-0000-000000000000'::uuid AND submitted_revision >= 1 AND posted_revision=submitted_revision+1 AND intent_hash ~ '^[a-f0-9]{64}$' AND preview_digest ~ '^[a-f0-9]{64}$'");
                         });
                 });
 
@@ -23130,23 +23066,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientOperationalJournalSnapshot", b =>
                 {
-                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientOperationalJournal", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ClientId", "JournalId")
-                        .HasPrincipalKey("FirmId", "ClientId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientOperationalPostingReceipt", b =>
-                {
-                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ActorUserId")
-                        .HasPrincipalKey("FirmId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("AuditSphereOps.Domain.Accounting.ClientOperationalJournal", null)
                         .WithMany()
                         .HasForeignKey("FirmId", "ClientId", "JournalId")

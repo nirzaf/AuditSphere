@@ -10,16 +10,17 @@ namespace AuditSphereOps.Application.Accounting;
 public sealed record ClientOperationalJournalLineInput(string AccountCode, string Description, decimal Debit, decimal Credit);
 public sealed record ClientOperationalJournalCreateRequest(Guid ClientId, Guid PeriodId, string JournalNumber,
   string Description, DateOnly PostingDate, IReadOnlyList<ClientOperationalJournalLineInput> Lines);
-public sealed record ClientOperationalJournalDecisionRequest(long ExpectedRevision, string Decision, string Reason);
+public sealed record ClientOperationalJournalDecisionRequest(long ExpectedRevision, string Decision, string Reason, string PreviewDigest = "", Guid CommandId = default);
 public sealed record ClientOperationalJournalLineView(int LineNumber, Guid AccountId, string AccountCode,
   string AccountName, string Description, string Debit, string Credit);
+public sealed record ClientOperationalJournalDecisionView(string Revision, string Decision, string Reason, Guid ActorUserId, string CreatedAt);
 public sealed record ClientOperationalJournalView(Guid Id, Guid ClientId, Guid PeriodId, string JournalNumber,
   string Description, string PostingDate, string Currency, string Status, string Revision,
   Guid CreatedByUserId, string CreatedAt, Guid? PostedByUserId, string? PostedAt,
-  IReadOnlyList<ClientOperationalJournalLineView> Lines);
+  IReadOnlyList<ClientOperationalJournalLineView> Lines, IReadOnlyList<ClientOperationalJournalDecisionView>? Decisions = null);
 
 /// <summary>Native client-book manual journal draft, independent review, and immutable posting.</summary>
-public static class ClientOperationalLedgerWorkspace
+public static partial class ClientOperationalLedgerWorkspace
 {
   private static readonly string[] Preparers = ["AccountingPreparer", "AccountingReviewer", "Manager", "Partner", "Administrator"];
   private static readonly string[] Reviewers = ["AccountingReviewer", "Manager", "Partner", "Administrator"];
@@ -29,12 +30,11 @@ public static class ClientOperationalLedgerWorkspace
   {
     var number = (request.JournalNumber ?? string.Empty).Trim();
     var description = (request.Description ?? string.Empty).Trim();
+    var calculation = ClientOperationalJournalCalculator.Calculate(request.Lines);
     if (request.ClientId == Guid.Empty || request.PeriodId == Guid.Empty || number.Length is 0 or > 100 ||
         description.Length is 0 or > 1000 || request.Lines is null || request.Lines.Count is < 2 or > 100 ||
-        request.Lines.Any(x => string.IsNullOrWhiteSpace(x.AccountCode) || x.AccountCode.Trim().Length > 100 ||
-          x.Description?.Trim().Length > 1000 || !ValidAmount(x.Debit) || !ValidAmount(x.Credit) ||
-          x.Debit < 0 || x.Credit < 0 || (x.Debit == 0) == (x.Credit == 0)) ||
-        request.Lines.Sum(x => x.Debit) <= 0 || request.Lines.Sum(x => x.Debit) != request.Lines.Sum(x => x.Credit))
+        request.Lines.Any(x => x is null || string.IsNullOrWhiteSpace(x.AccountCode) || x.AccountCode.Trim().Length > 100 ||
+          x.Description?.Trim().Length > 1000) || !calculation.Valid)
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid,
         "A client journal needs 2 to 100 valid, balanced debit and credit lines.");
 
@@ -42,8 +42,10 @@ public static class ClientOperationalLedgerWorkspace
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     var profile = await NativeProfileAsync(db, actor, request.ClientId, ct);
     if (!profile.Succeeded) return CommandResult<Guid>.Fail(profile.ErrorCode!, profile.Message!);
-    var period = await db.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(x =>
-      x.FirmId == actor.FirmId && x.ClientId == request.ClientId && x.Id == request.PeriodId, ct);
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var period = await db.ClientReportingPeriods.FromSqlInterpolated(
+      $"SELECT * FROM client_reporting_periods WHERE firm_id = {actor.FirmId} AND client_id = {request.ClientId} AND id = {request.PeriodId} FOR UPDATE")
+      .SingleOrDefaultAsync(ct);
     if (period is null || period.Status == AccountingWorkflowStates.Closed || request.PostingDate < period.StartDate ||
         request.PostingDate > period.EndDate || !string.Equals(period.Currency, profile.Value!.FunctionalCurrency, StringComparison.Ordinal))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
@@ -86,6 +88,7 @@ public static class ClientOperationalLedgerWorkspace
       });
     }
     await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(journal.Id);
   }
 
@@ -101,11 +104,17 @@ public static class ClientOperationalLedgerWorkspace
       x.ClientId == clientId && x.JournalId == journalId).OrderBy(x => x.LineNumber).ToListAsync(ct);
     if (!(await AuthorizeAsync(db, actor, clientId, Preparers, ct)).Succeeded)
       return CommandResult<ClientOperationalJournalView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    return CommandResult<ClientOperationalJournalView>.Ok(View(journal, lines));
+    var decisions = await db.ClientOperationalJournalDecisions.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+      x.ClientId == clientId && x.JournalId == journalId).OrderBy(x => x.JournalRevision).ThenBy(x => x.CreatedAt).ToListAsync(ct);
+    if (!(await AuthorizeAsync(db, actor, clientId, Preparers, ct)).Succeeded)
+      return CommandResult<ClientOperationalJournalView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    return CommandResult<ClientOperationalJournalView>.Ok(View(journal, lines) with {
+      Decisions = decisions.Select(x => new ClientOperationalJournalDecisionView(x.JournalRevision.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        x.Decision, x.Reason, x.ActorUserId, x.CreatedAt.ToUniversalTime().ToString("O", System.Globalization.CultureInfo.InvariantCulture))).ToArray() });
   }
 
   public static async Task<CommandResult> SubmitAsync(IClientAccountingDbContext db, ActorContext actor,
-    Guid clientId, Guid journalId, long expectedRevision, CancellationToken ct = default)
+    Guid clientId, Guid journalId, long expectedRevision, CancellationToken ct = default, string? previewDigest = null)
   {
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     var journal = await db.ClientOperationalJournals.FromSqlInterpolated(
@@ -133,8 +142,11 @@ public static class ClientOperationalLedgerWorkspace
       return CommandResult.Fail(ErrorCodes.GateBlocked, "The journal period is closed or no longer covers its posting date.");
     var lines = await db.ClientOperationalJournalLines.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == clientId && x.JournalId == journalId)
       .OrderBy(x => x.LineNumber).ToListAsync(ct);
-    if (lines.Count < 2 || lines.Sum(x => x.Debit) <= 0 || lines.Sum(x => x.Debit) != lines.Sum(x => x.Credit))
-      return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "The journal is not balanced.");
+    if (!await ValidatePostingLinesAsync(db, actor.FirmId, clientId, journal.PostingDate, lines, ct))
+      return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "The journal no longer matches a unique approved chart and balanced active posting accounts.");
+    var preview = await BuildPreviewAsync(db, actor, journal, lines, ct);
+    if (!preview.Succeeded || !string.Equals(preview.Value!.Digest, previewDigest, StringComparison.Ordinal))
+      return CommandResult.Fail(ErrorCodes.StaleRevision, "Preview this exact journal and current accounting context before submitting.");
     journal.Status = "SUBMITTED";
     journal.SubmittedAt = DateTimeOffset.UtcNow;
     journal.Revision++;
@@ -152,7 +164,24 @@ public static class ClientOperationalLedgerWorkspace
     var decision = (request.Decision ?? string.Empty).Trim().ToUpperInvariant();
     if (request.ExpectedRevision < 1 || reason.Length is 0 or > 2000 || decision != "APPROVE")
       return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "An approval requires the current revision and a reason.");
+    if (request.CommandId == Guid.Empty)
+      return CommandResult.Fail(ErrorCodes.IdempotencyConflict, "Posting requires a stable command identity.");
+    var initialAuth = await AuthorizeAsync(db, actor, clientId, Reviewers, ct);
+    if (!initialAuth.Succeeded) return initialAuth;
+    var intentHash = PostingIntent(actor, clientId, journalId, request);
     await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({PostingCommandLock(actor.FirmId, clientId, request.CommandId)})", ct);
+    var existingReceipt = await db.ClientOperationalPostingReceipts.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
+      x.ClientId == clientId && x.CommandId == request.CommandId, ct);
+    if (existingReceipt is not null)
+    {
+      if (existingReceipt.ActorUserId != actor.UserId || existingReceipt.JournalId != journalId || existingReceipt.IntentHash != intentHash)
+        return CommandResult.Fail(ErrorCodes.IdempotencyConflict, "This command identity already belongs to different posting intent.");
+      if (!(await AuthorizeAsync(db, actor, clientId, Reviewers, ct)).Succeeded)
+        return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+      await tx.CommitAsync(ct);
+      return CommandResult.Ok();
+    }
     var journal = await db.ClientOperationalJournals.FromSqlInterpolated(
       $"SELECT * FROM client_operational_journals WHERE firm_id = {actor.FirmId} AND client_id = {clientId} AND id = {journalId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
@@ -162,10 +191,7 @@ public static class ClientOperationalLedgerWorkspace
     var profile = await NativeProfileAsync(db, actor, clientId, ct);
     if (!profile.Succeeded) return CommandResult.Fail(profile.ErrorCode!, profile.Message!);
     if (journal.Status == "POSTED")
-    {
-      await tx.CommitAsync(ct);
-      return CommandResult.Ok();
-    }
+      return CommandResult.Fail(ErrorCodes.IdempotencyConflict, "The journal is already posted. Recover the original command receipt instead of creating another command.");
     if (journal.CreatedByUserId == actor.UserId)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "The journal preparer cannot approve their own journal.");
     if (journal.Status != "SUBMITTED" || journal.Revision != request.ExpectedRevision)
@@ -177,8 +203,11 @@ public static class ClientOperationalLedgerWorkspace
       return CommandResult.Fail(ErrorCodes.GateBlocked, "The journal period is closed or no longer covers its posting date.");
     var lines = await db.ClientOperationalJournalLines.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == clientId && x.JournalId == journalId)
       .OrderBy(x => x.LineNumber).ToListAsync(ct);
-    if (lines.Count < 2 || lines.Sum(x => x.Debit) <= 0 || lines.Sum(x => x.Debit) != lines.Sum(x => x.Credit))
-      return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "The journal is not balanced.");
+    if (!await ValidatePostingLinesAsync(db, actor.FirmId, clientId, journal.PostingDate, lines, ct))
+      return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "The journal no longer matches a unique approved chart and balanced active posting accounts.");
+    var preview = await BuildPreviewAsync(db, actor, journal, lines, ct);
+    if (!preview.Succeeded || !string.Equals(preview.Value!.Digest, request.PreviewDigest, StringComparison.Ordinal))
+      return CommandResult.Fail(ErrorCodes.StaleRevision, "Preview this exact submitted journal and current accounting context before posting.");
     var decisionRecord = new ClientOperationalJournalDecision
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = clientId, JournalId = journalId,
@@ -191,8 +220,15 @@ public static class ClientOperationalLedgerWorkspace
     journal.PostedAt = DateTimeOffset.UtcNow;
     journal.Revision++;
     await db.SaveChangesAsync(ct);
+    db.ClientOperationalPostingReceipts.Add(new ClientOperationalPostingReceipt {
+      Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = clientId, CommandId = request.CommandId,
+      JournalId = journalId, ActorUserId = actor.UserId, SubmittedRevision = request.ExpectedRevision,
+      PostedRevision = journal.Revision, IntentHash = intentHash, PreviewDigest = request.PreviewDigest, RecordedAt = journal.PostedAt!.Value });
+    await db.SaveChangesAsync(ct);
     if (!(await AuthorizeAsync(db, actor, clientId, Reviewers, ct)).Succeeded)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (!(await NativeProfileAsync(db, actor, clientId, ct)).Succeeded)
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "The accepted bookkeeping service changed during posting.");
     await tx.CommitAsync(ct);
     return CommandResult.Ok();
   }
@@ -222,7 +258,20 @@ public static class ClientOperationalLedgerWorkspace
     return matches.Count == 1 ? matches[0] : null;
   }
 
-  private static bool ValidAmount(decimal amount) => decimal.Round(amount, 6) == amount;
+  private static async Task<bool> ValidatePostingLinesAsync(IClientAccountingDbContext db, Guid firmId, Guid clientId,
+    DateOnly postingDate, IReadOnlyList<ClientOperationalJournalLine> lines, CancellationToken ct)
+  {
+    if (!ClientOperationalJournalCalculator.Calculate(lines.Select(x =>
+        new ClientOperationalJournalLineInput(x.AccountCode, x.Description, x.Debit, x.Credit)).ToArray()).Valid) return false;
+    var chart = await ActiveChartAsync(db, firmId, clientId, postingDate, ct);
+    if (chart is null) return false;
+    var ids = lines.Select(x => x.ClientAccountId).Distinct().ToArray();
+    var accounts = await db.ClientAccounts.AsNoTracking().Where(x => x.FirmId == firmId && x.ClientId == clientId &&
+      x.ChartVersionId == chart.Id && ids.Contains(x.Id) && x.IsPosting && x.Status == AccountingWorkflowStates.Active)
+      .Select(x => new { x.Id, x.AccountCode, x.AccountName }).ToListAsync(ct);
+    return accounts.Count == ids.Length && lines.All(line => accounts.Any(account => account.Id == line.ClientAccountId &&
+      account.AccountCode == line.AccountCode && account.AccountName == line.AccountName));
+  }
 
   private static ClientOperationalJournalView View(ClientOperationalJournal j, IReadOnlyList<ClientOperationalJournalLine> lines) =>
     new(j.Id, j.ClientId, j.PeriodId, j.JournalNumber, j.Description, j.PostingDate.ToString("yyyy-MM-dd"), j.Currency,

@@ -29,6 +29,28 @@ public sealed partial class AuditSphereDbContext
     journal.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
+    var receipt = b.Entity<ClientOperationalPostingReceipt>();
+    receipt.Property(x => x.IntentHash).HasMaxLength(64);
+    receipt.Property(x => x.PreviewDigest).HasMaxLength(64);
+    receipt.HasIndex(x => new { x.FirmId, x.ClientId, x.CommandId }).IsUnique();
+    receipt.HasIndex(x => new { x.FirmId, x.ClientId, x.JournalId }).IsUnique();
+    receipt.HasOne<ClientOperationalJournal>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.JournalId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    receipt.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, UserId = x.ActorUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    receipt.ToTable("client_operational_posting_receipts", t => t.HasCheckConstraint("ck_client_operational_posting_receipt",
+      "command_id <> '00000000-0000-0000-0000-000000000000'::uuid AND submitted_revision >= 1 AND posted_revision=submitted_revision+1" +
+      " AND intent_hash ~ '^[a-f0-9]{64}$' AND preview_digest ~ '^[a-f0-9]{64}$'"));
+
+    var snapshot = b.Entity<ClientOperationalJournalSnapshot>();
+    snapshot.Property(x => x.CaptureKind).HasMaxLength(30);
+    snapshot.Property(x => x.SnapshotJson).HasColumnType("jsonb");
+    snapshot.HasIndex(x => new { x.FirmId, x.ClientId, x.JournalId, x.JournalRevision }).IsUnique();
+    snapshot.HasOne<ClientOperationalJournal>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.JournalId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    snapshot.ToTable("client_operational_journal_snapshots", t => t.HasCheckConstraint("ck_client_operational_snapshot_revision",
+      "journal_revision >= 1 AND capture_kind = 'SUBMISSION' AND jsonb_typeof(snapshot_json) = 'object'"));
+
     var line = b.Entity<ClientOperationalJournalLine>();
     line.Property(x => x.AccountCode).HasMaxLength(100);
     line.Property(x => x.AccountName).HasMaxLength(300);

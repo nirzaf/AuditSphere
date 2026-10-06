@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { PeriodLifecycle } from './lifecycle';
 import { AccountingCharts } from './charts';
+import { ClientOperationalJournals } from './operational-journals';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { Subscription, timeout } from 'rxjs';
@@ -106,7 +107,7 @@ export function decodeWorkspace(value: unknown): Workspace {
   return v as unknown as Workspace;
 }
 @Component({
-  selector: 'audit-accounting', imports: [AccountingCharts, PeriodLifecycle, FormsModule, MatButtonModule, MatProgressBarModule],
+  selector: 'audit-accounting', imports: [AccountingCharts, ClientOperationalJournals, PeriodLifecycle, FormsModule, MatButtonModule, MatProgressBarModule],
   template: `
     <p class="eyebrow">Client-owned books · Explicit client scope</p><h1>Accounting workspace</h1>
     <p>Import-first preparation and reporting. Firm books and group consolidation remain separate.</p>
@@ -165,6 +166,9 @@ export function decodeWorkspace(value: unknown): Workspace {
           <button matButton type="submit" [disabled]="profileForm.invalid || !reviewed || saving() || uncertain()">Save profile</button>
           @if (uncertain()) { <p role="alert">The outcome is unconfirmed. Refresh the client and review persisted setup before another change.</p> }
         </form>
+        @if (w.profile?.sourceMode === 'NATIVE_BOOKKEEPING') {
+          <audit-client-operational-journals [clientId]="w.clientId" [periods]="w.periods" [bookCurrency]="w.profile.currency" />
+        }
         <h3>Reporting periods</h3>@if (!w.periods.length) { <p>No reporting periods configured.</p> }
         <form #periodForm="ngForm" (ngSubmit)="periodForm.valid && createPeriod()"><h4>Create reporting period</h4>
           <label>Period code <input name="periodCode" [(ngModel)]="period.code" required maxlength="100" /></label>
