@@ -12104,7 +12104,15 @@
         "verificationCheckout": "/private/tmp/auditsphere-draft-edit-verification",
         "sessionId": 85481,
         "command": "dotnet test AuditSphereOps.slnx --no-build --configuration Release -m:1 --logger trx --results-directory /private/tmp/auditsphere-invoice-1b1ebc16-regression",
-        "resultsDirectory": "/private/tmp/auditsphere-invoice-1b1ebc16-regression"
+        "resultsDirectory": "/private/tmp/auditsphere-invoice-1b1ebc16-regression",
+        "projectsObserved": {
+          "Api": {
+            "passed": 210,
+            "failed": 0,
+            "duration": "27m3s"
+          },
+          "Domain": "RUNNING"
+        }
       },
       "efPendingModelChanges": "NOT_RUN for this slice; no model/migration source changes",
       "invoiceApiAndUi": "NOT_IMPLEMENTED by this arithmetic slice",
@@ -12124,6 +12132,78 @@
         "Native journal currency-policy configuration/fencing and original posting policy snapshots remain outstanding",
         "Tax remains optional; untaxed arithmetic requires no tax component or tax-module activation",
         "Full user-story goal remains active; no final epic merge authorized or claimed"
+      ]
+    },
+    "clientSalesInvoiceDrafts": {
+      "verifiedSourceCommit": "5cbbfe6f45bdeac1b93de00e0274bf0a4402fa5d",
+      "status": "LOCAL_DRAFT_SLICE_VERIFIED",
+      "requirements": "Partial CA-14 preparation; CA-15 posting/issue and other epic scope remain open",
+      "postgreSql": {
+        "passed": 1,
+        "durationSeconds": 24,
+        "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --configuration Release --filter FullyQualifiedName~ClientSalesDraftsReplayReviseFreezePartiesAndNeverPost --disable-build-servers",
+        "coverage": [
+          "Exact command replay and changed-intent refusal",
+          "Private actor/request recovery and client isolation",
+          "Concurrent maker revisions yield one new revision",
+          "Customer contact changes preserve historical draft snapshots",
+          "Same-client source duplicate warning excluding the same invoice",
+          "Tax-bearing draft and unsupported income account refusal",
+          "No client/firm journals or ledger lines",
+          "Service withdrawal blocks new/revised preparations; exact replay/history retained",
+          "Database UPDATE/DELETE denied"
+        ]
+      },
+      "angular": {
+        "focusedPassed": 4,
+        "build": "PASS",
+        "warning": "Existing commercial/settings.scss budget warning"
+      },
+      "apiContract": {
+        "passed": 5,
+        "durationSeconds": 7,
+        "generatedArtifact": "contracts/auditsphere-openapi.json"
+      },
+      "browser": {
+        "passed": 1,
+        "durationSeconds": 35,
+        "test": "ClientSalesDraftRecoversLostReplyRevisesAndKeepsLedgerUntouched",
+        "surface": "API-hosted Angular in automated Chromium, owned synthetic PostgreSQL fixture",
+        "coverage": [
+          "Lost accepted POST recovered with no second POST",
+          "Locked unconfirmed request fields",
+          "Exact revised request and response amounts",
+          "Frozen historical customer address and current approved revision",
+          "Zero client/firm journals and empty operational GL",
+          "No page errors"
+        ],
+        "builtInBrowser": "Inventory/documentation refreshed; transient owned hosts ended before a bound built-in tab verification. No built-in flow pass claimed."
+      },
+      "efPendingModelChanges": "NONE",
+      "migration": "20261006193000_ClientSalesInvoiceDrafts",
+      "solutionBuild": {
+        "status": "PASS",
+        "durationSeconds": 78.33,
+        "warnings": 0,
+        "errors": 0,
+        "command": "dotnet build AuditSphereOps.slnx --no-restore --configuration Release --disable-build-servers -m:1"
+      },
+      "fullRegression": "NOT_RUN for draft source; baseline 1b1ebc16 full regression remains session85481 in independent checkout",
+      "productionMigration": "NOT_RUN",
+      "externalAcceptance": "NOT_RUN",
+      "initialFailures": [
+        "Missing test seed namespace corrected",
+        "Select labels contained option text; explicit accessible names added",
+        "Browser edit assertion raced Angular form refresh; waited for retained input values and pinned exact revised HTTP request/response"
+      ],
+      "limitations": [
+        "Only same-currency untaxed unposted/unissued preparation",
+        "Calculation policy is caller-declared, not an approved jurisdiction or issuance profile",
+        "Seller address/issuance numbering and legal invoice requirements not implemented",
+        "EvidenceReference is unverified free text, not protected source-document linkage",
+        "No list/discovery, submission/review, ledger posting, AR open items, rendering or delivery",
+        "Tax and ancillary modules remain optional and do not gate untaxed draft preparation",
+        "Full user-story objective active; final epic merge pending completion"
       ]
     }
   },

@@ -13,13 +13,21 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Immutable client sales invoice preparation
+
+Native client books now offer untaxed, same-currency sales drafts with exact decimal strings, client seller/customer snapshots, document/accounting/supply/due dates, selected income accounts and declared calculation inputs. Each maker edit appends a revision with concurrency checks; previous content remains immutable. A repeated source reference on a different invoice in the same client book produces a preserved warning. Drafts create no client or firm journal, receivable, issued document or delivery event.
+
+Angular locks an unknown save intent and recovers the original actor/request receipt without another POST. A confirmed absence permits an explicit unchanged retry. Current scoped authorization protects historical reads and recovery. Withdrawing the accepted bookkeeping service prevents new drafts and edits while retaining authorized historical reads and exact replay. Focused PostgreSQL, Angular, API contract and automated Chromium checks passed; EF reports no model drift. The Release solution build passed. Exact evidence, process handles, migration and limits live in `verification.clientSalesInvoiceDrafts` in `status.json`.
+
+This remains partial invoice preparation. Seller address/legal issuance configuration, approved money/tax policy, verified source-document linkage, draft discovery, submission/review, native ledger posting/open items, rendering and delivery remain outstanding. Tax and ancillary capabilities are optional; untaxed preparation requires no VAT module. The full epic remains active and its final merge awaits completion. The independent calculator-baseline regression is still running; its result must not be attributed to this newer schema/workflow.
+
 ## Shared native invoice and credit calculation foundation
 
 A pure client invoice/credit engine now calculates declared quantity, unit price, discount, line net, additive tax components, gross and separately disclosed signed rounding residuals. Precision and midpoint behavior are explicit caller inputs. Untaxed and zero-rated treatments are distinct; an untaxed line requires no tax component or optional tax-module activation. Inclusive residuals require a named bounded adjustment policy, and unsupported FX is refused without an assumed rate.
 
 The native journal and invoice calculators share a neutral storage amount guard with unchanged exact native journal semantics. Focused arithmetic and PostgreSQL journal regressions passed. The fixed-commit Angular build and serialized Release solution build passed, and the full PostgreSQL-backed solution regression is running in an independent verification checkout. The exact source, process handle, commands and observed evidence are in `verification.clientInvoiceCalculation` in `status.json`; resume that live handle rather than starting another run.
 
-This is calculation machinery, not an available client invoice workflow or approved tax policy. Persisted policy approval, native journal policy fencing, saved client invoice drafts, scoped evidence/accounts, posting/open items, frozen historical rendering and delivery remain outstanding. Tax and ancillary capabilities remain optional. The full user-story objective remains active and its final merge is pending completion.
+This is calculation machinery, not an available client invoice workflow or approved tax policy. Persisted policy approval, native journal policy fencing, verified source-document linkage, posting/open items, frozen historical rendering and delivery remain outstanding. Tax and ancillary capabilities remain optional. The full user-story objective remains active and its final merge is pending completion.
 
 ## Reviewed client counterparty contact-detail amendments
 
