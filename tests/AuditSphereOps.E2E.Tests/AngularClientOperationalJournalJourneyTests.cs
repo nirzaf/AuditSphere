@@ -280,6 +280,7 @@ public sealed class AngularClientOperationalJournalJourneyTests
     await Assertions.Expect(journals.GetByRole(AriaRole.Button, new() { Name = "Submit for independent review", Exact = true })).ToBeDisabledAsync();
     await journals.GetByRole(AriaRole.Button, new() { Name = "Preview accounting effect", Exact = true }).ClickAsync();
     await Assertions.Expect(journals.GetByRole(AriaRole.Status)).ToContainTextAsync("revision 2");
+    await Assertions.Expect(journals.GetByRole(AriaRole.Status)).ToContainTextAsync("Debits 20.000000 · Credits 20.000000");
     await journals.GetByLabel("Saved journal status", new() { Exact = true }).SelectOptionAsync("POSTED");
     await journals.GetByRole(AriaRole.Button, new() { Name = "Refresh saved journals", Exact = true }).ClickAsync();
     var savedJournals = journals.GetByRole(AriaRole.Table, new() { Name = "Saved native client journals", Exact = true });
