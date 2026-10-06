@@ -15,6 +15,24 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Angular migration and Blazor retirement — NOT READY
 
+## Completed focused slice: Invoice lifecycle lost-response recovery
+
+At code/test commit `d7854fc8`,
+`AngularInvoiceOutcomeRecoveryJourneyTests.AcceptedApprovePostAndSendWithLostResponsesRequireRefreshBeforeContinuing`
+passed **1/1** in 33 seconds against isolated PostgreSQL and API-hosted
+Angular browser sessions. The API accepted invoice approval, posting and
+sending, while Playwright dropped each response. For each command Angular
+showed the unresolved-state panel and kept actions blocked until an explicit
+refresh; refreshed state showed `APPROVED`, `POSTED` and `SENT` in turn. The
+browser sent each mutation once, PostgreSQL retained one final `SENT` invoice
+with the reviewer and transition timestamps, and no page errors occurred.
+
+The recovery message now covers saved invoice status and billing records. The
+Angular production build passed at 349.67 kB initial size, with the existing
+7.53 kB Commercial Settings stylesheet budget warning. The full solution
+suite was not rerun; its latest complete result remains 1001/1001 at
+`ead85032`.
+
 ## Completed focused slice: Client-scoped invoice billing commands
 
 At code/test commit `8faa79b2`,
