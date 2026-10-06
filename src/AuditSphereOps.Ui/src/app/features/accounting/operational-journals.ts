@@ -10,6 +10,8 @@ interface PeriodOption { id: string; code: string; start: string; end: string; c
 interface JournalLine { lineNumber: number; accountId: string; accountCode: string; accountName: string; description: string; debit: string; credit: string }
 interface ReviewDecision { revision: string; decision: string; reason: string; actorUserId: string; createdAt: string }
 interface Journal { id: string; clientId: string; periodId: string; journalNumber: string; description: string; postingDate: string; currency: string; status: string; revision: string; createdByUserId: string; lines: JournalLine[]; decisions: ReviewDecision[] }
+interface JournalSnapshot { journalId: string; clientId: string; revision: string; capturedAt: string; journalNumber: string;
+  description: string; postingDate: string; currency: string; lines: JournalLine[] }
 interface JournalPreview { journalId: string; clientId: string; periodId: string; revision: string; status: string; currency: string;
   totalDebit: string; totalCredit: string; digest: string; lines: JournalLine[] }
 interface LedgerView { clientId: string; periodId: string; periodCode: string; currency: string; basis: string; page: number; pageSize: number; totalEntries: number;
@@ -79,6 +81,20 @@ export function decodeJournalPreview(value: unknown, journal: Journal): JournalP
   if (JSON.stringify(parsed.lines) !== JSON.stringify(journal.lines)) throw new Error('Preview lines changed');
   return p as unknown as JournalPreview;
 }
+export function decodeJournalSnapshots(value: unknown, journal: Journal): JournalSnapshot[] {
+  if (!Array.isArray(value) || value.length > 10000) throw new Error('Invalid journal versions');
+  const seen = new Set<string>();
+  for (const raw of value) {
+    const v = object(raw);
+    if (v['journalId'] !== journal.id || v['clientId'] !== journal.clientId || typeof v['revision'] !== 'string' ||
+        !/^[1-9]\d{0,18}$/.test(v['revision']) || seen.has(v['revision']) ||
+        !['capturedAt', 'journalNumber', 'description', 'postingDate', 'currency'].every(k => typeof v[k] === 'string'))
+      throw new Error('Invalid submitted journal version');
+    seen.add(v['revision']);
+    decodeOperationalJournal({ ...journal, ...v, id: journal.id, status: 'SUBMITTED', decisions: [] }, journal.clientId);
+  }
+  return value as JournalSnapshot[];
+}
 export function nativeJournalAmount(value: string): boolean { return /^(?:0|[1-9]\d{0,12})(?:\.\d{1,6})?$/.test(value); }
 function minor(value: string): bigint { if (!nativeJournalAmount(value)) throw new Error('Invalid native journal amount'); const [whole, fraction = ''] = value.split('.'); return BigInt(whole) * 1_000_000n + BigInt(fraction.padEnd(6, '0')); }
 
@@ -102,6 +118,19 @@ function minor(value: string): bigint { if (!nativeJournalAmount(value)) throw n
                 <p>Revision {{ d.revision }} · {{ d.decision }} · {{ d.reason }} · {{ d.createdAt }}</p>
               }
             </section>
+          }
+          <button matButton type="button" [disabled]="busy()" (click)="loadSnapshots(j)">View submitted versions</button>
+          @if (snapshots(); as versions) {
+            @if (!versions.length) { <p>No submitted content was captured for this journal. Earlier review content is unavailable.</p> }
+            @for (v of versions; track v.revision) {
+              <details><summary>Submitted revision {{ v.revision }}</summary>
+                <p>{{ v.description }} · {{ v.postingDate }} · {{ v.currency }} · captured {{ v.capturedAt }}</p>
+                <div class="table-scroll"><table><caption>Preserved submitted journal lines</caption>
+                  <thead><tr><th>Account</th><th>Description</th><th>Debit</th><th>Credit</th></tr></thead>
+                  <tbody>@for (line of v.lines; track line.lineNumber) { <tr><td>{{ line.accountCode }} · {{ line.accountName }}</td><td>{{ line.description }}</td><td>{{ line.debit }}</td><td>{{ line.credit }}</td></tr> }</tbody>
+                </table></div>
+              </details>
+            }
           }
           @if (j.status !== 'POSTED') {
             <button matButton type="button" [disabled]="busy() || uncertain()" (click)="loadPreview(j)">Preview accounting effect</button>
@@ -173,6 +202,7 @@ export class ClientOperationalJournals {
   private readonly session = inject(SessionService);
   readonly journal = signal<Journal | null>(null);
   readonly preview = signal<JournalPreview | null>(null);
+  readonly snapshots = signal<JournalSnapshot[] | null>(null);
   readonly ledger = signal<LedgerView | null>(null);
   readonly busy = signal(false);
   readonly error = signal('');
@@ -184,7 +214,7 @@ export class ClientOperationalJournals {
   private operation?: Subscription;
   private readonly invalidate = effect(() => {
     const id = this.clientId(); this.session.invalidation();
-    untracked(() => { this.operation?.unsubscribe(); this.journal.set(null); this.preview.set(null); this.ledger.set(null); this.error.set(''); this.ledgerError.set(''); this.uncertain.set(false); this.busy.set(false); this.lookupId = ''; this.reviewed.set(false); });
+    untracked(() => { this.operation?.unsubscribe(); this.journal.set(null); this.snapshots.set(null); this.preview.set(null); this.ledger.set(null); this.error.set(''); this.ledgerError.set(''); this.uncertain.set(false); this.busy.set(false); this.lookupId = ''; this.reviewed.set(false); });
     void id;
   });
   constructor() { inject(DestroyRef).onDestroy(() => this.operation?.unsubscribe()); }
@@ -218,7 +248,7 @@ export class ClientOperationalJournals {
   load(): void {
     const clientId = this.clientId(); const id = this.lookupId.trim();
     if (!guidPattern.test(id) || this.busy()) { if (id) this.error.set('Enter a valid journal ID.'); return; }
-    const generation = this.session.invalidation(); this.preview.set(null); this.reviewed.set(false); this.busy.set(true); this.error.set('');
+    const generation = this.session.invalidation(); this.preview.set(null); this.snapshots.set(null); this.reviewed.set(false); this.busy.set(true); this.error.set('');
     this.operation = this.http.get<unknown>(`/api/ui/accounting/clients/${clientId}/operational-journals/${id}`).pipe(timeout(15000)).subscribe({
       next: value => { if (generation !== this.session.invalidation()) return; try { const journal = decodeOperationalJournal(value, clientId); if (journal.id !== id) throw new Error(); this.journal.set(journal); this.uncertain.set(false); this.reviewed.set(false); this.busy.set(false); if (journal.status === 'POSTED') this.loadLedger(journal.periodId); } catch { this.busy.set(false); this.error.set('Journal details could not be validated for this client.'); } },
       error: failure => { if (generation !== this.session.invalidation()) return; this.busy.set(false); this.error.set('Journal could not be loaded in this client scope.'); if (failure.status === 401) this.session.clear(); },
@@ -234,6 +264,16 @@ export class ClientOperationalJournals {
       next: value => { if (generation !== this.session.invalidation()) return; try { this.ledger.set(decodeOperationalLedger(value, clientId, forPeriodId)); }
         catch { this.ledger.set(null); this.ledgerError.set('Posted ledger response did not match this client and period.'); } },
       error: failure => { if (generation === this.session.invalidation()) { this.ledger.set(null); this.ledgerError.set('Posted client ledger is unavailable. Retry or refresh the client.'); if (failure.status === 401) this.session.clear(); } },
+    });
+  }
+  loadSnapshots(journal: Journal): void {
+    if (this.busy() || journal.clientId !== this.clientId()) return;
+    const generation = this.session.invalidation(); this.busy.set(true); this.snapshots.set(null); this.error.set('');
+    this.operation = this.http.get<unknown>(`/api/ui/accounting/clients/${journal.clientId}/operational-journals/${journal.id}/snapshots`).pipe(timeout(15000)).subscribe({
+      next: value => { if (generation !== this.session.invalidation() || this.journal()?.id !== journal.id) return;
+        this.busy.set(false); try { this.snapshots.set(decodeJournalSnapshots(value, journal)); }
+        catch { this.error.set('Submitted content did not match this client journal.'); } },
+      error: failure => { if (generation !== this.session.invalidation()) return; this.busy.set(false); this.error.set('Submitted versions could not be loaded.'); if (failure.status === 401) this.session.clear(); },
     });
   }
   loadPreview(journal: Journal): void {

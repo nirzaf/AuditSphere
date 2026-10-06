@@ -5251,6 +5251,73 @@
         ]
       }
     },
+    "/api/ui/accounting/clients/{clientId}/operational-journals/{journalId}/snapshots": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "journalId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ClientOperationalJournalSnapshotView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
     "/api/ui/accounting/clients/{clientId}/operational-journals": {
       "post": {
         "tags": [
@@ -27379,6 +27446,54 @@
             "type": "string"
           },
           "digest": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClientOperationalJournalLineView"
+            }
+          }
+        }
+      },
+      "ClientOperationalJournalSnapshotView": {
+        "required": [
+          "journalId",
+          "clientId",
+          "revision",
+          "capturedAt",
+          "journalNumber",
+          "description",
+          "postingDate",
+          "currency",
+          "lines"
+        ],
+        "type": "object",
+        "properties": {
+          "journalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "clientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "type": "string"
+          },
+          "capturedAt": {
+            "type": "string"
+          },
+          "journalNumber": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "postingDate": {
+            "type": "string"
+          },
+          "currency": {
             "type": "string"
           },
           "lines": {

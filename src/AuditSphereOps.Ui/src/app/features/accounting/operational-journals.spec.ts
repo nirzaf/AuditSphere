@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeOperationalJournal, decodeOperationalLedger, nativeJournalAmount, decodeJournalPreview } from './operational-journals';
+import { decodeOperationalJournal, decodeOperationalLedger, nativeJournalAmount, decodeJournalPreview, decodeJournalSnapshots } from './operational-journals';
 
 const client = '11111111-1111-4111-8111-111111111111';
 const journal = '22222222-2222-4222-8222-222222222222';
@@ -58,5 +58,17 @@ describe('Journal review history', () => {
     expect(decodeOperationalJournal({ ...view, decisions: [decision] }, client).decisions[0].reason).toBe(decision.reason);
     for (const change of [{ revision: '0' }, { decision: 'EDIT' }, { reason: '' }, { actorUserId: 'bad' }])
       expect(() => decodeOperationalJournal({ ...view, decisions: [{ ...decision, ...change }] }, client)).toThrow();
+  });
+});
+
+describe('Preserved submitted versions', () => {
+  it('requires authorized journal identity, distinct revisions and exact string amounts', () => {
+    const saved = decodeOperationalJournal(view, client);
+    const snapshot = { journalId: journal, clientId: client, revision: '2', capturedAt: '2026-01-05T01:00:00Z',
+      journalNumber: 'J-1', description: 'Historical content', postingDate: '2026-01-05', currency: 'QAR', lines: view.lines };
+    expect(decodeJournalSnapshots([snapshot], saved)[0].description).toBe('Historical content');
+    expect(() => decodeJournalSnapshots([{ ...snapshot, clientId: journal }], saved)).toThrow();
+    expect(() => decodeJournalSnapshots([snapshot, snapshot], saved)).toThrow();
+    expect(() => decodeJournalSnapshots([{ ...snapshot, lines: [{ ...view.lines[0], debit: 125 }, view.lines[1]] }], saved)).toThrow();
   });
 });

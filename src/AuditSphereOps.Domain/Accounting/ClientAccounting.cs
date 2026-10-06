@@ -1294,3 +1294,16 @@ public sealed class CurrencyRemeasurementItem
   public decimal ForeignExchangeAdjustment { get; set; }
   public decimal RoundingAdjustment { get; set; }
 }
+
+/// <summary>Immutable content captured by the database when a native journal is submitted.</summary>
+public sealed class ClientOperationalJournalSnapshot
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid JournalId { get; set; }
+  public long JournalRevision { get; set; }
+  public string CaptureKind { get; set; } = "SUBMISSION";
+  public string SnapshotJson { get; set; } = string.Empty;
+  public DateTimeOffset CapturedAt { get; set; }
+}

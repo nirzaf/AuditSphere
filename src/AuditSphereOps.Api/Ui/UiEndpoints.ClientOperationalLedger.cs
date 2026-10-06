@@ -43,6 +43,19 @@ public static partial class UiEndpoints
       return Results.Ok(result.Value);
     }).Produces<ClientOperationalJournalPreview>();
 
+    group.MapGet("/accounting/clients/{clientId:guid}/operational-journals/{journalId:guid}/snapshots", async (Guid clientId,
+      Guid journalId, HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
+    {
+      var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
+      if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
+      var result = await ClientOperationalLedgerWorkspace.GetSnapshotsAsync(db, actor, clientId, journalId, http.RequestAborted);
+      if (!result.Succeeded) return Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
+      if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
+        return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      return Results.Ok(result.Value);
+    }).Produces<IReadOnlyList<ClientOperationalJournalSnapshotView>>();
+
     group.MapPost("/accounting/clients/{clientId:guid}/operational-journals", async (Guid clientId,
       ClientOperationalJournalCreateHttpInput input, HttpContext http, TrustedActorResolver resolver,
       IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>

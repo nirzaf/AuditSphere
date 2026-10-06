@@ -150,6 +150,12 @@ public sealed class AngularClientOperationalJournalJourneyTests
     await journals.GetByRole(AriaRole.Checkbox, new() { Name = "I independently reviewed this exact journal revision and its balanced lines.", Exact = true }).CheckAsync();
     await journals.GetByRole(AriaRole.Button, new() { Name = "Approve and post", Exact = true }).ClickAsync();
     await Assertions.Expect(journals.GetByRole(AriaRole.Heading, new() { Name = "J-UI-001 · POSTED", Exact = true })).ToBeVisibleAsync();
+    await journals.GetByRole(AriaRole.Button, new() { Name = "View submitted versions", Exact = true }).ClickAsync();
+    await Assertions.Expect(journals.GetByText("Submitted revision 2", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(journals.GetByText("Submitted revision 4", new() { Exact = true })).ToBeVisibleAsync();
+    await journals.GetByText("Submitted revision 2", new() { Exact = true }).ClickAsync();
+    await Assertions.Expect(journals.GetByRole(AriaRole.Table, new() { Name = "Preserved submitted journal lines", Exact = true }).First
+      .GetByRole(AriaRole.Cell, new() { Name = "125.250000", Exact = true })).ToHaveCountAsync(2);
     var ledgerAccounts = journals.GetByRole(AriaRole.Table, new() { Name = "Account debit, credit and net movement", Exact = true });
     await Assertions.Expect(ledgerAccounts.GetByRole(AriaRole.Cell, new() { Name = "6000 · Office expense", Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(ledgerAccounts.GetByRole(AriaRole.Cell, new() { Name = "-125.250000", Exact = true })).ToBeVisibleAsync();

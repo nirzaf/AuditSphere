@@ -184,6 +184,17 @@ public sealed partial class ClientAccountingTests
       var journal = await db.ClientOperationalJournals.SingleAsync(x => x.FirmId == scope.FirmId && x.Id == journalId);
       Assert.Equal("POSTED", journal.Status);
       Assert.Equal(scope.Reviewer.Id, journal.PostedByUserId);
+      var snapshots = await ClientOperationalLedgerWorkspace.GetSnapshotsAsync(db, reviewer, scope.ClientA, journalId);
+      Assert.True(snapshots.Succeeded, snapshots.Message);
+      Assert.Equal(new[] { "2", "4" }, snapshots.Value!.Select(x => x.Revision));
+      Assert.All(snapshots.Value!, x => Assert.Equal("125.000000", x.Lines[0].Debit));
+      Assert.False((await ClientOperationalLedgerWorkspace.GetSnapshotsAsync(db, reviewer, scope.ClientB, journalId)).Succeeded);
+      await AssertNativeRuntimeSqlDeniedAsync(pg, journalId, scope.Reviewer.Id,
+      [
+        "UPDATE client_operational_journal_snapshots SET snapshot_json='{}'::jsonb WHERE journal_id=@journal",
+        "DELETE FROM client_operational_journal_snapshots WHERE journal_id=@journal",
+        "INSERT INTO client_operational_journal_snapshots SELECT gen_random_uuid(),firm_id,client_id,journal_id,99,capture_kind,snapshot_json,captured_at FROM client_operational_journal_snapshots WHERE journal_id=@journal LIMIT 1"
+      ]);
       var ledger = await ClientOperationalGeneralLedgerWorkspace.GetAsync(db, reviewer, scope.ClientA, periodId);
       Assert.True(ledger.Succeeded, ledger.Message);
       Assert.Equal(2, ledger.Value!.TotalEntries);

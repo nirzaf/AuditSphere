@@ -29,6 +29,15 @@ public sealed partial class AuditSphereDbContext
     journal.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
+    var snapshot = b.Entity<ClientOperationalJournalSnapshot>();
+    snapshot.Property(x => x.CaptureKind).HasMaxLength(30);
+    snapshot.Property(x => x.SnapshotJson).HasColumnType("jsonb");
+    snapshot.HasIndex(x => new { x.FirmId, x.ClientId, x.JournalId, x.JournalRevision }).IsUnique();
+    snapshot.HasOne<ClientOperationalJournal>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.JournalId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    snapshot.ToTable("client_operational_journal_snapshots", t => t.HasCheckConstraint("ck_client_operational_snapshot_revision",
+      "journal_revision >= 1 AND capture_kind = 'SUBMISSION' AND jsonb_typeof(snapshot_json) = 'object'"));
+
     var line = b.Entity<ClientOperationalJournalLine>();
     line.Property(x => x.AccountCode).HasMaxLength(100);
     line.Property(x => x.AccountName).HasMaxLength(300);
