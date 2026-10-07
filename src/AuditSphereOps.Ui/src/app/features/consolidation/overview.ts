@@ -25,6 +25,10 @@ export function sumDecimals(values: string[]): string {
   return (neg ? '-' : '') + (places ? digits.slice(0, -places) + '.' + digits.slice(-places) : digits);
 }
 
+export function displayUtcInstant(value: string | null): string {
+  return value ? `${new Date(value).toISOString().slice(0, 16).replace('T', ' ')} UTC` : '';
+}
+
 @Component({
   selector: 'audit-consolidation',
   imports: [RouterLink, ...SHARED],
@@ -78,7 +82,7 @@ export function sumDecimals(values: string[]): string {
             <h3>{{ s.groupName }} · v{{ s.version }}</h3>
             @if (s.isAdvanced) { <p>Open the method workflow for its separately reviewed statement execution. <a [routerLink]="['/app/consolidation/advanced', s.id]">Open advanced workflow</a></p> }
             @else if (s.report?.state === 'CURRENT_APPROVED') {
-              <p>Run {{ s.report!.runId }} · approved {{ s.report!.approvedAt ? s.report!.approvedAt!.slice(0, 16).replace('T', ' ') : '' }}</p>
+              <p>Run {{ s.report!.runId }} · approved {{ formatUtcInstant(s.report!.approvedAt) }}</p>
               <div class="table-scroll"><table><caption class="sr-only">Current approved group report for {{ s.groupName }} version {{ s.version }}</caption>
                 <thead><tr><th>Component / adjustment</th><th>Reporting code</th><th class="number">Component</th><th class="number">Alignment</th><th class="number">Elimination</th><th class="number">Consolidated</th><th>Currency</th></tr></thead>
                 <tbody>@for (l of s.report!.lines; track $index) { <tr><td>{{ l.component }}</td><td><code>{{ l.taxonomyCode }}</code></td><td class="number">{{ l.componentAmount | money }}</td><td class="number">{{ l.alignmentAmount | money }}</td>
@@ -96,5 +100,6 @@ export class ConsolidationOverview {
   readonly groups = this.api.resource(() => '/api/ui/consolidation', decodeConsolidation, 'No explicit group access grant is available for the current identity.');
   scopes(g: Group[]) { return g.flatMap((x) => x.scopes); }
   approvedPins(s: { approvedComponentCount: number }[]): number { return s.reduce((n, x) => n + x.approvedComponentCount, 0); }
+  formatUtcInstant(value: string | null): string { return displayUtcInstant(value); }
   net(lines: { consolidatedAmount: string }[]): string { return sumDecimals(lines.map((l) => l.consolidatedAmount)); }
 }
