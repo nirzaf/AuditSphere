@@ -37,15 +37,17 @@ Evidence is recorded in
 [`auditsphere-migration-blazor-confirm-dialog-source-review.md`](../migration/auditsphere-migration-blazor-confirm-dialog-source-review.md)
 and `status.json`.
 
-## Workpaper draft discard browser parity — 4d88b1ff
+## Workpaper draft discard and navigation recovery — 1d05ed4c
 
 Added a PostgreSQL-backed Angular/API-host browser journey for the Workpaper
 discard action. The journey loads an existing server draft, discards it through
 the page, verifies the editor clears, and confirms the persisted draft is
-`DISCARDED` with no submission created. The focused Release Workpaper E2E class passed 2/2 in 1 minute 8 seconds,
-including the discard flow and saved-response recovery. The discard flow had no
-page or console errors. This closes the dedicated
-browser-discard evidence gap only; the Workpaper source row remains partial for
+`DISCARDED` with no submission created. The navigation guard also discards the
+saved draft before routing and keeps newly typed edits out of persistence. The
+focused Release Workpaper E2E class passed 3/3 in 1 minute 11 seconds,
+including saved-response recovery. The discard journeys had no browser errors.
+This closes the successful direct and navigation discard evidence gaps only;
+the Workpaper source row remains partial for
 the broader role/scope, failure/recovery, accessibility and production gates.
 The full solution suite and EF drift check were not rerun. Evidence is recorded
 in [`auditsphere-migration-blazor-workpaper-source-review.md`](../migration/auditsphere-migration-blazor-workpaper-source-review.md)

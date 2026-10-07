@@ -69,8 +69,9 @@ for an unassigned guessed ID without workpaper content or commands.
 - Every stale, unavailable, validation, timeout, and recovery state is not yet
   covered end-to-end.
 - Draft discard's persisted lifecycle and cleared editor are now covered by a
-  dedicated Angular/API-host browser journey. The broader discard-on-navigation
-  and refused-discard recovery combinations remain outside that journey.
+  dedicated Angular/API-host browser journey. The navigation-guard discard path
+  is now covered too; refused-discard recovery remains outside those successful
+  discard journeys.
 - Human screen-reader and broader locale acceptance remain external to the
   current DOM and automated-browser evidence.
 
@@ -80,19 +81,23 @@ acceptance, and Blazor retirement remain open.
 
 ### Follow-up browser evidence — 2026-10-07
 
-At code commit `4d88b1ff`,
-The complete `AngularWorkpaperSaveRecoveryJourneyTests` class passed **2/2** in
-1 minute 8 seconds on owned isolated PostgreSQL/API hosts, including
-`DiscardDraftFromWorkpaperPagePersistsDiscardedLifecycle` (1/1 in 34 seconds).
+At code commit `1d05ed4c`, the complete
+`AngularWorkpaperSaveRecoveryJourneyTests` class passed **3/3** in 1 minute 11
+seconds on owned isolated PostgreSQL/API hosts, including
+`DiscardDraftFromWorkpaperPagePersistsDiscardedLifecycle` and
+`DiscardingBeforeNavigationDiscardsSavedDraftAndDoesNotPersistCurrentEdits`.
 The discard journey loaded the persisted server draft in the Angular editor,
 discarded it through the page, verified the editor cleared, and confirmed in
 PostgreSQL that the draft lifecycle is `DISCARDED`, the original content
-remains in the historical row, and no submission was created. The other case
-verified lost-save acknowledgement reconciliation and one submission. No
-browser console or page errors were observed in the discard journey.
+remains in the historical row, and no submission was created. The remaining case verified lost-save acknowledgement reconciliation and one
+submission. The navigation case confirms routing occurs after the server
+accepts discard, and that newly typed unsaved content is absent from the
+historical draft. No browser console or page errors were observed in the discard journeys.
 
-The dedicated browser-discard gap is closed for this source review. The row
+The successful direct-discard and discard-before-navigation browser gaps are
+closed for this source review. The row
 remains `PARTIAL`: complete role/scope, expired-grant, cross-firm and guessed-ID
-matrices, remaining stale/failure/recovery branches, human screen-reader and
-wider-locale acceptance, and production migration gates remain open. The full
+matrices, refused-discard and remaining stale/failure/recovery branches, human
+screen-reader and wider-locale acceptance, and production migration gates
+remain open. The full
 solution regression and EF drift check were not rerun.
