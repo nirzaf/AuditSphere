@@ -81,13 +81,16 @@ public static partial class ClientAccountingService
     var auth = await AuthorizeClientAsync(db, actor, request.ClientId, roles, ct);
     if (!auth.Succeeded)
       return CommandResult<long>.Fail(auth.ErrorCode!, auth.Message!);
+    var bookIdentityChanged = profile.Jurisdiction != request.Jurisdiction.Trim() ||
+      profile.FunctionalCurrency != currency || profile.FiscalYearStartMonth != request.FiscalYearStartMonth ||
+      profile.FiscalYearStartDay != request.FiscalYearStartDay || profile.SourceSystem != request.SourceSystem.Trim() ||
+      profile.SourceSystemIdentifier != request.SourceSystemIdentifier.Trim() || profile.SourceMode != sourceMode;
+    if (bookIdentityChanged && await db.ClientReportingPeriods.AnyAsync(x =>
+        x.FirmId == actor.FirmId && x.ClientId == request.ClientId, ct))
+      return CommandResult<long>.Fail(ErrorCodes.GateBlocked,
+        "This client book has reporting periods. Changing its currency, fiscal calendar, source identity, jurisdiction or source mode requires a reviewed cutover, which is not configured.");
     if (profile.SourceMode == ClientAccountingSourceModes.NativeBookkeeping && sourceMode != profile.SourceMode)
       return CommandResult<long>.Fail(ErrorCodes.GateBlocked, "Changing a native bookkeeping book back to external-source mode requires a reviewed cutover.");
-    if (profile.SourceMode != sourceMode)
-    {
-      if (await db.ClientReportingPeriods.AnyAsync(x => x.FirmId == actor.FirmId && x.ClientId == request.ClientId, ct))
-        return CommandResult<long>.Fail(ErrorCodes.GateBlocked, "A populated external-source client requires a reviewed cutover before native bookkeeping can be enabled.");
-    }
     var modeGate = await ValidateSourceModeAsync(db, actor, request.ClientId, sourceMode, ct);
     if (!modeGate.Succeeded)
       return CommandResult<long>.Fail(modeGate.ErrorCode!, modeGate.Message!);

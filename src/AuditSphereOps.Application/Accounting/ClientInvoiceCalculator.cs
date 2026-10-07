@@ -36,7 +36,7 @@ public static class ClientInvoiceCalculator
     if (policy is null || !Currency(transactionCurrency) || !Currency(functionalCurrency) || policy.Currency != transactionCurrency ||
         transactionCurrency != functionalCurrency)
       return Fail("An explicit matching functional-currency policy is required; foreign-currency documents are not yet supported.");
-    if (documentKind is not ("INVOICE" or "CREDIT") || policy.DecimalPlaces is < 0 or > 6 ||
+    if (documentKind is not ("INVOICE" or "CREDIT" or "PURCHASE_INVOICE" or "PURCHASE_CREDIT") || policy.DecimalPlaces is < 0 or > 6 ||
         policy.MidpointRule is not ("TO_EVEN" or "AWAY_FROM_ZERO") ||
         policy.ResidualTreatment is not ("REJECT" or "EXPLICIT_ACCOUNT") || policy.MaximumResidualMinorUnits is < 0 or > 3 ||
         (policy.ResidualTreatment == "REJECT" && (policy.MaximumResidualMinorUnits != 0 || policy.RoundingAccountCode != "")) ||

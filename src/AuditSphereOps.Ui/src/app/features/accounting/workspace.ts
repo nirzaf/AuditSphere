@@ -7,6 +7,9 @@ import { ClientOperationalJournals } from './operational-journals';
 import { ClientCounterparties } from './counterparties';
 import { ClientAccountRoles } from './account-roles';
 import { SalesInvoiceDrafts } from './sales-invoice-drafts';
+import { PurchaseInvoiceWorkflow } from './purchase-invoice-workflow';
+import { PurchaseCreditNoteWorkflow } from './purchase-credit-note-workflow';
+import { OpenItemAllocations } from './open-item-allocations';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { Subscription, timeout } from 'rxjs';
@@ -110,7 +113,7 @@ export function decodeWorkspace(value: unknown): Workspace {
   return v as unknown as Workspace;
 }
 @Component({
-  selector: 'audit-accounting', imports: [AccountingCharts, SalesInvoiceDrafts, ClientAccountRoles, ClientCounterparties, ClientOperationalJournals, PeriodLifecycle, FormsModule, MatButtonModule, MatProgressBarModule],
+  selector: 'audit-accounting', imports: [AccountingCharts, SalesInvoiceDrafts, PurchaseInvoiceWorkflow, PurchaseCreditNoteWorkflow, OpenItemAllocations, ClientAccountRoles, ClientCounterparties, ClientOperationalJournals, PeriodLifecycle, FormsModule, MatButtonModule, MatProgressBarModule],
   template: `
     <p class="eyebrow">Client-owned books · Explicit client scope</p><h1>Accounting workspace</h1>
     <p>Import-first preparation and reporting. Firm books and group consolidation remain separate.</p>
@@ -164,7 +167,7 @@ export function decodeWorkspace(value: unknown): Workspace {
           <label>Source identifier <input name="identifier" [(ngModel)]="form.identifier" maxlength="200" /></label>
           <label>Book source mode <select name="sourceMode" [(ngModel)]="form.sourceMode" [disabled]="w.profile?.sourceMode === 'NATIVE_BOOKKEEPING'">
             <option value="EXTERNAL_SOURCE">External source</option><option value="NATIVE_BOOKKEEPING">Native client bookkeeping</option></select></label>
-          <p>Native mode requires an accepted client-level BOOKKEEPING service decision. Enabling it after reporting periods exist requires a reviewed cutover. VAT/tax and ancillary modules remain optional.</p>
+          <p>Native mode requires an accepted client-level BOOKKEEPING service decision. Once reporting periods exist, changing currency, fiscal calendar, source identity, jurisdiction or source mode requires a reviewed cutover. VAT/tax and ancillary modules remain optional.</p>
           <label><input name="reviewed" type="checkbox" [(ngModel)]="reviewed" /> I reviewed this client profile and revision {{ w.profile?.revision ?? '0' }}.</label>
           <button matButton type="submit" [disabled]="profileForm.invalid || !reviewed || saving() || uncertain()">Save profile</button>
           @if (uncertain()) { <p role="alert">The outcome is unconfirmed. Refresh the client and review persisted setup before another change.</p> }
@@ -173,6 +176,9 @@ export function decodeWorkspace(value: unknown): Workspace {
           <audit-client-counterparties [clientId]="w.clientId" />
           <audit-account-roles [clientId]="w.clientId" />
     <audit-sales-invoice-drafts [clientId]="w.clientId" [currency]="w.profile.currency" [periods]="w.periods" />
+    <audit-client-purchase-invoices [clientId]="w.clientId" [currency]="w.profile.currency" [periods]="w.periods" />
+          <audit-client-purchase-credit-notes [clientId]="w.clientId" [currency]="w.profile.currency" [periods]="w.periods" />
+          <audit-open-item-allocations [clientId]="w.clientId" />
           <audit-client-operational-journals [clientId]="w.clientId" [periods]="w.periods" [bookCurrency]="w.profile.currency" />
         }
         <h3>Reporting periods</h3>@if (!w.periods.length) { <p>No reporting periods configured.</p> }

@@ -6963,6 +6963,2155 @@
         ]
       }
     },
+    "/api/ui/accounting/clients/{clientId}/sales-invoices/{invoiceId}/lifecycle": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "invoiceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientSalesInvoiceLifecycleView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/sales-invoices/{invoiceId}/preview": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "invoiceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SalesSubmitHttpInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientSalesInvoicePreview"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/sales-invoices/{invoiceId}/submit": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "invoiceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SalesSubmitHttpInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientSalesInvoiceCommandReceipt"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/sales-invoice-submissions/{submissionId}/preview": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "submissionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientSalesInvoiceReviewPreview"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/sales-invoice-reviews": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SalesReviewHttpInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientSalesInvoiceCommandReceipt"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/sales-invoice-requests/{commandId}": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "commandId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientSalesInvoiceCommandReceipt"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/sales-invoices/{invoiceId}/credit-notes": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "invoiceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ClientSalesCreditNoteView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "invoiceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SalesCreditSubmitHttpInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientSalesCreditCommandReceipt"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/sales-invoices/{invoiceId}/credit-notes/preview": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "invoiceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SalesCreditPreviewHttpInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientSalesCreditPreview"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/sales-credit-note-submissions/{submissionId}/preview": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "submissionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientSalesCreditReviewPreview"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/sales-credit-note-reviews": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SalesCreditReviewHttpInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientSalesCreditCommandReceipt"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/sales-credit-note-requests/{commandId}": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "commandId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientSalesCreditCommandReceipt"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/purchase-invoice-drafts": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchaseDraftHttpInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientPurchaseInvoiceDraftView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/purchase-invoice-drafts/{invoiceId}": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "invoiceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientPurchaseInvoiceDraftView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/purchase-invoices": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ClientPurchaseInvoiceView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/purchase-invoices/{invoiceId}/preview": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "invoiceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchaseSubmitHttpInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientPurchaseInvoicePreview"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/purchase-invoices/{invoiceId}/submit": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "invoiceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchaseSubmitHttpInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientPurchaseInvoiceReceipt"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/purchase-invoice-submissions/{submissionId}/preview": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "submissionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientPurchaseInvoiceReviewPreview"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/purchase-invoice-reviews": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchaseReviewHttpInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientPurchaseInvoiceReceipt"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/purchase-credit-notes": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ClientPurchaseCreditNoteView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchaseCreditSubmitHttpInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientPurchaseCreditReceipt"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/purchase-credit-notes/preview": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchaseCreditPreviewHttpInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientPurchaseCreditPreview"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/purchase-credit-note-submissions/{submissionId}/preview": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "submissionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientPurchaseCreditReviewPreview"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/purchase-credit-note-reviews": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchaseCreditReviewHttpInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientPurchaseCreditReceipt"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/open-item-balances": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "asOf",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ClientOpenItemBalance"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/open-item-allocation-submissions": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ClientOpenItemAllocationPreview"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/open-item-allocations/preview": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpenItemAllocationHttpInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientOpenItemAllocationPreview"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/open-item-allocations/submit": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpenItemAllocationHttpInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientOpenItemAllocationReceipt"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/open-item-allocation-submissions/{submissionId}/preview": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "submissionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientOpenItemAllocationPreview"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/open-item-allocation-reviews": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpenItemAllocationReviewHttpInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientOpenItemAllocationReceipt"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
     "/api/ui/accounting/clients/{clientId}/account-roles": {
       "get": {
         "tags": [
@@ -30154,6 +32303,59 @@
           }
         }
       },
+      "ClientInvoiceLineInput": {
+        "required": [
+          "description",
+          "accountCode",
+          "quantity",
+          "unitPrice",
+          "discount",
+          "taxTreatment",
+          "taxes"
+        ],
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "accountCode": {
+            "type": "string"
+          },
+          "quantity": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "unitPrice": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "discount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "taxTreatment": {
+            "type": "string"
+          },
+          "taxes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClientInvoiceTaxInput"
+            }
+          }
+        }
+      },
       "ClientInvoiceMoneyPolicy": {
         "required": [
           "currency",
@@ -30232,6 +32434,218 @@
           }
         }
       },
+      "ClientInvoiceTaxInput": {
+        "required": [
+          "code",
+          "rate"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "rate": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          }
+        }
+      },
+      "ClientOpenItemAllocationPreview": {
+        "required": [
+          "submissionId",
+          "digest",
+          "disposition",
+          "sourceKind",
+          "sourceItemId",
+          "counterpartyId",
+          "currency",
+          "sourceOriginalAmount",
+          "sourceAvailableAmount",
+          "lines",
+          "targetAvailableAmounts"
+        ],
+        "type": "object",
+        "properties": {
+          "submissionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "digest": {
+            "type": "string"
+          },
+          "disposition": {
+            "type": "string"
+          },
+          "sourceKind": {
+            "type": "string"
+          },
+          "sourceItemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "counterpartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "sourceOriginalAmount": {
+            "type": "string"
+          },
+          "sourceAvailableAmount": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClientOpenItemAllocationPreviewLine"
+            }
+          },
+          "targetAvailableAmounts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ClientOpenItemAllocationPreviewLine": {
+        "required": [
+          "lineNumber",
+          "targetKind",
+          "targetOpenItemId",
+          "amount",
+          "reversesAllocationLineId"
+        ],
+        "type": "object",
+        "properties": {
+          "lineNumber": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "targetKind": {
+            "type": "string"
+          },
+          "targetOpenItemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amount": {
+            "type": "string"
+          },
+          "reversesAllocationLineId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "ClientOpenItemAllocationReceipt": {
+        "required": [
+          "commandId",
+          "submissionId",
+          "outcome",
+          "decisionId"
+        ],
+        "type": "object",
+        "properties": {
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "submissionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "decisionId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "ClientOpenItemBalance": {
+        "required": [
+          "kind",
+          "openItemId",
+          "sourceDocumentId",
+          "counterpartyId",
+          "counterpartyName",
+          "currency",
+          "originalAmount",
+          "appliedAmount",
+          "openAmount",
+          "dueDate",
+          "asOfDate",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "openItemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sourceDocumentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "counterpartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "counterpartyName": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "originalAmount": {
+            "type": "string"
+          },
+          "appliedAmount": {
+            "type": "string"
+          },
+          "openAmount": {
+            "type": "string"
+          },
+          "dueDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "asOfDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
       "ClientOperationalGeneralLedgerView": {
         "required": [
           "clientId",
@@ -30307,6 +32721,41 @@
           },
           "bookkeepingActive": {
             "type": "boolean"
+          }
+        }
+      },
+      "ClientOperationalInvoiceOrigin": {
+        "required": [
+          "clientId",
+          "journalId",
+          "invoiceId",
+          "submissionId",
+          "draftRevision",
+          "journalSubmittedRevision"
+        ],
+        "type": "object",
+        "properties": {
+          "clientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "journalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invoiceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "submissionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "draftRevision": {
+            "type": "string"
+          },
+          "journalSubmittedRevision": {
+            "type": "string"
           }
         }
       },
@@ -30759,6 +33208,16 @@
             "items": {
               "$ref": "#/components/schemas/ClientOperationalJournalLineView"
             }
+          },
+          "invoiceOrigin": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientOperationalInvoiceOrigin"
+              }
+            ]
           }
         }
       },
@@ -30824,6 +33283,16 @@
           "createdByUserId": {
             "type": "string",
             "format": "uuid"
+          },
+          "invoiceOrigin": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientOperationalInvoiceOrigin"
+              }
+            ]
           }
         }
       },
@@ -30928,6 +33397,16 @@
               },
               {
                 "$ref": "#/components/schemas/ClientOperationalJournalReversalView"
+              }
+            ]
+          },
+          "invoiceOrigin": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientOperationalInvoiceOrigin"
               }
             ]
           }
@@ -31082,6 +33561,16 @@
           },
           "status": {
             "type": "string"
+          },
+          "invoiceOrigin": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientOperationalInvoiceOrigin"
+              }
+            ]
           }
         }
       },
@@ -31179,6 +33668,1147 @@
           }
         }
       },
+      "ClientPurchaseCreditManifest": {
+        "required": [
+          "version",
+          "creditNoteId",
+          "creditNoteReference",
+          "originalInvoiceId",
+          "originalSubmissionId",
+          "originalOpenItemId",
+          "supplierId",
+          "currency",
+          "originalManifestHash",
+          "profileId",
+          "profileRevision",
+          "chartVersionId",
+          "payableRoleId",
+          "payableAccountId",
+          "periodId",
+          "postingDate",
+          "mandateId",
+          "mandateGeneration",
+          "reason",
+          "unlinkedExceptionRationale",
+          "sourceReceiptId",
+          "sourceReceiptHash",
+          "sourceBasis",
+          "totalCredit",
+          "lines"
+        ],
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "creditNoteId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "creditNoteReference": {
+            "type": "string"
+          },
+          "originalInvoiceId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "originalSubmissionId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "originalOpenItemId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "supplierId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "originalManifestHash": {
+            "type": "string"
+          },
+          "profileId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "profileRevision": {
+            "type": "string"
+          },
+          "chartVersionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "payableRoleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "payableAccountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "periodId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "postingDate": {
+            "type": "string"
+          },
+          "mandateId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "mandateGeneration": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "unlinkedExceptionRationale": {
+            "type": "string"
+          },
+          "sourceReceiptId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "sourceReceiptHash": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sourceBasis": {
+            "type": "string"
+          },
+          "totalCredit": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClientPurchaseCreditPostingLine"
+            }
+          }
+        }
+      },
+      "ClientPurchaseCreditNoteView": {
+        "required": [
+          "creditNoteId",
+          "creditNoteReference",
+          "originalInvoiceId",
+          "submissionId",
+          "state",
+          "currency",
+          "amount",
+          "postingDate",
+          "reason",
+          "makerId",
+          "decision",
+          "decisionReason",
+          "duplicateResolutionReason",
+          "unappliedSupplierDebit",
+          "journalId"
+        ],
+        "type": "object",
+        "properties": {
+          "creditNoteId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "creditNoteReference": {
+            "type": "string"
+          },
+          "originalInvoiceId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "submissionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "string"
+          },
+          "postingDate": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "makerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "decision": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "decisionReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "duplicateResolutionReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "unappliedSupplierDebit": {
+            "type": "boolean"
+          },
+          "journalId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "ClientPurchaseCreditPostingLine": {
+        "required": [
+          "lineNumber",
+          "originalLineNumber",
+          "accountId",
+          "accountCode",
+          "accountName",
+          "description",
+          "debit",
+          "credit",
+          "creditAmount"
+        ],
+        "type": "object",
+        "properties": {
+          "lineNumber": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "originalLineNumber": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accountCode": {
+            "type": "string"
+          },
+          "accountName": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "debit": {
+            "type": "string"
+          },
+          "credit": {
+            "type": "string"
+          },
+          "creditAmount": {
+            "type": "string"
+          }
+        }
+      },
+      "ClientPurchaseCreditPreview": {
+        "required": [
+          "creditNoteId",
+          "originalInvoiceId",
+          "creditNoteReference",
+          "currency",
+          "totalCredit",
+          "digest",
+          "duplicateWarnings",
+          "originalAmount",
+          "previouslyCredited",
+          "remainingCreditLimit",
+          "manifest"
+        ],
+        "type": "object",
+        "properties": {
+          "creditNoteId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "originalInvoiceId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "creditNoteReference": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "totalCredit": {
+            "type": "string"
+          },
+          "digest": {
+            "type": "string"
+          },
+          "duplicateWarnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "originalAmount": {
+            "type": "string"
+          },
+          "previouslyCredited": {
+            "type": "string"
+          },
+          "remainingCreditLimit": {
+            "type": "string"
+          },
+          "manifest": {
+            "$ref": "#/components/schemas/ClientPurchaseCreditManifest"
+          }
+        }
+      },
+      "ClientPurchaseCreditReceipt": {
+        "required": [
+          "commandId",
+          "creditNoteId",
+          "submissionId",
+          "kind",
+          "actorUserId",
+          "intentHash",
+          "outcome",
+          "decisionId"
+        ],
+        "type": "object",
+        "properties": {
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "creditNoteId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "submissionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "actorUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "intentHash": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "decisionId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "ClientPurchaseCreditReviewPreview": {
+        "required": [
+          "creditNoteId",
+          "originalInvoiceId",
+          "submissionId",
+          "journalId",
+          "journalRevision",
+          "digest",
+          "canPost",
+          "postingBlock",
+          "duplicateWarning",
+          "reviewContextJson",
+          "manifest"
+        ],
+        "type": "object",
+        "properties": {
+          "creditNoteId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "originalInvoiceId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "submissionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "journalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "journalRevision": {
+            "type": "string"
+          },
+          "digest": {
+            "type": "string"
+          },
+          "canPost": {
+            "type": "boolean"
+          },
+          "postingBlock": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "duplicateWarning": {
+            "type": "boolean"
+          },
+          "reviewContextJson": {
+            "type": "string"
+          },
+          "manifest": {
+            "$ref": "#/components/schemas/ClientPurchaseCreditManifest"
+          }
+        }
+      },
+      "ClientPurchaseInvoiceDraftView": {
+        "required": [
+          "id",
+          "invoiceId",
+          "clientId",
+          "periodId",
+          "supplierId",
+          "voucherReference",
+          "supplierInvoiceReference",
+          "revision",
+          "snapshotHash",
+          "createdByUserId",
+          "state",
+          "snapshot"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invoiceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "clientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "periodId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "supplierId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "voucherReference": {
+            "type": "string"
+          },
+          "supplierInvoiceReference": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "string"
+          },
+          "snapshotHash": {
+            "type": "string"
+          },
+          "createdByUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/ClientPurchaseInvoiceSnapshot"
+          }
+        }
+      },
+      "ClientPurchaseInvoiceLineSnapshot": {
+        "required": [
+          "lineNumber",
+          "accountId",
+          "accountCode",
+          "accountName",
+          "description",
+          "quantity",
+          "unitPrice",
+          "discount",
+          "net",
+          "tax",
+          "gross"
+        ],
+        "type": "object",
+        "properties": {
+          "lineNumber": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accountCode": {
+            "type": "string"
+          },
+          "accountName": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "string"
+          },
+          "unitPrice": {
+            "type": "string"
+          },
+          "discount": {
+            "type": "string"
+          },
+          "net": {
+            "type": "string"
+          },
+          "tax": {
+            "type": "string"
+          },
+          "gross": {
+            "type": "string"
+          }
+        }
+      },
+      "ClientPurchaseInvoiceManifest": {
+        "required": [
+          "version",
+          "invoiceId",
+          "draftId",
+          "draftHash",
+          "supplierId",
+          "supplierInvoiceReference",
+          "normalizedSupplierReference",
+          "voucherReference",
+          "currency",
+          "profileId",
+          "profileRevision",
+          "payableRoleId",
+          "payableAccountId",
+          "periodId",
+          "accountingDate",
+          "supplyDate",
+          "documentDate",
+          "receiptDate",
+          "dueDate",
+          "mandateId",
+          "mandateGeneration",
+          "lateArrival",
+          "possibleDuplicateCount",
+          "statedNet",
+          "statedTax",
+          "statedGross",
+          "sourceReceiptId",
+          "sourceReceiptHash",
+          "evidenceReference",
+          "lines"
+        ],
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "invoiceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "draftId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "draftHash": {
+            "type": "string"
+          },
+          "supplierId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "supplierInvoiceReference": {
+            "type": "string"
+          },
+          "normalizedSupplierReference": {
+            "type": "string"
+          },
+          "voucherReference": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "profileId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "profileRevision": {
+            "type": "string"
+          },
+          "payableRoleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "payableAccountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "periodId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accountingDate": {
+            "type": "string"
+          },
+          "supplyDate": {
+            "type": "string"
+          },
+          "documentDate": {
+            "type": "string"
+          },
+          "receiptDate": {
+            "type": "string"
+          },
+          "dueDate": {
+            "type": "string"
+          },
+          "mandateId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "mandateGeneration": {
+            "type": "string"
+          },
+          "lateArrival": {
+            "type": "boolean"
+          },
+          "possibleDuplicateCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "statedNet": {
+            "type": "string"
+          },
+          "statedTax": {
+            "type": "string"
+          },
+          "statedGross": {
+            "type": "string"
+          },
+          "sourceReceiptId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "sourceReceiptHash": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "evidenceReference": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClientPurchaseInvoicePostingLine"
+            }
+          }
+        }
+      },
+      "ClientPurchaseInvoicePostingLine": {
+        "required": [
+          "lineNumber",
+          "accountId",
+          "accountCode",
+          "accountName",
+          "description",
+          "debit",
+          "credit"
+        ],
+        "type": "object",
+        "properties": {
+          "lineNumber": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accountCode": {
+            "type": "string"
+          },
+          "accountName": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "debit": {
+            "type": "string"
+          },
+          "credit": {
+            "type": "string"
+          }
+        }
+      },
+      "ClientPurchaseInvoicePreview": {
+        "required": [
+          "invoiceId",
+          "revision",
+          "currency",
+          "net",
+          "tax",
+          "gross",
+          "digest",
+          "lateArrival",
+          "duplicateWarnings",
+          "manifest"
+        ],
+        "type": "object",
+        "properties": {
+          "invoiceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "net": {
+            "type": "string"
+          },
+          "tax": {
+            "type": "string"
+          },
+          "gross": {
+            "type": "string"
+          },
+          "digest": {
+            "type": "string"
+          },
+          "lateArrival": {
+            "type": "boolean"
+          },
+          "duplicateWarnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "manifest": {
+            "$ref": "#/components/schemas/ClientPurchaseInvoiceManifest"
+          }
+        }
+      },
+      "ClientPurchaseInvoiceReceipt": {
+        "required": [
+          "commandId",
+          "invoiceId",
+          "submissionId",
+          "kind",
+          "actorUserId",
+          "intentHash",
+          "outcome",
+          "decisionId"
+        ],
+        "type": "object",
+        "properties": {
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invoiceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "submissionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "actorUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "intentHash": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "decisionId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "ClientPurchaseInvoiceReviewPreview": {
+        "required": [
+          "invoiceId",
+          "submissionId",
+          "journalId",
+          "journalRevision",
+          "digest",
+          "canPost",
+          "postingBlock",
+          "duplicateWarning",
+          "reviewContextJson",
+          "manifest"
+        ],
+        "type": "object",
+        "properties": {
+          "invoiceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "submissionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "journalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "journalRevision": {
+            "type": "string"
+          },
+          "digest": {
+            "type": "string"
+          },
+          "canPost": {
+            "type": "boolean"
+          },
+          "postingBlock": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "duplicateWarning": {
+            "type": "boolean"
+          },
+          "reviewContextJson": {
+            "type": "string"
+          },
+          "manifest": {
+            "$ref": "#/components/schemas/ClientPurchaseInvoiceManifest"
+          }
+        }
+      },
+      "ClientPurchaseInvoiceSnapshot": {
+        "required": [
+          "version",
+          "engineVersion",
+          "profileId",
+          "profileRevision",
+          "chartVersionId",
+          "supplierId",
+          "supplierName",
+          "voucherReference",
+          "supplierInvoiceReference",
+          "normalizedSupplierReference",
+          "currency",
+          "receiptDate",
+          "documentDate",
+          "accountingDate",
+          "supplyDate",
+          "dueDate",
+          "policy",
+          "lines",
+          "net",
+          "tax",
+          "gross",
+          "statedNet",
+          "statedTax",
+          "statedGross",
+          "lateArrival",
+          "sourceReceiptId",
+          "sourceReceiptHash",
+          "evidenceReference",
+          "possibleDuplicateCount"
+        ],
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "engineVersion": {
+            "type": "string"
+          },
+          "profileId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "profileRevision": {
+            "type": "string"
+          },
+          "chartVersionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "supplierId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "supplierName": {
+            "type": "string"
+          },
+          "voucherReference": {
+            "type": "string"
+          },
+          "supplierInvoiceReference": {
+            "type": "string"
+          },
+          "normalizedSupplierReference": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "receiptDate": {
+            "type": "string"
+          },
+          "documentDate": {
+            "type": "string"
+          },
+          "accountingDate": {
+            "type": "string"
+          },
+          "supplyDate": {
+            "type": "string"
+          },
+          "dueDate": {
+            "type": "string"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/ClientInvoiceMoneyPolicy"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClientPurchaseInvoiceLineSnapshot"
+            }
+          },
+          "net": {
+            "type": "string"
+          },
+          "tax": {
+            "type": "string"
+          },
+          "gross": {
+            "type": "string"
+          },
+          "statedNet": {
+            "type": "string"
+          },
+          "statedTax": {
+            "type": "string"
+          },
+          "statedGross": {
+            "type": "string"
+          },
+          "lateArrival": {
+            "type": "boolean"
+          },
+          "sourceReceiptId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "sourceReceiptHash": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "evidenceReference": {
+            "type": "string"
+          },
+          "possibleDuplicateCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "ClientPurchaseInvoiceView": {
+        "required": [
+          "invoiceId",
+          "supplierId",
+          "supplierInvoiceReference",
+          "voucherReference",
+          "state",
+          "currency",
+          "gross",
+          "dueDate",
+          "receiptDate",
+          "lateArrival",
+          "duplicateWarning",
+          "submissionId",
+          "journalId",
+          "makerId",
+          "decision",
+          "decisionReason",
+          "duplicateResolutionReason",
+          "openItemCreated"
+        ],
+        "type": "object",
+        "properties": {
+          "invoiceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "supplierId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "supplierInvoiceReference": {
+            "type": "string"
+          },
+          "voucherReference": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "gross": {
+            "type": "string"
+          },
+          "dueDate": {
+            "type": "string"
+          },
+          "receiptDate": {
+            "type": "string"
+          },
+          "lateArrival": {
+            "type": "boolean"
+          },
+          "duplicateWarning": {
+            "type": "boolean"
+          },
+          "submissionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "journalId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "makerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "decision": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "decisionReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "duplicateResolutionReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "openItemCreated": {
+            "type": "boolean"
+          }
+        }
+      },
       "ClientRoleAccountView": {
         "required": [
           "id",
@@ -31205,6 +34835,488 @@
           },
           "accountType": {
             "type": "string"
+          }
+        }
+      },
+      "ClientSalesCreditCommandReceipt": {
+        "required": [
+          "commandId",
+          "creditNoteId",
+          "invoiceId",
+          "submissionId",
+          "kind",
+          "actorUserId",
+          "intentHash",
+          "outcome",
+          "decisionId"
+        ],
+        "type": "object",
+        "properties": {
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "creditNoteId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invoiceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "submissionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "actorUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "intentHash": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "decisionId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "ClientSalesCreditLineInput": {
+        "required": [
+          "originalLineNumber",
+          "amount"
+        ],
+        "type": "object",
+        "properties": {
+          "originalLineNumber": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          }
+        }
+      },
+      "ClientSalesCreditManifest": {
+        "required": [
+          "version",
+          "creditNoteId",
+          "creditNoteReference",
+          "invoiceId",
+          "originalSubmissionId",
+          "originalOpenItemId",
+          "customerId",
+          "currency",
+          "originalManifestHash",
+          "originalTaxTreatment",
+          "profileId",
+          "profileRevision",
+          "receivableRoleId",
+          "receivableAccountId",
+          "periodId",
+          "postingDate",
+          "mandateId",
+          "mandateGeneration",
+          "reason",
+          "sourceReceiptId",
+          "sourceReceiptHash",
+          "sourceBasis",
+          "totalCredit",
+          "lines"
+        ],
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "creditNoteId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "creditNoteReference": {
+            "type": "string"
+          },
+          "invoiceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "originalSubmissionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "originalOpenItemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "customerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "originalManifestHash": {
+            "type": "string"
+          },
+          "originalTaxTreatment": {
+            "type": "string"
+          },
+          "profileId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "profileRevision": {
+            "type": "string"
+          },
+          "receivableRoleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "receivableAccountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "periodId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "postingDate": {
+            "type": "string"
+          },
+          "mandateId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "mandateGeneration": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "sourceReceiptId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "sourceReceiptHash": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sourceBasis": {
+            "type": "string"
+          },
+          "totalCredit": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClientSalesCreditPostingLine"
+            }
+          }
+        }
+      },
+      "ClientSalesCreditNoteView": {
+        "required": [
+          "creditNoteId",
+          "creditNoteReference",
+          "submissionId",
+          "state",
+          "currency",
+          "amount",
+          "postingDate",
+          "reason",
+          "makerId",
+          "decision",
+          "decisionReason",
+          "unappliedCustomerCredit",
+          "journalId"
+        ],
+        "type": "object",
+        "properties": {
+          "creditNoteId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "creditNoteReference": {
+            "type": "string"
+          },
+          "submissionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "string"
+          },
+          "postingDate": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "makerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "decision": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "decisionReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "unappliedCustomerCredit": {
+            "type": "boolean"
+          },
+          "journalId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "ClientSalesCreditPostingLine": {
+        "required": [
+          "lineNumber",
+          "originalLineNumber",
+          "accountId",
+          "accountCode",
+          "accountName",
+          "description",
+          "debit",
+          "credit",
+          "creditAmount"
+        ],
+        "type": "object",
+        "properties": {
+          "lineNumber": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "originalLineNumber": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accountCode": {
+            "type": "string"
+          },
+          "accountName": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "debit": {
+            "type": "string"
+          },
+          "credit": {
+            "type": "string"
+          },
+          "creditAmount": {
+            "type": "string"
+          }
+        }
+      },
+      "ClientSalesCreditPreview": {
+        "required": [
+          "creditNoteId",
+          "invoiceId",
+          "creditNoteReference",
+          "currency",
+          "totalCredit",
+          "digest",
+          "lines",
+          "originalAmount",
+          "previouslyCredited",
+          "remainingCreditLimit",
+          "manifest"
+        ],
+        "type": "object",
+        "properties": {
+          "creditNoteId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invoiceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "creditNoteReference": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "totalCredit": {
+            "type": "string"
+          },
+          "digest": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClientSalesCreditPostingLine"
+            }
+          },
+          "originalAmount": {
+            "type": "string"
+          },
+          "previouslyCredited": {
+            "type": "string"
+          },
+          "remainingCreditLimit": {
+            "type": "string"
+          },
+          "manifest": {
+            "$ref": "#/components/schemas/ClientSalesCreditManifest"
+          }
+        }
+      },
+      "ClientSalesCreditReviewPreview": {
+        "required": [
+          "creditNoteId",
+          "invoiceId",
+          "submissionId",
+          "journalId",
+          "journalRevision",
+          "digest",
+          "canPost",
+          "postingBlock",
+          "reviewContextJson",
+          "manifest"
+        ],
+        "type": "object",
+        "properties": {
+          "creditNoteId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invoiceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "submissionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "journalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "journalRevision": {
+            "type": "string"
+          },
+          "digest": {
+            "type": "string"
+          },
+          "canPost": {
+            "type": "boolean"
+          },
+          "postingBlock": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reviewContextJson": {
+            "type": "string"
+          },
+          "manifest": {
+            "$ref": "#/components/schemas/ClientSalesCreditManifest"
+          }
+        }
+      },
+      "ClientSalesInvoiceCommandReceipt": {
+        "required": [
+          "commandId",
+          "invoiceId",
+          "submissionId",
+          "kind",
+          "actorUserId",
+          "intentHash",
+          "outcome",
+          "decisionId"
+        ],
+        "type": "object",
+        "properties": {
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invoiceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "submissionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "actorUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "intentHash": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "decisionId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -31427,6 +35539,357 @@
           },
           "snapshot": {
             "$ref": "#/components/schemas/ClientSalesInvoiceDraftSnapshot"
+          }
+        }
+      },
+      "ClientSalesInvoiceLifecycleView": {
+        "required": [
+          "invoiceId",
+          "clientId",
+          "draftRevision",
+          "state",
+          "posted",
+          "issued",
+          "deliveryState",
+          "bookkeepingActive",
+          "canRevise",
+          "canSubmit",
+          "canReview",
+          "submissionId",
+          "journalId",
+          "journalRevision",
+          "makerId",
+          "decision",
+          "decisionReason",
+          "manifestHash",
+          "manifest",
+          "openAmount",
+          "dueDate",
+          "periodId",
+          "currency",
+          "sourceLines"
+        ],
+        "type": "object",
+        "properties": {
+          "invoiceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "clientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "draftRevision": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "posted": {
+            "type": "boolean"
+          },
+          "issued": {
+            "type": "boolean"
+          },
+          "deliveryState": {
+            "type": "string"
+          },
+          "bookkeepingActive": {
+            "type": "boolean"
+          },
+          "canRevise": {
+            "type": "boolean"
+          },
+          "canSubmit": {
+            "type": "boolean"
+          },
+          "canReview": {
+            "type": "boolean"
+          },
+          "submissionId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "journalId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "journalRevision": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "makerId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "decision": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "decisionReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "manifestHash": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "manifest": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientSalesInvoiceManifest"
+              }
+            ]
+          },
+          "openAmount": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "dueDate": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "periodId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "sourceLines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClientSalesInvoiceSourceLineView"
+            }
+          }
+        }
+      },
+      "ClientSalesInvoiceManifest": {
+        "required": [
+          "version",
+          "draftId",
+          "draftHash",
+          "profileId",
+          "profileRevision",
+          "receivableRoleId",
+          "receivableDecisionId",
+          "receivableAccountId",
+          "noTaxReason",
+          "sourceReceiptId",
+          "sourceReceiptHash",
+          "sourceBasis",
+          "mandateId",
+          "mandateGeneration",
+          "lines"
+        ],
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "draftId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "draftHash": {
+            "type": "string"
+          },
+          "profileId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "profileRevision": {
+            "type": "string"
+          },
+          "receivableRoleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "receivableDecisionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "receivableAccountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "noTaxReason": {
+            "type": "string"
+          },
+          "sourceReceiptId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "sourceReceiptHash": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sourceBasis": {
+            "type": "string"
+          },
+          "mandateId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "mandateGeneration": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClientOperationalJournalLineView"
+            }
+          }
+        }
+      },
+      "ClientSalesInvoicePreview": {
+        "required": [
+          "invoiceId",
+          "draftId",
+          "draftRevision",
+          "submissionId",
+          "currency",
+          "gross",
+          "digest",
+          "manifest"
+        ],
+        "type": "object",
+        "properties": {
+          "invoiceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "draftId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "draftRevision": {
+            "type": "string"
+          },
+          "submissionId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "gross": {
+            "type": "string"
+          },
+          "digest": {
+            "type": "string"
+          },
+          "manifest": {
+            "$ref": "#/components/schemas/ClientSalesInvoiceManifest"
+          }
+        }
+      },
+      "ClientSalesInvoiceReviewPreview": {
+        "required": [
+          "invoiceId",
+          "submissionId",
+          "journalId",
+          "journalRevision",
+          "digest",
+          "canPost",
+          "postingBlock",
+          "reviewContextJson",
+          "manifest"
+        ],
+        "type": "object",
+        "properties": {
+          "invoiceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "submissionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "journalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "journalRevision": {
+            "type": "string"
+          },
+          "digest": {
+            "type": "string"
+          },
+          "canPost": {
+            "type": "boolean"
+          },
+          "postingBlock": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reviewContextJson": {
+            "type": "string"
+          },
+          "manifest": {
+            "$ref": "#/components/schemas/ClientSalesInvoiceManifest"
+          }
+        }
+      },
+      "ClientSalesInvoiceSourceLineView": {
+        "required": [
+          "lineNumber",
+          "description",
+          "accountCode",
+          "amount"
+        ],
+        "type": "object",
+        "properties": {
+          "lineNumber": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "description": {
+            "type": "string"
+          },
+          "accountCode": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "string"
           }
         }
       },
@@ -33300,6 +37763,124 @@
           }
         }
       },
+      "OpenItemAllocationHttpInput": {
+        "required": [
+          "commandId",
+          "sourceKind",
+          "sourceItemId",
+          "disposition",
+          "reference",
+          "reason",
+          "lines",
+          "previewDigest",
+          "reviewed"
+        ],
+        "type": "object",
+        "properties": {
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sourceKind": {
+            "type": "string"
+          },
+          "sourceItemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "disposition": {
+            "type": "string"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpenItemAllocationLineHttpInput"
+            }
+          },
+          "previewDigest": {
+            "type": "string"
+          },
+          "reviewed": {
+            "type": "boolean"
+          }
+        }
+      },
+      "OpenItemAllocationLineHttpInput": {
+        "required": [
+          "lineNumber",
+          "targetKind",
+          "targetOpenItemId",
+          "amount",
+          "reversesAllocationLineId"
+        ],
+        "type": "object",
+        "properties": {
+          "lineNumber": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "targetKind": {
+            "type": "string"
+          },
+          "targetOpenItemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amount": {
+            "type": "string"
+          },
+          "reversesAllocationLineId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "OpenItemAllocationReviewHttpInput": {
+        "required": [
+          "commandId",
+          "submissionId",
+          "decision",
+          "reason",
+          "previewDigest",
+          "reviewed"
+        ],
+        "type": "object",
+        "properties": {
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "submissionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "previewDigest": {
+            "type": "string"
+          },
+          "reviewed": {
+            "type": "boolean"
+          }
+        }
+      },
       "OperationCancelInput": {
         "required": [
           "disposition"
@@ -33920,6 +38501,360 @@
               "string"
             ],
             "format": "uuid"
+          }
+        }
+      },
+      "PurchaseCreditLineHttpInput": {
+        "required": [
+          "originalLineNumber",
+          "accountCode",
+          "amount"
+        ],
+        "type": "object",
+        "properties": {
+          "originalLineNumber": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "accountCode": {
+            "type": "string"
+          },
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          }
+        }
+      },
+      "PurchaseCreditPreviewHttpInput": {
+        "required": [
+          "creditNoteId",
+          "creditNoteReference",
+          "originalInvoiceId",
+          "supplierId",
+          "periodId",
+          "payableRoleId",
+          "postingDate",
+          "reason",
+          "unlinkedExceptionRationale",
+          "sourceReceiptId",
+          "sourceBasis",
+          "lines"
+        ],
+        "type": "object",
+        "properties": {
+          "creditNoteId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "creditNoteReference": {
+            "type": "string"
+          },
+          "originalInvoiceId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "supplierId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "periodId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "payableRoleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "postingDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "unlinkedExceptionRationale": {
+            "type": "string"
+          },
+          "sourceReceiptId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "sourceBasis": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PurchaseCreditLineHttpInput"
+            }
+          }
+        }
+      },
+      "PurchaseCreditReviewHttpInput": {
+        "required": [
+          "commandId",
+          "submissionId",
+          "decision",
+          "reason",
+          "duplicateResolutionReason",
+          "previewDigest",
+          "reviewed"
+        ],
+        "type": "object",
+        "properties": {
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "submissionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "duplicateResolutionReason": {
+            "type": "string"
+          },
+          "previewDigest": {
+            "type": "string"
+          },
+          "reviewed": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PurchaseCreditSubmitHttpInput": {
+        "required": [
+          "commandId",
+          "credit",
+          "previewDigest",
+          "reviewed"
+        ],
+        "type": "object",
+        "properties": {
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "credit": {
+            "$ref": "#/components/schemas/PurchaseCreditPreviewHttpInput"
+          },
+          "previewDigest": {
+            "type": "string"
+          },
+          "reviewed": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PurchaseDraftHttpInput": {
+        "required": [
+          "commandId",
+          "invoiceId",
+          "expectedRevision",
+          "periodId",
+          "supplierId",
+          "voucherReference",
+          "supplierInvoiceReference",
+          "receiptDate",
+          "documentDate",
+          "accountingDate",
+          "supplyDate",
+          "dueDate",
+          "currency",
+          "policy",
+          "lines",
+          "statedNet",
+          "statedTax",
+          "statedGross",
+          "sourceReceiptId",
+          "evidenceReference"
+        ],
+        "type": "object",
+        "properties": {
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invoiceId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "expectedRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "periodId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "supplierId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "voucherReference": {
+            "type": "string"
+          },
+          "supplierInvoiceReference": {
+            "type": "string"
+          },
+          "receiptDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "documentDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "accountingDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "supplyDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "dueDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/ClientInvoiceMoneyPolicy"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClientInvoiceLineInput"
+            }
+          },
+          "statedNet": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "statedTax": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "statedGross": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "sourceReceiptId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "evidenceReference": {
+            "type": "string"
+          }
+        }
+      },
+      "PurchaseReviewHttpInput": {
+        "required": [
+          "commandId",
+          "submissionId",
+          "decision",
+          "reason",
+          "duplicateResolutionReason",
+          "previewDigest",
+          "reviewed"
+        ],
+        "type": "object",
+        "properties": {
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "submissionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "duplicateResolutionReason": {
+            "type": "string"
+          },
+          "previewDigest": {
+            "type": "string"
+          },
+          "reviewed": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PurchaseSubmitHttpInput": {
+        "required": [
+          "commandId",
+          "expectedDraftRevision",
+          "payableRoleId",
+          "previewDigest",
+          "reviewed"
+        ],
+        "type": "object",
+        "properties": {
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedDraftRevision": {
+            "type": "string"
+          },
+          "payableRoleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "previewDigest": {
+            "type": "string"
+          },
+          "reviewed": {
+            "type": "boolean"
           }
         }
       },
@@ -34757,6 +39692,158 @@
           }
         }
       },
+      "SalesCreditPreviewHttpInput": {
+        "required": [
+          "creditNoteId",
+          "creditNoteReference",
+          "periodId",
+          "postingDate",
+          "reason",
+          "sourceReceiptId",
+          "sourceBasis",
+          "lines",
+          "previewDigest",
+          "reviewed"
+        ],
+        "type": "object",
+        "properties": {
+          "creditNoteId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "creditNoteReference": {
+            "type": "string"
+          },
+          "periodId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "postingDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "sourceReceiptId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "sourceBasis": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClientSalesCreditLineInput"
+            }
+          },
+          "previewDigest": {
+            "type": "string"
+          },
+          "reviewed": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SalesCreditReviewHttpInput": {
+        "required": [
+          "commandId",
+          "submissionId",
+          "decision",
+          "reason",
+          "previewDigest",
+          "reviewed"
+        ],
+        "type": "object",
+        "properties": {
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "submissionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "previewDigest": {
+            "type": "string"
+          },
+          "reviewed": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SalesCreditSubmitHttpInput": {
+        "required": [
+          "commandId",
+          "creditNoteId",
+          "creditNoteReference",
+          "periodId",
+          "postingDate",
+          "reason",
+          "sourceReceiptId",
+          "sourceBasis",
+          "lines",
+          "previewDigest",
+          "reviewed"
+        ],
+        "type": "object",
+        "properties": {
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "creditNoteId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "creditNoteReference": {
+            "type": "string"
+          },
+          "periodId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "postingDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "sourceReceiptId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "sourceBasis": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClientSalesCreditLineInput"
+            }
+          },
+          "previewDigest": {
+            "type": "string"
+          },
+          "reviewed": {
+            "type": "boolean"
+          }
+        }
+      },
       "SalesDraftHttpInput": {
         "required": [
           "commandId",
@@ -34862,6 +39949,84 @@
           },
           "discount": {
             "type": "string"
+          }
+        }
+      },
+      "SalesReviewHttpInput": {
+        "required": [
+          "commandId",
+          "submissionId",
+          "decision",
+          "reason",
+          "previewDigest",
+          "reviewed"
+        ],
+        "type": "object",
+        "properties": {
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "submissionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "previewDigest": {
+            "type": "string"
+          },
+          "reviewed": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SalesSubmitHttpInput": {
+        "required": [
+          "commandId",
+          "expectedDraftRevision",
+          "receivableRoleId",
+          "noTaxReason",
+          "sourceReceiptId",
+          "sourceBasis",
+          "previewDigest",
+          "reviewed"
+        ],
+        "type": "object",
+        "properties": {
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedDraftRevision": {
+            "type": "string"
+          },
+          "receivableRoleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "noTaxReason": {
+            "type": "string"
+          },
+          "sourceReceiptId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "sourceBasis": {
+            "type": "string"
+          },
+          "previewDigest": {
+            "type": "string"
+          },
+          "reviewed": {
+            "type": "boolean"
           }
         }
       },

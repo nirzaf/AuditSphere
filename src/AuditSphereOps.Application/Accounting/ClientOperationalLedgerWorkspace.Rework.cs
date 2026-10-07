@@ -35,6 +35,8 @@ public static partial class ClientOperationalLedgerWorkspace
       .SingleOrDefaultAsync(ct);
     if (journal is null || journal.CreatedByUserId != actor.UserId)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Only the original assigned preparer can edit this journal.");
+    var manual = await RequireManualJournalAsync(db, actor.FirmId, clientId, journalId, ct);
+    if (!manual.Succeeded) return manual;
     if (journal.Status != requiredState || journal.Revision != request.ExpectedRevision)
       return CommandResult.Fail(ErrorCodes.StaleRevision, "Editing requires the current eligible journal revision.");
     if (requiredState == "DRAFT" && await db.ClientOperationalJournalReversals.AsNoTracking().AnyAsync(x =>

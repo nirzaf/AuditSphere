@@ -13034,6 +13034,48 @@
       "verificationBoundary": "Verified in an isolated worktree at the pushed STE-REM-08 head plus this slice (the shared checkout carried the parallel session's in-flight finance edits). The freeze was driven through the public worker discovery/handler path; the serialization property is proven by the shared-lock probe (a concurrent exclusive engagement write blocks until the checking transaction ends). The full Domain and Api suites and the browser journeys were not rerun; the change surface was the freeze service, the professional-work authorization branch and the named command boundaries.",
       "databaseBoundary": "Owned isolated PostgreSQL schemas only; no Development or production state was changed.",
       "retirementDecision": "NOT_READY"
+    },
+    "clientOpenItemAllocation": {
+      "observedAt": "2026-10-07T15:20:54Z",
+      "status": "PARTIAL_LOCAL_SLICE",
+      "baseCommit": "7d7baad8",
+      "focusedPostgresTests": {
+        "status": "PASS",
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "tests": [
+          "ApprovedClientCreditAllocationDerivesBalancesAndSupportsAuditedUnallocation",
+          "SealedCustomerReceiptLinksToInvoiceWithoutCreatingDuplicateCashPosting"
+        ]
+      },
+      "angularJourney": {
+        "status": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "test": "SalesInvoiceFlowsFromUntaxedPreparationToIndependentClientLedgerPosting"
+      },
+      "releaseBuild": {
+        "status": "PASS",
+        "warnings": 0,
+        "errors": 0
+      },
+      "angularProductionBuild": {
+        "status": "PASS_WITH_EXISTING_COMPONENT_STYLE_WARNING",
+        "warning": "Commercial Settings stylesheet is 7.53 kB against the 4 kB component-style budget."
+      },
+      "efModelDrift": {
+        "status": "PASS",
+        "result": "No pending model changes."
+      },
+      "coverage": "Approved posted client credit allocation, partial allocation, derived balances, exact audited unallocation, and linking an already imported balanced sealed receipt to a posted invoice without adding another cash posting. Imported settlement evidence requires a single approved AR/AP control line, an independent matching cash movement, same party/currency, current authorization and sealed source provenance.",
+      "remaining": "CA-19 remains partial: new manual receipt/payment entries through the normal controlled posting path, AR/AP control reconciliation, and opening-balance detail are not implemented. The full PostgreSQL solution suite was not rerun. Tax and ancillary modules remain optional. This checkpoint is unmerged; no Development/production migration or external acceptance is claimed.",
+      "implementationCommit": "3589ea51",
+      "apiContract": {
+        "status": "PASS",
+        "result": "Canonical OpenAPI contract regenerated and verify-openapi.sh reports current."
+      }
     }
   },
   "documentationWork": {

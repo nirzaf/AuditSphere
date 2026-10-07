@@ -241,6 +241,24 @@ public interface IClientAccountingDbContext : IAuditSphereDbContext
   DbSet<AccountingCapabilityAcceptance> AccountingCapabilityAcceptances { get; }
   DbSet<ClientBookkeepingCounterparty> ClientBookkeepingCounterparties { get; }
   DbSet<ClientSalesInvoiceDraft> ClientSalesInvoiceDrafts { get; }
+  DbSet<ClientSalesInvoiceSubmission> ClientSalesInvoiceSubmissions { get; }
+  DbSet<ClientSalesInvoiceDecision> ClientSalesInvoiceDecisions { get; }
+  DbSet<ClientSalesInvoiceOpenItem> ClientSalesInvoiceOpenItems { get; }
+  DbSet<ClientSalesCreditNoteSubmission> ClientSalesCreditNoteSubmissions { get; }
+  DbSet<ClientSalesCreditNoteDecision> ClientSalesCreditNoteDecisions { get; }
+  DbSet<ClientSalesCreditNoteLine> ClientSalesCreditNoteLines { get; }
+  DbSet<ClientSalesCreditNoteOpenItem> ClientSalesCreditNoteOpenItems { get; }
+  DbSet<ClientPurchaseInvoiceDraft> ClientPurchaseInvoiceDrafts { get; }
+  DbSet<ClientPurchaseInvoiceSubmission> ClientPurchaseInvoiceSubmissions { get; }
+  DbSet<ClientPurchaseInvoiceDecision> ClientPurchaseInvoiceDecisions { get; }
+  DbSet<ClientPurchaseInvoiceOpenItem> ClientPurchaseInvoiceOpenItems { get; }
+  DbSet<ClientPurchaseCreditNoteSubmission> ClientPurchaseCreditNoteSubmissions { get; }
+  DbSet<ClientPurchaseCreditNoteDecision> ClientPurchaseCreditNoteDecisions { get; }
+  DbSet<ClientPurchaseCreditNoteLine> ClientPurchaseCreditNoteLines { get; }
+  DbSet<ClientPurchaseCreditNoteOpenItem> ClientPurchaseCreditNoteOpenItems { get; }
+  DbSet<ClientOpenItemAllocationSubmission> ClientOpenItemAllocationSubmissions { get; }
+  DbSet<ClientOpenItemAllocationLine> ClientOpenItemAllocationLines { get; }
+  DbSet<ClientOpenItemAllocationDecision> ClientOpenItemAllocationDecisions { get; }
   DbSet<ClientCounterpartyAmendment> ClientCounterpartyAmendments { get; }
   DbSet<ClientCounterpartyAmendmentDecision> ClientCounterpartyAmendmentDecisions { get; }
   DbSet<ClientAccountingProfile> ClientAccountingProfiles { get; }

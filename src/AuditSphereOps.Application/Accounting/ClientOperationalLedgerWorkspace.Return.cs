@@ -22,6 +22,8 @@ public static partial class ClientOperationalLedgerWorkspace
       .SingleOrDefaultAsync(ct);
     if (journal is null || journal.CreatedByUserId == actor.UserId)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "An independent assigned reviewer must return the journal.");
+    var manual = await RequireManualJournalAsync(db, actor.FirmId, clientId, journalId, ct);
+    if (!manual.Succeeded) return manual;
     var profile = await NativeProfileAsync(db, actor, clientId, ct);
     if (!profile.Succeeded) return CommandResult.Fail(profile.ErrorCode!, profile.Message!);
     if (journal.Status != "SUBMITTED" || journal.Revision != expectedRevision)

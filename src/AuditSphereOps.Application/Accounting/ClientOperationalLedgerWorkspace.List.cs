@@ -8,7 +8,8 @@ using Microsoft.EntityFrameworkCore;
 namespace AuditSphereOps.Application.Accounting;
 
 public sealed record ClientOperationalJournalSummary(Guid Id, Guid PeriodId, string JournalNumber, string Description,
-  string PostingDate, string Currency, string Status, string Revision, Guid CreatedByUserId);
+  string PostingDate, string Currency, string Status, string Revision, Guid CreatedByUserId,
+  ClientOperationalInvoiceOrigin? InvoiceOrigin = null);
 public sealed record ClientOperationalJournalList(Guid ClientId, Guid? PeriodId, string? Status, int Page, int PageSize,
   int TotalJournals, bool BookkeepingActive, IReadOnlyList<ClientOperationalJournalSummary> Journals);
 
@@ -32,12 +33,13 @@ public static partial class ClientOperationalLedgerWorkspace
     var total = await query.CountAsync(ct);
     var rows = await query.OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
       .Skip(page * pageSize).Take(pageSize).ToListAsync(ct);
+    var invoiceOrigins = await InvoiceOriginsAsync(db, actor.FirmId, clientId, rows.Select(x => x.Id).ToArray(), ct);
     await snapshot.CommitAsync(ct);
     if (!(await AuthorizeAsync(db, actor, clientId, Preparers, ct)).Succeeded)
       return CommandResult<ClientOperationalJournalList>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var active = (await NativeProfileAsync(db, actor, clientId, ct)).Succeeded;
     return CommandResult<ClientOperationalJournalList>.Ok(new(clientId, periodId, status, page, pageSize, total, active,
       rows.Select(x => new ClientOperationalJournalSummary(x.Id, x.PeriodId, x.JournalNumber, x.Description,
-        x.PostingDate.ToString("yyyy-MM-dd"), x.Currency, x.Status, x.Revision.ToString(CultureInfo.InvariantCulture), x.CreatedByUserId)).ToArray()));
+        x.PostingDate.ToString("yyyy-MM-dd"), x.Currency, x.Status, x.Revision.ToString(CultureInfo.InvariantCulture), x.CreatedByUserId, invoiceOrigins.GetValueOrDefault(x.Id))).ToArray()));
   }
 }

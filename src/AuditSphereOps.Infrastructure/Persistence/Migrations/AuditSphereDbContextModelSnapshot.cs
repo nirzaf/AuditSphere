@@ -3206,6 +3206,256 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientOpenItemAllocationDecision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ActorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_user_id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<Guid>("CommandId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("command_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Decision")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("decision");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("IntentHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("intent_hash");
+
+                    b.Property<string>("PreviewDigest")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("preview_digest");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("ReviewContextJson")
+                        .IsRequired()
+                        .HasMaxLength(500000)
+                        .HasColumnType("character varying(500000)")
+                        .HasColumnName("review_context_json");
+
+                    b.Property<Guid>("SubmissionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("submission_id");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "ClientId", "Id");
+
+                    b.HasIndex("FirmId", "ActorUserId");
+
+                    b.HasIndex("FirmId", "ClientId", "SubmissionId")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "ClientId", "ActorUserId", "CommandId")
+                        .IsUnique();
+
+                    b.ToTable("client_open_item_allocation_decisions", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_client_open_item_allocation_decision", "decision IN ('APPROVE','RETURN') AND command_id<>'00000000-0000-0000-0000-000000000000'::uuid AND intent_hash ~ '^[a-f0-9]{64}$' AND preview_digest ~ '^[a-f0-9]{64}$' AND length(trim(reason))>0 AND length(review_context_json)>0");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientOpenItemAllocationLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(19, 6)
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("amount");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<int>("LineNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("line_number");
+
+                    b.Property<Guid?>("ReversesAllocationLineId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reverses_allocation_line_id");
+
+                    b.Property<Guid>("SubmissionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("submission_id");
+
+                    b.Property<string>("TargetKind")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("target_kind");
+
+                    b.Property<Guid>("TargetOpenItemId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("target_open_item_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FirmId", "ClientId", "ReversesAllocationLineId");
+
+                    b.HasIndex("FirmId", "ClientId", "SubmissionId", "LineNumber")
+                        .IsUnique();
+
+                    b.ToTable("client_open_item_allocation_lines", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_client_open_item_allocation_line", "line_number>0 AND target_kind IN ('SALES_INVOICE','PURCHASE_INVOICE') AND target_open_item_id<>'00000000-0000-0000-0000-000000000000'::uuid AND amount>0");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientOpenItemAllocationSubmission", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<Guid>("CommandId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("command_id");
+
+                    b.Property<Guid>("CounterpartyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("counterparty_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasColumnName("currency");
+
+                    b.Property<string>("Disposition")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("disposition");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("IntentHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("intent_hash");
+
+                    b.Property<string>("ManifestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("manifest_hash");
+
+                    b.Property<string>("ManifestJson")
+                        .IsRequired()
+                        .HasMaxLength(500000)
+                        .HasColumnType("character varying(500000)")
+                        .HasColumnName("manifest_json");
+
+                    b.Property<string>("PreviewDigest")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("preview_digest");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("Reference")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("reference");
+
+                    b.Property<decimal>("SourceAmount")
+                        .HasPrecision(19, 6)
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("source_amount");
+
+                    b.Property<string>("SourceHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("source_hash");
+
+                    b.Property<Guid>("SourceItemId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_item_id");
+
+                    b.Property<string>("SourceKind")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("source_kind");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FirmId", "CreatedByUserId");
+
+                    b.HasIndex("FirmId", "ClientId", "CounterpartyId");
+
+                    b.HasIndex("FirmId", "ClientId", "CreatedByUserId", "CommandId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_client_open_item_allocation_submissions_firm_id_client_id_~1");
+
+                    b.ToTable("client_open_item_allocation_submissions", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_client_open_item_allocation_submission", "source_kind IN ('SALES_CREDIT','PURCHASE_CREDIT','SALES_RECEIPT','SUPPLIER_PAYMENT') AND disposition IN ('ALLOCATE','UNALLOCATE') AND source_item_id<>'00000000-0000-0000-0000-000000000000'::uuid AND counterparty_id<>'00000000-0000-0000-0000-000000000000'::uuid AND currency ~ '^[A-Z]{3}$' AND source_amount>0 AND source_hash ~ '^[a-f0-9]{64}$' AND command_id<>'00000000-0000-0000-0000-000000000000'::uuid AND intent_hash ~ '^[a-f0-9]{64}$' AND preview_digest ~ '^[a-f0-9]{64}$' AND manifest_hash ~ '^[a-f0-9]{64}$' AND length(trim(reference))>0 AND length(trim(reason))>0 AND length(manifest_json)>0");
+                        });
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientOperationalJournal", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3772,6 +4022,818 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientPurchaseCreditNoteDecision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ActorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_user_id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<Guid>("CommandId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("command_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Decision")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("decision");
+
+                    b.Property<string>("DuplicateResolutionReason")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("duplicate_resolution_reason");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("IntentHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("intent_hash");
+
+                    b.Property<string>("PreviewDigest")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("preview_digest");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("ReviewContextJson")
+                        .IsRequired()
+                        .HasMaxLength(500000)
+                        .HasColumnType("character varying(500000)")
+                        .HasColumnName("review_context_json");
+
+                    b.Property<Guid>("SubmissionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("submission_id");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "ClientId", "Id");
+
+                    b.HasIndex("FirmId", "ActorUserId");
+
+                    b.HasIndex("FirmId", "ClientId", "SubmissionId")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "ClientId", "ActorUserId", "CommandId")
+                        .IsUnique();
+
+                    b.ToTable("client_purchase_credit_note_decisions", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_client_purchase_credit_note_decision", "decision IN ('APPROVE','RETURN') AND length(trim(reason))>0 AND command_id<>'00000000-0000-0000-0000-000000000000'::uuid AND intent_hash ~ '^[a-f0-9]{64}$' AND preview_digest ~ '^[a-f0-9]{64}$' AND length(review_context_json)>0");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientPurchaseCreditNoteLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(19, 6)
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("amount");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<string>("ExpenseAccountCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("expense_account_code");
+
+                    b.Property<Guid>("ExpenseAccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("expense_account_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<int>("LineNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("line_number");
+
+                    b.Property<int?>("OriginalLineNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("original_line_number");
+
+                    b.Property<Guid>("SubmissionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("submission_id");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "ClientId", "Id");
+
+                    b.HasIndex("FirmId", "ClientId", "ExpenseAccountId");
+
+                    b.HasIndex("FirmId", "ClientId", "SubmissionId", "LineNumber")
+                        .IsUnique();
+
+                    b.ToTable("client_purchase_credit_note_lines", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_client_purchase_credit_note_line", "line_number>0 AND (original_line_number IS NULL OR original_line_number>0) AND amount>0 AND length(trim(expense_account_code))>0");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientPurchaseCreditNoteOpenItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<Guid>("CreditNoteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("credit_note_id");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasColumnName("currency");
+
+                    b.Property<string>("Direction")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("direction");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<Guid>("JournalId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("journal_id");
+
+                    b.Property<decimal>("OriginalAmount")
+                        .HasPrecision(19, 6)
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("original_amount");
+
+                    b.Property<Guid?>("OriginalInvoiceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("original_invoice_id");
+
+                    b.Property<DateTimeOffset>("PostedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("posted_at");
+
+                    b.Property<Guid>("SubmissionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("submission_id");
+
+                    b.Property<Guid>("SupplierId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("supplier_id");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "ClientId", "Id");
+
+                    b.HasIndex("FirmId", "ClientId", "JournalId")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "ClientId", "SubmissionId")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "ClientId", "SupplierId")
+                        .HasDatabaseName("IX_client_purchase_credit_note_open_items_firm_id_client_id_s~1");
+
+                    b.ToTable("client_purchase_credit_note_open_items", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_client_purchase_credit_note_open_item", "direction='DEBIT' AND original_amount>0 AND currency ~ '^[A-Z]{3}$'");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientPurchaseCreditNoteSubmission", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(19, 6)
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("amount");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<Guid>("CommandId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("command_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<Guid>("CreditNoteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("credit_note_id");
+
+                    b.Property<string>("CreditNoteReference")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("credit_note_reference");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasColumnName("currency");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("IntentHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("intent_hash");
+
+                    b.Property<Guid>("JournalId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("journal_id");
+
+                    b.Property<long>("JournalSubmittedRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("journal_submitted_revision");
+
+                    b.Property<string>("ManifestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("manifest_hash");
+
+                    b.Property<string>("ManifestJson")
+                        .IsRequired()
+                        .HasMaxLength(500000)
+                        .HasColumnType("character varying(500000)")
+                        .HasColumnName("manifest_json");
+
+                    b.Property<Guid?>("OriginalInvoiceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("original_invoice_id");
+
+                    b.Property<Guid?>("OriginalOpenItemId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("original_open_item_id");
+
+                    b.Property<Guid?>("OriginalSubmissionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("original_submission_id");
+
+                    b.Property<Guid>("PeriodId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("period_id");
+
+                    b.Property<DateOnly>("PostingDate")
+                        .HasColumnType("date")
+                        .HasColumnName("posting_date");
+
+                    b.Property<string>("PreviewDigest")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("preview_digest");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("SourceBasis")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("source_basis");
+
+                    b.Property<string>("SourceReceiptHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("source_receipt_hash");
+
+                    b.Property<Guid?>("SourceReceiptId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_receipt_id");
+
+                    b.Property<Guid>("SupplierId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("supplier_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FirmId", "CreatedByUserId");
+
+                    b.HasIndex("FirmId", "ClientId", "CreditNoteId")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "ClientId", "CreditNoteReference")
+                        .IsUnique()
+                        .HasDatabaseName("IX_client_purchase_credit_note_submissions_firm_id_client_id_~1");
+
+                    b.HasIndex("FirmId", "ClientId", "OriginalOpenItemId");
+
+                    b.HasIndex("FirmId", "ClientId", "OriginalSubmissionId")
+                        .HasDatabaseName("IX_client_purchase_credit_note_submissions_firm_id_client_id_~2");
+
+                    b.HasIndex("FirmId", "ClientId", "PeriodId");
+
+                    b.HasIndex("FirmId", "ClientId", "SupplierId");
+
+                    b.HasIndex("FirmId", "ClientId", "CreatedByUserId", "CommandId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_client_purchase_credit_note_submissions_firm_id_client_id_~3");
+
+                    b.HasIndex("FirmId", "ClientId", "JournalId", "JournalSubmittedRevision")
+                        .IsUnique();
+
+                    b.ToTable("client_purchase_credit_note_submissions", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_client_purchase_credit_note_submission", "journal_submitted_revision>0 AND length(trim(credit_note_reference))>0 AND command_id<>'00000000-0000-0000-0000-000000000000'::uuid AND amount>0 AND currency ~ '^[A-Z]{3}$' AND intent_hash ~ '^[a-f0-9]{64}$' AND manifest_hash ~ '^[a-f0-9]{64}$' AND preview_digest ~ '^[a-f0-9]{64}$' AND length(trim(reason))>0 AND length(manifest_json)>0 AND ((original_invoice_id IS NULL AND original_submission_id IS NULL AND original_open_item_id IS NULL AND length(trim(source_basis))>0) OR (original_invoice_id IS NOT NULL AND original_submission_id IS NOT NULL AND original_open_item_id IS NOT NULL)) AND ((source_receipt_id IS NULL AND source_receipt_hash IS NULL AND length(trim(source_basis))>0) OR (source_receipt_id IS NOT NULL AND source_receipt_hash ~ '^[a-f0-9]{64}$'))");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientPurchaseInvoiceDecision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ActorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_user_id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<Guid>("CommandId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("command_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Decision")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("decision");
+
+                    b.Property<string>("DuplicateResolutionReason")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("duplicate_resolution_reason");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("IntentHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("intent_hash");
+
+                    b.Property<string>("PreviewDigest")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("preview_digest");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("ReviewContextJson")
+                        .IsRequired()
+                        .HasMaxLength(500000)
+                        .HasColumnType("character varying(500000)")
+                        .HasColumnName("review_context_json");
+
+                    b.Property<Guid>("SubmissionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("submission_id");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "ClientId", "Id");
+
+                    b.HasIndex("FirmId", "ActorUserId");
+
+                    b.HasIndex("FirmId", "ClientId", "SubmissionId")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "ClientId", "ActorUserId", "CommandId")
+                        .IsUnique();
+
+                    b.ToTable("client_purchase_invoice_decisions", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_client_purchase_invoice_decision", "decision IN ('APPROVE','RETURN') AND length(trim(reason))>0 AND command_id<>'00000000-0000-0000-0000-000000000000'::uuid AND intent_hash ~ '^[a-f0-9]{64}$' AND preview_digest ~ '^[a-f0-9]{64}$' AND length(review_context_json)>0");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientPurchaseInvoiceDraft", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateOnly>("AccountingDate")
+                        .HasColumnType("date")
+                        .HasColumnName("accounting_date");
+
+                    b.Property<Guid>("ChartVersionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("chart_version_id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<Guid>("CommandId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("command_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasColumnName("currency");
+
+                    b.Property<DateOnly>("DocumentDate")
+                        .HasColumnType("date")
+                        .HasColumnName("document_date");
+
+                    b.Property<DateOnly>("DueDate")
+                        .HasColumnType("date")
+                        .HasColumnName("due_date");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<decimal>("GrossAmount")
+                        .HasPrecision(19, 6)
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("gross_amount");
+
+                    b.Property<string>("IntentHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("intent_hash");
+
+                    b.Property<Guid>("InvoiceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("invoice_id");
+
+                    b.Property<decimal>("NetAmount")
+                        .HasPrecision(19, 6)
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("net_amount");
+
+                    b.Property<string>("NormalizedSupplierReference")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("normalized_supplier_reference");
+
+                    b.Property<Guid>("PeriodId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("period_id");
+
+                    b.Property<long?>("PreviousRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("previous_revision");
+
+                    b.Property<Guid?>("PreviousRevisionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("previous_revision_id");
+
+                    b.Property<DateOnly>("ReceiptDate")
+                        .HasColumnType("date")
+                        .HasColumnName("receipt_date");
+
+                    b.Property<long>("Revision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("revision");
+
+                    b.Property<string>("SnapshotHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("snapshot_hash");
+
+                    b.Property<string>("SnapshotJson")
+                        .IsRequired()
+                        .HasMaxLength(500000)
+                        .HasColumnType("character varying(500000)")
+                        .HasColumnName("snapshot_json");
+
+                    b.Property<Guid>("SupplierId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("supplier_id");
+
+                    b.Property<string>("SupplierInvoiceReference")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("supplier_invoice_reference");
+
+                    b.Property<DateOnly>("SupplyDate")
+                        .HasColumnType("date")
+                        .HasColumnName("supply_date");
+
+                    b.Property<decimal>("TaxAmount")
+                        .HasPrecision(19, 6)
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("tax_amount");
+
+                    b.Property<string>("VoucherReference")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("voucher_reference");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FirmId", "CreatedByUserId");
+
+                    b.HasIndex("FirmId", "ClientId", "ChartVersionId");
+
+                    b.HasIndex("FirmId", "ClientId", "PeriodId");
+
+                    b.HasIndex("FirmId", "ClientId", "SupplierId");
+
+                    b.HasIndex("FirmId", "ClientId", "VoucherReference")
+                        .IsUnique()
+                        .HasFilter("revision=1");
+
+                    b.HasIndex("FirmId", "ClientId", "CreatedByUserId", "CommandId")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "ClientId", "InvoiceId", "Revision")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "ClientId", "InvoiceId", "PreviousRevisionId", "PreviousRevision")
+                        .HasDatabaseName("IX_client_purchase_invoice_drafts_firm_id_client_id_invoice_i~1");
+
+                    b.ToTable("client_purchase_invoice_drafts", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_client_purchase_invoice_draft", "revision>0 AND invoice_id<>'00000000-0000-0000-0000-000000000000'::uuid AND command_id<>'00000000-0000-0000-0000-000000000000'::uuid AND length(trim(voucher_reference))>0 AND length(trim(supplier_invoice_reference))>0 AND length(trim(normalized_supplier_reference))>0 AND receipt_date>=document_date AND accounting_date BETWEEN '0001-01-01' AND '9999-12-31' AND due_date>=document_date AND currency ~ '^[A-Z]{3}$' AND net_amount>=0 AND tax_amount>=0 AND gross_amount=net_amount+tax_amount AND intent_hash ~ '^[a-f0-9]{64}$' AND snapshot_hash ~ '^[a-f0-9]{64}$' AND length(snapshot_json)>0 AND ((revision=1 AND previous_revision_id IS NULL AND previous_revision IS NULL) OR (revision>1 AND previous_revision_id IS NOT NULL AND previous_revision=revision-1))");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientPurchaseInvoiceOpenItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasColumnName("currency");
+
+                    b.Property<DateOnly>("DueDate")
+                        .HasColumnType("date")
+                        .HasColumnName("due_date");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<Guid>("InvoiceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("invoice_id");
+
+                    b.Property<Guid>("JournalId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("journal_id");
+
+                    b.Property<decimal>("OriginalAmount")
+                        .HasPrecision(19, 6)
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("original_amount");
+
+                    b.Property<DateTimeOffset>("PostedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("posted_at");
+
+                    b.Property<Guid>("SubmissionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("submission_id");
+
+                    b.Property<Guid>("SupplierId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("supplier_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FirmId", "ClientId", "InvoiceId")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "ClientId", "JournalId")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "ClientId", "SubmissionId")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "ClientId", "SupplierId");
+
+                    b.ToTable("client_purchase_invoice_open_items", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_client_purchase_invoice_open_item", "original_amount>0 AND currency ~ '^[A-Z]{3}$'");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientPurchaseInvoiceSubmission", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<Guid>("CommandId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("command_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<Guid>("DraftId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("draft_id");
+
+                    b.Property<long>("DraftRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("draft_revision");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("IntentHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("intent_hash");
+
+                    b.Property<Guid>("InvoiceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("invoice_id");
+
+                    b.Property<Guid>("JournalId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("journal_id");
+
+                    b.Property<long>("JournalSubmittedRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("journal_submitted_revision");
+
+                    b.Property<string>("ManifestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("manifest_hash");
+
+                    b.Property<string>("ManifestJson")
+                        .IsRequired()
+                        .HasMaxLength(500000)
+                        .HasColumnType("character varying(500000)")
+                        .HasColumnName("manifest_json");
+
+                    b.Property<string>("NormalizedSupplierReference")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("normalized_supplier_reference");
+
+                    b.Property<string>("PreviewDigest")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("preview_digest");
+
+                    b.Property<string>("SourceBasis")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("source_basis");
+
+                    b.Property<string>("SourceReceiptHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("source_receipt_hash");
+
+                    b.Property<Guid?>("SourceReceiptId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_receipt_id");
+
+                    b.Property<Guid>("SupplierId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("supplier_id");
+
+                    b.Property<string>("SupplierInvoiceReference")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("supplier_invoice_reference");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FirmId", "CreatedByUserId");
+
+                    b.HasIndex("FirmId", "ClientId", "SupplierId");
+
+                    b.HasIndex("FirmId", "ClientId", "CreatedByUserId", "CommandId")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "ClientId", "JournalId", "JournalSubmittedRevision")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "ClientId", "InvoiceId", "DraftId", "DraftRevision");
+
+                    b.ToTable("client_purchase_invoice_submissions", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_client_purchase_invoice_submission", "journal_submitted_revision>0 AND length(trim(supplier_invoice_reference))>0 AND length(trim(normalized_supplier_reference))>0 AND command_id<>'00000000-0000-0000-0000-000000000000'::uuid AND intent_hash ~ '^[a-f0-9]{64}$' AND manifest_hash ~ '^[a-f0-9]{64}$' AND preview_digest ~ '^[a-f0-9]{64}$' AND length(manifest_json)>0 AND ((source_receipt_id IS NULL AND source_receipt_hash IS NULL AND length(trim(source_basis))>0) OR (source_receipt_id IS NOT NULL AND source_receipt_hash ~ '^[a-f0-9]{64}$'))");
+                        });
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientReportingBook", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3941,6 +5003,449 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientSalesCreditNoteDecision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ActorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_user_id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<Guid>("CommandId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("command_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Decision")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("decision");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("IntentHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("intent_hash");
+
+                    b.Property<string>("PreviewDigest")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("preview_digest");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("ReviewContextJson")
+                        .IsRequired()
+                        .HasMaxLength(500000)
+                        .HasColumnType("character varying(500000)")
+                        .HasColumnName("review_context_json");
+
+                    b.Property<Guid>("SubmissionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("submission_id");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "ClientId", "Id");
+
+                    b.HasIndex("FirmId", "ActorUserId");
+
+                    b.HasIndex("FirmId", "ClientId", "SubmissionId")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "ClientId", "ActorUserId", "CommandId")
+                        .IsUnique();
+
+                    b.ToTable("client_sales_credit_note_decisions", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_client_sales_credit_decision", "decision IN ('APPROVE','RETURN') AND length(trim(reason))>0 AND command_id<>'00000000-0000-0000-0000-000000000000'::uuid AND intent_hash ~ '^[a-f0-9]{64}$' AND preview_digest ~ '^[a-f0-9]{64}$' AND length(review_context_json)>0");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientSalesCreditNoteLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(19, 6)
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("amount");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<int>("OriginalLineNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("original_line_number");
+
+                    b.Property<string>("RevenueAccountCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("revenue_account_code");
+
+                    b.Property<Guid>("RevenueAccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("revenue_account_id");
+
+                    b.Property<Guid>("SubmissionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("submission_id");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "ClientId", "Id");
+
+                    b.HasIndex("FirmId", "ClientId", "RevenueAccountId");
+
+                    b.HasIndex("FirmId", "ClientId", "SubmissionId", "OriginalLineNumber")
+                        .IsUnique();
+
+                    b.ToTable("client_sales_credit_note_lines", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_client_sales_credit_line", "original_line_number>0 AND amount>0 AND length(trim(revenue_account_code))>0");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientSalesCreditNoteOpenItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<Guid>("CreditNoteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("credit_note_id");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasColumnName("currency");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_id");
+
+                    b.Property<string>("Direction")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("direction");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<Guid>("JournalId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("journal_id");
+
+                    b.Property<decimal>("OriginalAmount")
+                        .HasPrecision(19, 6)
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("original_amount");
+
+                    b.Property<Guid>("OriginalInvoiceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("original_invoice_id");
+
+                    b.Property<DateTimeOffset>("PostedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("posted_at");
+
+                    b.Property<Guid>("SubmissionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("submission_id");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "ClientId", "Id");
+
+                    b.HasIndex("FirmId", "ClientId", "CreditNoteId")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "ClientId", "CustomerId");
+
+                    b.HasIndex("FirmId", "ClientId", "JournalId")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "ClientId", "SubmissionId")
+                        .IsUnique();
+
+                    b.ToTable("client_sales_credit_note_open_items", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_client_sales_credit_open_item", "original_amount>0 AND direction='CREDIT' AND currency ~ '^[A-Z]{3}$'");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientSalesCreditNoteSubmission", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(19, 6)
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("amount");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<Guid>("CommandId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("command_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<Guid>("CreditNoteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("credit_note_id");
+
+                    b.Property<string>("CreditNoteReference")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("credit_note_reference");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasColumnName("currency");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("IntentHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("intent_hash");
+
+                    b.Property<Guid>("JournalId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("journal_id");
+
+                    b.Property<long>("JournalSubmittedRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("journal_submitted_revision");
+
+                    b.Property<string>("ManifestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("manifest_hash");
+
+                    b.Property<string>("ManifestJson")
+                        .IsRequired()
+                        .HasMaxLength(500000)
+                        .HasColumnType("character varying(500000)")
+                        .HasColumnName("manifest_json");
+
+                    b.Property<Guid>("OriginalInvoiceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("original_invoice_id");
+
+                    b.Property<Guid>("OriginalOpenItemId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("original_open_item_id");
+
+                    b.Property<Guid>("OriginalSubmissionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("original_submission_id");
+
+                    b.Property<Guid>("PeriodId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("period_id");
+
+                    b.Property<DateOnly>("PostingDate")
+                        .HasColumnType("date")
+                        .HasColumnName("posting_date");
+
+                    b.Property<string>("PreviewDigest")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("preview_digest");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("SourceBasis")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("source_basis");
+
+                    b.Property<string>("SourceReceiptHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("source_receipt_hash");
+
+                    b.Property<Guid?>("SourceReceiptId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_receipt_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FirmId", "CreatedByUserId");
+
+                    b.HasIndex("FirmId", "ClientId", "CreditNoteId")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "ClientId", "CreditNoteReference")
+                        .IsUnique()
+                        .HasDatabaseName("IX_client_sales_credit_note_submissions_firm_id_client_id_cre~1");
+
+                    b.HasIndex("FirmId", "ClientId", "CustomerId");
+
+                    b.HasIndex("FirmId", "ClientId", "OriginalOpenItemId");
+
+                    b.HasIndex("FirmId", "ClientId", "OriginalSubmissionId")
+                        .HasDatabaseName("IX_client_sales_credit_note_submissions_firm_id_client_id_ori~1");
+
+                    b.HasIndex("FirmId", "ClientId", "PeriodId");
+
+                    b.HasIndex("FirmId", "ClientId", "CreatedByUserId", "CommandId")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "ClientId", "JournalId", "JournalSubmittedRevision")
+                        .IsUnique();
+
+                    b.ToTable("client_sales_credit_note_submissions", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_client_sales_credit_submission", "credit_note_id<>'00000000-0000-0000-0000-000000000000'::uuid AND length(trim(credit_note_reference))>0 AND original_invoice_id<>'00000000-0000-0000-0000-000000000000'::uuid AND amount>0 AND currency ~ '^[A-Z]{3}$' AND journal_submitted_revision>0 AND command_id<>'00000000-0000-0000-0000-000000000000'::uuid AND intent_hash ~ '^[a-f0-9]{64}$' AND manifest_hash ~ '^[a-f0-9]{64}$' AND preview_digest ~ '^[a-f0-9]{64}$' AND length(trim(reason))>0 AND ((source_receipt_id IS NULL AND source_receipt_hash IS NULL AND length(trim(source_basis))>0) OR (source_receipt_id IS NOT NULL AND source_receipt_hash ~ '^[a-f0-9]{64}$')) AND length(manifest_json)>0");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientSalesInvoiceDecision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ActorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_user_id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<Guid>("CommandId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("command_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Decision")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("decision");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("IntentHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("intent_hash");
+
+                    b.Property<string>("PreviewDigest")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("preview_digest");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("ReviewContextJson")
+                        .IsRequired()
+                        .HasMaxLength(500000)
+                        .HasColumnType("character varying(500000)")
+                        .HasColumnName("review_context_json");
+
+                    b.Property<Guid>("SubmissionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("submission_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FirmId", "ActorUserId");
+
+                    b.HasIndex("FirmId", "ClientId", "SubmissionId")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "ClientId", "ActorUserId", "CommandId")
+                        .IsUnique();
+
+                    b.ToTable("client_sales_invoice_decisions", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_client_sales_decision", "decision IN ('APPROVE','RETURN') AND length(trim(reason))>0 AND command_id<>'00000000-0000-0000-0000-000000000000'::uuid AND intent_hash ~ '^[a-f0-9]{64}$' AND preview_digest ~ '^[a-f0-9]{64}$'");
+                        });
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientSalesInvoiceDraft", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4067,6 +5572,162 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.ToTable("client_sales_invoice_drafts", null, t =>
                         {
                             t.HasCheckConstraint("ck_client_sales_invoice_draft", "revision>0 AND command_id<>'00000000-0000-0000-0000-000000000000'::uuid AND invoice_id<>'00000000-0000-0000-0000-000000000000'::uuid AND length(trim(draft_reference))>0 AND intent_hash ~ '^[a-f0-9]{64}$' AND snapshot_hash ~ '^[a-f0-9]{64}$' AND currency ~ '^[A-Z]{3}$' AND net_amount>=0 AND gross_amount=net_amount AND length(snapshot_json)>0 AND ((revision=1 AND previous_revision_id IS NULL AND previous_revision IS NULL) OR (revision>1 AND previous_revision_id IS NOT NULL AND previous_revision=revision-1))");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientSalesInvoiceOpenItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasColumnName("currency");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_id");
+
+                    b.Property<DateOnly>("DueDate")
+                        .HasColumnType("date")
+                        .HasColumnName("due_date");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<Guid>("InvoiceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("invoice_id");
+
+                    b.Property<Guid>("JournalId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("journal_id");
+
+                    b.Property<decimal>("OriginalAmount")
+                        .HasPrecision(19, 6)
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("original_amount");
+
+                    b.Property<DateTimeOffset>("PostedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("posted_at");
+
+                    b.Property<Guid>("SubmissionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("submission_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FirmId", "ClientId", "CustomerId");
+
+                    b.HasIndex("FirmId", "ClientId", "InvoiceId")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "ClientId", "JournalId")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "ClientId", "SubmissionId")
+                        .IsUnique();
+
+                    b.ToTable("client_sales_invoice_open_items", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_client_sales_open_item", "original_amount>0 AND currency ~ '^[A-Z]{3}$'");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientSalesInvoiceSubmission", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<Guid>("CommandId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("command_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<Guid>("DraftId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("draft_id");
+
+                    b.Property<long>("DraftRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("draft_revision");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("IntentHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("intent_hash");
+
+                    b.Property<Guid>("InvoiceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("invoice_id");
+
+                    b.Property<Guid>("JournalId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("journal_id");
+
+                    b.Property<long>("JournalSubmittedRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("journal_submitted_revision");
+
+                    b.Property<string>("ManifestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("manifest_hash");
+
+                    b.Property<string>("ManifestJson")
+                        .IsRequired()
+                        .HasMaxLength(500000)
+                        .HasColumnType("character varying(500000)")
+                        .HasColumnName("manifest_json");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FirmId", "CreatedByUserId");
+
+                    b.HasIndex("FirmId", "ClientId", "CreatedByUserId", "CommandId")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "ClientId", "InvoiceId", "DraftRevision")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "ClientId", "JournalId", "JournalSubmittedRevision")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "ClientId", "InvoiceId", "DraftId", "DraftRevision")
+                        .HasDatabaseName("IX_client_sales_invoice_submissions_firm_id_client_id_invoice~1");
+
+                    b.ToTable("client_sales_invoice_submissions", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_client_sales_submission", "draft_revision>0 AND journal_submitted_revision>0 AND command_id<>'00000000-0000-0000-0000-000000000000'::uuid AND intent_hash ~ '^[a-f0-9]{64}$' AND manifest_hash ~ '^[a-f0-9]{64}$' AND length(manifest_json)>0");
                         });
                 });
 
@@ -24204,6 +25865,58 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientOpenItemAllocationDecision", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ActorUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientOpenItemAllocationSubmission", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "SubmissionId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientOpenItemAllocationLine", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientOpenItemAllocationLine", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "ReversesAllocationLineId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_client_open_item_allocation_line_reversal");
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientOpenItemAllocationSubmission", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "SubmissionId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_client_open_item_allocation_line_submission");
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientOpenItemAllocationSubmission", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "CreatedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientBookkeepingCounterparty", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "CounterpartyId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientOperationalJournal", b =>
                 {
                     b.HasOne("AuditSphereOps.Domain.Practice.PracticeClient", null)
@@ -24356,6 +26069,217 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasConstraintName("FK_client_period_restatements_financial_packages_firm_id_clie~1");
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientPurchaseCreditNoteDecision", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ActorUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientPurchaseCreditNoteSubmission", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "SubmissionId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientPurchaseCreditNoteLine", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientAccount", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "ExpenseAccountId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientPurchaseCreditNoteSubmission", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "SubmissionId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientPurchaseCreditNoteOpenItem", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientOperationalJournal", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "JournalId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientPurchaseCreditNoteSubmission", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "SubmissionId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientBookkeepingCounterparty", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "SupplierId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientPurchaseCreditNoteSubmission", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "CreatedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientOperationalJournal", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "JournalId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientPurchaseInvoiceOpenItem", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "OriginalOpenItemId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientPurchaseInvoiceSubmission", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "OriginalSubmissionId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_client_purchase_credit_note_submissions_client_purchase_in~1");
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientReportingPeriod", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "PeriodId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientBookkeepingCounterparty", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "SupplierId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientPurchaseInvoiceDecision", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ActorUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientPurchaseInvoiceSubmission", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "SubmissionId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientPurchaseInvoiceDraft", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "CreatedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientChartVersion", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "ChartVersionId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientReportingPeriod", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "PeriodId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientBookkeepingCounterparty", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "SupplierId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientPurchaseInvoiceDraft", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "InvoiceId", "PreviousRevisionId", "PreviousRevision")
+                        .HasPrincipalKey("FirmId", "ClientId", "InvoiceId", "Id", "Revision")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientPurchaseInvoiceOpenItem", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientOperationalJournal", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "JournalId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientPurchaseInvoiceSubmission", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "SubmissionId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientBookkeepingCounterparty", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "SupplierId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientPurchaseInvoiceSubmission", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "CreatedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientOperationalJournal", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "JournalId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientBookkeepingCounterparty", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "SupplierId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientPurchaseInvoiceDraft", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "InvoiceId", "DraftId", "DraftRevision")
+                        .HasPrincipalKey("FirmId", "ClientId", "InvoiceId", "Id", "Revision")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientReportingBook", b =>
                 {
                     b.HasOne("AuditSphereOps.Domain.Accounting.ClientReportingPeriod", null)
@@ -24380,6 +26304,126 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasForeignKey("FirmId", "ClientId", "PriorPeriodId")
                         .HasPrincipalKey("FirmId", "ClientId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientSalesCreditNoteDecision", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ActorUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientSalesCreditNoteSubmission", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "SubmissionId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientSalesCreditNoteLine", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientAccount", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "RevenueAccountId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientSalesCreditNoteSubmission", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "SubmissionId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientSalesCreditNoteOpenItem", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientBookkeepingCounterparty", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "CustomerId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientOperationalJournal", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "JournalId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientSalesCreditNoteSubmission", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "SubmissionId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientSalesCreditNoteSubmission", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "CreatedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientBookkeepingCounterparty", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "CustomerId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientOperationalJournal", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "JournalId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientSalesInvoiceOpenItem", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "OriginalOpenItemId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientSalesInvoiceSubmission", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "OriginalSubmissionId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientReportingPeriod", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "PeriodId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientSalesInvoiceDecision", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ActorUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientSalesInvoiceSubmission", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "SubmissionId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientSalesInvoiceDraft", b =>
@@ -24417,6 +26461,54 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasForeignKey("FirmId", "ClientId", "InvoiceId", "PreviousRevisionId", "PreviousRevision")
                         .HasPrincipalKey("FirmId", "ClientId", "InvoiceId", "Id", "Revision")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientSalesInvoiceOpenItem", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientBookkeepingCounterparty", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "CustomerId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientOperationalJournal", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "JournalId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientSalesInvoiceSubmission", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "SubmissionId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientSalesInvoiceSubmission", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "CreatedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientOperationalJournal", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "JournalId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientSalesInvoiceDraft", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "InvoiceId", "DraftId", "DraftRevision")
+                        .HasPrincipalKey("FirmId", "ClientId", "InvoiceId", "Id", "Revision")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ConsolidationComponent", b =>

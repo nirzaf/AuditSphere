@@ -25,6 +25,8 @@ public static partial class ClientOperationalLedgerWorkspace
       $"SELECT * FROM client_operational_journals WHERE firm_id={actor.FirmId} AND client_id={clientId} AND id={journalId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
     if (journal is null) return CommandResult<ClientOperationalJournalPreview>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var manual = await RequireManualJournalAsync(db, actor.FirmId, clientId, journalId, ct);
+    if (!manual.Succeeded) return CommandResult<ClientOperationalJournalPreview>.Fail(manual.ErrorCode!, manual.Message!);
     var lines = await db.ClientOperationalJournalLines.AsNoTracking().Where(x =>
       x.FirmId == actor.FirmId && x.ClientId == clientId && x.JournalId == journalId).OrderBy(x => x.LineNumber).ToListAsync(ct);
     var result = await BuildPreviewAsync(db, actor, journal, lines, ct);

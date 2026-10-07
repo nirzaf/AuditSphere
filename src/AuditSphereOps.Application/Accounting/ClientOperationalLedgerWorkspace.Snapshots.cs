@@ -8,7 +8,8 @@ using Microsoft.EntityFrameworkCore;
 namespace AuditSphereOps.Application.Accounting;
 
 public sealed record ClientOperationalJournalSnapshotView(Guid JournalId, Guid ClientId, string Revision, string CapturedAt, string JournalNumber,
-  string Description, string PostingDate, string Currency, IReadOnlyList<ClientOperationalJournalLineView> Lines);
+  string Description, string PostingDate, string Currency, IReadOnlyList<ClientOperationalJournalLineView> Lines,
+  ClientOperationalInvoiceOrigin? InvoiceOrigin = null);
 
 public static partial class ClientOperationalLedgerWorkspace
 {
@@ -21,6 +22,8 @@ public static partial class ClientOperationalLedgerWorkspace
       return CommandResult<IReadOnlyList<ClientOperationalJournalSnapshotView>>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var rows = await db.ClientOperationalJournalSnapshots.AsNoTracking().Where(x =>
       x.FirmId == actor.FirmId && x.ClientId == clientId && x.JournalId == journalId).OrderBy(x => x.JournalRevision).ToListAsync(ct);
+    var submissions = await db.ClientSalesInvoiceSubmissions.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+      x.ClientId == clientId && x.JournalId == journalId).ToDictionaryAsync(x => x.JournalSubmittedRevision, ct);
     var views = new List<ClientOperationalJournalSnapshotView>(rows.Count);
     foreach (var row in rows)
     {
@@ -34,9 +37,10 @@ public static partial class ClientOperationalLedgerWorkspace
         x.GetProperty("account_code").GetString()!, x.GetProperty("account_name").GetString()!,
         x.GetProperty("description").GetString()!, x.GetProperty("debit").GetDecimal().ToString("F6", CultureInfo.InvariantCulture),
         x.GetProperty("credit").GetDecimal().ToString("F6", CultureInfo.InvariantCulture))).ToArray();
+      var invoiceOrigin = submissions.TryGetValue(row.JournalRevision, out var submission) ? InvoiceOrigin(submission) : null;
       views.Add(new(journalId, clientId, row.JournalRevision.ToString(CultureInfo.InvariantCulture), row.CapturedAt.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture),
         header.GetProperty("journal_number").GetString()!, header.GetProperty("description").GetString()!,
-        header.GetProperty("posting_date").GetString()!, header.GetProperty("currency").GetString()!, lines));
+        header.GetProperty("posting_date").GetString()!, header.GetProperty("currency").GetString()!, lines, invoiceOrigin));
     }
     if (!(await AuthorizeAsync(db, actor, clientId, Preparers, ct)).Succeeded)
       return CommandResult<IReadOnlyList<ClientOperationalJournalSnapshotView>>.Fail(ErrorCodes.ScopeDenied, "Access denied.");

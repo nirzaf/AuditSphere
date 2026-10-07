@@ -1,0 +1,218 @@
+﻿using System;
+using Microsoft.EntityFrameworkCore.Migrations;
+
+#nullable disable
+
+namespace AuditSphereOps.Infrastructure.Persistence.Migrations
+{
+    /// <inheritdoc />
+    public partial class ClientSalesInvoiceWorkflow : Migration
+    {
+        /// <inheritdoc />
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.CreateTable(
+                name: "client_sales_invoice_submissions",
+                columns: table => new
+                {
+                    id = table.Column<Guid>(type: "uuid", nullable: false),
+                    firm_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    client_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    invoice_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    draft_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    draft_revision = table.Column<long>(type: "bigint", nullable: false),
+                    journal_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    journal_submitted_revision = table.Column<long>(type: "bigint", nullable: false),
+                    command_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    intent_hash = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                    manifest_json = table.Column<string>(type: "character varying(500000)", maxLength: 500000, nullable: false),
+                    manifest_hash = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                    created_by_user_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    created_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_client_sales_invoice_submissions", x => x.id);
+                    table.UniqueConstraint("AK_client_sales_invoice_submissions_firm_id_client_id_id", x => new { x.firm_id, x.client_id, x.id });
+                    table.CheckConstraint("ck_client_sales_submission", "draft_revision>0 AND journal_submitted_revision>0 AND command_id<>'00000000-0000-0000-0000-000000000000'::uuid AND intent_hash ~ '^[a-f0-9]{64}$' AND manifest_hash ~ '^[a-f0-9]{64}$' AND length(manifest_json)>0");
+                    table.ForeignKey(
+                        name: "FK_client_sales_invoice_submissions_client_operational_journal~",
+                        columns: x => new { x.firm_id, x.client_id, x.journal_id },
+                        principalTable: "client_operational_journals",
+                        principalColumns: new[] { "firm_id", "client_id", "id" },
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_client_sales_invoice_submissions_client_sales_invoice_draft~",
+                        columns: x => new { x.firm_id, x.client_id, x.invoice_id, x.draft_id, x.draft_revision },
+                        principalTable: "client_sales_invoice_drafts",
+                        principalColumns: new[] { "firm_id", "client_id", "invoice_id", "id", "revision" },
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_client_sales_invoice_submissions_users_firm_id_created_by_u~",
+                        columns: x => new { x.firm_id, x.created_by_user_id },
+                        principalTable: "users",
+                        principalColumns: new[] { "firm_id", "id" },
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "client_sales_invoice_decisions",
+                columns: table => new
+                {
+                    id = table.Column<Guid>(type: "uuid", nullable: false),
+                    firm_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    client_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    submission_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    command_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    intent_hash = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                    decision = table.Column<string>(type: "character varying(10)", maxLength: 10, nullable: false),
+                    reason = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: false),
+                    preview_digest = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                    review_context_json = table.Column<string>(type: "character varying(500000)", maxLength: 500000, nullable: false),
+                    actor_user_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    created_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_client_sales_invoice_decisions", x => x.id);
+                    table.CheckConstraint("ck_client_sales_decision", "decision IN ('APPROVE','RETURN') AND length(trim(reason))>0 AND command_id<>'00000000-0000-0000-0000-000000000000'::uuid AND intent_hash ~ '^[a-f0-9]{64}$' AND preview_digest ~ '^[a-f0-9]{64}$'");
+                    table.ForeignKey(
+                        name: "FK_client_sales_invoice_decisions_client_sales_invoice_submiss~",
+                        columns: x => new { x.firm_id, x.client_id, x.submission_id },
+                        principalTable: "client_sales_invoice_submissions",
+                        principalColumns: new[] { "firm_id", "client_id", "id" },
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_client_sales_invoice_decisions_users_firm_id_actor_user_id",
+                        columns: x => new { x.firm_id, x.actor_user_id },
+                        principalTable: "users",
+                        principalColumns: new[] { "firm_id", "id" },
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "client_sales_invoice_open_items",
+                columns: table => new
+                {
+                    id = table.Column<Guid>(type: "uuid", nullable: false),
+                    firm_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    client_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    invoice_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    submission_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    journal_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    customer_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    currency = table.Column<string>(type: "character varying(3)", maxLength: 3, nullable: false),
+                    original_amount = table.Column<decimal>(type: "numeric(19,6)", precision: 19, scale: 6, nullable: false),
+                    due_date = table.Column<DateOnly>(type: "date", nullable: false),
+                    posted_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_client_sales_invoice_open_items", x => x.id);
+                    table.CheckConstraint("ck_client_sales_open_item", "original_amount>0 AND currency ~ '^[A-Z]{3}$'");
+                    table.ForeignKey(
+                        name: "FK_client_sales_invoice_open_items_client_bookkeeping_counterp~",
+                        columns: x => new { x.firm_id, x.client_id, x.customer_id },
+                        principalTable: "client_bookkeeping_counterparties",
+                        principalColumns: new[] { "firm_id", "client_id", "id" },
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_client_sales_invoice_open_items_client_operational_journals~",
+                        columns: x => new { x.firm_id, x.client_id, x.journal_id },
+                        principalTable: "client_operational_journals",
+                        principalColumns: new[] { "firm_id", "client_id", "id" },
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_client_sales_invoice_open_items_client_sales_invoice_submis~",
+                        columns: x => new { x.firm_id, x.client_id, x.submission_id },
+                        principalTable: "client_sales_invoice_submissions",
+                        principalColumns: new[] { "firm_id", "client_id", "id" },
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_client_sales_invoice_decisions_firm_id_actor_user_id",
+                table: "client_sales_invoice_decisions",
+                columns: new[] { "firm_id", "actor_user_id" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_client_sales_invoice_decisions_firm_id_client_id_actor_user~",
+                table: "client_sales_invoice_decisions",
+                columns: new[] { "firm_id", "client_id", "actor_user_id", "command_id" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_client_sales_invoice_decisions_firm_id_client_id_submission~",
+                table: "client_sales_invoice_decisions",
+                columns: new[] { "firm_id", "client_id", "submission_id" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_client_sales_invoice_open_items_firm_id_client_id_customer_~",
+                table: "client_sales_invoice_open_items",
+                columns: new[] { "firm_id", "client_id", "customer_id" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_client_sales_invoice_open_items_firm_id_client_id_invoice_id",
+                table: "client_sales_invoice_open_items",
+                columns: new[] { "firm_id", "client_id", "invoice_id" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_client_sales_invoice_open_items_firm_id_client_id_journal_id",
+                table: "client_sales_invoice_open_items",
+                columns: new[] { "firm_id", "client_id", "journal_id" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_client_sales_invoice_open_items_firm_id_client_id_submissio~",
+                table: "client_sales_invoice_open_items",
+                columns: new[] { "firm_id", "client_id", "submission_id" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_client_sales_invoice_submissions_firm_id_client_id_created_~",
+                table: "client_sales_invoice_submissions",
+                columns: new[] { "firm_id", "client_id", "created_by_user_id", "command_id" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_client_sales_invoice_submissions_firm_id_client_id_invoice_~",
+                table: "client_sales_invoice_submissions",
+                columns: new[] { "firm_id", "client_id", "invoice_id", "draft_revision" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_client_sales_invoice_submissions_firm_id_client_id_invoice~1",
+                table: "client_sales_invoice_submissions",
+                columns: new[] { "firm_id", "client_id", "invoice_id", "draft_id", "draft_revision" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_client_sales_invoice_submissions_firm_id_client_id_journal_~",
+                table: "client_sales_invoice_submissions",
+                columns: new[] { "firm_id", "client_id", "journal_id", "journal_submitted_revision" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_client_sales_invoice_submissions_firm_id_created_by_user_id",
+                table: "client_sales_invoice_submissions",
+                columns: new[] { "firm_id", "created_by_user_id" });
+
+            migrationBuilder.Sql(ClientSalesInvoiceWorkflowSql.Up);
+        }
+
+        /// <inheritdoc />
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.Sql(ClientSalesInvoiceWorkflowSql.Down);
+            migrationBuilder.DropTable(
+                name: "client_sales_invoice_decisions");
+
+            migrationBuilder.DropTable(
+                name: "client_sales_invoice_open_items");
+
+            migrationBuilder.DropTable(
+                name: "client_sales_invoice_submissions");
+        }
+    }
+}

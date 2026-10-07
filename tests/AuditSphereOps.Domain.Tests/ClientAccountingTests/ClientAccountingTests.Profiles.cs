@@ -174,6 +174,52 @@ public sealed partial class ClientAccountingTests
 
   [Fact]
   [Trait("Profile", "Database")]
+  public async Task BookIdentityCanChangeBeforePeriodsButRequiresCutoverAfterPeriodSetup()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
+    await using var db = new AuditSphereDbContext(pg.Options);
+    db.AcceptanceDecisions.Add(new AcceptanceDecision
+    {
+      Id = Guid.CreateVersion7(), FirmId = scope.FirmId, PracticeClientId = scope.ClientA,
+      ServiceRoute = "BOOKKEEPING", Decision = "Accepted", Generation = 1,
+      Rationale = "Approved bookkeeping service", EvaluationTemplateVersion = "TEST-1",
+      EvaluationSnapshotDigest = new string('a', 64), DecidedByUserId = scope.Reviewer.Id, DecidedAt = DateTimeOffset.UtcNow
+    });
+    await db.SaveChangesAsync();
+    var profile = await ClientAccountingService.CreateProfileAsync(db, reviewer,
+      new ClientAccountingProfileRequest(scope.ClientA, "QA", "QAR", 1, 1, "AUDITSPHERE", "NATIVE-1",
+        ClientAccountingSourceModes.NativeBookkeeping));
+    Assert.True(profile.Succeeded, profile.Message);
+
+    var preCutoverRevision = await ClientAccountingService.ReviseProfileAsync(db, reviewer, profile.Value,
+      new ClientAccountingProfileRequest(scope.ClientA, "QA", "USD", 4, 1, "AUDITSPHERE", "NATIVE-1",
+        ClientAccountingSourceModes.NativeBookkeeping), expectedRevision: 1);
+    Assert.True(preCutoverRevision.Succeeded, preCutoverRevision.Message);
+    Assert.Equal(2, preCutoverRevision.Value);
+    var period = await ClientAccountingService.CreatePeriodAsync(db, reviewer,
+      new ReportingPeriodRequest(scope.ClientA, "FY26", new DateOnly(2026, 4, 1), new DateOnly(2027, 3, 31), "STATUTORY", "USD"));
+    Assert.True(period.Succeeded, period.Message);
+
+    var currency = await ClientAccountingService.ReviseProfileAsync(db, reviewer, profile.Value,
+      new ClientAccountingProfileRequest(scope.ClientA, "QA", "QAR", 4, 1, "AUDITSPHERE", "NATIVE-1",
+        ClientAccountingSourceModes.NativeBookkeeping), expectedRevision: 2);
+    var fiscal = await ClientAccountingService.ReviseProfileAsync(db, reviewer, profile.Value,
+      new ClientAccountingProfileRequest(scope.ClientA, "QA", "USD", 1, 1, "AUDITSPHERE", "NATIVE-1",
+        ClientAccountingSourceModes.NativeBookkeeping), expectedRevision: 2);
+    Assert.False(currency.Succeeded);
+    Assert.Equal(ErrorCodes.GateBlocked, currency.ErrorCode);
+    Assert.False(fiscal.Succeeded);
+    Assert.Equal(ErrorCodes.GateBlocked, fiscal.ErrorCode);
+    var retained = await db.ClientAccountingProfiles.SingleAsync(x => x.Id == profile.Value);
+    Assert.Equal("USD", retained.FunctionalCurrency);
+    Assert.Equal(4, retained.FiscalYearStartMonth);
+    Assert.Equal(2, retained.Revision);
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
   public async Task FirmWideAccountingConfiguration_RejectsClientScopedGrants()
   {
     await using var pg = await PgTestSchema.CreateAsync();

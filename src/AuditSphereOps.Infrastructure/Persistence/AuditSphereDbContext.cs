@@ -276,6 +276,24 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
 
   public DbSet<ClientBookkeepingCounterparty> ClientBookkeepingCounterparties => Set<ClientBookkeepingCounterparty>();
   public DbSet<ClientSalesInvoiceDraft> ClientSalesInvoiceDrafts => Set<ClientSalesInvoiceDraft>();
+  public DbSet<ClientSalesInvoiceSubmission> ClientSalesInvoiceSubmissions => Set<ClientSalesInvoiceSubmission>();
+  public DbSet<ClientSalesInvoiceDecision> ClientSalesInvoiceDecisions => Set<ClientSalesInvoiceDecision>();
+  public DbSet<ClientSalesInvoiceOpenItem> ClientSalesInvoiceOpenItems => Set<ClientSalesInvoiceOpenItem>();
+  public DbSet<ClientSalesCreditNoteSubmission> ClientSalesCreditNoteSubmissions => Set<ClientSalesCreditNoteSubmission>();
+  public DbSet<ClientSalesCreditNoteDecision> ClientSalesCreditNoteDecisions => Set<ClientSalesCreditNoteDecision>();
+  public DbSet<ClientSalesCreditNoteLine> ClientSalesCreditNoteLines => Set<ClientSalesCreditNoteLine>();
+  public DbSet<ClientSalesCreditNoteOpenItem> ClientSalesCreditNoteOpenItems => Set<ClientSalesCreditNoteOpenItem>();
+  public DbSet<ClientPurchaseInvoiceDraft> ClientPurchaseInvoiceDrafts => Set<ClientPurchaseInvoiceDraft>();
+  public DbSet<ClientPurchaseInvoiceSubmission> ClientPurchaseInvoiceSubmissions => Set<ClientPurchaseInvoiceSubmission>();
+  public DbSet<ClientPurchaseInvoiceDecision> ClientPurchaseInvoiceDecisions => Set<ClientPurchaseInvoiceDecision>();
+  public DbSet<ClientPurchaseInvoiceOpenItem> ClientPurchaseInvoiceOpenItems => Set<ClientPurchaseInvoiceOpenItem>();
+  public DbSet<ClientPurchaseCreditNoteSubmission> ClientPurchaseCreditNoteSubmissions => Set<ClientPurchaseCreditNoteSubmission>();
+  public DbSet<ClientPurchaseCreditNoteDecision> ClientPurchaseCreditNoteDecisions => Set<ClientPurchaseCreditNoteDecision>();
+  public DbSet<ClientPurchaseCreditNoteLine> ClientPurchaseCreditNoteLines => Set<ClientPurchaseCreditNoteLine>();
+  public DbSet<ClientPurchaseCreditNoteOpenItem> ClientPurchaseCreditNoteOpenItems => Set<ClientPurchaseCreditNoteOpenItem>();
+  public DbSet<ClientOpenItemAllocationSubmission> ClientOpenItemAllocationSubmissions => Set<ClientOpenItemAllocationSubmission>();
+  public DbSet<ClientOpenItemAllocationLine> ClientOpenItemAllocationLines => Set<ClientOpenItemAllocationLine>();
+  public DbSet<ClientOpenItemAllocationDecision> ClientOpenItemAllocationDecisions => Set<ClientOpenItemAllocationDecision>();
   public DbSet<ClientCounterpartyAmendment> ClientCounterpartyAmendments => Set<ClientCounterpartyAmendment>();
   public DbSet<ClientCounterpartyAmendmentDecision> ClientCounterpartyAmendmentDecisions => Set<ClientCounterpartyAmendmentDecision>();
   public DbSet<ClientAccountingProfile> ClientAccountingProfiles => Set<ClientAccountingProfile>();
@@ -551,6 +569,10 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
     ConfigureClientOperationalLedger(b);
     ConfigureClientCounterparties(b);
     ConfigureClientSalesInvoices(b);
+    ConfigureClientSalesInvoiceWorkflow(b);
+    ConfigureClientPurchaseInvoices(b);
+    ConfigureClientPurchaseCreditNotes(b);
+    ConfigureClientOpenItemAllocations(b);
     ConfigureClientAccountRoles(b);
     ConfigureAccountingEvidenceActions(b);
     ConfigureAccountingAnalysisPreparations(b);
