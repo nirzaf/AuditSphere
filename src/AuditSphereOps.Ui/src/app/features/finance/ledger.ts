@@ -8,10 +8,10 @@ import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
 
 export const decodeLedger = obj({ canCreateSetup: bool, canClosePeriod: bool, canReviewJournals: bool,
-  canPostJournals: bool, canCreateJournals: bool,
+  canPostJournals: bool, canCreateJournals: bool, canReversePostings: bool, canReopenPeriod: bool,
   periods: arr(obj({ id: guid, periodCode: text, status: text, revision: nat, closedAt: nullable(instant) }), 5000),
   accounts: arr(obj({ id: guid, code: text, name: text, accountType: text, normalSide: text, postingAllowed: bool }), 5000),
-  postings: arr(obj({ id: guid, postedAt: instant, currency: text, postedByUserId: guid, reversalOfPostingId: nullable(guid) }), 5000),
+  postings: arr(obj({ id: guid, periodId: nullable(guid), journalId: nullable(guid), postedAt: instant, currency: text, postedByUserId: guid, reversalOfPostingId: nullable(guid) }), 5000),
   journals: arr(obj({ id: guid, periodId: guid, periodCode: text, journalNumber: text, sourceKind: text, sourceKey: text,
     sourceRevision: nat, postingPurpose: text, currency: text, status: text, createdByUserId: guid,
     approvedByUserId: nullable(guid), createdAt: instant, approvedAt: nullable(instant), postedAt: nullable(instant),
@@ -56,7 +56,8 @@ interface PendingClose {
         <div class="table-scroll"><table><thead><tr><th>Period code</th><th>Status</th><th>Revision</th><th>Closed date</th><th><span class="sr-only">Actions</span></th></tr></thead>
           <tbody>@for (p of l.periods; track p.id) {
             <tr><td><strong>{{ p.periodCode }}</strong></td><td><audit-status [value]="p.status" /></td><td>Rev {{ p.revision }}</td><td>{{ p.closedAt ? p.closedAt.slice(0, 16).replace('T', ' ') : '—' }}</td>
-              <td>@if (p.status === 'OPEN' && l.canClosePeriod) { <button matButton="filled" (click)="closing.set(p.id); reason = 'Standard accounting period close'" [disabled]="cmd.busy()">Close period</button> }</td></tr>
+              <td>@if (p.status === 'OPEN' && l.canClosePeriod) { <button matButton="filled" (click)="closing.set(p.id); reason = 'Standard accounting period close'" [disabled]="cmd.busy()">Close period</button> }
+                  @if (p.status === 'CLOSED' && l.canReopenPeriod) { <button matButton="outlined" (click)="reopening.set(p.id); reopenReason = 'Correction required for fiscal period'" [disabled]="cmd.busy()">Reopen period</button> }</td></tr>
           } @empty { <tr><td colspan="5">No fiscal periods are configured for this firm.</td></tr> }</tbody></table></div>
         @if (closing(); as id) {
           @if (cmd.uncertain()) {
@@ -92,6 +93,11 @@ interface PendingClose {
               <p class="actions"><button matButton="filled" (click)="close(id)" [disabled]="cmd.busy() || !reason.trim()">Confirm close</button><button matButton (click)="closing.set(null)" [disabled]="cmd.busy()">Cancel</button></p></div>
           }
         }
+        @if (reopening(); as id) {
+          <div class="panel"><h3>Confirm period reopen</h3><p>Reopening a fiscal period allows authorized journals to be posted or reversed within it. A recorded reason is required.</p>
+            <label>Reopen reason <input name="reopenReason" [(ngModel)]="reopenReason" required maxlength="500" /></label>
+            <p class="actions"><button matButton="filled" (click)="reopen(id)" [disabled]="cmd.busy() || !reopenReason.trim()">Confirm reopen</button><button matButton (click)="reopening.set(null)" [disabled]="cmd.busy()">Cancel</button></p></div>
+        }
       </section>
       @if (l.canCreateSetup) {
         <section class="panel" aria-labelledby="ledger-setup-heading">
@@ -119,7 +125,7 @@ interface PendingClose {
               <button matButton="filled" type="submit" [disabled]="setupLocked() || !periodDraft.periodCode">Create fiscal period</button>
             </form>
           </div>
-          <audit-command-message [message]="setupCommand.message()" [failed]="setupCommand.failed()" />
+          @if (setupCommand.message()) { <audit-command-message [message]="setupCommand.message()" [failed]="setupCommand.failed()" /> }
           @if (pendingSetup(); as pending) {
             <section class="panel" aria-labelledby="setup-recovery-heading">
               <h3 id="setup-recovery-heading">Verify saved ledger setup</h3>
@@ -257,19 +263,29 @@ interface PendingClose {
             </details></td></tr>
           } @empty { <tr><td colspan="7">No manual or system journals are recorded in the recent firm ledger.</td></tr> }</tbody>
         </table></div>
-        <audit-command-message [message]="journalCommand.message()" [failed]="journalCommand.failed()" />
-        <audit-command-message [message]="journalActionCommand.message()" [failed]="journalActionCommand.failed()" />
+        @if (journalCommand.message()) { <audit-command-message [message]="journalCommand.message()" [failed]="journalCommand.failed()" /> }
+        @if (journalActionCommand.message()) { <audit-command-message [message]="journalActionCommand.message()" [failed]="journalActionCommand.failed()" /> }
         @if (evidenceDownloadMessage()) { <p role="status">{{ evidenceDownloadMessage() }}</p> }
       </section>
       <section class="panel" aria-labelledby="postings-heading">
         <h2 id="postings-heading">Recent firm postings</h2>
-        <div class="table-scroll"><table><thead><tr><th>Posting ID</th><th>Posted date</th><th>Currency</th><th>Posted by</th><th>Reversal</th></tr></thead>
+        <div class="table-scroll"><table><thead><tr><th>Posting ID</th><th>Posted date</th><th>Currency</th><th>Posted by</th><th>Reversal / status</th><th><span class="sr-only">Actions</span></th></tr></thead>
           <tbody>@for (p of l.postings; track p.id) { <tr><td><code>{{ p.id }}</code></td><td>{{ p.postedAt.slice(0, 16).replace('T', ' ') }} UTC</td><td>{{ p.currency }}</td><td><code>{{ p.postedByUserId }}</code></td>
-            <td>{{ p.reversalOfPostingId ? 'Reversal of ' + p.reversalOfPostingId : '—' }}</td></tr> }
-          @empty { <tr><td colspan="5">No immutable postings recorded in the firm ledger yet.</td></tr> }</tbody></table></div>
+            <td>@if (p.reversalOfPostingId) { Reversal of <code>{{ p.reversalOfPostingId }}</code> } @else if (isPostingReversed(p.id, l.postings)) { Reversed } @else { Active }</td>
+            <td>@if (!p.reversalOfPostingId && !isPostingReversed(p.id, l.postings) && l.canReversePostings) { <button matButton="outlined" (click)="startReversal(p.id, p.periodId)" [disabled]="cmd.busy()">Reverse</button> }</td></tr> }
+          @empty { <tr><td colspan="6">No immutable postings recorded in the firm ledger yet.</td></tr> }</tbody></table></div>
+        @if (reversingPosting(); as id) {
+          <div class="panel"><h3>Reverse posting</h3><p>Reversing a posting records an offsetting entry in an open fiscal period (§41.5). The original posting remains immutable in history.</p>
+            <label>Target open period <select name="reversalPeriod" [(ngModel)]="reversalPeriodId" [disabled]="cmd.busy()" required>
+              <option value="">Select an open period</option>
+              @for (p of l.periods; track p.id) { @if (p.status === 'OPEN') { <option [value]="p.id">{{ p.periodCode }}</option> } }
+            </select></label>
+            <label>Reversal reason <input name="reversalReason" [(ngModel)]="reversalReason" required maxlength="500" [disabled]="cmd.busy()" /></label>
+            <p class="actions"><button matButton="filled" (click)="confirmReversal(id)" [disabled]="cmd.busy() || !reversalPeriodId || !reversalReason.trim()">Confirm reversal</button><button matButton (click)="cancelReversal()" [disabled]="cmd.busy()">Cancel</button></p></div>
+        }
       </section>
     }
-    @if (!cmd.uncertain()) { <audit-command-message [message]="cmd.message()" [failed]="cmd.failed()" /> }
+    @if (!cmd.uncertain() && cmd.message()) { <audit-command-message [message]="cmd.message()" [failed]="cmd.failed()" /> }
   `,
 })
 export class FirmLedger {
@@ -300,6 +316,11 @@ export class FirmLedger {
   readonly verifiedRevision = signal<number | null>(null);
   private readonly pendingClose = signal<PendingClose | null>(null);
   reason = 'Standard accounting period close';
+  readonly reopening = signal<string | null>(null);
+  reopenReason = 'Correction required for fiscal period';
+  readonly reversingPosting = signal<string | null>(null);
+  reversalPeriodId = '';
+  reversalReason = 'Correction of posted transaction';
 
   constructor() {
     let generation = this.session.invalidation();
@@ -328,6 +349,8 @@ export class FirmLedger {
         this.journalActionMessage.set('');
         this.journalActionCommand.uncertain.set(false);
         this.journalActionCommand.failed.set(false);
+        this.reopening.set(null);
+        this.reversingPosting.set(null);
       });
     });
   }
@@ -760,6 +783,47 @@ export class FirmLedger {
     this.ledger.reload();
   }
 
+  async reopen(id: string): Promise<void> {
+    const succeeded = await this.cmd.run(`/api/ui/finance/periods/${id}/reopen`, { reason: this.reopenReason.trim() }, 'Fiscal period reopened.', () => {
+      this.reopening.set(null);
+      this.ledger.reload();
+    });
+    if (succeeded) {
+      this.ledger.reload();
+    }
+  }
+
+  isPostingReversed(postingId: string, postings: readonly DecodedFirmPosting[]): boolean {
+    return postings.some(p => p.reversalOfPostingId === postingId);
+  }
+
+  startReversal(postingId: string, periodId: string | null): void {
+    this.reversingPosting.set(postingId);
+    const openPeriod = this.ledger.data()?.periods.find(p => p.status === 'OPEN' && (!periodId || p.id === periodId))
+      ?? this.ledger.data()?.periods.find(p => p.status === 'OPEN');
+    this.reversalPeriodId = openPeriod?.id ?? '';
+    this.reversalReason = 'Correction of posted transaction';
+  }
+
+  cancelReversal(): void {
+    this.reversingPosting.set(null);
+    this.reversalPeriodId = '';
+    this.reversalReason = 'Correction of posted transaction';
+  }
+
+  async confirmReversal(postingId: string): Promise<void> {
+    if (!this.reversalPeriodId || !this.reversalReason.trim() || this.cmd.busy()) return;
+    const succeeded = await this.cmd.run(`/api/ui/finance/postings/${postingId}/reverse`,
+      { periodId: this.reversalPeriodId, reason: this.reversalReason.trim() },
+      'Posting reversed with an offsetting entry.', () => {
+        this.cancelReversal();
+        this.ledger.reload();
+      });
+    if (succeeded) {
+      this.ledger.reload();
+    }
+  }
+
   private clearUnknownClose(): void {
     this.cmd.uncertain.set(false);
     this.cmd.failed.set(false);
@@ -768,6 +832,7 @@ export class FirmLedger {
 }
 
 type DecodedFirmJournal = ReturnType<typeof decodeLedger>['journals'][number];
+type DecodedFirmPosting = ReturnType<typeof decodeLedger>['postings'][number];
 
 function canonicalDecimal(value: string): string | null {
   const match = /^(\d{1,14})(?:\.(\d{1,6}))?$/.exec(value.trim());

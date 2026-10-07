@@ -16,6 +16,8 @@ describe('Finance & Firm Ledger Contracts', () => {
       canReviewJournals: true,
       canPostJournals: true,
       canCreateJournals: true,
+      canReversePostings: true,
+      canReopenPeriod: true,
       periods: [
         {
           id: id1,
@@ -38,6 +40,8 @@ describe('Finance & Firm Ledger Contracts', () => {
       postings: [
         {
           id: id1,
+          periodId: id1,
+          journalId: id2,
           postedAt: '2026-10-01T08:00:00Z',
           currency: 'QAR',
           postedByUserId: id2,
@@ -50,9 +54,12 @@ describe('Finance & Firm Ledger Contracts', () => {
     const decoded = decodeLedger(raw, 'ledger');
     expect(decoded.canClosePeriod).toBe(true);
     expect(decoded.canCreateJournals).toBe(true);
+    expect(decoded.canReversePostings).toBe(true);
+    expect(decoded.canReopenPeriod).toBe(true);
     expect(decoded.periods.length).toBe(1);
     expect(decoded.accounts[0].code).toBe('1000');
     expect(decoded.postings[0].currency).toBe('QAR');
+    expect(decoded.postings[0].periodId).toBe(id1);
   });
 
   it('decodes a valid invoice payload', () => {

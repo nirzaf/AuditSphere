@@ -20,6 +20,7 @@ public static partial class UiEndpoints
     string PostingPurpose, string Currency, IReadOnlyList<FirmJournalLineInput> Lines);
   public sealed record FirmJournalActionInput(bool Confirmed);
   public sealed record FiscalCloseInput(string Reason);
+  public sealed record ReversePostingInput(Guid PeriodId, string Reason);
   public sealed record ReceiptInput(string Amount, string Reference, bool Reviewed);
   public sealed record ReceiptAllocationInput(Guid InvoiceId, string Amount, bool Reviewed);
   public sealed record CreditNoteInput(string NoteNumber, string Amount, string Reason, bool Reviewed);
@@ -68,9 +69,11 @@ public static partial class UiEndpoints
           r.Value.CanReviewJournals,
           r.Value.CanPostJournals,
           CanCreateJournals = r.Value.CanCreateJournals,
+          r.Value.CanReversePostings,
+          r.Value.CanReopenPeriod,
             Periods = r.Value.Periods.Select(p => new { p.Id, p.PeriodCode, p.Status, p.Revision, p.ClosedAt }),
             Accounts = r.Value.Accounts.Select(a => new { a.Id, a.Code, a.Name, a.AccountType, a.NormalSide, a.PostingAllowed }),
-            Postings = r.Value.RecentPostings.Select(p => new { p.Id, p.PostedAt, p.Currency, p.PostedByUserId, p.ReversalOfPostingId }),
+            Postings = r.Value.RecentPostings.Select(p => new { p.Id, p.PeriodId, p.JournalId, p.PostedAt, p.Currency, p.PostedByUserId, p.ReversalOfPostingId }),
             Journals = r.Value.RecentJournals.Select(j => new
             {
               j.Id, j.PeriodId, j.PeriodCode, j.JournalNumber, j.SourceKind, j.SourceKey, j.SourceRevision,
@@ -147,6 +150,11 @@ public static partial class UiEndpoints
         : Task.FromResult(CommandResult<Guid>.Fail("ledger.post-unconfirmed", "Confirm the journal posting before continuing."))));
     group.MapPost("/finance/periods/{id:guid}/close", (Guid id, FiscalCloseInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => LedgerService.CloseFiscalPeriodAsync(db, actor, id, i.Reason ?? "", ct)));
+    group.MapPost("/finance/periods/{id:guid}/reopen", (Guid id, FiscalCloseInput i, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => LedgerService.RequestPeriodReopenAsync(db, actor, id, i.Reason ?? "", ct)));
+    group.MapPost("/finance/postings/{id:guid}/reverse", (Guid id, ReversePostingInput input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => LedgerService.ReverseFirmPostingAsync(db, actor,
+        new ReverseFirmPostingRequest(id, input.PeriodId, input.Reason ?? ""), ct)));
     group.MapGet("/finance/invoices/{id:guid}", (
       Guid id, DateTimeOffset? receiptBefore, Guid? receiptBeforeId,
       DateTimeOffset? creditBefore, Guid? creditBeforeId, HttpContext http) => ReadAsync(http, async (db, actor, ct) =>

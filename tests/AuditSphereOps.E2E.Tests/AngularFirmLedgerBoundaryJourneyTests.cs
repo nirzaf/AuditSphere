@@ -50,7 +50,7 @@ public sealed class AngularFirmLedgerBoundaryJourneyTests
       Assert.True(creditAccount.Succeeded, creditAccount.Message);
       var journal = await LedgerService.CreateFirmJournalDraftAsync(db, manager,
         new CreateFirmJournalDraftRequest(periodId, "REC-JRN-001", "MANUAL", "RECOVERY-001", 1,
-          "SYNTHETIC_RECOVERY", "QAR", [
+          "MANUAL", "QAR", [
             new(debitAccount.Value, "Recovery debit", 100m, 0m),
             new(creditAccount.Value, "Recovery credit", 0m, 100m)
           ]));
@@ -77,7 +77,7 @@ public sealed class AngularFirmLedgerBoundaryJourneyTests
       Uri.EscapeDataString("/app/finance"));
     await Assertions.Expect(page.GetByRole(AriaRole.Heading,
       new() { Name = "Firm ledger & financial operations", Exact = true })).ToBeVisibleAsync();
-    var row = page.GetByRole(AriaRole.Row).Filter(new() { HasText = "2026-12" });
+    var row = page.Locator("section[aria-labelledby='periods-heading']").GetByRole(AriaRole.Row).Filter(new() { HasText = "2026-12" });
     await row.GetByRole(AriaRole.Button, new() { Name = "Close period", Exact = true }).ClickAsync();
     await page.GetByLabel("Close reason", new() { Exact = true }).FillAsync("Recovered after posting all journals");
     await page.GetByRole(AriaRole.Button, new() { Name = "Confirm close", Exact = true }).ClickAsync();

@@ -10,7 +10,8 @@ namespace AuditSphereOps.Application.Practice;
 public sealed record FirmFinanceSnapshot(
   bool CanCreateSetup, bool CanCreateJournals, bool CanClosePeriod, bool CanReviewJournals, bool CanPostJournals,
   List<FirmPeriod> Periods, List<FirmAccount> Accounts, List<FirmPosting> RecentPostings,
-  List<FirmFinanceJournalSnapshot> RecentJournals);
+  List<FirmFinanceJournalSnapshot> RecentJournals,
+  bool CanReversePostings = false, bool CanReopenPeriod = false);
 
 public sealed record FirmFinanceJournalLineSnapshot(
   Guid JournalId, Guid FirmAccountId, string AccountCode, string AccountName, string Description, decimal Debit, decimal Credit);
@@ -101,10 +102,13 @@ public static class FirmFinanceQuery
     }
     canCreateSetup = managerAuth.Succeeded;
     canClosePeriod = reviewerAuth.Succeeded;
+    var canReversePostings = reviewerAuth.Succeeded;
+    var canReopenPeriod = managerAuth.Succeeded;
     return auth.Succeeded
       ? CommandResult<FirmFinanceSnapshot>.Ok(new FirmFinanceSnapshot(
           canCreateSetup, canCreateSetup, canClosePeriod, reviewerAuth.Succeeded, managerAuth.Succeeded,
-          periods, accounts, recentPostings, recentJournals))
+          periods, accounts, recentPostings, recentJournals,
+          canReversePostings, canReopenPeriod))
       : CommandResult<FirmFinanceSnapshot>.Fail(auth.ErrorCode!, auth.Message!);
   }
 

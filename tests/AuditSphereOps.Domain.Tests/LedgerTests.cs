@@ -420,6 +420,114 @@ public sealed class LedgerTests
     Assert.Equal(ErrorCodes.GateBlocked, journal.ErrorCode);
   }
 
+  [Fact]
+  public async Task FiscalPeriodReopen_TransitionsClosedPeriodToOpenWithIncrementedRevisionAndAuditTrail()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+
+    var periodId = (await LedgerService.CreateFirmPeriodAsync(db, fixture.ManagerActor,
+      new CreateFirmPeriodRequest("2026-05"))).Value;
+
+    var close = await LedgerService.CloseFiscalPeriodAsync(db, fixture.ReviewerActor, periodId, "Month end close");
+    Assert.True(close.Succeeded, close.Message);
+
+    var closedPeriod = await db.FirmPeriods.AsNoTracking().SingleAsync(x => x.Id == periodId);
+    Assert.Equal(LedgerStates.PeriodClosed, closedPeriod.Status);
+    Assert.NotNull(closedPeriod.ClosedAt);
+    Assert.Equal(2, closedPeriod.Revision);
+
+    var partnerDenied = await LedgerService.RequestPeriodReopenAsync(db, fixture.PartnerActor, periodId, "Reopen attempt");
+    Assert.Equal(ErrorCodes.ScopeDenied, partnerDenied.ErrorCode);
+
+    var invalidReason = await LedgerService.RequestPeriodReopenAsync(db, fixture.ManagerActor, periodId, "");
+    Assert.Equal("ledger.invalid", invalidReason.ErrorCode);
+
+    var reopen = await LedgerService.RequestPeriodReopenAsync(db, fixture.ManagerActor, periodId, "Adjusting transaction required");
+    Assert.True(reopen.Succeeded, reopen.Message);
+
+    var reopenedPeriod = await db.FirmPeriods.AsNoTracking().SingleAsync(x => x.Id == periodId);
+    Assert.Equal(LedgerStates.PeriodOpen, reopenedPeriod.Status);
+    Assert.Null(reopenedPeriod.ClosedAt);
+    Assert.Equal(3, reopenedPeriod.Revision);
+
+    var decisions = await db.PeriodCloseDecisions.AsNoTracking().Where(x => x.PeriodId == periodId).OrderBy(x => x.DecidedAt).ToListAsync();
+    Assert.Equal(2, decisions.Count);
+    Assert.Equal("CLOSE", decisions[0].DecisionKind);
+    Assert.Equal("Month end close", decisions[0].Reason);
+    Assert.Equal("REOPEN", decisions[1].DecisionKind);
+    Assert.Equal("Adjusting transaction required", decisions[1].Reason);
+    Assert.Equal(fixture.Manager.Id, decisions[1].DecidedByUserId);
+
+    var idempotentReopen = await LedgerService.RequestPeriodReopenAsync(db, fixture.ManagerActor, periodId, "Duplicate reopen");
+    Assert.True(idempotentReopen.Succeeded);
+  }
+
+  [Fact]
+  public async Task PartnerDrawingJournal_EndToEndPostingAndReversal_PreservesBalanceAndImmutableAudit()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+
+    var cash = (await LedgerService.CreateFirmAccountAsync(db, fixture.ManagerActor,
+      new CreateFirmAccountRequest("DRAW-BANK", "Firm Bank Account", LedgerStates.AccountAsset, LedgerStates.Debit))).Value;
+    var equityDrawings = (await LedgerService.CreateFirmAccountAsync(db, fixture.ManagerActor,
+      new CreateFirmAccountRequest("DRAW-PARTNER", "Partner Capital Drawings", LedgerStates.AccountEquity, LedgerStates.Debit))).Value;
+    var periodId = (await LedgerService.CreateFirmPeriodAsync(db, fixture.ManagerActor,
+      new CreateFirmPeriodRequest("2026-06"))).Value;
+
+    var evidence = Encoding.UTF8.GetBytes("Partner drawing resolution approved 2026-06-15");
+    var draftRequest = new CreateFirmJournalDraftRequest(periodId, "JRN-DRAW-001", "MANUAL", "DRAW-RES-2026-06", 1,
+      "PARTNER_DRAWING", "QAR", [
+        new FirmJournalLineRequest(equityDrawings, "Partner draw distribution", 5000m, 0m),
+        new FirmJournalLineRequest(cash, "Bank payout", 0m, 5000m)
+      ], "partner-draw-resolution.txt", "text/plain", evidence);
+
+    var journalId = (await LedgerService.CreateFirmJournalDraftAsync(db, fixture.ManagerActor, draftRequest)).Value;
+
+    var submit = await LedgerService.SubmitFirmJournalAsync(db, fixture.ManagerActor, journalId);
+    Assert.True(submit.Succeeded, submit.Message);
+
+    var selfApprove = await LedgerService.ApproveFirmJournalAsync(db, fixture.ManagerActor, journalId);
+    Assert.False(selfApprove.Succeeded);
+
+    var approve = await LedgerService.ApproveFirmJournalAsync(db, fixture.ReviewerActor, journalId);
+    Assert.True(approve.Succeeded, approve.Message);
+
+    var reviewerPost = await LedgerService.PostFirmJournalAsync(db, fixture.ReviewerActor, journalId);
+    Assert.Equal(ErrorCodes.ScopeDenied, reviewerPost.ErrorCode);
+
+    var post = await LedgerService.PostFirmJournalAsync(db, fixture.ManagerActor, journalId);
+    Assert.True(post.Succeeded, post.Message);
+    var postingId = post.Value;
+
+    var posting = await db.FirmPostings.AsNoTracking().SingleAsync(x => x.Id == postingId);
+    Assert.Equal("QAR", posting.Currency);
+    Assert.Equal(fixture.Manager.Id, posting.PostedByUserId);
+
+    var lines = await db.FirmPostingLines.AsNoTracking().Where(x => x.PostingId == postingId).ToListAsync();
+    Assert.Equal(5000m, lines.Single(x => x.FirmAccountId == equityDrawings).Debit);
+    Assert.Equal(5000m, lines.Single(x => x.FirmAccountId == cash).Credit);
+
+    var reversal = await LedgerService.ReverseFirmPostingAsync(db, fixture.ReviewerActor,
+      new ReverseFirmPostingRequest(postingId, periodId, "Cancelled drawing resolution"));
+    Assert.True(reversal.Succeeded, reversal.Message);
+
+    var revPosting = await db.FirmPostings.AsNoTracking().SingleAsync(x => x.Id == reversal.Value);
+    Assert.Equal(postingId, revPosting.ReversalOfPostingId);
+
+    var revLines = await db.FirmPostingLines.AsNoTracking().Where(x => x.PostingId == reversal.Value).ToListAsync();
+    Assert.Equal(5000m, revLines.Single(x => x.FirmAccountId == equityDrawings).Credit);
+    Assert.Equal(5000m, revLines.Single(x => x.FirmAccountId == cash).Debit);
+
+    var retryReversal = await LedgerService.ReverseFirmPostingAsync(db, fixture.ReviewerActor,
+      new ReverseFirmPostingRequest(postingId, periodId, "Cancelled drawing resolution"));
+    Assert.True(retryReversal.Succeeded);
+    Assert.Equal(reversal.Value, retryReversal.Value);
+  }
+
   private static async Task<Fixture> SeedAsync(PgTestSchema pg)
   {
     var firmId = Guid.NewGuid();

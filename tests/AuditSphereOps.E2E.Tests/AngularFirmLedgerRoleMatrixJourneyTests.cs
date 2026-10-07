@@ -59,7 +59,7 @@ public sealed class AngularFirmLedgerRoleMatrixJourneyTests
       Uri.EscapeDataString("/app/finance"));
     await Assertions.Expect(managerPage.GetByRole(AriaRole.Heading,
       new() { Name = "Firm ledger & financial operations", Exact = true })).ToBeVisibleAsync();
-    await Assertions.Expect(managerPage.GetByText(periodMarker, new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(managerPage.Locator("tbody tr").GetByText(periodMarker, new() { Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(managerPage.GetByText(accountMarker, new() { Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(managerPage.GetByRole(AriaRole.Button,
       new() { Name = "Close period", Exact = true })).ToHaveCountAsync(0);
