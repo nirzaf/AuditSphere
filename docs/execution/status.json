@@ -393,7 +393,7 @@
       "removalDecision": "NOT_READY"
     },
     "angularBlazorCurrentRetirementGate": {
-      "observedAt": "2026-10-07T11:51:22Z",
+      "observedAt": "2026-10-07T11:58:23Z",
       "sourceCommit": "15e4bc61c908d47ddb4efc3c2fd1fef4ef10abb2",
       "status": "NOT_READY",
       "physicalRemovalCommit": "59387b549214067ef226cdbf33d0d47084a27c46",
@@ -402,7 +402,7 @@
       "parityVerified": 1,
       "partialReviewed": 75,
       "notAnalyzed": 0,
-      "supportingFilesNotAnalyzed": 20,
+      "supportingFilesNotAnalyzed": 17,
       "administrationSourceReview": {
         "review": "docs/migration/auditsphere-migration-blazor-administration-source-review.md",
         "sourceSnapshot": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
@@ -1129,9 +1129,9 @@
         "sourceSnapshot": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
         "reviewedAgainstCommit": "15e4bc61c908d47ddb4efc3c2fd1fef4ef10abb2",
         "status": "PARTIAL_REVIEWED",
-        "reviewedArtifacts": 14,
+        "reviewedArtifacts": 17,
         "parityVerifiedArtifacts": 0,
-        "summary": "Expanded the pinned shell review to 14 artifacts: the original shell, search, portfolio, client and engagement sources plus App, Routes and six shared UI components. Exact Angular route ownership remains explicit; unknown URLs stay server-owned 404s. Semantic status tones now preserve visible labels and distinguish info, success, warning, error and neutral states. All reviewed artifacts remain partial pending complete state/role/recovery parity and human assistive-technology acceptance.",
+        "summary": "Expanded the pinned shell review to 17 artifacts: the earlier shell, search, portfolio, client and engagement sources plus App, Routes, six shared UI components, and the accounting, client and public layouts. Exact Angular route ownership remains explicit; unknown URLs stay server-owned 404s. Angular status chips preserve visible labels and distinguish info, success, warning, error and neutral states. All reviewed artifacts remain partial pending complete state/role/recovery parity, full legacy link-state comparison and human assistive-technology acceptance.",
         "focusedPortfolioAggregateScope": {
           "sourceCommit": "3511f90380cfe8e092bb576eaa207183b1b74ab5",
           "observedAt": "2026-10-05T21:01:01Z",
@@ -1814,6 +1814,46 @@
         "fullSolutionRegression": "NOT_RUN for this frontend-only slice.",
         "efModelDrift": "NOT_RUN; no Domain or EF model changes.",
         "sharedWorktreeBoundary": "Parallel client-accounting work remains isolated; unrelated finance edits in the shared checkout were not staged.",
+        "retirementDecision": "NOT_READY"
+      },
+      "layoutAndNavigationSourceReview": {
+        "sourceCommit": "15e4bc61c908d47ddb4efc3c2fd1fef4ef10abb2",
+        "observedAt": "2026-10-07T11:58:23Z",
+        "status": "PARTIAL_REVIEWED",
+        "reviewedArtifacts": 3,
+        "sourceSnapshot": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
+        "sourceHashes": [
+          {
+            "source": "src/AuditSphereOps.Web/Components/Layout/AccountingNavigation.razor",
+            "sha256": "5016cbda804f97cf57febb43b9d8c059b5a0a9e1d7e94ba58f9c88a674867521"
+          },
+          {
+            "source": "src/AuditSphereOps.Web/Components/Layout/ClientLayout.razor",
+            "sha256": "ec517dfd31b93c4790a1bf676e362d05f3ceecf504766a9f6a3c497d827b9c30"
+          },
+          {
+            "source": "src/AuditSphereOps.Web/Components/Layout/PublicLayout.razor",
+            "sha256": "76819332873db6735fba463a2d8fec98ca26b4e077ece88e179bd23f2e75ab19"
+          }
+        ],
+        "owners": [
+          "Angular NAVIGATION and WorkspaceNavigation",
+          "Angular App and clientGuard/staffGuard",
+          "ASP.NET API explicit route catalogue and AngularRoutingContractTests"
+        ],
+        "existingJourneyEvidence": [
+        "AngularRouteAndShellMigrationSweepTests.ParameterlessRoutesRenderAndPreserveRoleSpecificShells",
+        "AngularShellNavigationJourneyTests.ResponsiveMenu_KeyboardFocus_ContextAndRevocation",
+        "AngularInstallationBootstrapJourneyTests",
+        "AngularRoutingContractTests"
+        ],
+        "freshPostgresPlaywright": {
+          "status": "NOT_RUN",
+          "reason": "The configured PostgreSQL 18 endpoint did not respond. pg_ctl start found an existing postmaster.pid referencing an active process that could not be verified as PostgreSQL; the lock file and database were left untouched."
+        },
+        "sourceChanges": "Documentation and inventory only; no application source changed.",
+        "fullSolutionRegression": "NOT_RUN for this documentation-only review.",
+        "efModelDrift": "NOT_RUN; no Domain or EF model changes.",
         "retirementDecision": "NOT_READY"
       }
     },

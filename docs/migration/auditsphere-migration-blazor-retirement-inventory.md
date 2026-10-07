@@ -106,9 +106,9 @@ These files were enumerated but their retirement impact has not been accepted. S
 | `src/AuditSphereOps.Web/Authentication/CurrentActorResolver.cs` | .cs | `NOT_ANALYZED` |
 | `src/AuditSphereOps.Web/Components/Administration/AdministrationDashboard.razor` | .razor | `NOT_ANALYZED` |
 | `src/AuditSphereOps.Web/Components/App.razor` | .razor | [`PARTIAL`](auditsphere-migration-blazor-shell-portfolio-source-review.md) |
-| `src/AuditSphereOps.Web/Components/Layout/AccountingNavigation.razor` | .razor | `NOT_ANALYZED` |
-| `src/AuditSphereOps.Web/Components/Layout/ClientLayout.razor` | .razor | `NOT_ANALYZED` |
-| `src/AuditSphereOps.Web/Components/Layout/PublicLayout.razor` | .razor | `NOT_ANALYZED` |
+| `src/AuditSphereOps.Web/Components/Layout/AccountingNavigation.razor` | .razor | [`PARTIAL`](auditsphere-migration-blazor-shell-portfolio-source-review.md) |
+| `src/AuditSphereOps.Web/Components/Layout/ClientLayout.razor` | .razor | [`PARTIAL`](auditsphere-migration-blazor-shell-portfolio-source-review.md) |
+| `src/AuditSphereOps.Web/Components/Layout/PublicLayout.razor` | .razor | [`PARTIAL`](auditsphere-migration-blazor-shell-portfolio-source-review.md) |
 | `src/AuditSphereOps.Web/Components/Routes.razor` | .razor | [`PARTIAL`](auditsphere-migration-blazor-shell-portfolio-source-review.md) |
 | `src/AuditSphereOps.Web/Components/Shared/LoadingState.razor` | .razor | [`PARTIAL`](auditsphere-migration-blazor-shell-portfolio-source-review.md) |
 | `src/AuditSphereOps.Web/Components/Shared/PageHeader.razor` | .razor | [`PARTIAL`](auditsphere-migration-blazor-shell-portfolio-source-review.md) |

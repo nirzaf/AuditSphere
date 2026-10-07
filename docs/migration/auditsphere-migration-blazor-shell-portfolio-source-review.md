@@ -2,15 +2,19 @@
 
 **Status:** PARTIAL_REVIEWED  
 **Source reviewed against code:** `15e4bc61`
+
 **Pinned discovery snapshot:** `eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39`
 
-The fourteen legacy files below match their SHA-256 values in the pinned source
+The seventeen legacy files below match their SHA-256 values in the pinned source
 inventory. The source files are retained in the Web rollback/reference host;
 their presence and route mapping do not establish parity by themselves.
 
 | Legacy source | SHA-256 |
 |---|---|
 | `src/AuditSphereOps.Web/Components/Layout/MainLayout.razor` | `3bfa49fb5e1991fc6e32f24ba44484097c0c1036019e7766c0dc2da5f082d663` |
+| `src/AuditSphereOps.Web/Components/Layout/AccountingNavigation.razor` | `5016cbda804f97cf57febb43b9d8c059b5a0a9e1d7e94ba58f9c88a674867521` |
+| `src/AuditSphereOps.Web/Components/Layout/ClientLayout.razor` | `ec517dfd31b93c4790a1bf676e362d05f3ceecf504766a9f6a3c497d827b9c30` |
+| `src/AuditSphereOps.Web/Components/Layout/PublicLayout.razor` | `76819332873db6735fba463a2d8fec98ca26b4e077ece88e179bd23f2e75ab19` |
 | `src/AuditSphereOps.Web/Components/App.razor` | `9b15055e3dbdb235225ace244e0f0ff7616451e9b847a78d14ac73d96c0b54ea` |
 | `src/AuditSphereOps.Web/Components/Routes.razor` | `87203ede0ed0fdb52dd33059b8e95085d43179e5e6887b123dafc27b99b5d292` |
 | `src/AuditSphereOps.Web/Components/Shared/LoadingState.razor` | `a5cda405100dcb5ec5eddab290506a3bc63ddf432434c67a2f4c4bfba91cef4e` |
@@ -29,6 +33,9 @@ their presence and route mapping do not establish parity by themselves.
 
 | Legacy behavior | Angular, API and Application owner | Current evidence and remaining gap |
 |---|---|---|
+| Provide a secondary accounting route bar with current-page indication for the accounting and consolidation workspaces. | Angular `NAVIGATION` and `WorkspaceNavigation` own the staff route list and active-route state; the accounting records component exposes its own `Accounting record queues` links for local workflow navigation. | The legacy component's ten destinations are represented in the Angular staff navigation, with some label and grouping changes. `navigation.spec.ts` verifies each menu destination is explicitly owned; `AngularRouteAndShellMigrationSweepTests` covers the accounting parameterless routes and current primary section. The route-local accounting queue is separately keyboard-focus tested. The complete old-to-new label/active-link matrix across detail and query-string routes remains unverified. |
+| Use a dedicated client layout with a skip link, client-portal identity, and a request destination. | Angular `App` and `WorkspaceNavigation` select client-only navigation from the refreshed session; `clientGuard` redirects a staff identity away from portal routes. API reads independently re-authorize participant and client scope. | `AngularShellNavigationJourneyTests` and the route/shell sweep verify the client portal heading, exactly one portal link, absence of Administration, and responsive navigation. `SessionService` revocation journeys clear stale protected content. The Angular shell is shared instead of a dedicated client frame; full layout, locale and human assistive-technology parity remain open. |
+| Use a minimal public layout for root, authentication and setup routes. | Angular `App` renders the signed-out state and exposes the public Microsoft setup route; API route ownership remains explicit, and auth/API/unowned paths do not fall through to an Angular wildcard. | `RootRedirectRespectsPreviewAndCanonicalAngularOwnership` verifies root redirects and exact sign-in destinations in both route modes. `AngularInstallationBootstrapJourneyTests` covers the setup route, while `AngularRoutingContractTests` protects explicit API ownership. Public, signed-out and setup visual/error states have not been compared exhaustively with the legacy layout or accepted with assistive technology. |
 | Reuse headings, status chips, loading/error/empty states, scope notices, task-card bars and revoke protected content after session loss. | Angular `PageHeader`, `StatusChip`, `StateBlock`, feature-local empty states, `TaskBar`, `App` and `SessionService`. The status chip now uses semantic info/success/warning/error/neutral tones and retains its visible text label. | All six shared Blazor sources match the pinned hashes. `AngularRouteAndShellMigrationSweepTests` verifies task-card distribution, accessible labels, filters and stale snapshot states; `AngularFirmScopeRevocationParityJourneyTests` verifies that stale identity removes protected views. The component tests cover representative tone mappings, visible labels and the neutral fallback. Text remains the authority when color is unavailable; the chosen foreground/background pairs exceed 7:1 contrast. Remaining differences: legacy chips also show icons, Angular empty states are feature-local, `ScopeBanner` is a presentation wrapper rather than a shared component, and `TaskBar` exposes an accessible distribution image instead of a scalar progressbar. Full per-page state and human assistive-technology coverage remain open. |
 | Select a staff, client-portal or public route layout; provide a not-found response for unmatched routes; load shell CSS, icons, reconnection and helper assets. | Angular `App` owns session-specific staff/client rendering and Angular assets. The API serves the exact `SpaRoutes` catalogue; `AngularRoutingContractTests` enforces one-to-one ownership and forbids wildcard SPA routes. Unknown paths therefore remain server-owned HTTP 404s instead of falling through to the Angular application. | `Routes.razor` and `App.razor` match the pinned source hashes. The current Angular shell and explicit route list were compared with the legacy route/layout selection. API-host route ownership is covered by `AngularRoutingContractTests.ApiDeepLinks_ExactlyMatchTheAngularRouteCatalogue` and `EveryLegacyWorkspaceRouteHasExplicitNativeOwnership`. The HTTP 404 presentation for a direct unknown URL has not been checked in the built-in browser; full public/client/staff shell and assistive-technology acceptance remain open. |
 | Redirect `/` to the staff workspace. | The API root endpoint redirects to Angular's deployment-owned staff destination; Angular `routes` redirects the empty path to `app`, which loads `Portfolio`. | `AngularRouteAndShellMigrationSweepTests.ParameterlessRoutesRenderAndPreserveRoleSpecificShells` includes direct `/` navigation in canonical-route mode. `RootRedirectRespectsPreviewAndCanonicalAngularOwnership` verifies both final targets, `/app` and `/ui/app`, and the Portfolio heading. Its unauthenticated cases verify the sign-in prompt, exact route-mode return destination and arrival at Portfolio after sign-in. Fallback-host behavior remains open. |
@@ -214,7 +221,7 @@ authorization and recovery matrices.
   this slice. The latest complete-solution result remains the earlier
   1001/1001 checkpoint in `status.json`.
 
-All fourteen artifacts remain `PARTIAL`. Remaining role, field, cross-firm,
+All seventeen artifacts remain `PARTIAL`. Remaining role, field, cross-firm,
 guessed-ID, validation, error/recovery, accessibility and assistive-technology
 coverage prevents a parity claim. Production/canary, owner and external
 acceptance remain separate gates. Blazor retirement is still `NOT_READY`.

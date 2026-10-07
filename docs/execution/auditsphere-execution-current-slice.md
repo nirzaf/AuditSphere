@@ -13,6 +13,26 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Route layouts and accounting navigation crosswalk — 15e4bc61
+
+Reviewed and hash-checked the legacy `AccountingNavigation`, `ClientLayout` and
+`PublicLayout` against their Angular route and shell owners. Accounting
+destinations now live in the shared staff navigation, client sessions see only
+the portal destination, and root/setup handling remains in the explicit Angular
+shell/API ownership model. Existing navigation and route-sweep journeys cover
+the main destinations and role-specific shell behavior; the full legacy
+label/active-link matrix, public-state parity and human assistive-technology
+acceptance remain open. No source code changed in this review.
+
+The focused PostgreSQL browser journey was not rerun: the configured local
+database port did not respond, and the existing `postmaster.pid` referenced an
+active process that could not be verified as PostgreSQL. I left the lock file
+and database untouched. Per-artifact hashes, dispositions and the local
+verification boundary are recorded in
+[`status.json`](status.json) under
+`verification.angularBlazorCurrentRetirementGate.layoutAndNavigationSourceReview`.
+The retirement gate remains `NOT_READY`.
+
 ## Angular shared status-chip semantics — 15e4bc61
 
 Angular's shared `StatusChip` now applies the same informational, success,
