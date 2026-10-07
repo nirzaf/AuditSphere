@@ -393,8 +393,8 @@
       "removalDecision": "NOT_READY"
     },
     "angularBlazorCurrentRetirementGate": {
-      "observedAt": "2026-10-07T09:52:46Z",
-      "sourceCommit": "343592fc5a2403a27551a17034a2c50989e9437a",
+      "observedAt": "2026-10-07T11:51:22Z",
+      "sourceCommit": "15e4bc61c908d47ddb4efc3c2fd1fef4ef10abb2",
       "status": "NOT_READY",
       "physicalRemovalCommit": "59387b549214067ef226cdbf33d0d47084a27c46",
       "webProjectPresent": true,
@@ -402,7 +402,7 @@
       "parityVerified": 1,
       "partialReviewed": 75,
       "notAnalyzed": 0,
-      "supportingFilesNotAnalyzed": 28,
+      "supportingFilesNotAnalyzed": 20,
       "administrationSourceReview": {
         "review": "docs/migration/auditsphere-migration-blazor-administration-source-review.md",
         "sourceSnapshot": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
@@ -1127,11 +1127,11 @@
       "shellPortfolioProfileSourceReview": {
         "review": "docs/migration/auditsphere-migration-blazor-shell-portfolio-source-review.md",
         "sourceSnapshot": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
-        "reviewedAgainstCommit": "1e22baaeeaf33283bf0ca311a93c1c493bcd82e6",
+        "reviewedAgainstCommit": "15e4bc61c908d47ddb4efc3c2fd1fef4ef10abb2",
         "status": "PARTIAL_REVIEWED",
-        "reviewedArtifacts": 6,
+        "reviewedArtifacts": 14,
         "parityVerifiedArtifacts": 0,
-        "summary": "Six shell, global-search, portfolio, client-profile and engagement-profile artifacts were hash checked and mapped to the Angular/API/Application owners. A focused PostgreSQL-backed API-host browser cohort passed 16/16, with a read-only built-in-browser observation. All remain partial pending complete route, role/scope, field, cross-firm, guessed-ID, validation, error/recovery and assistive-technology evidence.",
+        "summary": "Expanded the pinned shell review to 14 artifacts: the original shell, search, portfolio, client and engagement sources plus App, Routes and six shared UI components. Exact Angular route ownership remains explicit; unknown URLs stay server-owned 404s. Semantic status tones now preserve visible labels and distinguish info, success, warning, error and neutral states. All reviewed artifacts remain partial pending complete state/role/recovery parity and human assistive-technology acceptance.",
         "focusedPortfolioAggregateScope": {
           "sourceCommit": "3511f90380cfe8e092bb576eaa207183b1b74ab5",
           "observedAt": "2026-10-05T21:01:01Z",
@@ -1764,6 +1764,56 @@
         "fullSolutionRegression": "NOT_RUN for this review.",
         "efModelDrift": "NOT_RUN; no Domain or EF model changes were retained.",
         "sharedWorktreeBoundary": "Parallel finance changes remained untouched.",
+        "retirementDecision": "NOT_READY"
+      },
+      "angularStatusChipSemanticTones": {
+        "sourceCommit": "15e4bc61c908d47ddb4efc3c2fd1fef4ef10abb2",
+        "observedAt": "2026-10-07T11:51:22Z",
+        "status": "PASS_LOCAL_UI_SLICE_WITH_PRODUCTION_BUILD_BLOCK",
+        "component": "src/AuditSphereOps.Ui/src/app/core/ui.ts::StatusChip",
+        "focusedComponentTests": {
+          "status": "PASS",
+          "passed": 5,
+          "failed": 0,
+          "skipped": 0,
+          "command": "npm --prefix src/AuditSphereOps.Ui run test:ci"
+        },
+        "angularUnitTests": {
+          "status": "PASS",
+          "files": 108,
+          "passed": 556,
+          "failed": 0,
+          "skipped": 0,
+          "command": "npm --prefix src/AuditSphereOps.Ui run test:ci",
+          "observedAt": "2026-10-07T11:46:26Z"
+        },
+        "contrastRatios": {
+          "info": "8.11:1",
+          "success": "7.24:1",
+          "warning": "7.61:1",
+          "error": "7.73:1",
+          "neutral": "9.97:1"
+        },
+        "angularDevelopmentServer": {
+          "status": "PASS_LOCAL_COMPILE",
+          "nodeVersion": "22.23.2",
+          "compile": "Angular development bundle compiled and server started at localhost:5180.",
+          "builtInBrowser": "PARTIAL_LOCAL: rendered the unauthenticated Angular shell. The API session endpoint returned ECONNREFUSED because no API host was running; authenticated status chips were not displayed.",
+          "apiProxy": "ECONNREFUSED for /api/ui/session"
+        },
+        "angularProductionBuild": {
+          "status": "BLOCKED_LOCAL_BUILD",
+          "attempts": [
+            "Node 26.8.1 default optimized build: exit 134 at Building.",
+            "Node 22.23.2 default optimized build: exit 134 at Building.",
+            "Node 22.23.2 with NG_BUILD_MAX_WORKERS=1 and NG_BUILD_PARALLEL_TS=0: exit 134 at Building.",
+            "Node 22.23.2 with one worker, parallel TypeScript disabled and NG_BUILD_CHUNKS_ROLLDOWN=0: exit 134 at Building."
+          ],
+          "diagnostics": "No Angular compiler diagnostic or production bundle was emitted."
+        },
+        "fullSolutionRegression": "NOT_RUN for this frontend-only slice.",
+        "efModelDrift": "NOT_RUN; no Domain or EF model changes.",
+        "sharedWorktreeBoundary": "Parallel client-accounting work remains isolated; unrelated finance edits in the shared checkout were not staged.",
         "retirementDecision": "NOT_READY"
       }
     },

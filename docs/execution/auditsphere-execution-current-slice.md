@@ -13,6 +13,28 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Angular shared status-chip semantics — 15e4bc61
+
+Angular's shared `StatusChip` now applies the same informational, success,
+warning and error categories as the retained Blazor component, with a neutral
+fallback. The visible status text remains available to assistive technology and
+does not depend on color. Focused component coverage exercises every tone and
+the neutral fallback. The Angular unit suite passes at this slice; the full
+production optimization still aborts locally, while Angular's development
+server compiles and serves the current source.
+
+The built-in browser opened that development server and reached the Angular
+unauthenticated shell. Its session request was refused because no API host was
+running, so authenticated status chips were not visually verified in this
+browser run. Detailed test/build/browser evidence is recorded in
+[`status.json`](status.json) under
+`verification.angularBlazorCurrentRetirementGate.angularStatusChipSemanticTones`.
+The expanded source review keeps the retained shell/support artifacts
+`PARTIAL`; supporting-file analysis remains open. Full migration
+acceptance, production canary/rollback, human assistive-technology and locale
+checks, live Microsoft gates and owner acceptance remain open. The Blazor host
+stays present and retirement remains `NOT_READY`.
+
 ## Blazor consolidation source/action review
 
 Reviewed the last two unanalyzed presentation artifacts: the group consolidation overview and
