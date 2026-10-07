@@ -37,6 +37,18 @@ Evidence is recorded in
 [`auditsphere-migration-blazor-confirm-dialog-source-review.md`](../migration/auditsphere-migration-blazor-confirm-dialog-source-review.md)
 and `status.json`.
 
+## Records Archive incomplete-manifest state — 21e85a17
+
+Added a PostgreSQL-backed Angular browser journey for an empty manifest marked
+`INCOMPLETE`. It verifies the persisted reason, zero-entry empty state,
+profile/version and digest, and distinct `Not observed` / `Not requested`
+records evidence; no complete-archive claim is shown. The focused Release E2E
+journey passed 1/1 in 33 seconds with no page or console errors. This closes
+empty/incomplete presentation evidence only; large-manifest and failure/recovery
+coverage, authorization matrices, human accessibility/locale and production
+gates remain open. The full solution and EF checks were not rerun. Evidence is
+recorded in `status.json` and the Records Archive/Release source review.
+
 ## Workpaper autosave and discard decision race — 6d1f91ad
 
 A browser journey exposed that a pending Workpaper autosave could fire while

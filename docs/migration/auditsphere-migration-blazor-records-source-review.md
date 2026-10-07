@@ -77,10 +77,27 @@ unavailable state without protected record content.
 
 - Complete role/scope, expired-grant, cross-firm, and route-error matrices for
   both pages remain open.
-- Archive empty/incomplete/large-manifest variants and all failure/recovery
-  states need direct assertions.
+- Large-manifest behavior and remaining archive failure/recovery states need
+  direct assertions. Empty and incomplete manifest display is covered by the
+  follow-up journey below.
 - Remaining Release validation/error states, human screen-reader, broader
   locale, and production acceptance remain open.
 
 Neither row is promoted to parity verified. These page reviews do not establish
 Purview provider acceptance or close overall migration acceptance.
+
+
+### Incomplete empty-manifest browser evidence — 2026-10-07
+
+At code commit `21e85a17`,
+`AngularArchiveCompletenessJourneyTests.IncompleteEmptyManifestShowsBlockerAndNoEntries`
+passed **1/1** in 33 seconds on an owned isolated PostgreSQL/API host. It
+verifies the exact incomplete reason, zero-entry empty state, manifest
+profile/version and digest, and distinct `Not observed` / `Not requested`
+records-protection states. The route does not claim the archive is complete.
+
+This closes the empty and incomplete-manifest presentation gap only. The
+Records Archive row remains `PARTIAL` for large-manifest behavior, failure and
+recovery paths, complete authorization matrices, human accessibility/locale
+review and production acceptance. The full solution regression and EF drift
+check were not rerun.

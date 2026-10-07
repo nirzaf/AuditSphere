@@ -468,8 +468,8 @@
       "source": "src/AuditSphereOps.Web/Components/Pages/RecordsArchive.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-records-source-review.md",
-      "reviewedAtCommit": "5af8e02b06797b53825da09fce6b4dff04d97fb7",
-      "openGaps": ["Complete role/scope, expired-grant and cross-firm response matrix", "Empty, incomplete, large-manifest and failure/recovery variants", "Human screen-reader and wider-locale acceptance"]
+      "reviewedAtCommit": "21e85a17",
+      "openGaps": ["Complete role/scope, expired-grant and cross-firm response matrix", "Large-manifest and archive failure/recovery variants", "Human screen-reader and wider-locale acceptance"]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/Release.razor",

@@ -11377,17 +11377,28 @@
       "sharedWorktreeBoundary": "The unrelated docs/execution/angular-source-inventory.json and src/AuditSphereOps.Application/Accounting/ConsolidationOverviewQuery.cs edits were excluded and remain untouched.",
       "retirementDecision": "NOT_READY"
     },
+    "angularArchiveIncompleteManifestJourney": {
+      "sourceCommit": "21e85a17",
+      "observedAt": "2026-10-07T13:29:00Z",
+      "status": "PASS_LOCAL_SLICE",
+      "caseId": "AS-PAR-002-ANGULAR-ARCHIVE-INCOMPLETE-01",
+      "focusedPostgresPlaywright": { "status": "PASS", "passed": 1, "failed": 0, "skipped": 0, "duration": "33s", "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~AngularArchiveCompletenessJourneyTests' --logger 'console;verbosity=minimal'" },
+      "coverage": "A persisted INCOMPLETE manifest with a valid digest and zero entries renders the exact blocker reason, 0-entry empty state, profile/version and digest; records protection and label/action states remain Not observed/Not requested. The page does not claim archive completeness.",
+      "fullSolutionRegression": "NOT_RUN; latest complete PostgreSQL-backed Release solution result remains 1001/1001 at ead85032de2ccc4d4c8043398fa8471d395376a9.",
+      "efModelDrift": "Not rerun; no Application, Domain or EF model code changed.",
+      "retirementDecision": "NOT_READY"
+    },
     "angularRecordsArchiveReleaseSourceReview": {
-      "sourceCommit": "5af8e02b06797b53825da09fce6b4dff04d97fb7",
-      "observedAt": "2026-10-05T17:58:03Z",
+      "sourceCommit": "21e85a17",
+      "observedAt": "2026-10-07T13:29:00Z",
       "status": "PARTIAL_REVIEW",
       "caseId": "AS-PAR-002-ANGULAR-RECORDS-RELEASE-SOURCE-REVIEW-01",
       "disposition": "PARTIAL",
       "inventory": {
         "totalSourceActionRows": 76,
         "parityVerified": 1,
-        "partial": 67,
-        "unanalyzed": 8,
+        "partial": 75,
+        "unanalyzed": 0,
         "supportingFilesOpen": 28,
         "recordsArchiveSourceSha256": "d3601645bc97021062bc444a9f71579f61d27450750a26913463fde99c98ed5b",
         "releaseSourceSha256": "0b47f8747fac34b68eb3583a20e1e0836793c81b52600e5a738bad4bdab76d88",
@@ -11409,14 +11420,15 @@
         "duration": "33s",
         "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~AngularReleaseParityJourneyTests'"
       },
-      "coverage": "Archive manifest read, sibling/guessed-ID denial, and responsive/focus assertions; expired-protection release refusal, no release write, sibling denial, same-document guessed-ID clearing and current-grant revocation clearing. The Angular release key is cleared before request dispatch.",
+      "coverage": "Archive manifest read, sibling/guessed-ID denial, responsive/focus assertions, and an incomplete zero-entry manifest blocker/empty state; expired-protection release refusal, no release write, sibling denial, same-document guessed-ID clearing and current-grant revocation clearing. The Angular release key is cleared before request dispatch.",
+      "followUpIncompleteManifestJourney": { "status": "PASS", "passed": 1, "failed": 0, "skipped": 0, "duration": "33s", "sourceCommit": "21e85a17" },
       "builtInBrowser": "PASS_LOCAL_READ_ONLY: the Development browser rendered generic unavailable states for guessed archive and release IDs without protected record content.",
       "fullSolutionRegression": "NOT_RUN for this review; latest complete PostgreSQL-backed Release result remains 1001/1001 at ead85032de2ccc4d4c8043398fa8471d395376a9.",
       "efModelDrift": "Not rerun; no Application, Domain, entity or EF model code changed in this source-review slice.",
       "openGaps": [
         "Successful Angular issue flow with verified gates and uncertain-outcome recovery",
         "Complete role/scope, expired-grant, cross-firm and route-error matrices",
-        "Archive empty, incomplete and large-manifest variants with failure/recovery coverage",
+        "Large-manifest and archive failure/recovery coverage",
         "Human screen-reader, broader locale and production acceptance"
       ],
       "sharedWorktreeBoundary": "The unrelated docs/execution/angular-source-inventory.json and src/AuditSphereOps.Application/Accounting/ConsolidationOverviewQuery.cs edits were excluded and remain untouched; the E2E project build compiled the latter but these journeys do not exercise its behavior.",
