@@ -125,7 +125,8 @@ public sealed class AngularArchiveCompletenessJourneyTests
     await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Records archive", Exact = true }))
       .ToBeVisibleAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Alert)).ToContainTextAsync($"Manifest incomplete: {reason}");
-    await Assertions.Expect(page.GetByRole(AriaRole.Status)).ToContainTextAsync("Manifest version 1 · 0 manifest entries · 0 active local holds");
+    await Assertions.Expect(page.GetByText("Manifest version 1 · 0 manifest entries · 0 active local holds", new() { Exact = true }))
+      .ToBeVisibleAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Cell, new() { Name = "No persisted manifest entries.", Exact = true }))
       .ToBeVisibleAsync();
     await Assertions.Expect(page.GetByText($"{profile} v3", new() { Exact = true })).ToBeVisibleAsync();

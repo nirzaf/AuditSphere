@@ -13,24 +13,26 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
-## Records Archive bounded manifest paging — implementation awaiting browser verification
+## Records Archive bounded manifest paging — focused verification passed — 2026-10-07
 
 Archive reads now request no more than 100 ordered manifest rows and return a
 total count plus an ordinal cursor. The Angular detail page appends subsequent
 pages on demand, and a PostgreSQL browser journey covers a 205-entry
 100/100/5 sequence with ordering and duplicate checks. The focused records
 contract suite passed 5/5 and Angular template compilation passed with
-`npx ngc -p tsconfig.app.json --noEmit`. The browser run compiled the API and
-Application, but failed its new UI assertion because the E2E host served the
-older Angular bundle. Angular production and development builds both abort
-inside esbuild with `fatal error: all goroutines are asleep - deadlock!` (exit
-134), including after cache cleanup and worker limiting. The paging UI is
-therefore not verified yet; rerun the build and journey when the local bundler
-works. Independently, `RecordsArchivePagingApiTests` passed 1/1 against
-PostgreSQL, verifying ordered 100/100/5 pages, total counts/cursors, and
-safe rejection of a negative cursor, plus identical foreign-versus-guessed-ID
-denials. The Records Archive source row remains partial and the migration gate
-remains `NOT_READY`.
+`npx ngc -p tsconfig.app.json --noEmit`. The production build passed when run
+outside the restricted sandbox; its initial bundle is 349.89 kB raw / 94.09 kB
+estimated transfer. The commercial settings stylesheet remains above its
+component warning budget (7.53 kB vs 4 kB). The focused PostgreSQL Playwright
+journey passed 2/2, including the 205-entry 100/100/5 sequence, ordered rows,
+duplicate checks and empty/incomplete-manifest presentation. Its first run
+exposed an ambiguous test selector because the page has two status messages;
+the assertion now targets the archive summary explicitly. The separate API
+journey passed 1/1, verifying exact cursors, safe rejection of a negative
+cursor, and identical foreign-versus-guessed-ID denials. The built-in browser
+tab could not reach localhost:5105, so that manual visual check remains open.
+The Records Archive source row remains partial and the migration gate remains
+`NOT_READY`.
 
 ## Shared confirmation cancellation and validation — a27c3102
 

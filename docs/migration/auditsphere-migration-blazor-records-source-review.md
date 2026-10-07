@@ -103,17 +103,19 @@ recovery paths, complete authorization matrices, human accessibility/locale
 review and production acceptance. The full solution regression and EF drift
 check were not rerun.
 
-### Large-manifest paging implementation — verification pending — 2026-10-07
+### Large-manifest paging implementation — focused verification passed — 2026-10-07
 
 Archive detail reads now return at most 100 ordered manifest entries per
 request, with total count and an ordinal cursor; the Angular page exposes a
-progressive “Load next 100 entries” action. A 205-entry PostgreSQL browser
-journey was added for ordered, duplicate-free 100/100/5 rendering. It has not
-passed: the E2E host served an older Angular bundle, and `ng build` aborted
-inside esbuild with `fatal error: all goroutines are asleep - deadlock!` (exit
-134). `ngc -p tsconfig.app.json --noEmit` and the five focused records contract
-tests passed. Separately, `RecordsArchivePagingApiTests` passed 1/1 against
-PostgreSQL for 100/100/5 ordered pages, total counts/cursors and nondisclosing
-foreign/guessed-ID denial; negative cursors receive a safe 400. Do not count
-large-manifest UI paging as verified until the current Angular bundle builds
-and the browser journey passes.
+progressive “Load next 100 entries” action. The production Angular build passed
+outside the restricted sandbox (349.89 kB initial raw, 94.09 kB estimated
+transfer; existing commercial-settings stylesheet budget warning remains). The
+focused PostgreSQL Playwright journey passed 2/2, covering ordered,
+duplicate-free 100/100/5 rendering and the incomplete/empty manifest state. Its
+first run found an ambiguous status locator in the test, which was narrowed to
+the archive summary before the passing rerun. The API paging journey passed
+1/1 for exact totals/cursors, negative-cursor 400 and nondisclosing
+foreign/guessed-ID denial. The built-in browser could not reach localhost:5105;
+manual visual verification is still open. This focused result does not close
+the broader Records Archive parity row or the overall `NOT_READY` migration
+gate.
