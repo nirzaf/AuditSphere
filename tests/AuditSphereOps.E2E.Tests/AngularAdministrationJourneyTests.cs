@@ -50,8 +50,20 @@ public sealed class AngularAdministrationJourneyTests
     await Assertions.Expect(page.GetByRole(AriaRole.Dialog).GetByText(host.Fixture.Staff.DisplayName, new() { Exact = false })).ToBeVisibleAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Dialog)).ToContainTextAsync($"{host.Fixture.Staff.DisplayName} · {host.Fixture.Staff.Email}");
     await Assertions.Expect(page.GetByRole(AriaRole.Dialog).GetByText($"Manager · CLIENT · {host.Fixture.ClientId}", new() { Exact = true })).ToBeVisibleAsync();
+    var revoke = dialog.GetByRole(AriaRole.Button, new() { Name = "Revoke reviewed access", Exact = true });
+    await Assertions.Expect(revoke).ToBeDisabledAsync();
+    await dialog.GetByRole(AriaRole.Button, new() { Name = "Close", Exact = true }).ClickAsync();
+    await Assertions.Expect(dialog).ToHaveCountAsync(0);
+    await using (var db = host.CreateDbContext())
+      Assert.Null((await db.RoleGrants.SingleAsync(x => x.Id == grantId)).RevokedAt);
+
+    await page.GetByRole(AriaRole.Button, new() { Name = "Revoke Manager for " + host.Fixture.Staff.DisplayName, Exact = true }).ClickAsync();
+    dialog = page.GetByRole(AriaRole.Dialog);
+    revoke = dialog.GetByRole(AriaRole.Button, new() { Name = "Revoke reviewed access", Exact = true });
     await dialog.GetByLabel("Reason", new() { Exact = true }).FillAsync("Client management assignment ended");
+    await Assertions.Expect(revoke).ToBeDisabledAsync();
     await dialog.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed this grant and confirm revocation.", Exact = true }).CheckAsync();
+    await Assertions.Expect(revoke).ToBeEnabledAsync();
     await dialog.GetByRole(AriaRole.Button, new() { Name = "Revoke reviewed access", Exact = true }).ClickAsync();
     await Assertions.Expect(dialog).ToHaveCountAsync(0);
     await using (var db = host.CreateDbContext())
