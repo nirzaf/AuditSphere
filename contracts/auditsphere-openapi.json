@@ -5903,6 +5903,54 @@
             "schema": {
               "type": "boolean"
             }
+          },
+          {
+            "name": "postingSnapshotThrough",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "accountCodeFrom",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "accountCodeTo",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sourceType",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "reference",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "counterpartyId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         ],
         "responses": {
@@ -8765,6 +8813,78 @@
         ]
       }
     },
+    "/api/ui/accounting/clients/{clientId}/open-item-control-reconciliation": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "periodId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "asOf",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientOpenItemControlReconciliationView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
     "/api/ui/accounting/clients/{clientId}/open-item-allocation-submissions": {
       "get": {
         "tags": [
@@ -9070,6 +9190,228 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ClientOpenItemAllocationReceipt"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/manual-settlement-options": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "postingDate",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "sourceKind",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientManualSettlementOptions"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/manual-settlements/preview": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClientManualSettlementHttpInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientManualSettlementPreview"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/manual-settlements": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClientManualSettlementHttpInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientManualSettlementReceipt"
                 }
               }
             }
@@ -31922,6 +32264,21 @@
           }
         }
       },
+      "ClientCashAccountOption": {
+        "required": [
+          "accountCode",
+          "accountName"
+        ],
+        "type": "object",
+        "properties": {
+          "accountCode": {
+            "type": "string"
+          },
+          "accountName": {
+            "type": "string"
+          }
+        }
+      },
       "ClientConversionFields": {
         "required": [
           "legalName"
@@ -32120,6 +32477,26 @@
             "items": {
               "$ref": "#/components/schemas/ClientCounterpartyView"
             }
+          }
+        }
+      },
+      "ClientCounterpartyOption": {
+        "required": [
+          "id",
+          "role",
+          "displayName"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
           }
         }
       },
@@ -32374,6 +32751,171 @@
           }
         }
       },
+      "ClientManualSettlementHttpInput": {
+        "required": [
+          "commandId",
+          "periodId",
+          "counterpartyId",
+          "sourceKind",
+          "journalNumber",
+          "description",
+          "postingDate",
+          "cashAccountCode",
+          "amount",
+          "reference",
+          "evidenceReference",
+          "previewDigest",
+          "reviewed"
+        ],
+        "type": "object",
+        "properties": {
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "periodId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "counterpartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sourceKind": {
+            "type": "string"
+          },
+          "journalNumber": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "postingDate": {
+            "type": "string"
+          },
+          "cashAccountCode": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "string"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "evidenceReference": {
+            "type": "string"
+          },
+          "previewDigest": {
+            "type": "string"
+          },
+          "reviewed": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ClientManualSettlementOptions": {
+        "required": [
+          "periods",
+          "counterparties",
+          "cashAccounts"
+        ],
+        "type": "object",
+        "properties": {
+          "periods": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClientReportingPeriodOption"
+            }
+          },
+          "counterparties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClientCounterpartyOption"
+            }
+          },
+          "cashAccounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClientCashAccountOption"
+            }
+          }
+        }
+      },
+      "ClientManualSettlementPreview": {
+        "required": [
+          "clientId",
+          "periodId",
+          "counterpartyId",
+          "sourceKind",
+          "currency",
+          "amount",
+          "controlAccountCode",
+          "cashAccountCode",
+          "reference",
+          "evidenceReference",
+          "digest"
+        ],
+        "type": "object",
+        "properties": {
+          "clientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "periodId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "counterpartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sourceKind": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "string"
+          },
+          "controlAccountCode": {
+            "type": "string"
+          },
+          "cashAccountCode": {
+            "type": "string"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "evidenceReference": {
+            "type": "string"
+          },
+          "digest": {
+            "type": "string"
+          }
+        }
+      },
+      "ClientManualSettlementReceipt": {
+        "required": [
+          "commandId",
+          "journalId",
+          "outcome"
+        ],
+        "type": "object",
+        "properties": {
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "journalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "outcome": {
+            "type": "string"
+          }
+        }
+      },
       "ClientOpenItemAllocationPreview": {
         "required": [
           "submissionId",
@@ -32566,6 +33108,116 @@
           }
         }
       },
+      "ClientOpenItemControlReconciliationRow": {
+        "required": [
+          "role",
+          "accountId",
+          "accountCode",
+          "accountName",
+          "ledgerBalance",
+          "openItemBalance",
+          "difference",
+          "openItemCount",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accountCode": {
+            "type": "string"
+          },
+          "accountName": {
+            "type": "string"
+          },
+          "ledgerBalance": {
+            "type": "string"
+          },
+          "openItemBalance": {
+            "type": "string"
+          },
+          "difference": {
+            "type": "string"
+          },
+          "openItemCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "ClientOpenItemControlReconciliationView": {
+        "required": [
+          "clientId",
+          "periodId",
+          "periodCode",
+          "currency",
+          "asOfDate",
+          "ledgerBasis",
+          "allocationBasis",
+          "openingDetailStatus",
+          "unlinkedOpenItemCount",
+          "accounts",
+          "reconciled"
+        ],
+        "type": "object",
+        "properties": {
+          "clientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "periodId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "periodCode": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "asOfDate": {
+            "type": "string"
+          },
+          "ledgerBasis": {
+            "type": "string"
+          },
+          "allocationBasis": {
+            "type": "string"
+          },
+          "openingDetailStatus": {
+            "type": "string"
+          },
+          "unlinkedOpenItemCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "accounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClientOpenItemControlReconciliationRow"
+            }
+          },
+          "reconciled": {
+            "type": "boolean"
+          }
+        }
+      },
       "ClientOperationalGeneralLedgerView": {
         "required": [
           "clientId",
@@ -32576,6 +33228,8 @@
           "page",
           "pageSize",
           "totalEntries",
+          "periodTotalEntries",
+          "postingSnapshotThrough",
           "accounts",
           "entries",
           "trialBalance",
@@ -32623,6 +33277,17 @@
               "string"
             ],
             "format": "int32"
+          },
+          "periodTotalEntries": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "postingSnapshotThrough": {
+            "type": "string"
           },
           "accounts": {
             "type": "array",
@@ -34726,6 +35391,36 @@
           },
           "openItemCreated": {
             "type": "boolean"
+          }
+        }
+      },
+      "ClientReportingPeriodOption": {
+        "required": [
+          "id",
+          "code",
+          "startDate",
+          "endDate",
+          "currency"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "currency": {
+            "type": "string"
           }
         }
       },

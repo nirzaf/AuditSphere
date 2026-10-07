@@ -294,6 +294,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<ClientOpenItemAllocationSubmission> ClientOpenItemAllocationSubmissions => Set<ClientOpenItemAllocationSubmission>();
   public DbSet<ClientOpenItemAllocationLine> ClientOpenItemAllocationLines => Set<ClientOpenItemAllocationLine>();
   public DbSet<ClientOpenItemAllocationDecision> ClientOpenItemAllocationDecisions => Set<ClientOpenItemAllocationDecision>();
+  public DbSet<ClientManualSettlementOrigin> ClientManualSettlementOrigins => Set<ClientManualSettlementOrigin>();
   public DbSet<ClientCounterpartyAmendment> ClientCounterpartyAmendments => Set<ClientCounterpartyAmendment>();
   public DbSet<ClientCounterpartyAmendmentDecision> ClientCounterpartyAmendmentDecisions => Set<ClientCounterpartyAmendmentDecision>();
   public DbSet<ClientAccountingProfile> ClientAccountingProfiles => Set<ClientAccountingProfile>();
@@ -572,6 +573,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
     ConfigureClientPurchaseInvoices(b);
     ConfigureClientPurchaseCreditNotes(b);
     ConfigureClientOpenItemAllocations(b);
+    ConfigureClientManualSettlementOrigins(b);
     ConfigureClientAccountRoles(b);
     ConfigureAccountingEvidenceActions(b);
     ConfigureAccountingAnalysisPreparations(b);

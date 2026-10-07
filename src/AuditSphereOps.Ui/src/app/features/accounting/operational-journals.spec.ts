@@ -25,7 +25,7 @@ describe('Client operational journal transport contract', () => {
     expect(() => decodeOperationalJournal({ ...view, lines: Array.from({ length: 101 }, () => view.lines[0]) }, client)).toThrow();
   });
   it('binds posted movement pages to the exact client and period using decimal strings', () => {
-    const ledger = { bookkeepingActive: true, clientId: client, periodId: client, periodCode: '2026', currency: 'QAR', basis: 'STATUTORY', page: 0, pageSize: 100, totalEntries: 2,
+    const ledger = { bookkeepingActive: true, clientId: client, periodId: client, periodCode: '2026', currency: 'QAR', basis: 'STATUTORY', page: 0, pageSize: 100, totalEntries: 2, periodTotalEntries: 2, postingSnapshotThrough: '9223372036854775807',
       trialBalance: { fromDate: '2026-01-01', toDate: '2026-12-31', source: 'NATIVE_POSTED_PERIOD_ACTIVITY', openingDebit: '0', openingCredit: '0', periodDebit: '125', periodCredit: '125', closingDebit: '125', closingCredit: '125', rows: [
         { accountId: account, accountCode: '1000', accountName: 'Cash', openingDebit: '0', openingCredit: '0', periodDebit: '0', periodCredit: '125', closingDebit: '0', closingCredit: '125' },
         { accountId: actor, accountCode: '6000', accountName: 'Expense', openingDebit: '0', openingCredit: '0', periodDebit: '125', periodCredit: '0', closingDebit: '125', closingCredit: '0' }] },
@@ -38,6 +38,7 @@ describe('Client operational journal transport contract', () => {
     expect(decodeOperationalLedger(ledger, client, client).accounts[0].netMovement).toBe('-125.000000');
     expect(() => decodeOperationalLedger({ ...ledger, periodId: journal }, client, client)).toThrow();
     expect(() => decodeOperationalLedger({ ...ledger, entries: [{ ...ledger.entries[0], credit: 0 }] }, client, client)).toThrow();
+    expect(() => decodeOperationalLedger({ ...ledger, postingSnapshotThrough: 9223372036854775807n.toString() + '0' }, client, client)).toThrow();
   });
 });
 
@@ -190,5 +191,56 @@ describe('Invoice journals in the native journal workbench', () => {
       expect(component.editing()).toBeNull();
     }
     http.expectNone(request => request.url.includes('/operational-journals/'));
+  });
+
+  it('carries the first report page high-water mark into the next ledger page', () => {
+    const fixture = TestBed.createComponent(ClientOperationalJournals);
+    fixture.componentRef.setInput('clientId', client);
+    fixture.componentRef.setInput('periods', [{ id: client, code: '2026', start: '2026-01-01', end: '2026-12-31', currency: 'QAR', status: 'OPEN' }]);
+    fixture.componentRef.setInput('bookCurrency', 'QAR');
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    component.periodId = client;
+    component.loadLedger(0);
+    const first = http.expectOne(request => request.url.endsWith('/operational-ledger') && request.params.get('page') === '0');
+    const response = (page: number) => ({ bookkeepingActive: true, clientId: client, periodId: client, periodCode: '2026', currency: 'QAR',
+      basis: 'STATUTORY', page, pageSize: 100, totalEntries: 101, periodTotalEntries: 150, postingSnapshotThrough: '9007199254740993',
+      accounts: [], entries: [], trialBalance: { fromDate: '2026-01-01', toDate: '2026-12-31', source: 'NATIVE_POSTED_PERIOD_ACTIVITY',
+        openingDebit: '0', openingCredit: '0', periodDebit: '0', periodCredit: '0', closingDebit: '0', closingCredit: '0', rows: [] } });
+    first.flush(response(0));
+    expect(component.ledger()?.postingSnapshotThrough).toBe('9007199254740993');
+    component.loadLedger(1);
+    const second = http.expectOne(request => request.url.endsWith('/operational-ledger') && request.params.get('page') === '1');
+    expect(second.request.params.get('postingSnapshotThrough')).toBe('9007199254740993');
+    second.flush(response(1));
+    expect(component.ledger()?.page).toBe(1);
+    expect(component.ledger()?.postingSnapshotThrough).toBe('9007199254740993');
+  });
+
+  it('sends ledger filters with the stable snapshot and resets to page zero', () => {
+    const fixture = TestBed.createComponent(ClientOperationalJournals);
+    fixture.componentRef.setInput('clientId', client);
+    fixture.componentRef.setInput('periods', [{ id: client, code: '2026', start: '2026-01-01', end: '2026-12-31', currency: 'QAR', status: 'OPEN' }]);
+    fixture.componentRef.setInput('bookCurrency', 'QAR');
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    component.ledgerPeriodId = client;
+    component.ledgerFrom = '2026-01-01'; component.ledgerTo = '2026-06-30';
+    component.ledgerAccountFrom = '4000'; component.ledgerAccountTo = '4999';
+    component.ledgerSourceType = 'SALES_INVOICE'; component.ledgerReference = 'INV-'; component.ledgerCounterpartyId = account;
+    component.loadLedger(0);
+    const request = http.expectOne(r => r.url.endsWith('/operational-ledger'));
+    expect(request.request.params.get('accountCodeFrom')).toBe('4000');
+    expect(request.request.params.get('accountCodeTo')).toBe('4999');
+    expect(request.request.params.get('sourceType')).toBe('SALES_INVOICE');
+    expect(request.request.params.get('reference')).toBe('INV-');
+    expect(request.request.params.get('counterpartyId')).toBe(account);
+    request.flush({ bookkeepingActive: true, clientId: client, periodId: client, periodCode: '2026', currency: 'QAR',
+      basis: 'STATUTORY', page: 0, pageSize: 100, totalEntries: 0, periodTotalEntries: 5, postingSnapshotThrough: '1',
+      accounts: [], entries: [], trialBalance: { fromDate: '2026-01-01', toDate: '2026-06-30', source: 'NATIVE_POSTED_PERIOD_ACTIVITY',
+        openingDebit: '0', openingCredit: '0', periodDebit: '0', periodCredit: '0', closingDebit: '0', closingCredit: '0', rows: [] } });
+    expect(component.ledger()?.periodTotalEntries).toBe(5);
+    expect(() => decodeOperationalLedger({ bookkeepingActive: true, clientId: client, periodId: client, periodCode: '2026', currency: 'QAR',
+      basis: 'STATUTORY', page: 0, pageSize: 100, totalEntries: 1, postingSnapshotThrough: '1', accounts: [], entries: [], trialBalance: {} }, client, client)).toThrow();
   });
 });

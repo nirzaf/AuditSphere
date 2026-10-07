@@ -1,12 +1,207 @@
 using AuditSphereOps.Application.Accounting;
+using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
 
 namespace AuditSphereOps.Domain.Tests;
 
 public sealed partial class ClientAccountingTests
 {
+  [Fact]
+  public async Task ManualSettlementMigrationDownRestoresGenericControlGuard()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    await using var db = new AuditSphereDbContext(pg.Options);
+    await db.GetService<IMigrator>().MigrateAsync("20261007144624_ClientOpenItemAllocations");
+    var tableCount = await db.Database.SqlQuery<int>($"SELECT count(*)::int AS \"Value\" FROM information_schema.tables WHERE table_schema=current_schema() AND table_name='client_manual_settlement_origins'").SingleAsync();
+    Assert.Equal(0, tableCount);
+    var guard = await db.Database.SqlQuery<string>($"SELECT pg_get_functiondef('guard_client_generic_control_post()'::regprocedure) AS \"Value\"").SingleAsync();
+    Assert.DoesNotContain("client_manual_settlement_origins", guard, StringComparison.Ordinal);
+    Assert.Contains("client_purchase_invoice_submissions", guard, StringComparison.Ordinal);
+  }
+
+  [Fact]
+  public async Task ManualCustomerReceiptPostsOnceAndCanBeAllocatedToClientInvoice()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var seed = await SeedSalesWorkflow(pg, scope);
+    var maker = Actor(scope.Preparer, "AccountingPreparer");
+    var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
+    Guid invoiceItemId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var submit = new ClientSalesInvoiceSubmitRequest(Guid.CreateVersion7(), seed.Draft.InvoiceId, 1, seed.Role,
+        "No-tax bookkeeping service", null, "Accepted client service record", "");
+      var preview = await ClientSalesInvoiceWorkflow.PreviewAsync(db, maker, scope.ClientA, submit);
+      Assert.True(preview.Succeeded, preview.Message);
+      var submitted = await ClientSalesInvoiceWorkflow.SubmitAsync(db, maker, scope.ClientA, submit with { PreviewDigest = preview.Value!.Digest });
+      Assert.True(submitted.Succeeded, submitted.Message);
+      var review = await ClientSalesInvoiceWorkflow.ReviewPreviewAsync(db, reviewer, scope.ClientA, submitted.Value!.SubmissionId);
+      Assert.True(review.Succeeded, review.Message);
+      Assert.True((await ClientSalesInvoiceWorkflow.ReviewAsync(db, reviewer, scope.ClientA,
+        new(Guid.CreateVersion7(), submitted.Value.SubmissionId, "APPROVE", "Reviewed client invoice", review.Value!.Digest))).Succeeded);
+      invoiceItemId = (await db.ClientSalesInvoiceOpenItems.SingleAsync(x => x.InvoiceId == seed.Draft.InvoiceId)).Id;
+    }
+
+    var request = new ClientManualSettlementDraftRequest(Guid.CreateVersion7(), scope.ClientA, seed.Period,
+      Guid.Empty, "SALES_RECEIPT", "RCT-001", "Customer receipt", new(2026, 1, 25), "1000", 30m,
+      "BANK-REF-001", "client evidence receipt 1");
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var party = await db.ClientBookkeepingCounterparties.SingleAsync(x => x.ClientId == scope.ClientA && x.Role == "CUSTOMER");
+      request = request with { CounterpartyId = party.Id };
+      var preview = await ClientOperationalLedgerWorkspace.PreviewSettlementAsync(db, maker, request);
+      Assert.True(preview.Succeeded, preview.Message);
+      var created = await ClientOperationalLedgerWorkspace.CreateSettlementDraftAsync(db, maker, request, preview.Value!.Digest);
+      Assert.True(created.Succeeded, created.Message);
+      var replay = await ClientOperationalLedgerWorkspace.CreateSettlementDraftAsync(db, maker, request, preview.Value.Digest);
+      Assert.True(replay.Succeeded, replay.Message);
+      Assert.Equal(created.Value!.JournalId, replay.Value!.JournalId);
+      var journal = await ClientOperationalLedgerWorkspace.GetAsync(db, maker, scope.ClientA, created.Value.JournalId);
+      Assert.True(journal.Succeeded, journal.Message);
+      Assert.Equal("DRAFT", journal.Value!.Status);
+      Assert.Equal(2, journal.Value.Lines.Count);
+      Assert.Equal("30.000000", journal.Value.Lines.Sum(x => decimal.Parse(x.Debit, System.Globalization.CultureInfo.InvariantCulture)).ToString("F6", System.Globalization.CultureInfo.InvariantCulture));
+      Assert.False((await ClientOperationalLedgerWorkspace.PreviewSettlementAsync(db, maker, request with { Reference = "BANK-REF-001" })).Succeeded);
+    }
+
+    Guid journalId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      journalId = await db.ClientManualSettlementOrigins.Where(x => x.ClientId == scope.ClientA && x.Reference == "BANK-REF-001").Select(x => x.JournalId).SingleAsync();
+      var preview = await ClientOperationalLedgerWorkspace.PreviewAsync(db, maker, scope.ClientA, journalId);
+      Assert.True(preview.Succeeded, preview.Message);
+      Assert.True((await ClientOperationalLedgerWorkspace.SubmitAsync(db, maker, scope.ClientA, journalId, 1, previewDigest: preview.Value!.Digest)).Succeeded);
+    }
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.Equal(1, await db.ClientManualSettlementOrigins.CountAsync(x => x.JournalId == journalId));
+      var postingGuard = await db.Database.SqlQuery<string>($"SELECT pg_get_functiondef('guard_client_generic_control_post()'::regprocedure) AS \"Value\"").SingleAsync();
+      Assert.Contains("client_manual_settlement_origins", postingGuard, StringComparison.Ordinal);
+      Assert.False((await ClientOperationalLedgerWorkspace.ReviewAndPostAsync(db, maker, scope.ClientA, journalId,
+        new(2, "APPROVE", "Self review", "", Guid.CreateVersion7()))).Succeeded);
+      var preview = await ClientOperationalLedgerWorkspace.PreviewAsync(db, reviewer, scope.ClientA, journalId);
+      Assert.True(preview.Succeeded, preview.Message);
+      var posted = await ClientOperationalLedgerWorkspace.ReviewAndPostAsync(db, reviewer, scope.ClientA, journalId,
+        new(2, "APPROVE", "Verified externally completed receipt and source evidence", preview.Value!.Digest, Guid.CreateVersion7()));
+      Assert.True(posted.Succeeded, posted.Message);
+      Assert.Equal("POSTED", (await ClientOperationalLedgerWorkspace.GetAsync(db, reviewer, scope.ClientA, journalId)).Value!.Status);
+      Assert.Equal(1, await db.ClientOperationalJournalDecisions.CountAsync(x => x.JournalId == journalId && x.Decision == "APPROVE"));
+      Assert.Equal(2, await db.ClientOperationalJournalLines.CountAsync(x => x.JournalId == journalId));
+      Assert.Empty(await db.FirmJournals.ToListAsync());
+      var source = await ClientOpenItemAllocationWorkflow.BalancesAsync(db, reviewer, scope.ClientA, new(2026, 2, 1));
+      Assert.True(source.Succeeded, source.Message);
+      var reconciliation = await ClientOpenItemAllocationWorkflow.ReconcileControlAccountsAsync(db, reviewer, scope.ClientA, seed.Period, new(2026, 2, 1));
+      Assert.True(reconciliation.Succeeded, reconciliation.Message);
+      Assert.True(reconciliation.Value!.Reconciled);
+      Assert.Equal("OPENING_ITEM_DETAIL_NOT_INCLUDED", reconciliation.Value.OpeningDetailStatus);
+      Assert.Equal("95.000000", reconciliation.Value.Accounts.Single(x => x.Role == "AR").LedgerBalance);
+      Assert.Equal("95.000000", reconciliation.Value.Accounts.Single(x => x.Role == "AR").OpenItemBalance);
+      var receipt = source.Value!.Single(x => x.Kind == "SALES_RECEIPT" && x.SourceDocumentId == journalId);
+      var allocation = new ClientOpenItemAllocationRequest(Guid.CreateVersion7(), "SALES_RECEIPT", receipt.OpenItemId,
+        "ALLOCATE", "BANK-REF-001-A", "Apply reviewed manual receipt", [new(1, "SALES_INVOICE", invoiceItemId, 20m)], "");
+      var allocationPreview = await ClientOpenItemAllocationWorkflow.PreviewAsync(db, maker, scope.ClientA, allocation);
+      Assert.True(allocationPreview.Succeeded, allocationPreview.Message);
+      var submitted = await ClientOpenItemAllocationWorkflow.SubmitAsync(db, maker, scope.ClientA, allocation with { PreviewDigest = allocationPreview.Value!.Digest });
+      Assert.True(submitted.Succeeded, submitted.Message);
+      var review = await ClientOpenItemAllocationWorkflow.ReviewPreviewAsync(db, reviewer, scope.ClientA, submitted.Value!.SubmissionId);
+      Assert.True(review.Succeeded, review.Message);
+      Assert.True((await ClientOpenItemAllocationWorkflow.ReviewAsync(db, reviewer, scope.ClientA, submitted.Value.SubmissionId,
+        Guid.CreateVersion7(), "APPROVE", "Independent manual receipt allocation", review.Value!.Digest)).Succeeded);
+      Assert.Equal(2, await db.ClientOperationalJournalLines.CountAsync(x => x.JournalId == journalId));
+      Assert.Equal("10.000000", (await ClientOpenItemAllocationWorkflow.BalancesAsync(db, reviewer, scope.ClientA, new(2026, 2, 1))).Value!
+        .Single(x => x.OpenItemId == receipt.OpenItemId).OpenAmount);
+      var beforeReceipt = await ClientOpenItemAllocationWorkflow.ReconcileControlAccountsAsync(db, reviewer, scope.ClientA, seed.Period, new(2026, 1, 24));
+      Assert.True(beforeReceipt.Succeeded, beforeReceipt.Message);
+      Assert.False(beforeReceipt.Value!.Reconciled);
+      Assert.Equal("125.000000", beforeReceipt.Value.Accounts.Single(x => x.Role == "AR").LedgerBalance);
+      Assert.Equal("105.000000", beforeReceipt.Value.Accounts.Single(x => x.Role == "AR").OpenItemBalance);
+      Assert.Equal("20.000000", beforeReceipt.Value.Accounts.Single(x => x.Role == "AR").Difference);
+    }
+  }
+
+  [Fact]
+  public async Task ManualSupplierPaymentPostsAgainstClientPayablesWithoutInitiatingPayment()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var maker = Actor(scope.Preparer, "AccountingPreparer");
+    var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
+    Guid periodId, supplierId, apRoleId, chartId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.AcceptanceDecisions.Add(new() { Id = Guid.CreateVersion7(), FirmId = scope.FirmId, PracticeClientId = scope.ClientA,
+        ServiceRoute = "BOOKKEEPING", Decision = "Accepted", Generation = 1, Rationale = "Synthetic purchase service",
+        EvaluationTemplateVersion = "TEST-1", EvaluationSnapshotDigest = new string('f', 64), DecidedByUserId = scope.Reviewer.Id, DecidedAt = DateTimeOffset.UtcNow });
+      await db.SaveChangesAsync();
+      Assert.True((await ClientAccountingService.CreateProfileAsync(db, reviewer, new(scope.ClientA, "QA", "QAR", 1, 1, "AUDITSPHERE", "NATIVE", ClientAccountingSourceModes.NativeBookkeeping))).Succeeded);
+      periodId = (await ClientAccountingService.CreatePeriodAsync(db, maker, new(scope.ClientA, "2026", new(2026, 1, 1), new(2026, 12, 31), "STATUTORY", "QAR"))).Value;
+      chartId = (await ClientAccountingService.CreateChartVersionAsync(db, maker, scope.ClientA, "SUPPLIER-PAYMENT-QA", new(2026, 1, 1))).Value;
+      Assert.True((await ClientAccountingService.AddAccountsAsync(db, maker, chartId,
+      [
+        new("cash", "1000", "Client bank", "ASSET", "DEBIT", true),
+        new("ap", "2100", "Supplier payables", "LIABILITY", "CREDIT", true),
+        new("expense", "6000", "Office expense", "EXPENSE", "DEBIT", true)
+      ])).Succeeded);
+      Assert.True((await ClientAccountingService.PublishChartVersionAsync(db, reviewer, chartId)).Succeeded);
+      var ap = await db.ClientAccounts.SingleAsync(x => x.ChartVersionId == chartId && x.AccountCode == "2100");
+      apRoleId = (await ClientAccountRoleWorkspace.ProposeAsync(db, maker, scope.ClientA, new(chartId, ap.Id, "AP", new(2026, 1, 1), null, "Reviewed client supplier control"))).Value;
+      Assert.True((await ClientAccountRoleWorkspace.ReviewAsync(db, reviewer, scope.ClientA, apRoleId, "APPROVE", "Independent AP review")).Succeeded);
+      supplierId = (await ClientBookkeepingCounterpartyWorkspace.CreateAsync(db, maker, scope.ClientA,
+        new("Example supplier", "Example supplier", "SUPPLIER", "QA address", "QA", "", "", "", "", "", ""))).Value;
+    }
+    var purchase = new ClientPurchaseInvoiceDraftRequest(Guid.CreateVersion7(), null, 0, periodId, supplierId,
+      "PV-PAY-001", "SUP-INV-PAY-001", new(2026, 1, 20), new(2026, 1, 10), new(2026, 1, 20), new(2026, 1, 10),
+      new(2026, 2, 10), "QAR", new("QAR", 2, "AWAY_FROM_ZERO", "REJECT", 0, ""),
+      [new("Office supplies", "6000", 1m, 100m, 0m, "NONE", [])], 100m, 0m, 100m, null, "Synthetic supplier evidence");
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var saved = await ClientPurchaseInvoiceWorkflow.SaveDraftAsync(db, maker, scope.ClientA, purchase);
+      Assert.True(saved.Succeeded, saved.Message);
+      var command = new ClientPurchaseInvoiceSubmitRequest(Guid.CreateVersion7(), saved.Value!.InvoiceId, "1", apRoleId, "");
+      var preview = await ClientPurchaseInvoiceWorkflow.PreviewAsync(db, maker, scope.ClientA, command);
+      Assert.True(preview.Succeeded, preview.Message);
+      var submitted = await ClientPurchaseInvoiceWorkflow.SubmitAsync(db, maker, scope.ClientA, command with { PreviewDigest = preview.Value!.Digest });
+      Assert.True(submitted.Succeeded, submitted.Message);
+      var review = await ClientPurchaseInvoiceWorkflow.PreviewReviewAsync(db, reviewer, scope.ClientA, submitted.Value!.SubmissionId);
+      Assert.True(review.Succeeded, review.Message);
+      Assert.True((await ClientPurchaseInvoiceWorkflow.ReviewAsync(db, reviewer, scope.ClientA,
+        new(Guid.CreateVersion7(), submitted.Value.SubmissionId, "APPROVE", "Reviewed supplier invoice", "", review.Value!.Digest))).Succeeded);
+    }
+    var settlement = new ClientManualSettlementDraftRequest(Guid.CreateVersion7(), scope.ClientA, periodId, supplierId,
+      "SUPPLIER_PAYMENT", "PAY-001", "Record completed supplier payment", new(2026, 1, 25), "1000", 40m,
+      "BANK-PAY-001", "client payment evidence");
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var preview = await ClientOperationalLedgerWorkspace.PreviewSettlementAsync(db, maker, settlement);
+      Assert.True(preview.Succeeded, preview.Message);
+      Assert.Equal("2100", preview.Value!.ControlAccountCode);
+      Assert.Equal("1000", preview.Value.CashAccountCode);
+      var created = await ClientOperationalLedgerWorkspace.CreateSettlementDraftAsync(db, maker, settlement, preview.Value.Digest);
+      Assert.True(created.Succeeded, created.Message);
+      var journal = await ClientOperationalLedgerWorkspace.PreviewAsync(db, maker, scope.ClientA, created.Value!.JournalId);
+      Assert.True(journal.Succeeded, journal.Message);
+      Assert.True((await ClientOperationalLedgerWorkspace.SubmitAsync(db, maker, scope.ClientA, created.Value.JournalId, 1, previewDigest: journal.Value!.Digest)).Succeeded);
+      var review = await ClientOperationalLedgerWorkspace.PreviewAsync(db, reviewer, scope.ClientA, created.Value.JournalId);
+      Assert.True(review.Succeeded, review.Message);
+      Assert.True((await ClientOperationalLedgerWorkspace.ReviewAndPostAsync(db, reviewer, scope.ClientA, created.Value.JournalId,
+        new(2, "APPROVE", "Verified already completed supplier payment", review.Value!.Digest, Guid.CreateVersion7()))).Succeeded);
+      var lines = await db.ClientOperationalJournalLines.Where(x => x.JournalId == created.Value.JournalId).ToListAsync();
+      Assert.Equal(2, lines.Count); Assert.Equal(40m, lines.Single(x => x.AccountCode == "2100").Debit);
+      Assert.Equal(40m, lines.Single(x => x.AccountCode == "1000").Credit);
+      var reconciliation = await ClientOpenItemAllocationWorkflow.ReconcileControlAccountsAsync(db, reviewer, scope.ClientA, periodId, new(2026, 2, 1));
+      Assert.True(reconciliation.Succeeded, reconciliation.Message);
+      Assert.True(reconciliation.Value!.Reconciled);
+      Assert.Equal("60.000000", reconciliation.Value.Accounts.Single(x => x.Role == "AP").LedgerBalance);
+      Assert.Equal("60.000000", reconciliation.Value.Accounts.Single(x => x.Role == "AP").OpenItemBalance);
+      Assert.Empty(await db.FirmJournals.ToListAsync());
+    }
+  }
+
   [Fact]
   public async Task SealedCustomerReceiptLinksToInvoiceWithoutCreatingDuplicateCashPosting()
   {

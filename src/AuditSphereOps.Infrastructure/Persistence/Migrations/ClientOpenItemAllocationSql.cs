@@ -27,6 +27,15 @@ internal static class ClientOpenItemAllocationSql
             ON j.firm_id=o.firm_id AND j.client_id=o.client_id AND j.id=o.journal_id
           JOIN client_purchase_credit_note_decisions d ON d.firm_id=o.firm_id AND d.client_id=o.client_id AND d.submission_id=o.submission_id
           WHERE o.firm_id=s.firm_id AND o.client_id=s.client_id AND o.id=s.source_item_id AND d.decision='APPROVE' AND j.status='POSTED' AND o.direction='DEBIT';
+      ELSIF s.source_kind IN ('SALES_RECEIPT','SUPPLIER_PAYMENT') AND EXISTS (
+        SELECT 1 FROM client_manual_settlement_origins o WHERE o.firm_id=s.firm_id AND o.client_id=s.client_id AND o.id=s.source_item_id
+      ) THEN
+        SELECT o.counterparty_id,j.currency,o.amount INTO source_party,source_currency,source_amount
+          FROM client_manual_settlement_origins o
+          JOIN client_operational_journals j ON j.firm_id=o.firm_id AND j.client_id=o.client_id AND j.id=o.journal_id
+          JOIN client_operational_journal_decisions d ON d.firm_id=j.firm_id AND d.client_id=j.client_id AND d.journal_id=j.id
+          WHERE o.firm_id=s.firm_id AND o.client_id=s.client_id AND o.id=s.source_item_id AND o.source_kind=s.source_kind
+            AND j.status='POSTED' AND d.decision='APPROVE';
       ELSE
         SELECT p.id,l.original_currency,CASE WHEN s.source_kind='SALES_RECEIPT' THEN l.credit ELSE l.debit END
           INTO source_party,source_currency,source_amount

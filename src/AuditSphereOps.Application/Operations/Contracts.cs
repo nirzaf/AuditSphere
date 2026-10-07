@@ -258,6 +258,7 @@ public interface IClientAccountingDbContext : IAuditSphereDbContext
   DbSet<ClientOpenItemAllocationSubmission> ClientOpenItemAllocationSubmissions { get; }
   DbSet<ClientOpenItemAllocationLine> ClientOpenItemAllocationLines { get; }
   DbSet<ClientOpenItemAllocationDecision> ClientOpenItemAllocationDecisions { get; }
+  DbSet<ClientManualSettlementOrigin> ClientManualSettlementOrigins { get; }
   DbSet<ClientCounterpartyAmendment> ClientCounterpartyAmendments { get; }
   DbSet<ClientCounterpartyAmendmentDecision> ClientCounterpartyAmendmentDecisions { get; }
   DbSet<ClientAccountingProfile> ClientAccountingProfiles { get; }

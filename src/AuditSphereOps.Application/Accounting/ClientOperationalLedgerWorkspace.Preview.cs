@@ -49,7 +49,7 @@ public static partial class ClientOperationalLedgerWorkspace
     if (period is null || period.Status == AccountingWorkflowStates.Closed || journal.PostingDate < period.StartDate ||
         journal.PostingDate > period.EndDate || period.Currency != journal.Currency || profile.Value!.FunctionalCurrency != journal.Currency)
       return CommandResult<ClientOperationalJournalPreview>.Fail(ErrorCodes.GateBlocked, "The journal needs an open matching functional-currency period.");
-    if (!await ValidatePostingLinesAsync(db, actor.FirmId, journal.ClientId, journal.PostingDate, lines, ct))
+    if (!await ValidatePostingLinesAsync(db, actor.FirmId, journal.ClientId, journal.PostingDate, lines, ct, journal.Id))
       return CommandResult<ClientOperationalJournalPreview>.Fail(ErrorCodes.Accounting.MappingInvalid, "The journal needs balanced, valid approved-chart posting accounts.");
     var chart = await ActiveChartAsync(db, actor.FirmId, journal.ClientId, journal.PostingDate, ct);
     var mandate = await db.AcceptanceDecisions.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&

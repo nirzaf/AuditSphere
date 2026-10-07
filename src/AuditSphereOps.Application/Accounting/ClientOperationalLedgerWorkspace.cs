@@ -34,7 +34,8 @@ public static partial class ClientOperationalLedgerWorkspace
   }
 
   private static async Task<CommandResult<Guid>> CreateDraftCoreAsync(IClientAccountingDbContext db, ActorContext actor,
-    ClientOperationalJournalCreateRequest request, bool ownsTransaction, CancellationToken ct)
+    ClientOperationalJournalCreateRequest request, bool ownsTransaction, CancellationToken ct,
+    ClientManualSettlementOrigin? settlementOrigin = null)
   {
     var number = (request.JournalNumber ?? string.Empty).Trim();
     var description = (request.Description ?? string.Empty).Trim();
@@ -69,9 +70,29 @@ public static partial class ClientOperationalLedgerWorkspace
     var codes = inputs.Select(x => x.Code).Distinct(StringComparer.Ordinal).ToArray();
     var accounts = await db.ClientAccounts.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == request.ClientId &&
       x.ChartVersionId == chart.Id && codes.Contains(x.AccountCode) && x.IsPosting && x.Status == AccountingWorkflowStates.Active)
-      .Select(x => new { x.Id, x.AccountCode, x.AccountName }).ToListAsync(ct);
+      .Select(x => new { x.Id, x.AccountCode, x.AccountName, x.AccountType }).ToListAsync(ct);
     if (await ClientAccountRoleWorkspace.UsesControlAsync(db, actor.FirmId, request.ClientId, request.PostingDate, accounts.Select(x => x.Id).ToArray(), ct))
-      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "AR/AP control activity requires an evidenced counterparty open-item workflow.");
+    {
+      var expectedRole = settlementOrigin?.SourceKind == "SALES_RECEIPT" ? "AR" : settlementOrigin?.SourceKind == "SUPPLIER_PAYMENT" ? "AP" : null;
+      if (settlementOrigin is null || expectedRole is null || inputs.Length != 2 || settlementOrigin.Amount <= 0m)
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "AR/AP control activity requires an exact evidenced client settlement journal.");
+      var controlIds = await (from role in db.ClientAccountRoleConfigurations.AsNoTracking()
+        join decision in db.ClientAccountRoleDecisions.AsNoTracking() on new { role.FirmId, role.ClientId, ConfigurationId = role.Id } equals new { decision.FirmId, decision.ClientId, decision.ConfigurationId }
+        where role.FirmId == actor.FirmId && role.ClientId == request.ClientId && role.Role == expectedRole && decision.Decision == "APPROVE" &&
+          role.EffectiveFrom <= request.PostingDate && (role.EffectiveTo == null || role.EffectiveTo >= request.PostingDate)
+        select role.AccountId).Distinct().ToListAsync(ct);
+      if (controlIds.Count != 1) return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Exactly one approved effective AR/AP control account is required.");
+      var controlId = controlIds[0];
+      var controlLine = inputs.SingleOrDefault(x => accounts.SingleOrDefault(a => a.AccountCode == x.Code)?.Id == controlId);
+      var cashLine = inputs.SingleOrDefault(x => accounts.SingleOrDefault(a => a.AccountCode == x.Code)?.Id != controlId);
+      if (controlLine is null || cashLine is null || (settlementOrigin.SourceKind == "SALES_RECEIPT"
+            ? controlLine.Debit != 0m || controlLine.Credit != settlementOrigin.Amount || cashLine.Debit != settlementOrigin.Amount || cashLine.Credit != 0m
+            : controlLine.Debit != settlementOrigin.Amount || controlLine.Credit != 0m || cashLine.Debit != 0m || cashLine.Credit != settlementOrigin.Amount) ||
+          accounts.SingleOrDefault(x => x.AccountCode == cashLine.Code)?.AccountType != "ASSET" ||
+          await ClientAccountRoleWorkspace.UsesControlAsync(db, actor.FirmId, request.ClientId, request.PostingDate,
+            accounts.Where(x => x.AccountCode == cashLine.Code).Select(x => x.Id).ToArray(), ct))
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "AR/AP control activity requires an exact evidenced client settlement journal.");
+    }
     if (accounts.Count != codes.Length)
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid, "Every journal line must use an active posting account in the approved client chart.");
     if (await db.ClientOperationalJournals.AnyAsync(x => x.FirmId == actor.FirmId && x.ClientId == request.ClientId &&
@@ -86,6 +107,11 @@ public static partial class ClientOperationalLedgerWorkspace
       CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     };
     db.ClientOperationalJournals.Add(journal);
+    if (settlementOrigin is not null)
+    {
+      settlementOrigin.JournalId = journal.Id;
+      db.ClientManualSettlementOrigins.Add(settlementOrigin);
+    }
     for (var i = 0; i < inputs.Length; i++)
     {
       var line = inputs[i];
@@ -159,7 +185,7 @@ public static partial class ClientOperationalLedgerWorkspace
       return CommandResult.Fail(ErrorCodes.GateBlocked, "The journal period is closed or no longer covers its posting date.");
     var lines = await db.ClientOperationalJournalLines.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == clientId && x.JournalId == journalId)
       .OrderBy(x => x.LineNumber).ToListAsync(ct);
-    if (!await ValidatePostingLinesAsync(db, actor.FirmId, clientId, journal.PostingDate, lines, ct))
+    if (!await ValidatePostingLinesAsync(db, actor.FirmId, clientId, journal.PostingDate, lines, ct, journal.Id))
       return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "The journal no longer matches a unique approved chart and balanced active posting accounts.");
     var preview = await BuildPreviewAsync(db, actor, journal, lines, ct);
     if (!preview.Succeeded || !string.Equals(preview.Value!.Digest, previewDigest, StringComparison.Ordinal))
@@ -222,21 +248,22 @@ public static partial class ClientOperationalLedgerWorkspace
       return CommandResult.Fail(ErrorCodes.GateBlocked, "The journal period is closed or no longer covers its posting date.");
     var lines = await db.ClientOperationalJournalLines.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == clientId && x.JournalId == journalId)
       .OrderBy(x => x.LineNumber).ToListAsync(ct);
-    if (!await ValidatePostingLinesAsync(db, actor.FirmId, clientId, journal.PostingDate, lines, ct))
+    if (!await ValidatePostingLinesAsync(db, actor.FirmId, clientId, journal.PostingDate, lines, ct, journal.Id))
       return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "The journal no longer matches a unique approved chart and balanced active posting accounts.");
     var preview = await BuildPreviewAsync(db, actor, journal, lines, ct);
     if (!preview.Succeeded || !string.Equals(preview.Value!.Digest, request.PreviewDigest, StringComparison.Ordinal))
       return CommandResult.Fail(ErrorCodes.StaleRevision, "Preview this exact submitted journal and current accounting context before posting.");
+    var postedAt = DateTimeOffset.UtcNow;
     var decisionRecord = new ClientOperationalJournalDecision
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = clientId, JournalId = journalId,
       JournalRevision = journal.Revision, Decision = "APPROVE", Reason = reason, ActorUserId = actor.UserId,
-      CreatedAt = DateTimeOffset.UtcNow
+      CreatedAt = postedAt
     };
     db.ClientOperationalJournalDecisions.Add(decisionRecord);
     journal.Status = "POSTED";
     journal.PostedByUserId = actor.UserId;
-    journal.PostedAt = DateTimeOffset.UtcNow;
+    journal.PostedAt = postedAt;
     journal.Revision++;
     await db.SaveChangesAsync(ct);
     db.ClientOperationalPostingReceipts.Add(new ClientOperationalPostingReceipt {
@@ -278,7 +305,7 @@ public static partial class ClientOperationalLedgerWorkspace
   }
 
   private static async Task<bool> ValidatePostingLinesAsync(IClientAccountingDbContext db, Guid firmId, Guid clientId,
-    DateOnly postingDate, IReadOnlyList<ClientOperationalJournalLine> lines, CancellationToken ct)
+    DateOnly postingDate, IReadOnlyList<ClientOperationalJournalLine> lines, CancellationToken ct, Guid? journalId = null)
   {
     if (!ClientOperationalJournalCalculator.Calculate(lines.Select(x =>
         new ClientOperationalJournalLineInput(x.AccountCode, x.Description, x.Debit, x.Credit)).ToArray()).Valid) return false;
@@ -287,10 +314,12 @@ public static partial class ClientOperationalLedgerWorkspace
     var ids = lines.Select(x => x.ClientAccountId).Distinct().ToArray();
     var accounts = await db.ClientAccounts.AsNoTracking().Where(x => x.FirmId == firmId && x.ClientId == clientId &&
       x.ChartVersionId == chart.Id && ids.Contains(x.Id) && x.IsPosting && x.Status == AccountingWorkflowStates.Active)
-      .Select(x => new { x.Id, x.AccountCode, x.AccountName }).ToListAsync(ct);
-    if (await ClientAccountRoleWorkspace.UsesControlAsync(db, firmId, clientId, postingDate, ids, ct)) return false;
-    return accounts.Count == ids.Length && lines.All(line => accounts.Any(account => account.Id == line.ClientAccountId &&
-      account.AccountCode == line.AccountCode && account.AccountName == line.AccountName));
+      .Select(x => new { x.Id, x.AccountCode, x.AccountName, x.AccountType }).ToListAsync(ct);
+    if (accounts.Count != ids.Length || !lines.All(line => accounts.Any(account => account.Id == line.ClientAccountId &&
+      account.AccountCode == line.AccountCode && account.AccountName == line.AccountName))) return false;
+    var hasControl = await ClientAccountRoleWorkspace.UsesControlAsync(db, firmId, clientId, postingDate, ids, ct);
+    if (hasControl) return journalId.HasValue && await ValidateManualSettlementJournalAsync(db, firmId, clientId, journalId.Value, postingDate, lines, ct);
+    return true;
   }
 
   private static ClientOperationalJournalView View(ClientOperationalJournal j, IReadOnlyList<ClientOperationalJournalLine> lines) =>

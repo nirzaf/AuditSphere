@@ -13,13 +13,40 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Reproducible native GL snapshot and filters (CA-23 partial)
+
+Native GL pages carry the database-assigned posting high-water mark captured in a repeatable-read
+snapshot. A commit-serialized posting trigger prevents a later visible post from landing below a
+previous page's cursor. Trial Balance and movement totals use the same cursor; a later backdated
+posting cannot shift later pages. Migration backfill assigns sequences to existing posted journals
+without changing their captured accounting content.
+
+The scoped UI/API accepts date range, account-code range, source kind, reference, and counterparty
+identity filters. The report returns both matching detail-line count and total posted lines in the
+date range. Date and account-code bounds define the Trial Balance basis; source, reference and party
+filters narrow detail lines only. Account filtering preserves earlier posted activity in opening
+balances. Source distinctions come from immutable journal-origin records; invoices, credits,
+settlements and reversals remain native client postings rather than imported source GL or audit
+adjustments. Counterparty selection currently accepts the profile's party identifier.
+
+Verification in an isolated temporary copy: focused PostgreSQL ledger/filter and pre-migration
+backfill tests pass 2/2; the Angular operational journal suite passes 17/17; API OpenAPI tests pass
+5/5 and the generated contract includes all filters. The worktree pins SDK 10.0.300 while only
+10.0.400 is installed, so the project file was left unchanged and an isolated copy used the
+installed SDK. Angular production build and a live Browser/API-host GL filter journey remain
+pending. CA-23 durable full-result export and exact evidence-version drill-through remain open.
+This does not complete CA-23 or CA-24; full scope remains unmerged, and tax/ancillary modules remain
+optional.
+
 ## Partial client open-item allocation and imported settlement evidence (CA-19)
 
 Client-accounting now has a client-scoped open-item workspace for approved posted invoice and credit-note balances, partial allocations, on-account residuals, as-of due-date status, independent review, and exact audited unallocation. It can also link an already imported, sealed receipt/payment line when the source has one approved AR/AP control line and an independently matching cash movement. That path references the existing ledger entry and creates no second cash posting. Cross-client, cross-party, cross-currency, stale-preview, and over-allocation requests fail closed. Tax and ancillary modules remain optional.
 
-Local evidence in the managed `codex/client-accounting-workflow` worktree: the two focused PostgreSQL allocation tests passed; `SalesInvoiceFlowsFromUntaxedPreparationToIndependentClientLedgerPosting` passed 1/1 through API-hosted Angular; the serial Release solution build passed with 0 warnings/errors; Angular production build passed with the existing Commercial Settings stylesheet budget warning; EF reported no pending model changes; the canonical OpenAPI drift check passed after regeneration. The E2E harness needed a temporary .NET SDK pin adjustment to use installed SDK 10.0.400; `global.json` was restored byte-for-byte. The full PostgreSQL-backed solution suite was not rerun.
+This slice now also permits a specifically evidenced, externally completed client receipt or supplier payment to be recorded as a balanced two-line client journal. It uses the approved client AR/AP control and a non-control cash asset, has immutable external reference/evidence, command idempotency, independent journal submission/review/posting, and can appear as an allocatable open-item source. It never initiates or verifies a bank transfer. Posting decision and journal-post timestamps share one retained instant so the database can verify the exact approval. Existing invoice and credit-note posting guard branches remain in force.
 
-CA-19 is still partial: newly recorded manual receipt/payment entries through the normal controlled posting workflow, AR/AP-to-GL control reconciliation, and supporting opening-item detail remain open. This feature checkpoint is unmerged, is not full-epic or production acceptance, and makes no Development/production migration claim.
+Local evidence in the managed `codex/client-accounting-workflow` worktree: the customer receipt and supplier payment journeys, supplier-invoice and both credit-note regression journeys, and settlement-migration rollback check passed 6/6. Customer receipt allocation retained a single cash posting and left the expected residual; supplier payment debited AP and credited the client cash asset. The API and referenced projects built with 0 warnings/errors in the isolated `SettlementCheck` configuration; Angular production build passed with the existing Commercial Settings stylesheet budget warning; EF reported no pending model changes; the API contract serialization test passed and the generated OpenAPI contract diff is clean. The full PostgreSQL-backed solution suite and API-hosted Angular manual-settlement journey were not run.
+
+CA-19 now includes a read-only native-bookkeeping AR/AP-to-control reconciliation by approved control account and as-of date. It uses a repeatable-read snapshot, links each native open item to exactly one approved control line in its posted source journal, includes current approved allocations and reversals, shows differences and failed links, and states that opening-item detail is excluded. Allocation approvals have no separate accounting-effective date; the report identifies that it uses current approved allocations, and a historical cutoff with a later approved allocation surfaces the resulting difference instead of claiming reconciliation. Focused PostgreSQL tests pass 2/2, the Angular component test passes 1/1, API OpenAPI tests pass 2/2, API build passes, and Angular production build passes with the existing Commercial Settings stylesheet budget warning. Verification ran in an isolated temporary checkout because writes to the managed worktree build outputs were denied during overlapping activity. Supporting opening-item detail and remaining story requirements remain open. This feature checkpoint is unmerged, is not full-epic or production acceptance, and makes no Development/production migration claim.
 
 ## Complete frozen-file write barrier with serialized freeze (STE-REM-09)
 
@@ -236,7 +263,13 @@ Focused PostgreSQL, Angular, API and automated Chromium evidence lives in `verif
 
 The native ledger report now returns a Trial Balance from the same repeatable-read database snapshot as its GL rows and full-result movement totals. Users select a reporting period independently of journal preparation, choose dates within that period and optionally include approved chart accounts with no posted activity. Per-account opening activity, period debits/credits and closing balances reconcile exactly. Only posted native journals contribute. Angular validates exact decimal strings, unique account identities, row equations and overall controls, and fences stale filter responses.
 
-This is a period-activity projection: opening means posted activity earlier in the same selected period. Reviewed cutover/opening postings, prior-period carry-forward, immutable native-source acceptance, adjusted views, comparative mapping and durable exports remain outstanding. Separate refreshed or paginated requests do not yet share a persisted report identity. Tax and ancillary modules remain optional. Focused PostgreSQL, Angular, API and automated browser verification passed; exact evidence is in `verification.clientOperationalTrialBalance` in `status.json`. Full epic acceptance and final merge remain pending.
+This is a period-activity projection: opening means posted activity earlier in the same selected period. Reviewed cutover/opening postings, prior-period carry-forward, immutable native-source acceptance, adjusted views, comparative mapping and durable exports remain outstanding. The initial slice used independent page snapshots; cross-request paging is now fenced by the posting sequence described below. Tax and ancillary modules remain optional. Focused PostgreSQL, Angular, API and automated browser verification passed; exact evidence is in `verification.clientOperationalTrialBalance` in `status.json`. Full epic acceptance and final merge remain pending.
+
+## Stable native GL pages across concurrent postings
+
+The native GL/TB response now includes a string-valued posting-sequence high-water mark. Page zero captures it inside the report's repeatable-read transaction; later pages must return it. All movement rows and report-wide account totals use that same ceiling, and stable ordering includes immutable journal identity before line number. A later posting cannot enter an existing report page sequence even when its accounting date sorts before already displayed rows. The database assigns sequence values under a transaction-scoped advisory lock held through commit, preventing a slower concurrent posting from becoming visible later below an observed ceiling. Existing clients and imported/adjusted reporting sources are unchanged.
+
+Focused PostgreSQL coverage posts a backdated journal after the first page and verifies page two retains the original line set, full-result count and Trial Balance. Angular transport/component tests passed, and the real API OpenAPI contract tests passed with the new cursor parameter; the generated contract artifact was refreshed. Production Angular build exited 134 without diagnostics, EF drift inspection is still pending, and browser journey coverage has not run in this slice. Account/date/source/reference/party/dimension filters, scoped posted-document/evidence drill-through, large durable exports, native opening/carry-forward, and imported/adjusted source views remain outstanding. Tax and ancillary modules remain optional; full epic acceptance and final merge remain pending.
 
 ## Native manual journal full reversals
 

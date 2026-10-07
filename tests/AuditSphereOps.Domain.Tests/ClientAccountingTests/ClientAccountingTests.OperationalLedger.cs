@@ -255,6 +255,15 @@ public sealed partial class ClientAccountingTests
       Assert.Equal(2, ledger.Value.TrialBalance.Rows.Count);
       Assert.Equal("150", ledger.Value.TrialBalance.ClosingDebit);
       Assert.Equal("150", ledger.Value.TrialBalance.ClosingCredit);
+      var filteredLedger = await ClientOperationalGeneralLedgerWorkspace.GetAsync(db, reviewer, scope.ClientA, periodId,
+        accountCodeFrom: "6000", accountCodeTo: "6000", sourceType: "NATIVE_JOURNAL", reference: "J-001");
+      Assert.True(filteredLedger.Succeeded, filteredLedger.Message);
+      Assert.Equal(1, filteredLedger.Value!.TotalEntries);
+      Assert.Equal(2, filteredLedger.Value.PeriodTotalEntries);
+      Assert.Single(filteredLedger.Value.Entries);
+      Assert.Equal("6000", filteredLedger.Value.Entries[0].AccountCode);
+      Assert.Single(filteredLedger.Value.TrialBalance.Rows);
+      Assert.Equal("150", filteredLedger.Value.TrialBalance.ClosingDebit);
       var later = await ClientOperationalGeneralLedgerWorkspace.GetAsync(db, reviewer, scope.ClientA, periodId,
         pageSize: 1, fromDate: new DateOnly(2026, 2, 1), toDate: new DateOnly(2026, 12, 31), includeZeroAccounts: true);
       Assert.True(later.Succeeded, later.Message);
@@ -334,12 +343,43 @@ public sealed partial class ClientAccountingTests
       var nextLedger = await ClientOperationalGeneralLedgerWorkspace.GetAsync(db, reviewer, scope.ClientA, next.Value);
       Assert.Equal("-150.000000", nextLedger.Value!.Accounts.Single(x => x.AccountCode == "6000").NetMovement);
       Assert.All(nextLedger.Value.Entries, x => Assert.Equal(journalId, x.ReversesJournalId));
+      Assert.False((await ClientOperationalGeneralLedgerWorkspace.GetAsync(db, reviewer, scope.ClientA, next.Value,
+        page: 1, pageSize: 1)).Succeeded);
+      var firstSnapshotPage = await ClientOperationalGeneralLedgerWorkspace.GetAsync(db, reviewer, scope.ClientA, next.Value, pageSize: 1);
+      Assert.True(firstSnapshotPage.Succeeded, firstSnapshotPage.Message);
+      Assert.Equal(2, firstSnapshotPage.Value!.TotalEntries);
+      var originalFirstLine = Assert.Single(firstSnapshotPage.Value.Entries);
+      Assert.Equal(reversalId, originalFirstLine.JournalId);
+      var laterDraft = await ClientOperationalLedgerWorkspace.CreateDraftAsync(db, preparer,
+        new(scope.ClientA, next.Value, "J-SNAPSHOT-LATER", "Backdated posting after report start", new DateOnly(2027, 1, 10),
+          [new("6000", "Later debit", 20m, 0m), new("1000", "Later credit", 0m, 20m)]));
+      Assert.True(laterDraft.Succeeded, laterDraft.Message);
+      var laterPreview = await ClientOperationalLedgerWorkspace.PreviewAsync(db, preparer, scope.ClientA, laterDraft.Value);
+      Assert.True(laterPreview.Succeeded, laterPreview.Message);
+      Assert.True((await ClientOperationalLedgerWorkspace.SubmitAsync(db, preparer, scope.ClientA, laterDraft.Value, 1,
+        previewDigest: laterPreview.Value!.Digest)).Succeeded);
+      var laterReview = await ClientOperationalLedgerWorkspace.PreviewAsync(db, reviewer, scope.ClientA, laterDraft.Value);
+      Assert.True(laterReview.Succeeded, laterReview.Message);
+      var laterPost = await ClientOperationalLedgerWorkspace.ReviewAndPostAsync(db, reviewer, scope.ClientA, laterDraft.Value,
+        new(2, "APPROVE", "Verified after initial report snapshot", laterReview.Value!.Digest, Guid.CreateVersion7()));
+      Assert.True(laterPost.Succeeded, laterPost.Message);
+      var nextSnapshotPage = await ClientOperationalGeneralLedgerWorkspace.GetAsync(db, reviewer, scope.ClientA, next.Value,
+        page: 1, pageSize: 1, postingSnapshotThrough: long.Parse(firstSnapshotPage.Value.PostingSnapshotThrough,
+          System.Globalization.CultureInfo.InvariantCulture));
+      Assert.True(nextSnapshotPage.Succeeded, nextSnapshotPage.Message);
+      Assert.Equal(firstSnapshotPage.Value.PostingSnapshotThrough, nextSnapshotPage.Value!.PostingSnapshotThrough);
+      Assert.Equal(2, nextSnapshotPage.Value.TotalEntries);
+      Assert.Equal(reversalId, Assert.Single(nextSnapshotPage.Value.Entries).JournalId);
+      Assert.NotEqual(originalFirstLine.LineNumber, nextSnapshotPage.Value.Entries[0].LineNumber);
+      Assert.Equal(firstSnapshotPage.Value.TrialBalance.ClosingDebit, nextSnapshotPage.Value.TrialBalance.ClosingDebit);
+      Assert.Equal(firstSnapshotPage.Value.TrialBalance.ClosingCredit, nextSnapshotPage.Value.TrialBalance.ClosingCredit);
+      Assert.Equal(4, (await ClientOperationalGeneralLedgerWorkspace.GetAsync(db, reviewer, scope.ClientA, next.Value)).Value!.TotalEntries);
       var originalLedger = await ClientOperationalGeneralLedgerWorkspace.GetAsync(db, reviewer, scope.ClientA, periodId);
       Assert.Equal("150.000000", originalLedger.Value!.Accounts.Single(x => x.AccountCode == "6000").DebitMovement);
       Assert.All(originalLedger.Value.Entries, x => { Assert.Equal(reversalId, x.ReversedByJournalId); Assert.Equal("POSTED", x.ReversedByStatus); });
       var listed = await ClientOperationalLedgerWorkspace.ListAsync(db, reviewer, scope.ClientA, status: "POSTED", pageSize: 1);
       Assert.True(listed.Succeeded, listed.Message);
-      Assert.Equal(2, listed.Value!.TotalJournals);
+      Assert.Equal(3, listed.Value!.TotalJournals);
       Assert.Single(listed.Value.Journals);
       var secondPage = await ClientOperationalLedgerWorkspace.ListAsync(db, reviewer, scope.ClientA, status: "POSTED", page: 1, pageSize: 1);
       Assert.NotEqual(listed.Value.Journals[0].Id, Assert.Single(secondPage.Value!.Journals).Id);

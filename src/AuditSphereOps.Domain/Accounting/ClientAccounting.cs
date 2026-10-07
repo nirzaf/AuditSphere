@@ -562,6 +562,8 @@ public sealed class ClientOperationalJournal
   public DateTimeOffset? SubmittedAt { get; set; }
   public Guid? PostedByUserId { get; set; }
   public DateTimeOffset? PostedAt { get; set; }
+  /// <summary>Database-assigned immutable sequence used to fence cross-request native ledger snapshots.</summary>
+  public long? PostingSequence { get; set; }
 }
 
 public sealed class ClientOperationalJournalLine

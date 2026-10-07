@@ -44,6 +44,18 @@ public static partial class UiEndpoints
       return result.Succeeded ? Results.Ok(result.Value) : Failure(result.ErrorCode);
     }).Produces<IReadOnlyList<ClientOpenItemBalance>>();
 
+    group.MapGet("/accounting/clients/{clientId:guid}/open-item-control-reconciliation", async (Guid clientId,
+      Guid periodId, string asOf, HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
+    {
+      var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
+      if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      if (!DateOnly.TryParseExact(asOf, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)) return Failure("request.invalid");
+      await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
+      var result = await ClientOpenItemAllocationWorkflow.ReconcileControlAccountsAsync(db, actor, clientId, periodId, date, http.RequestAborted);
+      if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      return result.Succeeded ? Results.Ok(result.Value) : Failure(result.ErrorCode);
+    }).Produces<ClientOpenItemControlReconciliationView>();
+
     group.MapGet("/accounting/clients/{clientId:guid}/open-item-allocation-submissions", async (Guid clientId,
       HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
