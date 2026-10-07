@@ -283,6 +283,10 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<ClientSalesCreditNoteDecision> ClientSalesCreditNoteDecisions => Set<ClientSalesCreditNoteDecision>();
   public DbSet<ClientSalesCreditNoteLine> ClientSalesCreditNoteLines => Set<ClientSalesCreditNoteLine>();
   public DbSet<ClientSalesCreditNoteOpenItem> ClientSalesCreditNoteOpenItems => Set<ClientSalesCreditNoteOpenItem>();
+  public DbSet<ClientPurchaseInvoiceDraft> ClientPurchaseInvoiceDrafts => Set<ClientPurchaseInvoiceDraft>();
+  public DbSet<ClientPurchaseInvoiceSubmission> ClientPurchaseInvoiceSubmissions => Set<ClientPurchaseInvoiceSubmission>();
+  public DbSet<ClientPurchaseInvoiceDecision> ClientPurchaseInvoiceDecisions => Set<ClientPurchaseInvoiceDecision>();
+  public DbSet<ClientPurchaseInvoiceOpenItem> ClientPurchaseInvoiceOpenItems => Set<ClientPurchaseInvoiceOpenItem>();
   public DbSet<ClientCounterpartyAmendment> ClientCounterpartyAmendments => Set<ClientCounterpartyAmendment>();
   public DbSet<ClientCounterpartyAmendmentDecision> ClientCounterpartyAmendmentDecisions => Set<ClientCounterpartyAmendmentDecision>();
   public DbSet<ClientAccountingProfile> ClientAccountingProfiles => Set<ClientAccountingProfile>();
@@ -558,6 +562,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
     ConfigureClientCounterparties(b);
     ConfigureClientSalesInvoices(b);
     ConfigureClientSalesInvoiceWorkflow(b);
+    ConfigureClientPurchaseInvoices(b);
     ConfigureClientAccountRoles(b);
     ConfigureAccountingEvidenceActions(b);
     ConfigureAccountingAnalysisPreparations(b);

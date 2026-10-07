@@ -17,7 +17,7 @@ public sealed class AngularClientSalesInvoiceWorkflowJourneyTests
     var f = host.Fixture;
     var maker = PbcSeed.Actor(f.Admin, "Administrator");
     var reviewer = PbcSeed.Actor(f.Reviewer, "AccountingReviewer");
-    Guid customerId, periodId, receivableRoleId, invoiceId;
+    Guid customerId, supplierId, periodId, receivableRoleId, payableRoleId, invoiceId;
     string clientName;
     await using (var db = host.CreateDbContext())
     {
@@ -40,7 +40,9 @@ public sealed class AngularClientSalesInvoiceWorkflowJourneyTests
       Assert.True((await ClientAccountingService.AddAccountsAsync(db, maker, chart.Value,
       [
         new("ar", "1100", "Trade receivables", "ASSET", "DEBIT", true),
-        new("revenue", "4000", "Service revenue", "INCOME", "CREDIT", true)
+        new("revenue", "4000", "Service revenue", "INCOME", "CREDIT", true),
+        new("ap", "2100", "Trade payables", "LIABILITY", "CREDIT", true),
+        new("expense", "6000", "Office expense", "EXPENSE", "DEBIT", true)
       ])).Succeeded);
       Assert.True((await ClientAccountingService.PublishChartVersionAsync(db, reviewer, chart.Value)).Succeeded);
       var ar = await db.ClientAccounts.SingleAsync(x => x.ChartVersionId == chart.Value && x.AccountCode == "1100");
@@ -48,9 +50,17 @@ public sealed class AngularClientSalesInvoiceWorkflowJourneyTests
         new(chart.Value, ar.Id, "AR", new DateOnly(2026, 1, 1), null, "Invoice receivables"));
       Assert.True(role.Succeeded, role.Message); receivableRoleId = role.Value;
       Assert.True((await ClientAccountRoleWorkspace.ReviewAsync(db, reviewer, f.ClientId, role.Value, "APPROVE", "Independent control account review")).Succeeded);
+      var ap = await db.ClientAccounts.SingleAsync(x => x.ChartVersionId == chart.Value && x.AccountCode == "2100");
+      var apRole = await ClientAccountRoleWorkspace.ProposeAsync(db, maker, f.ClientId,
+        new(chart.Value, ap.Id, "AP", new DateOnly(2026, 1, 1), null, "Supplier payables"));
+      Assert.True(apRole.Succeeded, apRole.Message); payableRoleId = apRole.Value;
+      Assert.True((await ClientAccountRoleWorkspace.ReviewAsync(db, reviewer, f.ClientId, apRole.Value, "APPROVE", "Independent supplier control review")).Succeeded);
       var customer = await ClientBookkeepingCounterpartyWorkspace.CreateAsync(db, maker, f.ClientId,
         new("Synthetic customer", "Synthetic customer", "CUSTOMER", "QA address", "QA", "", "", "", "", "", ""));
       Assert.True(customer.Succeeded, customer.Message); customerId = customer.Value;
+      var supplier = await ClientBookkeepingCounterpartyWorkspace.CreateAsync(db, maker, f.ClientId,
+        new("Synthetic supplier", "Synthetic supplier", "SUPPLIER", "QA address", "QA", "", "", "", "", "", ""));
+      Assert.True(supplier.Succeeded, supplier.Message); supplierId = supplier.Value;
       var saved = await ClientSalesInvoiceDraftWorkspace.SaveAsync(db, maker, f.ClientId,
         new(Guid.CreateVersion7(), null, 0, "INV-UI-001", "SOURCE-INV-001", period.Value, customer.Value,
           new(2026, 1, 10), new(2026, 1, 10), new(2026, 1, 10), new(2026, 2, 10), "QAR",
@@ -153,12 +163,64 @@ public sealed class AngularClientSalesInvoiceWorkflowJourneyTests
     Assert.Equal(200, creditReviewResponse.Status);
     await Assertions.Expect(reviewerCredits.GetByText("Posted as an unapplied customer credit. Apply it through the client settlement workflow when available.", new() { Exact = true })).ToBeVisibleAsync();
 
+    var purchases = makerPage.Locator("audit-client-purchase-invoices");
+    await Assertions.Expect(purchases.GetByRole(AriaRole.Heading, new() { Name = "Client supplier invoices", Exact = true })).ToBeVisibleAsync();
+    await purchases.GetByRole(AriaRole.Button, new() { Name = "Load client suppliers", Exact = true }).ClickAsync();
+    await purchases.Locator("select[name='supplier']").SelectOptionAsync(supplierId.ToString());
+    await purchases.GetByLabel("Internal voucher reference", new() { Exact = true }).FillAsync("PV-UI-001");
+    await purchases.GetByLabel("Supplier invoice number", new() { Exact = true }).FillAsync("Supplier 001");
+    await purchases.Locator("select[name='period']").SelectOptionAsync(periodId.ToString());
+    await purchases.GetByLabel("Receipt date", new() { Exact = true }).FillAsync("2026-01-20");
+    await purchases.GetByLabel("Supplier document date", new() { Exact = true }).FillAsync("2026-01-10");
+    await purchases.GetByLabel("Accounting date", new() { Exact = true }).FillAsync("2026-01-20");
+    await purchases.GetByLabel("Supply / tax date", new() { Exact = true }).FillAsync("2026-01-10");
+    await purchases.GetByLabel("Due date", new() { Exact = true }).FillAsync("2026-02-10");
+    await purchases.GetByLabel("Approved AP role ID", new() { Exact = true }).FillAsync(payableRoleId.ToString());
+    await purchases.GetByLabel("Supplier evidence reference", new() { Exact = true }).FillAsync("Accepted supplier evidence");
+    await purchases.GetByLabel("Expense or asset account code", new() { Exact = true }).FillAsync("6000");
+    await purchases.GetByLabel("Description", new() { Exact = true }).FillAsync("Office supplies");
+    await purchases.GetByLabel("Quantity", new() { Exact = true }).FillAsync("1");
+    await purchases.GetByLabel("Unit price", new() { Exact = true }).FillAsync("100");
+    await purchases.GetByLabel("Discount", new() { Exact = true }).FillAsync("0");
+    await purchases.GetByLabel("Supplier-stated net", new() { Exact = true }).FillAsync("100");
+    await purchases.GetByLabel("Supplier-stated tax", new() { Exact = true }).FillAsync("0");
+    await purchases.GetByLabel("Supplier-stated gross", new() { Exact = true }).FillAsync("100");
+    await purchases.GetByRole(AriaRole.Checkbox, new() { Name = "I checked this supplier, client, document dates, coding, supplier-stated totals and evidence reference.", Exact = true }).CheckAsync();
+    var purchaseDraftResponse = await makerPage.RunAndWaitForResponseAsync(
+      async () => await purchases.GetByRole(AriaRole.Button, new() { Name = "Save client purchase draft", Exact = true }).ClickAsync(),
+      response => response.Request.Method == "POST" && response.Url.EndsWith("/purchase-invoice-drafts", StringComparison.Ordinal));
+    Assert.Equal(200, purchaseDraftResponse.Status);
+    await Assertions.Expect(purchases.GetByText("Late-arriving supplier document: receipt date is after the supplier document date.", new() { Exact = true })).ToBeVisibleAsync();
+    var purchasePreviewResponse = await makerPage.RunAndWaitForResponseAsync(
+      async () => await purchases.GetByRole(AriaRole.Button, new() { Name = "Preview AP posting", Exact = true }).ClickAsync(),
+      response => response.Request.Method == "POST" && response.Url.Contains("/purchase-invoices/", StringComparison.Ordinal) && response.Url.EndsWith("/preview", StringComparison.Ordinal));
+    Assert.Equal(200, purchasePreviewResponse.Status);
+    await Assertions.Expect(purchases.GetByText("Exact server preview: 100.000000 net + 0.000000 tax = 100.000000 QAR. Late arrival: Yes.", new() { Exact = true })).ToBeVisibleAsync();
+    await purchases.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed this client’s supplier, evidence, late-arrival dates, exact totals, duplicate warnings and AP posting.", Exact = true }).CheckAsync();
+    var purchaseSubmitResponse = await makerPage.RunAndWaitForResponseAsync(
+      async () => await purchases.GetByRole(AriaRole.Button, new() { Name = "Submit supplier invoice for independent review", Exact = true }).ClickAsync(),
+      response => response.Request.Method == "POST" && response.Url.Contains("/purchase-invoices/", StringComparison.Ordinal) && response.Url.EndsWith("/submit", StringComparison.Ordinal));
+    Assert.Equal(200, purchaseSubmitResponse.Status);
+
+    var reviewerPurchases = reviewerPage.Locator("audit-client-purchase-invoices");
+    await reviewerPurchases.GetByRole(AriaRole.Button, new() { Name = "Refresh supplier invoice history", Exact = true }).ClickAsync();
+    var submittedPurchase = reviewerPurchases.Locator("article").Filter(new() { HasText = "PV-UI-001" });
+    await submittedPurchase.GetByRole(AriaRole.Button, new() { Name = "Review supplier invoice", Exact = true }).ClickAsync();
+    await Assertions.Expect(submittedPurchase.GetByText("Ready for approval", new() { Exact = true })).ToBeVisibleAsync();
+    await submittedPurchase.GetByLabel("Independent review reason", new() { Exact = true }).FillAsync("Independently reviewed supplier evidence, dates and client AP posting");
+    var purchaseReviewResponse = await reviewerPage.RunAndWaitForResponseAsync(
+      async () => await submittedPurchase.GetByRole(AriaRole.Button, new() { Name = "Approve and post supplier invoice", Exact = true }).ClickAsync(),
+      response => response.Request.Method == "POST" && response.Url.EndsWith("/purchase-invoice-reviews", StringComparison.Ordinal));
+    Assert.Equal(200, purchaseReviewResponse.Status);
+    await Assertions.Expect(submittedPurchase.GetByText("Posted client AP open item · Due 2026-02-10. No supplier payment is initiated here.", new() { Exact = true })).ToBeVisibleAsync();
+
     await using (var db = host.CreateDbContext())
     {
       Assert.Single(await db.ClientSalesInvoiceSubmissions.Where(x => x.ClientId == f.ClientId).ToListAsync());
       Assert.Single(await db.ClientSalesInvoiceOpenItems.Where(x => x.ClientId == f.ClientId).ToListAsync());
       Assert.Single(await db.ClientSalesCreditNoteOpenItems.Where(x => x.ClientId == f.ClientId).ToListAsync());
-      Assert.Equal(4, (await ClientOperationalGeneralLedgerWorkspace.GetAsync(db, reviewer, f.ClientId, periodId)).Value!.TotalEntries);
+      Assert.Single(await db.ClientPurchaseInvoiceOpenItems.Where(x => x.ClientId == f.ClientId).ToListAsync());
+      Assert.Equal(6, (await ClientOperationalGeneralLedgerWorkspace.GetAsync(db, reviewer, f.ClientId, periodId)).Value!.TotalEntries);
       Assert.Empty(await db.FirmJournals.ToListAsync());
     }
     Assert.Empty(errors);

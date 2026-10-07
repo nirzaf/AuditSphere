@@ -341,9 +341,11 @@ public static partial class ClientSalesInvoiceWorkflow
     db.ClientOperationalJournalDecisions.Add(new() { Id = Guid.CreateVersion7(), FirmId = actor.FirmId,
       ClientId = clientId, JournalId = journal.Id, JournalRevision = submission.JournalSubmittedRevision,
       Decision = decision, Reason = reason, ActorUserId = actor.UserId, CreatedAt = now });
+    // Persist the independent decision before changing journal status. The database's
+    // immediate AR/AP posting guard must see this exact reviewer decision on the update.
+    await db.SaveChangesAsync(ct);
     journal.Status = decision == "APPROVE" ? "POSTED" : "RETURNED"; journal.Revision++;
     if (decision == "APPROVE") { journal.PostedByUserId = actor.UserId; journal.PostedAt = now; }
-    await db.SaveChangesAsync(ct);
     if (decision == "APPROVE")
     {
       db.ClientSalesCreditNoteOpenItems.Add(new() { Id = Guid.CreateVersion7(), FirmId = actor.FirmId,
@@ -354,8 +356,8 @@ public static partial class ClientSalesInvoiceWorkflow
         ClientId = clientId, CommandId = request.CommandId, JournalId = journal.Id, ActorUserId = actor.UserId,
         SubmittedRevision = submission.JournalSubmittedRevision, PostedRevision = journal.Revision,
         IntentHash = intent, PreviewDigest = request.PreviewDigest, RecordedAt = now });
-      await db.SaveChangesAsync(ct);
     }
+    await db.SaveChangesAsync(ct);
     if (!(await Authorize(db, actor, clientId, Reviewers, ct)).Succeeded ||
         !await ClientBookkeepingAuthorization.IsCurrentDecisionAcceptedAsync(db, actor.FirmId, clientId, ct: ct))
       return CommandResult<ClientSalesCreditCommandReceipt>.Fail(ErrorCodes.GateBlocked, "Authority changed before credit-note review committed.");

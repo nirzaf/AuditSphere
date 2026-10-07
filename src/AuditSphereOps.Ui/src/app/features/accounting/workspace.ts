@@ -7,6 +7,7 @@ import { ClientOperationalJournals } from './operational-journals';
 import { ClientCounterparties } from './counterparties';
 import { ClientAccountRoles } from './account-roles';
 import { SalesInvoiceDrafts } from './sales-invoice-drafts';
+import { PurchaseInvoiceWorkflow } from './purchase-invoice-workflow';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { Subscription, timeout } from 'rxjs';
@@ -110,7 +111,7 @@ export function decodeWorkspace(value: unknown): Workspace {
   return v as unknown as Workspace;
 }
 @Component({
-  selector: 'audit-accounting', imports: [AccountingCharts, SalesInvoiceDrafts, ClientAccountRoles, ClientCounterparties, ClientOperationalJournals, PeriodLifecycle, FormsModule, MatButtonModule, MatProgressBarModule],
+  selector: 'audit-accounting', imports: [AccountingCharts, SalesInvoiceDrafts, PurchaseInvoiceWorkflow, ClientAccountRoles, ClientCounterparties, ClientOperationalJournals, PeriodLifecycle, FormsModule, MatButtonModule, MatProgressBarModule],
   template: `
     <p class="eyebrow">Client-owned books · Explicit client scope</p><h1>Accounting workspace</h1>
     <p>Import-first preparation and reporting. Firm books and group consolidation remain separate.</p>
@@ -173,6 +174,7 @@ export function decodeWorkspace(value: unknown): Workspace {
           <audit-client-counterparties [clientId]="w.clientId" />
           <audit-account-roles [clientId]="w.clientId" />
     <audit-sales-invoice-drafts [clientId]="w.clientId" [currency]="w.profile.currency" [periods]="w.periods" />
+    <audit-client-purchase-invoices [clientId]="w.clientId" [currency]="w.profile.currency" [periods]="w.periods" />
           <audit-client-operational-journals [clientId]="w.clientId" [periods]="w.periods" [bookCurrency]="w.profile.currency" />
         }
         <h3>Reporting periods</h3>@if (!w.periods.length) { <p>No reporting periods configured.</p> }
