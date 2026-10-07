@@ -82,6 +82,17 @@ describe('Preserved submitted versions', () => {
     expect(() => decodeJournalSnapshots([snapshot, snapshot], saved)).toThrow();
     expect(() => decodeJournalSnapshots([{ ...snapshot, lines: [{ ...view.lines[0], debit: 125 }, view.lines[1]] }], saved)).toThrow();
   });
+  it('validates immutable source document and evidence identities for GL drill-through', () => {
+    const saved = decodeOperationalJournal(view, client);
+    const origin = { sourceKind: 'PURCHASE_INVOICE', sourceId: account, submissionId: actor, sourceRevision: '3',
+      reference: 'SUP-2026-01', manifestSha256: 'a'.repeat(64), intentSha256: 'c'.repeat(64), evidenceId: journal, evidenceSha256: 'b'.repeat(64), evidenceReference: null };
+    const snapshot = { journalId: journal, clientId: client, revision: '2', capturedAt: '2026-01-05T01:00:00Z',
+      journalNumber: 'J-1', description: 'Historical content', postingDate: '2026-01-05', currency: 'QAR', lines: view.lines, sourceOrigins: [origin] };
+    expect(decodeJournalSnapshots([snapshot], saved)[0].sourceOrigins?.[0].manifestSha256).toBe('a'.repeat(64));
+    for (const change of [{ sourceKind: 'TAX_RETURN' }, { sourceId: 'bad' }, { submissionId: 'bad' },
+      { sourceRevision: '0' }, { reference: '' }, { manifestSha256: 'bad' }, { intentSha256: 'bad' }, { evidenceId: 'bad' }, { evidenceSha256: 'bad' }])
+      expect(() => decodeJournalSnapshots([{ ...snapshot, sourceOrigins: [{ ...origin, ...change }] }], saved)).toThrow();
+  });
 });
 
 describe('Posting receipt recovery', () => {

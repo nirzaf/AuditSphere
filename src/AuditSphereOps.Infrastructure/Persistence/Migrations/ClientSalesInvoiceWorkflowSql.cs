@@ -326,8 +326,8 @@ internal static class ClientSalesInvoiceWorkflowSql
       SELECT snapshot_json INTO captured FROM client_operational_journal_snapshots WHERE firm_id=s.firm_id AND client_id=s.client_id
         AND journal_id=s.journal_id AND journal_revision=s.journal_submitted_revision;
       IF journal.id IS NULL OR journal.status NOT IN ('SUBMITTED','RETURNED','POSTED')
-        OR (to_jsonb(journal)-'status'-'revision'-'posted_by_user_id'-'posted_at') IS DISTINCT FROM
-          ((captured->'journal')-'status'-'revision'-'posted_by_user_id'-'posted_at')
+        OR (to_jsonb(journal)-'status'-'revision'-'posted_by_user_id'-'posted_at'-'posting_sequence') IS DISTINCT FROM
+          ((captured->'journal')-'status'-'revision'-'posted_by_user_id'-'posted_at'-'posting_sequence')
         OR (SELECT jsonb_agg(to_jsonb(l) ORDER BY l.line_number) FROM client_operational_journal_lines l
           WHERE l.firm_id=s.firm_id AND l.client_id=s.client_id AND l.journal_id=s.journal_id) IS DISTINCT FROM captured->'lines'
         OR (journal.status='SUBMITTED' AND (journal.revision<>s.journal_submitted_revision OR decision.id IS NOT NULL))

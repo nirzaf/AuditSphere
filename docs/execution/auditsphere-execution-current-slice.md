@@ -236,14 +236,25 @@ date range. Date and account-code bounds define the Trial Balance basis; source,
 filters narrow detail lines only. Account filtering preserves earlier posted activity in opening
 balances. Source distinctions come from immutable journal-origin records; invoices, credits,
 settlements and reversals remain native client postings rather than imported source GL or audit
-adjustments. Counterparty selection currently accepts the profile's party identifier.
+adjustments. Counterparty selection currently accepts the profile's party identifier. Snapshot
+drill-through now adds exact native invoice/credit/settlement origin IDs, submitted revisions,
+manifest hashes, command-intent hashes, and recorded source-evidence IDs/hashes/references. The UI
+keeps manifest, intent, and evidence hashes distinct and states that referenced evidence bytes are
+not embedded in the journal snapshot. The posted-invoice database guard now
+excludes the database-assigned posting sequence from submitted business-content equality checks;
+an additive follow-up migration applies this fix to already upgraded databases.
 
 Verification in an isolated temporary copy: focused PostgreSQL ledger/filter and pre-migration
-backfill tests pass 2/2; the Angular operational journal suite passes 17/17; API OpenAPI tests pass
-5/5 and the generated contract includes all filters. The worktree pins SDK 10.0.300 while only
+backfill tests pass 2/2; invoice, supplier invoice, both credit-note types and manual customer/supplier
+settlement workflows pass 6/6 with the updated posting guard; the Angular operational journal suite
+passes 18/18; API OpenAPI tests pass 5/5 and the generated contract includes the GL filters and
+source-lineage schema. The worktree pins SDK 10.0.300 while only
 10.0.400 is installed, so the project file was left unchanged and an isolated copy used the
-installed SDK. Angular production build and a live Browser/API-host GL filter journey remain
-pending. CA-23 durable full-result export and exact evidence-version drill-through remain open.
+installed SDK. Angular production and development builds repeatedly exited 134 without compiler
+diagnostics. The extended Playwright journey then served the prior UI bundle and could not find the
+new filter control; it timed out before issuing filter requests, so browser verification remains
+unverified for the updated UI. CA-23 durable full-result export and retrieval of exact source evidence
+versions/bytes remain open.
 This does not complete CA-23 or CA-24; full scope remains unmerged, and tax/ancillary modules remain
 optional.
 

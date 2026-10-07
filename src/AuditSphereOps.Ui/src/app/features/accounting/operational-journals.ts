@@ -14,8 +14,10 @@ interface InvoiceOrigin { clientId: string; journalId: string; invoiceId: string
 interface Journal { id: string; clientId: string; periodId: string; journalNumber: string; description: string; postingDate: string; currency: string; status: string; revision: string; createdByUserId: string; lines: JournalLine[]; decisions: ReviewDecision[]; reversalOf?: ReversalLink | null; reversedBy?: ReversalLink | null; invoiceOrigin?: InvoiceOrigin | null }
 interface JournalSummary { id: string; periodId: string; journalNumber: string; description: string; postingDate: string; currency: string; status: string; revision: string; createdByUserId: string; invoiceOrigin?: InvoiceOrigin | null }
 interface JournalList { clientId: string; periodId: string | null; status: string | null; page: number; pageSize: number; totalJournals: number; bookkeepingActive: boolean; journals: JournalSummary[] }
+interface SourceOrigin { sourceKind: string; sourceId: string; submissionId: string; sourceRevision: string | null; reference: string;
+  manifestSha256: string | null; intentSha256: string | null; evidenceId: string | null; evidenceSha256: string | null; evidenceReference: string | null }
 interface JournalSnapshot { journalId: string; clientId: string; revision: string; capturedAt: string; journalNumber: string;
-  description: string; postingDate: string; currency: string; lines: JournalLine[]; invoiceOrigin?: InvoiceOrigin | null }
+  description: string; postingDate: string; currency: string; lines: JournalLine[]; invoiceOrigin?: InvoiceOrigin | null; sourceOrigins?: SourceOrigin[] }
 interface JournalPreview { journalId: string; clientId: string; periodId: string; revision: string; status: string; currency: string;
   totalDebit: string; totalCredit: string; digest: string; lines: JournalLine[] }
 interface TrialBalanceRow { accountId: string; accountCode: string; accountName: string; openingDebit: string; openingCredit: string; periodDebit: string; periodCredit: string; closingDebit: string; closingCredit: string }
@@ -163,6 +165,21 @@ export function decodeJournalSnapshots(value: unknown, journal: Journal): Journa
       throw new Error('Invalid submitted journal version');
     seen.add(v['revision']);
     decodeOperationalJournal({ ...journal, ...v, id: journal.id, status: 'SUBMITTED', decisions: [], invoiceOrigin: v['invoiceOrigin'] ?? null }, journal.clientId);
+    if (v['sourceOrigins'] !== undefined) {
+      if (!Array.isArray(v['sourceOrigins']) || v['sourceOrigins'].length > 4) throw new Error('Invalid source-document origins');
+      for (const rawOrigin of v['sourceOrigins']) {
+        const origin = object(rawOrigin);
+        if (!['SALES_INVOICE', 'PURCHASE_INVOICE', 'SALES_CREDIT_NOTE', 'PURCHASE_CREDIT_NOTE', 'SALES_RECEIPT', 'SUPPLIER_PAYMENT'].includes(String(origin['sourceKind'])) ||
+            !['sourceId', 'submissionId'].every(k => typeof origin[k] === 'string' && guidPattern.test(String(origin[k])) && origin[k] !== '00000000-0000-0000-0000-000000000000') ||
+            typeof origin['reference'] !== 'string' || !origin['reference'].trim() ||
+            (origin['sourceRevision'] != null && (typeof origin['sourceRevision'] !== 'string' || !/^[1-9]\d{0,18}$/.test(origin['sourceRevision']))) ||
+            (origin['manifestSha256'] != null && (typeof origin['manifestSha256'] !== 'string' || !/^[a-f0-9]{64}$/i.test(origin['manifestSha256']))) ||
+            (origin['intentSha256'] != null && (typeof origin['intentSha256'] !== 'string' || !/^[a-f0-9]{64}$/i.test(origin['intentSha256']))) ||
+            (origin['evidenceId'] != null && (typeof origin['evidenceId'] !== 'string' || !guidPattern.test(origin['evidenceId']))) ||
+            (origin['evidenceSha256'] != null && (typeof origin['evidenceSha256'] !== 'string' || !/^[a-f0-9]{64}$/i.test(origin['evidenceSha256']))) ||
+            (origin['evidenceReference'] != null && typeof origin['evidenceReference'] !== 'string')) throw new Error('Invalid source-document origin');
+      }
+    }
   }
   return value as JournalSnapshot[];
 }
@@ -260,6 +277,19 @@ function minor(value: string): bigint { if (!nativeJournalAmount(value)) throw n
             @for (v of versions; track v.revision) {
               <details><summary>Submitted revision {{ v.revision }}</summary>
                 <p>{{ v.description }} · {{ v.postingDate }} · {{ v.currency }} · captured {{ v.capturedAt }}</p>
+                @if (v.sourceOrigins?.length) { <section aria-label="Immutable source document lineage"><h6>Linked source document versions</h6>
+                  @for (origin of v.sourceOrigins; track origin.sourceKind + ':' + origin.submissionId) {
+                    <p>{{ origin.sourceKind }} · {{ origin.reference }} · source {{ origin.sourceId }} · submission {{ origin.submissionId }}
+                      @if (origin.sourceRevision) { · source revision {{ origin.sourceRevision }} }
+                      @if (origin.manifestSha256) { · manifest SHA-256 {{ origin.manifestSha256 }} }
+                      @if (origin.intentSha256) { · command intent SHA-256 {{ origin.intentSha256 }} }
+                      @if (origin.evidenceId) { · evidence {{ origin.evidenceId }} }
+                      @if (origin.evidenceSha256) { · evidence SHA-256 {{ origin.evidenceSha256 }} }
+                      @if (origin.evidenceReference) { · evidence reference {{ origin.evidenceReference }} }
+                    </p>
+                  }
+                  <p>Linked metadata identifies the immutable submitted source. Evidence bytes are not included in this journal snapshot.</p>
+                </section> }
                 <div class="table-scroll"><table><caption>Preserved submitted journal lines</caption>
                   <thead><tr><th>Account</th><th>Description</th><th>Debit</th><th>Credit</th></tr></thead>
                   <tbody>@for (line of v.lines; track line.lineNumber) { <tr><td>{{ line.accountCode }} · {{ line.accountName }}</td><td>{{ line.description }}</td><td>{{ line.debit }}</td><td>{{ line.credit }}</td></tr> }</tbody>

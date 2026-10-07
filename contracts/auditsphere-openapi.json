@@ -33883,6 +33883,15 @@
                 "$ref": "#/components/schemas/ClientOperationalInvoiceOrigin"
               }
             ]
+          },
+          "sourceOrigins": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/ClientOperationalSourceOrigin"
+            }
           }
         }
       },
@@ -34235,6 +34244,67 @@
               {
                 "$ref": "#/components/schemas/ClientOperationalInvoiceOrigin"
               }
+            ]
+          }
+        }
+      },
+      "ClientOperationalSourceOrigin": {
+        "required": [
+          "sourceKind",
+          "sourceId",
+          "submissionId",
+          "sourceRevision",
+          "reference",
+          "manifestSha256",
+          "evidenceId",
+          "evidenceSha256",
+          "evidenceReference"
+        ],
+        "type": "object",
+        "properties": {
+          "sourceKind": {
+            "type": "string"
+          },
+          "sourceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "submissionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sourceRevision": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reference": {
+            "type": "string"
+          },
+          "manifestSha256": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "evidenceId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "evidenceSha256": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "evidenceReference": {
+            "type": [
+              "null",
+              "string"
             ]
           }
         }

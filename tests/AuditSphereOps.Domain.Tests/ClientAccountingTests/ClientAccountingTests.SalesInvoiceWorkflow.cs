@@ -112,6 +112,12 @@ public sealed partial class ClientAccountingTests
     var journalId=(await ClientSalesInvoiceWorkflow.GetLifecycleAsync(db,reviewer,s.ClientA,f.Draft.InvoiceId)).Value!.JournalId!.Value;
     var snapshots=await ClientOperationalLedgerWorkspace.GetSnapshotsAsync(db,reviewer,s.ClientA,journalId);Assert.True(snapshots.Succeeded,snapshots.Message);
     Assert.Equal("125.000000",snapshots.Value![0].Lines[0].Debit);Assert.Equal("50.250000",snapshots.Value[1].Lines[0].Debit);
+    var sourceOrigin=Assert.Single(snapshots.Value[0].SourceOrigins!);
+    Assert.Equal("SALES_INVOICE", sourceOrigin.SourceKind);
+    Assert.Equal(f.Draft.InvoiceId, sourceOrigin.SourceId);
+    Assert.Equal("1", sourceOrigin.SourceRevision);
+    Assert.Matches("^[a-f0-9]{64}$", sourceOrigin.ManifestSha256!);
+    Assert.Matches("^[a-f0-9]{64}$", sourceOrigin.IntentSha256!);
     var duplicate=await ClientSalesInvoiceDraftWorkspace.SaveAsync(db,maker,s.ClientA,f.Request with{CommandId=Guid.CreateVersion7(),DraftReference="DUPLICATE"});Assert.True(duplicate.Succeeded,duplicate.Message);
     var duplicateRequest=submit with{CommandId=Guid.CreateVersion7(),InvoiceId=duplicate.Value!.InvoiceId,PreviewDigest=""};p=await ClientSalesInvoiceWorkflow.PreviewAsync(db,maker,s.ClientA,duplicateRequest);Assert.True(p.Succeeded,p.Message);
     Assert.False((await ClientSalesInvoiceWorkflow.SubmitAsync(db,maker,s.ClientA,duplicateRequest with{PreviewDigest=p.Value!.Digest})).Succeeded);
