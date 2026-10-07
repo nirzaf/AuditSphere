@@ -99,6 +99,9 @@ public static class ClientSalesInvoiceDraftWorkspace
     {
       previous = await db.ClientSalesInvoiceDrafts.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == clientId && x.InvoiceId == invoiceId).OrderByDescending(x => x.Revision).FirstOrDefaultAsync(ct);
       if (previous is null || previous.CreatedByUserId != actor.UserId) return CommandResult<ClientSalesInvoiceDraftView>.Fail(ErrorCodes.ScopeDenied, "Only the assigned draft maker may revise this invoice.");
+      var submission = await db.ClientSalesInvoiceSubmissions.AsNoTracking().Where(x=>x.FirmId==actor.FirmId&&x.ClientId==clientId&&x.InvoiceId==invoiceId).OrderByDescending(x=>x.DraftRevision).FirstOrDefaultAsync(ct);
+      if(submission is not null && !await db.ClientSalesInvoiceDecisions.AnyAsync(x=>x.FirmId==actor.FirmId&&x.ClientId==clientId&&x.SubmissionId==submission.Id&&x.Decision=="RETURN",ct))
+        return CommandResult<ClientSalesInvoiceDraftView>.Fail(ErrorCodes.ProtectedState,"Submitted and posted invoice preparation is frozen. An independent return is required before a new revision.");
       if (previous.Revision != request.ExpectedRevision || previous.DraftReference != reference)
         return CommandResult<ClientSalesInvoiceDraftView>.Fail(ErrorCodes.StaleRevision, "Read the latest revision; the draft reference is fixed.");
     }

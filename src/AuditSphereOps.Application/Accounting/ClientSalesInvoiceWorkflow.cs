@@ -16,7 +16,7 @@ public sealed record ClientSalesInvoiceReviewPreview(Guid InvoiceId, Guid Submis
 public static partial class ClientSalesInvoiceWorkflow
 {
   private static async Task<bool> LockClient(IClientAccountingDbContext db,ActorContext actor,Guid clientId,CancellationToken ct)=>
-    await db.PracticeClients.FromSqlInterpolated($"SELECT * FROM practice_clients WHERE firm_id={actor.FirmId} AND id={clientId} FOR UPDATE").AnyAsync(ct);
+    await db.PracticeClients.FromSqlInterpolated($"SELECT * FROM practice_clients WHERE firm_id={actor.FirmId} AND id={clientId} FOR UPDATE").SingleOrDefaultAsync(ct) is not null;
   private static Task<ClientSalesInvoiceDraft?> LatestDraft(IClientAccountingDbContext db,Guid firmId,Guid clientId,Guid invoiceId,CancellationToken ct)=>
     db.ClientSalesInvoiceDrafts.AsNoTracking().Where(x=>x.FirmId==firmId&&x.ClientId==clientId&&x.InvoiceId==invoiceId).OrderByDescending(x=>x.Revision).FirstOrDefaultAsync(ct);
   private static Task<ClientSalesInvoiceSubmission?> LatestSubmission(IClientAccountingDbContext db,Guid firmId,Guid clientId,Guid invoiceId,CancellationToken ct)=>
@@ -50,6 +50,12 @@ public static partial class ClientSalesInvoiceWorkflow
     if(previous is not null && (!await db.ClientSalesInvoiceDecisions.AnyAsync(x=>x.FirmId==actor.FirmId&&x.ClientId==clientId&&x.SubmissionId==previous.Id&&x.Decision=="RETURN",ct) || draft.Revision<=previous.DraftRevision))return CommandResult<ClientSalesInvoiceCommandReceipt>.Fail(ErrorCodes.ProtectedState,"Return and revise the exact invoice before resubmission.");
     var preview=await BuildPreviewAsync(db,actor,clientId,draft,r,null,ct);
     if(!preview.Succeeded || preview.Value!.Digest!=r.PreviewDigest)return CommandResult<ClientSalesInvoiceCommandReceipt>.Fail(ErrorCodes.StaleRevision,"Preview the current exact invoice, receivable role, source basis and declared calculation policy before submission.");
+    if(draft.SourceReference.Length>0 && await (from other in db.ClientSalesInvoiceSubmissions
+      join otherDraft in db.ClientSalesInvoiceDrafts on other.DraftId equals otherDraft.Id
+      where other.FirmId==actor.FirmId && other.ClientId==clientId && other.InvoiceId!=draft.InvoiceId
+        && otherDraft.FirmId==actor.FirmId && otherDraft.ClientId==clientId && otherDraft.SourceReference==draft.SourceReference
+        && !db.ClientSalesInvoiceDecisions.Any(d=>d.FirmId==actor.FirmId&&d.ClientId==clientId&&d.SubmissionId==other.Id&&d.Decision=="RETURN")
+      select other.Id).AnyAsync(ct))return CommandResult<ClientSalesInvoiceCommandReceipt>.Fail(ErrorCodes.IdempotencyConflict,"This client source document identity is already submitted or posted.");
     var snapshot=JsonSerializer.Deserialize<ClientSalesInvoiceDraftSnapshot>(draft.SnapshotJson)!;
     ClientOperationalJournal journal;
     if(previous is null)
@@ -77,14 +83,20 @@ public static partial class ClientSalesInvoiceWorkflow
   private static async Task<CommandResult<ClientSalesInvoiceReviewPreview>> ReviewPreviewCore(IClientAccountingDbContext db,ActorContext actor,Guid clientId,ClientSalesInvoiceSubmission source,CancellationToken ct)
   {
     if(Hash(source.ManifestJson)!=source.ManifestHash)return CommandResult<ClientSalesInvoiceReviewPreview>.Fail(ErrorCodes.ProtectedState,"Submission identity is invalid.");
-    var m=JsonSerializer.Deserialize<ClientSalesInvoiceManifest>(source.ManifestJson)!;
+    ClientSalesInvoiceManifest? m;
+    try { m=JsonSerializer.Deserialize<ClientSalesInvoiceManifest>(source.ManifestJson); }
+    catch(JsonException) { return CommandResult<ClientSalesInvoiceReviewPreview>.Fail(ErrorCodes.ProtectedState,"The retained submission cannot be read."); }
+    if(m is null || m.Version!="client-sales-submission-v1" || m.DraftId!=source.DraftId || m.Lines is null)
+      return CommandResult<ClientSalesInvoiceReviewPreview>.Fail(ErrorCodes.ProtectedState,"The retained submission identity is invalid.");
     var latest=await LatestSubmission(db,actor.FirmId,clientId,source.InvoiceId,ct);
     var journal=await db.ClientOperationalJournals.AsNoTracking().SingleAsync(x=>x.FirmId==actor.FirmId&&x.ClientId==clientId&&x.Id==source.JournalId,ct);
     if(latest?.Id!=source.Id || journal.Status!="SUBMITTED" || journal.Revision!=source.JournalSubmittedRevision)return CommandResult<ClientSalesInvoiceReviewPreview>.Fail(ErrorCodes.StaleRevision,"Read the current submitted invoice revision.");
     var draft=await db.ClientSalesInvoiceDrafts.AsNoTracking().SingleAsync(x=>x.FirmId==actor.FirmId&&x.ClientId==clientId&&x.Id==source.DraftId,ct);
+    var latestDraft=await LatestDraft(db,actor.FirmId,clientId,source.InvoiceId,ct);
+    if(latestDraft?.Id!=draft.Id)return CommandResult<ClientSalesInvoiceReviewPreview>.Fail(ErrorCodes.StaleRevision,"The submitted draft is no longer current.");
     var fresh=await BuildPreviewAsync(db,actor,clientId,draft,new(Guid.Empty,source.InvoiceId,source.DraftRevision,m.ReceivableRoleId,m.NoTaxReason,m.SourceReceiptId,m.SourceBasis,""),source.Id,ct);
     var accepted=await ClientBookkeepingAuthorization.IsCurrentDecisionAcceptedAsync(db,actor.FirmId,clientId,ct:ct);
-    var context=JsonSerializer.Serialize(new{Version="client-sales-review-v1",actor.FirmId,ClientId=clientId,ActorId=actor.UserId,source.InvoiceId,SubmissionId=source.Id,source.ManifestHash,JournalId=journal.Id,JournalRevision=journal.Revision,JournalStatus=journal.Status,CurrentPreview=fresh.Value?.Digest,PostingBlock=fresh.ErrorCode,AcceptedService=accepted});
+    var context=JsonSerializer.Serialize(new{Version="client-sales-review-v1",actor.FirmId,ClientId=clientId,ActorId=actor.UserId,source.InvoiceId,SubmissionId=source.Id,source.ManifestHash,JournalId=journal.Id,JournalRevision=journal.Revision,JournalStatus=journal.Status,CurrentPreview=fresh.Value?.Digest,CurrentManifest=fresh.Value?.Manifest,PostingBlock=fresh.ErrorCode,AcceptedService=accepted});
     return CommandResult<ClientSalesInvoiceReviewPreview>.Ok(new(source.InvoiceId,source.Id,journal.Id,journal.Revision.ToString(CultureInfo.InvariantCulture),Hash(context),fresh.Succeeded&&accepted,fresh.ErrorCode,context,m));
   }
 

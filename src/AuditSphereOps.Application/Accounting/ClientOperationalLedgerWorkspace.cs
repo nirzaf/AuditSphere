@@ -18,7 +18,8 @@ public sealed record ClientOperationalJournalView(Guid Id, Guid ClientId, Guid P
   string Description, string PostingDate, string Currency, string Status, string Revision,
   Guid CreatedByUserId, string CreatedAt, Guid? PostedByUserId, string? PostedAt,
   IReadOnlyList<ClientOperationalJournalLineView> Lines, IReadOnlyList<ClientOperationalJournalDecisionView>? Decisions = null,
-  ClientOperationalJournalReversalView? ReversalOf = null, ClientOperationalJournalReversalView? ReversedBy = null);
+  ClientOperationalJournalReversalView? ReversalOf = null, ClientOperationalJournalReversalView? ReversedBy = null,
+  ClientOperationalInvoiceOrigin? InvoiceOrigin = null);
 
 /// <summary>Native client-book manual journal draft, independent review, and immutable posting.</summary>
 public static partial class ClientOperationalLedgerWorkspace
@@ -118,10 +119,11 @@ public static partial class ClientOperationalLedgerWorkspace
     if (!(await AuthorizeAsync(db, actor, clientId, Preparers, ct)).Succeeded)
       return CommandResult<ClientOperationalJournalView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var relationships = await ReversalRelationshipsAsync(db, actor.FirmId, clientId, journalId, ct);
+    var invoiceOrigin = await InvoiceOriginAsync(db, actor.FirmId, clientId, journalId, ct);
     if (!(await AuthorizeAsync(db, actor, clientId, Preparers, ct)).Succeeded)
       return CommandResult<ClientOperationalJournalView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     return CommandResult<ClientOperationalJournalView>.Ok(View(journal, lines) with {
-      ReversalOf = relationships.Original, ReversedBy = relationships.Reversal,
+      ReversalOf = relationships.Original, ReversedBy = relationships.Reversal, InvoiceOrigin = invoiceOrigin,
       Decisions = decisions.Select(x => new ClientOperationalJournalDecisionView(x.JournalRevision.ToString(System.Globalization.CultureInfo.InvariantCulture),
         x.Decision, x.Reason, x.ActorUserId, x.CreatedAt.ToUniversalTime().ToString("O", System.Globalization.CultureInfo.InvariantCulture))).ToArray() });
   }
@@ -136,6 +138,8 @@ public static partial class ClientOperationalLedgerWorkspace
     if (journal is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizeAsync(db, actor, clientId, Preparers, ct);
     if (!auth.Succeeded) return auth;
+    var manual = await RequireManualJournalAsync(db, actor.FirmId, clientId, journalId, ct);
+    if (!manual.Succeeded) return manual;
     var profile = await NativeProfileAsync(db, actor, clientId, ct);
     if (!profile.Succeeded) return CommandResult.Fail(profile.ErrorCode!, profile.Message!);
     if (journal.CreatedByUserId != actor.UserId)
@@ -183,6 +187,8 @@ public static partial class ClientOperationalLedgerWorkspace
     if (!initialAuth.Succeeded) return initialAuth;
     var intentHash = PostingIntent(actor, clientId, journalId, request);
     await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var manual = await RequireManualJournalAsync(db, actor.FirmId, clientId, journalId, ct);
+    if (!manual.Succeeded) return manual;
     await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({PostingCommandLock(actor.FirmId, clientId, request.CommandId)})", ct);
     var existingReceipt = await db.ClientOperationalPostingReceipts.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
       x.ClientId == clientId && x.CommandId == request.CommandId, ct);

@@ -30,6 +30,8 @@ public static partial class ClientOperationalLedgerWorkspace
       $"SELECT * FROM client_operational_journals WHERE firm_id={actor.FirmId} AND client_id={clientId} AND id={originalJournalId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
     if (original is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var manual = await RequireManualJournalAsync(db, actor.FirmId, clientId, originalJournalId, ct);
+    if (!manual.Succeeded) return CommandResult<Guid>.Fail(manual.ErrorCode!, manual.Message!);
     if (original.Status != "POSTED" || original.Revision != request.ExpectedRevision)
       return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision, "A reversal requires the exact immutable posted original.");
     var hash = Convert.ToHexStringLower(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new {

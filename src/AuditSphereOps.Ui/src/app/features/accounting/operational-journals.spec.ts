@@ -1,5 +1,9 @@
-import { describe, expect, it } from 'vitest';
-import { decodeOperationalJournal, decodeOperationalLedger, nativeJournalAmount, decodeJournalPreview, decodeJournalSnapshots, decodePostingReceipt, decodeJournalList } from './operational-journals';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { SessionService } from '../../core/session';
+import { ClientOperationalJournals, decodeOperationalJournal, decodeOperationalLedger, nativeJournalAmount, decodeJournalPreview, decodeJournalSnapshots, decodePostingReceipt, decodeJournalList } from './operational-journals';
 
 const client = '11111111-1111-4111-8111-111111111111';
 const journal = '22222222-2222-4222-8222-222222222222';
@@ -112,5 +116,79 @@ describe('Saved native journals', () => {
     for (const changed of [{ ...listed, clientId: journal }, { ...listed, periodId: client }, { ...listed, status: 'DRAFT' }, { ...listed, page: 1 },
       { ...listed, bookkeepingActive: 'false' }, { ...listed, totalJournals: 0 }, { ...listed, journals: [listed.journals[0], listed.journals[0]] },
       { ...listed, journals: [{ ...listed.journals[0], revision: 3 }] }]) expect(() => decodeJournalList(changed, client, null, null, 0)).toThrow();
+  });
+});
+
+
+describe('Invoice journal provenance', () => {
+  const origin = { clientId: client, journalId: journal, invoiceId: account, submissionId: actor,
+    draftRevision: '1', journalSubmittedRevision: '2' };
+  const submitted = { ...view, status: 'SUBMITTED', revision: '2', invoiceOrigin: origin };
+  it('allows 101 generated invoice lines only with scoped invoice and submission identities', () => {
+    const lines = Array.from({ length: 101 }, (_, index) => ({ ...view.lines[index === 0 ? 0 : 1], lineNumber: index + 1 }));
+    expect(decodeOperationalJournal({ ...submitted, lines }, client).invoiceOrigin?.invoiceId).toBe(account);
+    expect(() => decodeOperationalJournal({ ...submitted, lines, invoiceOrigin: null }, client)).toThrow();
+    expect(() => decodeOperationalJournal({ ...submitted, lines: [...lines, { ...lines[0], lineNumber: 102 }] }, client)).toThrow();
+    for (const change of [{ clientId: journal }, { journalId: account }, { invoiceId: 'bad' }, { submissionId: 'bad' },
+      { invoiceId: '00000000-0000-0000-0000-000000000000' }, { draftRevision: 1 }, { draftRevision: '0' },
+      { draftRevision: '9223372036854775808' }, { journalSubmittedRevision: '1' }, { journalSubmittedRevision: '3' }])
+      expect(() => decodeOperationalJournal({ ...submitted, lines, invoiceOrigin: { ...origin, ...change } }, client)).toThrow();
+  });
+  it('binds current and historical invoice origin to the exact submitted native revision', () => {
+    const currentOrigin = { ...origin, draftRevision: '2', submissionId: client, journalSubmittedRevision: '5' };
+    const current = decodeOperationalJournal({ ...submitted, revision: '5', invoiceOrigin: currentOrigin }, client);
+    const snapshot = { journalId: journal, clientId: client, revision: '2', capturedAt: '2026-01-05T01:00:00Z',
+      journalNumber: 'J-1', description: 'Prior invoice submission', postingDate: '2026-01-05', currency: 'QAR', lines: view.lines, invoiceOrigin: origin };
+    expect(decodeJournalSnapshots([snapshot], current)[0].invoiceOrigin?.submissionId).toBe(actor);
+    expect(() => decodeJournalSnapshots([{ ...snapshot, invoiceOrigin: currentOrigin }], current)).toThrow();
+    expect(() => decodeOperationalJournal({ ...submitted, status: 'POSTED', revision: '4' }, client)).toThrow();
+    expect(decodeOperationalJournal({ ...submitted, status: 'POSTED', revision: '3' }, client).invoiceOrigin?.submissionId).toBe(actor);
+    const preview = { journalId: journal, clientId: client, periodId: client, revision: '2', status: 'SUBMITTED', currency: 'QAR',
+      totalDebit: '125.000000', totalCredit: '125.000000', digest: 'a'.repeat(64), lines: view.lines };
+    expect(() => decodeJournalPreview(preview, decodeOperationalJournal(submitted, client))).toThrow();
+  });
+  it('discloses invoice provenance in saved-work discovery and posting receipt reads', () => {
+    const listed = { clientId: client, periodId: null, status: null, page: 0, pageSize: 25, totalJournals: 1, bookkeepingActive: true,
+      journals: [{ id: journal, periodId: client, journalNumber: 'J-1', description: 'Invoice posting', postingDate: '2026-01-15',
+        currency: 'QAR', status: 'POSTED', revision: '3', createdByUserId: actor, invoiceOrigin: origin }] };
+    expect(decodeJournalList(listed, client, null, null, 0).journals[0].invoiceOrigin?.invoiceId).toBe(account);
+    expect(() => decodeJournalList({ ...listed, journals: [{ ...listed.journals[0], invoiceOrigin: { ...origin, journalId: account } }] }, client, null, null, 0)).toThrow();
+    const receipt = { commandId: account, clientId: client, journalId: journal, actorUserId: actor, submittedRevision: '2', postedRevision: '3',
+      previewDigest: 'a'.repeat(64), intentHash: 'b'.repeat(64), recordedAt: '2026-01-05T01:00:00Z', status: 'POSTED', invoiceOrigin: origin };
+    expect(decodePostingReceipt(receipt, client, account, actor).invoiceOrigin?.submissionId).toBe(actor);
+    expect(() => decodePostingReceipt({ ...receipt, invoiceOrigin: { ...origin, journalSubmittedRevision: '5' } }, client, account, actor)).toThrow();
+  });
+});
+
+
+describe('Invoice journals in the native journal workbench', () => {
+  let http: HttpTestingController;
+  beforeEach(() => {
+    TestBed.configureTestingModule({ imports: [ClientOperationalJournals], providers: [provideHttpClient(), provideHttpClientTesting()] });
+    http = TestBed.inject(HttpTestingController);
+    TestBed.inject(SessionService).current.set({ userId: actor, firmId: client, generation: '1', staff: true });
+  });
+  afterEach(() => { http.verify(); TestBed.resetTestingModule(); });
+  it('retains invoice history and hides or refuses every generic journal action', () => {
+    const fixture = TestBed.createComponent(ClientOperationalJournals);
+    fixture.componentRef.setInput('clientId', client);
+    fixture.componentRef.setInput('periods', [{ id: client, code: '2026', start: '2026-01-01', end: '2026-12-31', currency: 'QAR', status: 'OPEN' }]);
+    fixture.componentRef.setInput('bookCurrency', 'QAR');
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    for (const [status, revision] of [['DRAFT', '4'], ['SUBMITTED', '2'], ['RETURNED', '3'], ['POSTED', '3']]) {
+      const saved = decodeOperationalJournal({ ...view, status, revision,
+        invoiceOrigin: { clientId: client, journalId: journal, invoiceId: account, submissionId: actor, draftRevision: '1', journalSubmittedRevision: '2' } }, client);
+      component.journal.set(saved); fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('[aria-label="Client sales invoice origin"]')?.textContent).toContain(account);
+      const buttons = Array.from(fixture.nativeElement.querySelectorAll('button')).map(button => (button as HTMLButtonElement).textContent?.trim());
+      expect(buttons).toContain('View submitted versions');
+      for (const label of ['Preview accounting effect', 'Edit draft journal', 'Edit returned journal', 'Submit for independent review', 'Approve and post', 'Return for rework', 'Save reversal draft']) expect(buttons).not.toContain(label);
+      component.reviewed.set(true); component.reason = 'Independent review';
+      component.reversalPeriodId = client; component.reversalDate = '2026-01-06';
+      component.editJournal(saved); component.loadPreview(saved); component.submit(saved); component.returnJournal(saved); component.approve(saved); component.createReversal(saved);
+      expect(component.editing()).toBeNull();
+    }
+    http.expectNone(request => request.url.includes('/operational-journals/'));
   });
 });

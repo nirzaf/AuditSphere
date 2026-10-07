@@ -10,11 +10,12 @@ interface PeriodOption { id: string; code: string; start: string; end: string; c
 interface JournalLine { lineNumber: number; accountId: string; accountCode: string; accountName: string; description: string; debit: string; credit: string }
 interface ReviewDecision { revision: string; decision: string; reason: string; actorUserId: string; createdAt: string }
 interface ReversalLink { originalJournalId: string; reversalJournalId: string; originalRevision: string; reason: string; evidenceReference: string; preparedByUserId: string; preparedAt: string; reversalStatus: string }
-interface Journal { id: string; clientId: string; periodId: string; journalNumber: string; description: string; postingDate: string; currency: string; status: string; revision: string; createdByUserId: string; lines: JournalLine[]; decisions: ReviewDecision[]; reversalOf?: ReversalLink | null; reversedBy?: ReversalLink | null }
-interface JournalSummary { id: string; periodId: string; journalNumber: string; description: string; postingDate: string; currency: string; status: string; revision: string; createdByUserId: string }
+interface InvoiceOrigin { clientId: string; journalId: string; invoiceId: string; submissionId: string; draftRevision: string; journalSubmittedRevision: string }
+interface Journal { id: string; clientId: string; periodId: string; journalNumber: string; description: string; postingDate: string; currency: string; status: string; revision: string; createdByUserId: string; lines: JournalLine[]; decisions: ReviewDecision[]; reversalOf?: ReversalLink | null; reversedBy?: ReversalLink | null; invoiceOrigin?: InvoiceOrigin | null }
+interface JournalSummary { id: string; periodId: string; journalNumber: string; description: string; postingDate: string; currency: string; status: string; revision: string; createdByUserId: string; invoiceOrigin?: InvoiceOrigin | null }
 interface JournalList { clientId: string; periodId: string | null; status: string | null; page: number; pageSize: number; totalJournals: number; bookkeepingActive: boolean; journals: JournalSummary[] }
 interface JournalSnapshot { journalId: string; clientId: string; revision: string; capturedAt: string; journalNumber: string;
-  description: string; postingDate: string; currency: string; lines: JournalLine[] }
+  description: string; postingDate: string; currency: string; lines: JournalLine[]; invoiceOrigin?: InvoiceOrigin | null }
 interface JournalPreview { journalId: string; clientId: string; periodId: string; revision: string; status: string; currency: string;
   totalDebit: string; totalCredit: string; digest: string; lines: JournalLine[] }
 interface TrialBalanceRow { accountId: string; accountCode: string; accountName: string; openingDebit: string; openingCredit: string; periodDebit: string; periodCredit: string; closingDebit: string; closingCredit: string }
@@ -23,7 +24,7 @@ interface LedgerView { bookkeepingActive: boolean; trialBalance: TrialBalance; c
   accounts: { accountId: string; accountCode: string; accountName: string; debitMovement: string; creditMovement: string; netMovement: string }[];
   entries: { journalId: string; journalNumber: string; postingDate: string; lineNumber: number; accountCode: string; accountName: string; description: string; debit: string; credit: string; reversesJournalId?: string | null; reversedByJournalId?: string | null; reversedByStatus?: string | null }[] }
 interface PostingReceipt { commandId: string; clientId: string; journalId: string; actorUserId: string; submittedRevision: string;
-  postedRevision: string; previewDigest: string; intentHash: string; recordedAt: string; status: string }
+  postedRevision: string; previewDigest: string; intentHash: string; recordedAt: string; status: string; invoiceOrigin?: InvoiceOrigin | null }
 interface PendingPosting { journal: Journal; commandId: string; previewDigest: string; reason: string; actorUserId: string }
 const reportAmountPattern = /^(?:0|[1-9]\d{0,28})(?:\.\d{1,6})?$/;
 const amountPattern = /^(?:0|[1-9]\d{0,14})(?:\.\d{1,6})?$/;
@@ -31,13 +32,30 @@ function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid journal response');
   return value as Record<string, unknown>;
 }
+function invoiceOrigin(value: unknown, clientId: string, journalId: unknown, revision?: unknown, status?: unknown): InvoiceOrigin | null {
+  if (value == null) return null;
+  const v = object(value);
+  if (v['clientId'] !== clientId || v['journalId'] !== journalId ||
+      !['clientId', 'journalId', 'invoiceId', 'submissionId'].every(k => typeof v[k] === 'string' && guidPattern.test(String(v[k])) && v[k] !== '00000000-0000-0000-0000-000000000000') ||
+      !['draftRevision', 'journalSubmittedRevision'].every(k => typeof v[k] === 'string' && /^[1-9]\d{0,18}$/.test(String(v[k])) && BigInt(String(v[k])) <= 9223372036854775807n) ||
+      BigInt(String(v['journalSubmittedRevision'])) < 2n) throw new Error('Invalid invoice journal origin');
+  if (revision !== undefined) {
+    if (typeof revision !== 'string' || !/^[1-9]\d{0,18}$/.test(revision)) throw new Error('Invalid invoice journal revision');
+    const submitted = BigInt(String(v['journalSubmittedRevision'])), current = BigInt(revision);
+    if (!['DRAFT', 'SUBMITTED', 'RETURNED', 'POSTED'].includes(String(status)) || submitted > current ||
+        (status === 'SUBMITTED' && submitted !== current) ||
+        (['RETURNED', 'POSTED'].includes(String(status)) && submitted + 1n !== current)) throw new Error('Invoice origin does not match the journal revision');
+  }
+  return value as InvoiceOrigin;
+}
 export function decodeOperationalJournal(value: unknown, clientId: string): Journal {
   const v = object(value);
+  const origin = invoiceOrigin(v['invoiceOrigin'], clientId, v['id'], v['revision'], v['status']);
   if (v['clientId'] !== clientId || typeof v['id'] !== 'string' || !guidPattern.test(v['id']) ||
       typeof v['periodId'] !== 'string' || !guidPattern.test(v['periodId']) ||
       !['journalNumber', 'description', 'postingDate', 'currency', 'status', 'revision'].every(k => typeof v[k] === 'string') ||
       !/^[1-9]\d{0,18}$/.test(String(v['revision'])) || typeof v['createdByUserId'] !== 'string' || !guidPattern.test(v['createdByUserId']) ||
-      !Array.isArray(v['lines']) || v['lines'].length < 2 || v['lines'].length > 100) throw new Error('Invalid journal response');
+      !Array.isArray(v['lines']) || v['lines'].length < 2 || v['lines'].length > (origin ? 101 : 100)) throw new Error('Invalid journal response');
   for (const raw of v['lines']) {
     const line = object(raw);
     if (!Number.isSafeInteger(line['lineNumber']) || Number(line['lineNumber']) < 1 ||
@@ -76,6 +94,7 @@ export function decodeJournalList(value: unknown, clientId: string, periodId: st
         (periodId !== null && row['periodId'] !== periodId) || !['DRAFT', 'SUBMITTED', 'RETURNED', 'POSTED'].includes(String(row['status'])) ||
         (status !== null && row['status'] !== status) || typeof row['revision'] !== 'string' || !/^[1-9]\d{0,18}$/.test(row['revision']) ||
         !['journalNumber', 'description', 'postingDate', 'currency'].every(k => typeof row[k] === 'string')) throw new Error('Invalid journal summary');
+    invoiceOrigin(row['invoiceOrigin'], clientId, row['id'], row['revision'], row['status']);
     identities.add(String(row['id']));
   }
   return value as JournalList;
@@ -121,6 +140,7 @@ export function decodeOperationalLedger(value: unknown, clientId: string, period
   return v as unknown as LedgerView;
 }
 export function decodeJournalPreview(value: unknown, journal: Journal): JournalPreview {
+  if (journal.invoiceOrigin) throw new Error('Invoice accounting requires its invoice review preview');
   const p = object(value);
   if (p['journalId'] !== journal.id || p['clientId'] !== journal.clientId || p['periodId'] !== journal.periodId ||
       p['revision'] !== journal.revision || p['status'] !== journal.status || p['currency'] !== journal.currency ||
@@ -141,7 +161,7 @@ export function decodeJournalSnapshots(value: unknown, journal: Journal): Journa
         !['capturedAt', 'journalNumber', 'description', 'postingDate', 'currency'].every(k => typeof v[k] === 'string'))
       throw new Error('Invalid submitted journal version');
     seen.add(v['revision']);
-    decodeOperationalJournal({ ...journal, ...v, id: journal.id, status: 'SUBMITTED', decisions: [] }, journal.clientId);
+    decodeOperationalJournal({ ...journal, ...v, id: journal.id, status: 'SUBMITTED', decisions: [], invoiceOrigin: v['invoiceOrigin'] ?? null }, journal.clientId);
   }
   return value as JournalSnapshot[];
 }
@@ -154,6 +174,8 @@ export function decodePostingReceipt(value: unknown, clientId: string, commandId
       BigInt(v['postedRevision']) !== BigInt(v['submittedRevision']) + 1n || typeof v['recordedAt'] !== 'string' ||
       !['previewDigest', 'intentHash'].every(k => typeof v[k] === 'string' && /^[a-f0-9]{64}$/.test(String(v[k]))))
     throw new Error('Invalid posting receipt');
+  const origin = invoiceOrigin(v['invoiceOrigin'], clientId, v['journalId']);
+  if (origin && origin.journalSubmittedRevision !== v['submittedRevision']) throw new Error('Invoice origin does not match the posting receipt');
   return v as unknown as PostingReceipt;
 }
 export function nativeJournalAmount(value: string): boolean { return /^(?:0|[1-9]\d{0,12})(?:\.\d{1,6})?$/.test(value); }
@@ -179,8 +201,8 @@ function minor(value: string): bigint { if (!nativeJournalAmount(value)) throw n
         @if (journalList(); as result) {
           <p>{{ result.totalJournals }} saved journals · Page {{ result.page + 1 }}. Each refresh uses current saved state.</p>
           @if (!result.journals.length) { <p>No journals match the selected filters.</p> }
-          <div class="table-scroll"><table><caption>Saved native client journals</caption><thead><tr><th>Journal</th><th>Date</th><th>Description</th><th>Currency</th><th>Status</th><th>Revision</th></tr></thead>
-            <tbody>@for (j of result.journals; track j.id) { <tr><td><button matButton type="button" [disabled]="busy()" (click)="lookupId = j.id; load()">{{ j.journalNumber }}</button></td><td>{{ j.postingDate }}</td><td>{{ j.description }}</td><td>{{ j.currency }}</td><td>{{ j.status }}</td><td>{{ j.revision }}</td></tr> }</tbody>
+          <div class="table-scroll"><table><caption>Saved native client journals</caption><thead><tr><th>Journal</th><th>Date</th><th>Description</th><th>Currency</th><th>Status</th><th>Origin</th><th>Revision</th></tr></thead>
+            <tbody>@for (j of result.journals; track j.id) { <tr><td><button matButton type="button" [disabled]="busy()" (click)="lookupId = j.id; load()">{{ j.journalNumber }}</button></td><td>{{ j.postingDate }}</td><td>{{ j.description }}</td><td>{{ j.currency }}</td><td>{{ j.status }}</td><td>{{ j.invoiceOrigin ? 'Client sales invoice' : 'Manual journal' }}</td><td>{{ j.revision }}</td></tr> }</tbody>
           </table></div>
           <button matButton type="button" [disabled]="listLoading() || result.page === 0" (click)="loadList(result.page - 1)">Previous journals</button>
           <button matButton type="button" [disabled]="listLoading() || (result.page + 1) * result.pageSize >= result.totalJournals" (click)="loadList(result.page + 1)">Next journals</button>
@@ -192,6 +214,12 @@ function minor(value: string): bigint { if (!nativeJournalAmount(value)) throw n
         <article aria-label="Selected client journal">
           <h4>{{ j.journalNumber }} · {{ j.status }}</h4>
           <p>{{ j.description }} · {{ j.postingDate }} · {{ j.currency }} · revision {{ j.revision }}</p>
+          @if (j.invoiceOrigin; as origin) {
+            <section aria-label="Client sales invoice origin">
+              <p>Client sales invoice {{ origin.invoiceId }} · invoice revision {{ origin.draftRevision }} · submission {{ origin.submissionId }}.</p>
+              <p>Review and corrections belong to the invoice workflow. Journal history and ledger movement remain available here. Posting does not confirm invoice issue or delivery.</p>
+            </section>
+          }
           @if (j.reversalOf; as link) {
             <section aria-label="Reversal lineage"><p>Full reversal of {{ link.originalJournalId }} · {{ link.reason }} · evidence {{ link.evidenceReference }}</p>
               <button matButton type="button" [disabled]="busy()" (click)="lookupId = link.originalJournalId; load()">Open original journal</button>
@@ -202,7 +230,7 @@ function minor(value: string): bigint { if (!nativeJournalAmount(value)) throw n
               <button matButton type="button" [disabled]="busy()" (click)="lookupId = link.reversalJournalId; load()">Open reversal journal</button>
             </section>
           }
-          @if (j.status === 'POSTED' && !j.reversedBy) {
+          @if (!j.invoiceOrigin && j.status === 'POSTED' && !j.reversedBy) {
             <details><summary>Prepare a full reversal</summary>
               <p>The original stays posted. A new balanced journal swaps its exact accounting sides and requires fresh independent review. Choose an explicit open correction period and date.</p>
               <label for="native-reversal-period">Reversal reporting period</label><select id="native-reversal-period" [(ngModel)]="reversalPeriodId" (ngModelChange)="reviewed.set(false)">
@@ -238,24 +266,24 @@ function minor(value: string): bigint { if (!nativeJournalAmount(value)) throw n
               </details>
             }
           }
-          @if (j.status !== 'POSTED') {
+          @if (!j.invoiceOrigin && j.status !== 'POSTED') {
             <button matButton type="button" [disabled]="busy() || uncertain()" (click)="loadPreview(j)">Preview accounting effect</button>
             @if (preview(); as p) {
               <p role="status">Server-validated preview · {{ p.currency }} · Debits {{ p.totalDebit }} · Credits {{ p.totalCredit }} · revision {{ p.revision }}</p>
               <details><summary>Reviewed intent identity</summary><code>{{ p.digest }}</code></details>
             }
           }
-          @if (j.status === 'DRAFT' && !j.reversalOf && j.createdByUserId === userId()) {
+          @if (!j.invoiceOrigin && j.status === 'DRAFT' && !j.reversalOf && j.createdByUserId === userId()) {
             <button matButton type="button" [disabled]="busy() || uncertain() || !!editing() || serviceActive() === false" (click)="editJournal(j)">Edit draft journal</button>
           }
-          @if (j.status === 'RETURNED' && j.createdByUserId === userId()) {
+          @if (!j.invoiceOrigin && j.status === 'RETURNED' && j.createdByUserId === userId()) {
             <button matButton type="button" [disabled]="busy() || uncertain() || !!editing() || serviceActive() === false" (click)="editJournal(j)">Edit returned journal</button>
           }
-          @if ((j.status === 'DRAFT' || j.status === 'RETURNED') && !editing()) {
+          @if (!j.invoiceOrigin && (j.status === 'DRAFT' || j.status === 'RETURNED') && !editing()) {
             <label><input type="checkbox" [checked]="reviewed()" (change)="setReviewed($any($event.target).checked)" /> I reviewed this client, journal, posting date, account selection and exact amounts.</label>
             <button matButton [disabled]="busy() || !preview() || !reviewed() || uncertain() || serviceActive() === false" (click)="submit(j)">Submit for independent review</button>
           }
-          @if (j.status === 'SUBMITTED') {
+          @if (!j.invoiceOrigin && j.status === 'SUBMITTED') {
             <label><input type="checkbox" [checked]="reviewed()" (change)="setReviewed($any($event.target).checked)" /> I independently reviewed this exact journal revision and its balanced lines.</label>
             <label>Review reason <input [(ngModel)]="reason" maxlength="2000" /></label>
             <button matButton [disabled]="busy() || !preview() || !reviewed() || !reason.trim() || j.createdByUserId === userId() || uncertain() || serviceActive() === false" (click)="approve(j)">Approve and post</button>
@@ -320,6 +348,7 @@ function minor(value: string): bigint { if (!nativeJournalAmount(value)) throw n
         <button matButton type="button" [disabled]="busy()" (click)="recoverPosting()">Recover posting receipt</button>
         @if (postingReceipt(); as r) {
           <p>Confirmed posting · {{ r.journalId }} · submitted revision {{ r.submittedRevision }} · posted revision {{ r.postedRevision }} · {{ r.recordedAt }}</p>
+          @if (r.invoiceOrigin; as origin) { <p>Client sales invoice {{ origin.invoiceId }} · submission {{ origin.submissionId }}. This receipt confirms the ledger posting; invoice issue and delivery have separate evidence.</p> }
         }
         @if (pendingPosting(); as p) {
           <p>Original posting request · {{ p.journal.journalNumber }} · {{ p.journal.clientId }} · {{ p.journal.postingDate }} · {{ p.journal.currency }} · revision {{ p.journal.revision }} · command {{ p.commandId }}</p>
@@ -397,7 +426,7 @@ export class ClientOperationalJournals {
     this.reviewed.set(false);
   }
   editJournal(journal: Journal): void {
-    if (this.busy() || this.uncertain() || journal.clientId !== this.clientId() || !['DRAFT', 'RETURNED'].includes(journal.status) || (journal.status === 'DRAFT' && !!journal.reversalOf) || journal.createdByUserId !== this.userId()) return;
+    if (journal.invoiceOrigin || this.busy() || this.uncertain() || journal.clientId !== this.clientId() || !['DRAFT', 'RETURNED'].includes(journal.status) || (journal.status === 'DRAFT' && !!journal.reversalOf) || journal.createdByUserId !== this.userId()) return;
     this.editing.set(journal); this.periodId = journal.periodId; this.number = journal.journalNumber;
     this.description = journal.description; this.postingDate = journal.postingDate;
     this.lines.set(journal.lines.map(({ accountCode, description, debit, credit }) => ({ accountCode, description, debit, credit })));
@@ -408,7 +437,7 @@ export class ClientOperationalJournals {
     if (!period || !this.reviewed() || !this.balanced() || this.busy() || this.uncertain()) return;
     if (this.postingDate < period.start || this.postingDate > period.end || period.currency !== this.bookCurrency()) { this.error.set('Choose a posting date and period matching the native book currency.'); return; }
     const edit = this.editing();
-    if (edit && (edit.clientId !== clientId || edit.id !== this.journal()?.id || edit.revision !== this.journal()?.revision || edit.periodId !== period.id)) return;
+    if (edit && (edit.invoiceOrigin || edit.clientId !== clientId || edit.id !== this.journal()?.id || edit.revision !== this.journal()?.revision || edit.periodId !== period.id)) return;
     const generation = this.session.invalidation(); this.busy.set(true); this.error.set('');
     const url = `/api/ui/accounting/clients/${clientId}/operational-journals` + (edit ? `/${edit.id}/${edit.status === 'DRAFT' ? 'edit' : 'rework'}` : '');
     this.operation = this.http.post<{ id: string }>(url, {
@@ -422,7 +451,7 @@ export class ClientOperationalJournals {
   }
   createReversal(journal: Journal): void {
     const period = this.periods().find(p => p.id === this.reversalPeriodId && p.status !== 'CLOSED');
-    if (!period || !this.reviewed() || this.busy() || this.uncertain() || journal.clientId !== this.clientId() || journal.status !== 'POSTED' || journal.reversedBy) return;
+    if (journal.invoiceOrigin || !period || !this.reviewed() || this.busy() || this.uncertain() || journal.clientId !== this.clientId() || journal.status !== 'POSTED' || journal.reversedBy) return;
     if (this.reversalDate < period.start || this.reversalDate > period.end || period.currency !== journal.currency) {
       this.error.set('Choose an explicit correction date within the open matching-currency period.'); return;
     }
@@ -490,7 +519,7 @@ export class ClientOperationalJournals {
     });
   }
   loadPreview(journal: Journal): void {
-    if (this.busy() || this.uncertain() || journal.clientId !== this.clientId()) return;
+    if (journal.invoiceOrigin || this.busy() || this.uncertain() || journal.clientId !== this.clientId()) return;
     const generation = this.session.invalidation(); this.busy.set(true); this.preview.set(null); this.reviewed.set(false); this.error.set('');
     this.operation = this.http.get<unknown>(`/api/ui/accounting/clients/${journal.clientId}/operational-journals/${journal.id}/preview`).pipe(timeout(15000)).subscribe({
       next: value => { if (generation !== this.session.invalidation() || journal.clientId !== this.clientId()) return;
@@ -502,7 +531,7 @@ export class ClientOperationalJournals {
   submit(journal: Journal): void { this.act(journal, 'submit', { revision: journal.revision, previewDigest: this.preview()?.digest, reviewed: true }, 'Journal submitted for independent review.'); }
   returnJournal(journal: Journal): void { this.act(journal, 'return', { revision: journal.revision, reason: this.reason.trim(), reviewed: true }, 'Journal returned to its preparer.'); }
   approve(journal: Journal): void {
-    if (this.pendingPosting() || !this.reviewed() || !this.preview() || this.preview()?.journalId !== journal.id ||
+    if (journal.invoiceOrigin || this.pendingPosting() || !this.reviewed() || !this.preview() || this.preview()?.journalId !== journal.id ||
         this.preview()?.revision !== journal.revision || !this.reason.trim() || this.busy() || this.uncertain() ||
         journal.clientId !== this.clientId() || journal.createdByUserId === this.userId()) return;
     const command = { journal, commandId: crypto.randomUUID(), previewDigest: this.preview()!.digest, reason: this.reason.trim(), actorUserId: this.userId() };
@@ -528,15 +557,16 @@ export class ClientOperationalJournals {
   }
   retryPosting(): void {
     const command = this.pendingPosting();
-    if (!command || !this.retryOriginal() || !this.reviewed() || this.busy() || command.journal.clientId !== this.clientId() || command.actorUserId !== this.userId()) return;
+    if (!command || command.journal.invoiceOrigin || !this.retryOriginal() || !this.reviewed() || this.busy() || command.journal.clientId !== this.clientId() || command.actorUserId !== this.userId()) return;
     this.dispatchPosting(command);
   }
   private validatePendingReceipt(receipt: PostingReceipt): void {
     const pending = this.pendingPosting();
-    if (pending && (receipt.commandId !== pending.commandId || receipt.journalId !== pending.journal.id ||
+    if (pending && (receipt.invoiceOrigin || receipt.commandId !== pending.commandId || receipt.journalId !== pending.journal.id ||
       receipt.submittedRevision !== pending.journal.revision || receipt.previewDigest !== pending.previewDigest)) throw new Error('Receipt differs from the original request');
   }
   private dispatchPosting(command: PendingPosting): void {
+    if (command.journal.invoiceOrigin) return;
     const generation = this.session.invalidation(); this.busy.set(true); this.retryOriginal.set(false); this.error.set('');
     this.operation = this.http.post<unknown>(`/api/ui/accounting/clients/${command.journal.clientId}/operational-journals/${command.journal.id}/post`, {
       revision: command.journal.revision, reason: command.reason, previewDigest: command.previewDigest, reviewed: true, commandId: command.commandId,
@@ -555,7 +585,7 @@ export class ClientOperationalJournals {
     });
   }
   private act(journal: Journal, action: string, body: object, success: string): void {
-    if (this.editing() || !this.reviewed() || (action !== 'return' && (!this.preview() || this.preview()?.journalId !== journal.id || this.preview()?.revision !== journal.revision)) || this.busy() || this.uncertain() || journal.clientId !== this.clientId()) return;
+    if (journal.invoiceOrigin || this.editing() || !this.reviewed() || (action !== 'return' && (!this.preview() || this.preview()?.journalId !== journal.id || this.preview()?.revision !== journal.revision)) || this.busy() || this.uncertain() || journal.clientId !== this.clientId()) return;
     const generation = this.session.invalidation(); this.busy.set(true); this.error.set('');
     this.operation = this.http.post(`/api/ui/accounting/clients/${journal.clientId}/operational-journals/${journal.id}/${action}`, body).pipe(timeout(15000)).subscribe({
       next: () => { if (generation !== this.session.invalidation()) return; this.busy.set(false); this.error.set(success); this.reviewed.set(false); this.load(); },

@@ -14,12 +14,13 @@ namespace AuditSphereOps.Application.Accounting;
 public sealed record ClientSalesInvoiceSubmitRequest(Guid CommandId, Guid InvoiceId, long ExpectedDraftRevision, Guid ReceivableRoleId,
   string NoTaxReason, Guid? SourceReceiptId, string SourceBasis, string PreviewDigest);
 public sealed record ClientSalesInvoiceReviewRequest(Guid CommandId, Guid SubmissionId, string Decision, string Reason, string PreviewDigest);
-public sealed record ClientSalesInvoiceManifest(string Version, Guid DraftId, string DraftHash, Guid ProfileId, long ProfileRevision,
+public sealed record ClientSalesInvoiceManifest(string Version, Guid DraftId, string DraftHash, Guid ProfileId, string ProfileRevision,
   Guid ReceivableRoleId, Guid ReceivableDecisionId, Guid ReceivableAccountId, string NoTaxReason, Guid? SourceReceiptId,
-  string? SourceReceiptHash, string SourceBasis, Guid MandateId, long MandateGeneration, IReadOnlyList<ClientOperationalJournalLineView> Lines);
+  string? SourceReceiptHash, string SourceBasis, Guid MandateId, string MandateGeneration, IReadOnlyList<ClientOperationalJournalLineView> Lines);
 public sealed record ClientSalesInvoicePreview(Guid InvoiceId, Guid DraftId, string DraftRevision, Guid? SubmissionId, string Currency,
   string Gross, string Digest, ClientSalesInvoiceManifest Manifest);
-public sealed record ClientSalesInvoiceLifecycleView(Guid InvoiceId, Guid ClientId, string State, bool Posted, bool Issued, string DeliveryState,
+public sealed record ClientSalesInvoiceLifecycleView(Guid InvoiceId, Guid ClientId, string DraftRevision, string State, bool Posted, bool Issued, string DeliveryState,
+  bool BookkeepingActive, bool CanRevise, bool CanSubmit, bool CanReview,
   Guid? SubmissionId, Guid? JournalId, string? JournalRevision, Guid? MakerId, string? Decision, string? DecisionReason,
   string? ManifestHash, ClientSalesInvoiceManifest? Manifest, string? OpenAmount, string? DueDate);
 
@@ -39,12 +40,14 @@ public static partial class ClientSalesInvoiceWorkflow
     ClientSalesInvoiceDraft draft,ClientSalesInvoiceSubmitRequest request,Guid? submissionId,CancellationToken ct)
   {
     var r=Normalize(request);
-    if(r.NoTaxReason.Length is 0 or >2000 || r.SourceBasis.Length>2000 || (r.SourceReceiptId is null && r.SourceBasis.Length==0) || r.SourceReceiptId==Guid.Empty)
-      return CommandResult<ClientSalesInvoicePreview>.Fail(ErrorCodes.Accounting.MappingInvalid,"Declare why no transaction tax applies and select a scoped source receipt or explain the source basis.");
+    if(r.NoTaxReason.Length>2000 || r.SourceBasis.Length>2000 || (r.SourceReceiptId is null && r.SourceBasis.Length==0) || r.SourceReceiptId==Guid.Empty)
+      return CommandResult<ClientSalesInvoicePreview>.Fail(ErrorCodes.Accounting.MappingInvalid,"Select a scoped source receipt or explain the source basis; optional no-tax context may be recorded when useful.");
     if(draft.Revision!=r.ExpectedDraftRevision || draft.InvoiceId!=r.InvoiceId || Hash(draft.SnapshotJson)!=draft.SnapshotHash)
       return CommandResult<ClientSalesInvoicePreview>.Fail(ErrorCodes.StaleRevision,"Read the exact latest invoice preparation.");
-    var saved=JsonSerializer.Deserialize<ClientSalesInvoiceDraftSnapshot>(draft.SnapshotJson);
-    if(saved is null || saved.Policy is null || saved.Lines is null || saved.Lines.Count is <1 or >100 || saved.TaxTreatment!="NONE")
+    ClientSalesInvoiceDraftSnapshot? saved;
+    try { saved=JsonSerializer.Deserialize<ClientSalesInvoiceDraftSnapshot>(draft.SnapshotJson); }
+    catch(JsonException) { return CommandResult<ClientSalesInvoicePreview>.Fail(ErrorCodes.ProtectedState,"The retained invoice preparation cannot be read."); }
+    if(saved is null || saved.Policy is null || saved.Seller is null || saved.Customer is null || saved.Seller.ClientId!=clientId || saved.Customer.ClientId!=clientId || saved.Customer.Id!=draft.CustomerId || saved.Version!="client-sales-draft-v1" || saved.Currency!=draft.Currency || saved.Policy.DecimalPlaces is <0 or >6 || saved.Lines is null || saved.Lines.Count is <1 or >100 || saved.Lines.Any(x=>x is null) || saved.TaxTreatment!="NONE")
       return CommandResult<ClientSalesInvoicePreview>.Fail(ErrorCodes.ProtectedState,"The retained invoice preparation is unsupported.");
     var profile=await db.ClientAccountingProfiles.AsNoTracking().SingleOrDefaultAsync(x=>x.FirmId==actor.FirmId&&x.ClientId==clientId,ct);
     var mandate=await db.AcceptanceDecisions.AsNoTracking().Where(x=>x.FirmId==actor.FirmId&&x.PracticeClientId==clientId&&x.EngagementId==null&&x.ServiceRoute=="BOOKKEEPING")
@@ -91,9 +94,9 @@ public static partial class ClientSalesInvoiceWorkflow
       if(receipt is null || !(await AuthorizationDecision.AuthorizeAsync(db,actor,new(actor.FirmId,clientId,receipt.EngagementId,RequiredRoles:Preparers,InternalOnly:true),ct)).Succeeded)
         return CommandResult<ClientSalesInvoicePreview>.Fail(ErrorCodes.ScopeDenied,"Select source evidence from the authorized client book.");
       receiptHash=receipt.Sha256Digest;
-      if(receiptHash.Length!=64 || receipt.ByteCount<0)return CommandResult<ClientSalesInvoicePreview>.Fail(ErrorCodes.ProtectedState,"The source receipt identity is invalid.");
+      if(receiptHash.Length!=64 || receiptHash.Any(c=>!char.IsAsciiHexDigit(c)) || receipt.ByteCount<0)return CommandResult<ClientSalesInvoicePreview>.Fail(ErrorCodes.ProtectedState,"The source receipt identity is invalid.");
     }
-    var manifest=new ClientSalesInvoiceManifest("client-sales-submission-v1",draft.Id,draft.SnapshotHash,profile.Id,profile.Revision,role.Id,decision.Id,ar.Id,r.NoTaxReason,r.SourceReceiptId,receiptHash,r.SourceBasis,mandate.Id,mandate.Generation,lines);
+    var manifest=new ClientSalesInvoiceManifest("client-sales-submission-v1",draft.Id,draft.SnapshotHash,profile.Id,profile.Revision.ToString(CultureInfo.InvariantCulture),role.Id,decision.Id,ar.Id,r.NoTaxReason,r.SourceReceiptId,receiptHash,r.SourceBasis,mandate.Id,mandate.Generation.ToString(CultureInfo.InvariantCulture),lines);
     var digest=Hash(JsonSerializer.Serialize(new{Version="client-sales-preview-v1",actor.FirmId,clientId,draft.InvoiceId,draft.Revision,submissionId,Manifest=manifest,PeriodStatus=period.Status,period.StartDate,period.EndDate}));
     return CommandResult<ClientSalesInvoicePreview>.Ok(new(draft.InvoiceId,draft.Id,draft.Revision.ToString(CultureInfo.InvariantCulture),submissionId,draft.Currency,Exact(calc.Gross,saved.Policy.DecimalPlaces),digest,manifest));
   }

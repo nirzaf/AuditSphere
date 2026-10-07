@@ -6963,6 +6963,449 @@
         ]
       }
     },
+    "/api/ui/accounting/clients/{clientId}/sales-invoices/{invoiceId}/lifecycle": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "invoiceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientSalesInvoiceLifecycleView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/sales-invoices/{invoiceId}/preview": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "invoiceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SalesSubmitHttpInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientSalesInvoicePreview"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/sales-invoices/{invoiceId}/submit": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "invoiceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SalesSubmitHttpInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientSalesInvoiceCommandReceipt"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/sales-invoice-submissions/{submissionId}/preview": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "submissionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientSalesInvoiceReviewPreview"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/sales-invoice-reviews": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SalesReviewHttpInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientSalesInvoiceCommandReceipt"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/sales-invoice-requests/{commandId}": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "commandId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientSalesInvoiceCommandReceipt"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
     "/api/ui/accounting/clients/{clientId}/account-roles": {
       "get": {
         "tags": [
@@ -30230,6 +30673,41 @@
           }
         }
       },
+      "ClientOperationalInvoiceOrigin": {
+        "required": [
+          "clientId",
+          "journalId",
+          "invoiceId",
+          "submissionId",
+          "draftRevision",
+          "journalSubmittedRevision"
+        ],
+        "type": "object",
+        "properties": {
+          "clientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "journalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invoiceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "submissionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "draftRevision": {
+            "type": "string"
+          },
+          "journalSubmittedRevision": {
+            "type": "string"
+          }
+        }
+      },
       "ClientOperationalJournalCreateHttpInput": {
         "required": [
           "periodId",
@@ -30679,6 +31157,16 @@
             "items": {
               "$ref": "#/components/schemas/ClientOperationalJournalLineView"
             }
+          },
+          "invoiceOrigin": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientOperationalInvoiceOrigin"
+              }
+            ]
           }
         }
       },
@@ -30744,6 +31232,16 @@
           "createdByUserId": {
             "type": "string",
             "format": "uuid"
+          },
+          "invoiceOrigin": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientOperationalInvoiceOrigin"
+              }
+            ]
           }
         }
       },
@@ -30848,6 +31346,16 @@
               },
               {
                 "$ref": "#/components/schemas/ClientOperationalJournalReversalView"
+              }
+            ]
+          },
+          "invoiceOrigin": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientOperationalInvoiceOrigin"
               }
             ]
           }
@@ -31002,6 +31510,16 @@
           },
           "status": {
             "type": "string"
+          },
+          "invoiceOrigin": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientOperationalInvoiceOrigin"
+              }
+            ]
           }
         }
       },
@@ -31125,6 +31643,53 @@
           },
           "accountType": {
             "type": "string"
+          }
+        }
+      },
+      "ClientSalesInvoiceCommandReceipt": {
+        "required": [
+          "commandId",
+          "invoiceId",
+          "submissionId",
+          "kind",
+          "actorUserId",
+          "intentHash",
+          "outcome",
+          "decisionId"
+        ],
+        "type": "object",
+        "properties": {
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invoiceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "submissionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "actorUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "intentHash": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "decisionId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -31347,6 +31912,313 @@
           },
           "snapshot": {
             "$ref": "#/components/schemas/ClientSalesInvoiceDraftSnapshot"
+          }
+        }
+      },
+      "ClientSalesInvoiceLifecycleView": {
+        "required": [
+          "invoiceId",
+          "clientId",
+          "draftRevision",
+          "state",
+          "posted",
+          "issued",
+          "deliveryState",
+          "bookkeepingActive",
+          "canRevise",
+          "canSubmit",
+          "canReview",
+          "submissionId",
+          "journalId",
+          "journalRevision",
+          "makerId",
+          "decision",
+          "decisionReason",
+          "manifestHash",
+          "manifest",
+          "openAmount",
+          "dueDate"
+        ],
+        "type": "object",
+        "properties": {
+          "invoiceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "clientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "draftRevision": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "posted": {
+            "type": "boolean"
+          },
+          "issued": {
+            "type": "boolean"
+          },
+          "deliveryState": {
+            "type": "string"
+          },
+          "bookkeepingActive": {
+            "type": "boolean"
+          },
+          "canRevise": {
+            "type": "boolean"
+          },
+          "canSubmit": {
+            "type": "boolean"
+          },
+          "canReview": {
+            "type": "boolean"
+          },
+          "submissionId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "journalId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "journalRevision": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "makerId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "decision": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "decisionReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "manifestHash": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "manifest": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientSalesInvoiceManifest"
+              }
+            ]
+          },
+          "openAmount": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "dueDate": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "ClientSalesInvoiceManifest": {
+        "required": [
+          "version",
+          "draftId",
+          "draftHash",
+          "profileId",
+          "profileRevision",
+          "receivableRoleId",
+          "receivableDecisionId",
+          "receivableAccountId",
+          "noTaxReason",
+          "sourceReceiptId",
+          "sourceReceiptHash",
+          "sourceBasis",
+          "mandateId",
+          "mandateGeneration",
+          "lines"
+        ],
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "draftId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "draftHash": {
+            "type": "string"
+          },
+          "profileId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "profileRevision": {
+            "type": "string"
+          },
+          "receivableRoleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "receivableDecisionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "receivableAccountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "noTaxReason": {
+            "type": "string"
+          },
+          "sourceReceiptId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "sourceReceiptHash": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sourceBasis": {
+            "type": "string"
+          },
+          "mandateId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "mandateGeneration": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClientOperationalJournalLineView"
+            }
+          }
+        }
+      },
+      "ClientSalesInvoicePreview": {
+        "required": [
+          "invoiceId",
+          "draftId",
+          "draftRevision",
+          "submissionId",
+          "currency",
+          "gross",
+          "digest",
+          "manifest"
+        ],
+        "type": "object",
+        "properties": {
+          "invoiceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "draftId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "draftRevision": {
+            "type": "string"
+          },
+          "submissionId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "gross": {
+            "type": "string"
+          },
+          "digest": {
+            "type": "string"
+          },
+          "manifest": {
+            "$ref": "#/components/schemas/ClientSalesInvoiceManifest"
+          }
+        }
+      },
+      "ClientSalesInvoiceReviewPreview": {
+        "required": [
+          "invoiceId",
+          "submissionId",
+          "journalId",
+          "journalRevision",
+          "digest",
+          "canPost",
+          "postingBlock",
+          "reviewContextJson",
+          "manifest"
+        ],
+        "type": "object",
+        "properties": {
+          "invoiceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "submissionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "journalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "journalRevision": {
+            "type": "string"
+          },
+          "digest": {
+            "type": "string"
+          },
+          "canPost": {
+            "type": "boolean"
+          },
+          "postingBlock": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reviewContextJson": {
+            "type": "string"
+          },
+          "manifest": {
+            "$ref": "#/components/schemas/ClientSalesInvoiceManifest"
           }
         }
       },
@@ -34782,6 +35654,84 @@
           },
           "discount": {
             "type": "string"
+          }
+        }
+      },
+      "SalesReviewHttpInput": {
+        "required": [
+          "commandId",
+          "submissionId",
+          "decision",
+          "reason",
+          "previewDigest",
+          "reviewed"
+        ],
+        "type": "object",
+        "properties": {
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "submissionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "previewDigest": {
+            "type": "string"
+          },
+          "reviewed": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SalesSubmitHttpInput": {
+        "required": [
+          "commandId",
+          "expectedDraftRevision",
+          "receivableRoleId",
+          "noTaxReason",
+          "sourceReceiptId",
+          "sourceBasis",
+          "previewDigest",
+          "reviewed"
+        ],
+        "type": "object",
+        "properties": {
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedDraftRevision": {
+            "type": "string"
+          },
+          "receivableRoleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "noTaxReason": {
+            "type": "string"
+          },
+          "sourceReceiptId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "sourceBasis": {
+            "type": "string"
+          },
+          "previewDigest": {
+            "type": "string"
+          },
+          "reviewed": {
+            "type": "boolean"
           }
         }
       },

@@ -164,7 +164,7 @@ export function decodeWorkspace(value: unknown): Workspace {
           <label>Source identifier <input name="identifier" [(ngModel)]="form.identifier" maxlength="200" /></label>
           <label>Book source mode <select name="sourceMode" [(ngModel)]="form.sourceMode" [disabled]="w.profile?.sourceMode === 'NATIVE_BOOKKEEPING'">
             <option value="EXTERNAL_SOURCE">External source</option><option value="NATIVE_BOOKKEEPING">Native client bookkeeping</option></select></label>
-          <p>Native mode requires an accepted client-level BOOKKEEPING service decision. Enabling it after reporting periods exist requires a reviewed cutover. VAT/tax and ancillary modules remain optional.</p>
+          <p>Native mode requires an accepted client-level BOOKKEEPING service decision. Once reporting periods exist, changing currency, fiscal calendar, source identity, jurisdiction or source mode requires a reviewed cutover. VAT/tax and ancillary modules remain optional.</p>
           <label><input name="reviewed" type="checkbox" [(ngModel)]="reviewed" /> I reviewed this client profile and revision {{ w.profile?.revision ?? '0' }}.</label>
           <button matButton type="submit" [disabled]="profileForm.invalid || !reviewed || saving() || uncertain()">Save profile</button>
           @if (uncertain()) { <p role="alert">The outcome is unconfirmed. Refresh the client and review persisted setup before another change.</p> }
