@@ -119,3 +119,9 @@ foreign/guessed-ID denial. The built-in browser could not reach localhost:5105;
 manual visual verification is still open. This focused result does not close
 the broader Records Archive parity row or the overall `NOT_READY` migration
 gate.
+
+The records Angular contract suite now passes 6/6, including a component-level
+failure/retry check: a transient next-page read error leaves the first page and
+cursor intact, and an explicit retry appends the next ordered row and clears
+the error. This does not replace the unavailable authenticated Playwright
+failure-injection run.

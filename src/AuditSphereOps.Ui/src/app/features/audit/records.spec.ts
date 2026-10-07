@@ -1,5 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { TestBed } from '@angular/core/testing';
+import { ActivatedRoute, convertToParamMap } from '@angular/router';
+import { of } from 'rxjs';
+import { signal } from '@angular/core';
+import { Api } from '../../core/api';
 import {
+  ArchiveRecord,
   decodePopulation,
   decodeFinding,
   decodeReviewPoint,
@@ -13,6 +19,7 @@ const id3 = '33333333-3333-4333-8333-333333333333';
 const hash64 = 'e'.repeat(64);
 
 describe('Audit Records Contracts', () => {
+  afterEach(() => TestBed.resetTestingModule());
   it('decodes a valid population payload', () => {
     const raw = {
       id: id1,
@@ -150,5 +157,39 @@ describe('Audit Records Contracts', () => {
     expect(decoded.status).toBe('SEALED');
     expect(decoded.entries.length).toBe(1);
     expect(decoded.entries[0].byteCount).toBe(1048576);
+  });
+
+  it('preserves loaded archive entries and retries a failed next-page read', async () => {
+    const archive = decodeArchive({
+      id: id1, engagementId: id2, status: 'SEALED', createdAt: '2026-10-02T18:00:00Z',
+      profileId: 'ISQM1-PROFILE', profileVersion: 1, manifestVersion: 1, manifestDigest: hash64,
+      completenessStatus: 'COMPLETE', completenessException: null,
+      entries: [{ ordinal: 1, entryKind: 'DOCUMENT', relativeName: 'first.pdf', contentHash: hash64, byteCount: 1 }],
+      totalEntryCount: 2, nextOrdinal: 2, activeHoldCount: 0, observedProtection: null,
+      desiredLabel: null, observedLabel: null, actionState: null, externalReference: null,
+    }, 'archive');
+    const secondPage = { ...archive, entries: [{ ordinal: 2, entryKind: 'DOCUMENT', relativeName: 'second.pdf', contentHash: hash64, byteCount: 2 }], totalEntryCount: 2, nextOrdinal: null };
+    const api = {
+      resource: () => ({ data: () => archive, error: () => '', loading: () => false, reload: () => undefined }),
+      get: vi.fn().mockRejectedValueOnce(new Error('Temporarily unavailable. Retry shortly.')).mockResolvedValueOnce(secondPage),
+    };
+    TestBed.configureTestingModule({ providers: [
+      { provide: Api, useValue: api },
+      { provide: ActivatedRoute, useValue: { paramMap: of(convertToParamMap({ id: id1 })) } },
+    ] });
+
+    const component = TestBed.runInInjectionContext(() => new ArchiveRecord());
+    expect(component.id()).toBe(id1);
+    component.nextOrdinal.set(2);
+    await component.loadMore(archive);
+    expect(component.visibleEntries(archive).map(entry => entry.ordinal)).toEqual([1]);
+    expect(component.entriesError()).toBe('Temporarily unavailable. Retry shortly.');
+    expect(component.nextOrdinal()).toBe(2);
+
+    await component.loadMore(archive);
+    expect(component.visibleEntries(archive).map(entry => entry.ordinal)).toEqual([1, 2]);
+    expect(component.entriesError()).toBe('');
+    expect(component.nextOrdinal()).toBeNull();
+    expect(api.get).toHaveBeenCalledTimes(2);
   });
 });

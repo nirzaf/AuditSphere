@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "66e38d2843a7629d13393f3a38ce2f944180c6f5",
+  "headCommit": "0c4391ba21c6da4bdc6f85851128c487b1232a3c",
   "verifiedCommit": "5198a415cbf7765c391af9a87fb6baa9401874b1",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -11394,7 +11394,7 @@
       "status": "PASS_LOCAL_SLICE",
       "caseId": "AS-PAR-002-ANGULAR-ARCHIVE-PAGING-01",
       "implementation": "Archive API reads are capped at 100 ordered manifest entries and return totalEntryCount and nextOrdinal. Angular progressively loads subsequent pages.",
-      "focusedAngularContractTests": { "status": "PASS", "passed": 5, "failed": 0, "skipped": 0, "command": "npm run test:ci -- --include=src/app/features/audit/records.spec.ts" },
+      "focusedAngularContractTests": { "status": "PASS", "passed": 6, "failed": 0, "skipped": 0, "observedAt": "2026-10-07T14:30:41Z", "verificationBase": "master 0c4391ba plus the local records.spec.ts change", "command": "npm run test:ci -- --include=src/app/features/audit/records.spec.ts", "additionalCoverage": "Archive pagination preserves the current page and cursor after a transient next-page read failure, then appends the same page on explicit retry." },
       "angularTemplateCompilation": { "status": "PASS", "command": "npx ngc -p tsconfig.app.json --noEmit" },
       "postgresApiPagingJourney": { "status": "PASS", "passed": 1, "failed": 0, "skipped": 0, "observedAt": "2026-10-07T14:02:00Z", "caseId": "AS-PAR-002-ARCHIVE-API-PAGING-01", "command": "dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~RecordsArchivePagingApiTests' --logger 'console;verbosity=minimal'", "coverage": "Verifies ordered 100/100/5 pages with total counts 205, exact nextOrdinal cursors, safe 400 refusal for a negative cursor, and identical foreign-versus-guessed-ID denial responses." },
       "angularBuild": { "status": "PASS_WITH_BUDGET_WARNING", "command": "npm run build", "execution": "outside restricted sandbox", "initialBundle": "349.89 kB raw and 94.09 kB estimated transfer", "warning": "Commercial settings stylesheet is 7.53 kB against the 4 kB component warning budget." },
@@ -11404,6 +11404,20 @@
       "sharedWorktreeBoundary": "The build and focused E2E run used the shared checkout, which also contained unrelated uncommitted finance and audit-planning edits from the parallel agent. Those paths were not staged or included in this slice's commit.",
       "fullSolutionRegression": "NOT_RUN",
       "efModelDrift": "NOT_RUN",
+      "retirementDecision": "NOT_READY"
+    },
+    "angularCiSuiteAtMaster0c4391ba": {
+      "sourceCommit": "0c4391ba21c6da4bdc6f85851128c487b1232a3c",
+      "observedAt": "2026-10-07T14:36:50Z",
+      "status": "PASS_LOCAL_TREE",
+      "passed": 557,
+      "failed": 0,
+      "skipped": 0,
+      "testFiles": 108,
+      "command": "npm run test:ci",
+      "workingTreeBoundary": "The run used master 0c4391ba plus the shared working-tree changes present at execution, including the archive retry contract test and parallel finance UI edits. It is not a clean-commit-only result.",
+      "angularProductionBuildSandboxAttempt": { "status": "BLOCKED_SANDBOX_ESBUILD", "exitCode": 134, "observedAt": "2026-10-07T14:36:50Z", "command": "npm run build", "details": "The restricted-sandbox build reproduced esbuild's fatal all-goroutines-asleep deadlock. The latest outside-sandbox build passed at the earlier archive-paging source checkpoint; rerun outside the sandbox for current-tree bundle evidence." },
+      "fullSolutionRegression": "NOT_RUN",
       "retirementDecision": "NOT_READY"
     },
     "angularRecordsArchiveReleaseSourceReview": {

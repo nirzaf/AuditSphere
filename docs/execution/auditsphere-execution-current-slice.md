@@ -19,7 +19,9 @@ Archive reads now request no more than 100 ordered manifest rows and return a
 total count plus an ordinal cursor. The Angular detail page appends subsequent
 pages on demand, and a PostgreSQL browser journey covers a 205-entry
 100/100/5 sequence with ordering and duplicate checks. The focused records
-contract suite passed 5/5 and Angular template compilation passed with
+contract suite passed 6/6, including a transient next-page error followed by
+an explicit successful retry that preserves then appends rows. Angular
+template compilation passed with
 `npx ngc -p tsconfig.app.json --noEmit`. The production build passed when run
 outside the restricted sandbox; its initial bundle is 349.89 kB raw / 94.09 kB
 estimated transfer. The commercial settings stylesheet remains above its
@@ -33,6 +35,14 @@ cursor, and identical foreign-versus-guessed-ID denials. The built-in browser
 tab could not reach localhost:5105, so that manual visual check remains open.
 The Records Archive source row remains partial and the migration gate remains
 `NOT_READY`.
+
+The full Angular CI suite also passed 557/557 tests across 108 files against
+the current shared working tree, including the parallel finance UI edits. The
+result is attributed to master `0c4391ba` plus those uncommitted working-tree
+changes, not a clean commit. A production-build retry inside the restricted
+sandbox reproduced the esbuild deadlock (exit 134); the earlier outside-sandbox
+build remains the latest bundle pass. The full PostgreSQL-backed solution and
+EF model drift checks were not rerun.
 
 ## Shared confirmation cancellation and validation — a27c3102
 
