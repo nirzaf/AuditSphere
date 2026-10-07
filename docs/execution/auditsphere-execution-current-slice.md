@@ -13,6 +13,36 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Complete frozen-file write barrier with serialized freeze (STE-REM-09)
+
+The pending-features review's frozen-write findings are closed. Every professional mutation boundary
+now carries a consistent frozen-state check: new SRMs, Partner clearance, opinions, signatures,
+shares, comments, resolutions, acknowledgements, signed-representation upload/verify, confirmation
+criticality and the confirmation status/response/alternative/dispatch/closure commands, note events
+(respond/resolve/reopen), procedure result submission and review, item tests, audit differences,
+area assessments, and the existing PBC/activity/currency/confirmation-workspace guards. Each refusal
+records a distinct frozen-access attempt; refusals inside a caller's transaction commit the attempt
+record before returning so the evidence survives. The professional-work authorization itself is
+frozen-aware: a frozen engagement reports `protected-state.denied` (with a neutral access label)
+instead of the generic professional-work block, after scope and role validation, so every
+professional-work command reports the frozen state consistently. The frozen-state check takes a
+shared lock on the engagement row inside the caller's transaction and the worker freeze takes the
+same row exclusively, so a freeze can never be overtaken by a write that checked earlier.
+
+Verification in an isolated worktree at the pushed STE-REM-08 head plus this slice: the new
+PostgreSQL test passed 1/1
+(`ConcurrentFreezeSerializesWithWrites_AndFrozenFileRefusesProfessionalMutations` — the shared-lock
+serialization probe, the worker freeze through the public discovery/handler path, and eight refused
+boundaries with recorded attempts and unchanged business rows), the existing 60-day freeze journey
+passed, and the broad regression across the deliverables, program, fieldwork, materiality,
+confirmation, difference, area-assessment, review-note, planning and authorization classes passed
+64/64. Release builds passed with zero warnings and errors and the OpenAPI contract drift check
+reports the committed artifact current (no route changed). The full Domain and Api suites and the
+browser journeys were not rerun: the change surface was the freeze service, the professional-work
+authorization branch and the named command boundaries. Tests used owned isolated PostgreSQL schemas;
+no Development or production state was changed. Blazor retirement remains `NOT_READY`.
+
+
 ## Critical-unreturned confirmations keep blocking the report and signature (STE-REM-08)
 
 The pending-features review's confirmation finding is closed. Confirmation rows now carry the distinct

@@ -12706,6 +12706,52 @@
       "verificationBoundary": "Verified in an isolated worktree at the pushed AS-COMP-16 head plus this slice (the shared checkout carried the parallel session's in-flight finance edits). The full Domain and Api suites and the browser journeys were not rerun; the change surface was the confirmation closure gate, the dashboard fact, the report/signing predicates and the focused tests. The additive dashboard field needs no Angular change: the decoders read only their declared keys.",
       "databaseBoundary": "Owned isolated PostgreSQL schemas only; no Development or production state was changed.",
       "retirementDecision": "NOT_READY"
+    },
+    "frozenFileWriteBarrierComplete": {
+      "caseId": "STE-REM-09",
+      "sourceCommit": "7f080729eb632babbf39db7ba9619c460bafb1ad",
+      "implementationCommit": "1bef2198df74dc9e65bf9009a741fe12a70d95aa",
+      "observedAt": "2026-10-07T02:33:47Z",
+      "status": "PASS_LOCAL_SLICE",
+      "coverage": "Every professional mutation boundary carries the frozen-state check: new SRMs, Partner clearance, opinions, signatures, shares, comments, resolutions, acknowledgements, signed-representation upload/verify, confirmation criticality and the confirmation status/response/alternative/dispatch/closure commands, note events, procedure result submit/review, item tests, audit differences and area assessments, plus the existing PBC/activity/currency/confirmation-workspace guards. Each refusal records a distinct frozen-access attempt and commits it inside the caller's transaction. The professional-work authorization is frozen-aware (protected-state.denied with a neutral access label after scope/role validation). The check takes a shared engagement-row lock inside the caller's transaction and the worker freeze takes the same row exclusively, so a freeze cannot be overtaken by a write that checked earlier.",
+      "focusedTests": {
+        "newBarrierAndRaceTest": {
+          "status": "PASS",
+          "passed": 1,
+          "failed": 0,
+          "skipped": 0,
+          "duration": "16s",
+          "names": [
+            "ConcurrentFreezeSerializesWithWrites_AndFrozenFileRefusesProfessionalMutations"
+          ]
+        },
+        "existingFreezeJourney": {
+          "status": "PASS",
+          "passed": 1,
+          "failed": 0,
+          "skipped": 0,
+          "names": [
+            "FileFreezesSixtyDaysAfterSigning_RefusesWrites_AmendsWithApproval_AndTracesActivity"
+          ]
+        },
+        "broadRegression": {
+          "status": "PASS",
+          "passed": 64,
+          "failed": 0,
+          "skipped": 0,
+          "duration": "4m56s",
+          "command": "dotnet test tests/AuditSphereOps.Domain.Tests --no-build --configuration Release --filter 'FullyQualifiedName~AuditDeliverablesTests|...|FullyQualifiedName~AuthorizationDecisionTests|...'",
+          "scope": "Deliverables (incl. STE-REM-06/08 tests), program workflow/isolation, fieldwork workflow, fieldwork connections, planning resources/materiality, confirmation/area-assessment/difference/sampling/review-note/planning isolation and authorization decision classes."
+        },
+        "openApiContractDrift": {
+          "status": "PASS",
+          "command": "bash scripts/contracts/verify-openapi.sh",
+          "note": "Committed artifact current; no route changed."
+        }
+      },
+      "verificationBoundary": "Verified in an isolated worktree at the pushed STE-REM-08 head plus this slice (the shared checkout carried the parallel session's in-flight finance edits). The freeze was driven through the public worker discovery/handler path; the serialization property is proven by the shared-lock probe (a concurrent exclusive engagement write blocks until the checking transaction ends). The full Domain and Api suites and the browser journeys were not rerun; the change surface was the freeze service, the professional-work authorization branch and the named command boundaries.",
+      "databaseBoundary": "Owned isolated PostgreSQL schemas only; no Development or production state was changed.",
+      "retirementDecision": "NOT_READY"
     }
   },
   "documentationWork": {
