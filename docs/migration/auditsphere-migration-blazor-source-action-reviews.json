@@ -252,7 +252,7 @@
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-audit-planning-fieldwork-source-review.md",
       "reviewedAtCommit": "efdc0738f328129ba4fbfe1c9d5c54b5d3a04085",
-      "openGaps": ["Policy boundary and validation cases", "Stale-source and calculation failure/recovery", "Full materiality role matrix"]
+      "openGaps": ["Stale-source and calculation failure/recovery", "Full materiality role matrix"]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/AuditPopulation.razor",

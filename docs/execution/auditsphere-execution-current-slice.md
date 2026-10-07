@@ -13,6 +13,18 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Angular materiality policy refusals — 2026-10-07
+
+The audit-plan browser journey now submits a revenue rate above its configured
+policy limit, TE below 50%, and SAD below 3% through the Angular form. Each
+request displays the corresponding policy error, and PostgreSQL confirms that
+the refused attempts created no materiality assessment or calculation. The
+journey then restores valid inputs and completes the existing successful
+calculation and independent Partner approval flow. The PostgreSQL-backed
+Playwright journey passed 1/1. The MaterialityEnginePanel source/action row
+remains partial for stale-source UI, calculation failure/recovery and broader
+role-matrix evidence; full solution and EF checks were not rerun.
+
 ## Angular risk-routing independent review — 2026-10-07
 
 Risk-routing projections now include the current assessment author. Angular hides
