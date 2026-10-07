@@ -76,6 +76,8 @@ public sealed record RecordItemTestRequest(
 public sealed record ItemTestValue(Guid AuditItemTestId, long Revision, string Result);
 public sealed record ReviewItemTestRequest(Guid AuditItemTestId, string Decision, string? Comment);
 
+public sealed record ApproveWorkprogramsRequest(Guid EngagementId, string Rationale);
+
 public sealed record CreateConfirmationRequest(
   Guid EngagementId,
   Guid? ProcedureId,

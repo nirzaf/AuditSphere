@@ -354,6 +354,23 @@ public static class AuditProcedureReviewDecisions
   public const string ChangesRequired = "CHANGES_REQUIRED";
 }
 
+/// <summary>
+/// Append-only independent Manager-level approval of all applicable workprogrammes of an engagement.
+/// The final automatic Summary Review Memorandum handoff requires a current approval recorded after
+/// the latest applicable procedure review (STE 4.3.3, STE-REM-05).
+/// </summary>
+public sealed class AuditWorkprogramManagerApproval
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public string Rationale { get; set; } = string.Empty;
+  public Guid ApprovedByUserId { get; set; }
+  public long InputGeneration { get; set; }
+  public DateTimeOffset CreatedAt { get; set; }
+}
+
 public static class FindingStatuses
 {
   public const string Open = "OPEN";

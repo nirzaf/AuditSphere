@@ -193,6 +193,8 @@ public sealed class AuditItemTest
   public long InputGeneration { get; set; } = 1;
   public Guid TestedByUserId { get; set; }
   public DateTimeOffset TestedAt { get; set; }
+  /// <summary>The effective procedure risk basis (band, materiality calculation, mapped FSLI identity) captured at test time (STE-REM-05).</summary>
+  public string? RiskBasisJson { get; set; }
 }
 
 public sealed class AuditItemTestReview

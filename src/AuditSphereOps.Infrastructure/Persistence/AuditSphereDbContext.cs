@@ -428,6 +428,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<AuditItemTest> AuditItemTests => Set<AuditItemTest>();
 
   public DbSet<AuditItemTestReview> AuditItemTestReviews => Set<AuditItemTestReview>();
+  public DbSet<AuditWorkprogramManagerApproval> AuditWorkprogramManagerApprovals => Set<AuditWorkprogramManagerApproval>();
 
   public DbSet<AuditCutOffTestRecord> AuditCutOffTestRecords => Set<AuditCutOffTestRecord>();
 

@@ -7,6 +7,7 @@ using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Audit;
+using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 
@@ -44,11 +45,30 @@ public static partial class AuditFieldworkService
       await tx.CommitAsync(ct); // persist the recorded refused attempt before refusing
       return CommandResult<ItemTestValue>.Fail(writable.ErrorCode!, writable.Message!);
     }
-    // Sampled-item execution is a substantive test route: it requires the same current approved
-    // planning basis as procedure results (STE-REM-04), fenced inside the execution transaction.
-    var readiness = await ProcedureRiskBandEvaluator.ReadinessBlockerAsync(db, item.FirmId, item.EngagementId, ct);
-    if (readiness is not null)
-      return CommandResult<ItemTestValue>.Fail(ErrorCodes.GateBlocked, readiness);
+    // Sampled-item execution is a substantive test route: it requires the same approved planning
+    // basis and effective risk ranks as procedure results (STE-REM-04/05), fenced inside the
+    // execution transaction.
+    var procedure = await db.AuditProcedures.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == selection.ProcedureId && x.FirmId == item.FirmId, ct);
+    if (procedure is null)
+      return CommandResult<ItemTestValue>.Fail(ErrorCodes.ScopeDenied, "The linked procedure is unavailable.");
+    var effectiveRisk = await ProcedureRiskBandEvaluator.EvaluateAsync(db, item.FirmId, item.EngagementId, procedure.RiskId, ct);
+    if (effectiveRisk.Blocker is not null)
+      return CommandResult<ItemTestValue>.Fail(ErrorCodes.GateBlocked, effectiveRisk.Blocker);
+    if (effectiveRisk.Value is { } riskBand)
+    {
+      var minRank = FsliRiskBandRules.MinimumExecutorRank(riskBand.Band);
+      var staffAssignment = await db.EngagementStaffAssignments.AsNoTracking().FirstOrDefaultAsync(x =>
+        x.FirmId == item.FirmId && x.EngagementId == item.EngagementId && x.UserId == actor.UserId && x.RevokedAt == null, ct);
+      var actorRank = staffAssignment is not null ? StaffingLevels.Rank(staffAssignment.StaffingLevel) :
+        (actor.Roles.Contains("Partner") ? 4 : actor.Roles.Contains("Manager") ? 3 : actor.Roles.Contains("Senior") ? 2 : 1);
+      if (actorRank < minRank)
+      {
+        var reqLevel = StaffingLevels.All.First(x => StaffingLevels.Rank(x) == minRank);
+        return CommandResult<ItemTestValue>.Fail(ErrorCodes.ScopeDenied,
+          $"A {riskBand.Band} risk selection requires execution by {StaffingLevels.Label(reqLevel)} or above. {riskBand.Explanation}");
+      }
+    }
     var revision = (await db.AuditItemTests.AsNoTracking().Where(x => x.SelectionItemId == item.Id).MaxAsync(x => (long?)x.Revision, ct) ?? 0) + 1;
     var test = new AuditItemTest
     {
@@ -56,7 +76,8 @@ public static partial class AuditFieldworkService
       SelectionId = item.SelectionId, SelectionItemId = item.Id, ProcedureId = selection.ProcedureId, Revision = revision,
       WorkPerformed = request.WorkPerformed.Trim(), EvidenceReferencesJson = JsonSerializer.Serialize(request.EvidenceReferences),
       Result = result, ExceptionAmount = request.ExceptionAmount, ContradictoryEvidence = TrimOrNull(request.ContradictoryEvidence),
-      FollowUp = TrimOrNull(request.FollowUp), InputGeneration = generation, TestedByUserId = actor.UserId, TestedAt = DateTimeOffset.UtcNow
+      FollowUp = TrimOrNull(request.FollowUp), InputGeneration = generation, TestedByUserId = actor.UserId, TestedAt = DateTimeOffset.UtcNow,
+      RiskBasisJson = effectiveRisk.Value is { } basis ? ProcedureRiskBandEvaluator.SerializeBasis(basis) : null
     };
     db.AuditItemTests.Add(test);
     await db.SaveChangesAsync(ct);
@@ -95,10 +116,32 @@ public static partial class AuditFieldworkService
       await tx.CommitAsync(ct); // persist the recorded refused attempt before refusing
       return CommandResult.Fail(writable.ErrorCode!, writable.Message!);
     }
-    // Item-test review is substantive too: review against the current approved planning basis only (STE-REM-04).
-    var readiness = await ProcedureRiskBandEvaluator.ReadinessBlockerAsync(db, test.FirmId, test.EngagementId, ct);
-    if (readiness is not null)
-      return CommandResult.Fail(ErrorCodes.GateBlocked, readiness);
+    // Item-test review applies the same effective risk policy and rejects a review against an
+    // obsolete planning basis (STE-REM-05).
+    var procedure = await db.AuditProcedures.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == test.ProcedureId && x.FirmId == test.FirmId, ct);
+    if (procedure is null)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "The linked procedure is unavailable.");
+    var effectiveRisk = await ProcedureRiskBandEvaluator.EvaluateAsync(db, test.FirmId, test.EngagementId, procedure.RiskId, ct);
+    if (effectiveRisk.Blocker is not null)
+      return CommandResult.Fail(ErrorCodes.GateBlocked, effectiveRisk.Blocker);
+    if (!ProcedureRiskBandEvaluator.SerializedBasisMatches(test.RiskBasisJson, effectiveRisk.Value))
+      return CommandResult.Fail(ErrorCodes.GenerationStale,
+        "The linked risk, materiality calculation, or approved mapping changed; the item test must be re-recorded against the current planning basis.");
+    if (effectiveRisk.Value is { } reviewBand)
+    {
+      var minReviewerRank = FsliRiskBandRules.MinimumReviewerRank(reviewBand.Band);
+      var reviewerStaffing = await db.EngagementStaffAssignments.AsNoTracking().FirstOrDefaultAsync(x =>
+        x.FirmId == test.FirmId && x.EngagementId == test.EngagementId && x.UserId == actor.UserId && x.RevokedAt == null, ct);
+      var reviewerRank = reviewerStaffing is not null ? StaffingLevels.Rank(reviewerStaffing.StaffingLevel) :
+        (actor.Roles.Contains("Partner") ? 4 : actor.Roles.Contains("Manager") ? 3 : actor.Roles.Contains("Senior") ? 2 : 1);
+      if (reviewerRank < minReviewerRank)
+      {
+        var reqLevel = StaffingLevels.All.First(x => StaffingLevels.Rank(x) == minReviewerRank);
+        return CommandResult.Fail(ErrorCodes.ScopeDenied,
+          $"A {reviewBand.Band} risk selection requires review by {StaffingLevels.Label(reqLevel)} or above. {reviewBand.Explanation}");
+      }
+    }
     db.AuditItemTestReviews.Add(new AuditItemTestReview
     {
       Id = Guid.CreateVersion7(), FirmId = test.FirmId, ClientId = test.ClientId, EngagementId = test.EngagementId,

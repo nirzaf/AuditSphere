@@ -305,6 +305,21 @@ public sealed partial class AuditSphereDbContext
       .HasForeignKey(x => new { x.FirmId, x.ReviewerUserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
+    var workprogramApproval = b.Entity<AuditWorkprogramManagerApproval>();
+    workprogramApproval.HasAlternateKey(x => new { x.FirmId, x.Id })
+      .HasName("AK_audit_workprogram_manager_approvals_firm_id_id");
+    workprogramApproval.Property(x => x.Rationale).HasMaxLength(8000);
+    workprogramApproval.HasIndex(x => new { x.FirmId, x.EngagementId, x.CreatedAt })
+      .HasDatabaseName("ix_audit_workprogram_manager_approvals_engagement_created");
+    workprogramApproval.ToTable("audit_workprogram_manager_approvals", t => t.HasCheckConstraint(
+      "ck_audit_workprogram_manager_approval_values",
+      "input_generation > 0 AND length(trim(rationale)) > 0"));
+    ScopeToEngagement(workprogramApproval, nameof(AuditWorkprogramManagerApproval.FirmId),
+      nameof(AuditWorkprogramManagerApproval.ClientId), nameof(AuditWorkprogramManagerApproval.EngagementId));
+    workprogramApproval.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ApprovedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
     var finding = b.Entity<Finding>();
     finding.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_findings_firm_id_id");
     finding.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })

@@ -235,6 +235,31 @@ internal static class ProcedureRiskBandEvaluator
     return Encoding.UTF8.GetString(stream.ToArray());
   }
 
+  /// <summary>Standalone serialized captured basis, for entities that retain only the basis identity.</summary>
+  internal static string SerializeBasis(EffectiveProcedureRiskBand risk)
+  {
+    using var stream = new MemoryStream();
+    JsonSerializer.Serialize(stream, ToCapturedBasis(risk));
+    return Encoding.UTF8.GetString(stream.ToArray());
+  }
+
+  /// <summary>True when the retained basis equals the current evaluation (null matches null).</summary>
+  internal static bool SerializedBasisMatches(string? retainedJson, EffectiveProcedureRiskBand? current)
+  {
+    if (retainedJson is null) return current is null;
+    try
+    {
+      using var document = JsonDocument.Parse(retainedJson);
+      if (current is null) return false;
+      var stored = document.Deserialize<CapturedRiskBasis>();
+      return stored == ToCapturedBasis(current);
+    }
+    catch (JsonException)
+    {
+      return false;
+    }
+  }
+
   internal static bool CapturedBasisMatches(string structuredResultJson, EffectiveProcedureRiskBand? current)
   {
     try

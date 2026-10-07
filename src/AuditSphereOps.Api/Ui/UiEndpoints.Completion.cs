@@ -1,3 +1,4 @@
+using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Records;
 using AuditSphereOps.Domain.Shared;
@@ -17,6 +18,7 @@ public static partial class UiEndpoints
   public sealed record AmendmentInput(string Reason);
   public sealed record LockInput(string DocumentKey);
   public sealed record ReleaseCandidateInput(Guid PackageId);
+  public sealed record WorkprogramApprovalInput(string Rationale);
 
   private static void MapCompletionEndpoints(RouteGroupBuilder group)
   {
@@ -29,6 +31,8 @@ public static partial class UiEndpoints
         i.Critical ? "Material to the audit opinion" : "Reassessed as not critical to the report", ct)));
     group.MapPost("/engagements/{id:guid}/completion/srm", (Guid id, SrmInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => AuditDeliverableService.GenerateSummaryReviewMemorandumAsync(db, actor, id, i.Recommendations ?? "", ct)));
+    group.MapPost("/engagements/{id:guid}/completion/workprogram-approval", (Guid id, WorkprogramApprovalInput i, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AuditFieldworkService.ApproveWorkprogramsAsync(db, actor, new(id, i.Rationale ?? ""), ct)));
     group.MapPost("/engagements/{id:guid}/completion/clearance", (Guid id, ClearanceInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => AuditDeliverableService.PartnerClearAsync(db, actor, i.SrmId, i.KeyRiskAreasComment ?? "", i.NotesComment ?? "", ct)));
     group.MapPost("/engagements/{id:guid}/completion/opinion", (Guid id, OpinionInput i, HttpContext http) =>

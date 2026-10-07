@@ -155,6 +155,7 @@ public sealed partial class AuditSphereDbContext
     itemTest.Property(x => x.Result).HasMaxLength(20);
     itemTest.Property(x => x.ContradictoryEvidence).HasMaxLength(4000);
     itemTest.Property(x => x.FollowUp).HasMaxLength(4000);
+    itemTest.Property(x => x.RiskBasisJson).HasMaxLength(100000);
     itemTest.ToTable("audit_item_tests", t => t.HasCheckConstraint("ck_audit_item_test_values",
       "revision > 0 AND length(trim(work_performed)) > 0 AND length(trim(evidence_references_json)) > 0" +
       " AND input_generation > 0 AND result IN ('PENDING','PASS','EXCEPTION','LIMITATION')"));

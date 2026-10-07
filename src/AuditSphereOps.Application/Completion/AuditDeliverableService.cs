@@ -161,6 +161,17 @@ public static partial class AuditDeliverableService
     var applicable = db.AuditProcedures.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId &&
       x.ApplicabilityStatus == AuditApplicabilityStatuses.Applicable);
     if (!await applicable.AnyAsync(ct) || await applicable.AnyAsync(x => x.Status != AuditProcedureStatuses.Reviewed, ct)) return;
+    // The final automatic SRM handoff requires a current independent Manager approval of all applied
+    // workprogrammes (STE 4.3.3, STE-REM-05): the approval must postdate the latest applicable
+    // procedure review, otherwise reviewed facts changed after it was recorded.
+    var latestReviewAt = await db.AuditProcedureReviews.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId)
+      .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
+      .Select(x => (DateTimeOffset?)x.CreatedAt).FirstOrDefaultAsync(ct);
+    var approval = await db.AuditWorkprogramManagerApprovals.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId)
+      .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+    if (approval is null || latestReviewAt is not null && approval.CreatedAt < latestReviewAt) return;
     var facts = await FactsAsync(db, actor, engagementId, ct);
     var digest = FactsDigest(facts);
     if (await db.AuditDeliverables.AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId &&

@@ -148,6 +148,18 @@ public sealed partial class AuditDeliverablesTests
     Assert.True((await ReviewNotesService.ResolveAsync(db, senior, note.Value, "Agreed.")).Succeeded);
     var reviewed = await AuditProgramService.ReviewResultAsync(db, senior, new(w.ResultId, "REVIEWED", null));
     Assert.True(reviewed.Succeeded, reviewed.Message);
+    // Requirement STE 4.3.3 (STE-REM-05): the automatic SRM handoff fires only after current Manager
+    // approval of all applicable workprogrammes; a Senior's Green review alone does not compile it.
+    Assert.Empty(await db.AuditDeliverables.AsNoTracking()
+      .Where(x => x.EngagementId == w.EngagementId && x.Kind == DeliverableKinds.SummaryReviewMemorandum).ToListAsync());
+    Assert.Equal(ErrorCodes.ScopeDenied, (await AuditFieldworkService.ApproveWorkprogramsAsync(db, senior,
+      new(w.EngagementId, "Senior review is not Manager approval."))).ErrorCode);
+    var approved = await AuditFieldworkService.ApproveWorkprogramsAsync(db, w.A("manager", "Manager"),
+      new(w.EngagementId, "All applicable workprogrammes reviewed; sampling rationale agreed."));
+    Assert.True(approved.Succeeded, approved.Message);
+    Assert.True((await AuditFieldworkService.ApproveWorkprogramsAsync(db, w.A("manager", "Manager"),
+      new(w.EngagementId, "Duplicate intent"))).Succeeded);
+    Assert.Equal(1, await db.AuditWorkprogramManagerApprovals.CountAsync(x => x.EngagementId == w.EngagementId));
     var automatic = await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.EngagementId == w.EngagementId && x.Kind == DeliverableKinds.SummaryReviewMemorandum);
     Assert.Contains("Automatically compiled", DocumentText(automatic.Content));
     Assert.Empty(await db.PartnerCompletionClearances.Where(x => x.EngagementId == w.EngagementId).ToListAsync());
@@ -167,8 +179,11 @@ public sealed partial class AuditDeliverablesTests
     var associate = w.A("associate", "Staff");
     await using var db = new AuditSphereDbContext(pg.Options);
 
-    // Reviewed work compiles the Summary Review Memorandum automatically.
+    // Reviewed work, plus the required current Manager approval of all applicable workprogrammes,
+    // compiles the Summary Review Memorandum automatically (STE-REM-05).
     Assert.True((await AuditProgramService.ReviewResultAsync(db, senior, new(w.ResultId, "REVIEWED", null))).Succeeded);
+    Assert.True((await AuditFieldworkService.ApproveWorkprogramsAsync(db, manager,
+      new(w.EngagementId, "Current Manager approval of every applicable workprogramme."))).Succeeded);
     var firstSrm = await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.EngagementId == w.EngagementId && x.Kind == DeliverableKinds.SummaryReviewMemorandum);
 
     // A late note after review returns the exact work to rework and retains the earlier review decision.
@@ -201,6 +216,10 @@ public sealed partial class AuditDeliverablesTests
     Assert.True(resubmit.Succeeded, resubmit.Message);
     Assert.True((await AuditProgramService.ReviewResultAsync(db, senior, new(resubmit.Value!.AuditProcedureResultId, "REVIEWED", null))).Succeeded);
     Assert.Equal(2, await db.AuditProcedureReviews.CountAsync(x => x.AuditProcedureId == w.ProcedureId));
+    // The renewed review postdates the earlier Manager approval, so a fresh current approval is
+    // required before the refreshed memorandum can be cleared (STE-REM-05).
+    Assert.True((await AuditFieldworkService.ApproveWorkprogramsAsync(db, manager,
+      new(w.EngagementId, "Renewed Manager approval after the late-note rework cycle."))).Succeeded);
     var currentSrm = await db.AuditDeliverables.AsNoTracking()
       .Where(x => x.EngagementId == w.EngagementId && x.Kind == DeliverableKinds.SummaryReviewMemorandum && x.SignedFromDeliverableId == null)
       .OrderByDescending(x => x.Version).FirstAsync();
@@ -225,6 +244,8 @@ public sealed partial class AuditDeliverablesTests
     var senior = w.A("senior", "Senior");
     await using var db = new AuditSphereDbContext(pg.Options);
     Assert.True((await AuditProgramService.ReviewResultAsync(db, senior, new(w.ResultId, "REVIEWED", null))).Succeeded);
+    Assert.True((await AuditFieldworkService.ApproveWorkprogramsAsync(db, w.A("manager", "Manager"),
+      new(w.EngagementId, "Current Manager approval of every applicable workprogramme."))).Succeeded);
     var srm = await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.EngagementId == w.EngagementId && x.Kind == DeliverableKinds.SummaryReviewMemorandum);
     var signedAt = DateTimeOffset.UtcNow.AddDays(-61);
     db.EngagementFileFreezes.Add(new EngagementFileFreeze
