@@ -69,7 +69,8 @@ public static class AuditPlanWorkspaceQuery
     var c = latest?.Calculation;
 
     var fsliRows = new List<PlanFsliRiskRow>();
-    if (latest?.Calculation is { } calc && calc.PlanningMateriality > 0 && calc.TolerableError > 0)
+    if (latest is { State: MaterialityCalculationStates.Draft or MaterialityCalculationStates.Approved, Calculation: { } calc } &&
+        calc.PlanningMateriality > 0 && calc.TolerableError > 0)
     {
       var rawSource = await MappedTrialBalanceSource.LoadAsync(db, actor.FirmId, engagementId, ct);
       if (rawSource is not null)

@@ -30,6 +30,7 @@ public sealed class PlanningAndResourcesJourneyTests
     var senior = PbcSeed.User(f.FirmId, "Staff"); senior.DisplayName = "Sam Senior";
     Guid redRisk;
     Guid selfAssessedRedRisk;
+    Guid mappingId;
     await using (var db = host.CreateDbContext())
     {
       db.Users.AddRange(partner, partnerReviewer, manager, senior);
@@ -37,7 +38,7 @@ public sealed class PlanningAndResourcesJourneyTests
         PbcSeed.Grant(f.FirmId, manager, "Manager", f.ClientId, f.EngagementId));
       db.StaffCertifications.Add(new StaffCertification { Id = Guid.NewGuid(), FirmId = f.FirmId, UserId = manager.Id, Name = "ACCA", RecordedAt = DateTimeOffset.UtcNow, RecordedByUserId = partner.Id });
       var datasetId = Guid.NewGuid();
-      var mappingId = Guid.NewGuid();
+      mappingId = Guid.NewGuid();
       var accounts = new (string Code, decimal Amount, string Destination, string Section)[]
         { ("1000", 900_000m, "CASH", "ASSETS"), ("3000", 100_000m, "EQUITY", "EQUITY"), ("4000", -1_500_000m, "REVENUE", "INCOME"), ("5000", 500_000m, "COST_OF_SALES", "EXPENSE") };
       db.TrialBalanceDatasets.Add(new TrialBalanceDataset
@@ -186,6 +187,40 @@ public sealed class PlanningAndResourcesJourneyTests
       Assert.Equal(partner.Id, assessment.ActorId);
       Assert.Equal(partnerReviewer.Id, approval.ApprovedByUserId);
     }
+
+    // A newer approved mapping makes the existing calculation stale. The old thresholds must not be applied to
+    // the new source in FSLI stratification, and the stale result must not retain an approval action.
+    await using (var db = host.CreateDbContext())
+    {
+      var previous = await db.MappingVersions.AsNoTracking().SingleAsync(x => x.Id == mappingId);
+      var previousAllocations = await db.MappingAllocations.AsNoTracking().Where(x => x.MappingVersionId == mappingId).ToListAsync();
+      var replacementId = Guid.NewGuid();
+      var approvedAt = DateTimeOffset.UtcNow;
+      db.MappingVersions.Add(new MappingVersion
+      {
+        Id = replacementId, FirmId = previous.FirmId, ClientId = previous.ClientId, EngagementId = previous.EngagementId,
+        DatasetId = previous.DatasetId, Version = previous.Version + 1, Generation = previous.Generation + 1,
+        TaxonomyVersion = previous.TaxonomyVersion, PeriodStart = previous.PeriodStart, PeriodEnd = previous.PeriodEnd,
+        Status = AccountingPackageStates.MappingApproved, CreatedByUserId = senior.Id, ApprovedByUserId = manager.Id,
+        ApprovedAt = approvedAt, CreatedAt = approvedAt
+      });
+      db.MappingAllocations.AddRange(previousAllocations.Select(x => new MappingAllocation
+      {
+        Id = Guid.NewGuid(), FirmId = x.FirmId, ClientId = x.ClientId, EngagementId = x.EngagementId,
+        MappingVersionId = replacementId, SourceAccountCode = x.SourceAccountCode, DestinationCode = x.DestinationCode,
+        StatementSection = x.StatementSection, AuditArea = x.AuditArea, Fraction = x.Fraction,
+        ResidualPolicy = x.ResidualPolicy, Rationale = x.Rationale, CreatedAt = approvedAt
+      }));
+      await db.SaveChangesAsync();
+    }
+    await reviewerPage.GetByRole(AriaRole.Button, new() { Name = "Refresh plan", Exact = true }).ClickAsync();
+    await Assertions.Expect(reviewerPage.GetByText("stale", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(reviewerPage.GetByRole(AriaRole.Region, new() { Name = "Materiality calculator", Exact = true }))
+      .ToContainTextAsync("The approved mapping or trial balance changed. Recalculate; this calculation no longer supports difference evaluation.");
+    await Assertions.Expect(reviewerPage.GetByRole(AriaRole.Button,
+      new() { Name = "Approve calculated materiality", Exact = true })).ToHaveCountAsync(0);
+    await Assertions.Expect(reviewerPage.GetByRole(AriaRole.Heading,
+      new() { Name = "FSLI Risk Stratification", Exact = true })).ToHaveCountAsync(0);
 
     // Create, assess and assign a separate risk through Angular's route controls.
     var risksSection = page.Locator("section[aria-labelledby='risks-heading']");
