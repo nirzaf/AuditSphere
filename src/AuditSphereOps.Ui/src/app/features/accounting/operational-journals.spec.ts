@@ -32,6 +32,7 @@ describe('Client operational journal transport contract', () => {
       accounts: [{ accountId: account, accountCode: '1000', accountName: 'Cash', debitMovement: '0.000000', creditMovement: '125.000000', netMovement: '-125.000000' }],
       entries: [{ journalId: journal, journalNumber: 'J-1', postingDate: '2026-01-05', lineNumber: 1, accountCode: '6000', accountName: 'Expense', description: 'Supplies', debit: '125.000000', credit: '0.000000' }] };
     expect(decodeOperationalLedger(ledger, client, client).entries).toHaveLength(1);
+    expect(decodeOperationalLedger({ ...ledger, trialBalance: { ...ledger.trialBalance, source: 'NATIVE_POSTED_ACTIVITY_WITH_REVIEWED_OPENING' } }, client, client).trialBalance.source).toBe('NATIVE_POSTED_ACTIVITY_WITH_REVIEWED_OPENING');
     expect(() => decodeOperationalLedger({ ...ledger, trialBalance: { ...ledger.trialBalance, closingDebit: '124' } }, client, client)).toThrow();
     expect(() => decodeOperationalLedger({ ...ledger, trialBalance: { ...ledger.trialBalance, rows: [{ ...ledger.trialBalance.rows[0], openingDebit: 0 }, ledger.trialBalance.rows[1]] } }, client, client)).toThrow();
     expect(() => decodeOperationalLedger({ ...ledger, trialBalance: { ...ledger.trialBalance, source: 'EXTERNAL' } }, client, client)).toThrow();

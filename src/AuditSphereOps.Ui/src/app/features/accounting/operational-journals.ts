@@ -112,7 +112,7 @@ export function decodeOperationalLedger(value: unknown, clientId: string, period
   const tb = object(v['trialBalance']);
   const columns = ['openingDebit', 'openingCredit', 'periodDebit', 'periodCredit', 'closingDebit', 'closingCredit'];
   const exact = (value: unknown): bigint => { if (typeof value !== 'string' || !reportAmountPattern.test(value)) throw new Error('Invalid trial balance amount'); const [whole, fraction = ''] = value.split('.'); return BigInt(whole) * 1000000n + BigInt(fraction.padEnd(6, '0')); };
-  if (tb['source'] !== 'NATIVE_POSTED_PERIOD_ACTIVITY' || !['fromDate', 'toDate'].every(k => typeof tb[k] === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(String(tb[k]))) || String(tb['fromDate']) > String(tb['toDate']) || !Array.isArray(tb['rows']) || tb['rows'].length > 10000) throw new Error('Invalid trial balance context');
+  if (!['NATIVE_POSTED_PERIOD_ACTIVITY', 'NATIVE_POSTED_ACTIVITY_WITH_REVIEWED_OPENING'].includes(String(tb['source'])) || !['fromDate', 'toDate'].every(k => typeof tb[k] === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(String(tb[k]))) || String(tb['fromDate']) > String(tb['toDate']) || !Array.isArray(tb['rows']) || tb['rows'].length > 10000) throw new Error('Invalid trial balance context');
   const totals = columns.map(() => 0n); const identities = new Set<string>();
   for (const value of tb['rows']) {
     const row = object(value);

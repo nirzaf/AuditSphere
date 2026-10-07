@@ -13,6 +13,26 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Native client opening-balance maker/reviewer journey — 2026-10-07
+
+The native accounting workspace now loads and displays the immutable opening
+manifest for a selected client period, lets a preparer enter balanced approved
+chart account codes with source reference/SHA-256, and offers a separate
+reviewer an exact-manifest approval action. The UI prevents self-approval and
+stale/closed-period approval. Approved openings appear in Trial Balance opening
+columns separately from current-period movements. Angular accounting tests
+passed 21/21, the production UI build passed with the existing Commercial
+Settings stylesheet budget warning, and the PostgreSQL-backed API-hosted
+Playwright journey passed 1/1 across maker, reviewer, retained approval and the
+Trial Balance (125 opening debit/credit; zero period movement).
+
+Evidence files are not uploaded by this workflow. Supporting opening AR/AP
+invoice-level detail and reconciliation, prior-period carry-forward, correction
+revisions, wider role/scope and recovery matrices, full solution regression and
+production acceptance remain open. VAT/tax and ancillary capabilities remain
+optional. Volatile results are recorded under
+`verification.clientOperationalOpeningBalances` in `status.json`.
+
 ## Native client opening-balance snapshots — 2026-10-07
 
 A client-period opening-balance API now records a balanced, chart-bound opening
@@ -25,10 +45,7 @@ and immutable-content rejection. The focused Domain test passed 1/1, API Release
 build passed with zero compiler warnings/errors, OpenAPI contract tests passed
 5/5, and EF reports no pending model changes. The OpenAPI artifact was refreshed.
 
-This is API/backend coverage. Evidence bytes are not ingested, and the Angular
-workflow, prior-period carry-forward, broader role/scope and recovery matrices,
-full solution regression and production acceptance remain open. VAT/tax and
-ancillary capabilities remain optional and do not block core bookkeeping.
+The Angular maker/reviewer workflow has since passed a focused browser journey; see the newer handoff section above. Evidence bytes are not ingested. Supporting AR/AP detail, prior-period carry-forward, broader role/scope and recovery matrices, full solution regression and production acceptance remain open. VAT/tax and ancillary capabilities remain optional and do not block core bookkeeping.
 
 ## Angular materiality stale-source handling — 2026-10-07
 

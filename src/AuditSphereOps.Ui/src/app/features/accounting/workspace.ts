@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { PeriodLifecycle } from './lifecycle';
 import { AccountingCharts } from './charts';
 import { ClientOperationalJournals } from './operational-journals';
+import { ClientOperationalOpeningBalances } from './operational-opening-balances';
 import { ClientCounterparties } from './counterparties';
 import { ClientAccountRoles } from './account-roles';
 import { SalesInvoiceDrafts } from './sales-invoice-drafts';
@@ -113,7 +114,7 @@ export function decodeWorkspace(value: unknown): Workspace {
   return v as unknown as Workspace;
 }
 @Component({
-  selector: 'audit-accounting', imports: [AccountingCharts, SalesInvoiceDrafts, PurchaseInvoiceWorkflow, PurchaseCreditNoteWorkflow, OpenItemAllocations, ClientAccountRoles, ClientCounterparties, ClientOperationalJournals, PeriodLifecycle, FormsModule, MatButtonModule, MatProgressBarModule],
+  selector: 'audit-accounting', imports: [AccountingCharts, SalesInvoiceDrafts, PurchaseInvoiceWorkflow, PurchaseCreditNoteWorkflow, OpenItemAllocations, ClientAccountRoles, ClientCounterparties, ClientOperationalJournals, ClientOperationalOpeningBalances, PeriodLifecycle, FormsModule, MatButtonModule, MatProgressBarModule],
   template: `
     <p class="eyebrow">Client-owned books · Explicit client scope</p><h1>Accounting workspace</h1>
     <p>Import-first preparation and reporting. Firm books and group consolidation remain separate.</p>
@@ -173,6 +174,7 @@ export function decodeWorkspace(value: unknown): Workspace {
           @if (uncertain()) { <p role="alert">The outcome is unconfirmed. Refresh the client and review persisted setup before another change.</p> }
         </form>
         @if (w.profile?.sourceMode === 'NATIVE_BOOKKEEPING') {
+          <audit-client-operational-opening-balances [clientId]="w.clientId" [currency]="w.profile.currency" [periods]="w.periods" />
           <audit-client-counterparties [clientId]="w.clientId" />
           <audit-account-roles [clientId]="w.clientId" />
     <audit-sales-invoice-drafts [clientId]="w.clientId" [currency]="w.profile.currency" [periods]="w.periods" />

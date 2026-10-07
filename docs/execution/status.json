@@ -13375,9 +13375,9 @@
       }
     },
     "clientOperationalOpeningBalances": {
-      "observedAt": "2026-10-07T23:00:00Z",
+      "observedAt": "2026-10-07T20:25:14Z",
       "status": "PARTIAL_LOCAL_SLICE",
-      "sourceHead": "8a8192cc",
+      "sourceHead": "fbf73780 plus current uncommitted Angular, PostgreSQL Playwright and documentation changes",
       "focusedPostgresTest": {
         "status": "PASS",
         "passed": 1,
@@ -13400,7 +13400,34 @@
         "status": "PASS",
         "result": "No changes since last migration."
       },
-      "boundary": "API and PostgreSQL verified only. Evidence bytes are not ingested; evidence reference and SHA-256 are metadata. Angular workflow, imported prior-period carry-forward, broader role/scope and recovery matrix, full solution regression and production acceptance remain open. VAT/tax and ancillary modules remain optional and are not prerequisites."
+      "boundary": "API, PostgreSQL and API-hosted Angular workflow verified locally. Evidence bytes are not ingested; reference and SHA-256 are metadata. Supporting AR/AP opening-item details and reconciliation, prior-period carry-forward, correction/revision workflow, broader role/scope and recovery matrices, full solution regression and production acceptance remain open. VAT/tax and ancillary modules remain optional and are not prerequisites.",
+      "angularFocusedTests": {
+        "status": "PASS",
+        "passed": 21,
+        "failed": 0,
+        "command": "npm run test:ci -- --include='src/app/features/accounting/operational-opening-balances.spec.ts' --include='src/app/features/accounting/operational-journals.spec.ts'",
+        "coverage": "Opening snapshot form rendering, response validation, exact period revision submission, manifest reload, preparer self-approval hiding, independent approval payload, approved state, and Trial Balance opening-source contract."
+      },
+      "angularProductionBuild": {
+        "status": "PASS_WITH_EXISTING_COMPONENT_STYLE_WARNING",
+        "warning": "Commercial Settings stylesheet is 7.53 kB against the existing 4 kB component-style budget."
+      },
+      "focusedPostgresPlaywright": {
+        "status": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "test": "AngularClientOperationalOpeningBalanceJourneyTests.ClientOpeningManifestRequiresMakerReviewerAndFlowsIntoTrialBalance",
+        "coverage": "A preparer creates a balanced opening manifest against a current client period and approved chart; self-approval is not offered; a separate AccountingReviewer approves the exact manifest; the official Angular Trial Balance shows 125 opening debit and credit and zero period movement; PostgreSQL retains the reviewer identity.",
+        "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~AngularClientOperationalOpeningBalanceJourneyTests.ClientOpeningManifestRequiresMakerReviewerAndFlowsIntoTrialBalance' --logger 'console;verbosity=minimal'"
+      },
+      "angularFullSuite": {
+        "status": "PASS",
+        "passed": 579,
+        "failed": 0,
+        "files": 111,
+        "command": "npm run test:ci"
+      }
     }
   },
   "documentationWork": {
