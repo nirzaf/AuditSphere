@@ -37,6 +37,7 @@ export class TaskBar {
     <a routerLink="/app/administration">← Firm administration</a>
     <audit-page-header title="Project task progress" eyebrow="Implementation tracker"
       description="Completed and pending implementation task cards by module. Bars report reviewed task-card status, not a percentage of working software or production readiness." />
+    <div class="actions"><button matButton="outlined" (click)="p.reload()" [disabled]="p.loading()">Refresh task progress</button></div>
     <audit-state [loading]="p.loading()" [error]="p.error()" label="task-card progress" />
     @if (p.data(); as d) {
       @let s = d.snapshot;
@@ -47,6 +48,7 @@ export class TaskBar {
         }
         <p><strong>{{ s.completed }} / {{ s.tasks.length }} ({{ s.completionPercent }}%)</strong> completed · {{ s.active }} active or in review · {{ s.pending }} pending or reopened · {{ s.blocked }} blocked</p>
         <audit-task-bar [tasks]="s.tasks" label="Overall task-card progress" />
+        <p aria-label="Progress bar key">Completed · Active or in review · Pending or reopened · Blocked</p>
         <p><small>A card becomes complete only after its documented review and evidence gates. The same cross-module card may appear in more than one module below; the total counts each card once.</small></p></section>
       <section class="panel" aria-label="Task-card filters"><h2>Find task cards</h2>
         <div class="actions" role="group" aria-label="Filter task cards by status">@for (f of filters; track f[0]) { <button [attr.aria-pressed]="filter() === f[0]" [matButton]="filter() === f[0] ? 'filled' : 'outlined'" (click)="filter.set(f[0])">{{ f[1] }}</button> }</div>
@@ -57,21 +59,21 @@ export class TaskBar {
           <p>{{ m.active }} active or in review · {{ m.pending }} pending · {{ m.blocked }} blocked</p>
           <details><summary>View {{ filtered(m.tasks).length }} of {{ m.tasks.length }} task cards</summary><ul>@for (t of filtered(m.tasks); track t.id) { <li><strong>{{ t.id }}</strong> {{ t.title }} <audit-status [value]="t.status" />@if (t.status === 'BLOCKED' && t.blockedReason) { <small>{{ t.blockedReason }}</small> }</li> }</ul></details></section>
       }
-      <section class="panel"><h2>Audit workflow</h2><audit-task-bar [tasks]="s.auditTasks" label="Audit workflow task-card progress" />
-        <p>{{ s.auditCompleted }} / {{ s.auditTasks.length }} completed</p>
-        <details><summary>View {{ filtered(s.auditTasks).length }} of {{ s.auditTasks.length }} task cards</summary><ul>@for (t of filtered(s.auditTasks); track t.id) { <li><strong>{{ t.id }}</strong> {{ t.title }} <audit-status [value]="t.status" /></li> }</ul></details></section>
+      <section class="panel" aria-labelledby="audit-workflow-heading"><h2 id="audit-workflow-heading">Audit workflow</h2><audit-task-bar [tasks]="s.auditTasks" label="Audit workflow task-card progress" />
+        <p>{{ s.auditCompleted }} / {{ s.auditTasks.length }} completed ({{ completionPercent(s.auditTasks) }}%) · {{ active(s.auditTasks) }} active or in review · {{ pending(s.auditTasks) }} pending · {{ blocked(s.auditTasks) }} blocked</p>
+        <details><summary>View {{ filtered(s.auditTasks).length }} of {{ s.auditTasks.length }} task cards</summary><ul>@for (t of filtered(s.auditTasks); track t.id) { <li><strong>{{ t.id }}</strong> {{ t.title }} <audit-status [value]="t.status" />@if (t.status === 'BLOCKED' && t.blockedReason) { <small>{{ t.blockedReason }}</small> }</li> }</ul></details></section>
       <section aria-labelledby="audit-phases-heading"><h2 id="audit-phases-heading">Audit task phases</h2>
         @for (ph of s.auditPhases; track ph.number) {
-          <section class="panel"><h3>{{ ph.name }} <small>{{ ph.completed }} / {{ ph.tasks.length }} ({{ ph.completionPercent }}%)</small></h3><audit-task-bar [tasks]="ph.tasks" [label]="ph.name + ' task-card progress'" />
+          <section class="panel" [attr.aria-labelledby]="'audit-phase-' + ph.number"><h3 [id]="'audit-phase-' + ph.number">{{ ph.name }} <small>{{ ph.completed }} / {{ ph.tasks.length }} ({{ ph.completionPercent }}%)</small></h3><audit-task-bar [tasks]="ph.tasks" [label]="ph.name + ' task-card progress'" />
             <p>{{ ph.active }} active or in review · {{ ph.pending }} pending · {{ ph.blocked }} blocked</p>
-            <details><summary>View {{ filtered(ph.tasks).length }} of {{ ph.tasks.length }} task cards</summary><ul>@for (t of filtered(ph.tasks); track t.id) { <li><strong>{{ t.id }}</strong> {{ t.title }} <audit-status [value]="t.status" /></li> }</ul></details></section>
+            <details><summary>View {{ filtered(ph.tasks).length }} of {{ ph.tasks.length }} task cards</summary><ul>@for (t of filtered(ph.tasks); track t.id) { <li><strong>{{ t.id }}</strong> {{ t.title }} <audit-status [value]="t.status" />@if (t.status === 'BLOCKED' && t.blockedReason) { <small>{{ t.blockedReason }}</small> }</li> }</ul></details></section>
         }</section>
-      <section class="panel"><h2>Shared and cross-module foundation</h2><audit-task-bar [tasks]="s.sharedTasks" label="Shared foundation task-card progress" />
-        <p>{{ s.sharedCompleted }} / {{ s.sharedTasks.length }} completed</p>
-        <details><summary>View {{ filtered(s.sharedTasks).length }} of {{ s.sharedTasks.length }} task cards</summary><ul>@for (t of filtered(s.sharedTasks); track t.id) { <li><strong>{{ t.id }}</strong> {{ t.title }} <audit-status [value]="t.status" /></li> }</ul></details></section>
+      <section class="panel" aria-labelledby="shared-foundation-heading"><h2 id="shared-foundation-heading">Shared and cross-module foundation</h2><audit-task-bar [tasks]="s.sharedTasks" label="Shared foundation task-card progress" />
+        <p>{{ s.sharedCompleted }} / {{ s.sharedTasks.length }} completed ({{ completionPercent(s.sharedTasks) }}%) · {{ active(s.sharedTasks) }} active or in review · {{ pending(s.sharedTasks) }} pending · {{ blocked(s.sharedTasks) }} blocked</p>
+        <details><summary>View {{ filtered(s.sharedTasks).length }} of {{ s.sharedTasks.length }} task cards</summary><ul>@for (t of filtered(s.sharedTasks); track t.id) { <li><strong>{{ t.id }}</strong> {{ t.title }} <audit-status [value]="t.status" />@if (t.status === 'BLOCKED' && t.blockedReason) { <small>{{ t.blockedReason }}</small> }</li> }</ul></details></section>
       <section aria-labelledby="untracked-modules-heading"><h2 id="untracked-modules-heading">Other application modules</h2>
         <p>These areas have no dedicated module mapping in the published task pack. Their completion cannot be measured here yet; operational records in the app are separate from implementation task status.</p>
-        @for (a of d.untracked; track a.name) { <section class="panel"><h3>{{ a.name }} <small>Untracked</small></h3><p>No module-specific progress mapping published.</p>@if (a.route && ownedRoute(a.route); as destination) { <a [routerLink]="destination">Open module</a> }</section> }</section>
+        @for (a of d.untracked; track a.name) { <section class="panel"><h3>{{ a.name }} <small>Untracked</small></h3><div role="img" [attr.aria-label]="a.name + ': implementation progress not measured'" style="height:.75rem;border-radius:4px;background:#e3ebf3;margin:.5rem 0"></div><p>No module-specific progress mapping published.</p>@if (a.route && ownedRoute(a.route); as destination) { <a [routerLink]="destination">Open module</a> }</section> }</section>
     }
   `,
 })
@@ -81,6 +83,10 @@ export class ProjectProgress {
   readonly filter = signal('All');
   readonly filters = FILTERS;
   readonly ownedRoute = workspaceRoute;
+  completionPercent(tasks: Task[]): number { return tasks.length ? Math.floor(tasks.filter(t => t.status === 'COMPLETED').length * 100 / tasks.length) : 0; }
+  active(tasks: Task[]): number { return tasks.filter(t => t.status === 'IN_PROGRESS' || t.status === 'IN_REVIEW').length; }
+  pending(tasks: Task[]): number { return tasks.filter(t => t.status === 'NOT_STARTED' || t.status === 'REOPENED').length; }
+  blocked(tasks: Task[]): number { return tasks.filter(t => t.status === 'BLOCKED').length; }
   filtered(tasks: Task[]): Task[] {
     const f = this.filter();
     return tasks.filter((t) => f === 'Completed' ? t.status === 'COMPLETED' : f === 'Active' ? t.status === 'IN_PROGRESS' || t.status === 'IN_REVIEW'
