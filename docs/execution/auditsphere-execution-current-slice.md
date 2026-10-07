@@ -13,6 +13,28 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Revocation dialog cancellation and validation — 0eae2024
+
+The existing Users & Access browser journey now verifies that closing the
+revocation dialog leaves the local grant active and that revocation remains
+disabled until the administrator enters a valid reason and explicitly confirms
+the reviewed grant. It then completes the revocation, verifies immutable
+evidence, and checks that an already-open protected staff session is
+invalidated.
+
+The focused Release API-host Playwright journey passed **1/1** in 47 seconds
+against an owned isolated PostgreSQL database. The built-in browser could not
+reach `localhost:5099` because the host refused the connection, so the
+interactive Development session was not available for this check. The shared
+confirmation source row remains `PARTIAL`: complete role/scope/expiry/cross-firm
+and unknown-result coverage across both callers, human screen-reader and
+wider-locale acceptance, and the broader retirement gates remain open. The
+full solution suite, Angular production build and EF drift check were not rerun
+for this test-only slice.
+Evidence is recorded in
+[`auditsphere-migration-blazor-confirm-dialog-source-review.md`](../migration/auditsphere-migration-blazor-confirm-dialog-source-review.md)
+and `status.json`.
+
 ## Route layouts and accounting navigation crosswalk — 15e4bc61
 
 Reviewed and hash-checked the legacy `AccountingNavigation`, `ClientLayout` and

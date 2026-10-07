@@ -51,3 +51,31 @@ actions remain open, as do human screen-reader and wider-locale acceptance.
 The full solution regression and EF drift check were not rerun for this slice.
 This review does not change the Blazor retirement gate: keep the Web rollback
 host until the migration readiness gate and separate owner acceptance pass.
+
+### Follow-up browser evidence — 2026-10-07
+
+`AngularAdministrationJourneyTests.ReviewedRoleScopeAndRevocation_PersistEvidence_AndInvalidateOpenSessions`
+was extended to verify that closing the revocation dialog leaves the grant
+active, and that the command stays disabled until a valid reason and the
+explicit review checkbox are both present. The same journey then completes the
+revocation, checks append-only evidence, and confirms that an already-open
+protected staff session is invalidated.
+
+The focused Release E2E command passed **1/1** in 47 seconds on an owned
+isolated PostgreSQL/API host:
+
+```bash
+dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~AngularAdministrationJourneyTests' --logger 'console;verbosity=minimal'
+```
+
+The separate built-in-browser check at `http://localhost:5099/ui/app/administration`
+was unavailable because the local host refused the connection. The protected
+journey was therefore verified in the owned API-host Playwright session, not in
+the user’s interactive Development session.
+
+This closes the cancel and required-confirmation assertions for the local
+revocation flow. The shared source/action row remains `PARTIAL`: the full role,
+scope, expiry, cross-firm and unknown-result matrices across both callers,
+screen-reader and wider-locale review, and overall migration acceptance remain
+open. The complete solution suite, Angular production build and EF drift check
+were not rerun for this test-only change.
