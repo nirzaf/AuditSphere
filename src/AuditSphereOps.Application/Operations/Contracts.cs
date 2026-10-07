@@ -270,6 +270,7 @@ public interface IClientAccountingDbContext : IAuditSphereDbContext
   DbSet<ClientOperationalJournalReversal> ClientOperationalJournalReversals { get; }
   DbSet<ClientOperationalPostingReceipt> ClientOperationalPostingReceipts { get; }
   DbSet<ClientOperationalJournalSnapshot> ClientOperationalJournalSnapshots { get; }
+  DbSet<ClientOperationalOpeningBalance> ClientOperationalOpeningBalances { get; }
   DbSet<ClientOperationalJournal> ClientOperationalJournals { get; }
   DbSet<ClientOperationalJournalLine> ClientOperationalJournalLines { get; }
   DbSet<ClientOperationalJournalDecision> ClientOperationalJournalDecisions { get; }

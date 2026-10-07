@@ -13373,6 +13373,34 @@
         "coverage": "A database-assigned posting sequence no longer causes the immutable invoice journal-content guard to reject exact reviewed invoice, purchase, credit-note, receipt, and supplier-payment postings.",
         "migration": "20261007180000_ClientOperationalPostingSnapshotGuard reapplies the corrected deferred guard to databases that already installed the posting-sequence migration."
       }
+    },
+    "clientOperationalOpeningBalances": {
+      "observedAt": "2026-10-07T23:00:00Z",
+      "status": "PARTIAL_LOCAL_SLICE",
+      "sourceHead": "8a8192cc",
+      "focusedPostgresTest": {
+        "status": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "test": "NativeOpeningBalanceRequiresExactEvidenceAndIndependentApprovalAndSeparatesMovement",
+        "coverage": "Rejects stale period revisions, unbalanced/nonconforming lines, duplicate openings, self-approval and duplicate approval. Verifies unapproved openings block GL/TB, independent approval is required, and the approved opening appears separately from period movement. Database trigger refuses content mutation.",
+        "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --configuration Release --filter FullyQualifiedName~NativeOpeningBalanceRequiresExactEvidenceAndIndependentApprovalAndSeparatesMovement"
+      },
+      "apiBuild": {
+        "status": "PASS",
+        "warnings": "0 compiler warnings or errors"
+      },
+      "apiContractTests": {
+        "status": "PASS",
+        "passed": 5,
+        "failed": 0,
+        "coverage": "OpenAPI includes opening balance read, create, and independent approval routes and schemas."
+      },
+      "efModelDrift": {
+        "status": "PASS",
+        "result": "No changes since last migration."
+      },
+      "boundary": "API and PostgreSQL verified only. Evidence bytes are not ingested; evidence reference and SHA-256 are metadata. Angular workflow, imported prior-period carry-forward, broader role/scope and recovery matrix, full solution regression and production acceptance remain open. VAT/tax and ancillary modules remain optional and are not prerequisites."
     }
   },
   "documentationWork": {

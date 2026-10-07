@@ -309,6 +309,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<ClientOperationalJournalReversal> ClientOperationalJournalReversals => Set<ClientOperationalJournalReversal>();
   public DbSet<ClientOperationalPostingReceipt> ClientOperationalPostingReceipts => Set<ClientOperationalPostingReceipt>();
   public DbSet<ClientOperationalJournalSnapshot> ClientOperationalJournalSnapshots => Set<ClientOperationalJournalSnapshot>();
+  public DbSet<ClientOperationalOpeningBalance> ClientOperationalOpeningBalances => Set<ClientOperationalOpeningBalance>();
   public DbSet<ClientOperationalJournal> ClientOperationalJournals => Set<ClientOperationalJournal>();
   public DbSet<ClientOperationalJournalLine> ClientOperationalJournalLines => Set<ClientOperationalJournalLine>();
   public DbSet<ClientOperationalJournalDecision> ClientOperationalJournalDecisions => Set<ClientOperationalJournalDecision>();

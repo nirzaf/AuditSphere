@@ -1310,6 +1310,26 @@ public sealed class ClientOperationalJournalSnapshot
   public DateTimeOffset CapturedAt { get; set; }
 }
 
+/// <summary>Immutable reviewed native-book opening-balance snapshot sourced from client evidence.</summary>
+public sealed class ClientOperationalOpeningBalance
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid PeriodId { get; set; }
+  public long PeriodRevision { get; set; }
+  public DateOnly AsOfDate { get; set; }
+  public string Currency { get; set; } = string.Empty;
+  public string EvidenceReference { get; set; } = string.Empty;
+  public string EvidenceSha256 { get; set; } = string.Empty;
+  public string ManifestJson { get; set; } = string.Empty;
+  public string ManifestSha256 { get; set; } = string.Empty;
+  public Guid CreatedByUserId { get; set; }
+  public DateTimeOffset CreatedAt { get; set; }
+  public Guid? ApprovedByUserId { get; set; }
+  public DateTimeOffset? ApprovedAt { get; set; }
+}
+
 /// <summary>Immutable outcome of one exact client-scoped native journal posting command.</summary>
 public sealed class ClientOperationalPostingReceipt
 {

@@ -324,7 +324,7 @@ function minor(value: string): bigint { if (!nativeJournalAmount(value)) throw n
       }
       <section aria-labelledby="posted-ledger-heading">
         <h4 id="posted-ledger-heading">Posted General Ledger activity</h4>
-        <p>Native client journal movements for the selected period. Opening activity is from all earlier posted dates within this period. Date and account-code filters set the Trial Balance basis; source, reference and counterparty filters narrow matching ledger lines only. Reviewed cutover openings, prior-period carry-forward, imported GL and reporting adjustments are not included.</p>
+        <p>Native client journal movements for the selected period. Opening activity is from all earlier posted dates within this period. Date and account-code filters set the Trial Balance basis; source, reference and counterparty filters narrow matching ledger lines only. Approved native opening-balance snapshots are included in opening balances; prior-period carry-forward, imported GL and reporting adjustments are not included.</p>
         <label for="native-ledger-period">Ledger reporting period</label><select id="native-ledger-period" [ngModel]="ledgerPeriodId" (ngModelChange)="ledgerPeriodId = $event; ledgerFrom = ''; ledgerTo = ''; resetLedgerPaging()">
           <option value="">Choose period</option>@for (p of periods(); track p.id) { <option [value]="p.id">{{ p.code }} · {{ p.currency }} · {{ p.status }}</option> }
         </select>

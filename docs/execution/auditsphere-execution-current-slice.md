@@ -13,6 +13,23 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Native client opening-balance snapshots — 2026-10-07
+
+A client-period opening-balance API now records a balanced, chart-bound opening
+manifest with an external evidence reference and SHA-256 metadata. Creation is
+fenced to the current open period revision; a separate user must approve it.
+Unapproved snapshots block the native GL/TB, and approved opening balances are
+reported separately from period movements. PostgreSQL checks covered stale
+revision, invalid balance, duplicate opening, self-approval, duplicate approval
+and immutable-content rejection. The focused Domain test passed 1/1, API Release
+build passed with zero compiler warnings/errors, OpenAPI contract tests passed
+5/5, and EF reports no pending model changes. The OpenAPI artifact was refreshed.
+
+This is API/backend coverage. Evidence bytes are not ingested, and the Angular
+workflow, prior-period carry-forward, broader role/scope and recovery matrices,
+full solution regression and production acceptance remain open. VAT/tax and
+ancillary capabilities remain optional and do not block core bookkeeping.
+
 ## Angular materiality stale-source handling — 2026-10-07
 
 The materiality journey now replaces the approved mapping after independent

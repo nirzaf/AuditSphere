@@ -555,4 +555,81 @@ public sealed partial class ClientAccountingTests
     Assert.False(denied.Succeeded);
     Assert.Equal(ErrorCodes.ScopeDenied, denied.ErrorCode);
   }
+
+  [Fact]
+  [Trait("ClientOperationalLedger", "Database")]
+  public async Task NativeOpeningBalanceRequiresExactEvidenceAndIndependentApprovalAndSeparatesMovement()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
+    Guid periodId, chartId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.AcceptanceDecisions.Add(new AcceptanceDecision
+      {
+        Id = Guid.CreateVersion7(), FirmId = scope.FirmId, PracticeClientId = scope.ClientA,
+        ServiceRoute = "BOOKKEEPING", Decision = "Accepted", Generation = 1,
+        Rationale = "Approved native opening-balance test", EvaluationTemplateVersion = "TEST-1",
+        EvaluationSnapshotDigest = new string('f', 64), DecidedByUserId = scope.Reviewer.Id, DecidedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+      var profile = await ClientAccountingService.CreateProfileAsync(db, reviewer,
+        new ClientAccountingProfileRequest(scope.ClientA, "QA", "QAR", 1, 1, "AUDITSPHERE", "OPENING-1",
+          ClientAccountingSourceModes.NativeBookkeeping));
+      Assert.True(profile.Succeeded, profile.Message);
+      periodId = (await ClientAccountingService.CreatePeriodAsync(db, preparer,
+        new ReportingPeriodRequest(scope.ClientA, "2026", new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), "IFRS", "QAR"))).Value;
+      chartId = (await ClientAccountingService.CreateChartVersionAsync(db, preparer, scope.ClientA, "AUDITSPHERE", new DateOnly(2026, 1, 1))).Value;
+      var accounts = await ClientAccountingService.AddAccountsAsync(db, preparer, chartId, [
+        new("cash", "1000", "Cash", "ASSET", "DEBIT", true),
+        new("retained", "3000", "Retained earnings", "EQUITY", "CREDIT", true)
+      ]);
+      Assert.True(accounts.Succeeded, accounts.Message);
+    }
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.True((await ClientAccountingService.PublishChartVersionAsync(db, reviewer, chartId)).Succeeded);
+      var rows = new[] { new ClientOperationalOpeningBalanceLineInput("1000", 100m, 0m),
+        new ClientOperationalOpeningBalanceLineInput("3000", 0m, 100m) };
+      var stale = await ClientOperationalOpeningBalanceWorkspace.CreateAsync(db, preparer,
+        new(scope.ClientA, periodId, 2, new DateOnly(2026, 1, 1), "QAR", "prior TB 2025-12", new string('a', 64), rows));
+      Assert.Equal(ErrorCodes.GenerationStale, stale.ErrorCode);
+      var unbalanced = await ClientOperationalOpeningBalanceWorkspace.CreateAsync(db, preparer,
+        new(scope.ClientA, periodId, 1, new DateOnly(2026, 1, 1), "QAR", "prior TB 2025-12", new string('a', 64),
+          [rows[0], new ClientOperationalOpeningBalanceLineInput("3000", 0m, 99m)]));
+      Assert.Equal(ErrorCodes.Accounting.ReconciliationRejected, unbalanced.ErrorCode);
+      var created = await ClientOperationalOpeningBalanceWorkspace.CreateAsync(db, preparer,
+        new(scope.ClientA, periodId, 1, new DateOnly(2026, 1, 1), "QAR", "prior TB 2025-12", new string('a', 64), rows));
+      Assert.True(created.Succeeded, created.Message);
+      var duplicate = await ClientOperationalOpeningBalanceWorkspace.CreateAsync(db, preparer,
+        new(scope.ClientA, periodId, 1, new DateOnly(2026, 1, 1), "QAR", "prior TB 2025-12", new string('a', 64), rows));
+      Assert.Equal(ErrorCodes.IdempotencyConflict, duplicate.ErrorCode);
+      Assert.Equal(ErrorCodes.ScopeDenied, (await ClientOperationalOpeningBalanceWorkspace.ApproveAsync(db, preparer,
+        scope.ClientA, created.Value, 1, (await ClientOperationalOpeningBalanceWorkspace.GetAsync(db, preparer, scope.ClientA, periodId)).Value!.ManifestSha256)).ErrorCode);
+      var blocked = await ClientOperationalGeneralLedgerWorkspace.GetAsync(db, preparer, scope.ClientA, periodId);
+      Assert.Equal(ErrorCodes.GateBlocked, blocked.ErrorCode);
+      var beforeApproval = (await ClientOperationalOpeningBalanceWorkspace.GetAsync(db, preparer, scope.ClientA, periodId)).Value!;
+      Assert.True((await ClientOperationalOpeningBalanceWorkspace.ApproveAsync(db, reviewer, scope.ClientA, created.Value,
+        1, beforeApproval.ManifestSha256)).Succeeded);
+      var approvedAgain = await ClientOperationalOpeningBalanceWorkspace.ApproveAsync(db, reviewer, scope.ClientA, created.Value,
+        1, beforeApproval.ManifestSha256);
+      Assert.Equal(ErrorCodes.ScopeDenied, approvedAgain.ErrorCode);
+      var immutableEvidence = await Record.ExceptionAsync(async () => await db.Database.ExecuteSqlInterpolatedAsync(
+        $"UPDATE client_operational_opening_balances SET evidence_reference='tampered' WHERE id={created.Value}"));
+      Assert.IsType<PostgresException>(immutableEvidence);
+      Assert.Equal(PostgresErrorCodes.CheckViolation, ((PostgresException)immutableEvidence!).SqlState);
+    }
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var ledger = await ClientOperationalGeneralLedgerWorkspace.GetAsync(db, preparer, scope.ClientA, periodId);
+      Assert.True(ledger.Succeeded, ledger.Message);
+      Assert.Equal("NATIVE_POSTED_ACTIVITY_WITH_REVIEWED_OPENING", ledger.Value!.TrialBalance.Source);
+      Assert.Equal("100", ledger.Value.TrialBalance.OpeningDebit);
+      Assert.Equal("100", ledger.Value.TrialBalance.OpeningCredit);
+      Assert.Equal("0", ledger.Value.TrialBalance.PeriodDebit);
+      Assert.Equal("0", ledger.Value.TrialBalance.PeriodCredit);
+    }
+  }
 }

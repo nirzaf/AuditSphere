@@ -17,12 +17,69 @@ public static partial class UiEndpoints
   public sealed record ClientOperationalJournalSubmitHttpInput(string Revision, bool Reviewed, string PreviewDigest = "");
   public sealed record ClientOperationalJournalPostHttpInput(string Revision, string Reason, bool Reviewed, string PreviewDigest = "");
   public sealed record ClientOperationalJournalPostingHttpInput(string Revision, string Reason, bool Reviewed, string PreviewDigest, Guid CommandId);
+  public sealed record ClientOperationalOpeningBalanceLineHttpInput(string AccountCode, string Debit, string Credit);
+  public sealed record ClientOperationalOpeningBalanceHttpInput(Guid PeriodId, string PeriodRevision, string AsOfDate,
+    string Currency, string EvidenceReference, string EvidenceSha256,
+    IReadOnlyList<ClientOperationalOpeningBalanceLineHttpInput> Lines, bool Reviewed);
+  public sealed record ClientOperationalOpeningBalanceApprovalHttpInput(string PeriodRevision, string ManifestSha256, bool Reviewed);
 
   public sealed record ClientOperationalJournalReversalHttpInput(string Revision, Guid PeriodId, string JournalNumber,
     string PostingDate, string Reason, string EvidenceReference, bool Reviewed);
 
   private static void MapClientOperationalLedgerEndpoints(RouteGroupBuilder group)
   {
+    group.MapGet("/accounting/clients/{clientId:guid}/operational-opening-balances/{periodId:guid}", async (Guid clientId,
+      Guid periodId, HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
+    {
+      var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
+      if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
+      var result = await ClientOperationalOpeningBalanceWorkspace.GetAsync(db, actor, clientId, periodId, http.RequestAborted);
+      if (!result.Succeeded) return Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
+      if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      return Results.Ok(result.Value);
+    }).Produces<ClientOperationalOpeningBalanceView>();
+
+    group.MapPost("/accounting/clients/{clientId:guid}/operational-opening-balances", async (Guid clientId,
+      ClientOperationalOpeningBalanceHttpInput input, HttpContext http, TrustedActorResolver resolver,
+      IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
+    {
+      var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
+      if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      try { await csrf.ValidateRequestAsync(http); }
+      catch (AntiforgeryValidationException) { return Results.Json(new { code = "csrf.invalid" }, statusCode: 403); }
+      if (!input.Reviewed || !long.TryParse(input.PeriodRevision, NumberStyles.None, CultureInfo.InvariantCulture, out var revision) || revision < 1 ||
+          !DateOnly.TryParseExact(input.AsOfDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var asOf) ||
+          input.Lines is null || input.Lines.Count is < 2 or > 5000)
+        return Results.Json(new { code = "request.invalid" }, statusCode: 400);
+      var lines = new List<ClientOperationalOpeningBalanceLineInput>(input.Lines.Count);
+      foreach (var line in input.Lines)
+      {
+        if (!AccountingAmount(line.Debit, out var debit) || !AccountingAmount(line.Credit, out var credit))
+          return Results.Json(new { code = "request.invalid" }, statusCode: 400);
+        lines.Add(new(line.AccountCode, debit, credit));
+      }
+      await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
+      var result = await ClientOperationalOpeningBalanceWorkspace.CreateAsync(db, actor,
+        new(clientId, input.PeriodId, revision, asOf, input.Currency, input.EvidenceReference, input.EvidenceSha256, lines), http.RequestAborted);
+      return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
+    });
+
+    group.MapPost("/accounting/clients/{clientId:guid}/operational-opening-balances/{openingId:guid}/approve", async (Guid clientId,
+      Guid openingId, ClientOperationalOpeningBalanceApprovalHttpInput input, HttpContext http, TrustedActorResolver resolver,
+      IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
+    {
+      var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
+      if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      try { await csrf.ValidateRequestAsync(http); }
+      catch (AntiforgeryValidationException) { return Results.Json(new { code = "csrf.invalid" }, statusCode: 403); }
+      if (!input.Reviewed || !long.TryParse(input.PeriodRevision, NumberStyles.None, CultureInfo.InvariantCulture, out var revision) || revision < 1 ||
+          input.ManifestSha256 is not { Length: 64 }) return Results.Json(new { code = "request.invalid" }, statusCode: 400);
+      await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
+      var result = await ClientOperationalOpeningBalanceWorkspace.ApproveAsync(db, actor, clientId, openingId, revision, input.ManifestSha256, http.RequestAborted);
+      return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
+    });
+
     group.MapGet("/accounting/clients/{clientId:guid}/operational-journals", async (Guid clientId, Guid? periodId,
       string? status, int? page, int? pageSize, HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
     {

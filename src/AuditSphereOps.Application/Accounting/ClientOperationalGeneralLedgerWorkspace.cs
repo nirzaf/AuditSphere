@@ -123,7 +123,49 @@ public static class ClientOperationalGeneralLedgerWorkspace
         Opening = g.Sum(x => x.Journal.PostingDate < rangeStart ? x.Line.Debit - x.Line.Credit : 0m),
         Debit = g.Sum(x => x.Journal.PostingDate >= rangeStart ? x.Line.Debit : 0m),
         Credit = g.Sum(x => x.Journal.PostingDate >= rangeStart ? x.Line.Credit : 0m) }).ToListAsync(ct);
-    var balances = balanceRows.Select(x => BalanceRow(x.ClientAccountId, x.AccountCode, x.AccountName, x.Opening, x.Debit, x.Credit)).ToList();
+    var openingView = await ClientOperationalOpeningBalanceWorkspace.GetAsync(db, actor, clientId, periodId, ct);
+    if (!openingView.Succeeded)
+      return CommandResult<ClientOperationalGeneralLedgerView>.Fail(openingView.ErrorCode!, openingView.Message!);
+    var openingAmounts = new Dictionary<Guid, decimal>();
+    if (openingView.Value is { } opening)
+    {
+      if (opening.ApprovedByUserId is null)
+        return CommandResult<ClientOperationalGeneralLedgerView>.Fail(ErrorCodes.GateBlocked,
+          "The period opening balance exists but has not received independent approval.");
+      var openingDate = DateOnly.ParseExact(opening.AsOfDate, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+      var openingLines = opening.Lines.Where(x =>
+        (accountCodeFrom is null || string.CompareOrdinal(x.AccountCode, accountCodeFrom) >= 0) &&
+        (accountCodeTo is null || string.CompareOrdinal(x.AccountCode, accountCodeTo) <= 0)).ToArray();
+      var openingCodes = openingLines.Select(x => x.AccountCode).ToArray();
+      var openingAccounts = await (from account in db.ClientAccounts.AsNoTracking()
+        join chart in db.ClientChartVersions.AsNoTracking() on account.ChartVersionId equals chart.Id
+        where account.FirmId == actor.FirmId && account.ClientId == clientId && chart.Id == opening.ChartVersionId &&
+          openingCodes.Contains(account.AccountCode) &&
+          account.IsPosting && account.Status == AccountingWorkflowStates.Active && chart.Status == AccountingWorkflowStates.Approved &&
+          chart.EffectiveFrom <= openingDate && (chart.EffectiveTo == null || chart.EffectiveTo >= openingDate)
+        select new { account.Id, account.AccountCode, account.AccountName }).ToListAsync(ct);
+      if (openingAccounts.Count != openingCodes.Length)
+        return CommandResult<ClientOperationalGeneralLedgerView>.Fail(ErrorCodes.GenerationStale,
+          "The approved opening accounts are no longer available in the effective chart.");
+      foreach (var line in openingLines)
+      {
+        var account = openingAccounts.SingleOrDefault(x => x.AccountCode == line.AccountCode && x.AccountName == line.AccountName);
+        if (account is null)
+          return CommandResult<ClientOperationalGeneralLedgerView>.Fail(ErrorCodes.GenerationStale,
+            "The approved opening account identity changed; a reviewed successor is required.");
+        var signed = decimal.Parse(line.Debit, System.Globalization.CultureInfo.InvariantCulture) -
+          decimal.Parse(line.Credit, System.Globalization.CultureInfo.InvariantCulture);
+        openingAmounts[account.Id] = signed;
+      }
+    }
+    var balances = balanceRows.Select(x => BalanceRow(x.ClientAccountId, x.AccountCode, x.AccountName,
+      x.Opening + openingAmounts.GetValueOrDefault(x.ClientAccountId), x.Debit, x.Credit)).ToList();
+    foreach (var missingOpening in openingAmounts.Where(x => balanceRows.All(row => row.ClientAccountId != x.Key)))
+    {
+      var account = await db.ClientAccounts.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == clientId && x.Id == missingOpening.Key)
+        .Select(x => new { x.Id, x.AccountCode, x.AccountName }).SingleAsync(ct);
+      balances.Add(BalanceRow(account.Id, account.AccountCode, account.AccountName, missingOpening.Value, 0m, 0m));
+    }
     if (includeZeroAccounts)
     {
       var chartAccounts = await (from account in db.ClientAccounts.AsNoTracking()
@@ -139,7 +181,8 @@ public static class ClientOperationalGeneralLedgerWorkspace
     var tbRows = balances.OrderBy(x => x.AccountCode).ThenBy(x => x.AccountId).ToArray();
     string Sum(Func<ClientOperationalTrialBalanceRow, string> selector) => Format(tbRows.Sum(x => decimal.Parse(selector(x), System.Globalization.CultureInfo.InvariantCulture)));
     var trialBalance = new ClientOperationalTrialBalanceView(rangeStart.ToString("yyyy-MM-dd"), rangeEnd.ToString("yyyy-MM-dd"),
-      "NATIVE_POSTED_PERIOD_ACTIVITY", Sum(x => x.OpeningDebit), Sum(x => x.OpeningCredit), Sum(x => x.PeriodDebit),
+      openingView.Value is null ? "NATIVE_POSTED_PERIOD_ACTIVITY" : "NATIVE_POSTED_ACTIVITY_WITH_REVIEWED_OPENING",
+      Sum(x => x.OpeningDebit), Sum(x => x.OpeningCredit), Sum(x => x.PeriodDebit),
       Sum(x => x.PeriodCredit), Sum(x => x.ClosingDebit), Sum(x => x.ClosingCredit), tbRows);
     var total = await periodPosted.CountAsync(ct);
     var periodTotal = await unfilteredPeriodPosted.CountAsync(ct);

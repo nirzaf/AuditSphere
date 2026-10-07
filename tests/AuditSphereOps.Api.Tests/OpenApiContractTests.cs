@@ -62,6 +62,11 @@ public sealed class OpenApiContractTests
     Assert.True(sourceOriginProperties.TryGetProperty("intentSha256", out _));
     Assert.True(sourceOriginProperties.TryGetProperty("evidenceSha256", out _));
     Assert.True(sourceOriginProperties.TryGetProperty("evidenceReference", out _));
+    Assert.True(paths.TryGetProperty("/api/ui/accounting/clients/{clientId}/operational-opening-balances/{periodId}", out _));
+    Assert.True(paths.TryGetProperty("/api/ui/accounting/clients/{clientId}/operational-opening-balances", out var openingCreate));
+    Assert.True(openingCreate.TryGetProperty("post", out _));
+    Assert.True(paths.TryGetProperty("/api/ui/accounting/clients/{clientId}/operational-opening-balances/{openingId}/approve", out var openingApproval));
+    Assert.True(openingApproval.TryGetProperty("post", out _));
     Assert.True(paths.TryGetProperty("/api/ui/search", out _));
     Assert.True(paths.TryGetProperty("/auth/sign-in", out _));
     Assert.True(paths.TryGetProperty("/api/pbc/uploads/{uploadId}/chunks/{chunkIndex}", out _));

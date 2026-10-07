@@ -70,6 +70,26 @@ public sealed partial class AuditSphereDbContext
     snapshot.ToTable("client_operational_journal_snapshots", t => t.HasCheckConstraint("ck_client_operational_snapshot_revision",
       "journal_revision >= 1 AND capture_kind = 'SUBMISSION' AND jsonb_typeof(snapshot_json) = 'object'"));
 
+    var opening = b.Entity<ClientOperationalOpeningBalance>();
+    opening.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.Id });
+    opening.HasIndex(x => new { x.FirmId, x.ClientId, x.PeriodId }).IsUnique();
+    opening.Property(x => x.Currency).HasMaxLength(3);
+    opening.Property(x => x.EvidenceReference).HasMaxLength(1000);
+    opening.Property(x => x.EvidenceSha256).HasMaxLength(64);
+    opening.Property(x => x.ManifestJson).HasColumnType("jsonb");
+    opening.Property(x => x.ManifestSha256).HasMaxLength(64);
+    opening.HasOne<ClientReportingPeriod>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.PeriodId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    opening.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, UserId = x.CreatedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    opening.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, UserId = x.ApprovedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    opening.ToTable("client_operational_opening_balances", t => t.HasCheckConstraint("ck_client_operational_opening_balance",
+      "period_revision >= 1 AND currency ~ '^[A-Z]{3}$' AND length(trim(evidence_reference)) > 0 " +
+      "AND evidence_sha256 ~ '^[a-f0-9]{64}$' AND jsonb_typeof(manifest_json) = 'object' " +
+      "AND manifest_sha256 ~ '^[a-f0-9]{64}$' AND ((approved_by_user_id IS NULL AND approved_at IS NULL) " +
+      "OR (approved_by_user_id IS NOT NULL AND approved_at IS NOT NULL AND approved_by_user_id <> created_by_user_id))"));
+
     var line = b.Entity<ClientOperationalJournalLine>();
     line.Property(x => x.AccountCode).HasMaxLength(100);
     line.Property(x => x.AccountName).HasMaxLength(300);
