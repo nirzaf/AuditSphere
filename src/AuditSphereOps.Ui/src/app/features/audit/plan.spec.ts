@@ -120,6 +120,7 @@ describe('Audit Plan Contracts', () => {
           assertion: 'Cutoff',
           significanceDecision: 'SIGNIFICANT',
           assessmentId: id2,
+          assessedByUserId: id2,
           band: 'HIGH',
           likelihood: 4,
           magnitude: 4,
@@ -176,6 +177,7 @@ describe('Audit Plan Contracts', () => {
     expect(decoded.workpapers[0].index).toBe('B.01');
     expect(decoded.latestCalculation?.planningMateriality).toBe('100000.00');
     expect(decoded.routing[0].fraudRisk).toBe(true);
+    expect(decoded.routing[0].assessedByUserId).toBe(id2);
     expect(decoded.team[0].name).toBe('Audit Senior');
     expect(decoded.isPartner).toBe(true);
     expect(decoded.milestonePlan?.statutoryFilingCutoff).toBe('2027-04-30');

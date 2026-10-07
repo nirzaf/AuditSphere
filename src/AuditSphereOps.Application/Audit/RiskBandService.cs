@@ -11,7 +11,7 @@ namespace AuditSphereOps.Application.Audit;
 public sealed record AssessRiskBandRequest(Guid RiskId, int LikelihoodScore, int MagnitudeScore, bool FraudRisk, string Rationale);
 
 public sealed record RiskRoutingRow(
-  Guid RiskId, string Area, string Assertion, string SignificanceDecision, Guid? AssessmentId, string? Band, int? Likelihood,
+  Guid RiskId, string Area, string Assertion, string SignificanceDecision, Guid? AssessmentId, Guid? AssessedByUserId, string? Band, int? Likelihood,
   int? Magnitude, bool FraudRisk, string Route, bool PartnerReviewRequired, bool PartnerCleared, string? PartnerName,
   string? OwnerName, string? OwnerLevel);
 
@@ -120,7 +120,7 @@ public static class RiskBandService
       var current = assessments.Where(x => x.RiskId == risk.Id).OrderByDescending(x => x.AssessedAt).ThenByDescending(x => x.Id).FirstOrDefault();
       var clearance = current is null ? null : clearances.SingleOrDefault(x => x.RiskBandAssessmentId == current.Id);
       var owner = current is null ? null : owners.Where(x => x.RiskBandAssessmentId == current.Id).OrderByDescending(x => x.AssignedAt).FirstOrDefault();
-      return new RiskRoutingRow(risk.Id, risk.AccountArea, risk.Assertion, risk.SignificanceDecision, current?.Id, current?.Band,
+      return new RiskRoutingRow(risk.Id, risk.AccountArea, risk.Assertion, risk.SignificanceDecision, current?.Id, current?.AssessedByUserId, current?.Band,
         current?.LikelihoodScore, current?.MagnitudeScore, current?.FraudRisk ?? false,
         current is null ? "Band not assessed." : RiskBandRules.Route(current.Band), current?.Band == RiskBands.Red, clearance is not null,
         clearance is null ? null : names.GetValueOrDefault(clearance.PartnerUserId), owner is null ? null : names.GetValueOrDefault(owner.OwnerUserId),

@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { Api, CommandState, routeGuid } from '../../core/api';
+import { SessionService } from '../../core/session';
 import { arr, bool, dec, decimalInput, guid, instant, int, nat, nullable, obj, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
 
@@ -14,7 +15,7 @@ const source = obj({ mappingVersionId: guid, mappingVersion: nat, datasetId: gui
 const calculation = obj({ assessmentId: guid, state: text, route: text, benchmarkKind: text, destinationCode: nullable(text), benchmarkAmount: dec, currency: text,
   sourceLineCount: nat, mappingVersionNumber: nat, ratePercent: dec, performancePercent: dec, trivialPercent: dec, planningMateriality: dec,
   tolerableError: dec, sadThreshold: dec, policyVersion: text });
-const routing = obj({ riskId: guid, area: text, assertion: text, significanceDecision: text, assessmentId: nullable(guid), band: nullable(text), likelihood: nullable(int),
+const routing = obj({ riskId: guid, area: text, assertion: text, significanceDecision: text, assessmentId: nullable(guid), assessedByUserId: nullable(guid), band: nullable(text), likelihood: nullable(int),
   magnitude: nullable(int), fraudRisk: bool, route: text, partnerReviewRequired: bool, partnerCleared: bool, partnerName: nullable(text), ownerName: nullable(text), ownerLevel: nullable(text) });
 const fsliRow = obj({
   destinationCode: text, statementSection: text, auditArea: nullable(text), balance: dec, absoluteBalance: dec,
@@ -185,7 +186,7 @@ interface RowInput { likelihood: number; magnitude: number; fraud: boolean; rati
                 <button matButton (click)="assign(row.riskId)" [disabled]="cmd.busy() || !input(row).owner" [attr.aria-label]="'Assign owner for ' + row.area">Assign owner</button>
               </div>
             }
-            @if (row.partnerReviewRequired && !row.partnerCleared && p.isPartner) {
+            @if (row.partnerReviewRequired && !row.partnerCleared && p.isPartner && row.assessedByUserId !== session.current()?.userId) {
               <div class="inline-form">
                 <label>Partner review note <input [(ngModel)]="input(row).note" [name]="'n-' + row.riskId" maxlength="1000" required [attr.aria-label]="'Partner review note for ' + row.area" /></label>
                 <button matButton="filled" (click)="clear(row.riskId)" [disabled]="cmd.busy() || !input(row).note.trim()" [attr.aria-label]="'Record Partner review for ' + row.area">Record Partner review</button>
@@ -261,6 +262,7 @@ interface RowInput { likelihood: number; magnitude: number; fraud: boolean; rati
 })
 export class AuditPlan {
   private readonly api = inject(Api);
+  readonly session = inject(SessionService);
   readonly id = routeGuid();
   readonly plan = this.api.resource(() => (this.id() ? `/api/ui/engagements/${this.id()}/audit-plan` : null), decodePlan,
     'Sign in with an authorized internal staff identity assigned to this engagement to view its audit plan.');

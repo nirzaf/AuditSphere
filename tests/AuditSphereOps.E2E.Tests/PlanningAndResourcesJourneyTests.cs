@@ -29,6 +29,7 @@ public sealed class PlanningAndResourcesJourneyTests
     var manager = PbcSeed.User(f.FirmId, "Staff"); manager.DisplayName = "Mona Manager";
     var senior = PbcSeed.User(f.FirmId, "Staff"); senior.DisplayName = "Sam Senior";
     Guid redRisk;
+    Guid selfAssessedRedRisk;
     await using (var db = host.CreateDbContext())
     {
       db.Users.AddRange(partner, partnerReviewer, manager, senior);
@@ -63,6 +64,10 @@ public sealed class PlanningAndResourcesJourneyTests
       redRisk = (await AuditPlanningService.CreateAuditRiskAsync(db, managerActor, new CreateAuditRiskRequest(f.EngagementId, "Revenue", "Occurrence",
         "Presumed fraud risk in revenue recognition", "Incentives", SignificanceDecisions.Significant, null, "Journal and cut-off testing"))).Value!.RiskId;
       Assert.True((await RiskBandService.AssessAsync(db, managerActor, new(redRisk, 2, 2, true, "Presumed fraud risk"))).Succeeded);
+      var partnerActor = new ActorContext(partner.Id, f.FirmId, partner.SessionEpoch, ["Partner"]);
+      selfAssessedRedRisk = (await AuditPlanningService.CreateAuditRiskAsync(db, partnerActor, new CreateAuditRiskRequest(f.EngagementId, "Self review", "Valuation",
+        "A separately identified red risk assessed by its Partner", "Estimate uncertainty", SignificanceDecisions.Normal, null, "Independent review required"))).Value!.RiskId;
+      Assert.True((await RiskBandService.AssessAsync(db, partnerActor, new(selfAssessedRedRisk, 3, 2, false, "High likelihood and magnitude require red routing"))).Succeeded);
     }
 
     var origin = await host.StartApiForIdentityAsync(partner,
@@ -110,6 +115,12 @@ public sealed class PlanningAndResourcesJourneyTests
     var calculator = page.GetByRole(AriaRole.Region, new() { Name = "Materiality calculator", Exact = true });
     await calculator.GetByRole(AriaRole.Heading, new() { Name = "Materiality calculator" }).WaitForAsync(new() { Timeout = 20000 });
     await SettleAsync();
+    var selfReviewCard = page.Locator("[data-risk='Self review']");
+    await Assertions.Expect(selfReviewCard).ToContainTextAsync("RED");
+    await Assertions.Expect(selfReviewCard.GetByRole(AriaRole.Button,
+      new() { Name = "Record Partner review for Self review", Exact = true })).ToHaveCountAsync(0);
+    var selfReviewStatus = await page.EvaluateAsync<int>("async riskId => (await fetch(`/api/ui/risks/${riskId}/partner-review`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ note: 'Attempted self review' }) })).status", selfAssessedRedRisk.ToString("D"));
+    Assert.Equal(403, selfReviewStatus);
     await Assertions.Expect(calculator).ToContainTextAsync("PM means planning materiality");
     await Assertions.Expect(calculator).ToContainTextAsync("SAD (clearly trivial threshold) is 3–5% of PM");
     await Assertions.Expect(page.GetByText("Record a materiality assessment", new() { Exact = true })).ToHaveCountAsync(0);
