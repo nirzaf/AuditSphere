@@ -52,7 +52,7 @@ capability; public APIs are stable across parts. Verified project state lives on
 - Persistence: `Infrastructure/Persistence/AuditSphereDbContext.ClientOperationalLedger.cs`; dedicated operational journal tables and integrity migration. These are separate from firm ledger entries and reporting adjustments.
 - Tests: `ClientAccountingTests.OperationalLedger.cs`, `ClientAccountingTests.SalesInvoiceWorkflow.cs`, `AngularClientOperationalJournalJourneyTests.cs`, `AngularClientSalesInvoiceDraftJourneyTests.cs`, `AngularClientSalesInvoiceWorkflowJourneyTests.cs`, and Angular sales invoice workflow specs.
 
-Posted movement reports exclude opening balances and imported GL. The posted sales-invoice journal contributes to the same native GL/TB movement query, while the original AR open item is still outstanding until settlement allocation is implemented. Native-ledger audit snapshots, opening balances, credits, purchases, settlement, statement issuance/delivery and tax workings remain open; this work does not establish full bookkeeping completion.
+Posted movement reports exclude opening balances and imported GL. The posted sales-invoice journal contributes to the same native GL/TB movement query. Partial client open-item settlement now links approved posted sales/purchase credits and exact imported, balanced customer-receipt/supplier-payment evidence through independently reviewed, immutable allocations; it does not create a duplicate cash posting. New manual settlement entries, AR/AP control reconciliation, opening-item detail, audit snapshots, statement issuance/delivery and tax workings remain open. This work does not establish full bookkeeping completion.
 
 ## Accounting setup — profiles, periods, books, charts, taxonomy, capabilities
 

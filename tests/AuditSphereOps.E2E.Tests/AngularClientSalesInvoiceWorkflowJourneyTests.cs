@@ -162,7 +162,44 @@ public sealed class AngularClientSalesInvoiceWorkflowJourneyTests
       async () => await submittedCredit.GetByRole(AriaRole.Button, new() { Name = "Approve and post credit", Exact = true }).ClickAsync(),
       response => response.Request.Method == "POST" && response.Url.EndsWith("/sales-credit-note-reviews", StringComparison.Ordinal));
     Assert.Equal(200, creditReviewResponse.Status);
-    await Assertions.Expect(reviewerCredits.GetByText("Posted as an unapplied customer credit. Apply it through the client settlement workflow when available.", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(reviewerCredits.GetByText("Posted as an unapplied customer credit. Allocate it to an eligible open receivable below when approved.", new() { Exact = true })).ToBeVisibleAsync();
+
+    Guid creditOpenItemId, invoiceOpenItemId;
+    await using (var db = host.CreateDbContext())
+    {
+      creditOpenItemId = await db.ClientSalesCreditNoteOpenItems.Where(x => x.ClientId == f.ClientId).Select(x => x.Id).SingleAsync();
+      invoiceOpenItemId = await db.ClientSalesInvoiceOpenItems.Where(x => x.ClientId == f.ClientId).Select(x => x.Id).SingleAsync();
+    }
+    var makerAllocations = makerPage.Locator("audit-open-item-allocations");
+    await makerAllocations.GetByRole(AriaRole.Button, new() { Name = "Refresh balances", Exact = true }).ClickAsync();
+    await makerAllocations.Locator("select[name='source']").SelectOptionAsync(creditOpenItemId.ToString());
+    await makerAllocations.Locator("select[name='target']").SelectOptionAsync(invoiceOpenItemId.ToString());
+    await makerAllocations.GetByLabel("Amount", new() { Exact = true }).FillAsync("20");
+    await makerAllocations.GetByLabel("Reference", new() { Exact = true }).FillAsync("CN-UI-ALLOC-001");
+    await makerAllocations.GetByLabel("Reason", new() { Exact = true }).FillAsync("Apply the approved customer credit to the posted receivable");
+    await makerAllocations.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed the client, party, currency, amount, and source linkage.", Exact = true }).CheckAsync();
+    var allocationPreview = await makerPage.RunAndWaitForResponseAsync(
+      async () => await makerAllocations.GetByRole(AriaRole.Button, new() { Name = "Preview allocation", Exact = true }).ClickAsync(),
+      response => response.Request.Method == "POST" && response.Url.EndsWith("/open-item-allocations/preview", StringComparison.Ordinal));
+    Assert.Equal(200, allocationPreview.Status);
+    await Assertions.Expect(makerAllocations.GetByRole(AriaRole.Button, new() { Name = "Submit for independent approval", Exact = true })).ToBeVisibleAsync();
+    var allocationSubmit = await makerPage.RunAndWaitForResponseAsync(
+      async () => await makerAllocations.GetByRole(AriaRole.Button, new() { Name = "Submit for independent approval", Exact = true }).ClickAsync(),
+      response => response.Request.Method == "POST" && response.Url.EndsWith("/open-item-allocations/submit", StringComparison.Ordinal));
+    Assert.Equal(200, allocationSubmit.Status);
+    var reviewerAllocations = reviewerPage.Locator("audit-open-item-allocations");
+    await reviewerAllocations.GetByRole(AriaRole.Button, new() { Name = "Refresh balances", Exact = true }).ClickAsync();
+    var pendingAllocation = reviewerAllocations.Locator("article").Filter(new() { HasText = "SALES_CREDIT" });
+    await Assertions.Expect(pendingAllocation).ToBeVisibleAsync();
+    await pendingAllocation.GetByLabel("Decision reason", new() { Exact = true }).FillAsync("Independently checked the source credit, party, currency and invoice balance");
+    var allocationApproval = await reviewerPage.RunAndWaitForResponseAsync(
+      async () => await pendingAllocation.GetByRole(AriaRole.Button, new() { Name = "Approve allocation", Exact = true }).ClickAsync(),
+      response => response.Request.Method == "POST" && response.Url.EndsWith("/open-item-allocation-reviews", StringComparison.Ordinal));
+    Assert.Equal(200, allocationApproval.Status);
+    await makerAllocations.GetByRole(AriaRole.Button, new() { Name = "Refresh balances", Exact = true }).ClickAsync();
+    var settledInvoice = makerAllocations.Locator("tr").Filter(new() { HasText = invoiceId.ToString() });
+    await Assertions.Expect(settledInvoice).ToContainTextAsync("105.000000");
+    await Assertions.Expect(makerPage.Locator("[role='alert']")).ToHaveCountAsync(0);
 
     var purchases = makerPage.Locator("audit-client-purchase-invoices");
     await Assertions.Expect(purchases.GetByRole(AriaRole.Heading, new() { Name = "Client supplier invoices", Exact = true })).ToBeVisibleAsync();

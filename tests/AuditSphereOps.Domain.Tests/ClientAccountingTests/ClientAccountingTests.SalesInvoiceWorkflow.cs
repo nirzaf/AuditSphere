@@ -20,14 +20,14 @@ public sealed partial class ClientAccountingTests
     Assert.True((await ClientAccountingService.CreateProfileAsync(db,reviewer,new(s.ClientA,"QA","QAR",1,1,"AUDITSPHERE","NATIVE",ClientAccountingSourceModes.NativeBookkeeping))).Succeeded);
     var period=await ClientAccountingService.CreatePeriodAsync(db,maker,new(s.ClientA,"2026",new(2026,1,1),new(2026,12,31),"STATUTORY","QAR"));Assert.True(period.Succeeded,period.Message);
     var chart=await ClientAccountingService.CreateChartVersionAsync(db,maker,s.ClientA,"AUDITSPHERE",new(2026,1,1));Assert.True(chart.Succeeded,chart.Message);
-    var accounts=new List<ClientAccountInput>{new("ar","1100","Receivables","ASSET","DEBIT",true)};
+    var accounts=new List<ClientAccountInput>{new("cash","1000","Cash","ASSET","DEBIT",true),new("ar","1100","Receivables","ASSET","DEBIT",true)};
     for(var i=0;i<incomeAccounts;i++)accounts.Add(new("income-"+i,(4000+i).ToString(),"Revenue "+i,"INCOME","CREDIT",true));
     Assert.True((await ClientAccountingService.AddAccountsAsync(db,maker,chart.Value,accounts)).Succeeded);
     Assert.True((await ClientAccountingService.PublishChartVersionAsync(db,reviewer,chart.Value)).Succeeded);
     var ar=await db.ClientAccounts.SingleAsync(x=>x.ChartVersionId==chart.Value&&x.AccountCode=="1100");
     var role=await ClientAccountRoleWorkspace.ProposeAsync(db,maker,s.ClientA,new(chart.Value,ar.Id,"AR",new(2026,1,1),null,"Reviewed control"));Assert.True(role.Succeeded,role.Message);
     Assert.True((await ClientAccountRoleWorkspace.ReviewAsync(db,reviewer,s.ClientA,role.Value,"APPROVE","Independent control")).Succeeded);
-    var party=await ClientBookkeepingCounterpartyWorkspace.CreateAsync(db,maker,s.ClientA,new("Customer","Customer","CUSTOMER","Client address","QA","","","","","",""));Assert.True(party.Succeeded,party.Message);
+    var party=await ClientBookkeepingCounterpartyWorkspace.CreateAsync(db,maker,s.ClientA,new("Customer","Customer","CUSTOMER","Client address","QA","","","","","TEST-SYSTEM","CUSTOMER-1"));Assert.True(party.Succeeded,party.Message);
     var request=new ClientSalesInvoiceDraftRequest(Guid.CreateVersion7(),null,0,"DRAFT-1","SOURCE-1",period.Value,party.Value,new(2026,1,10),new(2026,1,10),new(2026,1,10),new(2026,2,10),"QAR",
       new("QAR",2,"AWAY_FROM_ZERO","REJECT",0,""),Enumerable.Range(0,incomeAccounts).Select(i=>new ClientInvoiceLineInput("Service "+i,(4000+i).ToString(),1,125.125m,.125m,"NONE",[])).ToArray(),"Client preparation reference");
     var draft=await ClientSalesInvoiceDraftWorkspace.SaveAsync(db,maker,s.ClientA,request);Assert.True(draft.Succeeded,draft.Message);

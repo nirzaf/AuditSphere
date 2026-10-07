@@ -255,6 +255,9 @@ public interface IClientAccountingDbContext : IAuditSphereDbContext
   DbSet<ClientPurchaseCreditNoteDecision> ClientPurchaseCreditNoteDecisions { get; }
   DbSet<ClientPurchaseCreditNoteLine> ClientPurchaseCreditNoteLines { get; }
   DbSet<ClientPurchaseCreditNoteOpenItem> ClientPurchaseCreditNoteOpenItems { get; }
+  DbSet<ClientOpenItemAllocationSubmission> ClientOpenItemAllocationSubmissions { get; }
+  DbSet<ClientOpenItemAllocationLine> ClientOpenItemAllocationLines { get; }
+  DbSet<ClientOpenItemAllocationDecision> ClientOpenItemAllocationDecisions { get; }
   DbSet<ClientCounterpartyAmendment> ClientCounterpartyAmendments { get; }
   DbSet<ClientCounterpartyAmendmentDecision> ClientCounterpartyAmendmentDecisions { get; }
   DbSet<ClientAccountingProfile> ClientAccountingProfiles { get; }

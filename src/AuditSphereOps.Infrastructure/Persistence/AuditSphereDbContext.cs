@@ -291,6 +291,9 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<ClientPurchaseCreditNoteDecision> ClientPurchaseCreditNoteDecisions => Set<ClientPurchaseCreditNoteDecision>();
   public DbSet<ClientPurchaseCreditNoteLine> ClientPurchaseCreditNoteLines => Set<ClientPurchaseCreditNoteLine>();
   public DbSet<ClientPurchaseCreditNoteOpenItem> ClientPurchaseCreditNoteOpenItems => Set<ClientPurchaseCreditNoteOpenItem>();
+  public DbSet<ClientOpenItemAllocationSubmission> ClientOpenItemAllocationSubmissions => Set<ClientOpenItemAllocationSubmission>();
+  public DbSet<ClientOpenItemAllocationLine> ClientOpenItemAllocationLines => Set<ClientOpenItemAllocationLine>();
+  public DbSet<ClientOpenItemAllocationDecision> ClientOpenItemAllocationDecisions => Set<ClientOpenItemAllocationDecision>();
   public DbSet<ClientCounterpartyAmendment> ClientCounterpartyAmendments => Set<ClientCounterpartyAmendment>();
   public DbSet<ClientCounterpartyAmendmentDecision> ClientCounterpartyAmendmentDecisions => Set<ClientCounterpartyAmendmentDecision>();
   public DbSet<ClientAccountingProfile> ClientAccountingProfiles => Set<ClientAccountingProfile>();
@@ -568,6 +571,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
     ConfigureClientSalesInvoiceWorkflow(b);
     ConfigureClientPurchaseInvoices(b);
     ConfigureClientPurchaseCreditNotes(b);
+    ConfigureClientOpenItemAllocations(b);
     ConfigureClientAccountRoles(b);
     ConfigureAccountingEvidenceActions(b);
     ConfigureAccountingAnalysisPreparations(b);

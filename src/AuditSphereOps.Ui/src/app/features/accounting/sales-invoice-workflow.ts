@@ -102,7 +102,7 @@ interface CreditReview { creditNoteId: string; invoiceId: string; submissionId: 
   }
   @for (row of rows(); track row.submissionId) {
     <article><h6>{{ row.creditNoteReference }} · {{ row.state }}</h6><p>{{ row.amount }} {{ row.currency }} · {{ row.reason }} · {{ row.postingDate }}</p>
-      @if (row.unappliedCustomerCredit) { <p>Posted as an unapplied customer credit. Apply it through the client settlement workflow when available.</p> }
+      @if (row.unappliedCustomerCredit) { <p>Posted as an unapplied customer credit. Allocate it to an eligible open receivable below when approved.</p> }
       @if (row.state === 'SUBMITTED' && row.makerId !== userId()) {
         <button matButton type="button" [disabled]="busy()" (click)="previewReview(row)">Review credit note</button>
         @if (activeReview()?.submissionId === row.submissionId) { <p>Submitted credit {{ row.amount }} {{ row.currency }} · {{ activeReview()?.canPost ? 'Ready for review' : activeReview()?.postingBlock }}</p>

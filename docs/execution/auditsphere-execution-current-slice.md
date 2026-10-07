@@ -13,6 +13,14 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Partial client open-item allocation and imported settlement evidence (CA-19)
+
+Client-accounting now has a client-scoped open-item workspace for approved posted invoice and credit-note balances, partial allocations, on-account residuals, as-of due-date status, independent review, and exact audited unallocation. It can also link an already imported, sealed receipt/payment line when the source has one approved AR/AP control line and an independently matching cash movement. That path references the existing ledger entry and creates no second cash posting. Cross-client, cross-party, cross-currency, stale-preview, and over-allocation requests fail closed. Tax and ancillary modules remain optional.
+
+Local evidence in the managed `codex/client-accounting-workflow` worktree: the two focused PostgreSQL allocation tests passed; `SalesInvoiceFlowsFromUntaxedPreparationToIndependentClientLedgerPosting` passed 1/1 through API-hosted Angular; the serial Release solution build passed with 0 warnings/errors; Angular production build passed with the existing Commercial Settings stylesheet budget warning; EF reported no pending model changes. The E2E harness needed a temporary .NET SDK pin adjustment to use installed SDK 10.0.400; `global.json` was restored byte-for-byte. The full PostgreSQL-backed solution suite was not rerun.
+
+CA-19 is still partial: newly recorded manual receipt/payment entries through the normal controlled posting workflow, AR/AP-to-GL control reconciliation, and supporting opening-item detail remain open. This feature checkpoint is unmerged, is not full-epic or production acceptance, and makes no Development/production migration claim.
+
 ## Complete frozen-file write barrier with serialized freeze (STE-REM-09)
 
 The pending-features review's frozen-write findings are closed. Every professional mutation boundary
