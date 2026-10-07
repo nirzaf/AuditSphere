@@ -114,6 +114,14 @@ public sealed class AngularCommercialJourneyTests
     await Assertions.Expect(confirmation.GetByRole(AriaRole.Heading, new() { Name = $"Qualify {leadName}?", Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(confirmation.GetByText($"Record ID: {leadId:D}", new() { Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(confirmation.GetByText("This does not grant professional acceptance or client access.", new() { Exact = true })).ToBeVisibleAsync();
+    await confirmation.GetByRole(AriaRole.Button, new() { Name = "Cancel", Exact = true }).ClickAsync();
+    await Assertions.Expect(confirmation).ToHaveCountAsync(0);
+    await using (var db = host.CreateDbContext())
+      Assert.Equal(CrmStates.LeadNew, (await db.Leads.SingleAsync(x => x.Id == leadId)).Status);
+
+    await page.GetByRole(AriaRole.Button, new() { Name = $"Qualify {leadName}", Exact = true }).ClickAsync();
+    confirmation = page.GetByRole(AriaRole.Alert);
+    await Assertions.Expect(confirmation.GetByRole(AriaRole.Heading, new() { Name = $"Qualify {leadName}?", Exact = true })).ToBeVisibleAsync();
     await confirmation.GetByRole(AriaRole.Button, new() { Name = "Confirm qualification", Exact = true }).ClickAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Status).GetByText("Commercial change recorded.", new() { Exact = true })).ToBeVisibleAsync();
 
