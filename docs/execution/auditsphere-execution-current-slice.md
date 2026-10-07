@@ -13,6 +13,22 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Records Archive bounded manifest paging — implementation awaiting browser verification
+
+Archive reads now request no more than 100 ordered manifest rows and return a
+total count plus an ordinal cursor. The Angular detail page appends subsequent
+pages on demand, and a PostgreSQL browser journey covers a 205-entry
+100/100/5 sequence with ordering and duplicate checks. The focused records
+contract suite passed 5/5 and Angular template compilation passed with
+`npx ngc -p tsconfig.app.json --noEmit`. The browser run compiled the API and
+Application, but failed its new UI assertion because the E2E host served the
+older Angular bundle. Angular production and development builds both abort
+inside esbuild with `fatal error: all goroutines are asleep - deadlock!` (exit
+134), including after cache cleanup and worker limiting. The paging UI is
+therefore not verified yet; rerun the build and journey when the local bundler
+works. The Records Archive source row remains partial and the migration gate
+remains `NOT_READY`.
+
 ## Shared confirmation cancellation and validation — a27c3102
 
 The Users & Access browser journey now verifies that closing the revocation

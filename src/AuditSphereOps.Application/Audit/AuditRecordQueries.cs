@@ -24,7 +24,7 @@ public sealed record ReleaseCandidateView(Guid Id, string Status, string TargetK
   ReleaseGateView Checkpoint, ReleaseGateView Attestation, ReleaseGateView Lineage, bool PreflightReady);
 public sealed record ArchiveEntryView(int Ordinal, string EntryKind, string RelativeName, string ContentHash, long ByteCount);
 public sealed record ArchiveRecordView(Guid Id, Guid EngagementId, string Status, DateTimeOffset CreatedAt, string ProfileId, long ProfileVersion, long? ManifestVersion,
-  string? ManifestDigest, string? CompletenessStatus, string? CompletenessException, IReadOnlyList<ArchiveEntryView> Entries, int ActiveHoldCount,
+  string? ManifestDigest, string? CompletenessStatus, string? CompletenessException, IReadOnlyList<ArchiveEntryView> Entries, int TotalEntryCount, int? NextOrdinal, int ActiveHoldCount,
   string? ObservedProtection, string? DesiredLabel, string? ObservedLabel, string? ActionState, string? ExternalReference);
 
 public sealed record WorkpaperSubmissionView(long Revision, DateTimeOffset SubmittedAt, string? Conclusion);
@@ -144,19 +144,29 @@ public static class AuditRecordQueries
       lineageGate, ready));
   }
 
-  public static async Task<CommandResult<ArchiveRecordView>> ArchiveAsync(IAuditSphereDbContext db, ActorContext actor, Guid id, CancellationToken ct = default)
+  public const int ArchiveEntryPageSize = 100;
+
+  public static async Task<CommandResult<ArchiveRecordView>> ArchiveAsync(IAuditSphereDbContext db, ActorContext actor, Guid id, int? afterOrdinal = null, CancellationToken ct = default)
   {
     var a = await db.Archives.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id && x.FirmId == actor.FirmId, ct);
     if (a is null || !await AuthorizeAsync(db, actor, a.ClientId, a.EngagementId,
         ["Administrator", "Partner", "Manager", "EngagementLeader", "Senior", "Staff", "Auditor", "RecordsCustodian"], ct))
       return CommandResult<ArchiveRecordView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var manifest = await db.ArchiveManifests.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ArchiveId == a.Id).OrderByDescending(x => x.Version).FirstOrDefaultAsync(ct);
-    var entries = manifest is null ? [] : await db.ArchiveManifestEntries.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ArchiveManifestId == manifest.Id)
-      .OrderBy(x => x.Ordinal).Select(x => new ArchiveEntryView(x.Ordinal, x.EntryKind, x.RelativeName, x.ContentHash, x.ByteCount)).ToListAsync(ct);
+    var entryQuery = manifest is null ? null : db.ArchiveManifestEntries.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.ArchiveManifestId == manifest.Id);
+    var totalEntryCount = entryQuery is null ? 0 : await entryQuery.CountAsync(ct);
+    var pageQuery = entryQuery;
+    if (afterOrdinal is > 0) pageQuery = pageQuery!.Where(x => x.Ordinal > afterOrdinal.Value);
+    var rows = pageQuery is null ? [] : await pageQuery.OrderBy(x => x.Ordinal).Take(ArchiveEntryPageSize + 1)
+      .Select(x => new ArchiveEntryView(x.Ordinal, x.EntryKind, x.RelativeName, x.ContentHash, x.ByteCount)).ToListAsync(ct);
+    var hasMore = rows.Count > ArchiveEntryPageSize;
+    var entries = rows.Take(ArchiveEntryPageSize).ToList();
+    var nextOrdinal = hasMore ? entries[^1].Ordinal : (int?)null;
     var action = await db.RecordsActions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ArchiveId == a.Id, ct);
     var holds = await db.LegalHolds.AsNoTracking().CountAsync(x => x.FirmId == actor.FirmId && x.ArchiveId == a.Id && x.State != "RELEASED", ct);
     return CommandResult<ArchiveRecordView>.Ok(new(a.Id, a.EngagementId, a.Status, a.CreatedAt, a.ProfileId, a.ProfileVersion, manifest?.Version, manifest?.ManifestDigest,
-      manifest?.CompletenessStatus, manifest?.CompletenessException, entries, holds, action?.ObservedProtection, action?.DesiredLabel, action?.ObservedLabel, action?.State,
+      manifest?.CompletenessStatus, manifest?.CompletenessException, entries, totalEntryCount, nextOrdinal, holds, action?.ObservedProtection, action?.DesiredLabel, action?.ObservedLabel, action?.State,
       action?.ExternalReference));
   }
 }

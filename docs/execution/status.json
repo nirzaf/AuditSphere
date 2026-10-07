@@ -11388,6 +11388,20 @@
       "efModelDrift": "Not rerun; no Application, Domain or EF model code changed.",
       "retirementDecision": "NOT_READY"
     },
+    "angularArchiveManifestPaging": {
+      "sourceCommit": "3dc06881",
+      "observedAt": "2026-10-07T13:40:00Z",
+      "status": "IMPLEMENTED_VERIFICATION_BLOCKED",
+      "caseId": "AS-PAR-002-ANGULAR-ARCHIVE-PAGING-01",
+      "implementation": "Archive API reads are capped at 100 ordered manifest entries and return totalEntryCount and nextOrdinal. Angular progressively loads subsequent pages.",
+      "focusedAngularContractTests": { "status": "PASS", "passed": 5, "failed": 0, "skipped": 0, "command": "npm run test:ci -- --include=src/app/features/audit/records.spec.ts" },
+      "angularTemplateCompilation": { "status": "PASS", "command": "npx ngc -p tsconfig.app.json --noEmit" },
+      "angularBuild": { "status": "BLOCKED_LOCAL_TOOLING", "exitCode": 134, "details": "Production and development ng build abort in esbuild with fatal error: all goroutines are asleep - deadlock. Reproduced after Angular cache cleanup, worker limiting and Node 22/24/26 runtimes." },
+      "postgresBrowserJourney": { "status": "FAIL_STALE_ASSET", "passed": 0, "failed": 1, "details": "API and Application compiled. E2E served an older Angular bundle, which did not contain the paging display/control; current UI behavior remains unverified." },
+      "fullSolutionRegression": "NOT_RUN",
+      "efModelDrift": "NOT_RUN",
+      "retirementDecision": "NOT_READY"
+    },
     "angularRecordsArchiveReleaseSourceReview": {
       "sourceCommit": "21e85a17",
       "observedAt": "2026-10-07T13:29:00Z",
@@ -11426,9 +11440,8 @@
       "fullSolutionRegression": "NOT_RUN for this review; latest complete PostgreSQL-backed Release result remains 1001/1001 at ead85032de2ccc4d4c8043398fa8471d395376a9.",
       "efModelDrift": "Not rerun; no Application, Domain, entity or EF model code changed in this source-review slice.",
       "openGaps": [
-        "Successful Angular issue flow with verified gates and uncertain-outcome recovery",
         "Complete role/scope, expired-grant, cross-firm and route-error matrices",
-        "Large-manifest and archive failure/recovery coverage",
+        "Large-manifest paging is implemented but awaits a successful current Angular build and browser journey; archive failure/recovery coverage remains open",
         "Human screen-reader, broader locale and production acceptance"
       ],
       "sharedWorktreeBoundary": "The unrelated docs/execution/angular-source-inventory.json and src/AuditSphereOps.Application/Accounting/ConsolidationOverviewQuery.cs edits were excluded and remain untouched; the E2E project build compiled the latter but these journeys do not exercise its behavior.",

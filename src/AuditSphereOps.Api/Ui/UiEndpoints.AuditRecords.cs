@@ -35,7 +35,8 @@ public static partial class UiEndpoints
     // The release key is a one-time authorization input: it is never echoed, logged or stored by the browser.
     group.MapPost("/releases/{id:guid}/issue", (Guid id, IssueInput i, HttpContext http, ReleaseSafetyOptions safety) =>
       CommandAsync(http, (db, actor, ct) => ReleaseService.IssueAsync(db, actor, new IssueReleaseRequest(id, i.ExpectedRevision, i.ManifestDigest ?? "", i.ReleaseKey ?? ""), safety, ct)));
-    group.MapGet("/records/archives/{id:guid}", (Guid id, HttpContext http) => ReadAsync(http, (db, actor, ct) => AuditRecordQueries.ArchiveAsync(db, actor, id, ct)));
+    group.MapGet("/records/archives/{id:guid}", (Guid id, int? afterOrdinal, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => AuditRecordQueries.ArchiveAsync(db, actor, id, afterOrdinal, ct)));
     group.MapGet("/audit/workpapers/{id:guid}", (Guid id, HttpContext http) => ReadAsync(http, (db, actor, ct) => AuditRecordQueries.WorkpaperAsync(db, actor, id, ct)));
     group.MapPost("/audit/workpapers/{id:guid}/draft", (Guid id, WorkpaperDraftInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => AuditPlanningService.SaveWorkpaperDraftAsync(db, actor, new SaveWorkpaperDraftRequest(id, i.ExpectedDraftRevision,

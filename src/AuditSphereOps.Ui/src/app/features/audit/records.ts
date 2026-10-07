@@ -20,7 +20,7 @@ export const decodeRelease = obj({ id: guid, status: text, targetKind: text, tar
   checkpoint: gate, attestation: gate, lineage: gate, preflightReady: bool });
 export const decodeArchive = obj({ id: guid, engagementId: guid, status: text, createdAt: instant, profileId: text, profileVersion: int, manifestVersion: nullable(int),
   manifestDigest: nullable(text), completenessStatus: nullable(text), completenessException: nullable(text),
-  entries: arr(obj({ ordinal: int, entryKind: text, relativeName: text, contentHash: text, byteCount: int }), 50000), activeHoldCount: nat,
+  entries: arr(obj({ ordinal: int, entryKind: text, relativeName: text, contentHash: text, byteCount: int }), 100), totalEntryCount: nat, nextOrdinal: nullable(int), activeHoldCount: nat,
   observedProtection: nullable(text), desiredLabel: nullable(text), observedLabel: nullable(text), actionState: nullable(text), externalReference: nullable(text) });
 const sum = (rows: { reviewedTestCount: number }[]) => rows.reduce((n, r) => n + r.reviewedTestCount, 0);
 
@@ -217,7 +217,7 @@ export class ReleaseCandidate {
     <audit-state [loading]="rec.loading()" [error]="rec.error()" label="archive" />
     @if (rec.data(); as a) {
       <p class="actions"><audit-status [value]="a.status" /><a [routerLink]="['/app/engagements', a.engagementId]">Engagement</a></p>
-      <p role="status">Manifest version {{ a.manifestVersion ?? '—' }} · {{ a.entries.length }} manifest entries · {{ a.activeHoldCount }} active local holds</p>
+      <p role="status">Manifest version {{ a.manifestVersion ?? '—' }} · {{ a.totalEntryCount }} manifest entries · {{ a.activeHoldCount }} active local holds</p>
       <section class="panel" aria-labelledby="archive-summary"><h2 id="archive-summary">Archive manifest</h2>
         <dl class="facts"><dt>Archive ID</dt><dd><code>{{ a.id }}</code></dd><dt>Scope</dt><dd><code>{{ a.engagementId }}</code></dd><dt>Created</dt><dd>{{ a.createdAt }}</dd>
           <dt>Records profile</dt><dd>{{ a.profileId }} v{{ a.profileVersion }}</dd><dt>Protection</dt><dd>{{ a.observedProtection ?? 'Not observed' }}</dd>
@@ -225,9 +225,12 @@ export class ReleaseCandidate {
         @if (a.completenessStatus === 'INCOMPLETE') { <p role="alert">Manifest incomplete: {{ a.completenessException }}</p> }
         @if (a.actionState === 'REQUESTED') { <p>Records action requested; this is not evidence of Purview protection.</p> }</section>
       <section class="panel" aria-labelledby="archive-contents"><h2 id="archive-contents">Archive contents</h2>
-        <div class="table-scroll"><table><thead><tr><th>Index</th><th>Kind</th><th>Source</th><th>Hash</th><th class="number">Bytes</th></tr></thead>
-          <tbody>@for (e of a.entries; track e.ordinal) { <tr><td>{{ e.ordinal }}</td><td>{{ e.entryKind }}</td><td>{{ e.relativeName }}</td><td><code>{{ e.contentHash }}</code></td><td class="number">{{ e.byteCount }}</td></tr> }
+        <p role="status">Showing {{ visibleEntries(a).length }} of {{ a.totalEntryCount }} entries.</p>
+        <div class="table-scroll"><table><thead><tr><th scope="col">Index</th><th scope="col">Kind</th><th scope="col">Source</th><th scope="col">Hash</th><th scope="col" class="number">Bytes</th></tr></thead>
+          <tbody>@for (e of visibleEntries(a); track e.ordinal) { <tr><td>{{ e.ordinal }}</td><td>{{ e.entryKind }}</td><td>{{ e.relativeName }}</td><td><code>{{ e.contentHash }}</code></td><td class="number">{{ e.byteCount }}</td></tr> }
           @empty { <tr><td colspan="5">No persisted manifest entries.</td></tr> }</tbody></table></div></section>
+        @if (nextOrdinal() !== null) { <button mat-stroked-button type="button" [disabled]="loadingEntries()" (click)="loadMore(a)">{{ loadingEntries() ? 'Loading entries…' : 'Load next 100 entries' }}</button> }
+        @if (entriesError()) { <p role="alert">{{ entriesError() }}</p> }
       <section class="panel" aria-labelledby="records-evidence"><h2 id="records-evidence">Records evidence</h2>
         <dl class="facts"><dt>Desired label</dt><dd>{{ a.desiredLabel ?? 'Not requested' }}</dd><dt>Observed label</dt><dd>{{ a.observedLabel ?? 'Not observed' }}</dd>
           <dt>Action state</dt><dd>{{ a.actionState ?? 'Not requested' }}</dd><dt>External reference</dt><dd>{{ a.externalReference ?? '—' }}</dd>
@@ -240,4 +243,41 @@ export class ArchiveRecord {
   private readonly api = inject(Api);
   readonly id = routeGuid();
   readonly rec = this.api.resource(() => (this.id() ? `/api/ui/records/archives/${this.id()}` : null), decodeArchive, 'The archive is not available in the current scope.');
+  readonly additionalEntries = signal<ReturnType<typeof decodeArchive>['entries']>([]);
+  readonly nextOrdinal = signal<number | null>(null);
+  readonly loadingEntries = signal(false);
+  readonly entriesError = signal('');
+
+  constructor() {
+    effect(() => {
+      this.id();
+      const archive = this.rec.data();
+      this.additionalEntries.set([]);
+      this.nextOrdinal.set(archive?.nextOrdinal ?? null);
+      this.entriesError.set('');
+    });
+  }
+
+  visibleEntries(archive: ReturnType<typeof decodeArchive>) {
+    return [...archive.entries, ...this.additionalEntries()];
+  }
+
+  async loadMore(archive: ReturnType<typeof decodeArchive>) {
+    const cursor = this.nextOrdinal();
+    if (this.loadingEntries() || cursor === null) return;
+    const id = archive.id;
+    this.loadingEntries.set(true);
+    this.entriesError.set('');
+    try {
+      const next = await this.api.get(`/api/ui/records/archives/${id}?afterOrdinal=${cursor}`, decodeArchive);
+      if (this.id() !== id || this.rec.data()?.id !== id || next.id !== id || next.manifestVersion !== archive.manifestVersion) return;
+      const seen = new Set(this.visibleEntries(archive).map(entry => entry.ordinal));
+      this.additionalEntries.update(current => [...current, ...next.entries.filter(entry => !seen.has(entry.ordinal))]);
+      this.nextOrdinal.set(next.nextOrdinal);
+    } catch (error) {
+      this.entriesError.set(error instanceof Error ? error.message : 'Entries could not be loaded. Retry shortly.');
+    } finally {
+      this.loadingEntries.set(false);
+    }
+  }
 }

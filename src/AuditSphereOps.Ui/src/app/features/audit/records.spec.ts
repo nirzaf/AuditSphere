@@ -135,6 +135,8 @@ describe('Audit Records Contracts', () => {
           byteCount: 1048576,
         },
       ],
+      totalEntryCount: 1,
+      nextOrdinal: null,
       activeHoldCount: 0,
       observedProtection: 'PROTECTED',
       desiredLabel: 'CONFIDENTIAL',

@@ -79,7 +79,8 @@ unavailable state without protected record content.
   both pages remain open.
 - Large-manifest behavior and remaining archive failure/recovery states need
   direct assertions. Empty and incomplete manifest display is covered by the
-  follow-up journey below.
+  follow-up journey below. A bounded paging implementation was added below,
+  but its current Angular browser journey is awaiting a successful bundle build.
 - Remaining Release validation/error states, human screen-reader, broader
   locale, and production acceptance remain open.
 
@@ -101,3 +102,15 @@ Records Archive row remains `PARTIAL` for large-manifest behavior, failure and
 recovery paths, complete authorization matrices, human accessibility/locale
 review and production acceptance. The full solution regression and EF drift
 check were not rerun.
+
+### Large-manifest paging implementation — verification pending — 2026-10-07
+
+Archive detail reads now return at most 100 ordered manifest entries per
+request, with total count and an ordinal cursor; the Angular page exposes a
+progressive “Load next 100 entries” action. A 205-entry PostgreSQL browser
+journey was added for ordered, duplicate-free 100/100/5 rendering. It has not
+passed: the E2E host served an older Angular bundle, and `ng build` aborted
+inside esbuild with `fatal error: all goroutines are asleep - deadlock!` (exit
+134). `ngc -p tsconfig.app.json --noEmit` and the five focused records contract
+tests passed. Do not count large-manifest paging as verified until the current
+Angular bundle builds and the browser journey passes.
