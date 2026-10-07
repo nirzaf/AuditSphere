@@ -68,11 +68,28 @@ for an unassigned guessed ID without workpaper content or commands.
   browser surface.
 - Every stale, unavailable, validation, timeout, and recovery state is not yet
   covered end-to-end.
-- Draft discard has unit/API coverage, but no dedicated browser journey proves
-  the user confirmation and resulting persisted lifecycle state.
+- Draft discard's persisted lifecycle and cleared editor are now covered by a
+  dedicated Angular/API-host browser journey. The broader discard-on-navigation
+  and refused-discard recovery combinations remain outside that journey.
 - Human screen-reader and broader locale acceptance remain external to the
   current DOM and automated-browser evidence.
 
 This review does not promote the row to parity verified. It closes one source
 review gap only; the wider AS-PAR-002 authorization/retry audit, production
 acceptance, and Blazor retirement remain open.
+
+### Follow-up browser evidence — 2026-10-07
+
+At code commit `4d88b1ff`,
+`AngularWorkpaperSaveRecoveryJourneyTests.DiscardDraftFromWorkpaperPagePersistsDiscardedLifecycle`
+passed **1/1** in 34 seconds on an owned isolated PostgreSQL/API host. It loaded
+the persisted server draft in the Angular editor, discarded it through the
+page, verified the editor cleared, and confirmed in PostgreSQL that the draft
+lifecycle is `DISCARDED`, the original content remains in the historical row,
+and no submission was created. No browser console or page errors were observed.
+
+The dedicated browser-discard gap is closed for this source review. The row
+remains `PARTIAL`: complete role/scope, expired-grant, cross-firm and guessed-ID
+matrices, remaining stale/failure/recovery branches, human screen-reader and
+wider-locale acceptance, and production migration gates remain open. The full
+solution regression and EF drift check were not rerun.

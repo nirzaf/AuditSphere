@@ -11263,9 +11263,27 @@
       "boundary": "All four artifacts remain PARTIAL. Full role/scope and firm isolation, complete validation/failure/recovery, populated analytics edge cases, Technical Library creation/audience journeys, full invalid progress snapshot handling, production, real assistive technology, locale and owner acceptance remain open. AS-PAR-002 remains partial; Blazor retirement remains NOT_READY.",
       "sharedWorktreeBoundary": "An unrelated unstaged one-line change to src/AuditSphereOps.Application/Accounting/ConsolidationOverviewQuery.cs was compiled in the shared Release build and was not part of this source review or documentation commit. The separate unstaged docs/execution/angular-source-inventory.json edit was left untouched and excluded from the review commit."
     },
+    "angularWorkpaperDraftDiscardJourney": {
+      "sourceCommit": "4d88b1ff6f82ab274d0e531a19d3ac2febc5b82b",
+      "observedAt": "2026-10-07T12:59:53Z",
+      "status": "PASS_LOCAL_SLICE",
+      "caseId": "AS-PAR-002-ANGULAR-WORKPAPER-DISCARD-01",
+      "focusedPostgresPlaywright": {
+        "status": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "duration": "34s",
+        "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-build --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~DiscardDraftFromWorkpaperPagePersistsDiscardedLifecycle' --logger 'console;verbosity=minimal'"
+      },
+      "coverage": "The Angular editor loaded the persisted server draft, invoked draft discard, cleared the editor, and PostgreSQL confirmed lifecycle DISCARDED, preserved historical draft content, and no created submission. The browser reported no page or console errors.",
+      "fullSolutionRegression": "NOT_RUN; latest complete PostgreSQL-backed Release solution result remains 1001/1001 at ead85032de2ccc4d4c8043398fa8471d395376a9.",
+      "efModelDrift": "Not rerun; no Application, Domain or EF model code changed.",
+      "retirementDecision": "NOT_READY"
+    },
     "angularWorkpaperSourceReview": {
-      "sourceCommit": "e8c1788a0847517375b3e93861937c866a6028f3",
-      "observedAt": "2026-10-05T17:44:33Z",
+      "sourceCommit": "4d88b1ff6f82ab274d0e531a19d3ac2febc5b82b",
+      "observedAt": "2026-10-07T12:59:53Z",
       "status": "PARTIAL_REVIEW",
       "caseId": "AS-PAR-002-ANGULAR-WORKPAPER-SOURCE-REVIEW-01",
       "disposition": "PARTIAL",
@@ -11286,14 +11304,15 @@
         "duration": "1m34s",
         "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~AngularWorkpaperSaveRecoveryJourneyTests|FullyQualifiedName~AngularClientScopeAuditDetailJourneyTests|FullyQualifiedName~AngularAuditRevocationParityJourneyTests|FullyQualifiedName~AngularAuditFieldworkParityJourneyTests'"
       },
-      "coverage": "Workpaper save-outcome reconciliation and submit, client/sibling/guessed-ID detail isolation, revocation clearing, and fieldwork-to-workpaper linkage. Existing Angular unit tests cover draft discard and navigation choices; no dedicated browser discard journey is yet recorded.",
+      "coverage": "Workpaper save-outcome reconciliation and submit, client/sibling/guessed-ID detail isolation, revocation clearing, fieldwork-to-workpaper linkage, and a dedicated browser discard journey verifying the persisted DISCARDED lifecycle, cleared editor and no submission.",
+      "followUpDiscardJourney": { "status": "PASS", "passed": 1, "failed": 0, "skipped": 0, "duration": "34s", "sourceCommit": "4d88b1ff6f82ab274d0e531a19d3ac2febc5b82b" },
       "builtInBrowser": "PASS_LOCAL_READ_ONLY: the Development browser showed the generic unavailable state for a guessed workpaper ID under an unassigned identity, with no protected content or commands.",
       "fullSolutionRegression": "NOT_RUN for this review; latest complete PostgreSQL-backed Release result remains 1001/1001 at ead85032de2ccc4d4c8043398fa8471d395376a9.",
       "efModelDrift": "Not rerun; no Application, Domain, entity or EF model code changed in this source-review slice.",
       "openGaps": [
         "Complete role/scope, expired-grant, cross-firm and guessed-ID HTTP/browser matrix",
         "All stale, validation, timeout, failure and recovery states",
-        "Dedicated browser journey for draft discard and its persisted lifecycle state",
+        "Discard-on-navigation and refused-discard recovery combinations beyond the successful direct discard journey",
         "Human screen-reader and wider-locale acceptance"
       ],
       "sharedWorktreeBoundary": "The unrelated docs/execution/angular-source-inventory.json and src/AuditSphereOps.Application/Accounting/ConsolidationOverviewQuery.cs edits were excluded from this review and remain untouched.",

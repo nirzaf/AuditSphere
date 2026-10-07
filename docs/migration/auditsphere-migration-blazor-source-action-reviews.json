@@ -454,8 +454,8 @@
       "source": "src/AuditSphereOps.Web/Components/Pages/Workpaper.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-workpaper-source-review.md",
-      "reviewedAtCommit": "e8c1788a0847517375b3e93861937c866a6028f3",
-      "openGaps": ["Complete role/scope, expired-grant, cross-firm and guessed-ID HTTP/browser matrix", "All stale, validation, timeout, failure and recovery states", "Dedicated browser journey for draft discard and its persisted lifecycle state", "Human screen-reader and wider-locale acceptance"]
+      "reviewedAtCommit": "4d88b1ff6f82ab274d0e531a19d3ac2febc5b82b",
+      "openGaps": ["Complete role/scope, expired-grant, cross-firm and guessed-ID HTTP/browser matrix", "All stale, validation, timeout, failure and recovery states", "Human screen-reader and wider-locale acceptance", "Discard-on-navigation and refused-discard recovery combinations beyond the successful direct discard journey"]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/ReviewPoint.razor",
