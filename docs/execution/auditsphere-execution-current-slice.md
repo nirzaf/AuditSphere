@@ -13,6 +13,25 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Project task progress: current-access revocation and clearer status summaries
+
+The Administrator-only project task progress workspace now offers an explicit refresh action,
+accessible progress-bar key, per-section completed percentages and active/pending/blocked totals,
+and blocked explanations in audit, phase, and shared-foundation lists. Unmapped modules state
+accessibly that implementation progress is not measured. Unit coverage checks malformed payloads,
+stale state, refresh recovery and cancellation after session invalidation.
+
+Verification at `ffe3a425aa65812b9d29eb5bc7b4693048bdea20`: Angular progress tests passed 4/4;
+the production build passed with the existing Commercial Settings component-style budget warning
+(7.53 kB against 4 kB). The PostgreSQL-backed API-host browser journey passed 4/4: Administrator
+access and non-administrator denial, concurrent expiry and one-time revocation evidence, immediate
+stale-page clearing after role revocation followed by fresh-sign-in denial, and a cross-firm
+misbound-grant denial. Tests used synthetic identities and owned isolated databases. The built-in
+browser rendered the safe unauthenticated state but had no session for manual inspection of the
+protected tracker; the authenticated behavior was verified in Playwright. A full solution regression
+was not rerun. Corrupt-file recovery, human assistive-technology and wider-locale acceptance remain
+open. Blazor retirement remains `NOT_READY`.
+
 ## Complete frozen-file write barrier with serialized freeze (STE-REM-09)
 
 The pending-features review's frozen-write findings are closed. Every professional mutation boundary
