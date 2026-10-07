@@ -9,6 +9,81 @@ namespace AuditSphereOps.E2E.Tests;
 public sealed class AngularWorkpaperSaveRecoveryJourneyTests
 {
   [Fact]
+  [Trait("CaseId", "AS-PAR-002-ANGULAR-WORKPAPER-DISCARD-REFUSAL-01")]
+  public async Task RefusedNavigationDiscardKeepsUserAndActiveDraftInPlace()
+  {
+    await using var host = await OwnedHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-ANGULAR-WORKPAPER-DISCARD-REFUSAL-01");
+    var f = host.Fixture;
+    var staff = PbcSeed.Actor(f.Staff, "Staff");
+    Guid workpaperId;
+    await using (var db = host.CreateDbContext())
+    {
+      db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Staff, "Partner", f.ClientId, f.EngagementId));
+      await db.SaveChangesAsync();
+      var created = await AuditPlanningService.CreateWorkpaperAsync(db, staff,
+        new CreateWorkpaperRequest(f.EngagementId, "WP-DISCARD-REFUSAL", "Synthetic discard refusal workpaper",
+          "Keep the active draft on refusal", "DISCARD-REFUSAL-v1", null, "Perform a synthetic control"));
+      Assert.True(created.Succeeded, created.Message);
+      workpaperId = created.Value!.WorkpaperId;
+      var saved = await AuditPlanningService.SaveWorkpaperDraftAsync(db, staff,
+        new SaveWorkpaperDraftRequest(workpaperId, 0, 1, 1, 1, Guid.NewGuid(),
+          "Active draft remains until accepted discard.", "Retain this conclusion."));
+      Assert.True(saved.Succeeded, saved.Message);
+    }
+
+    var origin = await host.StartApiForIdentityAsync(f.Staff, new Dictionary<string, string>
+    {
+      ["AngularUi__Enabled"] = "true",
+      ["AngularUi__CanonicalRoutes"] = "true"
+    });
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var errors = new List<string>();
+    var discardRefusalInjected = false;
+    page.PageError += (_, error) => errors.Add(error);
+    page.Console += (_, message) =>
+    {
+      if (message.Type == "error" && !(discardRefusalInjected && message.Text.Contains("409", StringComparison.Ordinal)))
+        errors.Add($"console-error: {message.Text}");
+    };
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString($"/app/audit/workpapers/{workpaperId:D}"));
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "Workpaper: Synthetic discard refusal workpaper", Exact = true })).ToBeVisibleAsync();
+    await page.GetByLabel("Work performed", new() { Exact = true }).FillAsync("These edits are still local.");
+    await page.RouteAsync($"**/api/ui/audit/workpapers/{workpaperId:D}/draft/discard", route =>
+    {
+      discardRefusalInjected = true;
+      return route.FulfillAsync(new RouteFulfillOptions
+      {
+        Status = 409,
+        ContentType = "application/json",
+        Body = "{\"code\":\"revision.stale\",\"message\":\"Synthetic stale discard refusal.\"}"
+      });
+    });
+    await page.GetByRole(AriaRole.Link, new() { Name = "Audit plan", Exact = true }).Last.ClickAsync();
+    var dialog = page.GetByRole(AriaRole.Dialog);
+    await Assertions.Expect(dialog.GetByRole(AriaRole.Heading, new() { Name = "Unsubmitted edits", Exact = true }))
+      .ToBeVisibleAsync();
+    await dialog.GetByRole(AriaRole.Button, new() { Name = "Discard edits and continue", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByText("This record changed since you loaded it. Refresh and review the current revision.", new() { Exact = true }))
+      .ToBeVisibleAsync();
+    Assert.Contains($"/app/audit/workpapers/{workpaperId:D}", page.Url, StringComparison.Ordinal);
+    await using (var proof = host.CreateDbContext())
+    {
+      var active = await proof.WorkpaperDrafts.AsNoTracking().SingleAsync(x => x.WorkpaperId == workpaperId);
+      Assert.Equal("ACTIVE", active.Lifecycle);
+      Assert.Equal("Active draft remains until accepted discard.", active.WorkPerformed);
+      Assert.Equal("Retain this conclusion.", active.Conclusion);
+      Assert.Equal(1, active.DraftRevision);
+      Assert.Empty(await proof.WorkpaperSubmissions.AsNoTracking().Where(x => x.WorkpaperId == workpaperId).ToListAsync());
+    }
+    Assert.Empty(errors);
+  }
+
+  [Fact]
   [Trait("CaseId", "AS-PAR-002-ANGULAR-WORKPAPER-NAV-DISCARD-01")]
   public async Task DiscardingBeforeNavigationDiscardsSavedDraftAndDoesNotPersistCurrentEdits()
   {

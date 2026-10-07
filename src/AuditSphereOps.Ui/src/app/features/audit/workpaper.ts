@@ -299,6 +299,10 @@ export class WorkpaperEditor {
       this.status.set('Check the unconfirmed save before leaving this workpaper.');
       return false;
     }
+    // Do not let the autosave debounce race the user's explicit leave decision.
+    // In particular, "discard" must not persist these edits before its discard
+    // command marks the previously saved server draft as discarded.
+    clearTimeout(this.timer);
     if (!this.wp.data() || this.conflict()) return true;
     if (this.saving() && this.pendingSave) await this.pendingSave.catch(() => false);
     if (!this.dirty) return true;
