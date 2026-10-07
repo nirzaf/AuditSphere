@@ -12789,7 +12789,11 @@
       },
       "coverage": "Approved posted client credit allocation, partial allocation, derived balances, exact audited unallocation, and linking an already imported balanced sealed receipt to a posted invoice without adding another cash posting. Imported settlement evidence requires a single approved AR/AP control line, an independent matching cash movement, same party/currency, current authorization and sealed source provenance.",
       "remaining": "CA-19 remains partial: new manual receipt/payment entries through the normal controlled posting path, AR/AP control reconciliation, and opening-balance detail are not implemented. The full PostgreSQL solution suite was not rerun. Tax and ancillary modules remain optional. This checkpoint is unmerged; no Development/production migration or external acceptance is claimed.",
-      "implementationCommit": "3589ea51"
+      "implementationCommit": "3589ea51",
+      "apiContract": {
+        "status": "PASS",
+        "result": "Canonical OpenAPI contract regenerated and verify-openapi.sh reports current."
+      }
     }
   },
   "documentationWork": {
