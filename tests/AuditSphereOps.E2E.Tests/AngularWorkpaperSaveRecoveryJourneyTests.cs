@@ -9,6 +9,66 @@ namespace AuditSphereOps.E2E.Tests;
 public sealed class AngularWorkpaperSaveRecoveryJourneyTests
 {
   [Fact]
+  [Trait("CaseId", "AS-PAR-002-ANGULAR-WORKPAPER-DISCARD-01")]
+  public async Task DiscardDraftFromWorkpaperPagePersistsDiscardedLifecycle()
+  {
+    await using var host = await OwnedHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-ANGULAR-WORKPAPER-DISCARD-01");
+    var f = host.Fixture;
+    var staff = PbcSeed.Actor(f.Staff, "Staff");
+    Guid workpaperId;
+    await using (var db = host.CreateDbContext())
+    {
+      db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Staff, "Partner", f.ClientId, f.EngagementId));
+      await db.SaveChangesAsync();
+      var created = await AuditPlanningService.CreateWorkpaperAsync(db, staff,
+        new CreateWorkpaperRequest(f.EngagementId, "WP-DISCARD", "Synthetic discard workpaper",
+          "Prove discarded draft state", "DISCARD-v1", null, "Perform a synthetic control"));
+      Assert.True(created.Succeeded, created.Message);
+      workpaperId = created.Value!.WorkpaperId;
+      var saved = await AuditPlanningService.SaveWorkpaperDraftAsync(db, staff,
+        new SaveWorkpaperDraftRequest(workpaperId, 0, 1, 1, 1, Guid.NewGuid(),
+          "Disposable draft work performed.", "Disposable draft conclusion."));
+      Assert.True(saved.Succeeded, saved.Message);
+    }
+
+    var origin = await host.StartApiForIdentityAsync(f.Staff, new Dictionary<string, string>
+    {
+      ["AngularUi__Enabled"] = "true",
+      ["AngularUi__CanonicalRoutes"] = "true"
+    });
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var errors = new List<string>();
+    page.PageError += (_, error) => errors.Add(error);
+    page.Console += (_, message) =>
+    {
+      if (message.Type == "error") errors.Add($"console-error: {message.Text}");
+    };
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString($"/app/audit/workpapers/{workpaperId:D}"));
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "Workpaper: Synthetic discard workpaper", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByLabel("Work performed", new() { Exact = true }))
+      .ToHaveValueAsync("Disposable draft work performed.");
+
+    await page.GetByRole(AriaRole.Button, new() { Name = "Discard draft", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByText("Draft discarded.", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByLabel("Work performed", new() { Exact = true })).ToHaveValueAsync("");
+    await using (var proof = host.CreateDbContext())
+    {
+      var discarded = await proof.WorkpaperDrafts.AsNoTracking().SingleAsync(x => x.WorkpaperId == workpaperId);
+      Assert.Equal("DISCARDED", discarded.Lifecycle);
+      Assert.Equal("Disposable draft work performed.", discarded.WorkPerformed);
+      Assert.Equal("Disposable draft conclusion.", discarded.Conclusion);
+      Assert.Equal(1, discarded.DraftRevision);
+      Assert.Empty(await proof.WorkpaperSubmissions.AsNoTracking().Where(x => x.WorkpaperId == workpaperId).ToListAsync());
+    }
+    Assert.Empty(errors);
+  }
+
+  [Fact]
   [Trait("CaseId", "AS-PAR-002-ANGULAR-WORKPAPER-SAVE-RECOVERY-01")]
   public async Task LostDraftSaveResponseIsReconciledBeforeSubmission()
   {
