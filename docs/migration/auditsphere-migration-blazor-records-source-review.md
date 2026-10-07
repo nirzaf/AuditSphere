@@ -114,5 +114,6 @@ inside esbuild with `fatal error: all goroutines are asleep - deadlock!` (exit
 134). `ngc -p tsconfig.app.json --noEmit` and the five focused records contract
 tests passed. Separately, `RecordsArchivePagingApiTests` passed 1/1 against
 PostgreSQL for 100/100/5 ordered pages, total counts/cursors and nondisclosing
-foreign/guessed-ID denial. Do not count large-manifest UI paging as verified
-until the current Angular bundle builds and the browser journey passes.
+foreign/guessed-ID denial; negative cursors receive a safe 400. Do not count
+large-manifest UI paging as verified until the current Angular bundle builds
+and the browser journey passes.

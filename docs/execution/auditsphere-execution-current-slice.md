@@ -28,8 +28,9 @@ inside esbuild with `fatal error: all goroutines are asleep - deadlock!` (exit
 therefore not verified yet; rerun the build and journey when the local bundler
 works. Independently, `RecordsArchivePagingApiTests` passed 1/1 against
 PostgreSQL, verifying ordered 100/100/5 pages, total counts/cursors, and
-identical foreign-versus-guessed-ID denials. The Records Archive source row
-remains partial and the migration gate remains `NOT_READY`.
+safe rejection of a negative cursor, plus identical foreign-versus-guessed-ID
+denials. The Records Archive source row remains partial and the migration gate
+remains `NOT_READY`.
 
 ## Shared confirmation cancellation and validation — a27c3102
 

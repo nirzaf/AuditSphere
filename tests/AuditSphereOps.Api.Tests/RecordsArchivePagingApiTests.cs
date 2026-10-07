@@ -82,6 +82,11 @@ public sealed class RecordsArchivePagingApiTests
     Assert.Equal(JsonValueKind.Null, last.GetProperty("nextOrdinal").ValueKind);
     AssertEntryRange(last.GetProperty("entries"), 201, 205);
 
+    using var invalidCursor = await client.GetAsync($"/api/ui/records/archives/{archiveId:D}?afterOrdinal=-1");
+    Assert.Equal(HttpStatusCode.BadRequest, invalidCursor.StatusCode);
+    using (var invalidBody = JsonDocument.Parse(await invalidCursor.Content.ReadAsStringAsync()))
+      Assert.Equal("request.invalid", invalidBody.RootElement.GetProperty("code").GetString());
+
     var foreignResponse = await client.GetAsync($"/api/ui/records/archives/{foreignArchiveId:D}");
     var guessedResponse = await client.GetAsync($"/api/ui/records/archives/{Guid.NewGuid():D}");
     Assert.Equal(HttpStatusCode.Forbidden, foreignResponse.StatusCode);
