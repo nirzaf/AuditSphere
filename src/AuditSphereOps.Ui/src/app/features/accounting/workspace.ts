@@ -178,7 +178,7 @@ export function decodeWorkspace(value: unknown): Workspace {
     <audit-sales-invoice-drafts [clientId]="w.clientId" [currency]="w.profile.currency" [periods]="w.periods" />
     <audit-client-purchase-invoices [clientId]="w.clientId" [currency]="w.profile.currency" [periods]="w.periods" />
           <audit-client-purchase-credit-notes [clientId]="w.clientId" [currency]="w.profile.currency" [periods]="w.periods" />
-          <audit-open-item-allocations [clientId]="w.clientId" />
+          <audit-open-item-allocations [clientId]="w.clientId" [periods]="w.periods.map(p => ({ id: p.id, code: p.code, startDate: p.start, endDate: p.end, currency: p.currency }))" />
           <audit-client-operational-journals [clientId]="w.clientId" [periods]="w.periods" [bookCurrency]="w.profile.currency" />
         }
         <h3>Reporting periods</h3>@if (!w.periods.length) { <p>No reporting periods configured.</p> }

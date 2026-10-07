@@ -3,6 +3,7 @@ using System;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -10,10 +11,9 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 {
-    [DbContext(typeof(AuditSphereDbContext))]
-    partial class AuditSphereDbContextModelSnapshot : ModelSnapshot
+    partial class ClientOperationalPostingSnapshot : Migration
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -12472,11 +12472,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("revision");
 
-                    b.Property<string>("RiskBasisJson")
-                        .HasMaxLength(100000)
-                        .HasColumnType("character varying(100000)")
-                        .HasColumnName("risk_basis_json");
-
                     b.Property<Guid>("SelectionId")
                         .HasColumnType("uuid")
                         .HasColumnName("selection_id");
@@ -13782,61 +13777,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.ToTable("audit_subsequent_match_records", null, t =>
                         {
                             t.HasCheckConstraint("ck_audit_subsequent_match_values", "revision > 0 AND currency ~ '^[A-Z]{3}$' AND matched_amount >= 0 AND state IN ('MATCHED','PARTIALLY_MATCHED','UNMATCHED')");
-                        });
-                });
-
-            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditWorkprogramManagerApproval", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<Guid>("ApprovedByUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("approved_by_user_id");
-
-                    b.Property<Guid>("ClientId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("client_id");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<Guid>("EngagementId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("engagement_id");
-
-                    b.Property<Guid>("FirmId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("firm_id");
-
-                    b.Property<long>("InputGeneration")
-                        .HasColumnType("bigint")
-                        .HasColumnName("input_generation");
-
-                    b.Property<string>("Rationale")
-                        .IsRequired()
-                        .HasMaxLength(8000)
-                        .HasColumnType("character varying(8000)")
-                        .HasColumnName("rationale");
-
-                    b.HasKey("Id");
-
-                    b.HasAlternateKey("FirmId", "Id")
-                        .HasName("AK_audit_workprogram_manager_approvals_firm_id_id");
-
-                    b.HasIndex("FirmId", "ApprovedByUserId");
-
-                    b.HasIndex("FirmId", "ClientId", "EngagementId");
-
-                    b.HasIndex("FirmId", "EngagementId", "CreatedAt")
-                        .HasDatabaseName("ix_audit_workprogram_manager_approvals_engagement_created");
-
-                    b.ToTable("audit_workprogram_manager_approvals", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_audit_workprogram_manager_approval_values", "input_generation > 0 AND length(trim(rationale)) > 0");
                         });
                 });
 
@@ -28315,23 +28255,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("FirmId", "ClientId", "EngagementId", "SelectionItemId")
                         .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditWorkprogramManagerApproval", b =>
-                {
-                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ApprovedByUserId")
-                        .HasPrincipalKey("FirmId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ClientId", "EngagementId")
-                        .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

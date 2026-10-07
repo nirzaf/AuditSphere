@@ -40,6 +40,16 @@ public sealed class OpenApiContractTests
     Assert.StartsWith("3.1", contract.GetProperty("openapi").GetString(), StringComparison.Ordinal);
     var paths = contract.GetProperty("paths");
     Assert.True(paths.TryGetProperty("/api/ui/session", out _));
+    Assert.True(paths.TryGetProperty("/api/ui/accounting/clients/{clientId}/open-item-control-reconciliation", out _));
+    Assert.True(paths.TryGetProperty("/api/ui/accounting/clients/{clientId}/operational-ledger", out var operationalLedger));
+    var ledgerParameters = operationalLedger.GetProperty("get").GetProperty("parameters").EnumerateArray()
+      .Select(parameter => parameter.GetProperty("name").GetString()).ToHashSet(StringComparer.Ordinal);
+    Assert.Contains("postingSnapshotThrough", ledgerParameters);
+    Assert.Contains("accountCodeFrom", ledgerParameters);
+    Assert.Contains("accountCodeTo", ledgerParameters);
+    Assert.Contains("sourceType", ledgerParameters);
+    Assert.Contains("reference", ledgerParameters);
+    Assert.Contains("counterpartyId", ledgerParameters);
     Assert.True(paths.TryGetProperty("/api/ui/search", out _));
     Assert.True(paths.TryGetProperty("/auth/sign-in", out _));
     Assert.True(paths.TryGetProperty("/api/pbc/uploads/{uploadId}/chunks/{chunkIndex}", out _));

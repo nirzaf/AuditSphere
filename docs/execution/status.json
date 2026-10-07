@@ -12033,6 +12033,47 @@
         "Complete story-by-story acceptance audit"
       ]
     },
+    "clientOpenItemsAndManualSettlements": {
+      "status": "LOCAL_RECONCILIATION_SLICE_VERIFIED",
+      "priorEvidence": "The existing six focused PostgreSQL manual settlement journeys and SettlementCheck API build passed before reconciliation additions.",
+      "newImplementation": "Read-only native AR/AP control reconciliation by approved control account and as-of date. Uses repeatable-read snapshot, ties native open items to exactly one approved control line in their posted source journal, includes current approved allocations and reversals, reports differences/unlinked items, and states that opening-item detail is excluded. Allocation decisions have no separate accounting-effective date; a historical cutoff therefore uses current approved allocation state and reports any resulting difference.",
+      "focusedPostgreSqlTests": {
+        "passed": 2,
+        "failed": 0,
+        "tests": [
+          "ManualCustomerReceiptPostsOnceAndCanBeAllocatedToClientInvoice",
+          "ManualSupplierPaymentPostsAgainstClientPayablesWithoutInitiatingPayment"
+        ],
+        "database": "Owned isolated PostgreSQL test schemas in /private/tmp/ca19-verify-20261007."
+      },
+      "angularFocused": {
+        "passed": 1,
+        "failed": 0,
+        "test": "open-item-allocations.spec.ts loads the scoped as-of control report and discloses opening detail exclusion."
+      },
+      "apiOpenApi": {
+        "passed": 2,
+        "failed": 0,
+        "tests": [
+          "ContractIsGeneratedFromActualEndpointsAsOpenApi31",
+          "ContractSerializationIsDeterministicForDriftDetection"
+        ],
+        "artifact": "contracts/auditsphere-openapi.json regenerated from the API host."
+      },
+      "apiBuild": "PASS; zero errors. NU1900 warning because NuGet vulnerability feed was unreachable.",
+      "angularBuild": "PASS; existing Commercial Settings stylesheet is 7.53 kB against the 4 kB component-style budget.",
+      "verificationCheckout": "/private/tmp/ca19-verify-20261007; exact source overlay from managed branch. Used because managed worktree obj writes were denied during concurrent build activity.",
+      "notRun": [
+        "API-hosted Chromium/browser journey",
+        "Full PostgreSQL-backed solution suite",
+        "Production migration or external acceptance"
+      ],
+      "limitations": [
+        "Opening item detail is not included",
+        "CA-19 and the full user-story epic remain incomplete and unmerged",
+        "Tax and other ancillary modules remain optional"
+      ]
+    },
     "clientOperationalJournalExactAmounts": {
       "sourceCommit": "d1698d35",
       "verifiedAt": "2026-10-06T15:41:29.460652+00:00",
@@ -13134,12 +13175,12 @@
       "retirementDecision": "NOT_READY"
     },
     "clientOpenItemAllocation": {
-      "observedAt": "2026-10-07T15:20:54Z",
+      "observedAt": "2026-10-07T16:22:07Z",
       "status": "PARTIAL_LOCAL_SLICE",
       "baseCommit": "7d7baad8",
       "focusedPostgresTests": {
         "status": "PASS",
-        "passed": 2,
+        "passed": 6,
         "failed": 0,
         "skipped": 0,
         "tests": [
@@ -13167,8 +13208,30 @@
         "status": "PASS",
         "result": "No pending model changes."
       },
-      "coverage": "Approved posted client credit allocation, partial allocation, derived balances, exact audited unallocation, and linking an already imported balanced sealed receipt to a posted invoice without adding another cash posting. Imported settlement evidence requires a single approved AR/AP control line, an independent matching cash movement, same party/currency, current authorization and sealed source provenance.",
-      "remaining": "CA-19 remains partial: new manual receipt/payment entries through the normal controlled posting path, AR/AP control reconciliation, and opening-balance detail are not implemented. The full PostgreSQL solution suite was not rerun. Tax and ancillary modules remain optional. This checkpoint is unmerged; no Development/production migration or external acceptance is claimed.",
+      "manualSettlementJourneys": {
+        "status": "PASS",
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "tests": [
+          "ManualCustomerReceiptPostsOnceAndCanBeAllocatedToClientInvoice",
+          "ManualSupplierPaymentPostsAgainstClientPayablesWithoutInitiatingPayment",
+          "ClientPurchaseInvoicePostsOnlyAfterIndependentDuplicateAwareApReview",
+          "ClientSalesCreditNoteIsPositiveLinkedLimitedAndPostsAsUnappliedCredit",
+          "ClientPurchaseCreditNoteIsCumulativeAndPostsOnlyAfterIndependentReview",
+          "ManualSettlementMigrationDownRestoresGenericControlGuard"
+        ],
+        "configuration": "SettlementCheck",
+        "coverage": "PostgreSQL schemas migrated from the current model; customer receipt replay, independent review/posting, allocation residual and no duplicate cash; supplier payment debits client AP and credits client cash; existing supplier invoice and sales/supplier credit-note posting paths remain valid; migration rollback removes settlement schema and restores the prior generic-control guard. No firm journal is created and no bank operation is initiated."
+      },
+      "apiBuild": {
+        "status": "PASS",
+        "configuration": "SettlementCheck",
+        "warnings": 0,
+        "errors": 0
+      },
+      "coverage": "Approved posted client credit allocation, partial allocation, derived balances, exact audited unallocation, and linking an already imported balanced sealed receipt to a posted invoice without adding another cash posting. Imported settlement evidence requires a single approved AR/AP control line, an independent matching cash movement, same party/currency, current authorization and sealed source provenance. Manual customer receipts and supplier payments are externally completed events recorded through balanced, immutable, independently reviewed client journals with idempotent command identity.",
+      "remaining": "CA-19 remains partial: AR/AP control reconciliation and opening-balance/open-item detail are not implemented. The full PostgreSQL solution suite and an API-hosted Angular settlement journey were not run. Tax and ancillary modules remain optional. This checkpoint is unmerged; no Development/production migration or external acceptance is claimed.",
       "implementationCommit": "3589ea51",
       "apiContract": {
         "status": "PASS",
@@ -13222,6 +13285,55 @@
       },
       "coverage": "The Angular form submits an out-of-policy revenue rate, TE below 50%, and SAD below 3%; each refusal displays the typed policy message and PostgreSQL confirms no materiality assessment or calculation was created. Valid inputs then complete the existing calculation and independent Partner approval journey.",
       "boundary": "Local isolated PostgreSQL and API-hosted Angular verification only. The full solution regression and current EF model-drift check were not run. Stale-source UI, failure/recovery, full role matrix, accessibility/locale and production acceptance remain open."
+    },
+    "clientOperationalLedgerSnapshotPagination": {
+      "observedAt": "2026-10-07T18:04:55Z",
+      "status": "PARTIAL_LOCAL_SLICE",
+      "sourceHead": "df51d5c3c47389a9c769bc85bb593666f619ee97",
+      "verificationCheckout": "Isolated temporary verification copy outside both shared and managed worktrees.",
+      "focusedPostgresTest": {
+        "status": "PASS",
+        "passed": 2,
+        "failed": 0,
+        "tests": ["NativeJournalRequiresBalancedDraftIndependentApprovalAndPostsOnce", "PostingSnapshotMigrationBackfillsExistingPostedJournals"],
+        "coverage": "A later backdated posting after page zero is excluded from page one under the original string cursor; original lines, full-result count and Trial Balance remain stable. Filtered GL detail supports date, account-code range, journal source type, reference and counterparty identity while the response separates matching-line count from all lines in the date range. Account-basis filtering preserves earlier activity in opening balances. Missing page cursor is refused. Migration backfill assigns a positive sequence to a legitimate pre-migration posted journal.",
+        "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --configuration Release --filter 'FullyQualifiedName~NativeJournalRequiresBalancedDraftIndependentApprovalAndPostsOnce|FullyQualifiedName~PostingSnapshotMigrationBackfillsExistingPostedJournals'"
+      },
+      "releaseProjectsBuild": {
+        "status": "PASS_WITH_NUGET_AUDIT_WARNING",
+        "projects": "Domain.Tests dependency graph, including Domain, Application, Infrastructure and Worker",
+        "warnings": "NU1900 vulnerability-feed lookup could not reach api.nuget.org; zero compiler errors.",
+        "command": "dotnet build tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --configuration Release --no-restore --verbosity minimal --disable-build-servers -m:1 /p:NuGetAudit=false"
+      },
+      "apiBuild": {
+        "status": "PASS_WITH_NUGET_AUDIT_WARNING",
+        "warnings": "NU1900 vulnerability-feed lookup could not reach api.nuget.org; zero compiler errors.",
+        "command": "dotnet build tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --configuration Release --no-restore --verbosity minimal --disable-build-servers -m:1 /p:NuGetAudit=false"
+      },
+      "apiContractTests": {
+        "status": "PASS",
+        "passed": 5,
+        "failed": 0,
+        "contractSerialization": "PASS; actual API host output regenerated contracts/auditsphere-openapi.json with postingSnapshotThrough and all ledger filter query parameters."
+      },
+      "angularUnitTests": {
+        "status": "PASS",
+        "passed": 17,
+        "failed": 0,
+        "file": "src/app/features/accounting/operational-journals.spec.ts"
+      },
+      "angularProductionBuild": {
+        "status": "UNVERIFIED",
+        "exitCode": 134,
+        "result": "Two attempts exited without compiler diagnostics; production build not established."
+      },
+      "efModelDrift": {
+        "status": "PASS_WITH_TEMPORARY_DESIGN_TIME_FACTORY",
+        "result": "No pending changes. The normal startup-provider discovery timed out at five minutes; the same EF command then passed in the isolated verification copy using a temporary factory that constructs AuditSphereDbContext without opening a database connection.",
+        "command": "dotnet ef --verbose migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Api --no-build --configuration Release"
+      },
+      "browserJourney": "NOT_RUN",
+      "remaining": "Angular production build and live Browser/API-host GL journey have not yet been run for the new filters. Durable full-result export and exact posted-document evidence-version drill-through remain open. Full solution regression, opening balances, carry-forward, source/adjusted reporting and full epic acceptance remain outstanding; no final merge or production acceptance is claimed. VAT/tax and other ancillary modules remain optional."
     }
   },
   "documentationWork": {

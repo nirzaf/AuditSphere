@@ -20,7 +20,7 @@ interface JournalPreview { journalId: string; clientId: string; periodId: string
   totalDebit: string; totalCredit: string; digest: string; lines: JournalLine[] }
 interface TrialBalanceRow { accountId: string; accountCode: string; accountName: string; openingDebit: string; openingCredit: string; periodDebit: string; periodCredit: string; closingDebit: string; closingCredit: string }
 interface TrialBalance { fromDate: string; toDate: string; source: string; openingDebit: string; openingCredit: string; periodDebit: string; periodCredit: string; closingDebit: string; closingCredit: string; rows: TrialBalanceRow[] }
-interface LedgerView { bookkeepingActive: boolean; trialBalance: TrialBalance; clientId: string; periodId: string; periodCode: string; currency: string; basis: string; page: number; pageSize: number; totalEntries: number;
+interface LedgerView { bookkeepingActive: boolean; trialBalance: TrialBalance; clientId: string; periodId: string; periodCode: string; currency: string; basis: string; page: number; pageSize: number; totalEntries: number; periodTotalEntries: number; postingSnapshotThrough: string;
   accounts: { accountId: string; accountCode: string; accountName: string; debitMovement: string; creditMovement: string; netMovement: string }[];
   entries: { journalId: string; journalNumber: string; postingDate: string; lineNumber: number; accountCode: string; accountName: string; description: string; debit: string; credit: string; reversesJournalId?: string | null; reversedByJournalId?: string | null; reversedByStatus?: string | null }[] }
 interface PostingReceipt { commandId: string; clientId: string; journalId: string; actorUserId: string; submittedRevision: string;
@@ -103,7 +103,8 @@ export function decodeOperationalLedger(value: unknown, clientId: string, period
   const v = object(value);
   if (typeof v['bookkeepingActive'] !== 'boolean' || v['clientId'] !== clientId || v['periodId'] !== periodId ||
       !['periodCode', 'currency', 'basis'].every(k => typeof v[k] === 'string') ||
-      !['page', 'pageSize', 'totalEntries'].every(k => Number.isSafeInteger(v[k]) && Number(v[k]) >= 0) ||
+      !['page', 'pageSize', 'totalEntries', 'periodTotalEntries'].every(k => Number.isSafeInteger(v[k]) && Number(v[k]) >= 0) ||
+      typeof v['postingSnapshotThrough'] !== 'string' || !/^(?:0|[1-9]\d{0,18})$/.test(v['postingSnapshotThrough']) || BigInt(v['postingSnapshotThrough']) > 9223372036854775807n ||
       Number(v['pageSize']) < 1 || Number(v['pageSize']) > 200 ||
       !Array.isArray(v['accounts']) || v['accounts'].length > 10000 || !Array.isArray(v['entries']) || v['entries'].length > 200) throw new Error('Invalid ledger response');
   const tb = object(v['trialBalance']);
@@ -293,17 +294,29 @@ function minor(value: string): bigint { if (!nativeJournalAmount(value)) throw n
       }
       <section aria-labelledby="posted-ledger-heading">
         <h4 id="posted-ledger-heading">Posted General Ledger activity</h4>
-        <p>Native client journal movements for the selected period. Opening activity is from earlier posted dates within this period. Reviewed cutover openings, prior-period carry-forward, imported GL and reporting adjustments are not included.</p>
-        <label for="native-ledger-period">Ledger reporting period</label><select id="native-ledger-period" [ngModel]="ledgerPeriodId" (ngModelChange)="ledgerPeriodId = $event; ledgerFrom = ''; ledgerTo = ''; ledger.set(null)">
+        <p>Native client journal movements for the selected period. Opening activity is from all earlier posted dates within this period. Date and account-code filters set the Trial Balance basis; source, reference and counterparty filters narrow matching ledger lines only. Reviewed cutover openings, prior-period carry-forward, imported GL and reporting adjustments are not included.</p>
+        <label for="native-ledger-period">Ledger reporting period</label><select id="native-ledger-period" [ngModel]="ledgerPeriodId" (ngModelChange)="ledgerPeriodId = $event; ledgerFrom = ''; ledgerTo = ''; resetLedgerPaging()">
           <option value="">Choose period</option>@for (p of periods(); track p.id) { <option [value]="p.id">{{ p.code }} · {{ p.currency }} · {{ p.status }}</option> }
         </select>
-        <label>Ledger from date <input type="date" [ngModel]="ledgerFrom" (ngModelChange)="ledgerFrom = $event; ledger.set(null)" /></label>
-        <label>Ledger to date <input type="date" [ngModel]="ledgerTo" (ngModelChange)="ledgerTo = $event; ledger.set(null)" /></label>
-        <label><input type="checkbox" [ngModel]="includeZeroAccounts" (ngModelChange)="includeZeroAccounts = $event; ledger.set(null)" /> Include accounts with no posted activity</label>
+        <label>Ledger from date <input type="date" [ngModel]="ledgerFrom" (ngModelChange)="ledgerFrom = $event; resetLedgerPaging()" /></label>
+        <label>Ledger to date <input type="date" [ngModel]="ledgerTo" (ngModelChange)="ledgerTo = $event; resetLedgerPaging()" /></label>
+        <label>Account code from <input maxlength="100" [ngModel]="ledgerAccountFrom" (ngModelChange)="ledgerAccountFrom = $event; resetLedgerPaging()" /></label>
+        <label>Account code to <input maxlength="100" [ngModel]="ledgerAccountTo" (ngModelChange)="ledgerAccountTo = $event; resetLedgerPaging()" /></label>
+        <label>Journal/source type <select [ngModel]="ledgerSourceType" (ngModelChange)="ledgerSourceType = $event; resetLedgerPaging()">
+          <option value="">All posted sources</option><option value="NATIVE_JOURNAL">Native journal</option><option value="REVERSAL">Reversal</option>
+          <option value="SALES_INVOICE">Sales invoice</option><option value="PURCHASE_INVOICE">Purchase invoice</option>
+          <option value="SALES_CREDIT_NOTE">Sales credit note</option><option value="PURCHASE_CREDIT_NOTE">Purchase credit note</option>
+          <option value="SALES_RECEIPT">Customer receipt</option><option value="SUPPLIER_PAYMENT">Supplier payment</option>
+        </select></label>
+        <label>Journal number or description <input maxlength="100" [ngModel]="ledgerReference" (ngModelChange)="ledgerReference = $event; resetLedgerPaging()" /></label>
+        <label>Counterparty ID <input [ngModel]="ledgerCounterpartyId" (ngModelChange)="ledgerCounterpartyId = $event; resetLedgerPaging()" aria-describedby="ledger-counterparty-help" /></label>
+        <small id="ledger-counterparty-help">Enter the customer or supplier ID shown on its profile.</small>
+        <label><input type="checkbox" [ngModel]="includeZeroAccounts" (ngModelChange)="includeZeroAccounts = $event; resetLedgerPaging()" /> Include accounts with no posted activity</label>
         <button matButton type="button" [disabled]="busy() || !(ledgerPeriodId || periodId)" (click)="loadLedger()">Refresh posted ledger</button>
         @if (ledgerError()) { <p role="alert">{{ ledgerError() }}</p> }
         @if (ledger(); as l) {
-          <p>{{ l.periodCode }} · {{ l.basis }} · {{ l.currency }} · {{ l.totalEntries }} posted lines</p>
+          <p>{{ l.periodCode }} · {{ l.basis }} · {{ l.currency }} · {{ l.totalEntries }} matching posted lines of {{ l.periodTotalEntries }} in the date range</p>
+          <p>Report snapshot through posting sequence {{ l.postingSnapshotThrough }}. Refresh to include later postings.</p>
           <div class="table-scroll"><table><caption>Official native Trial Balance · {{ l.trialBalance.fromDate }} to {{ l.trialBalance.toDate }}</caption>
             <thead><tr><th>Account</th><th>Opening debit</th><th>Opening credit</th><th>Period debits</th><th>Period credits</th><th>Closing debit</th><th>Closing credit</th></tr></thead>
             <tbody>@for (a of l.trialBalance.rows; track a.accountId) { <tr><td>{{ a.accountCode }} · {{ a.accountName }}</td><td>{{ a.openingDebit }}</td><td>{{ a.openingCredit }}</td><td>{{ a.periodDebit }}</td><td>{{ a.periodCredit }}</td><td>{{ a.closingDebit }}</td><td>{{ a.closingCredit }}</td></tr> }</tbody>
@@ -317,6 +330,11 @@ function minor(value: string): bigint { if (!nativeJournalAmount(value)) throw n
               <td>@if (e.reversesJournalId) { Full reversal of {{ e.reversesJournalId }} }
                 @if (e.reversedByJournalId) { Correction {{ e.reversedByJournalId }} · {{ e.reversedByStatus }} }</td>
               <td>{{ e.accountCode }} · {{ e.accountName }}</td><td>{{ e.description }}</td><td>{{ e.debit }}</td><td>{{ e.credit }}</td></tr> }</tbody></table></div> }
+          <nav aria-label="Posted ledger pages">
+            <button matButton type="button" [disabled]="busy() || l.page === 0" (click)="loadLedger(l.page - 1)">Previous ledger page</button>
+            <span>Page {{ l.page + 1 }} of {{ ledgerPageCount() }}</span>
+            <button matButton type="button" [disabled]="busy() || (l.page + 1) * l.pageSize >= l.totalEntries" (click)="loadLedger(l.page + 1)">Next ledger page</button>
+          </nav>
         }
       </section>
       <form #createForm="ngForm" (ngSubmit)="createForm.valid && create()">
@@ -389,9 +407,11 @@ export class ClientOperationalJournals {
   readonly listLoading = signal(false); readonly listError = signal(''); readonly serviceActive = signal<boolean | null>(null);
   listPeriod = ''; listStatus = ''; private listRequest = 0; private listOperation?: Subscription;
   private ledgerRequest = 0;
+  private readonly ledgerPageSize = 100;
   ledgerPeriodId = '';
-  ledgerFrom = ''; ledgerTo = ''; includeZeroAccounts = false;
+  ledgerFrom = ''; ledgerTo = ''; ledgerAccountFrom = ''; ledgerAccountTo = ''; ledgerSourceType = ''; ledgerReference = ''; ledgerCounterpartyId = ''; includeZeroAccounts = false;
   readonly ledger = signal<LedgerView | null>(null);
+  readonly ledgerPageCount = (): number => { const current = this.ledger(); return current ? Math.max(1, Math.ceil(current.totalEntries / current.pageSize)) : 1; };
   readonly busy = signal(false);
   readonly error = signal('');
   readonly ledgerError = signal('');
@@ -402,7 +422,7 @@ export class ClientOperationalJournals {
   private operation?: Subscription;
   private readonly invalidate = effect(() => {
     const id = this.clientId(); this.session.invalidation();
-    untracked(() => { this.operation?.unsubscribe(); this.listOperation?.unsubscribe(); ++this.listRequest; this.journalList.set(null); this.listLoading.set(false); this.listError.set(''); this.listPeriod = ''; this.listStatus = ''; this.serviceActive.set(null); this.journal.set(null); this.snapshots.set(null); this.preview.set(null); this.ledger.set(null); this.ledgerPeriodId = ''; this.ledgerFrom = ''; this.ledgerTo = ''; this.includeZeroAccounts = false; this.error.set(''); this.ledgerError.set(''); this.uncertain.set(false); this.busy.set(false); this.lookupId = ''; this.reason = ''; this.reversalPeriodId = ''; this.reversalNumber = ''; this.reversalDate = ''; this.reversalReason = ''; this.reversalEvidence = ''; this.receiptKey = ''; this.postingReceipt.set(null); this.pendingPosting.set(null); this.retryOriginal.set(false); this.resetDraft(); });
+    untracked(() => { this.operation?.unsubscribe(); this.listOperation?.unsubscribe(); ++this.listRequest; this.journalList.set(null); this.listLoading.set(false); this.listError.set(''); this.listPeriod = ''; this.listStatus = ''; this.serviceActive.set(null); this.journal.set(null); this.snapshots.set(null); this.preview.set(null); this.ledger.set(null); this.ledgerPeriodId = ''; this.ledgerFrom = ''; this.ledgerTo = ''; this.ledgerAccountFrom = ''; this.ledgerAccountTo = ''; this.ledgerSourceType = ''; this.ledgerReference = ''; this.ledgerCounterpartyId = ''; this.includeZeroAccounts = false; this.error.set(''); this.ledgerError.set(''); this.uncertain.set(false); this.busy.set(false); this.lookupId = ''; this.reason = ''; this.reversalPeriodId = ''; this.reversalNumber = ''; this.reversalDate = ''; this.reversalReason = ''; this.reversalEvidence = ''; this.receiptKey = ''; this.postingReceipt.set(null); this.pendingPosting.set(null); this.retryOriginal.set(false); this.resetDraft(); });
     void id;
   });
   constructor() { inject(DestroyRef).onDestroy(() => { this.operation?.unsubscribe(); this.listOperation?.unsubscribe(); }); }
@@ -472,7 +492,7 @@ export class ClientOperationalJournals {
     this.editing.set(null);
     const generation = this.session.invalidation(); this.preview.set(null); this.snapshots.set(null); this.reviewed.set(false); this.busy.set(true); this.error.set('');
     this.operation = this.http.get<unknown>(`/api/ui/accounting/clients/${clientId}/operational-journals/${id}`).pipe(timeout(15000)).subscribe({
-      next: value => { if (generation !== this.session.invalidation()) return; try { const journal = decodeOperationalJournal(value, clientId); if (journal.id !== id) throw new Error(); this.journal.set(journal); this.uncertain.set(!!this.pendingPosting()); this.reviewed.set(false); this.busy.set(false); if (journal.status === 'POSTED') this.loadLedger(journal.periodId); } catch { this.busy.set(false); this.error.set('Journal details could not be validated for this client.'); } },
+      next: value => { if (generation !== this.session.invalidation()) return; try { const journal = decodeOperationalJournal(value, clientId); if (journal.id !== id) throw new Error(); this.journal.set(journal); this.uncertain.set(!!this.pendingPosting()); this.reviewed.set(false); this.busy.set(false); if (journal.status === 'POSTED') this.loadLedger(0, journal.periodId); } catch { this.busy.set(false); this.error.set('Journal details could not be validated for this client.'); } },
       error: failure => { if (generation !== this.session.invalidation()) return; this.busy.set(false); this.error.set('Journal could not be loaded in this client scope.'); if (failure.status === 401) this.session.clear(); },
     });
   }
@@ -491,19 +511,29 @@ export class ClientOperationalJournals {
         this.listLoading.set(false); this.listError.set('Saved journals are unavailable. Refresh or retry.'); if (failure.status === 401) this.session.clear(); }
     });
   }
-  loadLedger(forPeriodId = this.ledgerPeriodId || this.periodId): void {
+  resetLedgerPaging(): void { ++this.ledgerRequest; this.ledger.set(null); }
+  loadLedger(page = 0, forPeriodId = this.ledgerPeriodId || this.periodId): void {
     const clientId = this.clientId(); const period = this.periods().find(p => p.id === forPeriodId);
     if (!period || this.busy()) return;
     this.ledgerPeriodId = forPeriodId;
-    const generation = this.session.invalidation(); this.ledgerError.set(''); this.ledger.set(null);
+    const priorLedger = this.ledger();
+    if (page > 0 && (!priorLedger || priorLedger.periodId !== forPeriodId || priorLedger.pageSize !== this.ledgerPageSize)) return;
+    const generation = this.session.invalidation(); this.ledgerError.set('');
     const request = ++this.ledgerRequest; const zeroAccounts = this.includeZeroAccounts;
-    const fromDate = this.ledgerFrom; const toDate = this.ledgerTo;
-    const params: Record<string, string> = { periodId: forPeriodId, page: '0', pageSize: '100', includeZeroAccounts: String(this.includeZeroAccounts) };
+    const fromDate = this.ledgerFrom; const toDate = this.ledgerTo; const accountCodeFrom = this.ledgerAccountFrom.trim(); const accountCodeTo = this.ledgerAccountTo.trim();
+    const sourceType = this.ledgerSourceType; const reference = this.ledgerReference.trim(); const counterpartyId = this.ledgerCounterpartyId.trim();
+    if ((accountCodeFrom && accountCodeTo && accountCodeFrom > accountCodeTo) || (counterpartyId && !guidPattern.test(counterpartyId))) {
+      this.ledgerError.set('Check the account range and enter a valid customer or supplier ID.'); return;
+    }
+    const params: Record<string, string> = { periodId: forPeriodId, page: String(page), pageSize: String(this.ledgerPageSize), includeZeroAccounts: String(this.includeZeroAccounts) };
+    if (page > 0 && priorLedger) params['postingSnapshotThrough'] = priorLedger.postingSnapshotThrough;
     if (fromDate) params['fromDate'] = fromDate; if (toDate) params['toDate'] = toDate;
+    if (accountCodeFrom) params['accountCodeFrom'] = accountCodeFrom; if (accountCodeTo) params['accountCodeTo'] = accountCodeTo;
+    if (sourceType) params['sourceType'] = sourceType; if (reference) params['reference'] = reference; if (counterpartyId) params['counterpartyId'] = counterpartyId;
     this.operation = this.http.get<unknown>(`/api/ui/accounting/clients/${clientId}/operational-ledger`, {
       params,
     }).pipe(timeout(15000)).subscribe({
-      next: value => { if (generation !== this.session.invalidation() || request !== this.ledgerRequest) return; try { const decoded = decodeOperationalLedger(value, clientId, forPeriodId); if ((fromDate && decoded.trialBalance.fromDate !== fromDate) || (toDate && decoded.trialBalance.toDate !== toDate) || this.ledgerFrom !== fromDate || this.ledgerTo !== toDate || this.ledgerPeriodId !== forPeriodId || this.includeZeroAccounts !== zeroAccounts) return; this.ledger.set(decoded); this.serviceActive.set(decoded.bookkeepingActive); }
+      next: value => { if (generation !== this.session.invalidation() || request !== this.ledgerRequest) return; try { const decoded = decodeOperationalLedger(value, clientId, forPeriodId); if (decoded.page !== page || (fromDate && decoded.trialBalance.fromDate !== fromDate) || (toDate && decoded.trialBalance.toDate !== toDate) || this.ledgerFrom !== fromDate || this.ledgerTo !== toDate || this.ledgerAccountFrom.trim() !== accountCodeFrom || this.ledgerAccountTo.trim() !== accountCodeTo || this.ledgerSourceType !== sourceType || this.ledgerReference.trim() !== reference || this.ledgerCounterpartyId.trim() !== counterpartyId || this.ledgerPeriodId !== forPeriodId || this.includeZeroAccounts !== zeroAccounts) return; this.ledger.set(decoded); this.serviceActive.set(decoded.bookkeepingActive); }
         catch { this.ledger.set(null); this.ledgerError.set('Posted ledger response did not match this client and period.'); } },
       error: failure => { if (generation === this.session.invalidation() && request === this.ledgerRequest) { this.ledger.set(null); this.ledgerError.set('Posted client ledger is unavailable. Retry or refresh the client.'); if (failure.status === 401) this.session.clear(); } },
     });

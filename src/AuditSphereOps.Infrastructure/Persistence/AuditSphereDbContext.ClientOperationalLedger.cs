@@ -16,12 +16,15 @@ public sealed partial class AuditSphereDbContext
     journal.Property(x => x.Description).HasMaxLength(1000);
     journal.Property(x => x.Currency).HasMaxLength(3);
     journal.Property(x => x.Status).HasMaxLength(20);
+    journal.Property(x => x.PostingSequence).HasColumnName("posting_sequence").ValueGeneratedOnAddOrUpdate();
     journal.HasIndex(x => new { x.FirmId, x.ClientId, x.PeriodId, x.JournalNumber }).IsUnique()
       .HasDatabaseName("ux_client_operational_journal_number");
+    journal.HasIndex(x => new { x.FirmId, x.ClientId, x.PeriodId, x.PostingSequence })
+      .HasDatabaseName("ix_client_operational_journal_posting_snapshot").HasFilter("status = 'POSTED'");
     journal.ToTable("client_operational_journals", t => t.HasCheckConstraint("ck_client_operational_journal_values",
       "length(trim(journal_number)) > 0 AND length(trim(description)) > 0 AND currency ~ '^[A-Z]{3}$' AND revision >= 1" +
       " AND status IN ('DRAFT','SUBMITTED','RETURNED','APPROVED','POSTED')" +
-      " AND ((status = 'POSTED' AND posted_by_user_id IS NOT NULL AND posted_at IS NOT NULL) OR status <> 'POSTED')"));
+      " AND ((status = 'POSTED' AND posted_by_user_id IS NOT NULL AND posted_at IS NOT NULL AND posting_sequence > 0) OR (status <> 'POSTED' AND posting_sequence IS NULL))"));
     journal.HasOne<PracticeClient>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     journal.HasOne<ClientReportingPeriod>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.PeriodId })
