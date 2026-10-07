@@ -13,6 +13,17 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Angular materiality stale-source handling — 2026-10-07
+
+The materiality journey now replaces the approved mapping after independent
+approval and refreshes the audit plan. The UI marks the prior calculation stale,
+explains that it no longer supports difference evaluation, removes the approval
+action and omits FSLI risk stratification rather than applying old thresholds to
+the replacement mapping. The PostgreSQL-backed Angular Playwright journey passed
+1/1. The source/action row remains partial for calculation failure/recovery and
+the broader materiality role matrix; the full solution and EF model-drift checks
+were not rerun.
+
 ## Angular materiality policy refusals — 2026-10-07
 
 The audit-plan browser journey now submits a revenue rate above its configured
@@ -22,7 +33,7 @@ the refused attempts created no materiality assessment or calculation. The
 journey then restores valid inputs and completes the existing successful
 calculation and independent Partner approval flow. The PostgreSQL-backed
 Playwright journey passed 1/1. The MaterialityEnginePanel source/action row
-remains partial for stale-source UI, calculation failure/recovery and broader
+remains partial for calculation failure/recovery and broader
 role-matrix evidence; full solution and EF checks were not rerun.
 
 ## Angular risk-routing independent review — 2026-10-07
@@ -67,8 +78,10 @@ the current shared working tree, including the parallel finance UI edits. The
 result is attributed to master `0c4391ba` plus those uncommitted working-tree
 changes, not a clean commit. A production-build retry inside the restricted
 sandbox reproduced the esbuild deadlock (exit 134); the earlier outside-sandbox
-build remains the latest bundle pass. The full PostgreSQL-backed solution and
-EF model drift checks were not rerun.
+build remains the latest bundle pass. After the Records retry test was pushed
+as `0833f8a2`, an outside-sandbox production build passed again and the focused
+PostgreSQL Playwright archive cohort passed 2/2 against the fresh bundle. The
+full PostgreSQL-backed solution and EF model drift checks were not rerun.
 
 ## Shared confirmation cancellation and validation — a27c3102
 

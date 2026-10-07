@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "0c4391ba21c6da4bdc6f85851128c487b1232a3c",
+  "headCommit": "0833f8a2837188a505a0d8acfbb1ac541bc0fb1c",
   "verifiedCommit": "5198a415cbf7765c391af9a87fb6baa9401874b1",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -1908,10 +1908,10 @@
           "ASP.NET API explicit route catalogue and AngularRoutingContractTests"
         ],
         "existingJourneyEvidence": [
-        "AngularRouteAndShellMigrationSweepTests.ParameterlessRoutesRenderAndPreserveRoleSpecificShells",
-        "AngularShellNavigationJourneyTests.ResponsiveMenu_KeyboardFocus_ContextAndRevocation",
-        "AngularInstallationBootstrapJourneyTests",
-        "AngularRoutingContractTests"
+          "AngularRouteAndShellMigrationSweepTests.ParameterlessRoutesRenderAndPreserveRoleSpecificShells",
+          "AngularShellNavigationJourneyTests.ResponsiveMenu_KeyboardFocus_ContextAndRevocation",
+          "AngularInstallationBootstrapJourneyTests",
+          "AngularRoutingContractTests"
         ],
         "freshPostgresPlaywright": {
           "status": "NOT_RUN",
@@ -11268,7 +11268,9 @@
       "observedAt": "2026-10-07T13:05:00Z",
       "status": "PASS_LOCAL_SLICE",
       "caseId": "AS-PAR-002-ANGULAR-WORKPAPER-DISCARD-01",
-      "additionalCaseIds": ["AS-PAR-002-ANGULAR-WORKPAPER-NAV-DISCARD-01"],
+      "additionalCaseIds": [
+        "AS-PAR-002-ANGULAR-WORKPAPER-NAV-DISCARD-01"
+      ],
       "focusedPostgresPlaywright": {
         "status": "PASS",
         "passed": 3,
@@ -11288,8 +11290,21 @@
       "observedAt": "2026-10-07T13:20:41Z",
       "status": "PASS_LOCAL_SLICE",
       "caseId": "AS-PAR-002-ANGULAR-WORKPAPER-DISCARD-REFUSAL-01",
-      "focusedAngularTests": { "status": "PASS", "passed": 13, "failed": 0, "skipped": 0, "command": "npm run test:ci -- --include=src/app/features/audit/workpaper.spec.ts" },
-      "focusedPostgresPlaywright": { "status": "PASS", "passed": 4, "failed": 0, "skipped": 0, "duration": "1m19s", "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-build --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~AngularWorkpaperSaveRecoveryJourneyTests' --logger 'console;verbosity=minimal'" },
+      "focusedAngularTests": {
+        "status": "PASS",
+        "passed": 13,
+        "failed": 0,
+        "skipped": 0,
+        "command": "npm run test:ci -- --include=src/app/features/audit/workpaper.spec.ts"
+      },
+      "focusedPostgresPlaywright": {
+        "status": "PASS",
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0,
+        "duration": "1m19s",
+        "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-build --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~AngularWorkpaperSaveRecoveryJourneyTests' --logger 'console;verbosity=minimal'"
+      },
       "coverage": "A simulated 409 discard refusal confirms the leave guard does not race its pending autosave: navigation is blocked, the active server draft remains at revision 1 with its original content, and typed edits are not persisted. Direct and navigation discard plus lost-save reconciliation/submission recovery also pass.",
       "builtInBrowser": "BLOCKED: the built-in browser rejected the local URL under its browser security policy. The authenticated UI behavior was verified in the owned API-host Playwright sessions and the focused Angular unit suite.",
       "angularProductionBuild": "NOT_RUN; shared checkout includes concurrent agent UI edits. Focused Workpaper Angular test build passed.",
@@ -11321,7 +11336,15 @@
         "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~AngularWorkpaperSaveRecoveryJourneyTests|FullyQualifiedName~AngularClientScopeAuditDetailJourneyTests|FullyQualifiedName~AngularAuditRevocationParityJourneyTests|FullyQualifiedName~AngularAuditFieldworkParityJourneyTests'"
       },
       "coverage": "Workpaper save-outcome reconciliation and submit, client/sibling/guessed-ID detail isolation, revocation clearing, fieldwork-to-workpaper linkage, direct draft discard, discard-before-navigation without persisting unsaved edits, and refused discard that blocks navigation while preserving the active draft.",
-      "followUpDiscardJourney": { "status": "PASS", "passed": 4, "failed": 0, "skipped": 0, "duration": "1m19s", "sourceCommit": "6d1f91ad21bb68c4081021eee961e3ebad3c0bf1", "coverage": "The complete Workpaper save/recovery E2E class passed: direct discard, navigation discard without persisting typed edits, refused discard that blocks navigation and preserves the active draft, and lost-acknowledgement reconciliation followed by one submission." },
+      "followUpDiscardJourney": {
+        "status": "PASS",
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0,
+        "duration": "1m19s",
+        "sourceCommit": "6d1f91ad21bb68c4081021eee961e3ebad3c0bf1",
+        "coverage": "The complete Workpaper save/recovery E2E class passed: direct discard, navigation discard without persisting typed edits, refused discard that blocks navigation and preserves the active draft, and lost-acknowledgement reconciliation followed by one submission."
+      },
       "builtInBrowser": "PASS_LOCAL_READ_ONLY: the Development browser showed the generic unavailable state for a guessed workpaper ID under an unassigned identity, with no protected content or commands.",
       "fullSolutionRegression": "NOT_RUN for this review; latest complete PostgreSQL-backed Release result remains 1001/1001 at ead85032de2ccc4d4c8043398fa8471d395376a9.",
       "efModelDrift": "Not rerun; no Application, Domain, entity or EF model code changed in this source-review slice.",
@@ -11382,26 +11405,72 @@
       "observedAt": "2026-10-07T13:29:00Z",
       "status": "PASS_LOCAL_SLICE",
       "caseId": "AS-PAR-002-ANGULAR-ARCHIVE-INCOMPLETE-01",
-      "focusedPostgresPlaywright": { "status": "PASS", "passed": 1, "failed": 0, "skipped": 0, "duration": "33s", "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~AngularArchiveCompletenessJourneyTests' --logger 'console;verbosity=minimal'" },
+      "focusedPostgresPlaywright": {
+        "status": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "duration": "33s",
+        "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~AngularArchiveCompletenessJourneyTests' --logger 'console;verbosity=minimal'"
+      },
       "coverage": "A persisted INCOMPLETE manifest with a valid digest and zero entries renders the exact blocker reason, 0-entry empty state, profile/version and digest; records protection and label/action states remain Not observed/Not requested. The page does not claim archive completeness.",
       "fullSolutionRegression": "NOT_RUN; latest complete PostgreSQL-backed Release solution result remains 1001/1001 at ead85032de2ccc4d4c8043398fa8471d395376a9.",
       "efModelDrift": "Not rerun; no Application, Domain or EF model code changed.",
       "retirementDecision": "NOT_READY"
     },
     "angularArchiveManifestPaging": {
-      "sourceCommit": "1af5e694",
-      "observedAt": "2026-10-07T14:16:00Z",
+      "sourceCommit": "0833f8a2",
+      "observedAt": "2026-10-07T14:43:00Z",
       "status": "PASS_LOCAL_SLICE",
       "caseId": "AS-PAR-002-ANGULAR-ARCHIVE-PAGING-01",
       "implementation": "Archive API reads are capped at 100 ordered manifest entries and return totalEntryCount and nextOrdinal. Angular progressively loads subsequent pages.",
-      "focusedAngularContractTests": { "status": "PASS", "passed": 6, "failed": 0, "skipped": 0, "observedAt": "2026-10-07T14:30:41Z", "verificationBase": "master 0c4391ba plus the local records.spec.ts change", "command": "npm run test:ci -- --include=src/app/features/audit/records.spec.ts", "additionalCoverage": "Archive pagination preserves the current page and cursor after a transient next-page read failure, then appends the same page on explicit retry." },
-      "angularTemplateCompilation": { "status": "PASS", "command": "npx ngc -p tsconfig.app.json --noEmit" },
-      "postgresApiPagingJourney": { "status": "PASS", "passed": 1, "failed": 0, "skipped": 0, "observedAt": "2026-10-07T14:02:00Z", "caseId": "AS-PAR-002-ARCHIVE-API-PAGING-01", "command": "dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~RecordsArchivePagingApiTests' --logger 'console;verbosity=minimal'", "coverage": "Verifies ordered 100/100/5 pages with total counts 205, exact nextOrdinal cursors, safe 400 refusal for a negative cursor, and identical foreign-versus-guessed-ID denial responses." },
-      "angularBuild": { "status": "PASS_WITH_BUDGET_WARNING", "command": "npm run build", "execution": "outside restricted sandbox", "initialBundle": "349.89 kB raw and 94.09 kB estimated transfer", "warning": "Commercial settings stylesheet is 7.53 kB against the 4 kB component warning budget." },
-      "postgresBrowserJourney": { "status": "PASS", "passed": 2, "failed": 0, "skipped": 0, "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~AngularArchiveCompletenessJourneyTests' --logger 'console;verbosity=minimal'", "coverage": "Fresh production Angular assets; 205-entry ordered, duplicate-free 100/100/5 rendering and incomplete/empty-manifest presentation." },
-      "builtInBrowser": { "status": "BLOCKED_LOCAL_HOST", "details": "The available in-app browser tab showed localhost:5105 connection refused. Authenticated UI behavior was verified in the focused PostgreSQL Playwright journey." },
+      "focusedAngularContractTests": {
+        "status": "PASS",
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "observedAt": "2026-10-07T14:30:41Z",
+        "verificationBase": "master 0c4391ba plus the local records.spec.ts change",
+        "command": "npm run test:ci -- --include=src/app/features/audit/records.spec.ts",
+        "additionalCoverage": "Archive pagination preserves the current page and cursor after a transient next-page read failure, then appends the same page on explicit retry."
+      },
+      "angularTemplateCompilation": {
+        "status": "PASS",
+        "command": "npx ngc -p tsconfig.app.json --noEmit"
+      },
+      "postgresApiPagingJourney": {
+        "status": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "observedAt": "2026-10-07T14:02:00Z",
+        "caseId": "AS-PAR-002-ARCHIVE-API-PAGING-01",
+        "command": "dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~RecordsArchivePagingApiTests' --logger 'console;verbosity=minimal'",
+        "coverage": "Verifies ordered 100/100/5 pages with total counts 205, exact nextOrdinal cursors, safe 400 refusal for a negative cursor, and identical foreign-versus-guessed-ID denial responses."
+      },
+      "angularBuild": {
+        "status": "PASS_WITH_BUDGET_WARNING",
+        "command": "npm run build",
+        "execution": "outside restricted sandbox",
+        "observedAt": "2026-10-07T14:41:31Z",
+        "initialBundle": "349.89 kB raw and 94.09 kB estimated transfer",
+        "warning": "Commercial settings stylesheet is 7.53 kB against the 4 kB component warning budget."
+      },
+      "postgresBrowserJourney": {
+        "status": "PASS",
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "observedAt": "2026-10-07T14:42:00Z",
+        "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~AngularArchiveCompletenessJourneyTests' --logger 'console;verbosity=minimal'",
+        "coverage": "Fresh production Angular assets; 205-entry ordered, duplicate-free 100/100/5 rendering and incomplete/empty-manifest presentation. API/Application/E2E Release projects compiled in the shared tree."
+      },
+      "builtInBrowser": {
+        "status": "BLOCKED_LOCAL_HOST",
+        "details": "The available in-app browser tab showed localhost:5105 connection refused. Authenticated UI behavior was verified in the focused PostgreSQL Playwright journey."
+      },
       "firstBrowserAttempt": "The first focused run failed because the incomplete-manifest assertion matched two role=status elements; the selector was narrowed to the exact archive summary text and the rerun passed 2/2.",
-      "sharedWorktreeBoundary": "The build and focused E2E run used the shared checkout, which also contained unrelated uncommitted finance and audit-planning edits from the parallel agent. Those paths were not staged or included in this slice's commit.",
+      "sharedWorktreeBoundary": "The build and focused E2E run used master 0833f8a2 plus the shared checkout's unrelated uncommitted finance edits. Those paths were not staged or included in this slice's commit.",
       "fullSolutionRegression": "NOT_RUN",
       "efModelDrift": "NOT_RUN",
       "retirementDecision": "NOT_READY"
@@ -11416,7 +11485,13 @@
       "testFiles": 108,
       "command": "npm run test:ci",
       "workingTreeBoundary": "The run used master 0c4391ba plus the shared working-tree changes present at execution, including the archive retry contract test and parallel finance UI edits. It is not a clean-commit-only result.",
-      "angularProductionBuildSandboxAttempt": { "status": "BLOCKED_SANDBOX_ESBUILD", "exitCode": 134, "observedAt": "2026-10-07T14:36:50Z", "command": "npm run build", "details": "The restricted-sandbox build reproduced esbuild's fatal all-goroutines-asleep deadlock. The latest outside-sandbox build passed at the earlier archive-paging source checkpoint; rerun outside the sandbox for current-tree bundle evidence." },
+      "angularProductionBuildSandboxAttempt": {
+        "status": "BLOCKED_SANDBOX_ESBUILD",
+        "exitCode": 134,
+        "observedAt": "2026-10-07T14:36:50Z",
+        "command": "npm run build",
+        "details": "The restricted-sandbox build reproduced esbuild's fatal all-goroutines-asleep deadlock. The latest outside-sandbox build passed at the earlier archive-paging source checkpoint; rerun outside the sandbox for current-tree bundle evidence."
+      },
       "fullSolutionRegression": "NOT_RUN",
       "retirementDecision": "NOT_READY"
     },
@@ -11453,7 +11528,14 @@
         "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~AngularReleaseParityJourneyTests'"
       },
       "coverage": "Archive manifest read, sibling/guessed-ID denial, responsive/focus assertions, and an incomplete zero-entry manifest blocker/empty state; expired-protection release refusal, no release write, sibling denial, same-document guessed-ID clearing and current-grant revocation clearing. The Angular release key is cleared before request dispatch.",
-      "followUpIncompleteManifestJourney": { "status": "PASS", "passed": 1, "failed": 0, "skipped": 0, "duration": "33s", "sourceCommit": "21e85a17" },
+      "followUpIncompleteManifestJourney": {
+        "status": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "duration": "33s",
+        "sourceCommit": "21e85a17"
+      },
       "builtInBrowser": "PASS_LOCAL_READ_ONLY: the Development browser rendered generic unavailable states for guessed archive and release IDs without protected record content.",
       "fullSolutionRegression": "NOT_RUN for this review; latest complete PostgreSQL-backed Release result remains 1001/1001 at ead85032de2ccc4d4c8043398fa8471d395376a9.",
       "efModelDrift": "Not rerun; no Application, Domain, entity or EF model code changed in this source-review slice.",
@@ -12810,7 +12892,23 @@
         "Full epic, exhaustive scope/concurrency matrices and final merge remain open"
       ],
       "continuationWorktree": "/Users/qts/.codex/worktrees/client-invoice-posting/AuditSphere",
-      "coordination": "User explicitly authorized messaging the other AuditSphere chat; preservation/cleanup coordination request sent. No final epic merge by this task."
+      "coordination": "User explicitly authorized messaging the other AuditSphere chat; preservation/cleanup coordination request sent. No final epic merge by this task.",
+      "clientOpenItemsAndManualSettlements": {
+        "status": "PENDING_RECONCILIATION_VERIFICATION",
+        "priorEvidence": "Existing six focused PostgreSQL manual settlement journeys and the SettlementCheck API build passed before the as-of reconciliation additions.",
+        "newImplementation": "Read-only native AR/AP control reconciliation by approved control account and as-of date. Uses repeatable-read snapshot, ties native open items to exactly one approved control line in their posted source journal, accounts for approved allocations and reversals, reports differences and unlinked items, and states that opening-item detail is excluded.",
+        "testsAdded": [
+          "ManualCustomerReceiptPostsOnceAndCanBeAllocatedToClientInvoice",
+          "ManualSupplierPaymentPostsAgainstClientPayablesWithoutInitiatingPayment"
+        ],
+        "verification": "PENDING: subsequent builds were blocked by denied writes to the worktree obj assemblies during overlapping build activity. The Angular build process exited 134 without compiler diagnostics. Do not attribute earlier evidence to this added reconciliation.",
+        "limitations": [
+          "Opening item detail is not included",
+          "No focused API-hosted browser journey for reconciliation",
+          "The full user-story epic remains incomplete and unmerged",
+          "Tax and other ancillary modules remain optional"
+        ]
+      }
     },
     "nativeClientAcceptanceRestored": {
       "caseId": "STE-REM-01+STE-REM-29a",
