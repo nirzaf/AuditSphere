@@ -517,7 +517,7 @@
       "source": "src/AuditSphereOps.Web/Components/Shared/ConfirmDialog.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-confirm-dialog-source-review.md",
-      "reviewedAtCommit": "0eae20245559407964e20adf9b2368956d1eee7d",
+      "reviewedAtCommit": "a27c31027f2e229e1a7cf77d5e7ba447a155d1b1",
       "openGaps": ["Complete role, scope, expiry, cross-firm and unknown-result matrix across both callers", "Human screen-reader and wider-locale acceptance"]
     },
     {

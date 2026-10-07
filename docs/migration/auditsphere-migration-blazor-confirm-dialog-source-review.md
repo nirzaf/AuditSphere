@@ -73,9 +73,21 @@ was unavailable because the local host refused the connection. The protected
 journey was therefore verified in the owned API-host Playwright session, not in
 the user’s interactive Development session.
 
-This closes the cancel and required-confirmation assertions for the local
-revocation flow. The shared source/action row remains `PARTIAL`: the full role,
-scope, expiry, cross-firm and unknown-result matrices across both callers,
-screen-reader and wider-locale review, and overall migration acceptance remain
-open. The complete solution suite, Angular production build and EF drift check
-were not rerun for this test-only change.
+The second caller,
+`AngularCommercialJourneyTests.LeadQualificationConfirmationIdentifiesExactRecordAndKeepsAcceptanceSeparate`,
+was also extended to cancel before confirmation and verify in PostgreSQL that
+the lead remains `NEW`. It then reopens the exact lead confirmation and
+completes qualification while retaining the explicit separation from client
+acceptance and access. Its focused Release E2E command passed **1/1** in 38
+seconds on an owned isolated PostgreSQL/API host:
+
+```bash
+dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~AngularCommercialJourneyTests.LeadQualificationConfirmationIdentifiesExactRecordAndKeepsAcceptanceSeparate' --logger 'console;verbosity=minimal'
+```
+
+Together these checks cover cancel-without-mutation for both callers and the
+revocation reason and reviewed-grant gates. The shared source/action row remains
+`PARTIAL`: the full role, scope, expiry, cross-firm and unknown-result matrices
+across both callers, screen-reader and wider-locale review, and overall
+migration acceptance remain open. The complete solution suite, Angular
+production build and EF drift check were not rerun for these test-only changes.
