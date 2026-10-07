@@ -44,6 +44,11 @@ public static partial class AuditFieldworkService
       await tx.CommitAsync(ct); // persist the recorded refused attempt before refusing
       return CommandResult<ItemTestValue>.Fail(writable.ErrorCode!, writable.Message!);
     }
+    // Sampled-item execution is a substantive test route: it requires the same current approved
+    // planning basis as procedure results (STE-REM-04), fenced inside the execution transaction.
+    var readiness = await ProcedureRiskBandEvaluator.ReadinessBlockerAsync(db, item.FirmId, item.EngagementId, ct);
+    if (readiness is not null)
+      return CommandResult<ItemTestValue>.Fail(ErrorCodes.GateBlocked, readiness);
     var revision = (await db.AuditItemTests.AsNoTracking().Where(x => x.SelectionItemId == item.Id).MaxAsync(x => (long?)x.Revision, ct) ?? 0) + 1;
     var test = new AuditItemTest
     {
@@ -90,6 +95,10 @@ public static partial class AuditFieldworkService
       await tx.CommitAsync(ct); // persist the recorded refused attempt before refusing
       return CommandResult.Fail(writable.ErrorCode!, writable.Message!);
     }
+    // Item-test review is substantive too: review against the current approved planning basis only (STE-REM-04).
+    var readiness = await ProcedureRiskBandEvaluator.ReadinessBlockerAsync(db, test.FirmId, test.EngagementId, ct);
+    if (readiness is not null)
+      return CommandResult.Fail(ErrorCodes.GateBlocked, readiness);
     db.AuditItemTestReviews.Add(new AuditItemTestReview
     {
       Id = Guid.CreateVersion7(), FirmId = test.FirmId, ClientId = test.ClientId, EngagementId = test.EngagementId,

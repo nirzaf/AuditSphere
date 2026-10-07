@@ -47,6 +47,25 @@ public sealed class AuditProgramWorkflowTests
       new DecideProcedureApplicabilityRequest(procedure.Id, AuditApplicabilityStatuses.Applicable, null));
     Assert.True(decided.Succeeded);
 
+    // Substantive result submission requires the approved planning basis (STE-REM-04): sealed balanced
+    // TB, approved mapping and current independently approved materiality, through the real commands.
+    var basisApproverId = Guid.NewGuid();
+    db.Users.Add(new AppUser
+    {
+      Id = basisApproverId, FirmId = scope.FirmId, Subject = "basis-approver-" + basisApproverId.ToString("N"),
+      TenantId = "tenant-planning", Email = "basis-approver@example.test", DisplayName = "Planning Approver",
+      UserKind = "Staff", SessionEpoch = 1, CreatedAt = DateTimeOffset.UtcNow
+    });
+    db.RoleGrants.Add(new RoleGrant
+    {
+      Id = Guid.NewGuid(), FirmId = scope.FirmId, UserId = basisApproverId, Role = "Partner",
+      ClientId = scope.ClientId, EngagementId = scope.EngagementId, GrantedAt = DateTimeOffset.UtcNow,
+      GrantedByUserId = basisApproverId
+    });
+    await db.SaveChangesAsync();
+    await PlanningBasisSeed.EstablishAsync(db, scope.FirmId, scope.ClientId, scope.EngagementId, scope.Actor,
+      new ActorContext(basisApproverId, scope.FirmId, 1, ["Partner"]));
+
     var submitted = await AuditProgramService.SubmitResultAsync(db, scope.Actor,
       new SubmitProcedureResultRequest(procedure.Id, 1, "Agreed the bank listing to the ledger.",
         "{\"result\":\"PASS\"}", ["source:bank-list-1"], "No exception noted."));
@@ -284,6 +303,24 @@ public sealed class AuditProgramWorkflowTests
 
     var procDb = await db.AuditProcedures.AsNoTracking().SingleAsync(x => x.Id == procedure.Id);
     Assert.Equal(AuditProcedureStatuses.InProgress, procDb.Status);
+
+    // Substantive submission later requires the approved planning basis (STE-REM-04).
+    var basisApproverId = Guid.NewGuid();
+    db.Users.Add(new AppUser
+    {
+      Id = basisApproverId, FirmId = scope.FirmId, Subject = "basis-approver-" + basisApproverId.ToString("N"),
+      TenantId = "tenant-planning", Email = "basis-approver-tailoring@example.test", DisplayName = "Planning Approver",
+      UserKind = "Staff", SessionEpoch = 1, CreatedAt = DateTimeOffset.UtcNow
+    });
+    db.RoleGrants.Add(new RoleGrant
+    {
+      Id = Guid.NewGuid(), FirmId = scope.FirmId, UserId = basisApproverId, Role = "Partner",
+      ClientId = scope.ClientId, EngagementId = scope.EngagementId, GrantedAt = DateTimeOffset.UtcNow,
+      GrantedByUserId = basisApproverId
+    });
+    await db.SaveChangesAsync();
+    await PlanningBasisSeed.EstablishAsync(db, scope.FirmId, scope.ClientId, scope.EngagementId, scope.Actor,
+      new ActorContext(basisApproverId, scope.FirmId, 1, ["Partner"]));
 
     // Idempotent call returns the same workpaper ID
     var wpRepeat = await AuditProgramService.GetOrCreateWorkpaperAsync(db, scope.Actor, procedure.Id);

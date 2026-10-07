@@ -70,6 +70,24 @@ public sealed class AuditProgramCommandIsolationTests
         new DecideProcedureApplicabilityRequest(procedureId, AuditApplicabilityStatuses.Applicable, null));
       Assert.True(decision.Succeeded, decision.Message);
 
+      // Legitimate planning approval precedes substantive execution (STE-REM-04): the sibling part B
+      // partner prepares the basis; an independent firm-wide partner approves materiality.
+      var basisApproverId = Guid.NewGuid();
+      db.Users.Add(new AppUser
+      {
+        Id = basisApproverId, FirmId = clientB.FirmId, Subject = "basis-approver-" + basisApproverId.ToString("N"),
+        TenantId = "tenant-planning", Email = "basis-approver@example.test", DisplayName = "Planning Basis Approver",
+        UserKind = "Staff", SessionEpoch = 1, CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.RoleGrants.Add(new RoleGrant
+      {
+        Id = Guid.NewGuid(), FirmId = clientB.FirmId, UserId = basisApproverId, Role = "Partner",
+        GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = clientBUserId
+      });
+      await db.SaveChangesAsync();
+      await PlanningBasisSeed.EstablishAsync(db, clientB.FirmId, clientB.ClientId, clientB.EngagementId, clientBActor,
+        new ActorContext(basisApproverId, clientB.FirmId, 1, ["Partner"]));
+
       var submitted = await AuditProgramService.SubmitResultAsync(db, clientBActor,
         new SubmitProcedureResultRequest(procedureId, 1, "Agreed the bank listing to the ledger.",
           "{\"result\":\"PASS\"}", ["source:bank-list-1"], "No exception noted."));

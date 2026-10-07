@@ -46,6 +46,7 @@ public sealed class AuditSamplingSelectionIsolationTests
         NewProcedure(clientB, procedureId, "BANK-01", "Agree bank statement"),
         NewProcedure(clientB, samplingProcedureId, "BANK-02", "Sample bank transactions"));
       await db.SaveChangesAsync();
+      await PlanningBasisSeed.EstablishAsync(db, clientB.FirmId, clientB.ClientId, clientB.EngagementId, preparer, reviewer);
     }
 
     Guid scheduleId;

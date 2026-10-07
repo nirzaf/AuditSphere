@@ -582,6 +582,11 @@ public sealed partial class PlanningResourcesAndMaterialityTests
       // Link procedure to the Red risk
       var link = await AuditProgramService.LinkRiskAsync(db, partner, procedureId, redRiskId);
       Assert.True(link.Succeeded);
+
+      // Substantive execution of the Red procedure requires the approved planning basis (STE-REM-04):
+      // sealed balanced TB, approved mapping and materiality via the real commands, approved
+      // independently by partner2.
+      await PlanningBasisSeed.EstablishAsync(db, w.FirmId, w.ClientId, w.EngagementId, partner, partner2);
     }
 
     // Associate attempts to execute Red procedure -> Rejected (minimum executor rank is 3 - Manager)

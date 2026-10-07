@@ -271,6 +271,19 @@ public sealed class FieldworkConnectionsTests
 
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
+      // The planned audit program itself stays usable before approval; sampled-item execution below
+      // requires the approved planning basis (STE-REM-04), approved by an independent Partner.
+      var planningPartner = new AppUser
+      {
+        Id = Guid.NewGuid(), FirmId = w.FirmId, Subject = "planning-partner-" + Guid.NewGuid().ToString("N"),
+        TenantId = "tenant-fw", Email = $"planning-partner-{Guid.NewGuid():N}@example.test",
+        DisplayName = "Planning Partner", UserKind = "Staff", CreatedAt = DateTimeOffset.UtcNow
+      };
+      db.Users.Add(planningPartner);
+      db.RoleGrants.Add(Grant(w.FirmId, planningPartner, "Partner"));
+      await db.SaveChangesAsync();
+      await PlanningBasisSeed.ApproveMaterialityAsync(db, w.FirmId, w.ClientId, w.EngagementId, w.Manager,
+        new(planningPartner.Id, w.FirmId, planningPartner.SessionEpoch, ["Partner"]));
       // Statements from the mapped TB, each line resolving to its procedures.
       var statements = (await FinancialStatementDrillDownQuery.GetAsync(db, w.Auditor, w.EngagementId)).Value!;
       Assert.True(statements.Balances);

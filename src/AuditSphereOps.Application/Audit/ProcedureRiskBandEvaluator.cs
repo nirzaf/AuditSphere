@@ -65,11 +65,37 @@ internal static class ProcedureRiskBandEvaluator
     Guid? riskId,
     CancellationToken ct)
   {
+    // Substantive execution requires the current approved planning basis (STE-REM-04) even when the
+    // procedure carries no linked risk: without it, no effective band can be computed and no
+    // substantive test may execute or review against a stale or missing planning basis.
     if (riskId is null)
-      return new(null, null);
+      return new(null, (await ReadinessBlockerAsync(db, firmId, engagementId, ct)));
     var result = await EvaluateManyAsync(db, firmId, engagementId, [riskId.Value], ct);
     return result.GetValueOrDefault(riskId.Value,
       new(null, "The linked risk is no longer available in this engagement."));
+  }
+
+  /// <summary>
+  /// The approved planning basis every substantive execution route requires: an approved FSLI mapping
+  /// over a sealed, balanced trial balance, plus a current, independently approved materiality
+  /// calculation in the source currency (STE-REM-04).
+  /// </summary>
+  internal static async Task<string?> ReadinessBlockerAsync(
+    IAuditSphereDbContext db, Guid firmId, Guid engagementId, CancellationToken ct)
+  {
+    var source = await MappedTrialBalanceSource.LoadAsync(db, firmId, engagementId, ct);
+    if (source is null)
+      return "Planning is not approved: ingest and seal a balanced trial balance, approve its complete FSLI mapping, and keep it current before executing or reviewing substantive procedures.";
+    var calculation = await MaterialityEngineService.GetLatestAsync(db, firmId, engagementId, ct);
+    var latestAssessmentId = await db.MaterialityAssessments.AsNoTracking()
+      .Where(x => x.FirmId == firmId && x.EngagementId == engagementId)
+      .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
+      .Select(x => (Guid?)x.Id).FirstOrDefaultAsync(ct);
+    return calculation is null || calculation.AssessmentId != latestAssessmentId ||
+      calculation.State != MaterialityCalculationStates.Approved ||
+      calculation.Calculation.Currency != source.Dataset.Currency
+      ? "Approve a current, source-bound materiality calculation in the trial-balance currency before executing or reviewing substantive procedures."
+      : null;
   }
 
   public static async Task<IReadOnlyDictionary<Guid, ProcedureRiskBandEvaluation>> EvaluateManyAsync(
@@ -128,13 +154,11 @@ internal static class ProcedureRiskBandEvaluator
 
       if (source is null)
       {
-        if (materialityBlocker is not null)
-          evaluations[id] = new(null, materialityBlocker);
-        else
-          evaluations[id] = new(new(qualitativeFloor, qualitativeBand, risk.Id, assessment?.Id, null, null,
-            null, null, null, null, null, null, null, null, null, null,
-            $"{RiskBandRules.RuleVersion}+{FsliRiskBandRules.RuleVersion}",
-            $"{qualitativeExplanation}. No current mapped FSLI source is available; routing uses the linked qualitative risk assessment."), null);
+        // No qualitative-only routing without a mapped source (STE-REM-04): substantive work requires
+        // the sealed balanced TB, its approved mapping, and current approved materiality. The exact
+        // readiness blocker names the missing prerequisite instead of a silent fallback band.
+        evaluations[id] = new(null, materialityBlocker is not null ? materialityBlocker :
+          "Planning is not approved: ingest and seal a balanced trial balance, approve its complete FSLI mapping, and keep it current before executing or reviewing substantive procedures.");
         continue;
       }
 
