@@ -15,6 +15,7 @@ WEB = ROOT / "src" / "AuditSphereOps.Web"
 SOURCE_INVENTORY = ROOT / "docs" / "execution" / "angular-source-inventory.json"
 OUTPUT = ROOT / "docs" / "migration" / "auditsphere-migration-blazor-retirement-inventory.md"
 REVIEWS = ROOT / "docs" / "migration" / "auditsphere-migration-blazor-source-action-reviews.json"
+SUPPORT_REVIEWS = ROOT / "docs" / "migration" / "auditsphere-migration-blazor-supporting-file-reviews.json"
 
 ALLOWED_DISPOSITIONS = {"PARITY_VERIFIED", "PARTIAL", "INTENTIONALLY_RETIRED"}
 
@@ -66,6 +67,58 @@ def reviewed_sources(items: list[dict[str, object]]) -> dict[str, dict[str, str]
             raise SystemExit(f"A partial review must list its unresolved parity evidence: {source}")
         if disposition == "PARITY_VERIFIED" and open_gaps:
             raise SystemExit(f"A parity-verified review cannot retain open gaps: {source}")
+        result[source] = {
+            "disposition": disposition,
+            "evidence": str(evidence),
+            "reviewedAtCommit": reviewed_commit,
+        }
+    return result
+
+
+def reviewed_supporting_sources(paths: list[str]) -> dict[str, dict[str, str]]:
+    """Load hash-pinned, evidence-linked reviews for non-route Web files."""
+    if not SUPPORT_REVIEWS.exists():
+        return {}
+    data = json.loads(SUPPORT_REVIEWS.read_text())
+    if data.get("schemaVersion") != 1:
+        raise SystemExit("Unsupported supporting-file review manifest schema.")
+
+    known_paths = set(paths)
+    result: dict[str, dict[str, str]] = {}
+    for record in data.get("records", []):
+        source = record.get("source")
+        disposition = record.get("disposition")
+        evidence = record.get("evidence")
+        reviewed_commit = record.get("reviewedAtCommit")
+        expected_hash = record.get("sourceSha256")
+        if source not in known_paths:
+            raise SystemExit(f"Supporting-file review references an undiscovered source: {source}")
+        if source in result:
+            raise SystemExit(f"Duplicate supporting-file review: {source}")
+        if disposition not in ALLOWED_DISPOSITIONS:
+            raise SystemExit(f"Unsupported supporting-file disposition for {source}: {disposition}")
+        evidence_path = ROOT / "docs" / "migration" / str(evidence)
+        if not evidence or not evidence_path.is_file():
+            raise SystemExit(f"Missing supporting-file evidence document: {source}")
+        if not isinstance(reviewed_commit, str) or len(reviewed_commit) != 40 or any(c not in "0123456789abcdef" for c in reviewed_commit.lower()):
+            raise SystemExit(f"Review must identify a full 40-character source commit: {source}")
+        if not isinstance(expected_hash, str) or len(expected_hash) != 64 or any(c not in "0123456789abcdef" for c in expected_hash.lower()):
+            raise SystemExit(f"Review must identify a SHA-256 source hash: {source}")
+        blob = subprocess.run(
+            ["git", "show", f"{reviewed_commit}:{source}"],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+        )
+        if blob.returncode or hashlib.sha256(blob.stdout).hexdigest() != expected_hash.lower():
+            raise SystemExit(f"The supporting source hash differs at the reviewed commit: {source}")
+        open_gaps = record.get("openGaps", [])
+        if disposition == "PARTIAL" and (not isinstance(open_gaps, list) or not open_gaps):
+            raise SystemExit(f"A partial supporting-file review must list open gaps: {source}")
+        if disposition == "PARITY_VERIFIED" and open_gaps:
+            raise SystemExit(f"A parity-verified supporting-file review cannot retain open gaps: {source}")
+        if disposition == "INTENTIONALLY_RETIRED" and not str(record.get("ownerApproval", "")).strip():
+            raise SystemExit(f"Intentional retirement requires an explicit owner-approval reference: {source}")
         result[source] = {
             "disposition": disposition,
             "evidence": str(evidence),
@@ -128,6 +181,7 @@ def render() -> str:
 
     routes = sorted({route for item in items for route in item["routes"]})
     support_files = [path for path in files if path not in discovered]
+    support_reviews = reviewed_supporting_sources(support_files)
     lines = [
         "# AuditSphere — Blazor Retirement Inventory",
         "",
@@ -180,14 +234,16 @@ def render() -> str:
         "",
         "## Supporting Web project files",
         "",
-        "These files were enumerated but their retirement impact has not been accepted. Static asset and host dependencies must be traced before removal.",
+        "These files are inventoried separately from route/action rows. A linked `PARTIAL` review traces the artifact and its current owner but does not accept physical removal or establish complete behavior parity.",
         "",
         "| Artifact | Type hint | Review status |",
         "|---|---|---|",
     ]
     for path in support_files:
         suffix = Path(path).suffix or "(no extension)"
-        lines.append(f"| `{path}` | {cell(suffix)} | `NOT_ANALYZED` |")
+        review = support_reviews.get(path)
+        review_status = f"[`{review['disposition']}`]({review['evidence']})" if review else "`NOT_ANALYZED`"
+        lines.append(f"| `{path}` | {cell(suffix)} | {review_status} |")
 
     lines += [
         "",

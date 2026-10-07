@@ -6536,6 +6536,33 @@ Actual mail delivery and client-identity acceptance remain named live gates unde
 AS-COMP-31. The migration ran only in owned isolated PostgreSQL test schemas; no
 Development or production state was changed. Blazor retirement remains `NOT_READY`.
 
+## Blazor supporting-file review and current build check (2026-10-07)
+
+The migration inventory had 17 supporting Web artifacts still marked
+`NOT_ANALYZED`. I traced the rollback EF factory and project, actor adapter,
+administration dashboard, theme/imports, host configuration, package lock, and
+six browser assets to their current API/Angular/tooling owners. All 17 hashes
+are pinned to `e9b10a75`; they now have evidence-linked `PARTIAL` reviews. The
+11 supporting artifacts already reviewed in the shell/layout record remain
+linked there. The generated inventory now shows all 28 supporting artifacts as
+partial and zero as unanalyzed. No artifact was promoted to parity; exact
+behavior, rollback and removal acceptance remain open.
+
+The migration inventory generator passed both regeneration and `--check`; the
+Razor source inventory check passed; status and review JSON parsed; and
+`git diff --check` was clean. The optimized Angular build was retried from a
+clean archive of current HEAD and the earlier `aca91b` source with Node 22.23.2
+and two build workers. Both aborted with exit 134 and the esbuild
+`all goroutines are asleep - deadlock` fatal error. Since the earlier source
+reproduces it, this local result does not isolate a regression in current UI
+code. No production bundle was emitted. Angular CI remains 556/556 from the
+recorded run; the current built-in-browser attempt rendered only the signed-out
+shell because the API host was unavailable. PostgreSQL, full solution and EF
+checks were not rerun for this documentation review. The current migration
+decision remains `NOT_READY`: 75 source/action rows are partial, and production
+rollback/canary, human accessibility/locale, live Microsoft and separate owner
+acceptance remain open.
+
 ## STE-REM-29 baseline repair and STE-REM-01 native client acceptance
 
 Against the new pending-features review (baseline `7f080729`), the delivery sequence's

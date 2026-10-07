@@ -393,8 +393,8 @@
       "removalDecision": "NOT_READY"
     },
     "angularBlazorCurrentRetirementGate": {
-      "observedAt": "2026-10-07T11:58:23Z",
-      "sourceCommit": "15e4bc61c908d47ddb4efc3c2fd1fef4ef10abb2",
+      "observedAt": "2026-10-07T12:12:12Z",
+      "sourceCommit": "e9b10a7554fb6efb984e1a3040f33e32db853a71",
       "status": "NOT_READY",
       "physicalRemovalCommit": "59387b549214067ef226cdbf33d0d47084a27c46",
       "webProjectPresent": true,
@@ -402,7 +402,19 @@
       "parityVerified": 1,
       "partialReviewed": 75,
       "notAnalyzed": 0,
-      "supportingFilesNotAnalyzed": 17,
+      "supportingFilesNotAnalyzed": 0,
+      "supportingFilesPartialReviewed": 28,
+      "supportingFileSourceReview": {
+        "review": "docs/migration/auditsphere-migration-blazor-supporting-files-source-review.md",
+        "manifest": "docs/migration/auditsphere-migration-blazor-supporting-file-reviews.json",
+        "sourceSnapshot": "e9b10a7554fb6efb984e1a3040f33e32db853a71",
+        "observedAt": "2026-10-07T12:12:12Z",
+        "status": "PARTIAL_REVIEWED",
+        "reviewedArtifacts": 28,
+        "newlyReviewedArtifacts": 17,
+        "parityVerifiedArtifacts": 0,
+        "summary": "All 17 formerly unanalyzed supporting Web artifacts are SHA-256 pinned and mapped to their API, Angular, rollback or tooling owner. The retirement inventory links the partial reviews. Together with the 11 prior partial records, all 28 supporting artifacts are reviewed but remain open for parity or retirement acceptance."
+      },
       "administrationSourceReview": {
         "review": "docs/migration/auditsphere-migration-blazor-administration-source-review.md",
         "sourceSnapshot": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
@@ -533,25 +545,39 @@
         "legacyE2eTestMethodsRemaining": 0
       },
       "fullSolutionCurrentHead": "Latest complete PostgreSQL-backed Release regression remains API 191/191, Domain 660/660 and E2E 150/150 (1001/1001, zero failed/skipped) at ead85032de2ccc4d4c8043398fa8471d395376a9. This full-suite checkpoint predates focused migration slices through fa9c21d2. Later focused slices are recorded individually, including invoice lifecycle, scoped reviewer and foreign-ID denial, receipt/credit history paging and failure/recovery, stale-route and session-revocation response isolation, firm-books role/scope and post-outcome reconciliation, firm-books boundaries, and firm-ledger blocked-close recovery. The complete solution regression was not rerun at the current head.",
-      "efModelCurrentHead": "PASS_LOCAL at code commit 7834ddec: dotnet ef migrations has-pending-model-changes reported no pending model changes; this focused slice introduced no EF model change.",
+      "efModelCurrentHead": "Last recorded PASS_LOCAL at code commit 7834ddec: dotnet ef migrations has-pending-model-changes reported no pending model changes. Later migration-review slices did not change the EF model, but the current head has not been rechecked.",
       "rollbackAndCanary": "Local Development rollback smoke PASS: Razor root, local Blazor/MudBlazor assets, negotiate endpoint, and SignalR circuit handshake. Production OIDC, route cutover recovery, and production-like canary remain OPEN.",
       "humanAssistiveTechnologyAndLocale": "OPEN",
       "liveMicrosoftGates": "BLOCKED_EXTERNAL",
-      "decision": "NOT_READY. The Web rollback/reference source remains restored. All 82 removed E2E methods have assertion crosswalks. The 76-row source/action inventory now has 75 partial reviews, zero unanalyzed rows and one parity-verified row; 28 supporting files remain open. Consolidation overview and advanced workflow are reviewed as partial, with overview display parity and advanced unknown-command recovery still open. AS-PAR-002 direct query/count/export authorization, broader command retry/idempotency checks, production/human/external acceptance and separate owner acceptance remain open.",
+      "decision": "NOT_READY. The Web rollback/reference source remains restored. All 82 removed E2E methods have assertion crosswalks. The 76-row source/action inventory has 75 partial reviews, zero unanalyzed rows and one parity-verified row. All 28 supporting artifacts now have evidence-linked partial reviews, with zero unanalyzed support files. Consolidation overview and advanced workflow remain partial, with overview display parity and advanced unknown-command recovery still open. AS-PAR-002 direct query/count/export authorization, broader command retry/idempotency checks, production/human/external acceptance and separate owner acceptance remain open.",
       "angularProductionBuild": {
-        "sourceCommit": "aca91b1240d3694efe9cd60a22b8c3577ade5d15",
-        "status": "PASS_WITH_BUDGET_WARNING",
-        "initialBundle": "349.67 kB raw and 94.02 kB estimated transfer; below the 500 kB initial warning budget.",
-        "commercialSettingsStyles": "7.53 kB, above the 4 kB component warning budget.",
-        "command": "npm run build"
+        "sourceCommit": "e9b10a7554fb6efb984e1a3040f33e32db853a71",
+        "status": "BLOCKED_LOCAL_BUILD",
+        "attempts": [
+          "Current source, Node 26.8.1 default optimized build: exit 134 at Building.",
+          "Current source, Node 22.23.2 default optimized build: exit 134 at Building.",
+          "Current source, Node 22.23.2 with NG_BUILD_MAX_WORKERS=1 and NG_BUILD_PARALLEL_TS=0: exit 134 at Building.",
+          "Current source, Node 22.23.2 with one worker, parallel TypeScript disabled and NG_BUILD_CHUNKS_ROLLDOWN=0: exit 134 at Building.",
+          "Clean archive of current HEAD, Node 22.23.2 with NG_BUILD_MAX_WORKERS=2: exit 134 with esbuild deadlock.",
+          "Clean archive of prior recorded passing source aca91b1240d3694efe9cd60a22b8c3577ade5d15, Node 22.23.2 with NG_BUILD_MAX_WORKERS=2: same esbuild deadlock."
+        ],
+        "diagnostics": "No Angular compiler diagnostic or production bundle was emitted. The esbuild deadlock reproduces on a clean archive of the prior recorded passing source, so this local failure does not isolate a regression to the latest code.",
+        "lastRecordedPassingCheckpoint": {
+          "sourceCommit": "aca91b1240d3694efe9cd60a22b8c3577ade5d15",
+          "status": "PASS_WITH_BUDGET_WARNING",
+          "initialBundle": "349.67 kB raw and 94.02 kB estimated transfer; below the 500 kB initial warning budget.",
+          "commercialSettingsStyles": "7.53 kB, above the 4 kB component warning budget.",
+          "command": "npm run build"
+        }
       },
       "angularUnitTests": {
         "status": "PASS",
-        "files": 94,
-        "passed": 482,
+        "files": 108,
+        "passed": 556,
         "failed": 0,
         "skipped": 0,
-        "command": "npm --prefix src/AuditSphereOps.Ui run test:ci"
+        "command": "npm --prefix src/AuditSphereOps.Ui run test:ci",
+        "observedAt": "2026-10-07T11:46:26Z"
       },
       "releaseSolutionBuild": {
         "sourceCommit": "beee6480bb0bd0da64b2cb2643bb82571b42d25c",
@@ -1768,7 +1794,7 @@
       },
       "angularStatusChipSemanticTones": {
         "sourceCommit": "15e4bc61c908d47ddb4efc3c2fd1fef4ef10abb2",
-        "observedAt": "2026-10-07T11:51:22Z",
+        "observedAt": "2026-10-07T12:12:12Z",
         "status": "PASS_LOCAL_UI_SLICE_WITH_PRODUCTION_BUILD_BLOCK",
         "component": "src/AuditSphereOps.Ui/src/app/core/ui.ts::StatusChip",
         "focusedComponentTests": {
@@ -1807,9 +1833,11 @@
             "Node 26.8.1 default optimized build: exit 134 at Building.",
             "Node 22.23.2 default optimized build: exit 134 at Building.",
             "Node 22.23.2 with NG_BUILD_MAX_WORKERS=1 and NG_BUILD_PARALLEL_TS=0: exit 134 at Building.",
-            "Node 22.23.2 with one worker, parallel TypeScript disabled and NG_BUILD_CHUNKS_ROLLDOWN=0: exit 134 at Building."
+            "Node 22.23.2 with one worker, parallel TypeScript disabled and NG_BUILD_CHUNKS_ROLLDOWN=0: exit 134 at Building.",
+            "Clean archive of current HEAD with Node 22.23.2 and NG_BUILD_MAX_WORKERS=2: exit 134 with esbuild deadlock.",
+            "Clean archive of prior recorded passing source aca91b1240d3694efe9cd60a22b8c3577ade5d15 with Node 22.23.2 and NG_BUILD_MAX_WORKERS=2: same esbuild deadlock."
           ],
-          "diagnostics": "No Angular compiler diagnostic or production bundle was emitted."
+          "diagnostics": "No Angular compiler diagnostic or production bundle was emitted. The clean prior-source comparison reproduced the esbuild deadlock, so the failure is not isolated to the latest application changes."
         },
         "fullSolutionRegression": "NOT_RUN for this frontend-only slice.",
         "efModelDrift": "NOT_RUN; no Domain or EF model changes.",

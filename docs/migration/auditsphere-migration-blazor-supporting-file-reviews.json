@@ -1,0 +1,286 @@
+{
+  "schemaVersion": 1,
+  "sourceSnapshot": "e9b10a7554fb6efb984e1a3040f33e32db853a71",
+  "records": [
+    {
+      "source": "src/AuditSphereOps.Web/AuditSphereDbContextFactory.cs",
+      "disposition": "PARTIAL",
+      "reviewedAtCommit": "e9b10a7554fb6efb984e1a3040f33e32db853a71",
+      "sourceSha256": "2b2cf49d2d952bb19beba8469b42aeff846a86ed793f63dd5e60cbee544603e6",
+      "evidence": "auditsphere-migration-blazor-supporting-files-source-review.md",
+      "openGaps": [
+        "Verify migration scripts, CI and operator workflows no longer depend on the Web factory before retirement."
+      ]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/AuditSphereOps.Web.csproj",
+      "disposition": "PARTIAL",
+      "reviewedAtCommit": "e9b10a7554fb6efb984e1a3040f33e32db853a71",
+      "sourceSha256": "1d8bf4c9c1afc33b15b729d328c558375d8ebde5f92f846bcb0dd5a0d0993e06",
+      "evidence": "auditsphere-migration-blazor-supporting-files-source-review.md",
+      "openGaps": [
+        "Keep the rollback project until the removal gate passes; recheck publish, CI and project references at retirement."
+      ]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Authentication/CurrentActorResolver.cs",
+      "disposition": "PARTIAL",
+      "reviewedAtCommit": "e9b10a7554fb6efb984e1a3040f33e32db853a71",
+      "sourceSha256": "5d3ab7959878ad41ad43740e3e67f96d39e6608d3a1f322ff7b2f79be1f78132",
+      "evidence": "auditsphere-migration-blazor-supporting-files-source-review.md",
+      "openGaps": [
+        "Complete old/new session, revocation and role/scope parity for every protected route."
+      ]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Administration/AdministrationDashboard.razor",
+      "disposition": "PARTIAL",
+      "reviewedAtCommit": "e9b10a7554fb6efb984e1a3040f33e32db853a71",
+      "sourceSha256": "54b341eb413f903074799c614b469fc18ae474dad71a6f7cfeef3cc46eb4be1b",
+      "evidence": "auditsphere-migration-blazor-supporting-files-source-review.md",
+      "openGaps": [
+        "Complete exact card/detail, stale/error and accessibility parity across every state."
+      ]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Theme/AuditSphereTheme.cs",
+      "disposition": "PARTIAL",
+      "reviewedAtCommit": "e9b10a7554fb6efb984e1a3040f33e32db853a71",
+      "sourceSha256": "07fd3e5018dfa57ea313b73a80d01210dd8210d599786e90922f02b7162f60b7",
+      "evidence": "auditsphere-migration-blazor-supporting-files-source-review.md",
+      "openGaps": [
+        "Complete token-by-token responsive visual comparison and human assistive-technology acceptance."
+      ]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/_Imports.razor",
+      "disposition": "PARTIAL",
+      "reviewedAtCommit": "e9b10a7554fb6efb984e1a3040f33e32db853a71",
+      "sourceSha256": "d3b7dd08e36aaf711637c21e368ee19b77a4e9f11e23ac44a38aedac4063ca90",
+      "evidence": "auditsphere-migration-blazor-supporting-files-source-review.md",
+      "openGaps": [
+        "Retire only with the Razor host after the owner accepts the removal gate."
+      ]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Program.cs",
+      "disposition": "PARTIAL",
+      "reviewedAtCommit": "e9b10a7554fb6efb984e1a3040f33e32db853a71",
+      "sourceSha256": "2f1cc57487d2a0402711ec72054611b27c70f7202f84e8416edbc9ae178ea669",
+      "evidence": "auditsphere-migration-blazor-supporting-files-source-review.md",
+      "openGaps": [
+        "Complete production-like route cutover and rollback acceptance before retiring this host composition."
+      ]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Properties/launchSettings.json",
+      "disposition": "PARTIAL",
+      "reviewedAtCommit": "e9b10a7554fb6efb984e1a3040f33e32db853a71",
+      "sourceSha256": "e9765741c8ec054f8b6801e25523581094a0e0bac7a7d574136ba393a40ed210",
+      "evidence": "auditsphere-migration-blazor-supporting-files-source-review.md",
+      "openGaps": [
+        "Confirm developer rollback instructions and supported launch profiles before removing the project."
+      ]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/appsettings.Development.json",
+      "disposition": "PARTIAL",
+      "reviewedAtCommit": "e9b10a7554fb6efb984e1a3040f33e32db853a71",
+      "sourceSha256": "cdc9413063dc4d8587275d531dc3a9759bb24535ac49309bd0d496b5623af058",
+      "evidence": "auditsphere-migration-blazor-supporting-files-source-review.md",
+      "openGaps": [
+        "Reconcile development defaults and the presentation toggle with the API host before retirement."
+      ]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/appsettings.json",
+      "disposition": "PARTIAL",
+      "reviewedAtCommit": "e9b10a7554fb6efb984e1a3040f33e32db853a71",
+      "sourceSha256": "3e1c5fc7719cb44bd56d26c8fc8d3c4e60e822d87cc9b93bd0d5c036965d8a42",
+      "evidence": "auditsphere-migration-blazor-supporting-files-source-review.md",
+      "openGaps": [
+        "Reconcile deployment bindings and approved secret-store mounts; do not copy configuration values into review evidence."
+      ]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/packages.lock.json",
+      "disposition": "PARTIAL",
+      "reviewedAtCommit": "e9b10a7554fb6efb984e1a3040f33e32db853a71",
+      "sourceSha256": "663000171aa3e6d589852dafa25f72fa6dad969049b09a417314be2c1a5b4551",
+      "evidence": "auditsphere-migration-blazor-supporting-files-source-review.md",
+      "openGaps": [
+        "Revalidate locked restore and remove only with the Web project after separate retirement acceptance."
+      ]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/wwwroot/app.css",
+      "disposition": "PARTIAL",
+      "reviewedAtCommit": "e9b10a7554fb6efb984e1a3040f33e32db853a71",
+      "sourceSha256": "d08f676b4265cb81fc5b9a64510f2cc1b8bf889b2d96e748118a64af928caa08",
+      "evidence": "auditsphere-migration-blazor-supporting-files-source-review.md",
+      "openGaps": [
+        "Complete cross-route responsive visual parity and accessibility review."
+      ]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/wwwroot/draft-state.js",
+      "disposition": "PARTIAL",
+      "reviewedAtCommit": "e9b10a7554fb6efb984e1a3040f33e32db853a71",
+      "sourceSha256": "adedbd80316ab33eb9f33bd53b203c9e9de463df62a81d60162e3b9a8584ffb2",
+      "evidence": "auditsphere-migration-blazor-supporting-files-source-review.md",
+      "openGaps": [
+        "Resolve storage lifetime, identity partitioning and replacement or retirement for each draft-bearing form."
+      ]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/wwwroot/enterprise-ui.css",
+      "disposition": "PARTIAL",
+      "reviewedAtCommit": "e9b10a7554fb6efb984e1a3040f33e32db853a71",
+      "sourceSha256": "d14c68f2f44a042a7e9fe007ed4606d16f00ed31bec300a814a8dfc4ad15756c",
+      "evidence": "auditsphere-migration-blazor-supporting-files-source-review.md",
+      "openGaps": [
+        "Complete application-wide visual comparison and human screen-reader acceptance."
+      ]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/wwwroot/pbc-upload.js",
+      "disposition": "PARTIAL",
+      "reviewedAtCommit": "e9b10a7554fb6efb984e1a3040f33e32db853a71",
+      "sourceSha256": "8ab753258de4de85fb825d8029669a7cd2782d4a5c024e3c82f2bb005f38fa14",
+      "evidence": "auditsphere-migration-blazor-supporting-files-source-review.md",
+      "openGaps": [
+        "Complete cancellation, network-failure, resume and accessibility matrices; live selected-site acceptance remains external."
+      ]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/wwwroot/reconnect-state.js",
+      "disposition": "PARTIAL",
+      "reviewedAtCommit": "e9b10a7554fb6efb984e1a3040f33e32db853a71",
+      "sourceSha256": "f91047050b2dd442e8a4a84279993da567e46f97deb5fedbdbc057f66cf07d5c",
+      "evidence": "auditsphere-migration-blazor-supporting-files-source-review.md",
+      "openGaps": [
+        "Confirm the HTTP recovery contract through production-like cutover; keep SignalR recovery while rollback host remains."
+      ]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/wwwroot/search-shortcut.js",
+      "disposition": "PARTIAL",
+      "reviewedAtCommit": "e9b10a7554fb6efb984e1a3040f33e32db853a71",
+      "sourceSha256": "86ba8a5a874b9141566df618259f1793f64a5960aae53f810ccfaa925c4c9e6e",
+      "evidence": "auditsphere-migration-blazor-supporting-files-source-review.md",
+      "openGaps": [
+        "Complete locale, focus, overlay and route-state acceptance."
+      ]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/App.razor",
+      "disposition": "PARTIAL",
+      "reviewedAtCommit": "15e4bc61c908d47ddb4efc3c2fd1fef4ef10abb2",
+      "sourceSha256": "9b15055e3dbdb235225ace244e0f0ff7616451e9b847a78d14ac73d96c0b54ea",
+      "evidence": "auditsphere-migration-blazor-shell-portfolio-source-review.md",
+      "openGaps": [
+        "Complete signed-in, public and client shell behavior, focus and human assistive-technology parity."
+      ]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Layout/AccountingNavigation.razor",
+      "disposition": "PARTIAL",
+      "reviewedAtCommit": "15e4bc61c908d47ddb4efc3c2fd1fef4ef10abb2",
+      "sourceSha256": "5016cbda804f97cf57febb43b9d8c059b5a0a9e1d7e94ba58f9c88a674867521",
+      "evidence": "auditsphere-migration-blazor-shell-portfolio-source-review.md",
+      "openGaps": [
+        "Complete the old/new destination, label and active-link matrix across detail and query routes."
+      ]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Layout/ClientLayout.razor",
+      "disposition": "PARTIAL",
+      "reviewedAtCommit": "15e4bc61c908d47ddb4efc3c2fd1fef4ef10abb2",
+      "sourceSha256": "ec517dfd31b93c4790a1bf676e362d05f3ceecf504766a9f6a3c497d827b9c30",
+      "evidence": "auditsphere-migration-blazor-shell-portfolio-source-review.md",
+      "openGaps": [
+        "Complete client shell visual, locale and human assistive-technology acceptance."
+      ]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Layout/PublicLayout.razor",
+      "disposition": "PARTIAL",
+      "reviewedAtCommit": "15e4bc61c908d47ddb4efc3c2fd1fef4ef10abb2",
+      "sourceSha256": "76819332873db6735fba463a2d8fec98ca26b4e077ece88e179bd23f2e75ab19",
+      "evidence": "auditsphere-migration-blazor-shell-portfolio-source-review.md",
+      "openGaps": [
+        "Compare all public, signed-out, setup and error states and accept them with assistive technology."
+      ]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Routes.razor",
+      "disposition": "PARTIAL",
+      "reviewedAtCommit": "15e4bc61c908d47ddb4efc3c2fd1fef4ef10abb2",
+      "sourceSha256": "87203ede0ed0fdb52dd33059b8e95085d43179e5e6887b123dafc27b99b5d292",
+      "evidence": "auditsphere-migration-blazor-shell-portfolio-source-review.md",
+      "openGaps": [
+        "Verify unknown-route 404 presentation and all route-specific denial/recovery states."
+      ]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Shared/LoadingState.razor",
+      "disposition": "PARTIAL",
+      "reviewedAtCommit": "15e4bc61c908d47ddb4efc3c2fd1fef4ef10abb2",
+      "sourceSha256": "a5cda405100dcb5ec5eddab290506a3bc63ddf432434c67a2f4c4bfba91cef4e",
+      "evidence": "auditsphere-migration-blazor-shell-portfolio-source-review.md",
+      "openGaps": [
+        "Reconcile loading/error/empty/stale presentation for every source action and route."
+      ]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Shared/PageHeader.razor",
+      "disposition": "PARTIAL",
+      "reviewedAtCommit": "15e4bc61c908d47ddb4efc3c2fd1fef4ef10abb2",
+      "sourceSha256": "ae53fabf08ed416a0dcaf287376046de39ce5736a8677330b94d88db89d798d7",
+      "evidence": "auditsphere-migration-blazor-shell-portfolio-source-review.md",
+      "openGaps": [
+        "Complete heading, action and navigation parity for every Angular route and viewport."
+      ]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Shared/ProjectTaskStatusBar.razor",
+      "disposition": "PARTIAL",
+      "reviewedAtCommit": "15e4bc61c908d47ddb4efc3c2fd1fef4ef10abb2",
+      "sourceSha256": "6d78374875819654cbb36f4c07ba491d1e9a352dc6a09dbf9cc380fe76118891",
+      "evidence": "auditsphere-migration-blazor-shell-portfolio-source-review.md",
+      "openGaps": [
+        "Verify all task-card statuses, accessible text and data-distribution parity."
+      ]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Shared/ScopeBanner.razor",
+      "disposition": "PARTIAL",
+      "reviewedAtCommit": "15e4bc61c908d47ddb4efc3c2fd1fef4ef10abb2",
+      "sourceSha256": "3517a177c62266e90f59208148a9551455b8c3c8ace361da9e98d771efb40a51",
+      "evidence": "auditsphere-migration-blazor-shell-portfolio-source-review.md",
+      "openGaps": [
+        "Complete per-route scope messaging parity and accessible announcement behavior."
+      ]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Shared/SessionAccessBoundary.razor",
+      "disposition": "PARTIAL",
+      "reviewedAtCommit": "15e4bc61c908d47ddb4efc3c2fd1fef4ef10abb2",
+      "sourceSha256": "f7b2181e42bb7fb5f67d85a92c3ba894e301bb9c615a3b9ba6d469cdad6030a0",
+      "evidence": "auditsphere-migration-blazor-shell-portfolio-source-review.md",
+      "openGaps": [
+        "Complete session-epoch invalidation and stale-content clearing across all protected routes."
+      ]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Shared/StatusChip.razor",
+      "disposition": "PARTIAL",
+      "reviewedAtCommit": "15e4bc61c908d47ddb4efc3c2fd1fef4ef10abb2",
+      "sourceSha256": "f23989470db216701963b8d7f3e027228f9c28102948b082dfcbb22120b10807",
+      "evidence": "auditsphere-migration-blazor-shell-portfolio-source-review.md",
+      "openGaps": [
+        "Complete visual/accessibility parity; Angular retains visible status labels and semantic tones but not the legacy icon set."
+      ]
+    }
+  ]
+}

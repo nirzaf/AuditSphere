@@ -44,11 +44,11 @@ Action/dependency values below are syntax-level scanner hints. Roles, business a
 | `src/AuditSphereOps.Web/Components/Pages/AccountingRecords.razor` | /app/accounting/mappings; /app/accounting/journals; /app/accounting/differences | accounting/intake / US-021 (candidate) | AuthorizeAsync; CreateDbContextAsync; InvokeAsync; LoadCurrentQueueAsync; LoadCurrentQueueSafelyAsync; MapDifferencesAsync; … (+7) | CurrentActorResolver; IDbContextFactory<AuditSphereDbContext>; NavigationManager; ILogger<AccountingRecords> | [`PARTIAL`](auditsphere-migration-blazor-accounting-maintenance-source-review.md) |
 | `src/AuditSphereOps.Web/Components/Pages/AccountingWorkspace.razor` | /app/accounting | accounting/setup / US-020 (candidate) | AuthorizeAsync; CountAsync; CreateDbContextAsync; LoadAccountingContextAsync; LoadAccountingContextCoreAsync; OnInitializedAsync; … (+4) | CurrentActorResolver; IDbContextFactory<AuditSphereDbContext>; ILogger<AccountingWorkspace> | [`PARTIAL`](auditsphere-migration-blazor-accounting-maintenance-source-review.md) |
 | `src/AuditSphereOps.Web/Components/Pages/Administration.razor` | /app/administration | administration / US-039 (candidate) | AnyAsync; ApplyRoleAsync; ApplyRoleGrantAndInvitationAsync; ConfirmRevokeAsync; CopyExistingInvitationAsync; CopyInvitationAsync; … (+17) | CurrentActorResolver; IDbContextFactory<AuditSphereDbContext>; IConfiguration; IJSRuntime; IDialogService; … (+1) | [`PARTIAL`](auditsphere-migration-blazor-administration-source-review.md) |
-| `src/AuditSphereOps.Web/Components/Pages/AdvancedConsolidationWorkflow.razor` | /app/consolidation/advanced/{ScopeId:guid} | consolidation / US-028 (candidate) | AnyAsync; ApproveAdvancedExecutionAsync; ApproveAdvancedMethodScheduleAsync; ApproveExecutionAsync; ApproveScheduleAsync; AuthorizeGroupAsync; … (+15) | CurrentActorResolver; IDbContextFactory<AuditSphereDbContext> | `NOT_ANALYZED` |
+| `src/AuditSphereOps.Web/Components/Pages/AdvancedConsolidationWorkflow.razor` | /app/consolidation/advanced/{ScopeId:guid} | consolidation / US-028 (candidate) | AnyAsync; ApproveAdvancedExecutionAsync; ApproveAdvancedMethodScheduleAsync; ApproveExecutionAsync; ApproveScheduleAsync; AuthorizeGroupAsync; … (+15) | CurrentActorResolver; IDbContextFactory<AuditSphereDbContext> | [`PARTIAL`](auditsphere-migration-blazor-consolidation-source-review.md) |
 | `src/AuditSphereOps.Web/Components/Pages/AssessmentDecision.razor` | /app/assessments/{Id:guid}/decision | acceptance / US-017 (candidate) | AuthorizeAsync; CreateDbContextAsync; GetAuthenticationStateAsync; OnParametersSetAsync; RecordAsync; ResolveAsync; … (+1) | AuthenticationStateProvider; CurrentActorResolver; IDbContextFactory<AuditSphereDbContext>; NavigationManager | [`PARITY_VERIFIED`](auditsphere-migration-blazor-assessment-decision-source-review.md) |
 | `src/AuditSphereOps.Web/Components/Pages/AssessmentDetail.razor` | /app/assessments/{Id:guid}; /app/clients/{ClientId:guid}/assessment | acceptance / US-017 (candidate) | AuthorizeAsync; CreateDbContextAsync; FirstOrDefaultAsync; GetAsync; LoadAsync; OnParametersSetAsync; … (+3) | CurrentActorResolver; IDbContextFactory<AuditSphereDbContext>; NavigationManager | [`PARTIAL`](auditsphere-migration-blazor-audit-planning-fieldwork-source-review.md) |
 | `src/AuditSphereOps.Web/Components/Pages/AuditFieldwork.razor` | /app/engagements/{EngagementId:guid}/audit-fieldwork | audit/fieldwork / US-031 (candidate) | AdoptAsync; AuthorizeAsync; CreateDbContextAsync; DecideApplicabilityAsync; EvaluateCompletionAsync; FirstOrDefaultAsync; … (+13) | CurrentActorResolver; IDbContextFactory<AuditSphereDbContext> | [`PARTIAL`](auditsphere-migration-blazor-audit-planning-fieldwork-source-review.md) |
-| `src/AuditSphereOps.Web/Components/Pages/AuditPlan.razor` | /app/audit/plans/{Id:guid}; /app/engagements/{EngagementId:guid}/audit-plan | audit/planning / US-030 (candidate) | ApproveMaterialityAssessmentAsync; ApproveMaterialityAsync; AuthorizeAsync; CreateAuditRiskAsync; CreateDbContextAsync; CreateFindingAsync; … (+12) | CurrentActorResolver; IDbContextFactory<AuditSphereDbContext>; NavigationManager | [`PARTIAL`](auditsphere-migration-blazor-audit-planning-fieldwork-source-review.md) |
+| `src/AuditSphereOps.Web/Components/Pages/AuditPlan.razor` | /app/audit/plans/{Id:guid}; /app/engagements/{EngagementId:guid}/audit-plan | audit/planning / US-030 (candidate) | AuthorizeAsync; CreateAuditRiskAsync; CreateDbContextAsync; CreateFindingAsync; CreatePopulationAsync; CreatePopulationVersionAsync; … (+8) | CurrentActorResolver; IDbContextFactory<AuditSphereDbContext>; NavigationManager | [`PARTIAL`](auditsphere-migration-blazor-audit-planning-fieldwork-source-review.md) |
 | `src/AuditSphereOps.Web/Components/Pages/AuditPopulation.razor` | /app/audit/populations/{Id:guid} | audit/fieldwork / US-031 (candidate) | AuthorizeAsync; CreateDbContextAsync; FirstOrDefaultAsync; LoadPopulationAsync; OnParametersSetAsync; ResolveAsync; … (+3) | CurrentActorResolver; IDbContextFactory<AuditSphereDbContext>; NavigationManager | [`PARTIAL`](auditsphere-migration-blazor-audit-planning-fieldwork-source-review.md) |
 | `src/AuditSphereOps.Web/Components/Pages/AuditProgramLibraryPage.razor` | /app/audit/library | audit/fieldwork / US-031 (candidate) | ClearSearchAsync; CreateDbContextAsync; GetLibraryAsync; GetSectionAsync; LoadAsync; OnInitializedAsync; … (+4) | CurrentActorResolver; IDbContextFactory<AuditSphereDbContext> | [`PARTIAL`](auditsphere-migration-blazor-audit-planning-fieldwork-source-review.md) |
 | `src/AuditSphereOps.Web/Components/Pages/ClientDetail.razor` | /app/clients/{ClientId:guid} | practice/portfolio / US-015 (candidate) | AuthorizeAsync; CreateClientContactAsync; CreateContactAsync; CreateDbContextAsync; GetIntentAsync; LoadClientAsync; … (+5) | CurrentActorResolver; IDbContextFactory<AuditSphereDbContext> | [`PARTIAL`](auditsphere-migration-blazor-shell-portfolio-source-review.md) |
@@ -57,7 +57,7 @@ Action/dependency values below are syntax-level scanner hints. Roles, business a
 | `src/AuditSphereOps.Web/Components/Pages/ClientPortal.razor` | /portal | portal / US-037 (candidate) | AcknowledgeAsync; AuthorizedPortalEngagementIdsAsync; AuthorizedPortalGrantIdsAsync; ClientBundlesAsync; CommentAsync; CompleteFirstSignInAsync; … (+12) | CurrentActorResolver; IDbContextFactory<AuditSphereDbContext> | [`PARTIAL`](auditsphere-migration-blazor-client-portal-source-review.md) |
 | `src/AuditSphereOps.Web/Components/Pages/CommercialSettings.razor` | /app/practice/commercial-settings | practice/commercial / US-016 (candidate) | CreateDbContextAsync; DeactivateAsync; DeactivateRuleAsync; GetProfileAsync; ListRulesAsync; LoadAsync; … (+5) | CurrentActorResolver; IDbContextFactory<AuditSphereDbContext> | [`PARTIAL`](auditsphere-migration-blazor-commercial-source-review.md) |
 | `src/AuditSphereOps.Web/Components/Pages/Completion.razor` | /app/completion/{Id:guid}; /app/engagements/{EngagementId:guid}/completion | completion / US-035 (candidate) | AuthorizeAsync; CountAsync; CreateAsync; CreateCandidateAsync; CreateDbContextAsync; FirstOrDefaultAsync; … (+6) | CurrentActorResolver; IDbContextFactory<AuditSphereDbContext>; NavigationManager | [`PARTIAL`](auditsphere-migration-blazor-completion-file-records-source-review.md) |
-| `src/AuditSphereOps.Web/Components/Pages/Consolidation.razor` | /app/consolidation | consolidation / US-027 (candidate) | AuthorizeGroupAsync; CreateDbContextAsync; GetLatestReportAsync; OnInitializedAsync; ResolveAsync; ToArrayAsync; … (+2) | CurrentActorResolver; IDbContextFactory<AuditSphereDbContext> | `NOT_ANALYZED` |
+| `src/AuditSphereOps.Web/Components/Pages/Consolidation.razor` | /app/consolidation | consolidation / US-027 (candidate) | AuthorizeGroupAsync; CreateDbContextAsync; GetLatestReportAsync; OnInitializedAsync; ResolveAsync; ToArrayAsync; … (+2) | CurrentActorResolver; IDbContextFactory<AuditSphereDbContext> | [`PARTIAL`](auditsphere-migration-blazor-consolidation-source-review.md) |
 | `src/AuditSphereOps.Web/Components/Pages/CurrencyRemeasurement.razor` | /app/accounting/remeasurement | accounting/currency / US-026 (candidate) | AddLineAsync; ApproveAsync; AuthorizeAsync; ContextChangedAsync; CreateDbContextAsync; GetAsync; … (+14) | CurrentActorResolver; IDbContextFactory<AuditSphereDbContext>; IJSRuntime | [`PARTIAL`](auditsphere-migration-blazor-accounting-artifact-source-review.md) |
 | `src/AuditSphereOps.Web/Components/Pages/EngagementDetail.razor` | /app/engagements/{EngagementId:guid} | practice/portfolio / US-015 (candidate) | AuthorizeAsync; CreateDbContextAsync; LoadEngagementAsync; OnParametersSetAsync; ReloadAsync; ResolveAsync; … (+2) | CurrentActorResolver; IDbContextFactory<AuditSphereDbContext> | [`PARTIAL`](auditsphere-migration-blazor-shell-portfolio-source-review.md) |
 | `src/AuditSphereOps.Web/Components/Pages/Finance.razor` | /app/finance | practice/finance / US-019 (candidate) | CloseFiscalPeriodAsync; CreateDbContextAsync; CurrentFinanceActorAsync; ExecuteClosePeriodAsync; GetAsync; LoadFinanceDataAsync; … (+2) | CurrentActorResolver; IDbContextFactory<AuditSphereDbContext> | [`PARTIAL`](auditsphere-migration-blazor-finance-source-review.md) |
@@ -97,14 +97,14 @@ Action/dependency values below are syntax-level scanner hints. Roles, business a
 
 ## Supporting Web project files
 
-These files were enumerated but their retirement impact has not been accepted. Static asset and host dependencies must be traced before removal.
+These files are inventoried separately from route/action rows. A linked `PARTIAL` review traces the artifact and its current owner but does not accept physical removal or establish complete behavior parity.
 
 | Artifact | Type hint | Review status |
 |---|---|---|
-| `src/AuditSphereOps.Web/AuditSphereDbContextFactory.cs` | .cs | `NOT_ANALYZED` |
-| `src/AuditSphereOps.Web/AuditSphereOps.Web.csproj` | .csproj | `NOT_ANALYZED` |
-| `src/AuditSphereOps.Web/Authentication/CurrentActorResolver.cs` | .cs | `NOT_ANALYZED` |
-| `src/AuditSphereOps.Web/Components/Administration/AdministrationDashboard.razor` | .razor | `NOT_ANALYZED` |
+| `src/AuditSphereOps.Web/AuditSphereDbContextFactory.cs` | .cs | [`PARTIAL`](auditsphere-migration-blazor-supporting-files-source-review.md) |
+| `src/AuditSphereOps.Web/AuditSphereOps.Web.csproj` | .csproj | [`PARTIAL`](auditsphere-migration-blazor-supporting-files-source-review.md) |
+| `src/AuditSphereOps.Web/Authentication/CurrentActorResolver.cs` | .cs | [`PARTIAL`](auditsphere-migration-blazor-supporting-files-source-review.md) |
+| `src/AuditSphereOps.Web/Components/Administration/AdministrationDashboard.razor` | .razor | [`PARTIAL`](auditsphere-migration-blazor-supporting-files-source-review.md) |
 | `src/AuditSphereOps.Web/Components/App.razor` | .razor | [`PARTIAL`](auditsphere-migration-blazor-shell-portfolio-source-review.md) |
 | `src/AuditSphereOps.Web/Components/Layout/AccountingNavigation.razor` | .razor | [`PARTIAL`](auditsphere-migration-blazor-shell-portfolio-source-review.md) |
 | `src/AuditSphereOps.Web/Components/Layout/ClientLayout.razor` | .razor | [`PARTIAL`](auditsphere-migration-blazor-shell-portfolio-source-review.md) |
@@ -116,19 +116,19 @@ These files were enumerated but their retirement impact has not been accepted. S
 | `src/AuditSphereOps.Web/Components/Shared/ScopeBanner.razor` | .razor | [`PARTIAL`](auditsphere-migration-blazor-shell-portfolio-source-review.md) |
 | `src/AuditSphereOps.Web/Components/Shared/SessionAccessBoundary.razor` | .razor | [`PARTIAL`](auditsphere-migration-blazor-shell-portfolio-source-review.md) |
 | `src/AuditSphereOps.Web/Components/Shared/StatusChip.razor` | .razor | [`PARTIAL`](auditsphere-migration-blazor-shell-portfolio-source-review.md) |
-| `src/AuditSphereOps.Web/Components/Theme/AuditSphereTheme.cs` | .cs | `NOT_ANALYZED` |
-| `src/AuditSphereOps.Web/Components/_Imports.razor` | .razor | `NOT_ANALYZED` |
-| `src/AuditSphereOps.Web/Program.cs` | .cs | `NOT_ANALYZED` |
-| `src/AuditSphereOps.Web/Properties/launchSettings.json` | .json | `NOT_ANALYZED` |
-| `src/AuditSphereOps.Web/appsettings.Development.json` | .json | `NOT_ANALYZED` |
-| `src/AuditSphereOps.Web/appsettings.json` | .json | `NOT_ANALYZED` |
-| `src/AuditSphereOps.Web/packages.lock.json` | .json | `NOT_ANALYZED` |
-| `src/AuditSphereOps.Web/wwwroot/app.css` | .css | `NOT_ANALYZED` |
-| `src/AuditSphereOps.Web/wwwroot/draft-state.js` | .js | `NOT_ANALYZED` |
-| `src/AuditSphereOps.Web/wwwroot/enterprise-ui.css` | .css | `NOT_ANALYZED` |
-| `src/AuditSphereOps.Web/wwwroot/pbc-upload.js` | .js | `NOT_ANALYZED` |
-| `src/AuditSphereOps.Web/wwwroot/reconnect-state.js` | .js | `NOT_ANALYZED` |
-| `src/AuditSphereOps.Web/wwwroot/search-shortcut.js` | .js | `NOT_ANALYZED` |
+| `src/AuditSphereOps.Web/Components/Theme/AuditSphereTheme.cs` | .cs | [`PARTIAL`](auditsphere-migration-blazor-supporting-files-source-review.md) |
+| `src/AuditSphereOps.Web/Components/_Imports.razor` | .razor | [`PARTIAL`](auditsphere-migration-blazor-supporting-files-source-review.md) |
+| `src/AuditSphereOps.Web/Program.cs` | .cs | [`PARTIAL`](auditsphere-migration-blazor-supporting-files-source-review.md) |
+| `src/AuditSphereOps.Web/Properties/launchSettings.json` | .json | [`PARTIAL`](auditsphere-migration-blazor-supporting-files-source-review.md) |
+| `src/AuditSphereOps.Web/appsettings.Development.json` | .json | [`PARTIAL`](auditsphere-migration-blazor-supporting-files-source-review.md) |
+| `src/AuditSphereOps.Web/appsettings.json` | .json | [`PARTIAL`](auditsphere-migration-blazor-supporting-files-source-review.md) |
+| `src/AuditSphereOps.Web/packages.lock.json` | .json | [`PARTIAL`](auditsphere-migration-blazor-supporting-files-source-review.md) |
+| `src/AuditSphereOps.Web/wwwroot/app.css` | .css | [`PARTIAL`](auditsphere-migration-blazor-supporting-files-source-review.md) |
+| `src/AuditSphereOps.Web/wwwroot/draft-state.js` | .js | [`PARTIAL`](auditsphere-migration-blazor-supporting-files-source-review.md) |
+| `src/AuditSphereOps.Web/wwwroot/enterprise-ui.css` | .css | [`PARTIAL`](auditsphere-migration-blazor-supporting-files-source-review.md) |
+| `src/AuditSphereOps.Web/wwwroot/pbc-upload.js` | .js | [`PARTIAL`](auditsphere-migration-blazor-supporting-files-source-review.md) |
+| `src/AuditSphereOps.Web/wwwroot/reconnect-state.js` | .js | [`PARTIAL`](auditsphere-migration-blazor-supporting-files-source-review.md) |
+| `src/AuditSphereOps.Web/wwwroot/search-shortcut.js` | .js | [`PARTIAL`](auditsphere-migration-blazor-supporting-files-source-review.md) |
 
 ## Evidence required to advance a row
 
