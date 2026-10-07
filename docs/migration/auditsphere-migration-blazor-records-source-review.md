@@ -112,5 +112,7 @@ journey was added for ordered, duplicate-free 100/100/5 rendering. It has not
 passed: the E2E host served an older Angular bundle, and `ng build` aborted
 inside esbuild with `fatal error: all goroutines are asleep - deadlock!` (exit
 134). `ngc -p tsconfig.app.json --noEmit` and the five focused records contract
-tests passed. Do not count large-manifest paging as verified until the current
-Angular bundle builds and the browser journey passes.
+tests passed. Separately, `RecordsArchivePagingApiTests` passed 1/1 against
+PostgreSQL for 100/100/5 ordered pages, total counts/cursors and nondisclosing
+foreign/guessed-ID denial. Do not count large-manifest UI paging as verified
+until the current Angular bundle builds and the browser journey passes.
