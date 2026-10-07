@@ -37,6 +37,22 @@ Evidence is recorded in
 [`auditsphere-migration-blazor-confirm-dialog-source-review.md`](../migration/auditsphere-migration-blazor-confirm-dialog-source-review.md)
 and `status.json`.
 
+## Workpaper autosave and discard decision race — 6d1f91ad
+
+A browser journey exposed that a pending Workpaper autosave could fire while
+the unsaved-edits dialog was open, persisting content before a discard choice.
+The navigation guard now cancels the debounce before asking the user. The
+Workpaper Angular unit suite passed 13/13 and the focused PostgreSQL/API-host
+Playwright class passed 4/4 in 1 minute 19 seconds. A simulated 409 discard
+refusal leaves the route and active revision-1 server draft unchanged; typed
+edits are not persisted. Direct discard and discard-before-navigation also
+pass. The built-in browser rejected the local URL under its security policy,
+so no fallback navigation was attempted; authenticated behavior was verified
+in the owned Playwright sessions. Production Angular build and full solution
+regression were not rerun; the Workpaper row and Blazor retirement remain
+partial/NOT_READY. Evidence is recorded in `status.json` and the Workpaper
+source review.
+
 ## Workpaper draft discard and navigation recovery — 1d05ed4c
 
 Added a PostgreSQL-backed Angular/API-host browser journey for the Workpaper

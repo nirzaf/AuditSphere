@@ -11268,6 +11268,7 @@
       "observedAt": "2026-10-07T13:05:00Z",
       "status": "PASS_LOCAL_SLICE",
       "caseId": "AS-PAR-002-ANGULAR-WORKPAPER-DISCARD-01",
+      "additionalCaseIds": ["AS-PAR-002-ANGULAR-WORKPAPER-NAV-DISCARD-01"],
       "focusedPostgresPlaywright": {
         "status": "PASS",
         "passed": 3,
@@ -11282,17 +11283,31 @@
       "sharedWorktreeBoundary": "The Release E2E build compiled other-agent uncommitted finance/fieldwork edits in the shared checkout; the Workpaper journey did not exercise those paths and only the Workpaper test file was committed.",
       "retirementDecision": "NOT_READY"
     },
+    "angularWorkpaperDiscardDecisionRace": {
+      "sourceCommit": "6d1f91ad21bb68c4081021eee961e3ebad3c0bf1",
+      "observedAt": "2026-10-07T13:20:41Z",
+      "status": "PASS_LOCAL_SLICE",
+      "caseId": "AS-PAR-002-ANGULAR-WORKPAPER-DISCARD-REFUSAL-01",
+      "focusedAngularTests": { "status": "PASS", "passed": 13, "failed": 0, "skipped": 0, "command": "npm run test:ci -- --include=src/app/features/audit/workpaper.spec.ts" },
+      "focusedPostgresPlaywright": { "status": "PASS", "passed": 4, "failed": 0, "skipped": 0, "duration": "1m19s", "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-build --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~AngularWorkpaperSaveRecoveryJourneyTests' --logger 'console;verbosity=minimal'" },
+      "coverage": "A simulated 409 discard refusal confirms the leave guard does not race its pending autosave: navigation is blocked, the active server draft remains at revision 1 with its original content, and typed edits are not persisted. Direct and navigation discard plus lost-save reconciliation/submission recovery also pass.",
+      "builtInBrowser": "BLOCKED: the built-in browser rejected the local URL under its browser security policy. The authenticated UI behavior was verified in the owned API-host Playwright sessions and the focused Angular unit suite.",
+      "angularProductionBuild": "NOT_RUN; shared checkout includes concurrent agent UI edits. Focused Workpaper Angular test build passed.",
+      "fullSolutionRegression": "NOT_RUN; latest complete PostgreSQL-backed Release solution result remains 1001/1001 at ead85032de2ccc4d4c8043398fa8471d395376a9.",
+      "efModelDrift": "Not rerun; no Application, Domain or EF model code changed.",
+      "retirementDecision": "NOT_READY"
+    },
     "angularWorkpaperSourceReview": {
-      "sourceCommit": "1d05ed4c",
-      "observedAt": "2026-10-07T13:05:00Z",
+      "sourceCommit": "6d1f91ad21bb68c4081021eee961e3ebad3c0bf1",
+      "observedAt": "2026-10-07T13:20:41Z",
       "status": "PARTIAL_REVIEW",
       "caseId": "AS-PAR-002-ANGULAR-WORKPAPER-SOURCE-REVIEW-01",
       "disposition": "PARTIAL",
       "inventory": {
         "totalSourceActionRows": 76,
         "parityVerified": 1,
-        "partial": 64,
-        "unanalyzed": 11,
+        "partial": 75,
+        "unanalyzed": 0,
         "supportingFilesOpen": 28,
         "pinnedLegacySourceSha256": "f8ad1c0396637bda6e119eda461f5b6a5cae27d2db999bf050ecf4baca1264b4",
         "angularReplacementSha256": "1e0b96907b3a4fc1a551f7508b6e7e74c74ec3db5e9692454f5517347b56fe48"
@@ -11305,15 +11320,14 @@
         "duration": "1m34s",
         "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~AngularWorkpaperSaveRecoveryJourneyTests|FullyQualifiedName~AngularClientScopeAuditDetailJourneyTests|FullyQualifiedName~AngularAuditRevocationParityJourneyTests|FullyQualifiedName~AngularAuditFieldworkParityJourneyTests'"
       },
-      "coverage": "Workpaper save-outcome reconciliation and submit, client/sibling/guessed-ID detail isolation, revocation clearing, fieldwork-to-workpaper linkage, direct draft discard, and discard-before-navigation without persisting unsaved edits.",
-      "followUpDiscardJourney": { "status": "PASS", "passed": 3, "failed": 0, "skipped": 0, "duration": "1m11s", "sourceCommit": "1d05ed4c", "coverage": "The complete Workpaper save/recovery E2E class passed: direct discard, navigation discard without persisting typed edits, and lost-acknowledgement reconciliation followed by one submission." },
+      "coverage": "Workpaper save-outcome reconciliation and submit, client/sibling/guessed-ID detail isolation, revocation clearing, fieldwork-to-workpaper linkage, direct draft discard, discard-before-navigation without persisting unsaved edits, and refused discard that blocks navigation while preserving the active draft.",
+      "followUpDiscardJourney": { "status": "PASS", "passed": 4, "failed": 0, "skipped": 0, "duration": "1m19s", "sourceCommit": "6d1f91ad21bb68c4081021eee961e3ebad3c0bf1", "coverage": "The complete Workpaper save/recovery E2E class passed: direct discard, navigation discard without persisting typed edits, refused discard that blocks navigation and preserves the active draft, and lost-acknowledgement reconciliation followed by one submission." },
       "builtInBrowser": "PASS_LOCAL_READ_ONLY: the Development browser showed the generic unavailable state for a guessed workpaper ID under an unassigned identity, with no protected content or commands.",
       "fullSolutionRegression": "NOT_RUN for this review; latest complete PostgreSQL-backed Release result remains 1001/1001 at ead85032de2ccc4d4c8043398fa8471d395376a9.",
       "efModelDrift": "Not rerun; no Application, Domain, entity or EF model code changed in this source-review slice.",
       "openGaps": [
         "Complete role/scope, expired-grant, cross-firm and guessed-ID HTTP/browser matrix",
         "All stale, validation, timeout, failure and recovery states",
-        "Refused-discard recovery combinations beyond the successful direct and navigation discard journeys",
         "Human screen-reader and wider-locale acceptance"
       ],
       "sharedWorktreeBoundary": "The unrelated docs/execution/angular-source-inventory.json and src/AuditSphereOps.Application/Accounting/ConsolidationOverviewQuery.cs edits were excluded from this review and remain untouched.",

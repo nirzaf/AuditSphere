@@ -69,9 +69,9 @@ for an unassigned guessed ID without workpaper content or commands.
 - Every stale, unavailable, validation, timeout, and recovery state is not yet
   covered end-to-end.
 - Draft discard's persisted lifecycle and cleared editor are now covered by a
-  dedicated Angular/API-host browser journey. The navigation-guard discard path
-  is now covered too; refused-discard recovery remains outside those successful
-  discard journeys.
+  dedicated Angular/API-host browser journey. Both navigation-guard discard and
+  stale-refusal behavior are now covered; remaining recovery branches are listed
+  below.
 - Human screen-reader and broader locale acceptance remain external to the
   current DOM and automated-browser evidence.
 
@@ -97,7 +97,31 @@ historical draft. No browser console or page errors were observed in the discard
 The successful direct-discard and discard-before-navigation browser gaps are
 closed for this source review. The row
 remains `PARTIAL`: complete role/scope, expired-grant, cross-firm and guessed-ID
-matrices, refused-discard and remaining stale/failure/recovery branches, human
+matrices and remaining stale/failure/recovery branches outside the covered
+discard paths, human
 screen-reader and wider-locale acceptance, and production migration gates
 remain open. The full
 solution regression and EF drift check were not rerun.
+
+
+### Autosave and refused-discard recovery — 2026-10-07
+
+The navigation guard previously left the autosave debounce armed while the
+unsaved-edits dialog was open. A browser test exposed that the timer could save
+new edits before the user selected discard. `confirmNavigation()` now cancels
+the pending debounce before presenting the leave decision.
+
+At code commit `6d1f91ad`, the Workpaper Angular unit suite passed **13/13** and
+the complete PostgreSQL-backed `AngularWorkpaperSaveRecoveryJourneyTests` class
+passed **4/4** in 1 minute 19 seconds. The refusal case injects a 409 response,
+verifies navigation remains blocked, and confirms the original active draft
+remains at revision 1 with no new edits or submission persisted. Direct discard,
+discard-before-navigation and lost-save reconciliation/submission also pass.
+
+The built-in browser rejected the local URL under its browser security policy;
+no workaround was attempted. Authenticated UI behavior was verified by the
+owned API-host Playwright journeys and the focused Angular unit suite. The
+optimized Angular production build and full solution regression were not rerun.
+The Workpaper source row remains `PARTIAL` for its broader authorization,
+remaining stale/error recovery, human accessibility/locale and production
+acceptance gates.
