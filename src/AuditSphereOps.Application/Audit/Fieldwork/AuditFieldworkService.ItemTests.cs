@@ -36,6 +36,14 @@ public static partial class AuditFieldworkService
       return CommandResult<ItemTestValue>.Fail(ErrorCodes.GenerationStale, "The selected population changed; item testing is stale.");
     var generation = await CurrentGenerationAsync(db, selection.ClientId, selection.FirmId, ct);
     await using var tx = await db.Database.BeginTransactionAsync(ct);
+    // Professional mutations of a frozen audit baseline are refused under the same transaction boundary
+    // as the write (STE-REM-09).
+    var writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, item.EngagementId, "record item test", ct);
+    if (!writable.Succeeded)
+    {
+      await tx.CommitAsync(ct); // persist the recorded refused attempt before refusing
+      return CommandResult<ItemTestValue>.Fail(writable.ErrorCode!, writable.Message!);
+    }
     var revision = (await db.AuditItemTests.AsNoTracking().Where(x => x.SelectionItemId == item.Id).MaxAsync(x => (long?)x.Revision, ct) ?? 0) + 1;
     var test = new AuditItemTest
     {
@@ -76,6 +84,12 @@ public static partial class AuditFieldworkService
     if (test.InputGeneration != await CurrentGenerationAsync(db, test.ClientId, test.FirmId, ct))
       return CommandResult.Fail(ErrorCodes.GenerationStale, "The item-test inputs changed; record a current revision.");
     await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, test.EngagementId, "review item test", ct);
+    if (!writable.Succeeded)
+    {
+      await tx.CommitAsync(ct); // persist the recorded refused attempt before refusing
+      return CommandResult.Fail(writable.ErrorCode!, writable.Message!);
+    }
     db.AuditItemTestReviews.Add(new AuditItemTestReview
     {
       Id = Guid.CreateVersion7(), FirmId = test.FirmId, ClientId = test.ClientId, EngagementId = test.EngagementId,

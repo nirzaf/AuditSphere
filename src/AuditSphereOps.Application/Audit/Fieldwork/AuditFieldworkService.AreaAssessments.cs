@@ -31,6 +31,12 @@ public static partial class AuditFieldworkService
     if (request.Currency is not null && !IsCurrency(request.Currency))
       return Invalid<AreaAssessmentValue>("Currency must be ISO 4217.");
     await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, request.EngagementId, "record area assessment", ct);
+    if (!writable.Succeeded)
+    {
+      await tx.CommitAsync(ct); // persist the recorded refused attempt before refusing
+      return CommandResult<AreaAssessmentValue>.Fail(writable.ErrorCode!, writable.Message!);
+    }
     var generation = await CurrentGenerationAsync(db, auth.ClientId, actor.FirmId, ct);
     var inputSnapshot = request.InputSnapshotJson.Trim();
     if (areaCode == AuditAreaCodes.AuditDifferences)
@@ -80,6 +86,12 @@ public static partial class AuditFieldworkService
     if (existing.CreatedByUserId == actor.UserId)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "The preparer cannot review the same assessment.");
     await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, existing.EngagementId, "review area assessment", ct);
+    if (!writable.Succeeded)
+    {
+      await tx.CommitAsync(ct); // persist the recorded refused attempt before refusing
+      return CommandResult.Fail(writable.ErrorCode!, writable.Message!);
+    }
     var live = await db.AuditAreaAssessments.SingleAsync(x => x.Id == existing.Id && x.FirmId == actor.FirmId, ct);
     live.Status = decision;
     live.ReviewedByUserId = actor.UserId;

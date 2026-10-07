@@ -27,6 +27,12 @@ public static partial class AuditFieldworkService
     if (request.ProcedureId is not null && !await IsApplicableProcedureAsync(db, actor.FirmId, auth.ClientId, request.EngagementId, request.ProcedureId.Value, ct))
       return CommandResult<DifferenceValue>.Fail(ErrorCodes.GateBlocked, "The linked procedure is not applicable.");
     await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, request.EngagementId, "record audit difference", ct);
+    if (!writable.Succeeded)
+    {
+      await tx.CommitAsync(ct); // persist the recorded refused attempt before refusing
+      return CommandResult<DifferenceValue>.Fail(writable.ErrorCode!, writable.Message!);
+    }
     var difference = new AuditDifference
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = auth.ClientId, EngagementId = request.EngagementId,
@@ -78,6 +84,12 @@ public static partial class AuditFieldworkService
           "The correction evidence is stale or does not match the exact posted journal revision.");
     }
     await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, existing.EngagementId, "evaluate audit difference", ct);
+    if (!writable.Succeeded)
+    {
+      await tx.CommitAsync(ct); // persist the recorded refused attempt before refusing
+      return CommandResult<DifferenceValue>.Fail(writable.ErrorCode!, writable.Message!);
+    }
     var live = await db.AuditDifferences.SingleAsync(x => x.Id == existing.Id && x.FirmId == actor.FirmId, ct);
     live.Corrected = request.Corrected;
     live.ManagementResponse = TrimOrNull(request.ManagementResponse);
@@ -181,6 +193,12 @@ public static partial class AuditFieldworkService
       return CommandResult<DifferenceValue>.Fail(ErrorCodes.ProtectedState, "The correction state cannot move from its current reviewed state.");
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, existing.EngagementId, "set difference correction state", ct);
+    if (!writable.Succeeded)
+    {
+      await tx.CommitAsync(ct); // persist the recorded refused attempt before refusing
+      return CommandResult<DifferenceValue>.Fail(writable.ErrorCode!, writable.Message!);
+    }
     var live = await db.AuditDifferences.SingleAsync(x => x.Id == existing.Id && x.FirmId == actor.FirmId, ct);
     live.CorrectionState = state;
     if (!string.IsNullOrWhiteSpace(request.Reason))

@@ -140,6 +140,15 @@ public static class ReviewNotesService
       var preparer = await db.AuditProcedureResults.AsNoTracking().Where(x => x.Id == note.ResultId).Select(x => x.PreparedByUserId).SingleAsync(ct);
       if (preparer == actor.UserId) return CommandResult.Fail(ErrorCodes.ScopeDenied, "The preparer responds to notes; a reviewer resolves them.");
     }
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    // Note events are professional mutations of the file: a frozen engagement refuses them under the
+    // same transaction boundary as the write (STE-REM-09).
+    var writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, note.EngagementId, $"record review note {kind.ToLowerInvariant()}", ct);
+    if (!writable.Succeeded)
+    {
+      await tx.CommitAsync(ct); // persist the recorded refused attempt before refusing
+      return CommandResult.Fail(writable.ErrorCode!, writable.Message!);
+    }
     db.ProcedureReviewNoteEvents.Add(new ProcedureReviewNoteEvent
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, NoteId = noteId, Kind = kind, Body = body.Trim(), AuthorUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
@@ -148,6 +157,7 @@ public static class ReviewNotesService
     // A reopened thread returns reviewed work to rework exactly like a late note (STE-REM-06).
     if (kind == ReviewNoteEventKinds.Reopened)
       await ReopenReviewedWorkForReworkAsync(db, note.ProcedureId, note.ResultId, ct);
+    await tx.CommitAsync(ct);
     return CommandResult.Ok();
   }
 

@@ -57,6 +57,12 @@ public static partial class AuditFieldworkService
     var live = await db.AuditConfirmationCases.SingleOrDefaultAsync(x => x.Id == request.ConfirmationCaseId && x.FirmId == actor.FirmId, ct);
     if (live is null || live.Status != AuditConfirmationStatuses.Approved)
       return CommandResult<ConfirmationValue>.Fail(ErrorCodes.GateBlocked, "Only an approved confirmation can record dispatch evidence.");
+    var writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, live.EngagementId, "record confirmation dispatch", ct);
+    if (!writable.Succeeded)
+    {
+      if (tx is not null) await tx.CommitAsync(ct); // persist the recorded refused attempt before refusing
+      return CommandResult<ConfirmationValue>.Fail(writable.ErrorCode!, writable.Message!);
+    }
     live.DispatchReference = request.DispatchReference.Trim();
     live.DispatchedAt = DateTimeOffset.UtcNow;
     live.Status = AuditConfirmationStatuses.Dispatched;
@@ -81,6 +87,12 @@ public static partial class AuditFieldworkService
     var live = await db.AuditConfirmationCases.SingleOrDefaultAsync(x => x.Id == request.ConfirmationCaseId && x.FirmId == actor.FirmId, ct);
     if (live is null || live.DispatchedAt is null || live.Status is not (AuditConfirmationStatuses.Dispatched or AuditConfirmationStatuses.NoResponse or AuditConfirmationStatuses.AlternativeRequired or AuditConfirmationStatuses.ResponseReceived))
       return CommandResult<ConfirmationValue>.Fail(ErrorCodes.GateBlocked, "A response must follow observed dispatch evidence.");
+    var writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, live.EngagementId, "record confirmation response", ct);
+    if (!writable.Succeeded)
+    {
+      if (tx is not null) await tx.CommitAsync(ct); // persist the recorded refused attempt before refusing
+      return CommandResult<ConfirmationValue>.Fail(writable.ErrorCode!, writable.Message!);
+    }
     var revision = (await db.AuditConfirmationResponses.AsNoTracking().Where(x => x.ConfirmationCaseId == live.Id).MaxAsync(x => (long?)x.Revision, ct) ?? 0) + 1;
     var response = new AuditConfirmationResponse
     {
@@ -120,6 +132,12 @@ public static partial class AuditFieldworkService
       return CommandResult.Fail(ErrorCodes.StaleRevision, "Only the current confirmation response can be reviewed.");
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     var live = await db.AuditConfirmationResponses.SingleAsync(x => x.Id == response.Id && x.FirmId == actor.FirmId, ct);
+    var writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, live.EngagementId, "review confirmation response", ct);
+    if (!writable.Succeeded)
+    {
+      if (tx is not null) await tx.CommitAsync(ct); // persist the recorded refused attempt before refusing
+      return writable;
+    }
     live.ReviewedByUserId = actor.UserId;
     live.ReviewedAt = DateTimeOffset.UtcNow;
     await db.SaveChangesAsync(ct);
@@ -140,6 +158,12 @@ public static partial class AuditFieldworkService
     if (existing is null || existing.Status is not (AuditConfirmationStatuses.NoResponse or AuditConfirmationStatuses.AlternativeRequired))
       return CommandResult<ConfirmationValue>.Fail(ErrorCodes.GateBlocked, "Alternative work requires an outstanding or non-response confirmation.");
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    var writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, existing.EngagementId, "record alternative procedure", ct);
+    if (!writable.Succeeded)
+    {
+      if (tx is not null) await tx.CommitAsync(ct); // persist the recorded refused attempt before refusing
+      return CommandResult<ConfirmationValue>.Fail(writable.ErrorCode!, writable.Message!);
+    }
     var alternative = new AuditAlternativeProcedure
     {
       Id = Guid.CreateVersion7(), FirmId = existing.FirmId, ClientId = existing.ClientId, EngagementId = existing.EngagementId,
@@ -165,6 +189,12 @@ public static partial class AuditFieldworkService
     if (live.CreatedByUserId == actor.UserId)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "The preparer cannot review the same alternative procedure.");
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    var writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, live.EngagementId, "review alternative procedure", ct);
+    if (!writable.Succeeded)
+    {
+      if (tx is not null) await tx.CommitAsync(ct); // persist the recorded refused attempt before refusing
+      return writable;
+    }
     live.Status = AuditAlternativeStatuses.Reviewed;
     live.ReviewedByUserId = actor.UserId;
     live.ReviewedAt = DateTimeOffset.UtcNow;
@@ -188,6 +218,12 @@ public static partial class AuditFieldworkService
     auth = await AuthorizeEntityAsync(db, actor, locked, ReviewRoles, ct);
     if (!auth.Succeeded)
       return CommandResult<ConfirmationValue>.Fail(auth.ErrorCode!, auth.Message!);
+    var writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, locked.EngagementId, "close confirmation", ct);
+    if (!writable.Succeeded)
+    {
+      if (tx is not null) await tx.CommitAsync(ct); // persist the recorded refused attempt before refusing
+      return CommandResult<ConfirmationValue>.Fail(writable.ErrorCode!, writable.Message!);
+    }
     if (locked.Status is AuditConfirmationStatuses.Draft or AuditConfirmationStatuses.Closed)
       return CommandResult<ConfirmationValue>.Fail(ErrorCodes.ProtectedState, "The confirmation is not eligible for a new closure decision.");
     var latestResponse = await db.AuditConfirmationResponses.AsNoTracking()
@@ -240,6 +276,12 @@ public static partial class AuditFieldworkService
       return CommandResult<ConfirmationValue>.Fail(ErrorCodes.ProtectedState, "The confirmation is already beyond draft.");
     if (status == AuditConfirmationStatuses.Approved && live.CreatedByUserId == actor.UserId)
       return CommandResult<ConfirmationValue>.Fail(ErrorCodes.ScopeDenied, "The preparer cannot approve the same confirmation.");
+    var writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, live.EngagementId, "approve confirmation", ct);
+    if (!writable.Succeeded)
+    {
+      if (tx is not null) await tx.CommitAsync(ct); // persist the recorded refused attempt before refusing
+      return CommandResult<ConfirmationValue>.Fail(writable.ErrorCode!, writable.Message!);
+    }
     live.Status = status;
     await db.SaveChangesAsync(ct);
     if (tx is not null) await tx.CommitAsync(ct);

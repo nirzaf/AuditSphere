@@ -450,6 +450,14 @@ public static class AuditProgramService
     if (procedure.ApplicabilityStatus != AuditApplicabilityStatuses.Applicable)
       return CommandResult<ProcedureResultValue>.Fail(ErrorCodes.GateBlocked,
         "Only an explicitly applicable procedure can receive test results.");
+    // Every professional mutation of a frozen audit baseline is refused under the same transaction
+    // boundary as the write (STE-REM-09).
+    var frozen = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, procedure.EngagementId, "submit procedure result", ct);
+    if (!frozen.Succeeded)
+    {
+      await tx.CommitAsync(ct); // persist the recorded refused attempt before refusing
+      return CommandResult<ProcedureResultValue>.Fail(frozen.ErrorCode!, frozen.Message!);
+    }
 
     // Keep the existing broad client-source fence. Risk and materiality revisions are bound below
     // as a narrower immutable basis and must not invalidate unrelated accounting mappings.
@@ -598,6 +606,12 @@ public static class AuditProgramService
       return CommandResult<ProcedureReviewValue>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (result.PreparedByUserId == actor.UserId)
       return CommandResult<ProcedureReviewValue>.Fail(ErrorCodes.ScopeDenied, "The preparer cannot review the same result.");
+    var frozen = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, result.EngagementId, "review procedure result", ct);
+    if (!frozen.Succeeded)
+    {
+      await tx.CommitAsync(ct); // persist the recorded refused attempt before refusing
+      return CommandResult<ProcedureReviewValue>.Fail(frozen.ErrorCode!, frozen.Message!);
+    }
     if (result.Status != AuditProcedureResultStatuses.Submitted)
       return CommandResult<ProcedureReviewValue>.Fail(ErrorCodes.ProtectedState,
         "Only the current submitted result can receive a review decision.");

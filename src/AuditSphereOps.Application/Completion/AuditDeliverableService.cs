@@ -150,6 +150,8 @@ public static partial class AuditDeliverableService
       return CommandResult<Guid>.Fail(ErrorCodes.AuditPlanning.Invalid, "Write the reviewer's recommendations for the Partner.");
     var auth = await AuthorizeAsync(db, actor, engagementId, ["Manager", "Partner", "Administrator"], ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    var writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, engagementId, "generate Summary Review Memorandum", ct);
+    if (!writable.Succeeded) return CommandResult<Guid>.Fail(writable.ErrorCode!, writable.Message!);
     return await CompileSummaryAsync(db, actor, engagementId, recommendations, ct);
   }
 
@@ -243,6 +245,8 @@ public static partial class AuditDeliverableService
     if (srm is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizePartnerAsync(db, actor, srm.EngagementId, ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    var writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, srm.EngagementId, "record Partner completion clearance", ct);
+    if (!writable.Succeeded) return CommandResult<Guid>.Fail(writable.ErrorCode!, writable.Message!);
     if (!await IsCurrentAsync(db, actor, srm, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "The work changed after this memorandum; generate a current Summary Review Memorandum first.");
     var facts = await FactsAsync(db, actor, srm.EngagementId, ct);
@@ -273,6 +277,8 @@ public static partial class AuditDeliverableService
         "A modified opinion needs an affected area of up to 200 characters and a basis of up to 4,000 characters.");
     var auth = await AuthorizePartnerAsync(db, actor, engagementId, ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    var writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, engagementId, "record audit opinion", ct);
+    if (!writable.Succeeded) return CommandResult<Guid>.Fail(writable.ErrorCode!, writable.Message!);
     var clearance = await CurrentClearanceAsync(db, actor, engagementId, ct);
     if (clearance is null) return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Partner clearance of a current Summary Review Memorandum is required before the opinion.");
     OpinionFsliOption? selectedArea = null;
@@ -446,6 +452,12 @@ public static partial class AuditDeliverableService
     await LockDeliverableEngagementAsync(db, actor.FirmId, report.EngagementId, ct);
     auth = await AuthorizePartnerAsync(db, actor, report.EngagementId, ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    var writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, report.EngagementId, "sign the independent auditor's report", ct);
+    if (!writable.Succeeded)
+    {
+      await tx.CommitAsync(ct); // persist the recorded refused attempt before refusing
+      return CommandResult<Guid>.Fail(writable.ErrorCode!, writable.Message!);
+    }
     // The current critical set is rechecked at signing: a critical confirmation without its returned and
     // independently evaluated response blocks the signature even after alternative-only closure or a
     // later criticality reassessment (STE-REM-08).
@@ -493,6 +505,8 @@ public static partial class AuditDeliverableService
     if (deliverable is null || deliverable.Kind is DeliverableKinds.SummaryReviewMemorandum) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizeAsync(db, actor, deliverable.EngagementId, ["Manager", "Partner", "Administrator"], ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    var writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, deliverable.EngagementId, "share a deliverable with the client", ct);
+    if (!writable.Succeeded) return CommandResult<Guid>.Fail(writable.ErrorCode!, writable.Message!);
     var existing = await db.ClientDeliverableReviews.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.DeliverableId == deliverableId, ct);
     if (existing is not null) return CommandResult<Guid>.Ok(existing.Id);
     var review = new ClientDeliverableReview
@@ -514,6 +528,8 @@ public static partial class AuditDeliverableService
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, review.ClientId, review.EngagementId,
       fromClient ? ["ClientUser"] : ReaderRoles, InternalOnly: !fromClient), ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    var writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, review.EngagementId, "comment on a shared deliverable", ct);
+    if (!writable.Succeeded) return CommandResult<Guid>.Fail(writable.ErrorCode!, writable.Message!);
     if (review.AcknowledgedAt is not null) return CommandResult<Guid>.Fail(ErrorCodes.ProtectedState, "The document was already acknowledged.");
     var comment = new ClientDeliverableComment { Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ReviewId = reviewId, Body = body.Trim(), AuthorUserId = actor.UserId, FromClient = fromClient, CreatedAt = DateTimeOffset.UtcNow };
     db.ClientDeliverableComments.Add(comment);
@@ -529,6 +545,8 @@ public static partial class AuditDeliverableService
     var review = await db.ClientDeliverableReviews.AsNoTracking().SingleAsync(x => x.Id == comment.ReviewId, ct);
     var auth = await AuthorizeAsync(db, actor, review.EngagementId, PreparerRoles, ct);
     if (!auth.Succeeded) return auth;
+    var writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, review.EngagementId, "resolve a deliverable comment", ct);
+    if (!writable.Succeeded) return writable;
     if (comment.ResolvedAt is not null) return CommandResult.Ok();
     comment.ResolvedAt = DateTimeOffset.UtcNow;
     comment.ResolvedByUserId = actor.UserId;
@@ -544,6 +562,8 @@ public static partial class AuditDeliverableService
     if (review is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, review.ClientId, review.EngagementId, ["ClientUser"]), ct);
     if (!auth.Succeeded) return auth;
+    var writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, review.EngagementId, "acknowledge a shared deliverable", ct);
+    if (!writable.Succeeded) return writable;
     var deliverable = await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.Id == review.DeliverableId, ct);
     if (!string.Equals(deliverable.ContentSha256, sha256?.Trim(), StringComparison.OrdinalIgnoreCase))
       return CommandResult.Fail(ErrorCodes.GenerationStale, "The acknowledged document does not match the shared version.");
@@ -584,6 +604,8 @@ public static partial class AuditDeliverableService
     if (confirmation is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizeAsync(db, actor, confirmation.EngagementId, ["Manager", "Partner", "Administrator"], ct);
     if (!auth.Succeeded) return auth;
+    var writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, confirmation.EngagementId, "set confirmation criticality", ct);
+    if (!writable.Succeeded) return writable;
     db.ConfirmationCriticalities.Add(new ConfirmationCriticality
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ConfirmationCaseId = caseId, Critical = critical, Rationale = rationale.Trim(), SetByUserId = actor.UserId, SetAt = DateTimeOffset.UtcNow

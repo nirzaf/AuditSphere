@@ -242,6 +242,106 @@ public sealed partial class AuditDeliverablesTests
   }
 
   [Fact]
+  public async Task ConcurrentFreezeSerializesWithWrites_AndFrozenFileRefusesProfessionalMutations()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var senior = w.A("senior", "Senior");
+    var manager = w.A("manager", "Manager");
+    var partner = w.A("partner", "Partner");
+    var associate = w.A("associate", "Staff");
+    Guid srm, noteId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.True((await AuditProgramService.ReviewResultAsync(db, senior, new(w.ResultId, "REVIEWED", null))).Succeeded);
+      srm = (await AuditDeliverableService.GenerateSummaryReviewMemorandumAsync(db, manager, w.EngagementId, "Ready.")).Value;
+      Assert.True((await AuditDeliverableService.PartnerClearAsync(db, partner, srm, "Risk areas reviewed.", "Notes reviewed.")).Succeeded);
+      Assert.True((await AuditDeliverableService.DecideOpinionAsync(db, partner, w.EngagementId, "UNMODIFIED", null, null)).Succeeded);
+      // An open note and an unreviewed submitted revision stay available for the frozen attempts below.
+      var note = await ReviewNotesService.AddNoteAsync(db, senior, new(w.ResultId, "WORK_PERFORMED", "25 invoices", "Show the sample derivation."));
+      Assert.True(note.Succeeded, note.Message);
+      noteId = note.Value;
+      Assert.True((await AuditProgramService.SubmitResultAsync(db, associate, new SubmitProcedureResultRequest(w.ProcedureId, 1,
+        "Reworked evidence review.", "{\"result\":\"PASS\"}", ["source:invoice-25"], "No exception noted."))).Succeeded);
+    }
+    var signedAt = DateTimeOffset.UtcNow.AddDays(-61);
+    var freezeId = Guid.NewGuid();
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.EngagementFileFreezes.Add(new EngagementFileFreeze
+      {
+        Id = freezeId, FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId, ReportDeliverableId = srm,
+        ReportSignedAt = signedAt, DueAt = signedAt.AddDays(60), State = FileFreezeStates.Scheduled, Revision = 1, UpdatedAt = signedAt
+      });
+      await db.SaveChangesAsync();
+    }
+
+    // The frozen-state check takes a shared lock on the engagement row inside the caller's transaction:
+    // a concurrent engagement write (including the worker freeze's exclusive update) is serialized with
+    // it, so a freeze can never be overtaken by a write that checked earlier (STE-REM-09).
+    await using (var checkDb = new AuditSphereDbContext(pg.Options))
+    await using (var checkTx = await checkDb.Database.BeginTransactionAsync())
+    {
+      Assert.True((await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(checkDb, senior, w.EngagementId, "lock probe", default)).Succeeded);
+      await using (var probeDb = new AuditSphereDbContext(pg.Options))
+      {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+          await probeDb.Database.ExecuteSqlInterpolatedAsync($"UPDATE engagements SET generation = generation WHERE id = {w.EngagementId}", timeout.Token));
+      }
+      await checkTx.RollbackAsync();
+    }
+
+    // The worker freezes the due file through its public discovery/handler path.
+    var factory = new OperationContextFactory(new PbcSeed.OptionsDbContextFactory(pg.Options));
+    var store = new PostgresOperationStore(factory);
+    var handler = new FileFreezeHandler(TimeProvider.System);
+    var options = new WorkerOptions(w.FirmId, "Test");
+    var worker = new AuditSphereOps.Worker.Worker(new OperationDispatcher(store, new DurableOperationRegistry([handler], options), options),
+      [new FileFreezeDiscovery(factory, store, handler, options, TimeProvider.System)], NullLogger<AuditSphereOps.Worker.Worker>.Instance);
+    Assert.True(await worker.ProcessNextAsync());
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.Equal(FileFreezeStates.Frozen, (await db.EngagementFileFreezes.AsNoTracking().SingleAsync(x => x.Id == freezeId)).State);
+      Assert.True((await db.Engagements.AsNoTracking().SingleAsync(x => x.Id == w.EngagementId)).ProfessionalWorkBlocked);
+    }
+
+    // Once frozen, every professional mutation boundary refuses under its own transaction boundary,
+    // records the refused attempt, and leaves the business rows unchanged (STE-REM-09).
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var srmBefore = await db.AuditDeliverables.CountAsync(x => x.EngagementId == w.EngagementId && x.Kind == DeliverableKinds.SummaryReviewMemorandum);
+      var srmRefused = await AuditDeliverableService.GenerateSummaryReviewMemorandumAsync(db, manager, w.EngagementId, "Frozen attempt.");
+      Assert.Equal(ErrorCodes.ProtectedState, srmRefused.ErrorCode);
+      Assert.Equal(ErrorCodes.ProtectedState, (await AuditDeliverableService.PartnerClearAsync(db, partner, srm, "Frozen.", "Frozen.")).ErrorCode);
+      Assert.Equal(ErrorCodes.ProtectedState, (await AuditDeliverableService.DecideOpinionAsync(db, partner, w.EngagementId, "UNMODIFIED", null, null)).ErrorCode);
+      Assert.Equal(ErrorCodes.ProtectedState, (await ReviewNotesService.AddNoteAsync(db, senior, new(w.ResultId, "WORK_PERFORMED", "25 invoices", "Frozen attempt."))).ErrorCode);
+      Assert.Equal(ErrorCodes.ProtectedState, (await ReviewNotesService.RespondAsync(db, associate, noteId, "Frozen attempt.")).ErrorCode);
+      Assert.Equal(ErrorCodes.ProtectedState, (await AuditProgramService.SubmitResultAsync(db, associate, new SubmitProcedureResultRequest(w.ProcedureId, 1,
+        "Frozen attempt.", "{\"result\":\"PASS\"}", ["source:frozen"], "Frozen attempt."))).ErrorCode);
+      var currentResult = await db.AuditProcedureResults.AsNoTracking().Where(x => x.AuditProcedureId == w.ProcedureId).OrderByDescending(x => x.Revision).FirstAsync();
+      Assert.Equal(ErrorCodes.ProtectedState, (await AuditProgramService.ReviewResultAsync(db, senior, new(currentResult.Id, "REVIEWED", null))).ErrorCode);
+      Assert.Equal(ErrorCodes.ProtectedState, (await AuditFieldworkService.RecordDifferenceAsync(db, manager,
+        new(w.EngagementId, null, "Revenue", "CUTOFF", "Frozen attempt", 100m, "QAR"))).ErrorCode);
+
+      Assert.Equal(srmBefore, await db.AuditDeliverables.CountAsync(x => x.EngagementId == w.EngagementId && x.Kind == DeliverableKinds.SummaryReviewMemorandum));
+      Assert.Empty(await db.ProcedureReviewNoteEvents.ToListAsync()); // no thread events were recorded on the frozen file
+      Assert.Empty(await db.AuditDifferences.Where(x => x.EngagementId == w.EngagementId).ToListAsync());
+      Assert.Equal(2, await db.AuditProcedureResults.CountAsync(x => x.AuditProcedureId == w.ProcedureId));
+      Assert.Equal(1, await db.PartnerCompletionClearances.CountAsync(x => x.EngagementId == w.EngagementId)); // only the pre-freeze clearance
+      var attempts = await db.FrozenAccessAttempts.AsNoTracking().Where(x => x.EngagementId == w.EngagementId).Select(x => x.Action).ToListAsync();
+      Assert.Contains("generate Summary Review Memorandum", attempts);
+      Assert.Contains("record Partner completion clearance", attempts);
+      Assert.Contains("record audit opinion", attempts);
+      Assert.Contains("add review note", attempts);
+      Assert.Contains("record review note response", attempts);
+      // The professional-work boundaries (result submit/review, differences) report the frozen state
+      // through the central professional-work check with its neutral access label.
+      Assert.Contains("professional work on a frozen engagement file", attempts);
+    }
+  }
+
+  [Fact]
   public async Task CriticalUnreturnedConfirmationKeepsBlockingAfterAlternativeClosureAndCriticalityReassessment()
   {
     await using var pg = await PgTestSchema.CreateAsync();

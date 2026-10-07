@@ -53,7 +53,12 @@ public static class FileFreezeService
     if (freeze.State == FileFreezeStates.Frozen) return false;
     if (freeze.State != FileFreezeStates.Scheduled || freeze.Revision != expectedRevision || freeze.DueAt > now)
       throw new OperationBlockedException("freeze-not-due-or-rescheduled");
-    var engagement = await db.Engagements.SingleAsync(x => x.Id == freeze.EngagementId && x.FirmId == freeze.FirmId, ct);
+    // Serialize the freeze against in-flight professional writes: writers hold the engagement row lock
+    // (or a shared lock through the frozen-state check) before mutating, so a freeze cannot land in the
+    // middle of a write that already passed its check, and a write starting after the freeze commits
+    // sees the frozen state (STE-REM-09).
+    var engagement = await db.Engagements.FromSqlInterpolated(
+      $"SELECT * FROM engagements WHERE id = {freeze.EngagementId} AND firm_id = {freeze.FirmId} FOR UPDATE").SingleAsync(ct);
     freeze.State = FileFreezeStates.Frozen;
     freeze.FrozenAt = now;
     freeze.ExternalReadOnly = ExternalReadOnlyStates.BlockedExternal;
@@ -63,10 +68,26 @@ public static class FileFreezeService
     return true;
   }
 
-  /// <summary>Guard for write paths: refuses and records the attempt while the file is frozen.</summary>
+  /// <summary>
+  /// Guard for write paths: refuses and records the attempt while the file is frozen. Inside a caller's
+  /// transaction the check first takes a shared lock on the engagement row, so a concurrent worker freeze
+  /// (which takes the same row exclusively) is serialized with the write and can never be overtaken by a
+  /// write that checked earlier (STE-REM-09).
+  /// </summary>
   public static async Task<CommandResult> RequireWritableAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, string action, CancellationToken ct = default)
   {
-    var frozen = await db.EngagementFileFreezes.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId && x.State == FileFreezeStates.Frozen, ct);
+    var inTransaction = db.Database.CurrentTransaction is not null;
+    bool frozen;
+    if (inTransaction)
+    {
+      _ = await db.Engagements.FromSqlInterpolated(
+        $"SELECT * FROM engagements WHERE id = {engagementId} AND firm_id = {actor.FirmId} FOR SHARE").AsNoTracking().ToListAsync(ct);
+      frozen = await db.EngagementFileFreezes.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId && x.State == FileFreezeStates.Frozen, ct);
+    }
+    else
+    {
+      frozen = await db.EngagementFileFreezes.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId && x.State == FileFreezeStates.Frozen, ct);
+    }
     if (!frozen) return CommandResult.Ok();
     db.FrozenAccessAttempts.Add(new FrozenAccessAttempt { Id = Guid.CreateVersion7(), FirmId = actor.FirmId, EngagementId = engagementId, ActorUserId = actor.UserId, Action = action, AttemptedAt = DateTimeOffset.UtcNow });
     await db.SaveChangesAsync(ct);

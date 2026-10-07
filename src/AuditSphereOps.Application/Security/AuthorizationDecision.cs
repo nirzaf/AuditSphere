@@ -141,7 +141,24 @@ public static class AuthorizationDecision
       if (engagement is null)
         return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
       if (engagement.ProfessionalWorkBlocked)
+      {
+        // A file frozen after the report reports its frozen state (and records the refused access)
+        // ahead of the generic professional-work block, so the refusal is consistent and evidenced
+        // across every professional command boundary (STE-REM-09).
+        var frozen = await db.EngagementFileFreezes.AsNoTracking().AnyAsync(x =>
+          x.FirmId == request.FirmId && x.EngagementId == engagement.Id && x.State == AuditSphereOps.Domain.Records.FileFreezeStates.Frozen, ct);
+        if (frozen)
+        {
+          db.FrozenAccessAttempts.Add(new AuditSphereOps.Domain.Records.FrozenAccessAttempt
+          {
+            Id = Guid.CreateVersion7(), FirmId = request.FirmId, EngagementId = engagement.Id,
+            ActorUserId = actor.UserId, Action = "professional work on a frozen engagement file", AttemptedAt = DateTimeOffset.UtcNow
+          });
+          await db.SaveChangesAsync(ct);
+          return CommandResult.Fail(ErrorCodes.ProtectedState, "The engagement file is frozen after the report; an approved amendment is required to change it.");
+        }
         return CommandResult.Fail(ErrorCodes.GateBlocked, "Professional work is blocked on this engagement.");
+      }
       var hold = await db.EngagementHolds.AsNoTracking()
         .AnyAsync(h => h.FirmId == request.FirmId && h.EngagementId == request.EngagementId.Value && !h.Released, ct);
       if (hold)

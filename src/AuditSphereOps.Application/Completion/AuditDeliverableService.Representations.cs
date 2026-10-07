@@ -34,7 +34,11 @@ public static partial class AuditDeliverableService
     var window = await AuditSphereOps.Application.Documents.ClientPortalService.RequireUploadWindowAsync(db, actor, letter.EngagementId, ct);
     if (!window.Succeeded) return CommandResult<Guid>.Fail(window.ErrorCode!, window.Message!);
     if (await db.EngagementFileFreezes.AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == letter.EngagementId && x.State == "FROZEN", ct))
-      return CommandResult<Guid>.Fail(ErrorCodes.ProtectedState, "Client uploads are frozen after final release.");
+    {
+      var frozen = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, letter.EngagementId, "upload the signed representation scan", ct);
+      await tx.CommitAsync(ct); // persist the recorded refused attempt before refusing
+      return CommandResult<Guid>.Fail(frozen.ErrorCode ?? ErrorCodes.ProtectedState, frozen.Message ?? "Client uploads are frozen after final release.");
+    }
     if (!string.Equals(letter.ContentSha256, expectedSha256, StringComparison.OrdinalIgnoreCase) || !await IsCurrentAsync(db, actor, letter, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "This representation letter is no longer current; reload the current shared version.");
     if (!await db.ClientDeliverableReviews.AnyAsync(x => x.FirmId == actor.FirmId && x.DeliverableId == letter.Id &&
@@ -75,7 +79,11 @@ public static partial class AuditDeliverableService
         scan.ContentSha256 != expectedScanSha256 || Hashing.Sha256Hex(scan.Content) != scan.ContentSha256)
       return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "The scan or its source representation letter changed; verify the current exact version.");
     if (await db.EngagementFileFreezes.AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == scan.EngagementId && x.State == "FROZEN", ct))
-      return CommandResult<Guid>.Fail(ErrorCodes.ProtectedState, "The engagement file is frozen.");
+    {
+      var frozen = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, scan.EngagementId, "verify the signed representation scan", ct);
+      await tx.CommitAsync(ct); // persist the recorded refused attempt before refusing
+      return CommandResult<Guid>.Fail(frozen.ErrorCode ?? ErrorCodes.ProtectedState, frozen.Message ?? "The engagement file is frozen.");
+    }
     var prior = await db.RepresentationLetterVerifications.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.SignedLetterId == scan.Id, ct);
     if (prior is not null) return CommandResult<Guid>.Ok(prior.Id);
     var verification = new RepresentationLetterVerification
