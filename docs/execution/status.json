@@ -393,15 +393,15 @@
       "removalDecision": "NOT_READY"
     },
     "angularBlazorCurrentRetirementGate": {
-      "observedAt": "2026-10-06T07:35:33Z",
-      "sourceCommit": "356d48a97f493c36fe54672caba3f9253e42c4f1",
+      "observedAt": "2026-10-07T09:52:46Z",
+      "sourceCommit": "343592fc5a2403a27551a17034a2c50989e9437a",
       "status": "NOT_READY",
       "physicalRemovalCommit": "59387b549214067ef226cdbf33d0d47084a27c46",
       "webProjectPresent": true,
       "sourceActionRows": 76,
       "parityVerified": 1,
-      "partialReviewed": 73,
-      "notAnalyzed": 2,
+      "partialReviewed": 75,
+      "notAnalyzed": 0,
       "supportingFilesNotAnalyzed": 28,
       "administrationSourceReview": {
         "review": "docs/migration/auditsphere-migration-blazor-administration-source-review.md",
@@ -537,7 +537,7 @@
       "rollbackAndCanary": "Local Development rollback smoke PASS: Razor root, local Blazor/MudBlazor assets, negotiate endpoint, and SignalR circuit handshake. Production OIDC, route cutover recovery, and production-like canary remain OPEN.",
       "humanAssistiveTechnologyAndLocale": "OPEN",
       "liveMicrosoftGates": "BLOCKED_EXTERNAL",
-      "decision": "NOT_READY. The Web rollback/reference source remains restored. All 82 removed E2E methods have assertion crosswalks. The 76-row source/action inventory has 73 partial reviews, two unanalyzed rows and one parity-verified row; 28 supporting files remain open. Acceptance checklist workspace/role, Global Search direct API/invoice/input/cap boundaries, portfolio aggregate-count isolation, client-contact create/recovery, and canonical/preview root navigation now have focused partial-review evidence. AS-PAR-002 direct query/count/export authorization and broader command retry/idempotency checks, production/human/external acceptance, and separate owner acceptance remain open.",
+      "decision": "NOT_READY. The Web rollback/reference source remains restored. All 82 removed E2E methods have assertion crosswalks. The 76-row source/action inventory now has 75 partial reviews, zero unanalyzed rows and one parity-verified row; 28 supporting files remain open. Consolidation overview and advanced workflow are reviewed as partial, with overview display parity and advanced unknown-command recovery still open. AS-PAR-002 direct query/count/export authorization, broader command retry/idempotency checks, production/human/external acceptance and separate owner acceptance remain open.",
       "angularProductionBuild": {
         "sourceCommit": "aca91b1240d3694efe9cd60a22b8c3577ade5d15",
         "status": "PASS_WITH_BUDGET_WARNING",
@@ -1738,6 +1738,33 @@
         "efModelDrift": "NOT_RUN; the slice changes Angular presentation and E2E test source only, with no Domain, Application or EF model changes.",
         "fullSolutionRegression": "NOT_RUN at this source commit. The latest complete PostgreSQL-backed Release result remains 1001/1001 at ead85032de2ccc4d4c8043398fa8471d395376a9.",
         "sharedWorktreeBoundary": "The journey and Angular build ran in a clean detached worktree based on 55d552cd. Only the ledger component and new E2E test were copied to the shared master checkout; concurrent API, package, CI and Application edits were excluded and left untouched."
+      },
+      "consolidationSourceReview": {
+        "review": "docs/migration/auditsphere-migration-blazor-consolidation-source-review.md",
+        "sourceSnapshot": "71722283cb2f3d63a7f7c07742d66c30234b65dc",
+        "reviewedAgainstCommit": "343592fc5a2403a27551a17034a2c50989e9437a",
+        "status": "PARTIAL_REVIEWED",
+        "reviewedArtifacts": 2,
+        "parityVerifiedArtifacts": 0,
+        "focusedPostgresPlaywright": {
+          "status": "PASS_LOCAL",
+          "passed": 3,
+          "failed": 0,
+          "skipped": 0,
+          "duration": "1m24s",
+          "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release -m:1 --disable-build-servers --filter 'FullyQualifiedName~AngularAdvancedConsolidationAuthorizationJourneyTests|FullyQualifiedName~SiblingClientIsolationJourneyTests.SiblingGroupNeverChangesWhatAGroupScopedUserSees'",
+          "tests": [
+            "AngularAdvancedConsolidationAuthorizationJourneyTests",
+            "SiblingClientIsolationJourneyTests.SiblingGroupNeverChangesWhatAGroupScopedUserSees"
+          ],
+          "database": "Owned isolated PostgreSQL fixtures and synthetic identities."
+        },
+        "builtInBrowser": "PARTIAL_LOCAL: localhost:5099 refused the connection; the available localhost:5105 tab showed Access unavailable without a signed-in test identity. Authenticated behavior was checked by the focused Playwright journeys.",
+        "temporaryUiRecoveryExperiment": "Reverted after Angular build attempts terminated with esbuild fatal deadlock (exit 134); no UI changes from that experiment remain and no build pass is claimed for it.",
+        "fullSolutionRegression": "NOT_RUN for this review.",
+        "efModelDrift": "NOT_RUN; no Domain or EF model changes were retained.",
+        "sharedWorktreeBoundary": "Parallel finance changes remained untouched.",
+        "retirementDecision": "NOT_READY"
       }
     },
     "angularBlazorApprovedBootstrapSlice": {

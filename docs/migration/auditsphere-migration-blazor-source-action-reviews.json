@@ -519,6 +519,20 @@
       "evidence": "auditsphere-migration-blazor-confirm-dialog-source-review.md",
       "reviewedAtCommit": "0d819cd9ed95742eb251c4612b07e6f22f9a3c94",
       "openGaps": ["Complete role, scope, expiry, cross-firm and unknown-result matrix across both callers", "Human screen-reader and wider-locale acceptance"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/Consolidation.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-consolidation-source-review.md",
+      "reviewedAtCommit": "343592fc5a2403a27551a17034a2c50989e9437a",
+      "openGaps": ["Exhaustive aggregate-field, expired-grant, cross-firm and scope assertions", "Large group/scope paging and load behavior", "Report approval-time timezone display parity", "Human assistive-technology, wider-locale and production acceptance"]
+    },
+    {
+      "source": "src/AuditSphereOps.Web/Components/Pages/AdvancedConsolidationWorkflow.razor",
+      "disposition": "PARTIAL",
+      "evidence": "auditsphere-migration-blazor-consolidation-source-review.md",
+      "reviewedAtCommit": "343592fc5a2403a27551a17034a2c50989e9437a",
+      "openGaps": ["Every mutation accepted, refused, stale and unknown-outcome behavior across group roles", "Unknown-command result recovery and persisted-state acknowledgement", "Expired-grant, cross-firm and revoked-session matrices for direct API commands", "Human assistive-technology, wider-locale and production acceptance"]
     }
   ]
 }

@@ -332,11 +332,15 @@ unclassified line is an explicit unmapped issue, never assumed ASSETS.
 
 
 
-- UI: `Consolidation.razor`, `AdvancedConsolidationWorkflow.razor`
+- Legacy/reference UI: `Consolidation.razor`, `AdvancedConsolidationWorkflow.razor`
+
+- Angular UI: `AuditSphereOps.Ui/src/app/features/consolidation/overview.ts`, `advanced.ts`
+
+- API/Application: `AuditSphereOps.Api/Ui/UiEndpoints.Consolidation.cs`, `ConsolidationOverviewQuery`, `AdvancedConsolidationWorkspaceQuery`, and the `ConsolidationService` partials
 
 
 
-- Tests: `ClientAccountingTests/ClientAccountingTests.{Consolidation,AdvancedConsolidation,ExternalComponents,Currency}.cs`, `ProfilesChartsAndConsolidationTests.cs`
+- Tests: `ClientAccountingTests/ClientAccountingTests.{Consolidation,AdvancedConsolidation,ExternalComponents,Currency}.cs`, `ProfilesChartsAndConsolidationTests.cs`, `ConsolidationWorkspaceApiTests`, `AngularAdvancedConsolidationAuthorizationJourneyTests`, `SiblingClientIsolationJourneyTests`
 
 
 
