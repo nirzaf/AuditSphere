@@ -11270,15 +11270,16 @@
       "caseId": "AS-PAR-002-ANGULAR-WORKPAPER-DISCARD-01",
       "focusedPostgresPlaywright": {
         "status": "PASS",
-        "passed": 1,
+        "passed": 2,
         "failed": 0,
         "skipped": 0,
-        "duration": "34s",
-        "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-build --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~DiscardDraftFromWorkpaperPagePersistsDiscardedLifecycle' --logger 'console;verbosity=minimal'"
+        "duration": "1m8s",
+        "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-build --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~AngularWorkpaperSaveRecoveryJourneyTests' --logger 'console;verbosity=minimal'"
       },
       "coverage": "The Angular editor loaded the persisted server draft, invoked draft discard, cleared the editor, and PostgreSQL confirmed lifecycle DISCARDED, preserved historical draft content, and no created submission. The browser reported no page or console errors.",
       "fullSolutionRegression": "NOT_RUN; latest complete PostgreSQL-backed Release solution result remains 1001/1001 at ead85032de2ccc4d4c8043398fa8471d395376a9.",
       "efModelDrift": "Not rerun; no Application, Domain or EF model code changed.",
+      "sharedWorktreeBoundary": "The Release E2E build compiled other-agent uncommitted finance/fieldwork edits in the shared checkout; the Workpaper journey did not exercise those paths and only the Workpaper test file was committed.",
       "retirementDecision": "NOT_READY"
     },
     "angularWorkpaperSourceReview": {
@@ -11305,7 +11306,7 @@
         "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~AngularWorkpaperSaveRecoveryJourneyTests|FullyQualifiedName~AngularClientScopeAuditDetailJourneyTests|FullyQualifiedName~AngularAuditRevocationParityJourneyTests|FullyQualifiedName~AngularAuditFieldworkParityJourneyTests'"
       },
       "coverage": "Workpaper save-outcome reconciliation and submit, client/sibling/guessed-ID detail isolation, revocation clearing, fieldwork-to-workpaper linkage, and a dedicated browser discard journey verifying the persisted DISCARDED lifecycle, cleared editor and no submission.",
-      "followUpDiscardJourney": { "status": "PASS", "passed": 1, "failed": 0, "skipped": 0, "duration": "34s", "sourceCommit": "4d88b1ff6f82ab274d0e531a19d3ac2febc5b82b" },
+      "followUpDiscardJourney": { "status": "PASS", "passed": 2, "failed": 0, "skipped": 0, "duration": "1m8s", "sourceCommit": "4d88b1ff6f82ab274d0e531a19d3ac2febc5b82b", "coverage": "The complete Workpaper save/recovery E2E class passed, including saved-draft discard and lost-acknowledgement reconciliation followed by one submission." },
       "builtInBrowser": "PASS_LOCAL_READ_ONLY: the Development browser showed the generic unavailable state for a guessed workpaper ID under an unassigned identity, with no protected content or commands.",
       "fullSolutionRegression": "NOT_RUN for this review; latest complete PostgreSQL-backed Release result remains 1001/1001 at ead85032de2ccc4d4c8043398fa8471d395376a9.",
       "efModelDrift": "Not rerun; no Application, Domain, entity or EF model code changed in this source-review slice.",

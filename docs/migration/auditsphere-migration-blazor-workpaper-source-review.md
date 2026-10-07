@@ -81,12 +81,15 @@ acceptance, and Blazor retirement remain open.
 ### Follow-up browser evidence — 2026-10-07
 
 At code commit `4d88b1ff`,
-`AngularWorkpaperSaveRecoveryJourneyTests.DiscardDraftFromWorkpaperPagePersistsDiscardedLifecycle`
-passed **1/1** in 34 seconds on an owned isolated PostgreSQL/API host. It loaded
-the persisted server draft in the Angular editor, discarded it through the
-page, verified the editor cleared, and confirmed in PostgreSQL that the draft
-lifecycle is `DISCARDED`, the original content remains in the historical row,
-and no submission was created. No browser console or page errors were observed.
+The complete `AngularWorkpaperSaveRecoveryJourneyTests` class passed **2/2** in
+1 minute 8 seconds on owned isolated PostgreSQL/API hosts, including
+`DiscardDraftFromWorkpaperPagePersistsDiscardedLifecycle` (1/1 in 34 seconds).
+The discard journey loaded the persisted server draft in the Angular editor,
+discarded it through the page, verified the editor cleared, and confirmed in
+PostgreSQL that the draft lifecycle is `DISCARDED`, the original content
+remains in the historical row, and no submission was created. The other case
+verified lost-save acknowledgement reconciliation and one submission. No
+browser console or page errors were observed in the discard journey.
 
 The dedicated browser-discard gap is closed for this source review. The row
 remains `PARTIAL`: complete role/scope, expired-grant, cross-firm and guessed-ID

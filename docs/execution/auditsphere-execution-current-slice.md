@@ -42,8 +42,9 @@ and `status.json`.
 Added a PostgreSQL-backed Angular/API-host browser journey for the Workpaper
 discard action. The journey loads an existing server draft, discards it through
 the page, verifies the editor clears, and confirms the persisted draft is
-`DISCARDED` with no submission created. The focused Release E2E test passed
-1/1 in 34 seconds with no page or console errors. This closes the dedicated
+`DISCARDED` with no submission created. The focused Release Workpaper E2E class passed 2/2 in 1 minute 8 seconds,
+including the discard flow and saved-response recovery. The discard flow had no
+page or console errors. This closes the dedicated
 browser-discard evidence gap only; the Workpaper source row remains partial for
 the broader role/scope, failure/recovery, accessibility and production gates.
 The full solution suite and EF drift check were not rerun. Evidence is recorded
