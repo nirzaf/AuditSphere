@@ -13,6 +13,20 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Angular risk-routing independent review — 2026-10-07
+
+Risk-routing projections now include the current assessment author. Angular hides
+the Partner-clearance action when the signed-in Partner assessed that same risk;
+the Application command continues to reject direct self-clear attempts. A
+PostgreSQL-backed API-host Playwright journey passed with the fresh production
+Angular bundle, checking both the hidden control and HTTP 403 denial. The Angular
+suite passed 572/572, the Release solution build completed with zero warnings or
+errors, and the Angular production build passed with the existing Commercial
+Settings stylesheet budget warning. The source/action row remains partial for
+its remaining role/scope, stale/revocation, recovery, accessibility and locale
+gaps. Full solution regression, current EF drift and manual assistive-technology
+acceptance were not part of this slice.
+
 ## Records Archive bounded manifest paging — focused verification passed — 2026-10-07
 
 Archive reads now request no more than 100 ordered manifest rows and return a

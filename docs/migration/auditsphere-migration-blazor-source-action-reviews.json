@@ -511,7 +511,7 @@
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-audit-planning-fieldwork-source-review.md",
       "reviewedAtCommit": "d29f147c77fd7900afa0e25a99f344fb393ff546",
-      "openGaps": ["Complete role, scope, expiry and cross-firm query and command matrix", "Stale and revoked session plus unknown command outcome recovery", "Self-assessor Partner clearance denial across the browser role matrix", "Human assistive-technology and wider-locale acceptance"]
+      "openGaps": ["Complete role, scope, expiry and cross-firm query and command matrix", "Stale and revoked session plus unknown command outcome recovery", "Human assistive-technology and wider-locale acceptance"]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Shared/ConfirmDialog.razor",

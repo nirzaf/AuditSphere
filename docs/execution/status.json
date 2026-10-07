@@ -13076,6 +13076,39 @@
         "status": "PASS",
         "result": "Canonical OpenAPI contract regenerated and verify-openapi.sh reports current."
       }
+    },
+    "angularRiskRoutingPartnerSelfReview": {
+      "observedAt": "2026-10-07T17:31:21Z",
+      "sourceCommit": "4786985e4900cc89f54d4214ea9197a9740b6d57",
+      "status": "PASS_LOCAL_SLICE",
+      "caseId": "AS-STE-PLANNING-01",
+      "focusedPostgresPlaywright": {
+        "status": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release -m:1 --filter 'FullyQualifiedName~PlanningAndResourcesJourneyTests.PartnerStaffsCalculatesMaterialityReviewsRedRiskAndSeesTheGrid' --logger 'console;verbosity=minimal'"
+      },
+      "angularUnitTests": {
+        "status": "PASS",
+        "passed": 572,
+        "failed": 0,
+        "skipped": 0,
+        "command": "npm run test:ci"
+      },
+      "releaseSolutionBuild": {
+        "status": "PASS",
+        "warnings": 0,
+        "errors": 0,
+        "command": "dotnet build AuditSphereOps.slnx --no-restore --configuration Release -m:1"
+      },
+      "angularProductionBuild": {
+        "status": "PASS_WITH_BUDGET_WARNING",
+        "initialBundle": "350.17 kB raw and 94.09 kB estimated transfer",
+        "warning": "Commercial Settings stylesheet is 7.53 kB against the 4 kB component warning budget."
+      },
+      "coverage": "The current risk assessor is included in the scoped risk-routing projection. Angular hides the Partner clearance action from the Partner who assessed that red risk, and a direct same-session API attempt is refused with HTTP 403. The independent Partner clearance for a separately assessed red risk continues to pass.",
+      "boundary": "Local isolated PostgreSQL and API-hosted Angular verification only. The full solution regression and current EF model-drift check were not run. The risk-routing source/action row remains PARTIAL; broader role/scope, stale/revoked, unknown-result recovery, human accessibility/locale and production acceptance remain open."
     }
   },
   "documentationWork": {
