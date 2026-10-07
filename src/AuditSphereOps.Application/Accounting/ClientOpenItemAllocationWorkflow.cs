@@ -35,7 +35,7 @@ public static class ClientOpenItemAllocationWorkflow
   private static readonly string[] Reviewers = ["AccountingReviewer", "Manager", "Partner", "Administrator"];
   private sealed record OpenItem(string Kind, Guid Id, Guid DocumentId, Guid CounterpartyId, string CounterpartyName,
     string Currency, decimal Original, DateOnly? Due, bool Credit, Guid? JournalId = null,
-    DateOnly? PostingDate = null, bool Imported = false);
+    DateOnly? PostingDate = null, bool Imported = false, string? ControlRole = null, Guid? ControlAccountId = null);
   private sealed record ImportedSettlementLine(GeneralLedgerLine Line, GeneralLedgerTransaction Transaction,
     SourceImportBatch Batch, string Role);
 
@@ -50,7 +50,14 @@ public static class ClientOpenItemAllocationWorkflow
   {
     if (!(await Authorize(db, actor, clientId, Preparers, ct)).Succeeded)
       return CommandResult<IReadOnlyList<ClientOpenItemBalance>>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var items = await OpenItems(db, actor, clientId, ct, asOfDate);
+    var periodId = await db.ClientReportingPeriods.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == clientId &&
+      x.StartDate <= asOfDate && x.EndDate >= asOfDate).Select(x => (Guid?)x.Id).SingleOrDefaultAsync(ct);
+    var latestOpening = periodId.HasValue ? await db.ClientOperationalOpeningBalances.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
+      x.ClientId == clientId && x.PeriodId == periodId.Value && x.ApprovedByUserId != null, ct) : null;
+    if (latestOpening is not null && !ClientOperationalOpeningBalanceWorkspace.ValidManifest(latestOpening))
+      return CommandResult<IReadOnlyList<ClientOpenItemBalance>>.Fail(ErrorCodes.ProtectedState,
+        "The approved opening schedule failed integrity validation; refresh and resolve the retained source before using ageing.");
+    var items = await OpenItems(db, actor, clientId, ct, asOfDate, periodId);
     var applied = await EffectiveLines(db, actor.FirmId, clientId, ct);
     var sourceApplied = await EffectiveSourceLines(db, actor.FirmId, clientId, ct);
     var rows = items.Select(item =>
@@ -83,6 +90,12 @@ public static class ClientOpenItemAllocationWorkflow
       return CommandResult<ClientOpenItemControlReconciliationView>.Fail(ErrorCodes.GateBlocked,
         "Choose a native bookkeeping period and as-of date within its functional-currency coverage.");
 
+    var opening = await db.ClientOperationalOpeningBalances.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
+      x.ClientId == clientId && x.PeriodId == periodId && x.ApprovedByUserId != null, ct);
+    if (opening is not null && !ClientOperationalOpeningBalanceWorkspace.ValidManifest(opening))
+      return CommandResult<ClientOpenItemControlReconciliationView>.Fail(ErrorCodes.ProtectedState,
+        "The retained opening manifest failed integrity validation.");
+
     var roleRows = await (from role in db.ClientAccountRoleConfigurations.AsNoTracking()
       join decision in db.ClientAccountRoleDecisions.AsNoTracking() on new { role.FirmId, role.ClientId, ConfigurationId = role.Id }
         equals new { decision.FirmId, decision.ClientId, decision.ConfigurationId }
@@ -94,6 +107,8 @@ public static class ClientOpenItemAllocationWorkflow
         equals new { journal.FirmId, journal.ClientId, journal.Id }
       where line.FirmId == actor.FirmId && line.ClientId == clientId && journal.Status == "POSTED" && journal.PostingDate <= asOfDate
       select new { Line = line, Journal = journal }).ToListAsync(ct);
+    if (opening is not null)
+      journalRows = journalRows.Where(x => x.Journal.PostingDate >= opening.AsOfDate).ToList();
 
     var ledger = new Dictionary<(string Role, Guid AccountId), (string Code, string Name, decimal Balance)>();
     var controlLineCounts = new Dictionary<Guid, int>();
@@ -110,14 +125,58 @@ public static class ClientOpenItemAllocationWorkflow
       }
     }
 
-    var items = await OpenItems(db, actor, clientId, ct, asOfDate);
+    if (opening is not null)
+    {
+      using var openingManifest = JsonDocument.Parse(opening.ManifestJson);
+      var openingLines = openingManifest.RootElement.GetProperty("Lines").EnumerateArray().ToArray();
+      var openingRoleRows = await (from role in db.ClientAccountRoleConfigurations.AsNoTracking()
+        join decision in db.ClientAccountRoleDecisions.AsNoTracking() on new { role.FirmId, role.ClientId, ConfigurationId = role.Id }
+          equals new { decision.FirmId, decision.ClientId, decision.ConfigurationId }
+        join account in db.ClientAccounts.AsNoTracking() on new { role.FirmId, role.ClientId, AccountId = role.AccountId }
+          equals new { account.FirmId, account.ClientId, AccountId = account.Id }
+        where role.FirmId == actor.FirmId && role.ClientId == clientId && (role.Role == "AR" || role.Role == "AP") &&
+          decision.Decision == "APPROVE" && role.EffectiveFrom <= opening.AsOfDate &&
+          (role.EffectiveTo == null || role.EffectiveTo >= opening.AsOfDate)
+        select new { role.Role, role.AccountId, account.AccountCode, account.AccountName }).ToListAsync(ct);
+      foreach (var row in openingRoleRows)
+      {
+        var line = openingLines.SingleOrDefault(x => x.GetProperty("AccountCode").GetString() == row.AccountCode);
+        if (line.ValueKind == JsonValueKind.Undefined) continue;
+        var debit = decimal.Parse(line.GetProperty("Debit").GetString()!, System.Globalization.CultureInfo.InvariantCulture);
+        var credit = decimal.Parse(line.GetProperty("Credit").GetString()!, System.Globalization.CultureInfo.InvariantCulture);
+        var signed = row.Role == "AR" ? debit - credit : credit - debit;
+        var openingKey = (row.Role, row.AccountId);
+        var current = ledger.GetValueOrDefault(openingKey, (Code: row.AccountCode, Name: row.AccountName, Balance: 0m));
+        ledger[openingKey] = (current.Code, current.Name, current.Balance + signed);
+      }
+    }
+
+    var items = await OpenItems(db, actor, clientId, ct, asOfDate, periodId);
     var applied = await EffectiveLines(db, actor.FirmId, clientId, ct);
     var sourceApplied = await EffectiveSourceLines(db, actor.FirmId, clientId, ct);
     var openByAccount = new Dictionary<(string Role, Guid AccountId), (decimal Balance, int Count)>();
     var unlinked = 0;
-    foreach (var item in items.Where(x => !x.Imported && x.JournalId.HasValue))
+    foreach (var item in items.Where(x => x.ControlRole is not null || (!x.Imported && x.JournalId.HasValue)))
     {
-      var expectedRole = item.Kind.StartsWith("SALES_", StringComparison.Ordinal) ? "AR" : "AP";
+      var expectedRole = item.ControlRole ?? (item.Kind.StartsWith("SALES_", StringComparison.Ordinal) ? "AR" : "AP");
+      if (item.ControlRole is not null && item.ControlAccountId.HasValue)
+      {
+        var roleValid = await (from role in db.ClientAccountRoleConfigurations.AsNoTracking()
+          join decision in db.ClientAccountRoleDecisions.AsNoTracking() on new { role.FirmId, role.ClientId, ConfigurationId = role.Id }
+            equals new { decision.FirmId, decision.ClientId, decision.ConfigurationId }
+          where role.FirmId == actor.FirmId && role.ClientId == clientId && role.AccountId == item.ControlAccountId.Value &&
+            role.Role == expectedRole && decision.Decision == "APPROVE" && role.EffectiveFrom <= item.PostingDate &&
+            (role.EffectiveTo == null || role.EffectiveTo >= item.PostingDate)
+          select role.Id).AnyAsync(ct);
+        var appliedAmount = applied.Where(x => x.Kind == item.Kind && x.Id == item.Id).Sum(x => x.Amount);
+        var openAmount = MoneyPolicy.Normalize(Math.Max(0m, item.Original - appliedAmount));
+        if (!roleValid || item.Currency != period.Currency || appliedAmount < 0m || appliedAmount > item.Original)
+        { unlinked++; continue; }
+        var openingKey = (expectedRole, item.ControlAccountId.Value);
+        var openingCurrent = openByAccount.GetValueOrDefault(openingKey, (Balance: 0m, Count: 0));
+        openByAccount[openingKey] = (openingCurrent.Balance + openAmount, openingCurrent.Count + (openAmount > 0m ? 1 : 0));
+        continue;
+      }
       var itemJournalId = item.JournalId.GetValueOrDefault();
       var candidates = journalRows.Where(x => x.Journal.Id == itemJournalId && item.Currency == period.Currency &&
         roleRows.Any(role => role.AccountId == x.Line.ClientAccountId && role.Role == expectedRole && role.EffectiveFrom <= x.Journal.PostingDate &&
@@ -161,9 +220,11 @@ public static class ClientOpenItemAllocationWorkflow
     if (!(await Authorize(db, actor, clientId, Preparers, ct)).Succeeded)
       return CommandResult<ClientOpenItemControlReconciliationView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     await snapshot.CommitAsync(ct);
+    var detailStatus = opening is null ? "NO_APPROVED_OPENING" :
+      openingManifestHasItems(opening.ManifestJson) ? "REVIEWED_OPENING_DETAIL_INCLUDED" : "AGGREGATE_OPENING_DETAIL_NOT_INCLUDED";
     var view = new ClientOpenItemControlReconciliationView(clientId, periodId, period.PeriodCode, period.Currency,
       asOfDate.ToString("yyyy-MM-dd"), "POSTED_NATIVE_CLIENT_JOURNALS_TO_AS_OF_DATE",
-      "CURRENT_APPROVED_ALLOCATIONS_NO_SEPARATE_EFFECTIVE_DATE", "OPENING_ITEM_DETAIL_NOT_INCLUDED", unlinked, accounts,
+      "CURRENT_APPROVED_ALLOCATIONS_NO_SEPARATE_EFFECTIVE_DATE", detailStatus, unlinked, accounts,
       unlinked == 0 && accounts.All(x => x.Status == "RECONCILED"));
     return CommandResult<ClientOpenItemControlReconciliationView>.Ok(view);
   }
@@ -303,6 +364,11 @@ public static class ClientOpenItemAllocationWorkflow
         request.Lines.Any(x => x.Amount <= 0 || x.LineNumber <= 0) || request.Lines.Select(x => x.LineNumber).Distinct().Count() != request.Lines.Count ||
         request.Lines.Select(x => (x.TargetKind, x.TargetOpenItemId)).Distinct().Count() != request.Lines.Count)
       return CommandResult<ClientOpenItemAllocationPreview>.Fail(ErrorCodes.Accounting.MappingInvalid, "Choose one eligible source and unique positive target lines.");
+    var latestOpening = await db.ClientOperationalOpeningBalances.AsNoTracking().Where(x => x.FirmId == firmId && x.ClientId == clientId &&
+      x.ApprovedByUserId != null).OrderByDescending(x => x.AsOfDate).FirstOrDefaultAsync(ct);
+    if (latestOpening is not null && !ClientOperationalOpeningBalanceWorkspace.ValidManifest(latestOpening))
+      return CommandResult<ClientOpenItemAllocationPreview>.Fail(ErrorCodes.ProtectedState,
+        "The approved opening schedule failed integrity validation; allocation is blocked until the retained source is restored.");
     var all = await OpenItems(db, actor, clientId, ct);
     var source = all.SingleOrDefault(x => x.Kind == request.SourceKind && x.Id == request.SourceItemId && x.Credit);
     if (source is null) return CommandResult<ClientOpenItemAllocationPreview>.Fail(ErrorCodes.ProtectedState, "The credit or imported settlement source is unavailable or not eligible.");
@@ -359,7 +425,7 @@ public static class ClientOpenItemAllocationWorkflow
   }
 
   private static async Task<List<OpenItem>> OpenItems(IClientAccountingDbContext db, ActorContext actor, Guid clientId,
-    CancellationToken ct, DateOnly? asOfDate = null)
+    CancellationToken ct, DateOnly? asOfDate = null, Guid? periodId = null)
   {
     var firmId = actor.FirmId;
     var cps = await db.ClientBookkeepingCounterparties.AsNoTracking().Where(x => x.FirmId == firmId && x.ClientId == clientId).ToDictionaryAsync(x => x.Id, ct);
@@ -386,9 +452,32 @@ public static class ClientOpenItemAllocationWorkflow
     var journalIds = result.Where(x => x.JournalId.HasValue).Select(x => x.JournalId!.Value).Distinct().ToArray();
     var postingDates = await db.ClientOperationalJournals.AsNoTracking().Where(x => x.FirmId == firmId && x.ClientId == clientId &&
       journalIds.Contains(x.Id) && x.Status == "POSTED").ToDictionaryAsync(x => x.Id, x => x.PostingDate, ct);
-    return result.Select(x => x with { PostingDate = x.JournalId.HasValue && postingDates.TryGetValue(x.JournalId.Value, out var postingDate)
+    result = result.Select(x => x with { PostingDate = x.JournalId.HasValue && postingDates.TryGetValue(x.JournalId.Value, out var postingDate)
         ? postingDate : x.PostingDate })
       .Where(x => !asOfDate.HasValue || x.PostingDate.HasValue && x.PostingDate.Value <= asOfDate.Value).ToList();
+    var openingRows = await db.ClientOperationalOpeningBalances.AsNoTracking().Where(x => x.FirmId == firmId && x.ClientId == clientId &&
+      x.ApprovedByUserId != null && (periodId.HasValue ? x.PeriodId == periodId.Value : !asOfDate.HasValue || x.AsOfDate <= asOfDate.Value))
+      .OrderByDescending(x => x.AsOfDate).Take(2).ToListAsync(ct);
+    var opening = openingRows.FirstOrDefault();
+    if (opening is not null && ClientOperationalOpeningBalanceWorkspace.ValidManifest(opening))
+    {
+      // The cutover replaces pre-cutover subledger history; only its approved detail and later native activity may age forward.
+      result = result.Where(x => x.PostingDate >= opening.AsOfDate).ToList();
+      using var manifest = JsonDocument.Parse(opening.ManifestJson);
+      if (manifest.RootElement.TryGetProperty("OpenItems", out var rows) && rows.ValueKind == JsonValueKind.Array && rows.GetArrayLength() > 0)
+      {
+        foreach (var row in rows.EnumerateArray())
+        {
+          var role = row.GetProperty("Role").GetString()!;
+          if (!Guid.TryParse(row.GetProperty("CounterpartyId").GetString(), out var counterpartyId) || !cps.TryGetValue(counterpartyId, out var party)) continue;
+          DateOnly? due = row.GetProperty("DueDate").ValueKind == JsonValueKind.Null ? null : DateOnly.FromDateTime(row.GetProperty("DueDate").GetDateTime());
+          result.Add(new(role == "AR" ? "OPENING_AR_INVOICE" : "OPENING_AP_INVOICE", row.GetProperty("Id").GetGuid(), opening.Id,
+            counterpartyId, party.DisplayName, opening.Currency, decimal.Parse(row.GetProperty("Amount").GetString()!, System.Globalization.CultureInfo.InvariantCulture),
+            due, false, null, opening.AsOfDate, false, role, row.GetProperty("AccountId").GetGuid()));
+        }
+      }
+    }
+    return result;
   }
 
   private static async Task AddImportedSettlementSources(IClientAccountingDbContext db, ActorContext actor, Guid clientId,
@@ -499,4 +588,13 @@ public static class ClientOpenItemAllocationWorkflow
 
   private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
   private static string Exact(decimal value) => value.ToString("0.000000", System.Globalization.CultureInfo.InvariantCulture);
+  private static bool openingManifestHasItems(string manifestJson)
+  {
+    try
+    {
+      using var document = JsonDocument.Parse(manifestJson);
+      return document.RootElement.TryGetProperty("OpenItems", out var items) && items.ValueKind == JsonValueKind.Array && items.GetArrayLength() > 0;
+    }
+    catch (JsonException) { return false; }
+  }
 }

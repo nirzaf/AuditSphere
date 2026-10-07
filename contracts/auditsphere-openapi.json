@@ -34591,6 +34591,100 @@
           },
           "reviewed": {
             "type": "boolean"
+          },
+          "openItems": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/ClientOperationalOpeningBalanceItemHttpInput"
+            }
+          }
+        }
+      },
+      "ClientOperationalOpeningBalanceItem": {
+        "required": [
+          "id",
+          "role",
+          "counterpartyId",
+          "counterpartyName",
+          "reference",
+          "dueDate",
+          "accountId",
+          "accountCode",
+          "amount"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role": {
+            "type": "string"
+          },
+          "counterpartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "counterpartyName": {
+            "type": "string"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "dueDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accountCode": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "string"
+          }
+        }
+      },
+      "ClientOperationalOpeningBalanceItemHttpInput": {
+        "required": [
+          "role",
+          "counterpartyId",
+          "reference",
+          "dueDate",
+          "accountCode",
+          "amount"
+        ],
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string"
+          },
+          "counterpartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "dueDate": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "accountCode": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "string"
           }
         }
       },
@@ -34652,7 +34746,8 @@
           "createdAt",
           "approvedByUserId",
           "approvedAt",
-          "lines"
+          "lines",
+          "openItems"
         ],
         "type": "object",
         "properties": {
@@ -34714,6 +34809,12 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ClientOperationalOpeningBalanceLine"
+            }
+          },
+          "openItems": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClientOperationalOpeningBalanceItem"
             }
           }
         }

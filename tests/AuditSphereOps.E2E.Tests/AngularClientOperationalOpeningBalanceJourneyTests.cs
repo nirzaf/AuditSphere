@@ -40,9 +40,18 @@ public sealed class AngularClientOperationalOpeningBalanceJourneyTests
       Assert.True((await ClientAccountingService.AddAccountsAsync(db, maker, chart.Value,
       [
         new("cash", "1000", "Opening cash", "ASSET", "DEBIT", true),
+        new("ar", "1100", "Opening receivables", "ASSET", "DEBIT", true),
         new("equity", "3000", "Opening equity", "EQUITY", "CREDIT", true)
       ])).Succeeded);
       Assert.True((await ClientAccountingService.PublishChartVersionAsync(db, reviewer, chart.Value)).Succeeded);
+      var ar = await db.ClientAccounts.SingleAsync(x => x.ChartVersionId == chart.Value && x.AccountCode == "1100");
+      var role = await ClientAccountRoleWorkspace.ProposeAsync(db, maker, f.ClientId,
+        new(chart.Value, ar.Id, "AR", new(2026, 1, 1), null, "Reviewed opening receivable control"));
+      Assert.True(role.Succeeded, role.Message);
+      Assert.True((await ClientAccountRoleWorkspace.ReviewAsync(db, reviewer, f.ClientId, role.Value, "APPROVE", "Independent control review")).Succeeded);
+      var party = await ClientBookkeepingCounterpartyWorkspace.CreateAsync(db, maker, f.ClientId,
+        new("Opening customer", "Opening customer", "CUSTOMER", "QA address", "QA", "", "", "", "", "TEST-SYSTEM", "OPEN-001"));
+      Assert.True(party.Succeeded, party.Message);
       clientName = await db.PracticeClients.Where(x => x.Id == f.ClientId).Select(x => x.LegalName).SingleAsync();
     }
 
@@ -75,9 +84,24 @@ public sealed class AngularClientOperationalOpeningBalanceJourneyTests
     await makerPanel.GetByLabel("Opening account code row 1", new() { Exact = true }).FillAsync("1000");
     await makerPanel.GetByLabel("Opening debit row 1", new() { Exact = true }).FillAsync("125.00");
     await makerPanel.GetByLabel("Opening credit row 1", new() { Exact = true }).FillAsync("0");
-    await makerPanel.GetByLabel("Opening account code row 2", new() { Exact = true }).FillAsync("3000");
-    await makerPanel.GetByLabel("Opening debit row 2", new() { Exact = true }).FillAsync("0");
-    await makerPanel.GetByLabel("Opening credit row 2", new() { Exact = true }).FillAsync("125.00");
+    await makerPanel.GetByLabel("Opening account code row 2", new() { Exact = true }).FillAsync("1100");
+    await makerPanel.GetByLabel("Opening debit row 2", new() { Exact = true }).FillAsync("125.00");
+    await makerPanel.GetByLabel("Opening credit row 2", new() { Exact = true }).FillAsync("0");
+    await makerPanel.GetByRole(AriaRole.Button, new() { Name = "Add account line", Exact = true }).ClickAsync();
+    await makerPanel.GetByLabel("Opening account code row 3", new() { Exact = true }).FillAsync("3000");
+    await makerPanel.GetByLabel("Opening debit row 3", new() { Exact = true }).FillAsync("0");
+    await makerPanel.GetByLabel("Opening credit row 3", new() { Exact = true }).FillAsync("250.00");
+    await makerPanel.GetByRole(AriaRole.Button, new() { Name = "Add opening invoice", Exact = true }).ClickAsync();
+    var partySelect = makerPanel.Locator("fieldset select[required]");
+    var openingPartyOption = partySelect.Locator("option", new() { HasText = "Opening customer" });
+    await Assertions.Expect(openingPartyOption).ToHaveCountAsync(1);
+    var openingPartyId = await partySelect.EvaluateAsync<string>("el => Array.from(el.options).find(option => option.textContent?.trim() === 'Opening customer')?.value ?? ''");
+    Assert.False(string.IsNullOrEmpty(openingPartyId), "The effective client party must appear in the opening schedule selector.");
+    await partySelect.SelectOptionAsync(openingPartyId!);
+    await makerPanel.GetByLabel("Invoice reference", new() { Exact = true }).FillAsync("CUST-OPEN-1");
+    await makerPanel.GetByLabel("Due date", new() { Exact = true }).FillAsync("2026-02-10");
+    await makerPanel.GetByLabel("Approved control account code", new() { Exact = true }).FillAsync("1100");
+    await makerPanel.GetByLabel("Open amount", new() { Exact = true }).FillAsync("125.00");
     await makerPanel.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed the client, cutover date, source reference, account mapping, and exact opening balances.", Exact = true }).CheckAsync();
     var create = await makerPage.RunAndWaitForResponseAsync(
       async () => await makerPanel.GetByRole(AriaRole.Button, new() { Name = "Save opening snapshot for independent review", Exact = true }).ClickAsync(),
@@ -86,6 +110,7 @@ public sealed class AngularClientOperationalOpeningBalanceJourneyTests
     var createBody = await create.JsonAsync() ?? throw new InvalidOperationException("Opening creation response was empty.");
     var openingId = createBody.GetProperty("id").GetGuid();
     await Assertions.Expect(makerPanel.GetByText("Awaiting independent review. The preparer cannot approve this snapshot.", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(makerPanel.GetByText("CUST-OPEN-1", new() { Exact = true })).ToBeVisibleAsync();
     Assert.Equal(0, await makerPanel.GetByRole(AriaRole.Button, new() { Name = "Approve opening snapshot", Exact = true }).CountAsync());
 
     var reviewerPanel = await OpenWorkspaceAsync(reviewerPage, reviewerOrigin);
@@ -103,8 +128,8 @@ public sealed class AngularClientOperationalOpeningBalanceJourneyTests
     await journals.GetByRole(AriaRole.Button, new() { Name = "Refresh posted ledger", Exact = true }).ClickAsync();
     await Assertions.Expect(journals.GetByRole(AriaRole.Cell, new() { Name = "1000 · Opening cash", Exact = true })).ToBeVisibleAsync();
     var trialBalance = journals.GetByRole(AriaRole.Table, new() { Name = "Official native Trial Balance · 2026-01-01 to 2026-12-31", Exact = true });
-    await Assertions.Expect(trialBalance.Locator("tfoot td").Nth(0)).ToHaveTextAsync("125");
-    await Assertions.Expect(trialBalance.Locator("tfoot td").Nth(1)).ToHaveTextAsync("125");
+    await Assertions.Expect(trialBalance.Locator("tfoot td").Nth(0)).ToHaveTextAsync("250");
+    await Assertions.Expect(trialBalance.Locator("tfoot td").Nth(1)).ToHaveTextAsync("250");
     await Assertions.Expect(trialBalance.Locator("tfoot td").Nth(2)).ToHaveTextAsync("0");
     await Assertions.Expect(trialBalance.Locator("tfoot td").Nth(3)).ToHaveTextAsync("0");
 
@@ -112,6 +137,11 @@ public sealed class AngularClientOperationalOpeningBalanceJourneyTests
     {
       var saved = await db.ClientOperationalOpeningBalances.SingleAsync(x => x.ClientId == f.ClientId && x.PeriodId == periodId);
       Assert.Equal(f.Reviewer.Id, saved.ApprovedByUserId);
+      var reconciliation = await ClientOpenItemAllocationWorkflow.ReconcileControlAccountsAsync(db, reviewer, f.ClientId, periodId, new(2026, 12, 31));
+      Assert.True(reconciliation.Succeeded, reconciliation.Message);
+      Assert.True(reconciliation.Value!.Reconciled);
+      Assert.Equal("REVIEWED_OPENING_DETAIL_INCLUDED", reconciliation.Value.OpeningDetailStatus);
+      Assert.Equal("125.000000", reconciliation.Value.Accounts.Single(x => x.AccountCode == "1100").OpenItemBalance);
     }
     Assert.Empty(errors);
   }

@@ -98,7 +98,7 @@ public sealed partial class ClientAccountingTests
       var reconciliation = await ClientOpenItemAllocationWorkflow.ReconcileControlAccountsAsync(db, reviewer, scope.ClientA, seed.Period, new(2026, 2, 1));
       Assert.True(reconciliation.Succeeded, reconciliation.Message);
       Assert.True(reconciliation.Value!.Reconciled);
-      Assert.Equal("OPENING_ITEM_DETAIL_NOT_INCLUDED", reconciliation.Value.OpeningDetailStatus);
+      Assert.Equal("NO_APPROVED_OPENING", reconciliation.Value.OpeningDetailStatus);
       Assert.Equal("95.000000", reconciliation.Value.Accounts.Single(x => x.Role == "AR").LedgerBalance);
       Assert.Equal("95.000000", reconciliation.Value.Accounts.Single(x => x.Role == "AR").OpenItemBalance);
       var receipt = source.Value!.Single(x => x.Kind == "SALES_RECEIPT" && x.SourceDocumentId == journalId);

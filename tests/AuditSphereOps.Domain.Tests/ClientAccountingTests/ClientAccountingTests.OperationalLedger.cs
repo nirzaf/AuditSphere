@@ -632,4 +632,79 @@ public sealed partial class ClientAccountingTests
       Assert.Equal("0", ledger.Value.TrialBalance.PeriodCredit);
     }
   }
+
+  [Fact]
+  [Trait("ClientOperationalLedger", "Database")]
+  public async Task ReviewedOpeningInvoiceDetailReconcilesToArAndAppearsInAsOfBalances()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
+    Guid periodId, chartId, arAccountId, partyId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.AcceptanceDecisions.Add(new AcceptanceDecision { Id = Guid.CreateVersion7(), FirmId = scope.FirmId,
+        PracticeClientId = scope.ClientA, ServiceRoute = "BOOKKEEPING", Decision = "Accepted", Generation = 1,
+        Rationale = "Reviewed client bookkeeping cutover", EvaluationTemplateVersion = "TEST-1",
+        EvaluationSnapshotDigest = new string('f', 64), DecidedByUserId = scope.Reviewer.Id, DecidedAt = DateTimeOffset.UtcNow });
+      await db.SaveChangesAsync();
+      Assert.True((await ClientAccountingService.CreateProfileAsync(db, reviewer,
+        new(scope.ClientA, "QA", "QAR", 1, 1, "AUDITSPHERE", "OPENING-AR", ClientAccountingSourceModes.NativeBookkeeping))).Succeeded);
+      periodId = (await ClientAccountingService.CreatePeriodAsync(db, preparer,
+        new(scope.ClientA, "2026", new(2026, 1, 1), new(2026, 12, 31), "IFRS", "QAR"))).Value;
+      chartId = (await ClientAccountingService.CreateChartVersionAsync(db, preparer, scope.ClientA, "AUDITSPHERE", new(2026, 1, 1))).Value;
+      Assert.True((await ClientAccountingService.AddAccountsAsync(db, preparer, chartId, [
+        new("cash", "1000", "Cash", "ASSET", "DEBIT", true),
+        new("ar", "1100", "Receivables", "ASSET", "DEBIT", true),
+        new("equity", "3000", "Opening equity", "EQUITY", "CREDIT", true)
+      ])).Succeeded);
+      Assert.True((await ClientAccountingService.PublishChartVersionAsync(db, reviewer, chartId)).Succeeded);
+      var account = await db.ClientAccounts.SingleAsync(x => x.ChartVersionId == chartId && x.AccountCode == "1100");
+      arAccountId = account.Id;
+      var role = await ClientAccountRoleWorkspace.ProposeAsync(db, preparer, scope.ClientA,
+        new(chartId, arAccountId, "AR", new(2026, 1, 1), null, "Reviewed opening AR control"));
+      Assert.True(role.Succeeded, role.Message);
+      Assert.True((await ClientAccountRoleWorkspace.ReviewAsync(db, reviewer, scope.ClientA, role.Value, "APPROVE", "Independent AR control review")).Succeeded);
+      var party = await ClientBookkeepingCounterpartyWorkspace.CreateAsync(db, preparer, scope.ClientA,
+        new("Opening customer", "Opening customer", "CUSTOMER", "QA address", "QA", "", "", "", "", "TEST-SYSTEM", "OPEN-001"));
+      Assert.True(party.Succeeded, party.Message);
+      partyId = party.Value;
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var lines = new[] { new ClientOperationalOpeningBalanceLineInput("1000", 100m, 0m),
+        new ClientOperationalOpeningBalanceLineInput("1100", 125m, 0m),
+        new ClientOperationalOpeningBalanceLineInput("3000", 0m, 225m) };
+      var request = new ClientOperationalOpeningBalanceRequest(scope.ClientA, periodId, 1, new(2026, 1, 1), "QAR",
+        "approved cutover schedule", new string('a', 64), lines,
+        [new("AR", partyId, "CUST-OPEN-1", new(2026, 2, 10), "1100", 125m)]);
+      var mismatched = await ClientOperationalOpeningBalanceWorkspace.CreateAsync(db, preparer,
+        request with { OpenItems = [new("AR", partyId, "CUST-OPEN-1", new(2026, 2, 10), "1100", 124m)] });
+      Assert.Equal(ErrorCodes.Accounting.ReconciliationRejected, mismatched.ErrorCode);
+      var created = await ClientOperationalOpeningBalanceWorkspace.CreateAsync(db, preparer, request);
+      Assert.True(created.Succeeded, created.Message);
+      var draft = (await ClientOperationalOpeningBalanceWorkspace.GetAsync(db, preparer, scope.ClientA, periodId)).Value!;
+      Assert.Single(draft.OpenItems);
+      Assert.Equal("125.000000", draft.OpenItems[0].Amount);
+      Assert.True((await ClientOperationalOpeningBalanceWorkspace.ApproveAsync(db, reviewer, scope.ClientA,
+        created.Value, 1, draft.ManifestSha256)).Succeeded);
+      var balances = await ClientOpenItemAllocationWorkflow.BalancesAsync(db, reviewer, scope.ClientA, new(2026, 1, 31));
+      Assert.True(balances.Succeeded, balances.Message);
+      var openingItem = Assert.Single(balances.Value!);
+      Assert.Equal("OPENING_AR_INVOICE", openingItem.Kind);
+      Assert.Equal("125.000000", openingItem.OpenAmount);
+      Assert.Equal(new(2026, 2, 10), openingItem.DueDate);
+      var reconciliation = await ClientOpenItemAllocationWorkflow.ReconcileControlAccountsAsync(db, reviewer, scope.ClientA,
+        periodId, new(2026, 1, 31));
+      Assert.True(reconciliation.Succeeded, reconciliation.Message);
+      Assert.Equal("REVIEWED_OPENING_DETAIL_INCLUDED", reconciliation.Value!.OpeningDetailStatus);
+      Assert.True(reconciliation.Value.Reconciled);
+      var ar = Assert.Single(reconciliation.Value.Accounts, x => x.AccountId == arAccountId);
+      Assert.Equal("125.000000", ar.LedgerBalance);
+      Assert.Equal("125.000000", ar.OpenItemBalance);
+      Assert.Equal("0.000000", ar.Difference);
+    }
+  }
 }

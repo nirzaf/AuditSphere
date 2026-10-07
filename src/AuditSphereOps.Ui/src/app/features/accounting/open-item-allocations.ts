@@ -6,11 +6,11 @@ import { Subscription, timeout } from 'rxjs';
 import { guidPattern } from '../../core/contracts';
 
 interface OpenItem {
-  kind: 'SALES_INVOICE' | 'SALES_CREDIT' | 'PURCHASE_INVOICE' | 'PURCHASE_CREDIT' | 'SALES_RECEIPT' | 'SUPPLIER_PAYMENT'; openItemId: string; sourceDocumentId: string;
+  kind: 'SALES_INVOICE' | 'SALES_CREDIT' | 'PURCHASE_INVOICE' | 'PURCHASE_CREDIT' | 'SALES_RECEIPT' | 'SUPPLIER_PAYMENT' | 'OPENING_AR_INVOICE' | 'OPENING_AP_INVOICE'; openItemId: string; sourceDocumentId: string;
   counterpartyId: string; counterpartyName: string; currency: string; originalAmount: string; appliedAmount: string;
   openAmount: string; dueDate: string | null; asOfDate: string; status: string;
 }
-interface TargetLine { lineNumber: number; targetKind: 'SALES_INVOICE' | 'PURCHASE_INVOICE'; targetOpenItemId: string; amount: string; reversesAllocationLineId: string | null }
+interface TargetLine { lineNumber: number; targetKind: 'SALES_INVOICE' | 'PURCHASE_INVOICE' | 'OPENING_AR_INVOICE' | 'OPENING_AP_INVOICE'; targetOpenItemId: string; amount: string; reversesAllocationLineId: string | null }
 interface Preview { submissionId: string; digest: string; disposition: 'ALLOCATE' | 'UNALLOCATE'; sourceKind: 'SALES_CREDIT' | 'PURCHASE_CREDIT' | 'SALES_RECEIPT' | 'SUPPLIER_PAYMENT';
   sourceItemId: string; counterpartyId: string; currency: string; sourceOriginalAmount: string; sourceAvailableAmount: string;
   lines: TargetLine[]; targetAvailableAmounts: string[] }
@@ -27,7 +27,7 @@ function records(value: unknown): Record<string, unknown>[] {
 }
 function decodeBalances(value: unknown): OpenItem[] {
   return records(value).map(x => {
-    const kinds = ['SALES_INVOICE', 'SALES_CREDIT', 'PURCHASE_INVOICE', 'PURCHASE_CREDIT', 'SALES_RECEIPT', 'SUPPLIER_PAYMENT'];
+    const kinds = ['SALES_INVOICE', 'SALES_CREDIT', 'PURCHASE_INVOICE', 'PURCHASE_CREDIT', 'SALES_RECEIPT', 'SUPPLIER_PAYMENT', 'OPENING_AR_INVOICE', 'OPENING_AP_INVOICE'];
     if (!kinds.includes(String(x['kind'])) || ![x['openItemId'], x['sourceDocumentId'], x['counterpartyId']].every(v => typeof v === 'string' && guidPattern.test(v)) ||
       typeof x['counterpartyName'] !== 'string' || typeof x['currency'] !== 'string' || !/^[A-Z]{3}$/.test(x['currency']) ||
       !['originalAmount', 'appliedAmount', 'openAmount'].every(k => typeof x[k] === 'string' && decimal.test(x[k])) ||
@@ -44,7 +44,11 @@ function decodeBalances(value: unknown): OpenItem[] {
     <label>Ageing as of <input type="date" [(ngModel)]="asOfDate" name="asOfDate" /></label>
     <button matButton type="button" [disabled]="busy()" (click)="load()">Refresh balances</button>
     @if (reconciliation(); as recon) { <section aria-label="Receivables and payables control reconciliation"><h4>AR/AP control reconciliation · {{ recon.periodCode }} · {{ recon.asOfDate }}</h4>
-      <p>Ledger basis: posted native client journals through the selected date. Current approved allocations are included because they have no separate effective date. Opening item detail is not included in this reconciliation.</p>
+      <p>Ledger basis: approved opening position and posted native client journals through the selected date. Current approved allocations are included because they have no separate effective date.
+        @if (recon.openingDetailStatus === 'REVIEWED_OPENING_DETAIL_INCLUDED') { Reviewed opening invoice detail is included in ageing and control totals. Settlement allocation against cutover items remains unavailable. }
+        @else if (recon.openingDetailStatus === 'AGGREGATE_OPENING_DETAIL_NOT_INCLUDED') { Opening balances are aggregate-only; invoice ageing and settlement are incomplete at cutover. }
+        @else if (recon.openingDetailStatus === 'NO_APPROVED_OPENING') { No approved cutover opening applies to this period. }
+      </p>
       @if (recon.unlinkedOpenItemCount) { <p role="alert">{{ recon.unlinkedOpenItemCount }} open item(s) could not be linked to one approved control-account line.</p> }
       <div class="table-scroll"><table><caption>AR/AP control balances and open item totals</caption><thead><tr><th>Role</th><th>Control account</th><th>Ledger</th><th>Open items</th><th>Difference</th><th>Status</th></tr></thead><tbody>
         @for (row of recon.accounts; track row.accountId) { <tr><td>{{ row.role }}</td><td>{{ row.accountCode }} · {{ row.accountName }}</td><td>{{ row.ledgerBalance }} {{ recon.currency }}</td><td>{{ row.openItemBalance }} {{ recon.currency }} ({{ row.openItemCount }})</td><td>{{ row.difference }}</td><td>{{ row.status }}</td></tr> }
@@ -112,7 +116,7 @@ export class OpenItemAllocations {
     this.destroyRef.onDestroy(() => this.operation?.unsubscribe());
   }
   credits(): OpenItem[] { return this.balances().filter(x => ['SALES_CREDIT', 'PURCHASE_CREDIT', 'SALES_RECEIPT', 'SUPPLIER_PAYMENT'].includes(x.kind) && x.openAmount !== '0.000000'); }
-  targets(): OpenItem[] { const source = this.credits().find(x => x.openItemId === this.sourceId); return this.balances().filter(x => x.kind.endsWith('_INVOICE') && x.openAmount !== '0.000000' && (!source || x.counterpartyId === source.counterpartyId && x.currency === source.currency && x.kind === (['SALES_CREDIT', 'SALES_RECEIPT'].includes(source.kind) ? 'SALES_INVOICE' : 'PURCHASE_INVOICE'))); }
+  targets(): OpenItem[] { const source = this.credits().find(x => x.openItemId === this.sourceId); return this.balances().filter(x => ['SALES_INVOICE', 'PURCHASE_INVOICE'].includes(x.kind) && x.openAmount !== '0.000000' && (!source || x.counterpartyId === source.counterpartyId && x.currency === source.currency && x.kind === (['SALES_CREDIT', 'SALES_RECEIPT'].includes(source.kind) ? 'SALES_INVOICE' : 'PURCHASE_INVOICE'))); }
   selectedParty(): string { return this.credits().find(x => x.openItemId === this.sourceId)?.counterpartyName ?? ''; }
   load(): void {
     const client = this.clientId(); if (!guidPattern.test(client)) return;

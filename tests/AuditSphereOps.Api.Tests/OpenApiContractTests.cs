@@ -64,7 +64,17 @@ public sealed class OpenApiContractTests
     Assert.True(sourceOriginProperties.TryGetProperty("evidenceReference", out _));
     Assert.True(paths.TryGetProperty("/api/ui/accounting/clients/{clientId}/operational-opening-balances/{periodId}", out _));
     Assert.True(paths.TryGetProperty("/api/ui/accounting/clients/{clientId}/operational-opening-balances", out var openingCreate));
-    Assert.True(openingCreate.TryGetProperty("post", out _));
+    Assert.True(openingCreate.TryGetProperty("post", out var openingCreatePost));
+    var openingRequestSchemaName = openingCreatePost.GetProperty("requestBody").GetProperty("content")
+      .GetProperty("application/json").GetProperty("schema").GetProperty("$ref").GetString()!.Split('/').Last();
+    var openingRequestProperties = schemas.GetProperty(openingRequestSchemaName).GetProperty("properties");
+    Assert.True(openingRequestProperties.TryGetProperty("openItems", out var openingItems));
+    var openingItemSchemaName = openingItems.GetProperty("items").GetProperty("$ref").GetString()!.Split('/').Last();
+    var openingItemProperties = schemas.GetProperty(openingItemSchemaName).GetProperty("properties");
+    Assert.True(openingItemProperties.TryGetProperty("counterpartyId", out _));
+    Assert.True(openingItemProperties.TryGetProperty("dueDate", out _));
+    Assert.True(openingItemProperties.TryGetProperty("accountCode", out _));
+    Assert.True(openingItemProperties.TryGetProperty("amount", out _));
     Assert.True(paths.TryGetProperty("/api/ui/accounting/clients/{clientId}/operational-opening-balances/{openingId}/approve", out var openingApproval));
     Assert.True(openingApproval.TryGetProperty("post", out _));
     Assert.True(paths.TryGetProperty("/api/ui/search", out _));

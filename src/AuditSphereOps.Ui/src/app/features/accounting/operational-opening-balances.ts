@@ -8,9 +8,12 @@ import { guidPattern } from '../../core/contracts';
 
 interface Period { id: string; revision: string; code: string; start: string; end: string; currency: string; status: string }
 interface OpeningLine { accountCode: string; accountName: string; debit: string; credit: string }
+interface OpeningItem { id: string; role: 'AR' | 'AP'; counterpartyId: string; counterpartyName: string; reference: string; dueDate: string | null; accountId: string; accountCode: string; amount: string }
+interface OpeningItemInput { role: 'AR' | 'AP'; counterpartyId: string; reference: string; dueDate: string; accountCode: string; amount: string }
+interface Counterparty { id: string; clientId: string; displayName: string; role: string }
 interface Opening { id: string; clientId: string; periodId: string; chartVersionId: string; periodRevision: string; asOfDate: string; currency: string;
   evidenceReference: string; evidenceSha256: string; manifestSha256: string; createdByUserId: string; createdAt: string;
-  approvedByUserId: string | null; approvedAt: string | null; lines: OpeningLine[] }
+  approvedByUserId: string | null; approvedAt: string | null; lines: OpeningLine[]; openItems: OpeningItem[] }
 interface EntryLine { accountCode: string; debit: string; credit: string }
 
 const amountPattern = /^(?:0|[1-9]\d{0,14})(?:\.\d{1,6})?$/;
@@ -47,6 +50,17 @@ export function decodeOpeningBalance(value: unknown, clientId: string, period: P
     seen.add(String(line['accountCode'])); debit += units(line['debit']); credit += units(line['credit']);
   }
   if (debit !== credit) throw new Error('Opening balance manifest is not balanced');
+  if (!Array.isArray(v['openItems']) || v['openItems'].length > 5000) throw new Error('Opening item schedule is invalid');
+  const references = new Set<string>();
+  for (const raw of v['openItems']) {
+    const item = object(raw); const identity = `${item['role']}|${item['counterpartyId']}|${item['reference']}`.toUpperCase();
+    if (!['AR', 'AP'].includes(String(item['role'])) || typeof item['counterpartyId'] !== 'string' || !guidPattern.test(item['counterpartyId']) ||
+      typeof item['counterpartyName'] !== 'string' || !item['counterpartyName'].trim() || typeof item['reference'] !== 'string' || !item['reference'].trim() ||
+      !(item['dueDate'] === null || (typeof item['dueDate'] === 'string' && datePattern.test(item['dueDate']))) ||
+      typeof item['accountCode'] !== 'string' || !item['accountCode'].trim() || typeof item['accountId'] !== 'string' || !guidPattern.test(item['accountId']) ||
+      !validAmount(item['amount']) || units(item['amount']) <= 0n || references.has(identity)) throw new Error('Opening balance contains invalid AR/AP detail');
+    references.add(identity);
+  }
   return value as Opening;
 }
 
@@ -75,6 +89,22 @@ export function decodeOpeningBalance(value: unknown, clientId: string, period: P
             <tfoot><tr><th>Total</th><td>{{ total('debit') }}</td><td>{{ total('credit') }}</td><td></td></tr></tfoot>
           </table></div>
           <button matButton type="button" [disabled]="busy() || lines().length >= 5000" (click)="addLine()">Add account line</button>
+          <fieldset><legend>Optional invoice-level AR/AP detail</legend>
+            <p>When supplied, each schedule must exactly reconcile to its approved AR/AP control balance. Without supporting detail, ageing and settlement remain explicitly aggregate-only.</p>
+            @for (item of openItems(); track $index; let i = $index) {
+              <div>
+                <label>Control role <select [name]="'openingRole' + i" [(ngModel)]="item.role" (ngModelChange)="edited()"><option value="AR">Customer receivable</option><option value="AP">Supplier payable</option></select></label>
+                <label>Party <select [name]="'openingParty' + i" [(ngModel)]="item.counterpartyId" required (ngModelChange)="edited()"><option value="">Choose party</option>@for (party of counterparties(); track party.id) { @if (party.role === 'BOTH' || party.role === (item.role === 'AR' ? 'CUSTOMER' : 'SUPPLIER')) { <option [value]="party.id">{{ party.displayName }}</option> } }</select></label>
+                <label>Invoice reference <input [name]="'openingReference' + i" [(ngModel)]="item.reference" maxlength="200" required (ngModelChange)="edited()" /></label>
+                <label>Due date <input type="date" [name]="'openingDue' + i" [(ngModel)]="item.dueDate" (ngModelChange)="edited()" /></label>
+                <label>Approved control account code <input [name]="'openingControl' + i" [(ngModel)]="item.accountCode" maxlength="100" required (ngModelChange)="edited()" /></label>
+                <label>Open amount <input [name]="'openingAmount' + i" [(ngModel)]="item.amount" inputmode="decimal" pattern="(?:0|[1-9][0-9]{0,14})(?:\\.[0-9]{1,6})?" required (ngModelChange)="edited()" /></label>
+                <button matButton type="button" [disabled]="busy()" (click)="removeOpenItem(i)">Remove opening item</button>
+              </div>
+            }
+            <button matButton type="button" [disabled]="busy() || openItems().length >= 5000" (click)="addOpenItem()">Add opening invoice</button>
+            @if (counterparties().length < partyTotal()) { <button matButton type="button" [disabled]="busy()" (click)="loadCounterparties(partyPage() + 1)">Load more client parties</button> }
+          </fieldset>
           <label><input name="openingReviewed" type="checkbox" [ngModel]="reviewed()" (ngModelChange)="reviewed.set($event)" /> I reviewed the client, cutover date, source reference, account mapping, and exact opening balances.</label>
           <button matButton type="submit" [disabled]="openingForm.invalid || busy() || uncertain() || !reviewed() || !balanced() || selected()?.status === 'CLOSED'">Save opening snapshot for independent review</button>
         </fieldset>
@@ -82,12 +112,13 @@ export function decodeOpeningBalance(value: unknown, clientId: string, period: P
       @if (selected()?.status === 'CLOSED') { <p role="note">This period is closed; a new opening snapshot cannot be created.</p> }
     }
     @if (opening(); as snapshot) {
-      <section aria-label="Immutable opening snapshot">
+    <section aria-label="Immutable opening snapshot">
         <p>{{ snapshot.asOfDate }} · {{ snapshot.currency }} · period revision {{ snapshot.periodRevision }} · chart {{ snapshot.chartVersionId }}</p>
         <p>Source: {{ snapshot.evidenceReference }} · SHA-256 {{ snapshot.evidenceSha256 }}</p>
         <p>Manifest SHA-256 {{ snapshot.manifestSha256 }} · prepared by {{ snapshot.createdByUserId }} · {{ snapshot.createdAt }}</p>
         <div class="table-scroll"><table><caption>Retained opening balance source</caption><thead><tr><th>Account</th><th>Debit</th><th>Credit</th></tr></thead>
           <tbody>@for (line of snapshot.lines; track line.accountCode) { <tr><td>{{ line.accountCode }} · {{ line.accountName }}</td><td>{{ line.debit }}</td><td>{{ line.credit }}</td></tr> }</tbody></table></div>
+        @if (snapshot.openItems.length) { <div class="table-scroll"><table><caption>Reviewed opening AR/AP invoice detail</caption><thead><tr><th>Role</th><th>Party</th><th>Invoice</th><th>Due</th><th>Control</th><th>Open amount</th></tr></thead><tbody>@for (item of snapshot.openItems; track item.id) { <tr><td>{{ item.role }}</td><td>{{ item.counterpartyName }}</td><td>{{ item.reference }}</td><td>{{ item.dueDate ?? '—' }}</td><td>{{ item.accountCode }}</td><td>{{ item.amount }}</td></tr> }</tbody></table></div> }
         @if (snapshot.approvedByUserId) { <p role="status">Independently approved by {{ snapshot.approvedByUserId }} · {{ snapshot.approvedAt }}. This snapshot is immutable.</p> }
         @else {
           <p role="status">Awaiting independent review. The preparer cannot approve this snapshot.</p>
@@ -109,23 +140,42 @@ export class ClientOperationalOpeningBalances {
   private readonly http = inject(HttpClient);
   private readonly session = inject(SessionService);
   readonly opening = signal<Opening | null>(null);
+  readonly counterparties = signal<Counterparty[]>([]); readonly partyPage = signal(0); readonly partyTotal = signal(0);
   readonly loading = signal(false); readonly busy = signal(false); readonly uncertain = signal(false);
   readonly error = signal(''); readonly readSucceeded = signal(false); readonly reviewed = signal(false); readonly approvalReviewed = signal(false);
   readonly lines = signal<EntryLine[]>([{ accountCode: '', debit: '0', credit: '0' }, { accountCode: '', debit: '0', credit: '0' }]);
+  readonly openItems = signal<OpeningItemInput[]>([]);
   periodId = ''; evidenceReference = ''; evidenceSha256 = '';
   private requestId = 0; private operation?: Subscription;
   private readonly invalidate = effect(() => {
     this.clientId(); this.periods(); this.currency(); this.session.invalidation();
-    untracked(() => { this.operation?.unsubscribe(); ++this.requestId; this.periodId = ''; this.opening.set(null); this.loading.set(false); this.busy.set(false); this.uncertain.set(false); this.error.set(''); this.readSucceeded.set(false); this.reset(); });
+    untracked(() => { this.operation?.unsubscribe(); ++this.requestId; this.periodId = ''; this.opening.set(null); this.counterparties.set([]); this.partyPage.set(0); this.partyTotal.set(0); this.loading.set(false); this.busy.set(false); this.uncertain.set(false); this.error.set(''); this.readSucceeded.set(false); this.reset(); });
   });
   constructor() { inject(DestroyRef).onDestroy(() => this.operation?.unsubscribe()); }
   selected(): Period | undefined { return this.periods().find(p => p.id === this.periodId); }
   userId(): string { return this.session.current()?.userId ?? ''; }
-  selectPeriod(id: string): void { this.periodId = id; this.opening.set(null); this.reset(); this.uncertain.set(false); this.error.set(''); this.readSucceeded.set(false); if (id) this.load(); }
-  reset(): void { this.evidenceReference = ''; this.evidenceSha256 = ''; this.reviewed.set(false); this.approvalReviewed.set(false); this.lines.set([{ accountCode: '', debit: '0', credit: '0' }, { accountCode: '', debit: '0', credit: '0' }]); }
+  selectPeriod(id: string): void { this.periodId = id; this.opening.set(null); this.reset(); this.uncertain.set(false); this.error.set(''); this.readSucceeded.set(false); this.counterparties.set([]); this.partyPage.set(0); this.partyTotal.set(0); if (id) { this.load(); this.loadCounterparties(0); } }
+  reset(): void { this.evidenceReference = ''; this.evidenceSha256 = ''; this.reviewed.set(false); this.approvalReviewed.set(false); this.lines.set([{ accountCode: '', debit: '0', credit: '0' }, { accountCode: '', debit: '0', credit: '0' }]); this.openItems.set([]); }
   edited(): void { this.reviewed.set(false); }
   addLine(): void { if (this.lines().length < 5000) this.lines.update(rows => [...rows, { accountCode: '', debit: '0', credit: '0' }]); this.edited(); }
   removeLine(index: number): void { if (this.lines().length > 2) this.lines.update(rows => rows.filter((_, i) => i !== index)); this.edited(); }
+  addOpenItem(): void { if (this.openItems().length < 5000) this.openItems.update(rows => [...rows, { role: 'AR', counterpartyId: '', reference: '', dueDate: '', accountCode: '', amount: '' }]); this.edited(); }
+  removeOpenItem(index: number): void { this.openItems.update(rows => rows.filter((_, i) => i !== index)); this.edited(); }
+  loadCounterparties(page: number): void {
+    const client = this.clientId(), generation = this.session.invalidation(); if (!guidPattern.test(client) || page < 0) return;
+    this.http.get<unknown>(`/api/ui/accounting/clients/${client}/counterparties`, { params: { page: String(page), pageSize: '25' } }).pipe(timeout(15000)).subscribe({
+      next: value => {
+        if (client !== this.clientId() || generation !== this.session.invalidation()) return;
+        const v = object(value); const rows = v['counterparties'];
+        if (v['clientId'] !== client || v['page'] !== page || v['pageSize'] !== 25 || !Number.isSafeInteger(v['total']) || !Array.isArray(rows) || rows.length > 25 ||
+          rows.some(raw => { const party = object(raw); return party['clientId'] !== client || typeof party['id'] !== 'string' || !guidPattern.test(party['id']) || typeof party['displayName'] !== 'string' || !['CUSTOMER', 'SUPPLIER', 'BOTH'].includes(String(party['role'])); })) {
+          this.error.set('The client party list could not be validated.'); return;
+        }
+        const existing = this.counterparties(); const seen = new Set(existing.map(x => x.id));
+        this.counterparties.set([...existing, ...(rows as Counterparty[]).filter(x => !seen.has(x.id))]); this.partyPage.set(page); this.partyTotal.set(Number(v['total']));
+      }, error: () => { if (client === this.clientId() && generation === this.session.invalidation()) this.error.set('Client parties are unavailable for opening detail.'); }
+    });
+  }
   balanced(): boolean {
     const rows = this.lines();
     try { const codes = rows.map(x => x.accountCode.trim()); return rows.length >= 2 && codes.every(Boolean) && new Set(codes).size === codes.length &&
@@ -155,9 +205,14 @@ export class ClientOperationalOpeningBalances {
     this.operation = this.http.post<unknown>(`/api/ui/accounting/clients/${client}/operational-opening-balances`, {
       periodId: period.id, periodRevision: period.revision, asOfDate: period.start, currency: period.currency,
       evidenceReference: this.evidenceReference.trim(), evidenceSha256: this.evidenceSha256.trim().toLowerCase(),
-      lines: this.lines().map(x => ({ accountCode: x.accountCode.trim(), debit: x.debit, credit: x.credit })), reviewed: true
+      lines: this.lines().map(x => ({ accountCode: x.accountCode.trim(), debit: x.debit, credit: x.credit })),
+      openItems: this.openItems().map(x => ({ role: x.role, counterpartyId: x.counterpartyId, reference: x.reference.trim(),
+        dueDate: x.dueDate || null, accountCode: x.accountCode.trim(), amount: x.amount })), reviewed: true
     }).pipe(timeout(20000)).subscribe({ next: () => { if (request !== this.requestId || generation !== this.session.invalidation()) return; this.busy.set(false); this.uncertain.set(true); this.load(); },
-      error: failure => { if (request === this.requestId) { this.busy.set(false); this.uncertain.set(true); this.error.set('Creation outcome is unconfirmed. Refresh the selected period before retrying.'); if (failure.status === 401) this.session.clear(); } }
+      error: failure => { if (request === this.requestId) { this.busy.set(false); const refused = failure.status >= 400 && failure.status < 500; this.uncertain.set(!refused);
+        this.error.set(failure.status === 403 ? 'You are not authorized to create this opening snapshot.' : failure.status === 400 ?
+          'The opening was refused. Check the balance lines and ensure every supplied AR/AP schedule exactly matches its approved control balance.' :
+          'Creation outcome is unconfirmed. Refresh the selected period before retrying.'); if (failure.status === 401) this.session.clear(); } }
     });
   }
   approve(snapshot: Opening): void {
@@ -166,7 +221,9 @@ export class ClientOperationalOpeningBalances {
     this.operation = this.http.post(`/api/ui/accounting/clients/${client}/operational-opening-balances/${snapshot.id}/approve`, {
       periodRevision: snapshot.periodRevision, manifestSha256: snapshot.manifestSha256, reviewed: true
     }).pipe(timeout(20000)).subscribe({ next: () => { if (request !== this.requestId || generation !== this.session.invalidation()) return; this.busy.set(false); this.uncertain.set(true); this.load(); },
-      error: failure => { if (request === this.requestId) { this.busy.set(false); this.uncertain.set(true); this.error.set('Approval outcome is unconfirmed. Refresh the selected period before another action.'); if (failure.status === 401) this.session.clear(); } }
+      error: failure => { if (request === this.requestId) { this.busy.set(false); const refused = failure.status >= 400 && failure.status < 500; this.uncertain.set(!refused);
+        this.error.set(refused ? 'Approval was refused. Refresh and confirm the reviewer role, period revision, and exact manifest.' :
+          'Approval outcome is unconfirmed. Refresh the selected period before another action.'); if (failure.status === 401) this.session.clear(); } }
     });
   }
 }

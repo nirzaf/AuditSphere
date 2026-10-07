@@ -12034,45 +12034,51 @@
       ]
     },
     "clientOpenItemsAndManualSettlements": {
-      "status": "LOCAL_RECONCILIATION_SLICE_VERIFIED",
+      "status": "OPENING_DETAIL_SLICE_VERIFIED",
       "priorEvidence": "The existing six focused PostgreSQL manual settlement journeys and SettlementCheck API build passed before reconciliation additions.",
-      "newImplementation": "Read-only native AR/AP control reconciliation by approved control account and as-of date. Uses repeatable-read snapshot, ties native open items to exactly one approved control line in their posted source journal, includes current approved allocations and reversals, reports differences/unlinked items, and states that opening-item detail is excluded. Allocation decisions have no separate accounting-effective date; a historical cutoff therefore uses current approved allocation state and reports any resulting difference.",
+      "newImplementation": "Read-only native AR/AP control reconciliation uses a repeatable-read snapshot and includes approved positive invoice-level opening details for the selected period. Opening rows link to party and exact mapped control account and must tie to the approved AR/AP control balance; aggregate-only openings disclose incomplete aging. Historical balances use current approved allocations because allocation decisions have no separate effective date. Cutover-item allocation and cross-period opening carry-forward remain unavailable.",
       "focusedPostgreSqlTests": {
-        "passed": 2,
+        "result": "PASS",
+        "passed": 3,
         "failed": 0,
         "tests": [
-          "ManualCustomerReceiptPostsOnceAndCanBeAllocatedToClientInvoice",
-          "ManualSupplierPaymentPostsAgainstClientPayablesWithoutInitiatingPayment"
-        ],
-        "database": "Owned isolated PostgreSQL test schemas in /private/tmp/ca19-verify-20261007."
+          "ReviewedOpeningInvoiceDetailReconcilesToArAndAppearsInAsOfBalances",
+          "NativeOpeningBalanceRequiresExactEvidenceAndIndependentApprovalAndSeparatesMovement",
+          "ManualCustomerReceiptPostsOnceAndCanBeAllocatedToClientInvoice"
+        ]
       },
       "angularFocused": {
-        "passed": 1,
+        "result": "PASS",
+        "passed": 4,
         "failed": 0,
-        "test": "open-item-allocations.spec.ts loads the scoped as-of control report and discloses opening detail exclusion."
+        "scope": "Two opening-balance and open-item-allocation component spec files."
       },
       "apiOpenApi": {
-        "passed": 2,
-        "failed": 0,
-        "tests": [
-          "ContractIsGeneratedFromActualEndpointsAsOpenApi31",
-          "ContractSerializationIsDeterministicForDriftDetection"
-        ],
-        "artifact": "contracts/auditsphere-openapi.json regenerated from the API host."
+        "result": "PASS",
+        "passed": 1,
+        "generatedArtifact": "contracts/auditsphere-openapi.json"
       },
-      "apiBuild": "PASS; zero errors. NU1900 warning because NuGet vulnerability feed was unreachable.",
-      "angularBuild": "PASS; existing Commercial Settings stylesheet is 7.53 kB against the 4 kB component-style budget.",
+      "apiBuild": "PASS; zero warnings and errors on the focused Release build.",
+      "angularBuild": "PASS; existing Commercial Settings stylesheet budget warning (7.53 kB against 4 kB).",
       "verificationCheckout": "/private/tmp/ca19-verify-20261007; exact source overlay from managed branch. Used because managed worktree obj writes were denied during concurrent build activity.",
       "notRun": [
-        "API-hosted Chromium/browser journey",
         "Full PostgreSQL-backed solution suite",
         "Production migration or external acceptance"
       ],
       "limitations": [
-        "Opening item detail is not included",
-        "CA-19 and the full user-story epic remain incomplete and unmerged",
-        "Tax and other ancillary modules remain optional"
-      ]
+        "Cutover invoices are not settlement-allocation targets because the persistence guard supports only posted invoice tables",
+        "Prior-period carry-forward is not implemented",
+        "CA-19 and the full story epic remain incomplete",
+        "VAT/tax and other ancillary modules remain optional"
+      ],
+      "verifiedAt": "2026-10-07",
+      "apiHostedAngularJourney": {
+        "result": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "test": "AngularClientOperationalOpeningBalanceJourneyTests.ClientOpeningManifestRequiresMakerReviewerAndFlowsIntoTrialBalance",
+        "coverage": "API-hosted Angular invoice-level opening entry, maker cannot self-approve, independent reviewer approval, Trial Balance totals and AR control reconciliation."
+      }
     },
     "clientOperationalJournalExactAmounts": {
       "sourceCommit": "d1698d35",

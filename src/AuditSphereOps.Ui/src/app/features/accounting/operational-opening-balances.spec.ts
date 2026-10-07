@@ -16,7 +16,7 @@ const response = (approvedByUserId: string | null = null) => ({ id: openingId, c
   manifestSha256: 'b'.repeat(64), createdByUserId: maker, createdAt: '2026-10-07T10:00:00Z', approvedByUserId,
   approvedAt: approvedByUserId ? '2026-10-07T11:00:00Z' : null,
   lines: [{ accountCode: '1000', accountName: 'Cash', debit: '100.000000', credit: '0.000000' },
-    { accountCode: '3000', accountName: 'Capital', debit: '0.000000', credit: '100.000000' }] });
+    { accountCode: '3000', accountName: 'Capital', debit: '0.000000', credit: '100.000000' }], openItems: [] });
 
 describe('Reviewed client opening balances', () => {
   let http: HttpTestingController;
@@ -32,6 +32,7 @@ describe('Reviewed client opening balances', () => {
     const select = fixture.nativeElement.querySelector('#opening-period') as HTMLSelectElement;
     select.value = periodId; select.dispatchEvent(new Event('change')); fixture.detectChanges();
     http.expectOne(`/api/ui/accounting/clients/${client}/operational-opening-balances/${periodId}`).flush(null);
+    http.expectOne(`/api/ui/accounting/clients/${client}/counterparties?page=0&pageSize=25`).flush({ clientId: client, role: null, page: 0, pageSize: 25, total: 0, bookkeepingActive: true, counterparties: [] });
     return fixture;
   }
 
@@ -53,6 +54,7 @@ describe('Reviewed client opening balances', () => {
     expect(c.balanced()).toBe(true); c.create();
     const create = http.expectOne({ method: 'POST', url: `/api/ui/accounting/clients/${client}/operational-opening-balances` });
     expect(create.request.body).toMatchObject({ periodId, periodRevision: '8', asOfDate: period.start, currency: 'QAR', reviewed: true });
+    expect(create.request.body.openItems).toEqual([]);
     create.flush({ id: openingId });
     const read = http.expectOne(`/api/ui/accounting/clients/${client}/operational-opening-balances/${periodId}`);
     read.flush(response()); fixture.detectChanges();
