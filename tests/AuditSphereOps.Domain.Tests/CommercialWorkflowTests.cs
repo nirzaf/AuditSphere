@@ -868,6 +868,48 @@ public sealed class CommercialWorkflowTests
   }
 
   [Fact]
+  public async Task FeeAgreement_RequiresAcceptanceCitingDispatchedOffer()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var (_, _, proposalId) = await DraftProposalAsync(pg, w);
+    await using var db = new AuditSphereDbContext(pg.Options);
+
+    // Standard happy path: approved quotation, brief artifact, dispatch, acceptance of the exact offer, client.
+    var quote = await QuotationService.SaveAsync(db, w.Prep, Quote(proposalId,
+      lines: [new QuotationHoursLine("Partner", "Audit", 17.5m), new QuotationHoursLine("Manager", "Audit", 10m)]));
+    Assert.True((await QuotationService.SubmitAsync(db, w.Prep, quote.Value)).Succeeded);
+    Assert.True((await CommercialDocumentService.SaveProfileAsync(db, w.Partner,
+      new SaveCommercialProfileRequest("Binding Firm", "Doha", "", "", "#2B6CB0", "Closing"))).Succeeded);
+    Assert.True((await PracticeCrmService.ApproveProposalAsync(db, w.Partner, proposalId)).Succeeded);
+    Assert.True((await CommercialDocumentService.GenerateBriefQuotationAsync(db, w.Prep, proposalId,
+      expectedQuotationId: quote.Value, expectedProfileVersion: 1)).Succeeded);
+    Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Prep, proposalId)).Succeeded);
+    var proposal = await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId);
+    Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
+      new("ACCEPTED", null, proposal.SentOfferSha256, "A. Owner", "owner@gulf.example.test", "Signed acceptance letter"))).Succeeded);
+    Assert.True((await PracticeCrmService.ConvertToClientDraftAsync(db, w.Prep, new(proposalId, "Binding Client LLC"))).Succeeded);
+
+    // A recorded acceptance that does not cite the dispatched offer identity (a stale, replayed, or
+    // tampered citation) can never underwrite the fee agreement: the agreement must carry the exact
+    // accepted commercial terms the client responded to (STE 4.1.3, STE-REM-02).
+    var recordedAcceptance = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId)).ResponseOfferSha256;
+    await db.Proposals.Where(x => x.Id == proposalId)
+      .ExecuteUpdateAsync(s => s.SetProperty(x => x.ResponseOfferSha256, new string('f', 64)));
+    var refused = await FeeAgreementService.CreateAgreementAsync(db, w.Prep, proposalId);
+    Assert.Equal(ErrorCodes.GenerationStale, refused.ErrorCode);
+    Assert.Empty(await db.EngagementFeeAgreements.Where(x => x.ProposalId == proposalId).ToListAsync());
+
+    // Restoring the exact dispatched citation restores the normal reviewed agreement path.
+    await db.Proposals.Where(x => x.Id == proposalId)
+      .ExecuteUpdateAsync(s => s.SetProperty(x => x.ResponseOfferSha256, recordedAcceptance));
+    var agreement = await FeeAgreementService.CreateAgreementAsync(db, w.Prep, proposalId);
+    Assert.True(agreement.Succeeded, agreement.Message);
+    var stored = await db.EngagementFeeAgreements.AsNoTracking().SingleAsync(x => x.Id == agreement.Value);
+    Assert.Equal(quote.Value, stored.QuotationVersionId);
+  }
+
+  [Fact]
   public async Task PortalFinanceAndReceiptDownloads_RespectExactClientAndEngagementScope()
   {
     await using var pg = await PgTestSchema.CreateAsync();

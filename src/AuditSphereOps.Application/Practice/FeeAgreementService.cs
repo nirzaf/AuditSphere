@@ -64,9 +64,18 @@ public static class FeeAgreementService
     // quotation revision, and a later approved revision needs a new dispatch and fresh acceptance.
     var dispatch = await db.CommercialNotifications.AsNoTracking().SingleOrDefaultAsync(
       x => x.FirmId == actor.FirmId && x.ProposalId == proposalId && x.Kind == CommercialNotificationKinds.Proposal, ct);
-    if (dispatch is not null && dispatch.QuotationVersionId is { } acceptedQuotation && acceptedQuotation != quotation.Id)
-      return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision,
-        "The client accepted a different quotation revision than the current one; use a newly approved commercial revision with fresh acceptance before creating the fee agreement.");
+    if (dispatch is not null)
+    {
+      if (dispatch.QuotationVersionId is { } acceptedQuotation && acceptedQuotation != quotation.Id)
+        return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision,
+          "The client accepted a different quotation revision than the current one; use a newly approved commercial revision with fresh acceptance before creating the fee agreement.");
+      // The agreement carries the accepted terms, so the recorded acceptance must cite the dispatched
+      // offer identity — the same dual-key evidence the engagement letter requires (STE 4.1.3).
+      if (dispatch.OfferSha256 is { } sentOffer &&
+        !string.Equals(proposal.ResponseOfferSha256, sentOffer, StringComparison.OrdinalIgnoreCase))
+        return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale,
+          "The recorded client acceptance does not cite the dispatched offer identity; re-record the acceptance against the exact dispatched offer before creating the fee agreement.");
+    }
 
     var advance = MoneyPolicy.Normalize(proposal.Fee * DefaultAdvancePercent / 100m, QuotationCalculator.CurrencyScale);
     if (advance <= 0m || proposal.Fee - advance <= 0m)
