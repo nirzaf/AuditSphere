@@ -45,7 +45,7 @@ function decodeBalances(value: unknown): OpenItem[] {
     <button matButton type="button" [disabled]="busy()" (click)="load()">Refresh balances</button>
     @if (reconciliation(); as recon) { <section aria-label="Receivables and payables control reconciliation"><h4>AR/AP control reconciliation · {{ recon.periodCode }} · {{ recon.asOfDate }}</h4>
       <p>Ledger basis: approved opening position and posted native client journals through the selected date. Current approved allocations are included because they have no separate effective date.
-        @if (recon.openingDetailStatus === 'REVIEWED_OPENING_DETAIL_INCLUDED') { Reviewed opening invoice detail is included in ageing and control totals. Settlement allocation against cutover items remains unavailable. }
+        @if (recon.openingDetailStatus === 'REVIEWED_OPENING_DETAIL_INCLUDED') { Reviewed opening invoice detail is included in ageing and control totals, and can be used as a target for independently reviewed settlements. }
         @else if (recon.openingDetailStatus === 'AGGREGATE_OPENING_DETAIL_NOT_INCLUDED') { Opening balances are aggregate-only; invoice ageing and settlement are incomplete at cutover. }
         @else if (recon.openingDetailStatus === 'NO_APPROVED_OPENING') { No approved cutover opening applies to this period. }
       </p>
@@ -116,7 +116,7 @@ export class OpenItemAllocations {
     this.destroyRef.onDestroy(() => this.operation?.unsubscribe());
   }
   credits(): OpenItem[] { return this.balances().filter(x => ['SALES_CREDIT', 'PURCHASE_CREDIT', 'SALES_RECEIPT', 'SUPPLIER_PAYMENT'].includes(x.kind) && x.openAmount !== '0.000000'); }
-  targets(): OpenItem[] { const source = this.credits().find(x => x.openItemId === this.sourceId); return this.balances().filter(x => ['SALES_INVOICE', 'PURCHASE_INVOICE'].includes(x.kind) && x.openAmount !== '0.000000' && (!source || x.counterpartyId === source.counterpartyId && x.currency === source.currency && x.kind === (['SALES_CREDIT', 'SALES_RECEIPT'].includes(source.kind) ? 'SALES_INVOICE' : 'PURCHASE_INVOICE'))); }
+  targets(): OpenItem[] { const source = this.credits().find(x => x.openItemId === this.sourceId); return this.balances().filter(x => ['SALES_INVOICE', 'PURCHASE_INVOICE', 'OPENING_AR_INVOICE', 'OPENING_AP_INVOICE'].includes(x.kind) && x.openAmount !== '0.000000' && (!source || x.counterpartyId === source.counterpartyId && x.currency === source.currency && (['SALES_CREDIT', 'SALES_RECEIPT'].includes(source.kind) ? ['SALES_INVOICE', 'OPENING_AR_INVOICE'].includes(x.kind) : ['PURCHASE_INVOICE', 'OPENING_AP_INVOICE'].includes(x.kind)))); }
   selectedParty(): string { return this.credits().find(x => x.openItemId === this.sourceId)?.counterpartyName ?? ''; }
   load(): void {
     const client = this.clientId(); if (!guidPattern.test(client)) return;

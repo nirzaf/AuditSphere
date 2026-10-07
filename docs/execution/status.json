@@ -12066,8 +12066,8 @@
         "Production migration or external acceptance"
       ],
       "limitations": [
-        "Cutover invoices are not settlement-allocation targets because the persistence guard supports only posted invoice tables",
-        "Prior-period carry-forward is not implemented",
+        "Only latest approved opening schedule can be targeted; historical periods do not carry opening items forward automatically",
+        "Aggregate-only opening schedules remain incomplete for invoice aging",
         "CA-19 and the full story epic remain incomplete",
         "VAT/tax and other ancillary modules remain optional"
       ],
@@ -12078,6 +12078,28 @@
         "failed": 0,
         "test": "AngularClientOperationalOpeningBalanceJourneyTests.ClientOpeningManifestRequiresMakerReviewerAndFlowsIntoTrialBalance",
         "coverage": "API-hosted Angular invoice-level opening entry, maker cannot self-approve, independent reviewer approval, Trial Balance totals and AR control reconciliation."
+      },
+      "openingInvoiceAllocation": {
+        "status": "PASS_LOCAL_SLICE",
+        "migration": "20261008110000_ClientOpeningItemAllocations; extends target check and deferred trigger; Down refuses rollback while opening-target allocations exist.",
+        "postgresqlTests": {
+          "passed": 2,
+          "failed": 0,
+          "tests": [
+            "ReviewedOpeningInvoiceDetailReconcilesToArAndAppearsInAsOfBalances",
+            "ManualSettlementMigrationDownRestoresGenericControlGuard"
+          ]
+        },
+        "angularFocused": {
+          "passed": 2,
+          "failed": 0,
+          "test": "open-item-allocations.spec.ts offers same-party, same-currency approved opening invoices."
+        },
+        "coverage": "Posted completed customer receipt partially allocated to approved opening AR invoice after independent journal and allocation review; validates residual receipt, residual opening balance and exact AR-to-ledger control reconciliation.",
+        "notRun": [
+          "Full solution regression",
+          "Production migration or external acceptance"
+        ]
       }
     },
     "clientOperationalJournalExactAmounts": {

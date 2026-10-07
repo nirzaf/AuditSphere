@@ -50,7 +50,7 @@ public sealed partial class AuditSphereDbContext
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict)
       .HasConstraintName("fk_client_open_item_allocation_line_reversal");
     line.ToTable("client_open_item_allocation_lines", t => t.HasCheckConstraint("ck_client_open_item_allocation_line",
-      "line_number>0 AND target_kind IN ('SALES_INVOICE','PURCHASE_INVOICE') AND target_open_item_id<>'00000000-0000-0000-0000-000000000000'::uuid AND amount>0"));
+      "line_number>0 AND target_kind IN ('SALES_INVOICE','PURCHASE_INVOICE','OPENING_AR_INVOICE','OPENING_AP_INVOICE') AND target_open_item_id<>'00000000-0000-0000-0000-000000000000'::uuid AND amount>0"));
 
     var decision = b.Entity<ClientOpenItemAllocationDecision>();
     decision.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.Id });

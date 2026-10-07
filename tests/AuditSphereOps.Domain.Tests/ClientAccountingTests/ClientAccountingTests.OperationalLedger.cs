@@ -641,7 +641,7 @@ public sealed partial class ClientAccountingTests
     var scope = await SeedAsync(pg);
     var preparer = Actor(scope.Preparer, "AccountingPreparer");
     var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
-    Guid periodId, chartId, arAccountId, partyId;
+    Guid periodId, chartId, arAccountId, partyId, openingItemId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       db.AcceptanceDecisions.Add(new AcceptanceDecision { Id = Guid.CreateVersion7(), FirmId = scope.FirmId,
@@ -693,6 +693,7 @@ public sealed partial class ClientAccountingTests
       var balances = await ClientOpenItemAllocationWorkflow.BalancesAsync(db, reviewer, scope.ClientA, new(2026, 1, 31));
       Assert.True(balances.Succeeded, balances.Message);
       var openingItem = Assert.Single(balances.Value!);
+      openingItemId = openingItem.OpenItemId;
       Assert.Equal("OPENING_AR_INVOICE", openingItem.Kind);
       Assert.Equal("125.000000", openingItem.OpenAmount);
       Assert.Equal(new(2026, 2, 10), openingItem.DueDate);
@@ -705,6 +706,46 @@ public sealed partial class ClientAccountingTests
       Assert.Equal("125.000000", ar.LedgerBalance);
       Assert.Equal("125.000000", ar.OpenItemBalance);
       Assert.Equal("0.000000", ar.Difference);
+
+      var settlement = new ClientManualSettlementDraftRequest(Guid.CreateVersion7(), scope.ClientA, periodId, partyId,
+        "SALES_RECEIPT", "RCT-OPEN-01", "Record completed customer receipt", new(2026, 2, 11), "1000", 20m,
+        "BANK-OPEN-01", "client evidence for completed receipt");
+      var settlementPreview = await ClientOperationalLedgerWorkspace.PreviewSettlementAsync(db, preparer, settlement);
+      Assert.True(settlementPreview.Succeeded, settlementPreview.Message);
+      var settlementDraft = await ClientOperationalLedgerWorkspace.CreateSettlementDraftAsync(db, preparer, settlement, settlementPreview.Value!.Digest);
+      Assert.True(settlementDraft.Succeeded, settlementDraft.Message);
+      var journalPreview = await ClientOperationalLedgerWorkspace.PreviewAsync(db, preparer, scope.ClientA, settlementDraft.Value!.JournalId);
+      Assert.True(journalPreview.Succeeded, journalPreview.Message);
+      Assert.True((await ClientOperationalLedgerWorkspace.SubmitAsync(db, preparer, scope.ClientA, settlementDraft.Value.JournalId,
+        1, previewDigest: journalPreview.Value!.Digest)).Succeeded);
+      var reviewerPreview = await ClientOperationalLedgerWorkspace.PreviewAsync(db, reviewer, scope.ClientA, settlementDraft.Value.JournalId);
+      Assert.True(reviewerPreview.Succeeded, reviewerPreview.Message);
+      Assert.True((await ClientOperationalLedgerWorkspace.ReviewAndPostAsync(db, reviewer, scope.ClientA, settlementDraft.Value.JournalId,
+        new(2, "APPROVE", "Verified the externally completed client receipt", reviewerPreview.Value!.Digest, Guid.CreateVersion7()))).Succeeded);
+
+      var receipt = Assert.Single((await ClientOpenItemAllocationWorkflow.BalancesAsync(db, reviewer, scope.ClientA, new(2026, 2, 11))).Value!,
+        x => x.Kind == "SALES_RECEIPT");
+      var allocation = new ClientOpenItemAllocationRequest(Guid.CreateVersion7(), "SALES_RECEIPT", receipt.OpenItemId,
+        "ALLOCATE", "BANK-OPEN-01-ALLOC", "Apply part of the completed receipt to the reviewed cutover invoice",
+        [new(1, "OPENING_AR_INVOICE", openingItemId, 20m)], "");
+      var allocationPreview = await ClientOpenItemAllocationWorkflow.PreviewAsync(db, preparer, scope.ClientA, allocation);
+      Assert.True(allocationPreview.Succeeded, allocationPreview.Message);
+      var allocationSubmission = await ClientOpenItemAllocationWorkflow.SubmitAsync(db, preparer, scope.ClientA,
+        allocation with { PreviewDigest = allocationPreview.Value!.Digest });
+      Assert.True(allocationSubmission.Succeeded, allocationSubmission.Message);
+      var allocationReview = await ClientOpenItemAllocationWorkflow.ReviewPreviewAsync(db, reviewer, scope.ClientA, allocationSubmission.Value!.SubmissionId);
+      Assert.True(allocationReview.Succeeded, allocationReview.Message);
+      Assert.True((await ClientOpenItemAllocationWorkflow.ReviewAsync(db, reviewer, scope.ClientA, allocationSubmission.Value.SubmissionId,
+        Guid.CreateVersion7(), "APPROVE", "Independently reviewed opening-item receipt allocation", allocationReview.Value!.Digest)).Succeeded);
+      var settledBalances = await ClientOpenItemAllocationWorkflow.BalancesAsync(db, reviewer, scope.ClientA, new(2026, 2, 11));
+      Assert.True(settledBalances.Succeeded, settledBalances.Message);
+      Assert.Equal("105.000000", settledBalances.Value!.Single(x => x.OpenItemId == openingItemId).OpenAmount);
+      Assert.Equal("0.000000", settledBalances.Value!.Single(x => x.OpenItemId == receipt.OpenItemId).OpenAmount);
+      var settledReconciliation = await ClientOpenItemAllocationWorkflow.ReconcileControlAccountsAsync(db, reviewer, scope.ClientA, periodId, new(2026, 2, 11));
+      Assert.True(settledReconciliation.Succeeded, settledReconciliation.Message);
+      Assert.True(settledReconciliation.Value!.Reconciled);
+      Assert.Equal("105.000000", settledReconciliation.Value.Accounts.Single(x => x.AccountId == arAccountId).LedgerBalance);
+      Assert.Equal("105.000000", settledReconciliation.Value.Accounts.Single(x => x.AccountId == arAccountId).OpenItemBalance);
     }
   }
 }

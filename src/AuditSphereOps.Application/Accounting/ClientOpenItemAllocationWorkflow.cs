@@ -375,10 +375,12 @@ public static class ClientOpenItemAllocationWorkflow
     var targets = new List<OpenItem>();
     foreach (var line in request.Lines)
     {
-      var expected = request.SourceKind is "SALES_CREDIT" or "SALES_RECEIPT" ? "SALES_INVOICE" : "PURCHASE_INVOICE";
-      var target = all.SingleOrDefault(x => x.Kind == expected && x.Id == line.TargetOpenItemId && !x.Credit);
-      if (line.TargetKind != expected || target is null || target.CounterpartyId != source.CounterpartyId || target.Currency != source.Currency)
-        return CommandResult<ClientOpenItemAllocationPreview>.Fail(ErrorCodes.Accounting.MappingInvalid, "Each target must be a posted invoice for the same client, party, and currency.");
+      var expectedKinds = request.SourceKind is "SALES_CREDIT" or "SALES_RECEIPT"
+        ? new[] { "SALES_INVOICE", "OPENING_AR_INVOICE" }
+        : new[] { "PURCHASE_INVOICE", "OPENING_AP_INVOICE" };
+      var target = all.SingleOrDefault(x => expectedKinds.Contains(x.Kind, StringComparer.Ordinal) && x.Id == line.TargetOpenItemId && !x.Credit);
+      if (target is null || line.TargetKind != target.Kind || target.CounterpartyId != source.CounterpartyId || target.Currency != source.Currency)
+        return CommandResult<ClientOpenItemAllocationPreview>.Fail(ErrorCodes.Accounting.MappingInvalid, "Each target must be a posted or reviewed opening invoice for the same client, party, and currency.");
       targets.Add(target);
     }
     var approved = await EffectiveLines(db, firmId, clientId, ct);

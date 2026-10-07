@@ -7,6 +7,22 @@ const client = '11111111-1111-4111-8111-111111111111';
 const period = '22222222-2222-4222-8222-222222222222';
 
 describe('client open-item control reconciliation', () => {
+  it('offers same-party, same-currency opening invoices as reviewed allocation targets', () => {
+    const source = { kind: 'SALES_RECEIPT', openItemId: 'receipt', counterpartyId: 'party-a', currency: 'QAR', openAmount: '20.000000' };
+    const rows = [
+      { kind: 'SALES_INVOICE', openItemId: 'sales', counterpartyId: 'party-a', currency: 'QAR', openAmount: '30.000000' },
+      { kind: 'OPENING_AR_INVOICE', openItemId: 'opening-ar', counterpartyId: 'party-a', currency: 'QAR', openAmount: '40.000000' },
+      { kind: 'OPENING_AP_INVOICE', openItemId: 'opening-ap', counterpartyId: 'party-a', currency: 'QAR', openAmount: '50.000000' },
+      { kind: 'OPENING_AR_INVOICE', openItemId: 'other-party', counterpartyId: 'party-b', currency: 'QAR', openAmount: '60.000000' },
+      { kind: 'OPENING_AR_INVOICE', openItemId: 'other-currency', counterpartyId: 'party-a', currency: 'USD', openAmount: '70.000000' }
+    ];
+    const component = Object.assign(Object.create(OpenItemAllocations.prototype), {
+      sourceId: 'receipt', balances: () => rows, credits: () => [source]
+    }) as OpenItemAllocations;
+
+    expect(component.targets().map(x => x.openItemId)).toEqual(['sales', 'opening-ar']);
+  });
+
   it('loads the scoped as-of control report and distinguishes when no approved opening applies', () => {
     TestBed.configureTestingModule({ imports: [OpenItemAllocations], providers: [provideHttpClient(), provideHttpClientTesting()] });
     const http = TestBed.inject(HttpTestingController);
