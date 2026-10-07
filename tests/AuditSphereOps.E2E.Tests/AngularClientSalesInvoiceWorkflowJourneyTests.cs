@@ -123,11 +123,42 @@ public sealed class AngularClientSalesInvoiceWorkflowJourneyTests
     await Assertions.Expect(reviewerWorkflow.GetByText("Accounting state: POSTED · Posted: Yes · Issued: No · Delivery: NOT_REQUESTED", new() { Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(reviewerWorkflow.GetByText("Original receivable open amount: 125.000000 · Due 2026-02-10.", new() { Exact = false })).ToBeVisibleAsync();
 
+    await workflow.GetByRole(AriaRole.Button, new() { Name = "Refresh invoice lifecycle", Exact = true }).ClickAsync();
+    var credits = workflow.Locator("audit-sales-credit-note-workflow");
+    await Assertions.Expect(credits.GetByRole(AriaRole.Heading, new() { Name = "Sales credit notes", Exact = true })).ToBeVisibleAsync();
+    await credits.GetByLabel("Credit note reference", new() { Exact = true }).FillAsync("CN-UI-001");
+    await credits.GetByLabel("Posting date", new() { Exact = true }).FillAsync("2026-01-20");
+    await credits.GetByLabel("Commercial reason", new() { Exact = true }).FillAsync("Partial service cancellation");
+    await credits.GetByLabel("Source evidence or explanation", new() { Exact = true }).FillAsync("Client-approved cancellation evidence");
+    await credits.GetByLabel("Line 1 · Client consulting · 4000 · Original 125.00 QAR", new() { Exact = true }).FillAsync("25");
+    var creditPreviewResponse = await makerPage.RunAndWaitForResponseAsync(
+      async () => await credits.GetByRole(AriaRole.Button, new() { Name = "Preview positive credit", Exact = true }).ClickAsync(),
+      response => response.Request.Method == "POST" && response.Url.EndsWith("/sales-invoices/" + invoiceId + "/credit-notes/preview", StringComparison.Ordinal));
+    Assert.Equal(200, creditPreviewResponse.Status);
+    await Assertions.Expect(credits.GetByText("Exact credit preview: 25.000000 QAR · Original 125.000000 · Previously credited 0.000000 · Remaining limit 125.000000", new() { Exact = true })).ToBeVisibleAsync();
+    await credits.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed this positive credit and its effect on the original client invoice.", Exact = true }).CheckAsync();
+    var creditSubmitResponse = await makerPage.RunAndWaitForResponseAsync(
+      async () => await credits.GetByRole(AriaRole.Button, new() { Name = "Submit credit note for independent review", Exact = true }).ClickAsync(),
+      response => response.Request.Method == "POST" && response.Url.EndsWith("/sales-invoices/" + invoiceId + "/credit-notes", StringComparison.Ordinal));
+    Assert.Equal(200, creditSubmitResponse.Status);
+    var reviewerCredits = reviewerWorkflow.Locator("audit-sales-credit-note-workflow");
+    await reviewerCredits.GetByRole(AriaRole.Button, new() { Name = "Refresh credit-note history", Exact = true }).ClickAsync();
+    var submittedCredit = reviewerCredits.Locator("article").Filter(new() { HasText = "CN-UI-001" });
+    await submittedCredit.GetByRole(AriaRole.Button, new() { Name = "Review credit note", Exact = true }).ClickAsync();
+    await Assertions.Expect(submittedCredit.GetByText("Ready for review", new() { Exact = false })).ToBeVisibleAsync();
+    await submittedCredit.GetByLabel("Independent review reason", new() { Exact = true }).FillAsync("Independently checked the partial credit and source evidence");
+    var creditReviewResponse = await reviewerPage.RunAndWaitForResponseAsync(
+      async () => await submittedCredit.GetByRole(AriaRole.Button, new() { Name = "Approve and post credit", Exact = true }).ClickAsync(),
+      response => response.Request.Method == "POST" && response.Url.EndsWith("/sales-credit-note-reviews", StringComparison.Ordinal));
+    Assert.Equal(200, creditReviewResponse.Status);
+    await Assertions.Expect(reviewerCredits.GetByText("Posted as an unapplied customer credit. Apply it through the client settlement workflow when available.", new() { Exact = true })).ToBeVisibleAsync();
+
     await using (var db = host.CreateDbContext())
     {
       Assert.Single(await db.ClientSalesInvoiceSubmissions.Where(x => x.ClientId == f.ClientId).ToListAsync());
       Assert.Single(await db.ClientSalesInvoiceOpenItems.Where(x => x.ClientId == f.ClientId).ToListAsync());
-      Assert.Equal(2, (await ClientOperationalGeneralLedgerWorkspace.GetAsync(db, reviewer, f.ClientId, periodId)).Value!.TotalEntries);
+      Assert.Single(await db.ClientSalesCreditNoteOpenItems.Where(x => x.ClientId == f.ClientId).ToListAsync());
+      Assert.Equal(4, (await ClientOperationalGeneralLedgerWorkspace.GetAsync(db, reviewer, f.ClientId, periodId)).Value!.TotalEntries);
       Assert.Empty(await db.FirmJournals.ToListAsync());
     }
     Assert.Empty(errors);

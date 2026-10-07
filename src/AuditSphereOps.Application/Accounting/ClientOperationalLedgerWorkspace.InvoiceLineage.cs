@@ -18,7 +18,10 @@ public static partial class ClientOperationalLedgerWorkspace
     await db.ClientSalesInvoiceSubmissions.AsNoTracking().AnyAsync(x => x.FirmId == firmId &&
       x.ClientId == clientId && x.JournalId == journalId, ct)
       ? CommandResult.Fail(ErrorCodes.ProtectedState, "This journal belongs to a client sales invoice. Use its invoice review and correction workflow.")
-      : CommandResult.Ok();
+      : await db.ClientSalesCreditNoteSubmissions.AsNoTracking().AnyAsync(x => x.FirmId == firmId &&
+        x.ClientId == clientId && x.JournalId == journalId, ct)
+        ? CommandResult.Fail(ErrorCodes.ProtectedState, "This journal belongs to a client credit note. Use its independent correction review workflow.")
+        : CommandResult.Ok();
 
   private static ClientOperationalInvoiceOrigin InvoiceOrigin(ClientSalesInvoiceSubmission submission) =>
     new(submission.ClientId, submission.JournalId, submission.InvoiceId, submission.Id,

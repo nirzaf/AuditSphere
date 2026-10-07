@@ -17,12 +17,14 @@ public sealed record ClientSalesInvoiceReviewRequest(Guid CommandId, Guid Submis
 public sealed record ClientSalesInvoiceManifest(string Version, Guid DraftId, string DraftHash, Guid ProfileId, string ProfileRevision,
   Guid ReceivableRoleId, Guid ReceivableDecisionId, Guid ReceivableAccountId, string NoTaxReason, Guid? SourceReceiptId,
   string? SourceReceiptHash, string SourceBasis, Guid MandateId, string MandateGeneration, IReadOnlyList<ClientOperationalJournalLineView> Lines);
+public sealed record ClientSalesInvoiceSourceLineView(int LineNumber, string Description, string AccountCode, string Amount);
 public sealed record ClientSalesInvoicePreview(Guid InvoiceId, Guid DraftId, string DraftRevision, Guid? SubmissionId, string Currency,
   string Gross, string Digest, ClientSalesInvoiceManifest Manifest);
 public sealed record ClientSalesInvoiceLifecycleView(Guid InvoiceId, Guid ClientId, string DraftRevision, string State, bool Posted, bool Issued, string DeliveryState,
   bool BookkeepingActive, bool CanRevise, bool CanSubmit, bool CanReview,
   Guid? SubmissionId, Guid? JournalId, string? JournalRevision, Guid? MakerId, string? Decision, string? DecisionReason,
-  string? ManifestHash, ClientSalesInvoiceManifest? Manifest, string? OpenAmount, string? DueDate);
+  string? ManifestHash, ClientSalesInvoiceManifest? Manifest, string? OpenAmount, string? DueDate,
+  Guid PeriodId, string Currency, IReadOnlyList<ClientSalesInvoiceSourceLineView> SourceLines);
 
 public static partial class ClientSalesInvoiceWorkflow
 {

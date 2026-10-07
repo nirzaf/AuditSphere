@@ -28,5 +28,7 @@ public sealed partial class AuditSphereDbContext
     o.HasOne<ClientOperationalJournal>().WithMany().HasForeignKey(x=>new{x.FirmId,x.ClientId,x.JournalId}).HasPrincipalKey(x=>new{x.FirmId,x.ClientId,x.Id}).OnDelete(DeleteBehavior.Restrict);
     o.HasOne<ClientBookkeepingCounterparty>().WithMany().HasForeignKey(x=>new{x.FirmId,x.ClientId,Id=x.CustomerId}).HasPrincipalKey(x=>new{x.FirmId,x.ClientId,x.Id}).OnDelete(DeleteBehavior.Restrict);
     o.ToTable("client_sales_invoice_open_items",t=>t.HasCheckConstraint("ck_client_sales_open_item","original_amount>0 AND currency ~ '^[A-Z]{3}$'"));
+    o.HasAlternateKey(x=>new{x.FirmId,x.ClientId,x.Id});
+    ConfigureClientSalesCreditNotes(b);
   }
 }

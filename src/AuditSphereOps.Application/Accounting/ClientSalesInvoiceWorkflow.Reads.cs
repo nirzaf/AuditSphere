@@ -37,6 +37,12 @@ public static partial class ClientSalesInvoiceWorkflow
     var state=submission is null?"DRAFT":posted?"POSTED":decision?.Decision=="RETURN"?(draft.Revision>submission.DraftRevision?"DRAFT":"RETURNED"):"SUBMITTED";
     var active=await db.ClientAccountingProfiles.AnyAsync(x=>x.FirmId==actor.FirmId&&x.ClientId==clientId&&x.SourceMode==ClientAccountingSourceModes.NativeBookkeeping,ct)
       && await ClientBookkeepingAuthorization.IsCurrentDecisionAcceptedAsync(db,actor.FirmId,clientId,ct:ct);
+    var sourceDraft=submission is null?draft:await db.ClientSalesInvoiceDrafts.AsNoTracking().SingleOrDefaultAsync(x=>x.FirmId==actor.FirmId&&x.ClientId==clientId&&x.Id==submission.DraftId,ct);
+    ClientSalesInvoiceDraftSnapshot? sourceSnapshot=null;
+    if(sourceDraft is not null && Hash(sourceDraft.SnapshotJson)==sourceDraft.SnapshotHash)
+      try { sourceSnapshot=JsonSerializer.Deserialize<ClientSalesInvoiceDraftSnapshot>(sourceDraft.SnapshotJson); } catch(JsonException) { }
+    if(posted && (sourceSnapshot is null || sourceSnapshot.TaxTreatment!="NONE"))return CommandResult<ClientSalesInvoiceLifecycleView>.Fail(ErrorCodes.ProtectedState,"The posted untaxed invoice source lines cannot be verified.");
+    var sourceLines=(sourceSnapshot?.Lines??[]).Select(x=>new ClientSalesInvoiceSourceLineView(x.LineNumber,x.Description,x.AccountCode,x.Net)).ToArray();
     var maker=draft.CreatedByUserId==actor.UserId;
     var canRevise=active&&maker&&(submission is null||decision?.Decision=="RETURN");
     var canSubmit=active&&maker&&state=="DRAFT";
@@ -47,7 +53,7 @@ public static partial class ClientSalesInvoiceWorkflow
     // The settlement slice must replace this projection with ledger-backed allocations.
     return CommandResult<ClientSalesInvoiceLifecycleView>.Ok(new(invoiceId,clientId,draft.Revision.ToString(CultureInfo.InvariantCulture),state,posted,false,"NOT_REQUESTED",active,canRevise,canSubmit,canReview,
       submission?.Id,journal?.Id,journal?.Revision.ToString(CultureInfo.InvariantCulture),draft.CreatedByUserId,decision?.Decision,decision?.Reason,submission?.ManifestHash,manifest,
-      openItem is null?null:Exact(openItem.OriginalAmount),openItem?.DueDate.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture)));
+      openItem is null?null:Exact(openItem.OriginalAmount),openItem?.DueDate.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture),draft.PeriodId,draft.Currency,sourceLines));
   }
 
   public static async Task<CommandResult<ClientSalesInvoiceCommandReceipt>> GetCommandAsync(IClientAccountingDbContext db,ActorContext actor,

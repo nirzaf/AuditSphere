@@ -21,6 +21,7 @@ export interface SalesInvoiceLifecycle {
   posted: boolean; issued: false; deliveryState: 'NOT_REQUESTED'; submissionId: string | null; journalId: string | null;
   journalRevision: string | null; makerId: string | null; decision: 'APPROVE' | 'RETURN' | null; decisionReason: string | null;
   manifestHash: string | null; manifest: Manifest | null; openAmount: string | null; dueDate: string | null;
+  periodId: string; currency: string; sourceLines: { lineNumber: number; description: string; accountCode: string; amount: string }[];
 }
 interface Receipt { commandId: string; invoiceId: string; submissionId: string; kind: 'SUBMIT' | 'REVIEW'; actorUserId: string; intentHash: string; outcome: 'SUBMITTED' | 'POSTED' | 'RETURNED'; decisionId: string | null }
 interface Pending { client: string; invoice: string; actor: string; kind: 'SUBMIT' | 'REVIEW'; body: Record<string, unknown> }
@@ -57,6 +58,7 @@ export function decodeInvoiceLifecycle(value: unknown, client: string, invoice: 
   if (w.clientId !== client || w.invoiceId !== invoice || !uuid(invoice) || !uuid(client) || !exactRevision(w.draftRevision) ||
       !['DRAFT', 'SUBMITTED', 'RETURNED', 'POSTED'].includes(w.state) || ![w.bookkeepingActive, w.canRevise, w.canSubmit, w.canReview, w.posted].every(x => typeof x === 'boolean') ||
       w.issued !== false || w.deliveryState !== 'NOT_REQUESTED' || w.posted !== (w.state === 'POSTED') || !uuid(w.makerId) ||
+      !uuid(w.periodId) || typeof w.currency !== 'string' || !/^[A-Z]{3}$/.test(w.currency) || !Array.isArray(w.sourceLines) || w.sourceLines.length > 100 || w.sourceLines.some((line, i) => !object(line) || line.lineNumber !== i + 1 || !text(line.description) || !text(line.accountCode, 100) || !money(line.amount)) ||
       (w.canRevise || w.canSubmit) && (!w.bookkeepingActive || !['DRAFT', 'RETURNED'].includes(w.state)) || w.canReview && (!w.bookkeepingActive || w.state !== 'SUBMITTED')) throw new Error('Invalid scoped invoice lifecycle');
   if (w.state === 'DRAFT' && w.submissionId === null) {
     if ([w.journalId, w.journalRevision, w.decision, w.decisionReason, w.manifestHash, w.manifest, w.openAmount, w.dueDate].some(x => x !== null)) throw new Error('Unexpected draft posting');
@@ -67,6 +69,85 @@ export function decodeInvoiceLifecycle(value: unknown, client: string, invoice: 
     if (w.posted ? !money(w.openAmount) || typeof w.dueDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(w.dueDate) : w.openAmount !== null || w.dueDate !== null) throw new Error('Invalid open-item origin');
   }
   return w;
+}
+
+interface CreditRow { creditNoteId: string; creditNoteReference: string; submissionId: string; state: string; currency: string; amount: string; postingDate: string; reason: string; makerId: string; decision: string | null; decisionReason: string | null; unappliedCustomerCredit: boolean; journalId: string | null }
+interface CreditPostingLine { lineNumber: number; originalLineNumber: number; accountCode: string; accountName: string; description: string; debit: string; credit: string; creditAmount: string }
+interface CreditManifest { reason: string; sourceBasis: string; originalTaxTreatment: string; lines: CreditPostingLine[] }
+interface CreditPreview { creditNoteId: string; invoiceId: string; creditNoteReference: string; currency: string; totalCredit: string; digest: string; originalAmount: string; previouslyCredited: string; remainingCreditLimit: string; lines: CreditPostingLine[]; manifest: CreditManifest }
+interface CreditReview { creditNoteId: string; invoiceId: string; submissionId: string; journalId: string; journalRevision: string; digest: string; canPost: boolean; postingBlock: string | null; manifest: CreditManifest }
+
+@Component({ selector: 'audit-sales-credit-note-workflow', imports: [FormsModule, MatButtonModule], template: `<section aria-label="Client sales credit notes">
+  <h5>Sales credit notes</h5><p>Credit notes are separate untaxed client records. VAT and tax modules remain optional. Posting creates an unapplied customer credit; it does not issue a refund or settle cash.</p>
+  <button matButton type="button" [disabled]="busy()" (click)="refresh()">Refresh credit-note history</button>
+  @if (error()) { <p role="alert">{{ error() }}</p> }
+  @if (preview(); as p) { <p>Exact credit preview: {{ p.totalCredit }} {{ p.currency }} · Original {{ p.originalAmount }} · Previously credited {{ p.previouslyCredited }} · Remaining limit {{ p.remainingCreditLimit }}</p>
+    <table><caption>Proposed reversing client-ledger lines</caption><thead><tr><th>Original line</th><th>Account</th><th>Description</th><th>Debit</th><th>Credit</th></tr></thead><tbody>@for (line of p.lines; track line.lineNumber) { <tr><td>{{ line.originalLineNumber || 'Receivable' }}</td><td>{{ line.accountCode }} · {{ line.accountName }}</td><td>{{ line.description }}</td><td>{{ line.debit }}</td><td>{{ line.credit }}</td></tr> }</tbody></table>
+    <p>Review line amounts, invoice, reason, date, source explanation and accounting effect before submission.</p>
+    <label><input type="checkbox" [ngModel]="assent()" (ngModelChange)="assent.set($event)" /> I reviewed this positive credit and its effect on the original client invoice.</label>
+    <button matButton type="button" [disabled]="busy() || !assent()" (click)="submit()">Submit credit note for independent review</button>
+  }
+  @if (lifecycle()?.makerId === userId() && !preview()) {
+    <form #form="ngForm" (ngSubmit)="form.valid && previewCredit()"><fieldset [disabled]="busy()"><legend>Prepare a credit against the posted invoice</legend>
+      <label>Credit note reference <input name="reference" [(ngModel)]="reference" required maxlength="100" /></label>
+      <label>Posting date <input name="postingDate" type="date" [(ngModel)]="postingDate" required /></label>
+      <label>Commercial reason <textarea name="reason" [(ngModel)]="reason" required maxlength="2000"></textarea></label>
+      <label>Source evidence or explanation <textarea name="sourceBasis" [(ngModel)]="sourceBasis" required maxlength="2000"></textarea></label>
+      <fieldset><legend>Positive credit by original invoice line</legend>@for (line of lifecycle()?.sourceLines ?? []; track line.lineNumber) {
+        <label>Line {{ line.lineNumber }} · {{ line.description }} · {{ line.accountCode }} · Original {{ line.amount }} {{ currency() }}
+          <input [name]="'credit-' + line.lineNumber" inputmode="decimal" [ngModel]="amounts[line.lineNumber] ?? ''" (ngModelChange)="amounts[line.lineNumber]=$event" /></label>
+      }</fieldset>
+      <button matButton type="submit" [disabled]="busy() || !(lifecycle()?.sourceLines?.length)">Preview positive credit</button>
+    </fieldset></form>
+  }
+  @for (row of rows(); track row.submissionId) {
+    <article><h6>{{ row.creditNoteReference }} · {{ row.state }}</h6><p>{{ row.amount }} {{ row.currency }} · {{ row.reason }} · {{ row.postingDate }}</p>
+      @if (row.unappliedCustomerCredit) { <p>Posted as an unapplied customer credit. Apply it through the client settlement workflow when available.</p> }
+      @if (row.state === 'SUBMITTED' && row.makerId !== userId()) {
+        <button matButton type="button" [disabled]="busy()" (click)="previewReview(row)">Review credit note</button>
+        @if (activeReview()?.submissionId === row.submissionId) { <p>Submitted credit {{ row.amount }} {{ row.currency }} · {{ activeReview()?.canPost ? 'Ready for review' : activeReview()?.postingBlock }}</p>
+          <p>Original invoice {{ activeReview()?.invoiceId }} · Untaxed treatment {{ activeReview()?.manifest?.originalTaxTreatment }} · Source: {{ activeReview()?.manifest?.sourceBasis }}</p>
+          <table><caption>Credit note journal lines</caption><thead><tr><th>Original line</th><th>Account</th><th>Debit</th><th>Credit</th></tr></thead><tbody>@for (line of activeReview()?.manifest?.lines ?? []; track line.lineNumber) { <tr><td>{{ line.originalLineNumber || 'Receivable' }}</td><td>{{ line.accountCode }} · {{ line.accountName }}</td><td>{{ line.debit }}</td><td>{{ line.credit }}</td></tr> }</tbody></table>
+          <label>Independent review reason <textarea [(ngModel)]="reviewReason" maxlength="2000"></textarea></label>
+          <button matButton type="button" [disabled]="busy() || !reviewReason.trim() || !activeReview()?.canPost" (click)="review(row, 'APPROVE')">Approve and post credit</button>
+          <button matButton type="button" [disabled]="busy() || !reviewReason.trim()" (click)="review(row, 'RETURN')">Return credit note</button>
+        }
+      }
+      @if (row.decision) { <p>Decision {{ row.decision }} · {{ row.decisionReason }}</p> }
+    </article>
+  }
+</section>` })
+export class SalesCreditNoteWorkflow {
+  readonly clientId = input.required<string>(); readonly invoiceId = input.required<string>(); readonly lifecycle = input.required<SalesInvoiceLifecycle | null>();
+  private readonly http = inject(HttpClient); private readonly session = inject(SessionService);
+  readonly busy = signal(false); readonly error = signal(''); readonly preview = signal<CreditPreview | null>(null); readonly rows = signal<CreditRow[]>([]);
+  readonly activeReview = signal<CreditReview | null>(null); readonly assent = signal(false);
+  readonly userId = () => this.session.current()?.userId ?? ''; readonly currency = () => this.lifecycle()?.currency ?? '';
+  reference = ''; reason = ''; sourceBasis = ''; postingDate = new Date().toISOString().slice(0, 10); reviewReason = ''; amounts: Record<number, string> = {};
+  private body: Record<string, unknown> | null = null;
+  constructor() { effect(() => { const lifecycle = this.lifecycle();
+    if (lifecycle?.posted) untracked(() => this.refresh()); else untracked(() => this.rows.set([])); }); }
+  private base(): string { return `/api/ui/accounting/clients/${this.clientId()}/sales-invoices/${this.invoiceId()}/credit-notes`; }
+  refresh(): void { if (this.busy() || !this.lifecycle()?.posted) return; this.busy.set(true); this.http.get<CreditRow[]>(this.base()).pipe(timeout(15000)).subscribe({ next: rows => { this.rows.set(rows); this.busy.set(false); }, error: () => { this.busy.set(false); this.error.set('Credit-note history could not be refreshed.'); } }); }
+  private request(): Record<string, unknown> | null {
+    const lifecycle = this.lifecycle(); if (!lifecycle?.posted || !this.reference.trim() || !this.reason.trim() || !this.sourceBasis.trim()) return null;
+    const lines = lifecycle.sourceLines.map(line => ({ originalLineNumber: line.lineNumber, amount: (this.amounts[line.lineNumber] ?? '').trim() })).filter(line => line.amount !== '' && Number(line.amount) > 0);
+    if (!lines.length || lines.some(line => !/^\d{1,13}(?:\.\d{1,6})?$/.test(line.amount))) return null;
+    return { creditNoteId: crypto.randomUUID(), creditNoteReference: this.reference.trim(), periodId: lifecycle.periodId,
+      postingDate: this.postingDate, reason: this.reason.trim(), sourceReceiptId: null, sourceBasis: this.sourceBasis.trim(), lines };
+  }
+  previewCredit(): void { const credit = this.request(); if (!credit || this.busy()) { this.error.set('Enter a positive exact amount for at least one original line.'); return; }
+    this.busy.set(true); this.error.set(''); this.body = credit;
+    this.http.post<CreditPreview>(`${this.base()}/preview`, { ...credit, previewDigest: '', reviewed: false }).pipe(timeout(20000)).subscribe({
+      next: p => { this.preview.set(p); this.assent.set(false); this.busy.set(false); }, error: () => { this.busy.set(false); this.error.set('Credit preview failed or timed out. Refresh invoice and history before trying again.'); this.body = null; } }); }
+  submit(): void { const p = this.preview(), credit = this.body; if (!p || !credit || this.busy() || !this.assent()) return;
+    this.busy.set(true); this.http.post<unknown>(this.base(), { commandId: crypto.randomUUID(), ...credit, previewDigest: p.digest, reviewed: true }).pipe(timeout(20000)).subscribe({
+      next: () => { this.busy.set(false); this.preview.set(null); this.body = null; this.refresh(); }, error: () => { this.busy.set(false); this.error.set('Submission outcome is unconfirmed. Refresh credit-note history before another submission.'); this.preview.set(null); this.body = null; this.refresh(); } }); }
+  previewReview(row: CreditRow): void { this.busy.set(true); this.http.get<CreditReview>(`/api/ui/accounting/clients/${this.clientId()}/sales-credit-note-submissions/${row.submissionId}/preview`).pipe(timeout(15000)).subscribe({
+    next: value => { this.activeReview.set(value); this.reviewReason = ''; this.busy.set(false); }, error: () => { this.busy.set(false); this.error.set('Submitted credit-note review is unavailable.'); } }); }
+  review(row: CreditRow, decision: 'APPROVE' | 'RETURN'): void { const p = this.activeReview(); if (!p || this.busy() || !this.reviewReason.trim()) return; this.busy.set(true);
+    this.http.post('/api/ui/accounting/clients/' + this.clientId() + '/sales-credit-note-reviews', { commandId: crypto.randomUUID(), submissionId: row.submissionId, decision, reason: this.reviewReason.trim(), previewDigest: p.digest, reviewed: true }).pipe(timeout(20000)).subscribe({
+      next: () => { this.activeReview.set(null); this.busy.set(false); this.refresh(); }, error: () => { this.busy.set(false); this.error.set('Review outcome is unconfirmed. Refresh credit-note history before taking another action.'); this.activeReview.set(null); this.refresh(); } }); }
 }
 export function decodeInvoiceSubmissionPreview(value: unknown, invoice: string, expectedRevision: string): SubmissionPreview {
   if (!object(value)) throw new Error('Missing submission preview');
@@ -95,7 +176,7 @@ function decodeReceipt(value: unknown, pending: Pending): Receipt {
   return r;
 }
 
-@Component({ selector: 'audit-sales-invoice-workflow', imports: [FormsModule, MatButtonModule], template: `<section aria-label="Client sales invoice workflow">
+@Component({ selector: 'audit-sales-invoice-workflow', imports: [FormsModule, MatButtonModule, SalesCreditNoteWorkflow], template: `<section aria-label="Client sales invoice workflow">
   <h4>Invoice accounting lifecycle</h4>
   <button matButton type="button" [disabled]="busy() || !!pending()" (click)="refresh()">Refresh invoice lifecycle</button>
   @if (error()) { <p role="alert">{{ error() }}</p> }
@@ -114,6 +195,7 @@ function decodeReceipt(value: unknown, pending: Pending): Receipt {
     @if (w.journalId) { <p>Client journal {{ w.journalId }} · Revision {{ w.journalRevision }} · Submission {{ w.submissionId }}</p> }
     @if (w.decision) { <p>Retained decision: {{ w.decision }} · {{ w.decisionReason }}</p> }
     @if (w.posted) { <p>Original receivable open amount: {{ w.openAmount }} · Due {{ w.dueDate }}. No settlement or allocation workflow is available here.</p> }
+    @if (w.posted) { <audit-sales-credit-note-workflow [clientId]="w.clientId" [invoiceId]="w.invoiceId" [lifecycle]="w" /> }
     @if (w.canSubmit && w.makerId === userId()) {
       <form #form="ngForm" (ngSubmit)="form.valid && previewSubmission()"><fieldset [disabled]="busy() || !!pending()"><legend>Prepare exact submission preview</legend>
         <label>Approved receivables role ID <input name="arRole" [(ngModel)]="receivableRoleId" (ngModelChange)="changed()" required [pattern]="guidPattern.source" maxlength="36" /></label>
