@@ -104,8 +104,8 @@ public sealed class AngularRouteAndShellMigrationSweepTests
     foreach (var (route, heading) in ParameterlessRoutes)
     {
       await staffPage.GotoAsync(origin + route);
-      var expectedHeading = staffPage.GetByRole(AriaRole.Heading, new() { Name = heading, Exact = true });
-      await expectedHeading.WaitForAsync(new() { Timeout = 15000 });
+      await Assertions.Expect(staffPage.Locator("main h1"))
+        .ToHaveTextAsync(heading, new() { Timeout = 15000 });
       Assert.Equal(1, await staffPage.Locator("main h1").CountAsync());
       Assert.True(await staffPage.Locator("main h1").IsVisibleAsync(), $"{route} did not show its page heading.");
       var currentLinks = staffPage.Locator("audit-workspace-navigation nav a[aria-current='page']");
