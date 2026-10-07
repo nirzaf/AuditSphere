@@ -287,6 +287,10 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<ClientPurchaseInvoiceSubmission> ClientPurchaseInvoiceSubmissions => Set<ClientPurchaseInvoiceSubmission>();
   public DbSet<ClientPurchaseInvoiceDecision> ClientPurchaseInvoiceDecisions => Set<ClientPurchaseInvoiceDecision>();
   public DbSet<ClientPurchaseInvoiceOpenItem> ClientPurchaseInvoiceOpenItems => Set<ClientPurchaseInvoiceOpenItem>();
+  public DbSet<ClientPurchaseCreditNoteSubmission> ClientPurchaseCreditNoteSubmissions => Set<ClientPurchaseCreditNoteSubmission>();
+  public DbSet<ClientPurchaseCreditNoteDecision> ClientPurchaseCreditNoteDecisions => Set<ClientPurchaseCreditNoteDecision>();
+  public DbSet<ClientPurchaseCreditNoteLine> ClientPurchaseCreditNoteLines => Set<ClientPurchaseCreditNoteLine>();
+  public DbSet<ClientPurchaseCreditNoteOpenItem> ClientPurchaseCreditNoteOpenItems => Set<ClientPurchaseCreditNoteOpenItem>();
   public DbSet<ClientCounterpartyAmendment> ClientCounterpartyAmendments => Set<ClientCounterpartyAmendment>();
   public DbSet<ClientCounterpartyAmendmentDecision> ClientCounterpartyAmendmentDecisions => Set<ClientCounterpartyAmendmentDecision>();
   public DbSet<ClientAccountingProfile> ClientAccountingProfiles => Set<ClientAccountingProfile>();
@@ -563,6 +567,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
     ConfigureClientSalesInvoices(b);
     ConfigureClientSalesInvoiceWorkflow(b);
     ConfigureClientPurchaseInvoices(b);
+    ConfigureClientPurchaseCreditNotes(b);
     ConfigureClientAccountRoles(b);
     ConfigureAccountingEvidenceActions(b);
     ConfigureAccountingAnalysisPreparations(b);

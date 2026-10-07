@@ -4,6 +4,7 @@ using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Tests;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
+using System.Text.Json;
 
 namespace AuditSphereOps.E2E.Tests;
 
@@ -83,7 +84,7 @@ public sealed class AngularClientSalesInvoiceWorkflowJourneyTests
     var apiResponses = new List<string>();
     makerPage.PageError += (_, error) => errors.Add(error);
     reviewerPage.PageError += (_, error) => errors.Add(error);
-    makerPage.Response += (_, response) => { if (response.Url.Contains("sales-invoice", StringComparison.Ordinal)) apiResponses.Add($"maker {response.Status} {response.Url}"); };
+    makerPage.Response += (_, response) => { if (response.Url.Contains("sales-invoice", StringComparison.Ordinal) || response.Url.Contains("purchase-", StringComparison.Ordinal)) apiResponses.Add($"maker {response.Status} {response.Url}"); };
     reviewerPage.Response += (_, response) => { if (response.Url.Contains("sales-invoice", StringComparison.Ordinal)) apiResponses.Add($"reviewer {response.Status} {response.Url}"); };
 
     async Task<IReadOnlyList<ILocator>> OpenDraftAsync(IPage page, string origin, string expectedState)
@@ -186,10 +187,20 @@ public sealed class AngularClientSalesInvoiceWorkflowJourneyTests
     await purchases.GetByLabel("Supplier-stated tax", new() { Exact = true }).FillAsync("0");
     await purchases.GetByLabel("Supplier-stated gross", new() { Exact = true }).FillAsync("100");
     await purchases.GetByRole(AriaRole.Checkbox, new() { Name = "I checked this supplier, client, document dates, coding, supplier-stated totals and evidence reference.", Exact = true }).CheckAsync();
-    var purchaseDraftResponse = await makerPage.RunAndWaitForResponseAsync(
-      async () => await purchases.GetByRole(AriaRole.Button, new() { Name = "Save client purchase draft", Exact = true }).ClickAsync(),
-      response => response.Request.Method == "POST" && response.Url.EndsWith("/purchase-invoice-drafts", StringComparison.Ordinal));
+    IResponse purchaseDraftResponse;
+    try
+    {
+      purchaseDraftResponse = await makerPage.RunAndWaitForResponseAsync(
+        async () => await purchases.GetByRole(AriaRole.Button, new() { Name = "Save client purchase draft", Exact = true }).ClickAsync(),
+        response => response.Request.Method == "POST" && response.Url.EndsWith("/purchase-invoice-drafts", StringComparison.Ordinal));
+    }
+    catch (TimeoutException e)
+    {
+      throw new InvalidOperationException($"Supplier draft request did not complete. Component: {await purchases.InnerTextAsync()}\nErrors: {string.Join("; ", errors)}\nResponses: {string.Join("; ", apiResponses)}", e);
+    }
     Assert.Equal(200, purchaseDraftResponse.Status);
+    using var purchaseDraftDocument = JsonDocument.Parse(await purchaseDraftResponse.TextAsync());
+    var purchaseInvoiceId = purchaseDraftDocument.RootElement.GetProperty("invoiceId").GetGuid();
     await Assertions.Expect(purchases.GetByText("Late-arriving supplier document: receipt date is after the supplier document date.", new() { Exact = true })).ToBeVisibleAsync();
     var purchasePreviewResponse = await makerPage.RunAndWaitForResponseAsync(
       async () => await purchases.GetByRole(AriaRole.Button, new() { Name = "Preview AP posting", Exact = true }).ClickAsync(),
@@ -214,13 +225,58 @@ public sealed class AngularClientSalesInvoiceWorkflowJourneyTests
     Assert.Equal(200, purchaseReviewResponse.Status);
     await Assertions.Expect(submittedPurchase.GetByText("Posted client AP open item · Due 2026-02-10. No supplier payment is initiated here.", new() { Exact = true })).ToBeVisibleAsync();
 
+    var supplierCredits = makerPage.Locator("audit-client-purchase-credit-notes");
+    await Assertions.Expect(supplierCredits.GetByRole(AriaRole.Heading, new() { Name = "Supplier credit notes", Exact = true })).ToBeVisibleAsync();
+    await supplierCredits.GetByRole(AriaRole.Button, new() { Name = "Load client suppliers", Exact = true }).ClickAsync();
+    await supplierCredits.Locator("select[name='supplier']").SelectOptionAsync(supplierId.ToString());
+    var postedPurchasesResponse = await makerPage.RunAndWaitForResponseAsync(
+      async () => await supplierCredits.GetByRole(AriaRole.Button, new() { Name = "Load posted purchases", Exact = true }).ClickAsync(),
+      response => response.Request.Method == "GET" && response.Url.EndsWith("/purchase-invoices", StringComparison.Ordinal));
+    Assert.Equal(200, postedPurchasesResponse.Status);
+    var purchaseHistoryJson = await postedPurchasesResponse.TextAsync();
+    Assert.True(purchaseHistoryJson.Contains(purchaseInvoiceId.ToString(), StringComparison.OrdinalIgnoreCase), $"The posted-purchase history did not include the invoice {purchaseInvoiceId}: {purchaseHistoryJson}");
+    await Assertions.Expect(supplierCredits.Locator($"select[name='originalInvoice'] option[value='{purchaseInvoiceId}']")).ToHaveCountAsync(1);
+    await supplierCredits.Locator("select[name='originalInvoice']").SelectOptionAsync(purchaseInvoiceId.ToString());
+    await supplierCredits.GetByLabel("Supplier credit reference", new() { Exact = true }).FillAsync("SUP-CN-UI-001");
+    await supplierCredits.Locator("select[name='period']").SelectOptionAsync(periodId.ToString());
+    await supplierCredits.GetByLabel("Posting date", new() { Exact = true }).FillAsync("2026-01-25");
+    await supplierCredits.GetByLabel("Approved AP role ID", new() { Exact = true }).FillAsync(payableRoleId.ToString());
+    await supplierCredits.GetByLabel("Reason", new() { Exact = true }).FillAsync("Return of part of the purchased supplies");
+    await supplierCredits.GetByLabel("Source basis / evidence reference", new() { Exact = true }).FillAsync("Supplier credit evidence SUP-CN-UI-001");
+    await supplierCredits.GetByLabel("Original purchase line number", new() { Exact = true }).FillAsync("1");
+    await supplierCredits.GetByLabel("Expense or asset account code", new() { Exact = true }).FillAsync("6000");
+    await supplierCredits.GetByLabel("Positive credit amount", new() { Exact = true }).FillAsync("40");
+    await supplierCredits.GetByRole(AriaRole.Checkbox, new() { Name = "I checked this client, supplier, original purchase or exception, coding, amount and evidence.", Exact = true }).CheckAsync();
+    var supplierCreditPreviewResponse = await makerPage.RunAndWaitForResponseAsync(
+      async () => await supplierCredits.GetByRole(AriaRole.Button, new() { Name = "Preview supplier credit", Exact = true }).ClickAsync(),
+      response => response.Request.Method == "POST" && response.Url.EndsWith("/purchase-credit-notes/preview", StringComparison.Ordinal));
+    Assert.Equal(200, supplierCreditPreviewResponse.Status);
+    await Assertions.Expect(supplierCredits.GetByText("40.000000 QAR · Original 100.000000 · Previously credited 0.000000 · Remaining line limit 100.000000", new() { Exact = true })).ToBeVisibleAsync();
+    await supplierCredits.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed the exact supplier credit posting and its cumulative limit.", Exact = true }).CheckAsync();
+    var supplierCreditSubmitResponse = await makerPage.RunAndWaitForResponseAsync(
+      async () => await supplierCredits.GetByRole(AriaRole.Button, new() { Name = "Submit for independent review", Exact = true }).ClickAsync(),
+      response => response.Request.Method == "POST" && response.Url.EndsWith("/purchase-credit-notes", StringComparison.Ordinal));
+    Assert.Equal(200, supplierCreditSubmitResponse.Status);
+    var reviewerSupplierCredits = reviewerPage.Locator("audit-client-purchase-credit-notes");
+    await reviewerSupplierCredits.GetByRole(AriaRole.Button, new() { Name = "Refresh supplier credit history", Exact = true }).ClickAsync();
+    var submittedSupplierCredit = reviewerSupplierCredits.Locator("article").Filter(new() { HasText = "SUP-CN-UI-001" });
+    await submittedSupplierCredit.GetByRole(AriaRole.Button, new() { Name = "Review supplier credit", Exact = true }).ClickAsync();
+    await Assertions.Expect(submittedSupplierCredit.GetByText("Ready for approval", new() { Exact = true })).ToBeVisibleAsync();
+    await submittedSupplierCredit.GetByLabel("Independent review reason", new() { Exact = true }).FillAsync("Independently checked the linked supplier credit and cumulative limit");
+    var supplierCreditReviewResponse = await reviewerPage.RunAndWaitForResponseAsync(
+      async () => await submittedSupplierCredit.GetByRole(AriaRole.Button, new() { Name = "Approve and post supplier credit", Exact = true }).ClickAsync(),
+      response => response.Request.Method == "POST" && response.Url.EndsWith("/purchase-credit-note-reviews", StringComparison.Ordinal));
+    Assert.Equal(200, supplierCreditReviewResponse.Status);
+    await Assertions.Expect(reviewerSupplierCredits.GetByText("Approved as an unapplied supplier debit. Cash settlement is not initiated here.", new() { Exact = true })).ToBeVisibleAsync();
+
     await using (var db = host.CreateDbContext())
     {
       Assert.Single(await db.ClientSalesInvoiceSubmissions.Where(x => x.ClientId == f.ClientId).ToListAsync());
       Assert.Single(await db.ClientSalesInvoiceOpenItems.Where(x => x.ClientId == f.ClientId).ToListAsync());
       Assert.Single(await db.ClientSalesCreditNoteOpenItems.Where(x => x.ClientId == f.ClientId).ToListAsync());
       Assert.Single(await db.ClientPurchaseInvoiceOpenItems.Where(x => x.ClientId == f.ClientId).ToListAsync());
-      Assert.Equal(6, (await ClientOperationalGeneralLedgerWorkspace.GetAsync(db, reviewer, f.ClientId, periodId)).Value!.TotalEntries);
+      Assert.Single(await db.ClientPurchaseCreditNoteOpenItems.Where(x => x.ClientId == f.ClientId).ToListAsync());
+      Assert.Equal(8, (await ClientOperationalGeneralLedgerWorkspace.GetAsync(db, reviewer, f.ClientId, periodId)).Value!.TotalEntries);
       Assert.Empty(await db.FirmJournals.ToListAsync());
     }
     Assert.Empty(errors);
