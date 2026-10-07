@@ -130,6 +130,23 @@ public sealed class PlanningAndResourcesJourneyTests
     await benchmark.SelectOptionAsync(new SelectOptionValue { Label = "Revenue (income section) — 1,500,000.00" });
     await page.GetByLabel("Rationale for the benchmark", new() { Exact = true }).FillAsync("Revenue drives user focus for this trading entity.");
     await page.GetByLabel("Rationale for the benchmark", new() { Exact = true }).PressAsync("Tab");
+    async Task RejectCalculationAsync(string field, string value, string message)
+    {
+      await page.GetByLabel(field, new() { Exact = true }).FillAsync(value);
+      await page.GetByRole(AriaRole.Button, new() { Name = "Calculate materiality", Exact = true }).ClickAsync();
+      await Assertions.Expect(page.GetByText(message, new() { Exact = true })).ToBeVisibleAsync();
+    }
+    await RejectCalculationAsync("Base rate %", "5", "The rate for REVENUE must be between 0.5% and 2% under STE-MATERIALITY-2026.2.");
+    await page.GetByLabel("Base rate %", new() { Exact = true }).FillAsync("1");
+    await RejectCalculationAsync("TE % of PM", "49", "Tolerable error must be 50%–75% of planning materiality.");
+    await page.GetByLabel("TE % of PM", new() { Exact = true }).FillAsync("75");
+    await RejectCalculationAsync("SAD % of PM", "2", "The SAD threshold must be 3%–5% of planning materiality.");
+    await using (var db = host.CreateDbContext())
+    {
+      Assert.False(await db.MaterialityAssessments.AnyAsync(x => x.EngagementId == f.EngagementId));
+      Assert.False(await db.MaterialityCalculations.AnyAsync(x => x.EngagementId == f.EngagementId));
+    }
+    await page.GetByLabel("SAD % of PM", new() { Exact = true }).FillAsync("5");
     await page.GetByRole(AriaRole.Button, new() { Name = "Calculate materiality" }).ClickAsync();
     await Assertions.Expect(page.GetByText("Materiality calculated; independent Engagement Partner materiality approval is required.")).ToBeVisibleAsync();
     var thresholds = page.Locator("[aria-label='Materiality thresholds']");
