@@ -79,6 +79,7 @@ STORIES = [
             "src/AuditSphereOps.Api/Ui/UiEndpoints.FeeAgreement.cs",
             "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleService.cs",
             "src/AuditSphereOps.Ui/src/app/features/commercial/fee-agreement.ts",
+            "src/AuditSphereOps.Ui/src/app/features/commercial/fee-agreement.spec.ts",
         ],
         "implemented": [
             "The advance-preparation state is derived from the advance milestone and the durable-operation status.",
@@ -103,6 +104,7 @@ STORIES = [
             "src/AuditSphereOps.Api/Ui/UiEndpoints.AuditPlan.cs",
             "src/AuditSphereOps.Infrastructure/Persistence/Migrations/20261007214800_MaterialityPracticalRounding.cs",
             "src/AuditSphereOps.Ui/src/app/features/audit/plan.ts",
+            "src/AuditSphereOps.Ui/src/app/features/audit/plan.spec.ts",
         ],
         "implemented": [
             "Rounding creates a new effective draft materiality assessment and a rounding decision that keeps the computed and adjusted figures side by side.",
@@ -110,7 +112,7 @@ STORIES = [
             "Approval binds to the current effective head; a superseded head is refused.",
         ],
         "openItems": [
-            "The rounding form and its approval were not exercised at runtime; the browser-check database has no seeded materiality calculation.",
+            "The rounding form is covered by component tests (plan.spec.ts) and the flag by a Domain test; it was not exercised in a browser against seeded data.",
             "The rejection of a rounding change above ±5% (N06) has not been executed.",
         ],
     },
@@ -186,13 +188,14 @@ STORIES = [
             "src/AuditSphereOps.Infrastructure/Persistence/Migrations/20261007215407_EarlyComplianceLock.cs",
             "src/AuditSphereOps.Api/Ui/UiEndpoints.Completion.cs",
             "src/AuditSphereOps.Ui/src/app/features/audit/completion.ts",
+            "src/AuditSphereOps.Ui/src/app/features/audit/completion.spec.ts",
         ],
         "implemented": [
             "The early lock requires the Partner role in scope and Partner confirmation, and checks the freeze revision, the final release, the reviewed archive readiness digest and the rationale under a row lock.",
             "Early-lock records are append-only (trigger-protected).",
         ],
         "openItems": [
-            "The early-lock panel appears only for a SCHEDULED freeze; it was not exercised at runtime because the browser-check database has no scheduled freeze.",
+            "The early-lock panel is covered by component tests (completion.spec.ts); it was not exercised in a browser against a scheduled freeze.",
             "The refusal branches (stale revision, missing release, digest mismatch) have not been executed.",
         ],
     },
@@ -263,13 +266,17 @@ STORIES = [
             "src/AuditSphereOps.Application/Practice/PracticeTimeService.cs",
             "src/AuditSphereOps.Api/Ui/UiEndpoints.Time.cs",
             "src/AuditSphereOps.Ui/src/app/features/practice/time.ts",
+            "src/AuditSphereOps.Application/Practice/RateCardWorkspaceQuery.cs",
+            "src/AuditSphereOps.Api/Ui/UiEndpoints.RateCards.cs",
+            "src/AuditSphereOps.Ui/src/app/features/practice/rate-cards.ts",
+            "src/AuditSphereOps.Ui/src/app/features/practice/rate-cards.spec.ts",
         ],
         "implemented": [
             "Baseline initialization creates DRAFT rate cards only, for QAR: Engagement Partner 1000, Audit Manager 750, Audit Supervisor 500 and Audit Associate 200 per hour.",
             "Rate resolution uses the exact approved card first, then the STE role alias, and otherwise fails closed with time.rate-missing.",
         ],
         "openItems": [
-            "Approval by a second authorized user has not been exercised; only the preparer's refusal was observed.",
+            "A Domain test covers approval by a separate approver and the preparer refusal; the approve action was not exercised in a browser.",
             "The alias fallback and the fail-closed branch have not been executed against a time entry.",
         ],
         "observedLocally": [
@@ -291,7 +298,7 @@ STORIES = [
             "This manifest lists all 48 happy-path steps and 14 negative branches, each with its evidence status.",
         ],
         "openItems": [
-            "The test suites that would execute the journey were removed (commit 47ca0b05); no step has executed evidence.",
+            "The suites were restored (STE-NXT-001) but this manifest does not map their tests to journey steps; no step has recorded evidence here.",
             "Steps that depend on the Microsoft tenant are BLOCKED_EXTERNAL; every other step is NOT_EXECUTED.",
         ],
     },
@@ -442,7 +449,8 @@ def build() -> dict:
             "testCaseIds": [],
             "executedTestSuites": [],
             "removedInCommit": TEST_REMOVAL_COMMIT,
-            "note": "Automated test cases were removed by owner decision. Removed cases are not counted as evidence.",
+            "restoredBy": "STE-NXT-001",
+            "note": "Automated suites were restored. Their runs are recorded in docs/execution/status.json (testSuites). This manifest does not map individual tests to journey steps, so no journey step has recorded evidence here.",
         },
         "stageTransitionEvidenceIds": [],
         "generatedDocuments": [],
