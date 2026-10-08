@@ -33,6 +33,11 @@ public sealed class TrustedActorResolver(IDbContextFactory<AuditSphereDbContext>
     // An expired grant is revoked here; the epoch bump makes this and every open circuit stale.
     if (await RoleGrantExpiry.RevokeExpiredForUserAsync(db, user.FirmId, user.Id, DateTimeOffset.UtcNow, ct))
       return null;
+    // A concurrent request may have revoked the expired grant after this request read the user. Re-read the epoch, so a request
+    // that races the revocation is refused as unauthenticated (401), not as a stale session (409).
+    var currentEpoch = await db.Users.AsNoTracking().Where(x => x.Id == user.Id).Select(x => x.SessionEpoch).SingleAsync(ct);
+    if (currentEpoch != signedInEpoch)
+      return null;
     var roles = await db.RoleGrants.AsNoTracking()
       .Where(x => x.FirmId == user.FirmId && x.UserId == user.Id && x.RevokedAt == null)
       .Select(x => x.Role).Distinct().ToListAsync(ct);
