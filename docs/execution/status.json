@@ -119,5 +119,84 @@
       "documentationWork"
     ],
     "archivedOn": "2026-10-08"
+  },
+  "testSuites": {
+    "restoredFromCommit": "2713b58c",
+    "removedByCommit": "47ca0b05",
+    "restoredByCommit": "5ce2481e",
+    "productCodeCommit": "f7304708",
+    "recordedAtUtc": "2026-10-08T14:25:19Z",
+    "database": "auditsphere_tests on 127.0.0.1:5433 for every .NET suite; the development database auditsphere was not used by any run",
+    "runs": {
+      "dotnetBuild": {
+        "command": "dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1",
+        "warnings": 0,
+        "errors": 0,
+        "ranOn": "9d525a8a"
+      },
+      "domain": {
+        "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --configuration Release",
+        "total": 798,
+        "passed": 798,
+        "failed": 0,
+        "ranOn": "f7304708"
+      },
+      "api": {
+        "command": "dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-build --configuration Release",
+        "total": 219,
+        "passed": 219,
+        "failed": 0,
+        "ranOn": "9d525a8a",
+        "note": "f7304708 changes only test files after 9d525a8a, so the product code is identical"
+      },
+      "e2e": {
+        "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-build --configuration Release",
+        "total": 226,
+        "passed": 211,
+        "failed": 15,
+        "ranOn": "f7304708",
+        "browser": "Playwright chromium from the local cache",
+        "failingJourneysAlsoFailingAtRestoreSource": 15,
+        "failingJourneys": [
+          "AngularAttributeSamplingExecutionJourneyTests.ExactAttributeSelectionIsIndependentlyReviewedExecutedAndReviewedAgain",
+          "AngularAuditFieldworkParityJourneyTests.AdoptedProgramReviewedFieldworkAndFrozenWorkpaperSurviveReload",
+          "AngularAuditFieldworkParityJourneyTests.AggregateDifferenceConclusionRetainsHumanDecisionAndExactSourceSnapshot",
+          "AngularBillingWorkspaceJourneyTests.FinanceManagerRecordsAllocatesAndRecoversCreditNoteInNativeInvoiceWorkspace",
+          "AngularClientOperationalJournalJourneyTests.NativeClientJournalRequiresIndependentReviewAndPostsThroughAngular",
+          "AngularClientSalesInvoiceDraftJourneyTests.ClientSalesDraftRecoversLostReplyRevisesAndKeepsLedgerUntouched",
+          "AngularClientSalesInvoiceWorkflowJourneyTests.SalesInvoiceFlowsFromUntaxedPreparationToIndependentClientLedgerPosting",
+          "AngularFirmBooksBoundaryJourneyTests.FirmBooksRejectMalformedAndOversizedUploadsHideForeignExpensesAndClearAfterSessionExpiry",
+          "AngularPracticeBillingLedgerParityTests.AngularTimeApprovalBillingAndFirmCloseKeepTheirBoundaries",
+          "AngularPracticeBillingLedgerParityTests.ProposalDetailRequiresFirmWideGrantAndClearsStaleOrRevokedContent",
+          "AngularStatementReviewJourneyTests.ApprovedStatementContributionsAndEvidenceReturnRetainContextWithoutStaleTotals",
+          "AngularStatementReviewJourneyTests.ChangedGenerationHidesOldContributionAndRefusesExport",
+          "AngularTenantConnectionJourneyTests.ConsentAndExactDirectoryBinding_UseStandaloneApi_AndRemainSeparateFromLocalAccess",
+          "CompletionDeliverablesJourneyTests.PartnerClearsDecidesAndIssues_ClientReviewsInThePortal",
+          "FieldworkConnectionsJourneyTests.SeniorUploadsDrillsSamplesIndexesAndInsertsAStep"
+        ]
+      },
+      "angular": {
+        "command": "npm --prefix src/AuditSphereOps.Ui run test:ci",
+        "specFiles": 112,
+        "tests": 607,
+        "failed": 0,
+        "ranOn": "9d525a8a"
+      },
+      "openapi": {
+        "command": "bash scripts/contracts/verify-openapi.sh",
+        "result": "contract is current",
+        "ranOn": "9d525a8a"
+      },
+      "efModelDrift": {
+        "command": "dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Api --no-build --configuration Release",
+        "result": "no pending model changes",
+        "ranOn": "9d525a8a"
+      },
+      "docsGates": {
+        "result": "pass",
+        "ranOn": "9d525a8a"
+      }
+    },
+    "notes": "The 15 failing E2E journeys fail the same way at 2713b58c, before the removal; no commit after the removal caused them, and they were not rewritten. Acceptance for the E2E project is therefore not met until the owner fixes or retires them. Fixed in this change: the expiry race in the actor resolver (code), the naming guard's CLAUDE.md exception (test constant), and one unnamed status locator in the accounting-scope journey (test selector)."
   }
 }

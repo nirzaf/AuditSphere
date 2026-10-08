@@ -10,6 +10,8 @@ Every story is sized for one agent session. Before starting, read only the files
 
 *Requires the owner's go-ahead (ADR-0008).*
 
+*Status (2026-10-08): done, with one open gap. The 457 deleted files are restored from `2713b58c`; `ci.yml` runs `npm run test:ci` again; ADR-0008 is `SUPERSEDED`. Results on `f7304708`: build 0 warnings and 0 errors; Domain 798 of 798 passed; API host 219 of 219 passed (same product code); Angular 112 spec files and 607 tests passed; E2E 211 of 226 passed. The 15 failing E2E journeys fail the same way at `2713b58c`, before the removal, so no commit after the removal caused them. They were not rewritten, so the acceptance criterion "zero failures" for the E2E project is not met until the owner fixes or retires them. Code and test changes made while triaging: the expiry race in the actor resolver (code); the naming guard's conventional exceptions now include `CLAUDE.md` (test constant, matching the policy); the fee and plan fixtures gained fields that `b972296e` made required (test); one unnamed status locator in the accounting-scope journey now selects its status by text (test). The `.NET` suites are not in the hosted workflow.*
+
 **Story.** As the engineering team, we want the Domain, Api, E2E and Angular suites back in the tree and in CI, so that every later story has executable acceptance criteria.
 
 **Read first:** ADR-0008; `docs/testing/auditsphere-testing-strategy-definition-of-done-current.md` §3; `.github/workflows/ci.yml`.
@@ -56,7 +58,7 @@ Every story is sized for one agent session. Before starting, read only the files
 
 ## STE-NXT-003 — Rate-card administration and the STE charge-out baseline
 
-*Status (2026-10-08): implemented. `RateCardWorkspaceQuery` returns each role, activity and currency with its approved and draft versions, approval computed for the actor, and the STE baseline. The endpoints moved to `UiEndpoints.RateCards.cs`; `features/practice/rate-cards.ts` is routed under `staffGuard` and listed in `SpaRoutes`; the OpenAPI contract is regenerated. Tests: baseline drafts and idempotence, approver and preparer flags, and scope refusal (`PracticeTimeTests`, `SteChargeOutRateBaselineTests`); the page (7 Angular tests). Not executed in this change: the quotation option check in the commercial E2E journey.*
+*Status (2026-10-08): implemented. `RateCardWorkspaceQuery` returns each role, activity and currency with its approved and draft versions, approval computed for the actor, and the STE baseline. The endpoints moved to `UiEndpoints.RateCards.cs`; `features/practice/rate-cards.ts` is routed under `staffGuard` and listed in `SpaRoutes`; the OpenAPI contract is regenerated. Tests: baseline drafts and idempotence, approver and preparer flags, and scope refusal (`PracticeTimeTests`, `SteChargeOutRateBaselineTests`); the page (7 Angular tests). The commercial E2E journeys, including the quotation preview, passed in the full run on `f7304708`; no journey covers the rate-card page itself.*
 
 **Highest functional priority:** without it a fresh deployment cannot price a quotation.
 
