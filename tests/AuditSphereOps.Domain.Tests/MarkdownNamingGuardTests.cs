@@ -14,7 +14,8 @@ public sealed class MarkdownNamingGuardTests
   private static readonly HashSet<string> ConventionalExceptions = new(StringComparer.Ordinal)
   {
     "README.md",
-    "AGENTS.md"
+    "AGENTS.md",
+    "CLAUDE.md"
   };
 
   private static readonly HashSet<string> ProhibitedGenericNames = new(StringComparer.OrdinalIgnoreCase)
