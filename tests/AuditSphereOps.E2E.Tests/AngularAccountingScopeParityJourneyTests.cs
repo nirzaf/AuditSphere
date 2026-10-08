@@ -64,7 +64,7 @@ public sealed class AngularAccountingScopeParityJourneyTests
     await page.GotoAsync(origin + "/auth/sign-in?returnUrl=%2Fui%2Fapp%2Faccounting");
     await Assertions.Expect(page.GetByRole(AriaRole.Heading,
       new() { Name = "Accounting workspace", Exact = true })).ToBeVisibleAsync();
-    await Assertions.Expect(page.GetByRole(AriaRole.Status))
+    await Assertions.Expect(page.GetByRole(AriaRole.Status).Filter(new() { HasText = "clients in your accounting scope" }))
       .ToContainTextAsync("1 clients in your accounting scope");
     await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = assignedClientName, Exact = true })).ToBeVisibleAsync();
     Assert.DoesNotContain(siblingClientName, await page.Locator("main").InnerTextAsync(), StringComparison.Ordinal);
