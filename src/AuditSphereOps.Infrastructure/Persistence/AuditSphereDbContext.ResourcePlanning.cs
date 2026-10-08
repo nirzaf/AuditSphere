@@ -65,6 +65,29 @@ public sealed partial class AuditSphereDbContext
       e.ToTable("materiality_calculations", t => t.HasCheckConstraint("ck_materiality_calculation_values",
         "benchmark_kind IN ('REVENUE','PROFIT_BEFORE_TAX','TOTAL_ASSETS','NET_ASSETS','TOTAL_EXPENSES','MAPPED_LINE') AND ((benchmark_kind = 'MAPPED_LINE') = (destination_code IS NOT NULL)) AND benchmark_amount > 0 AND planning_materiality > 0 AND tolerable_error > 0 AND tolerable_error < planning_materiality AND sad_threshold > 0 AND sad_threshold < tolerable_error AND source_line_count > 0 AND length(input_hash) = 64 AND currency ~ '^[A-Z]{3}$'"));
     });
+    b.Entity<MaterialityRoundingDecision>(e =>
+    {
+      e.HasIndex(x => new { x.FirmId, x.EffectiveAssessmentId }).IsUnique();
+      e.HasIndex(x => new { x.FirmId, x.MaterialityCalculationId, x.DecidedAt });
+      e.HasOne<MaterialityCalculation>().WithMany().HasForeignKey(x => x.MaterialityCalculationId).OnDelete(DeleteBehavior.Restrict);
+      e.HasOne<MaterialityAssessment>().WithMany().HasForeignKey(x => x.SourceAssessmentId).OnDelete(DeleteBehavior.Restrict);
+      e.HasOne<MaterialityAssessment>().WithMany().HasForeignKey(x => x.EffectiveAssessmentId).OnDelete(DeleteBehavior.Restrict);
+      foreach (var p in new[] { nameof(MaterialityRoundingDecision.ComputedPlanningMateriality), nameof(MaterialityRoundingDecision.ComputedTolerableError),
+        nameof(MaterialityRoundingDecision.ComputedSadThreshold), nameof(MaterialityRoundingDecision.AdjustedPlanningMateriality),
+        nameof(MaterialityRoundingDecision.AdjustedTolerableError), nameof(MaterialityRoundingDecision.AdjustedSadThreshold) })
+        e.Property<decimal>(p).HasPrecision(28, 6);
+      foreach (var p in new[] { nameof(MaterialityRoundingDecision.PlanningDeltaPercent), nameof(MaterialityRoundingDecision.TolerableDeltaPercent),
+        nameof(MaterialityRoundingDecision.SadDeltaPercent) })
+        e.Property<decimal>(p).HasPrecision(9, 4);
+      // Each adjusted threshold stays within ±5% of its computed value (|adjusted - computed| * 100 <= 5 * computed) and the hierarchy holds.
+      e.ToTable("materiality_rounding_decisions", t => t.HasCheckConstraint("ck_materiality_rounding_values",
+        "length(rationale) > 0 AND policy_version = 'STE-MATERIALITY-2026.2' AND computed_planning_materiality > 0 AND computed_tolerable_error > 0 AND computed_sad_threshold > 0 " +
+        "AND adjusted_sad_threshold > 0 AND adjusted_tolerable_error > 0 AND adjusted_planning_materiality > 0 " +
+        "AND adjusted_sad_threshold <= adjusted_tolerable_error AND adjusted_tolerable_error <= adjusted_planning_materiality " +
+        "AND abs(adjusted_planning_materiality - computed_planning_materiality) * 100 <= 5 * computed_planning_materiality " +
+        "AND abs(adjusted_tolerable_error - computed_tolerable_error) * 100 <= 5 * computed_tolerable_error " +
+        "AND abs(adjusted_sad_threshold - computed_sad_threshold) * 100 <= 5 * computed_sad_threshold"));
+    });
     b.Entity<RiskBandAssessment>(e =>
     {
       e.HasIndex(x => new { x.FirmId, x.RiskId, x.AssessedAt });

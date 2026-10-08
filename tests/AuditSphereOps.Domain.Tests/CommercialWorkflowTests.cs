@@ -420,7 +420,14 @@ public sealed class CommercialWorkflowTests
     Assert.True(generated.Succeeded, generated.Message);
     var (q, letter) = (generated.Value!.Quotation, generated.Value.EngagementLetter);
     Assert.Equal((CommercialDocumentKinds.Quotation, CommercialDocumentKinds.EngagementLetter), (q.Kind, letter.Kind));
-    Assert.Equal((CommercialDocumentRenderer.QuotationTemplate, CommercialDocumentRenderer.EngagementLetterTemplate), (q.TemplateVersion, letter.TemplateVersion));
+    // STE 4.1.4: the statutory route selects its own governed template, and the stored identity is the exact template used.
+    Assert.Equal((CommercialDocumentRenderer.QuotationTemplate, EngagementLetterTemplates.Statutory), (q.TemplateVersion, letter.TemplateVersion));
+    // STE 4.1.5: while automatic drafting is off, the advance invoice is explicitly pending, never presented as prepared.
+    var pending = (await FeeAgreementWorkspaceQuery.GetAsync(db, w.Partner, proposalId)).Value!;
+    Assert.Equal(AdvanceInvoicePreparationStates.PendingAutomationDisabled, pending.AdvancePreparation.State);
+    Assert.Contains("Finance must prepare the draft manually", pending.AdvancePreparation.Message);
+    var automated = (await FeeAgreementWorkspaceQuery.GetAsync(db, w.Partner, proposalId, default, automaticDraftingEnabled: true)).Value!;
+    Assert.Equal(AdvanceInvoicePreparationStates.AwaitingAutomation, automated.AdvancePreparation.State);
     Assert.All(new[] { q, letter }, d =>
     {
       Assert.Equal(Hashing.Sha256Hex(d.Bytes), d.Sha256Hex);

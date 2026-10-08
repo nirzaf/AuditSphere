@@ -28,7 +28,16 @@ public static class MaterialityCalculationStates
   public const string BlockedPolicy = "BLOCKED_POLICY";
 }
 
-public sealed record MaterialityCalculationView(Guid AssessmentId, MaterialityCalculation Calculation, string State, string Route);
+public sealed record MaterialityCalculationView(Guid AssessmentId, MaterialityCalculation Calculation, string State, string Route,
+  MaterialityRoundingDecision? Rounding = null);
+
+/// <summary>The calculation behind an assessment, its own rounding decision (if it is an effective assessment), and head status.</summary>
+public sealed record ResolvedMateriality(MaterialityCalculation? Calculation, MaterialityRoundingDecision? Rounding, bool IsCurrentHead);
+
+public sealed record PracticalRoundingRequest(Guid AssessmentId, decimal PlanningMateriality, decimal TolerableError, decimal SadThreshold, string Rationale);
+
+/// <summary>The new effective draft assessment carrying the rounded thresholds, with its append-only decision.</summary>
+public sealed record PracticalRoundingView(Guid EffectiveAssessmentId, MaterialityRoundingDecision Decision, MaterialityAssessment EffectiveAssessment, string State);
 
 /// <summary>
 /// Automatic Planning Materiality, Tolerable Error and SAD threshold from the engagement's current approved mapping
@@ -44,6 +53,9 @@ public static class MaterialityEngineService
     (MaterialityBenchmarks.TotalAssets, "Total assets"),
     (MaterialityBenchmarks.NetAssets, "Equity / net assets (assets less liabilities)")
   ];
+
+  /// <summary>Practical rounding is an Audit Manager decision; Partner approval of the rounded values stays separate.</summary>
+  private static readonly string[] RoundingRoles = ["Manager", "SeniorManager"];
 
   public static async Task<CommandResult<MaterialitySourceView>> GetSourceAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)
@@ -130,9 +142,11 @@ public static class MaterialityEngineService
       .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
     if (calculation is null) return null;
     var current = await IsCurrentAsync(db, calculation, ct);
+    var rounding = await LatestRoundingAsync(db, firmId, calculation.Id, ct);
+    var headAssessmentId = rounding?.EffectiveAssessmentId ?? calculation.MaterialityAssessmentId;
     var assessment = await db.MaterialityAssessments.AsNoTracking().SingleOrDefaultAsync(x =>
-      x.FirmId == firmId && x.Id == calculation.MaterialityAssessmentId, ct);
-    var policyCurrent = assessment is not null && MatchesCurrentPolicy(assessment, calculation);
+      x.FirmId == firmId && x.Id == headAssessmentId, ct);
+    var policyCurrent = assessment is not null && MatchesCurrentPolicy(assessment, calculation, rounding);
     var approved = assessment is not null && await HasIndependentPartnerApprovalAsync(db, assessment, ct);
     var state = !current ? MaterialityCalculationStates.Stale : !policyCurrent ? MaterialityCalculationStates.BlockedPolicy :
       approved ? MaterialityCalculationStates.Approved : MaterialityCalculationStates.Draft;
@@ -143,20 +157,56 @@ public static class MaterialityEngineService
       MaterialityCalculationStates.Approved => "Approved and bound to the current mapping and trial balance.",
       _ => "Awaiting independent Engagement Partner materiality approval."
     };
-    return new(calculation.MaterialityAssessmentId, calculation, state, route);
+    return new(headAssessmentId, calculation, state, route, rounding);
   }
 
   /// <summary>
-  /// True when the assessment has no engine calculation (a manual legacy record) or its calculation still matches the
-  /// engagement's current approved mapping and dataset.
+  /// Resolves the calculation an assessment belongs to. An original calculation's own assessment resolves directly; an
+  /// effective (practically rounded) assessment resolves through its rounding decision. <see cref="ResolvedMateriality.IsCurrentHead"/>
+  /// is true only when the assessment is the newest effective assessment of the newest calculation for its engagement, so a
+  /// superseded draft can never be approved or read as current.
+  /// </summary>
+  public static async Task<ResolvedMateriality> ResolveAsync(IAuditSphereDbContext db, MaterialityAssessment assessment, CancellationToken ct = default)
+  {
+    var ownRounding = await db.MaterialityRoundingDecisions.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == assessment.FirmId && x.EffectiveAssessmentId == assessment.Id, ct);
+    var calculation = ownRounding is null
+      ? await db.MaterialityCalculations.AsNoTracking().SingleOrDefaultAsync(x =>
+          x.FirmId == assessment.FirmId && x.MaterialityAssessmentId == assessment.Id, ct)
+      : await db.MaterialityCalculations.AsNoTracking().SingleOrDefaultAsync(x =>
+          x.FirmId == assessment.FirmId && x.Id == ownRounding.MaterialityCalculationId, ct);
+    if (calculation is null) return new(null, null, false);
+    var latestRounding = await LatestRoundingAsync(db, assessment.FirmId, calculation.Id, ct);
+    var headAssessmentId = latestRounding?.EffectiveAssessmentId ?? calculation.MaterialityAssessmentId;
+    var latestCalculationId = await db.MaterialityCalculations.AsNoTracking()
+      .Where(x => x.FirmId == assessment.FirmId && x.EngagementId == assessment.EngagementId)
+      .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).Select(x => x.Id).FirstOrDefaultAsync(ct);
+    return new(calculation, ownRounding, assessment.Id == headAssessmentId && calculation.Id == latestCalculationId);
+  }
+
+  private static async Task<MaterialityRoundingDecision?> LatestRoundingAsync(IAuditSphereDbContext db, Guid firmId, Guid calculationId, CancellationToken ct) =>
+    await db.MaterialityRoundingDecisions.AsNoTracking().Where(x => x.FirmId == firmId && x.MaterialityCalculationId == calculationId)
+      .OrderByDescending(x => x.DecidedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+
+  /// <summary>
+  /// True when the assessment has no engine calculation (a manual legacy record) or it is the current head of a calculation
+  /// whose mapping and dataset still match the engagement's current approved source.
   /// </summary>
   public static async Task<bool> IsAssessmentCurrentAsync(IAuditSphereDbContext db, Guid firmId, Guid assessmentId, CancellationToken ct = default)
   {
-    var calculation = await db.MaterialityCalculations.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == firmId && x.MaterialityAssessmentId == assessmentId, ct);
-    return calculation is null || await IsCurrentAsync(db, calculation, ct);
+    var assessment = await db.MaterialityAssessments.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == firmId && x.Id == assessmentId, ct);
+    if (assessment is null) return false;
+    var resolved = await ResolveAsync(db, assessment, ct);
+    if (resolved.Calculation is null) return true;
+    return resolved.IsCurrentHead && await IsCurrentAsync(db, resolved.Calculation, ct);
   }
 
-  public static bool MatchesCurrentPolicy(MaterialityAssessment assessment, MaterialityCalculation calculation)
+  /// <summary>
+  /// Recomputes the calculation's figures from its stored inputs and checks the assessment carries exactly them. When a
+  /// practical rounding decision is supplied the assessment must instead carry its adjusted figures, and those must still
+  /// satisfy the ±5% and hierarchy rules against the stored calculation.
+  /// </summary>
+  public static bool MatchesCurrentPolicy(MaterialityAssessment assessment, MaterialityCalculation calculation, MaterialityRoundingDecision? rounding = null)
   {
     if (calculation.PolicyVersion != MaterialityCalculator.PolicyVersion ||
         MaterialityCalculator.Validate(calculation.BenchmarkKind, calculation.RatePercent,
@@ -167,10 +217,21 @@ public static class MaterialityEngineService
     var expectedHash = MaterialityCalculator.InputHash(calculation.MappingVersionId, calculation.DatasetDigest,
       calculation.BenchmarkKind, calculation.DestinationCode, calculation.BenchmarkAmount,
       calculation.RatePercent, calculation.PerformancePercent, calculation.TrivialPercent);
-    return calculation.InputHash == expectedHash && figures.PlanningMateriality == calculation.PlanningMateriality &&
-      figures.TolerableError == calculation.TolerableError && figures.SadThreshold == calculation.SadThreshold &&
-      assessment.OverallMateriality == figures.PlanningMateriality && assessment.PerformanceMateriality == figures.TolerableError &&
-      assessment.ClearlyTrivialThreshold == figures.SadThreshold;
+    if (calculation.InputHash != expectedHash || figures.PlanningMateriality != calculation.PlanningMateriality ||
+        figures.TolerableError != calculation.TolerableError || figures.SadThreshold != calculation.SadThreshold)
+      return false;
+    if (rounding is null)
+      return assessment.OverallMateriality == figures.PlanningMateriality && assessment.PerformanceMateriality == figures.TolerableError &&
+        assessment.ClearlyTrivialThreshold == figures.SadThreshold;
+    if (rounding.EffectiveAssessmentId != assessment.Id || rounding.MaterialityCalculationId != calculation.Id ||
+        rounding.PolicyVersion != MaterialityCalculator.PolicyVersion ||
+        rounding.ComputedPlanningMateriality != figures.PlanningMateriality || rounding.ComputedTolerableError != figures.TolerableError ||
+        rounding.ComputedSadThreshold != figures.SadThreshold)
+      return false;
+    var bounded = MaterialityPracticalRounding.Evaluate(figures, rounding.AdjustedPlanningMateriality, rounding.AdjustedTolerableError, rounding.AdjustedSadThreshold);
+    return bounded.Error is null &&
+      assessment.OverallMateriality == rounding.AdjustedPlanningMateriality && assessment.PerformanceMateriality == rounding.AdjustedTolerableError &&
+      assessment.ClearlyTrivialThreshold == rounding.AdjustedSadThreshold;
   }
 
   /// <summary>True only for a separate Partner with a Partner grant valid for this exact scope at approval time.</summary>
@@ -192,10 +253,85 @@ public static class MaterialityEngineService
   public static async Task<bool> IsPartnerApprovedCurrentAsync(
     IAuditSphereDbContext db, MaterialityAssessment assessment, CancellationToken ct = default)
   {
-    var calculation = await db.MaterialityCalculations.AsNoTracking().SingleOrDefaultAsync(x =>
-      x.FirmId == assessment.FirmId && x.MaterialityAssessmentId == assessment.Id, ct);
-    return calculation is not null && MatchesCurrentPolicy(assessment, calculation) &&
-      await IsCurrentAsync(db, calculation, ct) && await HasIndependentPartnerApprovalAsync(db, assessment, ct);
+    var resolved = await ResolveAsync(db, assessment, ct);
+    return resolved.Calculation is not null && resolved.IsCurrentHead &&
+      MatchesCurrentPolicy(assessment, resolved.Calculation, resolved.Rounding) &&
+      await IsCurrentAsync(db, resolved.Calculation, ct) && await HasIndependentPartnerApprovalAsync(db, assessment, ct);
+  }
+
+  /// <summary>
+  /// STE 3.2 manager-controlled practical rounding of the current draft materiality. Writes a new effective draft assessment
+  /// with the rounded thresholds and an append-only decision that keeps the original computed figures. The original
+  /// calculation and assessment are never changed, and the approval gate then binds Partner approval to the rounded values.
+  /// </summary>
+  public static async Task<CommandResult<PracticalRoundingView>> ApplyPracticalRoundingAsync(
+    IAuditSphereDbContext db, ActorContext actor, PracticalRoundingRequest request, CancellationToken ct = default)
+  {
+    if (string.IsNullOrWhiteSpace(request.Rationale))
+      return CommandResult<PracticalRoundingView>.Fail(ErrorCodes.AuditPlanning.Invalid, "A rationale for the practical rounding is required.");
+
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var existing = await db.MaterialityAssessments.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == request.AssessmentId && x.FirmId == actor.FirmId, ct);
+    if (existing is null) return CommandResult<PracticalRoundingView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var scope = await AuditPlanningService.LockedEngagementAsync(db, actor, existing.EngagementId, ct, existing.ClientId);
+    if (scope.Denied is not null) return CommandResult<PracticalRoundingView>.Fail(scope.Denied, scope.Message);
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, existing.ClientId, existing.EngagementId, RoundingRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded) return CommandResult<PracticalRoundingView>.Fail(auth.ErrorCode!, auth.Message!);
+
+    var resolved = await ResolveAsync(db, existing, ct);
+    if (resolved.Calculation is null)
+      return CommandResult<PracticalRoundingView>.Fail(ErrorCodes.GateBlocked,
+        "Practical rounding needs a materiality calculated from the current approved mapping and sealed trial balance.");
+    if (!resolved.IsCurrentHead)
+      return CommandResult<PracticalRoundingView>.Fail(ErrorCodes.GenerationStale,
+        "This materiality was superseded by a later calculation or rounding. Apply rounding to the current assessment.");
+    var calculation = resolved.Calculation;
+    if (existing.Status != MaterialityStatuses.Draft || await db.MaterialityApprovals.AnyAsync(x =>
+      x.FirmId == existing.FirmId && x.MaterialityAssessmentId == existing.Id, ct))
+      return CommandResult<PracticalRoundingView>.Fail(ErrorCodes.ProtectedState,
+        "Practical rounding can only be applied to a draft materiality that has not been approved.");
+    if (!await IsCurrentAsync(db, calculation, ct))
+      return CommandResult<PracticalRoundingView>.Fail(ErrorCodes.GenerationStale,
+        "The mapping or trial balance this materiality was calculated from has been replaced; recalculate it.");
+    if (!MatchesCurrentPolicy(existing, calculation, resolved.Rounding))
+      return CommandResult<PracticalRoundingView>.Fail(ErrorCodes.GateBlocked,
+        "The saved materiality inputs or thresholds do not reconcile to the current policy. Recalculate before rounding.");
+
+    var computed = new MaterialityFigures(calculation.BenchmarkAmount, calculation.SourceLineCount,
+      calculation.PlanningMateriality, calculation.TolerableError, calculation.SadThreshold);
+    var (adjustment, error) = MaterialityPracticalRounding.Evaluate(computed, request.PlanningMateriality, request.TolerableError, request.SadThreshold);
+    if (adjustment is null) return CommandResult<PracticalRoundingView>.Fail(ErrorCodes.AuditPlanning.Invalid, error!);
+
+    var now = DateTimeOffset.UtcNow;
+    var effective = new MaterialityAssessment
+    {
+      Id = Guid.CreateVersion7(), FirmId = existing.FirmId, ClientId = existing.ClientId, EngagementId = existing.EngagementId,
+      ActorId = actor.UserId, BenchmarkSource = existing.BenchmarkSource, BenchmarkVersion = existing.BenchmarkVersion,
+      Rationale = existing.Rationale, BenchmarkAmount = existing.BenchmarkAmount, RateApplied = existing.RateApplied,
+      OverallMateriality = adjustment.PlanningMateriality, PerformanceMateriality = adjustment.TolerableError,
+      ClearlyTrivialThreshold = adjustment.SadThreshold, QualitativeConsiderations = existing.QualitativeConsiderations,
+      Status = MaterialityStatuses.Draft, CreatedAt = now
+    };
+    var decision = new MaterialityRoundingDecision
+    {
+      Id = Guid.CreateVersion7(), FirmId = existing.FirmId, ClientId = existing.ClientId, EngagementId = existing.EngagementId,
+      MaterialityCalculationId = calculation.Id, SourceAssessmentId = calculation.MaterialityAssessmentId, EffectiveAssessmentId = effective.Id,
+      ComputedPlanningMateriality = calculation.PlanningMateriality, ComputedTolerableError = calculation.TolerableError,
+      ComputedSadThreshold = calculation.SadThreshold,
+      AdjustedPlanningMateriality = adjustment.PlanningMateriality, AdjustedTolerableError = adjustment.TolerableError,
+      AdjustedSadThreshold = adjustment.SadThreshold,
+      PlanningDeltaPercent = adjustment.PlanningDeltaPercent, TolerableDeltaPercent = adjustment.TolerableDeltaPercent,
+      SadDeltaPercent = adjustment.SadDeltaPercent,
+      Rationale = request.Rationale.Trim(), PolicyVersion = MaterialityCalculator.PolicyVersion,
+      DecidedByUserId = actor.UserId, DecidedAt = now
+    };
+    db.MaterialityAssessments.Add(effective);
+    db.MaterialityRoundingDecisions.Add(decision);
+    await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
+    return CommandResult<PracticalRoundingView>.Ok(new(effective.Id, decision, effective, MaterialityCalculationStates.Draft));
   }
 
   private static async Task<bool> IsCurrentAsync(IAuditSphereDbContext db, MaterialityCalculation calculation, CancellationToken ct)

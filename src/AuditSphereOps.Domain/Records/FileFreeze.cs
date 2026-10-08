@@ -51,6 +51,26 @@ public sealed class FileFreezeAmendment
   public DateTimeOffset? ClosedAt { get; set; }
 }
 
+/// <summary>
+/// Append-only record of a Partner's early (manual) compliance lock during the 60-day countdown (STE 4.4.3). It binds the
+/// actor, the reason, the freeze revision and the exact archive-readiness digest the Partner reviewed.
+/// </summary>
+public sealed class FileFreezeEarlyLock
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid FreezeId { get; set; }
+  public Guid ReportDeliverableId { get; set; }
+  public long FreezeRevision { get; set; }
+  public Guid ReleaseId { get; set; }
+  public string ArchiveReadinessDigest { get; set; } = string.Empty;
+  public string Rationale { get; set; } = string.Empty;
+  public Guid LockedByUserId { get; set; }
+  public DateTimeOffset LockedAt { get; set; }
+}
+
 /// <summary>A write that the freeze refused, kept as audit-trail evidence.</summary>
 public sealed class FrozenAccessAttempt
 {

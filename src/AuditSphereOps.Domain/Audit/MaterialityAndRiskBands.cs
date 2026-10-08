@@ -45,6 +45,36 @@ public sealed class MaterialityCalculation
   public DateTimeOffset CreatedAt { get; set; }
 }
 
+/// <summary>
+/// Append-only manager decision to practically round the computed PM / TE / SAD of one calculation (STE 3.2). The
+/// original calculation is never changed; the rounded figures live on a new effective <see cref="MaterialityAssessment"/>
+/// referenced by <see cref="EffectiveAssessmentId"/>. The computed figures are stored beside the adjusted ones so the
+/// ±5% bound is checked by the database itself.
+/// </summary>
+public sealed class MaterialityRoundingDecision
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid MaterialityCalculationId { get; set; }
+  public Guid SourceAssessmentId { get; set; }
+  public Guid EffectiveAssessmentId { get; set; }
+  public decimal ComputedPlanningMateriality { get; set; }
+  public decimal ComputedTolerableError { get; set; }
+  public decimal ComputedSadThreshold { get; set; }
+  public decimal AdjustedPlanningMateriality { get; set; }
+  public decimal AdjustedTolerableError { get; set; }
+  public decimal AdjustedSadThreshold { get; set; }
+  public decimal PlanningDeltaPercent { get; set; }
+  public decimal TolerableDeltaPercent { get; set; }
+  public decimal SadDeltaPercent { get; set; }
+  public string Rationale { get; set; } = string.Empty;
+  public string PolicyVersion { get; set; } = string.Empty;
+  public Guid DecidedByUserId { get; set; }
+  public DateTimeOffset DecidedAt { get; set; }
+}
+
 public static class RiskBands
 {
   public const string Green = "GREEN";

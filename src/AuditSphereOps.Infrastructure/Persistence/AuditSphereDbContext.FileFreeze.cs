@@ -26,6 +26,14 @@ public sealed partial class AuditSphereDbContext
       e.ToTable("file_freeze_amendments", t => t.HasCheckConstraint("ck_file_freeze_amendment_values",
         "length(reason) > 0 AND (approved_by_user_id IS NULL OR approved_by_user_id <> requested_by_user_id) AND ((opened_at IS NULL) = (approved_by_user_id IS NULL)) AND (closed_at IS NULL OR opened_at IS NOT NULL)"));
     });
+    b.Entity<FileFreezeEarlyLock>(e =>
+    {
+      e.HasIndex(x => new { x.FirmId, x.FreezeId }).IsUnique();
+      e.HasOne<EngagementFileFreeze>().WithMany().HasForeignKey(x => x.FreezeId).OnDelete(DeleteBehavior.Restrict);
+      e.HasOne<AuditDeliverable>().WithMany().HasForeignKey(x => x.ReportDeliverableId).OnDelete(DeleteBehavior.Restrict);
+      e.ToTable("file_freeze_early_locks", t => t.HasCheckConstraint("ck_file_freeze_early_lock_values",
+        "length(rationale) > 0 AND length(archive_readiness_digest) = 64 AND freeze_revision >= 1"));
+    });
     b.Entity<FrozenAccessAttempt>(e =>
     {
       e.HasIndex(x => new { x.FirmId, x.EngagementId, x.AttemptedAt });

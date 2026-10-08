@@ -3,6 +3,7 @@ using System;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AuditSphereDbContext))]
-    partial class AuditSphereDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261007214800_MaterialityPracticalRounding")]
+    partial class MaterialityPracticalRounding
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -24474,74 +24477,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("AuditSphereOps.Domain.Records.FileFreezeEarlyLock", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<string>("ArchiveReadinessDigest")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("archive_readiness_digest");
-
-                    b.Property<Guid>("ClientId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("client_id");
-
-                    b.Property<Guid>("EngagementId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("engagement_id");
-
-                    b.Property<Guid>("FirmId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("firm_id");
-
-                    b.Property<Guid>("FreezeId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("freeze_id");
-
-                    b.Property<long>("FreezeRevision")
-                        .HasColumnType("bigint")
-                        .HasColumnName("freeze_revision");
-
-                    b.Property<DateTimeOffset>("LockedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("locked_at");
-
-                    b.Property<Guid>("LockedByUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("locked_by_user_id");
-
-                    b.Property<string>("Rationale")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("rationale");
-
-                    b.Property<Guid>("ReleaseId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("release_id");
-
-                    b.Property<Guid>("ReportDeliverableId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("report_deliverable_id");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("FreezeId");
-
-                    b.HasIndex("ReportDeliverableId");
-
-                    b.HasIndex("FirmId", "FreezeId")
-                        .IsUnique();
-
-                    b.ToTable("file_freeze_early_locks", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_file_freeze_early_lock_values", "length(rationale) > 0 AND length(archive_readiness_digest) = 64 AND freeze_revision >= 1");
-                        });
-                });
-
             modelBuilder.Entity("AuditSphereOps.Domain.Records.FrozenAccessAttempt", b =>
                 {
                     b.Property<Guid>("Id")
@@ -30678,21 +30613,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasOne("AuditSphereOps.Domain.Records.EngagementFileFreeze", null)
                         .WithMany()
                         .HasForeignKey("FreezeId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("AuditSphereOps.Domain.Records.FileFreezeEarlyLock", b =>
-                {
-                    b.HasOne("AuditSphereOps.Domain.Records.EngagementFileFreeze", null)
-                        .WithMany()
-                        .HasForeignKey("FreezeId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("AuditSphereOps.Domain.Completion.AuditDeliverable", null)
-                        .WithMany()
-                        .HasForeignKey("ReportDeliverableId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

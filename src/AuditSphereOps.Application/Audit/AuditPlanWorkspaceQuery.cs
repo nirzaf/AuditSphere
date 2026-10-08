@@ -48,8 +48,8 @@ public static class AuditPlanWorkspaceQuery
       .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.MaterialityAssessmentId == materiality.Id, ct);
     var partnerApproval = materiality is not null && approval is not null &&
       await MaterialityEngineService.HasIndependentPartnerApprovalAsync(db, materiality, ct);
-    var hasSourceBoundCalculation = materiality is not null && await db.MaterialityCalculations.AsNoTracking()
-      .AnyAsync(x => x.FirmId == actor.FirmId && x.MaterialityAssessmentId == materiality.Id, ct);
+    var hasSourceBoundCalculation = materiality is not null &&
+      (await MaterialityEngineService.ResolveAsync(db, materiality, ct)).Calculation is not null;
     var materialitySourceCurrent = hasSourceBoundCalculation && await MaterialityEngineService.IsAssessmentCurrentAsync(
       db, actor.FirmId, materiality!.Id, ct);
     var risks = await db.AuditRisks.AsNoTracking().Where(r => r.FirmId == actor.FirmId && r.EngagementId == engagementId).OrderBy(r => r.CreatedAt)

@@ -123,6 +123,11 @@ public static partial class CommercialDocumentService
       return CommandResult<CommercialDocument>.Fail(ErrorCodes.StaleRevision, "The reviewed quotation or commercial profile changed.");
 
     var opportunity = await db.Opportunities.AsNoTracking().SingleAsync(x => x.Id == proposal.OpportunityId && x.FirmId == actor.FirmId, ct);
+    // STE 4.1.4: the letter template comes from the approved service route. A route with no configured template fails closed.
+    var letterTemplate = engagementLetter ? EngagementLetterTemplates.Resolve(opportunity.ServiceRoute) : null;
+    if (engagementLetter && letterTemplate is null)
+      return CommandResult<CommercialDocument>.Fail(ErrorCodes.GateBlocked,
+        $"The engagement letter template is not configured for service route '{opportunity.ServiceRoute}'.");
     AuditSphereOps.Domain.Acceptance.AcceptanceDecision? riskDecision = null;
     if (engagementLetter)
     {
@@ -222,7 +227,7 @@ public static partial class CommercialDocumentService
     var quoteSections = new List<DocumentSection?> { engagement, scope, deliverables, exclusions, dependencies,
       new("Fee", [], feeTable), terms, payment };
     var letterSections = new List<DocumentSection?> {
-      new(opportunity.ServiceRoute == "FinancialStatementAudit" ? "Statutory audit engagement — ISA 210" : "Internal audit / agreed-upon procedures — agreed service terms", [$"We are pleased to confirm the terms on which {profile.LegalName} will act for {clientName}."]),
+      new(letterTemplate?.Heading ?? "Engagement letter", [$"We are pleased to confirm the terms on which {profile.LegalName} will act for {clientName}."]),
       engagement, scope, deliverables, exclusions, dependencies,
       new("Firm contact", [profile.Address, profile.ContactEmail, profile.ContactPhone]),
       new("Reviewed engagement terms", [profile.ClosingText]),
@@ -237,8 +242,9 @@ public static partial class CommercialDocumentService
         "Engagement Partner", new(signature!.PngContent, signature.WidthPixels, signature.HeightPixels,
           (await db.Users.AsNoTracking().SingleAsync(x => x.Id == actor.UserId && x.FirmId == actor.FirmId, ct)).DisplayName, "Engagement Partner", DateOnly.FromDateTime(now.UtcDateTime)), seal!.PngContent))
       : [];
-    var letter = Store(CommercialDocumentKinds.EngagementLetter, CommercialDocumentRenderer.EngagementLetterTemplate, "EngagementLetter", letterBytes);
-    var selected = engagementLetter ? letter : quote;
+    var selected = engagementLetter
+      ? Store(CommercialDocumentKinds.EngagementLetter, letterTemplate!.Id, "EngagementLetter", letterBytes)
+      : quote;
     if (engagementLetter)
     {
       var agreement = await FeeAgreementService.EnsureReviewedAgreementWithinTransactionAsync(db, actor, proposal.Id, ct);

@@ -261,6 +261,10 @@ public static class AuditPlanningService
         if (existing.ActorId == actor.UserId)
             return CommandResult<MaterialityResult>.Fail(ErrorCodes.ScopeDenied,
                 "The preparer cannot approve the same materiality assessment.");
+        var resolved = await MaterialityEngineService.ResolveAsync(db, existing, ct);
+        if (resolved.Calculation is not null && !resolved.IsCurrentHead)
+            return CommandResult<MaterialityResult>.Fail(ErrorCodes.ProtectedState,
+                "This materiality was superseded by a later calculation or practical rounding. Approve the current assessment.");
         if (!await MaterialityEngineService.IsAssessmentCurrentAsync(db, existing.FirmId, existing.Id, ct))
             return CommandResult<MaterialityResult>.Fail(ErrorCodes.GenerationStale,
                 "The mapping or trial balance this materiality was calculated from has been replaced; recalculate it.");
@@ -268,12 +272,11 @@ public static class AuditPlanningService
             x.FirmId == existing.FirmId && x.MaterialityAssessmentId == existing.Id, ct))
             return CommandResult<MaterialityResult>.Fail(ErrorCodes.ProtectedState,
                 "Only a draft materiality assessment can be approved.");
-        var calculation = await db.MaterialityCalculations.AsNoTracking().SingleOrDefaultAsync(x =>
-            x.FirmId == existing.FirmId && x.MaterialityAssessmentId == existing.Id, ct);
+        var calculation = resolved.Calculation;
         if (calculation is null)
             return CommandResult<MaterialityResult>.Fail(ErrorCodes.GateBlocked,
                 "A manually entered or legacy materiality draft cannot be newly approved. Recalculate it from the current approved mapping and sealed trial balance.");
-        if (!MaterialityEngineService.MatchesCurrentPolicy(existing, calculation))
+        if (!MaterialityEngineService.MatchesCurrentPolicy(existing, calculation, resolved.Rounding))
             return CommandResult<MaterialityResult>.Fail(ErrorCodes.GateBlocked,
                 "The saved materiality inputs or thresholds do not reconcile to the current policy. Recalculate before Partner approval.");
         var approvalRecord = new MaterialityApproval

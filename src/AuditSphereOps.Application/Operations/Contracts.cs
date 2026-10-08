@@ -160,6 +160,7 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<global::AuditSphereOps.Domain.Practice.FirmExpense> FirmExpenses { get; }
   DbSet<global::AuditSphereOps.Domain.Records.EngagementFileFreeze> EngagementFileFreezes { get; }
   DbSet<global::AuditSphereOps.Domain.Records.FileFreezeAmendment> FileFreezeAmendments { get; }
+  DbSet<global::AuditSphereOps.Domain.Records.FileFreezeEarlyLock> FileFreezeEarlyLocks { get; }
   DbSet<global::AuditSphereOps.Domain.Records.FrozenAccessAttempt> FrozenAccessAttempts { get; }
   DbSet<global::AuditSphereOps.Domain.Records.DocumentLock> DocumentLocks { get; }
   DbSet<global::AuditSphereOps.Domain.Audit.ConfirmationCriticality> ConfirmationCriticalities { get; }
@@ -189,6 +190,7 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<global::AuditSphereOps.Domain.Practice.StaffAvailability> StaffAvailabilities { get; }
   DbSet<global::AuditSphereOps.Domain.Practice.StaffAllocation> StaffAllocations { get; }
   DbSet<global::AuditSphereOps.Domain.Audit.MaterialityCalculation> MaterialityCalculations { get; }
+  DbSet<global::AuditSphereOps.Domain.Audit.MaterialityRoundingDecision> MaterialityRoundingDecisions { get; }
   DbSet<global::AuditSphereOps.Domain.Audit.RiskBandAssessment> RiskBandAssessments { get; }
   DbSet<global::AuditSphereOps.Domain.Audit.RiskPartnerClearance> RiskPartnerClearances { get; }
   DbSet<global::AuditSphereOps.Domain.Audit.RiskOwnerAssignment> RiskOwnerAssignments { get; }

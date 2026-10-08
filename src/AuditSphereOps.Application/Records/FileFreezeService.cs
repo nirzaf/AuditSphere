@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Documents;
@@ -47,11 +48,13 @@ public static class FileFreezeService
   }
 
   /// <summary>Freezes one due file under its row lock. Used by the worker handler and idempotent on retry.</summary>
-  internal static async Task<bool> FreezeAsync(IAuditSphereDbContext db, Guid freezeId, long expectedRevision, DateTimeOffset now, CancellationToken ct)
+  internal static async Task<bool> FreezeAsync(IAuditSphereDbContext db, Guid freezeId, long expectedRevision, DateTimeOffset now, CancellationToken ct,
+    bool earlyByPartner = false)
   {
     var freeze = await db.EngagementFileFreezes.SingleAsync(x => x.Id == freezeId, ct);
     if (freeze.State == FileFreezeStates.Frozen) return false;
-    if (freeze.State != FileFreezeStates.Scheduled || freeze.Revision != expectedRevision || freeze.DueAt > now)
+    // A Partner's early lock is authorised separately (EarlyComplianceLockAsync); the worker still freezes only when due.
+    if (freeze.State != FileFreezeStates.Scheduled || freeze.Revision != expectedRevision || (freeze.DueAt > now && !earlyByPartner))
       throw new OperationBlockedException("freeze-not-due-or-rescheduled");
     // Serialize the freeze against in-flight professional writes: writers hold the engagement row lock
     // (or a shared lock through the frozen-state check) before mutating, so a freeze cannot land in the
@@ -159,6 +162,89 @@ public static class FileFreezeService
     var amendments = await db.FileFreezeAmendments.AsNoTracking().Where(x => x.FreezeId == f.Id).OrderBy(x => x.RequestedAt).ToListAsync(ct);
     return new(f.Id, f.State, f.ReportSignedAt, f.DueAt, f.FrozenAt, f.ExternalReadOnly, Math.Max(0, (int)Math.Ceiling((f.DueAt - now).TotalDays)), amendments);
   }
+
+  public sealed record ArchiveReadinessView(Guid FreezeId, long Revision, string State, DateTimeOffset DueAt, string? ArchiveReadinessDigest,
+    IReadOnlyList<string> Blockers);
+
+  public sealed record EarlyComplianceLockRequest(Guid EngagementId, long ExpectedRevision, bool PartnerConfirmed, string Rationale, string ArchiveReadinessDigest);
+
+  public sealed record EarlyComplianceLockResult(Guid FreezeId, string State, bool AlreadyFrozen, DateTimeOffset FrozenAt);
+
+  /// <summary>
+  /// The archive readiness a Partner reviews before an early lock. The digest binds the freeze revision, the signed report
+  /// and the final release manifest, so a readiness that changes after review cannot be locked on a stale confirmation.
+  /// </summary>
+  public static async Task<CommandResult<ArchiveReadinessView>> GetArchiveReadinessAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, DateTimeOffset now, CancellationToken ct = default)
+  {
+    var scoped = await FreezeForAsync(db, actor, engagementId, ["Partner"], ct);
+    if (!scoped.Succeeded) return CommandResult<ArchiveReadinessView>.Fail(scoped.ErrorCode!, scoped.Message!);
+    var freeze = scoped.Value!;
+    var release = await LatestReleaseAsync(db, actor.FirmId, engagementId, ct);
+    var blockers = new List<string>();
+    if (release is null) blockers.Add("final-release-missing");
+    if (freeze.State == FileFreezeStates.AmendmentOpen) blockers.Add("amendment-open");
+    var digest = release is null ? null : ArchiveReadinessDigest(freeze, release);
+    return CommandResult<ArchiveReadinessView>.Ok(new(freeze.Id, freeze.Revision, freeze.State, freeze.DueAt, digest, blockers));
+  }
+
+  /// <summary>
+  /// Partner-triggered early compliance lock during the countdown (STE 4.4.3). Fails closed unless the actor is a Partner in
+  /// scope, the Partner confirmed, the countdown revision and reviewed archive digest are current, the final release exists and
+  /// no amendment window is open. The freeze and its append-only evidence commit in one transaction. An already frozen file
+  /// is reported as frozen without a second lock.
+  /// </summary>
+  public static async Task<CommandResult<EarlyComplianceLockResult>> RequestEarlyComplianceLockAsync(
+    IAuditSphereDbContext db, ActorContext actor, EarlyComplianceLockRequest request, DateTimeOffset now, CancellationToken ct = default)
+  {
+    if (!request.PartnerConfirmed)
+      return CommandResult<EarlyComplianceLockResult>.Fail(ErrorCodes.GateBlocked,
+        "Confirm that locking the file makes it read-only now, before the 60-day countdown ends.");
+    if (string.IsNullOrWhiteSpace(request.Rationale) || request.Rationale.Length > 2000)
+      return CommandResult<EarlyComplianceLockResult>.Fail(ErrorCodes.AuditPlanning.Invalid, "State why the file is locked early (up to 2000 characters).");
+    var scoped = await FreezeForAsync(db, actor, request.EngagementId, ["Partner"], ct);
+    if (!scoped.Succeeded) return CommandResult<EarlyComplianceLockResult>.Fail(scoped.ErrorCode!, scoped.Message!);
+
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    // Lock the freeze row before reading its state, so two Partners cannot both observe SCHEDULED and both lock.
+    var freeze = await db.EngagementFileFreezes.FromSqlInterpolated(
+      $"SELECT * FROM engagement_file_freezes WHERE id = {scoped.Value!.Id} AND firm_id = {actor.FirmId} FOR UPDATE").SingleAsync(ct);
+    if (freeze.State == FileFreezeStates.Frozen)
+      return CommandResult<EarlyComplianceLockResult>.Ok(new(freeze.Id, freeze.State, true, freeze.FrozenAt!.Value));
+    if (freeze.State != FileFreezeStates.Scheduled)
+      return CommandResult<EarlyComplianceLockResult>.Fail(ErrorCodes.GateBlocked, "An approved amendment is open; close it before an early lock.");
+    if (freeze.Revision != request.ExpectedRevision)
+      return CommandResult<EarlyComplianceLockResult>.Fail(ErrorCodes.GenerationStale,
+        "The compliance countdown changed since you reviewed it. Reload the archive readiness and try again.");
+    var release = await LatestReleaseAsync(db, actor.FirmId, freeze.EngagementId, ct);
+    if (release is null)
+      return CommandResult<EarlyComplianceLockResult>.Fail(ErrorCodes.GateBlocked, "Final deliverables must be released before an early lock.");
+    var digest = ArchiveReadinessDigest(freeze, release);
+    if (!string.Equals(digest, request.ArchiveReadinessDigest, StringComparison.OrdinalIgnoreCase))
+      return CommandResult<EarlyComplianceLockResult>.Fail(ErrorCodes.GenerationStale,
+        "The archive readiness changed since you reviewed it. Review the current readiness before locking.");
+
+    await FreezeAsync(db, freeze.Id, freeze.Revision, now, ct, earlyByPartner: true);
+    db.FileFreezeEarlyLocks.Add(new FileFreezeEarlyLock
+    {
+      Id = Guid.CreateVersion7(), FirmId = freeze.FirmId, ClientId = freeze.ClientId, EngagementId = freeze.EngagementId,
+      FreezeId = freeze.Id, ReportDeliverableId = freeze.ReportDeliverableId, FreezeRevision = freeze.Revision,
+      ReleaseId = release.Id, ArchiveReadinessDigest = digest, Rationale = request.Rationale.Trim(),
+      LockedByUserId = actor.UserId, LockedAt = now
+    });
+    await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
+    return CommandResult<EarlyComplianceLockResult>.Ok(new(freeze.Id, FileFreezeStates.Frozen, false, now));
+  }
+
+  /// <summary>Binds the countdown revision, signed report and final release manifest into one reviewable digest.</summary>
+  public static string ArchiveReadinessDigest(EngagementFileFreeze freeze, Release release) =>
+    Hashing.Sha256Hex(string.Join('|', "file-freeze.archive-readiness.v1", freeze.Id.ToString("D"),
+      freeze.Revision.ToString(CultureInfo.InvariantCulture), freeze.ReportDeliverableId.ToString("D"),
+      freeze.ReportSignedAt.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture), release.Id.ToString("D"), release.ManifestDigest));
+
+  private static async Task<Release?> LatestReleaseAsync(IAuditSphereDbContext db, Guid firmId, Guid engagementId, CancellationToken ct) =>
+    await db.Releases.AsNoTracking().Where(x => x.FirmId == firmId && x.EngagementId == engagementId)
+      .OrderByDescending(x => x.ReleasedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
 
   private static async Task<CommandResult<EngagementFileFreeze>> FreezeForAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, string[] roles, CancellationToken ct)
   {

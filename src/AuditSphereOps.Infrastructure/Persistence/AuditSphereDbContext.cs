@@ -69,6 +69,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<global::AuditSphereOps.Domain.Practice.FirmExpense> FirmExpenses => Set<global::AuditSphereOps.Domain.Practice.FirmExpense>();
   public DbSet<global::AuditSphereOps.Domain.Records.EngagementFileFreeze> EngagementFileFreezes => Set<global::AuditSphereOps.Domain.Records.EngagementFileFreeze>();
   public DbSet<global::AuditSphereOps.Domain.Records.FileFreezeAmendment> FileFreezeAmendments => Set<global::AuditSphereOps.Domain.Records.FileFreezeAmendment>();
+  public DbSet<global::AuditSphereOps.Domain.Records.FileFreezeEarlyLock> FileFreezeEarlyLocks => Set<global::AuditSphereOps.Domain.Records.FileFreezeEarlyLock>();
   public DbSet<global::AuditSphereOps.Domain.Records.FrozenAccessAttempt> FrozenAccessAttempts => Set<global::AuditSphereOps.Domain.Records.FrozenAccessAttempt>();
   public DbSet<global::AuditSphereOps.Domain.Records.DocumentLock> DocumentLocks => Set<global::AuditSphereOps.Domain.Records.DocumentLock>();
   public DbSet<global::AuditSphereOps.Domain.Audit.ConfirmationCriticality> ConfirmationCriticalities => Set<global::AuditSphereOps.Domain.Audit.ConfirmationCriticality>();
@@ -98,6 +99,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<global::AuditSphereOps.Domain.Practice.StaffAvailability> StaffAvailabilities => Set<global::AuditSphereOps.Domain.Practice.StaffAvailability>();
   public DbSet<global::AuditSphereOps.Domain.Practice.StaffAllocation> StaffAllocations => Set<global::AuditSphereOps.Domain.Practice.StaffAllocation>();
   public DbSet<global::AuditSphereOps.Domain.Audit.MaterialityCalculation> MaterialityCalculations => Set<global::AuditSphereOps.Domain.Audit.MaterialityCalculation>();
+  public DbSet<global::AuditSphereOps.Domain.Audit.MaterialityRoundingDecision> MaterialityRoundingDecisions => Set<global::AuditSphereOps.Domain.Audit.MaterialityRoundingDecision>();
   public DbSet<global::AuditSphereOps.Domain.Audit.RiskBandAssessment> RiskBandAssessments => Set<global::AuditSphereOps.Domain.Audit.RiskBandAssessment>();
   public DbSet<global::AuditSphereOps.Domain.Audit.RiskPartnerClearance> RiskPartnerClearances => Set<global::AuditSphereOps.Domain.Audit.RiskPartnerClearance>();
   public DbSet<global::AuditSphereOps.Domain.Audit.RiskOwnerAssignment> RiskOwnerAssignments => Set<global::AuditSphereOps.Domain.Audit.RiskOwnerAssignment>();

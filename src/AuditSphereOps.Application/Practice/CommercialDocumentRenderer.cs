@@ -27,7 +27,8 @@ public sealed record CommercialDocumentModel(
 public static class CommercialDocumentRenderer
 {
   public const string QuotationTemplate = "COMMERCIAL-QUOTATION-v1";
-  public const string EngagementLetterTemplate = "COMMERCIAL-ENGAGEMENT-LETTER-v1";
+  /// <summary>Identity of letters generated before service-specific templates; existing letters keep it unchanged.</summary>
+  public const string LegacyEngagementLetterTemplate = "COMMERCIAL-ENGAGEMENT-LETTER-v1";
   public const string ReceiptTemplate = "COMMERCIAL-RECEIPT-v1";
   public const string DocxContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 

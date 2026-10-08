@@ -19,7 +19,8 @@ public static partial class UiEndpoints
       var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
       if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
-      var result = await FeeAgreementWorkspaceQuery.GetAsync(db, actor, id, http.RequestAborted);
+      var automaticDrafting = http.RequestServices.GetRequiredService<IConfiguration>().GetValue<bool>("AutomaticFeeInvoices:Enabled");
+      var result = await FeeAgreementWorkspaceQuery.GetAsync(db, actor, id, http.RequestAborted, automaticDrafting);
       if (!result.Succeeded) return Results.Json(new { code = result.ErrorCode }, statusCode: 403);
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);

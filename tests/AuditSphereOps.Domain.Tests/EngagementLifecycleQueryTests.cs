@@ -124,7 +124,12 @@ public sealed class EngagementLifecycleQueryTests
         EngagementId = engagementId, SourceKind = "Raw", Revision = 1,
         LegalEntityKey = "PBC TEST CLIENT", Currency = "QAR"
       });
-      db.MaterialityAssessments.Add(new MaterialityAssessment
+      // A status flag alone does not approve planning (STE-GAP-008 B): the legacy assessment needs a separate Partner's recorded approval.
+      var independentPartner = PbcSeed.User(seed.FirmId, "Staff");
+      db.Users.Add(independentPartner);
+      db.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, independentPartner, "Partner"));
+      await db.SaveChangesAsync();
+      var materialityAssessment = new MaterialityAssessment
       {
         Id = Guid.NewGuid(), FirmId = seed.FirmId, ClientId = seed.ClientId,
         EngagementId = engagementId, Status = MaterialityStatuses.Approved,
@@ -133,6 +138,12 @@ public sealed class EngagementLifecycleQueryTests
         BenchmarkAmount = 1000000m, RateApplied = 0.01m,
         OverallMateriality = 10000m, PerformanceMateriality = 7500m,
         ClearlyTrivialThreshold = 500m, ActorId = seed.Admin.Id, CreatedAt = now
+      };
+      db.MaterialityAssessments.Add(materialityAssessment);
+      db.MaterialityApprovals.Add(new MaterialityApproval
+      {
+        Id = Guid.NewGuid(), FirmId = seed.FirmId, ClientId = seed.ClientId, EngagementId = engagementId,
+        MaterialityAssessmentId = materialityAssessment.Id, ApprovedByUserId = independentPartner.Id, ApprovedAt = DateTimeOffset.UtcNow
       });
       engagement.ProfessionalWorkBlocked = false;
       engagement.Status = "Active";
@@ -190,10 +201,13 @@ public sealed class EngagementLifecycleQueryTests
       });
       await db.SaveChangesAsync();
 
+      // STE-GAP-008 C: a partner clearance and opinion do not hand over to Partner Approval while the completion gate is open
+      // (the synthetic fixture has no adopted audit program or reviewed procedure record), so the stage stays in Managerial Review.
       report = await EngagementLifecycleQuery.GetAsync(db, partner, engagementId);
       Assert.True(report.Succeeded);
-      Assert.Equal(CanonicalEngagementStages.PartnerApproval, report.Value!.Summary.CanonicalStage);
-      Assert.Equal(8, report.Value.Summary.StageIndex);
+      Assert.Equal(CanonicalEngagementStages.ManagerialReview, report.Value!.Summary.CanonicalStage);
+      Assert.Equal(7, report.Value.Summary.StageIndex);
+      Assert.Contains(report.Value.Summary.BlockedReasons, x => x.StartsWith("Completion gate:", StringComparison.Ordinal));
 
       // 8. Sign report deliverable -> DeliverableRelease
       var signedReport = new AuditDeliverable

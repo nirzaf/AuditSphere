@@ -11,6 +11,7 @@ public static partial class UiEndpoints
     string MonetaryControlTotal, string Currency);
   public sealed record FindingInput(string FindingType, string ImpactDescription, string? MonetaryAmount);
   public sealed record MaterialityCalculationInput(string BenchmarkKind, string? DestinationCode, string RatePercent, string PerformancePercent, string TrivialPercent, string Rationale);
+  public sealed record PracticalRoundingInput(string PlanningMateriality, string TolerableError, string SadThreshold, string Rationale);
   public sealed record RiskBandInput(int Likelihood, int Magnitude, bool Fraud, string Rationale);
   public sealed record RiskOwnerInput(Guid OwnerUserId);
   public sealed record PartnerClearInput(string Note);
@@ -28,6 +29,11 @@ public static partial class UiEndpoints
       ReadAsync(http, (db, actor, ct) => AuditPlanWorkspaceQuery.GetAsync(db, actor, id, ct)));
     group.MapPost("/materiality/{assessmentId:guid}/approve", (Guid assessmentId, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => AuditPlanningService.ApproveMaterialityAssessmentAsync(db, actor, assessmentId, ct)));
+    group.MapPost("/materiality/{assessmentId:guid}/rounding", (Guid assessmentId, PracticalRoundingInput i, HttpContext http) =>
+      TryDecimal(i.PlanningMateriality, out var pm) && TryDecimal(i.TolerableError, out var te) && TryDecimal(i.SadThreshold, out var sad)
+        ? CommandAsync(http, (db, actor, ct) => MaterialityEngineService.ApplyPracticalRoundingAsync(db, actor,
+            new PracticalRoundingRequest(assessmentId, pm, te, sad, i.Rationale ?? ""), ct))
+        : Task.FromResult(Invalid("Enter the rounded planning materiality, tolerable error and SAD threshold as numbers.")));
     group.MapPost("/engagements/{id:guid}/audit-plan/materiality/calculate", (Guid id, MaterialityCalculationInput i, HttpContext http) =>
       TryDecimal(i.RatePercent, out var rate) && TryDecimal(i.PerformancePercent, out var performance) && TryDecimal(i.TrivialPercent, out var trivial)
         ? CommandAsync(http, (db, actor, ct) => MaterialityEngineService.CalculateAsync(db, actor,
