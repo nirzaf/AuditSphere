@@ -1,0 +1,766 @@
+{
+  "schemaVersion": 1,
+  "generatedAtUtc": "2026-10-08T11:38:54Z",
+  "generatedBy": "scripts/acceptance/generate-ste-manifest.py",
+  "repository": {
+    "commit": "8709b27ce604dc419878213519c13a11278aeb9e",
+    "branch": "master",
+    "workingTreeClean": true
+  },
+  "migrations": {
+    "head": "20261008110000_ClientOpeningItemAllocations",
+    "count": 185
+  },
+  "specification": {
+    "title": "STE Audit Management Tool — Functional Requirements & End-to-End System Workflow Specification",
+    "version": "2.1",
+    "gapAnalysis": "AuditSphere_STE_v2_1_Gap_Closure_User_Stories, prepared 2026-10-08",
+    "gapAnalysisReviewedRevision": "214579b9583bae5a209cb4cf3476a5fcb459251d"
+  },
+  "testEvidence": {
+    "testCaseIds": [],
+    "executedTestSuites": [],
+    "removedInCommit": "47ca0b05",
+    "note": "Automated test cases were removed by owner decision. Removed cases are not counted as evidence."
+  },
+  "stageTransitionEvidenceIds": [],
+  "generatedDocuments": [],
+  "externalProviderEvidence": [
+    {
+      "storyId": "STE-GAP-004",
+      "status": "NOT_RECORDED",
+      "recordedArtifacts": [],
+      "required": [
+        "tenant, site and drive identifiers",
+        "provisioned identity identifier",
+        "invite/send provider correlation ID",
+        "first-sign-in observed timestamp",
+        "workspace binding IDs",
+        "capability read/write test result",
+        "access-revocation test result",
+        "cross-client denial test result"
+      ]
+    },
+    {
+      "storyId": "STE-GAP-007",
+      "status": "NOT_RECORDED",
+      "recordedArtifacts": [],
+      "required": [
+        "protection request identity and provider correlation ID",
+        "provider readback of the file or tree identity and hashes",
+        "denied direct edit, delete and overwrite by an ordinary engagement staff user",
+        "authorized compliance read result",
+        "cross-client denial result",
+        "failed or uncertain provider result shown as not protected"
+      ]
+    }
+  ],
+  "externalBlockers": [
+    {
+      "storyId": "STE-GAP-004",
+      "blocker": "Needs the approved Microsoft tenant, provisioned portal identities and the selected SharePoint sites. No live acceptance is recorded."
+    },
+    {
+      "storyId": "STE-GAP-007",
+      "blocker": "Needs an approved provider protection strategy, provider readback evidence and real-tenant denial tests. AuditSphere does not claim provider immutability."
+    }
+  ],
+  "journey": {
+    "happyPath": [
+      {
+        "id": "J01",
+        "text": "Lead created with entity and contact profile.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J02",
+        "text": "Client converted/profiled with relevant relationship/contact routing.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J03",
+        "text": "Brief or comprehensive proposal generated.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J04",
+        "text": "Proposal dispatched and client commercial acceptance recorded.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J05",
+        "text": "New/continuance acceptance checklist completed.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J06",
+        "text": "Independent Partner risk acceptance recorded.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J07",
+        "text": "Engagement Letter generated from correct service-specific template.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J08",
+        "text": "50% advance invoice workflow initiated.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J09",
+        "text": "Official invoice posted/delivered through approved finance flow.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J10",
+        "text": "Payment recorded and allocated.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J11",
+        "text": "Official receipt generated.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J12",
+        "text": "Portal identity/workspace provisioned.",
+        "result": "BLOCKED_EXTERNAL",
+        "blockedBy": "STE-GAP-004",
+        "evidence": []
+      },
+      {
+        "id": "J13",
+        "text": "First-sign-in rule satisfied.",
+        "result": "BLOCKED_EXTERNAL",
+        "blockedBy": "STE-GAP-004",
+        "evidence": []
+      },
+      {
+        "id": "J14",
+        "text": "Standard directory available.",
+        "result": "BLOCKED_EXTERNAL",
+        "blockedBy": "STE-GAP-004",
+        "evidence": []
+      },
+      {
+        "id": "J15",
+        "text": "staff assigned and capacity/schedule visible.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J16",
+        "text": "TB uploaded and sealed.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J17",
+        "text": "mapping approved.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J18",
+        "text": "materiality calculated.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J19",
+        "text": "optional practical rounding applied within ±5%.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J20",
+        "text": "independent Partner materiality approval recorded.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J21",
+        "text": "FSLI risk bands visible and staffing routes enforced.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J22",
+        "text": "fieldwork program adopted.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J23",
+        "text": "parallel FSLI work executed.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J24",
+        "text": "digital and physical evidence linked.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J25",
+        "text": "sampling run persisted/reproducible.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J26",
+        "text": "analytical review completed/reviewed.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J27",
+        "text": "going-concern assessment completed/reviewed.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J28",
+        "text": "Preparer submits work.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J29",
+        "text": "Reviewer returns at least one item with mandatory note.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J30",
+        "text": "Preparer reworks and resubmits.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J31",
+        "text": "review note resolved.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J32",
+        "text": "SRM generated from current evidence.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J33",
+        "text": "Partner reviews required Red areas.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J34",
+        "text": "critical confirmations are returned/evaluated.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J35",
+        "text": "Partner clears current SRM.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J36",
+        "text": "opinion selected.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J37",
+        "text": "report generated and signed/sealed.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J38",
+        "text": "Management Letter generated.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J39",
+        "text": "LOR generated, downloaded, signed by client and re-uploaded.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J40",
+        "text": "correspondence trail included.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J41",
+        "text": "five-part bundle assembled.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J42",
+        "text": "final 50% invoice generated/posting workflow completed.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J43",
+        "text": "client portal uploads become read-only/frozen.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J44",
+        "text": "countdown begins from report signature.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J45",
+        "text": "either automatic day-60 freeze or Partner early lock succeeds.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J46",
+        "text": "archive becomes locally read-only.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "J47",
+        "text": "provider protection verification succeeds or remains explicitly external-blocked.",
+        "result": "BLOCKED_EXTERNAL",
+        "blockedBy": "STE-GAP-007",
+        "evidence": []
+      },
+      {
+        "id": "J48",
+        "text": "regulator/read-only export succeeds.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      }
+    ],
+    "negativeBranches": [
+      {
+        "id": "N01",
+        "text": "Client accepted quote but Partner risk gate missing → no Engagement Letter.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "N02",
+        "text": "Partner risk gate complete but client commercial acceptance missing → no Engagement Letter.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "N03",
+        "text": "Advance invoice unpaid → no active upload workspace.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "N04",
+        "text": "First sign-in not completed → no upload.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "N05",
+        "text": "Stale TB/mapping → materiality cannot be approved.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "N06",
+        "text": "Practical rounding >5% → rejected.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "N07",
+        "text": "Junior assigned to Amber/Red work below required level → rejected.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "N08",
+        "text": "Open review note → completion blocked.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "N09",
+        "text": "Critical confirmation outstanding → audit report blocked + Holding Letter generated.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "N10",
+        "text": "Modified opinion without affected FSLI/basis → rejected.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "N11",
+        "text": "Final release → subsequent client upload rejected.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "N12",
+        "text": "Day 60 with failed freeze operation → cannot falsely claim archived.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      },
+      {
+        "id": "N13",
+        "text": "Direct provider edit after verified archive protection → denied.",
+        "result": "BLOCKED_EXTERNAL",
+        "blockedBy": "STE-GAP-007",
+        "evidence": []
+      },
+      {
+        "id": "N14",
+        "text": "Cross-client user → denied throughout.",
+        "result": "NOT_EXECUTED",
+        "blockedBy": null,
+        "evidence": []
+      }
+    ]
+  },
+  "stories": [
+    {
+      "id": "STE-GAP-001",
+      "title": "Versioned Service-Specific Engagement Letter Templates",
+      "priority": "P1",
+      "baselineStatus": "Partial",
+      "currentStatus": "PARTIAL",
+      "localEvidence": [
+        "src/AuditSphereOps.Application/Practice/EngagementLetterTemplates.cs",
+        "src/AuditSphereOps.Application/Practice/CommercialDocumentRenderer.cs",
+        "src/AuditSphereOps.Application/Practice/CommercialDocumentService.cs"
+      ],
+      "implemented": [
+        "Templates EL-STATUTORY-AUDIT-ISA210-v1, EL-INTERNAL-AUDIT-v1 and EL-AUP-ISRS4400-v1 are resolved by service route.",
+        "A route without a configured template fails closed with 'template not configured'."
+      ],
+      "openItems": [
+        "Letter generation for each route has not been executed by a recorded check or at runtime."
+      ]
+    },
+    {
+      "id": "STE-GAP-002",
+      "title": "Specification-Compliant 50% Advance Invoice Automation",
+      "priority": "P1",
+      "baselineStatus": "Partial",
+      "currentStatus": "PARTIAL",
+      "localEvidence": [
+        "src/AuditSphereOps.Application/Practice/FeeAgreementWorkspaceQuery.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.FeeAgreement.cs",
+        "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleService.cs",
+        "src/AuditSphereOps.Ui/src/app/features/commercial/fee-agreement.ts"
+      ],
+      "implemented": [
+        "The advance-preparation state is derived from the advance milestone and the durable-operation status.",
+        "Activation is refused until a linked fee agreement's 50% advance milestone is PAID."
+      ],
+      "openItems": [
+        "The activation refusal and the preparation states have not been executed with a linked fee agreement at runtime.",
+        "AutomaticFeeInvoices:Enabled is read by the API (preparation state) and by the worker (draft creation); both must carry the same value in each deployment."
+      ]
+    },
+    {
+      "id": "STE-GAP-003",
+      "title": "Controlled ±5% Practical Materiality Rounding",
+      "priority": "P0",
+      "baselineStatus": "Missing",
+      "currentStatus": "IMPLEMENTED_LOCAL",
+      "localEvidence": [
+        "src/AuditSphereOps.Application/Audit/MaterialityPracticalRounding.cs",
+        "src/AuditSphereOps.Application/Audit/MaterialityEngineService.cs",
+        "src/AuditSphereOps.Application/Audit/AuditPlanningService.cs",
+        "src/AuditSphereOps.Application/Audit/AuditPlanWorkspaceQuery.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.AuditPlan.cs",
+        "src/AuditSphereOps.Infrastructure/Persistence/Migrations/20261007214800_MaterialityPracticalRounding.cs",
+        "src/AuditSphereOps.Ui/src/app/features/audit/plan.ts"
+      ],
+      "implemented": [
+        "Rounding creates a new effective draft materiality assessment and a rounding decision that keeps the computed and adjusted figures side by side.",
+        "The ±5% bound is exact decimal arithmetic; SAD ≤ TE ≤ PM and positive values are enforced in the domain and by a database check constraint.",
+        "Approval binds to the current effective head; a superseded head is refused."
+      ],
+      "openItems": [
+        "The rounding form and its approval were not exercised at runtime; the browser-check database has no seeded materiality calculation.",
+        "The rejection of a rounding change above ±5% (N06) has not been executed."
+      ]
+    },
+    {
+      "id": "STE-GAP-004",
+      "title": "Live Client Portal Provisioning & Credential Acceptance",
+      "priority": "P1",
+      "baselineStatus": "Blocked External",
+      "currentStatus": "BLOCKED_EXTERNAL",
+      "localEvidence": [
+        "src/AuditSphereOps.Application/Documents/ClientPortalService.cs",
+        "src/AuditSphereOps.Application/Documents/ClientPortalWorkspaceQuery.cs",
+        "src/AuditSphereOps.Application/Documents/EngagementWorkspaceProvisioning.cs",
+        "src/AuditSphereOps.Application/Documents/ClientSharePointSites.cs",
+        "src/AuditSphereOps.Application/Documents/PbcRepositoryProvisioning.cs"
+      ],
+      "implemented": [
+        "Portal intents, the first-sign-in upload gate, participant controls, the five-folder structure, exact selected-site bindings and workspace provisioning are implemented locally."
+      ],
+      "openItems": [
+        "No real tenant provisioning, invitation, first sign-in, capability read/write test, access revocation or cross-client denial has been performed or recorded."
+      ],
+      "blocker": "Needs the approved Microsoft tenant, provisioned portal identities and the selected SharePoint sites. No live acceptance is recorded.",
+      "externalEvidenceRequired": [
+        "tenant, site and drive identifiers",
+        "provisioned identity identifier",
+        "invite/send provider correlation ID",
+        "first-sign-in observed timestamp",
+        "workspace binding IDs",
+        "capability read/write test result",
+        "access-revocation test result",
+        "cross-client denial test result"
+      ],
+      "evidenceRule": "Reusable credentials, tokens, passwords and Graph secrets are never recorded."
+    },
+    {
+      "id": "STE-GAP-005",
+      "title": "Automatic Holding Letter Dispatch for Critical Confirmations",
+      "priority": "P1",
+      "baselineStatus": "Partial",
+      "currentStatus": "IMPLEMENTED_LOCAL",
+      "localEvidence": [
+        "src/AuditSphereOps.Application/Completion/HoldingLetterDispatch.cs",
+        "src/AuditSphereOps.Application/Completion/AuditDeliverableService.cs",
+        "src/AuditSphereOps.Application/Completion/EngagementCompletionWorkspaceQuery.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Completion.cs",
+        "src/AuditSphereOps.Infrastructure/Persistence/Migrations/20261008085154_HoldingLetterDispatch.cs",
+        "src/AuditSphereOps.Infrastructure/Persistence/Migrations/20261008094929_HoldingLetterBlockerKey.cs",
+        "src/AuditSphereOps.Ui/src/app/features/audit/completion.ts"
+      ],
+      "implemented": [
+        "The report attempt queues the holding letter when critical confirmations are outstanding.",
+        "One dispatch per blocker-set revision, enforced by a unique index on firm and dispatch key.",
+        "Recipient routing uses the Completion contact purpose only; there is no fallback address."
+      ],
+      "openItems": [
+        "A FAILED dispatch is visible but has no operator retry path.",
+        "Dispatch of a real generated Holding Letter has not been exercised at runtime."
+      ],
+      "observedLocally": [
+        "The completion page showed the holding-letter section in state NONE (browser check)."
+      ]
+    },
+    {
+      "id": "STE-GAP-006",
+      "title": "Partner Early/Manual Compliance Lock",
+      "priority": "P0",
+      "baselineStatus": "Missing",
+      "currentStatus": "IMPLEMENTED_LOCAL",
+      "localEvidence": [
+        "src/AuditSphereOps.Application/Records/FileFreezeService.cs",
+        "src/AuditSphereOps.Domain/Records/FileFreeze.cs",
+        "src/AuditSphereOps.Infrastructure/Persistence/Migrations/20261007215407_EarlyComplianceLock.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Completion.cs",
+        "src/AuditSphereOps.Ui/src/app/features/audit/completion.ts"
+      ],
+      "implemented": [
+        "The early lock requires the Partner role in scope and Partner confirmation, and checks the freeze revision, the final release, the reviewed archive readiness digest and the rationale under a row lock.",
+        "Early-lock records are append-only (trigger-protected)."
+      ],
+      "openItems": [
+        "The early-lock panel appears only for a SCHEDULED freeze; it was not exercised at runtime because the browser-check database has no scheduled freeze.",
+        "The refusal branches (stale revision, missing release, digest mismatch) have not been executed."
+      ]
+    },
+    {
+      "id": "STE-GAP-007",
+      "title": "Provider-Enforced Read-Only Compliance Archive",
+      "priority": "P0",
+      "baselineStatus": "Blocked External / Compliance",
+      "currentStatus": "BLOCKED_EXTERNAL",
+      "localEvidence": [
+        "src/AuditSphereOps.Application/Records/FileFreezeService.cs",
+        "src/AuditSphereOps.Domain/Records/FileFreeze.cs",
+        "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleQuery.cs"
+      ],
+      "implemented": [
+        "The local freeze is enforced inside AuditSphere, and the lifecycle warns that provider-level read-only protection is not verified."
+      ],
+      "openItems": [
+        "No provider protection strategy is implemented; FileFreezeService records ExternalReadOnly as BLOCKED_EXTERNAL.",
+        "The lifecycle summary has no provider-protection state field; the compliance warning string is its only provider-facing text."
+      ],
+      "blocker": "Needs an approved provider protection strategy, provider readback evidence and real-tenant denial tests. AuditSphere does not claim provider immutability.",
+      "externalEvidenceRequired": [
+        "protection request identity and provider correlation ID",
+        "provider readback of the file or tree identity and hashes",
+        "denied direct edit, delete and overwrite by an ordinary engagement staff user",
+        "authorized compliance read result",
+        "cross-client denial result",
+        "failed or uncertain provider result shown as not protected"
+      ]
+    },
+    {
+      "id": "STE-GAP-008",
+      "title": "Canonical Eleven-Stage Lifecycle Truthfulness & Gate Alignment",
+      "priority": "P0",
+      "baselineStatus": "Partial / Correctness",
+      "currentStatus": "PARTIAL",
+      "localEvidence": [
+        "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleQuery.cs",
+        "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleService.cs",
+        "src/AuditSphereOps.Application/Practice/PracticeLeadQuery.cs",
+        "src/AuditSphereOps.Ui/src/app/features/commercial/leads.ts",
+        "src/AuditSphereOps.Ui/src/app/features/engagements/engagement-lifecycle.html"
+      ],
+      "implemented": [
+        "Leads without a proposal are projected as LEAD_INGESTION (Stage 1) on the lead list.",
+        "Planning requires approved, non-stale materiality, and managerial review hands over to Partner approval only when the completion gate is clear.",
+        "The compliance countdown is anchored to the report-signature time, and an engagement is shown as archived only when its local freeze is FROZEN."
+      ],
+      "openItems": [
+        "The lead-stage projection is two-valued (LEAD_INGESTION or PROPOSAL_OR_LATER); the move to Stage 3 on proposal dispatch has not been verified.",
+        "The section F model's separate provider-protection state is not returned; provider protection appears only in the compliance warning string.",
+        "A due-but-failed freeze (N12) has not been executed, so its stage display is unverified."
+      ],
+      "observedLocally": [
+        "The engagement lifecycle showed Stage 2 of 11 with no compliance warning (browser check).",
+        "A new lead listed with lifecycleStage LEAD_INGESTION (browser check)."
+      ]
+    },
+    {
+      "id": "STE-GAP-009",
+      "title": "Approved STE Default Charge-Out Rate Policy",
+      "priority": "P2",
+      "baselineStatus": "Configuration / Policy Gap",
+      "currentStatus": "IMPLEMENTED_LOCAL",
+      "localEvidence": [
+        "src/AuditSphereOps.Application/Practice/SteChargeOutRateBaseline.cs",
+        "src/AuditSphereOps.Application/Practice/PracticeTimeService.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Time.cs",
+        "src/AuditSphereOps.Ui/src/app/features/practice/time.ts"
+      ],
+      "implemented": [
+        "Baseline initialization creates DRAFT rate cards only, for QAR: Engagement Partner 1000, Audit Manager 750, Audit Supervisor 500 and Audit Associate 200 per hour.",
+        "Rate resolution uses the exact approved card first, then the STE role alias, and otherwise fails closed with time.rate-missing."
+      ],
+      "openItems": [
+        "Approval by a second authorized user has not been exercised; only the preparer's refusal was observed.",
+        "The alias fallback and the fail-closed branch have not been executed against a time entry."
+      ],
+      "observedLocally": [
+        "Baseline initialization created four DRAFT cards (browser check).",
+        "Approval by the preparer was refused with 'Rate card preparers cannot approve their own version.' (browser check)."
+      ]
+    },
+    {
+      "id": "STE-GAP-010",
+      "title": "Full STE v2.1 End-to-End Acceptance Journey",
+      "priority": "P0",
+      "baselineStatus": "Acceptance Gap",
+      "currentStatus": "ACCEPTANCE_GAP",
+      "localEvidence": [
+        "scripts/acceptance/generate-ste-manifest.py",
+        "docs/testing/auditsphere-testing-test-case-catalog.md"
+      ],
+      "implemented": [
+        "This manifest lists all 48 happy-path steps and 14 negative branches, each with its evidence status."
+      ],
+      "openItems": [
+        "The test suites that would execute the journey were removed (commit 47ca0b05); no step has executed evidence.",
+        "Steps that depend on the Microsoft tenant are BLOCKED_EXTERNAL; every other step is NOT_EXECUTED."
+      ]
+    }
+  ],
+  "summary": {
+    "mandatoryChecks": 62,
+    "PASS": 0,
+    "FAIL": 0,
+    "NOT_EXECUTED": 57,
+    "BLOCKED_EXTERNAL": 5
+  },
+  "overallResult": "FAIL",
+  "overallReason": "57 mandatory checks have no executed evidence; 5 are blocked by external providers (STE-GAP-004, STE-GAP-007); 0 checks failed.",
+  "resultRule": "FAIL when a mandatory check failed, or has no executed evidence and no external block. PASS only when every mandatory check passed with recorded evidence. BLOCKED_EXTERNAL when every unresolved mandatory check is blocked by an external provider. A check is never marked PASS without recorded evidence."
+}
