@@ -1,0 +1,373 @@
+using System.Diagnostics;
+using System.Text;
+using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Accounting;
+using AuditSphereOps.Application.Documents;
+using AuditSphereOps.Application.Operations;
+using AuditSphereOps.Domain.Accounting;
+using AuditSphereOps.Domain.Completion;
+using AuditSphereOps.Domain.Engagements;
+using AuditSphereOps.Domain.Practice;
+using AuditSphereOps.Domain.Security;
+using AuditSphereOps.Domain.Shared;
+using AuditSphereOps.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
+using WorkerHost = AuditSphereOps.Worker.Worker;
+
+namespace AuditSphereOps.Domain.Tests;
+
+[Trait("Profile", "Database")]
+[Trait("Profile", "Benchmark")]
+public sealed class AccountingBenchmarkTests
+{
+  private const int ClientCount = 4;
+  private const int TransactionsPerClient = 500;
+  private const int LinesPerTransaction = 4;
+
+  private sealed record Fixture(Guid ClientId, Guid EngagementId, Guid PeriodId, Guid BookId,
+    Guid DatasetId, Guid ImportBatchId, AppUser Preparer);
+
+  private sealed class TestDbContextFactory(DbContextOptions<AuditSphereDbContext> options)
+    : IDbContextFactory<AuditSphereDbContext>
+  {
+    public AuditSphereDbContext CreateDbContext() => new(options);
+  }
+
+  [Fact]
+  public async Task MaximumTrialBalanceCsv_ImportsExactlyOnceAndReportsMeasurement()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var firmId = Guid.NewGuid();
+    var clientId = Guid.NewGuid();
+    var engagementId = Guid.NewGuid();
+    var periodId = Guid.NewGuid();
+    var bookId = Guid.NewGuid();
+    var preparer = User(firmId, "capacity-tb-preparer");
+    var now = DateTimeOffset.UtcNow;
+    await using (var seed = new AuditSphereDbContext(pg.Options))
+    {
+      seed.FirmSafetyStates.Add(new FirmSafetyState { Id = firmId });
+      seed.Users.Add(preparer);
+      seed.RoleGrants.Add(new RoleGrant
+      {
+        Id = Guid.NewGuid(), FirmId = firmId, UserId = preparer.Id, Role = "AccountingPreparer",
+        ClientId = clientId, GrantedAt = now, GrantedByUserId = preparer.Id
+      });
+      seed.PracticeClients.Add(new PracticeClient
+      {
+        Id = clientId, FirmId = firmId, LegalName = "SYNTHETIC CAPACITY CLIENT", CreatedAt = now
+      });
+      seed.ClientSafetyStates.Add(new ClientSafetyState { Id = clientId, FirmId = firmId });
+      seed.Engagements.Add(new Engagement
+      {
+        Id = engagementId, FirmId = firmId, PracticeClientId = clientId,
+        Status = "Active", ProfessionalWorkBlocked = false, CreatedAt = now
+      });
+      seed.ClientReportingPeriods.Add(new ClientReportingPeriod
+      {
+        Id = periodId, FirmId = firmId, ClientId = clientId, PeriodCode = "2026",
+        StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31),
+        Basis = "STATUTORY", Currency = "QAR", Status = AccountingWorkflowStates.Active,
+        CreatedByUserId = preparer.Id, CreatedAt = now
+      });
+      seed.ClientReportingBooks.Add(new ClientReportingBook
+      {
+        Id = bookId, FirmId = firmId, ClientId = clientId, PeriodId = periodId,
+        Code = "STAT", Basis = "STATUTORY", InclusionRule = "STATUTORY_ONLY", Currency = "QAR",
+        Status = AccountingWorkflowStates.Active, CreatedByUserId = preparer.Id, CreatedAt = now
+      });
+      await seed.SaveChangesAsync();
+    }
+
+    var csv = new StringBuilder("AccountCode,AccountName,NetClosingBalance,Currency,Entity,MappingCode\n");
+    for (var index = 0; index < TrialBalanceCsvImporter.MaxRows; index++)
+      csv.Append("A").Append(index.ToString("D5")).Append(",Synthetic account,")
+        .Append(index % 2 == 0 ? "1" : "-1").Append(",QAR,CAPACITY,MAP\n");
+    var source = csv.ToString();
+    var actor = new ActorContext(preparer.Id, firmId, preparer.SessionEpoch, ["AccountingPreparer"]);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var started = Stopwatch.GetTimestamp();
+    var imported = await TrialBalanceImportService.ImportAsync(db, actor, clientId, engagementId,
+      source, new TrialBalanceImportContext(periodId, bookId, "STATUTORY"));
+    var elapsed = Stopwatch.GetElapsedTime(started);
+    Assert.True(imported.Succeeded, imported.Message);
+    var dataset = await db.TrialBalanceDatasets.AsNoTracking().SingleAsync(x => x.Id == imported.Value);
+    Assert.Equal(TrialBalanceImportStates.Sealed, dataset.ImportState);
+    Assert.Equal(TrialBalanceCsvImporter.MaxRows,
+      await db.TrialBalanceRows.AsNoTracking().CountAsync(x => x.DatasetId == dataset.Id));
+    Assert.Equal(0m, await db.TrialBalanceRows.AsNoTracking()
+      .Where(x => x.DatasetId == dataset.Id).SumAsync(x => x.Amount));
+
+    var duplicate = await TrialBalanceImportService.ImportAsync(db, actor, clientId, engagementId,
+      source, new TrialBalanceImportContext(periodId, bookId, "STATUTORY"));
+    Assert.False(duplicate.Succeeded);
+    Assert.Equal(ErrorCodes.Accounting.ImportDuplicate, duplicate.ErrorCode);
+    Assert.Equal(1, await db.TrialBalanceDatasets.AsNoTracking().CountAsync());
+    Console.WriteLine($"TB_CAPACITY rows={TrialBalanceCsvImporter.MaxRows} bytes={Encoding.UTF8.GetByteCount(source)} " +
+      $"import_ms={elapsed.TotalMilliseconds:F1} sealed=true duplicate_blocked=true");
+  }
+
+  [Fact]
+  public async Task ProvisionalStaffMetadataWorkload_UsesThirtyIndependentQueriesAndReportsMeasurements()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var (firmId, fixtures) = await SeedAsync(pg);
+    var users = new List<AppUser> { fixtures[0].Preparer };
+    var now = DateTimeOffset.UtcNow;
+    await using (var seed = new AuditSphereDbContext(pg.Options))
+    {
+      for (var index = 1; index < 15; index++)
+      {
+        var user = User(firmId, $"capacity-query-{index}");
+        users.Add(user);
+        seed.Users.Add(user);
+        seed.RoleGrants.Add(new RoleGrant
+        {
+          Id = Guid.NewGuid(), FirmId = firmId, UserId = user.Id, Role = "AccountingPreparer",
+          GrantedAt = now, GrantedByUserId = fixtures[0].Preparer.Id
+        });
+      }
+      await seed.SaveChangesAsync();
+    }
+
+    var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    var queries = Enumerable.Range(0, 30).Select(async index =>
+    {
+      await gate.Task;
+      await using var db = new AuditSphereDbContext(pg.Options);
+      var user = users[index % users.Count];
+      var fixture = fixtures[index % fixtures.Count];
+      var actor = new ActorContext(user.Id, firmId, user.SessionEpoch, ["AccountingPreparer"]);
+      var started = Stopwatch.GetTimestamp();
+      var page = await AccountingAnalysisService.GetGeneralLedgerPageAsync(db, actor,
+        fixture.ImportBatchId, 1, 50);
+      var elapsed = Stopwatch.GetElapsedTime(started);
+      Assert.True(page.Succeeded, page.Message);
+      Assert.Equal(50, page.Value!.Rows.Count);
+      Assert.True(page.Value.HasNextPage);
+      return elapsed.TotalMilliseconds;
+    }).ToArray();
+    gate.SetResult();
+    var elapsedMs = (await Task.WhenAll(queries)).Order().ToArray();
+    var p95Ms = elapsedMs[(int)Math.Ceiling(elapsedMs.Length * 0.95) - 1];
+    Console.WriteLine($"STAFF_QUERY_CAPACITY users={users.Count} concurrent_queries={queries.Length} " +
+      $"page_rows=50 p95_ms={p95Ms:F1} max_ms={elapsedMs[^1]:F1} " +
+      "browser_sessions=false production_target=false");
+  }
+
+  [Fact]
+  public async Task RepresentativeAccountingWorkload_CompletesDurablyAndReportsMeasurements()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var (firmId, fixtures) = await SeedAsync(pg);
+    var handler = new GeneralLedgerCompletenessHandler();
+    var operationFactory = new OperationContextFactory(new TestDbContextFactory(pg.Options));
+    var operationStore = new PostgresOperationStore(operationFactory);
+
+    var enqueueStarted = Stopwatch.GetTimestamp();
+    var queued = await Task.WhenAll(fixtures.Select(async fixture =>
+    {
+      await using var db = new AuditSphereDbContext(pg.Options);
+      var actor = new ActorContext(fixture.Preparer.Id, firmId, fixture.Preparer.SessionEpoch, ["AccountingPreparer"]);
+      return await AccountingAnalysisService.EnqueueGeneralLedgerCompletenessBridgeAsync(db, actor,
+        new GeneralLedgerCompletenessRequest(fixture.ClientId, fixture.EngagementId, fixture.PeriodId, fixture.BookId,
+          fixture.DatasetId, fixture.ImportBatchId, $"benchmark:{fixture.ClientId:D}"), operationStore, handler);
+    }));
+    var enqueueElapsed = Stopwatch.GetElapsedTime(enqueueStarted);
+    Assert.All(queued, result => Assert.True(result.Succeeded, result.Message));
+
+    var options = new WorkerOptions(firmId, "Test");
+    var workers = Enumerable.Range(0, 2).Select(_ => new WorkerHost(
+      new OperationDispatcher(operationStore, new DurableOperationRegistry([handler], options), options),
+      Array.Empty<IPendingOperationDiscovery>(), NullLogger<WorkerHost>.Instance)).ToArray();
+    var processStarted = Stopwatch.GetTimestamp();
+    var processed = await Task.WhenAll(workers.Select(async worker =>
+    {
+      var count = 0;
+      while (await worker.ProcessNextAsync()) count++;
+      return count;
+    }));
+    var processElapsed = Stopwatch.GetElapsedTime(processStarted);
+    Assert.Equal(ClientCount, processed.Sum());
+
+    var pageStarted = Stopwatch.GetTimestamp();
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    var first = fixtures[0];
+    var page = await AccountingAnalysisService.GetGeneralLedgerPageAsync(verify,
+      new ActorContext(first.Preparer.Id, firmId, first.Preparer.SessionEpoch, ["AccountingPreparer"]),
+      first.ImportBatchId, 1, 500);
+    var pageElapsed = Stopwatch.GetElapsedTime(pageStarted);
+    Assert.True(page.Succeeded, page.Message);
+    Assert.Equal(500, page.Value!.Rows.Count);
+    Assert.True(page.Value.HasNextPage);
+
+    var groupComponents = Enumerable.Range(0, ClientCount * 4).SelectMany(index =>
+    {
+      var componentId = Guid.CreateVersion7();
+      var clientId = fixtures[index % fixtures.Count].ClientId;
+      return new[]
+      {
+        new ConsolidationComponentBalance(componentId, clientId, "CASH", 100m, "QAR", 100m, "CONTROLLED",
+          Hashing.Sha256Hex($"benchmark-package:{index}"), "STATUTORY", "tax-v1", $"mapping-{index}", Guid.CreateVersion7()),
+        new ConsolidationComponentBalance(componentId, clientId, "REVENUE", -100m, "QAR", 100m, "CONTROLLED",
+          Hashing.Sha256Hex($"benchmark-package:{index}"), "STATUTORY", "tax-v1", $"mapping-{index}", Guid.CreateVersion7())
+      };
+    }).ToArray();
+    var groupStarted = Stopwatch.GetTimestamp();
+    var group = ConsolidationCalculator.Compute("QAR", ConsolidationCalculator.RestrictedMethod,
+      "OPENING-2026", groupComponents, []);
+    var groupElapsed = Stopwatch.GetElapsedTime(groupStarted);
+    Assert.Equal(0m, group.SignedTotal);
+    Assert.Equal(groupComponents.Length, group.DetailLines.Count);
+
+    var operations = await verify.DurableOperations.AsNoTracking().ToListAsync();
+    Assert.Equal(ClientCount, operations.Count);
+    Assert.All(operations, operation => Assert.Equal(OperationState.COMPLETED, operation.Status));
+    Assert.Equal(ClientCount, await verify.GeneralLedgerCompletenessBridges.CountAsync(x => x.Status == "RECONCILED"));
+    Assert.Equal(ClientCount, await verify.GeneralLedgerCompletenessBridges.CountAsync(x => x.IncompleteExtract));
+    Assert.All(await verify.GeneralLedgerCompletenessBridges.Select(x => x.CompletenessDisclosure).ToListAsync(),
+      disclosure => Assert.Contains("OPENING_DATASET_NOT_PROVIDED", disclosure, StringComparison.Ordinal));
+    Assert.Equal(ClientCount * TransactionsPerClient, await verify.GeneralLedgerTransactions.CountAsync());
+    Assert.Equal(ClientCount * TransactionsPerClient * LinesPerTransaction, await verify.GeneralLedgerLines.CountAsync());
+
+    Console.WriteLine($"ACCOUNTING_BENCHMARK clients={ClientCount} transactions={ClientCount * TransactionsPerClient} " +
+      $"lines={ClientCount * TransactionsPerClient * LinesPerTransaction} enqueue_ms={enqueueElapsed.TotalMilliseconds:F1} " +
+      $"worker_ms={processElapsed.TotalMilliseconds:F1} first_page_ms={pageElapsed.TotalMilliseconds:F1} " +
+      $"group_lines={groupComponents.Length} group_ms={groupElapsed.TotalMilliseconds:F1}");
+  }
+
+  private static async Task<(Guid FirmId, IReadOnlyList<Fixture> Fixtures)> SeedAsync(PgTestSchema pg)
+  {
+    var firmId = Guid.NewGuid();
+    var preparer = User(firmId, "benchmark-preparer");
+    var now = DateTimeOffset.UtcNow;
+    var fixtures = new List<Fixture>(ClientCount);
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    db.FirmSafetyStates.Add(new FirmSafetyState { Id = firmId });
+    db.Users.Add(preparer);
+    db.RoleGrants.Add(new RoleGrant
+    {
+      Id = Guid.NewGuid(), FirmId = firmId, UserId = preparer.Id, Role = "AccountingPreparer",
+      GrantedAt = now, GrantedByUserId = preparer.Id
+    });
+
+    for (var clientIndex = 0; clientIndex < ClientCount; clientIndex++)
+    {
+      var clientId = Guid.NewGuid();
+      var engagementId = Guid.NewGuid();
+      var periodId = Guid.NewGuid();
+      var bookId = Guid.NewGuid();
+      var datasetId = Guid.NewGuid();
+      var importBatchId = Guid.NewGuid();
+      var entity = $"ENTITY-{clientIndex + 1}";
+      var digest = Hashing.Sha256Hex($"accounting-benchmark:{entity}");
+      var total = Enumerable.Range(0, TransactionsPerClient).Sum(AmountFor);
+
+      db.PracticeClients.Add(new PracticeClient
+      {
+        Id = clientId, FirmId = firmId, LegalName = "ACCOUNTING BENCHMARK " + entity, CreatedAt = now
+      });
+      db.Engagements.Add(new Engagement
+      {
+        Id = engagementId, FirmId = firmId, PracticeClientId = clientId, Status = "Active",
+        ProfessionalWorkBlocked = false, CreatedAt = now
+      });
+      db.ClientSafetyStates.Add(new ClientSafetyState { Id = clientId, FirmId = firmId });
+      db.ClientReportingPeriods.Add(new ClientReportingPeriod
+      {
+        Id = periodId, FirmId = firmId, ClientId = clientId, PeriodCode = "2026",
+        StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31),
+        Basis = "STATUTORY", Currency = "QAR", Status = AccountingWorkflowStates.Active,
+        CreatedByUserId = preparer.Id, CreatedAt = now
+      });
+      db.ClientReportingBooks.Add(new ClientReportingBook
+      {
+        Id = bookId, FirmId = firmId, ClientId = clientId, PeriodId = periodId, Code = "STAT",
+        Basis = "STATUTORY", InclusionRule = "STATUTORY_ONLY", Currency = "QAR",
+        Status = AccountingWorkflowStates.Active, CreatedByUserId = preparer.Id, CreatedAt = now
+      });
+      db.TrialBalanceDatasets.Add(new TrialBalanceDataset
+      {
+        Id = datasetId, FirmId = firmId, ClientId = clientId, EngagementId = engagementId,
+        PeriodId = periodId, BookId = bookId, Basis = "STATUTORY",
+        SourceKind = "Raw", Revision = 1, LegalEntityKey = entity,
+        Currency = "QAR", RawFileSha256Hex = digest, NormalizedDatasetDigest = digest, Sha256Hex = digest,
+        ImportProfileVersion = "benchmark-v1", SourceLayout = TrialBalanceLayouts.SignedNet, Balanced = true,
+        ValidationStatus = "Accepted", ImportState = TrialBalanceImportStates.Loading, ControlTotal = 0m,
+        ImportedAt = now, ImportedByUserId = preparer.Id
+      });
+      foreach (var (account, amount) in new[]
+      {
+        ("1000", total), ("1100", total), ("2000", -total), ("4000", -total)
+      })
+        db.TrialBalanceRows.Add(new TrialBalanceRow
+        {
+          Id = Guid.CreateVersion7(), DatasetId = datasetId, AccountCode = account,
+          AccountName = "Benchmark " + account, Amount = amount, Currency = "QAR", Entity = entity
+        });
+
+      db.SourceImportBatches.Add(new SourceImportBatch
+      {
+        Id = importBatchId, FirmId = firmId, ClientId = clientId, EngagementId = engagementId,
+        PeriodId = periodId, BookId = bookId, SourceKind = "GL", ProfileVersion = "benchmark-v1",
+        ParserVersion = "benchmark-v1", RawFileSha256Hex = digest, NormalizedDatasetDigest = digest,
+        LegalEntityKey = entity, Currency = "QAR", RowCount = TransactionsPerClient * LinesPerTransaction,
+        ExpectedChunkCount = 1, ExpectedTransactionCount = TransactionsPerClient,
+        ExpectedLineCount = TransactionsPerClient * LinesPerTransaction, AcceptedChunkCount = 1,
+        AcceptedTransactionCount = TransactionsPerClient, AcceptedLineCount = TransactionsPerClient * LinesPerTransaction,
+        Status = "SEALED", ReceiptReference = "accounting-benchmark:" + entity,
+        CreatedByUserId = preparer.Id, CreatedAt = now
+      });
+      for (var transactionIndex = 0; transactionIndex < TransactionsPerClient; transactionIndex++)
+      {
+        var amount = AmountFor(transactionIndex);
+        var transactionId = Guid.CreateVersion7();
+        db.GeneralLedgerTransactions.Add(new GeneralLedgerTransaction
+        {
+          Id = transactionId, FirmId = firmId, ClientId = clientId, EngagementId = engagementId,
+          ImportBatchId = importBatchId, StableJournalId = $"{entity}-J-{transactionIndex:0000}",
+          DocumentNumber = $"{entity}-D-{transactionIndex:0000}",
+          PostingDate = new DateOnly(2026, 1, 1).AddDays(transactionIndex % 365),
+          DocumentDate = new DateOnly(2026, 1, 1).AddDays(transactionIndex % 365),
+          SourceUser = "benchmark", SourceSystem = "benchmark", Currency = "QAR",
+          IsManual = transactionIndex % 10 == 0, CreatedAt = now
+        });
+        AddLine(db, firmId, clientId, engagementId, importBatchId, transactionId, entity, transactionIndex, "1000", amount, 0m, amount);
+        AddLine(db, firmId, clientId, engagementId, importBatchId, transactionId, entity, transactionIndex, "1100", amount, 0m, amount);
+        AddLine(db, firmId, clientId, engagementId, importBatchId, transactionId, entity, transactionIndex, "2000", 0m, amount, -amount);
+        AddLine(db, firmId, clientId, engagementId, importBatchId, transactionId, entity, transactionIndex, "4000", 0m, amount, -amount);
+      }
+      fixtures.Add(new Fixture(clientId, engagementId, periodId, bookId, datasetId, importBatchId, preparer));
+    }
+
+    await db.SaveChangesAsync();
+    await db.Database.ExecuteSqlRawAsync("UPDATE trial_balance_datasets SET import_state = 'SEALED'");
+    return (firmId, fixtures);
+  }
+
+  private static void AddLine(AuditSphereDbContext db, Guid firmId, Guid clientId, Guid engagementId,
+    Guid importBatchId, Guid transactionId, string entity, int transactionIndex, string accountCode,
+    decimal debit, decimal credit, decimal amount)
+  {
+    db.GeneralLedgerLines.Add(new GeneralLedgerLine
+    {
+      Id = Guid.CreateVersion7(), FirmId = firmId, ClientId = clientId, EngagementId = engagementId,
+      ImportBatchId = importBatchId, TransactionId = transactionId,
+      StableLineId = $"{entity}-J-{transactionIndex:0000}-{accountCode}", AccountCode = accountCode,
+      Debit = debit, Credit = credit, OriginalCurrency = "QAR", OriginalAmount = amount,
+      FunctionalAmount = amount, CreatedAt = DateTimeOffset.UtcNow
+    });
+  }
+
+  private static AppUser User(Guid firmId, string name) => new()
+  {
+    Id = Guid.NewGuid(), FirmId = firmId, Subject = name + "-" + Guid.NewGuid().ToString("N"),
+    TenantId = "tenant-test", Email = name + "@example.test", DisplayName = name, CreatedAt = DateTimeOffset.UtcNow
+  };
+
+  private static decimal AmountFor(int transactionIndex) => transactionIndex == 0
+    ? 999_999_999_999.123456m
+    : 100m + transactionIndex % 37 + 0.123456m;
+}
