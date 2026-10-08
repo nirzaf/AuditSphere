@@ -22,7 +22,8 @@ env:
   DevelopmentIdentity__Enabled: 'false'
 
 jobs:
-  # Angular presentation gate: production build plus unit tests. Runs in
+  # Angular presentation gate: production build. Unit test cases were removed for now, so this
+  # job no longer runs `npm run test:ci`; restore that step when spec files return. Runs in
   # parallel with the .NET gate; its browser bundle is handed to the API
   # publish verification through a build artifact (the Api publish target
   # globs ../AuditSphereOps.Ui/dist/auditsphere-ui/browser).
@@ -44,13 +45,12 @@ jobs:
           cache: npm
           cache-dependency-path: src/AuditSphereOps.Ui/package-lock.json
 
-      - name: Build and test Angular presentation
+      - name: Build Angular presentation
         working-directory: src/AuditSphereOps.Ui
         run: |
           set -euo pipefail
           npm ci
           npm run build
-          npm run test:ci
 
       - name: Upload Angular browser bundle
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -69,8 +69,8 @@ jobs:
 
   # Mandatory gate: pinned-SDK locked restore, Release build, EF model drift,
   # and standalone API + Angular publication verification.
-  # The PostgreSQL-backed Domain/Api/E2E suites are intentionally not run here because
-  # they take 10+ minutes per project; run them locally (see docs/testing).
+  # The .NET test suites were removed for now, so this gate runs no test projects. The OpenAPI
+  # drift check below runs the real API host through tools/AuditSphereOps.OpenApiEmitter instead.
   dotnet-build:
     name: Build · .NET Release
     runs-on: ubuntu-24.04

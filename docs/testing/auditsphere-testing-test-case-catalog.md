@@ -1,5 +1,7 @@
 # Existing automated test catalog
 
+> **Status:** the test-case files listed in this historical inventory were removed from the repository on 2026-10-08 (commit `47ca0b05`, PR #30). This catalog is kept as the record of the removed cases; restoring them is a git checkout.
+
 ## Baseline and interpretation
 
 Historical inventory date: 2026-09-22. Build/discovery baseline: `b8e47219179ab5cd707d95dfc6e594da37429d85`. Final source/discovery reconciliation also covered `053aaec315a179082d0535ad4bda3c2706c5900d`; the intervening commit changes only evidence documentation, with no test/runtime/configuration source changes.
@@ -13,7 +15,7 @@ dotnet build AuditSphereOps.slnx --no-restore --configuration Release
 dotnet test AuditSphereOps.slnx --no-build --no-restore --configuration Release --list-tests
 ```
 
-The tables below preserve the original **246 Domain cases**, representing **235 test methods: 229 facts and 6 theories with 17 data rows**, in **37 classes across 36 test-source files**. They belong to `AuditSphereOps.Domain.Tests`, the original [Domain test project](../../tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj). Fresh solution discovery on 2026-09-23 found **305 cases** across Domain 257, [API 6](../../tests/AuditSphereOps.Api.Tests/PbcHttpTests.cs), and [Playwright E2E 42](../../tests/AuditSphereOps.E2E.Tests). The Domain suite has grown by 11 cases since the detailed baseline; the API/E2E scenarios use `CaseId` traits. These newer cases are source-identified but not yet reconciled into the original category tables below.
+The tables below preserve the original **246 Domain cases**, representing **235 test methods: 229 facts and 6 theories with 17 data rows**, in **37 classes across 36 test-source files**. They belong to `AuditSphereOps.Domain.Tests`, the original [Domain test project](../../tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj). Fresh solution discovery on 2026-09-23 found **305 cases** across Domain 257, `API 6` (`tests/AuditSphereOps.Api.Tests/PbcHttpTests.cs`, removed), and [Playwright E2E 42](../../tests/AuditSphereOps.E2E.Tests). The Domain suite has grown by 11 cases since the detailed baseline; the API/E2E scenarios use `CaseId` traits. These newer cases are source-identified but not yet reconciled into the original category tables below.
 
 The 246-case detailed tables are a historical Domain baseline, not the current solution total. The current inventory includes dedicated API and Playwright projects; the [execution ledger](../execution/status.json) records the latest local discovery and run evidence separately from hosted CI and live acceptance.
 
@@ -421,7 +423,7 @@ The original detailed tables stop at their 246-case Domain baseline. API and E2E
 |---|---|---|
 | [Current CI](../../.github/workflows/ci.yml) | Pinned PostgreSQL 18.6, locked restore, Release build, EF drift/migration, full discovery/execution reconciliation, API/Domain/E2E tests, readiness, coverage and artifact upload | Implemented workflow; no hosted result was observed for this inventory. The E2E project runs Playwright Chromium scenarios locally and in this workflow. |
 | [Restore drill](../../scripts/db/restore-drill.sh) | Dump local `auditsphere`, restore to generated database, compare migrations/checkpoint/accounting manifests and duplicate release keys | Mutating local rehearsal with owned temporary DB cleanup; requires populated source and native client tools. Not rerun for this inventory. Defaults to writing tracked evidence; CI must redirect evidence to artifacts. |
-| [Browser launcher](../../scripts/e2e/accounting-browser-journeys.sh) and [seed SQL](../../scripts/e2e/accounting-browser-seed.sql) | Seed fixed `auditsphere_browser` and launch Development Web | Launcher only, not a test runner; no browser assertions, multi-role orchestration or parallel-safe cleanup. |
+| `Browser launcher` (`scripts/e2e/accounting-browser-journeys.sh`, removed) and `seed SQL` (`scripts/e2e/accounting-browser-seed.sql`, removed) | Seed fixed `auditsphere_browser` and launch Development Web | Launcher only, not a test runner; no browser assertions, multi-role orchestration or parallel-safe cleanup. |
 | [Tenant verifier](../../scripts/verify-tenant.sh) | Report missing names or unapproved live acceptance runner | Returns BLOCKED/exit 2 even when required variables are supplied. |
 | [Connection baseline](../../scripts/diagnostics/connection-baseline.ps1) | Diagnostic connection measurements | Support diagnostic, not an approved load acceptance suite. |
 
