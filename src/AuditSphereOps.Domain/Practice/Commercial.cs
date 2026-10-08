@@ -188,6 +188,8 @@ public sealed class CommercialNotification
   public DateTimeOffset? DeliveredAt { get; set; }
   /// <summary>The exact holding letter dispatched by this notification (STE 3.3); one dispatch per letter identity.</summary>
   public Guid? DeliverableId { get; set; }
+  /// <summary>Digest of the exact outstanding critical set; one dispatch per blocker set, regardless of regenerated letter identities.</summary>
+  public string? DispatchKey { get; set; }
 }
 
 public static class CommercialNotificationKinds

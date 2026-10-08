@@ -449,13 +449,13 @@ public sealed partial class AuditDeliverablesTests
       CreatedByUserId = w.U["manager"].Id, CreatedAt = DateTimeOffset.UtcNow });
     await db.SaveChangesAsync();
     var dispatched = (await AuditDeliverableService.GenerateReportAsync(db, manager, w.EngagementId, DeliverableKinds.IndependentAuditorsReport)).Value!;
-    Assert.Equal(held.HoldingLetterId, dispatched.HoldingLetterId);
-    var queued = await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.DeliverableId == held.HoldingLetterId);
+    var queued = await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.DeliverableId == dispatched.HoldingLetterId);
     Assert.Equal((CommercialNotificationKinds.HoldingLetter, "QUEUED", "md@client.example.test"), (queued.Kind, queued.DeliveryState, queued.Recipient));
     Assert.Contains("queued for the client-management recipient", dispatched.Message);
-    // Regenerating the unchanged blocker set does not send again.
-    await AuditDeliverableService.GenerateReportAsync(db, manager, w.EngagementId, DeliverableKinds.IndependentAuditorsReport);
-    Assert.Equal(1, await db.CommercialNotifications.CountAsync(x => x.DeliverableId == held.HoldingLetterId));
+    // Regenerating the unchanged blocker set creates a new letter record but never a second dispatch.
+    var regenerated = (await AuditDeliverableService.GenerateReportAsync(db, manager, w.EngagementId, DeliverableKinds.IndependentAuditorsReport)).Value!;
+    Assert.Contains("already dispatched", regenerated.Message);
+    Assert.Equal(1, await db.CommercialNotifications.CountAsync(x => x.DispatchKey == queued.DispatchKey));
 
     // With the reassessment lifted the report generates (the clearance chain is redone because the
     // changed facts stale the earlier SRM, clearance and opinion), and a further reassessment blocks
