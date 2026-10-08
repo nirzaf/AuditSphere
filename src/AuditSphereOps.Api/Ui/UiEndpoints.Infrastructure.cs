@@ -31,7 +31,7 @@ public static partial class UiEndpoints
     "/ui/app/clients/{id:guid}", "/ui/app/clients/{id:guid}/contacts/new", "/ui/app/clients/{id:guid}/engagements/new", "/ui/app/engagements/{id:guid}", "/ui/app/engagements/{id:guid}/activation", "/ui/app/engagements/{id:guid}/analysis/new", "/ui/app/clients/{id:guid}/assessment",
     "/ui/app/practice/proposals/{id:guid}/client-conversion", "/ui/app/practice/proposals/{id:guid}", "/ui/app/practice/leads/{id:guid}",
     "/ui/app/finance/books", "/ui/app/finance", "/ui/app/practice/invoices/{id:guid}", "/ui/app/practice/analytics", "/ui/app/library", "/ui/app/library/{id:guid}",
-    "/ui/app/practice/resources", "/ui/app/practice/time", "/ui/app/engagements/{id:guid}/statements", "/ui/app/engagements/{id:guid}/tb-intake", "/ui/app/engagements/{id:guid}/general-ledger", "/ui/app/engagements/{id:guid}/general-ledger/upload", "/ui/app/engagements/{id:guid}/audit-plan", "/ui/app/engagements/{id:guid}/audit-fieldwork", "/ui/app/engagements/{id:guid}/confirmations", "/ui/app/engagements/{id:guid}/completion", "/ui/app/completion/{id:guid}", "/ui/app/engagements/{id:guid}/pbc",
+    "/ui/app/practice/resources", "/ui/app/practice/time", "/ui/app/practice/rate-cards", "/ui/app/engagements/{id:guid}/statements", "/ui/app/engagements/{id:guid}/tb-intake", "/ui/app/engagements/{id:guid}/general-ledger", "/ui/app/engagements/{id:guid}/general-ledger/upload", "/ui/app/engagements/{id:guid}/audit-plan", "/ui/app/engagements/{id:guid}/audit-fieldwork", "/ui/app/engagements/{id:guid}/confirmations", "/ui/app/engagements/{id:guid}/completion", "/ui/app/completion/{id:guid}", "/ui/app/engagements/{id:guid}/pbc",
     "/ui/app/accounting/adjustment-plans", "/ui/app/accounting/adjustment-plans/{id:guid}", "/ui/app/accounting/mappings", "/ui/app/accounting/journals", "/ui/app/accounting/differences", "/ui/app/accounting/journals/{id:guid}", "/ui/app/accounting/journals/{id:guid}/management",
     "/ui/app/accounting/mappings/{id:guid}", "/ui/app/accounting/mappings/{id:guid}/approval", "/ui/app/accounting/mappings/{id:guid}/edit", "/ui/app/accounting/periods/{id:guid}", "/ui/app/accounting/reviews", "/ui/app/accounting/packages/{id:guid}",
     "/ui/app/accounting/adjustment-plans/{id:guid}/finalize", "/ui/app/accounting/sources/{id:guid}/adjustment-plan", "/ui/app/accounting/gl-sources/{id:guid}/completeness", "/ui/app/accounting/gl-sources/{id:guid}/acceptance", "/ui/app/accounting/sources/{id:guid}/acceptance", "/ui/app/accounting/sources/{id:guid}/journal-draft", "/ui/app/accounting/evidence", "/ui/app/accounting/evidence/{kind}/{id:guid}", "/ui/app/accounting/evidence/{kind}/{id:guid}/actions", "/ui/app/accounting/reconciliations/{id:guid}", "/ui/app/accounting/reconciliations/{id:guid}/prepare/{kind}", "/ui/app/accounting/rollforward", "/ui/app/accounting/restatements", "/ui/app/accounting/remeasurement", "/ui/app/accounting/currency-configuration",
@@ -79,6 +79,7 @@ public static partial class UiEndpoints
     MapIntakeEndpoints(group);
     MapGeneralLedgerEndpoints(group);
     MapTimeEndpoints(group);
+    MapRateCardEndpoints(group);
     MapAuditPlanEndpoints(group);
     MapFieldworkEndpoints(group);
     MapConfirmationEndpoints(group);

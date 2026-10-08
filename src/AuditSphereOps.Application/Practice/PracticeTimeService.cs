@@ -48,13 +48,6 @@ public sealed record RateCardDraftRequest(
   decimal RatePerHour,
   long? ExpectedVersion = null);
 
-/// <summary>One governed charge-out rate version. Approved versions are what capture and budgets read.</summary>
-public sealed record RateCardRow(Guid Id, string Role, string Activity, string Currency, decimal RatePerHour, long Version, string Status,
-  Guid CreatedByUserId, Guid? ApprovedByUserId, DateTimeOffset? ApprovedAt, DateTimeOffset CreatedAt);
-
-/// <summary>The firm's rate versions and the state of the STE QAR baseline (STE-GAP-009).</summary>
-public sealed record RateCardWorkspace(IReadOnlyList<RateCardRow> Cards, IReadOnlyList<SteBaselineLine> SteBaseline);
-
 public sealed record BudgetLineRequest(string Role, string Activity, int ForecastMinutes, string? Phase = null, string? RiskArea = null);
 
 public sealed record ReviseBudgetRequest(
@@ -78,7 +71,7 @@ public sealed record BudgetActualSummary(
 public static class PracticeTimeService
 {
   private static readonly string[] WorkRoles = ["Senior", "Staff", "Manager", "Partner", "Administrator"];
-  private static readonly string[] ApprovalRoles = ["Manager", "Partner", "Administrator"];
+  internal static readonly string[] ApprovalRoles = ["Manager", "Partner", "Administrator"];
 
   public static async Task<CommandResult<Guid>> CreateTaskAsync(
     IAuditSphereDbContext db, ActorContext actor, CreateTaskRequest request, CancellationToken ct = default)
@@ -399,21 +392,6 @@ public static class PracticeTimeService
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
     return CommandResult.Ok();
-  }
-
-  /// <summary>Every rate-card version for the firm, newest first within each role, activity and currency.</summary>
-  public static async Task<CommandResult<RateCardWorkspace>> RateCardWorkspaceAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct = default)
-  {
-    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, RequiredRoles: ApprovalRoles, InternalOnly: true, RequireFirmWide: true), ct);
-    if (!auth.Succeeded) return CommandResult<RateCardWorkspace>.Fail(auth.ErrorCode!, auth.Message!);
-    var cards = await db.RateCardVersions.AsNoTracking().Where(x => x.FirmId == actor.FirmId)
-      .OrderBy(x => x.Role).ThenBy(x => x.Activity).ThenBy(x => x.Currency).ThenByDescending(x => x.Version)
-      .Select(x => new RateCardRow(x.Id, x.Role, x.Activity, x.Currency, x.RatePerHour, x.Version, x.Status, x.CreatedByUserId, x.ApprovedByUserId,
-        x.ApprovedAt, x.CreatedAt))
-      .ToListAsync(ct);
-    var baseline = await SteChargeOutRateBaseline.StatusAsync(db, actor.FirmId, ct);
-    return CommandResult<RateCardWorkspace>.Ok(new(cards, baseline));
   }
 
   public static async Task<CommandResult<Guid>> ReviseBudgetAsync(

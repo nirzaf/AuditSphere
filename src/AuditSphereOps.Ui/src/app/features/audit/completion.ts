@@ -20,7 +20,7 @@ export const decodeCompletion = obj({ engagementId: guid,
   signedLetters: arr(obj({ id: guid, deliverableId: guid, version: nat, managementSignatory: text, contentSha256: text, uploadedAt: instant, verified: bool, current: bool }), 100),
   bundles: nullable(obj({ blockers: arr(text, 100), bundles: arr(obj({ id: guid, sha256: text, assembledAt: instant }), 100) })),
   opinionTypes: arr(text, 10),
-  freeze: nullable(obj({ state: text, reportSignedAt: instant, dueAt: instant, externalReadOnly: text, daysRemaining: int,
+  freeze: nullable(obj({ state: text, reportSignedAt: instant, dueAt: instant, frozenAt: nullable(instant), externalReadOnly: text, daysRemaining: int,
     amendments: arr(obj({ id: guid, reason: text, openedAt: nullable(instant), closedAt: nullable(instant) }), 500) })),
   freezeDays: nat, trail: nullable(arr(obj({ at: instant, kind: text, actor: text, description: text, entityId: guid }), 20000)), trailCoverageNote: text,
   locks: arr(obj({ id: guid, documentKey: text, lockedBy: text, lockedAt: instant }), 500),
@@ -141,7 +141,7 @@ const REPORTS: [string, string][] = [['AUDIT_FINDINGS_REPORT', 'Audit Findings R
       <section class="panel" aria-labelledby="records-heading">
         <h2 id="records-heading">File freeze and activity trail</h2>
         @if (w.freeze; as fz) {
-          <p><audit-status [value]="fz.state" /> Report signed {{ fz.reportSignedAt.slice(0, 10) }}; freeze due {{ fz.dueAt.slice(0, 10) }}{{ fz.state === 'SCHEDULED' ? ' (' + fz.daysRemaining + ' day(s) remaining)' : '' }}.</p>
+          <p><audit-status [value]="fz.state" /> Report signed {{ fz.reportSignedAt.slice(0, 10) }}; freeze due {{ fz.dueAt.slice(0, 10) }}{{ fz.state === 'SCHEDULED' ? ' (' + fz.daysRemaining + ' day(s) remaining)' : '' }}.@if (fz.frozenAt) { Frozen at {{ fz.frozenAt.slice(0, 16).replace('T', ' ') }} UTC. }</p>
           <p><small>SharePoint read-only: <strong>{{ fz.externalReadOnly }}</strong>. {{ fz.externalReadOnly === 'BLOCKED_EXTERNAL' ? 'AuditSphere refuses changes to the frozen file; the SharePoint folder is not confirmed read-only until an authorized tenant change is observed.' : '' }}</small></p>
           @if (fz.state === 'FROZEN') {
             <label>Reason for amendment <input name="amend" [(ngModel)]="f.amendment" maxlength="2000" /></label>
@@ -195,30 +195,28 @@ const REPORTS: [string, string][] = [['AUDIT_FINDINGS_REPORT', 'Audit Findings R
           <dt>Partner approval</dt><dd>{{ w.partnerApproved ? 'Approved' : 'Pending' }}</dd><dt>EQR status</dt><dd>{{ w.eqrStatus }}</dd></dl>
       </section>
       @if (w.freeze; as fz) {
-        @if (fz.state === 'SCHEDULED') {
+        @if (fz.state === 'SCHEDULED' && readiness.error() !== partnerOnlyMessage) {
           <section class="panel" aria-labelledby="early-lock-heading">
             <h2 id="early-lock-heading">Early compliance lock (STE 4.4.3)</h2>
             <p>The file locks automatically on {{ fz.dueAt.slice(0, 10) }}, with {{ fz.daysRemaining }} day(s) remaining. A Partner may lock it earlier once the final release and archive readiness are reviewed.</p>
             <p>Provider protection status: <strong>{{ fz.externalReadOnly }}</strong>. The AuditSphere lock does not by itself make the provider copy read-only.</p>
-            @if (!lockReview()) { <button matButton="outlined" (click)="lockReview.set(true)">Review archive readiness</button> }
-            @if (lockReview()) {
-              @if (readiness.data(); as r) {
-                <p>Archive readiness at countdown revision {{ r.revision }}: <audit-status [value]="r.state" /></p>
-                @if (r.blockers.length > 0) {
-                  <ul>@for (b of r.blockers; track b) { <li>{{ b }}</li> }</ul>
-                  <p>Resolve these blockers before the file can be locked early.</p>
-                } @else if (r.archiveReadinessDigest) {
-                  <p><small>Reviewed readiness digest: <code>{{ r.archiveReadinessDigest }}</code></small></p>
-                  <p><strong>Warning:</strong> an early lock takes effect immediately. The file becomes read-only in AuditSphere, and it can only be reopened through the controlled amendment workflow.</p>
-                  <label><input type="checkbox" name="lockConfirm" [(ngModel)]="early.confirmed" /> I confirm the file is complete and I am locking it now as the Engagement Partner.</label>
-                  <label>Reason for the early lock <textarea name="lockReason" [(ngModel)]="early.rationale" maxlength="2000" rows="2"></textarea></label>
-                  <button matButton="filled" (click)="lockEarly(r)" [disabled]="cmd.busy() || !early.confirmed || !early.rationale.trim()">Lock audit file early</button>
-                }
-              } @else if (readiness.error()) {
-                <p>{{ readiness.error() }}</p>
-              } @else {
-                <p>Loading archive readiness…</p>
+            @if (readiness.data(); as r) {
+              <p>Archive readiness at countdown revision {{ r.revision }}: <audit-status [value]="r.state" /></p>
+              @if (r.blockers.length > 0) {
+                <ul>@for (b of r.blockers; track b) { <li>{{ b }}</li> }</ul>
+                <p>Resolve these blockers before the file can be locked early.</p>
+              } @else if (r.archiveReadinessDigest) {
+                <p><small>Reviewed readiness digest: <code>{{ r.archiveReadinessDigest }}</code></small></p>
+                <p><strong>Warning:</strong> an early lock takes effect immediately. The file becomes read-only in AuditSphere, and it can only be reopened through the controlled amendment workflow.</p>
+                <label><input type="checkbox" name="lockConfirm" [(ngModel)]="early.confirmed" /> I confirm the file is complete and I am locking it now as the Engagement Partner.</label>
+                <label>Reason for the early lock <textarea name="lockReason" [(ngModel)]="early.rationale" maxlength="2000" rows="2"></textarea></label>
+                <button matButton="filled" (click)="lockEarly(r)" [disabled]="cmd.busy() || !early.confirmed || !early.rationale.trim()">Lock audit file early</button>
               }
+              <button matButton="outlined" (click)="readiness.reload()" [disabled]="cmd.busy()">Refresh archive readiness</button>
+            } @else if (readiness.error()) {
+              <p role="alert">{{ readiness.error() }}</p>
+            } @else {
+              <p>Loading archive readiness…</p>
             }
           </section>
         }
@@ -245,9 +243,10 @@ export class EngagementCompletion {
   readonly cmd = new CommandState(this.api);
   readonly kind = signal('');
   readonly kinds = ['UPLOAD', 'EDIT', 'COMMENT', 'SIGN_OFF', 'FREEZE', 'DENIED'];
-  readonly lockReview = signal(false);
-  readonly readiness = this.api.resource(() => (this.id() && this.lockReview() ? `/api/ui/engagements/${this.id()}/early-lock/readiness` : null),
-    archiveReadiness, 'Only the Engagement Partner in scope can review archive readiness for an early lock.');
+  /** Shown for a 403/404 readiness response: the early-lock control is then hidden for this user. */
+  readonly partnerOnlyMessage = 'Only the Engagement Partner in scope can review archive readiness for an early lock.';
+  readonly readiness = this.api.resource(() => (this.id() && this.ws.data()?.freeze?.state === 'SCHEDULED'
+    ? `/api/ui/engagements/${this.id()}/early-lock/readiness` : null), archiveReadiness, this.partnerOnlyMessage);
   early = { confirmed: false, rationale: '' };
   readonly reports = REPORTS;
   f = { recommendations: '', risks: '', notes: '', opinion: 'UNMODIFIED', focus: '', basis: '', resolution: '', scanReason: '', scanReviewed: false,
@@ -264,12 +263,19 @@ export class EngagementCompletion {
     this.send(`/api/ui/engagements/${this.id()}/holding-letter/dispatch`, {},
       'The holding letter is queued for the client-management recipient. It is not delivered until the mail provider confirms delivery.');
   }
-  lockEarly(r: { revision: number; archiveReadinessDigest: string | null }): void {
+  /** One attempt only: an unknown outcome is never retried. A stale refusal reloads the readiness and keeps the reason. */
+  async lockEarly(r: { revision: number; archiveReadinessDigest: string | null }): Promise<void> {
     if (!r.archiveReadinessDigest) return;
-    void this.cmd.run(`/api/ui/engagements/${this.id()}/early-lock`, { expectedRevision: String(r.revision), partnerConfirmed: this.early.confirmed,
-      rationale: this.early.rationale.trim(), archiveReadinessDigest: r.archiveReadinessDigest },
-      'The audit file is locked early and is read-only in AuditSphere. Provider protection is recorded separately.')
-      .finally(() => { this.early = { confirmed: false, rationale: '' }; this.lockReview.set(false); this.ws.reload(); });
+    const locked = await this.cmd.run(`/api/ui/engagements/${this.id()}/early-lock`, { expectedRevision: String(r.revision),
+      partnerConfirmed: this.early.confirmed, rationale: this.early.rationale.trim(), archiveReadinessDigest: r.archiveReadinessDigest },
+      'The audit file is locked early and is read-only in AuditSphere. Provider protection is recorded separately.');
+    if (locked) {
+      this.early = { confirmed: false, rationale: '' };
+      this.ws.reload();
+    } else if (this.cmd.code() === 'generation.stale') {
+      this.early = { confirmed: false, rationale: this.early.rationale };
+      this.readiness.reload();
+    }
   }
   report(kind: string): void {
     void this.cmd.run<{ message: string }>(this.base() + '/reports', { kind }, '', (v) => this.cmd.message.set(v.message)).finally(() => this.ws.reload());

@@ -55,7 +55,7 @@ public static class MaterialityEngineService
   ];
 
   /// <summary>Practical rounding is an Audit Manager decision; Partner approval of the rounded values stays separate.</summary>
-  private static readonly string[] RoundingRoles = ["Manager", "SeniorManager"];
+  internal static readonly string[] RoundingRoles = ["Manager", "SeniorManager"];
 
   public static async Task<CommandResult<MaterialitySourceView>> GetSourceAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)

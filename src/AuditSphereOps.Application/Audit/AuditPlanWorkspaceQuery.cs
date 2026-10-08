@@ -117,9 +117,13 @@ public static class AuditPlanWorkspaceQuery
       }
     }
 
-    // Practical rounding is an Audit Manager decision on the current, unapproved draft (STE 3.2); the endpoint re-checks scope.
-    var canRound = materiality is not null && latest is not null && latest.AssessmentId == materiality.Id &&
-      latest.State == MaterialityCalculationStates.Draft && approval is null && actor.Roles.Any(x => x is "Manager" or "SeniorManager");
+    // STE 3.2 practical rounding: the same engagement-scoped authorization as ApplyPracticalRoundingAsync, and only for the
+    // current, source-bound, unapproved draft. Angular renders this flag; the command re-checks every gate.
+    var roundingAuthorized = materiality is not null && (await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagementId, MaterialityEngineService.RoundingRoles,
+        InternalOnly: true), ct)).Succeeded;
+    var canRound = roundingAuthorized && latest is not null && latest.AssessmentId == materiality!.Id &&
+      latest.State == MaterialityCalculationStates.Draft && approval is null && materialitySourceCurrent;
 
     return CommandResult<AuditPlanWorkspace>.Ok(new(engagementId, engagement.ProfessionalWorkBlocked,
       materiality is null ? null : new PlanMateriality(materiality.Id, materiality.ActorId, materiality.BenchmarkSource, materiality.BenchmarkVersion, materiality.Rationale,

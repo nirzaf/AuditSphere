@@ -19,7 +19,7 @@ public sealed record CompletionComment(Guid Id, string Body);
 public sealed record CompletionShared(string Title, IReadOnlyList<CompletionComment> OpenComments);
 public sealed record CompletionAmendment(Guid Id, string Reason, DateTimeOffset? OpenedAt, DateTimeOffset? ClosedAt);
 public sealed record CompletionFreeze(string State, DateTimeOffset ReportSignedAt, DateTimeOffset DueAt, string ExternalReadOnly, int DaysRemaining,
-  IReadOnlyList<CompletionAmendment> Amendments);
+  IReadOnlyList<CompletionAmendment> Amendments, DateTimeOffset? FrozenAt = null);
 public sealed record EngagementCompletionWorkspace(Guid EngagementId, IReadOnlyList<CompletionGate> Gates, IReadOnlyList<CompletionRepresentation> Representations,
   Guid? PackageId, string PackageStatus, bool PartnerApproved, string EqrStatus, Guid? ReleaseCandidateId, bool CanPrepareRelease,
   IReadOnlyList<ConfirmationDashboardRow> Confirmations, IReadOnlyList<DeliverableView> Deliverables, CompletionClearance? Clearance, CompletionOpinion? Opinion,
@@ -101,7 +101,7 @@ public static class EngagementCompletionWorkspaceQuery
       await AuditDeliverableService.AffectedFinancialStatementAreasAsync(db, actor, engagementId, ct), shared,
       await AuditDeliverableService.SignedRepresentationsAsync(db, actor, engagementId, ct), bundles.Succeeded ? bundles.Value : null, opinionTypes,
       freeze is null ? null : new CompletionFreeze(freeze.State, freeze.ReportSignedAt, freeze.DueAt, freeze.ExternalReadOnly, freeze.DaysRemaining,
-        freeze.Amendments.Select(a => new CompletionAmendment(a.Id, a.Reason, a.OpenedAt, a.ClosedAt)).ToList()),
+        freeze.Amendments.Select(a => new CompletionAmendment(a.Id, a.Reason, a.OpenedAt, a.ClosedAt)).ToList(), freeze.FrozenAt),
       FileFreezeService.FreezeDays, trail.Succeeded ? trail.Value : null, EngagementActivityQuery.ExternalCoverageNote,
       await EngagementActivityQuery.LocksAsync(db, actor, engagementId, ct), await HoldingLetterDispatch.StatusAsync(db, actor.FirmId, engagementId, ct)));
   }

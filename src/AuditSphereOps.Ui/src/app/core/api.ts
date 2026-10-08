@@ -158,6 +158,8 @@ export class CommandState {
   readonly message = signal('');
   readonly failed = signal(false);
   readonly uncertain = signal(false);
+  /** Server error code of the last refused command ('' after success); lets a page react to a stale refusal. */
+  readonly code = signal('');
   constructor(private readonly api: Api) {}
   async run<T>(url: string, body: unknown, success: string, after?: (value: T) => void, method: 'POST' | 'PUT' | 'DELETE' = 'POST'): Promise<boolean> {
     if (this.busy() || this.uncertain()) return false;
@@ -166,6 +168,7 @@ export class CommandState {
     try {
       const r = await this.api.command<T>(url, body, method);
       this.failed.set(!r.ok);
+      this.code.set(r.ok ? '' : r.code);
       if (!r.ok && r.unknown) this.uncertain.set(true);
       this.message.set(r.ok ? success : r.message);
       if (r.ok) after?.(r.value);

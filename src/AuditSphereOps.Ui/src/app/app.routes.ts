@@ -128,6 +128,8 @@ export const routes: Routes = [
     loadComponent: () => import('./features/audit/plan').then(m => m.AuditPlan) },
   { path: 'app/practice/time', canActivate: [staffGuard], title: 'Time & work records · AuditSphere',
     loadComponent: () => import('./features/practice/time').then(m => m.PracticeTime) },
+  { path: 'app/practice/rate-cards', canActivate: [staffGuard], title: 'Charge-out rates · AuditSphere',
+    loadComponent: () => import('./features/practice/rate-cards').then(m => m.PracticeRateCards) },
   { path: 'app/engagements/:id/general-ledger/upload', canActivate: [staffGuard], canDeactivate: [unsavedChangesGuard], title: 'General ledger upload · AuditSphere',
     loadComponent: () => import('./features/engagements/gl-upload').then(m => m.GeneralLedgerUpload) },
   { path: 'app/engagements/:id/general-ledger', canActivate: [staffGuard], title: 'General ledger · AuditSphere',

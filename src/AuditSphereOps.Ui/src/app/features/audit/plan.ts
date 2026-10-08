@@ -1,4 +1,4 @@
-import { Component, computed, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, computed, effect, inject, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -288,6 +288,7 @@ interface RowInput { likelihood: number; magnitude: number; fraud: boolean; rati
 })
 export class AuditPlan {
   private readonly api = inject(Api);
+  private readonly changeDetector = inject(ChangeDetectorRef);
   readonly session = inject(SessionService);
   readonly id = routeGuid();
   readonly plan = this.api.resource(() => (this.id() ? `/api/ui/engagements/${this.id()}/audit-plan` : null), decodePlan,
@@ -296,6 +297,17 @@ export class AuditPlan {
   private readonly inputs = new Map<string, RowInput>();
   calc = { option: '', rate: '1', performance: '75', trivial: '5', rationale: '' };
   round = { pm: '', te: '', sad: '', rationale: '' };
+  private roundPrefilledFor = '';
+  /** Prefills the rounding inputs with the computed thresholds of each new draft; edits survive a refresh of the same draft. */
+  private readonly prefillRounding = effect(() => {
+    const c = this.plan.data()?.latestCalculation;
+    untracked(() => {
+      if (!c || c.state !== 'DRAFT' || this.roundPrefilledFor === c.assessmentId) return;
+      this.roundPrefilledFor = c.assessmentId;
+      this.round = { pm: c.planningMateriality, te: c.tolerableError, sad: c.sadThreshold, rationale: '' };
+      this.changeDetector.markForCheck();
+    });
+  });
   risk = { area: '', assertion: '', description: '', drivers: '', significance: 'NORMAL', response: '' };
   pop = { purpose: '', assertion: '', receipt: '', extraction: '', rows: 0, total: '', currency: '' };
   finding = { type: '', impact: '', amount: '' };
@@ -346,7 +358,7 @@ export class AuditPlan {
     if (!this.round.rationale.trim()) return this.invalid('Enter the rationale for the practical rounding.');
     this.send(`/api/ui/materiality/${c.assessmentId}/rounding`, { planningMateriality: pm, tolerableError: te, sadThreshold: sad,
       rationale: this.round.rationale.trim() }, 'Practical rounding applied; the rounded values now need independent Partner approval.',
-      () => (this.round = { pm: '', te: '', sad: '', rationale: '' }));
+      () => (this.round = { ...this.round, rationale: '' }));
   }
   recordRisk(): void {
     const r = this.risk;

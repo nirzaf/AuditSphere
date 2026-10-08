@@ -8,6 +8,7 @@ import { Subscription, timeout } from 'rxjs';
 import { SessionService } from '../../core/session';
 import { CommercialFormDraft, textFields } from './commercial-form-draft';
 import { exactDecimal, guidPattern } from '../../core/contracts';
+import { StatusChip } from '../../core/ui';
 interface Milestone {
   id: string;
   kind: string;
@@ -42,12 +43,24 @@ interface Workspace {
   engagements: Engagement[];
   advancePreparation: AdvancePreparation;
 }
-/** Explicit state of the 50% advance invoice (STE 4.1.5). Pending is shown as pending, never as complete. */
+/** The nine states of the 50% advance invoice; mirrors AdvanceInvoicePreparationStates on the server (STE 4.1.5). */
+export const advancePreparationStates = [
+  'NOT_APPLICABLE', 'AWAITING_ENGAGEMENT_LETTER', 'PENDING_AUTOMATION_DISABLED', 'AWAITING_AUTOMATION', 'QUEUED',
+  'BLOCKED', 'DRAFT_CREATED', 'CANCELLED', 'OFFICIAL_INVOICE',
+] as const;
+export type AdvancePreparationState = (typeof advancePreparationStates)[number];
+/** Explicit state of the 50% advance invoice. Pending is shown as pending, never as complete. */
 export interface AdvancePreparation {
-  state: string;
+  state: AdvancePreparationState;
   message: string;
 }
 const guid = (v: unknown): v is string => typeof v === 'string' && guidPattern.test(v);
+const advancePreparationValid = (value: unknown): boolean => {
+  if (!value || typeof value !== 'object') return false;
+  const p = value as Record<string, unknown>;
+  return (advancePreparationStates as readonly unknown[]).includes(p['state']) &&
+    typeof p['message'] === 'string' && p['message'].length > 0 && p['message'].length <= 500;
+};
 export function decodeFeeAgreement(value: unknown): Workspace {
   if (!value || typeof value !== 'object') throw new Error('Invalid fee agreement');
   const v = value as Record<string, unknown>;
@@ -65,9 +78,7 @@ export function decodeFeeAgreement(value: unknown): Workspace {
     !Array.isArray(v['engagements']) ||
     v['engagements'].length > 100 ||
     (v['agreementId'] === null ? v['milestones'].length !== 0 : v['milestones'].length !== 2) ||
-    !v['advancePreparation'] ||
-    typeof (v['advancePreparation'] as Record<string, unknown>)['state'] !== 'string' ||
-    typeof (v['advancePreparation'] as Record<string, unknown>)['message'] !== 'string'
+    !advancePreparationValid(v['advancePreparation'])
   )
     throw new Error('Invalid fee agreement');
   for (const m of v['milestones'])
@@ -96,7 +107,7 @@ export function decodeFeeAgreement(value: unknown): Workspace {
 }
 @Component({
   selector: 'audit-fee-agreement',
-  imports: [FormsModule, RouterLink, MatButtonModule, MatProgressBarModule],
+  imports: [FormsModule, RouterLink, MatButtonModule, MatProgressBarModule, StatusChip],
   template: `
     <section aria-labelledby="fee-agreement-heading">
       <h2 id="fee-agreement-heading">Agreed fee and billing milestones</h2>
@@ -148,10 +159,6 @@ export function decodeFeeAgreement(value: unknown): Workspace {
             Create fee agreement
           </button>
         } @else {
-          <p role="status" data-testid="advance-preparation">
-            <strong>Advance invoice:</strong> {{ w.advancePreparation.message }}
-            <small>(state {{ w.advancePreparation.state }})</small>
-          </p>
           <div class="table-scroll">
             <table>
               <caption>
@@ -170,7 +177,15 @@ export function decodeFeeAgreement(value: unknown): Workspace {
               <tbody>
                 @for (m of w.milestones; track m.id) {
                   <tr>
-                    <td>{{ m.kind }}</td>
+                    <td>
+                      {{ m.kind }}
+                      @if (m.kind === 'ADVANCE') {
+                        <div>
+                          <audit-status [value]="w.advancePreparation.state" />
+                        </div>
+                        <small role="status" data-testid="advance-preparation">{{ w.advancePreparation.message }}</small>
+                      }
+                    </td>
                     <td>{{ m.amount }} {{ w.currency }}</td>
                     <td>{{ m.state }}</td>
                     <td>
