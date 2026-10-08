@@ -21,18 +21,18 @@
 | NOT_AUDITED | 2 |
 | **Total** | **98** |
 
-Card status in the front matter: 1 COMPLETED, 1 IN_REVIEW, 73 NOT_STARTED of 75 cards. Nothing is COMPLETED from the audit: no item met every completion test in the card.
+Card status in the front matter: 2 COMPLETED, 0 IN_REVIEW, 73 NOT_STARTED of 75 cards. Nothing is COMPLETED from the audit: no item met every completion test in the card.
 
 ## 2. Board
 
 | ID | Family | Title | Record | Code verdict | Blocked by | Gaps | Next action |
 | --- | --- | --- | --- | --- | --- | ---: | --- |
 | T001 | R2R-00 | Approve scope and inventory the current implementation | COMPLETED | NOT_AUDITED | — | — | None; completed |
-| T002 | R2R-00 | Approve architecture, contracts and transaction ownership | IN_REVIEW | CONFLICTS_WITH_AGENTS | owner decision | 9 | Owner decision: accept or reject the variation, then rewrite the contract |
-| T003 | R2R-00 | Approve accounting policies, resource bounds and golden fixtures | NOT_STARTED | OWNER_DECISION | T002 (IN_REVIEW), owner decision | 6 | Owner decision |
-| T004 | R2R-01 | Introduce MediatR facades without changing transaction behavior | NOT_STARTED | CONFLICTS_WITH_AGENTS | T003 (NOT_STARTED), owner decision | 5 | Owner decision: accept or reject the variation, then rewrite the contract |
+| T002 | R2R-00 | Approve architecture, contracts and transaction ownership | COMPLETED | superseded: CONFLICTS_WITH_AGENTS | — | — | None; completed |
+| T003 | R2R-00 | Approve accounting policies, resource bounds and golden fixtures | NOT_STARTED | OWNER_DECISION | owner decision | 6 | Owner decision |
+| T004 | R2R-01 | Make command and query boundaries explicit as static services without changing transaction behavior | NOT_STARTED | CONFLICTS_WITH_AGENTS | T003 (NOT_STARTED), owner decision | 5 | Owner decision: accept or reject the variation, then rewrite the contract |
 | T005 | R2R-01 | Implement asynchronous validation and explicit DTO mapping | NOT_STARTED | NOT_STARTED | T004 (NOT_STARTED) | 5 | Build the owned requests |
-| T006 | R2R-01 | Establish bUnit and the layered verification harness | NOT_STARTED | OWNER_DECISION | T005 (NOT_STARTED), owner decision | 5 | Owner decision |
+| T006 | R2R-01 | Establish the layered verification harness (xUnit, PostgreSQL, Angular specs, Playwright) | NOT_STARTED | OWNER_DECISION | T005 (NOT_STARTED), owner decision | 5 | Owner decision |
 | T007 | R2R-02 | Enforce reporting scope, current actor and shared identities | NOT_STARTED | PARTIAL | T006 (NOT_STARTED) | 8 | Build the open gaps |
 | T008 | R2R-02 | Implement exact dependency manifests and atomic stale propagation | NOT_STARTED | PARTIAL | T007 (NOT_STARTED) | 8 | Build the open gaps |
 | T009 | R2R-02 | Implement idempotency, concurrency and persistence discipline | NOT_STARTED | PARTIAL | T008 (NOT_STARTED) | 8 | Build the open gaps |
@@ -128,9 +128,8 @@ Card status in the front matter: 1 COMPLETED, 1 IN_REVIEW, 73 NOT_STARTED of 75 
 
 ## 3. Decisions for the owner
 
-T002 is the head of the R2R chain. The helper keeps every downstream card NOT_STARTED until T002 is COMPLETED, so the owner decision on its MediatR and bUnit variation unblocks the whole chain.
+T002 was COMPLETED on 2026-10-09 under the owner-delegated static-service variation (MediatR and bUnit declined). The helper now lets T003 start; the audit verdicts on T002 and on the cards that were rewritten are superseded by that decision and are shown as such in section 2.
 
-- **T002** (CONFLICTS_WITH_AGENTS): Card step 3 'Approve compatible pinned MediatR and bUnit dependencies and the MediatR licensing decision' conflicts with AGENTS.md:71: 'Add MediatR, Wolverine, MassTransit, AutoMapper, generic repositories/UnitOfWork, event sourcing or a Features/ rewrite.'
 - **T003** (OWNER_DECISION): Direct consumer T004 'Introduce MediatR facades' conflicts with AGENTS.md:71. Not a T003 requirement, but a downstream dependency to flag.
 - **T004** (CONFLICTS_WITH_AGENTS): AGENTS.md:71 (section 5 Never): "Add MediatR, Wolverine, MassTransit, AutoMapper, generic repositories/UnitOfWork, event sourcing or a Features/ rewrite."
 - **T006** (OWNER_DECISION): bUnit is not named in AGENTS.md section 5. Baseline section 2.3 (line ~209): bUnit "must likewise be selected and pinned" and needs approval before package changes.
@@ -173,7 +172,7 @@ T002 is the head of the R2R chain. The helper keeps every downstream card NOT_ST
 - Decision on section 10.1 bounds: approve or lower each. Implement or record deferral for missing bounds (layout 1,000 definitions and depth 32, note cells, text lengths, 200-row page). Create a versioned resource-policy record that reports limits.
 - T002 must reach COMPLETED with an independent handoff before T003 starts.
 
-### T004 — Introduce MediatR facades without changing transaction behavior (CONFLICTS_WITH_AGENTS)
+### T004 — Make command and query boundaries explicit as static services without changing transaction behavior (CONFLICTS_WITH_AGENTS)
 
 - A new ADR and owner approval before any MediatR package is added (AGENTS.md section 5; ADR-0001 is PROPOSED)
 - If approved: pin MediatR in Directory.Packages.props; register dispatch; add one pilot facade over RollForwardPeriodAsync keeping one transaction
@@ -189,7 +188,7 @@ T002 is the head of the R2R chain. The helper keeps every downstream card NOT_ST
 - Nested-row field-error test
 - Hard dependency T004 is not COMPLETED and is itself CONFLICTS_WITH_AGENTS; T003 is NOT_STARTED
 
-### T006 — Establish bUnit and the layered verification harness (OWNER_DECISION)
+### T006 — Establish the layered verification harness (xUnit, PostgreSQL, Angular specs, Playwright) (OWNER_DECISION)
 
 - Owner decision to adopt bUnit under R2R-ADR-02, with pinned version and licence check, then a central pin in Directory.Packages.props
 - bUnit test project, component fixtures and evidence conventions

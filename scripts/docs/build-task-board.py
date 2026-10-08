@@ -164,7 +164,7 @@ def main():
     ]
     for row in rows:
         blocked = list(row['deps'])
-        if row['verdict'] in ('CONFLICTS_WITH_AGENTS', 'OWNER_DECISION'):
+        if row['verdict'] in ('CONFLICTS_WITH_AGENTS', 'OWNER_DECISION') and row['state'] != 'COMPLETED':
             blocked.append('owner decision')
         if row['verdict'] == 'EXTERNAL_BLOCKED':
             blocked.append('live evidence')
@@ -172,17 +172,18 @@ def main():
             action = 'None; completed'
         else:
             action = NEXT_ACTION[row['verdict']]
+        verdict = row['verdict'] if row['state'] != 'COMPLETED' or row['verdict'] in ('COMPLETE', 'NOT_AUDITED') else 'superseded: ' + row['verdict']
         lines.append('| {id} | {family} | {title} | {record} | {verdict} | {blocked} | {gaps} | {action} |'.format(
             id=row['id'], family=row['family'], title=clean(row['title']), record=clean(row['record']),
-            verdict=row['verdict'], blocked=clean(', '.join(blocked)) or '—',
-            gaps=len(row['missing']) if row['verdict'] != 'NOT_AUDITED' else '—', action=action))
+            verdict=verdict, blocked=clean(', '.join(blocked)) or '—',
+            gaps=len(row['missing']) if row['verdict'] != 'NOT_AUDITED' and row['state'] != 'COMPLETED' else '—', action=action))
 
-    decisions = [r for r in rows if r['verdict'] in ('CONFLICTS_WITH_AGENTS', 'OWNER_DECISION')]
+    decisions = [r for r in rows if r['verdict'] in ('CONFLICTS_WITH_AGENTS', 'OWNER_DECISION') and r['state'] != 'COMPLETED']
     lines += [
         '',
         '## 3. Decisions for the owner',
         '',
-        'T002 is the head of the R2R chain. The helper keeps every downstream card NOT_STARTED until T002 is COMPLETED, so the owner decision on its MediatR and bUnit variation unblocks the whole chain.',
+        'T002 was COMPLETED on 2026-10-09 under the owner-delegated static-service variation (MediatR and bUnit declined). The helper now lets T003 start; the audit verdicts on T002 and on the cards that were rewritten are superseded by that decision and are shown as such in section 2.',
         '',
     ]
     for row in decisions:
