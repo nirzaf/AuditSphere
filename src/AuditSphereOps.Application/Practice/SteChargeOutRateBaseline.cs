@@ -60,4 +60,28 @@ public static class SteChargeOutRateBaseline
     }
     return CommandResult<IReadOnlyList<Guid>>.Ok(created);
   }
+
+  /// <summary>
+  /// Baseline state per STE role: APPROVED when an approved card carries the STE rate, DRAFT when one awaits approval,
+  /// and MISSING when neither exists. Approved cards are preferred over drafts.
+  /// </summary>
+  public static async Task<IReadOnlyList<SteBaselineLine>> StatusAsync(IAuditSphereDbContext db, Guid firmId, CancellationToken ct = default)
+  {
+    var lines = new List<SteBaselineLine>();
+    foreach (var (role, rate) in Rates)
+    {
+      var card = await db.RateCardVersions.AsNoTracking()
+        .Where(x => x.FirmId == firmId && x.Role == role && x.Activity == Activity && x.Currency == Currency && x.RatePerHour == rate &&
+          (x.Status == PracticeTimeStates.RateApproved || x.Status == PracticeTimeStates.RateDraft))
+        .OrderBy(x => x.Status == PracticeTimeStates.RateApproved ? 0 : 1).ThenByDescending(x => x.Version)
+        .FirstOrDefaultAsync(ct);
+      lines.Add(card is null
+        ? new SteBaselineLine(role, rate, "MISSING", null, null)
+        : new SteBaselineLine(role, rate, card.Status == PracticeTimeStates.RateApproved ? "APPROVED" : "DRAFT", card.Id, card.ApprovedByUserId));
+    }
+    return lines;
+  }
 }
+
+/// <summary>One STE baseline role: its rate, state (APPROVED, DRAFT or MISSING), and the card that carries it when one exists.</summary>
+public sealed record SteBaselineLine(string Role, decimal RatePerHour, string State, Guid? CardId, Guid? ApprovedByUserId);

@@ -3,13 +3,17 @@ import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { Api, CommandState } from '../../core/api';
 import { Drafts } from '../../core/drafts';
-import { arr, bool, date, guid, nat, obj, text } from '../../core/decode';
+import { arr, bool, date, dec, decimalInput, guid, instant, nat, nullable, obj, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
 
 const entry = obj({ id: guid, workDate: date, taskId: guid, taskTitle: text, userId: guid, durationMinutes: nat, activity: text,
   billableClassification: text, narrative: text, status: text });
 export const decodeTime = obj({ firmWide: bool, isApprover: bool, periods: arr(obj({ id: guid, clientId: guid, label: text }), 5000),
   openTasks: arr(obj({ id: guid, title: text, status: text }), 5000), myEntries: arr(entry, 500), awaitingApproval: arr(entry, 500) });
+const rateCard = obj({ id: guid, role: text, activity: text, currency: text, ratePerHour: dec, version: nat, status: text, createdByUserId: guid,
+  approvedByUserId: nullable(guid), approvedAt: nullable(instant), createdAt: instant });
+const baselineLine = obj({ role: text, ratePerHour: dec, state: text, cardId: nullable(guid), approvedByUserId: nullable(guid) });
+export const decodeRates = obj({ cards: arr(rateCard, 5000), steBaseline: arr(baselineLine, 20) });
 
 @Component({
   selector: 'audit-practice-time',
@@ -59,6 +63,41 @@ export const decodeTime = obj({ firmWide: bool, isApprover: bool, periods: arr(o
               <td>@if (e.status === 'DRAFT') { <button matButton (click)="act(e.id, 'submit', 'Time entry was submitted for approval.')" [disabled]="cmd.busy()">Submit</button> }</td></tr>
           } @empty { <tr><td colspan="6">You have not recorded any time entries in the current firm scope.</td></tr> }</tbody>
         </table></div>
+      </section>
+      <section class="panel" aria-labelledby="rates-heading">
+        <h2 id="rates-heading">Standard charge-out rates (STE QAR schedule)</h2>
+        <p>These are the standard charge-out values of an hour of billable work. They are not the actual cost of staff, which is recorded separately and is never used as the charge-out value.</p>
+        @if (rates.data(); as rv) {
+          <div class="table-scroll"><table>
+            <caption>STE baseline by role</caption>
+            <thead><tr><th scope="col">Role</th><th scope="col" class="number">Standard charge-out (QAR per hour)</th><th scope="col">Baseline state</th></tr></thead>
+            <tbody>@for (b of rv.steBaseline; track b.role) { <tr><td>{{ b.role }}</td><td class="number">{{ b.ratePerHour | money }}</td><td><audit-status [value]="b.state" /></td></tr> }</tbody>
+          </table></div>
+          @if (rv.steBaseline.some((b) => b.state === 'MISSING')) {
+            <button matButton="filled" (click)="initializeBaseline()" [disabled]="cmd.busy()">Initialize STE baseline drafts</button>
+          }
+          <div class="table-scroll"><table>
+            <caption>Charge-out rate versions</caption>
+            <thead><tr><th scope="col">Role</th><th scope="col">Activity</th><th scope="col">Currency</th><th scope="col" class="number">Per hour</th><th scope="col">Version</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
+            <tbody>@for (c of rv.cards; track c.id) {
+              <tr><td>{{ c.role }}</td><td>{{ c.activity }}</td><td>{{ c.currency }}</td><td class="number">{{ c.ratePerHour | money }}</td><td>{{ c.version }}</td>
+                <td><audit-status [value]="c.status" /></td>
+                <td>@if (c.status === 'DRAFT') { <button matButton (click)="approveRate(c.id)" [disabled]="cmd.busy()">Approve</button> }</td></tr>
+            } @empty { <tr><td colspan="7">No charge-out rates are recorded for this firm.</td></tr> }</tbody>
+          </table></div>
+          <form class="inline-form" (submit)="$event.preventDefault(); reviseRate()">
+            <label>Role <input name="rateRole" [(ngModel)]="rate.role" required maxlength="100" /></label>
+            <label>Activity <input name="rateActivity" [(ngModel)]="rate.activity" required maxlength="100" /></label>
+            <label>Currency <input name="rateCurrency" [(ngModel)]="rate.currency" required maxlength="3" /></label>
+            <label>Charge-out per hour <input name="rateValue" inputmode="decimal" [(ngModel)]="rate.ratePerHour" required /></label>
+            <label>Current version (optional) <input name="rateVersion" inputmode="numeric" [(ngModel)]="rate.expectedVersion" /></label>
+            <button matButton="outlined" type="submit" [disabled]="cmd.busy()">Record rate for approval</button>
+          </form>
+        } @else if (rates.error()) {
+          <p>{{ rates.error() }}</p>
+        } @else {
+          <p>Loading standard charge-out rates…</p>
+        }
       </section>
       @if (v.isApprover) {
         <section class="panel" aria-labelledby="queue-heading">
@@ -130,6 +169,28 @@ export class PracticeTime {
     this.cmd.run('/api/ui/practice/time/entries', { taskId, workDate: this.draft.date, durationMinutes: minutes, role: this.draft.role,
       activity: this.draft.activity, billable: this.draft.billable, narrative: this.draft.narrative },
       `Time draft recorded (${minutes}m).`, () => { this.draft.narrative = ''; this.drafts.clear('practice-time-draft'); }).finally(this.reload);
+  }
+  readonly rates = this.api.resource(() => '/api/ui/practice/rate-cards', decodeRates,
+    'Charge-out rate governance is available to Managers, Partners and Administrators in firm scope.');
+  rate = { role: '', activity: 'General', currency: 'QAR', ratePerHour: '', expectedVersion: '' };
+  initializeBaseline(): void {
+    this.cmd.run('/api/ui/practice/rate-cards/ste-baseline', {},
+      'STE baseline drafts were created. Each draft needs approval by a separate authorized approver.').finally(() => this.rates.reload());
+  }
+  reviseRate(): void {
+    const value = decimalInput(this.rate.ratePerHour, 2);
+    const version = this.rate.expectedVersion.trim() ? Math.trunc(Number(this.rate.expectedVersion)) : null;
+    if (value === null || (version !== null && !Number.isSafeInteger(version))) {
+      this.cmd.failed.set(true);
+      this.cmd.message.set('Enter the charge-out rate as a number, and the current version as a whole number when given.');
+      return;
+    }
+    this.cmd.run('/api/ui/practice/rate-cards', { role: this.rate.role.trim(), activity: this.rate.activity.trim(), currency: this.rate.currency.trim().toUpperCase(),
+      ratePerHour: value, expectedVersion: version }, 'The rate was recorded as a draft and needs approval before it is used.',
+      () => (this.rate = { role: '', activity: 'General', currency: 'QAR', ratePerHour: '', expectedVersion: '' })).finally(() => this.rates.reload());
+  }
+  approveRate(id: string): void {
+    this.cmd.run(`/api/ui/practice/rate-cards/${id}/approve`, {}, 'The charge-out rate was approved.').finally(() => this.rates.reload());
   }
   act(id: string, action: 'submit' | 'approve', ok: string): void {
     this.cmd.run(`/api/ui/practice/time/entries/${id}/${action}`, {}, ok).finally(this.reload);

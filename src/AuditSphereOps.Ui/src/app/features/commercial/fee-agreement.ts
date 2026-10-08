@@ -40,6 +40,12 @@ interface Workspace {
   creationBlockers: string[];
   milestones: Milestone[];
   engagements: Engagement[];
+  advancePreparation: AdvancePreparation;
+}
+/** Explicit state of the 50% advance invoice (STE 4.1.5). Pending is shown as pending, never as complete. */
+export interface AdvancePreparation {
+  state: string;
+  message: string;
 }
 const guid = (v: unknown): v is string => typeof v === 'string' && guidPattern.test(v);
 export function decodeFeeAgreement(value: unknown): Workspace {
@@ -58,7 +64,10 @@ export function decodeFeeAgreement(value: unknown): Workspace {
     !Array.isArray(v['milestones']) ||
     !Array.isArray(v['engagements']) ||
     v['engagements'].length > 100 ||
-    (v['agreementId'] === null ? v['milestones'].length !== 0 : v['milestones'].length !== 2)
+    (v['agreementId'] === null ? v['milestones'].length !== 0 : v['milestones'].length !== 2) ||
+    !v['advancePreparation'] ||
+    typeof (v['advancePreparation'] as Record<string, unknown>)['state'] !== 'string' ||
+    typeof (v['advancePreparation'] as Record<string, unknown>)['message'] !== 'string'
   )
     throw new Error('Invalid fee agreement');
   for (const m of v['milestones'])
@@ -139,6 +148,10 @@ export function decodeFeeAgreement(value: unknown): Workspace {
             Create fee agreement
           </button>
         } @else {
+          <p role="status" data-testid="advance-preparation">
+            <strong>Advance invoice:</strong> {{ w.advancePreparation.message }}
+            <small>(state {{ w.advancePreparation.state }})</small>
+          </p>
           <div class="table-scroll">
             <table>
               <caption>

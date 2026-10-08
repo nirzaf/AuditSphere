@@ -8,6 +8,7 @@ public static partial class UiEndpoints
 {
   public sealed record WorkTaskInput(string Title, Guid? ReportingPeriodId, string? DueDate);
   public sealed record TimeDraftInput(Guid TaskId, string WorkDate, int DurationMinutes, string Role, string Activity, bool Billable, string? Narrative);
+  public sealed record RateCardInput(string Role, string Activity, string Currency, string RatePerHour, long? ExpectedVersion);
 
   private static void MapTimeEndpoints(RouteGroupBuilder group)
   {
@@ -37,5 +38,15 @@ public static partial class UiEndpoints
       CommandAsync(http, (db, actor, ct) => PracticeTimeService.SubmitTimeAsync(db, actor, id, ct)));
     group.MapPost("/practice/time/entries/{id:guid}/approve", (Guid id, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => PracticeTimeService.ApproveTimeAsync(db, actor, id, ct)));
+    group.MapUiGet("/practice/rate-cards", http => ReadAsync(http, (db, actor, ct) => PracticeTimeService.RateCardWorkspaceAsync(db, actor, ct)));
+    group.MapPost("/practice/rate-cards", (RateCardInput input, HttpContext http) =>
+      TryDecimal(input.RatePerHour, out var rate)
+        ? CommandAsync(http, (db, actor, ct) => PracticeTimeService.ReviseRateCardAsync(db, actor,
+            new RateCardDraftRequest(input.Role, input.Activity, input.Currency, rate, input.ExpectedVersion), ct))
+        : Task.FromResult(Invalid("Enter the hourly rate as a number.")));
+    group.MapPost("/practice/rate-cards/{id:guid}/approve", (Guid id, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => PracticeTimeService.ApproveRateCardAsync(db, actor, id, ct)));
+    group.MapUiPost("/practice/rate-cards/ste-baseline", http =>
+      CommandAsync(http, (db, actor, ct) => SteChargeOutRateBaseline.InitializeDraftsAsync(db, actor, ct)));
   }
 }

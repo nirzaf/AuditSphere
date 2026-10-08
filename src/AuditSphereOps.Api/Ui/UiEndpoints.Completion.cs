@@ -74,6 +74,8 @@ public static partial class UiEndpoints
     });
     group.MapPost("/engagements/{id:guid}/amendments", (Guid id, AmendmentInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => FileFreezeService.RequestAmendmentAsync(db, actor, id, i.Reason ?? "", ct)));
+    group.MapPost("/engagements/{id:guid}/holding-letter/dispatch", (Guid id, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => HoldingLetterDispatch.DispatchCurrentAsync(db, actor, id, ct)));
     group.MapGet("/engagements/{id:guid}/early-lock/readiness", (Guid id, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => FileFreezeService.GetArchiveReadinessAsync(db, actor, id, DateTimeOffset.UtcNow, ct)));
     group.MapPost("/engagements/{id:guid}/early-lock", (Guid id, EarlyLockInput i, HttpContext http) =>

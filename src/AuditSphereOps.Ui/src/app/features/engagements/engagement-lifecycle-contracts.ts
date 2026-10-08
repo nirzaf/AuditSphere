@@ -26,6 +26,7 @@ const summaryDecoder = obj({
   complianceCountdownDays: nullable(int),
   isArchived: bool,
   isLegacyUnverified: bool,
+  complianceWarning: nullable(str(2000)),
 });
 
 const reportDecoder = obj({

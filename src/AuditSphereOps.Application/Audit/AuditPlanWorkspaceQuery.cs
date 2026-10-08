@@ -18,7 +18,10 @@ public sealed record PlanFinding(Guid Id, string FindingType, string Status, dec
 public sealed record PlanWorkpaper(Guid Id, string Index, string Title, string Status, long Revision);
 public sealed record PlanCalculation(Guid AssessmentId, string State, string Route, string BenchmarkKind, string? DestinationCode, decimal BenchmarkAmount, string Currency,
   int SourceLineCount, long MappingVersionNumber, decimal RatePercent, decimal PerformancePercent, decimal TrivialPercent, decimal PlanningMateriality,
-  decimal TolerableError, decimal SadThreshold, string PolicyVersion);
+  decimal TolerableError, decimal SadThreshold, string PolicyVersion, PlanRounding? Rounding = null);
+/// <summary>The manager's practical rounding of the computed thresholds (STE 3.2), with server-computed deltas.</summary>
+public sealed record PlanRounding(DateTimeOffset DecidedAt, Guid DecidedByUserId, string Rationale, decimal AdjustedPlanningMateriality,
+  decimal AdjustedTolerableError, decimal AdjustedSadThreshold, decimal PlanningDeltaPercent, decimal TolerableDeltaPercent, decimal SadDeltaPercent);
 public sealed record PlanPolicyRange(string Kind, decimal MinRatePercent, decimal MaxRatePercent);
 public sealed record PlanFsliRiskRow(
   string DestinationCode, string StatementSection, string? AuditArea, decimal Balance, decimal AbsoluteBalance,
@@ -29,7 +32,7 @@ public sealed record AuditPlanWorkspace(Guid EngagementId, bool ProfessionalWork
   MaterialitySourceView? MaterialitySource, string? MaterialitySourceMessage, PlanCalculation? LatestCalculation, IReadOnlyList<PlanPolicyRange> RateRanges,
   decimal PerformanceMin, decimal PerformanceMax, decimal TrivialMin, decimal TrivialMax, string RiskRuleVersion, IReadOnlyList<RiskRoutingRow> Routing,
   IReadOnlyList<StaffAssignmentRow> Team, bool CanAssignOwners, bool IsPartner, IReadOnlyList<PlanFsliRiskRow> FsliStratification,
-  MilestonePlanView? MilestonePlan = null);
+  MilestonePlanView? MilestonePlan = null, bool CanApplyPracticalRounding = false);
 
 /// <summary>Engagement-scoped audit plan projection: planning records, the materiality engine state and risk routing.</summary>
 public static class AuditPlanWorkspaceQuery
@@ -114,6 +117,10 @@ public static class AuditPlanWorkspaceQuery
       }
     }
 
+    // Practical rounding is an Audit Manager decision on the current, unapproved draft (STE 3.2); the endpoint re-checks scope.
+    var canRound = materiality is not null && latest is not null && latest.AssessmentId == materiality.Id &&
+      latest.State == MaterialityCalculationStates.Draft && approval is null && actor.Roles.Any(x => x is "Manager" or "SeniorManager");
+
     return CommandResult<AuditPlanWorkspace>.Ok(new(engagementId, engagement.ProfessionalWorkBlocked,
       materiality is null ? null : new PlanMateriality(materiality.Id, materiality.ActorId, materiality.BenchmarkSource, materiality.BenchmarkVersion, materiality.Rationale,
         materiality.BenchmarkAmount, materiality.RateApplied, materiality.OverallMateriality, materiality.PerformanceMateriality, materiality.ClearlyTrivialThreshold,
@@ -123,11 +130,14 @@ public static class AuditPlanWorkspaceQuery
         materiality.ActorId != actor.UserId && actor.Roles.Contains("Partner"),
       risks, populations, findings, workpapers, source.Succeeded ? source.Value : null, source.Succeeded ? null : source.Message,
       latest is null ? null : new PlanCalculation(latest.AssessmentId, latest.State, latest.Route, c!.BenchmarkKind, c.DestinationCode, c.BenchmarkAmount, c.Currency,
-        c.SourceLineCount, c.MappingVersionNumber, c.RatePercent, c.PerformancePercent, c.TrivialPercent, c.PlanningMateriality, c.TolerableError, c.SadThreshold, c.PolicyVersion),
+        c.SourceLineCount, c.MappingVersionNumber, c.RatePercent, c.PerformancePercent, c.TrivialPercent, c.PlanningMateriality, c.TolerableError, c.SadThreshold, c.PolicyVersion,
+        latest.Rounding is { } rounding ? new PlanRounding(rounding.DecidedAt, rounding.DecidedByUserId, rounding.Rationale,
+          rounding.AdjustedPlanningMateriality, rounding.AdjustedTolerableError, rounding.AdjustedSadThreshold,
+          rounding.PlanningDeltaPercent, rounding.TolerableDeltaPercent, rounding.SadDeltaPercent) : null),
       MaterialityCalculator.RateRanges.Select(x => new PlanPolicyRange(x.Key, x.Value.MinRatePercent, x.Value.MaxRatePercent)).ToList(),
       MaterialityCalculator.PerformanceRange.Min, MaterialityCalculator.PerformanceRange.Max, MaterialityCalculator.TrivialRange.Min, MaterialityCalculator.TrivialRange.Max,
       RiskBandRules.RuleVersion, routing.Succeeded ? routing.Value! : [], team.Succeeded ? team.Value! : [],
       actor.Roles.Any(x => x is "Partner" or "Manager" or "Administrator"), actor.Roles.Contains("Partner"), fsliRows,
-      milestonePlan.Succeeded ? milestonePlan.Value : null));
+      milestonePlan.Succeeded ? milestonePlan.Value : null, canRound));
   }
 }

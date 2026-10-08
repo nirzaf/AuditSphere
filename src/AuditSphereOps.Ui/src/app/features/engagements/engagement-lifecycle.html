@@ -30,14 +30,17 @@
         <strong>Stage {{ report.summary.stageIndex }} of 11: {{ report.summary.stageLabel }}</strong>
         <span class="role-badge">Responsible: {{ report.summary.responsibleRole }}</span>
         @if (report.summary.isArchived) {
-          <span class="role-badge">Archived</span>
+          <span class="role-badge">Locally archived</span>
         }
       </div>
 
       @if (report.summary.complianceCountdownDays !== null && report.summary.complianceCountdownDays !== undefined) {
         <div class="countdown-alert" role="status">
-          Compliance countdown active: {{ report.summary.complianceCountdownDays }} day(s) remaining before immutable read-only archive freeze.
+          Compliance countdown active: {{ report.summary.complianceCountdownDays }} day(s) remaining before the local archive freeze.
         </div>
+      }
+      @if (report.summary.complianceWarning) {
+        <div class="countdown-alert" role="status">{{ report.summary.complianceWarning }}</div>
       }
 
       @if (report.summary.blockedReasons.length > 0) {

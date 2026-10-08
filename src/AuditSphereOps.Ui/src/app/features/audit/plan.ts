@@ -14,7 +14,9 @@ const source = obj({ mappingVersionId: guid, mappingVersion: nat, datasetId: gui
   options: arr(obj({ kind: text, destinationCode: nullable(text), label: text, amount: nullable(dec), lineCount: nat }), 500) });
 const calculation = obj({ assessmentId: guid, state: text, route: text, benchmarkKind: text, destinationCode: nullable(text), benchmarkAmount: dec, currency: text,
   sourceLineCount: nat, mappingVersionNumber: nat, ratePercent: dec, performancePercent: dec, trivialPercent: dec, planningMateriality: dec,
-  tolerableError: dec, sadThreshold: dec, policyVersion: text });
+  tolerableError: dec, sadThreshold: dec, policyVersion: text,
+  rounding: nullable(obj({ decidedAt: instant, decidedByUserId: guid, rationale: text, adjustedPlanningMateriality: dec, adjustedTolerableError: dec,
+    adjustedSadThreshold: dec, planningDeltaPercent: dec, tolerableDeltaPercent: dec, sadDeltaPercent: dec })) });
 const routing = obj({ riskId: guid, area: text, assertion: text, significanceDecision: text, assessmentId: nullable(guid), assessedByUserId: nullable(guid), band: nullable(text), likelihood: nullable(int),
   magnitude: nullable(int), fraudRisk: bool, route: text, partnerReviewRequired: bool, partnerCleared: bool, partnerName: nullable(text), ownerName: nullable(text), ownerLevel: nullable(text) });
 const fsliRow = obj({
@@ -38,7 +40,7 @@ export const decodePlan = obj({ engagementId: guid, professionalWorkBlocked: boo
   riskRuleVersion: text, routing: arr(routing, 2000),
   team: arr(obj({ assignmentId: guid, userId: guid, name: text, level: text, levelLabel: text, authorizationRole: text, certified: bool }), 500),
   canAssignOwners: bool, isPartner: bool, fsliStratification: arr(fsliRow, 500),
-  milestonePlan: nullable(milestonePlan) });
+  milestonePlan: nullable(milestonePlan), canApplyPracticalRounding: bool });
 type Plan = ReturnType<typeof decodePlan>;
 interface RowInput { likelihood: number; magnitude: number; fraud: boolean; rationale: string; owner: string; note: string }
 
@@ -112,6 +114,30 @@ interface RowInput { likelihood: number; magnitude: number; fraud: boolean; rati
           </dl>
           <p><small>{{ c.benchmarkKind }}{{ c.destinationCode ? ' (' + c.destinationCode + ')' : '' }} of {{ c.benchmarkAmount | money }} {{ c.currency }} from {{ c.sourceLineCount }} mapped line(s), mapping version {{ c.mappingVersionNumber }}; rate {{ c.ratePercent }}%, TE {{ c.performancePercent }}% of PM, SAD {{ c.trivialPercent }}% of PM ({{ c.policyVersion }}).</small></p>
           @if (c.state === 'DRAFT' && p.canApproveMateriality) { <button matButton="outlined" (click)="send('/api/ui/materiality/' + c.assessmentId + '/approve', {}, 'Partner materiality approval recorded.')" [disabled]="cmd.busy()">Approve calculated materiality</button> }
+          @if (c.rounding; as r) {
+            <h3>Practical rounding (STE 3.2)</h3>
+            <p><small>Recorded at <time>{{ r.decidedAt }}</time>. Rationale: {{ r.rationale }}</small></p>
+            <table aria-label="Computed and rounded thresholds">
+              <thead><tr><th scope="col">Threshold</th><th scope="col">Computed</th><th scope="col">Effective (rounded)</th><th scope="col">Delta</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">Planning materiality (PM)</th><td>{{ c.planningMateriality | money }}</td><td>{{ r.adjustedPlanningMateriality | money }}</td><td>{{ r.planningDeltaPercent }}%</td></tr>
+                <tr><th scope="row">Tolerable error (TE)</th><td>{{ c.tolerableError | money }}</td><td>{{ r.adjustedTolerableError | money }}</td><td>{{ r.tolerableDeltaPercent }}%</td></tr>
+                <tr><th scope="row">SAD threshold</th><td>{{ c.sadThreshold | money }}</td><td>{{ r.adjustedSadThreshold | money }}</td><td>{{ r.sadDeltaPercent }}%</td></tr>
+              </tbody>
+            </table>
+            <p><small>Each effective threshold stays within ±5% of its computed value. The computed calculation is kept unchanged.</small></p>
+          }
+          @if (p.canApplyPracticalRounding && c.state === 'DRAFT') {
+            <h3>Apply practical rounding (STE 3.2)</h3>
+            <p><small>Round each threshold within ±5% of its computed value, keeping SAD ≤ TE ≤ PM. Partner approval then applies to the rounded values. Leave a field blank to keep its computed value.</small></p>
+            <div class="inline-form">
+              <label>Planning materiality <input name="roundPm" inputmode="decimal" placeholder="{{ c.planningMateriality }}" [(ngModel)]="round.pm" /></label>
+              <label>Tolerable error <input name="roundTe" inputmode="decimal" placeholder="{{ c.tolerableError }}" [(ngModel)]="round.te" /></label>
+              <label>SAD threshold <input name="roundSad" inputmode="decimal" placeholder="{{ c.sadThreshold }}" [(ngModel)]="round.sad" /></label>
+            </div>
+            <label>Rationale for the rounding <textarea name="roundRationale" [(ngModel)]="round.rationale" maxlength="2000" rows="2"></textarea></label>
+            <button matButton="outlined" (click)="applyRounding(c)" [disabled]="cmd.busy()">Apply practical rounding</button>
+          }
         }
         @if (p.materialitySource; as s) {
           <p>Source: mapping version {{ s.mappingVersion }} over trial balance <code>{{ s.datasetDigest.slice(0, 12) }}</code> ({{ s.currency }}).</p>
@@ -269,6 +295,7 @@ export class AuditPlan {
   readonly cmd = new CommandState(this.api);
   private readonly inputs = new Map<string, RowInput>();
   calc = { option: '', rate: '1', performance: '75', trivial: '5', rationale: '' };
+  round = { pm: '', te: '', sad: '', rationale: '' };
   risk = { area: '', assertion: '', description: '', drivers: '', significance: 'NORMAL', response: '' };
   pop = { purpose: '', assertion: '', receipt: '', extraction: '', rows: 0, total: '', currency: '' };
   finding = { type: '', impact: '', amount: '' };
@@ -309,6 +336,17 @@ export class AuditPlan {
     if (!kind || rate === null || performance === null || trivial === null) return this.invalid('Choose a benchmark and enter the percentages as numbers.');
     this.send(this.base() + '/materiality/calculate', { benchmarkKind: kind, destinationCode: destination || null, ratePercent: rate, performancePercent: performance,
       trivialPercent: trivial, rationale: this.calc.rationale }, 'Materiality calculated; independent Engagement Partner materiality approval is required.');
+  }
+  /** Practical rounding of the computed thresholds; blank fields keep their computed value, and the server enforces the ±5% bound. */
+  applyRounding(c: { assessmentId: string; planningMateriality: string; tolerableError: string; sadThreshold: string }): void {
+    const pm = decimalInput(this.round.pm.trim() || c.planningMateriality, 2);
+    const te = decimalInput(this.round.te.trim() || c.tolerableError, 2);
+    const sad = decimalInput(this.round.sad.trim() || c.sadThreshold, 2);
+    if (pm === null || te === null || sad === null) return this.invalid('Enter each rounded threshold as a number with at most two decimal places.');
+    if (!this.round.rationale.trim()) return this.invalid('Enter the rationale for the practical rounding.');
+    this.send(`/api/ui/materiality/${c.assessmentId}/rounding`, { planningMateriality: pm, tolerableError: te, sadThreshold: sad,
+      rationale: this.round.rationale.trim() }, 'Practical rounding applied; the rounded values now need independent Partner approval.',
+      () => (this.round = { pm: '', te: '', sad: '', rationale: '' }));
   }
   recordRisk(): void {
     const r = this.risk;

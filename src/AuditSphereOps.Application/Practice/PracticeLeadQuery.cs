@@ -6,9 +6,13 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Application.Practice;
 
+/// <summary>
+/// One lead row. <see cref="LifecycleStage"/> is set on the paged view only: LEAD_INGESTION while no proposal exists for the
+/// lead (STE 11-stage lifecycle, stage 1), and PROPOSAL_OR_LATER once a proposal exists, whose own stages are shown on it.
+/// </summary>
 public sealed record PracticeLeadListItem(
   Guid Id, string Name, string Source, string? PrimaryContactName,
-  string? PrimaryContactEmail, string Status, DateTimeOffset CreatedAt);
+  string? PrimaryContactEmail, string Status, DateTimeOffset CreatedAt, string? LifecycleStage = null);
 public sealed record PracticeLeadPage(IReadOnlyList<PracticeLeadListItem> Items, int Total, int Page, int PageSize);
 
 /// <summary>Current firm-scoped commercial lead projection for the staff workbench.</summary>
@@ -33,8 +37,16 @@ public static class PracticeLeadQuery
     var total = await query.CountAsync(ct);
     var rows = await query.OrderByDescending(l => l.CreatedAt).ThenBy(l => l.Id).Skip(page * pageSize).Take(pageSize)
       .Select(l => new PracticeLeadListItem(l.Id, l.Name, l.Source, l.PrimaryContactName, l.PrimaryContactEmail, l.Status, l.CreatedAt)).ToListAsync(ct);
+    // A lead is still in lead ingestion until a proposal exists for one of its opportunities.
+    var leadIds = rows.Select(r => r.Id).ToList();
+    var withProposal = await db.Opportunities.AsNoTracking()
+      .Where(o => o.FirmId == actor.FirmId && leadIds.Contains(o.LeadId) &&
+        db.Proposals.Any(p => p.FirmId == actor.FirmId && p.OpportunityId == o.Id))
+      .Select(o => o.LeadId).Distinct().ToListAsync(ct);
+    var staged = rows.Select(r => r with { LifecycleStage = withProposal.Contains(r.Id) ? "PROPOSAL_OR_LATER" : "LEAD_INGESTION" }).ToList();
+
     auth = await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct);
-    return auth.Succeeded ? CommandResult<PracticeLeadPage>.Ok(new(rows, total, page, pageSize))
+    return auth.Succeeded ? CommandResult<PracticeLeadPage>.Ok(new(staged, total, page, pageSize))
       : CommandResult<PracticeLeadPage>.Fail(auth.ErrorCode!, "Leads unavailable.");
   }
 

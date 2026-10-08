@@ -23,7 +23,10 @@ export const decodeCompletion = obj({ engagementId: guid,
   freeze: nullable(obj({ state: text, reportSignedAt: instant, dueAt: instant, externalReadOnly: text, daysRemaining: int,
     amendments: arr(obj({ id: guid, reason: text, openedAt: nullable(instant), closedAt: nullable(instant) }), 500) })),
   freezeDays: nat, trail: nullable(arr(obj({ at: instant, kind: text, actor: text, description: text, entityId: guid }), 20000)), trailCoverageNote: text,
-  locks: arr(obj({ id: guid, documentKey: text, lockedBy: text, lockedAt: instant }), 500) });
+  locks: arr(obj({ id: guid, documentKey: text, lockedBy: text, lockedAt: instant }), 500),
+  holdingLetter: nullable(obj({ deliverableId: nullable(guid), issuedAt: nullable(instant), outstandingCount: nat, state: text, message: text })) });
+/** Archive readiness reviewed before an early compliance lock (STE 4.4.3). */
+const archiveReadiness = obj({ freezeId: guid, revision: nat, state: text, dueAt: instant, archiveReadinessDigest: nullable(text), blockers: arr(text, 50) });
 type Completion = ReturnType<typeof decodeCompletion>;
 const OPINION_LABELS: Record<string, string> = { UNMODIFIED: 'Clean (unmodified)', QUALIFIED: 'Qualified', ADVERSE: 'Adverse', DISCLAIMER: 'Disclaimer of opinion' };
 const REPORTS: [string, string][] = [['AUDIT_FINDINGS_REPORT', 'Audit Findings Report'], ['MANAGEMENT_LETTER', 'Management Letter'],
@@ -51,6 +54,15 @@ const REPORTS: [string, string][] = [['AUDIT_FINDINGS_REPORT', 'Audit Findings R
               <td><a [routerLink]="['/app/engagements',id(),'confirmations']">Review criticality and evidence</a></td></tr>
           } @empty { <tr><td colspan="6">No confirmations are recorded.</td></tr> }</tbody>
         </table></div>
+
+        <h3>Holding letter for critical confirmations (STE 3.3)</h3>
+        @if (w.holdingLetter; as h) {
+          <p><audit-status [value]="h.state" /> {{ h.message }}</p>
+          @if (h.issuedAt) { <p><small>Latest holding letter issued {{ h.issuedAt.slice(0, 16).replace('T', ' ') }}, covering {{ h.outstandingCount }} outstanding critical confirmation(s).</small></p> }
+          @if (h.state === 'READY_TO_DISPATCH') {
+            <button matButton="filled" (click)="dispatchHoldingLetter()" [disabled]="cmd.busy()">Dispatch holding letter</button>
+          }
+        }
 
         <h3>Summary Review Memorandum and Partner clearance</h3>
         <label>Reviewer recommendations <textarea name="rec" [(ngModel)]="f.recommendations" rows="2" maxlength="8000"></textarea></label>
@@ -182,6 +194,36 @@ const REPORTS: [string, string][] = [['AUDIT_FINDINGS_REPORT', 'Audit Findings R
         <dl class="facts"><dt>Package ID</dt><dd>{{ w.packageId ?? 'None' }}</dd><dt>Package status</dt><dd>{{ w.packageStatus }}</dd>
           <dt>Partner approval</dt><dd>{{ w.partnerApproved ? 'Approved' : 'Pending' }}</dd><dt>EQR status</dt><dd>{{ w.eqrStatus }}</dd></dl>
       </section>
+      @if (w.freeze; as fz) {
+        @if (fz.state === 'SCHEDULED') {
+          <section class="panel" aria-labelledby="early-lock-heading">
+            <h2 id="early-lock-heading">Early compliance lock (STE 4.4.3)</h2>
+            <p>The file locks automatically on {{ fz.dueAt.slice(0, 10) }}, with {{ fz.daysRemaining }} day(s) remaining. A Partner may lock it earlier once the final release and archive readiness are reviewed.</p>
+            <p>Provider protection status: <strong>{{ fz.externalReadOnly }}</strong>. The AuditSphere lock does not by itself make the provider copy read-only.</p>
+            @if (!lockReview()) { <button matButton="outlined" (click)="lockReview.set(true)">Review archive readiness</button> }
+            @if (lockReview()) {
+              @if (readiness.data(); as r) {
+                <p>Archive readiness at countdown revision {{ r.revision }}: <audit-status [value]="r.state" /></p>
+                @if (r.blockers.length > 0) {
+                  <ul>@for (b of r.blockers; track b) { <li>{{ b }}</li> }</ul>
+                  <p>Resolve these blockers before the file can be locked early.</p>
+                } @else if (r.archiveReadinessDigest) {
+                  <p><small>Reviewed readiness digest: <code>{{ r.archiveReadinessDigest }}</code></small></p>
+                  <p><strong>Warning:</strong> an early lock takes effect immediately. The file becomes read-only in AuditSphere, and it can only be reopened through the controlled amendment workflow.</p>
+                  <label><input type="checkbox" name="lockConfirm" [(ngModel)]="early.confirmed" /> I confirm the file is complete and I am locking it now as the Engagement Partner.</label>
+                  <label>Reason for the early lock <textarea name="lockReason" [(ngModel)]="early.rationale" maxlength="2000" rows="2"></textarea></label>
+                  <button matButton="filled" (click)="lockEarly(r)" [disabled]="cmd.busy() || !early.confirmed || !early.rationale.trim()">Lock audit file early</button>
+                }
+              } @else if (readiness.error()) {
+                <p>{{ readiness.error() }}</p>
+              } @else {
+                <p>Loading archive readiness…</p>
+              }
+            }
+          </section>
+        }
+      }
+
       <section class="panel" aria-labelledby="actions-heading">
         <h2 id="actions-heading">Actions</h2>
         <p class="actions">
@@ -203,6 +245,10 @@ export class EngagementCompletion {
   readonly cmd = new CommandState(this.api);
   readonly kind = signal('');
   readonly kinds = ['UPLOAD', 'EDIT', 'COMMENT', 'SIGN_OFF', 'FREEZE', 'DENIED'];
+  readonly lockReview = signal(false);
+  readonly readiness = this.api.resource(() => (this.id() && this.lockReview() ? `/api/ui/engagements/${this.id()}/early-lock/readiness` : null),
+    archiveReadiness, 'Only the Engagement Partner in scope can review archive readiness for an early lock.');
+  early = { confirmed: false, rationale: '' };
   readonly reports = REPORTS;
   f = { recommendations: '', risks: '', notes: '', opinion: 'UNMODIFIED', focus: '', basis: '', resolution: '', scanReason: '', scanReviewed: false,
     statementsReviewed: false, amendment: '', lockKey: '' };
@@ -213,6 +259,18 @@ export class EngagementCompletion {
   obtained(w: Completion): number { return w.representations.filter((r) => r.obtained).length; }
   filtered(t: NonNullable<Completion['trail']>) { const k = this.kind(); return k ? t.filter((e) => e.kind === k) : t; }
   send(url: string, body: unknown, ok: string): void { void this.cmd.run(url, body, ok).finally(() => this.ws.reload()); }
+  /** Explicit, idempotent dispatch of the current holding letter; the server refuses a superseded letter. */
+  dispatchHoldingLetter(): void {
+    this.send(`/api/ui/engagements/${this.id()}/holding-letter/dispatch`, {},
+      'The holding letter is queued for the client-management recipient. It is not delivered until the mail provider confirms delivery.');
+  }
+  lockEarly(r: { revision: number; archiveReadinessDigest: string | null }): void {
+    if (!r.archiveReadinessDigest) return;
+    void this.cmd.run(`/api/ui/engagements/${this.id()}/early-lock`, { expectedRevision: String(r.revision), partnerConfirmed: this.early.confirmed,
+      rationale: this.early.rationale.trim(), archiveReadinessDigest: r.archiveReadinessDigest },
+      'The audit file is locked early and is read-only in AuditSphere. Provider protection is recorded separately.')
+      .finally(() => { this.early = { confirmed: false, rationale: '' }; this.lockReview.set(false); this.ws.reload(); });
+  }
   report(kind: string): void {
     void this.cmd.run<{ message: string }>(this.base() + '/reports', { kind }, '', (v) => this.cmd.message.set(v.message)).finally(() => this.ws.reload());
   }

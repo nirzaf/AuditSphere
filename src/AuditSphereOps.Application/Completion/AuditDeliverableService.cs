@@ -114,6 +114,16 @@ public static partial class AuditDeliverableService
 
   private static string Digest(object value) => Hashing.Sha256Hex(JsonSerializer.Serialize(value));
 
+  /// <summary>
+  /// The exact outstanding critical set, identified the same way the holding letter stores it. A null digest means nothing
+  /// is outstanding. Used to tell whether the latest holding letter still describes the current blockers.
+  /// </summary>
+  internal static async Task<(string? Digest, int Count)> CurrentOutstandingCriticalAsync(IAuditSphereDbContext db, Guid firmId, Guid engagementId, CancellationToken ct)
+  {
+    var critical = (await ConfirmationRowsAsync(db, firmId, engagementId, ct)).Where(c => c.Critical && !c.ReturnedEvaluatedResponse).ToList();
+    return critical.Count == 0 ? (null, 0) : (Digest(critical.Select(c => new { c.CaseId, c.Status })), critical.Count);
+  }
+
   private static string FactsDigest(Facts facts) => Digest(new { facts.Materiality, facts.Risks, facts.RedAreas, facts.Procedures, facts.OpenReviewNotes,
     Findings = facts.Findings.Select(f => new { f.Id, f.FindingType, f.Corrected, f.MonetaryAmount, f.ManagementResponse, f.Status,
       f.LetterDesignatedAt, f.LetterRecommendation }),

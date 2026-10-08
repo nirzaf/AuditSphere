@@ -5,6 +5,7 @@ using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Engagements;
+using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 
@@ -76,6 +77,13 @@ public static partial class EngagementLifecycleService
         : $"The current decision is {decision.Decision}; only an unconditional acceptance activates an engagement.");
     if (await db.EngagementHolds.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId && !x.Released, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "An unreleased hold blocks activation.");
+    // STE 4.1.5: when a fee agreement is linked to this engagement, the 50% advance must be fully paid and allocated first.
+    var linkedAgreement = await db.EngagementFeeAgreements.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId, ct);
+    if (linkedAgreement is not null && !await db.FeeMilestones.AnyAsync(x => x.FirmId == actor.FirmId && x.AgreementId == linkedAgreement.Id &&
+      x.Kind == FeeMilestoneKinds.Advance && x.State == FeeMilestoneStates.Paid, ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+        "The 50% advance must be fully paid and allocated before the engagement can be activated.");
 
     var activation = new EngagementActivation
     {

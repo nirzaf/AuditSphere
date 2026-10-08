@@ -17,6 +17,8 @@ interface Lead {
   primaryContactEmail: string | null;
   status: string;
   createdAt: string;
+  /** LEAD_INGESTION (stage 1) until a proposal exists; PROPOSAL_OR_LATER once one does. */
+  lifecycleStage?: string | null;
 }
 interface LeadPage {
   items: Lead[];
@@ -175,6 +177,7 @@ export function decodeLeads(value: unknown): LeadPage {
               <th>Contact</th>
               <th>Recorded</th>
               <th>Status</th>
+              <th>Lifecycle</th>
               <th>Action</th>
             </tr>
           </thead>
@@ -188,6 +191,7 @@ export function decodeLeads(value: unknown): LeadPage {
                 <td>{{ lead.primaryContactName }} · {{ lead.primaryContactEmail }}</td>
                 <td>{{ lead.createdAt.slice(0, 10) }}</td>
                 <td>{{ lead.status }}</td>
+                <td>{{ lead.lifecycleStage === 'LEAD_INGESTION' ? 'Stage 1 · Lead ingestion' : lead.lifecycleStage === 'PROPOSAL_OR_LATER' ? 'Proposal and later stages' : '—' }}</td>
                 <td>
                   @if (lead.status === 'NEW') {
                     <button
