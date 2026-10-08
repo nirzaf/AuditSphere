@@ -1089,7 +1089,7 @@
     },
     {
       "id": "R2R-01",
-      "description": "MediatR facade, async validation adapter, explicit DTO mapping, one transaction-owner registry, bUnit test project",
+      "description": "static command and query services, async validation, explicit DTO mapping, one transaction-owner registry, Angular component specs",
       "depends": "R2R-00",
       "exit": "One representative existing command/query migrated without behavior change or nested transaction."
     },

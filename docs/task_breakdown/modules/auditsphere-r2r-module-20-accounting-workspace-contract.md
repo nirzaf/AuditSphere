@@ -69,7 +69,7 @@ Proposed additive migration suffixes: `M20_ReportingContextPins`, `M20_Dimension
 - `DimensionSchemaDraftDto`: ClientId, BaseRevisionRef?, Definitions[type,code,name,required,values[code,name,effectiveFrom,effectiveTo,active]].
 - `ContextBindingDto`: ClientId, EngagementId, LegalEntityKey/verified entity identity, PeriodId, BookSelection, ProfileRef, ChartRef, DimensionSchemaRef, TaxonomyRef, PolicyRef, FunctionalCurrency, PresentationCurrency.
 
-**Requests:** all have the MediatR interface/result convention in §4.4.
+**Requests:** all are static service methods returning `CommandResult<T>` (ADR-0001; recorded variation in the baseline reference section 2.3.1).
 
 | Command / query and input | TResponse | Key validator + handler check |
 |---|---|---|
@@ -133,7 +133,7 @@ Proposed test classes and required cases:
 |---|---|---|
 | xUnit domain | `ReportingContextInvariantTests` | `RejectsCrossClientBook`; `PreservesLeadingZeroAccountCodes`; `RejectsPostingParentAndCycles`; `FiscalCalendarHandlesLeapAnd53WeekYears`; `UnknownCurrencyIsNotDefaultedDuringMigration`. |
 | xUnit PostgreSQL | `ReportingContextPersistenceTests` | `ConcurrentChartPublishHasOneWinner`; `PriorChartStillResolvesIssuedPackage`; `AmbiguousLegacyLinkIsQuarantined`; `CloseRacingSourceAcceptanceCannotBothCommit`; `AmendmentPreservesClosedPackage`. |
-| bUnit | `AccountingContextEditorTests` | `FieldErrorsMapToCorrectAccountRow`; `ContextSwitchPromptsForDirtyDraft`; `LatePriorContextResultIsDiscarded`; `ClosedPeriodRendersReadOnly`. |
+| Angular spec | `AccountingContextEditorTests` | `FieldErrorsMapToCorrectAccountRow`; `ContextSwitchPromptsForDirtyDraft`; `LatePriorContextResultIsDiscarded`; `ClosedPeriodRendersReadOnly`. |
 | Playwright | `R2R20AccountingJourneys` | Create client context/chart/book; publish under distinct user; import-ready handoff; deny sibling context; change chart and observe stale downstream output; close/amend/reload under actual persisted state. |
 
 **Exit gate:** approved context can be read by all downstream modules using the same identity and revision; none can accept an orphan, closed, cross-client or unresolved context. Existing accounting setup tests remain and pass.

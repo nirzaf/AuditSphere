@@ -81,7 +81,7 @@ Proposed migration suffixes: `M22_JournalDecisionHistory`, `M22_SourceReflection
 
 Output detail DTOs expose draft fields plus persisted refs and decision histories; summaries include number, base/revision, amounts, the three state dimensions and currentness. `AdjustedBalanceRowDto` carries RawAmount, Delta, AdjustedAmount, Currency and contribution refs. `AdjustmentEligibilityDto` is a report, not an approval command.
 
-Use existing `AdjustmentJournalService` and `AdjustmentPlanService`. Add structural `AbstractValidator<T>` checks, but keep balanced-content/independence/source-generation checks inside authoritative handlers. Map stable errors to `journal.rejected`, `generation.stale`, `revision.stale`, `scope.denied` or approved new catalogue entries; never parse free-text error messages in UI.
+Use existing `AdjustmentJournalService` and `AdjustmentPlanService`. Add structural validation checks inside the static service method, but keep balanced-content/independence/source-generation checks inside authoritative handlers. Map stable errors to `journal.rejected`, `generation.stale`, `revision.stale`, `scope.denied` or approved new catalogue entries; never parse free-text error messages in UI.
 
 <a id="lineage"></a>
 ### 4. Inter-Module Lineage & Boundaries
@@ -118,7 +118,7 @@ All form rows have stable LineId keys; deletion/reorder retains errors against t
 |---|---|---|
 | xUnit domain | `AdjustmentEligibilityTests` | `BalancedSixDecimalLinesRequired`; `DebitAndCreditOnSameLineRejected`; `AjeOnlyPostingAccountAllowedButMustMap`; `PartialManagementDecisionDoesNotApplyUnbalancedSubset`; `ReflectedContributionIsZero`. |
 | xUnit PostgreSQL | `AdjustmentPlanLineageTests` | `SamePersonDifferentRoleCannotReview`; `CrossClientManagementDecisionDenied`; `SourceReplacementRequiresFreshReflection`; `SameJournalCannotContributeTwice`; `NewAcceptedJournalChangesSetManifest`; `PostedHistoryRejectsMutation`. |
-| bUnit | `AdjustmentJournalEditorTests` | Correct row validation, balancing preview, distinct statuses, returned-draft handling, stale-source alert and no optimistic approval. |
+| Angular spec | `AdjustmentJournalEditorTests` | Correct row validation, balancing preview, distinct statuses, returned-draft handling, stale-source alert and no optimistic approval. |
 | Playwright | `R2R22AdjustmentJourneys` | Create arbitrary multi-line AJE → independent review → management acceptance → reflection → snapshot; reject/partial/revise; replace TB containing the AJE and prove no double inclusion; revoke scope mid-form. |
 
 **Exit gate:** raw plus eligible deltas reconciles exactly; management rejection, reflection uncertainty and source replacement are visible and cannot be bypassed by direct handler invocation.

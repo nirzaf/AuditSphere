@@ -108,7 +108,7 @@ Extend the source-listed existing routes before adding a parallel workspace. Use
 - Module 20: `ReportingContextInvariantTests`, `ReportingContextPersistenceTests`, `AccountingContextEditorTests`, `R2R20AccountingJourneys`. [Exact source cases](../../modules/auditsphere-r2r-module-20-accounting-workspace-contract.md#verification).
 - Module 25: `PackageManifestTests`, `FinancialArtifactRoundTripTests`, `PackagePublicationIntegrityTests`, `PackageAssemblyComponentTests`, `R2R25PackageJourneys`. [Exact source cases](../../modules/auditsphere-r2r-module-25-financial-packages-contract.md#verification).
 
-Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurrency, bUnit for component behavior and Playwright for actual Blazor journeys where applicable. Record the subset executed for this task. Deferred consumer tests stay explicitly unverified until their scheduled integration gate; a task completion is not automatic whole-module acceptance.
+Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurrency, Angular component specs for component behavior and Playwright for actual Angular browser journeys where applicable. Record the subset executed for this task. Deferred consumer tests stay explicitly unverified until their scheduled integration gate; a task completion is not automatic whole-module acceptance.
 
 **Related original stories:** `VP-034`, `VP-042`. [Full preserved wording and production interpretation](../../reference/auditsphere-r2r-reference-original-52-acceptance-criteria.md).
 

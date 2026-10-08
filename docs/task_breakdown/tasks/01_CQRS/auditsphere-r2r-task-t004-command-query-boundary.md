@@ -15,7 +15,7 @@ branch: ""
 issue_pr: ""
 updated_at: ""
 ---
-# T004 — Introduce MediatR facades without changing transaction behavior
+# T004 — Make command and query boundaries explicit as static services without changing transaction behavior
 
 [Master index](../../auditsphere-r2r-index-task-breakdown.md) · [Status rules](../../auditsphere-r2r-index-task-breakdown.md#status-rules) · [Original work-package order](../../reference/auditsphere-r2r-reference-execution-coordination-and-handover.md#section-6-1)
 
@@ -25,7 +25,7 @@ updated_at: ""
 
 Add a verified application dispatch seam over one representative existing command and query.
 
-**Original work package:** `R2R-01` — MediatR facade, async validation adapter, explicit DTO mapping, one transaction-owner registry, bUnit test project
+**Original work package:** `R2R-01` — static command and query services, async validation, explicit DTO mapping, one transaction-owner registry, Angular component specs
 **Original package exit:** One representative existing command/query migrated without behavior change or nested transaction.
 
 ## Before starting
@@ -49,7 +49,7 @@ Hard dependencies must be COMPLETED, with reviewed handoff evidence:
 1. Add approved package registrations and choose one existing accounting command/query as the migration pilot.
 2. Route the request through the declared transaction owner; delegate to existing guarded services first.
 3. Keep operation identity, current authority, mutation, invalidation and evidence in the same authoritative commit.
-4. Add architecture checks for one transaction owner and keep domain projects independent of MediatR/EF/UI/provider types.
+4. Add architecture checks for one transaction owner and keep domain projects independent of EF/UI/provider types, and reference no mediator package (declined variation, ADR-0001).
 
 ## 1. Domain Modeling (`.Domain`)
 
@@ -92,7 +92,7 @@ Extend the source-listed existing routes before adding a parallel workspace. Use
 - No nested transaction is created.
 - A timeout/retry does not write idempotency evidence outside the business transaction.
 
-Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurrency, bUnit for component behavior and Playwright for actual Blazor journeys where applicable. Record the subset executed for this task. Deferred consumer tests stay explicitly unverified until their scheduled integration gate; a task completion is not automatic whole-module acceptance.
+Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurrency, Angular component specs for component behavior and Playwright for actual Angular browser journeys where applicable. Record the subset executed for this task. Deferred consumer tests stay explicitly unverified until their scheduled integration gate; a task completion is not automatic whole-module acceptance.
 
 ## Completion checklist
 

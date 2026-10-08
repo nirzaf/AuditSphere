@@ -127,7 +127,7 @@ Publication/review waits for server verification, and stale data disables review
 | xUnit domain | `StatementLayoutAndPolicyTests` | `CyclicSubtotalRejected`; `ParentAndLeafDoubleCountDetected`; `DisplaySignDoesNotChangeCanonicalAmount`; `MissingRequiredNoteBlocks`; `IFRS18AndLegacyPoliciesRemainVersioned`. |
 | xUnit numerical | `CashEquityComparativeTests` | `NonCashAcquisitionExcludedFromCashMovements`; `CashReconcilesWithSeparateFxEffect`; `ProfitTransferNotCountedTwice`; `MissingComparativeNotZero`; `PriorErrorDoesNotBecomeCurrentProfit`; `EstimateChangeUsesApprovedProspectiveTreatment`. |
 | xUnit PostgreSQL | `StatementRevisionLineageTests` | `ChangedPriorMappingStalesCurrentComparative`; `NewRequiredNoteStalesSet`; `ReviewedSetRejectsMutation`; `RestatementRetainsAsIssuedReferences`; `ConcurrentUpstreamChangeBlocksReview`. |
-| bUnit | `StatementDesignerTests`, `DisclosureEditorTests` | Grammar/row errors, required/N/A fields, dirty note switch, missing cash-flow state, exact lineage drawer and independent review controls. |
+| Angular spec | `StatementDesignerTests`, `DisclosureEditorTests` | Grammar/row errors, required/N/A fields, dirty note switch, missing cash-flow state, exact lineage drawer and independent review controls. |
 | Playwright | `R2R24StatementJourneys` | Create approved layout; compare current/prior; supported cash/equity/notes; independently review; change prior source and observe stale state; produce separate restatement preserving originals. |
 
 **Exit gate:** all required statements/notes in the selected policy are supported, reconciled and reviewed for exact inputs. Unsupported methods or missing schedules block the relevant final output rather than being omitted silently.

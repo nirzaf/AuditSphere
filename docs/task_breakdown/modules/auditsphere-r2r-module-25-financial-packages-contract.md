@@ -119,7 +119,7 @@ Review dialog shows the exact revision/hash/format list and requires appropriate
 | xUnit domain | `PackageManifestTests` | `OrderedSectionsChangeContentDigest`; `ArtifactHashDoesNotSelfReference`; `MissingRequiredFormatBlocksSeal`; `ApprovalBindsEntireArtifactSet`; `ReturnedPackageNeedsNewRevision`. |
 | xUnit renderer | `FinancialArtifactRoundTripTests` | `XlsxIsValidAndValuesMatchStatementLines`; `DocxContainsExpectedTablesAndNoExternalParts`; `PdfIsReadableAndContainsExpectedTotals`; `ControlledFormulaAllowlistOnly`; `FixedInputsProduceDeterministicArtifacts`. |
 | xUnit PostgreSQL | `PackagePublicationIntegrityTests` | `SourceChangeDuringRenderCannotPublish`; `SameOperationDoesNotDuplicateArtifact`; `TamperedBytesBlockSealAndDownload`; `PartialPersistenceDoesNotAdvancePackage`; `HistoricApprovedBytesRemainUnchanged`. |
-| bUnit | `PackageAssemblyComponentTests` | Persisted section order, failed-format display, queued-vs-complete distinction, exact-hash review dialog and no optimistic seal. |
+| Angular spec | `PackageAssemblyComponentTests` | Persisted section order, failed-format display, queued-vs-complete distinction, exact-hash review dialog and no optimistic seal. |
 | Playwright | `R2R25PackageJourneys` | Create/reorder/reload/render all three formats, download and parse them; independent review; injected format/storage failure; source race; replacement revision and preserved predecessor; group-only access boundaries. |
 
 **Exit gate:** every reviewed/release-ready package points to a complete immutable artifact set with current exact inputs, and every download returns those same authorized bytes.

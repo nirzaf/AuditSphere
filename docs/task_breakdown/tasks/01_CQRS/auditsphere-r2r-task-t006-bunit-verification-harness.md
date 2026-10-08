@@ -15,7 +15,7 @@ branch: ""
 issue_pr: ""
 updated_at: ""
 ---
-# T006 — Establish bUnit and the layered verification harness
+# T006 — Establish the layered verification harness (xUnit, PostgreSQL, Angular specs, Playwright)
 
 [Master index](../../auditsphere-r2r-index-task-breakdown.md) · [Status rules](../../auditsphere-r2r-index-task-breakdown.md#status-rules) · [Original work-package order](../../reference/auditsphere-r2r-reference-execution-coordination-and-handover.md#section-6-1)
 
@@ -25,7 +25,7 @@ updated_at: ""
 
 Prepare a reusable test lane without replacing existing tests or claiming unrun results.
 
-**Original work package:** `R2R-01` — MediatR facade, async validation adapter, explicit DTO mapping, one transaction-owner registry, bUnit test project
+**Original work package:** `R2R-01` — static command and query services, async validation, explicit DTO mapping, one transaction-owner registry, Angular component specs
 **Original package exit:** One representative existing command/query migrated without behavior change or nested transaction.
 
 ## Before starting
@@ -46,8 +46,8 @@ Hard dependencies must be COMPLETED, with reviewed handoff evidence:
 
 ## Sequential work
 
-1. Add the approved bUnit project/configuration compatible with existing .NET and xUnit packages.
-2. Keep pure xUnit, real PostgreSQL integration, bUnit and real-host Playwright responsibilities distinct.
+1. Confirm the existing Angular Vitest configuration as the component-spec layer; add no bUnit project (declined variation).
+2. Keep pure xUnit, real PostgreSQL integration, Angular component specs and real-host Playwright responsibilities distinct.
 3. Create safe fixture setup and evidence conventions with exact commits, schema, roles, expected/observed values and commands.
 4. Exercise the CQRS pilot and validation adapter through component tests; preserve current tests and their identities.
 
@@ -92,7 +92,7 @@ Extend the source-listed existing routes before adding a parallel workspace. Use
 - A test filename, count or AT identifier is not treated as executed acceptance.
 - Fixture setup does not bypass the business action a browser test claims to exercise.
 
-Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurrency, bUnit for component behavior and Playwright for actual Blazor journeys where applicable. Record the subset executed for this task. Deferred consumer tests stay explicitly unverified until their scheduled integration gate; a task completion is not automatic whole-module acceptance.
+Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurrency, Angular component specs for component behavior and Playwright for actual Angular browser journeys where applicable. Record the subset executed for this task. Deferred consumer tests stay explicitly unverified until their scheduled integration gate; a task completion is not automatic whole-module acceptance.
 
 ## Completion checklist
 

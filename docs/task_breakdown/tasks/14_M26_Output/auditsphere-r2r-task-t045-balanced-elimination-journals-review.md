@@ -73,7 +73,7 @@ Implement only the persistence delta needed by this task. Locate existing mappin
 | `SubmitGroupJournalCommand(JournalId, Meta)` | `MutationReceiptDto` | Exact balance, evidence, current input set and no duplicate elimination. |
 | `ReviewGroupJournalCommand(JournalRef, DecisionInputDto, Meta)` | `MutationReceiptDto` | Independent reviewer and live input/currentness checks; return reason mandatory. |
 
-Every row uses `IRequest<CommandResult<TResponse>>` and a correspondingly named `AbstractValidator<TRequest>`. DTO fields are defined in the linked module contract; common Meta/Context/Ref/result semantics are in the shared contract. Validate asynchronously, then reauthorize and recheck database-dependent invariants inside the single owned transaction.
+Every row is a static method on its capability service that takes `IAuditSphereDbContext`, `ActorContext` and a request record, returns `CommandResult<TResponse>`, and validates explicitly at the start of the method (ADR-0001). DTO fields are defined in the linked module contract; common Meta/Context/Ref/result semantics are in the shared contract. Validate asynchronously, then reauthorize and recheck database-dependent invariants inside the single owned transaction.
 
 - [Module 26: exact input/output DTO fields and supporting request rules](../../modules/auditsphere-r2r-module-26-consolidation-contract.md#cqrs)
 
@@ -112,7 +112,7 @@ Extend the source-listed existing routes before adding a parallel workspace. Use
 
 - Module 26: `ConsolidationPerimeterTests`, `ConsolidationCurrencyAndEliminationTests`, `ConsolidationInputManifestTests`, `ConsolidationWorkspaceTests`, `R2R26GroupJourneys`. [Exact source cases](../../modules/auditsphere-r2r-module-26-consolidation-contract.md#verification).
 
-Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurrency, bUnit for component behavior and Playwright for actual Blazor journeys where applicable. Record the subset executed for this task. Deferred consumer tests stay explicitly unverified until their scheduled integration gate; a task completion is not automatic whole-module acceptance.
+Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurrency, Angular component specs for component behavior and Playwright for actual Angular browser journeys where applicable. Record the subset executed for this task. Deferred consumer tests stay explicitly unverified until their scheduled integration gate; a task completion is not automatic whole-module acceptance.
 
 ### Original acceptance criteria primarily owned here
 

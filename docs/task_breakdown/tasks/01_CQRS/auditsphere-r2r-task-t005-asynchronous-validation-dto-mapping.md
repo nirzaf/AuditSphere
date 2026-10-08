@@ -25,14 +25,14 @@ updated_at: ""
 
 Provide the common request/result and field-error contracts used by every module.
 
-**Original work package:** `R2R-01` — MediatR facade, async validation adapter, explicit DTO mapping, one transaction-owner registry, bUnit test project
+**Original work package:** `R2R-01` — static command and query services, async validation, explicit DTO mapping, one transaction-owner registry, Angular component specs
 **Original package exit:** One representative existing command/query migrated without behavior change or nested transaction.
 
 ## Before starting
 
 Hard dependencies must be COMPLETED, with reviewed handoff evidence:
 
-- [T004 — Introduce MediatR facades without changing transaction behavior](auditsphere-r2r-task-t004-command-query-boundary.md)
+- [T004 — Make command and query boundaries explicit as static services without changing transaction behavior](auditsphere-r2r-task-t004-command-query-boundary.md)
 
 **Shared file ownership:** the coordinator serializes migrations, DbContext snapshots, public DTOs and shared policy edits. A task owns only the requests listed below; consume other requests through their owner.
 
@@ -78,7 +78,7 @@ Use predecessor outputs by exact identity/revision/manifest, not by selecting a 
 
 **Direct consumers unlocked by this task:**
 
-- [T006 — Establish bUnit and the layered verification harness](auditsphere-r2r-task-t006-bunit-verification-harness.md)
+- [T006 — Establish the layered verification harness (xUnit, PostgreSQL, Angular specs, Playwright)](auditsphere-r2r-task-t006-bunit-verification-harness.md)
 
 ## 5. Blazor UI Architecture (`.Web`)
 
@@ -92,7 +92,7 @@ Extend the source-listed existing routes before adding a parallel workspace. Use
 - Caller-controlled actor, firm or approver fields are not used as authority.
 - A valid form cannot bypass handler state/scope checks.
 
-Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurrency, bUnit for component behavior and Playwright for actual Blazor journeys where applicable. Record the subset executed for this task. Deferred consumer tests stay explicitly unverified until their scheduled integration gate; a task completion is not automatic whole-module acceptance.
+Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurrency, Angular component specs for component behavior and Playwright for actual Angular browser journeys where applicable. Record the subset executed for this task. Deferred consumer tests stay explicitly unverified until their scheduled integration gate; a task completion is not automatic whole-module acceptance.
 
 ## Completion checklist
 

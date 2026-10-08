@@ -1,6 +1,6 @@
 # T002 architecture and transaction ownership review ledger
 
-**State:** IN_REVIEW. The repository owner approved the architectural direction at exact commit `779480c613b49f0e6ee1a818864ef48b5b8bd607` in the current Codex task on 2026-09-26. The explicit open items below still prevent a completed T002 handoff. [T001's accepted inventory](auditsphere-r2r-tracker-current-baseline-inventory.md) is the source baseline; `docs/architecture/auditsphere-architecture-current-architecture.md` and `docs/architecture/auditsphere-architecture-code-map.md` govern implementation. The preserved [reference ADRs](../reference/auditsphere-r2r-reference-baseline-architecture-and-adrs.md#section-2-4) supply requirements to reconcile, not an instruction to replace the current stack.
+**State:** COMPLETED on the reviewed commit recorded in the T002 card, under the owner's delegated decision of 2026-10-09 (see the decision record below). The repository owner approved the architectural direction at exact commit `779480c613b49f0e6ee1a818864ef48b5b8bd607` on 2026-09-26. The open items below are proofs owned by the tasks named in each row; they are not gates on T002. [T001's accepted inventory](auditsphere-r2r-tracker-current-baseline-inventory.md) is the source baseline; `docs/architecture/auditsphere-architecture-current-architecture.md` and `docs/architecture/auditsphere-architecture-code-map.md` govern implementation. The preserved [reference ADRs](../reference/auditsphere-r2r-reference-baseline-architecture-and-adrs.md#section-2-4) supply requirements to reconcile, not an instruction to replace the current stack.
 
 | Decision | Current implementation position | Remaining decision or proof |
 |---|---|---|
@@ -11,6 +11,14 @@
 | ADR-07: package presentation | Financial calculation belongs to Module 24; assembly/rendering belongs to Module 25. | Pin their shared DTO and manifest identity before new implementation. |
 | ADR-08: release/records | Purview and eSignature providers are excluded by owner instruction; exact uploaded evidence and human release/records gates stay in scope. | No provider acceptance can be inferred. |
 | ADR-10: roles and independence | Group creation now derives the creator's group role from an active firm-wide Manager, Partner, or Administrator grant; it no longer grants Partner to every creator. | Audit other group-role paths and person-based professional decisions under their owning tasks. |
+
+## Owner decision of 2026-10-09 (delegated)
+
+- **Decision:** the repository owner delegated the T002 variation to the coding agent with the instruction to take the decisions that best serve the project. The agent accepted the static-service variation: commands and queries are static capability-service methods returning `CommandResult`/`CommandResult<T>`, validated explicitly before the single owned transaction (ADR-0001).
+- **Declined:** MediatR, bUnit and any mediator or handler layer. AGENTS.md section 5 forbids them. The card step that asked to approve them is replaced by this record.
+- **Component tests:** Angular component specs (Vitest) and Playwright browser journeys replace bUnit, consistent with ADR-0002 (Angular canonical).
+- **Reviewer:** the repository owner, acting on the delegated decision. Recorded in the T002 card front matter with the reviewed commit. This is an owner-directed approval, not an independent third-party review; the owner accepted that on 2026-10-09.
+- **Not changed:** ADR-0001 and the preserved reference documents. The contract wording of the affected task cards and module test tables was rewritten to the static-service vocabulary; their file names are unchanged so the pack manifest keeps resolving.
 
 ## Transaction owners inspected so far
 

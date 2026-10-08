@@ -71,7 +71,7 @@ Stage bounded rows in short transactions. Finalize only when expected chunk coun
 - `CompletenessInputDto`: Context, ClosingTbRef, GeneralLedgerBatchRefs[], OpeningSourceRef? or explicitly approved zero-opening declaration, InclusionProfileRef, CutoffDate.
 - `SourceFilterDto`: account, date range, journal key, counterparty, dimension predicates, source revision; every filter is typed and scope-limited.
 
-| Command / query and input | TResponse | Key `AbstractValidator<T>` rules plus authoritative checks |
+| Command / query and input | TResponse | Key explicit validation rules plus authoritative checks |
 |---|---|---|
 | `BeginAccountingImportCommand(ImportStartDto, Meta)` | `ImportSessionDto` | Supported actual format/profile, safe filename, size limit, open context and current upload authority. |
 | `RegisterImportChunkCommand(UploadChunkDto, Meta)` | `ImportChunkReceiptDto` | Exact session/sequence, approved size, hash match, no conflicting retry, unfinished session. |
@@ -139,7 +139,7 @@ After validation, render all fatal issues and a bounded preview. “Accept revis
 | xUnit domain/parser | `AccountingImportContractTests` | `SignedAndDebitCreditLayoutsNormalizeEqually`; `RepeatedAccountAcrossDimensionsRetainsLineage`; `FormulaMacroExternalLinkAndRenamedZipRejected`; `LeadingZeroCodesAnd1904DatesSurvive`; `SixDecimalAndOverflowLimitsAreExplicit`. |
 | xUnit PostgreSQL | `SourceRevisionIntegrityTests` | `ConflictingChunkRetryRejected`; `MissingChunkCannotSeal`; `RejectedReplacementPreservesAcceptedPointer`; `SealedRowsRejectInsertUpdateDelete`; `SourceAcceptanceInvalidatesInSameTransaction`. |
 | xUnit calculations | `CompletenessAndMappingTests` | `OpeningPlusMovementEqualsClosing`; `MissingOpeningIsIncomplete`; `GlOnlyAccountIsNotOmitted`; `PreCloseVsPostCloseProfileIsExplicit`; `SplitConservesMicroUnits`; `AjeOnlyAccountRequiresMapping`. |
-| bUnit | `AccountingImportWizardTests`, `MappingEditorTests` | Required headers/errors, cancel/back/resume, stale acceptance button, invalid split row, no automatic approval, exact source context after navigation. |
+| Angular spec | `AccountingImportWizardTests`, `MappingEditorTests` | Required headers/errors, cancel/back/resume, stale acceptance button, invalid split row, no automatic approval, exact source context after navigation. |
 | Playwright | `R2R21SourceJourneys` | Genuine CSV and XLSX intake; malformed/oversize/browser validation failures; GL chunk resume/reload; independent mapping review; opening/GL/TB drill-down and export reconciliation; wrong-tenant source denial. |
 
 **Exit gate:** a complete accepted source/mapping/completeness chain is immutable, replayable and scoped; its exact identity can be consumed by M22–M25. Source acceptance cannot occur on a partial upload or a fabricated zero residual.

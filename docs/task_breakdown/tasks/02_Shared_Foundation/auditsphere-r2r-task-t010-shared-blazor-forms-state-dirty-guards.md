@@ -74,7 +74,7 @@ Use predecessor outputs by exact identity/revision/manifest, not by selecting a 
 **Required outputs:**
 
 - Shared form/state/validation/conflict components.
-- bUnit and browser evidence for dirty navigation and stale responses.
+- Angular component specs and browser evidence for dirty navigation and stale responses.
 
 **Direct consumers unlocked by this task:**
 
@@ -93,7 +93,7 @@ Extend the source-listed existing routes before adding a parallel workspace. Use
 - No static cross-user UI store or circuit-owned DbContext is introduced.
 - Keyboard and responsive error/rework paths preserve draft context.
 
-Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurrency, bUnit for component behavior and Playwright for actual Blazor journeys where applicable. Record the subset executed for this task. Deferred consumer tests stay explicitly unverified until their scheduled integration gate; a task completion is not automatic whole-module acceptance.
+Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurrency, Angular component specs for component behavior and Playwright for actual Angular browser journeys where applicable. Record the subset executed for this task. Deferred consumer tests stay explicitly unverified until their scheduled integration gate; a task completion is not automatic whole-module acceptance.
 
 **Related integration journeys:** [R2R-AT-03](../../coverage/auditsphere-r2r-tracker-integration-journeys.md#r2r-at-03), [R2R-AT-04](../../coverage/auditsphere-r2r-tracker-integration-journeys.md#r2r-at-04), [R2R-AT-29](../../coverage/auditsphere-r2r-tracker-integration-journeys.md#r2r-at-29).
 

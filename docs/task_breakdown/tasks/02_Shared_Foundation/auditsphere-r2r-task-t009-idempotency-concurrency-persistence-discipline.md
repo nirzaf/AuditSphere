@@ -93,7 +93,7 @@ Extend the source-listed existing routes before adding a parallel workspace. Use
 - Professional approvals are not silently replayed against newer content.
 - A cross-row sum is not falsely implemented as a simple row CHECK constraint.
 
-Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurrency, bUnit for component behavior and Playwright for actual Blazor journeys where applicable. Record the subset executed for this task. Deferred consumer tests stay explicitly unverified until their scheduled integration gate; a task completion is not automatic whole-module acceptance.
+Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurrency, Angular component specs for component behavior and Playwright for actual Angular browser journeys where applicable. Record the subset executed for this task. Deferred consumer tests stay explicitly unverified until their scheduled integration gate; a task completion is not automatic whole-module acceptance.
 
 **Related integration journeys:** [R2R-AT-05](../../coverage/auditsphere-r2r-tracker-integration-journeys.md#r2r-at-05), [R2R-AT-06](../../coverage/auditsphere-r2r-tracker-integration-journeys.md#r2r-at-06), [R2R-AT-27](../../coverage/auditsphere-r2r-tracker-integration-journeys.md#r2r-at-27).
 

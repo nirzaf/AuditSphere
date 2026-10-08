@@ -32,7 +32,7 @@ Implement the reusable exact-scope authority boundary for all R2R queries and co
 
 Hard dependencies must be COMPLETED, with reviewed handoff evidence:
 
-- [T006 — Establish bUnit and the layered verification harness](../01_CQRS/auditsphere-r2r-task-t006-bunit-verification-harness.md)
+- [T006 — Establish the layered verification harness (xUnit, PostgreSQL, Angular specs, Playwright)](../01_CQRS/auditsphere-r2r-task-t006-bunit-verification-harness.md)
 
 **Shared file ownership:** the coordinator serializes migrations, DbContext snapshots, public DTOs and shared policy edits. A task owns only the requests listed below; consume other requests through their owner.
 
@@ -92,7 +92,7 @@ Extend the source-listed existing routes before adding a parallel workspace. Use
 - Revoked or disabled identities cannot reuse stale circuit authority.
 - Group creation/configuration does not create professional Partner permission.
 
-Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurrency, bUnit for component behavior and Playwright for actual Blazor journeys where applicable. Record the subset executed for this task. Deferred consumer tests stay explicitly unverified until their scheduled integration gate; a task completion is not automatic whole-module acceptance.
+Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurrency, Angular component specs for component behavior and Playwright for actual Angular browser journeys where applicable. Record the subset executed for this task. Deferred consumer tests stay explicitly unverified until their scheduled integration gate; a task completion is not automatic whole-module acceptance.
 
 **Related integration journeys:** [R2R-AT-02](../../coverage/auditsphere-r2r-tracker-integration-journeys.md#r2r-at-02), [R2R-AT-03](../../coverage/auditsphere-r2r-tracker-integration-journeys.md#r2r-at-03), [R2R-AT-04](../../coverage/auditsphere-r2r-tracker-integration-journeys.md#r2r-at-04), [R2R-AT-22](../../coverage/auditsphere-r2r-tracker-integration-journeys.md#r2r-at-22).
 

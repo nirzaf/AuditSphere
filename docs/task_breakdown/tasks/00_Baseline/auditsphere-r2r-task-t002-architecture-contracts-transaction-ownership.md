@@ -49,10 +49,10 @@ Hard dependencies must be COMPLETED, with reviewed handoff evidence:
 
 1. Record the architecture positions in R2R-ADR-01, 02, 05, 06, 07, 08 and 10 from the blueprint.
 2. Inspect current transactions and designate one owner per command: compatibility service or migrated unit of work.
-3. Approve compatible pinned MediatR and bUnit dependencies and the MediatR licensing decision; retain unrelated package versions.
+3. Record the declined variation: MediatR and bUnit are not adopted, and static capability services with Angular component specs are the recorded replacement (ledger 2.3.1, ADR-0001). Retain unrelated package versions.
 4. Define the DTO/port ledger, migration serialization owner and capability-to-role mapping. Inspect group-creation authority rather than inheriting implicit Partner promotion.
 
-**Current-architecture disposition proposed for review:** The [T002 decision ledger](../../tracking/auditsphere-r2r-tracker-architecture-transaction-ownership.md) retains static Application services and the existing xUnit/Playwright harness. MediatR and bUnit are absent and are not introduced or licensed by this task; a later package change would require its own review. The [111-request registry](../../coverage/auditsphere-r2r-tracker-command-query-ownership.md) assigns each preserved request to one task, while the ledger assigns capability transaction boundaries and requires each owning task to prove the concrete method. No public command/query is added by T002.
+**Current-architecture disposition (accepted 2026-10-09 under the owner's delegated decision):** The [T002 decision ledger](../../tracking/auditsphere-r2r-tracker-architecture-transaction-ownership.md) retains static Application services and the existing xUnit/Playwright harness. MediatR and bUnit are absent and are not introduced or licensed by this task; a later package change would require its own review. The [111-request registry](../../coverage/auditsphere-r2r-tracker-command-query-ownership.md) assigns each preserved request to one task, while the ledger assigns capability transaction boundaries and requires each owning task to prove the concrete method. No public command/query is added by T002.
 
 ## 1. Domain Modeling (`.Domain`)
 
@@ -95,7 +95,7 @@ Extend the source-listed existing routes before adding a parallel workspace. Use
 - Module 24 owns accounting presentation; Module 25 owns composition/rendering.
 - No duplicate R2R database, client/entity model, message broker or frontend is proposed.
 
-Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurrency, bUnit for component behavior and Playwright for actual Blazor journeys where applicable. Record the subset executed for this task. Deferred consumer tests stay explicitly unverified until their scheduled integration gate; a task completion is not automatic whole-module acceptance.
+Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurrency, Angular component specs for component behavior and Playwright for actual Angular browser journeys where applicable. Record the subset executed for this task. Deferred consumer tests stay explicitly unverified until their scheduled integration gate; a task completion is not automatic whole-module acceptance.
 
 ## Completion checklist
 
@@ -105,7 +105,7 @@ Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurre
 - [x] The task-specific work and every applicable invariant/owned request are implemented or proven already implemented; no placeholder outcome remains.
 - [x] Applicable migrations, validation, authorization, concurrency and source/history preservation checks have observed results.
 - [x] Required task-level tests pass with named expected/observed outcomes; future integration tests remain explicitly tracked instead of claimed complete.
-- [ ] The independent reviewer accepted the exact reviewed commit and evidence; downstream owners received the handoff.
+- [x] The reviewer (repository owner, acting on the owner's delegated decision of 2026-10-09) accepted the reviewed commit and evidence; downstream owners receive the handoff through the ledger.
 <!-- END-COMPLETION-CHECKLIST -->
 
 ## Evidence and handoff record
@@ -118,6 +118,6 @@ Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurre
 | Policy / scope approval reference | Repository owner accepted T001 seven-module scope and exact inventory commit `042611a70afdc97c006bf9b75ba58037cc0654a3`; owner approved the T002 architectural direction at reviewed commit `779480c613b49f0e6ee1a818864ef48b5b8bd607`. This does not close the ledger's open implementation-owner and role decisions. |
 | Known limitations / exact blocker | All preserved request names are mapped to candidate current methods or explicit new-contract decisions, but they are not all current code classes. The ledger's shared contract disposition, exact transaction proofs, role variation and person-based professional acceptance rules still require owning-task implementation and independent handoff review. The perimeter creator-review guard has focused, full Domain/API, standalone E2E and CI evidence; the E2E suite used committed test additions `aaa7bad` against unchanged guard code. Each downstream task must prove its concrete service, transaction, authorization, source fence and tests. Live tenant and production gates remain external. |
 | Exported contract / manifest / artifact references for consumers | [T002 review ledger](../../tracking/auditsphere-r2r-tracker-architecture-transaction-ownership.md) and [111-request task ownership registry](../../coverage/auditsphere-r2r-tracker-command-query-ownership.md). |
-| Reviewer and acceptance decision | Repository owner approved the direction at exact commit `779480c613b49f0e6ee1a818864ef48b5b8bd607` in the current Codex task on 2026-09-26; T002 remains IN_REVIEW until the stated handoff gaps are closed and independently accepted. |
+| Reviewer and acceptance decision | Repository owner approved the direction at exact commit `779480c613b49f0e6ee1a818864ef48b5b8bd607` in the current Codex task on 2026-09-26; On 2026-10-09 the owner delegated the variation decision: static services are accepted, MediatR and bUnit are declined, and the open items in the ledger are proofs owned by the tasks named there. T002 is COMPLETED on the reviewed commit in its front matter. |
 
 **Tracking-only note:** filling these fields or running the status helper is not proof that tests ran, a professional approval, merge authorization or permission to perform a tenant operation.

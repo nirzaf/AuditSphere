@@ -271,16 +271,16 @@ The following table is the only master navigation/status index. Each task opens 
 | [ ] | [T003 — Approve accounting policies, resource bounds and golden fixtures](tasks/00_Baseline/auditsphere-r2r-task-t003-accounting-policies-resource-bounds-golden-fixtures.md) | [T002](tasks/00_Baseline/auditsphere-r2r-task-t002-architecture-contracts-transaction-ownership.md) | NOT_STARTED | WAITING: T002 | Unassigned |
 
 <a id="wp-01"></a>
-### R2R-01 — MediatR facade, async validation adapter, explicit DTO mapping, one transaction-owner registry, bUnit test project
+### R2R-01 — static command and query services, async validation, explicit DTO mapping, one transaction-owner registry, Angular component specs
 
 **Original dependencies:** R2R-00. **Task gate:** 0/3 COMPLETED.
 **Original exit evidence:** One representative existing command/query migrated without behavior change or nested transaction.
 
 | Done | Task file | Direct dependencies | Status | Readiness | Owner |
 |---|---|---|---|---|---|
-| [ ] | [T004 — Introduce MediatR facades without changing transaction behavior](tasks/01_CQRS/auditsphere-r2r-task-t004-command-query-boundary.md) | [T003](tasks/00_Baseline/auditsphere-r2r-task-t003-accounting-policies-resource-bounds-golden-fixtures.md) | NOT_STARTED | WAITING: T003 | Unassigned |
+| [ ] | [T004 — Make command and query boundaries explicit as static services without changing transaction behavior](tasks/01_CQRS/auditsphere-r2r-task-t004-command-query-boundary.md) | [T003](tasks/00_Baseline/auditsphere-r2r-task-t003-accounting-policies-resource-bounds-golden-fixtures.md) | NOT_STARTED | WAITING: T003 | Unassigned |
 | [ ] | [T005 — Implement asynchronous validation and explicit DTO mapping](tasks/01_CQRS/auditsphere-r2r-task-t005-asynchronous-validation-dto-mapping.md) | [T004](tasks/01_CQRS/auditsphere-r2r-task-t004-command-query-boundary.md) | NOT_STARTED | WAITING: T004 | Unassigned |
-| [ ] | [T006 — Establish bUnit and the layered verification harness](tasks/01_CQRS/auditsphere-r2r-task-t006-bunit-verification-harness.md) | [T005](tasks/01_CQRS/auditsphere-r2r-task-t005-asynchronous-validation-dto-mapping.md) | NOT_STARTED | WAITING: T005 | Unassigned |
+| [ ] | [T006 — Establish the layered verification harness (xUnit, PostgreSQL, Angular specs, Playwright)](tasks/01_CQRS/auditsphere-r2r-task-t006-bunit-verification-harness.md) | [T005](tasks/01_CQRS/auditsphere-r2r-task-t005-asynchronous-validation-dto-mapping.md) | NOT_STARTED | WAITING: T005 | Unassigned |
 
 <a id="wp-02"></a>
 ### R2R-02 — Scope/currentness/manifest/idempotency contracts and shared EditForm/state/dirty/conflict components

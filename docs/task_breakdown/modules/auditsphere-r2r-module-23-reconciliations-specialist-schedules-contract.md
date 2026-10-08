@@ -114,7 +114,7 @@ Expose exactly which correction is excluded because it already appears in the ad
 |---|---|---|
 | xUnit domain | `ReconciliationProofTests` | `BankSignConventionIsExplicit`; `TimingItemDoesNotPostJournal`; `CorrectionAlreadyInSnapshotNotAddedTwice`; `UnknownReflectionBlocksProof`; `UnexplainedResidualBlocksSubmission`; `CreditsRemainVisibleByCounterparty`. |
 | xUnit PostgreSQL | `ReconciliationRevisionTests` | `DifferentReviewerRequired`; `ChangedSourceOrDocumentMakesProofStale`; `ConcurrentCorrectionDecisionCannotApproveOldProof`; `ApprovedItemMutationDenied`; `CarryForwardDoesNotCopyApproval`. |
-| bUnit | `ReconciliationEditorTests` | Read-only ledger source, correction-link pending state, row-date errors, visible formula/effects and reasoned return/new revision. |
+| Angular spec | `ReconciliationEditorTests` | Read-only ledger source, correction-link pending state, row-date errors, visible formula/effects and reasoned return/new revision. |
 | Playwright | `R2R23ReconciliationJourneys` | Bank schedule with deposit/cheque/fee bridge; accepted AJE linked once; return/rework; source replacement/reload; subledger control tie-out and denied cross-client document. |
 
 **Exit gate:** the ledger/supporting proof is reproducible, has no unexplained residual or double-applied correction, and current independent review is required before it can satisfy a downstream gate.
