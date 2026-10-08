@@ -165,7 +165,7 @@ Every story is sized for one agent session. Before starting, read only the files
 
 ## STE-NXT-008 — Verify the two unchecked requirement rows
 
-*Status (2026-10-08): done for the evidence, not for the link. Both rows were checked with file and line evidence; 4.1.4 holds. A later review found that the AR Test and Audit Workprogram links on the split dashboard pass their context in query parameters (area, line, section, period, revision, return path) that neither destination reads, so row 4.3.1 stays open until STE-NXT-013 is done.*
+*Status (2026-10-08): done for the evidence, not for the link. Both rows were checked with file and line evidence; 4.1.4 holds. A later review found that the AR Test and Audit Workprogram links on the split dashboard pass their context in query parameters (area, line, section, period, revision, return path) that neither destination reads, STE-NXT-013 has since made the links carry their context.*
 
 **Story.** As the reviewer of STE coverage, I want the last unchecked rows examined, so that the verification table has no blind spots.
 
@@ -249,7 +249,7 @@ Every story is sized for one agent session. Before starting, read only the files
 
 ## STE-NXT-013 — Make the statement analysis links reach their screens
 
-*Status: open. Found in the STE-NXT-008 review on 2026-10-08: the AR Test and Audit Workprogram links on the split dashboard carry their context, and neither destination reads it.*
+*Status: implemented 2026-10-08. The links send the keys the screens read (area, line, period, revision, return path). The analytical screen pre-fills only after the server confirms the statement revision, refuses a stale link, and offers a validated return to the statement. Fieldwork focuses the risks recorded against the line. Tests: `core/statement-link.spec.ts`, `analytical-preparation.spec.ts`, `fieldwork.spec.ts`.*
 
 **Story.** As a reviewer working from the split dashboard, I want the AR Test and Audit Workprogram links to open the screen already pointed at that line, so that I do not re-enter the area, line, period and revision.
 

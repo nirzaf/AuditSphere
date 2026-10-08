@@ -198,7 +198,6 @@
                     [queryParams]="{
                       area: l.auditArea,
                       line: l.destinationCode,
-                      section: l.statementSection,
                       periodStart: v.basis.periodStart,
                       periodEnd: v.basis.periodEnd,
                       revision: v.basis.revision,
@@ -215,8 +214,7 @@
                     [queryParams]="{
                       area: l.auditArea,
                       line: l.destinationCode,
-                      section: l.statementSection,
-                      revision: v.basis.revision,
+                      returnUrl: currentUrl(),
                     }"
                     [attr.aria-label]="'Open audit workprogram for ' + l.destinationCode"
                   >
@@ -375,7 +373,6 @@
                     [queryParams]="{
                       area: l.auditArea,
                       line: l.destinationCode,
-                      section: l.statementSection,
                       periodStart: v.basis.periodStart,
                       periodEnd: v.basis.periodEnd,
                       revision: v.basis.revision,
@@ -392,8 +389,7 @@
                     [queryParams]="{
                       area: l.auditArea,
                       line: l.destinationCode,
-                      section: l.statementSection,
-                      revision: v.basis.revision,
+                      returnUrl: currentUrl(),
                     }"
                     [attr.aria-label]="'Open audit workprogram for ' + l.destinationCode"
                   >

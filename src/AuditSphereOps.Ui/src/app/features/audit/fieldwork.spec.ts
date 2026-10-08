@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeFieldwork, decodeProcedureReview, decodeSampleSet } from './fieldwork';
+import { decodeFieldwork, decodeProcedureReview, decodeSampleSet, focusRisks } from './fieldwork';
 
 const id1 = '11111111-1111-4111-8111-111111111111';
 const id2 = '22222222-2222-4222-8222-222222222222';
@@ -216,5 +216,18 @@ describe('Audit Fieldwork Contracts', () => {
     expect(() => decodeFieldwork(null, 'fieldwork')).toThrow();
     expect(() => decodeFieldwork({}, 'fieldwork')).toThrow();
     expect(() => decodeProcedureReview(null, 'procedureReview')).toThrow();
+  });
+});
+
+describe('statement focus (STE-NXT-013)', () => {
+  it('focuses only the risks recorded against the statement line', () => {
+    const risks = [
+      { destinationCode: 'REV-100', area: 'Revenue' },
+      { destinationCode: 'AR-200', area: 'Receivables' },
+      { destinationCode: null, area: 'Other' },
+    ];
+    expect(focusRisks(risks, 'REV-100')).toEqual([{ destinationCode: 'REV-100', area: 'Revenue' }]);
+    expect(focusRisks(risks, 'MISSING')).toEqual([]);
+    expect(focusRisks(risks, null)).toEqual([]);
   });
 });

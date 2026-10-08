@@ -114,7 +114,7 @@ Card status in the front matter: 2 COMPLETED, 0 IN_REVIEW, 73 NOT_STARTED of 75 
 | STE-NXT-010 | STE-NXT | Decide whether PBT normalization is in scope | decided 2026-10-09 under the owner's delegated decision: Option A, no normalization, as the methodology note docs/execution/auditsphere-audit-report-normalized-pbt-spk-03-proposed.md recommends | OWNER_DECISION | owner decision | 2 | Owner decision |
 | STE-NXT-011 | STE-NXT | Protect the released archive with an independent read-only copy (SPK-01 option 2) | — | OWNER_DECISION | owner decision | 3 | Owner decision |
 | STE-NXT-012 | STE-NXT | Show the local, provider and lifecycle archive states separately | — | PARTIAL | — | 4 | Build the open gaps |
-| STE-NXT-013 | STE-NXT | Make the statement analysis links reach their screens | open | NOT_AUDITED | — | — | Audit against the codebase before building |
+| STE-NXT-013 | STE-NXT | Make the statement analysis links reach their screens | implemented 2026-10-08 | NOT_AUDITED | — | — | Audit against the codebase before building |
 | STE-NXT-014 | STE-NXT | Record end-of-service accruals as a provision | open | NOT_AUDITED | — | — | Audit against the codebase before building |
 | STE-GAP-001 | STE-GAP | Versioned Service-Specific Engagement Letter Templates | — | PARTIAL | — | 7 | Build the open gaps |
 | STE-GAP-002 | STE-GAP | Specification-Compliant 50% Advance Invoice Automation | — | PARTIAL | — | 6 | Build the open gaps |

@@ -1,5 +1,5 @@
 import { Component, HostListener, computed, effect, inject, signal, untracked } from '@angular/core';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
@@ -9,9 +9,12 @@ import { SessionService } from '../../core/session';
 import { PendingRequestReference, pendingRequestReference, TabDrafts } from '../../core/tab-drafts';
 import { NavigationProtected, UnsavedChangesDialog } from '../../core/unsaved-changes';
 import { SHARED } from '../../core/ui';
+import { obj, text } from '../../core/decode';
+import { safeReturnPath, statementLinkContext, StatementLinkContext } from '../../core/statement-link';
 import { AnalyticalEditableFields, analyticalEditableFields, decodeAnalyticalContext, decodeAnalyticalLookup,
   decodeAnalyticalPreview, decodeAnalyticalReceipt, decodeAnalyticalState } from './analytical-preparation-contracts';
 
+const decodeStatementRevision = obj({ basis: obj({ revision: text }) });
 const empty = (): AnalyticalEditableFields => ({ area:'', measure:'', currentAmount:'', priorAmount:'', budgetAmount:'',
   denominatorBasis:'', formulaVersion:'', explanation:'', seasonalityExplanation:'', reason:'', evidenceReference:'' });
 type Intent = { requestId:string; reviewBasis:string; fields:AnalyticalEditableFields & {periodId:string;comparisonPeriodId:string|null}; reason:string; evidenceReference:string; reviewed:boolean };
@@ -22,6 +25,10 @@ export class AnalyticalPreparation implements NavigationProtected {
   private readonly api=inject(Api); private readonly session=inject(SessionService); private readonly drafts=inject(TabDrafts);
   private readonly dialog=inject(MatDialog); private readonly route=inject(ActivatedRoute);
   private readonly routeParams=toSignal(this.route.paramMap,{initialValue:this.route.snapshot?.paramMap});
+  private readonly router=inject(Router);
+  private readonly statementLink:StatementLinkContext|null=statementLinkContext(this.route.snapshot?.queryParamMap);
+  private statementApplied=false;
+  readonly returnTarget=computed(()=>safeReturnPath(this.statementLink?.returnUrl??null));
   readonly id=routeGuid(); readonly model=signal(empty()); readonly periodId=signal(''); readonly comparisonPeriodId=signal('');
   readonly data=this.api.resource(()=>this.id()?this.base():null,decodeAnalyticalContext,
     'This analytical workspace is unavailable to your current account. Ask your firm administrator to confirm your AuditSphere role and client or engagement scope.');
@@ -46,9 +53,24 @@ export class AnalyticalPreparation implements NavigationProtected {
   constructor(){
     effect(()=>{this.id();this.session.invalidation();this.routeParams();untracked(()=>{this.requestGeneration++;this.basisGeneration++;this.reset();});});
     effect(()=>{const id=this.id(),c=this.data.data();if(!c||c.engagementId!==id)return;untracked(()=>{
-      if(!c.periods.some(p=>p.id===this.periodId())){const preferred=c.periods.find(p=>p.canPrepare)??c.periods[0];this.periodId.set(preferred?.id??'');this.comparisonPeriodId.set('');}
-      void this.loadBasis();});});
+      if(!c.periods.some(p=>p.id===this.periodId())){const linked=this.statementLink?c.periods.find(p=>p.startDate===this.statementLink!.periodStart&&p.endDate===this.statementLink!.periodEnd):undefined;const preferred=linked??c.periods.find(p=>p.canPrepare)??c.periods[0];this.periodId.set(preferred?.id??'');this.comparisonPeriodId.set('');}
+      void this.loadBasis();
+      if(this.statementLink&&!this.statementApplied){this.statementApplied=true;void this.applyStatementLink(this.statementLink);}});});
   }
+  private async applyStatementLink(link:StatementLinkContext):Promise<void>{
+    const id=this.id();
+    try{
+      const current=(await this.api.get(`/api/ui/engagements/${id}/statements/workspace`,decodeStatementRevision)).basis.revision;
+      if(id!==this.id())return;
+      const period=this.periods().find(p=>p.startDate===link.periodStart&&p.endDate===link.periodEnd);
+      if(current!==link.revision||!period){this.message.set('This statement link points to an earlier version of the statement or to a period this engagement does not have. Open the statement again and choose the line; nothing has been filled in.');return;}
+      this.model.set({...empty(),area:link.area,measure:link.line});
+      this.message.set(`Pre-filled from statement line ${link.line}. Check every field before you prepare the test.`);
+    }catch{
+      this.message.set('The statement could not be checked, so nothing has been filled in. Open the statement again.');
+    }
+  }
+  returnToStatement():void{const target=this.returnTarget();if(target)void this.router.navigateByUrl(target);}
   private base(){return `/api/ui/engagements/${this.id()}/analytical-preparation`;}
   private reset(){this.periodId.set('');this.comparisonPeriodId.set('');this.basis.set(null);this.model.set(empty());this.baseline.set(JSON.stringify(empty()));
     this.preview.set(null);this.receipt.set(null);this.pending.set(null);this.busy.set(false);this.reviewed.set(false);this.uncertain.set(false);this.absent.set(false);

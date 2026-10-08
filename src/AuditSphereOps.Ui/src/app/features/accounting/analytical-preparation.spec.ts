@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { ActivatedRoute, ParamMap, convertToParamMap, provideRouter } from '@angular/router';
 import { BehaviorSubject } from 'rxjs';
 import { SessionService } from '../../core/session';
 import { AnalyticalPreparation } from './analytical-preparation';
@@ -21,9 +21,9 @@ const receipt=(requestId:string)=>({id:user,requestId,requestHash:preview.reques
     priorAmount:fields.priorAmount,varianceRatio:preview.varianceRatio,actorId:user,createdAt:'2026-10-04T10:00:00Z'}});
 
 describe('native analytical preparation',()=>{
-  let http:HttpTestingController;let params:BehaviorSubject<ReturnType<typeof convertToParamMap>>;
-  beforeEach(()=>{sessionStorage.clear();params=new BehaviorSubject(convertToParamMap({id}));TestBed.configureTestingModule({imports:[AnalyticalPreparation],
-    providers:[provideHttpClient(),provideHttpClientTesting(),provideRouter([]),{provide:ActivatedRoute,useValue:{paramMap:params}}]});
+  let http:HttpTestingController;let params:BehaviorSubject<ParamMap>;let routeMock:{paramMap:BehaviorSubject<ParamMap>;snapshot:{queryParamMap:ParamMap}};
+  beforeEach(()=>{sessionStorage.clear();params=new BehaviorSubject(convertToParamMap({id}));routeMock={paramMap:params,snapshot:{queryParamMap:convertToParamMap({})}};TestBed.configureTestingModule({imports:[AnalyticalPreparation],
+    providers:[provideHttpClient(),provideHttpClientTesting(),provideRouter([]),{provide:ActivatedRoute,useValue:routeMock}]});
     http=TestBed.inject(HttpTestingController);TestBed.inject(SessionService).current.set({userId:user,firmId:id,generation:'1',staff:true});});
   afterEach(()=>{try{http.verify({ignoreCancelled:true});}finally{TestBed.resetTestingModule();sessionStorage.clear();}});
   async function open(){const fixture=TestBed.createComponent(AnalyticalPreparation);fixture.detectChanges();TestBed.tick();http.expectOne(base).flush(context);TestBed.tick();
@@ -61,5 +61,28 @@ describe('native analytical preparation',()=>{
   it('rejects malformed period state, preview and mismatched receipt contracts',()=>{
     expect(()=>decodeAnalyticalState({...state,reviewBasis:'bad'},'state')).toThrow();expect(()=>decodeAnalyticalPreview({...preview,periodId:'bad'},'preview')).toThrow();
     expect(()=>decodeAnalyticalLookup({found:true,receipt:null})).toThrow();expect(analyticalEditableFields({...fields,hidden:'value'})).toBeNull();
+  });
+
+  it('pre-fills area and measure from a statement link when the statement revision still matches',async()=>{
+    const statement='c'.repeat(64);
+    routeMock.snapshot={queryParamMap:convertToParamMap({area:'Revenue',line:'REV-100',periodStart:'2026-01-01',periodEnd:'2026-12-31',revision:statement,returnUrl:`/app/engagements/${id}/statements`})};
+    const fixture=TestBed.createComponent(AnalyticalPreparation);fixture.detectChanges();TestBed.tick();
+    http.expectOne(base).flush(context);TestBed.tick();
+    http.expectOne(base+`/state?periodId=${period}`).flush(state);
+    http.expectOne(`/api/ui/engagements/${id}/statements/workspace`).flush({basis:{revision:statement}});
+    await new Promise((resolve)=>setTimeout(resolve,0));TestBed.tick();
+    const c=fixture.componentInstance;
+    expect(c.model().area).toBe('Revenue');expect(c.model().measure).toBe('REV-100');expect(c.periodId()).toBe(period);
+    expect(c.returnTarget()).toBe(`/app/engagements/${id}/statements`);
+  });
+  it('refuses a stale statement link and fills nothing',async()=>{
+    routeMock.snapshot={queryParamMap:convertToParamMap({area:'Revenue',line:'REV-100',periodStart:'2026-01-01',periodEnd:'2026-12-31',revision:'c'.repeat(64)})};
+    const fixture=TestBed.createComponent(AnalyticalPreparation);fixture.detectChanges();TestBed.tick();
+    http.expectOne(base).flush(context);TestBed.tick();
+    http.expectOne(base+`/state?periodId=${period}`).flush(state);
+    http.expectOne(`/api/ui/engagements/${id}/statements/workspace`).flush({basis:{revision:'d'.repeat(64)}});
+    await new Promise((resolve)=>setTimeout(resolve,0));TestBed.tick();
+    const c=fixture.componentInstance;
+    expect(c.model().area).toBe('');expect(c.message()).toContain('earlier version');
   });
 });

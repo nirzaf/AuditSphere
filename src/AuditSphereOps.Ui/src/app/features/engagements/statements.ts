@@ -34,7 +34,10 @@ export class StatementDrillDown {
   readonly location = computed(() => statementLocation((k) => this.query().get(k)));
   readonly model = signal({ filter: '' });
   readonly fields = form(this.model, (p) => maxLength(p.filter, 80));
-  readonly currentUrl = computed(() => this.router.url);
+  /** Read at click time, so the return path is the page the user is on now, not the one the component opened on. */
+  currentUrl(): string {
+    return this.router.url;
+  }
   private readonly viewUrl = computed(() => {
     const q = this.location();
     return this.id() && q

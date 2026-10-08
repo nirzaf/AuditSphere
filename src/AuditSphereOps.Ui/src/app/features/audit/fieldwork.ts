@@ -1,6 +1,6 @@
-import { Component, effect, inject, signal, untracked } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTabsModule } from '@angular/material/tabs';
 import { Api, CommandState, routeGuid } from '../../core/api';
@@ -53,11 +53,20 @@ type SampleItem = SampleSet['items'][number];
 type SampleTestDraft = { workPerformed: string; evidenceReferences: string; result: string; exceptionAmount: string;
   contradictoryEvidence: string; followUp: string; reviewerComment: string };
 
+/** Risks recorded against one statement line (STE-NXT-013). The line is the only key the link sends. */
+export function focusRisks<T extends { destinationCode: string | null }>(risks: readonly T[], line: string | null): T[] {
+  if (!line) return [];
+  return risks.filter((risk) => risk.destinationCode === line);
+}
+
 @Component({
   selector: 'audit-fieldwork',
   imports: [FormsModule, RouterLink, MatButtonModule, MatTabsModule, ...SHARED],
   template: `
     <nav aria-label="Breadcrumb"><a routerLink="/app">Portfolio</a> / <a [routerLink]="['/app/engagements', id()]">Engagement</a> / <span>Audit fieldwork</span></nav>
+    @if (statementFocus.line) {
+      <p role="status">Opened from statement line {{ statementFocus.line }}{{ statementFocus.area ? ' (' + statementFocus.area + ')' : '' }}. {{ focusedRisks().length ? focusedRisks().length + ' risk(s) are recorded for this line.' : 'No risk is recorded for this line yet.' }}</p>
+    }
     <audit-page-header title="Controlled audit fieldwork" eyebrow="Engagement audit" [description]="ws.data()?.canManageFieldwork ? 'Fieldwork procedures, differences, and aggregate conclusion on this engagement.' : 'Review submitted procedure results and resolve review notes for this engagement.'" />
     <audit-state [loading]="ws.loading()" [error]="ws.error()" label="fieldwork coverage" />
     @if (ws.data(); as w) {
@@ -393,7 +402,10 @@ type SampleTestDraft = { workPerformed: string; evidenceReferences: string; resu
 })
 export class AuditFieldwork {
   private readonly api = inject(Api);
+  private readonly route = inject(ActivatedRoute);
   readonly id = routeGuid();
+  readonly statementFocus = { line: this.route.snapshot?.queryParamMap.get('line') ?? null, area: this.route.snapshot?.queryParamMap.get('area') ?? null };
+  readonly focusedRisks = computed(() => focusRisks(this.ws.data()?.risks ?? [], this.statementFocus.line));
   readonly ws = this.api.resource(() => (this.id() ? `/api/ui/engagements/${this.id()}/fieldwork` : null), decodeFieldwork,
     'Fieldwork unavailable: an authorized internal engagement scope is required.');
   readonly cmd = new CommandState(this.api);

@@ -1,4 +1,5 @@
 <a [routerLink]="['/app/engagements',id()]">← Back to engagement</a>
+@if(returnTarget()){<button matButton="outlined" (click)="returnToStatement()">Back to the statement line</button>}
 <audit-page-header title="Prepare analytical review" eyebrow="Accounting preparation"
   description="Record practitioner-entered analytical inputs and their retained basis. Independent human review stays separate." />
 <button matButton="outlined" (click)="refresh()" [disabled]="busy()">Refresh reporting periods</button>
