@@ -32,13 +32,18 @@ import { SessionService } from './session';
   styles: `
     :host { display: block; }
     nav { display: block; margin: 0; }
-    h2 { font-size: .75rem; text-transform: uppercase; letter-spacing: .05em;
-      margin: 1rem 0 .25rem; color: #315476; }
-    h2.current-section { border-inline-start: 3px solid #315476; padding-inline-start: .5rem; }
-    a { display: block; padding: .75rem; min-height: 44px; box-sizing: border-box;
-      color: #12385d; border-radius: 4px; overflow-wrap: anywhere; }
-    a.active { font-weight: 600; background: #dbe7f2; }
-    p { font-size: .875rem; margin-block-start: 2rem; }
+    h2 { font-size: .6875rem; text-transform: uppercase; letter-spacing: .08em; font-weight: 700;
+      margin: 1.25rem 0 .25rem; padding-inline: .75rem; color: #315476; }
+    h2:first-of-type { margin-block-start: 0; }
+    h2.current-section { color: #12385d; border-inline-start: 3px solid #1b66a8; padding-inline-start: .5rem; }
+    a { display: flex; align-items: center; padding: .625rem .75rem; min-height: 44px;
+      margin-block: 1px; box-sizing: border-box; color: #12385d; text-decoration: none;
+      border-radius: 8px; overflow-wrap: anywhere;
+      transition: background-color .15s ease, box-shadow .15s ease; }
+    a:hover { background: #dfe9f3; color: #12385d; }
+    a.active { font-weight: 600; background: #d3e2f1; box-shadow: inset 3px 0 0 #1b66a8; }
+    p { font-size: .8125rem; line-height: 1.4; color: #455468; padding-inline: .75rem;
+      margin-block-start: 1.5rem; }
   `,
 })
 export class WorkspaceNavigation {

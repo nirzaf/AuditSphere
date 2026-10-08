@@ -7,6 +7,8 @@
 
 html {
   height: 100%;
+  // Reserve the scrollbar gutter so opening dialogs or long tables never shifts the layout.
+  scrollbar-gutter: stable;
   @include mat.theme(
     (
       color: (
@@ -21,6 +23,34 @@ html {
   );
 }
 
+// Design tokens shared by the shell and every page. Component styles reference these with a
+// literal fallback so a component still renders correctly inside a body-mounted overlay.
+// Contrast notes (WCAG 2.2): ink on surface >= 7:1, muted on surface >= 7:1, link on surface
+// >= 6:1, control border on surface >= 3:1 (1.4.11 non-text contrast).
+:root {
+  --as-ink: #12385d;
+  --as-ink-soft: #315476;
+  --as-text-muted: #455468;
+  --as-link: #0b5cab;
+  --as-link-hover: #083f78;
+  --as-focus: #075a9c;
+  --as-line: #d8e1eb;
+  --as-control-border: #6f8299;
+  --as-surface-raised: #ffffff;
+  --as-surface-sunken: #f4f7fa;
+  --as-surface-nav: #edf3f8;
+  --as-row-hover: #f1f6fb;
+  --as-danger: #a1260d;
+  --as-danger-fill: #fdecea;
+  --as-warning-ink: #7a3b00;
+  --as-warning-accent: #b36b00;
+  --as-radius-sm: 6px;
+  --as-radius-md: 10px;
+  --as-shadow-1: 0 1px 2px rgb(16 42 67 / 6%), 0 1px 3px rgb(16 42 67 / 8%);
+  --as-shadow-2: 0 2px 4px rgb(16 42 67 / 8%), 0 6px 16px rgb(16 42 67 / 10%);
+  --as-ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
 body {
   // Default the application to a light color theme. This can be changed to
   // `dark` to enable the dark color theme, or to `light dark` to defer to the
@@ -33,6 +63,9 @@ body {
   background-color: var(--mat-sys-surface);
   color: var(--mat-sys-on-surface);
   font: var(--mat-sys-body-medium);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 
   // Reset the user agent margin.
   margin: 0;
@@ -40,21 +73,71 @@ body {
 }
 /* You can add global styles to this file, and also import other style files */
 
+::selection {
+  background: color-mix(in srgb, var(--mat-sys-primary) 22%, white);
+}
+
 :focus-visible {
-  outline: 3px solid #075a9c;
+  outline: 3px solid var(--as-focus);
   outline-offset: 3px;
 }
 button:focus-visible {
-  outline: 3px solid #075a9c;
+  outline: 3px solid var(--as-focus);
   outline-offset: 3px;
+}
+
+h1,
+h2,
+h3 {
+  color: var(--as-ink);
+  line-height: 1.25;
+  text-wrap: balance;
 }
 h1 {
   font-size: clamp(1.8rem, 3vw, 2.5rem);
+  letter-spacing: -0.015em;
+  font-weight: 650;
 }
+h3 {
+  font-size: 1.0625rem;
+}
+
+// Links: the browser default blue is replaced by an accessible token; Material buttons and the
+// shell/navigation components set their own colour with higher specificity.
+a {
+  color: var(--as-link);
+  text-underline-offset: 0.15em;
+  text-decoration-thickness: from-font;
+  transition: color 0.15s var(--as-ease);
+}
+a:hover {
+  color: var(--as-link-hover);
+}
+
 .eyebrow {
-  color: #315476;
+  margin: 0;
+  color: var(--as-ink-soft);
+  font-size: 0.75rem;
   font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
+
+// Page header: every migrated page opens with <audit-page-header>.
+audit-page-header > header {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--as-line);
+}
+audit-page-header h1 {
+  margin: 0.25rem 0 0.5rem;
+}
+audit-page-header p:not(.eyebrow) {
+  max-width: 70ch;
+  margin: 0;
+  color: var(--as-text-muted);
+}
+
 form {
   display: flex;
   align-items: baseline;
@@ -64,17 +147,40 @@ form {
 table {
   width: 100%;
   border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
 }
 caption {
   text-align: left;
   padding: 1rem 0;
   font-weight: 600;
+  color: var(--as-ink);
 }
 th,
 td {
-  padding: 1rem;
-  border-bottom: 1px solid #d8e1eb;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--as-line);
   text-align: left;
+  vertical-align: top;
+}
+thead th {
+  background: var(--as-surface-sunken);
+  border-bottom: 2px solid var(--as-line);
+  color: var(--as-ink-soft);
+  font-size: 0.8125rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+tbody tr {
+  transition: background-color 0.12s var(--as-ease);
+}
+tbody tr:hover td {
+  background: var(--as-row-hover);
+}
+tfoot td,
+tfoot th {
+  background: var(--as-surface-sunken);
+  font-weight: 650;
 }
 .number {
   text-align: right;
@@ -83,11 +189,17 @@ td {
 small {
   display: block;
   overflow-wrap: anywhere;
-  color: #455468;
+  color: var(--as-text-muted);
 }
 .table-scroll {
   overflow-x: auto;
   position: relative;
+  border: 1px solid var(--as-line);
+  border-radius: var(--as-radius-md);
+  background: var(--as-surface-raised);
+}
+.table-scroll tbody tr:last-child td {
+  border-bottom: 0;
 }
 nav {
   display: flex;
@@ -99,11 +211,15 @@ nav[aria-label='Breadcrumb'] {
   flex-wrap: wrap;
 }
 .panel {
-  border: 1px solid #d8e1eb;
-  border-radius: 8px;
-  padding: 1rem 1.25rem;
+  border: 1px solid var(--as-line);
+  border-radius: var(--as-radius-md);
+  padding: 1.25rem 1.5rem;
   margin: 1.5rem 0;
-  background: var(--mat-sys-surface);
+  background: var(--as-surface-raised);
+  box-shadow: var(--as-shadow-1);
+}
+.panel.warning {
+  border-inline-start: 4px solid var(--as-warning-accent);
 }
 .panel h2 {
   margin-top: 0;
@@ -121,22 +237,68 @@ nav[aria-label='Breadcrumb'] {
   flex-direction: column;
   gap: 0.25rem;
   font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--as-ink);
   max-width: 100%;
   min-width: 0;
 }
-input,
-select,
-textarea {
+
+// Native controls. Material form fields (class names beginning mat-) keep Material's own styling.
+input:not([class*='mat-']):not([type='checkbox']):not([type='radio']),
+select:not([class*='mat-']),
+textarea:not([class*='mat-']) {
   font: inherit;
-  padding: 0.5rem;
-  border: 1px solid #8a9bb0;
-  border-radius: 4px;
+  padding: 0.5rem 0.625rem;
+  min-height: 2.5rem;
+  border: 1px solid var(--as-control-border);
+  border-radius: var(--as-radius-sm);
+  background: var(--as-surface-raised);
+  color: inherit;
   max-width: 100%;
   box-sizing: border-box;
+  transition:
+    border-color 0.15s var(--as-ease),
+    box-shadow 0.15s var(--as-ease);
+}
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--mat-sys-primary);
+  width: 1.125rem;
+  height: 1.125rem;
+}
+input:not([class*='mat-']):hover:not(:disabled),
+select:not([class*='mat-']):hover:not(:disabled),
+textarea:not([class*='mat-']):hover:not(:disabled) {
+  border-color: var(--as-ink-soft);
+}
+input:not([class*='mat-']):focus-visible,
+select:not([class*='mat-']):focus-visible,
+textarea:not([class*='mat-']):focus-visible {
+  border-color: var(--as-focus);
+  outline-offset: 0;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--as-focus) 20%, transparent);
+}
+input[aria-invalid='true']:not([class*='mat-']),
+select[aria-invalid='true']:not([class*='mat-']),
+textarea[aria-invalid='true']:not([class*='mat-']) {
+  border-color: var(--as-danger);
+  background: color-mix(in srgb, var(--as-danger-fill) 40%, white);
+}
+input:not([class*='mat-']):disabled,
+select:not([class*='mat-']):disabled,
+textarea:not([class*='mat-']):disabled {
+  background: var(--as-surface-sunken);
+  color: var(--as-text-muted);
+  cursor: not-allowed;
+}
+::placeholder {
+  color: #5b6b7e;
+  opacity: 1;
 }
 textarea {
   min-width: min(28rem, 100%);
   min-height: 4rem;
+  resize: vertical;
 }
 .status-chip {
   display: inline-block;
@@ -148,19 +310,31 @@ textarea {
   text-transform: capitalize;
   white-space: nowrap;
 }
-.error-text,
+.error-text {
+  color: var(--as-danger);
+}
+// Loading/error block shared by every page: a contained alert instead of bare red text.
 .state-error {
-  color: #a1260d;
+  color: var(--as-danger);
+  margin: 1rem 0;
+  padding: 0.75rem 1rem;
+  border-inline-start: 4px solid var(--as-danger);
+  border-radius: var(--as-radius-sm);
+  background: var(--as-danger-fill);
+}
+.state-error p {
+  margin: 0;
 }
 .command-result {
   font-weight: 500;
 }
 .blockers li {
-  color: #7a3b00;
+  color: var(--as-warning-ink);
 }
 .actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 0.5rem;
 }
 .sr-only {
@@ -174,10 +348,11 @@ textarea {
 dl.facts {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
-  gap: 0.25rem 1rem;
+  gap: 0.375rem 1.5rem;
 }
 dl.facts dt {
   font-weight: 600;
+  color: var(--as-ink-soft);
 }
 dl.facts dd {
   margin: 0;
@@ -185,4 +360,53 @@ dl.facts dd {
 }
 code {
   overflow-wrap: anywhere;
+}
+
+// A newly routed page eases in once. Only creation animates, so data refreshes never flicker.
+// The search launcher and its placeholder button are excluded because @defer swaps them in place.
+@keyframes as-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+main > :not(router-outlet, audit-global-search, button) {
+  animation: as-page-in 0.2s var(--as-ease) backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+// Printed pages (evidence, schedules, packages) carry content only: no shell chrome or shadows.
+@media print {
+  .app-header,
+  .skip-link,
+  aside,
+  audit-pending-outcomes,
+  audit-global-search {
+    display: none !important;
+  }
+  .workspace {
+    display: block !important;
+  }
+  main {
+    max-width: none;
+    padding: 0;
+  }
+  .panel,
+  .table-scroll {
+    box-shadow: none;
+    break-inside: avoid;
+  }
+  a {
+    color: inherit;
+  }
 }

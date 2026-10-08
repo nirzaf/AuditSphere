@@ -129,14 +129,16 @@ function describe(entity: string): PendingOutcome {
   `,
   styles: `
     .pending-outcomes {
-      margin: 0 1rem 0.75rem;
+      margin: 0.75rem 1rem;
       padding: 0.75rem 1rem;
       border: 1px solid #b36b00;
-      border-radius: 4px;
+      border-inline-start-width: 4px;
+      border-radius: 8px;
       background: #fff7e6;
       color: #4a3000;
+      box-shadow: 0 1px 3px rgb(74 48 0 / 12%);
     }
-    .pending-outcomes h2 { font-size: 0.9rem; margin: 0 0 0.25rem; }
+    .pending-outcomes h2 { font-size: 0.9rem; margin: 0 0 0.25rem; color: inherit; }
     .pending-outcomes p { margin: 0 0 0.5rem; font-size: 0.875rem; }
     .pending-outcomes ul { margin: 0; padding-inline-start: 1.25rem; font-size: 0.875rem; }
   `,

@@ -37,6 +37,11 @@ implemented patterns; acceptance claims always belong to `docs/execution/status.
 - UI kit is Angular Material/CDK plus the shared `SHARED` components
   (`audit-page-header`, `audit-state`, `audit-command-message`, `audit-status`).
   MudBlazor is forbidden; new npm dependencies require owner approval.
+- Shared visual tokens (`--as-ink`, `--as-line`, `--as-link`, `--as-focus`, radii and shadows) live
+  in `src/AuditSphereOps.Ui/src/styles.scss`. Reuse them, with a literal fallback inside
+  body-mounted overlays, instead of adding new hex colours. Panels, tables, native controls and
+  page headers are styled globally; keep text and control contrast at WCAG 2.2 AA, and keep any
+  new motion behind the existing `prefers-reduced-motion` rule.
 - Routes are registered in `app.routes.ts` with `staffGuard`/`clientGuard`,
   kept in step with the `SpaRoutes` table in
   `UiEndpoints.Infrastructure.cs`, and deep links must survive reload.

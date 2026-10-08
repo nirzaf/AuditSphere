@@ -2,18 +2,59 @@
   flex: 1;
 }
 .app-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
   display: flex;
   min-height: 64px;
   align-items: center;
   flex-wrap: wrap;
   gap: 0.5rem;
   box-sizing: border-box;
-  padding: 0.75rem 1rem;
-  background: var(--mat-sys-primary);
+  padding: 0.75rem 1.25rem;
+  background: linear-gradient(
+    135deg,
+    var(--mat-sys-primary),
+    color-mix(in srgb, var(--mat-sys-primary) 76%, #001a33)
+  );
   color: var(--mat-sys-on-primary);
+  box-shadow: var(--as-shadow-2, 0 2px 8px rgb(16 42 67 / 18%));
+}
+// Focus rings on the blue header must be light: the page-level ring is dark blue.
+.app-header :focus-visible {
+  outline-color: #fff;
+}
+.app-header > strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 1.125rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+// Decorative "sphere" brand mark; carries no information, so it is not exposed to assistive tech.
+.app-header > strong::before {
+  content: '';
+  width: 1.5rem;
+  height: 1.5rem;
+  flex: none;
+  border: 1.5px solid rgb(255 255 255 / 85%);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 32% 30%,
+    #fff 0,
+    rgb(255 255 255 / 70%) 28%,
+    rgb(255 255 255 / 12%) 100%
+  );
+  box-shadow: 0 1px 4px rgb(0 0 0 / 25%);
 }
 .app-header > span:not(.spacer) {
-  font-size: 0.875rem;
+  padding: 0.125rem 0.65rem;
+  border: 1px solid rgb(255 255 255 / 45%);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
 }
 .shell-button {
   display: inline-flex;
@@ -21,7 +62,7 @@
   align-items: center;
   justify-content: center;
   padding: 0.55rem 0.9rem;
-  border: 1px solid currentColor;
+  border: 1px solid color-mix(in srgb, currentColor 60%, transparent);
   border-radius: 999px;
   background: transparent;
   color: inherit;
@@ -29,9 +70,17 @@
   line-height: 1.2;
   text-decoration: none;
   cursor: pointer;
+  transition:
+    background-color 0.15s var(--as-ease, ease),
+    border-color 0.15s var(--as-ease, ease),
+    transform 0.1s var(--as-ease, ease);
 }
 .shell-button:hover:not(:disabled) {
-  background: color-mix(in srgb, currentColor 10%, transparent);
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  border-color: currentColor;
+}
+.shell-button:active:not(:disabled) {
+  transform: scale(0.98);
 }
 .shell-button:disabled,
 .shell-button[aria-disabled='true'] {
@@ -42,21 +91,35 @@
   background: var(--mat-sys-primary);
   color: var(--mat-sys-on-primary);
 }
+.shell-primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--mat-sys-primary) 88%, black);
+  color: var(--mat-sys-on-primary);
+}
 .workspace {
   display: grid;
-  grid-template-columns: 15rem minmax(0, 1fr);
+  grid-template-columns: 15.5rem minmax(0, 1fr);
   min-height: calc(100vh - 64px);
 }
+// The navigation stays in view while long pages scroll, and scrolls on its own when it is taller
+// than the viewport.
 aside {
-  padding: 1.5rem;
-  background: #edf3f8;
-  border-right: 1px solid #d8e1eb;
+  position: sticky;
+  top: 64px;
+  align-self: start;
+  box-sizing: border-box;
+  height: calc(100vh - 64px);
+  overflow-y: auto;
+  padding: 1rem 0.75rem 1.5rem;
+  background: var(--as-surface-nav, #edf3f8);
+  border-right: 1px solid var(--as-line, #d8e1eb);
 }
 .navigation-toggle { display: none; }
 main {
   min-width: 0;
   padding: clamp(1rem, 4vw, 3rem);
   max-width: 80rem;
+  // Keeps focus targets and in-page anchors clear of the sticky header.
+  scroll-margin-top: 5rem;
 }
 .skip-link {
   position: absolute;
@@ -64,7 +127,11 @@ main {
   top: -5rem;
   z-index: 100;
   background: white;
+  color: var(--as-link, #0b5cab);
+  font-weight: 600;
   padding: 1rem;
+  border-radius: 0 0 8px 8px;
+  box-shadow: var(--as-shadow-2, 0 2px 8px rgb(16 42 67 / 18%));
 }
 .skip-link:focus {
   top: 0;
@@ -75,6 +142,9 @@ main {
   }
   aside {
     display: none;
+  }
+  .app-header {
+    padding: 0.5rem 0.75rem;
   }
   .navigation-toggle { display: inline-flex; min-height: 44px; }
 }
