@@ -186,10 +186,13 @@ public sealed class CommercialNotification
   public string DeliveryState { get; set; } = "QUEUED";
   public DateTimeOffset CreatedAt { get; set; }
   public DateTimeOffset? DeliveredAt { get; set; }
+  /// <summary>The exact holding letter dispatched by this notification (STE 3.3); one dispatch per letter identity.</summary>
+  public Guid? DeliverableId { get; set; }
 }
 
 public static class CommercialNotificationKinds
 {
   public const string Receipt = "RECEIPT";
   public const string Proposal = "PROPOSAL";
+  public const string HoldingLetter = "HOLDING_LETTER";
 }

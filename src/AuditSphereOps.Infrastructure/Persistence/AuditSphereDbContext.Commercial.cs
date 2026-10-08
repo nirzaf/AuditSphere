@@ -91,9 +91,11 @@ public sealed partial class AuditSphereDbContext
       e.HasIndex(x => new { x.FirmId, x.FeeMilestoneId }).IsUnique();
       e.HasIndex(x => new { x.FirmId, x.DeliveryState, x.CreatedAt });
       e.HasIndex(x => new { x.FirmId, x.ProposalId }).IsUnique().HasFilter("proposal_id IS NOT NULL");
+      // One holding-letter dispatch per exact letter identity: a regenerated, unchanged blocker set cannot send twice.
+      e.HasIndex(x => new { x.FirmId, x.DeliverableId }).IsUnique().HasFilter("deliverable_id IS NOT NULL");
       e.ToTable("commercial_notifications", t => t.HasCheckConstraint("ck_commercial_notification_values",
-        "delivery_state IN ('QUEUED','SENT','FAILED') AND kind IN ('RECEIPT','PROPOSAL') AND length(recipient) > 0 AND length(subject) > 0 AND ((delivery_state = 'SENT') = (delivered_at IS NOT NULL)) AND " +
-        "((kind = 'RECEIPT') = (fee_milestone_id IS NOT NULL)) AND ((kind = 'PROPOSAL') = (proposal_id IS NOT NULL))"));
+        "delivery_state IN ('QUEUED','SENT','FAILED') AND kind IN ('RECEIPT','PROPOSAL','HOLDING_LETTER') AND length(recipient) > 0 AND length(subject) > 0 AND ((delivery_state = 'SENT') = (delivered_at IS NOT NULL)) AND " +
+        "((kind = 'RECEIPT') = (fee_milestone_id IS NOT NULL)) AND ((kind = 'PROPOSAL') = (proposal_id IS NOT NULL)) AND ((kind = 'HOLDING_LETTER') = (deliverable_id IS NOT NULL))"));
     });
   }
 }

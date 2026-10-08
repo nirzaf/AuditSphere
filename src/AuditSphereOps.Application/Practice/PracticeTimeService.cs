@@ -556,20 +556,29 @@ public static class PracticeTimeService
     return CommandResult.Ok();
   }
 
-  private static async Task<CommandResult<RateCardVersion?>> ResolveRateAsync(
+  /// <summary>Read-only rate lookup used for capture: the exact approved card, else an explicit STE alias, else fail closed.</summary>
+  public static async Task<CommandResult<RateCardVersion?>> ResolveRateAsync(
     IAuditSphereDbContext db, Guid firmId, string role, string activity, string currency,
     string billableClassification, CancellationToken ct)
   {
     if (!string.Equals(billableClassification.Trim(), PracticeTimeStates.Billable, StringComparison.OrdinalIgnoreCase))
       return CommandResult<RateCardVersion?>.Ok(null);
-    var card = await db.RateCardVersions.Where(x => x.FirmId == firmId &&
-      x.Role == role.Trim() && x.Activity == activity.Trim() &&
-      x.Currency == currency.Trim().ToUpperInvariant() && x.Status == PracticeTimeStates.RateApproved)
-      .OrderByDescending(x => x.Version).FirstOrDefaultAsync(ct);
+    var normalizedCurrency = currency.Trim().ToUpperInvariant();
+    var card = await ApprovedCardAsync(db, firmId, role.Trim(), activity.Trim(), normalizedCurrency, ct);
+    // An exact approved card always wins. Only an explicit STE alias (e.g. Senior -> Audit Supervisor) may borrow a card;
+    // any other unknown role has no rate and fails closed.
+    if (card is null && SteChargeOutRateBaseline.CanonicalRole(role.Trim()) is { } canonical && canonical != role.Trim())
+      card = await ApprovedCardAsync(db, firmId, canonical, activity.Trim(), normalizedCurrency, ct);
     return card is null
       ? CommandResult<RateCardVersion?>.Fail("time.rate-missing", "An approved rate card is required for billable time.")
       : CommandResult<RateCardVersion?>.Ok(card);
   }
+
+  private static Task<RateCardVersion?> ApprovedCardAsync(IAuditSphereDbContext db, Guid firmId, string role, string activity, string currency,
+    CancellationToken ct) =>
+    db.RateCardVersions.Where(x => x.FirmId == firmId && x.Role == role && x.Activity == activity &&
+      x.Currency == currency && x.Status == PracticeTimeStates.RateApproved)
+      .OrderByDescending(x => x.Version).FirstOrDefaultAsync(ct);
 
   private static async Task<bool> HasOverlapAsync(
     IAuditSphereDbContext db, Guid firmId, Guid userId, SaveTimeDraftRequest request,

@@ -417,8 +417,9 @@ public static partial class AuditDeliverableService
               new("Outstanding confirmations", [], new DocumentTable(["Type", "Respondent", "Amount", "Status", "Days since dispatch"],
                 critical.Select(c => (IReadOnlyList<string>)[c.Type, c.Respondent, c.BookedAmount.ToString("N2", CultureInfo.InvariantCulture), c.Monitoring, c.DaysSinceDispatch?.ToString(CultureInfo.InvariantCulture) ?? "not dispatched"]).ToList(), [2]))
             ], null, null, ct);
+          var dispatch = await HoldingLetterDispatch.QueueAsync(db, actor.FirmId, engagementId, holding.Value, critical.Count, ct);
           return CommandResult<ReportAttempt>.Ok(new(null, holding.Value,
-            $"The Independent Auditor's Report is held: {critical.Count} critical confirmation(s) remain without a returned and independently evaluated response. A Pending Confirmation / Holding Letter was generated."));
+            $"The Independent Auditor's Report is held: {critical.Count} critical confirmation(s) remain without a returned and independently evaluated response. A Pending Confirmation / Holding Letter was generated. {dispatch.Message}"));
         }
         sections = [.. OpinionSections(opinion, facts.Client, facts.PeriodEnd),
           new("Responsibilities", ["Management is responsible for the preparation of the financial statements. Our responsibility is to express an opinion on them based on our audit."])];

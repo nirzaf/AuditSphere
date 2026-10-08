@@ -436,6 +436,27 @@ public sealed partial class AuditDeliverablesTests
     Assert.Contains("remain without a returned and independently evaluated response", held.Message);
     Assert.Contains("Qatar National Bank", DocumentText((await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.Id == held.HoldingLetterId)).Content));
 
+    // STE 3.3: without a Completion routing the letter is generated, but dispatch is refused with an actionable message.
+    Assert.Contains("no active Completion contact routing", held.Message);
+    Assert.Empty(await db.CommercialNotifications.AsNoTracking().Where(x => x.DeliverableId == held.HoldingLetterId).ToListAsync());
+
+    // Configuring the client-management recipient dispatches the exact letter once, to that recipient only.
+    var recipient = new ClientContact { Id = Guid.NewGuid(), FirmId = w.FirmId, PracticeClientId = w.ClientId, FullName = "Client MD",
+      Email = "md@client.example.test", Role = "Managing Director", Primary = true, IsActive = true };
+    db.ClientContacts.Add(recipient);
+    db.ClientContactRoutings.Add(new ClientContactRouting { Id = Guid.NewGuid(), FirmId = w.FirmId, PracticeClientId = w.ClientId,
+      ClientContactId = recipient.Id, Purpose = CorrespondencePurposes.Completion, IsPrimaryForPurpose = true,
+      CreatedByUserId = w.U["manager"].Id, CreatedAt = DateTimeOffset.UtcNow });
+    await db.SaveChangesAsync();
+    var dispatched = (await AuditDeliverableService.GenerateReportAsync(db, manager, w.EngagementId, DeliverableKinds.IndependentAuditorsReport)).Value!;
+    Assert.Equal(held.HoldingLetterId, dispatched.HoldingLetterId);
+    var queued = await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.DeliverableId == held.HoldingLetterId);
+    Assert.Equal((CommercialNotificationKinds.HoldingLetter, "QUEUED", "md@client.example.test"), (queued.Kind, queued.DeliveryState, queued.Recipient));
+    Assert.Contains("queued for the client-management recipient", dispatched.Message);
+    // Regenerating the unchanged blocker set does not send again.
+    await AuditDeliverableService.GenerateReportAsync(db, manager, w.EngagementId, DeliverableKinds.IndependentAuditorsReport);
+    Assert.Equal(1, await db.CommercialNotifications.CountAsync(x => x.DeliverableId == held.HoldingLetterId));
+
     // With the reassessment lifted the report generates (the clearance chain is redone because the
     // changed facts stale the earlier SRM, clearance and opinion), and a further reassessment blocks
     // the signature.
