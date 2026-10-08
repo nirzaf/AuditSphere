@@ -1,0 +1,38 @@
+diff --git a/docs/architecture/auditsphere-architecture-document-naming-policy.md b/docs/architecture/auditsphere-architecture-document-naming-policy.md
+index 8b0f8be..943aa94 100644
+--- a/docs/architecture/auditsphere-architecture-document-naming-policy.md
++++ b/docs/architecture/auditsphere-architecture-document-naming-policy.md
+@@ -26,6 +26,7 @@ auditsphere-<area>-<document-type>-<subject>[-<stable-id>][-<status>].md
+ The following root files are preserved conventional exceptions recognized across standard ecosystems:
+ - `README.md`: Primary public project introduction and entry point.
+ - `AGENTS.md`: Mandatory engineering instructions and invariants for coding agents.
++- `CLAUDE.md`: Claude Code entry point; contains only `@AGENTS.md` so both agents read one instruction file.
+ 
+ Nested `README.md` or `AGENTS.md` files are prohibited unless explicitly justified by external tooling conventions.
+ 
+diff --git a/scripts/docs/validate-markdown-documentation.py b/scripts/docs/validate-markdown-documentation.py
+index df07aeb..3f6e34e 100755
+--- a/scripts/docs/validate-markdown-documentation.py
++++ b/scripts/docs/validate-markdown-documentation.py
+@@ -20,7 +20,7 @@ import sys
+ from pathlib import Path
+ from urllib.parse import unquote, urlparse
+ 
+-CONVENTIONAL_EXCEPTIONS = {"README.md", "AGENTS.md"}
++CONVENTIONAL_EXCEPTIONS = {"README.md", "AGENTS.md", "CLAUDE.md"}
+ PROHIBITED_GENERIC_BASENAMES = {
+     "new.md", "final.md", "misc.md", "notes.md", "document.md", "file.md",
+     "temp.md", "tmp.md", "test.md", "doc.md", "task.md", "spec.md"
+diff --git a/scripts/docs/validate-markdown-filenames.py b/scripts/docs/validate-markdown-filenames.py
+index 939d413..7ca58fd 100755
+--- a/scripts/docs/validate-markdown-filenames.py
++++ b/scripts/docs/validate-markdown-filenames.py
+@@ -16,7 +16,7 @@ import sys
+ import subprocess
+ from pathlib import Path
+ 
+-CONVENTIONAL_EXCEPTIONS = {"README.md", "AGENTS.md"}
++CONVENTIONAL_EXCEPTIONS = {"README.md", "AGENTS.md", "CLAUDE.md"}
+ PROHIBITED_GENERIC_BASENAMES = {
+     "new.md", "final.md", "misc.md", "notes.md", "document.md", "file.md",
+     "temp.md", "tmp.md", "test.md", "doc.md", "task.md", "spec.md"

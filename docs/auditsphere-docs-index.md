@@ -211,6 +211,8 @@ The Record-to-Report workstream covers Modules 20–26 under `docs/task_breakdow
 | [`docs/execution/auditsphere-execution-report-spk-04-ledger-split-current.md`](execution/auditsphere-execution-report-spk-04-ledger-split-current.md) | SPK-04 finding: how the execution ledger was split without losing evidence, and what the archives hold. | `CURRENT` |
 | [`docs/execution/status-archive-2026-10.json`](execution/status-archive-2026-10.json) | Archive of the `status.json` history keys (`verification`, `localEvidence`, `documentationWork`), moved verbatim on 2026-10-08. | `HISTORICAL` |
 | [`docs/execution/auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](execution/auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md) | Older slice sections moved verbatim from the current-slice handoff on 2026-10-08. | `HISTORICAL` |
+| [`docs/execution/auditsphere-execution-report-agent-pack-application-historical.md`](execution/auditsphere-execution-report-agent-pack-application-historical.md) | Record of the 2026-10-08 application of the agent context pack: checks run, and how each conflicting pack file was merged. | `HISTORICAL` |
+| [`docs/architecture/auditsphere-architecture-patch-allow-claude-md-root-file-historical.patch`](architecture/auditsphere-architecture-patch-allow-claude-md-root-file-historical.patch) | Applied patch that lets `CLAUDE.md` pass the root-file checks of the docs gates. | `HISTORICAL` |
 | [`docs/execution/auditsphere-execution-guide-agent-task-prompt-current.md`](execution/auditsphere-execution-guide-agent-task-prompt-current.md) | Agent task prompt template with a filled example. | `CURRENT` |
 
 ---

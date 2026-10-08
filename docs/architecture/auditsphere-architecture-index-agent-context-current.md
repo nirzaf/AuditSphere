@@ -53,5 +53,5 @@ These are measured, not estimated. Each one degrades agent accuracy; stories STE
 1. Copy the contents of the pack's `repo/` folder to the repository root. `AGENTS.md` is a replacement; every other file is new.
 2. Apply the `CLAUDE.md` allowance before committing it, or omit `CLAUDE.md`: both `scripts/docs/validate-markdown-documentation.py` and `scripts/docs/validate-markdown-filenames.py` reject root files other than `README.md` and `AGENTS.md`. Add `"CLAUDE.md"` to `CONVENTIONAL_EXCEPTIONS` in both scripts and list it in §2 of the naming policy. The pack includes this as `patches/0001-allow-claude-md-root-file.patch` (apply with `git apply` from the repository root).
 3. Add the new files to `docs/auditsphere-docs-index.md` (one line each under the matching section) and point step 5 of "Start here" at the `jq` query in `AGENTS.md` §6 rather than at the whole `status.json`.
-4. Run the four docs checks in `AGENTS.md` §3. The pack was checked with them; see the pack's `PACK-README.md`.
+4. Run the four docs checks in `AGENTS.md` §3. The pack was checked with them; see [the application record](../execution/auditsphere-execution-report-agent-pack-application-historical.md).
 5. Owner review: confirm or correct each `PROPOSED` ADR, then rename its suffix to `-approved`.

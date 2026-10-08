@@ -29,7 +29,7 @@ The suites were restored from the last commit before their removal:
 git checkout 47ca0b05^ -- $(git diff --name-only --diff-filter=D 47ca0b05^ 47ca0b05)
 ```
 
-This brought back only the files the removal deleted (Domain, API-host and E2E tests, Angular specs and the browser-journey scripts). Do **not** run it again: it would overwrite later edits to those files. Failures found after the restore were fixed in the code or in the test, and each fix states which one changed, in the commit message.
+This brought back only the files the removal deleted (Domain, API-host and E2E tests, Angular specs and the browser-journey scripts). Do **not** run it again: it would overwrite later edits to those files. Failures found after the restore were fixed in the code or in the test, and each fix states which one changed, in the commit message. The commit message of `2713b58`, the last commit before removal, reports the Domain suite passing, so failures after the restore came from changes merged after the removal.
 
 The `npm run test:ci` step is back in the `ui-build` job of `ci.yml`. The .NET test projects are not added to the hosted workflow; doing so needs a PostgreSQL service and a run-time budget, which is an owner decision.
 
