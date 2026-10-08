@@ -12,7 +12,7 @@
 
 **Authority:** Proposed user story. Does not represent implemented production capability until live Entra and SharePoint infrastructure gates are approved.
 
-**Repository location:** `docs/auditsphere-m365-onboarding-user-stories.md`.
+**Repository location:** `docs/requirements/auditsphere-m365-onboarding-user-stories.md`.
 
 > **The intended experience:** The tenant administrator connects Microsoft 365 once, selects existing people, assigns their AuditSphere roles and client/engagement scope, and sends an invitation. Each person opens AuditSphere with their existing Microsoft account. There is no separate AuditSphere password, account-registration form or routine second role-assignment exercise in Entra.
 
@@ -560,7 +560,7 @@ Application `User.Read.All` is the proposed permission for the `/users` reader. 
 
 ### 7.2 Mandatory policy decision — do not silently change AGENTS.md
 
-The later [tenant administration permission decision](architecture/auditsphere-m365-tenant-administration-permissions.md)
+The later [tenant administration permission decision](../architecture/auditsphere-m365-tenant-administration-permissions.md)
 approves only the separately credentialed, read-only directory-reader exception
 for implementation. Optional user, guest and group mutation permissions remain
 proposed and disabled. The following text preserves the original proposal and

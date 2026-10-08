@@ -22,12 +22,14 @@ The core modular monolith, Practice Management, Client Accounting Workspace (TB/
 
 ---
 
+Task-level status for the R2R, AUD and STE tasks lives on the [agent task board](auditsphere-execution-index-task-board-current.md). This file keeps the owner decisions, technical debt and external gates that the board points to.
+
 ## Story coverage and completion boundaries
 
 This handoff is not an exhaustive list of unfinished user stories. Continue from the
-[current STE functional requirements](../auditsphere-accounting-module-requirements-current.md),
+[current STE functional requirements](../requirements/auditsphere-accounting-module-requirements-current.md),
 [current specification coverage](auditsphere-ste-specification-coverage-current.md),
-[Microsoft 365 onboarding story](../auditsphere-m365-onboarding-user-stories.md), and
+[Microsoft 365 onboarding story](../requirements/auditsphere-m365-onboarding-user-stories.md), and
 [R2R/audit task index](../task_breakdown/auditsphere-r2r-index-task-breakdown.md).
 Checked accounting criteria and historical prototype baselines must be reconciled with
 current code and exact acceptance assertions before changing story status. A passing

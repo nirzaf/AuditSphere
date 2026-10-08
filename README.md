@@ -4,8 +4,8 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18.6-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![EF Core](https://img.shields.io/badge/EF%20Core-10.0-0078D4?logo=nuget&logoColor=white)](https://learn.microsoft.com/ef/core/)
 [![Angular](https://img.shields.io/badge/Angular-22-DD0031?logo=angular&logoColor=white)](src/AuditSphereOps.Ui/auditsphere-angular-development.md)
-[![Tests](https://img.shields.io/badge/Tests-PostgreSQL--backed-brightgreen)](tests/)
-[![Migrations](https://img.shields.io/badge/Migrations-EF%20Core-blue)](src/AuditSphereOps.Infrastructure/Persistence/Migrations/)
+[![Tests](https://img.shields.io/badge/Tests-PostgreSQL--backed-brightgreen)](tests)
+[![Migrations](https://img.shields.io/badge/Migrations-EF%20Core-blue)](src/AuditSphereOps.Infrastructure/Persistence/Migrations)
 ![License](https://img.shields.io/badge/License-Informational-lightgrey)
 
 **AuditSphereOps** is a professional audit, accounting, and assurance operations platform — an enterprise **.NET 10 modular monolith** for accounting practices, CPA firms, audit engagements, and multi-entity group consolidation. It governs the full engagement lifecycle: lead qualification, proposals, client acceptance, practice time and billing, trial-balance/GL intake, financial statement production, audit fieldwork, review, controlled package signing/release, records retention, and multi-currency consolidation.
@@ -384,12 +384,12 @@ Authority hierarchy and full reading guide: **[`docs/auditsphere-docs-index.md`]
 | Document | Description |
 |---|---|
 | [Current architecture](docs/architecture/auditsphere-architecture-current-architecture.md) | Implementation architecture and engineering boundaries. |
-| [docs/auditsphere-accounting-module-requirements-current.md](docs/auditsphere-accounting-module-requirements-current.md) | **STE Functional Requirements** — current commercial, audit lifecycle and firm operations contract. |
+| [docs/requirements/auditsphere-accounting-module-requirements-current.md](docs/requirements/auditsphere-accounting-module-requirements-current.md) | **STE Functional Requirements** — current commercial, audit lifecycle and firm operations contract. |
 | [docs/architecture/auditsphere-architecture-current-architecture.md](docs/architecture/auditsphere-architecture-current-architecture.md) | **Current Architecture** — monolith structure, boundaries, dependency guards. |
 | [docs/architecture/auditsphere-architecture-code-map.md](docs/architecture/auditsphere-architecture-code-map.md) | **Architecture Code Map** — capability map and documentation authority index. |
 | [docs/architecture/auditsphere-architecture-document-naming-policy.md](docs/architecture/auditsphere-architecture-document-naming-policy.md) | **Document Naming Policy** — naming conventions for repository documentation. |
 | [docs/architecture/auditsphere-m365-tenant-administration-permissions.md](docs/architecture/auditsphere-m365-tenant-administration-permissions.md) | **M365 Tenant Administration Permission Boundary** — least-privilege Graph capabilities, consent gates, scope prohibitions. |
-| [docs/task_breakdown/](docs/task_breakdown/) | **R2R Task Breakdown** — task definitions for Modules 20–26. |
+| [docs/task_breakdown/](docs/task_breakdown) | **R2R Task Breakdown** — task definitions for Modules 20–26. |
 | [docs/execution/status.json](docs/execution/status.json) | **Execution Ledger** — machine-readable progress and verification evidence. |
 | [docs/execution/auditsphere-execution-current-slice.md](docs/execution/auditsphere-execution-current-slice.md) | **Active Slice Runbook** — verified local state, tested SHA, execution notes. |
 | [AGENTS.md](AGENTS.md) | **Engineering Instructions & Invariants** — boundaries, safety rules, development guidelines. |

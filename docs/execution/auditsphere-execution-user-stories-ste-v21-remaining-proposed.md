@@ -35,7 +35,7 @@ Every story is sized for one agent session. Before starting, read only the files
 
 ## STE-NXT-002 — Make the agent context small and correct
 
-*Status (2026-10-08): done. `status.json` is 29.7 KB and the current slice 39.8 KB. The moved bytes sit in two archives, checked byte for byte. Blank-line runs are collapsed under `docs/` except the byte-preserved source and reference folders, `docs/evidence/` and code fences. The docs validator checks backticked repository paths and rejects absolute `file://` links; proposed and historical documents are exempt from the path check. Fixed: 8 dead paths, 7 absolute links and one stale test citation. Finding: `docs/execution/auditsphere-execution-report-spk-04-ledger-split-current.md`.*
+*Status (2026-10-08): done, with an open gap: the size limits in its criteria have no automated check (audit, see the task board). `status.json` is 29.7 KB and the current slice 39.8 KB. The moved bytes sit in two archives, checked byte for byte. Blank-line runs are collapsed under `docs/` except the byte-preserved source and reference folders, `docs/evidence/` and code fences. The docs validator checks backticked repository paths and rejects absolute `file://` links; proposed and historical documents are exempt from the path check. Fixed: 8 dead paths, 7 absolute links and one stale test citation. Finding: `docs/execution/auditsphere-execution-report-spk-04-ledger-split-current.md`.*
 
 **Story.** As a coding agent, I want the start-here documents to fit in a session and point only at files that exist, so that I spend context on code instead of padding and dead links.
 
@@ -85,7 +85,7 @@ Every story is sized for one agent session. Before starting, read only the files
 
 ## STE-NXT-004 — Practical materiality rounding in Angular
 
-*Status (2026-10-08): implemented. The server flag `CanApplyPracticalRounding` uses the rounding command's own authorization and requires the current, source-bound, unapproved draft. The form is prefilled with the computed thresholds and, after success, shows the effective, computed and delta figures. Tests: the plan page (three Angular tests) and the flag for a Manager and a Partner (`PlanningResourcesAndMaterialityTests`). The bounds and rationale refusals were already tested.*
+*Status (2026-10-08): implemented, with open gaps: the criterion figures (53,421.00 to 53,000.00) are not in a test, and no test covers a non-Manager preparer (audit, see the task board). The server flag `CanApplyPracticalRounding` uses the rounding command's own authorization and requires the current, source-bound, unapproved draft. The form is prefilled with the computed thresholds and, after success, shows the effective, computed and delta figures. Tests: the plan page (three Angular tests) and the flag for a Manager and a Partner (`PlanningResourcesAndMaterialityTests`). The bounds and rationale refusals were already tested.*
 
 **Story.** As an Audit Manager, I want to round the computed planning materiality, tolerable error and SAD threshold within ±5 % with a rationale, so that the Partner approves practical figures (specification §4.2.4: 53,421 → 53,000).
 
@@ -109,7 +109,7 @@ Every story is sized for one agent session. Before starting, read only the files
 
 ## STE-NXT-005 — Partner early compliance lock in Angular
 
-*Status (2026-10-08): implemented on the completion page. Readiness loads for a scheduled file; a Partner-only refusal hides the control; blockers are listed; the lock posts the digest-bound payload; a stale refusal reloads readiness and keeps the Partner's reason; the frozen time is shown from the new `frozenAt` field. Tests: five component tests. Not executed in this change: an end-to-end lock against the database.*
+*Status (2026-10-08): implemented on the completion page, with an open gap: no test covers a successful lock (audit, see the task board). Readiness loads for a scheduled file; a Partner-only refusal hides the control; blockers are listed; the lock posts the digest-bound payload; a stale refusal reloads readiness and keeps the Partner's reason; the frozen time is shown from the new `frozenAt` field. Tests: five component tests. Not executed in this change: an end-to-end lock against the database.*
 
 **Story.** As the Engagement Partner, I want to lock a signed engagement file before day 60 after reviewing its archive readiness, so that the specification's "manual Partner command" (§4.4.3) is available.
 
@@ -132,7 +132,7 @@ Every story is sized for one agent session. Before starting, read only the files
 
 ## STE-NXT-006 — Show the advance-invoice preparation state
 
-*Status (2026-10-08): implemented. The decoder accepts only the nine server states, with a bounded message; each state renders beside the advance milestone with `audit-status`; an unknown state shows the page's standard decode error. Tests: the nine states decode and render, and an unknown state is refused. Not executed in this change: the `AutomaticFeeInvoices:Enabled=false` case against a letter-backed agreement in a database.*
+*Status (2026-10-08): implemented, with open gaps: the NOT_APPLICABLE message is never shown on the page, and the AutomaticFeeInvoices setting has no test (audit, see the task board). The decoder accepts only the nine server states, with a bounded message; each state renders beside the advance milestone with `audit-status`; an unknown state shows the page's standard decode error. Tests: the nine states decode and render, and an unknown state is refused. Not executed in this change: the `AutomaticFeeInvoices:Enabled=false` case against a letter-backed agreement in a database.*
 
 **Story.** As a finance user, I want the fee workspace to say why the 50 % advance draft does or does not exist yet, so that "automation disabled" is not mistaken for a fault.
 
@@ -149,11 +149,11 @@ Every story is sized for one agent session. Before starting, read only the files
 
 ## STE-NXT-007 — Reconcile the requirements copy with approved deviations
 
-*Status (2026-10-08): done, pending owner confirmation of the cited ADRs. The header architecture row keeps the original wording, marked superseded (ADR-0002). The portal box and the §4.1.5 bullets keep their original text and are annotated (ADR-0003). An "Approved deviations" section lists ADR-0002 to ADR-0007 and the ADR-0009 draft, all `PROPOSED`.*
+*Status (2026-10-08): done, pending owner confirmation of the cited ADRs. Open gap: the "no requirement text deleted" criterion has no automated check (audit, see the task board). The header architecture row keeps the original wording, marked superseded (ADR-0002). The portal box and the §4.1.5 bullets keep their original text and are annotated (ADR-0003). An "Approved deviations" section lists ADR-0002 to ADR-0007 and the ADR-0009 draft, all `PROPOSED`.*
 
 **Story.** As an agent reading the requirements, I want the document to state where the implementation intentionally differs, so that I do not "fix" approved behaviour back to the original wording.
 
-**Read first:** `docs/auditsphere-accounting-module-requirements-current.md` (header table, §3.1 portal box, §4.1.5); ADR register.
+**Read first:** `docs/requirements/auditsphere-accounting-module-requirements-current.md` (header table, §3.1 portal box, §4.1.5); ADR register.
 
 **Tasks.** Correct the header's architecture line (ADR-0002). Add an "Approved deviations" section listing ADR-0002 to ADR-0007 with one line each. Annotate the portal-password lines with a pointer to ADR-0003 (keep the original text, marked as superseded).
 
@@ -165,7 +165,7 @@ Every story is sized for one agent session. Before starting, read only the files
 
 ## STE-NXT-008 — Verify the two unchecked requirement rows
 
-*Status (2026-10-08): done. Both rows were checked with file and line evidence. 4.1.4: the service route and each letter's template version are shown; the template follows the route, as the glossary defines it. 4.3.1: the split dashboard shows P&L above the balance sheet, prior, variance and percentage variance, and an AR Test and an Audit Workprogram entry point on every line. No gap, so no story was opened.*
+*Status (2026-10-08): done for the evidence, not for the link. Both rows were checked with file and line evidence; 4.1.4 holds. A later review found that the AR Test and Audit Workprogram links on the split dashboard pass their context in query parameters (area, line, section, period, revision, return path) that neither destination reads, so row 4.3.1 stays open until STE-NXT-013 is done.*
 
 **Story.** As the reviewer of STE coverage, I want the last unchecked rows examined, so that the verification table has no blind spots.
 
@@ -244,3 +244,30 @@ Every story is sized for one agent session. Before starting, read only the files
 - An unknown provider state fails decoding.
 
 **Constraints.** Computed from the freeze record, never stored as a status column (ADR-0004).
+
+---
+
+## STE-NXT-013 — Make the statement analysis links reach their screens
+
+*Status: open. Found in the STE-NXT-008 review on 2026-10-08: the AR Test and Audit Workprogram links on the split dashboard carry their context, and neither destination reads it.*
+
+**Story.** As a reviewer working from the split dashboard, I want the AR Test and Audit Workprogram links to open the screen already pointed at that line, so that I do not re-enter the area, line, period and revision.
+
+**Read first:** `src/AuditSphereOps.Ui/src/app/features/engagements/statements.html` (the links, about lines 197 to 223 and 374 to 386); `src/AuditSphereOps.Ui/src/app/features/accounting/analytical-preparation.ts` (reads only `route.paramMap`); `src/AuditSphereOps.Ui/src/app/features/audit/fieldwork.ts` (reads no query parameters); `src/AuditSphereOps.Ui/src/app/app.routes.ts` (`analysis/new`, `audit-fieldwork`).
+
+**Tasks.**
+1. On the analytical preparation screen, read `area`, `line`, `section`, `periodStart`, `periodEnd`, `revision` and `returnUrl` from the query string and pre-fill the form.
+2. On the audit fieldwork screen, read `area` and `line` and open the workprogram for that line.
+3. Compare the link's `revision` with the statement basis on the server; refuse a stale revision and show the mismatch instead of pre-filling.
+4. After save, return to `returnUrl`.
+
+**Acceptance criteria.**
+- AR Test from a statement line opens analytical preparation with area, line, period and revision filled in.
+- Audit Workprogram from a statement line opens the workprogram for that area and line.
+- A stale revision in the link shows a refusal and fills nothing.
+- After save, the user returns to the statement line they came from.
+- Tests cover the pre-fill, the stale-revision refusal and the return path.
+
+**Constraints.** Query parameters are context only; the server re-derives the statement basis and the user never supplies the revision as authority.
+
+---

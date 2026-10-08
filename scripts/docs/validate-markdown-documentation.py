@@ -35,8 +35,8 @@ CANONICAL_DOCS = [
     "docs/architecture/auditsphere-architecture-current-architecture.md",
     "docs/architecture/auditsphere-architecture-code-map.md",
     "docs/architecture/auditsphere-architecture-document-naming-policy.md",
-    "docs/auditsphere-accounting-module-requirements-current.md",
-    "docs/auditsphere-m365-onboarding-user-stories.md",
+    "docs/requirements/auditsphere-accounting-module-requirements-current.md",
+    "docs/requirements/auditsphere-m365-onboarding-user-stories.md",
     "docs/execution/status.json",
     "docs/execution/auditsphere-execution-current-slice.md",
     "docs/execution/auditsphere-execution-pending-tasks.md",
@@ -184,7 +184,7 @@ def validate_all():
 
     # Check 5: Volatile Metrics in Normative Requirements
     normative_docs = [
-        "docs/auditsphere-accounting-module-requirements-current.md",
+        "docs/requirements/auditsphere-accounting-module-requirements-current.md",
     ]
     for ndoc in normative_docs:
         p = root / ndoc

@@ -20,8 +20,8 @@ An agent should normally hold slot 8, one story from slot 11, and the two to fou
 
 | # | Slot | Authoritative file(s) | State |
 | --- | --- | --- | --- |
-| 1 | Product brief / PRD | [Product brief](../auditsphere-requirements-specification-product-brief-current.md) → detail in [STE v2.1 requirements](../auditsphere-accounting-module-requirements-current.md) | Brief **new**. Requirements copy is v2.1 but its header and portal-onboarding text predate two implemented decisions (ADR-0002, ADR-0003). |
-| 2 | Glossary | [Domain glossary](../auditsphere-requirements-catalog-domain-glossary-current.md) | **New.** Previously spread across code constants and narrative docs. |
+| 1 | Product brief / PRD | [Product brief](../requirements/auditsphere-requirements-specification-product-brief-current.md) → detail in [STE v2.1 requirements](../requirements/auditsphere-accounting-module-requirements-current.md) | Brief **new**. Requirements copy is v2.1 but its header and portal-onboarding text predate two implemented decisions (ADR-0002, ADR-0003). |
+| 2 | Glossary | [Domain glossary](../requirements/auditsphere-requirements-catalog-domain-glossary-current.md) | **New.** Previously spread across code constants and narrative docs. |
 | 3 | Architecture overview | [Current architecture](auditsphere-architecture-current-architecture.md), [Code map](auditsphere-architecture-code-map.md) | Exists. Architecture doc links a missing file (`auditsphere-ui-mudblazor-conventions-migration-current.md`). Code map's Tests column names files removed in PR #30. |
 | 4 | ADRs | [ADR register](adr/auditsphere-architecture-index-adr-register-current.md) + R2R-ADR-01..10 in [baseline and ADRs](../task_breakdown/reference/auditsphere-r2r-reference-baseline-architecture-and-adrs.md) | Register and ADR-0001..0008 **new** (`PROPOSED`, retroactive records of implemented owner decisions — owner confirms or corrects). |
 | 5 | Data model | [Data model contract](auditsphere-architecture-contract-data-model-current.md) | **New** index over `AuditSphereDbContext.<Module>.cs`, Domain files and migrations. Executable truth stays in code. |
