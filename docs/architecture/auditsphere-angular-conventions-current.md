@@ -22,7 +22,7 @@ implemented patterns; acceptance claims always belong to `docs/execution/status.
 
 - Files live under `src/app/features/<area>/` with business-semantic names
   (`proposal.ts`, `mapping-draft.ts`). Shared behavior lives under
-  `src/app/core/` (`api.ts`, `decode.ts`, `drafts.ts`, `tab-drafts.ts`,
+  `src/AuditSphereOps.Ui/src/app/core/` (`api.ts`, `decode.ts`, `drafts.ts`, `tab-drafts.ts`,
   `session.ts`, `ui.ts`).
 - Components use signals and `api.resource` for reads; commands use
   `CommandState` or explicit `api.command` with the established

@@ -103,7 +103,6 @@ screen-reader and wider-locale acceptance, and production migration gates
 remain open. The full
 solution regression and EF drift check were not rerun.
 
-
 ### Autosave and refused-discard recovery — 2026-10-07
 
 The navigation guard previously left the autosave debounce armed while the

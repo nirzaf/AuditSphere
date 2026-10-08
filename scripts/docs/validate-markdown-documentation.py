@@ -9,6 +9,8 @@ Validates:
 5. Presence of all canonical authority documents.
 6. Exact presence of HISTORICAL_SOURCE banners on preserved requirement sources.
 7. Absence of volatile test/migration counts in normative requirement documents.
+8. Backticked repository paths (docs/, src/, scripts/, tests/, contracts/, tools/, .github/) exist, and no absolute
+   file:// links remain. Proposed and historical documents are exempt: they name files they create or preserve.
 """
 
 from __future__ import annotations
@@ -20,7 +22,9 @@ import sys
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-CONVENTIONAL_EXCEPTIONS = {"README.md", "AGENTS.md"}
+CONVENTIONAL_EXCEPTIONS = {"README.md", "AGENTS.md", "CLAUDE.md"}
+# A backticked token is a repository path only when it is a plain path under one of these roots (no wildcards or placeholders).
+REPO_PATH = re.compile(r"^(docs|src|scripts|tests|contracts|tools|\.github)/[A-Za-z0-9_.\-/]+$")
 PROHIBITED_GENERIC_BASENAMES = {
     "new.md", "final.md", "misc.md", "notes.md", "document.md", "file.md",
     "temp.md", "tmp.md", "test.md", "doc.md", "task.md", "spec.md"
@@ -129,6 +133,7 @@ def validate_all():
     # Check 4: Relative Links & References to Deleted Paths
     all_tracked_set = {str(p).replace("\\", "/") for p in tracked_files}
     checked_links = 0
+    checked_paths = 0
 
     for rel_path in tracked_files:
         full_path = root / rel_path
@@ -162,6 +167,21 @@ def validate_all():
             if not dest.exists():
                 errors.append(f"{rel_path}: broken relative link target '{target}'")
 
+        # Backticked repository paths must exist. Proposed and historical documents may name files they will create or
+        # preserve, so they are exempt by filename status suffix (or by living under the byte-preserved source folder).
+        rel_text = str(rel_path).replace("\\", "/")
+        if not (rel_text.endswith(("-proposed.md", "-historical.md")) or rel_text.startswith("docs/task_breakdown/source/")):
+            for match in re.finditer(r"`([^`\n]+)`", clean_text):
+                token = match.group(1).strip()
+                if REPO_PATH.match(token) and "..." not in token:  # an ellipsis is an abbreviation, not a path
+                    checked_paths += 1
+                    if not (root / token).exists():
+                        errors.append(f"{rel_path}: backticked path '{token}' does not exist")
+
+        # An absolute file:// link resolves only on one machine.
+        for match in re.finditer(r"\]\((file:[^)]+)\)", text):
+            errors.append(f"{rel_path}: absolute file link '{match.group(1)}'")
+
     # Check 5: Volatile Metrics in Normative Requirements
     normative_docs = [
         "docs/auditsphere-accounting-module-requirements-current.md",
@@ -184,6 +204,7 @@ def validate_all():
         print(f"  - Markdown files verified: {len(tracked_files)}")
         print(f"  - Canonical documents verified: {len(CANONICAL_DOCS)}")
         print(f"  - Relative links checked: {checked_links}")
+        print(f"  - Backticked repository paths checked: {checked_paths}")
         print(f"  - Globally unique basenames: 100%")
         print(f"  - Deleted path references: 0")
         print(f"  - HISTORICAL_SOURCE banners: Verified")

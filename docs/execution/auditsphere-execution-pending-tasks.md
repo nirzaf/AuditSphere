@@ -1,7 +1,5 @@
 # AuditSphereOps — Pending Work & Unresolved Backlog
 
-
-
 **Status:** CURRENT
 
 **Purpose:** Canonical inventory of open local tasks, unresolved decisions, technical debt, and blocked external gates.
@@ -10,19 +8,11 @@
 
 **Audience:** Coding agents and developers.
 
-
-
 ---
-
-
 
 ## 1. Verified Local Baseline Summary
 
-
-
 The core modular monolith, Practice Management, Client Accounting Workspace (TB/GL intake, reconciliations, adjustments, financial statements, packages, multi-rate IAS 21 currency translation, and group consolidation), Audit Fieldwork foundations, and local M365 control-plane draft persistence are locally verified.
-
-
 
 - **Observed Metrics & Proofs:** For current test counts, migration counts, verified commit SHA, and active slice evidence, consult [`docs/execution/status.json`](status.json).
 
@@ -30,11 +20,7 @@ The core modular monolith, Practice Management, Client Accounting Workspace (TB/
 
 - **Architectural Reference:** Implemented modular monolith rules and project references are governed by [`docs/architecture/auditsphere-architecture-current-architecture.md`](../architecture/auditsphere-architecture-current-architecture.md).
 
-
-
 ---
-
-
 
 ## Story coverage and completion boundaries
 
@@ -61,11 +47,7 @@ local test results.
 
 ## 2. Open Local Work & Unresolved Decisions
 
-
-
 The following local tasks, architectural decisions, and follow-ups are open for implementation:
-
-
 
 ### 2.1 Microsoft 365 Onboarding & Selected-Resource Integration
 
@@ -75,8 +57,6 @@ The following local tasks, architectural decisions, and follow-ups are open for 
 
 - **Staff ACLs & Mailbox Delivery:** Implement optional direct staff ACL behavior and Microsoft Graph mailbox delivery only with authorized tenant resources. Purview provider integration is excluded by root `AGENTS.md`; it is not an eligible local implementation task.
 
-
-
 ### 2.2 Audit & Accounting Parity Follow-ups (AS-PAR-002)
 
 - **Route & Query Revocation Audit:** Sibling-client differential cases cover staff list/queue/search routes (client- and engagement-scoped users), the client portal, consolidation group grants, sibling detail routes and the PBC byte endpoint, and closed four existence oracles. Portfolio workspace counts and CSV now remain byte-identical after same-firm sibling data is seeded under both client and engagement grants. Direct BillingService reads and mutations using a sibling client's actual identifiers are denied without changing state. Audit-program, confirmation, difference, area-assessment, opening-balance, finding and planning commands/queries also deny sibling-ID access across adoption, applicability, result submission/review, dispatch/response, alternative work, correction, journal linking, closure, aggregate counts, assessment review, completion evaluation, opening-balance record/review, planning summary, finding response/designation, and materiality/risk/population/workpaper create/approve/submit actions; target state stays unchanged. Remaining: Application command-level isolation for other repaired page families, other export/count paths not covered by the portfolio check, and independent review.
@@ -84,8 +64,6 @@ The following local tasks, architectural decisions, and follow-ups are open for 
 - **G16 Period-End Open-Item Methodology:** Formalize and record methodology approval for period-end open-item classification and carrying-amount evidence before enabling automated open-item remeasurement workflows.
 
 - **Stale Content & Parameter Reauthorization:** Parameterized staff and portal routes have in-circuit route-change regressions. Both protected shells now recheck the trusted identity/session epoch every five seconds and remove their page, navigation, search and dialog subtree on a stale or disabled session without a user action. Commands still authorize at execution. A resource-planning stale-review journey now proves stale inputs are refused, the grid stays hidden until receipt reconciliation, and only the concurrent persisted value is shown after explicit close/reload. This is periodic server verification, not instantaneous revocation push, and cannot remove content already downloaded by a browser. Remaining: independent review and the other direct-command/export/count coverage above.
-
-
 
 ### 2.2a STE Audit Management specification alignment
 
@@ -110,19 +88,11 @@ work-tracking label, not an acceptance claim; evidence lives in `status.json`.
 
 - **Benchmark Baselines:** The standard Domain suite includes a small accounting benchmark, provisional maximum-size trial-balance and PBC-transfer checks, and a 15-user/30-query local PostgreSQL sample. Exact input sizes, measurements and verification live in `status.json`. Continue with actual concurrent browser/session and provider workloads, archive/rendering throughput and production-like sizing before P8b acceptance.
 
-
-
 ---
-
-
 
 ## 3. External Gates (P1–P10)
 
-
-
 These production milestones require live external infrastructure, tenant credentials, or human partner authorization. They **cannot** be closed by local mocks, simulation adapters, portal screenshots, or documentation claims:
-
-
 
 | Phase | Gate / Objective | Status | Blocking Condition |
 
@@ -150,19 +120,11 @@ These production milestones require live external infrastructure, tenant credent
 
 | **P10**| Real-Tenant Acceptance (§47) | `BLOCKED_EXTERNAL` | Full operational pilot on customer-authorized live production tenant. |
 
-
-
 ---
-
-
 
 ## 4. Required Evidence for Every Local Slice
 
-
-
 Every local implementation slice must adhere to the following verification standards:
-
-
 
 1. **In-Core Scope Authorization:** Enforce explicit `RoleGrant` scope inside Application commands and queries, never exclusively in Blazor UI components.
 
@@ -174,27 +136,15 @@ Every local implementation slice must adhere to the following verification stand
 
 5. **Truthful Ledger Recording:** Update `docs/execution/status.json` and `docs/execution/auditsphere-execution-current-slice.md` strictly with observed facts.
 
-
-
 ---
-
-
 
 ## 5. External Acceptance Rule
 
-
-
 Do not convert `BLOCKED_EXTERNAL` to `LOCAL_VERIFIED` or `APPROVED` from local tests, simulation fixtures, simulation adapters, portal screenshots, or status declarations. Each external gate requires its named human owner, authorized environment, exact observed evidence, and independent review.
-
-
 
 ---
 
-
-
 ## 6. Resume Procedure
-
-
 
 1. Read [`AGENTS.md`](../../AGENTS.md), [`docs/auditsphere-docs-index.md`](../auditsphere-docs-index.md), and [`docs/architecture/auditsphere-architecture-current-architecture.md`](../architecture/auditsphere-architecture-current-architecture.md).
 

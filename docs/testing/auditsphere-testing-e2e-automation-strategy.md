@@ -503,7 +503,7 @@ The real helper also supplies the scenario CaseId filter and owned host manifest
 
 ## 8. Protected external-acceptance example
 
-**Non-executable acceptance blueprint:** `.github/workflows/tenant-acceptance.yml`, the protected GitHub environment, approved ephemeral runner/provider composition, asset grants and live runner are not created. Never run tenant-secret-bearing code from fork PRs or `pull_request_target`. A manual dispatch on protected `master`, required environment approvals and exact reviewed revision are prerequisites; this lane is not an ordinary PR gate.
+**Non-executable acceptance blueprint:** the proposed tenant-acceptance workflow (not created), the protected GitHub environment, approved ephemeral runner/provider composition, asset grants and live runner are not created. Never run tenant-secret-bearing code from fork PRs or `pull_request_target`. A manual dispatch on protected `master`, required environment approvals and exact reviewed revision are prerequisites; this lane is not an ordinary PR gate.
 
 The existing [tenant verifier](../../scripts/verify-tenant.sh) requires `--environment` and checks `AUDITSPHERE_TENANT_ID`, `AUDITSPHERE_CLIENT_ID`, `AUDITSPHERE_SELECTED_SITE_ID`. It returns `BLOCKED`/2 **even when all are present** because the live runner is not approved. Configuration is necessary, not sufficient.
 

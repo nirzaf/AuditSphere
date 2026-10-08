@@ -75,7 +75,7 @@ this document wins and the source text remains a historical requirement record.
   rollback acceptance; the canonical retirement gate remains `NOT_READY`.
   Intentional native HTML exceptions (browser-draft boundaries, raw-value and file-input
   contracts, `<tfoot>`/`colspan` tables) are recorded in
-  `docs/auditsphere-ui-mudblazor-conventions-migration-current.md`.
+  the retired MudBlazor conventions document (Git history only; current guidance is `docs/architecture/auditsphere-angular-conventions-current.md`).
 
 ## Angular presentation migration
 

@@ -570,7 +570,6 @@ Recovery is explicit after a fresh authorized read; a different identity, unsupp
 
 A Material dialog protects confirmation route, filter, page, case, action and explicit refresh changes. It offers keep editing, save in this tab and continue, or discard and continue. A save failure retains the page and reports that edits remain in memory only. Browser unload uses the standard unsaved-change warning; it cannot promise recovery after tab closure. Session invalidation removes protected UI state and attempts to clear all versioned tab drafts; unavailable browser storage is never represented as successfully written or erased. Legacy unversioned drafts are not imported. Broader module draft migration, source-action audit and final migration acceptance remain open.
 
-
 ## Native currency remeasurement
 
 The standalone API composes `CurrencyRemeasurementWorkspace` around existing calculation and evidence services. Preparation and independent approval require fresh, actor/session-bound reviewed input digests. The local transaction takes firm/client/engagement guards, rechecks professional authority, and preserves file-freeze and source-lineage gates. Concurrent identical preparation resolves to the same workpaper. Failed revalidation persists the existing STALE disposition. No journal or professional conclusion is inferred from a calculation.
@@ -581,7 +580,6 @@ Angular uses native Signal Forms, exact bounded decimal text and explicit review
 
 The standalone API, native browser journey and Angular component tests cover this workpaper vertical slice. Currency intake review and the complete source-action/rate-method editor parity remain separate open acceptance items; this section does not retire the legacy presentation.
 
-
 ### Native intake currency comparison
 
 The Angular trial-balance intake composes a dedicated native Signal Forms currency panel. Its read-only contract shows the exact dataset/client/engagement/period, source and presentation currencies, declared upload closing-comparison method, rounding rule, current/prior rate purposes and dates, direction, provenance, approved set/version and observation identity. Same-currency identity consumes no market observation. Exact plain decimal thresholds and source amounts stay strings in the browser. Movement flags are review indicators; this panel grants no accounting or mapping approval and does not substitute classification-based translation or monetary/historical remeasurement.
@@ -589,7 +587,6 @@ The Angular trial-balance intake composes a dedicated native Signal Forms curren
 The existing Application query filters prior candidates by current firm/client/engagement grants before selection. An engagement-only assignment cannot see a sibling engagement's prior balances or identity, while a valid client-wide/firm-wide assignment can include authorized prior work. Expired wider grants never qualify. Source sealing, exact period ancestry, bounded account aggregation and latest approved rate validity fail closed. An invalid latest direction/effective interval cannot silently use an older positive observation. Final authorization and current/prior source, period and rate rechecks refuse a changed read before publication.
 
 The native panel limits rendered pages, labels a missing authorized prior comparison, and removes the previous result before a refreshed calculation. Changed filters mark displayed results stale; late or wrong-context responses cannot repopulate changed datasets or revoked sessions. Missing rates explain the required input correction without inventing approvable figures. Upload and mapping commands remain their existing separate workflows. Complete intake command/form/draft parity, rate/method editor parity, and production/accessibility acceptance remain open. The Web rollback/reference source is restored, but parity and operational rollback gates remain open; retirement acceptance remains `NOT_READY`.
-
 
 ## Native currency configuration
 
@@ -645,7 +642,6 @@ content type, byte bound and active context before saving. A changed session or 
 cannot save a late file. Larger exports require a separately supported durable export workflow;
 there is no unbounded download fallback. Verification and remaining guide acceptance live in
 the execution ledger.
-
 
 ## Reviewed trial-balance source acceptance
 
@@ -884,7 +880,6 @@ requires acknowledgment of its retained receipt. The creation-evidence migration
 append-only events and refuses rollback while such evidence exists. Owned local tests exercise
 it; shared Development and production are not migrated. Management/client-response and
 reflection/application controls, wider migration acceptance and retirement remain open.
-
 
 ### Native journal management response
 

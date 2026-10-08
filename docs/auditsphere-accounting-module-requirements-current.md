@@ -9,9 +9,21 @@
 | **Target Focus** | Business Logic, Functional Requirements, Task Sequences & Module Workflows |
 | **Auditing Standards Context** | International Standards on Auditing (ISA) & International Financial Reporting Standards (IFRS) |
 | **Primary Currency** | Qatari Riyal (QAR) |
-| **System Architecture** | Modular Monolith (ASP.NET Core / Blazor Interactive Server / PostgreSQL) |
+| **System Architecture** | Modular Monolith (ASP.NET Core / Angular 22 canonical UI / PostgreSQL). Original wording: ~~Blazor Interactive Server~~, superseded by ADR-0002; the Blazor host is a rollback host only. |
 
 ---
+
+## Approved deviations
+
+The implementation intentionally differs from the original wording in the places below. Each line cites the decision record. The records are `PROPOSED` retroactive records of decisions already implemented, pending owner confirmation (ADR register). Do not "fix" an implemented behaviour back to the original wording unless its ADR is superseded.
+
+- **ADR-0002 (Angular canonical UI):** Angular 22 is the canonical user interface; Blazor Interactive Server is a rollback host until the retirement gate passes. Affects the header architecture row.
+- **ADR-0003 (Microsoft sign-in for the client portal):** no temporary passwords are emailed or stored; the first-sign-in requirement of the Microsoft identity path applies. Affects the §3.1 portal box and the §4.1.5 portal bullets.
+- **ADR-0004 (lifecycle as a derived projection):** the §5 stages are computed from gate records and never stored or set directly. Affects §5.
+- **ADR-0005 (visual credentials; no eSignature or Purview):** the signature and seal are PNG visual credentials, not certificate-backed signatures. Affects the digital-credential wording in §4.1.4 and §4.4.1.
+- **ADR-0006 (one SharePoint site per client; Full Control for assigned staff):** the archive folder is protected by the local freeze, not by the provider. Affects the archive wording in §4.4.3.
+- **ADR-0007 (drafts only for automatic invoicing):** automation creates draft invoices; finance reviews, posts and records payments. Affects §4.1.5 and §3.4.
+- **ADR-0009 (draft, from spike SPK-01):** the release and archive store is the authority for issued evidence; the SharePoint archive folder is a working copy. Affects §4.4.3.
 
 ## Executive Table of Contents
 
@@ -172,7 +184,7 @@ flowchart TD
     Payment --> PostPayment{"Post-Payment Automated Handshake"}
 
     PostPayment --> Receipt["Issue Official Receipt Voucher<br/>(Automated receipt dispatch)"]
-    PostPayment --> Portal["Provision Client Portal Workspace<br/>• System emails temporary credentials<br/>• Mandatory password reset on first login<br/>• Document upload window activates"]
+    PostPayment --> Portal["Provision Client Portal Workspace<br/>• System emails temporary credentials (superseded, ADR-0003)<br/>• Mandatory password reset on first login (superseded, ADR-0003)<br/>• Document upload window activates<br/>• Implemented: Microsoft sign-in with a first-sign-in requirement (ADR-0003)"]
 ```
 
 > [!IMPORTANT]
@@ -433,6 +445,7 @@ The system shall strictly disallow the generation of an Engagement Letter until 
   * Auto-generate an isolated workspace for the client.
   * Email temporary access credentials to the designated Client Audit Liaison.
   * Enforce mandatory password reset on first login before document submission features are unlocked.
+  * *Superseded by ADR-0003 (PROPOSED): the client portal signs in with Microsoft and a first-sign-in requirement. No local password is issued, stored or emailed. The two bullets above are the original wording, kept for provenance.*
   * Surface real-time status badges on requested items: `Pending Upload`, `Under Review`, `Approved`, `Rejected / Re-upload Required`.
   * **Mandatory Rejection Reason:** If an item is rejected, the auditor must enter a mandatory rejection reason that surfaces immediately on the client's screen.
   * **Temporal Lock:** Client document upload privileges automatically freeze when the final audit report is released.

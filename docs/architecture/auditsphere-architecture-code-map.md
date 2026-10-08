@@ -1,34 +1,14 @@
 # AuditSphereOps — Current Code Map
 
-
-
-
-
-
-
 **Status: CURRENT.** Capability → files. Consult this before changing a business capability.
-
-
 
 Architecture authority: [`auditsphere-architecture-current-architecture.md`](auditsphere-architecture-current-architecture.md) and
 
-
-
 [`AGENTS.md`](../../AGENTS.md). Large services and the DbContext are partial classes split by
-
-
 
 capability; public APIs are stable across parts. Verified project state lives only in
 
-
-
 `docs/execution/status.json`.
-
-
-
-
-
-
 
 ## Native client operational bookkeeping
 
@@ -56,39 +36,17 @@ Posted movement lines exclude opening balances and imported GL; the official nat
 
 ## Accounting setup — profiles, periods, books, charts, taxonomy, capabilities
 
-
-
-
-
-
-
 - Domain: `Domain/Accounting/ClientAccounting.cs`
-
-
 
 - Application: `Application/Accounting/ClientAccounting/ClientAccountingService.{Profiles,Periods,Books,OpeningBalances,Restatements,Charts,Taxonomy,Capabilities,Authorization}.cs`
 
-
-
 - Persistence: `Infrastructure/Persistence/AuditSphereDbContext.ClientAccounting.cs`, `.ClientAccountingSchedules.cs`
-
-
 
 - UI: `Web/Components/Pages/AccountingWorkspace.razor`, `AccountingPeriod.razor`, `PeriodRollforward.razor`, `PeriodRestatements.razor`
 
-
-
 - Tests: `tests/.../ClientAccountingTests/ClientAccountingTests.{Profiles,PeriodClose,ChartAndTaxonomy}.cs`
 
-
-
-
-
-
-
 Critical invariants: firm-wide configuration rejects client-scoped grants; period close needs
-
-
 
 current reviews for matching packages; reopen/restatement create immutable revision lineage.
 
@@ -98,239 +56,89 @@ unconditional client-level `BOOKKEEPING` acceptance decision. Inline enablement 
 when reporting periods already exist; a reviewed cutover workflow is still required for those
 clients. This setup does not itself provide native journal posting.
 
-
-
-
-
-
-
 ## Trial balance intake and general ledger
-
-
-
-
-
-
 
 - Domain: `Domain/Accounting/` (datasets, import batches, GL lines/transactions)
 
-
-
 - Application: `Application/Accounting/TrialBalance{Calculator,ImportService,CsvImporter,XlsxImporter,DatasetQuery,ValidationHandler}.cs`, `Application/Accounting/ClientAccounting/ClientAccountingService.GeneralLedger.cs`, `GeneralLedgerCompletenessHandler.cs`, `GeneralLedgerQuery.cs`, `Application/Accounting/Analysis/AccountingAnalysisService.GeneralLedger.cs`, `Application/Accounting/Analysis/GeneralLedgerCompletenessWorkspace*.cs`
-
-
 
 - Persistence: `AuditSphereDbContext.Accounting.cs`
 
-
-
 - API/UI: `Api/Ui/UiEndpoints.GeneralLedger.cs`, `Ui/src/app/features/accounting/gl-completeness*`, `Ui/src/app/features/engagements/general-ledger*`; legacy rollback `AccountingRecords.razor`
-
-
 
 - Tests: `ClientAccountingTests.GeneralLedger.cs`, `TrialBalanceCalculatorTests.cs`, `TrialBalanceWorkerTests.cs`, `TrialBalanceXlsxImporterTests.cs`, `SourceAcceptanceAndComparativesTests.cs`, `GeneralLedgerCompletenessApiTests.cs`, `AngularGeneralLedgerCompletenessJourneyTests.cs`
 
-
-
-
-
-
-
 Critical invariants: imports are idempotent and sealed only when complete; GL completeness is
-
-
 
 account-exact; source acceptance binds sealed sources and bumps generation.
 
-
-
-
-
-
-
 ## Journals, adjustments and re-measurement workpapers
-
-
-
-
-
-
 
 - Application: `Application/Accounting/AdjustmentJournalService.cs`, `AdjustmentPlanService.cs`, `AdjustmentEligibilityQuery.cs`, `AdjustmentPlanWorkspace.cs`, `AdjustmentPlanWorkspace.Commands.cs`, `CurrencyRemeasurementService.cs`
 
-
-
 - Persistence: `AuditSphereDbContext.AdjustmentBridge.cs`, `AuditSphereDbContext.AdjustmentPlanActions.cs`; retained native command evidence: `Domain/Accounting/AdjustmentPlanAction.cs`
-
-
 
 - UI: `Journals.razor`, `CurrencyRemeasurement.razor`
 
-
-
 - Tests: `AccountingRecordsApprovalTests.cs` (journal submit/return/resubmit, duplicate reversal), `ClientAccountingTests.Currency.cs`
-
-
-
-
-
-
 
 ## Reconciliations, valuations, specialists, journal risk and accounting evidence
 
-
-
-
-
-
-
 - Application: `Application/Accounting/Analysis/AccountingAnalysisService.{Reconciliation,Valuations,AnalyticalReview,JournalRisk,Evidence,Authorization}.cs`; native scoped inspection: `Application/Accounting/ReconciliationWorkspaceQuery.cs`, `Application/Accounting/AccountingAnalysisReviewQuery{,.Retained}.cs`; native reviewed commands: `Application/Accounting/AccountingEvidenceWorkspace{,.Procedures}.cs`, `Application/Accounting/ValuationPreparationWorkspace.cs`; retained receipts: `Domain/Accounting/AccountingEvidenceAction.cs`, `Domain/Accounting/ValuationPreparation.cs` and their matching Infrastructure persistence configurations
-
-
 
 - UI: `AccountingEvidence.razor`, `Finding.razor`; native queue/detail: `src/AuditSphereOps.Ui/src/app/features/accounting/evidence.ts`, `src/AuditSphereOps.Ui/src/app/features/accounting/reconciliation.ts`, `src/AuditSphereOps.Ui/src/app/features/accounting/analysis-review.ts`; reviewed action/preparation forms and receipt recovery: `src/AuditSphereOps.Ui/src/app/features/accounting/evidence-actions{.ts,.html}`, `src/AuditSphereOps.Ui/src/app/features/accounting/evidence-action-contracts.ts`, `src/AuditSphereOps.Ui/src/app/features/accounting/valuation-preparation{.ts,.html}`, `src/AuditSphereOps.Ui/src/app/features/accounting/valuation-preparation-contracts.ts`
 
-
-
 - Tests: `ClientAccountingTests.{Reconciliations,Analysis}.cs`, `SourceAcceptanceAndComparativesTests.cs`, `ValuationPreparationApiTests.cs`, `AngularValuationPreparationJourneyTests.cs`
-
-
-
-
-
-
 
 Critical invariants: reconciliation approval stales when the source digest changes; evidence is
 
-
-
 blocked when the client generation changes; journal risk is deterministic, never autonomous.
-
-
-
-
-
-
 
 ## Financial statements, mapping and packages
 
-
-
-
-
-
-
 - Domain: `Domain/Accounting/` (mapping versions/allocations, financial packages, artifacts)
-
-
 
 - Application: `Application/Accounting/FinancialStatements/FinancialStatementService.{Mapping,Package,Render,Authorization}.cs`, `FinancialPackageReviewService.cs`, `FinancialPackageBuildHandler.cs`, `FinancialPackageRenderHandler.cs`, `FinancialPackageOfficeRenderer.cs`, `PackageSealService.cs`, `PackageManifestQuery.cs`, `StatementLayoutService.cs`, `FinancialStatementCalculator.cs`
 
-
-
 - Persistence: `AuditSphereDbContext.FinancialStatements.cs`
-
-
 
 - UI: `Mapping.razor`, `FinancialPackage.razor`, `FinancialPackageReviews.razor`, `ClientFinancialPackage.razor`, `Release.razor`
 
-
-
 - Tests: `ClientAccountingTests.FinancialPackages.cs`
-
-
-
-
-
-
 
 Critical invariants: mapping allocations are append-only; review decisions are stage-bound and
 
-
-
 immutable; artifacts are exact-byte sealed; release candidates bind the current reviewed package.
-
-
-
-
-
-
 
 ## Currency translation and foreign operations
 
-
-
-
-
-
-
 - Domain: `Domain/Accounting/` (exchange rate sets, translation policies/results)
-
-
 
 - Application: `Application/Accounting/CurrencyTranslationService.cs`, `CurrencyOperationCalculators.cs` (`LineTranslationCalculator`, `CurrencyTranslationCalculator`), `TranslationInputResolution.cs`
 
-
-
 - Persistence: `AuditSphereDbContext.Consolidation.cs` (rate sets, policies, translation results)
-
-
 
 - UI: `Consolidation.razor` (TranslationBridge area), `CurrencyRemeasurement.razor`
 
-
-
 - Tests: `tests/.../LineTranslationTests.cs`, `ClientAccountingTests/ClientAccountingTests.Currency.cs`
-
-
-
-
-
-
 
 Critical invariants: a missing/zero/negative required rate purpose fails closed and produces no
 
-
-
 approvable result; same currency is identity rate 1 with no rate observation; per-line rate
-
-
 
 purposes follow the calculation method (`COMPONENT_TRANSLATION_V2`), never the reserve amount;
 
-
-
 classification comes from declared sections, approved mappings or documented code rules — an
-
-
 
 unclassified line is an explicit unmapped issue, never assumed ASSETS.
 
-
-
-
-
-
-
 ## Consolidation — perimeter, components, matching, journals, runs, reports
-
-
-
-
-
-
 
 - Domain: `Domain/Accounting/ClientAccounting.cs` (`ClientGroup`, `ConsolidationScopeVersion`, `ConsolidationComponent`, `ConsolidationRun`, `ExchangeRateSetVersion`, `TranslationPolicyVersion`, `TranslationResult`)
 
-
-
 - Application: `Application/Accounting/Consolidation/ConsolidationService.{Groups,Ownership,Scopes,Components,ExternalPacks,Intercompany,Journals,Advanced,Runs,Reports,Authorization}.cs`, `ConsolidationCalculator.cs`, `AdvancedConsolidationCalculator.cs`, `AdvancedConsolidationExecutionCalculator.cs`, `ConsolidationQuery.cs`
 
-
-
 - Persistence: `AuditSphereDbContext.Consolidation.cs`
-
-
 
 - Legacy/reference UI: `Consolidation.razor`, `AdvancedConsolidationWorkflow.razor`
 
@@ -338,177 +146,67 @@ unclassified line is an explicit unmapped issue, never assumed ASSETS.
 
 - API/Application: `AuditSphereOps.Api/Ui/UiEndpoints.Consolidation.cs`, `ConsolidationOverviewQuery`, `AdvancedConsolidationWorkspaceQuery`, and the `ConsolidationService` partials
 
-
-
 - Tests: `ClientAccountingTests/ClientAccountingTests.{Consolidation,AdvancedConsolidation,ExternalComponents,Currency}.cs`, `ProfilesChartsAndConsolidationTests.cs`, `ConsolidationWorkspaceApiTests`, `AngularAdvancedConsolidationAuthorizationJourneyTests`, `SiblingClientIsolationJourneyTests`
-
-
-
-
-
-
 
 Critical invariants: the group build never mutates component client books; the cumulative
 
-
-
 translation reserve line identity is derived from the immutable translation snapshot (stable
-
-
 
 replay/approval/readback); the group-report export/archive leg is a declared M37/M38 boundary
 
-
-
 (`docs/task_breakdown/modules/auditsphere-r2r-module-26-consolidation-contract.md`).
-
-
-
-
-
-
 
 ## Audit planning and fieldwork
 
-
-
-
-
-
-
 - Domain: `Domain/Audit/`
-
-
 
 - Application: `Application/Audit/AuditPlanningService.cs`, `Application/Audit/Fieldwork/AuditFieldworkService.{Schedules,BankReconciliations,Selections,ItemTests,Confirmations,AreaAssessments,Differences,Completion,Authorization}.cs`
 
-
-
 - Persistence: `AuditSphereDbContext.Audit.cs`, `.Fieldwork.cs`
-
-
 
 - UI: `AuditPlan.razor`, `AuditFieldwork.razor`, `AuditPopulation.razor`, `AuditProgramLibraryPage.razor`
 
-
-
 - Tests: `tests/.../AuditFieldwork*` and audit sections of `SourceAcceptanceAndComparativesTests.cs`
-
-
-
-
-
-
 
 ## Reviews, completion, findings and workpapers
 
-
-
-
-
-
-
 - Application: `Application/Reviews/`, `Application/Completion/`
-
-
 
 - Persistence: `AuditSphereDbContext.Reviews.cs`, `.Completion.cs`, `.ScopedEvidence.cs`
 
-
-
 - UI: `ReviewPoint.razor`, `Completion.razor`, `Workpaper.razor`
-
-
 
 - Tests: `tests/.../` review/completion suites, `AccountingRecordsApprovalTests.cs`
 
-
-
-
-
-
-
 ## Documents, PBC and records
-
-
-
-
-
-
 
 - Application: `Application/Documents/PbcService.cs`, `Application/Records/RecordsArchiveService.cs`
 
-
-
 - Persistence: `AuditSphereDbContext.Documents.cs`, `.Pbc.cs`
-
-
 
 - UI: `PbcRequests.razor`, `ClientPbcRequest.razor`, `RecordsArchive.razor`, `ClientPortal.razor`
 
-
-
 - Tests: `tests/.../` document/PBC suites
-
-
-
-
-
-
 
 Critical invariants: uploaded signed-document evidence is preserved exactly with SHA-256
 
-
-
 identities; provider acceptance (Purview/eSignature) is never claimed.
-
-
-
-
-
-
 
 ## Practice — CRM, time, billing, firm ledger
 
-
-
-
-
-
-
 - Domain: `Domain/Practice/`
-
-
 
 - Application: `Application/Practice/PracticeCrmService.cs` (CRM / proposals), `PracticeLeadQuery.cs` (current-access lead list), `WorkspaceQuery.Client.cs` (client-level master metadata, complete scoped counts and bounded contact/engagement pages), `ClientContactCreationWorkspace.cs` (reviewed contact creation and actor-owned immutable receipt recovery), `PracticeTimeService.cs` (time / budgets), `BillingService.cs` (billing), `BillingInvoiceWorkspaceQuery.cs` (invoice workspace), `InvoicePaymentTermsService.cs` (evidence-backed maker/checker due-date revisions), `ReceiptAllocationReversalService.cs` (reviewed payment unapply), `FirmReceivablesAgingQuery.cs` (firm-fee ageing and CSV export), `LedgerService.cs` and `FirmFinanceQuery.cs` (firm financial ledger)
 
-
-
 - Persistence: `AuditSphereDbContext.Practice.cs`
-
-
 
 - UI: legacy `Leads.razor`, `Portfolio.razor`, `ClientDetail.razor`, `Finance.razor`, `InvoiceDetail.razor`, `PracticeTime.razor`; native Angular invoice actions and term/reversal review in `AuditSphereOps.Ui/src/app/features/finance/invoice.ts`, plus the firm-fee ageing report/export in `AuditSphereOps.Ui/src/app/features/finance/receivables-aging.ts`, through `Api/UiEndpoints.Finance.cs`
 
 - Verification: `BillingWorkspaceApiTests` checks current authorization, CSRF and exact receipt/allocation/credit balances; `FirmReceivablesAgingQueryTests` and `FirmReceivablesAgingApiTests` cover historical balances, terms, reversals, scope denial and protected export; `AngularBillingWorkspaceJourneyTests` exercises the native flow and lost-response review.
 
-
-
-
-
-
-
 Boundary: this is the firm's own books (`Practice/FirmLedger`); it never writes client
 
-
-
 accounting or consolidation workspaces.
-
-
-
-
-
-
 
 ## Commercial quotation, documents and the agreed-fee cycle
 
@@ -533,7 +231,7 @@ accounting or consolidation workspaces.
 - Persistence: migration `AcceptancePathsEvidenceAndActivation`
 - UI: `Components/Acceptance/{AcceptanceChecklistPanel,EngagementActivationPanel,EngagementCreatePanel}.razor`
 - Client portal onboarding: `Domain/Documents/ClientPortal.cs` (`ClientPortalFirstSignIn`, `PbcRequestDelegation`, `ClientPortalIntent`), `Application/Documents/ClientPortalService.cs` (identity-path-derived first-sign-in gate used by `PbcService` uploads, primary-contact delegation, participant request query, portal intent view), `PracticeCrmService.RecordPortalIntentAsync` (conversion trigger) and `EngagementLifecycleService.ActivateAsync` (ready to invite); persistence `AuditSphereDbContext.ClientPortal.cs`, migration `ClientPortalOnboardingAndDelegation`; UI `Pages/ClientPortal.razor` (first sign-in), `Pages/ClientPbcRequest.razor` (drop zone, in-browser SHA-256 via `wwwroot/pbc-upload.js`, progress, delegation), `Pages/ClientDetail.razor` (portal intent)
-- Tests: `AcceptanceChecklistTests.cs`, `EngagementWorkspaceProvisioningTests.cs`, `ClientPortalOnboardingTests.cs`, `tests/.../AcceptanceJourneyTests.cs`, `tests/.../ClientPortalOnboardingJourneyTests.cs`, `tests/.../PbcUploadJourneyTests.cs`
+- Tests: `AcceptanceChecklistTests.cs`, `EngagementWorkspaceProvisioningTests.cs`, `ClientPortalOnboardingTests.cs`, `tests/.../AcceptanceJourneyTests.cs`, `tests/.../ClientPortalOnboardingJourneyTests.cs`, `tests/.../AngularPbcStaffJourneyTests.cs`
 
 ## Resource planning, staffing, materiality engine and risk routing
 
@@ -576,31 +274,13 @@ accounting or consolidation workspaces.
 
 ## Microsoft 365 setup, security and administration
 
-
-
-
-
-
-
 - Application: `Application/Microsoft365/Microsoft365ConfigurationService.cs`, `SelectedResourceAdministration.cs` (bounded administrator projection, reviewed draft edits and activation composition), `SelectedSiteBoundaryVerificationService.cs` (trusted exact-revision positive/negative resource evidence), `TenantConsentService.cs`, `TenantConnectionQuery.cs`, `DirectoryDiscoveryService.cs`, `DirectoryUserBindingService.cs`, `DirectoryCapabilityVerificationService.cs`, `TenantAdministrationProviders.cs` (provider interfaces + permission matrix), `TenantCapabilityService.cs`, `DirectoryProvisioningService.cs` (user creation, guest invitation, reconciliation), `ManagedGroupService.cs`, `AdministrationOverviewQuery.cs`; `Application/Security/` (`RoleAssignmentService.cs`, `RoleGrantExpiry.cs`, `UserAccessWorkspaceQuery.cs`)
-
-
 
 - Persistence: `AuditSphereDbContext.Security.cs`, `.Microsoft365.cs`; dedicated certificate and Graph directory reader, `GraphCapabilityCredential.cs`, `GraphTenantAdministrationProviders.cs`, `GraphTenantConsentVerifier.cs` and the Development/Test-only `SimulatedMicrosoftTenant.cs` in `Infrastructure/Providers/`
 
-
-
 - API/Angular: `Api/Ui/UiEndpoints.Microsoft365.cs`, `.TenantOperations.cs`, `.SelectedResources.cs`; `Ui/src/app/features/admin/tenant.ts`, `sharepoint.ts`, `provisioning.ts`, `groups.ts`, `operation-recovery.ts`; API owns consent/authentication callback composition. Legacy presentation: `Microsoft365Setup.razor`, `TenantConnection.razor`, `Administration.razor` and `Components/Administration/*` remain the parity/rollback reference until retirement acceptance.
 
-
-
 - Tests: `tests/.../` Microsoft 365 and security suites
-
-
-
-
-
-
 
 ## Staff navigation search
 
@@ -610,107 +290,39 @@ accounting or consolidation workspaces.
 
 ## Operations — durable work, worker host
 
-
-
-
-
-
-
 - Application: `Application/Operations/`
-
-
 
 - Persistence: `AuditSphereDbContext.Operations.cs`
 
-
-
 - UI: `Operations.razor`
-
-
 
 - Worker: `src/AuditSphereOps.Worker/` (`BackgroundService` hosts)
 
-
-
-
-
-
-
 Critical invariants: long-running work goes through durable operations with revision fencing,
-
-
 
 idempotent retries and explicit cancellation dispositions.
 
-
-
-
-
-
-
 ## Tests layout
-
-
-
-
-
-
 
 - `tests/AuditSphereOps.Domain.Tests/` — PostgreSQL-backed domain and integration suites.
 
-
-
   `ClientAccountingTests/` holds the capability partials; `LineTranslationTests.cs`,
-
-
 
   `TrialBalanceCalculatorTests.cs`, `AccountingRecordsApprovalTests.cs`,
 
-
-
   `SourceAcceptanceAndComparativesTests.cs`, `ProfilesChartsAndConsolidationTests.cs` are
-
-
 
   single-topic files. `ArchitectureGuardTests.cs` enforces the project reference rules.
 
-
-
 - `tests/AuditSphereOps.Api.Tests/` — API security and transfer tests.
-
-
 
 - `tests/AuditSphereOps.E2E.Tests/` — Playwright journeys.
 
-
-
-
-
-
-
 Every test provisions a disposable PostgreSQL schema; there is no InMemory provider fallback.
-
-
-
-
-
-
 
 ## Documentation and specification authority
 
-
-
-
-
-
-
 For the complete documentation index, authority hierarchy, current requirements, proposed backlogs, operational runbooks, and evidence, consult the central documentation authority:
-
-
-
-
-
-
 
 👉 [`docs/auditsphere-docs-index.md`](../auditsphere-docs-index.md)
 
@@ -783,14 +395,12 @@ For the complete documentation index, authority hierarchy, current requirements,
 
 - Confirmation tab drafts: Angular `core/tab-drafts.ts` owns versioned identity/epoch/base envelopes and explicit tab storage; `core/unsaved-changes.ts` owns the Material leave dialog and route guard. `features/audit/confirmation-drafts.ts` bounds allowlisted intent; `confirmations.ts` owns recovery, refreshed-revision review and command-outcome fencing. `tab-drafts.spec.ts`, `confirmations.spec.ts` and native confirmation journeys cover storage failure, expiration, stale identity/revisions, tab isolation and revoked sessions.
 
-
 ### Angular currency remeasurement
 
 - Application `Accounting/CurrencyRemeasurementWorkspaceQuery.cs` owns scoped bounded input reads and approved-input revisions; `CurrencyRemeasurementWorkspace.cs` owns reviewed guarded API transactions around existing `CurrencyRemeasurementService.cs` calculations and lineage.
 - API `Ui/UiEndpoints.Remeasurement.cs` validates exact decimal text and composes the Application contract.
 - Angular `features/accounting/remeasurement.ts` and `remeasurement-drafts.ts` own native Signal Forms, explicit tab recovery, source/provenance presentation, independent review and unknown-outcome fencing.
 - Verification: `RemeasurementApiTests`, `AngularRemeasurementJourneyTests`, `remeasurement.spec.ts`, existing currency/line-translation and legacy workbench tests. Execution evidence is recorded only in the ledger.
-
 
 ### Angular currency configuration
 
@@ -812,7 +422,6 @@ For the complete documentation index, authority hierarchy, current requirements,
 - API: `Ui/UiEndpoints.AccountingRecords.cs` exposes source inspection and reviewed-revision CSV export through the trusted actor and antiforgery boundary.
 - Angular: `features/engagements/tb-source.ts` owns the native source panel, exact-value decoding, server filters/pages and context-checked file saving; `core/api.ts` supports an optional pre-save file metadata fence.
 - Tests: `TrialBalanceSourceApiTests`, `tb-source.spec.ts`, shared API download tests and `AngularTrialBalanceUploadJourneyTests` cover source isolation, malformed/stale responses, missing values, export bounds and actual scoped file download.
-
 
 ## Native reviewed source acceptance
 
@@ -878,7 +487,6 @@ For the complete documentation index, authority hierarchy, current requirements,
 - `features/accounting/journal-create.ts`, `.html`, `journal-creation-contracts.ts`: typed purpose/origin fields, exact line review, optional supersession, tab recovery and uncertain-result acknowledgment. `engagements/tb-source.ts` supplies the scoped entry link.
 - `NativeJournalCreationEvidence`: extends existing immutable journal action evidence with an explicit no-prior-journal state; rollback preserves retained creation events.
 - `JournalCreationApiTests`, `AngularJournalCreationJourneyTests` and `journal-create.spec.ts`: concurrency, original-line retention, precision, prior revision, authority, keyboard and recovery checks. Observed results live in `status.json`.
-
 
 ### Native journal management response
 

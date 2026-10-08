@@ -26,6 +26,7 @@ auditsphere-<area>-<document-type>-<subject>[-<stable-id>][-<status>].md
 The following root files are preserved conventional exceptions recognized across standard ecosystems:
 - `README.md`: Primary public project introduction and entry point.
 - `AGENTS.md`: Mandatory engineering instructions and invariants for coding agents.
+- `CLAUDE.md`: Claude Code entry point; contains only `@AGENTS.md` so both agents read one instruction file.
 
 Nested `README.md` or `AGENTS.md` files are prohibited unless explicitly justified by external tooling conventions.
 

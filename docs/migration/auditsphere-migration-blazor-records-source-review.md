@@ -87,7 +87,6 @@ unavailable state without protected record content.
 Neither row is promoted to parity verified. These page reviews do not establish
 Purview provider acceptance or close overall migration acceptance.
 
-
 ### Incomplete empty-manifest browser evidence — 2026-10-07
 
 At code commit `21e85a17`,
