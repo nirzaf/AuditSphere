@@ -15,6 +15,23 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Owner-delegated plan: T002, STE test gaps, STE-NXT-013 and stale-doc repairs — 2026-10-09
+
+The owner delegated decisions on 2026-10-09 ("take any decision you wanted which makes the best for this project"). Observed results, in order:
+
+- **T002 is COMPLETED** on reviewed commit `b24c8426`, through `task_status.py set`. The static-service variation is accepted; MediatR and bUnit are declined. The helper validated the checklist, the full SHA, the evidence file and the reviewer rule. T003 is now READY; the audit gives it an OWNER_DECISION verdict and it has not been started.
+- **Contracts rewritten** for the variation in the affected task cards and module test tables. Request rows are unchanged, and the helper validates them.
+- **Owner decisions recorded** (PROPOSED ADRs, awaiting owner confirmation): STE-NXT-010 Option A (ADR-0011); STE-NXT-009 option (b), a provision accrual entered by a person (ADR-0010), with follow-up STE-NXT-014. STE-NXT-011 stays open.
+- **Test-only gaps closed:** STE-NXT-005 (successful Partner lock), STE-NXT-006 (NOT_APPLICABLE renders; the `AutomaticFeeInvoices:Enabled` key is tested), STE-NXT-004 (criterion figures and preparer refusal). STE-NXT-002 (ledger size budgets) and STE-NXT-007 (requirements-copy guard) are docs-gate checks; the guards were shown to fail on bad input.
+- **STE-NXT-013 implemented:** the statement links send the keys the screens read; the analytical screen pre-fills only after the server confirms the statement revision, refuses a stale link, and offers a validated return; fieldwork focuses the risks for the line.
+- **Stale statements repaired** against their records (telemetry hosts, restore-drill migration count, E2E checkpoint, Web parity row, agent-context hazards, helper test count).
+
+Verification run in this slice: UI `test:ci` 113 files / 616 tests passed; the production build completed; Domain `PracticalRounding` 16/16; Api `FeeAgreementConfigurationTests` 3/3; `MarkdownNamingGuard` 2/2; the docs gates and `task_status.py validate` pass; the task board is current.
+
+Not run in this slice: the full .NET suites and the Playwright E2E suite. The E2E run recorded in `docs/execution/status.json` (`testSuites.runs.e2e`) has 15 failing journeys at `f7304708`, which remain open.
+
+Open for the owner: STE-NXT-011 (independent archive copy); confirmation of ADR-0010 and ADR-0011; the accounting treatment for end-of-service accruals before STE-NXT-014 posts anything; the 15 failing E2E journeys.
+
 ## Task board, codebase audit and docs consolidation — 2026-10-08
 
 A static audit of the 98 tracked task items was run at commit `13407156`: 74 R2R and AUD cards (T002 to T075), 12 STE-NXT stories and 10 STE-GAP stories; T001 is COMPLETED and was not re-audited. Each claimed COMPLETE was re-read by an independent reviewer. No item is COMPLETE: 70 PARTIAL, 13 CONFLICTS_WITH_AGENTS, 6 OWNER_DECISION, 5 EXTERNAL_BLOCKED and 2 NOT_STARTED. Six STE stories first claimed COMPLETE were downgraded (STE-NXT-002, 004, 005, 006, 007, 008). The audit read code and did not run tests.
