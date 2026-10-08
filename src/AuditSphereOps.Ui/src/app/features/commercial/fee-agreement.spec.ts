@@ -164,4 +164,22 @@ describe('Advance invoice preparation display', () => {
     );
     expect(f.nativeElement.querySelector('[data-testid="advance-preparation"]')).toBeNull();
   });
+
+  it('shows the NOT_APPLICABLE message when there is no agreement and so no advance milestone', () => {
+    const http = setup();
+    const f = TestBed.createComponent(FeeAgreement);
+    f.componentRef.setInput('proposalId', id);
+    f.detectChanges();
+    http.expectOne('/api/ui/proposals/' + id + '/fee-agreement').flush({
+      ...workspace,
+      agreementId: null,
+      engagementId: null,
+      milestones: [],
+      advancePreparation: { state: 'NOT_APPLICABLE', message: messages['NOT_APPLICABLE'] },
+    });
+    f.detectChanges();
+    expect(f.nativeElement.querySelector('[data-testid="advance-preparation"]')?.textContent).toContain(
+      messages['NOT_APPLICABLE'],
+    );
+  });
 });

@@ -96,4 +96,20 @@ public sealed class MaterialityPracticalRoundingTests
     Assert.Equal(-2m, adjustment.TolerableDeltaPercent);
     Assert.Equal(-2m, adjustment.SadDeltaPercent);
   }
+
+  [Fact]
+  public void StoryCriterion_PlanningMateriality_53421_to_53000_is_accepted_and_a_value_past_the_bound_is_refused()
+  {
+    // STE-NXT-004 criteria 1 and 2: 53,000.00 is -0.7881% of 53,421.00, inside the bound; 56,093.00 is past +5%.
+    var computed = new MaterialityFigures(7_122_800m, 10, 53_421.00m, 40_065.75m, 2_671.05m);
+    var (adjustment, error) = MaterialityPracticalRounding.Evaluate(computed, 53_000.00m, 40_065.75m, 2_671.05m);
+    Assert.Null(error);
+    Assert.Equal(53_000.00m, adjustment!.PlanningMateriality);
+    Assert.Equal(-0.7881m, adjustment.PlanningDeltaPercent);
+
+    var (refused, message) = MaterialityPracticalRounding.Evaluate(computed, 56_093.00m, 40_065.75m, 2_671.05m);
+    Assert.Null(refused);
+    Assert.Contains("may be rounded by at most", message, StringComparison.Ordinal);
+  }
+
 }

@@ -146,6 +146,10 @@ export function decodeFeeAgreement(value: unknown): Workspace {
           milestone and selected action.</label
         >
         @if (!w.agreementId) {
+          <p>
+            <audit-status [value]="w.advancePreparation.state" />
+            <small role="status" data-testid="advance-preparation">{{ w.advancePreparation.message }}</small>
+          </p>
           <ul>
             @for (b of w.creationBlockers; track b) {
               <li>{{ b }}</li>

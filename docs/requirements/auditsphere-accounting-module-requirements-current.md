@@ -24,6 +24,8 @@ The implementation intentionally differs from the original wording in the places
 - **ADR-0006 (one SharePoint site per client; Full Control for assigned staff):** the archive folder is protected by the local freeze, not by the provider. Affects the archive wording in §4.4.3.
 - **ADR-0007 (drafts only for automatic invoicing):** automation creates draft invoices; finance reviews, posts and records payments. Affects §4.1.5 and §3.4.
 - **ADR-0009 (draft, from spike SPK-01):** the release and archive store is the authority for issued evidence; the SharePoint archive folder is a working copy. Affects §4.4.3.
+- **ADR-0010 (end-of-service accrual, from STE-NXT-009):** end-of-service benefits are accrued as a provision entered by a person, not expensed only when paid. Affects §3.5.
+- **ADR-0011 (materiality without normalization, from STE-NXT-010):** the PBT benchmark is mapped balances excluding tax; "normalized" PBT is not applied. Affects §4.2.4.
 
 ## Executive Table of Contents
 

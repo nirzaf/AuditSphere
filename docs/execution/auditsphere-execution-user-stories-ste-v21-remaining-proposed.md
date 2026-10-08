@@ -35,7 +35,7 @@ Every story is sized for one agent session. Before starting, read only the files
 
 ## STE-NXT-002 — Make the agent context small and correct
 
-*Status (2026-10-08): done, with an open gap: the size limits in its criteria have no automated check (audit, see the task board). `status.json` is 29.7 KB and the current slice 39.8 KB. The moved bytes sit in two archives, checked byte for byte. Blank-line runs are collapsed under `docs/` except the byte-preserved source and reference folders, `docs/evidence/` and code fences. The docs validator checks backticked repository paths and rejects absolute `file://` links; proposed and historical documents are exempt from the path check. Fixed: 8 dead paths, 7 absolute links and one stale test citation. Finding: `docs/execution/auditsphere-execution-report-spk-04-ledger-split-current.md`.*
+*Status (2026-10-08): done. The size budgets are enforced by the docs gate in `validate-markdown-documentation.py` (status.json under 100 KB; the current slice under 60 KB). `status.json` is 29.7 KB and the current slice 39.8 KB. The moved bytes sit in two archives, checked byte for byte. Blank-line runs are collapsed under `docs/` except the byte-preserved source and reference folders, `docs/evidence/` and code fences. The docs validator checks backticked repository paths and rejects absolute `file://` links; proposed and historical documents are exempt from the path check. Fixed: 8 dead paths, 7 absolute links and one stale test citation. Finding: `docs/execution/auditsphere-execution-report-spk-04-ledger-split-current.md`.*
 
 **Story.** As a coding agent, I want the start-here documents to fit in a session and point only at files that exist, so that I spend context on code instead of padding and dead links.
 
@@ -85,7 +85,7 @@ Every story is sized for one agent session. Before starting, read only the files
 
 ## STE-NXT-004 — Practical materiality rounding in Angular
 
-*Status (2026-10-08): implemented, with open gaps: the criterion figures (53,421.00 to 53,000.00) are not in a test, and no test covers a non-Manager preparer (audit, see the task board). The server flag `CanApplyPracticalRounding` uses the rounding command's own authorization and requires the current, source-bound, unapproved draft. The form is prefilled with the computed thresholds and, after success, shows the effective, computed and delta figures. Tests: the plan page (three Angular tests) and the flag for a Manager and a Partner (`PlanningResourcesAndMaterialityTests`). The bounds and rationale refusals were already tested.*
+*Status (2026-10-08): implemented. The criterion figures are tested (53,421.00 to 53,000.00 accepted; 56,093.00 refused) in `MaterialityPracticalRoundingTests`, and the Senior and Staff preparers are refused in `PlanningResourcesAndMaterialityTests.PracticalRounding`. "Auditor" is not a role in this system. The server flag `CanApplyPracticalRounding` uses the rounding command's own authorization and requires the current, source-bound, unapproved draft. The form is prefilled with the computed thresholds and, after success, shows the effective, computed and delta figures. Tests: the plan page (three Angular tests) and the flag for a Manager and a Partner (`PlanningResourcesAndMaterialityTests`). The bounds and rationale refusals were already tested.*
 
 **Story.** As an Audit Manager, I want to round the computed planning materiality, tolerable error and SAD threshold within ±5 % with a rationale, so that the Partner approves practical figures (specification §4.2.4: 53,421 → 53,000).
 
@@ -109,7 +109,7 @@ Every story is sized for one agent session. Before starting, read only the files
 
 ## STE-NXT-005 — Partner early compliance lock in Angular
 
-*Status (2026-10-08): implemented on the completion page, with an open gap: no test covers a successful lock (audit, see the task board). Readiness loads for a scheduled file; a Partner-only refusal hides the control; blockers are listed; the lock posts the digest-bound payload; a stale refusal reloads readiness and keeps the Partner's reason; the frozen time is shown from the new `frozenAt` field. Tests: five component tests. Not executed in this change: an end-to-end lock against the database.*
+*Status (2026-10-08): implemented on the completion page. A successful lock is tested in `completion.spec.ts` (POST body, then reload to FROZEN with the frozen time). Readiness loads for a scheduled file; a Partner-only refusal hides the control; blockers are listed; the lock posts the digest-bound payload; a stale refusal reloads readiness and keeps the Partner's reason; the frozen time is shown from the new `frozenAt` field. Tests: five component tests. Not executed in this change: an end-to-end lock against the database.*
 
 **Story.** As the Engagement Partner, I want to lock a signed engagement file before day 60 after reviewing its archive readiness, so that the specification's "manual Partner command" (§4.4.3) is available.
 
@@ -132,7 +132,7 @@ Every story is sized for one agent session. Before starting, read only the files
 
 ## STE-NXT-006 — Show the advance-invoice preparation state
 
-*Status (2026-10-08): implemented, with open gaps: the NOT_APPLICABLE message is never shown on the page, and the AutomaticFeeInvoices setting has no test (audit, see the task board). The decoder accepts only the nine server states, with a bounded message; each state renders beside the advance milestone with `audit-status`; an unknown state shows the page's standard decode error. Tests: the nine states decode and render, and an unknown state is refused. Not executed in this change: the `AutomaticFeeInvoices:Enabled=false` case against a letter-backed agreement in a database.*
+*Status (2026-10-08): implemented. NOT_APPLICABLE renders when there is no agreement (`fee-agreement.spec.ts`). The `AutomaticFeeInvoices:Enabled` key is tested (`FeeAgreementConfigurationTests`), and false maps to PENDING_AUTOMATION_DISABLED (`CommercialWorkflowTests`). The decoder accepts only the nine server states, with a bounded message; each state renders beside the advance milestone with `audit-status`; an unknown state shows the page's standard decode error. Tests: the nine states decode and render, and an unknown state is refused. Not executed in this change: the `AutomaticFeeInvoices:Enabled=false` case against a letter-backed agreement in a database.*
 
 **Story.** As a finance user, I want the fee workspace to say why the 50 % advance draft does or does not exist yet, so that "automation disabled" is not mistaken for a fault.
 
@@ -149,7 +149,7 @@ Every story is sized for one agent session. Before starting, read only the files
 
 ## STE-NXT-007 — Reconcile the requirements copy with approved deviations
 
-*Status (2026-10-08): done, pending owner confirmation of the cited ADRs. Open gap: the "no requirement text deleted" criterion has no automated check (audit, see the task board). The header architecture row keeps the original wording, marked superseded (ADR-0002). The portal box and the §4.1.5 bullets keep their original text and are annotated (ADR-0003). An "Approved deviations" section lists ADR-0002 to ADR-0007 and the ADR-0009 draft, all `PROPOSED`.*
+*Status (2026-10-08): done, pending owner confirmation of the cited ADRs. The docs gate checks the approved-deviations section, the ADR citations and the original-wording markers (`validate-markdown-documentation.py`). Limitation: it detects removal of the listed markers, not every possible deletion. The header architecture row keeps the original wording, marked superseded (ADR-0002). The portal box and the §4.1.5 bullets keep their original text and are annotated (ADR-0003). An "Approved deviations" section lists ADR-0002 to ADR-0007 and the ADR-0009 draft, all `PROPOSED`.*
 
 **Story.** As an agent reading the requirements, I want the document to state where the implementation intentionally differs, so that I do not "fix" approved behaviour back to the original wording.
 
@@ -177,9 +177,9 @@ Every story is sized for one agent session. Before starting, read only the files
 
 ## STE-NXT-009 — Decide how end-of-service benefits are recorded
 
-*Status: owner decision pending. No code, as the story requires. Options (a), (b) and (c) are unchanged.*
+*Status: decided 2026-10-09 under the owner's delegated decision: option (b), a monthly provision accrual entered by a person through the ledger maker/checker, with the basis recorded. Recorded in ADR-0010 (PROPOSED). The follow-up story is STE-NXT-014. No code in this step.*
 
-*Owner decision; no code until decided.*
+*Decided; the code belongs to STE-NXT-014.*
 
 **Context.** Specification §3.5 lists "Staff Salaries, End of Service, & Benefits" among firm expenses. `FirmExpenseCategories` has `RENT`, `SALARIES`, `PETTY_CASH`, `UTILITIES`, `OTHER`; no end-of-service accrual exists.
 
@@ -191,9 +191,9 @@ Every story is sized for one agent session. Before starting, read only the files
 
 ## STE-NXT-010 — Decide whether PBT normalization is in scope
 
-*Status: owner decision pending. The methodology note `docs/execution/auditsphere-audit-report-normalized-pbt-spk-03-proposed.md` recommends Option A (no normalization) now, with Option B as the follow-up if the owner wants normalized PBT.*
+*Status: decided 2026-10-09 under the owner's delegated decision: Option A, no normalization, as the methodology note `docs/execution/auditsphere-audit-report-normalized-pbt-spk-03-proposed.md` recommends. Recorded in ADR-0011 (PROPOSED). The code already matches.*
 
-*Owner decision, informed by spike SPK-03.*
+*Decided under the owner's delegation, informed by spike SPK-03.*
 
 **Context.** Specification §4.2.4 says "Normalized Profit Before Tax". `MaterialityEngineService` labels its PBT benchmark "mapped balances, excluding tax; no normalization applied".
 
@@ -271,3 +271,29 @@ Every story is sized for one agent session. Before starting, read only the files
 **Constraints.** Query parameters are context only; the server re-derives the statement basis and the user never supplies the revision as authority.
 
 ---
+
+---
+
+## STE-NXT-014 — Record end-of-service accruals as a provision
+
+*Status: open. Follow-up of ADR-0010, decided 2026-10-09 under the owner's delegation. Needs the owner's confirmation of the accounting treatment before the first posting.*
+
+**Story.** As the firm's finance manager, I want the end-of-service obligation accrued each month from an entered basis, so that the provision and the period expense show the obligation before anyone leaves.
+
+**Read first:** `docs/architecture/adr/auditsphere-architecture-adr-0010-end-of-service-accrual-proposed.md`; the firm ledger services and the manual journal maker and checker; `FirmExpenseCategories`.
+
+**Tasks.**
+1. Add a provision account for end-of-service benefits to the firm chart.
+2. Add a monthly accrual journal: a maker enters the amount, the period, the calculation basis (method, inputs, date) and a reason; a different checker approves it through the existing maker and checker.
+3. Show the cumulative provision on the firm balance sheet and the period expense in operating expenses.
+
+**Acceptance criteria.**
+- A maker cannot approve their own accrual.
+- An accrual cannot be posted without a basis and a reason.
+- Posted accruals are append-only; a correction is a reversing journal.
+- The provision and the period expense appear on the firm statements; the expense is not shown as salaries paid.
+- The platform stores no computed estimate and presents none as a professional conclusion.
+
+**Constraints.** The platform computes nothing for the estimate. The owner confirms the accounting treatment before the first posting.
+
+*Depends on:* owner confirmation of ADR-0010 and of the accounting treatment.

@@ -2,12 +2,17 @@ using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Api.Authentication;
 using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Api.Ui;
 
 public static partial class UiEndpoints
 {
+  /// <summary>The host's view of AutomaticFeeInvoices:Enabled. An absent or non-true value means off (fail closed).</summary>
+  internal static bool AutomaticDraftingEnabled(IConfiguration configuration) =>
+    configuration.GetValue<bool>("AutomaticFeeInvoices:Enabled");
+
   public sealed record FeePaymentInput(string Amount, string Reference, bool Reviewed);
   public sealed record FeeLinkInput(Guid EngagementId, bool Reviewed);
   public sealed record FeeReviewInput(bool Reviewed);
@@ -19,7 +24,7 @@ public static partial class UiEndpoints
       var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
       if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
-      var automaticDrafting = http.RequestServices.GetRequiredService<IConfiguration>().GetValue<bool>("AutomaticFeeInvoices:Enabled");
+      var automaticDrafting = AutomaticDraftingEnabled(http.RequestServices.GetRequiredService<IConfiguration>());
       var result = await FeeAgreementWorkspaceQuery.GetAsync(db, actor, id, http.RequestAborted, automaticDrafting);
       if (!result.Succeeded) return Results.Json(new { code = result.ErrorCode }, statusCode: 403);
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)

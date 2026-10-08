@@ -61,7 +61,7 @@ public sealed partial class PlanningResourcesAndMaterialityTests
     Guid firstRoundingId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      // Only Audit Managers may round; a Partner is refused even though the Partner later approves.
+      // Only Managers and Senior Managers may round; a Partner is refused even though the Partner later approves.
       Assert.Equal(ErrorCodes.ScopeDenied, (await MaterialityEngineService.ApplyPracticalRoundingAsync(db, partner,
         new(originalId, 20_500m, 15_750m, 975m, "Partner attempt"))).ErrorCode);
       // +5.001% on planning materiality is outside the bound.
@@ -129,4 +129,53 @@ public sealed partial class PlanningResourcesAndMaterialityTests
       Assert.Contains("immutable evidence", ex.MessageText, StringComparison.Ordinal);
     }
   }
+
+  [Fact]
+  public async Task PracticalRoundingFlag_IsHiddenAndRefusedForPreparers()
+  {
+    // STE-NXT-004 criterion 5: preparers (Senior and Staff) do not see the form and cannot round. The Partner case is
+    // covered above. "Auditor" is not a role in this system, so it is not tested.
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    await SeedApprovedMappingAsync(pg, w);
+    var manager = w.Actor("manager", "Manager");
+    var senior = w.Actor("senior", "Senior");
+    var staff = w.Actor("associate", "Staff");
+
+    // Real grants, so the refusal below comes from the role and not from a missing grant.
+    await using (var grantDb = new AuditSphereDbContext(pg.Options))
+    {
+      grantDb.RoleGrants.AddRange(
+        Grant(w.FirmId, w.Users["senior"], "Senior", w.ClientId, w.EngagementId),
+        Grant(w.FirmId, w.Users["associate"], "Staff", w.ClientId, w.EngagementId));
+      await grantDb.SaveChangesAsync();
+    }
+
+    Guid originalId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var calc = await MaterialityEngineService.CalculateAsync(db, manager,
+        new(w.EngagementId, MaterialityBenchmarks.Revenue, null, 1m, 75m, 5m, "Revenue-driven trading entity"));
+      Assert.True(calc.Succeeded, calc.Message);
+      originalId = calc.Value!.AssessmentId;
+    }
+
+    await using var reader = new AuditSphereDbContext(pg.Options);
+    foreach (var actor in new[] { senior, staff })
+    {
+      var view = await AuditPlanWorkspaceQuery.GetAsync(reader, actor, w.EngagementId);
+      Assert.False(view.Value?.CanApplyPracticalRounding ?? false, $"{string.Join(',', actor.Roles)} must not be offered practical rounding");
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      foreach (var actor in new[] { senior, staff })
+      {
+        var refused = await MaterialityEngineService.ApplyPracticalRoundingAsync(db, actor,
+          new(originalId, 20_500m, 15_750m, 975m, "Preparer attempt"));
+        Assert.Equal(ErrorCodes.ScopeDenied, refused.ErrorCode);
+      }
+    }
+  }
+
 }

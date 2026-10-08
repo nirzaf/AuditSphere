@@ -18,8 +18,8 @@
 | CONFLICTS_WITH_AGENTS | 13 |
 | OWNER_DECISION | 6 |
 | EXTERNAL_BLOCKED | 5 |
-| NOT_AUDITED | 2 |
-| **Total** | **98** |
+| NOT_AUDITED | 3 |
+| **Total** | **99** |
 
 Card status in the front matter: 2 COMPLETED, 0 IN_REVIEW, 73 NOT_STARTED of 75 cards. Nothing is COMPLETED from the audit: no item met every completion test in the card.
 
@@ -103,18 +103,19 @@ Card status in the front matter: 2 COMPLETED, 0 IN_REVIEW, 73 NOT_STARTED of 75 
 | T074 | AUD-20 | Implement going concern audit evaluation | NOT_STARTED | PARTIAL | T069 (NOT_STARTED), T073 (NOT_STARTED) | 9 | Build the open gaps |
 | T075 | AUD-20 | Implement subsequent events audit review | NOT_STARTED | PARTIAL | T073 (NOT_STARTED), T074 (NOT_STARTED) | 9 | Build the open gaps |
 | STE-NXT-001 | STE-NXT | Restore the automated test suites | — | PARTIAL | — | 2 | Build the open gaps |
-| STE-NXT-002 | STE-NXT | Make the agent context small and correct | done, with an open gap: the size limits in its criteria have no automated check (audit, see the task board) | PARTIAL | — | 0 | Build the open gaps |
+| STE-NXT-002 | STE-NXT | Make the agent context small and correct | done | PARTIAL | — | 0 | Build the open gaps |
 | STE-NXT-003 | STE-NXT | Rate-card administration and the STE charge-out baseline | implemented | PARTIAL | — | 4 | Build the open gaps |
-| STE-NXT-004 | STE-NXT | Practical materiality rounding in Angular | implemented, with open gaps: the criterion figures (53,421.00 to 53,000.00) are not in a test, and no test covers a non-Manager preparer (audit, see the task board) | PARTIAL | — | 0 | Build the open gaps |
-| STE-NXT-005 | STE-NXT | Partner early compliance lock in Angular | implemented on the completion page, with an open gap: no test covers a successful lock (audit, see the task board) | PARTIAL | — | 0 | Build the open gaps |
-| STE-NXT-006 | STE-NXT | Show the advance-invoice preparation state | implemented, with open gaps: the NOT_APPLICABLE message is never shown on the page, and the AutomaticFeeInvoices setting has no test (audit, see the task board) | PARTIAL | — | 0 | Build the open gaps |
+| STE-NXT-004 | STE-NXT | Practical materiality rounding in Angular | implemented | PARTIAL | — | 0 | Build the open gaps |
+| STE-NXT-005 | STE-NXT | Partner early compliance lock in Angular | implemented on the completion page | PARTIAL | — | 0 | Build the open gaps |
+| STE-NXT-006 | STE-NXT | Show the advance-invoice preparation state | implemented | PARTIAL | — | 0 | Build the open gaps |
 | STE-NXT-007 | STE-NXT | Reconcile the requirements copy with approved deviations | done, pending owner confirmation of the cited ADRs | PARTIAL | — | 0 | Build the open gaps |
 | STE-NXT-008 | STE-NXT | Verify the two unchecked requirement rows | done for the evidence, not for the link | PARTIAL | — | 0 | Build the open gaps |
-| STE-NXT-009 | STE-NXT | Decide how end-of-service benefits are recorded | owner decision pending | OWNER_DECISION | owner decision | 3 | Owner decision |
-| STE-NXT-010 | STE-NXT | Decide whether PBT normalization is in scope | owner decision pending | OWNER_DECISION | owner decision | 2 | Owner decision |
+| STE-NXT-009 | STE-NXT | Decide how end-of-service benefits are recorded | decided 2026-10-09 under the owner's delegated decision: option (b), a monthly provision accrual entered by a person through the ledger maker/checker, with the basis recorded | OWNER_DECISION | owner decision | 3 | Owner decision |
+| STE-NXT-010 | STE-NXT | Decide whether PBT normalization is in scope | decided 2026-10-09 under the owner's delegated decision: Option A, no normalization, as the methodology note docs/execution/auditsphere-audit-report-normalized-pbt-spk-03-proposed.md recommends | OWNER_DECISION | owner decision | 2 | Owner decision |
 | STE-NXT-011 | STE-NXT | Protect the released archive with an independent read-only copy (SPK-01 option 2) | — | OWNER_DECISION | owner decision | 3 | Owner decision |
 | STE-NXT-012 | STE-NXT | Show the local, provider and lifecycle archive states separately | — | PARTIAL | — | 4 | Build the open gaps |
 | STE-NXT-013 | STE-NXT | Make the statement analysis links reach their screens | open | NOT_AUDITED | — | — | Audit against the codebase before building |
+| STE-NXT-014 | STE-NXT | Record end-of-service accruals as a provision | open | NOT_AUDITED | — | — | Audit against the codebase before building |
 | STE-GAP-001 | STE-GAP | Versioned Service-Specific Engagement Letter Templates | — | PARTIAL | — | 7 | Build the open gaps |
 | STE-GAP-002 | STE-GAP | Specification-Compliant 50% Advance Invoice Automation | — | PARTIAL | — | 6 | Build the open gaps |
 | STE-GAP-003 | STE-GAP | Controlled ±5% Practical Materiality Rounding | — | PARTIAL | — | 5 | Build the open gaps |

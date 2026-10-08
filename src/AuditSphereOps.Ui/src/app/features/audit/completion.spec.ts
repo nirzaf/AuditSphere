@@ -241,5 +241,34 @@ describe('Early compliance lock panel (STE 4.4.3)', () => {
     f.detectChanges();
     expect((f.nativeElement as HTMLElement).textContent).toContain('e'.repeat(64));
   });
+
+  it('locks the file on success, sends the digest-bound payload and shows FROZEN with the frozen time', async () => {
+    const http = setup();
+    const f = load(http, scheduled);
+    http.expectOne(readinessUrl).flush(readyRecord);
+    f.detectChanges();
+    const page = f.componentInstance;
+    page.early = { confirmed: true, rationale: 'Locking after the final release review.' };
+    const attempt = page.lockEarly(readyRecord);
+    const post = http.expectOne(lockUrl);
+    expect(post.request.method).toBe('POST');
+    expect(post.request.body).toEqual({
+      expectedRevision: '3',
+      partnerConfirmed: true,
+      rationale: 'Locking after the final release review.',
+      archiveReadinessDigest: hash64,
+    });
+    post.flush({});
+    await attempt;
+    http.expectOne(`/api/ui/engagements/${id1}/completion`).flush({
+      ...validPayload,
+      freeze: { ...validPayload.freeze, state: 'FROZEN', frozenAt: '2026-10-08T10:00:00Z', daysRemaining: 0 },
+    });
+    f.detectChanges();
+    const host = f.nativeElement as HTMLElement;
+    expect(host.textContent).toContain('Frozen at 2026-10-08 10:00 UTC.');
+    expect(host.textContent).not.toContain('Early compliance lock (STE 4.4.3)');
+    expect(page.early.confirmed).toBe(false);
+  });
 });
 

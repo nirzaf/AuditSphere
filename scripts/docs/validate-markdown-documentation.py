@@ -66,6 +66,48 @@ DELETED_PATHS = [
 def get_repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
+LEDGER_BUDGETS = {
+    "docs/execution/status.json": 100 * 1024,
+    "docs/execution/auditsphere-execution-current-slice.md": 60 * 1024,
+}
+REQUIREMENTS_COPY = "docs/requirements/auditsphere-accounting-module-requirements-current.md"
+REQUIRED_DEVIATION_IDS = ["ADR-0002", "ADR-0003", "ADR-0004", "ADR-0005", "ADR-0006", "ADR-0007", "ADR-0009"]
+ORIGINAL_WORDING_MARKERS = ["Blazor Interactive Server", "emails temporary credentials"]
+
+
+def check_ledger_budgets(root, errors):
+    """STE-NXT-002: the execution ledger and the current-slice handoff stay under their size budgets."""
+    for rel, budget in LEDGER_BUDGETS.items():
+        path = root / rel
+        if not path.is_file():
+            errors.append(f"{rel}: size budget cannot be checked because the file is missing")
+            continue
+        size = path.stat().st_size
+        if size >= budget:
+            errors.append(f"{rel}: {size} bytes is over the {budget // 1024} KB budget; move closed history to the archive")
+
+
+def check_requirements_copy(root, errors):
+    """STE-NXT-007: the requirements copy keeps its approved-deviations section and the original wording, annotated."""
+    path = root / REQUIREMENTS_COPY
+    if not path.is_file():
+        errors.append(f"{REQUIREMENTS_COPY}: requirements copy is missing")
+        return
+    text = path.read_text(encoding="utf-8")
+    match = re.search(r"^## Approved deviations\n(.*?)(?=^## |\Z)", text, re.S | re.M)
+    if not match:
+        errors.append(f"{REQUIREMENTS_COPY}: the 'Approved deviations' section is missing")
+        section = ""
+    else:
+        section = match.group(1)
+    for adr in REQUIRED_DEVIATION_IDS:
+        if adr not in section:
+            errors.append(f"{REQUIREMENTS_COPY}: 'Approved deviations' does not cite {adr}")
+    for marker in ORIGINAL_WORDING_MARKERS:
+        if marker not in text:
+            errors.append(f"{REQUIREMENTS_COPY}: original wording '{marker}' was removed; keep it, annotated as superseded")
+
+
 def validate_all():
     root = get_repo_root()
     errors = []
@@ -194,6 +236,9 @@ def validate_all():
             if re.search(r"\b\d+/\d+\s+tests\s+pass", content, re.IGNORECASE):
                 errors.append(f"{ndoc}: contains volatile test count statement (metrics belong in status.json)")
 
+    check_ledger_budgets(root, errors)
+    check_requirements_copy(root, errors)
+
     if errors:
         print(f"FAILED: Found {len(errors)} documentation health issues:\n", file=sys.stderr)
         for err in errors:
@@ -208,6 +253,7 @@ def validate_all():
         print(f"  - Globally unique basenames: 100%")
         print(f"  - Deleted path references: 0")
         print(f"  - HISTORICAL_SOURCE banners: Verified")
+        print(f"  - Ledger size budgets and requirements copy: verified")
 
 if __name__ == "__main__":
     validate_all()
