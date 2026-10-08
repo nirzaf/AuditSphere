@@ -609,7 +609,7 @@ Module completion requires its implementation tasks **and** applicable integrate
 
 | [Local status helper](tools/task_status.py) | Optional local status transitions, index refresh and structural checks |
 
-| [Helper self-tests](tools/test_task_status.py) | Twelve checks run against disposable copies of this pack; not application tests |
+| [Helper self-tests](tools/test_task_status.py) | 21 test methods run against disposable copies of this pack; not application tests |
 
 | [Pack validation record](tracking/auditsphere-r2r-report-pack-validation.md) | Structural checks performed on the delivered ZIP contents |
 

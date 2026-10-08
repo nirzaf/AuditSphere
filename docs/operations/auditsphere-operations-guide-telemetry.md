@@ -1,6 +1,6 @@
 # AuditSphere operational telemetry
 
-The Web and Worker hosts expose OpenTelemetry `ActivitySource` and `Meter` signals. HTTP spans, Npgsql spans/metrics, runtime metrics, command spans, durable-operation attempt spans, and draft-save timing are diagnostic signals only. Immutable audit events, workpaper submissions, and operation state remain PostgreSQL records.
+The API and Worker hosts expose OpenTelemetry `ActivitySource` and `Meter` signals. HTTP spans, Npgsql spans/metrics, runtime metrics, command spans, durable-operation attempt spans, and draft-save timing are diagnostic signals only. Immutable audit events, workpaper submissions, and operation state remain PostgreSQL records.
 
 Set `Telemetry:Otlp:Endpoint` through the deployment configuration when an approved collector is available. The setting is independent from `ExternalEffects:Enabled`; enabling telemetry does not authorize Microsoft Graph, SharePoint, Purview, or any other provider effect. If no endpoint is configured, the application still starts with the sources and meters registered but does not export.
 
