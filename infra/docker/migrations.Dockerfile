@@ -22,6 +22,9 @@ RUN dotnet tool install --global dotnet-ef --version 10.0.12 \
 
 FROM mcr.microsoft.com/dotnet/runtime-deps:10.0 AS runtime
 WORKDIR /app
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends libgssapi-krb5-2 \
+  && rm -rf /var/lib/apt/lists/*
 COPY --from=bundle /out/efbundle /app/efbundle
 # The job receives the target connection string as the secret environment variable
 # ConnectionStrings__AuditSphere; efbundle applies pending migrations and exits non-zero on failure.
