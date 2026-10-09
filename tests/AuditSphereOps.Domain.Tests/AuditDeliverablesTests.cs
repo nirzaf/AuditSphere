@@ -457,6 +457,26 @@ public sealed partial class AuditDeliverablesTests
     Assert.Contains("already dispatched", regenerated.Message);
     Assert.Equal(1, await db.CommercialNotifications.CountAsync(x => x.DispatchKey == queued.DispatchKey));
 
+    // STE-GAP-005: the notification only records QUEUED or SENT, so a blocked or dead-lettered mail operation must be
+    // reported as FAILED with the real recovery route instead of an indefinite "queued" that can never arrive.
+    db.DurableOperations.Add(new DurableOperation
+    {
+      Id = Guid.CreateVersion7(), OperationKind = CommercialMailDeliveryHandler.Kind, FirmId = w.FirmId,
+      ClientId = w.ClientId, EngagementId = w.EngagementId, PayloadJson = "{}",
+      IdempotencyKey = "commercial-mail:" + queued.Id.ToString("D"), RequestDigest = new string('a', 64), RequestBytes = [1],
+      Status = OperationState.PROVIDER_BLOCKED, TargetId = queued.Id, ExpectedRevision = 1, CorrelationId = Guid.NewGuid(),
+      ErrorCode = "mail-provider-unavailable", NextAttemptAt = DateTimeOffset.UtcNow, CreatedAt = DateTimeOffset.UtcNow
+    });
+    await db.SaveChangesAsync();
+    var blocked = await HoldingLetterDispatch.StatusAsync(db, w.FirmId, w.EngagementId);
+    Assert.Equal("FAILED", blocked.State);
+    Assert.Contains("PROVIDER_BLOCKED", blocked.Message);
+    Assert.Contains("Operations screen", blocked.Message);
+    // Dispatching again is honest about the no-op and still never creates a second notification.
+    var reDispatch = await HoldingLetterDispatch.DispatchCurrentAsync(db, manager, w.EngagementId);
+    Assert.Equal("FAILED", reDispatch.Value!.State);
+    Assert.Equal(1, await db.CommercialNotifications.CountAsync(x => x.DispatchKey == queued.DispatchKey));
+
     // With the reassessment lifted the report generates (the clearance chain is redone because the
     // changed facts stale the earlier SRM, clearance and opinion), and a further reassessment blocks
     // the signature.

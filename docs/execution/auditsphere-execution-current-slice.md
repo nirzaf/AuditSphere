@@ -15,6 +15,18 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Pending-gap slice: fee-automation config alignment and truthful holding-letter delivery — 2026-10-09
+
+Owner-directed attempt to close the tracked STE v2.1 gaps. Two locally-closable code defects were fixed and verified; the
+remaining gaps are test-evidence, design or external work and were not started.
+
+- **STE-GAP-002 (host config alignment).** `AutomaticFeeInvoices` was declared only in the worker's `appsettings.json`, but the API host reads the same key to report the advance-invoice preparation state. With the key absent it always reported "automation disabled", even when the worker had automation enabled. The section is now declared identically in `src/AuditSphereOps.Api/appsettings.json` and `src/AuditSphereOps.Web/appsettings.json`, and `FeeAgreementConfigurationTests.EveryHostDeclaresTheSameAutomaticFeeInvoicesPolicy` refuses a drifted value or a host that omits the section.
+- **STE-GAP-005 (delivery truthfulness).** `HoldingLetterDispatch.StatusAsync` had an unreachable `FAILED` branch: nothing ever wrote `FAILED` to a `CommercialNotification`, so a blocked or dead-lettered mail operation was reported as `QUEUED` indefinitely, and the message told the operator to "dispatch again" although `QueueAsync` returns early for any existing notification. The status now consults the notification's durable operation and reports `FAILED` when that operation is in `OperationRecoveryService.RetryableStates`, naming the operations-screen recovery as the real route; `QueueAsync` states the no-op instead of implying a retry. `AuditDeliverablesTests` executes both branches. The Angular completion screen already renders the server state and message, so no UI change was required.
+
+Verification run in this slice: Release solution build 0 warnings / 0 errors; Domain `809/809` (3 m 3 s); `FeeAgreementConfigurationTests` `4/4`; `AuditDeliverablesTests` `12/12`.
+
+**Not started — still open.** STE-GAP-001, 003, 006 and 009 need their refusal branches *executed* (the code paths exist); STE-GAP-008 needs the provider-protection state model and the stage-3 dispatch check; STE-GAP-010 needs the journey suites executed against the manifest checks and the manifest regenerated; STE-GAP-004 and STE-GAP-007 are `BLOCKED_EXTERNAL` and need a live tenant. The nine `BLOCKED_EXTERNAL` gates, AS-PAR-002/AS-PAR-009 and the `NOT_READY` Blazor retirement gate are unchanged. No `BLOCKED_EXTERNAL` gate was converted and no external effect was enabled.
+
 ## Requirements-alignment slice: advance gate and diagram traceability — 2026-10-09
 
 Owner-directed alignment of `workflow_architecture_suite.html` with `requirements.html` (the source-aligned v2.1 register)
