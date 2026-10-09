@@ -187,56 +187,58 @@
     "restoredFromCommit": "2713b58c",
     "removedByCommit": "47ca0b05",
     "restoredByCommit": "5ce2481e",
-    "productCodeCommit": "f7304708",
-    "recordedAtUtc": "2026-10-08T14:25:19Z",
+    "productCodeCommit": "9013eeb2",
+    "recordedAtUtc": "2026-10-09T16:36:10Z",
     "database": "auditsphere_tests on 127.0.0.1:5433 for every .NET suite; the development database auditsphere was not used by any run",
     "runs": {
       "dotnetBuild": {
         "command": "dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1",
         "warnings": 0,
         "errors": 0,
-        "ranOn": "9d525a8a"
+        "ranOn": "9013eeb2"
       },
       "domain": {
         "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --configuration Release",
-        "total": 798,
-        "passed": 798,
-        "failed": 0,
-        "ranOn": "f7304708"
+        "total": 805,
+        "passed": 804,
+        "failed": 1,
+        "ranOn": "9013eeb2",
+        "failing": [
+          "  Failed AuditSphereOps.Domain.Tests.ClientAccountingTests.ManualSettlementMigrationDownRestoresGenericControlGuard"
+        ],
+        "note": "Every failure is a migration-rollback test: rolling back from head runs the Down of 20261009141822_PermanentFileFreeze (ab219707), which raises unconditionally ('compliance safety boundary'). Owner decision pending on whether that Down may downgrade an empty database."
       },
       "api": {
         "command": "dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-build --configuration Release",
-        "total": 219,
-        "passed": 219,
-        "failed": 0,
-        "ranOn": "9d525a8a",
-        "note": "f7304708 changes only test files after 9d525a8a, so the product code is identical"
+        "total": 223,
+        "passed": 213,
+        "failed": 10,
+        "ranOn": "9013eeb2",
+        "failing": [
+          "  Failed AuditSphereOps.Api.Tests.StaffingChangeReviewApiTests.ExactReviewCsrfCurrentAuthorityReceiptsAndRetentionMigrationAreEnforced",
+          "  Failed AuditSphereOps.Api.Tests.BudgetPreparationReviewApiTests.CsrfExactReviewActorReceiptScopeAndMigrationRetentionAreEnforced",
+          "  Failed AuditSphereOps.Api.Tests.ClientConversionReviewApiTests.ExactReviewCsrfCurrentAuthorityReceiptsAndRetentionMigrationAreEnforced",
+          "  Failed AuditSphereOps.Api.Tests.ValuationPreparationApiTests.EmptyPreparationMigrationRollsBackAndReappliesWithoutChangingSource",
+          "  Failed AuditSphereOps.Api.Tests.ResourcePlanningReceiptApiTests.PlanningCsrfActorRecoveryAndRetainedMigrationEvidenceAreEnforced",
+          "  Failed AuditSphereOps.Api.Tests.BudgetApprovalReviewApiTests.ExactReviewCsrfCurrentAuthorityReceiptsAndRetentionMigrationAreEnforced",
+          "  Failed AuditSphereOps.Api.Tests.AdjustmentPlanCommandApiTests.EmptyNativeEvidenceMigrationCanRollbackAndReapplyWithoutChangingExistingSource",
+          "  Failed AuditSphereOps.Api.Tests.EngagementCreationReviewApiTests.EmptyMigrationRollbackReappliesAndRetainedCreationEvidencePreventsRollback",
+          "  Failed AuditSphereOps.Api.Tests.AssessmentCommandReceiptApiTests.ReviewedAssessmentCsrfRecoveryIsolationAndRetainedEvidenceAreEnforced",
+          "  Failed AuditSphereOps.Api.Tests.TenantSetupMetadataApiTests.ExactReviewCsrfReceiptRecoveryRevocationAndRetainedMigrationAreEnforced"
+        ],
+        "note": "Every failure is a migration-rollback test: rolling back from head runs the Down of 20261009141822_PermanentFileFreeze (ab219707), which raises unconditionally ('compliance safety boundary'). Owner decision pending on whether that Down may downgrade an empty database."
       },
       "e2e": {
         "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-build --configuration Release",
         "total": 226,
-        "passed": 211,
-        "failed": 15,
-        "ranOn": "f7304708",
+        "passed": 225,
+        "failed": 1,
+        "ranOn": "48168e2e",
         "browser": "Playwright chromium from the local cache",
-        "failingJourneysAlsoFailingAtRestoreSource": 15,
         "failingJourneys": [
-          "AngularAttributeSamplingExecutionJourneyTests.ExactAttributeSelectionIsIndependentlyReviewedExecutedAndReviewedAgain",
-          "AngularAuditFieldworkParityJourneyTests.AdoptedProgramReviewedFieldworkAndFrozenWorkpaperSurviveReload",
-          "AngularAuditFieldworkParityJourneyTests.AggregateDifferenceConclusionRetainsHumanDecisionAndExactSourceSnapshot",
-          "AngularBillingWorkspaceJourneyTests.FinanceManagerRecordsAllocatesAndRecoversCreditNoteInNativeInvoiceWorkspace",
-          "AngularClientOperationalJournalJourneyTests.NativeClientJournalRequiresIndependentReviewAndPostsThroughAngular",
-          "AngularClientSalesInvoiceDraftJourneyTests.ClientSalesDraftRecoversLostReplyRevisesAndKeepsLedgerUntouched",
-          "AngularClientSalesInvoiceWorkflowJourneyTests.SalesInvoiceFlowsFromUntaxedPreparationToIndependentClientLedgerPosting",
-          "AngularFirmBooksBoundaryJourneyTests.FirmBooksRejectMalformedAndOversizedUploadsHideForeignExpensesAndClearAfterSessionExpiry",
-          "AngularPracticeBillingLedgerParityTests.AngularTimeApprovalBillingAndFirmCloseKeepTheirBoundaries",
-          "AngularPracticeBillingLedgerParityTests.ProposalDetailRequiresFirmWideGrantAndClearsStaleOrRevokedContent",
-          "AngularStatementReviewJourneyTests.ApprovedStatementContributionsAndEvidenceReturnRetainContextWithoutStaleTotals",
-          "AngularStatementReviewJourneyTests.ChangedGenerationHidesOldContributionAndRefusesExport",
-          "AngularTenantConnectionJourneyTests.ConsentAndExactDirectoryBinding_UseStandaloneApi_AndRemainSeparateFromLocalAccess",
-          "CompletionDeliverablesJourneyTests.PartnerClearsDecidesAndIssues_ClientReviewsInThePortal",
-          "FieldworkConnectionsJourneyTests.SeniorUploadsDrillsSamplesIndexesAndInsertsAStep"
-        ]
+          "AngularConfirmationJourneyTests.TabStorageFailure_DoesNotPretendSaved_AndKeepsNavigationIntent"
+        ],
+        "note": "The failing journey timed out clicking the unsaved-changes dialog while it re-rendered (element not stable, then detached). It passed in the three preceding full runs; treat as an intermittent timing failure until reproduced."
       },
       "angular": {
         "command": "npm --prefix src/AuditSphereOps.Ui run test:ci",
@@ -248,7 +250,7 @@
       "openapi": {
         "command": "bash scripts/contracts/verify-openapi.sh",
         "result": "contract is current",
-        "ranOn": "9d525a8a"
+        "ranOn": "48168e2e"
       },
       "efModelDrift": {
         "command": "dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Api --no-build --configuration Release",

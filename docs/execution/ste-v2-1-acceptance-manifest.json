@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "generatedAtUtc": "2026-10-09T16:24:56Z",
+  "generatedAtUtc": "2026-10-09T16:36:17Z",
   "generatedBy": "scripts/acceptance/generate-ste-manifest.py",
   "repository": {
-    "commit": "169c699b2cc7886fc293efa4ed505ed90d1e57d1",
+    "commit": "a7fb50a0d1d3d09121700166ba468afdd89f243e",
     "branch": "master",
-    "workingTreeClean": true
+    "workingTreeClean": false
   },
   "migrations": {
     "head": "20261009141822_PermanentFileFreeze",
@@ -135,7 +135,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/PracticeCrmTests.cs#LeadCreation_ReconcilesExactRetry_AndRejectsRequestIdentityReuse"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "J02",
@@ -146,7 +146,7 @@
           "tests/AuditSphereOps.Domain.Tests/PracticeCrmTests.cs#CommercialWorkflow_ConvertsIdempotently_AndLeavesAcceptancePending",
           "tests/AuditSphereOps.Domain.Tests/ClientRelationshipsAndRoutingTests.cs#CorrespondenceRouting_ResolvesPurposeSpecificContacts_AndRecordsImmutableDispatch"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "J03",
@@ -156,7 +156,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#OneClickDocuments_AreBrandedImmutableAndBoundToTheApprovedQuotation"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "J04",
@@ -166,7 +166,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/PracticeCrmTests.cs#ProposalDispatch_BindsExactOffer_AndAcceptanceMustCiteIt"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "J05",
@@ -176,7 +176,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AcceptanceChecklistTests.cs#NewClient_MustAnswerEveryOnboardingQuestionWithEvidence_AndAnAdverseAnswerIsNeverAcceptedByFillingFields"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "J06",
@@ -187,7 +187,7 @@
           "tests/AuditSphereOps.Domain.Tests/AcceptanceDecisionTests.cs#AcceptedDecision_IsImmutableAndCreatesOneWaitingWorkspace",
           "tests/AuditSphereOps.Domain.Tests/AcceptanceDecisionTests.cs#AcceptanceRequiresCurrentEvaluationAndPartnerScope"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "J07",
@@ -197,7 +197,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#OneClickDocuments_AreBrandedImmutableAndBoundToTheApprovedQuotation"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "J08",
@@ -207,7 +207,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "J09",
@@ -217,7 +217,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "J10",
@@ -228,7 +228,7 @@
           "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach",
           "tests/AuditSphereOps.Api.Tests/BillingWorkspaceApiTests.cs#InvoiceWorkspaceRecordsAllocatesAndCreditsWithCurrentAuthorizationAndAntiforgery"
         ],
-        "note": "source or test trees differ from the api run snapshot 9d525a8a"
+        "note": "api recorded 10 failure(s) on 9013eeb2"
       },
       {
         "id": "J11",
@@ -238,7 +238,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "J12",
@@ -269,7 +269,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#ResourceGrid_ShowsCapacityUnavailabilityAndOverAllocation_AndBudgetsReconcileByPhaseAndRiskArea"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "J16",
@@ -279,7 +279,7 @@
         "evidence": [
           "tests/AuditSphereOps.Api.Tests/TrialBalanceUploadApiTests.cs#EngagementScopedPreview_AllPeriodValidation_Csrf_AndExactReceipts"
         ],
-        "note": "source or test trees differ from the api run snapshot 9d525a8a"
+        "note": "api recorded 10 failure(s) on 9013eeb2"
       },
       {
         "id": "J17",
@@ -289,7 +289,7 @@
         "evidence": [
           "tests/AuditSphereOps.Api.Tests/MappingApprovalApiTests.cs#FreshIndependentReviewSerializesConcurrentApprovalAndPreservesAllocations"
         ],
-        "note": "source or test trees differ from the api run snapshot 9d525a8a"
+        "note": "api recorded 10 failure(s) on 9013eeb2"
       },
       {
         "id": "J18",
@@ -299,7 +299,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#Materiality_IsCalculatedFromTheMappedTrialBalance_AndGoesStaleWhenTheSourceIsReplaced"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "J19",
@@ -311,7 +311,7 @@
           "tests/AuditSphereOps.Domain.Tests/MaterialityPracticalRoundingTests.cs#BoundaryAdjustmentsOfExactlyFivePercentAreAccepted",
           "tests/AuditSphereOps.Domain.Tests/MaterialityPracticalRoundingTests.cs#AdjustmentsJustBeyondFivePercentAreRejected"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "J20",
@@ -321,7 +321,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#Materiality_IsCalculatedFromTheMappedTrialBalance_AndGoesStaleWhenTheSourceIsReplaced"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "J21",
@@ -332,7 +332,7 @@
           "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#Staffing_MapsFourLevelsToEngagementRoles_AndRiskBandsRouteOwnersAndPartnerReview",
           "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#AuditProcedure_ExecutionAndReviewStaffingRanks_EnforcesRiskBandRules"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "J22",
@@ -343,7 +343,7 @@
           "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#AuditProcedure_ExecutionAndReviewStaffingRanks_EnforcesRiskBandRules",
           "tests/AuditSphereOps.Domain.Tests/AuditAreaSummaryTests.cs#AreaSummary_ReportsCoveragePerArea"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "J23",
@@ -353,7 +353,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#FieldworkOnSeparateFslisRunsInParallelForDifferentStaffWithoutInterference"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "J24",
@@ -364,7 +364,7 @@
           "tests/AuditSphereOps.Domain.Tests/FieldworkConnectionsTests.cs#Statements_DrillIntoProcedures_AndSamplingPhysicalAndAdHocStepsConnect",
           "tests/AuditSphereOps.Domain.Tests/FieldworkConnectionsTests.cs#ClientEvidence_LinksOnlyTheExactCurrentReceivedVersionOfThisEngagement"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "J25",
@@ -374,7 +374,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/FieldworkConnectionsTests.cs#Statements_DrillIntoProcedures_AndSamplingPhysicalAndAdHocStepsConnect"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "J26",
@@ -384,7 +384,7 @@
         "evidence": [
           "tests/AuditSphereOps.Api.Tests/AnalyticalPreparationApiTests.cs#ReviewedAnalyticalPreparationIsScopedIdempotentAndKeepsIndependentReviewWritable"
         ],
-        "note": "source or test trees differ from the api run snapshot 9d525a8a"
+        "note": "api recorded 10 failure(s) on 9013eeb2"
       },
       {
         "id": "J27",
@@ -394,7 +394,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditCompletionTests.cs#CompletionRecords_DeriveConclusionsAndBlockUnresolved"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "J28",
@@ -404,7 +404,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditPlanningTests.cs#Workpaper_CreateAndSubmit_RevisionConflict"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "J29",
@@ -414,7 +414,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#InlineNotesBlockApproval_AndOnlySomeoneStaffedAboveThePreparerReviews"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "J30",
@@ -424,7 +424,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#LateAndReopenedNotesBlockClearanceUntilRespondedResolvedAndReviewed"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "J31",
@@ -434,7 +434,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#LateAndReopenedNotesBlockClearanceUntilRespondedResolvedAndReviewed"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "J32",
@@ -444,7 +444,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmPresentsCurrencyAwareDifferences_AndDocumentsDoNotAssertAutomaticImmateriality"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "J33",
@@ -454,7 +454,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "J34",
@@ -464,7 +464,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#CriticalUnreturnedConfirmationKeepsBlockingAfterAlternativeClosureAndCriticalityReassessment"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "J35",
@@ -474,7 +474,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "J36",
@@ -484,7 +484,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "J37",
@@ -494,7 +494,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "J38",
@@ -504,7 +504,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.ManagementLetter.cs#ManagementLetterRendersOnlyDesignatedCompleteMatters_AndStalesOnTheirChange"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "J39",
@@ -514,7 +514,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs#SignedRepresentation_IsVersionBound_Idempotent_Immutable_AndScoped"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "J40",
@@ -524,7 +524,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs#FivePartBundle_RequiresReviewedReleaseAndPostedBalance_IsIdempotent_AndClientScoped"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "J41",
@@ -534,7 +534,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs#FivePartBundle_RequiresReviewedReleaseAndPostedBalance_IsIdempotent_AndClientScoped"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "J42",
@@ -544,7 +544,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "J43",
@@ -555,7 +555,7 @@
           "tests/AuditSphereOps.Domain.Tests/ClientPortalOnboardingTests.cs#RequireUploadWindow_AllowsUploadsDuringInternalFinancialPackageRelease_AndFreezesOnFinalBundle",
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs#FivePartBundle_RequiresReviewedReleaseAndPostedBalance_IsIdempotent_AndClientScoped"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "J44",
@@ -565,7 +565,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#FileFreezesSixtyDaysAfterSigning_RefusesWrites_AmendsWithApproval_AndTracesActivity"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "J45",
@@ -575,7 +575,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.EarlyLock.cs#PartnerEarlyLock_FailsClosedThenFreezesOnlyTheReviewedReadiness"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "J46",
@@ -585,7 +585,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#FrozenFileRefusesReviewNoteAttemptsAndRecordsTheRefusedWrite"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "J47",
@@ -611,7 +611,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#OneClickDocuments_AreBrandedImmutableAndBoundToTheApprovedQuotation"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "N02",
@@ -628,7 +628,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/EngagementActivationAdvanceGateTests.cs#LinkedAgreementMustHavePaidAdvanceBeforeActivation"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "N04",
@@ -638,7 +638,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/ClientPortalOnboardingTests.cs#Uploads_AreWithheld_UntilTheFirstSignInRequirementForEachIdentityPathIsMet"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "N05",
@@ -648,7 +648,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#Materiality_IsCalculatedFromTheMappedTrialBalance_AndGoesStaleWhenTheSourceIsReplaced"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "N06",
@@ -658,7 +658,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/MaterialityPracticalRoundingTests.cs#AdjustmentsJustBeyondFivePercentAreRejected"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "N07",
@@ -668,7 +668,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#AuditProcedure_ExecutionAndReviewStaffingRanks_EnforcesRiskBandRules"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "N08",
@@ -678,7 +678,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#InlineNotesBlockApproval_AndOnlySomeoneStaffedAboveThePreparerReviews"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "N09",
@@ -688,7 +688,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#CriticalUnreturnedConfirmationKeepsBlockingAfterAlternativeClosureAndCriticalityReassessment"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "N10",
@@ -698,7 +698,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "N11",
@@ -708,7 +708,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs#FivePartBundle_RequiresReviewedReleaseAndPostedBalance_IsIdempotent_AndClientScoped"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "N12",
@@ -718,7 +718,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/EngagementLifecycleQueryTests.cs#EngagementTraversesCanonicalStagesAndEnforcesScope"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       },
       {
         "id": "N13",
@@ -738,7 +738,7 @@
           "tests/AuditSphereOps.Domain.Tests/AuditConfirmationCommandIsolationTests.cs#SiblingClientIds_AreDeniedAcrossConfirmationLifecycle",
           "tests/AuditSphereOps.Domain.Tests/BillingCommandScopeIsolationTests.cs#ClientScopedFinanceCommandsCannotReadOrMutateSiblingClientBillingRecords"
         ],
-        "note": "source or test trees differ from the domain run snapshot f7304708"
+        "note": "domain recorded 1 failure(s) on 9013eeb2"
       }
     ]
   },

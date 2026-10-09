@@ -15,6 +15,13 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## STE v2.1 evidence mapping and full-suite runs — 2026-10-09
+
+- Mapped 34 more journey steps to tests whose bodies execute the step: the manifest generator now cites 55 of 62 checks. Added `FieldworkOnSeparateFslisRunsInParallelForDifferentStaffWithoutInterference` (J23) and an explicit correspondence-trail assertion in the five-part bundle test (J40).
+- Not cited, with reasons: J48 (no regulator or read-only export exists; the archive endpoint is a paged manifest read) and N02 (the services cannot record a Partner risk acceptance before commercial acceptance, and the letter gate checks commercial acceptance first). J12–J14, J47 and N13 stay `BLOCKED_EXTERNAL`.
+- Full runs, recorded in `status.json`: E2E on `48168e2e` had one failure, an intermittent dialog-timing failure in a journey that passed in the three earlier full runs. Domain and API on `9013eeb2` failed only migration-rollback tests (1 and 10): rolling back from head runs the `PermanentFileFreeze` Down, which raises unconditionally. Because the cited suites recorded failures, the regenerated manifest reports 0 PASS; it is not inflated.
+- Open owner decision: either keep the unconditional Down and rewrite or retire those rollback tests, or let the Down downgrade a database that holds no freeze or supplementary-record evidence (the convention the other evidence migrations follow). The change was drafted and reverted because it relaxes a compliance boundary the owner set deliberately.
+
 ## Terminal archive and mandatory advance control — 2026-10-09
 
 Changes committed on 2026-10-09 after review of the v2.1 acceptance findings:
