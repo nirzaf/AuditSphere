@@ -17,7 +17,7 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Terminal archive and mandatory advance control — 2026-10-09
 
-Changes currently in the working tree after review of the v2.1 acceptance findings:
+Changes committed on 2026-10-09 as `ab219707` after review of the v2.1 acceptance findings:
 
 - Removed `AMENDMENT_OPEN`. Partner approval and closure now update a separate supplementary-record trail; neither changes the frozen state nor clears `ProfessionalWorkBlocked`. Angular and legacy Web screens say the archive remains read-only and disable editing when frozen.
 - Added migration `20261009141822_PermanentFileFreeze`: legacy open amendments are normalized to `FROZEN` and the engagement write block is restored; the database check and trigger protect frozen identity/freeze evidence, and amendment approval/closure transitions remain auditable and immutable. Its Down migration fails closed. No database migration has been applied.

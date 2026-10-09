@@ -1,15 +1,15 @@
 {
   "schemaVersion": 1,
-  "generatedAtUtc": "2026-10-09T13:24:32Z",
+  "generatedAtUtc": "2026-10-09T14:34:26Z",
   "generatedBy": "scripts/acceptance/generate-ste-manifest.py",
   "repository": {
-    "commit": "d887a1f17f1f3d6242c222b5d9eac63a061d6775",
+    "commit": "ab2197075e54b337e233c0ad85593be76a388ef3",
     "branch": "master",
     "workingTreeClean": true
   },
   "migrations": {
-    "head": "20261008110000_ClientOpeningItemAllocations",
-    "count": 185
+    "head": "20261009141822_PermanentFileFreeze",
+    "count": 186
   },
   "specification": {
     "title": "STE Audit Management Tool — Functional Requirements & End-to-End System Workflow Specification",
@@ -39,14 +39,15 @@
       "N03",
       "N06",
       "N08",
-      "N09"
+      "N09",
+      "N12"
     ],
     "executedTestSuites": [
       "domain"
     ],
     "removedInCommit": "47ca0b05",
     "restoredBy": "STE-NXT-001",
-    "note": "A step is PASS only when every cited test is declared in the current source and the recorded run for its suite has zero failures; the run commit travels in the step's evidence so staleness stays visible. Steps with no citation stay NOT_EXECUTED, and a suite-level pass never proves an uncited step."
+    "note": "A step is PASS only when every cited test is declared in the current source, the source and test trees match the recorded suite-run commit, and that run has zero failures. Steps with no citation stay NOT_EXECUTED, and a suite-level pass never proves an uncited step."
   },
   "stageTransitionEvidenceIds": [],
   "generatedDocuments": [],
@@ -214,24 +215,24 @@
       {
         "id": "J18",
         "text": "materiality calculated.",
-        "result": "PASS",
+        "result": "NOT_EXECUTED",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#Materiality_IsCalculatedFromTheMappedTrialBalance_AndGoesStaleWhenTheSourceIsReplaced",
-          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
-        ]
+          "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#Materiality_IsCalculatedFromTheMappedTrialBalance_AndGoesStaleWhenTheSourceIsReplaced"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "J19",
         "text": "optional practical rounding applied within ±5%.",
-        "result": "PASS",
+        "result": "NOT_EXECUTED",
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/MaterialityPracticalRoundingTests.cs#StoryCriterion_PlanningMateriality_53421_to_53000_is_accepted_and_a_value_past_the_bound_is_refused",
           "tests/AuditSphereOps.Domain.Tests/MaterialityPracticalRoundingTests.cs#BoundaryAdjustmentsOfExactlyFivePercentAreAccepted",
-          "tests/AuditSphereOps.Domain.Tests/MaterialityPracticalRoundingTests.cs#AdjustmentsJustBeyondFivePercentAreRejected",
-          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
-        ]
+          "tests/AuditSphereOps.Domain.Tests/MaterialityPracticalRoundingTests.cs#AdjustmentsJustBeyondFivePercentAreRejected"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "J20",
@@ -299,112 +300,112 @@
       {
         "id": "J29",
         "text": "Reviewer returns at least one item with mandatory note.",
-        "result": "PASS",
+        "result": "NOT_EXECUTED",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#InlineNotesBlockApproval_AndOnlySomeoneStaffedAboveThePreparerReviews",
-          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
-        ]
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#InlineNotesBlockApproval_AndOnlySomeoneStaffedAboveThePreparerReviews"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "J30",
         "text": "Preparer reworks and resubmits.",
-        "result": "PASS",
+        "result": "NOT_EXECUTED",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#LateAndReopenedNotesBlockClearanceUntilRespondedResolvedAndReviewed",
-          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
-        ]
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#LateAndReopenedNotesBlockClearanceUntilRespondedResolvedAndReviewed"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "J31",
         "text": "review note resolved.",
-        "result": "PASS",
+        "result": "NOT_EXECUTED",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#LateAndReopenedNotesBlockClearanceUntilRespondedResolvedAndReviewed",
-          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
-        ]
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#LateAndReopenedNotesBlockClearanceUntilRespondedResolvedAndReviewed"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "J32",
         "text": "SRM generated from current evidence.",
-        "result": "PASS",
+        "result": "NOT_EXECUTED",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmPresentsCurrencyAwareDifferences_AndDocumentsDoNotAssertAutomaticImmateriality",
-          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
-        ]
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmPresentsCurrencyAwareDifferences_AndDocumentsDoNotAssertAutomaticImmateriality"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "J33",
         "text": "Partner reviews required Red areas.",
-        "result": "PASS",
+        "result": "NOT_EXECUTED",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning",
-          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
-        ]
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "J34",
         "text": "critical confirmations are returned/evaluated.",
-        "result": "PASS",
+        "result": "NOT_EXECUTED",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#CriticalUnreturnedConfirmationKeepsBlockingAfterAlternativeClosureAndCriticalityReassessment",
-          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
-        ]
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#CriticalUnreturnedConfirmationKeepsBlockingAfterAlternativeClosureAndCriticalityReassessment"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "J35",
         "text": "Partner clears current SRM.",
-        "result": "PASS",
+        "result": "NOT_EXECUTED",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning",
-          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
-        ]
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "J36",
         "text": "opinion selected.",
-        "result": "PASS",
+        "result": "NOT_EXECUTED",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning",
-          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
-        ]
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "J37",
         "text": "report generated and signed/sealed.",
-        "result": "PASS",
+        "result": "NOT_EXECUTED",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning",
-          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
-        ]
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "J38",
         "text": "Management Letter generated.",
-        "result": "PASS",
+        "result": "NOT_EXECUTED",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.ManagementLetter.cs#ManagementLetterRendersOnlyDesignatedCompleteMatters_AndStalesOnTheirChange",
-          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
-        ]
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.ManagementLetter.cs#ManagementLetterRendersOnlyDesignatedCompleteMatters_AndStalesOnTheirChange"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "J39",
         "text": "LOR generated, downloaded, signed by client and re-uploaded.",
-        "result": "PASS",
+        "result": "NOT_EXECUTED",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs#SignedRepresentation_IsVersionBound_Idempotent_Immutable_AndScoped",
-          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
-        ]
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs#SignedRepresentation_IsVersionBound_Idempotent_Immutable_AndScoped"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "J40",
@@ -416,12 +417,12 @@
       {
         "id": "J41",
         "text": "five-part bundle assembled.",
-        "result": "PASS",
+        "result": "NOT_EXECUTED",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs#FivePartBundle_RequiresReviewedReleaseAndPostedBalance_IsIdempotent_AndClientScoped",
-          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
-        ]
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs#FivePartBundle_RequiresReviewedReleaseAndPostedBalance_IsIdempotent_AndClientScoped"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "J42",
@@ -440,32 +441,32 @@
       {
         "id": "J44",
         "text": "countdown begins from report signature.",
-        "result": "PASS",
+        "result": "NOT_EXECUTED",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#FileFreezesSixtyDaysAfterSigning_RefusesWrites_AmendsWithApproval_AndTracesActivity",
-          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
-        ]
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#FileFreezesSixtyDaysAfterSigning_RefusesWrites_AmendsWithApproval_AndTracesActivity"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "J45",
         "text": "either automatic day-60 freeze or Partner early lock succeeds.",
-        "result": "PASS",
+        "result": "NOT_EXECUTED",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.EarlyLock.cs#PartnerEarlyLock_FailsClosedThenFreezesOnlyTheReviewedReadiness",
-          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
-        ]
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.EarlyLock.cs#PartnerEarlyLock_FailsClosedThenFreezesOnlyTheReviewedReadiness"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "J46",
         "text": "archive becomes locally read-only.",
-        "result": "PASS",
+        "result": "NOT_EXECUTED",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#FrozenFileRefusesReviewNoteAttemptsAndRecordsTheRefusedWrite",
-          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
-        ]
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#FrozenFileRefusesReviewNoteAttemptsAndRecordsTheRefusedWrite"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "J47",
@@ -500,12 +501,12 @@
       {
         "id": "N03",
         "text": "Advance invoice unpaid → no active upload workspace.",
-        "result": "PASS",
+        "result": "NOT_EXECUTED",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/EngagementActivationAdvanceGateTests.cs#ALinkedAgreementAlwaysGatesEvenUnderTheRecordedDeviation",
-          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
-        ]
+          "tests/AuditSphereOps.Domain.Tests/EngagementActivationAdvanceGateTests.cs#LinkedAgreementMustHavePaidAdvanceBeforeActivation"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "N04",
@@ -524,12 +525,12 @@
       {
         "id": "N06",
         "text": "Practical rounding >5% → rejected.",
-        "result": "PASS",
+        "result": "NOT_EXECUTED",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/MaterialityPracticalRoundingTests.cs#AdjustmentsJustBeyondFivePercentAreRejected",
-          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
-        ]
+          "tests/AuditSphereOps.Domain.Tests/MaterialityPracticalRoundingTests.cs#AdjustmentsJustBeyondFivePercentAreRejected"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "N07",
@@ -541,22 +542,22 @@
       {
         "id": "N08",
         "text": "Open review note → completion blocked.",
-        "result": "PASS",
+        "result": "NOT_EXECUTED",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#InlineNotesBlockApproval_AndOnlySomeoneStaffedAboveThePreparerReviews",
-          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
-        ]
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#InlineNotesBlockApproval_AndOnlySomeoneStaffedAboveThePreparerReviews"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "N09",
         "text": "Critical confirmation outstanding → audit report blocked + Holding Letter generated.",
-        "result": "PASS",
+        "result": "NOT_EXECUTED",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#CriticalUnreturnedConfirmationKeepsBlockingAfterAlternativeClosureAndCriticalityReassessment",
-          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
-        ]
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#CriticalUnreturnedConfirmationKeepsBlockingAfterAlternativeClosureAndCriticalityReassessment"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "N10",
@@ -574,10 +575,13 @@
       },
       {
         "id": "N12",
-        "text": "Day 60 with failed freeze operation → cannot falsely claim archived.",
+        "text": "Day 60 with a due but uncommitted freeze → cannot falsely claim archived.",
         "result": "NOT_EXECUTED",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/EngagementLifecycleQueryTests.cs#EngagementTraversesCanonicalStagesAndEnforcesScope"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "N13",
@@ -659,8 +663,7 @@
         "Approval binds to the current effective head; a superseded head is refused."
       ],
       "openItems": [
-        "The rounding form is covered by component tests (plan.spec.ts) and the flag by a Domain test; it was not exercised in a browser against seeded data.",
-        "The rejection of a rounding change above ±5% (N06) has not been executed."
+        "The rounding form is covered by component tests (plan.spec.ts) and the flag by a Domain test; it was not exercised in a browser against seeded data."
       ]
     },
     {
@@ -742,8 +745,7 @@
         "Early-lock records are append-only (trigger-protected)."
       ],
       "openItems": [
-        "The early-lock panel is covered by component tests (completion.spec.ts); it was not exercised in a browser against a scheduled freeze.",
-        "The refusal branches (stale revision, missing release, digest mismatch) have not been executed."
+        "The early-lock panel is covered by component tests (completion.spec.ts); it was not exercised in a browser against a scheduled freeze."
       ]
     },
     {
@@ -758,11 +760,10 @@
         "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleQuery.cs"
       ],
       "implemented": [
-        "The local freeze is enforced inside AuditSphere, and the lifecycle warns that provider-level read-only protection is not verified."
+        "The local freeze is enforced inside AuditSphere; the lifecycle returns provider status separately and warns when provider read-only enforcement is not observed."
       ],
       "openItems": [
-        "No provider protection strategy is implemented; FileFreezeService records ExternalReadOnly as BLOCKED_EXTERNAL.",
-        "The lifecycle summary has no provider-protection state field; the compliance warning string is its only provider-facing text."
+        "No provider protection strategy is implemented; FileFreezeService records ExternalReadOnly as BLOCKED_EXTERNAL."
       ],
       "blocker": "Needs an approved provider protection strategy, provider readback evidence and real-tenant denial tests. AuditSphere does not claim provider immutability.",
       "externalEvidenceRequired": [
@@ -790,12 +791,14 @@
       "implemented": [
         "Leads without a proposal are projected as LEAD_INGESTION (Stage 1) on the lead list.",
         "Planning requires approved, non-stale materiality, and managerial review hands over to Partner approval only when the completion gate is clear.",
-        "The compliance countdown is anchored to the report-signature time, and an engagement is shown as archived only when its local freeze is FROZEN."
+        "The compliance countdown is anchored to the report-signature time, and an engagement is shown as archived only when its local freeze is FROZEN.",
+        "Proposal-generation drafts remain at Stage 2; Stage 3 requires a dispatched proposal with SentAt evidence.",
+        "The lifecycle response and Angular UI expose local archive and provider-protection states separately; unknown state values fail decoding.",
+        "A due but uncommitted freeze remains in the compliance countdown with an explicit blocker."
       ],
       "openItems": [
-        "The lead-stage projection is two-valued (LEAD_INGESTION or PROPOSAL_OR_LATER); the move to Stage 3 on proposal dispatch has not been verified.",
-        "The section F model's separate provider-protection state is not returned; provider protection appears only in the compliance warning string.",
-        "A due-but-failed freeze (N12) has not been executed, so its stage display is unverified."
+        "Proposal dispatch and lifecycle projection still need a joined browser journey; the current PostgreSQL lifecycle test covers the projection boundary.",
+        "The external provider read-only state remains BLOCKED_EXTERNAL until approved live provider readback evidence exists (STE-GAP-007)."
       ],
       "observedLocally": [
         "The engagement lifecycle showed Stage 2 of 11 with no compliance warning (browser check).",
@@ -823,8 +826,7 @@
         "Rate resolution uses the exact approved card first, then the STE role alias, and otherwise fails closed with time.rate-missing."
       ],
       "openItems": [
-        "A Domain test covers approval by a separate approver and the preparer refusal; the approve action was not exercised in a browser.",
-        "The alias fallback and the fail-closed branch have not been executed against a time entry."
+        "Approval by a separate Partner, preparer refusal, aliases and unknown-role fail-closed behavior are covered by the PostgreSQL-backed Domain test; the screen approval action has not been exercised in a browser."
       ],
       "observedLocally": [
         "Baseline initialization created four DRAFT cards (browser check).",
@@ -845,19 +847,19 @@
         "This manifest lists all 48 happy-path steps and 14 negative branches, each with its evidence status."
       ],
       "openItems": [
-        "The suites were restored (STE-NXT-001) but this manifest does not map their tests to journey steps; no step has recorded evidence here.",
-        "Steps that depend on the Microsoft tenant are BLOCKED_EXTERNAL; every other step is NOT_EXECUTED."
+        "The manifest maps only journey steps with a declared source test and a recorded zero-failure run; unmatched local steps remain NOT_EXECUTED.",
+        "Steps that depend on the Microsoft tenant remain BLOCKED_EXTERNAL until live evidence and independent acceptance are recorded."
       ]
     }
   ],
   "summary": {
     "mandatoryChecks": 62,
-    "PASS": 21,
+    "PASS": 0,
     "FAIL": 0,
-    "NOT_EXECUTED": 36,
+    "NOT_EXECUTED": 57,
     "BLOCKED_EXTERNAL": 5
   },
   "overallResult": "FAIL",
-  "overallReason": "36 mandatory checks have no executed evidence; 5 are blocked by external providers (STE-GAP-004, STE-GAP-007); 0 checks failed.",
+  "overallReason": "57 mandatory checks have no executed evidence; 5 are blocked by external providers (STE-GAP-004, STE-GAP-007); 0 checks failed.",
   "resultRule": "FAIL when a mandatory check failed, or has no executed evidence and no external block. PASS only when every mandatory check passed with recorded evidence. BLOCKED_EXTERNAL when every unresolved mandatory check is blocked by an external provider. A check is never marked PASS without recorded evidence."
 }
