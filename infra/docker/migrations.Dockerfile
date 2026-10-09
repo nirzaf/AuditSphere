@@ -7,7 +7,7 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0.300 AS bundle
 ARG DOTNET_ROLL_FORWARD=disable
 ENV DOTNET_ROLL_FORWARD=$DOTNET_ROLL_FORWARD
 WORKDIR /repo
-COPY global.json Directory.Packages.props AuditSphereOps.slnx ./
+COPY global.json Directory.Build.props Directory.Packages.props AuditSphereOps.slnx ./
 COPY src/ src/
 RUN dotnet tool install --global dotnet-ef --version 10.0.12 \
   && export PATH="$PATH:/root/.dotnet/tools" \

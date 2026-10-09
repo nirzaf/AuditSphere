@@ -8,7 +8,7 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0.300 AS build
 ARG DOTNET_ROLL_FORWARD=disable
 ENV DOTNET_ROLL_FORWARD=$DOTNET_ROLL_FORWARD
 WORKDIR /repo
-COPY global.json Directory.Packages.props AuditSphereOps.slnx ./
+COPY global.json Directory.Build.props Directory.Packages.props AuditSphereOps.slnx ./
 COPY src/AuditSphereOps.Domain/AuditSphereOps.Domain.csproj src/AuditSphereOps.Domain/
 COPY src/AuditSphereOps.Application/AuditSphereOps.Application.csproj src/AuditSphereOps.Application/
 COPY src/AuditSphereOps.Infrastructure/AuditSphereOps.Infrastructure.csproj src/AuditSphereOps.Infrastructure/
