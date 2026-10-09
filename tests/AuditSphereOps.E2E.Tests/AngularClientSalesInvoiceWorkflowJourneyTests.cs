@@ -174,7 +174,7 @@ public sealed class AngularClientSalesInvoiceWorkflowJourneyTests
     await makerAllocations.GetByRole(AriaRole.Button, new() { Name = "Refresh balances", Exact = true }).ClickAsync();
     await makerAllocations.Locator("select[name='source']").SelectOptionAsync(creditOpenItemId.ToString());
     await makerAllocations.Locator("select[name='target']").SelectOptionAsync(invoiceOpenItemId.ToString());
-    await makerAllocations.GetByLabel("Amount", new() { Exact = true }).FillAsync("20");
+    await makerAllocations.Locator("form").GetByLabel("Amount", new() { Exact = true }).FillAsync("20");
     await makerAllocations.GetByLabel("Reference", new() { Exact = true }).FillAsync("CN-UI-ALLOC-001");
     await makerAllocations.GetByLabel("Reason", new() { Exact = true }).FillAsync("Apply the approved customer credit to the posted receivable");
     await makerAllocations.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed the client, party, currency, amount, and source linkage.", Exact = true }).CheckAsync();

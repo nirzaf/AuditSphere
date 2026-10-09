@@ -66,6 +66,10 @@ public sealed class CompletionDeliverablesJourneyTests
       Assert.True((await StaffingService.AssignAsync(db, new ActorContext(f.Admin.Id, f.FirmId, f.Admin.SessionEpoch, ["Administrator"]),
         new(f.EngagementId, partner.Id, StaffingLevels.EngagementPartner))).Succeeded);
 
+    await using (var db = host.CreateDbContext())
+      await PlanningBasisSeed.EstablishAsync(db, f.FirmId, f.ClientId, f.EngagementId,
+        PbcSeed.Actor(manager, "Manager"), PbcSeed.Actor(partner, "Partner"));
+
     var origin = await host.StartApiForIdentityAsync(partner);
     using var playwright = await Playwright.CreateAsync();
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
@@ -174,7 +178,7 @@ public sealed class CompletionDeliverablesJourneyTests
     await page.GotoAsync($"{origin}/app/engagements/{f.EngagementId:D}/completion");
     await page.GetByRole(AriaRole.Heading, new() { Name = "File freeze and activity trail" }).WaitForAsync(new() { Timeout = 20000 });
     await SettleAsync();
-    await Assertions.Expect(page.GetByText("day(s) remaining", new() { Exact = false })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByText("day(s) remaining", new() { Exact = false }).First).ToBeVisibleAsync();
     await Assertions.Expect(page.Locator("[aria-label='Activity trail']")).ToContainTextAsync("Independent Auditor's Report v1 signed");
     await using (var db = host.CreateDbContext())
       Assert.Equal(FileFreezeStates.Scheduled, (await db.EngagementFileFreezes.AsNoTracking().SingleAsync(x => x.EngagementId == f.EngagementId)).State);

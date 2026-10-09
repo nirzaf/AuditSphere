@@ -167,19 +167,24 @@ public sealed class FieldworkConnectionsJourneyTests
     var samplingRationale = page.Locator("input[name='sr']");
     await samplingRationale.FillAsync("MUS over the sales listing");
     await samplingRationale.PressAsync("Tab");
-    await page.GetByRole(AriaRole.Button, new() { Name = "Run sampling" }).ClickAsync();
-    await Assertions.Expect(page.Locator(".command-result").Last).ToContainTextAsync("of 20 items");
+    await page.GetByRole(AriaRole.Button, new() { Name = "Preview selection", Exact = true }).ClickAsync();
+    var preview = page.GetByRole(AriaRole.Region, new() { Name = "Exact selection preview", Exact = true });
+    await Assertions.Expect(preview).ToContainTextAsync("of 20 rows selected");
+    await preview.GetByRole(AriaRole.Button, new() { Name = "Record this exact sample", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.Locator(".command-result").Last).ToContainTextAsync("of 20 selected rows");
     await Assertions.Expect(page.Locator("[aria-label='Sampling calculation log']")).ToContainTextAsync("Matches");
 
     await page.Locator("select[name='sm']").SelectOptionAsync("SYSTEMATIC");
     await page.Locator("select[name='sp']").SelectOptionAsync(new SelectOptionValue { Label = "SMP-01 · Select systematic random transactions" });
     await page.GetByLabel("Sample size").FillAsync("5");
-    await page.GetByLabel("Seed").FillAsync("42");
+    await page.GetByLabel("Seed", new() { Exact = true }).FillAsync("42");
     await samplingRationale.FillAsync("Systematic random five from the approved sales listing");
     await samplingRationale.PressAsync("Tab");
-    await page.GetByRole(AriaRole.Button, new() { Name = "Run sampling" }).ClickAsync();
-    await Assertions.Expect(page.Locator(".command-result").Last).ToContainTextAsync("5 of 20 items");
-    await Assertions.Expect(page.Locator("[aria-label='Sampling calculation log']")).ToContainTextAsync("SYSTEMATIC");
+    await page.GetByRole(AriaRole.Button, new() { Name = "Preview selection", Exact = true }).ClickAsync();
+    var systematicPreview = page.GetByRole(AriaRole.Region, new() { Name = "Exact selection preview", Exact = true });
+    await systematicPreview.GetByRole(AriaRole.Button, new() { Name = "Record this exact sample", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.Locator(".command-result").Last).ToContainTextAsync("5 of 20 selected rows");
+    await Assertions.Expect(page.Locator("[aria-label='Sampling calculation log']")).ToContainTextAsync("Systematic random");
 
     await page.GetByRole(AriaRole.Tab, new() { Name = "Client evidence" }).ClickAsync();
     await page.Locator("select[name='ep']").SelectOptionAsync(revenueProcedure.ToString());
@@ -229,6 +234,12 @@ public sealed class FieldworkConnectionsJourneyTests
     Guid resultId;
     await using (var db = host.CreateDbContext())
     {
+      var planningPartner = PbcSeed.User(f.FirmId, "Staff"); planningPartner.DisplayName = "Planning Partner";
+      db.Users.Add(planningPartner);
+      db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, planningPartner, "Partner", f.ClientId, f.EngagementId));
+      await db.SaveChangesAsync();
+      await PlanningBasisSeed.ApproveMaterialityAsync(db, f.FirmId, f.ClientId, f.EngagementId,
+        PbcSeed.Actor(senior, "Senior"), PbcSeed.Actor(planningPartner, "Partner"));
       var generation = await db.ClientSafetyStates.AsNoTracking().Where(x => x.Id == f.ClientId)
         .Select(x => x.InputGeneration).SingleAsync();
       var submitted = await AuditProgramService.SubmitResultAsync(db, PbcSeed.Actor(senior, "Senior"),
@@ -253,8 +264,10 @@ public sealed class FieldworkConnectionsJourneyTests
     await reviewerPage.GotoAsync($"{reviewerOrigin}/auth/sign-in?returnUrl={Uri.EscapeDataString(fieldworkPath)}");
     await Assertions.Expect(reviewerPage.GetByRole(AriaRole.Heading, new() { Name = "Procedure review", Exact = true })).ToBeVisibleAsync();
     await reviewerPage.GetByRole(AriaRole.Tab, new() { Name = "Review notes" }).ClickAsync();
-    foreach (var hiddenTab in new[] { "Sampling", "Client evidence", "Physical files", "Ad hoc steps" })
+    foreach (var hiddenTab in new[] { "Client evidence", "Physical files", "Ad hoc steps" })
       await Assertions.Expect(reviewerPage.GetByRole(AriaRole.Tab, new() { Name = hiddenTab, Exact = true })).ToHaveCountAsync(0);
+    await reviewerPage.GetByRole(AriaRole.Tab, new() { Name = "Sampling", Exact = true }).ClickAsync();
+    await Assertions.Expect(reviewerPage.GetByRole(AriaRole.Button, new() { Name = "Preview selection", Exact = true })).ToHaveCountAsync(0);
     await Assertions.Expect(reviewerPage.GetByRole(AriaRole.Link, new() { Name = "Confirmation dashboard", Exact = true })).ToHaveCountAsync(0);
     await Assertions.Expect(reviewerPage.GetByRole(AriaRole.Heading, new() { Name = "Versioned audit program", Exact = true })).ToHaveCountAsync(0);
     var reviewerProjection = await reviewerPage.EvaluateAsync<string>("""
@@ -269,6 +282,7 @@ public sealed class FieldworkConnectionsJourneyTests
     Assert.Contains("\"schedules\":[]", reviewerProjection, StringComparison.Ordinal);
     Assert.Contains("\"evidenceCandidates\":[]", reviewerProjection, StringComparison.Ordinal);
     Assert.Contains("\"physicalItems\":[]", reviewerProjection, StringComparison.Ordinal);
+    await reviewerPage.GetByRole(AriaRole.Tab, new() { Name = "Review notes", Exact = true }).ClickAsync();
     var reviewerNotes = reviewerPage.GetByRole(AriaRole.Tabpanel, new() { Name = "Review notes" });
     await reviewerNotes.GetByRole(AriaRole.Combobox).SelectOptionAsync(revenueProcedure.ToString());
     var submittedResult = reviewerNotes.GetByLabel("Current submitted result", new() { Exact = true });

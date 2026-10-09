@@ -36,7 +36,7 @@ public sealed class AngularStatementReviewJourneyTests
     var downloadTask=page.WaitForDownloadAsync();await page.GetByRole(AriaRole.Button,new(){Name="Export complete statement contributions",Exact=true}).ClickAsync();var download=await downloadTask;
     Assert.Contains(seed.MappingId.ToString(),download.SuggestedFilename);
     await page.SetViewportSizeAsync(390,844);Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"));
-    foreach (var name in new[] { "Statement table scroll area", "Contribution table scroll area" })
+    foreach (var name in new[] { "Financial position table scroll area", "Contribution table scroll area" })
     {
       var scroll = page.GetByRole(AriaRole.Region, new() { Name = name, Exact = true });
       Assert.Equal("0", await scroll.GetAttributeAsync("tabindex"));
@@ -61,11 +61,11 @@ public sealed class AngularStatementReviewJourneyTests
     var origin=await host.StartApiForIdentityAsync(host.Fixture.Staff,new Dictionary<string,string>{["AngularUi__Enabled"]="true"});
     using var pw=await Playwright.CreateAsync();await using var browser=await PlaywrightBrowser.LaunchAsync(pw);var page=await browser.NewPageAsync();
     await page.GotoAsync(origin+"/auth/sign-in?returnUrl="+Uri.EscapeDataString($"/ui/app/engagements/{host.Fixture.EngagementId}/statements?section=position"));
-    await Assertions.Expect(page.GetByRole(AriaRole.Table,new(){Name="Statement lines",Exact=true})).ToContainTextAsync("100.123456");
+    await Assertions.Expect(page.GetByRole(AriaRole.Table,new(){Name="Financial position statement lines",Exact=true})).ToContainTextAsync("100.123456");
     await using(var db=host.CreateDbContext()) await db.ClientSafetyStates.Where(x=>x.Id==host.Fixture.ClientId).ExecuteUpdateAsync(x=>x.SetProperty(s=>s.InputGeneration,s=>s.InputGeneration+1));
     await page.GetByRole(AriaRole.Button,new(){Name="Inspect line CASH ASSETS",Exact=true}).ClickAsync();
-    await Assertions.Expect(page.GetByText("Statement inputs changed after mapping approval. Review a new mapping before using current totals.",new(){Exact=true})).ToBeVisibleAsync();
-    await Assertions.Expect(page.GetByRole(AriaRole.Table,new(){Name="Statement lines",Exact=true})).ToBeHiddenAsync();
+    await Assertions.Expect(page.GetByText("Statement inputs changed after mapping approval. Review a new mapping before using current totals.",new(){Exact=true}).First).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Table,new(){Name="Financial position statement lines",Exact=true})).ToBeHiddenAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Button,new(){Name="Export complete statement contributions",Exact=true})).ToBeHiddenAsync();
     Assert.DoesNotContain("100.123456",await page.Locator("body").InnerTextAsync());
   }

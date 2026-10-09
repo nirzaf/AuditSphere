@@ -56,6 +56,14 @@ public sealed class AngularAttributeSamplingExecutionJourneyTests
       });
       await db.SaveChangesAsync();
 
+      // A separate Partner approves the planning basis; the reviewer keeps only the reviewer role.
+      var planningPartner = PbcSeed.User(f.FirmId, "Staff"); planningPartner.DisplayName = "Planning Partner";
+      db.Users.Add(planningPartner);
+      db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, planningPartner, "Partner", f.ClientId, f.EngagementId));
+      await db.SaveChangesAsync();
+      await PlanningBasisSeed.EstablishAsync(db, f.FirmId, f.ClientId, f.EngagementId,
+        PbcSeed.Actor(f.Staff, "Staff"), PbcSeed.Actor(planningPartner, "Partner"));
+
       var rows = new[]
       {
         new ScheduleRowInput("SAMP-001", 1, "4000", "Synthetic revenue item 1", 100m, "QAR",

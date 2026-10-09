@@ -43,6 +43,7 @@
     <Compile Include="../AuditSphereOps.Domain.Tests/BudgetApprovalReviewSeed.cs" Link="BudgetApprovalReviewSeed.cs" />
     <Compile Include="../AuditSphereOps.Domain.Tests/EngagementCreationReviewSeed.cs" Link="EngagementCreationReviewSeed.cs" />
     <Compile Include="../AuditSphereOps.Domain.Tests/PbcSeed.cs" Link="Fixtures/PbcSeed.cs" />
+    <Compile Include="../AuditSphereOps.Domain.Tests/PlanningBasisSeed.cs" Link="Fixtures/PlanningBasisSeed.cs" />
     <Compile Include="../AuditSphereOps.Domain.Tests/SiblingClientSeed.cs" Link="Fixtures/SiblingClientSeed.cs" />
     <Compile Include="../Shared/RemeasurementFixture.cs" Link="Fixtures/RemeasurementFixture.cs" />
     <Compile Include="../Shared/CurrencyReviewFixture.cs" Link="Fixtures/CurrencyReviewFixture.cs" />

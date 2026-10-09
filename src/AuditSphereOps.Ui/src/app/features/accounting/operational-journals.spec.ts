@@ -255,4 +255,13 @@ describe('Invoice journals in the native journal workbench', () => {
     expect(() => decodeOperationalLedger({ bookkeepingActive: true, clientId: client, periodId: client, periodCode: '2026', currency: 'QAR',
       basis: 'STATUTORY', page: 0, pageSize: 100, totalEntries: 1, postingSnapshotThrough: '1', accounts: [], entries: [], trialBalance: {} }, client, client)).toThrow();
   });
+
+  it('accepts an account-bounded trial balance that does not balance only when the account range was requested', () => {
+    const partial = { bookkeepingActive: true, clientId: client, periodId: client, periodCode: '2026', currency: 'QAR', basis: 'STATUTORY', page: 0, pageSize: 100, totalEntries: 1, periodTotalEntries: 2, postingSnapshotThrough: '9223372036854775807',
+      trialBalance: { fromDate: '2026-01-01', toDate: '2026-12-31', source: 'NATIVE_POSTED_PERIOD_ACTIVITY', openingDebit: '0', openingCredit: '0', periodDebit: '125', periodCredit: '0', closingDebit: '125', closingCredit: '0', rows: [
+        { accountId: actor, accountCode: '6000', accountName: 'Expense', openingDebit: '0', openingCredit: '0', periodDebit: '125', periodCredit: '0', closingDebit: '125', closingCredit: '0' }] },
+      accounts: [], entries: [] };
+    expect(() => decodeOperationalLedger(partial, client, client)).toThrow();
+    expect(decodeOperationalLedger(partial, client, client, true).trialBalance.source).toBe('NATIVE_POSTED_PERIOD_ACTIVITY');
+  });
 });

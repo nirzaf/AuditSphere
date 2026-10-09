@@ -131,7 +131,8 @@ public sealed class AngularBillingWorkspaceJourneyTests
     await Assertions.Expect(page.GetByRole(AriaRole.Heading,
       new() { Name = "Verify the saved billing state", Exact = true })).ToBeVisibleAsync();
     await page.GetByRole(AriaRole.Button, new() { Name = "Refresh persisted billing state", Exact = true }).ClickAsync();
-    var allocatedReceiptRow = page.GetByRole(AriaRole.Row).Filter(new() { HasText = "SYN-ANG-BANK-001" });
+    var receiptHistoryTable = page.GetByRole(AriaRole.Table, new() { Name = "Recent receipts for this client billing account", Exact = true });
+    var allocatedReceiptRow = receiptHistoryTable.GetByRole(AriaRole.Row).Filter(new() { HasText = "SYN-ANG-BANK-001" });
     await Assertions.Expect(allocatedReceiptRow).ToContainTextAsync("25.00");
     Assert.Equal(1, allocationCalls);
     await page.GetByRole(AriaRole.Button, new() { Name = "Clear unresolved billing draft", Exact = true }).ClickAsync();

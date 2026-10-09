@@ -72,8 +72,8 @@ public sealed class AngularClientSalesInvoiceDraftJourneyTests
     await Assertions.Expect(drafts.GetByRole(AriaRole.Button, new() { Name = "Recover invoice draft request", Exact = true })).ToBeEnabledAsync();
     await Assertions.Expect(drafts.GetByLabel("Sales unit price", new() { Exact = true })).ToBeDisabledAsync();
     await drafts.GetByRole(AriaRole.Button, new() { Name = "Recover invoice draft request", Exact = true }).ClickAsync();
-    await Assertions.Expect(drafts.GetByRole(AriaRole.Heading, new() { Name = "DRAFT-UI-001 · DRAFT · Revision 1", Exact = true })).ToBeVisibleAsync();
-    await Assertions.Expect(drafts.GetByText("Unposted gross: 250.00 QAR", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(drafts.GetByRole(AriaRole.Heading, new() { Name = "DRAFT-UI-001 · Preparation revision 1", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(drafts.GetByText("Preserved preparation gross: 250.00 QAR", new() { Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(drafts.GetByText("Seller: " + clientName + " · Customer: Synthetic buyer", new() { Exact = true })).ToBeVisibleAsync();
     Assert.Equal(1, requests); Assert.NotEqual(Guid.Empty, commandId);
     await page.UnrouteAsync(routePattern);
@@ -99,8 +99,8 @@ public sealed class AngularClientSalesInvoiceDraftJourneyTests
     Assert.Equal("50.25", secondBody.RootElement.GetProperty("lines")[0].GetProperty("unitPrice").GetString());
     using var secondResult = JsonDocument.Parse(await secondResponse.TextAsync());
     Assert.Equal("50.25", secondResult.RootElement.GetProperty("snapshot").GetProperty("gross").GetString());
-    await Assertions.Expect(drafts.GetByRole(AriaRole.Heading, new() { Name = "DRAFT-UI-001 · DRAFT · Revision 2", Exact = true })).ToBeVisibleAsync();
-    await Assertions.Expect(drafts.GetByText("Unposted gross: 50.25 QAR", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(drafts.GetByRole(AriaRole.Heading, new() { Name = "DRAFT-UI-001 · Preparation revision 2", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(drafts.GetByText("Preserved preparation gross: 50.25 QAR", new() { Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(drafts.GetByText("Captured customer address: Reviewed buyer address", new() { Exact = true })).ToBeVisibleAsync();
     await using (var db = host.CreateDbContext())
     {

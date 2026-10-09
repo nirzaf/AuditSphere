@@ -258,18 +258,18 @@ public static partial class FinancialStatementService
     {
       AddValidation(db, package, "EQUITY_ROLLFORWARD", true,
         "Statement-of-changes-in-equity lines reconcile opening, movements and closing balances.");
-      var incomeTotal = MoneyPolicy.Normalize(packageLines.Where(x => x.StatementSection.Equals("INCOME", StringComparison.OrdinalIgnoreCase) ||
-          x.StatementSection.Equals("P&L", StringComparison.OrdinalIgnoreCase) ||
-          x.StatementSection.Equals("PROFIT_LOSS", StringComparison.OrdinalIgnoreCase) ||
-          x.StatementSection.Equals("P_AND_L", StringComparison.OrdinalIgnoreCase))
+      // Net profit or loss is the signed total of every income and expense line (credits negative, debits positive).
+      string[] profitAndLossSections = ["INCOME", "REVENUE", "EXPENSE", "EXPENSES", "P&L", "PROFIT_LOSS", "P_AND_L"];
+      var profitAndLossTotal = MoneyPolicy.Normalize(packageLines
+        .Where(x => profitAndLossSections.Contains(x.StatementSection, StringComparer.OrdinalIgnoreCase))
         .Sum(x => x.Amount));
       var ociTotal = MoneyPolicy.Normalize(packageLines.Where(x => x.StatementSection.Equals("OCI", StringComparison.OrdinalIgnoreCase))
         .Sum(x => x.Amount));
-      var equityProfit = MoneyPolicy.Normalize(requestedEquity.Sum(x => x.ProfitOrLossAmount) + incomeTotal) == 0m;
+      var equityProfit = MoneyPolicy.Normalize(requestedEquity.Sum(x => x.ProfitOrLossAmount) + profitAndLossTotal) == 0m;
       var equityOci = MoneyPolicy.Normalize(requestedEquity.Sum(x => x.OciAmount) + ociTotal) == 0m;
       AddValidation(db, package, "EQUITY_PROFIT", equityProfit && equityOci,
         equityProfit && equityOci
-          ? "Equity profit/loss and OCI movements agree to the mapped income and OCI totals."
+          ? "Equity profit/loss and OCI movements agree to the mapped profit or loss and OCI totals."
           : "Equity profit/loss or OCI movements do not agree to the mapped statement totals.");
       foreach (var line in requestedEquity)
         typedAccounting!.FinancialPackageEquityLines.Add(new FinancialPackageEquityLine

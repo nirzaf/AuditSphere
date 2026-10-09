@@ -19,6 +19,7 @@ public sealed class AngularTenantConnectionJourneyTests
     var page = await browser.NewPageAsync(); var errors = new List<string>(); page.PageError += (_, e) => errors.Add(e);
     await page.GotoAsync(origin + "/auth/sign-in?returnUrl=%2Fui%2Fapp%2Fadministration%2Fmicrosoft365%2Ftenant-connection");
     await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Microsoft tenant connection", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Configured tenant", Exact = true })).ToBeVisibleAsync();
     foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
     {
       await page.SetViewportSizeAsync(width, 844);

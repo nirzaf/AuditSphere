@@ -171,7 +171,7 @@ public sealed class AngularPracticeBillingLedgerParityTests
       {
         var journal = await LedgerService.CreateFirmJournalDraftAsync(db, manager,
           new CreateFirmJournalDraftRequest(periodId, number, "MANUAL", sourceKey, 1,
-            "SYNTHETIC_BILLING", "QAR",
+            "MANUAL", "QAR",
             [new(debit, "Synthetic debit", amount, 0m), new(credit, "Synthetic credit", 0m, amount)]));
         Assert.True(journal.Succeeded, journal.Message);
         Assert.True((await LedgerService.SubmitFirmJournalAsync(db, manager, journal.Value)).Succeeded);
@@ -350,7 +350,7 @@ public sealed class AngularPracticeBillingLedgerParityTests
     Assert.Contains("Period", body);
     Assert.Contains("2026-01-01 to 2026-12-31", body);
     Assert.Contains("Commercial workflow", body);
-    Assert.Contains("No email is sent here.", body);
+    Assert.Contains("Sending queues exactly one durable email", body);
     Assert.Contains("Calculated quotation", body);
     Assert.DoesNotContain("Acme Holdings W.L.L.", body);
     Assert.DoesNotContain("Senior Manager A", body);

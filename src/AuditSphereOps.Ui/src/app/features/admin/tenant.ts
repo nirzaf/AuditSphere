@@ -62,7 +62,9 @@ import { WorkspaceAdministration } from './workspaces';
   <audit-command-message [message]="message()" [failed]="failed()" />
   <audit-sharepoint-administration (changed)="refreshAfterSharePointChange()" />
   <audit-workspace-administration />
-` })
+`,
+  styles: [`p { overflow-wrap: anywhere; } @media (max-width: 48rem) { dl.facts { grid-template-columns: minmax(0, 1fr); } dl.facts dt { margin-block-start: .5rem; } }`],
+})
 export class TenantConnection {
   readonly setupEditor = viewChild(TenantSetupEditor);
   readonly sharePointEditor = viewChild(SharePointAdministration);

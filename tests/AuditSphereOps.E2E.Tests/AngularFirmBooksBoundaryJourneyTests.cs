@@ -84,6 +84,8 @@ public sealed class AngularFirmBooksBoundaryJourneyTests
         form.set('currency', 'QAR');
         form.set('expenseAccountId', '__LOCAL_EXPENSE_ACCOUNT__');
         form.set('paymentAccountId', '__LOCAL_PAYMENT_ACCOUNT__');
+        form.set('requestId', '6f1d2c3e-4b5a-4c7d-8e9f-0a1b2c3d4e5f');
+        form.set('requestHash', 'a'.repeat(64));
         form.set('evidence', new File([new Uint8Array(5242881)], 'oversized.pdf', { type: 'application/pdf' }));
         const oversized = await fetch('/api/ui/finance/books/expenses', {
           method: 'POST', headers, body: form

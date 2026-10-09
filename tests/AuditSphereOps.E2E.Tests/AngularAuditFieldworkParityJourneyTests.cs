@@ -26,7 +26,6 @@ public sealed class AngularAuditFieldworkParityJourneyTests
     var f = host.Fixture;
     const string conclusion = "Human assessment: evaluate unadjusted QAR amounts and qualitative factors; reporting impact remains subject to partner judgment.";
     const string differenceDescription = "Synthetic unadjusted cut-off difference";
-    var assessmentId = Guid.NewGuid();
     var differenceId = Guid.NewGuid();
 
     await using (var db = host.CreateDbContext())
@@ -34,19 +33,8 @@ public sealed class AngularAuditFieldworkParityJourneyTests
       db.RoleGrants.AddRange(
         PbcSeed.Grant(f.FirmId, f.Staff, "Partner", f.ClientId, f.EngagementId),
         PbcSeed.Grant(f.FirmId, f.Reviewer, "Partner", f.ClientId, f.EngagementId));
-      db.MaterialityAssessments.Add(new MaterialityAssessment
-      {
-        Id = assessmentId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
-        ActorId = f.Staff.Id, BenchmarkSource = "Total assets", BenchmarkVersion = "AFS-v1",
-        Rationale = "Synthetic aggregate fixture", BenchmarkAmount = 1_000_000m, RateApplied = 0.05m,
-        OverallMateriality = 50_000m, PerformanceMateriality = 37_500m,
-        ClearlyTrivialThreshold = 2_500m, Status = MaterialityStatuses.Draft, CreatedAt = DateTimeOffset.UtcNow
-      });
-      db.MaterialityApprovals.Add(new MaterialityApproval
-      {
-        Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
-        MaterialityAssessmentId = assessmentId, ApprovedByUserId = f.Reviewer.Id, ApprovedAt = DateTimeOffset.UtcNow
-      });
+      await PlanningBasisSeed.EstablishAsync(db, f.FirmId, f.ClientId, f.EngagementId,
+        PbcSeed.Actor(f.Staff, "Partner"), PbcSeed.Actor(f.Reviewer, "Partner"));
       db.AuditDifferences.Add(new AuditDifference
       {
         Id = differenceId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
@@ -110,7 +98,9 @@ public sealed class AngularAuditFieldworkParityJourneyTests
     var f = host.Fixture;
     await using (var db = host.CreateDbContext())
     {
-      db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Staff, "Partner", f.ClientId, f.EngagementId));
+      db.RoleGrants.AddRange(
+        PbcSeed.Grant(f.FirmId, f.Staff, "Partner", f.ClientId, f.EngagementId),
+        PbcSeed.Grant(f.FirmId, f.Reviewer, "Partner", f.ClientId, f.EngagementId));
       await db.SaveChangesAsync();
     }
 
@@ -171,6 +161,7 @@ public sealed class AngularAuditFieldworkParityJourneyTests
     const string workpaperConclusion = "The selected item agrees; the separately recorded finding remains open.";
     await using (var db = host.CreateDbContext())
     {
+      await PlanningBasisSeed.EstablishAsync(db, f.FirmId, f.ClientId, f.EngagementId, staff, PbcSeed.Actor(f.Reviewer, "Partner"));
       var sourceHash = Hashing.Sha256Hex("synthetic-audit-source-schedule");
       var schedule = await AuditFieldworkService.CreateScheduleAsync(db, staff, new CreateScheduleRequest(
         f.EngagementId, "SYNTHETIC_GL", "TEST-ENTITY", "E2E-SOURCE-001", null,

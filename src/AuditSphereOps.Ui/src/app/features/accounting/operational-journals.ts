@@ -101,7 +101,8 @@ export function decodeJournalList(value: unknown, clientId: string, periodId: st
   }
   return value as JournalList;
 }
-export function decodeOperationalLedger(value: unknown, clientId: string, periodId: string): LedgerView {
+/** `accountScoped` is true when the ledger was filtered by an account-code range: its totals then need not balance. */
+export function decodeOperationalLedger(value: unknown, clientId: string, periodId: string, accountScoped = false): LedgerView {
   const v = object(value);
   if (typeof v['bookkeepingActive'] !== 'boolean' || v['clientId'] !== clientId || v['periodId'] !== periodId ||
       !['periodCode', 'currency', 'basis'].every(k => typeof v[k] === 'string') ||
@@ -121,7 +122,7 @@ export function decodeOperationalLedger(value: unknown, clientId: string, period
     if ((amounts[0] > 0n && amounts[1] > 0n) || (amounts[4] > 0n && amounts[5] > 0n) || amounts[4] - amounts[5] !== amounts[0] - amounts[1] + amounts[2] - amounts[3]) throw new Error('Trial balance does not reconcile');
   }
   columns.forEach((k, i) => { if (exact(tb[k]) !== totals[i]) throw new Error('Invalid trial balance totals'); });
-  if (totals[0] !== totals[1] || totals[2] !== totals[3] || totals[4] !== totals[5]) throw new Error('Trial balance is not balanced');
+  if (!accountScoped && (totals[0] !== totals[1] || totals[2] !== totals[3] || totals[4] !== totals[5])) throw new Error('Trial balance is not balanced');
   for (const raw of v['accounts']) {
     const account = object(raw);
     if (typeof account['accountId'] !== 'string' || !guidPattern.test(account['accountId']) ||
@@ -563,7 +564,7 @@ export class ClientOperationalJournals {
     this.operation = this.http.get<unknown>(`/api/ui/accounting/clients/${clientId}/operational-ledger`, {
       params,
     }).pipe(timeout(15000)).subscribe({
-      next: value => { if (generation !== this.session.invalidation() || request !== this.ledgerRequest) return; try { const decoded = decodeOperationalLedger(value, clientId, forPeriodId); if (decoded.page !== page || (fromDate && decoded.trialBalance.fromDate !== fromDate) || (toDate && decoded.trialBalance.toDate !== toDate) || this.ledgerFrom !== fromDate || this.ledgerTo !== toDate || this.ledgerAccountFrom.trim() !== accountCodeFrom || this.ledgerAccountTo.trim() !== accountCodeTo || this.ledgerSourceType !== sourceType || this.ledgerReference.trim() !== reference || this.ledgerCounterpartyId.trim() !== counterpartyId || this.ledgerPeriodId !== forPeriodId || this.includeZeroAccounts !== zeroAccounts) return; this.ledger.set(decoded); this.serviceActive.set(decoded.bookkeepingActive); }
+      next: value => { if (generation !== this.session.invalidation() || request !== this.ledgerRequest) return; try { const decoded = decodeOperationalLedger(value, clientId, forPeriodId, !!(accountCodeFrom || accountCodeTo)); if (decoded.page !== page || (fromDate && decoded.trialBalance.fromDate !== fromDate) || (toDate && decoded.trialBalance.toDate !== toDate) || this.ledgerFrom !== fromDate || this.ledgerTo !== toDate || this.ledgerAccountFrom.trim() !== accountCodeFrom || this.ledgerAccountTo.trim() !== accountCodeTo || this.ledgerSourceType !== sourceType || this.ledgerReference.trim() !== reference || this.ledgerCounterpartyId.trim() !== counterpartyId || this.ledgerPeriodId !== forPeriodId || this.includeZeroAccounts !== zeroAccounts) return; this.ledger.set(decoded); this.serviceActive.set(decoded.bookkeepingActive); }
         catch { this.ledger.set(null); this.ledgerError.set('Posted ledger response did not match this client and period.'); } },
       error: failure => { if (generation === this.session.invalidation() && request === this.ledgerRequest) { this.ledger.set(null); this.ledgerError.set('Posted client ledger is unavailable. Retry or refresh the client.'); if (failure.status === 401) this.session.clear(); } },
     });
