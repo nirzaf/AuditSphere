@@ -86,6 +86,7 @@ public sealed class AngularInstallationBootstrapJourneyTests
     await page.WaitForURLAsync("**/app/administration/microsoft365/tenant-connection", new() { Timeout = 15000 });
     await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Microsoft tenant connection", Exact = true })).ToBeVisibleAsync();
     Assert.Equal(200, await page.EvaluateAsync<int>("async () => (await fetch('/api/ui/session')).status"));
+    Assert.Equal(200, await page.EvaluateAsync<int>("async () => (await fetch('/api/ui/operations')).status"));
 
     await page.GotoAsync(origin + "/setup/microsoft365");
     await Assertions.Expect(page.GetByText("Initial setup is already closed.", new() { Exact = false })).ToBeVisibleAsync();

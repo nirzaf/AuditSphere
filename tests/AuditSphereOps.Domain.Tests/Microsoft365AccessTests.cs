@@ -20,6 +20,7 @@ public sealed class Microsoft365AccessTests
     var firmId = Guid.NewGuid();
     var now = DateTimeOffset.UtcNow;
     await using var db = new AuditSphereDbContext(pg.Options);
+    await db.FirmSafetyStates.Where(x => x.Id == firmId).ExecuteDeleteAsync();
     var claim = await Microsoft365OnboardingService.ClaimAsync(db, firmId, "install-bootstrap", "proof", Hash("proof"), now);
     Assert.True(claim.Succeeded);
 
@@ -39,6 +40,11 @@ public sealed class Microsoft365AccessTests
     Assert.Equal(first.Value, replay.Value);
     Assert.Equal(1, await db.RoleGrants.CountAsync(x => x.FirmId == firmId && x.Role == "Administrator"));
     Assert.Equal(1, await db.RoleGrantChangeEvidences.CountAsync(x => x.Source == "BOOTSTRAP"));
+    var safetyState = await db.FirmSafetyStates.SingleAsync(x => x.Id == firmId);
+    Assert.Equal("LOCAL_ONLY", safetyState.OperatingMode);
+    Assert.Equal(1L, safetyState.DeploymentEpoch);
+    Assert.Equal(0L, safetyState.RecoveryEpoch);
+    Assert.Equal(1L, safetyState.PolicyGeneration);
     Assert.NotNull(await db.Microsoft365SetupSessions.SingleAsync(x => x.Id == claim.Value.SessionId && x.ConsumedAt != null));
 
     var unauthorisedResume = await Microsoft365OnboardingService.ClaimAsync(db, firmId, "install-bootstrap", "proof", Hash("proof"), now.AddSeconds(2));

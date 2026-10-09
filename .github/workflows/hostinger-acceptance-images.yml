@@ -17,6 +17,7 @@ on:
       - 'src/AuditSphereOps.Worker/**'
       - 'infra/docker/migrations.Dockerfile'
       - 'docs/task_breakdown/tracking/pack_manifest.json'
+      - 'docs/task_breakdown/tasks/**'
       - '.dockerignore'
   workflow_dispatch:
 

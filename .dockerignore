@@ -14,6 +14,7 @@ docs/task_breakdown/*
 !docs/task_breakdown/tracking/
 docs/task_breakdown/tracking/*
 !docs/task_breakdown/tracking/pack_manifest.json
+!docs/task_breakdown/tasks/
 infra/
 contracts/
 scripts/
@@ -23,3 +24,4 @@ scripts/
 Dockerfile*
 **/Dockerfile*
 .dockerignore
+!docs/task_breakdown/tasks/**/*.md

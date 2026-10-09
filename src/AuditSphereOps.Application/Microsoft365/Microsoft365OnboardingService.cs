@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Microsoft365;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
@@ -112,6 +113,8 @@ public static class Microsoft365OnboardingService
       });
       identity.SessionEpoch++;
     }
+    if (!await db.FirmSafetyStates.AnyAsync(x => x.Id == session.FirmId, ct))
+      db.FirmSafetyStates.Add(new FirmSafetyState { Id = session.FirmId });
     session.ClaimedByUserId = identity.Id;
     session.ConsumedAt ??= now;
     session.Revision++;

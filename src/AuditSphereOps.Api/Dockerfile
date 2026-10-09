@@ -25,6 +25,7 @@ COPY src/AuditSphereOps.Infrastructure/AuditSphereOps.Infrastructure.csproj src/
 COPY src/AuditSphereOps.Api/AuditSphereOps.Api.csproj src/AuditSphereOps.Api/
 RUN dotnet restore src/AuditSphereOps.Api/AuditSphereOps.Api.csproj --locked-mode
 COPY docs/task_breakdown/tracking/pack_manifest.json docs/task_breakdown/tracking/pack_manifest.json
+COPY docs/task_breakdown/tasks/ docs/task_breakdown/tasks/
 COPY src/ src/
 # Finish the Angular build before the memory-intensive .NET compile starts.
 COPY --from=ui /ui/dist/auditsphere-ui/browser/ /ui-assets/
