@@ -354,6 +354,9 @@ public sealed class GlobalSearchJourneyTests
     await page.GotoAsync($"{origin}/auth/sign-in?returnUrl={Uri.EscapeDataString("/app")}");
     await page.GetByRole(AriaRole.Heading, new() { Name = "Portfolio" }).First
       .WaitForAsync(new() { Timeout = 15000 });
+    // Wait for the first workspace load to finish, so Refresh is enabled and the revocation is the only change.
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Clients in this search", Exact = true }).First).ToBeVisibleAsync(new() { Timeout = 15000 });
+    await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Refresh", Exact = true })).ToBeEnabledAsync(new() { Timeout = 15000 });
 
     var search = page.GetByRole(AriaRole.Combobox, new() { Name = "Search your workspace" });
     var results = page.GetByRole(AriaRole.Region, new() { Name = "Global search" });

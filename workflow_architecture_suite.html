@@ -1,31 +1,31 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AuditSphere Implementation Reference - Architecture and Workflows</title>
-  <meta name="description" content="Implementation-aligned AuditSphere architecture, workflow, materiality, fieldwork, completion, practice and lifecycle diagrams. Current code and authority documents govern behavior.">
+  <title>AuditSphere — Requirements-Aligned Architecture &amp; Workflows v2.1</title>
+  <meta name="description"
+    content="Requirements-aligned design reference for the STE Audit Management Tool v2.1. Diagrams are normative for stated business gates; implementation status must be verified against the repository.">
 
-  <!-- Theme bootstrap (prevents flash of wrong theme) -->
+  <!-- Ensure strictly light mode only -->
   <script>
-    (function () {
-      try {
-        var stored = localStorage.getItem('ste-theme');
-        var dark = stored ? stored === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
-        if (dark) document.documentElement.classList.add('dark');
-      } catch (e) {}
-    })();
+    try {
+      document.documentElement.classList.remove('dark');
+      localStorage.removeItem('ste-theme');
+    } catch (e) { }
   </script>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap"
+    rel="stylesheet">
 
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
-      darkMode: 'class',
       theme: {
         extend: {
           fontFamily: {
@@ -53,41 +53,310 @@
     }
   </script>
 
-  <style type="text/tailwindcss">
-    @layer components {
-      .card { @apply bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-sm; }
-      .chip { @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ring-1 ring-inset whitespace-nowrap; }
-      .eyebrow { @apply text-[11px] font-semibold uppercase tracking-[0.14em] text-sky-600 dark:text-sky-400; }
-      .panel-title { @apply mt-1 text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white; }
-      .panel-desc { @apply mt-1.5 text-sm sm:text-[15px] text-slate-500 dark:text-slate-400 max-w-3xl leading-relaxed; }
-      .nav-item { @apply w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-sm text-slate-600 dark:text-slate-400 hover:bg-white/70 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 shrink-0; }
-      .nav-item[aria-selected="true"] { @apply bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm ring-1 ring-slate-200 dark:ring-slate-700; }
-      .nav-num { @apply grid place-items-center w-7 h-7 rounded-lg text-[11px] font-bold bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-400 shrink-0 transition-colors; }
-      .nav-item[aria-selected="true"] .nav-num { @apply bg-gradient-to-br from-sky-500 to-indigo-500 text-white shadow; }
-      .nav-group { @apply px-3 pt-4 pb-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500; }
-      .info-card { @apply p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 text-sm text-slate-600 dark:text-slate-300 leading-relaxed transition hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-sm; }
-      .info-title { @apply font-semibold text-slate-800 dark:text-slate-100 mb-1.5 flex items-center gap-2; }
-      .tb-btn { @apply inline-flex items-center justify-center gap-1.5 h-8 min-w-[2rem] px-2 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500; }
-      .hdr-btn { @apply inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg text-xs font-medium text-slate-300 bg-white/5 ring-1 ring-white/10 hover:bg-white/10 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400; }
-      .primary-btn { @apply inline-flex items-center gap-2 h-9 px-3.5 rounded-lg text-xs font-semibold text-white bg-gradient-to-br from-sky-500 to-indigo-600 shadow-sm hover:shadow-md hover:brightness-110 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-sky-500; }
-      .ghost-btn { @apply inline-flex items-center gap-2 h-9 px-3.5 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 ring-1 ring-slate-200 dark:ring-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500; }
-      .formula-row { @apply p-4 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 bg-white dark:bg-slate-900 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors; }
-      .formula { @apply font-mono text-xs bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-2.5 py-1.5 rounded-md self-start sm:self-auto; }
-    }
-  </style>
-
   <style>
-    :root { color-scheme: light; }
-    html.dark { color-scheme: dark; }
-    html { scroll-behavior: smooth; }
+    :root {
+      color-scheme: light;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
     @media (prefers-reduced-motion: reduce) {
-      html { scroll-behavior: auto; }
-      *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+      html {
+        scroll-behavior: auto;
+      }
+
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+
+    /* Base SVG guard to prevent oversized SVGs */
+    svg {
+      max-width: 100%;
+    }
+
+    svg.w-4 {
+      width: 1rem !important;
+      height: 1rem !important;
+      flex-shrink: 0;
+    }
+
+    /* Core UI Components (Vanilla CSS for 100% stability) */
+    .card {
+      background-color: #ffffff;
+      border: 1px solid rgba(226, 232, 240, 0.8);
+      border-radius: 1rem;
+      box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+      padding: 0.25rem 0.625rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      white-space: nowrap;
+      border: 1px solid transparent;
+    }
+
+    .eyebrow {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: #0284c7;
+    }
+
+    .panel-title {
+      margin-top: 0.25rem;
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      color: #0f172a;
+      line-height: 1.25;
+    }
+
+    .panel-desc {
+      margin-top: 0.375rem;
+      font-size: 0.875rem;
+      color: #64748b;
+      max-width: 48rem;
+      line-height: 1.625;
+    }
+
+    .nav-item {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.625rem 0.75rem;
+      border-radius: 0.75rem;
+      text-align: left;
+      font-size: 0.875rem;
+      color: #475569;
+      background: transparent;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      flex-shrink: 0;
+    }
+
+    .nav-item:hover {
+      background-color: rgba(255, 255, 255, 0.8);
+      color: #0f172a;
+    }
+
+    .nav-item[aria-selected="true"] {
+      background-color: #ffffff;
+      color: #0f172a;
+      border-color: #e2e8f0;
+      box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+    }
+
+    .nav-num {
+      display: grid;
+      place-items: center;
+      width: 1.75rem;
+      height: 1.75rem;
+      border-radius: 0.5rem;
+      font-size: 11px;
+      font-weight: 700;
+      background-color: rgba(226, 232, 240, 0.7);
+      color: #475569;
+      flex-shrink: 0;
+      transition: all 0.15s ease;
+    }
+
+    .nav-item[aria-selected="true"] .nav-num {
+      background: linear-gradient(135deg, #0ea5e9, #6366f1);
+      color: #ffffff;
+      box-shadow: 0 2px 4px 0 rgba(14, 165, 233, 0.25);
+    }
+
+    .nav-group {
+      padding: 1rem 0.75rem 0.375rem 0.75rem;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      color: #94a3b8;
+    }
+
+    .info-card {
+      padding: 1rem;
+      border-radius: 0.75rem;
+      background-color: #f8fafc;
+      border: 1px solid #e2e8f0;
+      font-size: 0.875rem;
+      color: #475569;
+      line-height: 1.625;
+      transition: all 0.15s ease;
+    }
+
+    .info-card:hover {
+      border-color: #cbd5e1;
+      box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.04);
+    }
+
+    .info-title {
+      font-weight: 600;
+      color: #1e293b;
+      margin-bottom: 0.375rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .tb-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.375rem;
+      height: 2rem;
+      min-width: 2rem;
+      padding: 0 0.5rem;
+      border-radius: 0.5rem;
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: #475569;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .tb-btn:hover {
+      background-color: #f1f5f9;
+      color: #0f172a;
+    }
+
+    .hdr-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.375rem;
+      height: 2.25rem;
+      padding: 0 0.75rem;
+      border-radius: 0.5rem;
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: #334155;
+      background-color: #ffffff;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .hdr-btn:hover {
+      background-color: #f8fafc;
+      color: #0f172a;
+    }
+
+    .primary-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      height: 2.25rem;
+      padding: 0 0.875rem;
+      border-radius: 0.5rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #ffffff;
+      background: linear-gradient(135deg, #0ea5e9, #4f46e5);
+      box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+      border: none;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .primary-btn:hover {
+      box-shadow: 0 4px 6px -1px rgba(14, 165, 233, 0.25);
+      filter: brightness(1.08);
+    }
+
+    .ghost-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      height: 2.25rem;
+      padding: 0 0.875rem;
+      border-radius: 0.5rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #334155;
+      background-color: #ffffff;
+      border: 1px solid #e2e8f0;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-decoration: none;
+    }
+
+    .ghost-btn:hover {
+      background-color: #f8fafc;
+      color: #0f172a;
+    }
+
+    .formula-row {
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      background-color: #ffffff;
+      transition: background-color 0.15s ease;
+    }
+
+    @media (min-width: 640px) {
+      .formula-row {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+      }
+    }
+
+    .formula-row:hover {
+      background-color: rgba(248, 250, 252, 0.7);
+    }
+
+    .formula {
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      font-size: 0.75rem;
+      background-color: #f1f5f9;
+      color: #334155;
+      padding: 0.375rem 0.625rem;
+      border-radius: 0.375rem;
+      align-self: flex-start;
+    }
+
+    @media (min-width: 640px) {
+      .formula {
+        align-self: auto;
+      }
     }
 
     /* Panels */
-    .panel { animation: panelIn .35s cubic-bezier(.2,.7,.2,1); }
-    @keyframes panelIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    .panel {
+      animation: panelIn .35s cubic-bezier(.2, .7, .2, 1);
+    }
+
+    @keyframes panelIn {
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+
+      to {
+        opacity: 1;
+        transform: none;
+      }
+    }
 
     /* Diagram viewer */
     .viewer-canvas {
@@ -102,95 +371,257 @@
       border-radius: 0 0 1rem 1rem;
       outline: none;
     }
-    .viewer-canvas:focus-visible { box-shadow: inset 0 0 0 2px #0ea5e9; }
-    .viewer-canvas.is-panning { cursor: grabbing; }
-    .viewer-stage { position: absolute; top: 0; left: 0; transform-origin: 0 0; will-change: transform; }
-    .viewer-stage.animate { transition: transform .28s cubic-bezier(.2,.7,.2,1); }
-    .viewer-stage svg { display: block; max-width: none !important; filter: drop-shadow(0 4px 8px rgb(15 23 42 / .06)); }
-    .viewer-loading { position: absolute; inset: 0; display: grid; place-items: center; color: #64748b; font-size: 13px; }
-    .shimmer { width: 46%; height: 60%; border-radius: 16px; background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; }
-    @keyframes shimmer { to { background-position: -200% 0; } }
-    .viewer:fullscreen { background: #fff; display: flex; flex-direction: column; border-radius: 0; }
-    .viewer:fullscreen .viewer-canvas { height: auto; flex: 1; border-radius: 0; }
-    html.dark .viewer:fullscreen { background: #0f172a; }
+
+    .viewer-canvas:focus-visible {
+      box-shadow: inset 0 0 0 2px #0ea5e9;
+    }
+
+    .viewer-canvas.is-panning {
+      cursor: grabbing;
+    }
+
+    .viewer-stage {
+      position: absolute;
+      top: 0;
+      left: 0;
+      transform-origin: 0 0;
+      will-change: transform;
+    }
+
+    .viewer-stage.animate {
+      transition: transform .28s cubic-bezier(.2, .7, .2, 1);
+    }
+
+    .viewer-stage svg {
+      display: block;
+      max-width: none !important;
+      filter: drop-shadow(0 4px 8px rgb(15 23 42 / .06));
+    }
+
+    .viewer-loading {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      color: #64748b;
+      font-size: 13px;
+    }
+
+    .shimmer {
+      width: 46%;
+      height: 60%;
+      border-radius: 16px;
+      background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite;
+    }
+
+    @keyframes shimmer {
+      to {
+        background-position: -200% 0;
+      }
+    }
+
+    .viewer:fullscreen {
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+      border-radius: 0;
+    }
+
+    .viewer:fullscreen .viewer-canvas {
+      height: auto;
+      flex: 1;
+      border-radius: 0;
+    }
 
     /* Code viewer */
-    .code { counter-reset: line; }
-    .code .ln { display: block; padding-right: 1rem; }
-    .code .ln::before {
-      counter-increment: line; content: counter(line);
-      display: inline-block; width: 2.75rem; margin-right: 1rem; padding-right: .75rem;
-      text-align: right; color: #475569; border-right: 1px solid #1e293b; user-select: none;
+    .code {
+      counter-reset: line;
     }
-    .code .ln:hover { background: rgb(148 163 184 / .06); }
-    .tok-kw { color: #c084fc; font-weight: 600; }
-    .tok-str { color: #86efac; }
-    .tok-arrow { color: #38bdf8; font-weight: 600; }
-    .tok-cmt { color: #64748b; font-style: italic; }
+
+    .code .ln {
+      display: block;
+      padding-right: 1rem;
+    }
+
+    .code .ln::before {
+      counter-increment: line;
+      content: counter(line);
+      display: inline-block;
+      width: 2.75rem;
+      margin-right: 1rem;
+      padding-right: .75rem;
+      text-align: right;
+      color: #94a3b8;
+      border-right: 1px solid #e2e8f0;
+      user-select: none;
+    }
+
+    .code .ln:hover {
+      background: rgb(241 245 249 / .8);
+    }
+
+    .tok-kw {
+      color: #7c3aed;
+      font-weight: 600;
+    }
+
+    .tok-str {
+      color: #059669;
+    }
+
+    .tok-arrow {
+      color: #0284c7;
+      font-weight: 600;
+    }
+
+    .tok-cmt {
+      color: #64748b;
+      font-style: italic;
+    }
 
     /* Table row flash */
-    .row-flash { animation: rowFlash 1.6s ease; }
-    @keyframes rowFlash { 0%, 30% { background: rgb(14 165 233 / .18); } 100% { background: transparent; } }
+    .row-flash {
+      animation: rowFlash 1.6s ease;
+    }
+
+    @keyframes rowFlash {
+
+      0%,
+      30% {
+        background: rgb(14 165 233 / .18);
+      }
+
+      100% {
+        background: transparent;
+      }
+    }
 
     /* Scrollbars */
-    .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
-    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 8px; }
-    html.dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; }
-    .no-scrollbar::-webkit-scrollbar { display: none; }
-    .no-scrollbar { scrollbar-width: none; }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 8px;
+    }
+
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+
+    .no-scrollbar {
+      scrollbar-width: none;
+    }
 
     /* Toast */
-    #toast { transition: opacity .2s ease, transform .2s ease; }
-    #toast[data-show="false"] { opacity: 0; transform: translate(-50%, 12px); pointer-events: none; }
+    #toast {
+      transition: opacity .2s ease, transform .2s ease;
+    }
+
+    #toast[data-show="false"] {
+      opacity: 0;
+      transform: translate(-50%, 12px);
+      pointer-events: none;
+    }
 
     /* Print */
     @media print {
-      header.app-header, aside, .viewer-toolbar, .pager, #toast, .no-print { display: none !important; }
-      body { background: #fff !important; }
-      .panel { display: block !important; animation: none; break-before: page; }
-      .panel:first-of-type { break-before: auto; }
-      .viewer-canvas { height: auto !important; overflow: visible; background: none; }
-      .viewer-stage { position: static; transform: none !important; }
-      .viewer-stage svg { max-width: 100% !important; height: auto !important; filter: none; }
-      .card { box-shadow: none !important; }
+
+      header.app-header,
+      aside,
+      .viewer-toolbar,
+      .pager,
+      #toast,
+      .no-print {
+        display: none !important;
+      }
+
+      body {
+        background: #fff !important;
+      }
+
+      .panel {
+        display: block !important;
+        animation: none;
+        break-before: page;
+      }
+
+      .panel:first-of-type {
+        break-before: auto;
+      }
+
+      .viewer-canvas {
+        height: auto !important;
+        overflow: visible;
+        background: none;
+      }
+
+      .viewer-stage {
+        position: static;
+        transform: none !important;
+      }
+
+      .viewer-stage svg {
+        max-width: 100% !important;
+        height: auto !important;
+        filter: none;
+      }
+
+      .card {
+        box-shadow: none !important;
+      }
     }
   </style>
 </head>
-<body class="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 antialiased font-sans custom-scrollbar">
 
-  <a href="#main" class="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[60] focus:px-3 focus:py-2 focus:rounded-lg focus:bg-sky-600 focus:text-white">Skip to content</a>
+<body class="bg-slate-50 text-slate-800 antialiased font-sans custom-scrollbar">
+
+  <a href="#main"
+    class="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[60] focus:px-3 focus:py-2 focus:rounded-lg focus:bg-sky-600 focus:text-white">Skip
+    to content</a>
 
   <!-- Top Navigation Header -->
-  <header class="app-header sticky top-0 z-50 text-white border-b border-white/10 bg-slate-950/95 backdrop-blur supports-[backdrop-filter]:bg-slate-950/80">
-    <div class="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
-      <div class="absolute -top-24 left-1/4 w-96 h-48 bg-sky-500/20 blur-3xl rounded-full"></div>
-      <div class="absolute -top-24 right-1/4 w-96 h-48 bg-indigo-500/20 blur-3xl rounded-full"></div>
-    </div>
+  <header
+    class="app-header sticky top-0 z-50 bg-white/90 text-slate-800 border-b border-slate-200/80 backdrop-blur supports-[backdrop-filter]:bg-white/80 shadow-sm">
     <div class="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
       <div class="flex items-center gap-3 min-w-0">
-        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-400 to-indigo-500 grid place-items-center font-black text-[13px] text-white shadow-lg shadow-sky-500/20 ring-1 ring-white/20 shrink-0">
+        <div
+          class="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-500 to-indigo-600 grid place-items-center font-black text-[13px] text-white shadow-md shadow-sky-500/20 ring-1 ring-sky-500/30 shrink-0">
           STE
         </div>
         <div class="min-w-0">
-          <h1 class="text-[15px] font-bold tracking-tight text-white leading-tight truncate">STE Audit Management Platform</h1>
-          <p class="text-xs text-slate-400 truncate">Implementation reference · architecture and workflows</p>
+          <h1 class="text-[15px] font-bold tracking-tight text-slate-900 leading-tight truncate">STE Audit Management
+            Platform</h1>
+          <p class="text-xs text-slate-500 truncate">Requirements v2.1 · architecture and business-control mapping</p>
         </div>
       </div>
       <div class="flex items-center gap-2 text-xs">
-        <span class="hidden md:inline-flex items-center px-2.5 py-1 rounded-full font-medium bg-emerald-500/10 text-emerald-300 ring-1 ring-emerald-500/25">
-          <span class="relative flex w-1.5 h-1.5 mr-1.5"><span class="absolute inset-0 rounded-full bg-emerald-400 animate-ping opacity-60"></span><span class="relative w-1.5 h-1.5 rounded-full bg-emerald-400"></span></span>Implementation reference
+        <span
+          class="hidden md:inline-flex items-center px-2.5 py-1 rounded-full font-medium bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20">
+          <span class="relative flex w-1.5 h-1.5 mr-1.5"><span
+              class="absolute inset-0 rounded-full bg-emerald-500 animate-ping opacity-60"></span><span
+              class="relative w-1.5 h-1.5 rounded-full bg-emerald-500"></span></span>Requirements-aligned design
         </span>
-        <span class="hidden md:inline-flex items-center px-2.5 py-1 rounded-full font-medium bg-sky-500/10 text-sky-300 ring-1 ring-sky-500/25">
+        <span
+          class="hidden md:inline-flex items-center px-2.5 py-1 rounded-full font-medium bg-sky-50 text-sky-700 ring-1 ring-sky-600/20">
           Currency: QAR (ر.ق)
         </span>
         <button id="btn-print" class="hdr-btn" type="button" title="Print all diagrams">
-          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          <svg class="w-4 h-4 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 9V2h12v7" />
+            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+            <rect x="6" y="14" width="12" height="8" />
+          </svg>
           <span class="hidden sm:inline">Print</span>
-        </button>
-        <button id="btn-theme" class="hdr-btn w-9 px-0" type="button" aria-label="Toggle dark mode" title="Toggle theme (T)">
-          <svg class="w-4 h-4 dark:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-          <svg class="w-4 h-4 hidden dark:block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
         </button>
       </div>
     </div>
@@ -199,70 +630,125 @@
   <div class="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:grid lg:grid-cols-[272px_minmax(0,1fr)] lg:gap-8">
 
     <!-- Sidebar -->
-    <aside class="lg:sticky lg:top-[88px] lg:self-start lg:max-h-[calc(100vh-104px)] lg:overflow-y-auto custom-scrollbar mb-6 lg:mb-0">
+    <aside
+      class="lg:sticky lg:top-[88px] lg:self-start lg:max-h-[calc(100vh-104px)] lg:overflow-y-auto custom-scrollbar mb-6 lg:mb-0">
       <nav aria-label="Diagram views">
-        <div id="tablist" role="tablist" aria-orientation="vertical" class="flex lg:flex-col gap-1 overflow-x-auto no-scrollbar -mx-4 px-4 lg:mx-0 lg:px-0 pb-1 lg:pb-0">
+        <div id="tablist" role="tablist" aria-orientation="vertical"
+          class="flex lg:flex-col gap-1 overflow-x-auto no-scrollbar -mx-4 px-4 lg:mx-0 lg:px-0 pb-1 lg:pb-0">
           <p class="nav-group hidden lg:block !pt-0">Overview</p>
-          <button role="tab" id="tab-modules" data-key="modules" aria-controls="panel-modules" class="nav-item lg:w-full w-auto">
-            <span class="nav-num">1</span><span class="flex flex-col"><span class="font-semibold whitespace-nowrap">Architecture Map</span><span class="hidden lg:block text-xs text-slate-400">Hosts and capability boundaries</span></span>
+          <button role="tab" id="tab-modules" data-key="modules" aria-controls="panel-modules"
+            class="nav-item lg:w-full w-auto">
+            <span class="nav-num">1</span><span class="flex flex-col"><span
+                class="font-semibold whitespace-nowrap">Architecture Map</span><span
+                class="hidden lg:block text-xs text-slate-400">Hosts and capability boundaries</span></span>
           </button>
           <p class="nav-group hidden lg:block">Workflows</p>
-          <button role="tab" id="tab-onboarding" data-key="onboarding" aria-controls="panel-onboarding" class="nav-item lg:w-full w-auto">
-            <span class="nav-num">2</span><span class="flex flex-col"><span class="font-semibold whitespace-nowrap">Dual-Key Onboarding</span><span class="hidden lg:block text-xs text-slate-400">Flow 1 · ISA 210 / 220</span></span>
+          <button role="tab" id="tab-onboarding" data-key="onboarding" aria-controls="panel-onboarding"
+            class="nav-item lg:w-full w-auto">
+            <span class="nav-num">2</span><span class="flex flex-col"><span
+                class="font-semibold whitespace-nowrap">Dual-Key Onboarding</span><span
+                class="hidden lg:block text-xs text-slate-400">Flow 1 · ISA 210 / 220</span></span>
           </button>
-          <button role="tab" id="tab-materiality" data-key="materiality" aria-controls="panel-materiality" class="nav-item lg:w-full w-auto">
-            <span class="nav-num">3</span><span class="flex flex-col"><span class="font-semibold whitespace-nowrap">Materiality &amp; Risk Matrix</span><span class="hidden lg:block text-xs text-slate-400">Flow 2 · ISA 320</span></span>
+          <button role="tab" id="tab-materiality" data-key="materiality" aria-controls="panel-materiality"
+            class="nav-item lg:w-full w-auto">
+            <span class="nav-num">3</span><span class="flex flex-col"><span
+                class="font-semibold whitespace-nowrap">Materiality &amp; Risk Matrix</span><span
+                class="hidden lg:block text-xs text-slate-400">Flow 2 · ISA 320</span></span>
           </button>
-          <button role="tab" id="tab-fieldwork" data-key="fieldwork" aria-controls="panel-fieldwork" class="nav-item lg:w-full w-auto">
-            <span class="nav-num">4</span><span class="flex flex-col"><span class="font-semibold whitespace-nowrap">Fieldwork &amp; 3-Tier Review</span><span class="hidden lg:block text-xs text-slate-400">Flow 3 · ISA 505 / 570</span></span>
+          <button role="tab" id="tab-fieldwork" data-key="fieldwork" aria-controls="panel-fieldwork"
+            class="nav-item lg:w-full w-auto">
+            <span class="nav-num">4</span><span class="flex flex-col"><span
+                class="font-semibold whitespace-nowrap">Fieldwork &amp; 3-Tier Review</span><span
+                class="hidden lg:block text-xs text-slate-400">Flow 3 · ISA 505 / 570</span></span>
           </button>
-          <button role="tab" id="tab-opinion" data-key="opinion" aria-controls="panel-opinion" class="nav-item lg:w-full w-auto">
-            <span class="nav-num">5</span><span class="flex flex-col"><span class="font-semibold whitespace-nowrap">Opinion &amp; Deliverables</span><span class="hidden lg:block text-xs text-slate-400">Flow 4 · ISA 700 / 705 / 230</span></span>
+          <button role="tab" id="tab-opinion" data-key="opinion" aria-controls="panel-opinion"
+            class="nav-item lg:w-full w-auto">
+            <span class="nav-num">5</span><span class="flex flex-col"><span
+                class="font-semibold whitespace-nowrap">Opinion &amp; Deliverables</span><span
+                class="hidden lg:block text-xs text-slate-400">Flow 4 · ISA 700 / 705 / 230</span></span>
           </button>
-          <button role="tab" id="tab-practice" data-key="practice" aria-controls="panel-practice" class="nav-item lg:w-full w-auto">
-            <span class="nav-num">6</span><span class="flex flex-col"><span class="font-semibold whitespace-nowrap">Practice Mgmt &amp; Ledger</span><span class="hidden lg:block text-xs text-slate-400">Flow 5 · Firm operations</span></span>
+          <button role="tab" id="tab-practice" data-key="practice" aria-controls="panel-practice"
+            class="nav-item lg:w-full w-auto">
+            <span class="nav-num">6</span><span class="flex flex-col"><span
+                class="font-semibold whitespace-nowrap">Practice Mgmt &amp; Ledger</span><span
+                class="hidden lg:block text-xs text-slate-400">Flow 5 · Firm operations</span></span>
           </button>
           <p class="nav-group hidden lg:block">Lifecycle &amp; Export</p>
-          <button role="tab" id="tab-statemachine" data-key="statemachine" aria-controls="panel-statemachine" class="nav-item lg:w-full w-auto">
-            <span class="nav-num">7</span><span class="flex flex-col"><span class="font-semibold whitespace-nowrap">11-Stage Lifecycle</span><span class="hidden lg:block text-xs text-slate-400">Derived stages and evidence gates</span></span>
+          <button role="tab" id="tab-statemachine" data-key="statemachine" aria-controls="panel-statemachine"
+            class="nav-item lg:w-full w-auto">
+            <span class="nav-num">7</span><span class="flex flex-col"><span
+                class="font-semibold whitespace-nowrap">11-Stage Lifecycle</span><span
+                class="hidden lg:block text-xs text-slate-400">Source states and mandatory guards</span></span>
+          </button>
+          <button role="tab" id="tab-traceability" data-key="traceability" aria-controls="panel-traceability"
+            class="nav-item lg:w-full w-auto">
+            <span class="nav-num">8</span><span class="flex flex-col"><span
+                class="font-semibold whitespace-nowrap">Requirement Traceability</span><span
+                class="hidden lg:block text-xs text-slate-400">13 controls and 18 feature groups</span></span>
           </button>
           <button role="tab" id="tab-raw" data-key="raw" aria-controls="panel-raw" class="nav-item lg:w-full w-auto">
-            <span class="nav-num">8</span><span class="flex flex-col"><span class="font-semibold whitespace-nowrap">Raw Mermaid Export</span><span class="hidden lg:block text-xs text-slate-400">Copy, download, open live</span></span>
+            <span class="nav-num">9</span><span class="flex flex-col"><span class="font-semibold whitespace-nowrap">Raw
+                Mermaid Export</span><span class="hidden lg:block text-xs text-slate-400">Copy, download, open
+                live</span></span>
           </button>
         </div>
       </nav>
 
       <!-- Role Personas -->
       <details class="group mt-4 lg:mt-6 card p-1 lg:open" id="personas" open>
-        <summary class="flex items-center justify-between cursor-pointer list-none px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500 select-none">
+        <summary
+          class="flex items-center justify-between cursor-pointer list-none px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 select-none">
           Roles &amp; personas
-          <svg class="w-4 h-4 transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+          <svg class="w-4 h-4 transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
         </summary>
         <ul class="grid sm:grid-cols-2 lg:grid-cols-1 gap-1 p-1 pt-0">
-          <li class="flex items-start gap-3 p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-            <span class="grid place-items-center w-9 h-9 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 font-bold text-[10px] tracking-wider shrink-0">PRE</span>
-            <div><h3 class="text-sm font-semibold text-slate-800 dark:text-slate-100">Preparer (Associate)</h3><p class="text-xs text-slate-500 dark:text-slate-400 leading-snug">Prepares assigned procedures, records evidence and submits current revisions.</p></div>
+          <li class="flex items-start gap-3 p-2.5 rounded-xl hover:bg-slate-50 transition-colors">
+            <span
+              class="grid place-items-center w-9 h-9 rounded-lg bg-indigo-50 text-indigo-700 font-bold text-[10px] tracking-wider shrink-0">PRE</span>
+            <div>
+              <h3 class="text-sm font-semibold text-slate-800">Preparer (Associate)</h3>
+              <p class="text-xs text-slate-500 leading-snug">Prepares assigned procedures, records evidence and submits
+                current revisions.</p>
+            </div>
           </li>
-          <li class="flex items-start gap-3 p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-            <span class="grid place-items-center w-9 h-9 rounded-lg bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 font-bold text-[10px] tracking-wider shrink-0">REV</span>
-            <div><h3 class="text-sm font-semibold text-slate-800 dark:text-slate-100">Reviewer (Manager)</h3><p class="text-xs text-slate-500 dark:text-slate-400 leading-snug">Reviews current work, records findings and supports planning and completion.</p></div>
+          <li class="flex items-start gap-3 p-2.5 rounded-xl hover:bg-slate-50 transition-colors">
+            <span
+              class="grid place-items-center w-9 h-9 rounded-lg bg-amber-50 text-amber-700 font-bold text-[10px] tracking-wider shrink-0">REV</span>
+            <div>
+              <h3 class="text-sm font-semibold text-slate-800">Reviewer (Manager)</h3>
+              <p class="text-xs text-slate-500 leading-snug">Reviews current work, records findings and supports
+                planning and completion.</p>
+            </div>
           </li>
-          <li class="flex items-start gap-3 p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-            <span class="grid place-items-center w-9 h-9 rounded-lg bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-300 font-bold text-[10px] tracking-wider shrink-0">APP</span>
-            <div><h3 class="text-sm font-semibold text-slate-800 dark:text-slate-100">Approver (Partner)</h3><p class="text-xs text-slate-500 dark:text-slate-400 leading-snug">Records Partner risk and completion decisions, selects opinion and may request early lock.</p></div>
+          <li class="flex items-start gap-3 p-2.5 rounded-xl hover:bg-slate-50 transition-colors">
+            <span
+              class="grid place-items-center w-9 h-9 rounded-lg bg-purple-50 text-purple-700 font-bold text-[10px] tracking-wider shrink-0">APP</span>
+            <div>
+              <h3 class="text-sm font-semibold text-slate-800">Approver (Partner)</h3>
+              <p class="text-xs text-slate-500 leading-snug">Records Partner risk and completion decisions, selects
+                opinion and may request early lock.</p>
+            </div>
           </li>
-          <li class="flex items-start gap-3 p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-            <span class="grid place-items-center w-9 h-9 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-bold text-[10px] tracking-wider shrink-0">CLI</span>
-            <div><h3 class="text-sm font-semibold text-slate-800 dark:text-slate-100">Client Portal (PBC)</h3><p class="text-xs text-slate-500 dark:text-slate-400 leading-snug">Scoped client workspace for assigned evidence and review status where enabled.</p></div>
+          <li class="flex items-start gap-3 p-2.5 rounded-xl hover:bg-slate-50 transition-colors">
+            <span
+              class="grid place-items-center w-9 h-9 rounded-lg bg-emerald-50 text-emerald-700 font-bold text-[10px] tracking-wider shrink-0">CLI</span>
+            <div>
+              <h3 class="text-sm font-semibold text-slate-800">Client Portal (PBC)</h3>
+              <p class="text-xs text-slate-500 leading-snug">Scoped client workspace for assigned evidence and review
+                status where enabled.</p>
+            </div>
           </li>
         </ul>
       </details>
 
-      <div class="hidden lg:block mt-4 px-3 text-[11px] text-slate-400 dark:text-slate-500 leading-relaxed">
-        <span class="font-semibold text-slate-500 dark:text-slate-400">Shortcuts</span><br>
-        <kbd class="font-mono px-1 rounded bg-slate-200/70 dark:bg-slate-800">1</kbd>–<kbd class="font-mono px-1 rounded bg-slate-200/70 dark:bg-slate-800">8</kbd> switch view ·
-        <kbd class="font-mono px-1 rounded bg-slate-200/70 dark:bg-slate-800">F</kbd> fullscreen ·
-        <kbd class="font-mono px-1 rounded bg-slate-200/70 dark:bg-slate-800">T</kbd> theme
+      <div class="hidden lg:block mt-4 px-3 text-[11px] text-slate-400 leading-relaxed">
+        <span class="font-semibold text-slate-500">Shortcuts</span><br>
+        <kbd class="font-mono px-1 rounded bg-slate-200/70">1</kbd>–<kbd
+          class="font-mono px-1 rounded bg-slate-200/70">9</kbd> switch view ·
+        <kbd class="font-mono px-1 rounded bg-slate-200/70">F</kbd> fullscreen
       </div>
     </aside>
 
@@ -275,46 +761,71 @@
           <div>
             <p class="eyebrow">Overview · Architecture</p>
             <h2 class="panel-title">Application Architecture and Financial Boundaries</h2>
-            <p class="panel-desc">AuditSphere is one ASP.NET Core modular monolith with Angular presentation, API and worker hosts. This page is an implementation reference; current code and authority documents govern behavior.</p>
+            <p class="panel-desc">AuditSphere uses a proposed ASP.NET Core / Angular modular-monolith implementation
+              view. The five required business modules and gates below come from the v2.1 requirements; technical stack
+              and deployment are not verified here against the codebase.</p>
           </div>
           <div class="flex flex-wrap gap-2">
-            <span class="chip bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 ring-slate-200 dark:ring-slate-700 font-mono">Strict Data Isolation</span>
-            <span class="chip bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-300 ring-sky-200 dark:ring-sky-500/30">Guarded Workflows</span>
+            <span class="chip bg-slate-100 text-slate-600 ring-slate-200 font-mono">Strict Data Isolation</span>
+            <span class="chip bg-sky-50 text-sky-700 ring-sky-200">Guarded Workflows</span>
           </div>
         </div>
 
-        <figure class="viewer card overflow-hidden" data-key="modules" data-title="Application Architecture and Financial Boundaries">
-<script type="text/plain">
+        <figure class="viewer card overflow-hidden" data-key="modules"
+          data-title="Application Architecture and Financial Boundaries">
+          <script type="text/plain">
 flowchart TD
-    Staff[Angular staff workbench] --> Api[ASP.NET Core API]
-    Client[Angular client portal] --> Api
-    Api --> App[Application capability services]
-    Worker[Background worker] --> App
-    App --> Domain[Domain rules]
-    Api --> Infrastructure[Infrastructure adapters]
-    Infrastructure --> Domain
-    Infrastructure --> Database[PostgreSQL]
-    App --> Practice[Firm practice and billing]
-    App --> ClientAccounting[Client accounting]
-    App --> Audit[Audit and completion]
-    App --> Consolidation[Group consolidation]
+    Staff[Staff workbench / Preparer Reviewer Partner] --> Api[API boundary]
+    Client[Scoped PBC client portal] --> Api
+    Api --> App[Application services and mandatory gate checks]
+    Worker[Scheduled jobs for receipts and archive locking] --> App
+    App --> Domain[Domain policy and authorization rules]
+    App --> M1[Module 1 Commercial and CRM]
+    App --> M2[Module 2 Governance and Planning]
+    App --> M3[Module 3 Technical Fieldwork]
+    App --> M4[Module 4 Reporting and Archive]
+    App --> M5[Module 5 Practice and Firm Ledger]
+    M1 -->|Both keys plus 50 percent advance| M2
+    M2 -->|TB mapped and Partner planning signoff| M3
+    M3 -->|Zero open notes critical confirmations and SRM clearance| M4
+    M3 -.->|Time actuals| M5
+    M4 -.->|Fee and labor actuals| M5
+    App --> Storage[Persistence and evidence storage]
+
 </script>
         </figure>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div class="info-card">
             <h3 class="info-title"><span class="w-2 h-2 rounded-full bg-sky-500"></span>One Modular Monolith</h3>
-            Domain, Application, Infrastructure, API, Angular UI, legacy rollback host and Worker are parts of one application architecture.
+            Technical implementation is illustrated as a modular monolith. These hosts and technology choices must be
+            verified against the repository, not inferred from the business requirements.
           </div>
           <div class="info-card">
-            <h3 class="info-title"><span class="w-2 h-2 rounded-full bg-amber-500"></span>Separate Financial Boundaries</h3>
-            Firm books, client accounting and group consolidation remain separate; consolidation does not mutate component books.
+            <h3 class="info-title"><span class="w-2 h-2 rounded-full bg-amber-500"></span>Separate Financial Boundaries
+            </h3>
+            The required firm ledger remains separate from client audit Trial Balance data. Full client general-ledger
+            accounting and group consolidation are proposed extensions, not baseline modules.
           </div>
           <div class="info-card">
             <h3 class="info-title"><span class="w-2 h-2 rounded-full bg-emerald-500"></span>Authority Documents</h3>
-            <a class="text-sky-700 dark:text-sky-400 underline" href="docs/architecture/auditsphere-architecture-current-architecture.md">Current architecture</a> · <a class="text-sky-700 dark:text-sky-400 underline" href="docs/requirements/auditsphere-accounting-module-requirements-current.md">Requirements</a> · <a class="text-sky-700 dark:text-sky-400 underline" href="AGENTS.md">Agent instructions</a>.
+            <a class="text-sky-700 underline" href="requirements(2).html#architecture">Uploaded v2.1 baseline</a> · <a
+              class="text-sky-700 underline" href="requirements(2).html#controls">Mandatory controls</a> · <a
+              class="text-sky-700 underline"
+              href="docs/architecture/auditsphere-architecture-current-architecture.md">Repository technical reference —
+              verify availability</a>.
           </div>
         </div>
+        <div class="info-card border-l-4 border-sky-500">
+          <h3 class="info-title">Scope / authority boundary</h3>
+          <p class="text-xs leading-relaxed">Only the five connected business modules shown here are mandatory in v2.1.
+            Full client books, consolidation, period reopening and foreign-currency features require separate approval.
+            No claim is made that the referenced stack or features are already implemented.</p>
+          <p class="text-[11px] text-slate-500 mt-2">Baseline reference: <a href="requirements(2).html#architecture"
+              class="text-sky-700 underline">architecture</a> · <a href="requirements(2).html#boundaries"
+              class="text-sky-700 underline">boundaries</a></p>
+        </div>
+
         <nav class="pager" aria-label="Previous and next view"></nav>
       </section>
 
@@ -324,33 +835,72 @@ flowchart TD
           <div>
             <p class="eyebrow">Flow 1 of 5 · Commercial</p>
             <h2 class="panel-title">Lead to Engagement Activation</h2>
-            <p class="panel-desc">Client commercial acceptance and current Partner risk approval are separate records. Activation follows the configured commercial and payment gates.</p>
+            <p class="panel-desc">Dual-Key clearance is mandatory before generating the Engagement Letter. A recorded
+              50% advance payment is mandatory before entering portal-active planning; no optional linked-fee bypass.
+            </p>
           </div>
-          <span class="chip bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-300 ring-amber-200 dark:ring-amber-500/30">ISA 210 &amp; ISA 220</span>
+          <span class="chip bg-amber-50 text-amber-800 ring-amber-200">ISA 210 &amp; ISA 220</span>
         </div>
 
         <figure class="viewer card overflow-hidden" data-key="onboarding" data-title="Lead to Engagement Activation">
-<script type="text/plain">
+          <script type="text/plain">
 flowchart TD
-    Inquiry[Lead or inquiry] --> Proposal[Current proposal and quotation]
-    Proposal --> Acceptance[Recorded client acceptance]
-    Proposal --> Risk[Current Partner risk approval]
-    Acceptance --> Gate{Both decisions current}
-    Risk --> Gate
-    Gate -->|No| Blocked[Activation remains blocked]
-    Gate -->|Yes| Letter[Route specific engagement letter]
-    Letter --> Agreement[Fee agreement and advance milestone]
-    Agreement --> Invoice[Advance invoice reviewed and posted]
-    Invoice --> Payment[Advance paid and allocated]
-    Payment --> Activation[Engagement activation]
-    Activation --> Portal[Scoped portal access]
+    Lead[Inquiry and legal entity contacts] --> Proposal[Brief quotation or detailed technical proposal]
+    Proposal --> ClientKey[Key 1 client commercial acceptance]
+    Proposal --> RiskCheck[New acceptance OR recurring continuance checklist]
+    RiskCheck --> PartnerKey[Key 2 Partner AML KYC risk approval]
+    ClientKey --> Gate{Both independent keys approved}
+    PartnerKey --> Gate
+    Gate -->|No| Blocked[HARD BLOCK Engagement Letter generation]
+    Gate -->|Yes| Letter[ISA 210 engagement letter and Partner signature]
+    Letter --> Invoice[Issue 50 percent advance invoice]
+    Invoice --> Paid{50 percent advance paid and recorded}
+    Paid -->|No| PaymentBlock[HARD BLOCK portal-active planning]
+    Paid -->|Yes| Receipt[Generate official receipt with payment reference]
+    Receipt --> Portal[Provision isolated PBC portal and temporary credentials]
+    Portal --> Reset[Force first-login password reset]
+    Reset --> Planning[PORTAL_ACTIVE_PLANNING]
+
 </script>
         </figure>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div class="info-card"><h3 class="info-title"><span class="w-2 h-2 rounded-full bg-amber-500"></span>Commercial and Risk Records</h3><ul class="space-y-2 list-disc pl-4 marker:text-slate-400"><li>Client acceptance and Partner risk approval are separately recorded and must be current for the same service route.</li><li>The platform records decisions; this diagram does not claim automated AML, UBO or PEP screening.</li></ul></div>
-          <div class="info-card"><h3 class="info-title"><span class="w-2 h-2 rounded-full bg-emerald-500"></span>Activation and Client Access</h3><ul class="space-y-2 list-disc pl-4 marker:text-slate-400"><li>Engagement letters use a configured template for the selected service route.</li><li>When a fee agreement is linked, its advance must be paid and allocated before activation. Portal access remains identity- and scope-controlled.</li></ul></div>
+          <div class="info-card">
+            <h3 class="info-title"><span class="w-2 h-2 rounded-full bg-amber-500"></span>Commercial and Risk Records
+            </h3>
+            <ul class="space-y-2 list-disc pl-4 marker:text-slate-400">
+              <li>Key 1: recorded client commercial acceptance. Key 2: Partner digitally signed new-client acceptance or
+                recurring-client continuance checklist. Both are mandatory for the Engagement Letter.</li>
+              <li>New clients require UBO, AML/KYC, integrity, viability, independence and conflict checks. Recurring
+                clients require prior fees, management/shareholding changes, borrowings, litigation, and
+                fraud/regulatory-change reviews. Automated third-party screening is not mandated.</li>
+            </ul>
+          </div>
+          <div class="info-card">
+            <h3 class="info-title"><span class="w-2 h-2 rounded-full bg-emerald-500"></span>Activation and Client Access
+            </h3>
+            <ul class="space-y-2 list-disc pl-4 marker:text-slate-400">
+              <li>Use ISA 210 templates for statutory audit or agreed-upon procedures; include service period, fee and
+                deadlines. Generate and digitally sign the letter after Dual-Key clearance.</li>
+              <li>50% advance payment and reference must be recorded before activation. Auto-generate the receipt;
+                provision client workspace, temporary credentials, mandatory password reset and PBC status tracking.
+              </li>
+            </ul>
+          </div>
         </div>
+        <div class="info-card border-l-4 border-sky-500">
+          <h3 class="info-title">Mandatory state guards</h3>
+          <p class="text-xs leading-relaxed">No Engagement Letter without C-01. No <code>PORTAL_ACTIVE_PLANNING</code>
+            without C-02. Client portal upload statuses: Pending Upload, Under Review, Approved, Rejected/Re-upload
+            Required; each rejection needs a reason.</p>
+          <p class="text-[11px] text-slate-500 mt-2">Baseline reference: <a href="requirements(2).html#M1.03"
+              class="text-sky-700 underline">M1.03</a> · <a href="requirements(2).html#M1.04"
+              class="text-sky-700 underline">M1.04</a> · <a href="requirements(2).html#M1.05"
+              class="text-sky-700 underline">M1.05</a> · <a href="requirements(2).html#M2.01"
+              class="text-sky-700 underline">M2.01</a> · <a href="requirements(2).html#controls"
+              class="text-sky-700 underline">controls</a></p>
+        </div>
+
         <nav class="pager" aria-label="Previous and next view"></nav>
       </section>
 
@@ -360,40 +910,51 @@ flowchart TD
           <div>
             <p class="eyebrow">Flow 2 of 5 · Planning</p>
             <h2 class="panel-title">Trial Balance Materiality and Risk Planning</h2>
-            <p class="panel-desc">The engine derives thresholds from mapped trial-balance inputs. Approval binds to the current assessment; practical rounding creates a new effective draft.</p>
+            <p class="panel-desc">After mandatory new/recurring-client checks, provision five folders, schedule staff,
+              import and map Excel/CSV TB, compute materiality, and require Partner planning approval before fieldwork.
+            </p>
           </div>
-          <span class="chip bg-indigo-50 dark:bg-indigo-500/10 text-indigo-800 dark:text-indigo-300 ring-indigo-200 dark:ring-indigo-500/30">ISA 320 Standard</span>
+          <span class="chip bg-indigo-50 text-indigo-800 ring-indigo-200">ISA 320 Standard</span>
         </div>
 
-        <figure class="viewer card overflow-hidden" data-key="materiality" data-title="Trial Balance Materiality and Risk Planning">
-<script type="text/plain">
+        <figure class="viewer card overflow-hidden" data-key="materiality"
+          data-title="Trial Balance Materiality and Risk Planning">
+          <script type="text/plain">
 flowchart TD
-    TrialBalance[Mapped trial balance] --> Benchmark[Supported benchmark and policy range]
-    Benchmark --> Calculated[Compute PM TE and SAD]
-    Calculated --> Draft[Create draft assessment with source lineage]
-    Draft --> RoundChoice{Practical rounding requested}
-    RoundChoice -->|No| Approval[Partner approves current assessment]
-    RoundChoice -->|Yes| Rounding[Manager records rationale within five percent]
-    Rounding --> EffectiveDraft[Create effective draft and decision evidence]
-    EffectiveDraft --> Approval
-    Approval --> PlanningGate[Current approval satisfies planning gate]
+    Risk[Partner-approved new client acceptance OR continuance] --> Folders[Provision five standard engagement folders]
+    Folders --> Staff[Schedule Partner Reviewer Preparers and reporting milestones]
+    Staff --> TB[Import Excel or CSV trial balance and map FSLIs]
+    TB --> Benchmark[Choose approved PBT Revenue Assets or Equity benchmark]
+    Benchmark --> Metrics[Compute PM TE and SAD]
+    Metrics --> Rounding{Manager requests rounding}
+    Rounding -->|Yes| Verify[Validate rounding within plus or minus 5 percent]
+    Verify --> Assessment[Risk-code FSLIs Green Amber Red]
+    Rounding -->|No| Assessment
+    Assessment --> Approval[Formal Partner planning and materiality signoff]
+    Approval --> Fieldwork[FIELDWORK_EXECUTION]
+
 </script>
         </figure>
 
         <!-- Risk tiers quick reference -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div class="info-card !border-emerald-200 dark:!border-emerald-500/30 !bg-emerald-50/60 dark:!bg-emerald-500/5">
-            <h3 class="info-title text-emerald-800 dark:text-emerald-300"><span class="w-2 h-2 rounded-full bg-emerald-500"></span>GREEN · Low Risk</h3>
-            <p class="font-mono text-xs mb-1.5">Balance &lt; TE</p>
+          <div class="info-card !border-emerald-200 !bg-emerald-50/60">
+            <h3 class="info-title text-emerald-800"><span class="w-2 h-2 rounded-full bg-emerald-500"></span>GREEN · Low
+              Risk</h3>
+            <p class="font-mono text-xs mb-1.5">Balance &lt; TE and no overriding high inherent risk</p>
             Lower band: staffing rank rules apply; procedures and professional conclusions remain human-led.
           </div>
-          <div class="info-card !border-amber-200 dark:!border-amber-500/30 !bg-amber-50/60 dark:!bg-amber-500/5">
-            <h3 class="info-title text-amber-800 dark:text-amber-300"><span class="w-2 h-2 rounded-full bg-amber-500"></span>AMBER · Moderate Risk</h3>
-            <p class="font-mono text-xs mb-1.5">TE ≤ Balance ≤ PM</p>
-            Amber band: senior execution and manager review rules apply to assigned work.
+          <div class="info-card !border-amber-200 !bg-amber-50/60">
+            <h3 class="info-title text-amber-800"><span class="w-2 h-2 rounded-full bg-amber-500"></span>AMBER ·
+              Moderate Risk</h3>
+            <p class="font-mono text-xs mb-1.5">TE &lt; Balance &lt; PM; exact TE/PM equality requires approved policy
+            </p>
+            Senior substantive testing and sampling; high inherent risk overrides the balance band. Equality at exactly
+            TE or PM remains a decision, not an approved rule.
           </div>
-          <div class="info-card !border-rose-200 dark:!border-rose-500/30 !bg-rose-50/60 dark:!bg-rose-500/5">
-            <h3 class="info-title text-rose-800 dark:text-rose-300"><span class="w-2 h-2 rounded-full bg-rose-500"></span>RED · Critical / High Risk</h3>
+          <div class="info-card !border-rose-200 !bg-rose-50/60">
+            <h3 class="info-title text-rose-800"><span class="w-2 h-2 rounded-full bg-rose-500"></span>RED · Critical /
+              High Risk</h3>
             <p class="font-mono text-xs mb-1.5">Balance &gt; PM or high inherent risk / estimates</p>
             Red band: manager-level execution and Partner review rules apply, including significant or fraud risks.
           </div>
@@ -401,41 +962,62 @@ flowchart TD
 
         <!-- Materiality Threshold Live Reference -->
         <div class="card overflow-hidden">
-          <div class="bg-slate-50 dark:bg-slate-800/60 px-4 py-3 font-bold text-[11px] uppercase tracking-wider text-slate-600 dark:text-slate-300 flex justify-between gap-4 border-b border-slate-200 dark:border-slate-800">
+          <div
+            class="bg-slate-50 px-4 py-3 font-bold text-[11px] uppercase tracking-wider text-slate-600 flex justify-between gap-4 border-b border-slate-200">
             <span>Materiality Metric Formula Reference</span>
             <span class="hidden sm:inline text-slate-400">ISA 320 Execution Framework</span>
           </div>
-          <div class="divide-y divide-slate-100 dark:divide-slate-800 text-sm">
+          <div class="divide-y divide-slate-100 text-sm">
             <div class="formula-row">
               <div>
-                <span class="font-semibold text-slate-800 dark:text-slate-100">Planning Materiality (PM)</span>
-                <span class="text-slate-500 dark:text-slate-400 block text-xs mt-0.5">Planning threshold used with qualitative considerations</span>
+                <span class="font-semibold text-slate-800">Planning Materiality (PM)</span>
+                <span class="text-slate-500 block text-xs mt-0.5">Planning threshold used with qualitative
+                  considerations</span>
               </div>
-              <span class="formula">Base × % (e.g. 5% PBT or 1% Revenue)</span>
+              <span class="formula">PM = Benchmark base × selected approved %</span>
             </div>
             <div class="formula-row">
               <div>
-                <span class="font-semibold text-slate-800 dark:text-slate-100">Tolerable Error (TE) / Performance Materiality</span>
-                <span class="text-slate-500 dark:text-slate-400 block text-xs mt-0.5">Tolerable error is derived from PM using the selected policy percentage</span>
+                <span class="font-semibold text-slate-800">Tolerable Error (TE) / Performance Materiality</span>
+                <span class="text-slate-500 block text-xs mt-0.5">Tolerable error is derived from PM using the selected
+                  policy percentage</span>
               </div>
-              <span class="formula">50% to 75% of PM under the current policy range</span>
+              <span class="formula">TE = 50% to 75% of PM</span>
             </div>
             <div class="formula-row">
               <div>
-                <span class="font-semibold text-slate-800 dark:text-slate-100">Summary of Audit Differences (SAD) Threshold</span>
-                <span class="text-slate-500 dark:text-slate-400 block text-xs mt-0.5">Configured SAD threshold used by the differences workflow</span>
+                <span class="font-semibold text-slate-800">Summary of Audit Differences (SAD) Threshold</span>
+                <span class="text-slate-500 block text-xs mt-0.5">Configured SAD threshold used by the differences
+                  workflow</span>
               </div>
-              <span class="formula">3% to 5% of PM</span>
+              <span class="formula">SAD = 3% to 5% of PM</span>
             </div>
             <div class="formula-row">
               <div>
-                <span class="font-semibold text-slate-800 dark:text-slate-100">Practical Rounding Guard</span>
-                <span class="text-slate-500 dark:text-slate-400 block text-xs mt-0.5">Manager or Senior Manager records rationale; a new effective draft still needs Partner approval</span>
+                <span class="font-semibold text-slate-800">Practical Rounding Guard</span>
+                <span class="text-slate-500 block text-xs mt-0.5">Manager or Senior Manager records rationale; a new
+                  effective draft still needs Partner approval</span>
               </div>
               <span class="formula">Each adjusted threshold must remain within ±5% of its computed value</span>
             </div>
           </div>
         </div>
+        <div class="info-card border-l-4 border-sky-500">
+          <h3 class="info-title">Specified benchmark limits and planning inputs</h3>
+          <p class="text-xs leading-relaxed">PBT <b>5–10%</b>; Revenue <b>0.5–2%</b>; Total Assets <b>0.5–1%</b>;
+            Equity/Net Assets <b>1–2%</b>. Required five-fold taxonomy: <code>01_Administration &amp; Planning</code>,
+            <code>02_Trial Balance &amp; Schedules</code>, <code>03_Fieldwork &amp; Testing</code>,
+            <code>04_Drafts &amp; Deliverables</code>, <code>05_Final Signed Archive</code>. Equality at TE or PM is
+            unresolved: fail closed pending approved classification policy.
+          </p>
+          <p class="text-[11px] text-slate-500 mt-2">Baseline reference: <a href="requirements(2).html#M2.01"
+              class="text-sky-700 underline">M2.01</a> · <a href="requirements(2).html#M2.02"
+              class="text-sky-700 underline">M2.02</a> · <a href="requirements(2).html#M2.03"
+              class="text-sky-700 underline">M2.03</a> · <a href="requirements(2).html#M2.04"
+              class="text-sky-700 underline">M2.04</a> · <a href="requirements(2).html#boundaries"
+              class="text-sky-700 underline">boundaries</a></p>
+        </div>
+
         <nav class="pager" aria-label="Previous and next view"></nav>
       </section>
 
@@ -445,39 +1027,67 @@ flowchart TD
           <div>
             <p class="eyebrow">Flow 3 of 5 · Execution</p>
             <h2 class="panel-title">Fieldwork, Review and Completion Gates</h2>
-            <p class="panel-desc">Assigned procedures move through revision-checked preparation and review. Current completion evidence and critical confirmations govern Partner clearance.</p>
+            <p class="panel-desc">The split P/L and Balance Sheet FSLI dashboard launches analytical review and
+              workprograms. Preparers submit all assigned tests; mandatory rework and critical-confirmation gates
+              precede Partner clearance.</p>
           </div>
-          <span class="chip bg-rose-50 dark:bg-rose-500/10 text-rose-800 dark:text-rose-300 ring-rose-200 dark:ring-rose-500/30">Fieldwork &amp; ISA 505 / 570</span>
+          <span class="chip bg-rose-50 text-rose-800 ring-rose-200">Fieldwork &amp; ISA 505 / 570</span>
         </div>
 
-        <figure class="viewer card overflow-hidden" data-key="fieldwork" data-title="Fieldwork, Review and Completion Gates">
-<script type="text/plain">
+        <figure class="viewer card overflow-hidden" data-key="fieldwork"
+          data-title="Fieldwork, Review and Completion Gates">
+          <script type="text/plain">
 flowchart TD
-    Planning[Current approved planning] --> Procedures[Assigned audit procedures]
-    Procedures --> Evidence[Record results and evidence references]
-    Evidence --> Submit[Preparer submits current revision]
-    Submit --> Review[Reviewer evaluates work and records notes]
-    Review --> Rework[Return work for rework]
-    Rework --> Procedures
-    Review --> Completion[Completion gate evaluates current evidence]
-    Completion --> Confirmations[Evaluate critical confirmations]
-    Confirmations --> Holding[Current holding letter status and dispatch]
-    Holding --> Confirmations
-    Confirmations --> Partner[Partner clearance when gates are clear]
+    TB[Mapped current and prior year TB] --> Dashboard[Split P and L plus Balance Sheet dashboard]
+    Dashboard --> AR[Analytical review variance ratios and ISA 570]
+    Dashboard --> WP[Workprogram procedures ad hoc steps and sampling]
+    WP --> Evidence[Digital PBC links and physical binder reference]
+    AR --> Submit[Preparer submits every assigned FSLI test]
+    Evidence --> Submit
+    Submit --> Review[Reviewer evaluates tests and adds inline notes]
+    Review --> Decision{All tests approved and zero open notes}
+    Decision -->|No| Rework[UNDER REWORK with mandatory comments]
+    Rework --> Submit
+    Decision -->|Yes| SRM[Compile SRM including AJE SAD variances estimates]
+    SRM --> Confirm{All critical Bank AR AP Inventory Legal confirmations received}
+    Confirm -->|No| Hold[BLOCK final release and generate Holding Letter]
+    Hold --> Confirm
+    Confirm -->|Yes| Partner[Partner reviews red risk work and signs off SRM]
+
 </script>
         </figure>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div class="info-card">
             <h3 class="info-title"><span class="w-2 h-2 rounded-full bg-sky-500"></span>Revision-Checked Work</h3>
-            Revision and scope checks protect writes. Concurrent edits can be rejected when a user submits stale work.
+            Separate FSLIs support parallel auditors without overwrite. Revision checks are a proposed technical
+            protection, not a replacement for required row-level concurrency.
           </div>
-          <div class="info-card"><h3 class="info-title"><span class="w-2 h-2 rounded-full bg-indigo-500"></span>Evidence and Revision Controls</h3>Workpaper results use current revision and scope checks. Physical record handling remains governed by the firm's archive procedures.</div>
           <div class="info-card">
-            <h3 class="info-title"><span class="w-2 h-2 rounded-full bg-rose-500"></span>Holding Letter Dispatch Status</h3>
-            Critical confirmation blockers keep the completion gate closed. A current holding letter can be queued through configured contact routing; queued delivery is not proof of receipt.
+            <h3 class="info-title"><span class="w-2 h-2 rounded-full bg-indigo-500"></span>Evidence and Revision
+              Controls</h3>Preserve direct digital links to PDF, spreadsheet and PBC evidence plus a dedicated physical
+            file-index field such as X-1 / Box 3 / Shelf B.
+          </div>
+          <div class="info-card">
+            <h3 class="info-title"><span class="w-2 h-2 rounded-full bg-rose-500"></span>Holding Letter Dispatch Status
+            </h3>
+            Critical unreturned confirmations must block report release and automatically generate a Holding Letter.
+            Delivery tracking may record queued/sent status without falsely asserting receipt.
           </div>
         </div>
+        <div class="info-card border-l-4 border-sky-500">
+          <h3 class="info-title">Testing and review acceptance criteria</h3>
+          <p class="text-xs leading-relaxed">Per FSLI: Current Year, Prior Year, % variance, AR Test, Audit Workprogram;
+            assertion steps, editable ad-hoc steps; Monetary Unit Sampling, systematic random, stratified attribute
+            sampling; ISA 570 check. Reviewer returns rejected work with compulsory comments; SRM auto-compiles on
+            Manager approval.</p>
+          <p class="text-[11px] text-slate-500 mt-2">Baseline reference: <a href="requirements(2).html#M3.01"
+              class="text-sky-700 underline">M3.01</a> · <a href="requirements(2).html#M3.02"
+              class="text-sky-700 underline">M3.02</a> · <a href="requirements(2).html#M3.03"
+              class="text-sky-700 underline">M3.03</a> · <a href="requirements(2).html#M3.04"
+              class="text-sky-700 underline">M3.04</a></p>
+        </div>
+
         <nav class="pager" aria-label="Previous and next view"></nav>
       </section>
 
@@ -486,31 +1096,33 @@ flowchart TD
         <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
             <p class="eyebrow">Flow 4 of 5 · Reporting</p>
-            <h2 class="panel-title">Partner Opinion, Deliverable Bundle and Local File Freeze</h2>
-            <p class="panel-desc">Partner decisions and exact current evidence feed local bundle assembly. Report signature schedules the local freeze; provider-level immutability is separate.</p>
+            <h2 class="panel-title">Partner Opinion, Five-Part Release and Permanent Archive</h2>
+            <p class="panel-desc">Partner-only opinion, modified-opinion rationale, signature and seal, all five
+              deliverables, final 50% invoice and client upload freeze precede a 60-day or Partner-triggered
+              irreversible archive lock.</p>
           </div>
-          <span class="chip bg-emerald-50 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 ring-emerald-200 dark:ring-emerald-500/30">ISA 700, 705 &amp; ISA 230</span>
+          <span class="chip bg-emerald-50 text-emerald-800 ring-emerald-200">ISA 700, 705 &amp; ISA 230</span>
         </div>
 
-        <figure class="viewer card overflow-hidden" data-key="opinion" data-title="Partner Opinion, Deliverable Bundle and Local File Freeze">
-<script type="text/plain">
+        <figure class="viewer card overflow-hidden" data-key="opinion"
+          data-title="Partner Opinion, Five-Part Release and Permanent Archive">
+          <script type="text/plain">
 flowchart TD
-    Completion[Current completion gate] --> Opinion[Partner records opinion decision]
-    Opinion --> Unmodified[Unmodified opinion]
-    Opinion --> Qualified[Qualified opinion]
-    Opinion --> Adverse[Adverse opinion]
-    Opinion --> Disclaimer[Disclaimer of opinion]
-    Unmodified --> Report[Generate current report]
-    Qualified --> Basis[Record focus area and basis]
-    Adverse --> Basis
-    Disclaimer --> Basis
-    Basis --> Report
-    Report --> Signature[Apply recorded Partner signature and firm seal images]
-    Signature --> Release[Record release through the approval workflow]
-    Release --> Bundle[Assemble bundle from current evidence and posted invoice]
-    Signature --> Countdown[Schedule local freeze from report signature]
-    Countdown --> Freeze[Due worker or eligible early lock request]
-    Freeze --> Frozen[Local freeze only after successful commit]
+    Gate[All tests reviewed SRM signed off and critical confirmations returned] --> Opinion[Partner selects Clean Qualified Disclaimer or Adverse]
+    Opinion --> Modify{Qualified Disclaimer or Adverse}
+    Modify -->|Yes| Basis[Require affected FSLI and written basis]
+    Modify -->|No| Sign[Partner signs report and applies firm seal]
+    Basis --> Sign
+    Sign --> Bundle[Assemble mandatory five part final bundle]
+    Bundle --> Final[Generate remaining 50 percent balance invoice]
+    Final --> Deliver[Release bundle to client and freeze PBC uploads]
+    Sign --> Timer[Start 60 calendar day countdown on signature date]
+    Deliver --> Ready[Review archive readiness]
+    Timer --> Ready
+    Ready --> Lock{Day 60 elapsed OR Partner manual lock}
+    Lock -->|No| Ready
+    Lock -->|Yes| Immutable[ARCHIVED_READ_ONLY terminal immutable audit record]
+
 </script>
         </figure>
 
@@ -519,34 +1131,52 @@ flowchart TD
           <li class="info-card relative overflow-hidden">
             <span class="absolute inset-x-0 top-0 h-1 bg-sky-500"></span>
             <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Part 1</span>
-            <h3 class="font-semibold text-sky-700 dark:text-sky-300 mb-1">Report and Statements</h3>
-            Signed auditor report and certified statements from the exact released financial package. Signature and seal are approved images, not certificate-backed e-signatures.
+            <h3 class="font-semibold text-sky-700 mb-1">Report and Statements</h3>
+            Digitally signed and sealed Independent Auditor Report with certified Financial Statements. Signature
+            provider and cryptographic signature technology remain open technical decisions.
           </li>
           <li class="info-card relative overflow-hidden">
             <span class="absolute inset-x-0 top-0 h-1 bg-indigo-500"></span>
             <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Part 2</span>
-            <h3 class="font-semibold text-indigo-700 dark:text-indigo-300 mb-1">Mgmt Letter</h3>
-            Current management letter included in the assembled bundle.
+            <h3 class="font-semibold text-indigo-700 mb-1">Mgmt Letter</h3>
+            Management Letter with deficiency, impact and auditor recommendation for each finding.
           </li>
           <li class="info-card relative overflow-hidden">
             <span class="absolute inset-x-0 top-0 h-1 bg-amber-500"></span>
             <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Part 3</span>
-            <h3 class="font-semibold text-amber-700 dark:text-amber-300 mb-1">Representation</h3>
-            Generated representation letter plus the exact signed management scan.
+            <h3 class="font-semibold text-amber-700 mb-1">Representation</h3>
+            Client-letterhead Letter of Representation template for executive signing and re-upload.
           </li>
           <li class="info-card relative overflow-hidden">
             <span class="absolute inset-x-0 top-0 h-1 bg-purple-500"></span>
             <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Part 4</span>
-            <h3 class="font-semibold text-purple-700 dark:text-purple-300 mb-1">Correspondences</h3>
-            Management correspondence and review trail in a bounded JSON audit-trail file.
+            <h3 class="font-semibold text-purple-700 mb-1">Correspondences</h3>
+            Management correspondence, formal audit inquiries, confirmation results and cleared-query trail; JSON is an
+            optional implementation format.
           </li>
           <li class="info-card relative overflow-hidden">
             <span class="absolute inset-x-0 top-0 h-1 bg-emerald-500"></span>
             <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Part 5</span>
-            <h3 class="font-semibold text-emerald-700 dark:text-emerald-300 mb-1">50% Balance Note</h3>
-            Fee note references the posted balance invoice; finance approval, payment and delivery remain separate.
+            <h3 class="font-semibold text-emerald-700 mb-1">50% Balance Note</h3>
+            Automatically generate the final fee note / invoice for the remaining 50% when the bundle is released.
           </li>
         </ol>
+        <div class="info-card border-l-4 border-sky-500">
+          <h3 class="info-title">Irreversible archive semantics</h3>
+          <p class="text-xs leading-relaxed">C-12 requires read-only conversion at 60 calendar days from Partner
+            signature OR earlier manual Partner lock, with deletions, updates and overwrites permanently prohibited and
+            an immutable timestamped audit log. A technical storage freeze alone is <b>not sufficient</b> proof of
+            regulatory permanence. Post-lock amendment handling and signature technology are open decisions; any future
+            approved correction must leave the locked original untouched, never transition the original archive
+            backwards.</p>
+          <p class="text-[11px] text-slate-500 mt-2">Baseline reference: <a href="requirements(2).html#M4.01"
+              class="text-sky-700 underline">M4.01</a> · <a href="requirements(2).html#M4.02"
+              class="text-sky-700 underline">M4.02</a> · <a href="requirements(2).html#M4.03"
+              class="text-sky-700 underline">M4.03</a> · <a href="requirements(2).html#controls"
+              class="text-sky-700 underline">controls</a> · <a href="requirements(2).html#boundaries"
+              class="text-sky-700 underline">boundaries</a></p>
+        </div>
+
         <nav class="pager" aria-label="Previous and next view"></nav>
       </section>
 
@@ -556,66 +1186,102 @@ flowchart TD
           <div>
             <p class="eyebrow">Flow 5 of 5 · Firm Operations</p>
             <h2 class="panel-title">Practice Time, Charge-Out Rates and Firm Books</h2>
-            <p class="panel-desc">Approved versioned charge-out cards feed time and budget views. A charge-out rate is not payroll or staff cost; practice books remain separate from client accounting.</p>
+            <p class="panel-desc">Mandatory QAR charge-out rates feed budget variance and the specified
+              fee-minus-charge-out profitability indicator; separate firm operating expenses support internal financial
+              statements. Actual accounting profit requires actual costs.</p>
           </div>
-          <span class="chip bg-cyan-50 dark:bg-cyan-500/10 text-cyan-800 dark:text-cyan-300 ring-cyan-200 dark:ring-cyan-500/30">Firm Operations &amp; QAR Ledger</span>
+          <span class="chip bg-cyan-50 text-cyan-800 ring-cyan-200">Firm Operations &amp; QAR Ledger</span>
         </div>
 
-        <figure class="viewer card overflow-hidden" data-key="practice" data-title="Practice Time, Charge-Out Rates and Firm Books">
-<script type="text/plain">
+        <figure class="viewer card overflow-hidden" data-key="practice"
+          data-title="Practice Time, Charge-Out Rates and Firm Books">
+          <script type="text/plain">
 flowchart TD
-    subgraph FirmPractice
-        Time[Staff time entries] --> Rate[Approved versioned QAR charge out card]
-        Rate --> Valuation[Time and budget valuation]
-        Valuation --> PracticeViews[Firm practice and billing views]
-        PracticeViews --> FirmLedger[Firm ledger]
-    end
-    subgraph ClientBooks
-        ClientAccounting[Separate client accounting records]
-    end
+    Hours[Daily hours by staff engagement and FSLI] --> Rates[QAR charge out rates Partner 1000 Manager 750 Senior 500 Junior 200]
+    Rates --> Sum[Total engagement charge out = sum of hours times role rate]
+    Sum --> Profit[Specified engagement profitability = contracted fee less charge out total]
+    Hours --> Variance[Budgeted phase hours versus actual hours]
+    Profit --> Analytics[Engagement profitability and realization views]
+    Expenses[Firm rent staff salaries and benefits partner withdrawals petty cash] --> FirmLedger[Separate practice general ledger]
+    Analytics -.-> FirmLedger
+    FirmLedger --> Reports[Firm monthly TB P and L and client AR aging]
+
 </script>
         </figure>
 
         <!-- Rates strip -->
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <div class="info-card"><span class="text-xs text-slate-500 dark:text-slate-400">Engagement Partner</span><div class="mt-1 text-lg font-bold text-slate-900 dark:text-white tabular-nums">1,000 <span class="text-xs font-medium text-slate-400">QAR / hr</span></div></div>
-          <div class="info-card"><span class="text-xs text-slate-500 dark:text-slate-400">Audit Manager</span><div class="mt-1 text-lg font-bold text-slate-900 dark:text-white tabular-nums">750 <span class="text-xs font-medium text-slate-400">QAR / hr</span></div></div>
-          <div class="info-card"><span class="text-xs text-slate-500 dark:text-slate-400">Supervisor / Senior</span><div class="mt-1 text-lg font-bold text-slate-900 dark:text-white tabular-nums">500 <span class="text-xs font-medium text-slate-400">QAR / hr</span></div></div>
-          <div class="info-card"><span class="text-xs text-slate-500 dark:text-slate-400">Associate / Junior</span><div class="mt-1 text-lg font-bold text-slate-900 dark:text-white tabular-nums">200 <span class="text-xs font-medium text-slate-400">QAR / hr</span></div></div>
+          <div class="info-card"><span class="text-xs text-slate-500">Engagement Partner</span>
+            <div class="mt-1 text-lg font-bold text-slate-900 tabular-nums">1,000 <span
+                class="text-xs font-medium text-slate-400">QAR / hr</span></div>
+          </div>
+          <div class="info-card"><span class="text-xs text-slate-500">Audit Manager</span>
+            <div class="mt-1 text-lg font-bold text-slate-900 tabular-nums">750 <span
+                class="text-xs font-medium text-slate-400">QAR / hr</span></div>
+          </div>
+          <div class="info-card"><span class="text-xs text-slate-500">Supervisor / Senior</span>
+            <div class="mt-1 text-lg font-bold text-slate-900 tabular-nums">500 <span
+                class="text-xs font-medium text-slate-400">QAR / hr</span></div>
+          </div>
+          <div class="info-card"><span class="text-xs text-slate-500">Associate / Junior</span>
+            <div class="mt-1 text-lg font-bold text-slate-900 tabular-nums">200 <span
+                class="text-xs font-medium text-slate-400">QAR / hr</span></div>
+          </div>
         </div>
 
-        <p class="text-xs text-slate-500 dark:text-slate-400">Baseline cards begin as drafts; a separate authorized approver must approve each rate before use.</p>
+        <p class="text-xs text-slate-500">Baseline source rates are fixed at 1,000 / 750 / 500 / 200 QAR per hour.
+          Versioned rate-card approval is a proposed implementation control, not a source requirement.</p>
 
         <!-- Profitability Formula Card -->
-        <div class="relative overflow-hidden p-5 rounded-2xl bg-slate-900 dark:bg-slate-900 ring-1 ring-slate-800 text-white flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div class="absolute -right-16 -top-16 w-64 h-64 bg-sky-500/20 blur-3xl rounded-full pointer-events-none"></div>
-          <div class="relative">
-            <h3 class="font-semibold text-sm text-sky-400">How to Read Charge-Out Rates</h3>
-            <p class="font-mono text-sm text-slate-200 mt-1.5">
-              STE QAR charge-out rates are pricing inputs for time and budget views. Do not interpret them as payroll cost or realized profit.
+        <div
+          class="relative overflow-hidden p-5 rounded-2xl bg-gradient-to-r from-sky-50 via-slate-50 to-indigo-50 border border-sky-100 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h3 class="font-semibold text-sm text-sky-900">Specified Profitability vs Actual-Cost Accounting</h3>
+            <p class="font-mono text-xs text-slate-700 mt-1.5 leading-relaxed">
+              <b>Source-defined engagement profitability = Contracted engagement fee − Σ logged hours × role charge-out
+                rate.</b> This is a charge-out-based indicator, not audited net profit or actual payroll cost.
+              Actual-cost profit must be separately defined if requested.
             </p>
           </div>
-          <div class="relative md:text-right shrink-0">
-            <span class="text-xs text-slate-400 block">Fee milestones:</span>
-            <span class="text-sm font-semibold text-emerald-400">Default 50% advance; invoice posting and payment follow the finance workflow.</span>
+          <div class="md:text-right shrink-0">
+            <span class="text-xs text-slate-500 block">Fee milestones:</span>
+            <span
+              class="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200 inline-block mt-0.5">Mandatory
+              50% advance and remaining 50% final-fee note in the baseline.</span>
           </div>
         </div>
+        <div class="info-card border-l-4 border-sky-500">
+          <h3 class="info-title">Internal books remain a dedicated module</h3>
+          <p class="text-xs leading-relaxed">Record rent/facilities, salaries/benefits, Partner withdrawals and petty
+            cash. Required outputs: firm Trial Balance, monthly Profit &amp; Loss statement and client Accounts
+            Receivable aging. The audited client TB is never posted into the firm books merely because a source TB is
+            imported.</p>
+          <p class="text-[11px] text-slate-500 mt-2">Baseline reference: <a href="requirements(2).html#M5.01"
+              class="text-sky-700 underline">M5.01</a> · <a href="requirements(2).html#M5.02"
+              class="text-sky-700 underline">M5.02</a> · <a href="requirements(2).html#controls"
+              class="text-sky-700 underline">controls</a></p>
+        </div>
+
         <nav class="pager" aria-label="Previous and next view"></nav>
       </section>
 
       <!-- TAB 7: 11-Stage Lifecycle Projection -->
-      <section id="panel-statemachine" role="tabpanel" aria-labelledby="tab-statemachine" class="panel space-y-6" hidden>
+      <section id="panel-statemachine" role="tabpanel" aria-labelledby="tab-statemachine" class="panel space-y-6"
+        hidden>
         <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
             <p class="eyebrow">Lifecycle</p>
-            <h2 class="panel-title">Derived 11-Stage Engagement Lifecycle</h2>
-            <p class="panel-desc">The API derives these stages from current records; they are not persisted state transitions. Elapsed time alone does not archive a file: stage 11 requires a committed local freeze.</p>
+            <h2 class="panel-title">Required 11-State Engagement Lifecycle</h2>
+            <p class="panel-desc">These are the eleven exact required logical states and advancement guards from source
+              §5. Persisted states or derived projections are technical choices; neither may bypass a guard. Once
+              ARCHIVED_READ_ONLY, the original record is terminal and permanently locked.</p>
           </div>
-          <span class="chip bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 ring-slate-200 dark:ring-slate-700 font-mono">11 stages | Derived projection</span>
+          <span class="chip bg-slate-100 text-slate-700 ring-slate-200 font-mono">11 states | baseline gates</span>
         </div>
 
-        <figure class="viewer card overflow-hidden" data-key="statemachine" data-title="Derived 11-Stage Engagement Lifecycle">
-<script type="text/plain">
+        <figure class="viewer card overflow-hidden" data-key="statemachine"
+          data-title="Required 11-State Engagement Lifecycle">
+          <script type="text/plain">
 stateDiagram-v2
     [*] --> LEAD_INGESTION
     LEAD_INGESTION --> PROPOSAL_GENERATION
@@ -629,83 +1295,478 @@ stateDiagram-v2
     PARTNER_APPROVAL --> DELIVERABLE_RELEASE
     DELIVERABLE_RELEASE --> COMPLIANCE_COUNTDOWN
     COMPLIANCE_COUNTDOWN --> ARCHIVED_READ_ONLY
+    ARCHIVED_READ_ONLY --> [*]
 </script>
         </figure>
 
         <!-- Phase legend -->
-        <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500 dark:text-slate-400">
-          <span class="font-semibold text-slate-600 dark:text-slate-300">Phase:</span>
-          <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-amber-400"></span>Commercial</span>
-          <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-indigo-500"></span>Planning</span>
-          <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-rose-500"></span>Fieldwork &amp; Review</span>
-          <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-emerald-500"></span>Reporting</span>
-          <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-slate-500"></span>Archive</span>
-          <span class="ml-auto hidden sm:inline">Illustrative sequence; the API reports current stage, blockers and responsible role.</span>
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500">
+          <span class="font-semibold text-slate-600">Phase:</span>
+          <span class="inline-flex items-center gap-1.5"><span
+              class="w-2.5 h-2.5 rounded-sm bg-amber-400"></span>Commercial</span>
+          <span class="inline-flex items-center gap-1.5"><span
+              class="w-2.5 h-2.5 rounded-sm bg-indigo-500"></span>Planning</span>
+          <span class="inline-flex items-center gap-1.5"><span
+              class="w-2.5 h-2.5 rounded-sm bg-rose-500"></span>Fieldwork &amp; Review</span>
+          <span class="inline-flex items-center gap-1.5"><span
+              class="w-2.5 h-2.5 rounded-sm bg-emerald-500"></span>Reporting</span>
+          <span class="inline-flex items-center gap-1.5"><span
+              class="w-2.5 h-2.5 rounded-sm bg-slate-500"></span>Archive</span>
+          <span class="ml-auto hidden sm:inline">Every state advancement is subject to the required guard; no implicit
+            overrides.</span>
         </div>
 
         <!-- 11 State Table Breakdown -->
         <div class="card overflow-hidden">
           <div class="overflow-x-auto custom-scrollbar">
             <table class="min-w-full text-left text-sm">
-              <thead class="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
+              <thead
+                class="bg-slate-50 text-slate-500 text-[11px] font-bold uppercase tracking-wider border-b border-slate-200">
                 <tr>
                   <th scope="col" class="p-3 pl-5 w-10">#</th>
-                  <th scope="col" class="p-3">Projected Stage</th>
-                  <th scope="col" class="p-3">Example work</th>
-                  <th scope="col" class="p-3">Evidence reflected in projection</th>
-                  <th scope="col" class="p-3">Next Illustration</th>
+                  <th scope="col" class="p-3">Required State</th>
+                  <th scope="col" class="p-3">Allowed actions</th>
+                  <th scope="col" class="p-3">Condition to advance</th>
+                  <th scope="col" class="p-3">Next state</th>
                 </tr>
               </thead>
-              <tbody id="state-table" class="divide-y divide-slate-100 dark:divide-slate-800 text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900">
-                <tr data-state="LEAD_INGESTION" data-phase="amber"><td class="p-3 pl-5"></td><td class="p-3 font-mono text-xs font-bold text-slate-900 dark:text-white">LEAD_INGESTION</td><td class="p-3">Record and qualify an inquiry in firm CRM.</td><td class="p-3">Lead and opportunity records support the proposal projection.</td><td class="p-3"><button class="goto" data-goto="PROPOSAL_GENERATION">PROPOSAL_GENERATION</button></td></tr>
-                <tr data-state="PROPOSAL_GENERATION" data-phase="amber"><td class="p-3 pl-5"></td><td class="p-3 font-mono text-xs font-bold text-slate-900 dark:text-white">PROPOSAL_GENERATION</td><td class="p-3">Prepare and record the current proposal and quotation.</td><td class="p-3">Current proposal and its commercial decision are available.</td><td class="p-3"><button class="goto" data-goto="DUAL_KEY_PENDING">DUAL_KEY_PENDING</button></td></tr>
-                <tr data-state="DUAL_KEY_PENDING" data-phase="amber"><td class="p-3 pl-5"></td><td class="p-3 font-mono text-xs font-bold text-slate-900 dark:text-white">DUAL_KEY_PENDING</td><td class="p-3">Record client acceptance and Partner risk decision separately.</td><td class="p-3">Both decisions are current and match the service route.</td><td class="p-3"><button class="goto" data-goto="ADVANCE_BILLING">ADVANCE_BILLING</button></td></tr>
-                <tr data-state="ADVANCE_BILLING" data-phase="amber"><td class="p-3 pl-5"></td><td class="p-3 font-mono text-xs font-bold text-slate-900 dark:text-white">ADVANCE_BILLING</td><td class="p-3">Generate the configured letter and manage fee milestones.</td><td class="p-3">When linked, the advance is paid and allocated before activation.</td><td class="p-3"><button class="goto" data-goto="PORTAL_ACTIVE_PLANNING">PORTAL_ACTIVE_PLANNING</button></td></tr>
-                <tr data-state="PORTAL_ACTIVE_PLANNING" data-phase="indigo"><td class="p-3 pl-5"></td><td class="p-3 font-mono text-xs font-bold text-slate-900 dark:text-white">PORTAL_ACTIVE_PLANNING</td><td class="p-3">Prepare sources, mapping, resources and materiality.</td><td class="p-3">Planning uses current source evidence and Partner-approved materiality.</td><td class="p-3"><button class="goto" data-goto="FIELDWORK_EXECUTION">FIELDWORK_EXECUTION</button></td></tr>
-                <tr data-state="FIELDWORK_EXECUTION" data-phase="rose"><td class="p-3 pl-5"></td><td class="p-3 font-mono text-xs font-bold text-slate-900 dark:text-white">FIELDWORK_EXECUTION</td><td class="p-3">Perform assigned procedures and record evidence with revision checks.</td><td class="p-3">Current work and review evidence feed the completion gate.</td><td class="p-3"><button class="goto" data-goto="MANAGERIAL_REVIEW">MANAGERIAL_REVIEW</button></td></tr>
-                <tr data-state="MANAGERIAL_REVIEW" data-phase="rose"><td class="p-3 pl-5"></td><td class="p-3 font-mono text-xs font-bold text-slate-900 dark:text-white">MANAGERIAL_REVIEW</td><td class="p-3">Resolve review notes and prepare a current Summary Review Memorandum.</td><td class="p-3">Completion gate evaluates review, materiality, risks and critical confirmations.</td><td class="p-3"><button class="goto" data-goto="PARTNER_APPROVAL">PARTNER_APPROVAL</button></td></tr>
-                <tr data-state="PARTNER_APPROVAL" data-phase="emerald"><td class="p-3 pl-5"></td><td class="p-3 font-mono text-xs font-bold text-slate-900 dark:text-white">PARTNER_APPROVAL</td><td class="p-3">Partner clears current evidence and records an opinion decision.</td><td class="p-3">Professional conclusions and report signing remain human decisions.</td><td class="p-3"><button class="goto" data-goto="DELIVERABLE_RELEASE">DELIVERABLE_RELEASE</button></td></tr>
-                <tr data-state="DELIVERABLE_RELEASE" data-phase="emerald"><td class="p-3 pl-5"></td><td class="p-3 font-mono text-xs font-bold text-slate-900 dark:text-white">DELIVERABLE_RELEASE</td><td class="p-3">Assemble the bundle from current report, release, letters and invoice evidence.</td><td class="p-3">Release is recorded; report signature anchors the local freeze countdown.</td><td class="p-3"><button class="goto" data-goto="COMPLIANCE_COUNTDOWN">COMPLIANCE_COUNTDOWN</button></td></tr>
-                <tr data-state="COMPLIANCE_COUNTDOWN" data-phase="slate"><td class="p-3 pl-5"></td><td class="p-3 font-mono text-xs font-bold text-slate-900 dark:text-white">COMPLIANCE_COUNTDOWN</td><td class="p-3">Review archive readiness; eligible Partner may request an early lock.</td><td class="p-3">Due or approved early-lock path plus successful local freeze commit.</td><td class="p-3"><button class="goto" data-goto="ARCHIVED_READ_ONLY">ARCHIVED_READ_ONLY</button></td></tr>
-                <tr data-state="ARCHIVED_READ_ONLY" data-phase="slate" class="!bg-slate-50 dark:!bg-slate-800/40"><td class="p-3 pl-5"></td><td class="p-3 font-mono text-xs font-bold text-slate-900 dark:text-white">ARCHIVED_READ_ONLY</td><td class="p-3">Read under local authorization; use only an approved amendment path.</td><td class="p-3 text-emerald-700 dark:text-emerald-400 font-semibold">Local freeze is committed. Provider-level immutability is a separate external control.</td><td class="p-3 font-mono text-xs text-slate-400">Amendment workflow can return to countdown</td></tr>
+              <tbody id="state-table" class="divide-y divide-slate-100 text-slate-600 bg-white">
+                <tr data-state="LEAD_INGESTION" data-phase="amber">
+                  <td class="p-3 pl-5"></td>
+                  <td class="p-3 font-mono text-xs font-bold text-slate-900">LEAD_INGESTION</td>
+                  <td class="p-3">Log inquiry, capture company and contact data</td>
+                  <td class="p-3">Minimum entity and primary contact data validated</td>
+                  <td class="p-3"><button class="goto" data-goto="PROPOSAL_GENERATION">PROPOSAL_GENERATION</button></td>
+                </tr>
+                <tr data-state="PROPOSAL_GENERATION" data-phase="amber">
+                  <td class="p-3 pl-5"></td>
+                  <td class="p-3 font-mono text-xs font-bold text-slate-900">PROPOSAL_GENERATION</td>
+                  <td class="p-3">Build Brief Quote or Comprehensive Proposal, dispatch to client</td>
+                  <td class="p-3">Proposal dispatched via Email / WhatsApp</td>
+                  <td class="p-3"><button class="goto" data-goto="DUAL_KEY_PENDING">DUAL_KEY_PENDING</button></td>
+                </tr>
+                <tr data-state="DUAL_KEY_PENDING" data-phase="amber">
+                  <td class="p-3 pl-5"></td>
+                  <td class="p-3 font-mono text-xs font-bold text-slate-900">DUAL_KEY_PENDING</td>
+                  <td class="p-3">Complete Client Acceptance Checklist (AML/KYC), record client commercial approval</td>
+                  <td class="p-3">Dual-Key Clearance: Both Client Acceptance AND Partner AML Approval confirmed</td>
+                  <td class="p-3"><button class="goto" data-goto="ADVANCE_BILLING">ADVANCE_BILLING</button></td>
+                </tr>
+                <tr data-state="ADVANCE_BILLING" data-phase="amber">
+                  <td class="p-3 pl-5"></td>
+                  <td class="p-3 font-mono text-xs font-bold text-slate-900">ADVANCE_BILLING</td>
+                  <td class="p-3">Generate Engagement Letter &amp; 50% Advance Invoice</td>
+                  <td class="p-3">50% advance payment confirmed and recorded</td>
+                  <td class="p-3"><button class="goto"
+                      data-goto="PORTAL_ACTIVE_PLANNING">PORTAL_ACTIVE_PLANNING</button></td>
+                </tr>
+                <tr data-state="PORTAL_ACTIVE_PLANNING" data-phase="indigo">
+                  <td class="p-3 pl-5"></td>
+                  <td class="p-3 font-mono text-xs font-bold text-slate-900">PORTAL_ACTIVE_PLANNING</td>
+                  <td class="p-3">Provision Client Portal, schedule team, ingest Trial Balance, calculate materiality
+                  </td>
+                  <td class="p-3">Planning signed off by Partner, TB mapped to FSLIs</td>
+                  <td class="p-3"><button class="goto" data-goto="FIELDWORK_EXECUTION">FIELDWORK_EXECUTION</button></td>
+                </tr>
+                <tr data-state="FIELDWORK_EXECUTION" data-phase="rose">
+                  <td class="p-3 pl-5"></td>
+                  <td class="p-3 font-mono text-xs font-bold text-slate-900">FIELDWORK_EXECUTION</td>
+                  <td class="p-3">Execute workprograms, attach digital/physical evidence, log confirmation requests</td>
+                  <td class="p-3">All assigned FSLI procedures submitted by Preparers</td>
+                  <td class="p-3"><button class="goto" data-goto="MANAGERIAL_REVIEW">MANAGERIAL_REVIEW</button></td>
+                </tr>
+                <tr data-state="MANAGERIAL_REVIEW" data-phase="rose">
+                  <td class="p-3 pl-5"></td>
+                  <td class="p-3 font-mono text-xs font-bold text-slate-900">MANAGERIAL_REVIEW</td>
+                  <td class="p-3">Review workpapers, issue review notes/rework, compile SRM</td>
+                  <td class="p-3">Zero open review notes, SRM compiled, critical confirmations returned</td>
+                  <td class="p-3"><button class="goto" data-goto="PARTNER_APPROVAL">PARTNER_APPROVAL</button></td>
+                </tr>
+                <tr data-state="PARTNER_APPROVAL" data-phase="emerald">
+                  <td class="p-3 pl-5"></td>
+                  <td class="p-3 font-mono text-xs font-bold text-slate-900">PARTNER_APPROVAL</td>
+                  <td class="p-3">Partner inspects SRM, reviews Red-risk areas, selects Audit Opinion</td>
+                  <td class="p-3">Partner applies digital signature and firm seal</td>
+                  <td class="p-3"><button class="goto" data-goto="DELIVERABLE_RELEASE">DELIVERABLE_RELEASE</button></td>
+                </tr>
+                <tr data-state="DELIVERABLE_RELEASE" data-phase="emerald">
+                  <td class="p-3 pl-5"></td>
+                  <td class="p-3 font-mono text-xs font-bold text-slate-900">DELIVERABLE_RELEASE</td>
+                  <td class="p-3">Generate 5-part deliverables package, issue 50% balance invoice, freeze client
+                    portal uploads</td>
+                  <td class="p-3">Final package generated and delivered to client</td>
+                  <td class="p-3"><button class="goto" data-goto="COMPLIANCE_COUNTDOWN">COMPLIANCE_COUNTDOWN</button>
+                  </td>
+                </tr>
+                <tr data-state="COMPLIANCE_COUNTDOWN" data-phase="slate">
+                  <td class="p-3 pl-5"></td>
+                  <td class="p-3 font-mono text-xs font-bold text-slate-900">COMPLIANCE_COUNTDOWN</td>
+                  <td class="p-3">Review final archive; Partner may trigger early lock</td>
+                  <td class="p-3">60 calendar days elapsed since signature date OR manual lock triggered</td>
+                  <td class="p-3"><button class="goto" data-goto="ARCHIVED_READ_ONLY">ARCHIVED_READ_ONLY</button></td>
+                </tr>
+                <tr data-state="ARCHIVED_READ_ONLY" data-phase="slate">
+                  <td class="p-3 pl-5"></td>
+                  <td class="p-3 font-mono text-xs font-bold text-slate-900">ARCHIVED_READ_ONLY</td>
+                  <td class="p-3">Read-only viewing and regulator inspection export</td>
+                  <td class="p-3">File is permanently locked; modifications strictly disallowed</td>
+                  <td class="p-3"><span class="font-mono text-xs text-slate-600">Terminal State</span></td>
+                </tr>
               </tbody>
             </table>
           </div>
         </div>
+        <div class="info-card border-l-4 border-sky-500">
+          <h3 class="info-title">Lifecycle parity with the authoritative §5 state table</h3>
+          <p class="text-xs leading-relaxed">Exact allowed actions, advancement guards and next states are transcribed
+            from the uploaded requirements HTML, including the final <code>ARCHIVED_READ_ONLY</code> terminal state.
+            Reviewer rework is a workpaper status and can return tasks to fieldwork; it does not invent a twelfth
+            engagement state.</p>
+          <p class="text-[11px] text-slate-500 mt-2">Baseline reference: <a href="requirements(2).html#lifecycle"
+              class="text-sky-700 underline">lifecycle</a> · <a href="requirements(2).html#controls"
+              class="text-sky-700 underline">controls</a></p>
+        </div>
+
         <nav class="pager" aria-label="Previous and next view"></nav>
       </section>
 
-      <!-- TAB 8: Raw Mermaid Source Export -->
+      <!-- TAB 8: Requirements alignment and traceability -->
+      <section id="panel-traceability" role="tabpanel" aria-labelledby="tab-traceability" class="panel space-y-6"
+        hidden>
+        <p class="eyebrow">Baseline coverage · Source v2.1</p>
+        <h2 class="panel-title">Requirements-to-Architecture Traceability</h2>
+        <p class="panel-desc">Maps all 13 mandatory controls and 18 feature groups to the design views. These are design
+          links, not an assertion that implementation or automated acceptance tests already exist. External baseline
+          links work when both HTML files are stored together.</p>
+        <div class="card overflow-x-auto">
+          <table class="w-full min-w-[700px] text-left text-xs">
+            <thead class="bg-slate-50">
+              <tr>
+                <th class="p-3">Control</th>
+                <th class="p-3">Area</th>
+                <th class="p-3">Mandatory requirement</th>
+                <th class="p-3">Diagram</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr>
+                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#controls"
+                    class="text-sky-700 underline">C-01</a></td>
+                <td class="p-3">Onboarding</td>
+                <td class="p-3">Both independent keys active before Engagement Letter is generated</td>
+                <td class="p-3"><button class="goto text-sky-700 underline" type="button"
+                    data-goto-tab="onboarding">onboarding</button></td>
+              </tr>
+              <tr>
+                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#controls"
+                    class="text-sky-700 underline">C-02</a></td>
+                <td class="p-3">Advance payment</td>
+                <td class="p-3">50% paid and recorded before portal-active planning transition</td>
+                <td class="p-3"><button class="goto text-sky-700 underline" type="button"
+                    data-goto-tab="onboarding">onboarding</button></td>
+              </tr>
+              <tr>
+                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#controls"
+                    class="text-sky-700 underline">C-03</a></td>
+                <td class="p-3">Governance</td>
+                <td class="p-3">Partner acceptance before planning; Partner sign-off on materiality before fieldwork
+                </td>
+                <td class="p-3"><button class="goto text-sky-700 underline" type="button"
+                    data-goto-tab="materiality">materiality</button></td>
+              </tr>
+              <tr>
+                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#controls"
+                    class="text-sky-700 underline">C-04</a></td>
+                <td class="p-3">Planning</td>
+                <td class="p-3">Materiality benchmark rules and ±5% manager rounding limitation</td>
+                <td class="p-3"><button class="goto text-sky-700 underline" type="button"
+                    data-goto-tab="materiality">materiality</button></td>
+              </tr>
+              <tr>
+                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#controls"
+                    class="text-sky-700 underline">C-05</a></td>
+                <td class="p-3">Fieldwork</td>
+                <td class="p-3">Preparers submit all assigned FSLI tests before managerial review</td>
+                <td class="p-3"><button class="goto text-sky-700 underline" type="button"
+                    data-goto-tab="fieldwork">fieldwork</button></td>
+              </tr>
+              <tr>
+                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#controls"
+                    class="text-sky-700 underline">C-06</a></td>
+                <td class="p-3">Reviewer</td>
+                <td class="p-3">Mandatory rejection comments and Under Rework reassignment; zero open notes to
+                  advance</td>
+                <td class="p-3"><button class="goto text-sky-700 underline" type="button"
+                    data-goto-tab="fieldwork">fieldwork</button></td>
+              </tr>
+              <tr>
+                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#controls"
+                    class="text-sky-700 underline">C-07</a></td>
+                <td class="p-3">Confirmations</td>
+                <td class="p-3">Critical confirmations unreturned → report release blocked and Holding Letter
+                  generated</td>
+                <td class="p-3"><button class="goto text-sky-700 underline" type="button"
+                    data-goto-tab="fieldwork">fieldwork</button></td>
+              </tr>
+              <tr>
+                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#controls"
+                    class="text-sky-700 underline">C-08</a></td>
+                <td class="p-3">Partner</td>
+                <td class="p-3">Partner checks Red areas and SRM and signs final report</td>
+                <td class="p-3"><button class="goto text-sky-700 underline" type="button"
+                    data-goto-tab="opinion">opinion</button></td>
+              </tr>
+              <tr>
+                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#controls"
+                    class="text-sky-700 underline">C-09</a></td>
+                <td class="p-3">Modified opinion</td>
+                <td class="p-3">Qualified / Disclaimer / Adverse require affected FSLI and rationale</td>
+                <td class="p-3"><button class="goto text-sky-700 underline" type="button"
+                    data-goto-tab="opinion">opinion</button></td>
+              </tr>
+              <tr>
+                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#controls"
+                    class="text-sky-700 underline">C-10</a></td>
+                <td class="p-3">Deliverables</td>
+                <td class="p-3">All five named deliverables + final 50% fee note</td>
+                <td class="p-3"><button class="goto text-sky-700 underline" type="button"
+                    data-goto-tab="opinion">opinion</button></td>
+              </tr>
+              <tr>
+                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#controls"
+                    class="text-sky-700 underline">C-11</a></td>
+                <td class="p-3">Client portal</td>
+                <td class="p-3">Rejected upload requires reason; uploaded privileges freeze on final report release</td>
+                <td class="p-3"><button class="goto text-sky-700 underline" type="button"
+                    data-goto-tab="onboarding">onboarding</button></td>
+              </tr>
+              <tr>
+                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#controls"
+                    class="text-sky-700 underline">C-12</a></td>
+                <td class="p-3">Archive</td>
+                <td class="p-3">60-day countdown from Partner signature or manual lock → immutable read-only file</td>
+                <td class="p-3"><button class="goto text-sky-700 underline" type="button"
+                    data-goto-tab="opinion">opinion</button></td>
+              </tr>
+              <tr>
+                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#controls"
+                    class="text-sky-700 underline">C-13</a></td>
+                <td class="p-3">Practice</td>
+                <td class="p-3">Rates, time × rate, profitability and period cost reporting denominated in QAR</td>
+                <td class="p-3"><button class="goto text-sky-700 underline" type="button"
+                    data-goto-tab="practice">practice</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <h3 class="text-lg font-semibold">All 18 source functional groups</h3>
+        <div class="card overflow-x-auto">
+          <table class="w-full min-w-[600px] text-left text-xs">
+            <thead class="bg-slate-50">
+              <tr>
+                <th class="p-3">Group</th>
+                <th class="p-3">Business capability</th>
+                <th class="p-3">Design view</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr>
+                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#M1.01"
+                    class="text-sky-700 underline">M1.01</a></td>
+                <td class="p-3">Lead Capture &amp; Client Profiles 6 statements ⌄</td>
+                <td class="p-3"><button class="goto text-sky-700 underline" type="button"
+                    data-goto-tab="onboarding">View design</button></td>
+              </tr>
+              <tr>
+                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#M1.02"
+                    class="text-sky-700 underline">M1.02</a></td>
+                <td class="p-3">Commercial Proposal Engine 7 statements ⌄</td>
+                <td class="p-3"><button class="goto text-sky-700 underline" type="button"
+                    data-goto-tab="onboarding">View design</button></td>
+              </tr>
+              <tr>
+                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#M1.03"
+                    class="text-sky-700 underline">M1.03</a></td>
+                <td class="p-3">Dual-Key Onboarding Gatekeeper 3 statements ⌄</td>
+                <td class="p-3"><button class="goto text-sky-700 underline" type="button"
+                    data-goto-tab="onboarding">View design</button></td>
+              </tr>
+              <tr>
+                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#M1.04"
+                    class="text-sky-700 underline">M1.04</a></td>
+                <td class="p-3">Engagement Letter Generation (ISA
+                  210) 5 statements ⌄</td>
+                <td class="p-3"><button class="goto text-sky-700 underline" type="button"
+                    data-goto-tab="onboarding">View design</button></td>
+              </tr>
+              <tr>
+                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#M1.05"
+                    class="text-sky-700 underline">M1.05</a></td>
+                <td class="p-3">Advance Invoicing, Receipting &amp; Portal
+                  Onboarding 10 statements ⌄</td>
+                <td class="p-3"><button class="goto text-sky-700 underline" type="button"
+                    data-goto-tab="onboarding">View design</button></td>
+              </tr>
+              <tr>
+                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#M2.01"
+                    class="text-sky-700 underline">M2.01</a></td>
+                <td class="p-3">Dual-Track Acceptance &amp; Continuance Risk
+                  Gatekeeper 5 statements ⌄</td>
+                <td class="p-3"><button class="goto text-sky-700 underline" type="button"
+                    data-goto-tab="materiality">View design</button></td>
+              </tr>
+              <tr>
+                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#M2.02"
+                    class="text-sky-700 underline">M2.02</a></td>
+                <td class="p-3">Resource Allocation &amp; Scheduling 3 statements ⌄</td>
+                <td class="p-3"><button class="goto text-sky-700 underline" type="button"
+                    data-goto-tab="materiality">View design</button></td>
+              </tr>
+              <tr>
+                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#M2.03"
+                    class="text-sky-700 underline">M2.03</a></td>
+                <td class="p-3">Directory Provisioning 6 statements ⌄</td>
+                <td class="p-3"><button class="goto text-sky-700 underline" type="button"
+                    data-goto-tab="materiality">View design</button></td>
+              </tr>
+              <tr>
+                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#M2.04"
+                    class="text-sky-700 underline">M2.04</a></td>
+                <td class="p-3">3-Tier Materiality Calculation Engine 14 statements ⌄</td>
+                <td class="p-3"><button class="goto text-sky-700 underline" type="button"
+                    data-goto-tab="materiality">View design</button></td>
+              </tr>
+              <tr>
+                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#M3.01"
+                    class="text-sky-700 underline">M3.01</a></td>
+                <td class="p-3">Trial Balance Ingestion &amp; Split
+                  Dashboard 9 statements ⌄</td>
+                <td class="p-3"><button class="goto text-sky-700 underline" type="button" data-goto-tab="fieldwork">View
+                    design</button></td>
+              </tr>
+              <tr>
+                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#M3.02"
+                    class="text-sky-700 underline">M3.02</a></td>
+                <td class="p-3">Workprogram Execution &amp; Evidence
+                  Cross-Referencing 7 statements ⌄</td>
+                <td class="p-3"><button class="goto text-sky-700 underline" type="button" data-goto-tab="fieldwork">View
+                    design</button></td>
+              </tr>
+              <tr>
+                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#M3.03"
+                    class="text-sky-700 underline">M3.03</a></td>
+                <td class="p-3">Three-Tier Review Matrix &amp; Workflow
+                  Governance 8 statements ⌄</td>
+                <td class="p-3"><button class="goto text-sky-700 underline" type="button" data-goto-tab="fieldwork">View
+                    design</button></td>
+              </tr>
+              <tr>
+                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#M3.04"
+                    class="text-sky-700 underline">M3.04</a></td>
+                <td class="p-3">Third-Party Confirmations Dashboard 2 statements ⌄</td>
+                <td class="p-3"><button class="goto text-sky-700 underline" type="button" data-goto-tab="fieldwork">View
+                    design</button></td>
+              </tr>
+              <tr>
+                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#M4.01"
+                    class="text-sky-700 underline">M4.01</a></td>
+                <td class="p-3">Audit Opinion Selection Engine (ISA 700 /
+                  705) 7 statements ⌄</td>
+                <td class="p-3"><button class="goto text-sky-700 underline" type="button" data-goto-tab="opinion">View
+                    design</button></td>
+              </tr>
+              <tr>
+                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#M4.02"
+                    class="text-sky-700 underline">M4.02</a></td>
+                <td class="p-3">Mandatory 5-Part Commercial Deliverables
+                  Bundle 6 statements ⌄</td>
+                <td class="p-3"><button class="goto text-sky-700 underline" type="button" data-goto-tab="opinion">View
+                    design</button></td>
+              </tr>
+              <tr>
+                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#M4.03"
+                    class="text-sky-700 underline">M4.03</a></td>
+                <td class="p-3">Regulatory File Lock (ISA 230) 3 statements ⌄</td>
+                <td class="p-3"><button class="goto text-sky-700 underline" type="button" data-goto-tab="opinion">View
+                    design</button></td>
+              </tr>
+              <tr>
+                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#M5.01"
+                    class="text-sky-700 underline">M5.01</a></td>
+                <td class="p-3">Real-Time Profitability &amp; Utilization
+                  Analytics 8 statements ⌄</td>
+                <td class="p-3"><button class="goto text-sky-700 underline" type="button" data-goto-tab="practice">View
+                    design</button></td>
+              </tr>
+              <tr>
+                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#M5.02"
+                    class="text-sky-700 underline">M5.02</a></td>
+                <td class="p-3">Practice Ledger &amp; Internal
+                  Bookkeeping 6 statements ⌄</td>
+                <td class="p-3"><button class="goto text-sky-700 underline" type="button" data-goto-tab="practice">View
+                    design</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="info-card border-l-4 border-amber-500">
+          <h3 class="info-title">Not silently decided by this architecture</h3>Exactly-TE / exactly-PM equality, retry
+          rules after integration failures, digital signature and proof of permanence, retention, detailed sampling
+          parameters, token expiry, cancellations and reopened engagements are open. Full client GL, group
+          consolidation, intercompany elimination, currency translation and period restatement are unapproved
+          extensions.
+        </div>
+        <nav class="pager" aria-label="Previous and next view"></nav>
+      </section>
+
+      <!-- TAB 9: Raw Mermaid Source Export -->
       <section id="panel-raw" role="tabpanel" aria-labelledby="tab-raw" class="panel space-y-6" hidden>
         <div>
           <p class="eyebrow">Export</p>
           <h2 class="panel-title">Mermaid.js Source Code Export</h2>
-          <p class="panel-desc">Copy syntax directly into Notion, GitHub, Obsidian, or Mermaid Live Editor. Sources are taken from the exact diagrams rendered above.</p>
+          <p class="panel-desc">Copy syntax directly into Notion, GitHub, Obsidian, or Mermaid Live Editor. Sources are
+            taken from the exact diagrams rendered above.</p>
         </div>
 
         <div class="card overflow-hidden">
-          <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 p-4 border-b border-slate-200 dark:border-slate-800">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 p-4 border-b border-slate-200">
             <div class="flex flex-col sm:flex-row sm:items-center gap-2 min-w-0">
-              <label for="code-selector" class="text-xs font-semibold text-slate-600 dark:text-slate-300 shrink-0">Diagram source</label>
-              <select id="code-selector" class="w-full sm:w-80 text-sm h-9 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"></select>
+              <label for="code-selector" class="text-xs font-semibold text-slate-600 shrink-0">Diagram source</label>
+              <select id="code-selector"
+                class="w-full sm:w-80 text-sm h-9 px-3 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"></select>
               <span id="code-meta" class="text-xs text-slate-400 font-mono"></span>
             </div>
             <div class="flex flex-wrap gap-2">
               <button id="btn-copy-src" type="button" class="primary-btn">
-                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
                 Copy Active Diagram
               </button>
               <button id="btn-download-src" type="button" class="ghost-btn">
-                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <path d="m7 10 5 5 5-5" />
+                  <path d="M12 15V3" />
+                </svg>
                 .mmd
               </button>
               <a id="btn-live" target="_blank" rel="noopener" class="ghost-btn" href="#">
-                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/></svg>
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                  <path d="M15 3h6v6" />
+                  <path d="M10 14 21 3" />
+                </svg>
                 Open in Mermaid Live
               </a>
             </div>
           </div>
-          <pre id="code-display" class="code bg-slate-950 text-slate-200 py-4 text-[12.5px] font-mono overflow-auto max-h-[600px] leading-relaxed custom-scrollbar"></pre>
+          <pre id="code-display"
+            class="code bg-slate-50 text-slate-800 border-t border-slate-200 py-4 text-[12.5px] font-mono overflow-auto max-h-[600px] leading-relaxed custom-scrollbar"></pre>
         </div>
         <nav class="pager" aria-label="Previous and next view"></nav>
       </section>
@@ -715,8 +1776,11 @@ stateDiagram-v2
 
   <!-- Toast -->
   <div id="toast" role="status" aria-live="polite" data-show="false"
-       class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-sm font-medium shadow-2xl ring-1 ring-white/10">
-    <svg class="w-4 h-4 text-emerald-400 dark:text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+    class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-medium shadow-2xl ring-1 ring-white/10">
+    <svg class="w-4 h-4 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+      stroke-linecap="round" stroke-linejoin="round">
+      <path d="M20 6 9 17l-5-5" />
+    </svg>
     <span id="toast-text"></span>
   </div>
 
@@ -810,13 +1874,13 @@ stateDiagram-v2
 
       build() {
         this.fig.insertAdjacentHTML('beforeend', `
-          <div class="viewer-toolbar flex items-center justify-between gap-2 px-3 py-2 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80">
+          <div class="viewer-toolbar flex items-center justify-between gap-2 px-3 py-2 border-b border-slate-200 bg-white/80">
             <span class="hidden sm:inline-flex items-center gap-1.5 text-[11px] text-slate-400">${icon('move')} Drag to pan · ⌘/Ctrl + scroll or double-click to zoom</span>
             <div class="flex items-center gap-0.5 ml-auto" role="toolbar" aria-label="Diagram controls">
               <button type="button" class="tb-btn" data-act="out" title="Zoom out (−)" aria-label="Zoom out">${icon('minus')}</button>
               <span class="zoom-level w-12 text-center text-xs font-mono tabular-nums text-slate-500" aria-live="polite">100%</span>
               <button type="button" class="tb-btn" data-act="in" title="Zoom in (+)" aria-label="Zoom in">${icon('plus')}</button>
-              <span class="w-px h-5 bg-slate-200 dark:bg-slate-700 mx-1"></span>
+              <span class="w-px h-5 bg-slate-200 mx-1"></span>
               <button type="button" class="tb-btn" data-act="fit" title="Fit to view (0)">${icon('fit')}<span class="hidden md:inline">Fit</span></button>
               <button type="button" class="tb-btn" data-act="copy" title="Copy Mermaid source">${icon('copy')}<span class="hidden md:inline">Copy</span></button>
               <button type="button" class="tb-btn" data-act="svg" title="Download SVG">${icon('download')}<span class="hidden md:inline">SVG</span></button>
@@ -1019,9 +2083,9 @@ stateDiagram-v2
       const i = keys.indexOf(key);
       const prev = keys[i - 1], next = keys[i + 1];
       const link = (k, dir) => k ? `
-        <button type="button" data-goto-tab="${k}" class="group flex-1 flex flex-col ${dir === 'next' ? 'items-end text-right' : 'items-start'} gap-0.5 p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-sky-300 dark:hover:border-sky-500/50 hover:shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500">
+        <button type="button" data-goto-tab="${k}" class="group flex-1 flex flex-col ${dir === 'next' ? 'items-end text-right' : 'items-start'} gap-0.5 p-4 rounded-xl border border-slate-200 bg-white hover:border-sky-300 hover:shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500">
           <span class="text-[11px] uppercase tracking-wider font-semibold text-slate-400">${dir === 'next' ? 'Next' : 'Previous'}</span>
-          <span class="text-sm font-semibold text-slate-800 dark:text-slate-100 group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors">${dir === 'next' ? '' : '← '}${labels[k]}${dir === 'next' ? ' →' : ''}</span>
+          <span class="text-sm font-semibold text-slate-800 group-hover:text-sky-600 transition-colors">${dir === 'next' ? '' : '← '}${labels[k]}${dir === 'next' ? ' →' : ''}</span>
         </button>` : '<span class="flex-1 hidden sm:block"></span>';
       nav.className = 'pager flex flex-col sm:flex-row gap-3 pt-2';
       nav.innerHTML = link(prev, 'prev') + link(next, 'next');
@@ -1037,11 +2101,11 @@ stateDiagram-v2
     const phaseColor = { amber: 'bg-amber-400', indigo: 'bg-indigo-500', rose: 'bg-rose-500', emerald: 'bg-emerald-500', slate: 'bg-slate-500' };
     $$('#state-table tr').forEach((tr, i) => {
       tr.id = 'state-' + tr.dataset.state;
-      tr.classList.add('hover:bg-slate-50', 'dark:hover:bg-slate-800/40', 'transition-colors');
+      tr.classList.add('hover:bg-slate-50', 'transition-colors');
       tr.cells[0].innerHTML = `<span class="inline-flex items-center gap-2"><span class="w-1 h-6 rounded-full ${phaseColor[tr.dataset.phase]}"></span><span class="text-xs font-mono text-slate-400 tabular-nums">${String(i + 1).padStart(2, '0')}</span></span>`;
     });
     $$('#state-table .goto').forEach(b => {
-      b.className = 'goto inline-flex items-center gap-1 font-mono text-xs font-semibold text-sky-700 dark:text-sky-400 hover:text-sky-900 dark:hover:text-sky-300 hover:underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 rounded';
+      b.className = 'goto inline-flex items-center gap-1 font-mono text-xs font-semibold text-sky-700 hover:text-sky-900 hover:underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 rounded';
       b.insertAdjacentHTML('afterbegin', '<span aria-hidden="true">→</span>');
       b.addEventListener('click', () => {
         const row = document.getElementById('state-' + b.dataset.goto);
@@ -1058,7 +2122,7 @@ stateDiagram-v2
 
     function highlight(line) {
       if (/^\s*%%/.test(line)) return `<span class="tok-cmt">${escapeHtml(line)}</span>`;
-      const re = /("(?:[^"\\]|\\.)*")|\b(flowchart|stateDiagram-v2|subgraph|end|style|direction|TD|LR)\b|(==>|-->|-\.->|\.->|---|==|--|-\.|\[\*\])/g;
+      const re = /("(?:[^"\\]|\\.)*")|\b(flowchart|stateDiagram-v2|subgraph|end|style|direction|TD|LR)\b|(==>|--> | -\.->|\.->| ---|==| --| -\.|\[\*\])/g;
       let out = '', last = 0, m;
       while ((m = re.exec(line))) {
         out += escapeHtml(line.slice(last, m.index));
@@ -1090,13 +2154,7 @@ stateDiagram-v2
     $('#btn-copy-src').addEventListener('click', async () => { await copyText(currentSource().src); toast('Mermaid syntax copied to clipboard'); });
     $('#btn-download-src').addEventListener('click', () => { const s = currentSource(); download(`ste-${s.key}.mmd`, s.src, 'text/plain'); toast('Source downloaded'); });
 
-    /* ---------- Theme, print, global shortcuts ---------- */
-    function toggleTheme() {
-      const dark = document.documentElement.classList.toggle('dark');
-      try { localStorage.setItem('ste-theme', dark ? 'dark' : 'light'); } catch {}
-    }
-    $('#btn-theme').addEventListener('click', toggleTheme);
-
+    /* ---------- Print & global shortcuts ---------- */
     $('#btn-print').addEventListener('click', async () => {
       toast('Preparing diagrams for print…');
       await Promise.all([...viewers.values()].map(v => v.render()));
@@ -1106,13 +2164,13 @@ stateDiagram-v2
     document.addEventListener('keydown', (e) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.target.closest('input, textarea, select, [contenteditable], .viewer-canvas')) return;
-      if (/^[1-8]$/.test(e.key)) { activate(keys[+e.key - 1], { focus: false }); return; }
+      if (/^[1-9]$/.test(e.key)) { activate(keys[+e.key - 1], { focus: false }); return; }
       if (e.key === 'f' || e.key === 'F') viewers.get(activeKey)?.toggleFullscreen();
-      if (e.key === 't' || e.key === 'T') toggleTheme();
     });
 
     /* ---------- Boot ---------- */
     activate(location.hash.slice(1) || 'modules');
   </script>
 </body>
+
 </html>
