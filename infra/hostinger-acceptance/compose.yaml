@@ -96,7 +96,7 @@ services:
       - acceptance
 
   worker-processing:
-    image: auditsphere-worker:${RELEASE_TAG:?Set RELEASE_TAG in .env}
+    image: ghcr.io/nirzaf/auditsphere-acceptance-worker:${RELEASE_TAG:?Set RELEASE_TAG in .env}
     restart: unless-stopped
     init: true
     environment:
@@ -112,7 +112,7 @@ services:
       - acceptance
 
   worker-records:
-    image: auditsphere-worker:${RELEASE_TAG:?Set RELEASE_TAG in .env}
+    image: ghcr.io/nirzaf/auditsphere-acceptance-worker:${RELEASE_TAG:?Set RELEASE_TAG in .env}
     restart: unless-stopped
     init: true
     environment:
