@@ -8,6 +8,7 @@ ARG DOTNET_ROLL_FORWARD=Major
 ENV DOTNET_ROLL_FORWARD=$DOTNET_ROLL_FORWARD
 WORKDIR /repo
 COPY global.json Directory.Build.props Directory.Packages.props AuditSphereOps.slnx ./
+COPY docs/task_breakdown/tracking/pack_manifest.json docs/task_breakdown/tracking/pack_manifest.json
 COPY src/ src/
 RUN dotnet tool install --global dotnet-ef --version 10.0.12 \
   && export PATH="$PATH:/root/.dotnet/tools" \

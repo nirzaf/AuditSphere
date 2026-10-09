@@ -7,6 +7,13 @@
 src/AuditSphereOps.Ui/dist/
 tests/
 docs/
+!docs/
+docs/*
+!docs/task_breakdown/
+docs/task_breakdown/*
+!docs/task_breakdown/tracking/
+docs/task_breakdown/tracking/*
+!docs/task_breakdown/tracking/pack_manifest.json
 infra/
 contracts/
 scripts/

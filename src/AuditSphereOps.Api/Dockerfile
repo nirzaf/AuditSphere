@@ -21,6 +21,7 @@ COPY src/AuditSphereOps.Application/AuditSphereOps.Application.csproj src/AuditS
 COPY src/AuditSphereOps.Infrastructure/AuditSphereOps.Infrastructure.csproj src/AuditSphereOps.Infrastructure/
 COPY src/AuditSphereOps.Api/AuditSphereOps.Api.csproj src/AuditSphereOps.Api/
 RUN dotnet restore src/AuditSphereOps.Api/AuditSphereOps.Api.csproj --locked-mode
+COPY docs/task_breakdown/tracking/pack_manifest.json docs/task_breakdown/tracking/pack_manifest.json
 COPY src/ src/
 # The Angular asset set is copied from the ui stage; publishing is backend-only here.
 RUN dotnet publish src/AuditSphereOps.Api/AuditSphereOps.Api.csproj \
