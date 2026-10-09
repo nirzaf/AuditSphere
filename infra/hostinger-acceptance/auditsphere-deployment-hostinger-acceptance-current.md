@@ -86,6 +86,9 @@ Run `fallocate` after `mkfs.ext4`; formatting the image can discard preallocated
 - Keep `ExternalEffects__Enabled=false`, `DevelopmentIdentity__Enabled=false`, and
   `AllowSimulationAdapters=false`. Do not add production client data, approved release data or
   external-effect credentials to this environment.
+- Set both `ASPNETCORE_ENVIRONMENT=Acceptance` and `DOTNET_ENVIRONMENT=Acceptance` for worker
+  containers. The API uses the ASP.NET Core host; the Worker uses the Generic Host, which reads
+  `DOTNET_ENVIRONMENT`.
 - Persistent Compose volumes are `auditsphere-acceptance_postgres_data`,
   `auditsphere-acceptance_data_protection`, `auditsphere-acceptance_pbc_staging`, and
   `auditsphere-acceptance_release_checkpoints`, backed by the 30 GB filesystem under

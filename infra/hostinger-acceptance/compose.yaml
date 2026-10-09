@@ -79,6 +79,7 @@ services:
     init: true
     environment: &worker_environment
       ASPNETCORE_ENVIRONMENT: Acceptance
+      DOTNET_ENVIRONMENT: Acceptance
       ConnectionStrings__AuditSphere: "Host=db;Port=5432;Database=auditsphere;Username=auditsphere;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}"
       Worker__FirmId: ${FIRM_ID:?Set FIRM_ID in .env}
       Worker__DeploymentEpoch: ${DEPLOYMENT_EPOCH:-1}
