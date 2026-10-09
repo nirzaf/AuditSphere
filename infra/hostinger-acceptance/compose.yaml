@@ -137,9 +137,29 @@ services:
 
 volumes:
   postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/auditsphere/storage/postgres
   data_protection:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/auditsphere/storage/data-protection
   pbc_staging:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/auditsphere/storage/pbc-staging
   release_checkpoints:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/auditsphere/storage/release-checkpoints
 
 networks:
   acceptance:

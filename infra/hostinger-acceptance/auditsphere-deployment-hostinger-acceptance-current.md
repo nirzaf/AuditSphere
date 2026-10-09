@@ -22,6 +22,30 @@ operator must first install Git and Docker Compose if unavailable, create `/opt/
 owner-only access, and check out the approved source revision there. Do not run OS upgrades or
 restart the VPS as part of this deployment.
 
+The acceptance deployment has one 30 GB ext4 filesystem mounted at `/opt/auditsphere/storage`.
+Its PostgreSQL, data-protection, PBC staging and release-checkpoint bind volumes all live there.
+The filesystem is backed by `/opt/auditsphere/auditsphere-acceptance-storage.img`, so the data
+area has a hard 30 GB capacity while retaining the VPS's existing root filesystem and Docker
+data layout. The image file is preallocated to reserve the requested host capacity.
+
+Create and mount the storage filesystem once, before starting Compose:
+
+```bash
+sudo install -d -m 0700 /opt/auditsphere/storage
+sudo fallocate -l 30G /opt/auditsphere/auditsphere-acceptance-storage.img
+sudo chmod 0600 /opt/auditsphere/auditsphere-acceptance-storage.img
+sudo mkfs.ext4 -F /opt/auditsphere/auditsphere-acceptance-storage.img
+sudo mount -o loop /opt/auditsphere/auditsphere-acceptance-storage.img /opt/auditsphere/storage
+sudo install -d -m 0700 /opt/auditsphere/storage/{postgres,data-protection,pbc-staging,release-checkpoints}
+```
+
+Persist the mount across restarts by adding this exact line to `/etc/fstab`, then verify it with
+`findmnt /opt/auditsphere/storage` and `df -h /opt/auditsphere/storage`:
+
+```text
+/opt/auditsphere/auditsphere-acceptance-storage.img /opt/auditsphere/storage ext4 loop,defaults,nofail 0 2
+```
+
 1. Create `.env` with `umask 077` and mode `0600`. Set `RELEASE_TAG` to the full source commit,
    a generated `POSTGRES_PASSWORD`, `FIRM_ID`, `INSTALLATION_ID`, `BOOTSTRAP_PROOF_HASH`,
    `IDENTITY_TENANT_ID`, `IDENTITY_CLIENT_ID`, `IDENTITY_CLIENT_SECRET`,
@@ -53,9 +77,11 @@ restart the VPS as part of this deployment.
 - Keep `ExternalEffects__Enabled=false`, `DevelopmentIdentity__Enabled=false`, and
   `AllowSimulationAdapters=false`. Do not add production client data, approved release data or
   external-effect credentials to this environment.
-- Persistent volumes are `auditsphere-acceptance_postgres_data`,
+- Persistent Compose volumes are `auditsphere-acceptance_postgres_data`,
   `auditsphere-acceptance_data_protection`, `auditsphere-acceptance_pbc_staging`, and
-  `auditsphere-acceptance_release_checkpoints`. Back them up before upgrades and retain the exact
-  image tag for rollback.
+  `auditsphere-acceptance_release_checkpoints`, backed by the 30 GB filesystem under
+  `/opt/auditsphere/storage`. Back up that filesystem before upgrades and retain the exact image
+  tag for rollback. Keep at least 30 GB free on the root filesystem before creating the preallocated
+  image file.
 - This VPS has existing services. Do not alter their containers, databases, ports, Caddy routes,
   firewall rules or host packages as part of this app deployment.
