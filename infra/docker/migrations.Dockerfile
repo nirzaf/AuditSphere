@@ -16,7 +16,7 @@ RUN dotnet tool install --global dotnet-ef --version 10.0.12 \
   && dotnet build src/AuditSphereOps.Api/AuditSphereOps.Api.csproj \
     --configuration Release --no-restore -m:1 -p:BuildInParallel=false \
     -p:UseSharedCompilation=false -p:PublishAngularUi=false \
-  && dotnet ef migrations bundle --self-contained --no-build -r linux-x64 \
+  && dotnet ef migrations bundle --configuration Release --self-contained --no-build -r linux-x64 \
     --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Api \
     -o /out/efbundle
 
