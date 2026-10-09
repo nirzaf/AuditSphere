@@ -139,14 +139,14 @@ public static partial class UiEndpoints
       return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
     });
     group.MapPost("/engagements/{id:guid}/activate", async (Guid id, HttpContext http, TrustedActorResolver resolver,
-      IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory, EngagementActivationOptions activation) =>
+      IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
       var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
       if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       try { await csrf.ValidateRequestAsync(http); }
       catch (AntiforgeryValidationException) { return Results.Json(new { code = "csrf.invalid" }, statusCode: 403); }
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
-      var result = await EngagementLifecycleService.ActivateAsync(db, actor, id, http.RequestAborted, options: activation);
+      var result = await EngagementLifecycleService.ActivateAsync(db, actor, id, http.RequestAborted);
       return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
     });
     group.MapPost("/engagements/{id:guid}/budgets", async (Guid id, BudgetInput input, HttpContext http,

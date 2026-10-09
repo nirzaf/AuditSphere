@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "sourceCommit": "8a9ff4fabb3a7ce3756a50d14a51af5f518e70bb",
+  "sourceCommit": "0fff9c788c3d07d3d657436ae54e1fd50a55c06a",
   "coverage": "Source discovery only; dynamic actions, scope and parity tests require manual review.",
   "items": [
     {
@@ -57,7 +57,7 @@
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Acceptance/EngagementActivationPanel.razor",
-      "sourceSha256": "f4d3db0a519abd1f3d5bbc4fc86e31c8081d472f1bc4698821610e9661f91472",
+      "sourceSha256": "bb9e2db0ac4ab10da2a12bd45dddd2f722ae16e17aa685023b15c6902179a40d",
       "routes": [],
       "actions": [
         "ActivateAsync"
@@ -70,10 +70,6 @@
         [
           "IDbContextFactory<AuditSphereDbContext>",
           "DbFactory"
-        ],
-        [
-          "EngagementActivationOptions",
-          "ActivationOptions"
         ]
       ],
       "links": [
@@ -783,7 +779,7 @@
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Completion/FileRecordsPanel.razor",
-      "sourceSha256": "6800cc22ec58491bc86172ac377fbcecb52925daca302d9affdf678b5b01b7c0",
+      "sourceSha256": "bd208e0b93659e03ab1a7a99d8391c2ffcff39b1ea4109699360c03162ecb717",
       "routes": [],
       "actions": [
         "@(() => ApproveAsync(a.Id))",

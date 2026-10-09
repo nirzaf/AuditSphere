@@ -10,14 +10,14 @@ The definitions below are copied verbatim from the owner's STE v2.1 gap analysis
 | --- | --- | --- | --- | --- | --- |
 | STE-GAP-001 | Versioned service-specific engagement letter templates | P1 | 4.1.4 (both rows) | Closed locally: templates by route, unsupported routes fail closed | Letter generation per route not executed |
 | STE-GAP-002 | 50 % advance invoice automation | P1 | 4.1.5 (ADR-0007, preparation state) | Closed locally: nine-state preparation display (STE-NXT-006), PAID-advance activation gate (ADR-0012), host `AutomaticFeeInvoices` alignment pinned by `FeeAgreementConfigurationTests` | Preparation states not executed in a browser with a linked agreement |
-| STE-GAP-003 | Controlled ±5 % practical materiality rounding | P0 | 4.2.4 (rounding) | Closed locally: rounding form and server flag (STE-NXT-004) | Runtime check of the form; rejection branch N06 |
+| STE-GAP-003 | Controlled ±5 % practical materiality rounding | P0 | 4.2.4 (rounding) | Closed locally: rounding form, server flag and exact decimal bounds (STE-NXT-004) | Runtime browser check of the form; N06 has a PostgreSQL-backed Domain test and manifest evidence |
 | STE-GAP-004 | Live client portal provisioning and credential acceptance | P1 | 4.1.5 (sign-in), 4.2.3 (folders) | BLOCKED_EXTERNAL: local orchestration only | Real tenant evidence (story section "External acceptance evidence") |
-| STE-GAP-005 | Automatic holding letter dispatch | P1 | 4.3.4 | Closed locally: one dispatch per blocker set; a blocked or dead-lettered mail operation is reported as FAILED with the operations-screen recovery route, and re-dispatch is honest about the no-op (`AuditDeliverablesTests`) | Re-arming is the guarded operations recovery; not executed end to end against a live mail provider |
-| STE-GAP-006 | Partner early compliance lock | P0 | 4.4.3 (early lock) | Closed locally: panel and API (STE-NXT-005) | Refusal branches not executed |
+| STE-GAP-005 | Automatic holding letter dispatch | P1 | 4.3.4 | Closed locally: one dispatch per blocker set; a blocked or dead-lettered mail operation is reported as FAILED with the operations-screen recovery route, and re-dispatch is honest about the no-op; a superseded letter is refused at dispatch and reissued (`AuditDeliverablesTests`) | Re-arming is the guarded operations recovery; not executed end to end against a live mail provider |
+| STE-GAP-006 | Partner early compliance lock | P0 | 4.4.3 (early lock) | Closed locally: panel and API (STE-NXT-005) | PostgreSQL-backed test executes refusal branches; the separate frozen-file Playwright journey now verifies supplementary-record decisions cannot reopen the archive. A scheduled-freeze early-lock UI journey remains |
 | STE-GAP-007 | Provider-enforced read-only compliance archive | P0 | 4.4.3 (permanent archive) | BLOCKED_EXTERNAL: no provider protection implemented | Approved design (SPK-01 and ADR-0009 draft); real-tenant tests |
-| STE-GAP-008 | Canonical eleven-stage lifecycle truthfulness | P0 | 5 (lifecycle) | Partly closed: derived projection, countdown anchor, archive only when FROZEN | Section F provider-protection state model; Stage 3 on proposal dispatch not verified |
-| STE-GAP-009 | Approved STE default charge-out policy | P2 | 4.5.1 (rates, rate cards) | Closed locally: baseline drafts, rate-card page (STE-NXT-003) | Approval by a second person not executed at runtime |
-| STE-GAP-010 | End-to-end acceptance journey | P0 | No verification row | The manifest generator now has an evidence model: a step is PASS only when every cited test is declared in the current source and its suite has a recorded zero-failure run. 21 of 62 checks PASS (domain-backed lifecycle, materiality, review, reporting and archive steps); overall result stays FAIL | 36 checks still have no mapped executed evidence (browser and external steps); the E2E run recorded 15 failures, so no browser step can pass until that run is clean |
+| STE-GAP-008 | Canonical eleven-stage lifecycle truthfulness | P0 | 5 (lifecycle) | Partly closed: derived projection, Stage 3 requires a dispatched proposal, separate local/provider archive states, countdown anchor, and archive only when FROZEN | Lifecycle browser journey remains; provider enforcement stays BLOCKED_EXTERNAL under STE-GAP-007 |
+| STE-GAP-009 | Approved STE default charge-out policy | P2 | 4.5.1 (rates, rate cards) | Closed locally: QAR baseline drafts, second-person approval, role aliases and fail-closed missing rate (STE-NXT-003) | Browser check of second-person approval and rate resolution against a time entry remains |
+| STE-GAP-010 | End-to-end acceptance journey | P0 | No verification row | The manifest generator now requires every cited test and the source/test trees to match the recorded zero-failure suite-run snapshot. The latest recorded runs are stale against the current tree, so no local check currently qualifies as PASS; overall result stays FAIL | Current-tree suite runs are required before local evidence can pass; live tenant checks remain BLOCKED_EXTERNAL |
 
 ## Gap index (verbatim from the analysis)
 
@@ -441,7 +441,7 @@ The reviewed path does not itself prove automatic dispatch to the configured cli
 - [ ] Queueing is not displayed as delivered.
 - [ ] Provider failure is visible and retryable.
 - [ ] Idempotent retry cannot generate/send duplicates.
-- [ ] A change in the critical confirmation set creates a new letter revision/digest.
+- [x] A change in the critical confirmation set creates a new letter revision/digest. (`HoldingLetterSupersededByChangedOutstandingSetIsRefusedAtDispatchUntilReissued`: superseded letter refused at dispatch with `GenerationStale`; regenerated letter is current)
 - [ ] Once all critical confirmations are returned and independently evaluated, the blocker clears.
 - [ ] The historical Holding Letter and dispatch evidence remain in the correspondence audit trail.
 
@@ -476,9 +476,9 @@ so that a file that is fully assembled can enter the read-only archive immediate
 - has a durable due-file worker;
 - blocks writes after local freeze;
 - records refused write attempts;
-- supports controlled post-freeze amendment windows.
+- records a separate post-freeze supplementary-record request and independent Partner decision; approval does not reopen the original archive or unblock professional work.
 
-No explicit Partner early/manual lock command was found in the reviewed current source.
+The local `FROZEN` state is terminal. Direct SharePoint immutability remains external and unverified; an approved supplement request is a separate traceable record and does not prove a provider-side archive copy exists.
 
 ## Required command
 
@@ -504,7 +504,7 @@ Early lock must fail unless:
 - final deliverables/bundle release is complete;
 - client upload is already frozen;
 - final archive readiness checks pass;
-- no incompatible amendment window is open;
+- the original archive remains terminal and read-only even when a supplementary-record request is pending or approved;
 - actor is an authorized Engagement Partner;
 - expected revision/currentness checks pass.
 
@@ -520,7 +520,7 @@ Early lock must fail unless:
 - [ ] The lifecycle projection changes to `ARCHIVED_READ_ONLY` only after actual freeze success.
 - [ ] Early lock creates an immutable event recording actor, timestamp, reason and source archive digest.
 - [ ] Provider read-only enforcement is invoked through STE-GAP-007 and its status is separately visible.
-- [ ] Existing controlled amendment workflow remains available according to governance policy.
+- [x] Supplementary-record requests and independent Partner decisions are recorded separately; approval and closure never change the original `FROZEN` state or clear `ProfessionalWorkBlocked` (`FileFreezesSixtyDaysAfterSigning_RefusesWrites_AmendsWithApproval_AndTracesActivity`).
 
 ## UI
 
@@ -593,7 +593,7 @@ Do not claim immutability solely because AuditSphere refuses writes.
 - [ ] Cross-client access remains denied.
 - [ ] A failed/unknown provider result remains `BLOCKED_EXTERNAL` or an equivalent non-compliant state.
 - [ ] The UI does not label provider protection "Complete" until verification succeeds.
-- [ ] Controlled amendment policy is explicitly reconciled with provider protection; reopening must not silently make protected historical bytes mutable.
+- [x] Controlled amendment policy is reconciled: Partner approval creates a separate supplementary-record decision and never reopens the original frozen archive; provider-enforced protection and direct provider-write tests remain `BLOCKED_EXTERNAL` under STE-GAP-007.
 
 ## Security tests
 

@@ -234,7 +234,7 @@ Every story is sized for one agent session. Before starting, read only the files
 **Read first:** STE-GAP-008 section F in `docs/execution/auditsphere-execution-user-stories-ste-v21-gap-closure-current.md`; `src/AuditSphereOps.Application/Acceptance/EngagementLifecycleQuery.cs` (`ComplianceWarningFor`); `src/AuditSphereOps.Ui/src/app/features/engagements/engagement-lifecycle.html`.
 
 **Tasks.**
-1. Add to the lifecycle response a `localArchiveState` (`SCHEDULED`, `FROZEN`, `AMENDMENT_OPEN`) and a `providerProtectionState` (the `ExternalReadOnlyStates` value), next to the canonical stage and the existing compliance warning.
+1. Add to the lifecycle response a `localArchiveState` (`SCHEDULED`, terminal `FROZEN`) and a `providerProtectionState` (the `ExternalReadOnlyStates` value), next to the canonical stage and the existing compliance warning.
 2. Regenerate `contracts/auditsphere-openapi.json` and update the decoder in `engagement-lifecycle-contracts.ts`.
 3. Render the local state, the provider state and the warning as separate items. Never show "protected" or "immutable" for a provider state other than `OBSERVED`.
 

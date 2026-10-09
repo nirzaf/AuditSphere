@@ -1058,7 +1058,7 @@ T002 was COMPLETED on 2026-10-09 under the owner-delegated static-service variat
 
 ### STE-NXT-012 — Show the local, provider and lifecycle archive states separately (PARTIAL)
 
-- Add localArchiveState (SCHEDULED, FROZEN, AMENDMENT_OPEN) and providerProtectionState to the lifecycle summary, computed from the freeze record
+- Add localArchiveState (SCHEDULED, terminal FROZEN) and providerProtectionState to the lifecycle summary, computed from the freeze record
 - Regenerate contracts/auditsphere-openapi.json and extend engagement-lifecycle-contracts.ts with bounded decoding
 - Render local state, provider state and warning as separate items in engagement-lifecycle.html
 - Tests for the frozen plus BLOCKED_EXTERNAL side-by-side case and for an unknown provider state
@@ -1106,7 +1106,7 @@ T002 was COMPLETED on 2026-10-09 under the owner-delegated static-service variat
 ### STE-GAP-006 — Partner Early/Manual Compliance Lock (PARTIAL)
 
 - Test for an open or incomplete finalization blocker (review notes, bundle completeness) refusing early lock
-- Test for the amendment-open refusal branch
+- Amendment approval is now a separate evidence transition; it never reopens the archive (Domain and Angular journey changes pending current-tree verification)
 - Explicit upload-frozen gate in the early-lock path
 - STE-GAP-007 invocation (external)
 

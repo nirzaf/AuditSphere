@@ -549,6 +549,63 @@ public sealed partial class AuditDeliverablesTests
   }
 
   [Fact]
+  public async Task HoldingLetterSupersededByChangedOutstandingSetIsRefusedAtDispatchUntilReissued()
+  {
+    // STE-GAP-005: a letter issued for one outstanding critical set must never be dispatched after that set changes.
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var senior = w.A("senior", "Senior");
+    var manager = w.A("manager", "Manager");
+    var partner = w.A("partner", "Partner");
+    Guid bankId = Guid.NewGuid();
+    Guid debtorId = Guid.NewGuid();
+    await using var db = new AuditSphereDbContext(pg.Options);
+    Assert.True((await AuditProgramService.ReviewResultAsync(db, senior, new(w.ResultId, "REVIEWED", null))).Succeeded);
+    foreach (var (id, area, respondent) in new[] { (bankId, "BANK", "Qatar National Bank"), (debtorId, "RECEIVABLES", "Gulf Trading Customer") })
+    {
+      db.AuditConfirmationCases.Add(new AuditConfirmationCase
+      {
+        Id = id, FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId, AreaCode = area,
+        SourceRecordId = "ACC-" + area, BookedAmount = 500_000m, Currency = "QAR", ConfirmationDate = new DateOnly(2026, 12, 31), Respondent = respondent,
+        ContactValidationSource = "Verified channel", Status = AuditConfirmationStatuses.Dispatched, DispatchReference = "DISP-" + area,
+        DispatchedAt = DateTimeOffset.UtcNow.AddDays(-25), CreatedByUserId = w.U["senior"].Id, CreatedAt = DateTimeOffset.UtcNow.AddDays(-26)
+      });
+    }
+    await db.SaveChangesAsync();
+    Assert.True((await AuditDeliverableService.SetConfirmationCriticalityAsync(db, manager, bankId, true, "Bank is material to cash and the opinion")).Succeeded);
+    Assert.True((await AuditDeliverableService.SetConfirmationCriticalityAsync(db, manager, debtorId, true, "Receivables are material")).Succeeded);
+
+    // Both critical cases are unreturned, so the first holding letter records the two-case set.
+    var srm = (await AuditDeliverableService.GenerateSummaryReviewMemorandumAsync(db, manager, w.EngagementId, "Confirmations reviewed.")).Value;
+    Assert.True((await AuditDeliverableService.PartnerClearAsync(db, partner, srm, "Risk areas reviewed.", "Notes reviewed.")).Succeeded);
+    Assert.True((await AuditDeliverableService.DecideOpinionAsync(db, partner, w.EngagementId, "UNMODIFIED", null, null)).Succeeded);
+    var first = (await AuditDeliverableService.GenerateReportAsync(db, manager, w.EngagementId, DeliverableKinds.IndependentAuditorsReport)).Value!;
+    Assert.Null(first.DeliverableId);
+    Assert.NotNull(first.HoldingLetterId);
+    var issued = await HoldingLetterDispatch.StatusAsync(db, w.FirmId, w.EngagementId);
+    Assert.Equal((2, "NOT_DISPATCHED"), (issued.OutstandingCount, issued.State));
+
+    // Reducing the debtor case to noncritical changes the outstanding set while one critical case remains: the letter is superseded.
+    Assert.True((await AuditDeliverableService.SetConfirmationCriticalityAsync(db, manager, debtorId, false, "Reduced after the receivables reply was expected")).Succeeded);
+    var superseded = await HoldingLetterDispatch.StatusAsync(db, w.FirmId, w.EngagementId);
+    Assert.Equal((1, "SUPERSEDED"), (superseded.OutstandingCount, superseded.State));
+    var refused = await HoldingLetterDispatch.DispatchCurrentAsync(db, manager, w.EngagementId);
+    Assert.Equal(ErrorCodes.GenerationStale, refused.ErrorCode);
+    Assert.Contains("Generate the report again", refused.Message);
+    Assert.Empty(await db.CommercialNotifications.AsNoTracking().Where(x => x.DeliverableId == first.HoldingLetterId).ToListAsync());
+
+    // The changed facts stale the earlier clearance chain, so the report is regenerated through it; the new letter is current.
+    var srm2 = (await AuditDeliverableService.GenerateSummaryReviewMemorandumAsync(db, manager, w.EngagementId, "Bank case still outstanding.")).Value;
+    Assert.True((await AuditDeliverableService.PartnerClearAsync(db, partner, srm2, "Risk areas reviewed.", "Notes reviewed.")).Succeeded);
+    Assert.True((await AuditDeliverableService.DecideOpinionAsync(db, partner, w.EngagementId, "UNMODIFIED", null, null)).Succeeded);
+    var reissued = (await AuditDeliverableService.GenerateReportAsync(db, manager, w.EngagementId, DeliverableKinds.IndependentAuditorsReport)).Value!;
+    Assert.NotEqual(first.HoldingLetterId, reissued.HoldingLetterId);
+    var current = await HoldingLetterDispatch.StatusAsync(db, w.FirmId, w.EngagementId);
+    Assert.Equal((reissued.HoldingLetterId, 1), (current.DeliverableId, current.OutstandingCount));
+    Assert.NotEqual("SUPERSEDED", current.State);
+  }
+
+  [Fact]
   public async Task SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning()
   {
     await using var pg = await PgTestSchema.CreateAsync();
@@ -765,9 +822,13 @@ public sealed partial class AuditDeliverablesTests
       Assert.Equal(ErrorCodes.ProtectedState, (await EngagementActivityQuery.LockAsync(db, w.A("senior", "Senior"), w.EngagementId, "WP-A1")).ErrorCode);
       Assert.Equal(2, await db.FrozenAccessAttempts.CountAsync(x => x.EngagementId == w.EngagementId));
       await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"UPDATE engagement_file_freezes SET state = 'AMENDMENT_OPEN' WHERE id = {freeze.Id}"));
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+        $"UPDATE engagement_file_freezes SET report_deliverable_id = {Guid.NewGuid()} WHERE id = {freeze.Id}"));
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+        $"DELETE FROM engagement_file_freezes WHERE id = {freeze.Id}"));
     }
 
-    // Amendment: requested by a Manager, approved by a different Partner, then closed to re-freeze.
+    // Supplementary-record request: a different Partner approves it, while the original archive remains terminal.
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       Assert.Equal(ErrorCodes.AuditPlanning.Invalid, (await FileFreezeService.RequestAmendmentAsync(db, manager, w.EngagementId, " ")).ErrorCode);
@@ -775,14 +836,23 @@ public sealed partial class AuditDeliverablesTests
       Assert.Equal(ErrorCodes.ScopeDenied, (await FileFreezeService.ApproveAmendmentAsync(db, partner, amendment)).ErrorCode);
       Assert.Equal(ErrorCodes.ScopeDenied, (await FileFreezeService.ApproveAmendmentAsync(db, manager, amendment)).ErrorCode);
       Assert.True((await FileFreezeService.ApproveAmendmentAsync(db, w.A("partner2", "Partner"), amendment)).Succeeded);
-      Assert.False((await db.Engagements.AsNoTracking().SingleAsync(x => x.Id == w.EngagementId)).ProfessionalWorkBlocked);
-      // Document locks while open: exclusive, releasable by a Manager.
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+        $"UPDATE file_freeze_amendments SET reason = 'tampered' WHERE id = {amendment}"));
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+        $"DELETE FROM file_freeze_amendments WHERE id = {amendment}"));
+      Assert.Equal(FileFreezeStates.Frozen,
+        (await db.EngagementFileFreezes.AsNoTracking().SingleAsync(x => x.EngagementId == w.EngagementId)).State);
+      Assert.True((await db.Engagements.AsNoTracking().SingleAsync(x => x.Id == w.EngagementId)).ProfessionalWorkBlocked);
+      Assert.Equal(ErrorCodes.ProtectedState,
+        (await FileFreezeService.RequireWritableAsync(db, manager, w.EngagementId, "append supplementary evidence")).ErrorCode);
+      // An approved supplementary-record request never grants write access to the original archive.
       var senior = w.A("senior", "Senior");
-      var lockId = (await EngagementActivityQuery.LockAsync(db, senior, w.EngagementId, "WP-A1")).Value;
+      Assert.Equal(ErrorCodes.ProtectedState,
+        (await EngagementActivityQuery.LockAsync(db, senior, w.EngagementId, "WP-A1")).ErrorCode);
       Assert.Equal(ErrorCodes.ProtectedState, (await EngagementActivityQuery.LockAsync(db, w.A("associate", "Staff"), w.EngagementId, "WP-A1")).ErrorCode);
-      Assert.Equal(ErrorCodes.ScopeDenied, (await EngagementActivityQuery.UnlockAsync(db, w.A("associate", "Staff"), lockId)).ErrorCode);
-      Assert.True((await EngagementActivityQuery.UnlockAsync(db, manager, lockId)).Succeeded);
       Assert.True((await FileFreezeService.CloseAmendmentAsync(db, manager, amendment)).Succeeded);
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+        $"UPDATE file_freeze_amendments SET closed_at = NULL, closed_by_user_id = NULL WHERE id = {amendment}"));
       Assert.True((await db.Engagements.AsNoTracking().SingleAsync(x => x.Id == w.EngagementId)).ProfessionalWorkBlocked);
       var view = (await FileFreezeService.GetAsync(db, manager, w.EngagementId, clock.Now))!;
       Assert.Equal((FileFreezeStates.Frozen, 1), (view.State, view.Amendments.Count));

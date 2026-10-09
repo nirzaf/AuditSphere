@@ -144,19 +144,20 @@ const REPORTS: [string, string][] = [['AUDIT_FINDINGS_REPORT', 'Audit Findings R
           <p><audit-status [value]="fz.state" /> Report signed {{ fz.reportSignedAt.slice(0, 10) }}; freeze due {{ fz.dueAt.slice(0, 10) }}{{ fz.state === 'SCHEDULED' ? ' (' + fz.daysRemaining + ' day(s) remaining)' : '' }}.@if (fz.frozenAt) { Frozen at {{ fz.frozenAt.slice(0, 16).replace('T', ' ') }} UTC. }</p>
           <p><small>SharePoint read-only: <strong>{{ fz.externalReadOnly }}</strong>. {{ fz.externalReadOnly === 'BLOCKED_EXTERNAL' ? 'AuditSphere refuses changes to the frozen file; the SharePoint folder is not confirmed read-only until an authorized tenant change is observed.' : '' }}</small></p>
           @if (fz.state === 'FROZEN') {
-            <label>Reason for amendment <input name="amend" [(ngModel)]="f.amendment" maxlength="2000" /></label>
-            <button matButton="outlined" (click)="send('/api/ui/engagements/' + w.engagementId + '/amendments', { reason: f.amendment }, 'Amendment requested; another Partner must approve it.')" [disabled]="cmd.busy()">Request amendment</button>
+            <p><small>The original archive is terminal and remains read-only. Supplementary record requests and approvals are retained separately; they do not authorize edits to archived content.</small></p>
+            <label>Reason for supplementary record <input name="amend" [(ngModel)]="f.amendment" maxlength="2000" /></label>
+            <button matButton="outlined" (click)="send('/api/ui/engagements/' + w.engagementId + '/amendments', { reason: f.amendment }, 'Supplementary record request saved; the original archive remains read-only.')" [disabled]="cmd.busy()">Request supplementary record</button>
           }
           @for (a of fz.amendments; track a.id) {
-            <div class="inline-form"><span>{{ a.reason }} — {{ a.closedAt ? 'closed' : a.openedAt ? 'open' : 'awaiting Partner approval' }}</span>
-              @if (!a.openedAt) { <button matButton (click)="send('/api/ui/amendments/' + a.id + '/approve', {}, 'Amendment approved; the file is open for the documented change.')" [disabled]="cmd.busy()">Approve (another Partner)</button> }
-              @else if (!a.closedAt) { <button matButton (click)="send('/api/ui/amendments/' + a.id + '/close', {}, 'Amendment closed; the file is frozen again.')" [disabled]="cmd.busy()">Close and re-freeze</button> }</div>
+            <div class="inline-form"><span>{{ a.reason }} — {{ a.closedAt ? 'closed supplement request' : a.openedAt ? 'approved supplement request' : 'awaiting Partner approval' }}</span>
+              @if (!a.openedAt) { <button matButton (click)="send('/api/ui/amendments/' + a.id + '/approve', {}, 'Supplementary record request approved; the original archive remains read-only.')" [disabled]="cmd.busy()">Approve supplement request</button> }
+              @else if (!a.closedAt) { <button matButton (click)="send('/api/ui/amendments/' + a.id + '/close', {}, 'Supplementary record request closed; the original archive remains read-only.')" [disabled]="cmd.busy()">Close supplement request</button> }</div>
           }
         } @else { <p>The freeze is scheduled when the Engagement Partner signs the Independent Auditor's Report; the file then freezes {{ w.freezeDays }} days later.</p> }
         <h3>Document locks</h3>
         <div class="inline-form">
           <label>Document <input name="lock" [(ngModel)]="f.lockKey" maxlength="200" placeholder="e.g. WP-A1" /></label>
-          <button matButton="outlined" (click)="send('/api/ui/engagements/' + w.engagementId + '/locks', { documentKey: f.lockKey }, 'Document locked for you.')" [disabled]="cmd.busy()">Lock for editing</button>
+          <button matButton="outlined" (click)="send('/api/ui/engagements/' + w.engagementId + '/locks', { documentKey: f.lockKey }, 'Document locked for you.')" [disabled]="cmd.busy() || w.freeze?.state === 'FROZEN'">Lock for editing</button>
         </div>
         @for (l of w.locks; track l.id) {
           <div class="inline-form"><span>{{ l.documentKey }} locked by {{ l.lockedBy }} since {{ l.lockedAt.slice(0, 16).replace('T', ' ') }}</span>
@@ -207,7 +208,7 @@ const REPORTS: [string, string][] = [['AUDIT_FINDINGS_REPORT', 'Audit Findings R
                 <p>Resolve these blockers before the file can be locked early.</p>
               } @else if (r.archiveReadinessDigest) {
                 <p><small>Reviewed readiness digest: <code>{{ r.archiveReadinessDigest }}</code></small></p>
-                <p><strong>Warning:</strong> an early lock takes effect immediately. The file becomes read-only in AuditSphere, and it can only be reopened through the controlled amendment workflow.</p>
+                <p><strong>Warning:</strong> an early lock takes effect immediately. The archive becomes permanently read-only in AuditSphere. A supplementary-record request and its approval do not reopen the archive.</p>
                 <label><input type="checkbox" name="lockConfirm" [(ngModel)]="early.confirmed" /> I confirm the file is complete and I am locking it now as the Engagement Partner.</label>
                 <label>Reason for the early lock <textarea name="lockReason" [(ngModel)]="early.rationale" maxlength="2000" rows="2"></textarea></label>
                 <button matButton="filled" (click)="lockEarly(r)" [disabled]="cmd.busy() || !early.confirmed || !early.rationale.trim()">Lock audit file early</button>

@@ -248,7 +248,8 @@ public sealed class AngularRouteAndShellMigrationSweepTests
       {
         await page.SetViewportSizeAsync(1440, 900);
         await page.GotoAsync(origin + route);
-        await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = heading, Exact = true }))
+        // The workspace navigation also renders the current section as an h2; the page title is the level-1 heading.
+        await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = heading, Exact = true, Level = 1 }))
           .ToBeVisibleAsync(new() { Timeout = 15000 });
         Assert.True(await page.Locator("audit-workspace-navigation nav a[aria-current='page']").CountAsync() <= 1,
           $"{route} marked more than one workspace destination current.");

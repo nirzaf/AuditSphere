@@ -34,6 +34,16 @@
         }
       </div>
 
+      @if (report.summary.localArchiveState) {
+        <p class="archive-state"><strong>Local archive state:</strong> {{ report.summary.localArchiveState }}</p>
+      }
+      @if (report.summary.providerProtectionState; as providerState) {
+        <p class="archive-state">
+          <strong>Provider protection state:</strong> {{ providerState }}
+          @if (providerState === 'OBSERVED') { <span>(read-only state verified)</span> }
+        </p>
+      }
+
       @if (report.summary.complianceCountdownDays !== null && report.summary.complianceCountdownDays !== undefined) {
         <div class="countdown-alert" role="status">
           Compliance countdown active: {{ report.summary.complianceCountdownDays }} day(s) remaining before the local archive freeze.

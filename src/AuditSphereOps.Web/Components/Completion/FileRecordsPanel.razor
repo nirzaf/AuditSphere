@@ -16,15 +16,16 @@
     <p class="muted">SharePoint read-only: <strong>@_freeze.ExternalReadOnly</strong>. @(_freeze.ExternalReadOnly == ExternalReadOnlyStates.BlockedExternal ? "AuditSphere refuses changes to the frozen file; the SharePoint folder is not confirmed read-only until an authorized tenant change is observed." : "")</p>
     @if (_freeze.State == FileFreezeStates.Frozen)
     {
-      <label for="amend-reason" class="d-block">Reason for amendment <input id="amend-reason" @bind="_reason" maxlength="2000" /></label>
-      <MudButton Variant="Variant.Outlined" OnClick="RequestAsync" Disabled="@_busy">Request amendment</MudButton>
+      <p>The archive is terminal and read-only. A supplementary-record request and its Partner approval are recorded separately and do not authorize edits to this archive.</p>
+      <label for="amend-reason" class="d-block">Reason for supplementary record <input id="amend-reason" @bind="_reason" maxlength="2000" /></label>
+      <MudButton Variant="Variant.Outlined" OnClick="RequestAsync" Disabled="@_busy">Request supplementary record</MudButton>
     }
     @foreach (var a in _freeze.Amendments)
     {
       <div class="audit-inline-form">
-        <span>@a.Reason — @(a.ClosedAt is not null ? "closed" : a.OpenedAt is not null ? "open" : "awaiting Partner approval")</span>
-        @if (a.OpenedAt is null) { <MudButton Variant="Variant.Text" OnClick="@(() => ApproveAsync(a.Id))" Disabled="@_busy">Approve (another Partner)</MudButton> }
-        else if (a.ClosedAt is null) { <MudButton Variant="Variant.Text" OnClick="@(() => CloseAsync(a.Id))" Disabled="@_busy">Close and re-freeze</MudButton> }
+        <span>@a.Reason — @(a.ClosedAt is not null ? "closed supplementary-record request" : a.OpenedAt is not null ? "approved supplementary-record request" : "awaiting Partner approval")</span>
+        @if (a.OpenedAt is null) { <MudButton Variant="Variant.Text" OnClick="@(() => ApproveAsync(a.Id))" Disabled="@_busy">Approve supplement request</MudButton> }
+        else if (a.ClosedAt is null) { <MudButton Variant="Variant.Text" OnClick="@(() => CloseAsync(a.Id))" Disabled="@_busy">Close supplement request</MudButton> }
       </div>
     }
   }
@@ -32,7 +33,7 @@
   <h3 class="mt-3">Document locks</h3>
   <div class="audit-inline-form">
     <label for="lock-key">Document <input id="lock-key" @bind="_lockKey" maxlength="200" placeholder="e.g. WP-A1" /></label>
-    <MudButton Variant="Variant.Outlined" OnClick="LockAsync" Disabled="@_busy">Lock for editing</MudButton>
+    <MudButton Variant="Variant.Outlined" OnClick="LockAsync" Disabled="@(_busy || _freeze?.State == FileFreezeStates.Frozen)">Lock for editing</MudButton>
   </div>
   @foreach (var l in _locks)
   {
@@ -98,8 +99,8 @@
 
   private static CommandResult Plain<T>(CommandResult<T> r) => r.Succeeded ? CommandResult.Ok() : CommandResult.Fail(r.ErrorCode!, r.Message!);
   private Task RequestAsync() => RunAsync(async (db, a) => Plain(await FileFreezeService.RequestAmendmentAsync(db, a, EngagementId, _reason)), "Amendment requested; another Partner must approve it.");
-  private Task ApproveAsync(Guid id) => RunAsync((db, a) => FileFreezeService.ApproveAmendmentAsync(db, a, id), "Amendment approved; the file is open for the documented change.");
-  private Task CloseAsync(Guid id) => RunAsync((db, a) => FileFreezeService.CloseAmendmentAsync(db, a, id), "Amendment closed; the file is frozen again.");
+  private Task ApproveAsync(Guid id) => RunAsync((db, a) => FileFreezeService.ApproveAmendmentAsync(db, a, id), "Supplementary record request approved; the original archive remains read-only.");
+  private Task CloseAsync(Guid id) => RunAsync((db, a) => FileFreezeService.CloseAmendmentAsync(db, a, id), "Supplementary record request closed; the original archive remains read-only.");
   private Task LockAsync() => RunAsync(async (db, a) => Plain(await EngagementActivityQuery.LockAsync(db, a, EngagementId, _lockKey)), "Document locked for you.");
   private Task UnlockAsync(Guid id) => RunAsync((db, a) => EngagementActivityQuery.UnlockAsync(db, a, id), "Lock released.");
 }

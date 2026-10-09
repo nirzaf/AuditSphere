@@ -36,6 +36,9 @@ describe('Engagement lifecycle projection contracts (AS-COMP-02)', () => {
         complianceCountdownDays: null,
         isArchived: false,
         isLegacyUnverified: false,
+        complianceWarning: null,
+        localArchiveState: null,
+        providerProtectionState: null,
       },
       evaluatedAtUtc: '2026-10-06T12:00:00Z',
     };
@@ -68,6 +71,9 @@ describe('Engagement lifecycle projection contracts (AS-COMP-02)', () => {
         complianceCountdownDays: 45,
         isArchived: false,
         isLegacyUnverified: false,
+        complianceWarning: 'Provider protection state is BLOCKED_EXTERNAL. AuditSphere does not claim provider immutability.',
+        localArchiveState: 'SCHEDULED',
+        providerProtectionState: 'BLOCKED_EXTERNAL',
       },
       evaluatedAtUtc: '2026-10-06T12:00:00Z',
     };
@@ -76,6 +82,9 @@ describe('Engagement lifecycle projection contracts (AS-COMP-02)', () => {
     expect(decoded.summary.stageIndex).toBe(10);
     expect(decoded.summary.complianceCountdownDays).toBe(45);
     expect(decoded.summary.isArchived).toBe(false);
+    expect(decoded.summary.localArchiveState).toBe('SCHEDULED');
+    expect(decoded.summary.providerProtectionState).toBe('BLOCKED_EXTERNAL');
+    expect(decoded.summary.complianceWarning).toContain('does not claim provider immutability');
   });
 
   it('fails closed when stage index is out of bounds', () => {
@@ -94,6 +103,9 @@ describe('Engagement lifecycle projection contracts (AS-COMP-02)', () => {
         complianceCountdownDays: null,
         isArchived: false,
         isLegacyUnverified: false,
+        complianceWarning: null,
+        localArchiveState: null,
+        providerProtectionState: null,
       },
       evaluatedAtUtc: '2026-10-06T12:00:00Z',
     };
@@ -119,10 +131,32 @@ describe('Engagement lifecycle projection contracts (AS-COMP-02)', () => {
         complianceCountdownDays: null,
         isArchived: false,
         isLegacyUnverified: false,
+        complianceWarning: null,
+        localArchiveState: null,
+        providerProtectionState: null,
       },
       evaluatedAtUtc: 'not-a-timestamp',
     };
 
     expect(() => decodeEngagementLifecycleReport(malformed)).toThrow();
+  });
+
+  it('fails closed for an unknown provider protection state', () => {
+    const raw = {
+      engagementId: id,
+      clientId,
+      clientName: 'Entity',
+      serviceRoute: 'Audit',
+      summary: {
+        canonicalStage: 'ARCHIVED_READ_ONLY', stageLabel: 'Archived (Read-Only)', stageIndex: 11,
+        blockedReasons: [], responsibleRole: 'None', deepLink: '/app/records/archives',
+        complianceCountdownDays: 0, isArchived: true, isLegacyUnverified: false,
+        complianceWarning: 'Provider protection state is FUTURE_STATE.',
+        localArchiveState: 'FROZEN', providerProtectionState: 'FUTURE_STATE',
+      },
+      evaluatedAtUtc: '2026-10-09T12:00:00Z',
+    };
+
+    expect(() => decodeEngagementLifecycleReport(raw)).toThrow();
   });
 });

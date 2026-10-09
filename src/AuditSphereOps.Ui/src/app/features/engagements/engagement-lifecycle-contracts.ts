@@ -1,4 +1,4 @@
-import { arr, bool, decode, guid, instant, int, nullable, obj, str } from '../../core/decode';
+import { arr, bool, decode, guid, instant, int, nullable, obj, oneOf, str } from '../../core/decode';
 
 export const CANONICAL_STAGES = [
   { index: 1, key: 'LEAD_INGESTION', label: 'Lead Ingestion' },
@@ -27,6 +27,8 @@ const summaryDecoder = obj({
   isArchived: bool,
   isLegacyUnverified: bool,
   complianceWarning: nullable(str(2000)),
+  localArchiveState: nullable(oneOf('SCHEDULED', 'FROZEN')),
+  providerProtectionState: nullable(oneOf('NOT_REQUESTED', 'REQUESTED', 'OBSERVED', 'BLOCKED_EXTERNAL')),
 });
 
 const reportDecoder = obj({

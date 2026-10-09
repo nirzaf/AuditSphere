@@ -4,7 +4,6 @@
 @using AuditSphereOps.Domain.Engagements
 @inject CurrentActorResolver ActorResolver
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
-@inject EngagementActivationOptions ActivationOptions
 
 <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" role="region" aria-labelledby="activation-heading">
   <h2 id="activation-heading">Engagement activation</h2>
@@ -54,7 +53,7 @@
       var actor = await ActorResolver.ResolveAsync();
       if (actor is null) { _isError = true; _message = "Sign in again."; return; }
       await using var db = await DbFactory.CreateDbContextAsync();
-      var result = await EngagementLifecycleService.ActivateAsync(db, actor, Engagement.Id, options: ActivationOptions);
+      var result = await EngagementLifecycleService.ActivateAsync(db, actor, Engagement.Id);
       _isError = !result.Succeeded;
       _message = result.Succeeded ? "Engagement activated. Professional work is now permitted." : result.Message;
       if (result.Succeeded) await OnChanged.InvokeAsync(_message);

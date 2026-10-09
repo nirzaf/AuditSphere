@@ -72,9 +72,9 @@ This badge mapping is inferred from the state names and the portal behaviour des
 | Deliverable kind | `SUMMARY_REVIEW_MEMORANDUM`, `AUDIT_FINDINGS_REPORT`, `MANAGEMENT_LETTER`, `INDEPENDENT_AUDITORS_REPORT`, `HOLDING_LETTER`, `REPRESENTATION_LETTER`. | `DeliverableKinds` |
 | Five-part bundle | Immutable ZIP: signed report and certified statements, management letter, verified signed LOR, correspondence trail, posted balance invoice; per-file hashes plus manifest. | `AuditDeliverableService.Bundle.cs` |
 | Visual credential | Registered PNG signature or versioned firm-seal PNG. Not a certificate-backed signature. | `RegisterSignatureAsync`, `RegisterFirmSealAsync` |
-| File freeze | `SCHEDULED` (60 days after report signature) → `FROZEN`; `AMENDMENT_OPEN` while a second Partner-approved amendment runs. | `FileFreezeStates` |
+| File freeze | `SCHEDULED` (60 days after report signature) → terminal `FROZEN`; supplementary-record requests and Partner decisions never reopen the archive. | `FileFreezeStates`, `FileFreezeService` |
 | Early compliance lock | Partner lock before day 60, bound to a reviewed archive-readiness digest and countdown revision. | `FileFreezeService.RequestEarlyComplianceLockAsync` |
-| External read-only | Whether SharePoint read-only was `NOT_REQUESTED`, `REQUESTED` or `OBSERVED`. Local freeze does not imply it. | `ExternalReadOnlyStates` |
+| External read-only | Whether SharePoint read-only was `NOT_REQUESTED`, `REQUESTED`, `OBSERVED` or `BLOCKED_EXTERNAL`. Local freeze does not imply provider protection. | `ExternalReadOnlyStates` |
 
 ## Lifecycle
 

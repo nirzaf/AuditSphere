@@ -225,6 +225,15 @@ public sealed class AngularClientSalesInvoiceWorkflowJourneyTests
     await purchases.GetByLabel("Supplier-stated gross", new() { Exact = true }).FillAsync("100");
     await purchases.GetByRole(AriaRole.Checkbox, new() { Name = "I checked this supplier, client, document dates, coding, supplier-stated totals and evidence reference.", Exact = true }).CheckAsync();
     IResponse purchaseDraftResponse;
+    // Saving navigates away from the draft, and Playwright cannot read a body after navigation, so the body is captured
+    // when the response arrives; the id is read from it after the save completes.
+    Task<string>? purchaseDraftBody = null;
+    void CaptureDraftBody(object? _, IResponse response)
+    {
+      if (purchaseDraftBody is null && response.Request.Method == "POST" && response.Url.EndsWith("/purchase-invoice-drafts", StringComparison.Ordinal))
+        purchaseDraftBody = response.TextAsync();
+    }
+    makerPage.Response += CaptureDraftBody;
     try
     {
       purchaseDraftResponse = await makerPage.RunAndWaitForResponseAsync(
@@ -236,7 +245,8 @@ public sealed class AngularClientSalesInvoiceWorkflowJourneyTests
       throw new InvalidOperationException($"Supplier draft request did not complete. Component: {await purchases.InnerTextAsync()}\nErrors: {string.Join("; ", errors)}\nResponses: {string.Join("; ", apiResponses)}", e);
     }
     Assert.Equal(200, purchaseDraftResponse.Status);
-    using var purchaseDraftDocument = JsonDocument.Parse(await purchaseDraftResponse.TextAsync());
+    makerPage.Response -= CaptureDraftBody;
+    using var purchaseDraftDocument = JsonDocument.Parse(await (purchaseDraftBody ?? throw new InvalidOperationException("The supplier draft response body was not captured.")));
     var purchaseInvoiceId = purchaseDraftDocument.RootElement.GetProperty("invoiceId").GetGuid();
     await Assertions.Expect(purchases.GetByText("Late-arriving supplier document: receipt date is after the supplier document date.", new() { Exact = true })).ToBeVisibleAsync();
     var purchasePreviewResponse = await makerPage.RunAndWaitForResponseAsync(

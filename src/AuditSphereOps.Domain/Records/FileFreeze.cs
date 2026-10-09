@@ -8,7 +8,6 @@ public static class FileFreezeStates
 {
   public const string Scheduled = "SCHEDULED";
   public const string Frozen = "FROZEN";
-  public const string AmendmentOpen = "AMENDMENT_OPEN";
 }
 
 public static class ExternalReadOnlyStates

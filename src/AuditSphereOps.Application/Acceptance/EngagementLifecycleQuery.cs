@@ -40,7 +40,9 @@ public sealed record EngagementLifecycleSummary(
   int? ComplianceCountdownDays,
   bool IsArchived,
   bool IsLegacyUnverified,
-  string? ComplianceWarning = null);
+  string? ComplianceWarning = null,
+  string? LocalArchiveState = null,
+  string? ProviderProtectionState = null);
 
 public sealed record EngagementLifecycleReport(
   Guid EngagementId,
@@ -90,20 +92,20 @@ public static class EngagementLifecycleQuery
     {
       return Success(engagement, client.LegalName, new EngagementLifecycleSummary(
         CanonicalEngagementStages.ArchivedReadOnly, "Archived (Read-Only)", 11, [],
-        "None", $"/app/records/archives/{engagementId}", 0, true, false, ComplianceWarningFor(freeze)), now);
+        "None", $"/app/records/archives/{engagementId}", 0, true, false, ComplianceWarningFor(freeze),
+        freeze.State, freeze.ExternalReadOnly), now);
     }
 
     if (freeze is not null)
     {
       var remaining = Math.Max(0, (int)Math.Ceiling((freeze.DueAt - now).TotalDays));
       var countdownBlocked = new List<string>();
-      if (freeze.State == FileFreezeStates.AmendmentOpen)
-        countdownBlocked.Add("An approved amendment window is open; the file must be re-frozen before it can be archived.");
-      else if (now >= freeze.DueAt)
+      if (now >= freeze.DueAt)
         countdownBlocked.Add("The freeze is due but has not committed; the file is not archived until the local freeze succeeds.");
       return Success(engagement, client.LegalName, new EngagementLifecycleSummary(
         CanonicalEngagementStages.ComplianceCountdown, "Compliance Countdown", 10, countdownBlocked,
-        "EngagementPartner", completionLink, remaining, false, false), now);
+        "EngagementPartner", completionLink, remaining, false, false, ComplianceWarningFor(freeze),
+        freeze.State, freeze.ExternalReadOnly), now);
     }
 
     if (release is not null)
@@ -232,11 +234,14 @@ public static class EngagementLifecycleQuery
       .Where(x => x.FirmId == actor.FirmId && x.PracticeClientId == engagement.PracticeClientId)
       .OrderByDescending(x => x.CreatedAt).FirstOrDefaultAsync(ct);
 
-    if (proposal is not null)
+    if (proposal is { SentAt: not null, Status: CrmStates.ProposalSent or CrmStates.ProposalAccepted or CrmStates.ProposalDeclined })
     {
       var dualBlocked = new List<string>();
       if (acceptance is null) dualBlocked.Add("Unconditional Partner risk acceptance decision required");
-      if (proposal.Status != "Accepted") dualBlocked.Add("Client commercial acceptance of proposal required");
+      if (proposal.Status == CrmStates.ProposalDeclined)
+        dualBlocked.Add("The client declined the dispatched proposal; revise and resend or close the opportunity.");
+      else if (proposal.Status != CrmStates.ProposalAccepted)
+        dualBlocked.Add("Client commercial acceptance of proposal required");
       return Success(engagement, client.LegalName, new EngagementLifecycleSummary(
         CanonicalEngagementStages.DualKeyPending, "Dual-Key Acceptance Pending", 3, dualBlocked,
         "EngagementPartner", $"/app/assessments/{engagement.PracticeClientId}", null, false, false), now);
@@ -263,12 +268,12 @@ public static class EngagementLifecycleQuery
 
   /// <summary>
   /// Local archive state is never presented as provider immutability: until a provider read-only state is observed, the
-  /// archived summary carries a compliance warning naming the provider status.
+  /// lifecycle carries a compliance warning naming the provider status.
   /// </summary>
   private static string? ComplianceWarningFor(EngagementFileFreeze freeze) =>
     freeze.ExternalReadOnly == ExternalReadOnlyStates.Observed
       ? null
-      : $"The local file is frozen. Provider-level read-only protection is {freeze.ExternalReadOnly}; AuditSphere does not claim provider immutability.";
+      : $"Provider protection state is {freeze.ExternalReadOnly}. AuditSphere does not claim provider immutability.";
 
   private static CommandResult<EngagementLifecycleReport> Success(
     Engagement engagement, string clientName, EngagementLifecycleSummary summary, DateTimeOffset now) =>

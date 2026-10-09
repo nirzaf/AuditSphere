@@ -18,7 +18,7 @@ ADR-0001 to ADR-0008 were written on 2026-10-08 as **retroactive records of deci
 | [ADR-0009](auditsphere-architecture-adr-0009-archive-authority-release-store-proposed.md) | Issued evidence is authoritative in the release and archive store; the SharePoint archive is a working copy (draft from SPK-01) | PROPOSED | Relates to ADR-0005, ADR-0006; STE-GAP-007 stays BLOCKED_EXTERNAL |
 | [ADR-0010](auditsphere-architecture-adr-0010-end-of-service-accrual-approved.md) | End-of-service benefits are accrued as a provision entered by a person through the ledger maker and checker (STE-NXT-009, option b) | APPROVED | Posting waits for the accounting treatment, which is not yet confirmed; the platform computes no estimate |
 | [ADR-0011](auditsphere-architecture-adr-0011-materiality-pbt-without-normalization-approved.md) | Materiality uses profit before tax without normalization (STE-NXT-010, Option A) | APPROVED | Recorded deviation from specification §4.2.4 |
-| [ADR-0012](auditsphere-architecture-adr-0012-advance-payment-unconditional-hard-block-proposed.md) | The 50% advance is an unconditional `PORTAL_ACTIVE_PLANNING` hard block, configurable via `EngagementActivation:AdvanceGateMode` | PROPOSED | Implements specification §4.1.5 / control C-02; relates to ADR-0007 |
+| [ADR-0012](auditsphere-architecture-adr-0012-unconditional-advance-activation-hard-block-current.md) | The 50% advance is an unconditional `PORTAL_ACTIVE_PLANNING` hard block with no configuration bypass | ACCEPTED | Implements specification §4.1.5 / control C-02; relates to ADR-0007 |
 
 ## Earlier decision records (R2R)
 

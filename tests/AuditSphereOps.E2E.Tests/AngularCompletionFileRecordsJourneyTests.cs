@@ -18,7 +18,7 @@ public sealed class AngularCompletionFileRecordsJourneyTests
 
   [Fact]
   [Trait("CaseId", "AS-PAR-002-ANGULAR-COMPLETION-FILE-RECORDS-01")]
-  public async Task FrozenFileAmendmentAndDocumentLocksRequireIndependentAuthorityAndRefreeze()
+  public async Task FrozenFileSupplementRequestsDoNotReopenArchive()
   {
     await using var host = await OwnedHost.StartAsync(startWorker: false,
       caseId: "AS-PAR-002-ANGULAR-COMPLETION-FILE-RECORDS-01");
@@ -83,9 +83,9 @@ public sealed class AngularCompletionFileRecordsJourneyTests
 
     var requesterPage = await OpenAsAsync(requesterOrigin);
     await Assertions.Expect(requesterPage.Locator("audit-status .status-chip[data-status='FROZEN']")).ToBeVisibleAsync();
-    await requesterPage.GetByRole(AriaRole.Textbox, new() { Name = "Reason for amendment" })
+    await requesterPage.GetByRole(AriaRole.Textbox, new() { Name = "Reason for supplementary record" })
       .FillAsync("Synthetic evidence correction required before records retention.");
-    await requesterPage.GetByRole(AriaRole.Button, new() { Name = "Request amendment", Exact = true }).ClickAsync();
+    await requesterPage.GetByRole(AriaRole.Button, new() { Name = "Request supplementary record", Exact = true }).ClickAsync();
     await Assertions.Expect(requesterPage.GetByRole(AriaRole.Region,
       new() { Name = "File freeze and activity trail", Exact = true }))
       .ToContainTextAsync("Synthetic evidence correction required before records retention.");
@@ -93,7 +93,7 @@ public sealed class AngularCompletionFileRecordsJourneyTests
 
     // A Partner cannot approve their own request. The UI reports the safe application message and the persisted
     // amendment remains pending until another Partner acts.
-    await requesterPage.GetByRole(AriaRole.Button, new() { Name = "Approve (another Partner)", Exact = true }).ClickAsync();
+    await requesterPage.GetByRole(AriaRole.Button, new() { Name = "Approve supplement request", Exact = true }).ClickAsync();
     await Assertions.Expect(requesterPage.GetByRole(AriaRole.Alert))
       .ToContainTextAsync("Another Partner must approve an amendment you requested.");
     await using (var db = host.CreateDbContext())
@@ -104,35 +104,21 @@ public sealed class AngularCompletionFileRecordsJourneyTests
     }
 
     var partnerPage = await OpenAsAsync(partnerOrigin);
-    await partnerPage.GetByRole(AriaRole.Button, new() { Name = "Approve (another Partner)", Exact = true }).ClickAsync();
+    await partnerPage.GetByRole(AriaRole.Button, new() { Name = "Approve supplement request", Exact = true }).ClickAsync();
     await Assertions.Expect(partnerPage.Locator("p.command-result[role='status']"))
-      .ToContainTextAsync("Amendment approved; the file is open for the documented change.");
-    await Assertions.Expect(partnerPage.Locator("audit-status .status-chip[data-status='AMENDMENT_OPEN']")).ToBeVisibleAsync();
-
-    await partnerPage.GetByRole(AriaRole.Textbox, new() { Name = "Document" }).FillAsync("SYN-AMENDMENT-WORKPAPER-01");
-    await partnerPage.GetByRole(AriaRole.Button, new() { Name = "Lock for editing", Exact = true }).ClickAsync();
-    await Assertions.Expect(partnerPage.GetByText("Document locked for you.", new() { Exact = true })).ToBeVisibleAsync();
+      .ToContainTextAsync("Supplementary record request approved; the original archive remains read-only.");
+    await Assertions.Expect(partnerPage.Locator("audit-status .status-chip[data-status='FROZEN']")).ToBeVisibleAsync();
+    await Assertions.Expect(partnerPage.GetByRole(AriaRole.Button, new() { Name = "Lock for editing", Exact = true }))
+      .ToBeDisabledAsync();
 
     var contenderPage = await OpenAsAsync(contenderOrigin);
-    await contenderPage.GetByRole(AriaRole.Textbox, new() { Name = "Document" }).FillAsync("SYN-AMENDMENT-WORKPAPER-01");
-    await contenderPage.GetByRole(AriaRole.Button, new() { Name = "Lock for editing", Exact = true }).ClickAsync();
-    await Assertions.Expect(contenderPage.Locator("p.command-result[role='alert']")).ToContainTextAsync("Another user holds the lock on this document.");
-    await contenderPage.GetByRole(AriaRole.Button, new() { Name = "Release lock on SYN-AMENDMENT-WORKPAPER-01", Exact = true }).ClickAsync();
-    await Assertions.Expect(contenderPage.Locator("p.command-result[role='alert']")).ToContainTextAsync("Access denied.");
-    await using (var db = host.CreateDbContext())
-    {
-      var activeLock = await db.DocumentLocks.AsNoTracking().SingleAsync(x => x.EngagementId == f.EngagementId && x.ReleasedAt == null);
-      Assert.Equal(secondPartner.Id, activeLock.LockedByUserId);
-      Assert.Null(activeLock.ReleasedAt);
-    }
+    await Assertions.Expect(contenderPage.Locator("audit-status .status-chip[data-status='FROZEN']")).ToBeVisibleAsync();
 
-    // The assigned Partner can break the lock, then close the amendment. Closing restores the application freeze.
+    // Closing the supplementary-record request changes only its evidence state; it never changes the frozen archive.
     await requesterPage.ReloadAsync();
-    await requesterPage.GetByRole(AriaRole.Button,
-      new() { Name = "Release lock on SYN-AMENDMENT-WORKPAPER-01", Exact = true }).ClickAsync();
-    await Assertions.Expect(requesterPage.Locator("p.command-result[role='status']")).ToContainTextAsync("Lock released.");
-    await requesterPage.GetByRole(AriaRole.Button, new() { Name = "Close and re-freeze", Exact = true }).ClickAsync();
-    await Assertions.Expect(requesterPage.Locator("p.command-result[role='status']")).ToContainTextAsync("Amendment closed; the file is frozen again.");
+    await requesterPage.GetByRole(AriaRole.Button, new() { Name = "Close supplement request", Exact = true }).ClickAsync();
+    await Assertions.Expect(requesterPage.Locator("p.command-result[role='status']"))
+      .ToContainTextAsync("Supplementary record request closed; the original archive remains read-only.");
     await Assertions.Expect(requesterPage.Locator("audit-status .status-chip[data-status='FROZEN']")).ToBeVisibleAsync();
     await requesterPage.Locator("select[name='kind']").SelectOptionAsync("FREEZE");
     await Assertions.Expect(requesterPage.GetByRole(AriaRole.Table, new() { Name = "Activity trail", Exact = true }))
@@ -143,14 +129,12 @@ public sealed class AngularCompletionFileRecordsJourneyTests
       var closed = await db.FileFreezeAmendments.AsNoTracking().SingleAsync(x => x.Id == amendmentId);
       var freeze = await db.EngagementFileFreezes.AsNoTracking().SingleAsync(x => x.EngagementId == f.EngagementId);
       var engagement = await db.Engagements.AsNoTracking().SingleAsync(x => x.Id == f.EngagementId);
-      var lockRow = await db.DocumentLocks.AsNoTracking().SingleAsync(x => x.EngagementId == f.EngagementId);
       Assert.Equal(secondPartner.Id, closed.ApprovedByUserId);
       Assert.NotNull(closed.OpenedAt);
       Assert.NotNull(closed.ClosedAt);
       Assert.Equal(FileFreezeStates.Frozen, freeze.State);
       Assert.True(engagement.ProfessionalWorkBlocked);
-      Assert.Equal(requester.Id, lockRow.ReleasedByUserId);
-      Assert.NotNull(lockRow.ReleasedAt);
+      Assert.Empty(await db.DocumentLocks.Where(x => x.EngagementId == f.EngagementId).ToListAsync());
     }
 
     Assert.Empty(errors);

@@ -15,6 +15,19 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Terminal archive and mandatory advance control — 2026-10-09
+
+Changes currently in the working tree after review of the v2.1 acceptance findings:
+
+- Removed `AMENDMENT_OPEN`. Partner approval and closure now update a separate supplementary-record trail; neither changes the frozen state nor clears `ProfessionalWorkBlocked`. Angular and legacy Web screens say the archive remains read-only and disable editing when frozen.
+- Added migration `20261009141822_PermanentFileFreeze`: legacy open amendments are normalized to `FROZEN` and the engagement write block is restored; the database check and trigger protect frozen identity/freeze evidence, and amendment approval/closure transitions remain auditable and immutable. Its Down migration fails closed. No database migration has been applied.
+- Removed the configurable `WHEN_FEE_AGREEMENT_LINKED` exception. Activation always requires a linked fee agreement and paid advance; the review workspace reports the same blockers. ADR-0012 records the accepted mandatory rule.
+- Added an EF design-time context factory with an inert local-only fallback so migration scaffolding does not construct the full API host. `AUDITSPHERE_MIGRATION_CONNECTION` is required to direct EF database commands at a real database.
+- Lifecycle Stage 3 now requires a dispatched proposal; the projection separates local freeze and provider protection status. A due-but-uncommitted freeze remains in countdown with an explicit blocker.
+
+Verification on the current source: API Release build passed with 0 warnings and 0 errors; the focused PostgreSQL Domain cohort passed 17/17; the updated archive Playwright journey passed 1/1; Angular production build passed with the existing `settings.scss` budget warning, and Angular CI specs passed 618/618. EF reports no pending model changes; OpenAPI drift verification passed; Markdown, filename and narrative-metric gates pass. The built-in browser served the app and showed the expected unauthenticated sign-in gate; no authenticated lifecycle page was verified. The full E2E suite has not been run on this tree. External tenant and SharePoint archive acceptance remain `BLOCKED_EXTERNAL`.
+
+
 ## Pending-gap slice: fee-automation config alignment and truthful holding-letter delivery — 2026-10-09
 
 Owner-directed attempt to close the tracked STE v2.1 gaps. Two locally-closable code defects were fixed and verified; the
@@ -38,7 +51,7 @@ and with the code. Observed results:
 - **Persona cards** carry the register's §1.2 role names: Audit Associate / Junior Auditor, Audit Senior / Audit Manager, Engagement Partner, Client Coordinator / CFO / MD.
 - **Profitability wording corrected** to match `PracticeAnalyticsQuery`: the source-defined charge-out indicator is stated, and the implemented actual-cost analytics (separate staff cost rate, profit, margin, realization, billed/collected) are described instead of being called undefined.
 - **Three externally blocked steps marked `BLOCKED_EXTERNAL`** in the suite: live PBC portal provisioning and the first-sign-in evidence gate (ADR-0003: Microsoft sign-in, not emailed temporary passwords), the five standard engagement folders in the client SharePoint site, and provider-enforced archive immutability.
-- **Advance gate is unconditional by default and configurable (ADR-0012, PROPOSED).** `EngagementLifecycleService.ActivateAsync` refuses activation unless a linked fee agreement carries a `PAID` `ADVANCE` milestone. The previous linked-only behaviour is reachable only through `EngagementActivation:AdvanceGateMode=WHEN_FEE_AGREEMENT_LINKED`; an unset or unrecognised value enforces `ALWAYS` and `Validate()` refuses startup, so the gate is never weakened silently. `EngagementActivationWorkspace` reports the same rule as explicit blockers (`advance.fee-agreement-missing`, `advance.unpaid`) and includes the fee-agreement/advance position in the review-basis digest.
+- **Advance gate is unconditional (ADR-0012, ACCEPTED).** `EngagementLifecycleService.ActivateAsync` refuses activation unless a linked fee agreement carries a `PAID` `ADVANCE` milestone. No configuration can weaken the mandatory control; the linked-only bypass was removed. `EngagementActivationWorkspace` reports the same rule as explicit blockers (`advance.fee-agreement-missing`, `advance.unpaid`) and includes the fee-agreement/advance position in the review-basis digest.
 - **Configuration surface:** an `EngagementActivation` section was added to `src/AuditSphereOps.Api/appsettings.json` and `src/AuditSphereOps.Web/appsettings.json`; the options are registered in `ApiHost.ConfigureProviders`, so the API host and the legacy Web host compose them. No request or response contract changed.
 
 Fixtures updated for the new default: `EngagementActivationReviewSeed.LinkFeeAgreement` stages lead → opportunity → accepted proposal → fee agreement → advance milestone; `AcceptanceChecklistTests` and the `OneClickDocuments…` commercial journey now link and pay the advance before activating; the new `EngagementActivationAdvanceGateTests` covers both modes and the unrecognised-mode refusal.

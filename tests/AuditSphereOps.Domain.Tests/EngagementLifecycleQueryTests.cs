@@ -9,6 +9,7 @@ using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Records;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Domain.Tests;
 
@@ -52,8 +53,10 @@ public sealed class EngagementLifecycleQueryTests
       Assert.Equal(CanonicalEngagementStages.ProposalGeneration, report.Value!.Summary.CanonicalStage);
       Assert.Equal(2, report.Value.Summary.StageIndex);
       Assert.Contains("Commercial proposal preparation and dispatch required", report.Value.Summary.BlockedReasons);
+      Assert.Null(report.Value.Summary.LocalArchiveState);
+      Assert.Null(report.Value.Summary.ProviderProtectionState);
 
-      // 2. Add proposal -> DualKeyPending
+      // 2. A draft proposal remains at ProposalGeneration until it has actually been dispatched.
       var lead = new Lead
       {
         Id = Guid.NewGuid(), FirmId = seed.FirmId, Name = "Synthetic lifecycle client",
@@ -76,6 +79,16 @@ public sealed class EngagementLifecycleQueryTests
         Deliverables = "Audit Report and Management Letter",
         PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31"
       });
+      await db.SaveChangesAsync();
+
+      report = await EngagementLifecycleQuery.GetAsync(db, partner, engagementId);
+      Assert.True(report.Succeeded);
+      Assert.Equal(CanonicalEngagementStages.ProposalGeneration, report.Value!.Summary.CanonicalStage);
+      Assert.Equal(2, report.Value.Summary.StageIndex);
+
+      var proposal = await db.Proposals.SingleAsync(x => x.FirmId == seed.FirmId && x.PracticeClientId == seed.ClientId);
+      proposal.Status = CrmStates.ProposalSent;
+      proposal.SentAt = now;
       await db.SaveChangesAsync();
 
       report = await EngagementLifecycleQuery.GetAsync(db, partner, engagementId);
@@ -243,6 +256,18 @@ public sealed class EngagementLifecycleQueryTests
       Assert.Equal(10, report.Value.Summary.StageIndex);
       Assert.NotNull(report.Value.Summary.ComplianceCountdownDays);
       Assert.True(report.Value.Summary.ComplianceCountdownDays <= 51);
+      Assert.Equal(FileFreezeStates.Scheduled, report.Value.Summary.LocalArchiveState);
+      Assert.Equal(ExternalReadOnlyStates.NotRequested, report.Value.Summary.ProviderProtectionState);
+      Assert.Contains("does not claim provider immutability", report.Value.Summary.ComplianceWarning!);
+
+      // A due but uncommitted freeze stays in the countdown state and is not described as locally archived.
+      freeze.ReportSignedAt = now.AddDays(-61);
+      freeze.DueAt = freeze.ReportSignedAt.AddDays(60);
+      await db.SaveChangesAsync();
+      report = await EngagementLifecycleQuery.GetAsync(db, partner, engagementId);
+      Assert.Equal(CanonicalEngagementStages.ComplianceCountdown, report.Value!.Summary.CanonicalStage);
+      Assert.False(report.Value.Summary.IsArchived);
+      Assert.Contains(report.Value.Summary.BlockedReasons, x => x.Contains("freeze is due but has not committed", StringComparison.Ordinal));
 
       // 10. Lock / freeze -> ArchivedReadOnly
       freeze.State = FileFreezeStates.Frozen;
@@ -256,6 +281,16 @@ public sealed class EngagementLifecycleQueryTests
       Assert.Equal(CanonicalEngagementStages.ArchivedReadOnly, report.Value!.Summary.CanonicalStage);
       Assert.Equal(11, report.Value.Summary.StageIndex);
       Assert.True(report.Value.Summary.IsArchived);
+      Assert.Equal(FileFreezeStates.Frozen, report.Value.Summary.LocalArchiveState);
+      Assert.Equal(ExternalReadOnlyStates.NotRequested, report.Value.Summary.ProviderProtectionState);
+      Assert.Contains("does not claim provider immutability", report.Value.Summary.ComplianceWarning!);
+
+      freeze.ExternalReadOnly = ExternalReadOnlyStates.Observed;
+      await db.SaveChangesAsync();
+      report = await EngagementLifecycleQuery.GetAsync(db, partner, engagementId);
+      Assert.Equal(FileFreezeStates.Frozen, report.Value!.Summary.LocalArchiveState);
+      Assert.Equal(ExternalReadOnlyStates.Observed, report.Value.Summary.ProviderProtectionState);
+      Assert.Null(report.Value.Summary.ComplianceWarning);
 
       // 11. Unauthorized actor is scope-denied
       var denied = await EngagementLifecycleQuery.GetAsync(db, unauthorized, engagementId);

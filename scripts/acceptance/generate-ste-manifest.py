@@ -113,7 +113,6 @@ STORIES = [
         ],
         "openItems": [
             "The rounding form is covered by component tests (plan.spec.ts) and the flag by a Domain test; it was not exercised in a browser against seeded data.",
-            "The rejection of a rounding change above ±5% (N06) has not been executed.",
         ],
     },
     {
@@ -196,7 +195,6 @@ STORIES = [
         ],
         "openItems": [
             "The early-lock panel is covered by component tests (completion.spec.ts); it was not exercised in a browser against a scheduled freeze.",
-            "The refusal branches (stale revision, missing release, digest mismatch) have not been executed.",
         ],
     },
     {
@@ -211,11 +209,10 @@ STORIES = [
             "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleQuery.cs",
         ],
         "implemented": [
-            "The local freeze is enforced inside AuditSphere, and the lifecycle warns that provider-level read-only protection is not verified.",
+            "The local freeze is enforced inside AuditSphere; the lifecycle returns provider status separately and warns when provider read-only enforcement is not observed.",
         ],
         "openItems": [
             "No provider protection strategy is implemented; FileFreezeService records ExternalReadOnly as BLOCKED_EXTERNAL.",
-            "The lifecycle summary has no provider-protection state field; the compliance warning string is its only provider-facing text.",
         ],
         "blocker": "Needs an approved provider protection strategy, provider readback evidence and real-tenant denial tests. AuditSphere does not claim provider immutability.",
         "externalEvidenceRequired": [
@@ -244,11 +241,13 @@ STORIES = [
             "Leads without a proposal are projected as LEAD_INGESTION (Stage 1) on the lead list.",
             "Planning requires approved, non-stale materiality, and managerial review hands over to Partner approval only when the completion gate is clear.",
             "The compliance countdown is anchored to the report-signature time, and an engagement is shown as archived only when its local freeze is FROZEN.",
+            "Proposal-generation drafts remain at Stage 2; Stage 3 requires a dispatched proposal with SentAt evidence.",
+            "The lifecycle response and Angular UI expose local archive and provider-protection states separately; unknown state values fail decoding.",
+            "A due but uncommitted freeze remains in the compliance countdown with an explicit blocker.",
         ],
         "openItems": [
-            "The lead-stage projection is two-valued (LEAD_INGESTION or PROPOSAL_OR_LATER); the move to Stage 3 on proposal dispatch has not been verified.",
-            "The section F model's separate provider-protection state is not returned; provider protection appears only in the compliance warning string.",
-            "A due-but-failed freeze (N12) has not been executed, so its stage display is unverified.",
+            "Proposal dispatch and lifecycle projection still need a joined browser journey; the current PostgreSQL lifecycle test covers the projection boundary.",
+            "The external provider read-only state remains BLOCKED_EXTERNAL until approved live provider readback evidence exists (STE-GAP-007).",
         ],
         "observedLocally": [
             "The engagement lifecycle showed Stage 2 of 11 with no compliance warning (browser check).",
@@ -276,8 +275,7 @@ STORIES = [
             "Rate resolution uses the exact approved card first, then the STE role alias, and otherwise fails closed with time.rate-missing.",
         ],
         "openItems": [
-            "A Domain test covers approval by a separate approver and the preparer refusal; the approve action was not exercised in a browser.",
-            "The alias fallback and the fail-closed branch have not been executed against a time entry.",
+            "Approval by a separate Partner, preparer refusal, aliases and unknown-role fail-closed behavior are covered by the PostgreSQL-backed Domain test; the screen approval action has not been exercised in a browser.",
         ],
         "observedLocally": [
             "Baseline initialization created four DRAFT cards (browser check).",
@@ -298,8 +296,8 @@ STORIES = [
             "This manifest lists all 48 happy-path steps and 14 negative branches, each with its evidence status.",
         ],
         "openItems": [
-            "The suites were restored (STE-NXT-001) but this manifest does not map their tests to journey steps; no step has recorded evidence here.",
-            "Steps that depend on the Microsoft tenant are BLOCKED_EXTERNAL; every other step is NOT_EXECUTED.",
+            "The manifest maps only journey steps with a declared source test and a recorded zero-failure run; unmatched local steps remain NOT_EXECUTED.",
+            "Steps that depend on the Microsoft tenant remain BLOCKED_EXTERNAL until live evidence and independent acceptance are recorded.",
         ],
     },
 ]
@@ -367,7 +365,7 @@ NEGATIVE_BRANCHES = [
     ("N09", "Critical confirmation outstanding → audit report blocked + Holding Letter generated."),
     ("N10", "Modified opinion without affected FSLI/basis → rejected."),
     ("N11", "Final release → subsequent client upload rejected."),
-    ("N12", "Day 60 with failed freeze operation → cannot falsely claim archived."),
+    ("N12", "Day 60 with a due but uncommitted freeze → cannot falsely claim archived."),
     ("N13", "Direct provider edit after verified archive protection → denied."),
     ("N14", "Cross-client user → denied throughout."),
 ]
@@ -387,9 +385,10 @@ def git(*args: str) -> str:
 
 
 # Journey steps with executed local evidence. Each citation is "<test source path>#<method>", so a mapping is verifiable:
-# the generator refuses to run when a cited file or method is absent, which keeps a stale or invented citation from
-# silently passing. A step with no citation stays NOT_EXECUTED; a step whose suite recorded failures stays NOT_EXECUTED
-# with that run named, because a suite-level pass cannot prove one step.
+# the generator refuses to run when a cited file or method is absent, which keeps an invented citation from silently
+# passing. It also requires the current source and test trees, and each cited test file, to match the recorded suite-run
+# commit. A step with no citation stays NOT_EXECUTED; a step whose suite recorded failures stays NOT_EXECUTED with that
+# run named, because a suite-level pass cannot prove one step.
 EVIDENCE = {
     "J18": ["tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#Materiality_IsCalculatedFromTheMappedTrialBalance_AndGoesStaleWhenTheSourceIsReplaced"],
     "J19": [
@@ -412,10 +411,11 @@ EVIDENCE = {
     "J44": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#FileFreezesSixtyDaysAfterSigning_RefusesWrites_AmendsWithApproval_AndTracesActivity"],
     "J45": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.EarlyLock.cs#PartnerEarlyLock_FailsClosedThenFreezesOnlyTheReviewedReadiness"],
     "J46": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#FrozenFileRefusesReviewNoteAttemptsAndRecordsTheRefusedWrite"],
-    "N03": ["tests/AuditSphereOps.Domain.Tests/EngagementActivationAdvanceGateTests.cs#ALinkedAgreementAlwaysGatesEvenUnderTheRecordedDeviation"],
+    "N03": ["tests/AuditSphereOps.Domain.Tests/EngagementActivationAdvanceGateTests.cs#LinkedAgreementMustHavePaidAdvanceBeforeActivation"],
     "N06": ["tests/AuditSphereOps.Domain.Tests/MaterialityPracticalRoundingTests.cs#AdjustmentsJustBeyondFivePercentAreRejected"],
     "N08": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#InlineNotesBlockApproval_AndOnlySomeoneStaffedAboveThePreparerReviews"],
     "N09": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#CriticalUnreturnedConfirmationKeepsBlockingAfterAlternativeClosureAndCriticalityReassessment"],
+    "N12": ["tests/AuditSphereOps.Domain.Tests/EngagementLifecycleQueryTests.cs#EngagementTraversesCanonicalStagesAndEnforcesScope"],
 }
 
 SUITE_RUNS = {
@@ -471,6 +471,36 @@ def check(check_id: str, text: str, runs: dict) -> dict:
         if run.get("failed"):
             return {"id": check_id, "text": text, "result": "NOT_EXECUTED", "blockedBy": None, "evidence": citations,
                     "note": f"{suite} recorded {run['failed']} failure(s) on {run.get('ranOn')}"}
+        ran_on = run.get("ranOn")
+        if not ran_on:
+            return {"id": check_id, "text": text, "result": "NOT_EXECUTED", "blockedBy": None, "evidence": citations,
+                    "note": f"{suite} has no repository snapshot for its recorded run"}
+        source_diff = subprocess.run(
+            ["git", "diff", "--quiet", ran_on, "--", "src", "tests"], cwd=ROOT, check=False
+        )
+        if source_diff.returncode != 0:
+            return {
+                "id": check_id,
+                "text": text,
+                "result": "NOT_EXECUTED",
+                "blockedBy": None,
+                "evidence": citations,
+                "note": f"source or test trees differ from the {suite} run snapshot {ran_on}",
+            }
+        for citation in citations:
+            path = citation.partition("#")[0]
+            recorded_source = subprocess.run(
+                ["git", "show", f"{ran_on}:{path}"], cwd=ROOT, capture_output=True, text=True, check=False
+            )
+            if recorded_source.returncode != 0 or recorded_source.stdout != (ROOT / path).read_text(encoding="utf-8"):
+                return {
+                    "id": check_id,
+                    "text": text,
+                    "result": "NOT_EXECUTED",
+                    "blockedBy": None,
+                    "evidence": citations,
+                    "note": f"{path} differs from the {suite} run snapshot {ran_on}",
+                }
     evidence = citations + [
         f"docs/execution/status.json#testSuites.runs.{suite} ({runs[suite].get('passed')} passed, 0 failed, {runs[suite].get('ranOn')})"
         for suite in suites
@@ -532,7 +562,7 @@ def build() -> dict:
             "executedTestSuites": sorted({suite_for(c.partition("#")[0]) for citations in EVIDENCE.values() for c in citations}),
             "removedInCommit": TEST_REMOVAL_COMMIT,
             "restoredBy": "STE-NXT-001",
-            "note": "A step is PASS only when every cited test is declared in the current source and the recorded run for its suite has zero failures; the run commit travels in the step's evidence so staleness stays visible. Steps with no citation stay NOT_EXECUTED, and a suite-level pass never proves an uncited step.",
+            "note": "A step is PASS only when every cited test is declared in the current source, the source and test trees match the recorded suite-run commit, and that run has zero failures. Steps with no citation stay NOT_EXECUTED, and a suite-level pass never proves an uncited step.",
         },
         "stageTransitionEvidenceIds": [],
         "generatedDocuments": [],

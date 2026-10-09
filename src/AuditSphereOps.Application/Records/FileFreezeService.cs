@@ -17,7 +17,8 @@ public sealed record FileFreezeView(Guid FreezeId, string State, DateTimeOffset 
 /// <summary>
 /// Regulatory file freeze: signing the Independent Auditor's Report schedules the freeze 60 days later (a re-signed
 /// report before the freeze reschedules it); a worker freezes due files, which blocks professional work and records
-/// refused writes; a Partner other than the requester opens a documented amendment window and closing it re-freezes.
+/// refused writes. An approved post-archive amendment remains a separate traceable record; it never reopens the archive
+/// or unblocks professional work.
 /// External SharePoint read-only enforcement is recorded as requested and stays BLOCKED_EXTERNAL until observed.
 /// </summary>
 public static class FileFreezeService
@@ -94,7 +95,8 @@ public static class FileFreezeService
     if (!frozen) return CommandResult.Ok();
     db.FrozenAccessAttempts.Add(new FrozenAccessAttempt { Id = Guid.CreateVersion7(), FirmId = actor.FirmId, EngagementId = engagementId, ActorUserId = actor.UserId, Action = action, AttemptedAt = DateTimeOffset.UtcNow });
     await db.SaveChangesAsync(ct);
-    return CommandResult.Fail(ErrorCodes.ProtectedState, "The engagement file is frozen after the report; an approved amendment is required to change it.");
+    return CommandResult.Fail(ErrorCodes.ProtectedState,
+      "The archived engagement remains read-only. An amendment approval is recorded separately and never reopens the original archive.");
   }
 
   public static async Task<CommandResult<Guid>> RequestAmendmentAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, string reason, CancellationToken ct = default)
@@ -118,17 +120,11 @@ public static class FileFreezeService
     if (amendment.RequestedByUserId == actor.UserId) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Another Partner must approve an amendment you requested.");
     if (amendment.OpenedAt is not null) return CommandResult.Ok();
     var live = await db.EngagementFileFreezes.SingleAsync(x => x.Id == amendment.FreezeId, ct);
-    if (live.State != FileFreezeStates.Frozen) return CommandResult.Fail(ErrorCodes.GateBlocked, "Another amendment is already open.");
-    var engagement = await db.Engagements.SingleAsync(x => x.Id == amendment.EngagementId, ct);
+    if (live.State != FileFreezeStates.Frozen) return CommandResult.Fail(ErrorCodes.GateBlocked, "Only the terminal frozen archive can receive a supplementary amendment decision.");
     var now = DateTimeOffset.UtcNow;
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     amendment.ApprovedByUserId = actor.UserId;
     amendment.OpenedAt = now;
-    await db.SaveChangesAsync(ct); // the approval must exist before the database lets the file reopen
-    live.State = FileFreezeStates.AmendmentOpen;
-    live.UpdatedAt = now;
-    engagement.ProfessionalWorkBlocked = false;
-    engagement.Generation++;
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
     return CommandResult.Ok();
@@ -142,14 +138,11 @@ public static class FileFreezeService
     if (!freeze.Succeeded) return CommandResult.Fail(freeze.ErrorCode!, freeze.Message!);
     if (amendment.ClosedAt is not null) return CommandResult.Ok();
     var live = await db.EngagementFileFreezes.SingleAsync(x => x.Id == amendment.FreezeId, ct);
-    var engagement = await db.Engagements.SingleAsync(x => x.Id == amendment.EngagementId, ct);
+    if (live.State != FileFreezeStates.Frozen)
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "The original archive must remain in its terminal frozen state.");
     var now = DateTimeOffset.UtcNow;
     amendment.ClosedAt = now;
     amendment.ClosedByUserId = actor.UserId;
-    live.State = FileFreezeStates.Frozen;
-    live.UpdatedAt = now;
-    engagement.ProfessionalWorkBlocked = true;
-    engagement.Generation++;
     await db.SaveChangesAsync(ct);
     return CommandResult.Ok();
   }
@@ -182,7 +175,6 @@ public static class FileFreezeService
     var release = await LatestReleaseAsync(db, actor.FirmId, engagementId, ct);
     var blockers = new List<string>();
     if (release is null) blockers.Add("final-release-missing");
-    if (freeze.State == FileFreezeStates.AmendmentOpen) blockers.Add("amendment-open");
     var digest = release is null ? null : ArchiveReadinessDigest(freeze, release);
     return CommandResult<ArchiveReadinessView>.Ok(new(freeze.Id, freeze.Revision, freeze.State, freeze.DueAt, digest, blockers));
   }
@@ -190,7 +182,7 @@ public static class FileFreezeService
   /// <summary>
   /// Partner-triggered early compliance lock during the countdown (STE 4.4.3). Fails closed unless the actor is a Partner in
   /// scope, the Partner confirmed, the countdown revision and reviewed archive digest are current, the final release exists and
-  /// no amendment window is open. The freeze and its append-only evidence commit in one transaction. An already frozen file
+  /// no conflicting state is present. The freeze and its append-only evidence commit in one transaction. An already frozen file
   /// is reported as frozen without a second lock.
   /// </summary>
   public static async Task<CommandResult<EarlyComplianceLockResult>> RequestEarlyComplianceLockAsync(
@@ -211,7 +203,7 @@ public static class FileFreezeService
     if (freeze.State == FileFreezeStates.Frozen)
       return CommandResult<EarlyComplianceLockResult>.Ok(new(freeze.Id, freeze.State, true, freeze.FrozenAt!.Value));
     if (freeze.State != FileFreezeStates.Scheduled)
-      return CommandResult<EarlyComplianceLockResult>.Fail(ErrorCodes.GateBlocked, "An approved amendment is open; close it before an early lock.");
+      return CommandResult<EarlyComplianceLockResult>.Fail(ErrorCodes.GateBlocked, "Only a scheduled file can be locked early; the frozen archive remains terminal.");
     if (freeze.Revision != request.ExpectedRevision)
       return CommandResult<EarlyComplianceLockResult>.Fail(ErrorCodes.GenerationStale,
         "The compliance countdown changed since you reviewed it. Reload the archive readiness and try again.");
