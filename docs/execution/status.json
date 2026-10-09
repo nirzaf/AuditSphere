@@ -42,6 +42,69 @@
       "details": "Native API and Angular capability routes, financial review/evidence actions, and scoped portfolio/client/contact/engagement projections have local verification. Canonical Angular route ownership is active. AuditSphereOps.Web and its Razor source remain restored as rollback/reference; API.Tests and E2E.Tests use API-only hosts. The latest complete PostgreSQL-backed Release solution regression is 1001/1001 (API 191/191, Domain 660/660, E2E 150/150) at ead85032de2ccc4d4c8043398fa8471d395376a9 and predates later focused migration slices through b3b4e1e3. At 147ac2a0, Angular tests passed 483/483 across 94 files, the production build passed with a 6.60 kB initial-bundle warning-budget overage, and focused PostgreSQL-backed acceptance, activation, engagement-creation, and completion/file-record reviews have per-slice evidence in this ledger. The completion/file-record cohort passed its focused domain and browser journeys at repository snapshot 2d34fca; its direct amendment/lock browser coverage remains open. The activation follow-on passed 483/483 Angular tests, a focused 2/2 PostgreSQL browser cohort, and the 1/1 PostgreSQL lifecycle gate. The blocked-engagement-creation follow-on passed five PostgreSQL domain tests and a 2/2 browser cohort across both route modes; the production build retains the 6.60 kB budget warning. The complete solution and EF pending-model checks were not rerun. Current-source journeys map all 82/82 removed E2E methods. A dedicated Angular firm-books expense workflow journey passed 1/1 at 5a554a09; finance source reviews remain partial. Client Portal home source/action review passed Angular 491/491, PostgreSQL Domain/API cohorts 3/3 and 2/2, and the API-host client portal journey 1/1; risk routing passed its API-host browser journey 1/1 with persisted band/owner and independent Partner-clearance evidence; a follow-up verifies the assessor sees no self-clear action and a direct self-review command receives 403. Shared confirmation caller review passed Angular CI 491/491, production build, and two PostgreSQL-backed API-host browser journeys for identity/scope display, lead qualification, grant revocation and session invalidation. All these source/action reviews remain partial. Workpaper, ReviewPoint, Records Archive and Release source/action reviews are recorded as PARTIAL; focused PostgreSQL browser evidence passed 5/5 for Workpaper, 1/1 for ReviewPoint, 1/1 for Archive and 2/2 for Release, with a 1/1 ReviewPoint Domain transaction test. Complete role/scope, remaining error/recovery, and discard-browser coverage remain open. Also open: 75 partially reviewed source/action rows awaiting full parity evidence, 28 supporting files with partial reviews, direct query/search/count/export/command retry/idempotency authorization, broader planning parity, production-like rollback/canary, screen-reader/wider-locale acceptance, live Microsoft gates and separate owner acceptance. Blazor retirement remains NOT_READY."
     }
   ],
+  "targetedVerification": {
+    "sourceCommit": "ab2197075e54b337e233c0ad85593be76a388ef3",
+    "recordedAtUtc": "2026-10-09T14:35:36Z",
+    "runs": [
+      {
+        "name": "API Release build",
+        "command": "dotnet build src/AuditSphereOps.Api/AuditSphereOps.Api.csproj --no-restore --configuration Release --maxcpucount:1",
+        "warnings": 0,
+        "errors": 0
+      },
+      {
+        "name": "Focused PostgreSQL Domain cohort",
+        "result": "PASS",
+        "passed": 17,
+        "failed": 0,
+        "filter": "EngagementLifecycleQueryTests|AuditDeliverablesTests|EngagementActivationAdvanceGateTests"
+      },
+      {
+        "name": "Permanent archive Playwright journey",
+        "result": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "filter": "FrozenFileSupplementRequestsDoNotReopenArchive"
+      },
+      {
+        "name": "Angular CI specs",
+        "command": "npm --prefix src/AuditSphereOps.Ui run test:ci",
+        "specFiles": 113,
+        "tests": 618,
+        "failed": 0
+      },
+      {
+        "name": "Angular production build",
+        "result": "PASS_WITH_WARNING",
+        "warning": "src/app/features/commercial/settings.scss exceeds the configured 4 KB component-style budget by 3.53 KB"
+      },
+      {
+        "name": "EF model drift",
+        "command": "dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Api --no-build --configuration Release",
+        "result": "no pending model changes"
+      },
+      {
+        "name": "OpenAPI drift",
+        "command": "bash scripts/contracts/verify-openapi.sh",
+        "result": "contract is current"
+      },
+      {
+        "name": "Documentation and source inventory gates",
+        "result": "PASS",
+        "markdownFiles": 192,
+        "relativeLinks": 2645,
+        "filenamePolicy": "PASS",
+        "narrativeMetrics": "PASS",
+        "angularSourceInventory": "PASS"
+      },
+      {
+        "name": "Built-in browser smoke check",
+        "url": "http://127.0.0.1:4200/ui/",
+        "result": "served app and displayed unauthenticated sign-in gate; API was unavailable, so no authenticated workflow was assessed"
+      }
+    ],
+    "fullE2eSuiteOnThisSource": "NOT_RUN"
+  },
   "externalGates": [
     {
       "gate": "P1",

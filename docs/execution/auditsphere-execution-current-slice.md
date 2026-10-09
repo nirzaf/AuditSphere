@@ -17,7 +17,7 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Terminal archive and mandatory advance control — 2026-10-09
 
-Changes committed on 2026-10-09 as `ab219707` after review of the v2.1 acceptance findings:
+Changes committed on 2026-10-09 after review of the v2.1 acceptance findings:
 
 - Removed `AMENDMENT_OPEN`. Partner approval and closure now update a separate supplementary-record trail; neither changes the frozen state nor clears `ProfessionalWorkBlocked`. Angular and legacy Web screens say the archive remains read-only and disable editing when frozen.
 - Added migration `20261009141822_PermanentFileFreeze`: legacy open amendments are normalized to `FROZEN` and the engagement write block is restored; the database check and trigger protect frozen identity/freeze evidence, and amendment approval/closure transitions remain auditable and immutable. Its Down migration fails closed. No database migration has been applied.
@@ -25,7 +25,7 @@ Changes committed on 2026-10-09 as `ab219707` after review of the v2.1 acceptanc
 - Added an EF design-time context factory with an inert local-only fallback so migration scaffolding does not construct the full API host. `AUDITSPHERE_MIGRATION_CONNECTION` is required to direct EF database commands at a real database.
 - Lifecycle Stage 3 now requires a dispatched proposal; the projection separates local freeze and provider protection status. A due-but-uncommitted freeze remains in countdown with an explicit blocker.
 
-Verification on the current source: API Release build passed with 0 warnings and 0 errors; the focused PostgreSQL Domain cohort passed 17/17; the updated archive Playwright journey passed 1/1; Angular production build passed with the existing `settings.scss` budget warning, and Angular CI specs passed 618/618. EF reports no pending model changes; OpenAPI drift verification passed; Markdown, filename and narrative-metric gates pass. The built-in browser served the app and showed the expected unauthenticated sign-in gate; no authenticated lifecycle page was verified. The full E2E suite has not been run on this tree. External tenant and SharePoint archive acceptance remain `BLOCKED_EXTERNAL`.
+Verification on the current source: the API Release build, focused PostgreSQL Domain cohort, updated archive Playwright journey, Angular production build and Angular CI specs passed. The Angular build retains the existing `settings.scss` budget warning. EF reports no pending model changes; OpenAPI drift verification and Markdown, filename, narrative-metric and source-inventory gates pass. Exact counts and commands are recorded in `status.json`. The built-in browser served the app and showed the expected unauthenticated sign-in gate; no authenticated lifecycle page was verified. The full E2E suite has not been run on this tree. External tenant and SharePoint archive acceptance remain `BLOCKED_EXTERNAL`.
 
 
 ## Pending-gap slice: fee-automation config alignment and truthful holding-letter delivery — 2026-10-09
