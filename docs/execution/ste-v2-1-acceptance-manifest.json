@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAtUtc": "2026-10-09T14:34:26Z",
+  "generatedAtUtc": "2026-10-09T16:24:56Z",
   "generatedBy": "scripts/acceptance/generate-ste-manifest.py",
   "repository": {
-    "commit": "ab2197075e54b337e233c0ad85593be76a388ef3",
+    "commit": "169c699b2cc7886fc293efa4ed505ed90d1e57d1",
     "branch": "master",
     "workingTreeClean": true
   },
@@ -19,8 +19,31 @@
   },
   "testEvidence": {
     "testCaseIds": [
+      "J01",
+      "J02",
+      "J03",
+      "J04",
+      "J05",
+      "J06",
+      "J07",
+      "J08",
+      "J09",
+      "J10",
+      "J11",
+      "J15",
+      "J16",
+      "J17",
       "J18",
       "J19",
+      "J20",
+      "J21",
+      "J22",
+      "J23",
+      "J24",
+      "J25",
+      "J26",
+      "J27",
+      "J28",
       "J29",
       "J30",
       "J31",
@@ -32,17 +55,28 @@
       "J37",
       "J38",
       "J39",
+      "J40",
       "J41",
+      "J42",
+      "J43",
       "J44",
       "J45",
       "J46",
+      "N01",
       "N03",
+      "N04",
+      "N05",
       "N06",
+      "N07",
       "N08",
       "N09",
-      "N12"
+      "N10",
+      "N11",
+      "N12",
+      "N14"
     ],
     "executedTestSuites": [
+      "api",
       "domain"
     ],
     "removedInCommit": "47ca0b05",
@@ -98,77 +132,113 @@
         "text": "Lead created with entity and contact profile.",
         "result": "NOT_EXECUTED",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/PracticeCrmTests.cs#LeadCreation_ReconcilesExactRetry_AndRejectsRequestIdentityReuse"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "J02",
         "text": "Client converted/profiled with relevant relationship/contact routing.",
         "result": "NOT_EXECUTED",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/PracticeCrmTests.cs#CommercialWorkflow_ConvertsIdempotently_AndLeavesAcceptancePending",
+          "tests/AuditSphereOps.Domain.Tests/ClientRelationshipsAndRoutingTests.cs#CorrespondenceRouting_ResolvesPurposeSpecificContacts_AndRecordsImmutableDispatch"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "J03",
         "text": "Brief or comprehensive proposal generated.",
         "result": "NOT_EXECUTED",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#OneClickDocuments_AreBrandedImmutableAndBoundToTheApprovedQuotation"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "J04",
         "text": "Proposal dispatched and client commercial acceptance recorded.",
         "result": "NOT_EXECUTED",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/PracticeCrmTests.cs#ProposalDispatch_BindsExactOffer_AndAcceptanceMustCiteIt"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "J05",
         "text": "New/continuance acceptance checklist completed.",
         "result": "NOT_EXECUTED",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/AcceptanceChecklistTests.cs#NewClient_MustAnswerEveryOnboardingQuestionWithEvidence_AndAnAdverseAnswerIsNeverAcceptedByFillingFields"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "J06",
         "text": "Independent Partner risk acceptance recorded.",
         "result": "NOT_EXECUTED",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/AcceptanceDecisionTests.cs#AcceptedDecision_IsImmutableAndCreatesOneWaitingWorkspace",
+          "tests/AuditSphereOps.Domain.Tests/AcceptanceDecisionTests.cs#AcceptanceRequiresCurrentEvaluationAndPartnerScope"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "J07",
         "text": "Engagement Letter generated from correct service-specific template.",
         "result": "NOT_EXECUTED",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#OneClickDocuments_AreBrandedImmutableAndBoundToTheApprovedQuotation"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "J08",
         "text": "50% advance invoice workflow initiated.",
         "result": "NOT_EXECUTED",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "J09",
         "text": "Official invoice posted/delivered through approved finance flow.",
         "result": "NOT_EXECUTED",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "J10",
         "text": "Payment recorded and allocated.",
         "result": "NOT_EXECUTED",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach",
+          "tests/AuditSphereOps.Api.Tests/BillingWorkspaceApiTests.cs#InvoiceWorkspaceRecordsAllocatesAndCreditsWithCurrentAuthorizationAndAntiforgery"
+        ],
+        "note": "source or test trees differ from the api run snapshot 9d525a8a"
       },
       {
         "id": "J11",
         "text": "Official receipt generated.",
         "result": "NOT_EXECUTED",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "J12",
@@ -196,21 +266,30 @@
         "text": "staff assigned and capacity/schedule visible.",
         "result": "NOT_EXECUTED",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#ResourceGrid_ShowsCapacityUnavailabilityAndOverAllocation_AndBudgetsReconcileByPhaseAndRiskArea"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "J16",
         "text": "TB uploaded and sealed.",
         "result": "NOT_EXECUTED",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Api.Tests/TrialBalanceUploadApiTests.cs#EngagementScopedPreview_AllPeriodValidation_Csrf_AndExactReceipts"
+        ],
+        "note": "source or test trees differ from the api run snapshot 9d525a8a"
       },
       {
         "id": "J17",
         "text": "mapping approved.",
         "result": "NOT_EXECUTED",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Api.Tests/MappingApprovalApiTests.cs#FreshIndependentReviewSerializesConcurrentApprovalAndPreservesAllocations"
+        ],
+        "note": "source or test trees differ from the api run snapshot 9d525a8a"
       },
       {
         "id": "J18",
@@ -239,63 +318,93 @@
         "text": "independent Partner materiality approval recorded.",
         "result": "NOT_EXECUTED",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#Materiality_IsCalculatedFromTheMappedTrialBalance_AndGoesStaleWhenTheSourceIsReplaced"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "J21",
         "text": "FSLI risk bands visible and staffing routes enforced.",
         "result": "NOT_EXECUTED",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#Staffing_MapsFourLevelsToEngagementRoles_AndRiskBandsRouteOwnersAndPartnerReview",
+          "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#AuditProcedure_ExecutionAndReviewStaffingRanks_EnforcesRiskBandRules"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "J22",
         "text": "fieldwork program adopted.",
         "result": "NOT_EXECUTED",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#AuditProcedure_ExecutionAndReviewStaffingRanks_EnforcesRiskBandRules",
+          "tests/AuditSphereOps.Domain.Tests/AuditAreaSummaryTests.cs#AreaSummary_ReportsCoveragePerArea"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "J23",
         "text": "parallel FSLI work executed.",
         "result": "NOT_EXECUTED",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#FieldworkOnSeparateFslisRunsInParallelForDifferentStaffWithoutInterference"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "J24",
         "text": "digital and physical evidence linked.",
         "result": "NOT_EXECUTED",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/FieldworkConnectionsTests.cs#Statements_DrillIntoProcedures_AndSamplingPhysicalAndAdHocStepsConnect",
+          "tests/AuditSphereOps.Domain.Tests/FieldworkConnectionsTests.cs#ClientEvidence_LinksOnlyTheExactCurrentReceivedVersionOfThisEngagement"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "J25",
         "text": "sampling run persisted/reproducible.",
         "result": "NOT_EXECUTED",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/FieldworkConnectionsTests.cs#Statements_DrillIntoProcedures_AndSamplingPhysicalAndAdHocStepsConnect"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "J26",
         "text": "analytical review completed/reviewed.",
         "result": "NOT_EXECUTED",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Api.Tests/AnalyticalPreparationApiTests.cs#ReviewedAnalyticalPreparationIsScopedIdempotentAndKeepsIndependentReviewWritable"
+        ],
+        "note": "source or test trees differ from the api run snapshot 9d525a8a"
       },
       {
         "id": "J27",
         "text": "going-concern assessment completed/reviewed.",
         "result": "NOT_EXECUTED",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/AuditCompletionTests.cs#CompletionRecords_DeriveConclusionsAndBlockUnresolved"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "J28",
         "text": "Preparer submits work.",
         "result": "NOT_EXECUTED",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/AuditPlanningTests.cs#Workpaper_CreateAndSubmit_RevisionConflict"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "J29",
@@ -412,7 +521,10 @@
         "text": "correspondence trail included.",
         "result": "NOT_EXECUTED",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs#FivePartBundle_RequiresReviewedReleaseAndPostedBalance_IsIdempotent_AndClientScoped"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "J41",
@@ -429,14 +541,21 @@
         "text": "final 50% invoice generated/posting workflow completed.",
         "result": "NOT_EXECUTED",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "J43",
         "text": "client portal uploads become read-only/frozen.",
         "result": "NOT_EXECUTED",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/ClientPortalOnboardingTests.cs#RequireUploadWindow_AllowsUploadsDuringInternalFinancialPackageRelease_AndFreezesOnFinalBundle",
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs#FivePartBundle_RequiresReviewedReleaseAndPostedBalance_IsIdempotent_AndClientScoped"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "J44",
@@ -489,7 +608,10 @@
         "text": "Client accepted quote but Partner risk gate missing → no Engagement Letter.",
         "result": "NOT_EXECUTED",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#OneClickDocuments_AreBrandedImmutableAndBoundToTheApprovedQuotation"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "N02",
@@ -513,14 +635,20 @@
         "text": "First sign-in not completed → no upload.",
         "result": "NOT_EXECUTED",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/ClientPortalOnboardingTests.cs#Uploads_AreWithheld_UntilTheFirstSignInRequirementForEachIdentityPathIsMet"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "N05",
         "text": "Stale TB/mapping → materiality cannot be approved.",
         "result": "NOT_EXECUTED",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#Materiality_IsCalculatedFromTheMappedTrialBalance_AndGoesStaleWhenTheSourceIsReplaced"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "N06",
@@ -537,7 +665,10 @@
         "text": "Junior assigned to Amber/Red work below required level → rejected.",
         "result": "NOT_EXECUTED",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#AuditProcedure_ExecutionAndReviewStaffingRanks_EnforcesRiskBandRules"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "N08",
@@ -564,14 +695,20 @@
         "text": "Modified opinion without affected FSLI/basis → rejected.",
         "result": "NOT_EXECUTED",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "N11",
         "text": "Final release → subsequent client upload rejected.",
         "result": "NOT_EXECUTED",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs#FivePartBundle_RequiresReviewedReleaseAndPostedBalance_IsIdempotent_AndClientScoped"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       },
       {
         "id": "N12",
@@ -595,7 +732,13 @@
         "text": "Cross-client user → denied throughout.",
         "result": "NOT_EXECUTED",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/AuthorizationDecisionTests.cs#CrossClient_GrantForOtherClient_IsDenied",
+          "tests/AuditSphereOps.Domain.Tests/WorkspaceQueryTests.cs#EngagementGrantCannotReadClientOrSibling_AndRevocationClearsAccess",
+          "tests/AuditSphereOps.Domain.Tests/AuditConfirmationCommandIsolationTests.cs#SiblingClientIds_AreDeniedAcrossConfirmationLifecycle",
+          "tests/AuditSphereOps.Domain.Tests/BillingCommandScopeIsolationTests.cs#ClientScopedFinanceCommandsCannotReadOrMutateSiblingClientBillingRecords"
+        ],
+        "note": "source or test trees differ from the domain run snapshot f7304708"
       }
     ]
   },
