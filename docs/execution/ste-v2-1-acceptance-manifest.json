@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAtUtc": "2026-10-08T14:25:23Z",
+  "generatedAtUtc": "2026-10-09T13:24:32Z",
   "generatedBy": "scripts/acceptance/generate-ste-manifest.py",
   "repository": {
-    "commit": "a18125a4c948cc1883f9b6d8bae1facb255d057e",
+    "commit": "d887a1f17f1f3d6242c222b5d9eac63a061d6775",
     "branch": "master",
     "workingTreeClean": true
   },
@@ -18,11 +18,35 @@
     "gapAnalysisReviewedRevision": "214579b9583bae5a209cb4cf3476a5fcb459251d"
   },
   "testEvidence": {
-    "testCaseIds": [],
-    "executedTestSuites": [],
+    "testCaseIds": [
+      "J18",
+      "J19",
+      "J29",
+      "J30",
+      "J31",
+      "J32",
+      "J33",
+      "J34",
+      "J35",
+      "J36",
+      "J37",
+      "J38",
+      "J39",
+      "J41",
+      "J44",
+      "J45",
+      "J46",
+      "N03",
+      "N06",
+      "N08",
+      "N09"
+    ],
+    "executedTestSuites": [
+      "domain"
+    ],
     "removedInCommit": "47ca0b05",
     "restoredBy": "STE-NXT-001",
-    "note": "Automated suites were restored. Their runs are recorded in docs/execution/status.json (testSuites). This manifest does not map individual tests to journey steps, so no journey step has recorded evidence here."
+    "note": "A step is PASS only when every cited test is declared in the current source and the recorded run for its suite has zero failures; the run commit travels in the step's evidence so staleness stays visible. Steps with no citation stay NOT_EXECUTED, and a suite-level pass never proves an uncited step."
   },
   "stageTransitionEvidenceIds": [],
   "generatedDocuments": [],
@@ -190,16 +214,24 @@
       {
         "id": "J18",
         "text": "materiality calculated.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#Materiality_IsCalculatedFromTheMappedTrialBalance_AndGoesStaleWhenTheSourceIsReplaced",
+          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
+        ]
       },
       {
         "id": "J19",
         "text": "optional practical rounding applied within ±5%.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/MaterialityPracticalRoundingTests.cs#StoryCriterion_PlanningMateriality_53421_to_53000_is_accepted_and_a_value_past_the_bound_is_refused",
+          "tests/AuditSphereOps.Domain.Tests/MaterialityPracticalRoundingTests.cs#BoundaryAdjustmentsOfExactlyFivePercentAreAccepted",
+          "tests/AuditSphereOps.Domain.Tests/MaterialityPracticalRoundingTests.cs#AdjustmentsJustBeyondFivePercentAreRejected",
+          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
+        ]
       },
       {
         "id": "J20",
@@ -267,79 +299,112 @@
       {
         "id": "J29",
         "text": "Reviewer returns at least one item with mandatory note.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#InlineNotesBlockApproval_AndOnlySomeoneStaffedAboveThePreparerReviews",
+          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
+        ]
       },
       {
         "id": "J30",
         "text": "Preparer reworks and resubmits.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#LateAndReopenedNotesBlockClearanceUntilRespondedResolvedAndReviewed",
+          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
+        ]
       },
       {
         "id": "J31",
         "text": "review note resolved.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#LateAndReopenedNotesBlockClearanceUntilRespondedResolvedAndReviewed",
+          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
+        ]
       },
       {
         "id": "J32",
         "text": "SRM generated from current evidence.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmPresentsCurrencyAwareDifferences_AndDocumentsDoNotAssertAutomaticImmateriality",
+          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
+        ]
       },
       {
         "id": "J33",
         "text": "Partner reviews required Red areas.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning",
+          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
+        ]
       },
       {
         "id": "J34",
         "text": "critical confirmations are returned/evaluated.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#CriticalUnreturnedConfirmationKeepsBlockingAfterAlternativeClosureAndCriticalityReassessment",
+          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
+        ]
       },
       {
         "id": "J35",
         "text": "Partner clears current SRM.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning",
+          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
+        ]
       },
       {
         "id": "J36",
         "text": "opinion selected.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning",
+          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
+        ]
       },
       {
         "id": "J37",
         "text": "report generated and signed/sealed.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning",
+          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
+        ]
       },
       {
         "id": "J38",
         "text": "Management Letter generated.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.ManagementLetter.cs#ManagementLetterRendersOnlyDesignatedCompleteMatters_AndStalesOnTheirChange",
+          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
+        ]
       },
       {
         "id": "J39",
         "text": "LOR generated, downloaded, signed by client and re-uploaded.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs#SignedRepresentation_IsVersionBound_Idempotent_Immutable_AndScoped",
+          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
+        ]
       },
       {
         "id": "J40",
@@ -351,9 +416,12 @@
       {
         "id": "J41",
         "text": "five-part bundle assembled.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs#FivePartBundle_RequiresReviewedReleaseAndPostedBalance_IsIdempotent_AndClientScoped",
+          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
+        ]
       },
       {
         "id": "J42",
@@ -372,23 +440,32 @@
       {
         "id": "J44",
         "text": "countdown begins from report signature.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#FileFreezesSixtyDaysAfterSigning_RefusesWrites_AmendsWithApproval_AndTracesActivity",
+          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
+        ]
       },
       {
         "id": "J45",
         "text": "either automatic day-60 freeze or Partner early lock succeeds.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.EarlyLock.cs#PartnerEarlyLock_FailsClosedThenFreezesOnlyTheReviewedReadiness",
+          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
+        ]
       },
       {
         "id": "J46",
         "text": "archive becomes locally read-only.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#FrozenFileRefusesReviewNoteAttemptsAndRecordsTheRefusedWrite",
+          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
+        ]
       },
       {
         "id": "J47",
@@ -423,9 +500,12 @@
       {
         "id": "N03",
         "text": "Advance invoice unpaid → no active upload workspace.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/EngagementActivationAdvanceGateTests.cs#ALinkedAgreementAlwaysGatesEvenUnderTheRecordedDeviation",
+          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
+        ]
       },
       {
         "id": "N04",
@@ -444,9 +524,12 @@
       {
         "id": "N06",
         "text": "Practical rounding >5% → rejected.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/MaterialityPracticalRoundingTests.cs#AdjustmentsJustBeyondFivePercentAreRejected",
+          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
+        ]
       },
       {
         "id": "N07",
@@ -458,16 +541,22 @@
       {
         "id": "N08",
         "text": "Open review note → completion blocked.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#InlineNotesBlockApproval_AndOnlySomeoneStaffedAboveThePreparerReviews",
+          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
+        ]
       },
       {
         "id": "N09",
         "text": "Critical confirmation outstanding → audit report blocked + Holding Letter generated.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#CriticalUnreturnedConfirmationKeepsBlockingAfterAlternativeClosureAndCriticalityReassessment",
+          "docs/execution/status.json#testSuites.runs.domain (798 passed, 0 failed, f7304708)"
+        ]
       },
       {
         "id": "N10",
@@ -763,12 +852,12 @@
   ],
   "summary": {
     "mandatoryChecks": 62,
-    "PASS": 0,
+    "PASS": 21,
     "FAIL": 0,
-    "NOT_EXECUTED": 57,
+    "NOT_EXECUTED": 36,
     "BLOCKED_EXTERNAL": 5
   },
   "overallResult": "FAIL",
-  "overallReason": "57 mandatory checks have no executed evidence; 5 are blocked by external providers (STE-GAP-004, STE-GAP-007); 0 checks failed.",
+  "overallReason": "36 mandatory checks have no executed evidence; 5 are blocked by external providers (STE-GAP-004, STE-GAP-007); 0 checks failed.",
   "resultRule": "FAIL when a mandatory check failed, or has no executed evidence and no external block. PASS only when every mandatory check passed with recorded evidence. BLOCKED_EXTERNAL when every unresolved mandatory check is blocked by an external provider. A check is never marked PASS without recorded evidence."
 }
