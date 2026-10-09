@@ -1,0 +1,81 @@
+name: Hostinger acceptance images
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/hostinger-acceptance-images.yml'
+      - 'Directory.Build.props'
+      - 'Directory.Packages.props'
+      - 'AuditSphereOps.slnx'
+      - 'global.json'
+      - 'src/AuditSphereOps.Api/**'
+      - 'src/AuditSphereOps.Application/**'
+      - 'src/AuditSphereOps.Domain/**'
+      - 'src/AuditSphereOps.Infrastructure/**'
+      - 'src/AuditSphereOps.Ui/**'
+      - 'src/AuditSphereOps.Worker/**'
+      - 'infra/docker/migrations.Dockerfile'
+      - 'docs/task_breakdown/tracking/pack_manifest.json'
+      - '.dockerignore'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: hostinger-acceptance-images-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-push:
+    name: Build and publish private linux/amd64 images
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Log in to GitHub Container Registry
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+
+      - name: Create Buildx builder
+        run: docker buildx create --name hostinger-acceptance --use
+
+      - name: Build and push API image
+        run: |
+          set -euo pipefail
+          docker buildx build --platform linux/amd64 --push \
+            --tag "ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/auditsphere-acceptance-api:${GITHUB_SHA}" \
+            --file src/AuditSphereOps.Api/Dockerfile .
+
+      - name: Build and push worker image
+        run: |
+          set -euo pipefail
+          docker buildx build --platform linux/amd64 --push \
+            --tag "ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/auditsphere-acceptance-worker:${GITHUB_SHA}" \
+            --file src/AuditSphereOps.Worker/Dockerfile .
+
+      - name: Build and push migration image
+        run: |
+          set -euo pipefail
+          docker buildx build --platform linux/amd64 --push \
+            --tag "ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/auditsphere-acceptance-migrations:${GITHUB_SHA}" \
+            --file infra/docker/migrations.Dockerfile .
+
+      - name: Summarize image references
+        run: |
+          {
+            printf "Source commit: \`%s\`\n\n" "$GITHUB_SHA"
+            printf "Private GHCR images:\n"
+            printf -- "- \`ghcr.io/%s/auditsphere-acceptance-api:%s\`\n" "${GITHUB_REPOSITORY_OWNER,,}" "$GITHUB_SHA"
+            printf -- "- \`ghcr.io/%s/auditsphere-acceptance-worker:%s\`\n" "${GITHUB_REPOSITORY_OWNER,,}" "$GITHUB_SHA"
+            printf -- "- \`ghcr.io/%s/auditsphere-acceptance-migrations:%s\`\n" "${GITHUB_REPOSITORY_OWNER,,}" "$GITHUB_SHA"
+          } >> "$GITHUB_STEP_SUMMARY"

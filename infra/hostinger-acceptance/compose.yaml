@@ -21,9 +21,7 @@ services:
 
   migrate:
     profiles: ["migration"]
-    build:
-      context: ../..
-      dockerfile: infra/docker/migrations.Dockerfile
+    image: ghcr.io/nirzaf/auditsphere-acceptance-migrations:${RELEASE_TAG:?Set RELEASE_TAG in .env}
     restart: "no"
     environment:
       ConnectionStrings__AuditSphere: "Host=db;Port=5432;Database=auditsphere;Username=auditsphere;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}"
@@ -34,10 +32,7 @@ services:
       - acceptance
 
   api:
-    build:
-      context: ../..
-      dockerfile: src/AuditSphereOps.Api/Dockerfile
-    image: auditsphere-api:${RELEASE_TAG:?Set RELEASE_TAG in .env}
+    image: ghcr.io/nirzaf/auditsphere-acceptance-api:${RELEASE_TAG:?Set RELEASE_TAG in .env}
     restart: unless-stopped
     init: true
     environment:
@@ -79,10 +74,7 @@ services:
         ipv4_address: 172.29.91.10
 
   worker-general:
-    build:
-      context: ../..
-      dockerfile: src/AuditSphereOps.Worker/Dockerfile
-    image: auditsphere-worker:${RELEASE_TAG:?Set RELEASE_TAG in .env}
+    image: ghcr.io/nirzaf/auditsphere-acceptance-worker:${RELEASE_TAG:?Set RELEASE_TAG in .env}
     restart: unless-stopped
     init: true
     environment: &worker_environment

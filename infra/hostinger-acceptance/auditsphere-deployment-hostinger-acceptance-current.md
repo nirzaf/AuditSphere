@@ -54,8 +54,13 @@ Run `fallocate` after `mkfs.ext4`; formatting the image can discard preallocated
    a generated `POSTGRES_PASSWORD`, `FIRM_ID`, `INSTALLATION_ID`, `BOOTSTRAP_PROOF_HASH`,
    `IDENTITY_TENANT_ID`, `IDENTITY_CLIENT_ID`, `IDENTITY_CLIENT_SECRET`,
    `INITIAL_ADMIN_OBJECT_ID`, and a positive `DEPLOYMENT_EPOCH`. Use synthetic values only.
-2. Validate the Compose model with `docker compose config -q` and build the API, worker and
-   migration images with `docker compose --profile migration build`.
+2. Build the three `linux/amd64` images from the approved source commit using the GitHub Actions
+   workflow `Hostinger acceptance images`. It publishes them to private GitHub Container Registry
+   packages. On the VPS, authenticate Docker to `ghcr.io` with a GitHub token that has only
+   `read:packages` access, then use the same full source SHA as `RELEASE_TAG`. Enter the token
+   directly at the VPS terminal prompt; do not place it in `.env`, shell history, chat or the repo.
+   Validate the Compose model with `docker compose config -q` and pull the API, worker and
+   migration images with `docker compose --profile migration pull`.
 3. Start only PostgreSQL, wait for its healthy status, then run the one-shot migration job:
    `docker compose up -d db`; `docker compose --profile migration run --rm migrate`.
    Application containers never apply schema changes at startup.
