@@ -4,6 +4,7 @@ using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Engagements;
+using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 
@@ -39,7 +40,7 @@ public static class EngagementActivationWorkspace
     Exact(row.ClientGeneration),Exact(row.EngagementGeneration!.Value),Exact(row.ResultGeneration!.Value),row.ActivatedAt);
 
   public static async Task<CommandResult<EngagementActivationState>> StateAsync(IAuditSphereDbContext db, ActorContext a,
-    Guid id, CancellationToken ct=default)
+    Guid id, CancellationToken ct=default, EngagementActivationOptions? options=null)
   {
     if (!(await Authorize(db,a,id,ct)).Succeeded) return Unavailable<EngagementActivationState>();
     var e=await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x=>x.FirmId==a.FirmId&&x.Id==id,ct);
@@ -60,25 +61,36 @@ public static class EngagementActivationWorkspace
       if(d.Decision!="Accepted") blockers.Add(new("acceptance.not-unconditional","Resolve conditions or adverse decisions through a new unconditional Partner decision."));
     }
     if(holds>0) blockers.Add(new("holds.active","Resolve every unreleased engagement hold before activation."));
+    // STE 4.1.5 / C-02: the 50% advance is an unconditional hard block unless the approved deviation mode is
+    // configured. These blockers mirror EngagementLifecycleService so the workspace never implies eligibility.
+    var linkedAgreementIds=await db.EngagementFeeAgreements.AsNoTracking()
+      .Where(x=>x.FirmId==a.FirmId&&x.EngagementId==id).Select(x=>x.Id).ToListAsync(ct);
+    var advancePaid=await db.FeeMilestones.AsNoTracking().AnyAsync(x=>x.FirmId==a.FirmId&&
+      x.Kind==FeeMilestoneKinds.Advance&&x.State==FeeMilestoneStates.Paid&&linkedAgreementIds.Contains(x.AgreementId),ct);
+    if(linkedAgreementIds.Count==0 && options?.AdvanceGateMode!=AdvanceGateModes.WhenFeeAgreementLinked)
+      blockers.Add(new("advance.fee-agreement-missing","A linked fee agreement with a fully paid and allocated 50% advance is required before activation."));
+    if(linkedAgreementIds.Count>0 && !advancePaid)
+      blockers.Add(new("advance.unpaid","Record the fully paid and allocated 50% advance before activation."));
     var basis=Hashing.Sha256Hex(JsonSerializer.Serialize(new {a.FirmId,a.UserId,a.SessionEpoch,id,e.PracticeClientId,name,e.ServiceRoute,
-      e.ServiceProfileId,e.PeriodStart,e.PeriodEnd,e.Status,e.Generation,ClientGeneration=generation.Value,Decision=d,ActiveHolds=holds}));
+      e.ServiceProfileId,e.PeriodStart,e.PeriodEnd,e.Status,e.Generation,ClientGeneration=generation.Value,Decision=d,ActiveHolds=holds,
+      FeeAgreementLinked=linkedAgreementIds.Count>0,AdvancePaid=advancePaid}));
     if (!(await Authorize(db,a,id,ct)).Succeeded) return Unavailable<EngagementActivationState>();
     return CommandResult<EngagementActivationState>.Ok(new(id,e.PracticeClientId,name,e.ServiceRoute,e.ServiceProfileId,e.PeriodStart,e.PeriodEnd,
       e.Status,Exact(e.Generation),Exact(generation.Value),d,holds,blockers.Count==0,basis,blockers));
   }
   public static async Task<CommandResult<EngagementActivationPreview>> PreviewAsync(IAuditSphereDbContext db, ActorContext a,
-    Guid id, EngagementActivationRequest? r, CancellationToken ct=default)
+    Guid id, EngagementActivationRequest? r, CancellationToken ct=default, EngagementActivationOptions? options=null)
   {
     if(r is null || r.RequestId==Guid.Empty || !HashValid(r.ReviewBasis))
       return CommandResult<EngagementActivationPreview>.Fail("request.invalid","Review the exact engagement and acceptance prerequisites.");
-    var s=await StateAsync(db,a,id,ct);
+    var s=await StateAsync(db,a,id,ct,options);
     if(!s.Succeeded)return CommandResult<EngagementActivationPreview>.Fail(s.ErrorCode!,s.Message!);
     if(s.Value!.ReviewBasis!=r.ReviewBasis)return CommandResult<EngagementActivationPreview>.Fail(ErrorCodes.GenerationStale,"Activation context changed. Refresh and review again.");
     if(!s.Value.Eligible)return CommandResult<EngagementActivationPreview>.Fail(ErrorCodes.GateBlocked,"Resolve the displayed activation prerequisites first.");
     return CommandResult<EngagementActivationPreview>.Ok(new(id,r.RequestId,r.ReviewBasis,RequestHash(a,id,r.RequestId)));
   }
   public static async Task<CommandResult<EngagementActivationReceipt>> ExecuteAsync(IAuditSphereDbContext db, ActorContext a,
-    Guid id, EngagementActivationRequest? r, CancellationToken ct=default)
+    Guid id, EngagementActivationRequest? r, CancellationToken ct=default, EngagementActivationOptions? options=null)
   {
     if(r is null || !r.Reviewed || r.RequestId==Guid.Empty || !HashValid(r.ReviewBasis) || !HashValid(r.ExpectedRequestHash) || r.ExpectedRequestHash!=RequestHash(a,id,r.RequestId))
       return CommandResult<EngagementActivationReceipt>.Fail("request.invalid","Preview and explicitly confirm this exact activation.");
@@ -95,7 +107,7 @@ public static class EngagementActivationWorkspace
       if(!(await Authorize(db,a,id,ct)).Succeeded)return Unavailable<EngagementActivationReceipt>();
       await tx.CommitAsync(ct);return CommandResult<EngagementActivationReceipt>.Ok(Receipt(prior));
     }
-    var result=await EngagementLifecycleService.ActivateAsync(db,a,id,ct,r);
+    var result=await EngagementLifecycleService.ActivateAsync(db,a,id,ct,r,options);
     if(!result.Succeeded)return CommandResult<EngagementActivationReceipt>.Fail(result.ErrorCode!,result.Message!);
     var row=await db.EngagementActivations.AsNoTracking().SingleAsync(x=>x.FirmId==a.FirmId&&x.Id==result.Value,ct);
     if(!(await Authorize(db,a,id,ct)).Succeeded)return Unavailable<EngagementActivationReceipt>();

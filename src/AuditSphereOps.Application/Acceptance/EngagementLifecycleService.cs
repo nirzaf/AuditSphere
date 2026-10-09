@@ -26,7 +26,7 @@ public static partial class EngagementLifecycleService
 
   public static async Task<CommandResult<Guid>> ActivateAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default,
-    EngagementActivationRequest? reviewedRequest = null)
+    EngagementActivationRequest? reviewedRequest = null, EngagementActivationOptions? options = null)
   {
     var stub = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x => x.Id == engagementId && x.FirmId == actor.FirmId, ct);
     if (stub is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
@@ -77,9 +77,15 @@ public static partial class EngagementLifecycleService
         : $"The current decision is {decision.Decision}; only an unconditional acceptance activates an engagement.");
     if (await db.EngagementHolds.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId && !x.Released, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "An unreleased hold blocks activation.");
-    // STE 4.1.5: when a fee agreement is linked to this engagement, the 50% advance must be fully paid and allocated first.
+    // STE 4.1.5 / C-02: the recorded 50% advance is an unconditional hard block. The gate is configurable so an
+    // approved deviation can be recorded, but only the recognised opt-out mode weakens it: an unset or unknown mode
+    // still enforces the requirement. A linked agreement always gates, even under the opt-out mode.
+    var advanceRequired = options?.AdvanceGateMode != AdvanceGateModes.WhenFeeAgreementLinked;
     var linkedAgreement = await db.EngagementFeeAgreements.AsNoTracking()
       .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId, ct);
+    if (linkedAgreement is null && advanceRequired)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+        "A linked engagement fee agreement with a fully paid and allocated 50% advance is required before the engagement can be activated.");
     if (linkedAgreement is not null && !await db.FeeMilestones.AnyAsync(x => x.FirmId == actor.FirmId && x.AgreementId == linkedAgreement.Id &&
       x.Kind == FeeMilestoneKinds.Advance && x.State == FeeMilestoneStates.Paid, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,

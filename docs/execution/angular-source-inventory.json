@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "sourceCommit": "71722283cb2f3d63a7f7c07742d66c30234b65dc",
+  "sourceCommit": "8a9ff4fabb3a7ce3756a50d14a51af5f518e70bb",
   "coverage": "Source discovery only; dynamic actions, scope and parity tests require manual review.",
   "items": [
     {
@@ -57,7 +57,7 @@
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Acceptance/EngagementActivationPanel.razor",
-      "sourceSha256": "bb9e2db0ac4ab10da2a12bd45dddd2f722ae16e17aa685023b15c6902179a40d",
+      "sourceSha256": "f4d3db0a519abd1f3d5bbc4fc86e31c8081d472f1bc4698821610e9661f91472",
       "routes": [],
       "actions": [
         "ActivateAsync"
@@ -70,6 +70,10 @@
         [
           "IDbContextFactory<AuditSphereDbContext>",
           "DbFactory"
+        ],
+        [
+          "EngagementActivationOptions",
+          "ActivationOptions"
         ]
       ],
       "links": [

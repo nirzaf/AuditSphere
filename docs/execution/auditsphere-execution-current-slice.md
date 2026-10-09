@@ -15,6 +15,24 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Requirements-alignment slice: advance gate and diagram traceability — 2026-10-09
+
+Owner-directed alignment of `workflow_architecture_suite.html` with `requirements.html` (the source-aligned v2.1 register)
+and with the code. Observed results:
+
+- **Suite ↔ register links repaired.** All 59 baseline links pointed at the non-existent `requirements(2).html`; they now resolve to `requirements.html`. All 22 distinct anchors (`#architecture`, `#boundaries`, `#controls`, `#lifecycle`, `#M1.01`…`#M5.02`) exist as `id` values in the register.
+- **Persona cards** carry the register's §1.2 role names: Audit Associate / Junior Auditor, Audit Senior / Audit Manager, Engagement Partner, Client Coordinator / CFO / MD.
+- **Profitability wording corrected** to match `PracticeAnalyticsQuery`: the source-defined charge-out indicator is stated, and the implemented actual-cost analytics (separate staff cost rate, profit, margin, realization, billed/collected) are described instead of being called undefined.
+- **Three externally blocked steps marked `BLOCKED_EXTERNAL`** in the suite: live PBC portal provisioning and the first-sign-in evidence gate (ADR-0003: Microsoft sign-in, not emailed temporary passwords), the five standard engagement folders in the client SharePoint site, and provider-enforced archive immutability.
+- **Advance gate is unconditional by default and configurable (ADR-0012, PROPOSED).** `EngagementLifecycleService.ActivateAsync` refuses activation unless a linked fee agreement carries a `PAID` `ADVANCE` milestone. The previous linked-only behaviour is reachable only through `EngagementActivation:AdvanceGateMode=WHEN_FEE_AGREEMENT_LINKED`; an unset or unrecognised value enforces `ALWAYS` and `Validate()` refuses startup, so the gate is never weakened silently. `EngagementActivationWorkspace` reports the same rule as explicit blockers (`advance.fee-agreement-missing`, `advance.unpaid`) and includes the fee-agreement/advance position in the review-basis digest.
+- **Configuration surface:** an `EngagementActivation` section was added to `src/AuditSphereOps.Api/appsettings.json` and `src/AuditSphereOps.Web/appsettings.json`; the options are registered in `ApiHost.ConfigureProviders`, so the API host and the legacy Web host compose them. No request or response contract changed.
+
+Fixtures updated for the new default: `EngagementActivationReviewSeed.LinkFeeAgreement` stages lead → opportunity → accepted proposal → fee agreement → advance milestone; `AcceptanceChecklistTests` and the `OneClickDocuments…` commercial journey now link and pay the advance before activating; the new `EngagementActivationAdvanceGateTests` covers both modes and the unrecognised-mode refusal.
+
+Verification run in this slice: Domain `809/809` (2 m 58 s) and Api `222/222` (17 m 7 s) against PostgreSQL `auditsphere_tests`; the two `AngularEngagementActivationJourneyTests` Playwright journeys `2/2`; Release solution build 0 warnings / 0 errors; `dotnet ef migrations has-pending-model-changes` reports no model change; `verify-openapi.sh` reports the contract current; the three Markdown documentation gates and `scripts/ui/inventory.py --check` pass (the Razor dependency row for `EngagementActivationPanel.razor` was regenerated).
+
+**Not run:** the full Playwright E2E suite (only the activation journeys above), the Angular `test:ci` and production build (no Angular source changed), and any live external check. No production migration was applied and no `BLOCKED_EXTERNAL` gate changed state.
+
 ## Owner-delegated plan: T002, STE test gaps, STE-NXT-013 and stale-doc repairs — 2026-10-09
 
 The owner delegated decisions on 2026-10-09 ("take any decision you wanted which makes the best for this project"). Observed results, in order:

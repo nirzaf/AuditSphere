@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Acceptance;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Diagnostics;
@@ -129,5 +130,12 @@ public static partial class ApiHost
       builder.Environment.EnvironmentName,
       builder.Configuration.GetValue<bool>("FeatureActivation:LiveAuditRelease"));
     builder.Services.AddSingleton(releaseSafety);
+
+    // STE 4.1.5 / C-02: the activation gate's advance-payment policy. It defaults to the requirement mode and an
+    // unrecognised value refuses startup, so the gate is never weakened silently.
+    var engagementActivation = builder.Configuration.GetSection(EngagementActivationOptions.SectionName)
+      .Get<EngagementActivationOptions>() ?? new();
+    engagementActivation.Validate();
+    builder.Services.AddSingleton(engagementActivation);
   }
 }

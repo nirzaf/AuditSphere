@@ -495,6 +495,10 @@ public sealed partial class AcceptanceChecklistTests
     Assert.Equal(ErrorCodes.GateBlocked, (await ActivateAsync(pg, w.Partner, created.Value)).ErrorCode);
     await db.EngagementHolds.Where(x => x.EngagementId == created.Value).ExecuteUpdateAsync(s => s.SetProperty(x => x.Released, true).SetProperty(x => x.ReleasedAt, DateTimeOffset.UtcNow));
     Assert.Equal(ErrorCodes.ScopeDenied, (await ActivateAsync(pg, w.Manager, created.Value)).ErrorCode);
+    // STE 4.1.5 / C-02: the recorded 50% advance is now an unconditional hard block, so the linked agreement must be paid.
+    EngagementActivationReviewSeed.LinkFeeAgreement(db, w.FirmId, w.ClientId, created.Value, w.PartnerUser.Id,
+      FeeMilestoneStates.Paid, "AccountingOnly");
+    await db.SaveChangesAsync();
     var activated = await ActivateAsync(pg, w.Partner, created.Value);
     Assert.True(activated.Succeeded, activated.Message);
     Assert.Equal(activated.Value, (await ActivateAsync(pg, w.Partner, created.Value)).Value);

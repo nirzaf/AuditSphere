@@ -709,36 +709,38 @@
             <span
               class="grid place-items-center w-9 h-9 rounded-lg bg-indigo-50 text-indigo-700 font-bold text-[10px] tracking-wider shrink-0">PRE</span>
             <div>
-              <h3 class="text-sm font-semibold text-slate-800">Preparer (Associate)</h3>
-              <p class="text-xs text-slate-500 leading-snug">Prepares assigned procedures, records evidence and submits
-                current revisions.</p>
+              <h3 class="text-sm font-semibold text-slate-800">Audit Associate / Junior Auditor</h3>
+              <p class="text-xs text-slate-500 leading-snug">Executes assigned FSLI test procedures, uploads working
+                papers and physical binder index codes, and submits testing packages for managerial review.</p>
             </div>
           </li>
           <li class="flex items-start gap-3 p-2.5 rounded-xl hover:bg-slate-50 transition-colors">
             <span
               class="grid place-items-center w-9 h-9 rounded-lg bg-amber-50 text-amber-700 font-bold text-[10px] tracking-wider shrink-0">REV</span>
             <div>
-              <h3 class="text-sm font-semibold text-slate-800">Reviewer (Manager)</h3>
-              <p class="text-xs text-slate-500 leading-snug">Reviews current work, records findings and supports
-                planning and completion.</p>
+              <h3 class="text-sm font-semibold text-slate-800">Audit Senior / Audit Manager</h3>
+              <p class="text-xs text-slate-500 leading-snug">Verifies substantive testing and recalculated schedules,
+                issues review notes and the rework loop, sets sampling parameters and materiality, and compiles the SRM.</p>
             </div>
           </li>
           <li class="flex items-start gap-3 p-2.5 rounded-xl hover:bg-slate-50 transition-colors">
             <span
               class="grid place-items-center w-9 h-9 rounded-lg bg-purple-50 text-purple-700 font-bold text-[10px] tracking-wider shrink-0">APP</span>
             <div>
-              <h3 class="text-sm font-semibold text-slate-800">Approver (Partner)</h3>
-              <p class="text-xs text-slate-500 leading-snug">Records Partner risk and completion decisions, selects
-                opinion and may request early lock.</p>
+              <h3 class="text-sm font-semibold text-slate-800">Engagement Partner</h3>
+              <p class="text-xs text-slate-500 leading-snug">Signs off the Dual-Key acceptance gate (AML/KYC),
+                authorizes the letter, clears Red-risk areas, selects the opinion and signs and seals, and authorizes
+                the release and regulatory file locks.</p>
             </div>
           </li>
           <li class="flex items-start gap-3 p-2.5 rounded-xl hover:bg-slate-50 transition-colors">
             <span
               class="grid place-items-center w-9 h-9 rounded-lg bg-emerald-50 text-emerald-700 font-bold text-[10px] tracking-wider shrink-0">CLI</span>
             <div>
-              <h3 class="text-sm font-semibold text-slate-800">Client Portal (PBC)</h3>
-              <p class="text-xs text-slate-500 leading-snug">Scoped client workspace for assigned evidence and review
-                status where enabled.</p>
+              <h3 class="text-sm font-semibold text-slate-800">Client Coordinator / CFO / MD</h3>
+              <p class="text-xs text-slate-500 leading-snug">Uses the isolated PBC workspace to answer requests and
+                upload schedules and voucher evidence, and receives invoices, receipts, holding letters and final
+                deliverables. Access freezes on engagement sign-off.</p>
             </div>
           </li>
         </ul>
@@ -809,8 +811,8 @@ flowchart TD
           </div>
           <div class="info-card">
             <h3 class="info-title"><span class="w-2 h-2 rounded-full bg-emerald-500"></span>Authority Documents</h3>
-            <a class="text-sky-700 underline" href="requirements(2).html#architecture">Uploaded v2.1 baseline</a> · <a
-              class="text-sky-700 underline" href="requirements(2).html#controls">Mandatory controls</a> · <a
+            <a class="text-sky-700 underline" href="requirements.html#architecture">Uploaded v2.1 baseline</a> · <a
+              class="text-sky-700 underline" href="requirements.html#controls">Mandatory controls</a> · <a
               class="text-sky-700 underline"
               href="docs/architecture/auditsphere-architecture-current-architecture.md">Repository technical reference —
               verify availability</a>.
@@ -821,8 +823,8 @@ flowchart TD
           <p class="text-xs leading-relaxed">Only the five connected business modules shown here are mandatory in v2.1.
             Full client books, consolidation, period reopening and foreign-currency features require separate approval.
             No claim is made that the referenced stack or features are already implemented.</p>
-          <p class="text-[11px] text-slate-500 mt-2">Baseline reference: <a href="requirements(2).html#architecture"
-              class="text-sky-700 underline">architecture</a> · <a href="requirements(2).html#boundaries"
+          <p class="text-[11px] text-slate-500 mt-2">Baseline reference: <a href="requirements.html#architecture"
+              class="text-sky-700 underline">architecture</a> · <a href="requirements.html#boundaries"
               class="text-sky-700 underline">boundaries</a></p>
         </div>
 
@@ -857,8 +859,8 @@ flowchart TD
     Invoice --> Paid{50 percent advance paid and recorded}
     Paid -->|No| PaymentBlock[HARD BLOCK portal-active planning]
     Paid -->|Yes| Receipt[Generate official receipt with payment reference]
-    Receipt --> Portal[Provision isolated PBC portal and temporary credentials]
-    Portal --> Reset[Force first-login password reset]
+    Receipt --> Portal[Provision PBC portal and temporary credentials - BLOCKED_EXTERNAL]
+    Portal --> Reset[Force first-login password reset - BLOCKED_EXTERNAL]
     Reset --> Planning[PORTAL_ACTIVE_PLANNING]
 
 </script>
@@ -885,6 +887,10 @@ flowchart TD
               <li>50% advance payment and reference must be recorded before activation. Auto-generate the receipt;
                 provision client workspace, temporary credentials, mandatory password reset and PBC status tracking.
               </li>
+              <li><b class="text-amber-700">BLOCKED_EXTERNAL</b> — live portal provisioning and the first-sign-in
+                evidence gate need a live Microsoft tenant. Per ADR-0003 the portal uses Microsoft sign-in rather than
+                emailed temporary passwords, so the equivalent first-sign-in evidence must be observed; local
+                orchestration records the intent and reconciles the result and does not prove sign-in.</li>
             </ul>
           </div>
         </div>
@@ -893,11 +899,11 @@ flowchart TD
           <p class="text-xs leading-relaxed">No Engagement Letter without C-01. No <code>PORTAL_ACTIVE_PLANNING</code>
             without C-02. Client portal upload statuses: Pending Upload, Under Review, Approved, Rejected/Re-upload
             Required; each rejection needs a reason.</p>
-          <p class="text-[11px] text-slate-500 mt-2">Baseline reference: <a href="requirements(2).html#M1.03"
-              class="text-sky-700 underline">M1.03</a> · <a href="requirements(2).html#M1.04"
-              class="text-sky-700 underline">M1.04</a> · <a href="requirements(2).html#M1.05"
-              class="text-sky-700 underline">M1.05</a> · <a href="requirements(2).html#M2.01"
-              class="text-sky-700 underline">M2.01</a> · <a href="requirements(2).html#controls"
+          <p class="text-[11px] text-slate-500 mt-2">Baseline reference: <a href="requirements.html#M1.03"
+              class="text-sky-700 underline">M1.03</a> · <a href="requirements.html#M1.04"
+              class="text-sky-700 underline">M1.04</a> · <a href="requirements.html#M1.05"
+              class="text-sky-700 underline">M1.05</a> · <a href="requirements.html#M2.01"
+              class="text-sky-700 underline">M2.01</a> · <a href="requirements.html#controls"
               class="text-sky-700 underline">controls</a></p>
         </div>
 
@@ -921,7 +927,7 @@ flowchart TD
           data-title="Trial Balance Materiality and Risk Planning">
           <script type="text/plain">
 flowchart TD
-    Risk[Partner-approved new client acceptance OR continuance] --> Folders[Provision five standard engagement folders]
+    Risk[Partner-approved new client acceptance OR continuance] --> Folders[Provision five standard engagement folders - BLOCKED_EXTERNAL]
     Folders --> Staff[Schedule Partner Reviewer Preparers and reporting milestones]
     Staff --> TB[Import Excel or CSV trial balance and map FSLIs]
     TB --> Benchmark[Choose approved PBT Revenue Assets or Equity benchmark]
@@ -1010,12 +1016,22 @@ flowchart TD
             <code>04_Drafts &amp; Deliverables</code>, <code>05_Final Signed Archive</code>. Equality at TE or PM is
             unresolved: fail closed pending approved classification policy.
           </p>
-          <p class="text-[11px] text-slate-500 mt-2">Baseline reference: <a href="requirements(2).html#M2.01"
-              class="text-sky-700 underline">M2.01</a> · <a href="requirements(2).html#M2.02"
-              class="text-sky-700 underline">M2.02</a> · <a href="requirements(2).html#M2.03"
-              class="text-sky-700 underline">M2.03</a> · <a href="requirements(2).html#M2.04"
-              class="text-sky-700 underline">M2.04</a> · <a href="requirements(2).html#boundaries"
+          <p class="text-[11px] text-slate-500 mt-2">Baseline reference: <a href="requirements.html#M2.01"
+              class="text-sky-700 underline">M2.01</a> · <a href="requirements.html#M2.02"
+              class="text-sky-700 underline">M2.02</a> · <a href="requirements.html#M2.03"
+              class="text-sky-700 underline">M2.03</a> · <a href="requirements.html#M2.04"
+              class="text-sky-700 underline">M2.04</a> · <a href="requirements.html#boundaries"
               class="text-sky-700 underline">boundaries</a></p>
+        </div>
+
+        <div class="info-card border-l-4 border-amber-500">
+          <h3 class="info-title">Provisioning steps that need live evidence</h3>
+          <p class="text-xs leading-relaxed"><b class="text-amber-700">BLOCKED_EXTERNAL</b> — creating the five standard
+            engagement folders in the client SharePoint site requires live tenant evidence. The local orchestration
+            records the intent, verifies the returned identity and reconciles the result; it does not prove the folders
+            exist or are correctly permissioned.</p>
+          <p class="text-[11px] text-slate-500 mt-2">Baseline reference: <a href="requirements.html#M2.03"
+              class="text-sky-700 underline">M2.03</a></p>
         </div>
 
         <nav class="pager" aria-label="Previous and next view"></nav>
@@ -1081,10 +1097,10 @@ flowchart TD
             assertion steps, editable ad-hoc steps; Monetary Unit Sampling, systematic random, stratified attribute
             sampling; ISA 570 check. Reviewer returns rejected work with compulsory comments; SRM auto-compiles on
             Manager approval.</p>
-          <p class="text-[11px] text-slate-500 mt-2">Baseline reference: <a href="requirements(2).html#M3.01"
-              class="text-sky-700 underline">M3.01</a> · <a href="requirements(2).html#M3.02"
-              class="text-sky-700 underline">M3.02</a> · <a href="requirements(2).html#M3.03"
-              class="text-sky-700 underline">M3.03</a> · <a href="requirements(2).html#M3.04"
+          <p class="text-[11px] text-slate-500 mt-2">Baseline reference: <a href="requirements.html#M3.01"
+              class="text-sky-700 underline">M3.01</a> · <a href="requirements.html#M3.02"
+              class="text-sky-700 underline">M3.02</a> · <a href="requirements.html#M3.03"
+              class="text-sky-700 underline">M3.03</a> · <a href="requirements.html#M3.04"
               class="text-sky-700 underline">M3.04</a></p>
         </div>
 
@@ -1121,7 +1137,7 @@ flowchart TD
     Timer --> Ready
     Ready --> Lock{Day 60 elapsed OR Partner manual lock}
     Lock -->|No| Ready
-    Lock -->|Yes| Immutable[ARCHIVED_READ_ONLY terminal immutable audit record]
+    Lock -->|Yes| Immutable[ARCHIVED_READ_ONLY terminal immutable audit record - provider lock BLOCKED_EXTERNAL]
 
 </script>
         </figure>
@@ -1169,11 +1185,14 @@ flowchart TD
             regulatory permanence. Post-lock amendment handling and signature technology are open decisions; any future
             approved correction must leave the locked original untouched, never transition the original archive
             backwards.</p>
-          <p class="text-[11px] text-slate-500 mt-2">Baseline reference: <a href="requirements(2).html#M4.01"
-              class="text-sky-700 underline">M4.01</a> · <a href="requirements(2).html#M4.02"
-              class="text-sky-700 underline">M4.02</a> · <a href="requirements(2).html#M4.03"
-              class="text-sky-700 underline">M4.03</a> · <a href="requirements(2).html#controls"
-              class="text-sky-700 underline">controls</a> · <a href="requirements(2).html#boundaries"
+          <p class="text-xs leading-relaxed mt-2"><b class="text-amber-700">BLOCKED_EXTERNAL</b> — provider-enforced
+            immutability (SharePoint retention and the permanent deletion/overwrite prohibition) is not established by a
+            local freeze and requires live tenant evidence.</p>
+          <p class="text-[11px] text-slate-500 mt-2">Baseline reference: <a href="requirements.html#M4.01"
+              class="text-sky-700 underline">M4.01</a> · <a href="requirements.html#M4.02"
+              class="text-sky-700 underline">M4.02</a> · <a href="requirements.html#M4.03"
+              class="text-sky-700 underline">M4.03</a> · <a href="requirements.html#controls"
+              class="text-sky-700 underline">controls</a> · <a href="requirements.html#boundaries"
               class="text-sky-700 underline">boundaries</a></p>
         </div>
 
@@ -1236,11 +1255,13 @@ flowchart TD
         <div
           class="relative overflow-hidden p-5 rounded-2xl bg-gradient-to-r from-sky-50 via-slate-50 to-indigo-50 border border-sky-100 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h3 class="font-semibold text-sm text-sky-900">Specified Profitability vs Actual-Cost Accounting</h3>
+            <h3 class="font-semibold text-sm text-sky-900">Specified Profitability and Actual-Cost Analytics</h3>
             <p class="font-mono text-xs text-slate-700 mt-1.5 leading-relaxed">
               <b>Source-defined engagement profitability = Contracted engagement fee − Σ logged hours × role charge-out
-                rate.</b> This is a charge-out-based indicator, not audited net profit or actual payroll cost.
-              Actual-cost profit must be separately defined if requested.
+                rate.</b> This is a charge-out-based indicator, not audited net profit. The implemented practice
+              analytics additionally derive actual cost from a separately recorded staff cost rate (never the charge-out
+              rate), with profit, margin, realization and billed/collected taken from posted invoice lines and allocated
+              receipts; a measure missing its inputs is reported as unavailable rather than zero.
             </p>
           </div>
           <div class="md:text-right shrink-0">
@@ -1256,9 +1277,9 @@ flowchart TD
             cash. Required outputs: firm Trial Balance, monthly Profit &amp; Loss statement and client Accounts
             Receivable aging. The audited client TB is never posted into the firm books merely because a source TB is
             imported.</p>
-          <p class="text-[11px] text-slate-500 mt-2">Baseline reference: <a href="requirements(2).html#M5.01"
-              class="text-sky-700 underline">M5.01</a> · <a href="requirements(2).html#M5.02"
-              class="text-sky-700 underline">M5.02</a> · <a href="requirements(2).html#controls"
+          <p class="text-[11px] text-slate-500 mt-2">Baseline reference: <a href="requirements.html#M5.01"
+              class="text-sky-700 underline">M5.01</a> · <a href="requirements.html#M5.02"
+              class="text-sky-700 underline">M5.02</a> · <a href="requirements.html#controls"
               class="text-sky-700 underline">controls</a></p>
         </div>
 
@@ -1422,8 +1443,8 @@ stateDiagram-v2
             from the uploaded requirements HTML, including the final <code>ARCHIVED_READ_ONLY</code> terminal state.
             Reviewer rework is a workpaper status and can return tasks to fieldwork; it does not invent a twelfth
             engagement state.</p>
-          <p class="text-[11px] text-slate-500 mt-2">Baseline reference: <a href="requirements(2).html#lifecycle"
-              class="text-sky-700 underline">lifecycle</a> · <a href="requirements(2).html#controls"
+          <p class="text-[11px] text-slate-500 mt-2">Baseline reference: <a href="requirements.html#lifecycle"
+              class="text-sky-700 underline">lifecycle</a> · <a href="requirements.html#controls"
               class="text-sky-700 underline">controls</a></p>
         </div>
 
@@ -1450,7 +1471,7 @@ stateDiagram-v2
             </thead>
             <tbody class="divide-y divide-slate-100">
               <tr>
-                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#controls"
+                <td class="p-3 font-mono text-xs"><a href="requirements.html#controls"
                     class="text-sky-700 underline">C-01</a></td>
                 <td class="p-3">Onboarding</td>
                 <td class="p-3">Both independent keys active before Engagement Letter is generated</td>
@@ -1458,7 +1479,7 @@ stateDiagram-v2
                     data-goto-tab="onboarding">onboarding</button></td>
               </tr>
               <tr>
-                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#controls"
+                <td class="p-3 font-mono text-xs"><a href="requirements.html#controls"
                     class="text-sky-700 underline">C-02</a></td>
                 <td class="p-3">Advance payment</td>
                 <td class="p-3">50% paid and recorded before portal-active planning transition</td>
@@ -1466,7 +1487,7 @@ stateDiagram-v2
                     data-goto-tab="onboarding">onboarding</button></td>
               </tr>
               <tr>
-                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#controls"
+                <td class="p-3 font-mono text-xs"><a href="requirements.html#controls"
                     class="text-sky-700 underline">C-03</a></td>
                 <td class="p-3">Governance</td>
                 <td class="p-3">Partner acceptance before planning; Partner sign-off on materiality before fieldwork
@@ -1475,7 +1496,7 @@ stateDiagram-v2
                     data-goto-tab="materiality">materiality</button></td>
               </tr>
               <tr>
-                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#controls"
+                <td class="p-3 font-mono text-xs"><a href="requirements.html#controls"
                     class="text-sky-700 underline">C-04</a></td>
                 <td class="p-3">Planning</td>
                 <td class="p-3">Materiality benchmark rules and ±5% manager rounding limitation</td>
@@ -1483,7 +1504,7 @@ stateDiagram-v2
                     data-goto-tab="materiality">materiality</button></td>
               </tr>
               <tr>
-                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#controls"
+                <td class="p-3 font-mono text-xs"><a href="requirements.html#controls"
                     class="text-sky-700 underline">C-05</a></td>
                 <td class="p-3">Fieldwork</td>
                 <td class="p-3">Preparers submit all assigned FSLI tests before managerial review</td>
@@ -1491,7 +1512,7 @@ stateDiagram-v2
                     data-goto-tab="fieldwork">fieldwork</button></td>
               </tr>
               <tr>
-                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#controls"
+                <td class="p-3 font-mono text-xs"><a href="requirements.html#controls"
                     class="text-sky-700 underline">C-06</a></td>
                 <td class="p-3">Reviewer</td>
                 <td class="p-3">Mandatory rejection comments and Under Rework reassignment; zero open notes to
@@ -1500,7 +1521,7 @@ stateDiagram-v2
                     data-goto-tab="fieldwork">fieldwork</button></td>
               </tr>
               <tr>
-                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#controls"
+                <td class="p-3 font-mono text-xs"><a href="requirements.html#controls"
                     class="text-sky-700 underline">C-07</a></td>
                 <td class="p-3">Confirmations</td>
                 <td class="p-3">Critical confirmations unreturned → report release blocked and Holding Letter
@@ -1509,7 +1530,7 @@ stateDiagram-v2
                     data-goto-tab="fieldwork">fieldwork</button></td>
               </tr>
               <tr>
-                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#controls"
+                <td class="p-3 font-mono text-xs"><a href="requirements.html#controls"
                     class="text-sky-700 underline">C-08</a></td>
                 <td class="p-3">Partner</td>
                 <td class="p-3">Partner checks Red areas and SRM and signs final report</td>
@@ -1517,7 +1538,7 @@ stateDiagram-v2
                     data-goto-tab="opinion">opinion</button></td>
               </tr>
               <tr>
-                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#controls"
+                <td class="p-3 font-mono text-xs"><a href="requirements.html#controls"
                     class="text-sky-700 underline">C-09</a></td>
                 <td class="p-3">Modified opinion</td>
                 <td class="p-3">Qualified / Disclaimer / Adverse require affected FSLI and rationale</td>
@@ -1525,7 +1546,7 @@ stateDiagram-v2
                     data-goto-tab="opinion">opinion</button></td>
               </tr>
               <tr>
-                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#controls"
+                <td class="p-3 font-mono text-xs"><a href="requirements.html#controls"
                     class="text-sky-700 underline">C-10</a></td>
                 <td class="p-3">Deliverables</td>
                 <td class="p-3">All five named deliverables + final 50% fee note</td>
@@ -1533,7 +1554,7 @@ stateDiagram-v2
                     data-goto-tab="opinion">opinion</button></td>
               </tr>
               <tr>
-                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#controls"
+                <td class="p-3 font-mono text-xs"><a href="requirements.html#controls"
                     class="text-sky-700 underline">C-11</a></td>
                 <td class="p-3">Client portal</td>
                 <td class="p-3">Rejected upload requires reason; uploaded privileges freeze on final report release</td>
@@ -1541,7 +1562,7 @@ stateDiagram-v2
                     data-goto-tab="onboarding">onboarding</button></td>
               </tr>
               <tr>
-                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#controls"
+                <td class="p-3 font-mono text-xs"><a href="requirements.html#controls"
                     class="text-sky-700 underline">C-12</a></td>
                 <td class="p-3">Archive</td>
                 <td class="p-3">60-day countdown from Partner signature or manual lock → immutable read-only file</td>
@@ -1549,7 +1570,7 @@ stateDiagram-v2
                     data-goto-tab="opinion">opinion</button></td>
               </tr>
               <tr>
-                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#controls"
+                <td class="p-3 font-mono text-xs"><a href="requirements.html#controls"
                     class="text-sky-700 underline">C-13</a></td>
                 <td class="p-3">Practice</td>
                 <td class="p-3">Rates, time × rate, profitability and period cost reporting denominated in QAR</td>
@@ -1571,28 +1592,28 @@ stateDiagram-v2
             </thead>
             <tbody class="divide-y divide-slate-100">
               <tr>
-                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#M1.01"
+                <td class="p-3 font-mono text-xs"><a href="requirements.html#M1.01"
                     class="text-sky-700 underline">M1.01</a></td>
                 <td class="p-3">Lead Capture &amp; Client Profiles 6 statements ⌄</td>
                 <td class="p-3"><button class="goto text-sky-700 underline" type="button"
                     data-goto-tab="onboarding">View design</button></td>
               </tr>
               <tr>
-                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#M1.02"
+                <td class="p-3 font-mono text-xs"><a href="requirements.html#M1.02"
                     class="text-sky-700 underline">M1.02</a></td>
                 <td class="p-3">Commercial Proposal Engine 7 statements ⌄</td>
                 <td class="p-3"><button class="goto text-sky-700 underline" type="button"
                     data-goto-tab="onboarding">View design</button></td>
               </tr>
               <tr>
-                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#M1.03"
+                <td class="p-3 font-mono text-xs"><a href="requirements.html#M1.03"
                     class="text-sky-700 underline">M1.03</a></td>
                 <td class="p-3">Dual-Key Onboarding Gatekeeper 3 statements ⌄</td>
                 <td class="p-3"><button class="goto text-sky-700 underline" type="button"
                     data-goto-tab="onboarding">View design</button></td>
               </tr>
               <tr>
-                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#M1.04"
+                <td class="p-3 font-mono text-xs"><a href="requirements.html#M1.04"
                     class="text-sky-700 underline">M1.04</a></td>
                 <td class="p-3">Engagement Letter Generation (ISA
                   210) 5 statements ⌄</td>
@@ -1600,7 +1621,7 @@ stateDiagram-v2
                     data-goto-tab="onboarding">View design</button></td>
               </tr>
               <tr>
-                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#M1.05"
+                <td class="p-3 font-mono text-xs"><a href="requirements.html#M1.05"
                     class="text-sky-700 underline">M1.05</a></td>
                 <td class="p-3">Advance Invoicing, Receipting &amp; Portal
                   Onboarding 10 statements ⌄</td>
@@ -1608,7 +1629,7 @@ stateDiagram-v2
                     data-goto-tab="onboarding">View design</button></td>
               </tr>
               <tr>
-                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#M2.01"
+                <td class="p-3 font-mono text-xs"><a href="requirements.html#M2.01"
                     class="text-sky-700 underline">M2.01</a></td>
                 <td class="p-3">Dual-Track Acceptance &amp; Continuance Risk
                   Gatekeeper 5 statements ⌄</td>
@@ -1616,28 +1637,28 @@ stateDiagram-v2
                     data-goto-tab="materiality">View design</button></td>
               </tr>
               <tr>
-                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#M2.02"
+                <td class="p-3 font-mono text-xs"><a href="requirements.html#M2.02"
                     class="text-sky-700 underline">M2.02</a></td>
                 <td class="p-3">Resource Allocation &amp; Scheduling 3 statements ⌄</td>
                 <td class="p-3"><button class="goto text-sky-700 underline" type="button"
                     data-goto-tab="materiality">View design</button></td>
               </tr>
               <tr>
-                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#M2.03"
+                <td class="p-3 font-mono text-xs"><a href="requirements.html#M2.03"
                     class="text-sky-700 underline">M2.03</a></td>
                 <td class="p-3">Directory Provisioning 6 statements ⌄</td>
                 <td class="p-3"><button class="goto text-sky-700 underline" type="button"
                     data-goto-tab="materiality">View design</button></td>
               </tr>
               <tr>
-                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#M2.04"
+                <td class="p-3 font-mono text-xs"><a href="requirements.html#M2.04"
                     class="text-sky-700 underline">M2.04</a></td>
                 <td class="p-3">3-Tier Materiality Calculation Engine 14 statements ⌄</td>
                 <td class="p-3"><button class="goto text-sky-700 underline" type="button"
                     data-goto-tab="materiality">View design</button></td>
               </tr>
               <tr>
-                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#M3.01"
+                <td class="p-3 font-mono text-xs"><a href="requirements.html#M3.01"
                     class="text-sky-700 underline">M3.01</a></td>
                 <td class="p-3">Trial Balance Ingestion &amp; Split
                   Dashboard 9 statements ⌄</td>
@@ -1645,7 +1666,7 @@ stateDiagram-v2
                     design</button></td>
               </tr>
               <tr>
-                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#M3.02"
+                <td class="p-3 font-mono text-xs"><a href="requirements.html#M3.02"
                     class="text-sky-700 underline">M3.02</a></td>
                 <td class="p-3">Workprogram Execution &amp; Evidence
                   Cross-Referencing 7 statements ⌄</td>
@@ -1653,7 +1674,7 @@ stateDiagram-v2
                     design</button></td>
               </tr>
               <tr>
-                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#M3.03"
+                <td class="p-3 font-mono text-xs"><a href="requirements.html#M3.03"
                     class="text-sky-700 underline">M3.03</a></td>
                 <td class="p-3">Three-Tier Review Matrix &amp; Workflow
                   Governance 8 statements ⌄</td>
@@ -1661,14 +1682,14 @@ stateDiagram-v2
                     design</button></td>
               </tr>
               <tr>
-                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#M3.04"
+                <td class="p-3 font-mono text-xs"><a href="requirements.html#M3.04"
                     class="text-sky-700 underline">M3.04</a></td>
                 <td class="p-3">Third-Party Confirmations Dashboard 2 statements ⌄</td>
                 <td class="p-3"><button class="goto text-sky-700 underline" type="button" data-goto-tab="fieldwork">View
                     design</button></td>
               </tr>
               <tr>
-                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#M4.01"
+                <td class="p-3 font-mono text-xs"><a href="requirements.html#M4.01"
                     class="text-sky-700 underline">M4.01</a></td>
                 <td class="p-3">Audit Opinion Selection Engine (ISA 700 /
                   705) 7 statements ⌄</td>
@@ -1676,7 +1697,7 @@ stateDiagram-v2
                     design</button></td>
               </tr>
               <tr>
-                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#M4.02"
+                <td class="p-3 font-mono text-xs"><a href="requirements.html#M4.02"
                     class="text-sky-700 underline">M4.02</a></td>
                 <td class="p-3">Mandatory 5-Part Commercial Deliverables
                   Bundle 6 statements ⌄</td>
@@ -1684,14 +1705,14 @@ stateDiagram-v2
                     design</button></td>
               </tr>
               <tr>
-                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#M4.03"
+                <td class="p-3 font-mono text-xs"><a href="requirements.html#M4.03"
                     class="text-sky-700 underline">M4.03</a></td>
                 <td class="p-3">Regulatory File Lock (ISA 230) 3 statements ⌄</td>
                 <td class="p-3"><button class="goto text-sky-700 underline" type="button" data-goto-tab="opinion">View
                     design</button></td>
               </tr>
               <tr>
-                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#M5.01"
+                <td class="p-3 font-mono text-xs"><a href="requirements.html#M5.01"
                     class="text-sky-700 underline">M5.01</a></td>
                 <td class="p-3">Real-Time Profitability &amp; Utilization
                   Analytics 8 statements ⌄</td>
@@ -1699,7 +1720,7 @@ stateDiagram-v2
                     design</button></td>
               </tr>
               <tr>
-                <td class="p-3 font-mono text-xs"><a href="requirements(2).html#M5.02"
+                <td class="p-3 font-mono text-xs"><a href="requirements.html#M5.02"
                     class="text-sky-700 underline">M5.02</a></td>
                 <td class="p-3">Practice Ledger &amp; Internal
                   Bookkeeping 6 statements ⌄</td>

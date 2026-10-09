@@ -497,7 +497,9 @@ public sealed class CommercialWorkflowTests
       Assert.Equal(ErrorCodes.GateBlocked, (await AuthorizationDecision.AuthorizeAsync(db, clientActor, new(w.FirmId, clientId, RequiredRoles: ["ClientUser"]))).ErrorCode);
       var engagement = await EngagementLifecycleService.CreateDraftAsync(db, w.Partner, new(clientId, "FinancialStatementAudit", "2026-01-01", "2026-12-31", "AUDIT-2026"));
       Assert.True(engagement.Succeeded, engagement.Message);
-      Assert.True((await EngagementLifecycleService.ActivateAsync(db, w.Partner, engagement.Value)).Succeeded);
+      // STE 4.1.5 / C-02: a linked agreement whose 50% advance is not yet paid can no longer activate the engagement.
+      Assert.True((await FeeAgreementService.LinkEngagementAsync(db, w.Prep, agreement.Id, engagement.Value)).Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, (await EngagementLifecycleService.ActivateAsync(db, w.Partner, engagement.Value)).ErrorCode);
       Assert.Equal(ErrorCodes.GateBlocked, (await AuthorizationDecision.AuthorizeAsync(db, clientActor, new(w.FirmId, clientId, engagement.Value, ["ClientUser"]))).ErrorCode);
       Assert.Empty(await ClientPortalService.AuthorizedPortalGrantIdsAsync(db, clientActor));
       Assert.True((await BillingService.SubmitInvoiceAsync(db, w.FinanceManager, invoice.Id)).Succeeded);
@@ -508,6 +510,8 @@ public sealed class CommercialWorkflowTests
       Assert.True((await BillingService.PostInvoiceAsync(db, w.FinanceManager, invoice.Id)).Succeeded);
       var paid = await FeeAgreementService.RecordAdvancePaymentAsync(db, w.FinanceManager, agreement.Id, 16500m, "PORTAL-TEST-ADVANCE");
       Assert.True(paid.Succeeded, paid.Message);
+      // The recorded advance now satisfies the activation gate.
+      Assert.True((await EngagementLifecycleService.ActivateAsync(db, w.Partner, engagement.Value)).Succeeded);
       Assert.Equal(ErrorCodes.ScopeDenied, (await FeeAgreementService.RecordAdvancePaymentAsync(db, w.Prep, agreement.Id, 16500m, "PORTAL-TEST-ADVANCE")).ErrorCode);
       Assert.Equal(ErrorCodes.GenerationStale, (await FeeAgreementService.RecordAdvancePaymentAsync(db, w.FinanceManager with { SessionEpoch = w.FinanceManager.SessionEpoch + 1 }, agreement.Id, 16500m, "PORTAL-TEST-ADVANCE")).ErrorCode);
       Assert.True((await AuthorizationDecision.AuthorizeAsync(db, clientActor, new(w.FirmId, clientId, engagement.Value, ["ClientUser"]))).Succeeded);
