@@ -4,7 +4,7 @@
 # receives traffic. Application containers never apply schema migrations at startup.
 #   docker build -f infra/docker/migrations.Dockerfile -t auditsphere-migrations:<git-sha> .
 FROM mcr.microsoft.com/dotnet/sdk:10.0.300 AS bundle
-ARG DOTNET_ROLL_FORWARD=disable
+ARG DOTNET_ROLL_FORWARD=Major
 ENV DOTNET_ROLL_FORWARD=$DOTNET_ROLL_FORWARD
 WORKDIR /repo
 COPY global.json Directory.Build.props Directory.Packages.props AuditSphereOps.slnx ./
