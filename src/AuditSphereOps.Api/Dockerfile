@@ -3,7 +3,10 @@
 # Build context is the repository root so the pinned SDK, central package versions and the
 # Angular workspace resolve exactly as the CI build gate does.
 #   docker build -f src/AuditSphereOps.Api/Dockerfile -t auditsphere-api:<git-sha> .
-FROM node:22-alpine AS ui
+FROM mcr.microsoft.com/devcontainers/javascript-node:22-bookworm AS ui
+# The devcontainer image defaults to its non-root `node` user; this ephemeral build stage
+# writes npm dependencies and Angular output under /ui, so use root only for these build steps.
+USER root
 WORKDIR /ui
 COPY src/AuditSphereOps.Ui/package.json src/AuditSphereOps.Ui/package-lock.json ./
 RUN npm ci
