@@ -16,8 +16,8 @@ ADR-0001 to ADR-0008 were written on 2026-10-08 as **retroactive records of deci
 | [ADR-0007](auditsphere-architecture-adr-0007-fee-invoice-automation-drafts-only-proposed.md) | Automatic 50/50 invoicing creates drafts only | PROPOSED | Specification §4.1.5, §4.4.2 |
 | [ADR-0008](auditsphere-architecture-adr-0008-automated-test-suites-temporarily-removed-superseded.md) | Automated test suites removed temporarily, then restored (STE-NXT-001) | SUPERSEDED | Restored by STE-NXT-001; the Definition of Done follows the restored suites |
 | [ADR-0009](auditsphere-architecture-adr-0009-archive-authority-release-store-proposed.md) | Issued evidence is authoritative in the release and archive store; the SharePoint archive is a working copy (draft from SPK-01) | PROPOSED | Relates to ADR-0005, ADR-0006; STE-GAP-007 stays BLOCKED_EXTERNAL |
-| [ADR-0010](auditsphere-architecture-adr-0010-end-of-service-accrual-proposed.md) | End-of-service benefits are accrued as a provision entered by a person through the ledger maker and checker (STE-NXT-009, option b) | PROPOSED | Follow-up STE-NXT-014; the platform computes no estimate |
-| [ADR-0011](auditsphere-architecture-adr-0011-materiality-pbt-without-normalization-proposed.md) | Materiality uses profit before tax without normalization (STE-NXT-010, Option A) | PROPOSED | Recorded deviation from specification §4.2.4 |
+| [ADR-0010](auditsphere-architecture-adr-0010-end-of-service-accrual-approved.md) | End-of-service benefits are accrued as a provision entered by a person through the ledger maker and checker (STE-NXT-009, option b) | APPROVED | Posting waits for the accounting treatment, which is not yet confirmed; the platform computes no estimate |
+| [ADR-0011](auditsphere-architecture-adr-0011-materiality-pbt-without-normalization-approved.md) | Materiality uses profit before tax without normalization (STE-NXT-010, Option A) | APPROVED | Recorded deviation from specification §4.2.4 |
 
 ## Earlier decision records (R2R)
 

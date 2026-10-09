@@ -177,7 +177,7 @@ Every story is sized for one agent session. Before starting, read only the files
 
 ## STE-NXT-009 — Decide how end-of-service benefits are recorded
 
-*Status: decided 2026-10-09 under the owner's delegated decision: option (b), a monthly provision accrual entered by a person through the ledger maker/checker, with the basis recorded. Recorded in ADR-0010 (PROPOSED). The follow-up story is STE-NXT-014. No code in this step.*
+*Status: decided 2026-10-09 under the owner's delegated decision: option (b), a monthly provision accrual entered by a person through the ledger maker/checker, with the basis recorded. Recorded in ADR-0010 (APPROVED 2026-10-09 for the recording mechanism). Posting waits for the accounting treatment, which is not yet confirmed. The follow-up story is STE-NXT-014. No code in this step.*
 
 *Decided; the code belongs to STE-NXT-014.*
 
@@ -191,7 +191,7 @@ Every story is sized for one agent session. Before starting, read only the files
 
 ## STE-NXT-010 — Decide whether PBT normalization is in scope
 
-*Status: decided 2026-10-09 under the owner's delegated decision: Option A, no normalization, as the methodology note `docs/execution/auditsphere-audit-report-normalized-pbt-spk-03-proposed.md` recommends. Recorded in ADR-0011 (PROPOSED). The code already matches.*
+*Status: decided 2026-10-09 under the owner's delegated decision: Option A, no normalization, as the methodology note `docs/execution/auditsphere-audit-report-normalized-pbt-spk-03-proposed.md` recommends. Recorded in ADR-0011 (APPROVED 2026-10-09). The code already matches.*
 
 *Decided under the owner's delegation, informed by spike SPK-03.*
 
@@ -203,7 +203,7 @@ Every story is sized for one agent session. Before starting, read only the files
 
 ## STE-NXT-011 — Protect the released archive with an independent read-only copy (SPK-01 option 2)
 
-*Requires the owner's approval of the design (draft ADR-0009). No code until approved.*
+*Decided 2026-10-09: not approved for build now. The release store stays the authority (ADR-0009). Building this needs a live tenant to verify read-only enforcement (BLOCKED_EXTERNAL) and a separate review of the client-sites worker's scope before any archive write. No code.*
 
 **Story.** As a compliance administrator, I want the released bundle and its manifest copied to a read-only archive library, with each copied file verified by SHA-256, so that the provider holds a protected copy of the exact issued bytes.
 
@@ -276,7 +276,7 @@ Every story is sized for one agent session. Before starting, read only the files
 
 ## STE-NXT-014 — Record end-of-service accruals as a provision
 
-*Status: open. Follow-up of ADR-0010, decided 2026-10-09 under the owner's delegation. Needs the owner's confirmation of the accounting treatment before the first posting.*
+*Status: open and blocked. Follow-up of ADR-0010 (approved 2026-10-09). No posting may happen until the accounting treatment is named by a qualified accountant and confirmed by the owner. That confirmation has not been given.*
 
 **Story.** As the firm's finance manager, I want the end-of-service obligation accrued each month from an entered basis, so that the provision and the period expense show the obligation before anyone leaves.
 
@@ -296,4 +296,4 @@ Every story is sized for one agent session. Before starting, read only the files
 
 **Constraints.** The platform computes nothing for the estimate. The owner confirms the accounting treatment before the first posting.
 
-*Depends on:* owner confirmation of ADR-0010 and of the accounting treatment.
+*Depends on:* the accounting treatment, which is not yet confirmed. ADR-0010 is approved.

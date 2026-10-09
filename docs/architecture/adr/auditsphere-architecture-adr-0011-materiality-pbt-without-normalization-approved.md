@@ -1,6 +1,6 @@
 # ADR-0011: Materiality uses profit before tax without normalization
 
-**Status: PROPOSED** (owner-delegated decision of 2026-10-09; owner confirmation pending, as for the other ADRs) · Date: 2026-10-09 · Decider: repository owner, by delegation
+**Status: APPROVED**, confirmed by the repository owner on 2026-10-09 · Date: 2026-10-09 · Decider: repository owner
 
 ## Context
 

@@ -1,6 +1,6 @@
 # ADR-0010: End-of-service benefits are accrued as a provision entered by a person
 
-**Status: PROPOSED** (owner-delegated decision of 2026-10-09; owner confirmation pending, as for the other ADRs) · Date: 2026-10-09 · Decider: repository owner, by delegation
+**Status: APPROVED** for the recording mechanism, confirmed by the repository owner on 2026-10-09. Posting is gated separately on the accounting treatment, which is not yet confirmed (see Consequences). · Date: 2026-10-09 · Decider: repository owner
 
 ## Context
 
@@ -23,5 +23,5 @@
 ## Consequences
 
 - The firm needs a provision account in its chart before the first accrual.
-- The owner confirms the accounting treatment for the firm's reporting framework before the first posting. This ADR does not decide that treatment.
+- The accounting treatment for the firm's reporting framework (the measurement basis and the standard it follows) is not confirmed. No accrual may be posted until a qualified accountant names it and the owner confirms it. This ADR does not decide that treatment.
 - The amount is only as reliable as its entered basis. Reviewers check the basis; the platform does not check the estimate.
