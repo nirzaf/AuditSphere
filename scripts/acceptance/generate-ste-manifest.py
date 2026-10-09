@@ -390,32 +390,113 @@ def git(*args: str) -> str:
 # commit. A step with no citation stays NOT_EXECUTED; a step whose suite recorded failures stays NOT_EXECUTED with that
 # run named, because a suite-level pass cannot prove one step.
 EVIDENCE = {
-    "J18": ["tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#Materiality_IsCalculatedFromTheMappedTrialBalance_AndGoesStaleWhenTheSourceIsReplaced"],
+    "J01": ["tests/AuditSphereOps.Domain.Tests/PracticeCrmTests.cs#LeadCreation_ReconcilesExactRetry_AndRejectsRequestIdentityReuse"],
+    "J02": [
+        "tests/AuditSphereOps.Domain.Tests/PracticeCrmTests.cs#CommercialWorkflow_ConvertsIdempotently_AndLeavesAcceptancePending",
+        "tests/AuditSphereOps.Domain.Tests/ClientRelationshipsAndRoutingTests.cs#CorrespondenceRouting_ResolvesPurposeSpecificContacts_AndRecordsImmutableDispatch",
+    ],
+    "J03": ["tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#OneClickDocuments_AreBrandedImmutableAndBoundToTheApprovedQuotation"],
+    "J04": ["tests/AuditSphereOps.Domain.Tests/PracticeCrmTests.cs#ProposalDispatch_BindsExactOffer_AndAcceptanceMustCiteIt"],
+    "J05": [
+        "tests/AuditSphereOps.Domain.Tests/AcceptanceChecklistTests.cs#NewClient_MustAnswerEveryOnboardingQuestionWithEvidence_AndAnAdverseAnswerIsNeverAcceptedByFillingFields",
+    ],
+    "J06": [
+        "tests/AuditSphereOps.Domain.Tests/AcceptanceDecisionTests.cs#AcceptedDecision_IsImmutableAndCreatesOneWaitingWorkspace",
+        "tests/AuditSphereOps.Domain.Tests/AcceptanceDecisionTests.cs#AcceptanceRequiresCurrentEvaluationAndPartnerScope",
+    ],
+    "J07": ["tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#OneClickDocuments_AreBrandedImmutableAndBoundToTheApprovedQuotation"],
+    "J08": ["tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach"],
+    "J09": ["tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach"],
+    "J10": [
+        "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach",
+        "tests/AuditSphereOps.Api.Tests/BillingWorkspaceApiTests.cs#InvoiceWorkspaceRecordsAllocatesAndCreditsWithCurrentAuthorizationAndAntiforgery",
+    ],
+    "J11": ["tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach"],
+    "J15": [
+        "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#ResourceGrid_ShowsCapacityUnavailabilityAndOverAllocation_AndBudgetsReconcileByPhaseAndRiskArea",
+    ],
+    "J16": ["tests/AuditSphereOps.Api.Tests/TrialBalanceUploadApiTests.cs#EngagementScopedPreview_AllPeriodValidation_Csrf_AndExactReceipts"],
+    "J17": ["tests/AuditSphereOps.Api.Tests/MappingApprovalApiTests.cs#FreshIndependentReviewSerializesConcurrentApprovalAndPreservesAllocations"],
+    "J18": [
+        "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#Materiality_IsCalculatedFromTheMappedTrialBalance_AndGoesStaleWhenTheSourceIsReplaced",
+    ],
     "J19": [
         "tests/AuditSphereOps.Domain.Tests/MaterialityPracticalRoundingTests.cs#StoryCriterion_PlanningMateriality_53421_to_53000_is_accepted_and_a_value_past_the_bound_is_refused",
         "tests/AuditSphereOps.Domain.Tests/MaterialityPracticalRoundingTests.cs#BoundaryAdjustmentsOfExactlyFivePercentAreAccepted",
         "tests/AuditSphereOps.Domain.Tests/MaterialityPracticalRoundingTests.cs#AdjustmentsJustBeyondFivePercentAreRejected",
     ],
+    "J20": [
+        "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#Materiality_IsCalculatedFromTheMappedTrialBalance_AndGoesStaleWhenTheSourceIsReplaced",
+    ],
+    "J21": [
+        "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#Staffing_MapsFourLevelsToEngagementRoles_AndRiskBandsRouteOwnersAndPartnerReview",
+        "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#AuditProcedure_ExecutionAndReviewStaffingRanks_EnforcesRiskBandRules",
+    ],
+    "J22": [
+        "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#AuditProcedure_ExecutionAndReviewStaffingRanks_EnforcesRiskBandRules",
+        "tests/AuditSphereOps.Domain.Tests/AuditAreaSummaryTests.cs#AreaSummary_ReportsCoveragePerArea",
+    ],
+    "J23": ["tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#FieldworkOnSeparateFslisRunsInParallelForDifferentStaffWithoutInterference"],
+    "J24": [
+        "tests/AuditSphereOps.Domain.Tests/FieldworkConnectionsTests.cs#Statements_DrillIntoProcedures_AndSamplingPhysicalAndAdHocStepsConnect",
+        "tests/AuditSphereOps.Domain.Tests/FieldworkConnectionsTests.cs#ClientEvidence_LinksOnlyTheExactCurrentReceivedVersionOfThisEngagement",
+    ],
+    "J25": ["tests/AuditSphereOps.Domain.Tests/FieldworkConnectionsTests.cs#Statements_DrillIntoProcedures_AndSamplingPhysicalAndAdHocStepsConnect"],
+    "J26": ["tests/AuditSphereOps.Api.Tests/AnalyticalPreparationApiTests.cs#ReviewedAnalyticalPreparationIsScopedIdempotentAndKeepsIndependentReviewWritable"],
+    "J27": ["tests/AuditSphereOps.Domain.Tests/AuditCompletionTests.cs#CompletionRecords_DeriveConclusionsAndBlockUnresolved"],
+    "J28": ["tests/AuditSphereOps.Domain.Tests/AuditPlanningTests.cs#Workpaper_CreateAndSubmit_RevisionConflict"],
     "J29": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#InlineNotesBlockApproval_AndOnlySomeoneStaffedAboveThePreparerReviews"],
     "J30": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#LateAndReopenedNotesBlockClearanceUntilRespondedResolvedAndReviewed"],
     "J31": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#LateAndReopenedNotesBlockClearanceUntilRespondedResolvedAndReviewed"],
     "J32": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmPresentsCurrencyAwareDifferences_AndDocumentsDoNotAssertAutomaticImmateriality"],
     "J33": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning"],
-    "J34": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#CriticalUnreturnedConfirmationKeepsBlockingAfterAlternativeClosureAndCriticalityReassessment"],
+    "J34": [
+        "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#CriticalUnreturnedConfirmationKeepsBlockingAfterAlternativeClosureAndCriticalityReassessment",
+    ],
     "J35": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning"],
     "J36": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning"],
     "J37": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning"],
-    "J38": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.ManagementLetter.cs#ManagementLetterRendersOnlyDesignatedCompleteMatters_AndStalesOnTheirChange"],
+    "J38": [
+        "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.ManagementLetter.cs#ManagementLetterRendersOnlyDesignatedCompleteMatters_AndStalesOnTheirChange",
+    ],
     "J39": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs#SignedRepresentation_IsVersionBound_Idempotent_Immutable_AndScoped"],
-    "J41": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs#FivePartBundle_RequiresReviewedReleaseAndPostedBalance_IsIdempotent_AndClientScoped"],
+    "J40": [
+        "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs#FivePartBundle_RequiresReviewedReleaseAndPostedBalance_IsIdempotent_AndClientScoped",
+    ],
+    "J41": [
+        "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs#FivePartBundle_RequiresReviewedReleaseAndPostedBalance_IsIdempotent_AndClientScoped",
+    ],
+    "J42": ["tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach"],
+    "J43": [
+        "tests/AuditSphereOps.Domain.Tests/ClientPortalOnboardingTests.cs#RequireUploadWindow_AllowsUploadsDuringInternalFinancialPackageRelease_AndFreezesOnFinalBundle",
+        "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs#FivePartBundle_RequiresReviewedReleaseAndPostedBalance_IsIdempotent_AndClientScoped",
+    ],
     "J44": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#FileFreezesSixtyDaysAfterSigning_RefusesWrites_AmendsWithApproval_AndTracesActivity"],
     "J45": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.EarlyLock.cs#PartnerEarlyLock_FailsClosedThenFreezesOnlyTheReviewedReadiness"],
     "J46": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#FrozenFileRefusesReviewNoteAttemptsAndRecordsTheRefusedWrite"],
+    "N01": ["tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#OneClickDocuments_AreBrandedImmutableAndBoundToTheApprovedQuotation"],
     "N03": ["tests/AuditSphereOps.Domain.Tests/EngagementActivationAdvanceGateTests.cs#LinkedAgreementMustHavePaidAdvanceBeforeActivation"],
+    "N04": ["tests/AuditSphereOps.Domain.Tests/ClientPortalOnboardingTests.cs#Uploads_AreWithheld_UntilTheFirstSignInRequirementForEachIdentityPathIsMet"],
+    "N05": [
+        "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#Materiality_IsCalculatedFromTheMappedTrialBalance_AndGoesStaleWhenTheSourceIsReplaced",
+    ],
     "N06": ["tests/AuditSphereOps.Domain.Tests/MaterialityPracticalRoundingTests.cs#AdjustmentsJustBeyondFivePercentAreRejected"],
+    "N07": ["tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#AuditProcedure_ExecutionAndReviewStaffingRanks_EnforcesRiskBandRules"],
     "N08": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#InlineNotesBlockApproval_AndOnlySomeoneStaffedAboveThePreparerReviews"],
-    "N09": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#CriticalUnreturnedConfirmationKeepsBlockingAfterAlternativeClosureAndCriticalityReassessment"],
+    "N09": [
+        "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#CriticalUnreturnedConfirmationKeepsBlockingAfterAlternativeClosureAndCriticalityReassessment",
+    ],
+    "N10": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning"],
+    "N11": [
+        "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs#FivePartBundle_RequiresReviewedReleaseAndPostedBalance_IsIdempotent_AndClientScoped",
+    ],
     "N12": ["tests/AuditSphereOps.Domain.Tests/EngagementLifecycleQueryTests.cs#EngagementTraversesCanonicalStagesAndEnforcesScope"],
+    "N14": [
+        "tests/AuditSphereOps.Domain.Tests/AuthorizationDecisionTests.cs#CrossClient_GrantForOtherClient_IsDenied",
+        "tests/AuditSphereOps.Domain.Tests/WorkspaceQueryTests.cs#EngagementGrantCannotReadClientOrSibling_AndRevocationClearsAccess",
+        "tests/AuditSphereOps.Domain.Tests/AuditConfirmationCommandIsolationTests.cs#SiblingClientIds_AreDeniedAcrossConfirmationLifecycle",
+        "tests/AuditSphereOps.Domain.Tests/BillingCommandScopeIsolationTests.cs#ClientScopedFinanceCommandsCannotReadOrMutateSiblingClientBillingRecords",
+    ],
 }
 
 SUITE_RUNS = {

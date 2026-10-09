@@ -109,6 +109,13 @@ public sealed partial class AuditDeliverablesTests
       Assert.Equal(8, archive.Entries.Count);
       Assert.Equal(5, archive.Entries.Where(x => x.FullName != "manifest.json").Select(x => x.FullName.Split('/')[0]).Distinct().Count());
       Assert.Contains(archive.Entries, x => x.FullName.EndsWith("Management_signed_letter.pdf"));
+      // STE J40: the management correspondence trail is one of the five parts, with its confirmations and communications.
+      using (var trailStream = archive.GetEntry("04_Management_correspondence/Audit_trail.json")!.Open())
+      using (var trail = await System.Text.Json.JsonDocument.ParseAsync(trailStream))
+      {
+        Assert.True(trail.RootElement.TryGetProperty("Confirmations", out _));
+        Assert.True(trail.RootElement.TryGetProperty("Communications", out _));
+      }
       using var manifest = System.Text.Json.JsonDocument.Parse(row.ManifestJson);
       foreach (var item in manifest.RootElement.GetProperty("Parts").EnumerateArray())
       {

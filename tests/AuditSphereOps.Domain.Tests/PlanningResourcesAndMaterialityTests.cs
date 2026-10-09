@@ -617,5 +617,65 @@ public sealed partial class PlanningResourcesAndMaterialityTests
       Assert.True(revPartner.Succeeded, revPartner.Message);
     }
   }
+
+  [Fact]
+  public async Task FieldworkOnSeparateFslisRunsInParallelForDifferentStaffWithoutInterference()
+  {
+    // STE J23: assigned staff work different FSLI areas of one engagement at the same time. Each result is recorded
+    // against its own procedure and preparer, and neither submission blocks or overwrites the other.
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var partner = w.Actor("partner", "Partner");
+    var partner2 = w.Actor("partner2", "Partner");
+    var manager = w.Actor("manager", "Manager");
+    var senior = w.Actor("senior", "Senior");
+    var associate = w.Actor("associate", "Staff");
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.True((await ResourcePlanningService.AddCertificationAsync(db, manager, new(w.Users["partner2"].Id, "CPA", "AICPA", null))).Succeeded);
+      Assert.True((await ResourcePlanningService.AddCertificationAsync(db, manager, new(w.Users["manager"].Id, "ACCA", "ACCA", null))).Succeeded);
+      Assert.True((await StaffingService.AssignAsync(db, partner, new(w.EngagementId, w.Users["partner2"].Id, StaffingLevels.EngagementPartner))).Succeeded);
+      Assert.True((await StaffingService.AssignAsync(db, partner, new(w.EngagementId, w.Users["manager"].Id, StaffingLevels.AuditManager))).Succeeded);
+      Assert.True((await StaffingService.AssignAsync(db, manager, new(w.EngagementId, w.Users["senior"].Id, StaffingLevels.SeniorAuditor))).Succeeded);
+      Assert.True((await StaffingService.AssignAsync(db, manager, new(w.EngagementId, w.Users["associate"].Id, StaffingLevels.StaffAssociate))).Succeeded);
+    }
+
+    Guid cashProcedure, receivablesProcedure;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var published = await AuditProgramService.PublishAsync(db, partner, new PublishAuditProgramRequest("2026.1", AuditProgramCatalog.SourceHash));
+      Assert.True(published.Succeeded, published.Message);
+      Assert.True((await AuditProgramService.AdoptAsync(db, partner, new AdoptAuditProgramRequest(w.EngagementId, published.Value!.ProgramVersionId))).Succeeded);
+      // Section 2 is Cash & Bank and section 3 is Receivables in the adopted program.
+      cashProcedure = (await db.AuditProcedures.AsNoTracking().Where(x => x.EngagementId == w.EngagementId && x.SourceProcedureId.StartsWith("AWP-02-"))
+        .OrderBy(x => x.SourceProcedureId).FirstAsync()).Id;
+      receivablesProcedure = (await db.AuditProcedures.AsNoTracking().Where(x => x.EngagementId == w.EngagementId && x.SourceProcedureId.StartsWith("AWP-03-"))
+        .OrderBy(x => x.SourceProcedureId).FirstAsync()).Id;
+      foreach (var id in new[] { cashProcedure, receivablesProcedure })
+        Assert.True((await AuditProgramService.DecideApplicabilityAsync(db, partner, new(id, AuditApplicabilityStatuses.Applicable, null))).Succeeded);
+      await PlanningBasisSeed.EstablishAsync(db, w.FirmId, w.ClientId, w.EngagementId, partner, partner2);
+    }
+
+    async Task<(bool Succeeded, string? Message)> SubmitAsync(ActorContext actor, Guid procedureId, string area)
+    {
+      await using var db = new AuditSphereDbContext(pg.Options);
+      var result = await AuditProgramService.SubmitResultAsync(db, actor,
+        new SubmitProcedureResultRequest(procedureId, 1, $"Tested {area}", "{\"result\":\"PASS\"}", [$"ref:{area}"], $"{area} conclusion"));
+      return (result.Succeeded, result.Message);
+    }
+    var outcomes = await Task.WhenAll(SubmitAsync(senior, cashProcedure, "cash"), SubmitAsync(associate, receivablesProcedure, "receivables"));
+    Assert.All(outcomes, x => Assert.True(x.Succeeded, x.Message));
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var results = await db.AuditProcedureResults.AsNoTracking().Where(x => x.EngagementId == w.EngagementId).ToListAsync();
+      Assert.Equal(2, results.Count);
+      Assert.Equal(w.Users["senior"].Id, results.Single(x => x.AuditProcedureId == cashProcedure).PreparedByUserId);
+      Assert.Equal(w.Users["associate"].Id, results.Single(x => x.AuditProcedureId == receivablesProcedure).PreparedByUserId);
+      Assert.All(results, x => Assert.Equal(AuditProcedureResultStatuses.Submitted, x.Status));
+      var procedures = await db.AuditProcedures.AsNoTracking().Where(x => x.Id == cashProcedure || x.Id == receivablesProcedure).ToListAsync();
+      Assert.All(procedures, p => Assert.Equal(1L, p.CurrentResultRevision));
+    }
+  }
 }
 
