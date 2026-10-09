@@ -34,7 +34,7 @@ Create and mount the storage filesystem once, before starting Compose:
 sudo install -d -m 0700 /opt/auditsphere/storage
 sudo truncate -s 30G /opt/auditsphere/auditsphere-acceptance-storage.img
 sudo chmod 0600 /opt/auditsphere/auditsphere-acceptance-storage.img
-sudo mkfs.ext4 -F /opt/auditsphere/auditsphere-acceptance-storage.img
+sudo mkfs.ext4 -F -m 0 /opt/auditsphere/auditsphere-acceptance-storage.img
 sudo fallocate -l 30G /opt/auditsphere/auditsphere-acceptance-storage.img
 sudo mount -o loop /opt/auditsphere/auditsphere-acceptance-storage.img /opt/auditsphere/storage
 sudo install -d -o root -g root -m 0700 /opt/auditsphere/storage/postgres

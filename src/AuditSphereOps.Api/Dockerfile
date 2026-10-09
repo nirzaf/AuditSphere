@@ -23,15 +23,18 @@ COPY src/AuditSphereOps.Api/AuditSphereOps.Api.csproj src/AuditSphereOps.Api/
 RUN dotnet restore src/AuditSphereOps.Api/AuditSphereOps.Api.csproj --locked-mode
 COPY docs/task_breakdown/tracking/pack_manifest.json docs/task_breakdown/tracking/pack_manifest.json
 COPY src/ src/
+# Finish the Angular build before the memory-intensive .NET compile starts.
+COPY --from=ui /ui/dist/auditsphere-ui/browser/ /ui-assets/
 # The Angular asset set is copied from the ui stage; publishing is backend-only here.
 RUN dotnet publish src/AuditSphereOps.Api/AuditSphereOps.Api.csproj \
-  --configuration Release --no-restore -p:PublishAngularUi=false -o /out \
+  --configuration Release --no-restore -m:1 -p:BuildInParallel=false \
+  -p:UseSharedCompilation=false -p:PublishAngularUi=false -o /out \
   && test -f /out/AuditSphereOps.Api.dll
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 COPY --from=api /out/ .
-COPY --from=ui /ui/dist/auditsphere-ui/browser/ ./ui/
+COPY --from=api /ui-assets/ ./ui/
 RUN mkdir -p /app/data-protection-home /var/lib/auditsphere/pbc-staging /var/lib/auditsphere/release-checkpoints \
   && chown -R $APP_UID:$APP_UID /app/data-protection-home /var/lib/auditsphere
 ENV ASPNETCORE_URLS=http://+:8080 \
