@@ -9,7 +9,7 @@ services:
       POSTGRES_USER: auditsphere
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
     networks:
       - acceptance
     healthcheck:
