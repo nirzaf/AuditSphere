@@ -54,7 +54,8 @@ restart the VPS as part of this deployment.
   `AllowSimulationAdapters=false`. Do not add production client data, approved release data or
   external-effect credentials to this environment.
 - Persistent volumes are `auditsphere-acceptance_postgres_data`,
-  `auditsphere-acceptance_data_protection`, and `auditsphere-acceptance_pbc_staging`. Back them
-  up before upgrades and retain the exact image tag for rollback.
+  `auditsphere-acceptance_data_protection`, `auditsphere-acceptance_pbc_staging`, and
+  `auditsphere-acceptance_release_checkpoints`. Back them up before upgrades and retain the exact
+  image tag for rollback.
 - This VPS has existing services. Do not alter their containers, databases, ports, Caddy routes,
   firewall rules or host packages as part of this app deployment.
