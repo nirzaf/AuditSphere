@@ -370,8 +370,8 @@ public sealed record WorkerOptions(Guid FirmId, string EnvironmentName = "Develo
         throw new InvalidOperationException("Live providers require isolated Acceptance composition.");
       return;
     }
-    if (EnvironmentName is not ("Development" or "Test"))
-      throw new InvalidOperationException("External effects are disabled outside local validation environments.");
+    if (EnvironmentName is not ("Development" or "Test" or "Acceptance"))
+      throw new InvalidOperationException("External effects are disabled outside local validation or safe Acceptance environments.");
     if (declared.Any(d => !Enum.IsDefined(d.Mode) || !Enum.IsDefined(d.Authority) ||
         string.IsNullOrWhiteSpace(d.Kind) || string.IsNullOrWhiteSpace(d.Group) || d.SchemaVersion < 1 ||
         (d.Mode == OperationMode.LOCAL && d.Authority != OperationAuthority.LOCAL_VALIDATION) ||

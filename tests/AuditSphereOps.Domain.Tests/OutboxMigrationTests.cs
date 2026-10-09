@@ -210,4 +210,18 @@ public sealed class OutboxMigrationTests
     Assert.Throws<InvalidOperationException>(() => new WorkerOptions(Guid.NewGuid(), "Test", true)
       .Validate([new("live", OperationMode.LIVE, OperationAuthority.SIMULATION)]));
   }
+
+  [Fact]
+  [Trait("Profile", "Unit")]
+  public void AcceptanceWorker_AllowsLocalOperationsWhenProviderEffectsAreDisabled()
+  {
+    var options = new WorkerOptions(Guid.NewGuid(), "Acceptance", AllowSimulationAdapters: false,
+      ExternalEffectsEnabled: false, Group: "general");
+
+    options.Validate([new("ValidateTrialBalance.v1", OperationMode.LOCAL, OperationAuthority.LOCAL_VALIDATION)]);
+    Assert.Throws<InvalidOperationException>(() => options.Validate(
+      [new("live", OperationMode.LIVE, OperationAuthority.LIVE_PROVIDER)]));
+    Assert.Throws<InvalidOperationException>(() => options.Validate(
+      [new("simulated", OperationMode.SIMULATED, OperationAuthority.SIMULATION)]));
+  }
 }
