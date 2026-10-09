@@ -24,6 +24,8 @@ The core modular monolith, Practice Management, Client Accounting Workspace (TB/
 
 Task-level status for the R2R, AUD and STE tasks lives on the [agent task board](auditsphere-execution-index-task-board-current.md). This file keeps the owner decisions, technical debt and external gates that the board points to.
 
+For dependency order and cross-register deduplication, use the [deduplicated execution backlog](auditsphere-execution-index-deduplicated-backlog-current.md). This file and the task board continue to hold detailed requirements and card-level status; the queue does not replace their evidence rules.
+
 ## Story coverage and completion boundaries
 
 This handoff is not an exhaustive list of unfinished user stories. Continue from the
