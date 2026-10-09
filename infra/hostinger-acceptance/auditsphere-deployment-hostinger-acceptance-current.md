@@ -32,15 +32,19 @@ Create and mount the storage filesystem once, before starting Compose:
 
 ```bash
 sudo install -d -m 0700 /opt/auditsphere/storage
-sudo fallocate -l 30G /opt/auditsphere/auditsphere-acceptance-storage.img
+sudo truncate -s 30G /opt/auditsphere/auditsphere-acceptance-storage.img
 sudo chmod 0600 /opt/auditsphere/auditsphere-acceptance-storage.img
 sudo mkfs.ext4 -F /opt/auditsphere/auditsphere-acceptance-storage.img
+sudo fallocate -l 30G /opt/auditsphere/auditsphere-acceptance-storage.img
 sudo mount -o loop /opt/auditsphere/auditsphere-acceptance-storage.img /opt/auditsphere/storage
-sudo install -d -m 0700 /opt/auditsphere/storage/{postgres,data-protection,pbc-staging,release-checkpoints}
+sudo install -d -o root -g root -m 0700 /opt/auditsphere/storage/postgres
+sudo install -d -o 1654 -g 1654 -m 0700 /opt/auditsphere/storage/{data-protection,pbc-staging,release-checkpoints}
 ```
 
 Persist the mount across restarts by adding this exact line to `/etc/fstab`, then verify it with
 `findmnt /opt/auditsphere/storage` and `df -h /opt/auditsphere/storage`:
+
+Run `fallocate` after `mkfs.ext4`; formatting the image can discard preallocated blocks.
 
 ```text
 /opt/auditsphere/auditsphere-acceptance-storage.img /opt/auditsphere/storage ext4 loop,defaults,nofail 0 2
