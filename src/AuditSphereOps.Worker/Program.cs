@@ -42,7 +42,9 @@ var liveMail = builder.Environment.IsEnvironment("Acceptance") && externalEffect
 // Live selected-site PBC transfers run only in an isolated Acceptance worker for the "pbc" group.
 var livePbc = builder.Environment.IsEnvironment("Acceptance") && externalEffects && group == PbcDocumentTransferHandler.LiveGroup;
 var liveClientSites = builder.Environment.IsEnvironment("Acceptance") && externalEffects && group == ClientSharePointSiteHandler.Group && builder.Configuration.GetValue<bool>("ClientSites:Enabled");
-if (!builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Test") && !liveMail && !livePbc && !liveClientSites)
+var safeCoreWorker = (builder.Environment.IsEnvironment("Acceptance") || builder.Environment.IsProduction()) &&
+                     !externalEffects && group is ("general" or "processing" or "records");
+if (!builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Test") && !safeCoreWorker && !liveMail && !livePbc && !liveClientSites)
   throw new InvalidOperationException("This worker composition is not approved for the current environment.");
 var connection = builder.Configuration.GetConnectionString("AuditSphere");
 if (string.IsNullOrWhiteSpace(connection))

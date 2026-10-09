@@ -1,0 +1,150 @@
+name: auditsphere-acceptance
+
+services:
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: auditsphere
+      POSTGRES_USER: auditsphere
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - acceptance
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U auditsphere -d auditsphere"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  migrate:
+    profiles: ["migration"]
+    build:
+      context: ../..
+      dockerfile: infra/docker/migrations.Dockerfile
+    restart: "no"
+    environment:
+      ConnectionStrings__AuditSphere: "Host=db;Port=5432;Database=auditsphere;Username=auditsphere;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - acceptance
+
+  api:
+    build:
+      context: ../..
+      dockerfile: src/AuditSphereOps.Api/Dockerfile
+    image: auditsphere-api:${RELEASE_TAG:?Set RELEASE_TAG in .env}
+    restart: unless-stopped
+    init: true
+    environment:
+      ASPNETCORE_ENVIRONMENT: Acceptance
+      ASPNETCORE_URLS: http://+:8080
+      HOME: /app/data-protection-home
+      ConnectionStrings__AuditSphere: "Host=db;Port=5432;Database=auditsphere;Username=auditsphere;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}"
+      Application__FirmId: ${FIRM_ID:?Set FIRM_ID in .env}
+      Application__InstallationId: ${INSTALLATION_ID:?Set INSTALLATION_ID in .env}
+      Application__PublicBaseUrl: https://audit.steaudit.com
+      Application__TimeZone: Asia/Qatar
+      Application__AllowSimulationAdapters: "false"
+      Setup__FirmId: ${FIRM_ID:?Set FIRM_ID in .env}
+      Setup__InstallationId: ${INSTALLATION_ID:?Set INSTALLATION_ID in .env}
+      Setup__BootstrapProofHash: ${BOOTSTRAP_PROOF_HASH:?Set BOOTSTRAP_PROOF_HASH in .env}
+      Setup__InitialAdministratorTenantId: ${IDENTITY_TENANT_ID:?Set IDENTITY_TENANT_ID in .env}
+      Setup__InitialAdministratorObjectId: ${INITIAL_ADMIN_OBJECT_ID:?Set INITIAL_ADMIN_OBJECT_ID in .env}
+      Identity__TenantId: ${IDENTITY_TENANT_ID:?Set IDENTITY_TENANT_ID in .env}
+      Identity__ClientId: ${IDENTITY_CLIENT_ID:?Set IDENTITY_CLIENT_ID in .env}
+      Identity__ClientSecret: ${IDENTITY_CLIENT_SECRET:?Set IDENTITY_CLIENT_SECRET in .env}
+      Identity__CallbackPath: /signin-oidc
+      DevelopmentIdentity__Enabled: "false"
+      ExternalEffects__Enabled: "false"
+      FeatureActivation__LiveAuditRelease: "false"
+      ForwardedHeaders__KnownProxies__0: 172.29.91.1
+      Storage__PbcStagingRoot: /var/lib/auditsphere/pbc-staging
+      Storage__ReleaseCheckpointRoot: /var/lib/auditsphere/release-checkpoints
+    volumes:
+      - data_protection:/app/data-protection-home
+      - pbc_staging:/var/lib/auditsphere/pbc-staging
+      - release_checkpoints:/var/lib/auditsphere/release-checkpoints
+    ports:
+      - "127.0.0.1:18080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      acceptance:
+        ipv4_address: 172.29.91.10
+
+  worker-general:
+    build:
+      context: ../..
+      dockerfile: src/AuditSphereOps.Worker/Dockerfile
+    image: auditsphere-worker:${RELEASE_TAG:?Set RELEASE_TAG in .env}
+    restart: unless-stopped
+    init: true
+    environment: &worker_environment
+      ASPNETCORE_ENVIRONMENT: Acceptance
+      ConnectionStrings__AuditSphere: "Host=db;Port=5432;Database=auditsphere;Username=auditsphere;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}"
+      Worker__FirmId: ${FIRM_ID:?Set FIRM_ID in .env}
+      Worker__DeploymentEpoch: ${DEPLOYMENT_EPOCH:-1}
+      ExternalEffects__Enabled: "false"
+      AllowSimulationAdapters: "false"
+      Storage__PbcStagingRoot: /var/lib/auditsphere/pbc-staging
+      Storage__ReleaseCheckpointRoot: /var/lib/auditsphere/release-checkpoints
+    volumes:
+      - pbc_staging:/var/lib/auditsphere/pbc-staging
+      - release_checkpoints:/var/lib/auditsphere/release-checkpoints
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - acceptance
+
+  worker-processing:
+    image: auditsphere-worker:${RELEASE_TAG:?Set RELEASE_TAG in .env}
+    restart: unless-stopped
+    init: true
+    environment:
+      <<: *worker_environment
+      Worker__Group: processing
+    volumes:
+      - pbc_staging:/var/lib/auditsphere/pbc-staging
+      - release_checkpoints:/var/lib/auditsphere/release-checkpoints
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - acceptance
+
+  worker-records:
+    image: auditsphere-worker:${RELEASE_TAG:?Set RELEASE_TAG in .env}
+    restart: unless-stopped
+    init: true
+    environment:
+      <<: *worker_environment
+      Worker__Group: records
+    volumes:
+      - pbc_staging:/var/lib/auditsphere/pbc-staging
+      - release_checkpoints:/var/lib/auditsphere/release-checkpoints
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - acceptance
+
+volumes:
+  postgres_data:
+  data_protection:
+  pbc_staging:
+  release_checkpoints:
+
+networks:
+  acceptance:
+    name: auditsphere-acceptance
+    ipam:
+      config:
+        - subnet: 172.29.91.0/24
+          gateway: 172.29.91.1

@@ -31,6 +31,8 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 COPY --from=api /out/ .
 COPY --from=ui /ui/dist/auditsphere-ui/browser/ ./ui/
+RUN mkdir -p /app/data-protection-home /var/lib/auditsphere/pbc-staging /var/lib/auditsphere/release-checkpoints \
+  && chown -R $APP_UID:$APP_UID /app/data-protection-home /var/lib/auditsphere
 ENV ASPNETCORE_URLS=http://+:8080 \
   DOTNET_gcServer=1
 # The aspnet image ships a non-root user; the host binds 8080 and writes nothing outside mounted volumes.

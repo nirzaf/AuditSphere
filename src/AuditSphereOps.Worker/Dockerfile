@@ -22,6 +22,8 @@ RUN dotnet publish src/AuditSphereOps.Worker/AuditSphereOps.Worker.csproj \
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 COPY --from=build /out/ .
+RUN mkdir -p /var/lib/auditsphere/pbc-staging /var/lib/auditsphere/release-checkpoints \
+  && chown -R $APP_UID:$APP_UID /var/lib/auditsphere
 ENV DOTNET_gcServer=1
 USER $APP_UID
 ENTRYPOINT ["dotnet", "AuditSphereOps.Worker.dll"]

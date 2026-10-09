@@ -27,8 +27,10 @@ public static partial class ApiHost
     ConfigureRateLimiting(builder);
     ConfigureRequestLimits(builder);
     ConfigureSecurityHeaders(builder);
+    ConfigureForwardedHeaders(builder);
     ConfigureApiContract(builder);
     var app = builder.Build();
+    app.UseForwardedHeaders();
     app.UseMiddleware<RequestCorrelationMiddleware>();
     app.UseMiddleware<SecurityHeadersMiddleware>();
     app.UseMiddleware<RequestBodyLimitMiddleware>();

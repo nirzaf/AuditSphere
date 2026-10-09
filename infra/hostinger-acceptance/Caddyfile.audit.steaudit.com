@@ -1,0 +1,3 @@
+audit.steaudit.com {
+	reverse_proxy 127.0.0.1:18080
+}
