@@ -11,6 +11,7 @@ COPY global.json Directory.Build.props Directory.Packages.props AuditSphereOps.s
 COPY src/ src/
 RUN dotnet tool install --global dotnet-ef --version 10.0.12 \
   && export PATH="$PATH:/root/.dotnet/tools" \
+  && dotnet restore src/AuditSphereOps.Api/AuditSphereOps.Api.csproj --locked-mode \
   && dotnet ef migrations bundle --self-contained -r linux-x64 \
     --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Api \
     -o /out/efbundle
