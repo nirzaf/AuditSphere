@@ -386,15 +386,96 @@ def git(*args: str) -> str:
     return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True, check=True).stdout.strip()
 
 
-def check(check_id: str, text: str) -> dict:
+# Journey steps with executed local evidence. Each citation is "<test source path>#<method>", so a mapping is verifiable:
+# the generator refuses to run when a cited file or method is absent, which keeps a stale or invented citation from
+# silently passing. A step with no citation stays NOT_EXECUTED; a step whose suite recorded failures stays NOT_EXECUTED
+# with that run named, because a suite-level pass cannot prove one step.
+EVIDENCE = {
+    "J18": ["tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#Materiality_IsCalculatedFromTheMappedTrialBalance_AndGoesStaleWhenTheSourceIsReplaced"],
+    "J19": [
+        "tests/AuditSphereOps.Domain.Tests/MaterialityPracticalRoundingTests.cs#StoryCriterion_PlanningMateriality_53421_to_53000_is_accepted_and_a_value_past_the_bound_is_refused",
+        "tests/AuditSphereOps.Domain.Tests/MaterialityPracticalRoundingTests.cs#BoundaryAdjustmentsOfExactlyFivePercentAreAccepted",
+        "tests/AuditSphereOps.Domain.Tests/MaterialityPracticalRoundingTests.cs#AdjustmentsJustBeyondFivePercentAreRejected",
+    ],
+    "J29": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#InlineNotesBlockApproval_AndOnlySomeoneStaffedAboveThePreparerReviews"],
+    "J30": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#LateAndReopenedNotesBlockClearanceUntilRespondedResolvedAndReviewed"],
+    "J31": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#LateAndReopenedNotesBlockClearanceUntilRespondedResolvedAndReviewed"],
+    "J32": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmPresentsCurrencyAwareDifferences_AndDocumentsDoNotAssertAutomaticImmateriality"],
+    "J33": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning"],
+    "J34": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#CriticalUnreturnedConfirmationKeepsBlockingAfterAlternativeClosureAndCriticalityReassessment"],
+    "J35": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning"],
+    "J36": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning"],
+    "J37": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning"],
+    "J38": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.ManagementLetter.cs#ManagementLetterRendersOnlyDesignatedCompleteMatters_AndStalesOnTheirChange"],
+    "J39": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs#SignedRepresentation_IsVersionBound_Idempotent_Immutable_AndScoped"],
+    "J41": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs#FivePartBundle_RequiresReviewedReleaseAndPostedBalance_IsIdempotent_AndClientScoped"],
+    "J44": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#FileFreezesSixtyDaysAfterSigning_RefusesWrites_AmendsWithApproval_AndTracesActivity"],
+    "J45": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.EarlyLock.cs#PartnerEarlyLock_FailsClosedThenFreezesOnlyTheReviewedReadiness"],
+    "J46": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#FrozenFileRefusesReviewNoteAttemptsAndRecordsTheRefusedWrite"],
+    "N03": ["tests/AuditSphereOps.Domain.Tests/EngagementActivationAdvanceGateTests.cs#ALinkedAgreementAlwaysGatesEvenUnderTheRecordedDeviation"],
+    "N06": ["tests/AuditSphereOps.Domain.Tests/MaterialityPracticalRoundingTests.cs#AdjustmentsJustBeyondFivePercentAreRejected"],
+    "N08": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#InlineNotesBlockApproval_AndOnlySomeoneStaffedAboveThePreparerReviews"],
+    "N09": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#CriticalUnreturnedConfirmationKeepsBlockingAfterAlternativeClosureAndCriticalityReassessment"],
+}
+
+SUITE_RUNS = {
+    "tests/AuditSphereOps.Domain.Tests/": "domain",
+    "tests/AuditSphereOps.Api.Tests/": "api",
+    "tests/AuditSphereOps.E2E.Tests/": "e2e",
+}
+STATUS_PATH = ROOT / "docs" / "execution" / "status.json"
+
+
+def recorded_runs() -> dict:
+    if not STATUS_PATH.is_file():
+        raise SystemExit(f"Recorded run ledger is missing: {STATUS_PATH}")
+    return json.loads(STATUS_PATH.read_text()).get("testSuites", {}).get("runs", {})
+
+
+def suite_for(path: str) -> str | None:
+    for prefix, suite in SUITE_RUNS.items():
+        if path.startswith(prefix):
+            return suite
+    return None
+
+
+def verify_citation(citation: str) -> None:
+    path, _, method = citation.partition("#")
+    if not path or not method:
+        raise SystemExit(f"Evidence citation must be '<path>#<method>': {citation}")
+    source = ROOT / path
+    if not source.is_file():
+        raise SystemExit(f"Evidence source is missing from the checkout: {path}")
+    if f" {method}(" not in source.read_text():
+        raise SystemExit(f"Evidence method {method} is not declared in {path}")
+
+
+def check(check_id: str, text: str, runs: dict) -> dict:
     blocked_by = EXTERNAL_BLOCKS.get(check_id)
-    return {
-        "id": check_id,
-        "text": text,
-        "result": "BLOCKED_EXTERNAL" if blocked_by else "NOT_EXECUTED",
-        "blockedBy": blocked_by,
-        "evidence": [],
-    }
+    if blocked_by:
+        return {"id": check_id, "text": text, "result": "BLOCKED_EXTERNAL", "blockedBy": blocked_by, "evidence": []}
+    citations = EVIDENCE.get(check_id)
+    if not citations:
+        return {"id": check_id, "text": text, "result": "NOT_EXECUTED", "blockedBy": None, "evidence": []}
+    for citation in citations:
+        verify_citation(citation)
+    paths = [citation.partition("#")[0] for citation in citations]
+    unknown = [path for path in paths if suite_for(path) is None]
+    if unknown:
+        raise SystemExit("Evidence cites a suite with no recorded run mapping: " + ", ".join(unknown))
+    suites = sorted({suite_for(path) for path in paths})
+    for suite in suites:
+        run = runs.get(suite)
+        if run is None:
+            return {"id": check_id, "text": text, "result": "NOT_EXECUTED", "blockedBy": None, "evidence": citations}
+        if run.get("failed"):
+            return {"id": check_id, "text": text, "result": "NOT_EXECUTED", "blockedBy": None, "evidence": citations,
+                    "note": f"{suite} recorded {run['failed']} failure(s) on {run.get('ranOn')}"}
+    evidence = citations + [
+        f"docs/execution/status.json#testSuites.runs.{suite} ({runs[suite].get('passed')} passed, 0 failed, {runs[suite].get('ranOn')})"
+        for suite in suites
+    ]
+    return {"id": check_id, "text": text, "result": "PASS", "blockedBy": None, "evidence": evidence}
 
 
 def tally(checks: list[dict]) -> dict:
@@ -429,8 +510,9 @@ def build() -> dict:
         raise SystemExit("Evidence paths missing from the checkout:\n  " + "\n  ".join(missing))
 
     migrations = sorted(p.name[:-3] for p in MIGRATIONS.iterdir() if MIGRATION_FILE.match(p.name))
-    happy = [check(check_id, text) for check_id, text in HAPPY_PATH]
-    negative = [check(check_id, text) for check_id, text in NEGATIVE_BRANCHES]
+    runs = recorded_runs()
+    happy = [check(check_id, text, runs) for check_id, text in HAPPY_PATH]
+    negative = [check(check_id, text, runs) for check_id, text in NEGATIVE_BRANCHES]
     checks = happy + negative
     counts = tally(checks)
 
@@ -446,11 +528,11 @@ def build() -> dict:
         "migrations": {"head": migrations[-1], "count": len(migrations)},
         "specification": SPECIFICATION,
         "testEvidence": {
-            "testCaseIds": [],
-            "executedTestSuites": [],
+            "testCaseIds": sorted(EVIDENCE),
+            "executedTestSuites": sorted({suite_for(c.partition("#")[0]) for citations in EVIDENCE.values() for c in citations}),
             "removedInCommit": TEST_REMOVAL_COMMIT,
             "restoredBy": "STE-NXT-001",
-            "note": "Automated suites were restored. Their runs are recorded in docs/execution/status.json (testSuites). This manifest does not map individual tests to journey steps, so no journey step has recorded evidence here.",
+            "note": "A step is PASS only when every cited test is declared in the current source and the recorded run for its suite has zero failures; the run commit travels in the step's evidence so staleness stays visible. Steps with no citation stay NOT_EXECUTED, and a suite-level pass never proves an uncited step.",
         },
         "stageTransitionEvidenceIds": [],
         "generatedDocuments": [],

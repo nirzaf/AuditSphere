@@ -17,7 +17,7 @@ The definitions below are copied verbatim from the owner's STE v2.1 gap analysis
 | STE-GAP-007 | Provider-enforced read-only compliance archive | P0 | 4.4.3 (permanent archive) | BLOCKED_EXTERNAL: no provider protection implemented | Approved design (SPK-01 and ADR-0009 draft); real-tenant tests |
 | STE-GAP-008 | Canonical eleven-stage lifecycle truthfulness | P0 | 5 (lifecycle) | Partly closed: derived projection, countdown anchor, archive only when FROZEN | Section F provider-protection state model; Stage 3 on proposal dispatch not verified |
 | STE-GAP-009 | Approved STE default charge-out policy | P2 | 4.5.1 (rates, rate cards) | Closed locally: baseline drafts, rate-card page (STE-NXT-003) | Approval by a second person not executed at runtime |
-| STE-GAP-010 | End-to-end acceptance journey | P0 | No verification row | Open: acceptance manifest `docs/execution/ste-v2-1-acceptance-manifest.json` records FAIL | Restored journey suites executed against the stated checks |
+| STE-GAP-010 | End-to-end acceptance journey | P0 | No verification row | The manifest generator now has an evidence model: a step is PASS only when every cited test is declared in the current source and its suite has a recorded zero-failure run. 21 of 62 checks PASS (domain-backed lifecycle, materiality, review, reporting and archive steps); overall result stays FAIL | 36 checks still have no mapped executed evidence (browser and external steps); the E2E run recorded 15 failures, so no browser step can pass until that run is clean |
 
 ## Gap index (verbatim from the analysis)
 
