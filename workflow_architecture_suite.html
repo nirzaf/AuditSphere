@@ -3,7 +3,24 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AuditSphere - Architecture and Workflow Reference</title>
+  <title>AuditSphere Implementation Reference - Architecture and Workflows</title>
+  <meta name="description" content="Implementation-aligned AuditSphere architecture, workflow, materiality, fieldwork, completion, practice and lifecycle diagrams. Current code and authority documents govern behavior.">
+
+  <!-- Theme bootstrap (prevents flash of wrong theme) -->
+  <script>
+    (function () {
+      try {
+        var stored = localStorage.getItem('ste-theme');
+        var dark = stored ? stored === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (dark) document.documentElement.classList.add('dark');
+      } catch (e) {}
+    })();
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -11,6 +28,10 @@
       darkMode: 'class',
       theme: {
         extend: {
+          fontFamily: {
+            sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace']
+          },
           colors: {
             brand: {
               50: '#f0f7ff',
@@ -31,675 +52,1067 @@
       }
     }
   </script>
-  <!-- Mermaid is pinned so the diagrams render against a reproducible parser version. -->
+
+  <style type="text/tailwindcss">
+    @layer components {
+      .card { @apply bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-sm; }
+      .chip { @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ring-1 ring-inset whitespace-nowrap; }
+      .eyebrow { @apply text-[11px] font-semibold uppercase tracking-[0.14em] text-sky-600 dark:text-sky-400; }
+      .panel-title { @apply mt-1 text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white; }
+      .panel-desc { @apply mt-1.5 text-sm sm:text-[15px] text-slate-500 dark:text-slate-400 max-w-3xl leading-relaxed; }
+      .nav-item { @apply w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-sm text-slate-600 dark:text-slate-400 hover:bg-white/70 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 shrink-0; }
+      .nav-item[aria-selected="true"] { @apply bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm ring-1 ring-slate-200 dark:ring-slate-700; }
+      .nav-num { @apply grid place-items-center w-7 h-7 rounded-lg text-[11px] font-bold bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-400 shrink-0 transition-colors; }
+      .nav-item[aria-selected="true"] .nav-num { @apply bg-gradient-to-br from-sky-500 to-indigo-500 text-white shadow; }
+      .nav-group { @apply px-3 pt-4 pb-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500; }
+      .info-card { @apply p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 text-sm text-slate-600 dark:text-slate-300 leading-relaxed transition hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-sm; }
+      .info-title { @apply font-semibold text-slate-800 dark:text-slate-100 mb-1.5 flex items-center gap-2; }
+      .tb-btn { @apply inline-flex items-center justify-center gap-1.5 h-8 min-w-[2rem] px-2 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500; }
+      .hdr-btn { @apply inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg text-xs font-medium text-slate-300 bg-white/5 ring-1 ring-white/10 hover:bg-white/10 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400; }
+      .primary-btn { @apply inline-flex items-center gap-2 h-9 px-3.5 rounded-lg text-xs font-semibold text-white bg-gradient-to-br from-sky-500 to-indigo-600 shadow-sm hover:shadow-md hover:brightness-110 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-sky-500; }
+      .ghost-btn { @apply inline-flex items-center gap-2 h-9 px-3.5 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 ring-1 ring-slate-200 dark:ring-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500; }
+      .formula-row { @apply p-4 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 bg-white dark:bg-slate-900 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors; }
+      .formula { @apply font-mono text-xs bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-2.5 py-1.5 rounded-md self-start sm:self-auto; }
+    }
+  </style>
+
+  <style>
+    :root { color-scheme: light; }
+    html.dark { color-scheme: dark; }
+    html { scroll-behavior: smooth; }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+    }
+
+    /* Panels */
+    .panel { animation: panelIn .35s cubic-bezier(.2,.7,.2,1); }
+    @keyframes panelIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+    /* Diagram viewer */
+    .viewer-canvas {
+      position: relative;
+      height: clamp(460px, 72vh, 860px);
+      overflow: hidden;
+      cursor: grab;
+      touch-action: none;
+      background-color: #ffffff;
+      background-image: radial-gradient(#e2e8f0 1px, transparent 1px);
+      background-size: 18px 18px;
+      border-radius: 0 0 1rem 1rem;
+      outline: none;
+    }
+    .viewer-canvas:focus-visible { box-shadow: inset 0 0 0 2px #0ea5e9; }
+    .viewer-canvas.is-panning { cursor: grabbing; }
+    .viewer-stage { position: absolute; top: 0; left: 0; transform-origin: 0 0; will-change: transform; }
+    .viewer-stage.animate { transition: transform .28s cubic-bezier(.2,.7,.2,1); }
+    .viewer-stage svg { display: block; max-width: none !important; filter: drop-shadow(0 4px 8px rgb(15 23 42 / .06)); }
+    .viewer-loading { position: absolute; inset: 0; display: grid; place-items: center; color: #64748b; font-size: 13px; }
+    .shimmer { width: 46%; height: 60%; border-radius: 16px; background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; }
+    @keyframes shimmer { to { background-position: -200% 0; } }
+    .viewer:fullscreen { background: #fff; display: flex; flex-direction: column; border-radius: 0; }
+    .viewer:fullscreen .viewer-canvas { height: auto; flex: 1; border-radius: 0; }
+    html.dark .viewer:fullscreen { background: #0f172a; }
+
+    /* Code viewer */
+    .code { counter-reset: line; }
+    .code .ln { display: block; padding-right: 1rem; }
+    .code .ln::before {
+      counter-increment: line; content: counter(line);
+      display: inline-block; width: 2.75rem; margin-right: 1rem; padding-right: .75rem;
+      text-align: right; color: #475569; border-right: 1px solid #1e293b; user-select: none;
+    }
+    .code .ln:hover { background: rgb(148 163 184 / .06); }
+    .tok-kw { color: #c084fc; font-weight: 600; }
+    .tok-str { color: #86efac; }
+    .tok-arrow { color: #38bdf8; font-weight: 600; }
+    .tok-cmt { color: #64748b; font-style: italic; }
+
+    /* Table row flash */
+    .row-flash { animation: rowFlash 1.6s ease; }
+    @keyframes rowFlash { 0%, 30% { background: rgb(14 165 233 / .18); } 100% { background: transparent; } }
+
+    /* Scrollbars */
+    .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 8px; }
+    html.dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { scrollbar-width: none; }
+
+    /* Toast */
+    #toast { transition: opacity .2s ease, transform .2s ease; }
+    #toast[data-show="false"] { opacity: 0; transform: translate(-50%, 12px); pointer-events: none; }
+
+    /* Print */
+    @media print {
+      header.app-header, aside, .viewer-toolbar, .pager, #toast, .no-print { display: none !important; }
+      body { background: #fff !important; }
+      .panel { display: block !important; animation: none; break-before: page; }
+      .panel:first-of-type { break-before: auto; }
+      .viewer-canvas { height: auto !important; overflow: visible; background: none; }
+      .viewer-stage { position: static; transform: none !important; }
+      .viewer-stage svg { max-width: 100% !important; height: auto !important; filter: none; }
+      .card { box-shadow: none !important; }
+    }
+  </style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 antialiased font-sans custom-scrollbar">
+
+  <a href="#main" class="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[60] focus:px-3 focus:py-2 focus:rounded-lg focus:bg-sky-600 focus:text-white">Skip to content</a>
+
+  <!-- Top Navigation Header -->
+  <header class="app-header sticky top-0 z-50 text-white border-b border-white/10 bg-slate-950/95 backdrop-blur supports-[backdrop-filter]:bg-slate-950/80">
+    <div class="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
+      <div class="absolute -top-24 left-1/4 w-96 h-48 bg-sky-500/20 blur-3xl rounded-full"></div>
+      <div class="absolute -top-24 right-1/4 w-96 h-48 bg-indigo-500/20 blur-3xl rounded-full"></div>
+    </div>
+    <div class="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-3 min-w-0">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-400 to-indigo-500 grid place-items-center font-black text-[13px] text-white shadow-lg shadow-sky-500/20 ring-1 ring-white/20 shrink-0">
+          STE
+        </div>
+        <div class="min-w-0">
+          <h1 class="text-[15px] font-bold tracking-tight text-white leading-tight truncate">STE Audit Management Platform</h1>
+          <p class="text-xs text-slate-400 truncate">Implementation reference · architecture and workflows</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 text-xs">
+        <span class="hidden md:inline-flex items-center px-2.5 py-1 rounded-full font-medium bg-emerald-500/10 text-emerald-300 ring-1 ring-emerald-500/25">
+          <span class="relative flex w-1.5 h-1.5 mr-1.5"><span class="absolute inset-0 rounded-full bg-emerald-400 animate-ping opacity-60"></span><span class="relative w-1.5 h-1.5 rounded-full bg-emerald-400"></span></span>Implementation reference
+        </span>
+        <span class="hidden md:inline-flex items-center px-2.5 py-1 rounded-full font-medium bg-sky-500/10 text-sky-300 ring-1 ring-sky-500/25">
+          Currency: QAR (ر.ق)
+        </span>
+        <button id="btn-print" class="hdr-btn" type="button" title="Print all diagrams">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          <span class="hidden sm:inline">Print</span>
+        </button>
+        <button id="btn-theme" class="hdr-btn w-9 px-0" type="button" aria-label="Toggle dark mode" title="Toggle theme (T)">
+          <svg class="w-4 h-4 dark:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          <svg class="w-4 h-4 hidden dark:block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:grid lg:grid-cols-[272px_minmax(0,1fr)] lg:gap-8">
+
+    <!-- Sidebar -->
+    <aside class="lg:sticky lg:top-[88px] lg:self-start lg:max-h-[calc(100vh-104px)] lg:overflow-y-auto custom-scrollbar mb-6 lg:mb-0">
+      <nav aria-label="Diagram views">
+        <div id="tablist" role="tablist" aria-orientation="vertical" class="flex lg:flex-col gap-1 overflow-x-auto no-scrollbar -mx-4 px-4 lg:mx-0 lg:px-0 pb-1 lg:pb-0">
+          <p class="nav-group hidden lg:block !pt-0">Overview</p>
+          <button role="tab" id="tab-modules" data-key="modules" aria-controls="panel-modules" class="nav-item lg:w-full w-auto">
+            <span class="nav-num">1</span><span class="flex flex-col"><span class="font-semibold whitespace-nowrap">Architecture Map</span><span class="hidden lg:block text-xs text-slate-400">Hosts and capability boundaries</span></span>
+          </button>
+          <p class="nav-group hidden lg:block">Workflows</p>
+          <button role="tab" id="tab-onboarding" data-key="onboarding" aria-controls="panel-onboarding" class="nav-item lg:w-full w-auto">
+            <span class="nav-num">2</span><span class="flex flex-col"><span class="font-semibold whitespace-nowrap">Dual-Key Onboarding</span><span class="hidden lg:block text-xs text-slate-400">Flow 1 · ISA 210 / 220</span></span>
+          </button>
+          <button role="tab" id="tab-materiality" data-key="materiality" aria-controls="panel-materiality" class="nav-item lg:w-full w-auto">
+            <span class="nav-num">3</span><span class="flex flex-col"><span class="font-semibold whitespace-nowrap">Materiality &amp; Risk Matrix</span><span class="hidden lg:block text-xs text-slate-400">Flow 2 · ISA 320</span></span>
+          </button>
+          <button role="tab" id="tab-fieldwork" data-key="fieldwork" aria-controls="panel-fieldwork" class="nav-item lg:w-full w-auto">
+            <span class="nav-num">4</span><span class="flex flex-col"><span class="font-semibold whitespace-nowrap">Fieldwork &amp; 3-Tier Review</span><span class="hidden lg:block text-xs text-slate-400">Flow 3 · ISA 505 / 570</span></span>
+          </button>
+          <button role="tab" id="tab-opinion" data-key="opinion" aria-controls="panel-opinion" class="nav-item lg:w-full w-auto">
+            <span class="nav-num">5</span><span class="flex flex-col"><span class="font-semibold whitespace-nowrap">Opinion &amp; Deliverables</span><span class="hidden lg:block text-xs text-slate-400">Flow 4 · ISA 700 / 705 / 230</span></span>
+          </button>
+          <button role="tab" id="tab-practice" data-key="practice" aria-controls="panel-practice" class="nav-item lg:w-full w-auto">
+            <span class="nav-num">6</span><span class="flex flex-col"><span class="font-semibold whitespace-nowrap">Practice Mgmt &amp; Ledger</span><span class="hidden lg:block text-xs text-slate-400">Flow 5 · Firm operations</span></span>
+          </button>
+          <p class="nav-group hidden lg:block">Lifecycle &amp; Export</p>
+          <button role="tab" id="tab-statemachine" data-key="statemachine" aria-controls="panel-statemachine" class="nav-item lg:w-full w-auto">
+            <span class="nav-num">7</span><span class="flex flex-col"><span class="font-semibold whitespace-nowrap">11-Stage Lifecycle</span><span class="hidden lg:block text-xs text-slate-400">Derived stages and evidence gates</span></span>
+          </button>
+          <button role="tab" id="tab-raw" data-key="raw" aria-controls="panel-raw" class="nav-item lg:w-full w-auto">
+            <span class="nav-num">8</span><span class="flex flex-col"><span class="font-semibold whitespace-nowrap">Raw Mermaid Export</span><span class="hidden lg:block text-xs text-slate-400">Copy, download, open live</span></span>
+          </button>
+        </div>
+      </nav>
+
+      <!-- Role Personas -->
+      <details class="group mt-4 lg:mt-6 card p-1 lg:open" id="personas" open>
+        <summary class="flex items-center justify-between cursor-pointer list-none px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500 select-none">
+          Roles &amp; personas
+          <svg class="w-4 h-4 transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+        </summary>
+        <ul class="grid sm:grid-cols-2 lg:grid-cols-1 gap-1 p-1 pt-0">
+          <li class="flex items-start gap-3 p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+            <span class="grid place-items-center w-9 h-9 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 font-bold text-[10px] tracking-wider shrink-0">PRE</span>
+            <div><h3 class="text-sm font-semibold text-slate-800 dark:text-slate-100">Preparer (Associate)</h3><p class="text-xs text-slate-500 dark:text-slate-400 leading-snug">Prepares assigned procedures, records evidence and submits current revisions.</p></div>
+          </li>
+          <li class="flex items-start gap-3 p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+            <span class="grid place-items-center w-9 h-9 rounded-lg bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 font-bold text-[10px] tracking-wider shrink-0">REV</span>
+            <div><h3 class="text-sm font-semibold text-slate-800 dark:text-slate-100">Reviewer (Manager)</h3><p class="text-xs text-slate-500 dark:text-slate-400 leading-snug">Reviews current work, records findings and supports planning and completion.</p></div>
+          </li>
+          <li class="flex items-start gap-3 p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+            <span class="grid place-items-center w-9 h-9 rounded-lg bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-300 font-bold text-[10px] tracking-wider shrink-0">APP</span>
+            <div><h3 class="text-sm font-semibold text-slate-800 dark:text-slate-100">Approver (Partner)</h3><p class="text-xs text-slate-500 dark:text-slate-400 leading-snug">Records Partner risk and completion decisions, selects opinion and may request early lock.</p></div>
+          </li>
+          <li class="flex items-start gap-3 p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+            <span class="grid place-items-center w-9 h-9 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-bold text-[10px] tracking-wider shrink-0">CLI</span>
+            <div><h3 class="text-sm font-semibold text-slate-800 dark:text-slate-100">Client Portal (PBC)</h3><p class="text-xs text-slate-500 dark:text-slate-400 leading-snug">Scoped client workspace for assigned evidence and review status where enabled.</p></div>
+          </li>
+        </ul>
+      </details>
+
+      <div class="hidden lg:block mt-4 px-3 text-[11px] text-slate-400 dark:text-slate-500 leading-relaxed">
+        <span class="font-semibold text-slate-500 dark:text-slate-400">Shortcuts</span><br>
+        <kbd class="font-mono px-1 rounded bg-slate-200/70 dark:bg-slate-800">1</kbd>–<kbd class="font-mono px-1 rounded bg-slate-200/70 dark:bg-slate-800">8</kbd> switch view ·
+        <kbd class="font-mono px-1 rounded bg-slate-200/70 dark:bg-slate-800">F</kbd> fullscreen ·
+        <kbd class="font-mono px-1 rounded bg-slate-200/70 dark:bg-slate-800">T</kbd> theme
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main id="main" class="min-w-0">
+
+      <!-- TAB 1: Application architecture map -->
+      <section id="panel-modules" role="tabpanel" aria-labelledby="tab-modules" class="panel space-y-6" hidden>
+        <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div>
+            <p class="eyebrow">Overview · Architecture</p>
+            <h2 class="panel-title">Application Architecture and Financial Boundaries</h2>
+            <p class="panel-desc">AuditSphere is one ASP.NET Core modular monolith with Angular presentation, API and worker hosts. This page is an implementation reference; current code and authority documents govern behavior.</p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <span class="chip bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 ring-slate-200 dark:ring-slate-700 font-mono">Strict Data Isolation</span>
+            <span class="chip bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-300 ring-sky-200 dark:ring-sky-500/30">Guarded Workflows</span>
+          </div>
+        </div>
+
+        <figure class="viewer card overflow-hidden" data-key="modules" data-title="Application Architecture and Financial Boundaries">
+<script type="text/plain">
+flowchart TD
+    Staff[Angular staff workbench] --> Api[ASP.NET Core API]
+    Client[Angular client portal] --> Api
+    Api --> App[Application capability services]
+    Worker[Background worker] --> App
+    App --> Domain[Domain rules]
+    Api --> Infrastructure[Infrastructure adapters]
+    Infrastructure --> Domain
+    Infrastructure --> Database[PostgreSQL]
+    App --> Practice[Firm practice and billing]
+    App --> ClientAccounting[Client accounting]
+    App --> Audit[Audit and completion]
+    App --> Consolidation[Group consolidation]
+</script>
+        </figure>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="info-card">
+            <h3 class="info-title"><span class="w-2 h-2 rounded-full bg-sky-500"></span>One Modular Monolith</h3>
+            Domain, Application, Infrastructure, API, Angular UI, legacy rollback host and Worker are parts of one application architecture.
+          </div>
+          <div class="info-card">
+            <h3 class="info-title"><span class="w-2 h-2 rounded-full bg-amber-500"></span>Separate Financial Boundaries</h3>
+            Firm books, client accounting and group consolidation remain separate; consolidation does not mutate component books.
+          </div>
+          <div class="info-card">
+            <h3 class="info-title"><span class="w-2 h-2 rounded-full bg-emerald-500"></span>Authority Documents</h3>
+            <a class="text-sky-700 dark:text-sky-400 underline" href="docs/architecture/auditsphere-architecture-current-architecture.md">Current architecture</a> · <a class="text-sky-700 dark:text-sky-400 underline" href="docs/requirements/auditsphere-accounting-module-requirements-current.md">Requirements</a> · <a class="text-sky-700 dark:text-sky-400 underline" href="AGENTS.md">Agent instructions</a>.
+          </div>
+        </div>
+        <nav class="pager" aria-label="Previous and next view"></nav>
+      </section>
+
+      <!-- TAB 2: Flow 1 - Dual-Key Onboarding -->
+      <section id="panel-onboarding" role="tabpanel" aria-labelledby="tab-onboarding" class="panel space-y-6" hidden>
+        <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div>
+            <p class="eyebrow">Flow 1 of 5 · Commercial</p>
+            <h2 class="panel-title">Lead to Engagement Activation</h2>
+            <p class="panel-desc">Client commercial acceptance and current Partner risk approval are separate records. Activation follows the configured commercial and payment gates.</p>
+          </div>
+          <span class="chip bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-300 ring-amber-200 dark:ring-amber-500/30">ISA 210 &amp; ISA 220</span>
+        </div>
+
+        <figure class="viewer card overflow-hidden" data-key="onboarding" data-title="Lead to Engagement Activation">
+<script type="text/plain">
+flowchart TD
+    Inquiry[Lead or inquiry] --> Proposal[Current proposal and quotation]
+    Proposal --> Acceptance[Recorded client acceptance]
+    Proposal --> Risk[Current Partner risk approval]
+    Acceptance --> Gate{Both decisions current}
+    Risk --> Gate
+    Gate -->|No| Blocked[Activation remains blocked]
+    Gate -->|Yes| Letter[Route specific engagement letter]
+    Letter --> Agreement[Fee agreement and advance milestone]
+    Agreement --> Invoice[Advance invoice reviewed and posted]
+    Invoice --> Payment[Advance paid and allocated]
+    Payment --> Activation[Engagement activation]
+    Activation --> Portal[Scoped portal access]
+</script>
+        </figure>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="info-card"><h3 class="info-title"><span class="w-2 h-2 rounded-full bg-amber-500"></span>Commercial and Risk Records</h3><ul class="space-y-2 list-disc pl-4 marker:text-slate-400"><li>Client acceptance and Partner risk approval are separately recorded and must be current for the same service route.</li><li>The platform records decisions; this diagram does not claim automated AML, UBO or PEP screening.</li></ul></div>
+          <div class="info-card"><h3 class="info-title"><span class="w-2 h-2 rounded-full bg-emerald-500"></span>Activation and Client Access</h3><ul class="space-y-2 list-disc pl-4 marker:text-slate-400"><li>Engagement letters use a configured template for the selected service route.</li><li>When a fee agreement is linked, its advance must be paid and allocated before activation. Portal access remains identity- and scope-controlled.</li></ul></div>
+        </div>
+        <nav class="pager" aria-label="Previous and next view"></nav>
+      </section>
+
+      <!-- TAB 3: Flow 2 - Materiality & Risk Matrix -->
+      <section id="panel-materiality" role="tabpanel" aria-labelledby="tab-materiality" class="panel space-y-6" hidden>
+        <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div>
+            <p class="eyebrow">Flow 2 of 5 · Planning</p>
+            <h2 class="panel-title">Trial Balance Materiality and Risk Planning</h2>
+            <p class="panel-desc">The engine derives thresholds from mapped trial-balance inputs. Approval binds to the current assessment; practical rounding creates a new effective draft.</p>
+          </div>
+          <span class="chip bg-indigo-50 dark:bg-indigo-500/10 text-indigo-800 dark:text-indigo-300 ring-indigo-200 dark:ring-indigo-500/30">ISA 320 Standard</span>
+        </div>
+
+        <figure class="viewer card overflow-hidden" data-key="materiality" data-title="Trial Balance Materiality and Risk Planning">
+<script type="text/plain">
+flowchart TD
+    TrialBalance[Mapped trial balance] --> Benchmark[Supported benchmark and policy range]
+    Benchmark --> Calculated[Compute PM TE and SAD]
+    Calculated --> Draft[Create draft assessment with source lineage]
+    Draft --> RoundChoice{Practical rounding requested}
+    RoundChoice -->|No| Approval[Partner approves current assessment]
+    RoundChoice -->|Yes| Rounding[Manager records rationale within five percent]
+    Rounding --> EffectiveDraft[Create effective draft and decision evidence]
+    EffectiveDraft --> Approval
+    Approval --> PlanningGate[Current approval satisfies planning gate]
+</script>
+        </figure>
+
+        <!-- Risk tiers quick reference -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="info-card !border-emerald-200 dark:!border-emerald-500/30 !bg-emerald-50/60 dark:!bg-emerald-500/5">
+            <h3 class="info-title text-emerald-800 dark:text-emerald-300"><span class="w-2 h-2 rounded-full bg-emerald-500"></span>GREEN · Low Risk</h3>
+            <p class="font-mono text-xs mb-1.5">Balance &lt; TE</p>
+            Lower band: staffing rank rules apply; procedures and professional conclusions remain human-led.
+          </div>
+          <div class="info-card !border-amber-200 dark:!border-amber-500/30 !bg-amber-50/60 dark:!bg-amber-500/5">
+            <h3 class="info-title text-amber-800 dark:text-amber-300"><span class="w-2 h-2 rounded-full bg-amber-500"></span>AMBER · Moderate Risk</h3>
+            <p class="font-mono text-xs mb-1.5">TE ≤ Balance ≤ PM</p>
+            Amber band: senior execution and manager review rules apply to assigned work.
+          </div>
+          <div class="info-card !border-rose-200 dark:!border-rose-500/30 !bg-rose-50/60 dark:!bg-rose-500/5">
+            <h3 class="info-title text-rose-800 dark:text-rose-300"><span class="w-2 h-2 rounded-full bg-rose-500"></span>RED · Critical / High Risk</h3>
+            <p class="font-mono text-xs mb-1.5">Balance &gt; PM or high inherent risk / estimates</p>
+            Red band: manager-level execution and Partner review rules apply, including significant or fraud risks.
+          </div>
+        </div>
+
+        <!-- Materiality Threshold Live Reference -->
+        <div class="card overflow-hidden">
+          <div class="bg-slate-50 dark:bg-slate-800/60 px-4 py-3 font-bold text-[11px] uppercase tracking-wider text-slate-600 dark:text-slate-300 flex justify-between gap-4 border-b border-slate-200 dark:border-slate-800">
+            <span>Materiality Metric Formula Reference</span>
+            <span class="hidden sm:inline text-slate-400">ISA 320 Execution Framework</span>
+          </div>
+          <div class="divide-y divide-slate-100 dark:divide-slate-800 text-sm">
+            <div class="formula-row">
+              <div>
+                <span class="font-semibold text-slate-800 dark:text-slate-100">Planning Materiality (PM)</span>
+                <span class="text-slate-500 dark:text-slate-400 block text-xs mt-0.5">Planning threshold used with qualitative considerations</span>
+              </div>
+              <span class="formula">Base × % (e.g. 5% PBT or 1% Revenue)</span>
+            </div>
+            <div class="formula-row">
+              <div>
+                <span class="font-semibold text-slate-800 dark:text-slate-100">Tolerable Error (TE) / Performance Materiality</span>
+                <span class="text-slate-500 dark:text-slate-400 block text-xs mt-0.5">Tolerable error is derived from PM using the selected policy percentage</span>
+              </div>
+              <span class="formula">50% to 75% of PM under the current policy range</span>
+            </div>
+            <div class="formula-row">
+              <div>
+                <span class="font-semibold text-slate-800 dark:text-slate-100">Summary of Audit Differences (SAD) Threshold</span>
+                <span class="text-slate-500 dark:text-slate-400 block text-xs mt-0.5">Configured SAD threshold used by the differences workflow</span>
+              </div>
+              <span class="formula">3% to 5% of PM</span>
+            </div>
+            <div class="formula-row">
+              <div>
+                <span class="font-semibold text-slate-800 dark:text-slate-100">Practical Rounding Guard</span>
+                <span class="text-slate-500 dark:text-slate-400 block text-xs mt-0.5">Manager or Senior Manager records rationale; a new effective draft still needs Partner approval</span>
+              </div>
+              <span class="formula">Each adjusted threshold must remain within ±5% of its computed value</span>
+            </div>
+          </div>
+        </div>
+        <nav class="pager" aria-label="Previous and next view"></nav>
+      </section>
+
+      <!-- TAB 4: Flow 3 - Fieldwork & 3-Tier Review Loop -->
+      <section id="panel-fieldwork" role="tabpanel" aria-labelledby="tab-fieldwork" class="panel space-y-6" hidden>
+        <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div>
+            <p class="eyebrow">Flow 3 of 5 · Execution</p>
+            <h2 class="panel-title">Fieldwork, Review and Completion Gates</h2>
+            <p class="panel-desc">Assigned procedures move through revision-checked preparation and review. Current completion evidence and critical confirmations govern Partner clearance.</p>
+          </div>
+          <span class="chip bg-rose-50 dark:bg-rose-500/10 text-rose-800 dark:text-rose-300 ring-rose-200 dark:ring-rose-500/30">Fieldwork &amp; ISA 505 / 570</span>
+        </div>
+
+        <figure class="viewer card overflow-hidden" data-key="fieldwork" data-title="Fieldwork, Review and Completion Gates">
+<script type="text/plain">
+flowchart TD
+    Planning[Current approved planning] --> Procedures[Assigned audit procedures]
+    Procedures --> Evidence[Record results and evidence references]
+    Evidence --> Submit[Preparer submits current revision]
+    Submit --> Review[Reviewer evaluates work and records notes]
+    Review --> Rework[Return work for rework]
+    Rework --> Procedures
+    Review --> Completion[Completion gate evaluates current evidence]
+    Completion --> Confirmations[Evaluate critical confirmations]
+    Confirmations --> Holding[Current holding letter status and dispatch]
+    Holding --> Confirmations
+    Confirmations --> Partner[Partner clearance when gates are clear]
+</script>
+        </figure>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="info-card">
+            <h3 class="info-title"><span class="w-2 h-2 rounded-full bg-sky-500"></span>Revision-Checked Work</h3>
+            Revision and scope checks protect writes. Concurrent edits can be rejected when a user submits stale work.
+          </div>
+          <div class="info-card"><h3 class="info-title"><span class="w-2 h-2 rounded-full bg-indigo-500"></span>Evidence and Revision Controls</h3>Workpaper results use current revision and scope checks. Physical record handling remains governed by the firm's archive procedures.</div>
+          <div class="info-card">
+            <h3 class="info-title"><span class="w-2 h-2 rounded-full bg-rose-500"></span>Holding Letter Dispatch Status</h3>
+            Critical confirmation blockers keep the completion gate closed. A current holding letter can be queued through configured contact routing; queued delivery is not proof of receipt.
+          </div>
+        </div>
+        <nav class="pager" aria-label="Previous and next view"></nav>
+      </section>
+
+      <!-- TAB 5: Flow 4 - Opinion & 5-Part Deliverables Bundle -->
+      <section id="panel-opinion" role="tabpanel" aria-labelledby="tab-opinion" class="panel space-y-6" hidden>
+        <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div>
+            <p class="eyebrow">Flow 4 of 5 · Reporting</p>
+            <h2 class="panel-title">Partner Opinion, Deliverable Bundle and Local File Freeze</h2>
+            <p class="panel-desc">Partner decisions and exact current evidence feed local bundle assembly. Report signature schedules the local freeze; provider-level immutability is separate.</p>
+          </div>
+          <span class="chip bg-emerald-50 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 ring-emerald-200 dark:ring-emerald-500/30">ISA 700, 705 &amp; ISA 230</span>
+        </div>
+
+        <figure class="viewer card overflow-hidden" data-key="opinion" data-title="Partner Opinion, Deliverable Bundle and Local File Freeze">
+<script type="text/plain">
+flowchart TD
+    Completion[Current completion gate] --> Opinion[Partner records opinion decision]
+    Opinion --> Unmodified[Unmodified opinion]
+    Opinion --> Qualified[Qualified opinion]
+    Opinion --> Adverse[Adverse opinion]
+    Opinion --> Disclaimer[Disclaimer of opinion]
+    Unmodified --> Report[Generate current report]
+    Qualified --> Basis[Record focus area and basis]
+    Adverse --> Basis
+    Disclaimer --> Basis
+    Basis --> Report
+    Report --> Signature[Apply recorded Partner signature and firm seal images]
+    Signature --> Release[Record release through the approval workflow]
+    Release --> Bundle[Assemble bundle from current evidence and posted invoice]
+    Signature --> Countdown[Schedule local freeze from report signature]
+    Countdown --> Freeze[Due worker or eligible early lock request]
+    Freeze --> Frozen[Local freeze only after successful commit]
+</script>
+        </figure>
+
+        <!-- 5-Part Bundle Detailed Inspection -->
+        <ol class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <li class="info-card relative overflow-hidden">
+            <span class="absolute inset-x-0 top-0 h-1 bg-sky-500"></span>
+            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Part 1</span>
+            <h3 class="font-semibold text-sky-700 dark:text-sky-300 mb-1">Report and Statements</h3>
+            Signed auditor report and certified statements from the exact released financial package. Signature and seal are approved images, not certificate-backed e-signatures.
+          </li>
+          <li class="info-card relative overflow-hidden">
+            <span class="absolute inset-x-0 top-0 h-1 bg-indigo-500"></span>
+            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Part 2</span>
+            <h3 class="font-semibold text-indigo-700 dark:text-indigo-300 mb-1">Mgmt Letter</h3>
+            Current management letter included in the assembled bundle.
+          </li>
+          <li class="info-card relative overflow-hidden">
+            <span class="absolute inset-x-0 top-0 h-1 bg-amber-500"></span>
+            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Part 3</span>
+            <h3 class="font-semibold text-amber-700 dark:text-amber-300 mb-1">Representation</h3>
+            Generated representation letter plus the exact signed management scan.
+          </li>
+          <li class="info-card relative overflow-hidden">
+            <span class="absolute inset-x-0 top-0 h-1 bg-purple-500"></span>
+            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Part 4</span>
+            <h3 class="font-semibold text-purple-700 dark:text-purple-300 mb-1">Correspondences</h3>
+            Management correspondence and review trail in a bounded JSON audit-trail file.
+          </li>
+          <li class="info-card relative overflow-hidden">
+            <span class="absolute inset-x-0 top-0 h-1 bg-emerald-500"></span>
+            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Part 5</span>
+            <h3 class="font-semibold text-emerald-700 dark:text-emerald-300 mb-1">50% Balance Note</h3>
+            Fee note references the posted balance invoice; finance approval, payment and delivery remain separate.
+          </li>
+        </ol>
+        <nav class="pager" aria-label="Previous and next view"></nav>
+      </section>
+
+      <!-- TAB 6: Flow 5 - Practice Management & Internal Ledger -->
+      <section id="panel-practice" role="tabpanel" aria-labelledby="tab-practice" class="panel space-y-6" hidden>
+        <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div>
+            <p class="eyebrow">Flow 5 of 5 · Firm Operations</p>
+            <h2 class="panel-title">Practice Time, Charge-Out Rates and Firm Books</h2>
+            <p class="panel-desc">Approved versioned charge-out cards feed time and budget views. A charge-out rate is not payroll or staff cost; practice books remain separate from client accounting.</p>
+          </div>
+          <span class="chip bg-cyan-50 dark:bg-cyan-500/10 text-cyan-800 dark:text-cyan-300 ring-cyan-200 dark:ring-cyan-500/30">Firm Operations &amp; QAR Ledger</span>
+        </div>
+
+        <figure class="viewer card overflow-hidden" data-key="practice" data-title="Practice Time, Charge-Out Rates and Firm Books">
+<script type="text/plain">
+flowchart TD
+    subgraph FirmPractice
+        Time[Staff time entries] --> Rate[Approved versioned QAR charge out card]
+        Rate --> Valuation[Time and budget valuation]
+        Valuation --> PracticeViews[Firm practice and billing views]
+        PracticeViews --> FirmLedger[Firm ledger]
+    end
+    subgraph ClientBooks
+        ClientAccounting[Separate client accounting records]
+    end
+</script>
+        </figure>
+
+        <!-- Rates strip -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div class="info-card"><span class="text-xs text-slate-500 dark:text-slate-400">Engagement Partner</span><div class="mt-1 text-lg font-bold text-slate-900 dark:text-white tabular-nums">1,000 <span class="text-xs font-medium text-slate-400">QAR / hr</span></div></div>
+          <div class="info-card"><span class="text-xs text-slate-500 dark:text-slate-400">Audit Manager</span><div class="mt-1 text-lg font-bold text-slate-900 dark:text-white tabular-nums">750 <span class="text-xs font-medium text-slate-400">QAR / hr</span></div></div>
+          <div class="info-card"><span class="text-xs text-slate-500 dark:text-slate-400">Supervisor / Senior</span><div class="mt-1 text-lg font-bold text-slate-900 dark:text-white tabular-nums">500 <span class="text-xs font-medium text-slate-400">QAR / hr</span></div></div>
+          <div class="info-card"><span class="text-xs text-slate-500 dark:text-slate-400">Associate / Junior</span><div class="mt-1 text-lg font-bold text-slate-900 dark:text-white tabular-nums">200 <span class="text-xs font-medium text-slate-400">QAR / hr</span></div></div>
+        </div>
+
+        <p class="text-xs text-slate-500 dark:text-slate-400">Baseline cards begin as drafts; a separate authorized approver must approve each rate before use.</p>
+
+        <!-- Profitability Formula Card -->
+        <div class="relative overflow-hidden p-5 rounded-2xl bg-slate-900 dark:bg-slate-900 ring-1 ring-slate-800 text-white flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div class="absolute -right-16 -top-16 w-64 h-64 bg-sky-500/20 blur-3xl rounded-full pointer-events-none"></div>
+          <div class="relative">
+            <h3 class="font-semibold text-sm text-sky-400">How to Read Charge-Out Rates</h3>
+            <p class="font-mono text-sm text-slate-200 mt-1.5">
+              STE QAR charge-out rates are pricing inputs for time and budget views. Do not interpret them as payroll cost or realized profit.
+            </p>
+          </div>
+          <div class="relative md:text-right shrink-0">
+            <span class="text-xs text-slate-400 block">Fee milestones:</span>
+            <span class="text-sm font-semibold text-emerald-400">Default 50% advance; invoice posting and payment follow the finance workflow.</span>
+          </div>
+        </div>
+        <nav class="pager" aria-label="Previous and next view"></nav>
+      </section>
+
+      <!-- TAB 7: 11-Stage Lifecycle Projection -->
+      <section id="panel-statemachine" role="tabpanel" aria-labelledby="tab-statemachine" class="panel space-y-6" hidden>
+        <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div>
+            <p class="eyebrow">Lifecycle</p>
+            <h2 class="panel-title">Derived 11-Stage Engagement Lifecycle</h2>
+            <p class="panel-desc">The API derives these stages from current records; they are not persisted state transitions. Elapsed time alone does not archive a file: stage 11 requires a committed local freeze.</p>
+          </div>
+          <span class="chip bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 ring-slate-200 dark:ring-slate-700 font-mono">11 stages | Derived projection</span>
+        </div>
+
+        <figure class="viewer card overflow-hidden" data-key="statemachine" data-title="Derived 11-Stage Engagement Lifecycle">
+<script type="text/plain">
+stateDiagram-v2
+    [*] --> LEAD_INGESTION
+    LEAD_INGESTION --> PROPOSAL_GENERATION
+    PROPOSAL_GENERATION --> DUAL_KEY_PENDING
+    DUAL_KEY_PENDING --> ADVANCE_BILLING
+    ADVANCE_BILLING --> PORTAL_ACTIVE_PLANNING
+    PORTAL_ACTIVE_PLANNING --> FIELDWORK_EXECUTION
+    FIELDWORK_EXECUTION --> MANAGERIAL_REVIEW
+    MANAGERIAL_REVIEW --> FIELDWORK_EXECUTION
+    MANAGERIAL_REVIEW --> PARTNER_APPROVAL
+    PARTNER_APPROVAL --> DELIVERABLE_RELEASE
+    DELIVERABLE_RELEASE --> COMPLIANCE_COUNTDOWN
+    COMPLIANCE_COUNTDOWN --> ARCHIVED_READ_ONLY
+</script>
+        </figure>
+
+        <!-- Phase legend -->
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500 dark:text-slate-400">
+          <span class="font-semibold text-slate-600 dark:text-slate-300">Phase:</span>
+          <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-amber-400"></span>Commercial</span>
+          <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-indigo-500"></span>Planning</span>
+          <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-rose-500"></span>Fieldwork &amp; Review</span>
+          <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-emerald-500"></span>Reporting</span>
+          <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-slate-500"></span>Archive</span>
+          <span class="ml-auto hidden sm:inline">Illustrative sequence; the API reports current stage, blockers and responsible role.</span>
+        </div>
+
+        <!-- 11 State Table Breakdown -->
+        <div class="card overflow-hidden">
+          <div class="overflow-x-auto custom-scrollbar">
+            <table class="min-w-full text-left text-sm">
+              <thead class="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
+                <tr>
+                  <th scope="col" class="p-3 pl-5 w-10">#</th>
+                  <th scope="col" class="p-3">Projected Stage</th>
+                  <th scope="col" class="p-3">Example work</th>
+                  <th scope="col" class="p-3">Evidence reflected in projection</th>
+                  <th scope="col" class="p-3">Next Illustration</th>
+                </tr>
+              </thead>
+              <tbody id="state-table" class="divide-y divide-slate-100 dark:divide-slate-800 text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900">
+                <tr data-state="LEAD_INGESTION" data-phase="amber"><td class="p-3 pl-5"></td><td class="p-3 font-mono text-xs font-bold text-slate-900 dark:text-white">LEAD_INGESTION</td><td class="p-3">Record and qualify an inquiry in firm CRM.</td><td class="p-3">Lead and opportunity records support the proposal projection.</td><td class="p-3"><button class="goto" data-goto="PROPOSAL_GENERATION">PROPOSAL_GENERATION</button></td></tr>
+                <tr data-state="PROPOSAL_GENERATION" data-phase="amber"><td class="p-3 pl-5"></td><td class="p-3 font-mono text-xs font-bold text-slate-900 dark:text-white">PROPOSAL_GENERATION</td><td class="p-3">Prepare and record the current proposal and quotation.</td><td class="p-3">Current proposal and its commercial decision are available.</td><td class="p-3"><button class="goto" data-goto="DUAL_KEY_PENDING">DUAL_KEY_PENDING</button></td></tr>
+                <tr data-state="DUAL_KEY_PENDING" data-phase="amber"><td class="p-3 pl-5"></td><td class="p-3 font-mono text-xs font-bold text-slate-900 dark:text-white">DUAL_KEY_PENDING</td><td class="p-3">Record client acceptance and Partner risk decision separately.</td><td class="p-3">Both decisions are current and match the service route.</td><td class="p-3"><button class="goto" data-goto="ADVANCE_BILLING">ADVANCE_BILLING</button></td></tr>
+                <tr data-state="ADVANCE_BILLING" data-phase="amber"><td class="p-3 pl-5"></td><td class="p-3 font-mono text-xs font-bold text-slate-900 dark:text-white">ADVANCE_BILLING</td><td class="p-3">Generate the configured letter and manage fee milestones.</td><td class="p-3">When linked, the advance is paid and allocated before activation.</td><td class="p-3"><button class="goto" data-goto="PORTAL_ACTIVE_PLANNING">PORTAL_ACTIVE_PLANNING</button></td></tr>
+                <tr data-state="PORTAL_ACTIVE_PLANNING" data-phase="indigo"><td class="p-3 pl-5"></td><td class="p-3 font-mono text-xs font-bold text-slate-900 dark:text-white">PORTAL_ACTIVE_PLANNING</td><td class="p-3">Prepare sources, mapping, resources and materiality.</td><td class="p-3">Planning uses current source evidence and Partner-approved materiality.</td><td class="p-3"><button class="goto" data-goto="FIELDWORK_EXECUTION">FIELDWORK_EXECUTION</button></td></tr>
+                <tr data-state="FIELDWORK_EXECUTION" data-phase="rose"><td class="p-3 pl-5"></td><td class="p-3 font-mono text-xs font-bold text-slate-900 dark:text-white">FIELDWORK_EXECUTION</td><td class="p-3">Perform assigned procedures and record evidence with revision checks.</td><td class="p-3">Current work and review evidence feed the completion gate.</td><td class="p-3"><button class="goto" data-goto="MANAGERIAL_REVIEW">MANAGERIAL_REVIEW</button></td></tr>
+                <tr data-state="MANAGERIAL_REVIEW" data-phase="rose"><td class="p-3 pl-5"></td><td class="p-3 font-mono text-xs font-bold text-slate-900 dark:text-white">MANAGERIAL_REVIEW</td><td class="p-3">Resolve review notes and prepare a current Summary Review Memorandum.</td><td class="p-3">Completion gate evaluates review, materiality, risks and critical confirmations.</td><td class="p-3"><button class="goto" data-goto="PARTNER_APPROVAL">PARTNER_APPROVAL</button></td></tr>
+                <tr data-state="PARTNER_APPROVAL" data-phase="emerald"><td class="p-3 pl-5"></td><td class="p-3 font-mono text-xs font-bold text-slate-900 dark:text-white">PARTNER_APPROVAL</td><td class="p-3">Partner clears current evidence and records an opinion decision.</td><td class="p-3">Professional conclusions and report signing remain human decisions.</td><td class="p-3"><button class="goto" data-goto="DELIVERABLE_RELEASE">DELIVERABLE_RELEASE</button></td></tr>
+                <tr data-state="DELIVERABLE_RELEASE" data-phase="emerald"><td class="p-3 pl-5"></td><td class="p-3 font-mono text-xs font-bold text-slate-900 dark:text-white">DELIVERABLE_RELEASE</td><td class="p-3">Assemble the bundle from current report, release, letters and invoice evidence.</td><td class="p-3">Release is recorded; report signature anchors the local freeze countdown.</td><td class="p-3"><button class="goto" data-goto="COMPLIANCE_COUNTDOWN">COMPLIANCE_COUNTDOWN</button></td></tr>
+                <tr data-state="COMPLIANCE_COUNTDOWN" data-phase="slate"><td class="p-3 pl-5"></td><td class="p-3 font-mono text-xs font-bold text-slate-900 dark:text-white">COMPLIANCE_COUNTDOWN</td><td class="p-3">Review archive readiness; eligible Partner may request an early lock.</td><td class="p-3">Due or approved early-lock path plus successful local freeze commit.</td><td class="p-3"><button class="goto" data-goto="ARCHIVED_READ_ONLY">ARCHIVED_READ_ONLY</button></td></tr>
+                <tr data-state="ARCHIVED_READ_ONLY" data-phase="slate" class="!bg-slate-50 dark:!bg-slate-800/40"><td class="p-3 pl-5"></td><td class="p-3 font-mono text-xs font-bold text-slate-900 dark:text-white">ARCHIVED_READ_ONLY</td><td class="p-3">Read under local authorization; use only an approved amendment path.</td><td class="p-3 text-emerald-700 dark:text-emerald-400 font-semibold">Local freeze is committed. Provider-level immutability is a separate external control.</td><td class="p-3 font-mono text-xs text-slate-400">Amendment workflow can return to countdown</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <nav class="pager" aria-label="Previous and next view"></nav>
+      </section>
+
+      <!-- TAB 8: Raw Mermaid Source Export -->
+      <section id="panel-raw" role="tabpanel" aria-labelledby="tab-raw" class="panel space-y-6" hidden>
+        <div>
+          <p class="eyebrow">Export</p>
+          <h2 class="panel-title">Mermaid.js Source Code Export</h2>
+          <p class="panel-desc">Copy syntax directly into Notion, GitHub, Obsidian, or Mermaid Live Editor. Sources are taken from the exact diagrams rendered above.</p>
+        </div>
+
+        <div class="card overflow-hidden">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 p-4 border-b border-slate-200 dark:border-slate-800">
+            <div class="flex flex-col sm:flex-row sm:items-center gap-2 min-w-0">
+              <label for="code-selector" class="text-xs font-semibold text-slate-600 dark:text-slate-300 shrink-0">Diagram source</label>
+              <select id="code-selector" class="w-full sm:w-80 text-sm h-9 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"></select>
+              <span id="code-meta" class="text-xs text-slate-400 font-mono"></span>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button id="btn-copy-src" type="button" class="primary-btn">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                Copy Active Diagram
+              </button>
+              <button id="btn-download-src" type="button" class="ghost-btn">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>
+                .mmd
+              </button>
+              <a id="btn-live" target="_blank" rel="noopener" class="ghost-btn" href="#">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/></svg>
+                Open in Mermaid Live
+              </a>
+            </div>
+          </div>
+          <pre id="code-display" class="code bg-slate-950 text-slate-200 py-4 text-[12.5px] font-mono overflow-auto max-h-[600px] leading-relaxed custom-scrollbar"></pre>
+        </div>
+        <nav class="pager" aria-label="Previous and next view"></nav>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" role="status" aria-live="polite" data-show="false"
+       class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-sm font-medium shadow-2xl ring-1 ring-white/10">
+    <svg class="w-4 h-4 text-emerald-400 dark:text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+    <span id="toast-text"></span>
+  </div>
+
+  <!-- App -->
   <script type="module">
     import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10.9.8/dist/mermaid.esm.min.mjs';
 
     mermaid.initialize({
       startOnLoad: false,
-      theme: 'neutral',
+      theme: 'base',
       securityLevel: 'strict',
-      flowchart: {
-        useMaxWidth: true,
-        htmlLabels: false,
-        curve: 'basis'
+      fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
+      themeVariables: {
+        fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
+        fontSize: '14px',
+        primaryColor: '#ffffff',
+        primaryBorderColor: '#94a3b8',
+        primaryTextColor: '#0f172a',
+        secondaryColor: '#f1f5f9',
+        tertiaryColor: '#f8fafc',
+        lineColor: '#64748b',
+        clusterBkg: '#f8fafc',
+        clusterBorder: '#cbd5e1',
+        edgeLabelBackground: '#ffffff',
+        noteBkgColor: '#fefce8'
+      },
+      flowchart: { useMaxWidth: false, htmlLabels: false, curve: 'basis', padding: 14, nodeSpacing: 44, rankSpacing: 56 },
+      state: { useMaxWidth: false }
+    });
+    window.mermaid = mermaid;
+
+    /* ---------- Helpers ---------- */
+    const $ = (s, r = document) => r.querySelector(s);
+    const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+    const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+    const escapeHtml = (s) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+    let toastTimer;
+    function toast(msg) {
+      const t = $('#toast');
+      $('#toast-text').textContent = msg;
+      t.dataset.show = 'true';
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => (t.dataset.show = 'false'), 2000);
+    }
+
+    async function copyText(text) {
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch {
+        const ta = Object.assign(document.createElement('textarea'), { value: text });
+        ta.style.cssText = 'position:fixed;opacity:0';
+        document.body.appendChild(ta); ta.select();
+        document.execCommand('copy'); ta.remove();
       }
+    }
+
+    function download(name, content, type) {
+      const url = URL.createObjectURL(new Blob([content], { type }));
+      const a = Object.assign(document.createElement('a'), { href: url, download: name });
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    const ICONS = {
+      minus: '<path d="M5 12h14"/>',
+      plus: '<path d="M12 5v14M5 12h14"/>',
+      fit: '<path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/>',
+      copy: '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+      download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/>',
+      expand: '<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>',
+      move: '<path d="m5 9-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/>'
+    };
+    const icon = (n) => `<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n]}</svg>`;
+
+    /* ---------- Diagram viewer (lazy render + pan/zoom) ---------- */
+    const sources = [];
+    const viewers = new Map();
+
+    class Viewer {
+      constructor(fig) {
+        this.fig = fig;
+        this.key = fig.dataset.key;
+        this.title = fig.dataset.title;
+        this.src = fig.querySelector('script[type="text/plain"]').textContent.trim();
+        this.s = 1; this.x = 0; this.y = 0;
+        this.rendered = false; this.touched = false;
+        sources.push({ key: this.key, title: this.title, src: this.src });
+        this.build();
+      }
+
+      build() {
+        this.fig.insertAdjacentHTML('beforeend', `
+          <div class="viewer-toolbar flex items-center justify-between gap-2 px-3 py-2 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80">
+            <span class="hidden sm:inline-flex items-center gap-1.5 text-[11px] text-slate-400">${icon('move')} Drag to pan · ⌘/Ctrl + scroll or double-click to zoom</span>
+            <div class="flex items-center gap-0.5 ml-auto" role="toolbar" aria-label="Diagram controls">
+              <button type="button" class="tb-btn" data-act="out" title="Zoom out (−)" aria-label="Zoom out">${icon('minus')}</button>
+              <span class="zoom-level w-12 text-center text-xs font-mono tabular-nums text-slate-500" aria-live="polite">100%</span>
+              <button type="button" class="tb-btn" data-act="in" title="Zoom in (+)" aria-label="Zoom in">${icon('plus')}</button>
+              <span class="w-px h-5 bg-slate-200 dark:bg-slate-700 mx-1"></span>
+              <button type="button" class="tb-btn" data-act="fit" title="Fit to view (0)">${icon('fit')}<span class="hidden md:inline">Fit</span></button>
+              <button type="button" class="tb-btn" data-act="copy" title="Copy Mermaid source">${icon('copy')}<span class="hidden md:inline">Copy</span></button>
+              <button type="button" class="tb-btn" data-act="svg" title="Download SVG">${icon('download')}<span class="hidden md:inline">SVG</span></button>
+              <button type="button" class="tb-btn" data-act="full" title="Fullscreen (F)" aria-label="Fullscreen">${icon('expand')}</button>
+            </div>
+          </div>
+          <div class="viewer-canvas" tabindex="0" aria-label="${this.title} diagram. Use plus, minus and zero keys to zoom, arrow keys to pan.">
+            <div class="viewer-stage"></div>
+            <div class="viewer-loading"><div class="shimmer"></div></div>
+          </div>`);
+        this.canvas = $('.viewer-canvas', this.fig);
+        this.stage = $('.viewer-stage', this.fig);
+        this.zoomLabel = $('.zoom-level', this.fig);
+        this.bind();
+      }
+
+      async render() {
+        if (this.rendered) return;
+        if (this.pending) return this.pending;
+        this.pending = (async () => {
+          try {
+            const { svg } = await mermaid.render(`mmd-${this.key}`, this.src);
+            this.stage.innerHTML = svg;
+            const el = this.stage.querySelector('svg');
+            const vb = el.viewBox && el.viewBox.baseVal;
+            const box = (vb && vb.width) ? vb : el.getBBox();
+            this.w = box.width; this.h = box.height;
+            el.setAttribute('width', this.w);
+            el.setAttribute('height', this.h);
+            el.removeAttribute('style');
+            this.rendered = true;
+            $('.viewer-loading', this.fig)?.remove();
+            requestAnimationFrame(() => this.fit(false));
+          } catch (err) {
+            console.error(err);
+            $('.viewer-loading', this.fig).innerHTML = `<p class="text-rose-600 text-sm px-6 text-center">Diagram failed to render: ${escapeHtml(String(err.message || err))}</p>`;
+          }
+        })();
+        return this.pending;
+      }
+
+      apply(animate) {
+        this.stage.classList.toggle('animate', !!animate);
+        this.stage.style.transform = `translate(${this.x}px, ${this.y}px) scale(${this.s})`;
+        this.zoomLabel.textContent = Math.round(this.s * 100) + '%';
+      }
+
+      fit(animate = true) {
+        if (!this.rendered) return;
+        const pad = 32;
+        const cw = this.canvas.clientWidth, ch = this.canvas.clientHeight;
+        if (!cw || !ch) return;
+        const all = Math.min((cw - pad * 2) / this.w, (ch - pad * 2) / this.h);
+        const width = Math.min((cw - pad * 2) / this.w, 1.15);
+        // Tall diagrams: fit width and start at top; otherwise fit whole diagram.
+        if (all >= 0.6 || all >= width * 0.85) {
+          this.s = Math.min(all, 1.15);
+          this.y = (ch - this.h * this.s) / 2;
+        } else {
+          this.s = width;
+          this.y = pad;
+        }
+        this.x = (cw - this.w * this.s) / 2;
+        this.touched = false;
+        this.apply(animate);
+      }
+
+      zoomAt(factor, px, py, animate) {
+        const ns = clamp(this.s * factor, 0.15, 4);
+        this.x = px - (px - this.x) * (ns / this.s);
+        this.y = py - (py - this.y) * (ns / this.s);
+        this.s = ns; this.touched = true;
+        this.apply(animate);
+      }
+      zoomCenter(f) { this.zoomAt(f, this.canvas.clientWidth / 2, this.canvas.clientHeight / 2, true); }
+      pan(dx, dy, animate) { this.x += dx; this.y += dy; this.touched = true; this.apply(animate); }
+
+      toggleFullscreen() {
+        if (document.fullscreenElement) document.exitFullscreen();
+        else this.fig.requestFullscreen?.().catch(() => toast('Fullscreen not available'));
+      }
+
+      downloadSvg() {
+        const el = this.stage.querySelector('svg');
+        if (!el) return;
+        const clone = el.cloneNode(true);
+        clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+        clone.setAttribute('style', 'background:#ffffff');
+        download(`ste-${this.key}.svg`, new XMLSerializer().serializeToString(clone), 'image/svg+xml');
+        toast('SVG downloaded');
+      }
+
+      bind() {
+        $$('[data-act]', this.fig).forEach(b => b.addEventListener('click', async () => {
+          const act = b.dataset.act;
+          if (act === 'in') this.zoomCenter(1.25);
+          if (act === 'out') this.zoomCenter(0.8);
+          if (act === 'fit') this.fit();
+          if (act === 'copy') { await copyText(this.src); toast('Mermaid source copied'); }
+          if (act === 'svg') this.downloadSvg();
+          if (act === 'full') this.toggleFullscreen();
+        }));
+
+        const c = this.canvas;
+        let drag = null;
+        c.addEventListener('pointerdown', (e) => {
+          if (e.button !== 0) return;
+          drag = { id: e.pointerId, x: e.clientX, y: e.clientY };
+          c.setPointerCapture(e.pointerId);
+          c.classList.add('is-panning');
+        });
+        c.addEventListener('pointermove', (e) => {
+          if (!drag || drag.id !== e.pointerId) return;
+          this.pan(e.clientX - drag.x, e.clientY - drag.y);
+          drag.x = e.clientX; drag.y = e.clientY;
+        });
+        const end = () => { drag = null; c.classList.remove('is-panning'); };
+        c.addEventListener('pointerup', end);
+        c.addEventListener('pointercancel', end);
+
+        c.addEventListener('wheel', (e) => {
+          if (!(e.ctrlKey || e.metaKey) && !document.fullscreenElement) return; // keep normal page scroll
+          e.preventDefault();
+          const r = c.getBoundingClientRect();
+          if (e.ctrlKey || e.metaKey) this.zoomAt(Math.exp(-e.deltaY * 0.0022), e.clientX - r.left, e.clientY - r.top);
+          else this.pan(-e.deltaX, -e.deltaY);
+        }, { passive: false });
+
+        c.addEventListener('dblclick', (e) => {
+          const r = c.getBoundingClientRect();
+          this.zoomAt(e.shiftKey ? 0.67 : 1.5, e.clientX - r.left, e.clientY - r.top, true);
+        });
+
+        c.addEventListener('keydown', (e) => {
+          const step = 60;
+          const map = {
+            '+': () => this.zoomCenter(1.25), '=': () => this.zoomCenter(1.25),
+            '-': () => this.zoomCenter(0.8), '_': () => this.zoomCenter(0.8),
+            '0': () => this.fit(),
+            ArrowLeft: () => this.pan(step, 0, true), ArrowRight: () => this.pan(-step, 0, true),
+            ArrowUp: () => this.pan(0, step, true), ArrowDown: () => this.pan(0, -step, true)
+          };
+          if (map[e.key]) { e.preventDefault(); e.stopPropagation(); map[e.key](); }
+        });
+      }
+    }
+
+    $$('figure.viewer').forEach(fig => viewers.set(fig.dataset.key, new Viewer(fig)));
+
+    document.addEventListener('fullscreenchange', () => {
+      viewers.forEach(v => { if (v.fig === document.fullscreenElement || v.rendered) requestAnimationFrame(() => v.fit(false)); });
     });
 
-    const diagramElements = Array.from(document.querySelectorAll('.mermaid[data-diagram]'));
-    const diagramSources = Object.fromEntries(diagramElements.map(element => [
-      element.dataset.diagram,
-      element.textContent.trim()
-    ]));
-    window.diagramSources = diagramSources;
+    let resizeTimer;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => { const v = viewers.get(activeKey); if (v && !v.touched) v.fit(false); }, 120);
+    });
 
-    for (const element of diagramElements) {
-      const key = element.dataset.diagram;
-      try {
-        const rendered = await mermaid.render('auditsphere-' + key, diagramSources[key]);
-        element.innerHTML = rendered.svg;
-        if (rendered.bindFunctions) rendered.bindFunctions(element);
-      } catch (error) {
-        console.error('Mermaid diagram failed:', key, error);
-        element.classList.add('mermaid-error');
-        element.textContent = 'Diagram rendering failed. Use the source export below to inspect this diagram.';
-      }
-    }
+    /* ---------- Tabs, routing & pager ---------- */
+    const tabs = $$('[role="tab"]');
+    const keys = tabs.map(t => t.dataset.key);
+    const labels = Object.fromEntries(tabs.map(t => [t.dataset.key, t.querySelector('.font-semibold').textContent]));
+    const baseTitle = document.title;
+    let activeKey = null;
 
-    window.dispatchEvent(new Event('mermaid-ready'));
-  </script>
-  <style>
-    .mermaid svg {
-      max-width: 100% !important;
-      height: auto !important;
-      margin: 0 auto;
-      filter: drop-shadow(0 4px 6px -1px rgb(0 0 0 / 0.05));
-    }
-    .diagram-card {
-      transition: all 0.2s ease-in-out;
-    }
-    .custom-scrollbar::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-    .custom-scrollbar::-webkit-scrollbar-track {
-      background: #f1f5f9;
-    }
-    .custom-scrollbar::-webkit-scrollbar-thumb {
-      background: #cbd5e1;
-      border-radius: 4px;
-    }
-  </style>
-</head>
-<body class="bg-slate-50 text-slate-800 antialiased font-sans custom-scrollbar">
-
-  <!-- Top Navigation Header -->
-  <header class="sticky top-0 z-50 bg-slate-900 text-white border-b border-slate-800 shadow-md">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-      <div class="flex items-center space-x-3">
-        <div class="w-9 h-9 rounded-lg bg-sky-500 flex items-center justify-center font-black text-slate-900 shadow-sm">
-          STE
-        </div>
-        <div>
-          <h1 class="text-base font-bold tracking-tight text-white leading-tight">STE Audit Management Platform</h1>
-          <p class="text-xs text-slate-400">Workflow reference for ISA / IFRS-related audit evidence</p>
-        </div>
-      </div>
-      <div class="flex items-center space-x-2 text-xs">
-        <span class="inline-flex items-center px-2.5 py-1 rounded-full font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-          <span class="w-1.5 h-1.5 mr-1.5 rounded-full bg-emerald-400"></span>Reference only
-        </span>
-        <span class="inline-flex items-center px-2.5 py-1 rounded-full font-medium bg-sky-500/10 text-sky-400 border border-sky-500/20">
-          STE v2.1 requirements
-        </span>
-      </div>
-    </div>
-  </header>
-
-  <!-- Main Container -->
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-
-    <aside class="mb-6 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950" role="note">
-      <strong>Implementation crosswalk:</strong> This is an illustrative workflow reference, not the architecture or acceptance authority.
-      Check <a class="underline font-semibold" href="docs/architecture/auditsphere-architecture-current-architecture.md">current architecture</a>,
-      <a class="underline font-semibold" href="docs/requirements/auditsphere-accounting-module-requirements-current.md">current requirements</a>,
-      and <a class="underline font-semibold" href="docs/execution/status.json">execution evidence</a> before treating any capability as available.
-      Live tenant, provider, production, and independent-review gates remain separate from local implementation.
-    </aside>
-
-    <!-- Role Persona Bar -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
-      <div class="p-3.5 bg-white border border-slate-200 rounded-xl shadow-xs flex items-start space-x-3">
-        <div class="p-2 bg-indigo-50 text-indigo-700 rounded-lg font-bold text-xs uppercase tracking-wider">PRE</div>
-        <div>
-          <h2 class="text-sm font-bold text-slate-800">Preparer (Associate)</h2>
-          <p class="text-xs text-slate-500 leading-snug">Prepares scoped procedures, evidence references, and firm time entries.</p>
-        </div>
-      </div>
-      <div class="p-3.5 bg-white border border-slate-200 rounded-xl shadow-xs flex items-start space-x-3">
-        <div class="p-2 bg-amber-50 text-amber-700 rounded-lg font-bold text-xs uppercase tracking-wider">REV</div>
-        <div>
-          <h2 class="text-sm font-bold text-slate-800">Reviewer (Manager)</h2>
-          <p class="text-xs text-slate-500 leading-snug">Reviews assigned work, resolves rework, and prepares planning evidence.</p>
-        </div>
-      </div>
-      <div class="p-3.5 bg-white border border-slate-200 rounded-xl shadow-xs flex items-start space-x-3">
-        <div class="p-2 bg-purple-50 text-purple-700 rounded-lg font-bold text-xs uppercase tracking-wider">APP</div>
-        <div>
-          <h2 class="text-sm font-bold text-slate-800">Approver (Partner)</h2>
-          <p class="text-xs text-slate-500 leading-snug">Records risk decisions, reviews required areas, signs reports, and authorizes gated actions.</p>
-        </div>
-      </div>
-      <div class="p-3.5 bg-white border border-slate-200 rounded-xl shadow-xs flex items-start space-x-3">
-        <div class="p-2 bg-emerald-50 text-emerald-700 rounded-lg font-bold text-xs uppercase tracking-wider">CLI</div>
-        <div>
-          <h2 class="text-sm font-bold text-slate-800">Client Portal (PBC)</h2>
-          <p class="text-xs text-slate-500 leading-snug">Client access is scoped; portal invitations and provider access have separate gates.</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Interactive Navigation Tabs -->
-    <div class="flex flex-wrap border-b border-slate-200 gap-1 mb-6 text-sm font-medium">
-      <button onclick="switchTab('tab-modules')" id="btn-tab-modules" class="tab-btn px-4 py-2.5 text-sky-600 border-b-2 border-sky-600 font-semibold focus:outline-none flex items-center space-x-2">
-        <span>1. Application and Boundaries</span>
-      </button>
-      <button onclick="switchTab('tab-onboarding')" id="btn-tab-onboarding" class="tab-btn px-4 py-2.5 text-slate-600 hover:text-slate-900 border-b-2 border-transparent focus:outline-none flex items-center space-x-2">
-        <span>2. Acceptance and Activation</span>
-      </button>
-      <button onclick="switchTab('tab-materiality')" id="btn-tab-materiality" class="tab-btn px-4 py-2.5 text-slate-600 hover:text-slate-900 border-b-2 border-transparent focus:outline-none flex items-center space-x-2">
-        <span>3. Materiality & Risk Matrix</span>
-      </button>
-      <button onclick="switchTab('tab-fieldwork')" id="btn-tab-fieldwork" class="tab-btn px-4 py-2.5 text-slate-600 hover:text-slate-900 border-b-2 border-transparent focus:outline-none flex items-center space-x-2">
-        <span>4. Fieldwork & 3-Tier Review</span>
-      </button>
-      <button onclick="switchTab('tab-opinion')" id="btn-tab-opinion" class="tab-btn px-4 py-2.5 text-slate-600 hover:text-slate-900 border-b-2 border-transparent focus:outline-none flex items-center space-x-2">
-        <span>5. Opinion & Deliverables</span>
-      </button>
-      <button onclick="switchTab('tab-practice')" id="btn-tab-practice" class="tab-btn px-4 py-2.5 text-slate-600 hover:text-slate-900 border-b-2 border-transparent focus:outline-none flex items-center space-x-2">
-        <span>6. Practice Mgmt & Ledger</span>
-      </button>
-      <button onclick="switchTab('tab-statemachine')" id="btn-tab-statemachine" class="tab-btn px-4 py-2.5 text-slate-600 hover:text-slate-900 border-b-2 border-transparent focus:outline-none flex items-center space-x-2">
-        <span>7. Derived Lifecycle</span>
-      </button>
-      <button onclick="switchTab('tab-raw')" id="btn-tab-raw" class="tab-btn px-4 py-2.5 text-slate-600 hover:text-slate-900 border-b-2 border-transparent focus:outline-none flex items-center space-x-2">
-        <span>8. Raw Mermaid Export</span>
-      </button>
-    </div>
-
-    <!-- TAB 1: Application composition and financial boundaries -->
-    <div id="tab-modules" class="tab-content space-y-6">
-      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm diagram-card">
-        <div class="flex flex-col md:flex-row md:items-center justify-between pb-4 mb-4 border-b border-slate-100">
-          <div>
-            <h3 class="text-lg font-bold text-slate-900">Application Composition and Financial Boundaries</h3>
-            <p class="text-sm text-slate-500">One ASP.NET Core modular monolith with an Angular client and three explicitly separate financial workspaces.</p>
-          </div>
-          <div class="mt-2 md:mt-0 flex items-center space-x-2">
-            <span class="px-2.5 py-1 bg-slate-100 rounded text-xs font-mono text-slate-600">Scope-checked access</span>
-            <span class="px-2.5 py-1 bg-blue-50 text-blue-700 rounded text-xs font-medium">Evidence-based gates</span>
-          </div>
-        </div>
-
-        <!-- Visual Flow Graphic -->
-        <div class="overflow-x-auto py-2">
-          <div class="mermaid" data-diagram="modules" role="img" aria-label="modules workflow diagram">
-flowchart TD
-    subgraph UI["Presentation"]
-        Angular["Angular 22 UI"]
-    end
-    subgraph Hosts["Application hosts"]
-        API["ASP.NET Core API"]
-        Worker["Background worker"]
-        Web["Blazor rollback reference host"]
-    end
-    subgraph Core["One modular monolith"]
-        Application["Application capability services"]
-        Domain["Domain rules"]
-        Infrastructure["EF Core and provider adapters"]
-    end
-    Database[("PostgreSQL")]
-    subgraph Books["Separate financial boundaries"]
-        Firm["Firm books"]
-        Client["Client operational books"]
-        Group["Group consolidation"]
-    end
-    Angular --> API
-    API --> Application
-    API --> Infrastructure
-    Worker --> Application
-    Worker --> Infrastructure
-    Web -.-> Application
-    Application --> Domain
-    Infrastructure --> Domain
-    Infrastructure --> Database
-    Application --> Firm
-    Application --> Client
-    Application --> Group
-          </div>
-        </div>
-
-        <!-- Highlights Footer Grid -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6 pt-4 border-t border-slate-100 text-xs">
-          <div class="p-3 bg-slate-50 rounded-lg">
-            <span class="font-bold text-slate-700 block mb-1">One Application Boundary</span>
-            API, worker, domain, application, and infrastructure code are composed in one modular monolith.
-          </div>
-          <div class="p-3 bg-slate-50 rounded-lg">
-            <span class="font-bold text-slate-700 block mb-1">Scope and Review Gates</span>
-            Commands enforce current grants, revisions, and required human approvals at the application boundary.
-          </div>
-          <div class="p-3 bg-slate-50 rounded-lg">
-            <span class="font-bold text-slate-700 block mb-1">Separate Financial Workspaces</span>
-            Firm books, client operational books, and group consolidation remain separate in one application.
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- TAB 2: Flow 1 - Dual-Key Onboarding -->
-    <div id="tab-onboarding" class="tab-content hidden space-y-6">
-      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm diagram-card">
-        <div class="flex flex-col md:flex-row md:items-center justify-between pb-4 mb-4 border-b border-slate-100">
-          <div>
-            <h3 class="text-lg font-bold text-slate-900">Flow 1: Commercial Acceptance and Engagement Activation</h3>
-            <p class="text-sm text-slate-500">Two independent decisions and a Partner activation review govern progression; neither decision is a cryptographic key.</p>
-          </div>
-          <span class="px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-semibold">ISA 210 & ISA 220</span>
-        </div>
-
-        <div class="overflow-x-auto py-2">
-          <div class="mermaid" data-diagram="onboarding" role="img" aria-label="onboarding workflow diagram">
-flowchart TD
-    Lead["Lead and client profile"] --> Proposal["Prepare and dispatch current proposal"]
-    Proposal --> ClientAcceptance["Client accepts current commercial terms"]
-    Proposal --> PartnerRisk["Partner records unconditional risk decision"]
-    ClientAcceptance --> Gate{"Both current decisions are valid"}
-    PartnerRisk --> Gate
-    Gate -->|No| Blocked["Engagement remains blocked"]
-    Gate -->|Yes| Draft["Create draft engagement"]
-    Draft --> Letter["Generate route-specific engagement letter"]
-    Letter --> Fee["Prepare fee agreement and advance invoice when linked"]
-    Fee --> Activation["Partner reviews and activates engagement"]
-    Activation --> Advance{"Linked advance milestone paid"}
-    Advance -->|No linked agreement or paid| Active["Engagement activated after other gates clear"]
-    Advance -->|Unpaid| Blocked
-    Active --> Portal["Portal intent becomes eligible for invitation"]
-          </div>
-        </div>
-
-        <!-- Technical Explanatory Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-          <div class="p-4 rounded-xl bg-slate-50 border border-slate-200">
-            <h4 class="font-bold text-slate-800 text-sm mb-2 flex items-center">
-              <span class="w-2 h-2 rounded-full bg-amber-500 mr-2"></span>Independent acceptance checks
-            </h4>
-            <ul class="text-xs text-slate-600 space-y-1.5 list-disc list-inside">
-              <li>Client commercial acceptance must match the current proposal and quotation revision.</li>
-              <li>A Partner records an unconditional risk acceptance for the client and service route.</li>
-              <li>These are human decisions; this diagram does not claim that external KYC or AML checks are automated.</li>
-            </ul>
-          </div>
-          <div class="p-4 rounded-xl bg-slate-50 border border-slate-200">
-            <h4 class="font-bold text-slate-800 text-sm mb-2 flex items-center">
-              <span class="w-2 h-2 rounded-full bg-emerald-500 mr-2"></span>Client portal access boundary
-            </h4>
-            <ul class="text-xs text-slate-600 space-y-1.5 list-disc list-inside">
-              <li>Client portal commands require the signed-in client identity and explicit client or engagement scope.</li>
-              <li>Invitation and Microsoft provisioning are separate from local engagement activation.</li>
-              <li>Production tenant consent and provider acceptance must be verified independently.</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- TAB 3: Flow 2 - Materiality & Risk Matrix -->
-    <div id="tab-materiality" class="tab-content hidden space-y-6">
-      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm diagram-card">
-        <div class="flex flex-col md:flex-row md:items-center justify-between pb-4 mb-4 border-b border-slate-100">
-          <div>
-            <h3 class="text-lg font-bold text-slate-900">Flow 2: Trial Balance Materiality and Risk Routing</h3>
-            <p class="text-sm text-slate-500">Mapped trial balance sources feed versioned calculations; authorized rounding and independent Partner approval remain explicit.</p>
-          </div>
-          <span class="px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-xs font-semibold">ISA 320 context</span>
-        </div>
-
-        <div class="overflow-x-auto py-2">
-          <div class="mermaid" data-diagram="materiality" role="img" aria-label="materiality workflow diagram">
-flowchart TD
-    TB["Sealed, balanced, accepted trial balance"] --> Mapping["Current approved account mapping"]
-    Mapping --> Source["Choose a supported benchmark source"]
-    Source --> Benchmarks["Revenue, PBT, total assets, or net assets"]
-    Benchmarks --> Inputs["Choose policy rates for PM, TE, and SAD"]
-    Inputs --> Calculation["Calculate and version current thresholds"]
-    Calculation --> Rounding["Authorized Manager or Senior Manager may apply bounded practical rounding"]
-    Rounding --> Approval["Partner approves the current assessment head"]
-    Approval --> Band{"Classify each mapped statement line"}
-    Band -->|Below TE| Green["Green routing"]
-    Band -->|At least TE and no more than PM| Amber["Amber routing"]
-    Band -->|Above PM or qualitative trigger| Red["Red routing"]
-    Note["PBT uses mapped balances without normalization"] -.-> Benchmarks
-    Limit["Each rounded threshold stays within five percent"] -.-> Rounding
-          </div>
-        </div>
-
-        <!-- Materiality Threshold Live Reference -->
-        <div class="mt-6 border border-slate-200 rounded-xl overflow-hidden">
-          <div class="bg-slate-100 px-4 py-3 font-bold text-xs uppercase tracking-wider text-slate-700 flex justify-between">
-            <span>Materiality Metric Formula Reference</span>
-            <span>ISA 320 Execution Framework</span>
-          </div>
-          <div class="divide-y divide-slate-100 text-xs">
-            <div class="p-3.5 flex justify-between items-center bg-white">
-              <div>
-                <span class="font-bold text-slate-800">Planning Materiality (PM)</span>
-                <span class="text-slate-500 block">Calculated from a supported mapped-trial-balance benchmark</span>
-              </div>
-              <span class="font-mono bg-slate-100 px-2.5 py-1 rounded">Selected benchmark amount × approved policy rate</span>
-            </div>
-            <div class="p-3.5 flex justify-between items-center bg-white">
-              <div>
-                <span class="font-bold text-slate-800">Tolerable Error (TE) / Performance Materiality</span>
-                <span class="text-slate-500 block">Performance materiality is calculated from the current PM assessment</span>
-              </div>
-              <span class="font-mono bg-slate-100 px-2.5 py-1 rounded">50% to 75% of PM under the current policy</span>
-            </div>
-            <div class="p-3.5 flex justify-between items-center bg-white">
-              <div>
-                <span class="font-bold text-slate-800">Summary of Audit Differences (SAD) Threshold</span>
-                <span class="text-slate-500 block">The current policy stores the SAD threshold with its calculation</span>
-              </div>
-              <span class="font-mono bg-slate-100 px-2.5 py-1 rounded">3% to 5% of PM</span>
-            </div>
-            <div class="p-3.5 flex justify-between items-center bg-white">
-              <div>
-                <span class="font-bold text-slate-800">Manager or Senior Manager Practical Rounding</span>
-                <span class="text-slate-500 block">Each adjusted threshold is bounded; SAD must not exceed TE or PM</span>
-              </div>
-              <span class="font-mono bg-slate-100 px-2.5 py-1 rounded">At most ±5% per positive threshold</span>
-            </div>
-          </div>
-          <p class="px-4 py-3 text-xs text-slate-600">Risk bands route work; they do not make professional audit conclusions. Practitioners retain judgment and approval responsibility.</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- TAB 4: Flow 3 - Fieldwork & 3-Tier Review Loop -->
-    <div id="tab-fieldwork" class="tab-content hidden space-y-6">
-      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm diagram-card">
-        <div class="flex flex-col md:flex-row md:items-center justify-between pb-4 mb-4 border-b border-slate-100">
-          <div>
-            <h3 class="text-lg font-bold text-slate-900">Flow 3: Split Dashboard, Fieldwork & Three-Tier Review Matrix</h3>
-            <p class="text-sm text-slate-500">Revision-bound work, scoped evidence, review and rework, plus the current completion gate.</p>
-          </div>
-          <span class="px-3 py-1 bg-rose-100 text-rose-800 rounded-full text-xs font-semibold">Fieldwork & ISA 505 / 570</span>
-        </div>
-
-        <div class="overflow-x-auto py-2">
-          <div class="mermaid" data-diagram="fieldwork" role="img" aria-label="fieldwork workflow diagram">
-flowchart TD
-    Plan["Current Partner-approved planning"] --> Work["Execute scoped procedures and analytical work"]
-    Work --> Evidence["Link digital evidence or physical record reference"]
-    Evidence --> Submit["Submit current work revision"]
-    Submit --> Review{"Manager review complete"}
-    Review -->|Return with notes| Rework["Resolve notes and create next revision"]
-    Rework --> Submit
-    Review -->|Ready| Completion{"Completion gate clear"}
-    Completion -->|Blockers remain| Blocked["Resolve confirmations and other blockers"]
-    Blocked --> Completion
-    Completion -->|Clear| Partner["Partner clearance and human opinion decision"]
-    Partner --> Report["Report issuance allowed after current gates"]
-    Current["Writes require current scope and expected revision"] -.-> Work
-          </div>
-        </div>
-
-        <!-- Technical Fieldwork Table -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6 text-xs">
-          <div class="p-4 bg-slate-50 rounded-xl border border-slate-200">
-            <h5 class="font-bold text-slate-800 mb-1">Revision-bound work</h5>
-            Writes carry the expected revision and current scope. This is not a promise of lock-free concurrent edits.
-          </div>
-          <div class="p-4 bg-slate-50 rounded-xl border border-slate-200">
-            <h5 class="font-bold text-slate-800 mb-1">Evidence references</h5>
-            Scoped procedures can reference digital evidence and physical record identifiers; archive controls are handled separately.
-          </div>
-          <div class="p-4 bg-slate-50 rounded-xl border border-slate-200">
-            <h5 class="font-bold text-slate-800 mb-1">Critical confirmation blockers</h5>
-            A missing critical response blocks report issuance. A holding-letter dispatch is tied to the current blocker set and configured completion contact route.
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- TAB 5: Flow 4 - Opinion & 5-Part Deliverables Bundle -->
-    <div id="tab-opinion" class="tab-content hidden space-y-6">
-      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm diagram-card">
-        <div class="flex flex-col md:flex-row md:items-center justify-between pb-4 mb-4 border-b border-slate-100">
-          <div>
-            <h3 class="text-lg font-bold text-slate-900">Flow 4: Partner Opinion, Release Bundle, and Local Archive</h3>
-            <p class="text-sm text-slate-500">A human Partner decides the opinion. Signature images, local file freeze, and provider-level protection are distinct.</p>
-          </div>
-          <span class="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-semibold">ISA 700, 705 & ISA 230</span>
-        </div>
-
-        <div class="overflow-x-auto py-2">
-          <div class="mermaid" data-diagram="opinion" role="img" aria-label="opinion workflow diagram">
-flowchart TD
-    Gates["Current completion gate and Partner clearance"] --> Decision["Partner records human opinion decision"]
-    Decision --> Opinion["Unmodified, qualified, disclaimer, or adverse"]
-    Opinion --> Sign["Apply approved signature and seal images"]
-    Sign --> Bundle["Assemble five-part completion bundle"]
-    PackageRelease["Current financial package release"] --> Bundle
-    BalanceInvoice["Posted final balance invoice"] --> Bundle
-    subgraph Parts["Bundle contents"]
-        Part1["Signed report and exact reviewed statements"]
-        Part2["Management letter"]
-        Part3["Generated and verified signed representation"]
-        Part4["PBC and confirmation correspondence evidence"]
-        Part5["Posted balance invoice fee note"]
-    end
-    Bundle --> Part1
-    Bundle --> Part2
-    Bundle --> Part3
-    Bundle --> Part4
-    Bundle --> Part5
-    Bundle --> Release["Issue through authorized delivery workflow"]
-    Sign --> Countdown["Local freeze due sixty days from report signature"]
-    Countdown --> Freeze["Local read-only freeze commits when due"]
-    Countdown --> Early["Partner early lock requires readiness confirmation"]
-    Early --> Freeze
-    Freeze --> Provider["Provider read-only state is verified separately"]
-          </div>
-        </div>
-
-        <!-- 5-Part Bundle Detailed Inspection -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mt-6 text-xs">
-          <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
-            <span class="font-bold text-sky-700 block text-sm mb-1">Part 1: Report and statements</span>
-            Signed report and the exact reviewed, released financial statement artifact.
-          </div>
-          <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
-            <span class="font-bold text-indigo-700 block text-sm mb-1">Part 2: Management letter</span>
-            The current reviewed management letter for the engagement.
-          </div>
-          <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
-            <span class="font-bold text-amber-700 block text-sm mb-1">Part 3: Representation</span>
-            Generated representation and the verified signed representation evidence.
-          </div>
-          <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
-            <span class="font-bold text-purple-700 block text-sm mb-1">Part 4: Correspondence</span>
-            Bounded PBC communications, client comments, and evaluated confirmation evidence.
-          </div>
-          <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
-            <span class="font-bold text-emerald-700 block text-sm mb-1">Part 5: Final balance</span>
-            The posted balance invoice and the fee note assembled from that invoice.
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- TAB 6: Flow 5 - Practice Management & Internal Ledger -->
-    <div id="tab-practice" class="tab-content hidden space-y-6">
-      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm diagram-card">
-        <div class="flex flex-col md:flex-row md:items-center justify-between pb-4 mb-4 border-b border-slate-100">
-          <div>
-            <h3 class="text-lg font-bold text-slate-900">Flow 5: Practice Management, Time Realization & Firm Bookkeeping</h3>
-            <p class="text-sm text-slate-500">Versioned QAR charge-out cards feed firm time and budget workflows; rates are not staff payroll costs.</p>
-          </div>
-          <span class="px-3 py-1 bg-cyan-100 text-cyan-800 rounded-full text-xs font-semibold">Firm Operations & QAR Ledger</span>
-        </div>
-
-        <div class="overflow-x-auto py-2">
-          <div class="mermaid" data-diagram="practice" role="img" aria-label="practice workflow diagram">
-flowchart TD
-    Baseline["STE QAR charge-out reference rates"] --> Draft["Initialize ordinary draft rate cards"]
-    subgraph Rates["Reference rates, pending approval"]
-        PartnerRate["Engagement Partner: QAR 1000 per hour"]
-        ManagerRate["Audit Manager: QAR 750 per hour"]
-        SupervisorRate["Audit Supervisor: QAR 500 per hour"]
-        AssociateRate["Audit Associate: QAR 200 per hour"]
-    end
-    Draft --> Rates
-    Rates --> Approval["A different authorized user approves each card"]
-    Time["Firm time entry"] --> Resolve{"Current approved role, activity, and currency rate"}
-    Approval --> Resolve
-    Resolve -->|Missing| Blocked["Fail closed until a rate is approved"]
-    Resolve -->|Found| Amount["Calculate charge-out amount from eligible hours"]
-    Amount --> FirmBooks["Firm time, billing, and practice records"]
-    Agreement["Accepted fee agreement"] --> Milestones["Advance and balance payment milestones"]
-    Milestones --> Receivables["Firm receivables and aging"]
-    Note["Charge-out rate is not payroll cost"] -.-> Amount
-    Client["Client operational books"]
-    Group["Group consolidation"]
-          </div>
-        </div>
-
-        <!-- Charge-out calculation -->
-        <div class="p-4 bg-slate-900 text-white rounded-xl mt-6 flex flex-col md:flex-row items-center justify-between">
-          <div>
-            <h4 class="font-bold text-sm text-sky-400">Charge-out calculation</h4>
-            <p class="font-mono text-xs text-slate-300 mt-1">
-              Charge-out amount = eligible hours × current approved role, activity, and currency rate
-            </p>
-          </div>
-          <div class="mt-3 md:mt-0 text-right">
-            <span class="text-xs text-slate-400 block">AR Balance Tracking:</span>
-            <span class="text-xs font-semibold text-emerald-400">Fee-agreement advance and balance milestones</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- TAB 7: Derived engagement lifecycle projection -->
-    <div id="tab-statemachine" class="tab-content hidden space-y-6">
-      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm diagram-card">
-        <div class="flex flex-col md:flex-row md:items-center justify-between pb-4 mb-4 border-b border-slate-100">
-          <div>
-            <h3 class="text-lg font-bold text-slate-900">Eleven-stage Derived Engagement Lifecycle</h3>
-            <p class="text-sm text-slate-500">Stages are projected from current records and blockers; the local archive state does not prove provider immutability.</p>
-          </div>
-          <span class="px-3 py-1 bg-slate-100 text-slate-800 rounded-full text-xs font-mono font-semibold">11 derived stages</span>
-        </div>
-
-        <div class="overflow-x-auto py-2">
-          <div class="mermaid" data-diagram="statemachine" role="img" aria-label="statemachine workflow diagram">
-stateDiagram-v2
-    state "Lead ingestion" as S1
-    state "Proposal generation" as S2
-    state "Dual-key acceptance pending" as S3
-    state "Advance billing" as S4
-    state "Portal active and planning" as S5
-    state "Fieldwork execution" as S6
-    state "Managerial review" as S7
-    state "Partner approval and signing" as S8
-    state "Deliverable release" as S9
-    state "Compliance countdown" as S10
-    state "Archived read-only" as S11
-    [*] --> S1
-    S1 --> S2: proposal required
-    S2 --> S3: proposal dispatched
-    S3 --> S4: client and Partner decisions accepted
-    S4 --> S5: activation prerequisites satisfied
-    S5 --> S6: current planning approved
-    S6 --> S7: procedure results submitted
-    S7 --> S6: execution or rework remains
-    S7 --> S8: completion gate clear
-    S8 --> S9: signed report and release follow
-    S9 --> S10: report signature schedules local freeze
-    S10 --> S11: local freeze commits
-    S11 --> S10: approved amendment workflow reopens
-          </div>
-        </div>
-
-        <!-- 11 State Table Breakdown -->
-        <div class="mt-6 border border-slate-200 rounded-xl overflow-hidden">
-          <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-slate-200 text-left text-xs">
-              <thead class="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider">
-                <tr>
-                  <th class="p-3">Derived stage</th>
-                  <th class="p-3">Typical inputs</th>
-                  <th class="p-3">Projection gate</th>
-                  <th class="p-3">Next stage</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-slate-100 text-slate-600 bg-white">
-                <tr><td class="p-3 font-mono font-bold text-slate-900">LEAD_INGESTION</td><td class="p-3">Capture lead and client profile</td><td class="p-3">Lead list shows this stage before a proposal is linked</td><td class="p-3 font-semibold text-blue-600">PROPOSAL_GENERATION</td></tr>
-                <tr><td class="p-3 font-mono font-bold text-slate-900">PROPOSAL_GENERATION</td><td class="p-3">Prepare and dispatch the current proposal</td><td class="p-3">A current proposal and commercial response are recorded</td><td class="p-3 font-semibold text-blue-600">DUAL_KEY_PENDING</td></tr>
-                <tr><td class="p-3 font-mono font-bold text-slate-900">DUAL_KEY_PENDING</td><td class="p-3">Record client acceptance and Partner risk decision</td><td class="p-3">The current proposal is accepted and Partner decision is unconditional</td><td class="p-3 font-semibold text-blue-600">ADVANCE_BILLING</td></tr>
-                <tr><td class="p-3 font-mono font-bold text-slate-900">ADVANCE_BILLING</td><td class="p-3">Prepare the linked fee agreement and advance milestone</td><td class="p-3">A linked advance is paid and allocated before activation</td><td class="p-3 font-semibold text-blue-600">PORTAL_ACTIVE_PLANNING</td></tr>
-                <tr><td class="p-3 font-mono font-bold text-slate-900">PORTAL_ACTIVE_PLANNING</td><td class="p-3">Partner activation, accepted trial balance, and planning</td><td class="p-3">Current materiality is independently Partner-approved</td><td class="p-3 font-semibold text-blue-600">FIELDWORK_EXECUTION</td></tr>
-                <tr><td class="p-3 font-mono font-bold text-slate-900">FIELDWORK_EXECUTION</td><td class="p-3">Execute current substantive procedures and submit revisions</td><td class="p-3">Required procedure results are present</td><td class="p-3 font-semibold text-blue-600">MANAGERIAL_REVIEW</td></tr>
-                <tr><td class="p-3 font-mono font-bold text-slate-900">MANAGERIAL_REVIEW</td><td class="p-3">Resolve review notes and completion blockers</td><td class="p-3">Completion gate is clear and open review notes are resolved</td><td class="p-3 font-semibold text-blue-600">PARTNER_APPROVAL</td></tr>
-                <tr><td class="p-3 font-mono font-bold text-slate-900">PARTNER_APPROVAL</td><td class="p-3">Record Partner clearance and human opinion decision</td><td class="p-3">Current clearance, opinion, completion evidence, and bundle are ready</td><td class="p-3 font-semibold text-blue-600">DELIVERABLE_RELEASE</td></tr>
-                <tr><td class="p-3 font-mono font-bold text-slate-900">DELIVERABLE_RELEASE</td><td class="p-3">Assemble and issue the approved deliverables</td><td class="p-3">Signed report schedules the local freeze countdown</td><td class="p-3 font-semibold text-blue-600">COMPLIANCE_COUNTDOWN</td></tr>
-                <tr><td class="p-3 font-mono font-bold text-slate-900">COMPLIANCE_COUNTDOWN</td><td class="p-3">Review readiness; Partner may request an early lock</td><td class="p-3">Local freeze commits when due or after a valid early-lock request</td><td class="p-3 font-semibold text-blue-600">ARCHIVED_READ_ONLY</td></tr>
-                <tr class="bg-slate-100"><td class="p-3 font-mono font-bold text-slate-900">ARCHIVED_READ_ONLY</td><td class="p-3">Read the locally frozen file</td><td class="p-3">External provider state is reported separately; an approved amendment can reopen the local freeze workflow</td><td class="p-3 font-mono text-slate-600">Read-only or amendment workflow</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- TAB 8: Raw Mermaid Source Export -->
-    <div id="tab-raw" class="tab-content hidden space-y-6">
-      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm diagram-card">
-        <div class="flex items-center justify-between pb-4 mb-4 border-b border-slate-100">
-          <div>
-            <h3 class="text-lg font-bold text-slate-900">Mermaid.js Source Code Export</h3>
-            <p class="text-sm text-slate-500">Copy syntax directly into Notion, GitHub, Obsidian, or Mermaid Live Editor.</p>
-          </div>
-          <button onclick="copyActiveSource()" class="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-semibold shadow-xs">
-            Copy Active Diagram
-          </button>
-        </div>
-
-        <div class="space-y-4">
-          <div>
-            <label class="block text-xs font-bold text-slate-700 mb-1">Select Diagram Source:</label>
-            <select id="code-selector" onchange="updateCodeViewer()" class="w-full sm:w-80 text-xs p-2 border border-slate-300 rounded-lg bg-white">
-              <option value="modules">Application composition and financial boundaries</option>
-              <option value="onboarding">Flow 1: Commercial acceptance and activation</option>
-              <option value="materiality">Flow 2: Materiality & Risk Matrix</option>
-              <option value="fieldwork">Flow 3: Fieldwork & 3-Tier Review</option>
-              <option value="opinion">Flow 4: Opinion & 5-Part Deliverables</option>
-              <option value="practice">Flow 5: Practice Management & Ledger</option>
-              <option value="statemachine">Eleven-stage derived lifecycle</option>
-            </select>
-          </div>
-
-          <pre id="code-display" class="bg-slate-900 text-slate-100 p-4 rounded-xl text-xs font-mono overflow-x-auto max-h-[500px] leading-relaxed custom-scrollbar"></pre>
-        </div>
-      </div>
-    </div>
-
-  </div>
-
-  <!-- Tab Controller Script -->
-  <script>
-    function switchTab(tabId) {
-      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-      document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.classList.remove('text-sky-600', 'border-sky-600', 'font-semibold');
-        btn.classList.add('text-slate-600', 'border-transparent');
+    function activate(key, { focus = false, scroll = false } = {}) {
+      if (!keys.includes(key)) key = keys[0];
+      if (key === activeKey) return;
+      activeKey = key;
+      tabs.forEach(t => {
+        const on = t.dataset.key === key;
+        t.setAttribute('aria-selected', on);
+        t.tabIndex = on ? 0 : -1;
+        if (on) {
+          if (focus) t.focus();
+          t.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        }
       });
-      const target = document.getElementById(tabId);
-      if (target) target.classList.remove('hidden');
-      const activeBtn = document.getElementById('btn-' + tabId);
-      if (activeBtn) {
-        activeBtn.classList.remove('text-slate-600', 'border-transparent');
-        activeBtn.classList.add('text-sky-600', 'border-sky-600', 'font-semibold');
+      $$('[role="tabpanel"]').forEach(p => (p.hidden = p.id !== 'panel-' + key));
+      document.title = `${labels[key]} · ${baseTitle}`;
+      if (history.replaceState) history.replaceState(null, '', '#' + key);
+      viewers.get(key)?.render().then(() => viewers.get(key).fit(false));
+      if (key === 'raw') updateCodeViewer();
+      if (scroll) $('#main').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    tabs.forEach((t, i) => {
+      t.addEventListener('click', () => activate(t.dataset.key));
+      t.addEventListener('keydown', (e) => {
+        const next = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[e.key];
+        if (next) { e.preventDefault(); activate(keys[(i + next + keys.length) % keys.length], { focus: true }); }
+        if (e.key === 'Home') { e.preventDefault(); activate(keys[0], { focus: true }); }
+        if (e.key === 'End') { e.preventDefault(); activate(keys[keys.length - 1], { focus: true }); }
+      });
+    });
+
+    $$('.pager').forEach(nav => {
+      const key = nav.closest('[role="tabpanel"]').id.replace('panel-', '');
+      const i = keys.indexOf(key);
+      const prev = keys[i - 1], next = keys[i + 1];
+      const link = (k, dir) => k ? `
+        <button type="button" data-goto-tab="${k}" class="group flex-1 flex flex-col ${dir === 'next' ? 'items-end text-right' : 'items-start'} gap-0.5 p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-sky-300 dark:hover:border-sky-500/50 hover:shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500">
+          <span class="text-[11px] uppercase tracking-wider font-semibold text-slate-400">${dir === 'next' ? 'Next' : 'Previous'}</span>
+          <span class="text-sm font-semibold text-slate-800 dark:text-slate-100 group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors">${dir === 'next' ? '' : '← '}${labels[k]}${dir === 'next' ? ' →' : ''}</span>
+        </button>` : '<span class="flex-1 hidden sm:block"></span>';
+      nav.className = 'pager flex flex-col sm:flex-row gap-3 pt-2';
+      nav.innerHTML = link(prev, 'prev') + link(next, 'next');
+    });
+    document.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-goto-tab]');
+      if (b) activate(b.dataset.gotoTab, { scroll: true });
+    });
+
+    window.addEventListener('hashchange', () => activate(location.hash.slice(1)));
+
+    /* ---------- State table ---------- */
+    const phaseColor = { amber: 'bg-amber-400', indigo: 'bg-indigo-500', rose: 'bg-rose-500', emerald: 'bg-emerald-500', slate: 'bg-slate-500' };
+    $$('#state-table tr').forEach((tr, i) => {
+      tr.id = 'state-' + tr.dataset.state;
+      tr.classList.add('hover:bg-slate-50', 'dark:hover:bg-slate-800/40', 'transition-colors');
+      tr.cells[0].innerHTML = `<span class="inline-flex items-center gap-2"><span class="w-1 h-6 rounded-full ${phaseColor[tr.dataset.phase]}"></span><span class="text-xs font-mono text-slate-400 tabular-nums">${String(i + 1).padStart(2, '0')}</span></span>`;
+    });
+    $$('#state-table .goto').forEach(b => {
+      b.className = 'goto inline-flex items-center gap-1 font-mono text-xs font-semibold text-sky-700 dark:text-sky-400 hover:text-sky-900 dark:hover:text-sky-300 hover:underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 rounded';
+      b.insertAdjacentHTML('afterbegin', '<span aria-hidden="true">→</span>');
+      b.addEventListener('click', () => {
+        const row = document.getElementById('state-' + b.dataset.goto);
+        if (!row) return;
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        row.classList.remove('row-flash'); void row.offsetWidth; row.classList.add('row-flash');
+      });
+    });
+
+    /* ---------- Raw export ---------- */
+    const selector = $('#code-selector');
+    selector.innerHTML = sources.map(s => `<option value="${s.key}">${escapeHtml(s.title)}</option>`).join('');
+    selector.addEventListener('change', updateCodeViewer);
+
+    function highlight(line) {
+      if (/^\s*%%/.test(line)) return `<span class="tok-cmt">${escapeHtml(line)}</span>`;
+      const re = /("(?:[^"\\]|\\.)*")|\b(flowchart|stateDiagram-v2|subgraph|end|style|direction|TD|LR)\b|(==>|-->|-\.->|\.->|---|==|--|-\.|\[\*\])/g;
+      let out = '', last = 0, m;
+      while ((m = re.exec(line))) {
+        out += escapeHtml(line.slice(last, m.index));
+        const cls = m[1] ? 'tok-str' : m[2] ? 'tok-kw' : 'tok-arrow';
+        out += `<span class="${cls}">${escapeHtml(m[0])}</span>`;
+        last = re.lastIndex;
       }
-      if (tabId === 'tab-raw') updateCodeViewer();
+      return out + escapeHtml(line.slice(last));
+    }
+
+    function currentSource() { return sources.find(s => s.key === selector.value) || sources[0]; }
+
+    function toBase64Utf8(str) {
+      const bytes = new TextEncoder().encode(str);
+      let bin = '';
+      bytes.forEach(b => (bin += String.fromCharCode(b)));
+      return btoa(bin);
     }
 
     function updateCodeViewer() {
-      const selector = document.getElementById('code-selector');
-      const display = document.getElementById('code-display');
-      if (!selector || !display) return;
-      const source = window.diagramSources && window.diagramSources[selector.value];
-      display.textContent = source || '// Diagram source is loading or unavailable.';
+      const { src } = currentSource();
+      const lines = src.split('\n');
+      $('#code-display').innerHTML = lines.map(l => `<span class="ln">${highlight(l) || ' '}</span>`).join('');
+      $('#code-meta').textContent = `${lines.length} lines · ${src.length.toLocaleString()} chars`;
+      const state = { code: src, mermaid: JSON.stringify({ theme: 'default' }, null, 2), autoSync: true, updateDiagram: true };
+      $('#btn-live').href = 'https://mermaid.live/edit#base64:' + toBase64Utf8(JSON.stringify(state));
     }
 
-    async function copyActiveSource() {
-      const selector = document.getElementById('code-selector');
-      const source = window.diagramSources && window.diagramSources[selector.value];
-      if (!source) {
-        alert('The selected diagram source is unavailable.');
-        return;
-      }
-      try {
-        await navigator.clipboard.writeText(source);
-        alert('Mermaid source copied to clipboard.');
-      } catch (error) {
-        alert('Clipboard access is unavailable. Select and copy the source from the panel.');
-      }
-    }
+    $('#btn-copy-src').addEventListener('click', async () => { await copyText(currentSource().src); toast('Mermaid syntax copied to clipboard'); });
+    $('#btn-download-src').addEventListener('click', () => { const s = currentSource(); download(`ste-${s.key}.mmd`, s.src, 'text/plain'); toast('Source downloaded'); });
 
-    window.addEventListener('DOMContentLoaded', updateCodeViewer);
-    window.addEventListener('mermaid-ready', updateCodeViewer);
+    /* ---------- Theme, print, global shortcuts ---------- */
+    function toggleTheme() {
+      const dark = document.documentElement.classList.toggle('dark');
+      try { localStorage.setItem('ste-theme', dark ? 'dark' : 'light'); } catch {}
+    }
+    $('#btn-theme').addEventListener('click', toggleTheme);
+
+    $('#btn-print').addEventListener('click', async () => {
+      toast('Preparing diagrams for print…');
+      await Promise.all([...viewers.values()].map(v => v.render()));
+      setTimeout(() => window.print(), 150);
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.target.closest('input, textarea, select, [contenteditable], .viewer-canvas')) return;
+      if (/^[1-8]$/.test(e.key)) { activate(keys[+e.key - 1], { focus: false }); return; }
+      if (e.key === 'f' || e.key === 'F') viewers.get(activeKey)?.toggleFullscreen();
+      if (e.key === 't' || e.key === 'T') toggleTheme();
+    });
+
+    /* ---------- Boot ---------- */
+    activate(location.hash.slice(1) || 'modules');
   </script>
 </body>
 </html>
