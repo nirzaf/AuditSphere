@@ -20,6 +20,7 @@ public sealed class PlanningAndResourcesJourneyTests
 {
   [Fact]
   [Trait("CaseId", "AS-STE-PLANNING-01")]
+  [Trait("CaseId", "STE-GAP-003-ROUNDING-BROWSER")]
   public async Task PartnerStaffsCalculatesMaterialityReviewsRedRiskAndSeesTheGrid()
   {
     await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "AS-STE-PLANNING-01");
@@ -40,7 +41,7 @@ public sealed class PlanningAndResourcesJourneyTests
       var datasetId = Guid.NewGuid();
       mappingId = Guid.NewGuid();
       var accounts = new (string Code, decimal Amount, string Destination, string Section)[]
-        { ("1000", 900_000m, "CASH", "ASSETS"), ("3000", 100_000m, "EQUITY", "EQUITY"), ("4000", -1_500_000m, "REVENUE", "INCOME"), ("5000", 500_000m, "COST_OF_SALES", "EXPENSE") };
+        { ("1000", 900_000m, "CASH", "ASSETS"), ("3000", 100_000m, "EQUITY", "EQUITY"), ("4000", -5_342_100m, "REVENUE", "INCOME"), ("5000", 4_342_100m, "COST_OF_SALES", "EXPENSE") };
       db.TrialBalanceDatasets.Add(new TrialBalanceDataset
       {
         Id = datasetId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId, SourceKind = "Raw", Currency = "QAR", Balanced = true,
@@ -88,7 +89,7 @@ public sealed class PlanningAndResourcesJourneyTests
     // Staffing at the four levels (associate omitted: the fixture's staff user is added to prove the list order).
     await page.GotoAsync($"{origin}/auth/sign-in?returnUrl={Uri.EscapeDataString($"/app/engagements/{f.EngagementId:D}")}");
     await page.GetByText("Team and budget", new() { Exact = true }).ScrollIntoViewIfNeededAsync();
-    await page.GetByRole(AriaRole.Heading, new() { Name = "Engagement team" }).WaitForAsync(new() { Timeout = 20000 });
+    await page.GetByRole(AriaRole.Heading, new() { Name = "Engagement team", Exact = true }).WaitForAsync(new() { Timeout = 20000 });
     await SettleAsync();
     var planning = page.GetByRole(AriaRole.Region, new() { Name = "Engagement planning", Exact = true });
     async Task StaffAsync(Guid userId, string name, string level)
@@ -128,7 +129,7 @@ public sealed class PlanningAndResourcesJourneyTests
     var manualEndpointStatus = await page.EvaluateAsync<int>("async engagementId => (await fetch(`/api/ui/engagements/${engagementId}/audit-plan/materiality`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ benchmarkSource: 'manual', benchmarkVersion: 'manual', rationale: 'test', benchmarkAmount: '1000000', rateApplied: '0.05', overallMateriality: '50000', performanceMateriality: '37500', clearlyTrivialThreshold: '2500' }) })).status", f.EngagementId.ToString("D"));
     Assert.Equal(404, manualEndpointStatus);
     var benchmark = calculator.GetByRole(AriaRole.Combobox, new() { Name = "Benchmark", Exact = true });
-    await benchmark.SelectOptionAsync(new SelectOptionValue { Label = "Revenue (income section) — 1,500,000.00" });
+    await benchmark.SelectOptionAsync(new SelectOptionValue { Label = "Revenue (income section) — 5,342,100.00" });
     await page.GetByLabel("Rationale for the benchmark", new() { Exact = true }).FillAsync("Revenue drives user focus for this trading entity.");
     await page.GetByLabel("Rationale for the benchmark", new() { Exact = true }).PressAsync("Tab");
     async Task RejectCalculationAsync(string field, string value, string message)
@@ -151,9 +152,9 @@ public sealed class PlanningAndResourcesJourneyTests
     await page.GetByRole(AriaRole.Button, new() { Name = "Calculate materiality" }).ClickAsync();
     await Assertions.Expect(page.GetByText("Materiality calculated; independent Engagement Partner materiality approval is required.")).ToBeVisibleAsync();
     var thresholds = page.Locator("[aria-label='Materiality thresholds']");
-    await Assertions.Expect(thresholds).ToContainTextAsync("15,000.00 QAR");
-    await Assertions.Expect(thresholds).ToContainTextAsync("11,250.00 QAR");
-    await Assertions.Expect(thresholds).ToContainTextAsync("750.00 QAR");
+    await Assertions.Expect(thresholds).ToContainTextAsync("53,421.00 QAR");
+    await Assertions.Expect(thresholds).ToContainTextAsync("40,065.75 QAR");
+    await Assertions.Expect(thresholds).ToContainTextAsync("2,671.05 QAR");
     await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Approve calculated materiality", Exact = true })).ToHaveCountAsync(0);
     await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Approve materiality", Exact = true })).ToHaveCountAsync(0);
 
@@ -167,6 +168,29 @@ public sealed class PlanningAndResourcesJourneyTests
     await Assertions.Expect(materialityApproval).ToHaveCountAsync(0);
     await Assertions.Expect(managerPage.GetByRole(AriaRole.Button,
       new() { Name = "Approve materiality", Exact = true })).ToHaveCountAsync(0);
+    var managerPlan = managerPage.GetByRole(AriaRole.Region, new() { Name = "Materiality calculator", Exact = true });
+    await Assertions.Expect(managerPlan.GetByRole(AriaRole.Heading, new() { Name = "Materiality calculator", Exact = true }))
+      .ToBeVisibleAsync();
+    await managerPlan.GetByLabel("Planning materiality", new() { Exact = true }).FillAsync("53000");
+    await managerPlan.GetByLabel("Tolerable error", new() { Exact = true }).FillAsync("40000");
+    await managerPlan.GetByLabel("SAD threshold", new() { Exact = true }).FillAsync("2600");
+    await managerPlan.GetByLabel("Rationale for the rounding", new() { Exact = true })
+      .FillAsync("Synthetic browser journey applies the STE practical rounding criterion.");
+    await managerPlan.GetByRole(AriaRole.Button, new() { Name = "Apply practical rounding", Exact = true }).ClickAsync();
+    await Assertions.Expect(managerPage.GetByText(
+      "Practical rounding applied; the rounded values now need independent Partner approval.", new() { Exact = true })).ToBeVisibleAsync();
+    var rounded = managerPlan.GetByRole(AriaRole.Table, new() { Name = "Computed and rounded thresholds", Exact = true });
+    await Assertions.Expect(rounded).ToContainTextAsync("53,421.00");
+    await Assertions.Expect(rounded).ToContainTextAsync("53,000.00");
+    await using (var db = host.CreateDbContext())
+    {
+      var decision = await db.MaterialityRoundingDecisions.AsNoTracking().SingleAsync(x => x.EngagementId == f.EngagementId);
+      Assert.Equal(manager.Id, decision.DecidedByUserId);
+      Assert.Equal((53_421m, 40_065.75m, 2_671.05m),
+        (decision.ComputedPlanningMateriality, decision.ComputedTolerableError, decision.ComputedSadThreshold));
+      Assert.Equal((53_000m, 40_000m, 2_600m),
+        (decision.AdjustedPlanningMateriality, decision.AdjustedTolerableError, decision.AdjustedSadThreshold));
+    }
 
     var reviewerOrigin = await host.StartApiForIdentityAsync(partnerReviewer,
       new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
@@ -184,7 +208,9 @@ public sealed class PlanningAndResourcesJourneyTests
         .Where(x => x.EngagementId == f.EngagementId).OrderByDescending(x => x.CreatedAt).FirstAsync();
       var approval = await db.MaterialityApprovals.AsNoTracking()
         .SingleAsync(x => x.MaterialityAssessmentId == assessment.Id);
-      Assert.Equal(partner.Id, assessment.ActorId);
+      Assert.Equal(manager.Id, assessment.ActorId);
+      var rounding = await db.MaterialityRoundingDecisions.AsNoTracking().SingleAsync(x => x.EngagementId == f.EngagementId);
+      Assert.Equal(assessment.Id, rounding.EffectiveAssessmentId);
       Assert.Equal(partnerReviewer.Id, approval.ApprovedByUserId);
     }
 

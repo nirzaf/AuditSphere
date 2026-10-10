@@ -3,7 +3,7 @@ id: "T014"
 work_package: "R2R-03"
 modules: [20]
 status: "NOT_STARTED"
-depends_on: ["T013"]
+depends_on: ["T007", "T013"]
 owner: ""
 reviewer: ""
 review_decision: ""
@@ -21,6 +21,8 @@ updated_at: ""
 
 **Status scope:** NOT_STARTED means this new task has not been assessed/executed under this breakdown. It does not assert that its underlying code is absent. First inspect and reuse the current implementation. No current repository progress has been imported.
 
+**Decision resolved:** ADR-0015 fixes the technical identity rule: the context is an immutable manifest of existing scoped IDs and approved revisions, not a duplicate accounting aggregate. This does not complete T014. The task remains NOT_STARTED until its T013 dependency and T007 shared-identity work are completed and reviewed.
+
 ## Outcome
 
 Bind the approved profile, period, book decision, chart, dimensions and policy into one exact context.
@@ -32,6 +34,7 @@ Bind the approved profile, period, book decision, chart, dimensions and policy i
 
 Hard dependencies must be COMPLETED, with reviewed handoff evidence:
 
+- [T007 — Enforce reporting scope, current actor and shared identities](../02_Shared_Foundation/auditsphere-r2r-task-t007-reporting-scope-actor-shared-identities.md)
 - [T013 — Build multidimensional accounting schema revisions](auditsphere-r2r-task-t013-multidimensional-accounting-schema-revisions.md)
 
 **Shared file ownership:** the coordinator serializes migrations, DbContext snapshots, public DTOs and shared policy edits. A task owns only the requests listed below; consume other requests through their owner.
@@ -46,7 +49,7 @@ Hard dependencies must be COMPLETED, with reviewed handoff evidence:
 
 ## Sequential work
 
-1. Validate ContextBindingDto against real server-owned records and the current engagement/acceptance/hold contract.
+1. After T013 and T007 are complete, validate ContextBindingDto against real server-owned records and the current engagement/acceptance/hold contract, following ADR-0015.
 2. Persist immutable context pins and their currentness; never infer missing bindings from screen labels.
 3. Connect ReportingContextSelector, scope/currentness banners and change-impact preview to every setup panel.
 4. Verify the complete setup-to-import handoff. Record the close-related Module 20 criteria as deferred to the already scheduled close tasks, not completed now.
@@ -93,9 +96,9 @@ Use predecessor outputs by exact identity/revision/manifest, not by selecting a 
 
 - [Module 20: exact producer/consumer boundaries](../../modules/auditsphere-r2r-module-20-accounting-workspace-contract.md#lineage)
 
-## 5. Blazor UI Architecture (`.Web`)
+## 5. Angular UI Architecture (`.Ui`)
 
-Extend the source-listed existing routes before adding a parallel workspace. Use immutable DTOs in per-circuit scoped UI state, separate EditContexts, EventCallbacks, server field errors and save/discard/cancel dirty guards. No circuit-owned DbContext, cross-user static state, optimistic approval or fake completion. Recheck selection tokens and clear protected content on route/scope loss.
+Implement only the canonical Angular route and use the same-origin API contract with server-computed capabilities. Keep business mutations in named Application operations; clear protected context content on route or session-scope loss. ADR-0002 keeps the Blazor host as rollback/reference and forbids new parallel feature screens there.
 
 - [Module 20: required component tree, state and forms](../../modules/auditsphere-r2r-module-20-accounting-workspace-contract.md#blazor)
 

@@ -1,6 +1,6 @@
 # ADR-0002: Angular is the canonical UI; Blazor Web is a rollback host
 
-**Status: PROPOSED** (retroactive record) · Date recorded: 2026-10-08 · Decider: repository owner
+**Status: APPROVED** (owner-delegated approval recorded 2026-10-10) · Date recorded: 2026-10-08 · Decider: repository owner (authority delegated 2026-10-10)
 
 ## Context
 The STE specification header names "Blazor Interactive Server" as the presentation technology. The owner later requested an Angular presentation layer served by `AuditSphereOps.Api`. The Web project was deleted prematurely in `59387b54`, then restored because source-action parity and retirement acceptance were still open (see `docs/architecture/auditsphere-angular-migration-current.md`).

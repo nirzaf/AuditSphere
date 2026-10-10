@@ -19,7 +19,7 @@ const gate = obj({ state: text, detail: text });
 export const decodeRelease = obj({ id: guid, status: text, targetKind: text, targetRevision: int, revision: int, manifestDigest: text, createdAt: instant,
   checkpoint: gate, attestation: gate, lineage: gate, preflightReady: bool });
 export const decodeArchive = obj({ id: guid, engagementId: guid, status: text, createdAt: instant, profileId: text, profileVersion: int, manifestVersion: nullable(int),
-  manifestDigest: nullable(text), completenessStatus: nullable(text), completenessException: nullable(text),
+  manifestStatus: nullable(text), manifestDigest: nullable(text), completenessStatus: nullable(text), completenessException: nullable(text),
   entries: arr(obj({ ordinal: int, entryKind: text, relativeName: text, contentHash: text, byteCount: int }), 100), totalEntryCount: nat, nextOrdinal: nullable(int), activeHoldCount: nat,
   observedProtection: nullable(text), desiredLabel: nullable(text), observedLabel: nullable(text), actionState: nullable(text), externalReference: nullable(text) });
 const sum = (rows: { reviewedTestCount: number }[]) => rows.reduce((n, r) => n + r.reviewedTestCount, 0);
@@ -224,6 +224,13 @@ export class ReleaseCandidate {
           <dt>Manifest hash</dt><dd><code>{{ a.manifestDigest ?? 'Not built' }}</code></dd><dt>Active holds</dt><dd>{{ a.activeHoldCount }}</dd></dl>
         @if (a.completenessStatus === 'INCOMPLETE') { <p role="alert">Manifest incomplete: {{ a.completenessException }}</p> }
         @if (a.actionState === 'REQUESTED') { <p>Records action requested; this is not evidence of Purview protection.</p> }</section>
+      @if (a.manifestStatus === 'REVIEWED' && a.completenessStatus === 'COMPLETE') {
+        <section class="panel" aria-labelledby="archive-export"><h2 id="archive-export">Read-only archive export</h2>
+          <p>The export contains the reviewed structured snapshot and full manifest index. External document bytes remain in their source repository and are represented by references and SHA-256 hashes.</p>
+          <a mat-stroked-button [href]="'/api/ui/records/archives/' + a.id + '/export'">Download read-only evidence export</a>
+          <p><small>Provider protection remains separate; an export does not claim external immutability.</small></p>
+        </section>
+      }
       <section class="panel" aria-labelledby="archive-contents"><h2 id="archive-contents">Archive contents</h2>
         <p role="status">Showing {{ visibleEntries(a).length }} of {{ a.totalEntryCount }} entries.</p>
         <div class="table-scroll"><table><thead><tr><th scope="col">Index</th><th scope="col">Kind</th><th scope="col">Source</th><th scope="col">Hash</th><th scope="col" class="number">Bytes</th></tr></thead>

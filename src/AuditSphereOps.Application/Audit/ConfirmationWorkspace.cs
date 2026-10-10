@@ -15,7 +15,8 @@ public sealed record ConfirmationRow(Guid Id, string AreaCode, string SourceReco
   string Currency, DateOnly ConfirmationDate, string Status, DateTimeOffset? DispatchedAt, string Monitoring,
   bool Critical, string? CriticalityRationale, Guid OwnerId);
 public sealed record ConfirmationPage(Guid EngagementId, int Page, bool HasMore, int OutstandingCritical, string CreateReviewToken,
-  bool CanPrepare, bool CanReview, bool CanSetCriticality, IReadOnlyList<ConfirmationRow> Items);
+  bool CanPrepare, bool CanReview, bool CanSetCriticality, IReadOnlyList<ConfirmationRow> Items,
+  IReadOnlyList<string> AreaCodes);
 public sealed record ConfirmationResponseView(Guid Id, string Revision, string Origin, string Channel, string Reference,
   decimal? ConfirmedAmount, decimal? DifferenceAmount, string AuthenticityAssessment, string Decision, DateTimeOffset ReceivedAt,
   bool PreparedByMe, Guid? ReviewerId, DateTimeOffset? ReviewedAt);
@@ -58,7 +59,8 @@ public static partial class ConfirmationWorkspace
     var result=new List<ConfirmationRow>();foreach(var c in rows.Take(25))result.Add(await Row(db,c,ct));
     var token=await CreateToken(db,a,engagement,ct);var prepare=(await Auth(db,a,engagement,PrepareRoles,true,ct)).Succeeded;var review=(await Auth(db,a,engagement,ReviewRoles,true,ct)).Succeeded;
     if(!(await Auth(db,a,engagement,ReadRoles,false,ct)).Succeeded)return Denied<ConfirmationPage>();
-    return CommandResult<ConfirmationPage>.Ok(new(engagement,page,rows.Count>25,outstanding,token,prepare,review,(await Auth(db,a,engagement,["Manager","Partner","Administrator"],true,ct)).Succeeded,result));
+    return CommandResult<ConfirmationPage>.Ok(new(engagement,page,rows.Count>25,outstanding,token,prepare,review,(await Auth(db,a,engagement,["Manager","Partner","Administrator"],true,ct)).Succeeded,result,
+      AuditConfirmationAreaCodes.All.Order(StringComparer.Ordinal).ToArray()));
   }
   private static async Task<ConfirmationRow> Row(IAuditSphereDbContext db,AuditConfirmationCase c,CancellationToken ct)
   {

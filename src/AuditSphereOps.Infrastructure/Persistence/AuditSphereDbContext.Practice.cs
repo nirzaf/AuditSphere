@@ -127,14 +127,23 @@ public sealed partial class AuditSphereDbContext
     });
     b.Entity<CorrespondenceDispatchRecord>().HasIndex(x => new { x.FirmId, x.PracticeClientId, x.DispatchedAt });
     b.Entity<CorrespondenceDispatchRecord>().HasIndex(x => new { x.FirmId, x.EngagementId });
-    b.Entity<WorkTask>().ToTable("work_tasks", t => t.HasCheckConstraint("ck_work_task_state",
-      "status IN ('OPEN','IN_PROGRESS','COMPLETED','CANCELLED') AND length(title) > 0 AND (engagement_id IS NULL OR client_id IS NOT NULL) AND (reporting_period_id IS NULL OR client_id IS NOT NULL)"));
+    b.Entity<WorkTask>().Property(x => x.FsliCode).HasMaxLength(100);
+    b.Entity<WorkTask>().ToTable("work_tasks", t =>
+    {
+      t.HasCheckConstraint("ck_work_task_state",
+        "status IN ('OPEN','IN_PROGRESS','COMPLETED','CANCELLED') AND length(title) > 0 AND (engagement_id IS NULL OR client_id IS NOT NULL) AND (reporting_period_id IS NULL OR client_id IS NOT NULL)");
+      t.HasCheckConstraint("ck_work_task_fsli_snapshot",
+        "(mapping_version_id IS NULL AND fsli_code IS NULL) OR (mapping_version_id IS NOT NULL AND client_id IS NOT NULL AND engagement_id IS NOT NULL AND fsli_code IS NOT NULL AND length(trim(fsli_code)) > 0)");
+    });
+    b.Entity<TimeEntry>().Property(x => x.FsliCode).HasMaxLength(100);
     b.Entity<TimeEntry>().ToTable("time_entries", t =>
     {
       t.HasCheckConstraint("ck_time_entry_state",
         "status IN ('DRAFT','SUBMITTED','APPROVED','SUPERSEDED') AND revision >= 1 AND start_minute BETWEEN 0 AND 1439 AND duration_minutes BETWEEN 1 AND 1440 AND start_minute + duration_minutes <= 1440");
       t.HasCheckConstraint("ck_time_entry_content",
         "length(role) > 0 AND length(activity) > 0 AND billable_classification IN ('BILLABLE','NON_BILLABLE','NO_CHARGE') AND narrative_visibility IN ('INTERNAL','CLIENT_VISIBLE') AND ((billable_classification = 'BILLABLE' AND rate_card_version_id IS NOT NULL AND rate_per_hour IS NOT NULL AND rate_per_hour >= 0) OR billable_classification <> 'BILLABLE')");
+      t.HasCheckConstraint("ck_time_entry_fsli_snapshot",
+        "(mapping_version_id IS NULL AND fsli_code IS NULL) OR (mapping_version_id IS NOT NULL AND client_id IS NOT NULL AND engagement_id IS NOT NULL AND fsli_code IS NOT NULL AND length(trim(fsli_code)) > 0)");
     });
     b.Entity<RateCardVersion>().ToTable("rate_card_versions", t => t.HasCheckConstraint("ck_rate_card_state",
       "version >= 1 AND length(role) > 0 AND length(activity) > 0 AND currency ~ '^[A-Z]{3}$' AND rate_per_hour >= 0 AND status IN ('DRAFT','APPROVED','SUPERSEDED')"));
@@ -241,6 +250,9 @@ public sealed partial class AuditSphereDbContext
     b.Entity<WorkTask>().HasOne<Engagement>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId })
       .HasPrincipalKey(x => new { x.FirmId, x.PracticeClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<WorkTask>().HasOne<MappingVersion>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.MappingVersionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     b.Entity<WorkTask>().HasOne<ClientReportingPeriod>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.ReportingPeriodId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
@@ -256,6 +268,9 @@ public sealed partial class AuditSphereDbContext
     b.Entity<TimeEntry>().HasOne<Engagement>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId })
       .HasPrincipalKey(x => new { x.FirmId, x.PracticeClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<TimeEntry>().HasOne<MappingVersion>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.MappingVersionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     b.Entity<TimeEntry>().HasOne<AppUser>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.UserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);

@@ -48,18 +48,18 @@ public sealed class EngagementCreationReviewApiTests
   }
 
   [Fact]
-  public async Task EmptyMigrationRollbackReappliesAndRetainedCreationEvidencePreventsRollback()
+  public async Task CurrentSchemaAndRetainedCreationEvidenceCannotBeDowngraded()
   {
     await using var pg=await OwnedPostgresDatabase.CreateAsync("API-CREATION-MIGRATION");var f=await PbcSeed.SeedAsync(pg);
     await using var db=new AuditSphereDbContext(pg.Options);await EngagementCreationReviewSeed.PopulateAsync(db,f);
     var migrations=db.Database.GetMigrations().ToArray();var index=Array.FindIndex(migrations,x=>x.EndsWith("_NativeEngagementCreationReview",StringComparison.Ordinal));Assert.True(index>0);
-    var migrator=db.GetService<IMigrator>();await migrator.MigrateAsync(migrations[index-1]);Assert.DoesNotContain(migrations[index],await db.Database.GetAppliedMigrationsAsync());
-    Assert.Single(await db.Engagements.ToListAsync());await migrator.MigrateAsync();Assert.Empty(await db.EngagementCreations.ToListAsync());
+    Assert.Contains(migrations[index],await db.Database.GetAppliedMigrationsAsync());
+    Assert.Empty(await db.EngagementCreations.ToListAsync());
     var a=PbcSeed.Actor(f.Staff,"Manager");var state=(await EngagementCreationWorkspace.StateAsync(db,a,f.ClientId)).Value!;
     var r=new EngagementCreationRequest(Guid.NewGuid(),state.ReviewBasis,new("AccountingOnly","SYNTHETIC","2027-01-01","2027-12-31"));
     var preview=(await EngagementCreationWorkspace.PreviewAsync(db,a,f.ClientId,r)).Value!;
     var created=await EngagementCreationWorkspace.ExecuteAsync(db,a,f.ClientId,r with{Reviewed=true,ExpectedRequestHash=preview.RequestHash});Assert.True(created.Succeeded,created.Message);
-    await Assert.ThrowsAsync<PostgresException>(()=>migrator.MigrateAsync(migrations[index-1]));
+    await PermanentFileFreezeMigrationAssertions.AssertDowngradeBlockedAsync(db,"_NativeEngagementCreationReview");
     Assert.Single(await db.EngagementCreations.ToListAsync());Assert.Equal(2,await db.Engagements.CountAsync());Assert.Contains(migrations[index],await db.Database.GetAppliedMigrationsAsync());
   }
   private static StandaloneApiApplicationFactory Factory(OwnedPostgresDatabase pg,AuditSphereOps.Domain.Security.AppUser u)=>new(new Dictionary<string,string?>{["ConnectionStrings:AuditSphere"]=pg.ConnectionString,["DevelopmentIdentity:Enabled"]="true",["DevelopmentIdentity:Subject"]=u.Subject,["DevelopmentIdentity:TenantId"]=u.TenantId,["Application:AllowSimulationAdapters"]="true",["ExternalEffects:Enabled"]="false"});

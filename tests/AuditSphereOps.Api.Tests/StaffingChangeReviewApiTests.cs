@@ -23,8 +23,8 @@ public sealed class StaffingChangeReviewApiTests
     {
       var migrations = db.Database.GetMigrations().ToArray();
       var index = Array.FindIndex(migrations, x => x.EndsWith("_NativeStaffingChangeReview", StringComparison.Ordinal));
-      Assert.True(index > 0); await db.GetService<IMigrator>().MigrateAsync(migrations[index - 1]);
-      await db.GetService<IMigrator>().MigrateAsync();
+      Assert.True(index > 0);
+      Assert.Contains(migrations[index], await db.Database.GetAppliedMigrationsAsync());
     }
     using var factory = new StandaloneApiApplicationFactory(new Dictionary<string, string?> {
       ["ConnectionStrings:AuditSphere"] = pg.ConnectionString, ["DevelopmentIdentity:Enabled"] = "true",
@@ -49,8 +49,7 @@ public sealed class StaffingChangeReviewApiTests
     Assert.Equal(HttpStatusCode.Forbidden, (await c.GetAsync("/api/ui/engagements/" + foreign.EngagementId + "/staffing-change/receipts/" + r.RequestId + "?requestHash=" + p.RequestHash)).StatusCode);
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      var migrations = db.Database.GetMigrations().ToArray(); var index = Array.FindIndex(migrations, x => x.EndsWith("_NativeStaffingChangeReview", StringComparison.Ordinal));
-      await Assert.ThrowsAsync<PostgresException>(() => db.GetService<IMigrator>().MigrateAsync(migrations[index - 1]));
+      await PermanentFileFreezeMigrationAssertions.AssertDowngradeBlockedAsync(db, "_NativeStaffingChangeReview");
       Assert.Single(await db.StaffingChanges.ToListAsync());
       await db.RoleGrants.Where(x => x.UserId == f.Admin.Id).ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow));
     }

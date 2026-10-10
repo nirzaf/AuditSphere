@@ -352,6 +352,10 @@ This is an explicit recorded variation, not a silent omission. The transaction-o
 
 | R2R-ADR-10 | Capability-to-role mappings | Explicit professional grants and person-based independence; no implicit Partner promotion on group creation. |
 
+**Current disposition (2026-10-10):** This table preserves the original architecture proposals; current decisions are governed by the repository ADR register and `AGENTS.md`. ADR-0001 declines the proposed MediatR/bUnit migration and retains static capability services. ADR-0002 records Angular as canonical and Blazor as rollback. ADR-0005 records the Purview/eSignature exclusions. ADR-0009 keeps the release store authoritative and SharePoint as a working copy. ADR-0014 records the existing six-decimal/ToEven implementation convention for the technical portion of R2R-ADR-03.
+
+The qualified-methodology decisions are **not approved by this technical disposition**: supported framework editions and consolidation methods (R2R-ADR-04 and R2R-ADR-09), FX policy beyond the existing numeric convention (R2R-ADR-03), and the eight GOLD-R2R expected outcomes remain blocked in T003 until a qualified methodology owner and independent reviewer approve them. ADR-0015 resolves T014's technical context-identity rule, but T014 implementation remains gated by T013 and T007. G16 period-end open-item classification and carrying-amount methodology still requires qualified accounting approval before any automated open-item remeasurement is enabled.
+
 
 
 

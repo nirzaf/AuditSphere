@@ -11,16 +11,27 @@ namespace AuditSphereOps.Domain.Tests;
 public sealed partial class ClientAccountingTests
 {
   [Fact]
-  public async Task ManualSettlementMigrationDownRestoresGenericControlGuard()
+  public async Task CurrentSettlementSchemaRetainsItsGuardAndPermanentFreezeBlocksDowngrade()
   {
     await using var pg = await PgTestSchema.CreateAsync();
     await using var db = new AuditSphereDbContext(pg.Options);
-    await db.GetService<IMigrator>().MigrateAsync("20261007144624_ClientOpenItemAllocations");
+    var migrations = db.Database.GetMigrations().ToArray();
+    var settlementIndex = Array.FindIndex(migrations, x => x.EndsWith("_ClientOpenItemAllocations", StringComparison.Ordinal));
+    Assert.True(settlementIndex > 0);
+    Assert.Contains(migrations[settlementIndex], await db.Database.GetAppliedMigrationsAsync());
     var tableCount = await db.Database.SqlQuery<int>($"SELECT count(*)::int AS \"Value\" FROM information_schema.tables WHERE table_schema=current_schema() AND table_name='client_manual_settlement_origins'").SingleAsync();
-    Assert.Equal(0, tableCount);
+    Assert.Equal(1, tableCount);
     var guard = await db.Database.SqlQuery<string>($"SELECT pg_get_functiondef('guard_client_generic_control_post()'::regprocedure) AS \"Value\"").SingleAsync();
-    Assert.DoesNotContain("client_manual_settlement_origins", guard, StringComparison.Ordinal);
+    Assert.Contains("client_manual_settlement_origins", guard, StringComparison.Ordinal);
     Assert.Contains("client_purchase_invoice_submissions", guard, StringComparison.Ordinal);
+
+    var freezeIndex = Array.FindIndex(migrations, x => x.EndsWith("_PermanentFileFreeze", StringComparison.Ordinal));
+    Assert.True(freezeIndex > 0);
+    var refusal = await Assert.ThrowsAsync<PostgresException>(() =>
+      db.GetService<IMigrator>().MigrateAsync(migrations[freezeIndex - 1]));
+    Assert.Equal(PostgresErrorCodes.RaiseException, refusal.SqlState);
+    Assert.Equal("PermanentFileFreeze is a compliance safety boundary and cannot be downgraded automatically.", refusal.MessageText);
+    Assert.Contains(migrations[freezeIndex], await db.Database.GetAppliedMigrationsAsync());
   }
 
   [Fact]

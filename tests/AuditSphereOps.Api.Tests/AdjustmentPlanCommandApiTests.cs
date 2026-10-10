@@ -60,21 +60,18 @@ public sealed class AdjustmentPlanCommandApiTests
     await Assert.ThrowsAsync<PostgresException>(()=>verify.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM adjustment_plans WHERE id={planId}"));
     Assert.True((await SourceReconciliationService.ResolveAsync(verify,PbcSeed.Actor(f.Reviewer,"AccountingReviewer"),s.SourceId,"AJ-SYN",1,ReflectionStates.Reflected,"Changed synthetic exact bridge")).Succeeded);
     var stale = await Read(c,PlanUrl(planId)); Assert.Equal(1,stale.GetProperty("blockedCount").GetInt32()); Assert.Equal(saved.GetProperty("resultHash").GetString(),stale.GetProperty("resultHash").GetString());
-    await Assert.ThrowsAsync<PostgresException>(() => verify.GetService<IMigrator>().MigrateAsync("20261002232511_NativeJournalManagementEvidence"));
+    await PermanentFileFreezeMigrationAssertions.AssertDowngradeBlockedAsync(verify,"_NativeAdjustmentPlanEvidence");
     Assert.Equal(2, await verify.AdjustmentPlanActions.CountAsync());
     Assert.Contains("20261003004940_NativeAdjustmentPlanEvidence", await verify.Database.GetAppliedMigrationsAsync());
   }
   [Fact]
-  public async Task EmptyNativeEvidenceMigrationCanRollbackAndReapplyWithoutChangingExistingSource()
+  public async Task CurrentNativeEvidenceSchemaCannotBeDowngradedOrChangeExistingSource()
   {
     await using var pg = await OwnedPostgresDatabase.CreateAsync("API-PLAN-COMMAND-MIGRATION");
     var (f,s) = await Seed(pg);
     await using var db = new AuditSphereDbContext(pg.Options);
-    var migrator = db.GetService<IMigrator>();
-    await migrator.MigrateAsync("20261002232511_NativeJournalManagementEvidence");
-    Assert.DoesNotContain("20261003004940_NativeAdjustmentPlanEvidence", await db.Database.GetAppliedMigrationsAsync());
+    await PermanentFileFreezeMigrationAssertions.AssertDowngradeBlockedAsync(db,"_NativeAdjustmentPlanEvidence");
     Assert.Equal(100.123456m, await db.TrialBalanceRows.Where(r=>r.DatasetId==s.SourceId && r.Amount>0).SumAsync(r=>r.Amount));
-    await migrator.MigrateAsync();
     Assert.Empty(await db.AdjustmentPlanActions.ToListAsync());
     Assert.Single(await db.AdjustmentPlans.ToListAsync());
     Assert.Equal(f.FirmId, await db.AdjustmentPlans.Select(p=>p.FirmId).SingleAsync());

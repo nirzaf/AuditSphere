@@ -4,13 +4,15 @@ import { MatButtonModule } from '@angular/material/button';
 import { RouterLink } from '@angular/router';
 import { Api, CommandState } from '../../core/api';
 import { Drafts } from '../../core/drafts';
-import { arr, bool, date, guid, nat, obj, text } from '../../core/decode';
+import { arr, bool, date, guid, nat, nullable, obj, str, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
 
 const entry = obj({ id: guid, workDate: date, taskId: guid, taskTitle: text, userId: guid, durationMinutes: nat, activity: text,
-  billableClassification: text, narrative: text, status: text });
+  billableClassification: text, narrative: text, status: text, mappingVersionId: nullable(guid), fsliCode: nullable(str(100)) });
+const taskOption = obj({ id: guid, title: text, status: text, mappingVersionId: nullable(guid), fsliCode: nullable(str(100)) });
 export const decodeTime = obj({ firmWide: bool, isApprover: bool, periods: arr(obj({ id: guid, clientId: guid, label: text }), 5000),
-  openTasks: arr(obj({ id: guid, title: text, status: text }), 5000), myEntries: arr(entry, 500), awaitingApproval: arr(entry, 500) });
+  engagements: arr(obj({ id: guid, clientId: guid, label: text, mappingVersionId: nullable(guid), fsliCodes: arr(str(100), 2000) }), 5000),
+  openTasks: arr(taskOption, 5000), myEntries: arr(entry, 500), awaitingApproval: arr(entry, 500) });
 
 @Component({
   selector: 'audit-practice-time',
@@ -23,12 +25,22 @@ export const decodeTime = obj({ firmWide: bool, isApprover: bool, periods: arr(o
       <p role="status">{{ v.openTasks.length }} open tasks in scope · {{ v.myEntries.length }} of my time entries shown{{ v.isApprover ? ' · ' + v.awaitingApproval.length + ' awaiting my review' : '' }}</p>
       <section class="panel" aria-labelledby="task-heading">
         <h2 id="task-heading">Create work task</h2>
-        <p>Link an optional accounting period when the task belongs to a client reporting workflow. Due dates are optional and are never inferred.</p>
+        <p>Scope a task to an authorized client period or engagement. Engagement tasks can optionally pin a destination from the current approved FSLI mapping; the exact mapping and code are copied to time entries. Due dates are never inferred.</p>
         <form class="inline-form" (submit)="$event.preventDefault(); createTask()">
           <label>Task title <input name="title" [(ngModel)]="task.title" (ngModelChange)="touchTask()" required maxlength="200" autocomplete="off" /></label>
           <label>Reporting period (optional) <select name="period" [(ngModel)]="task.period" (ngModelChange)="touchTask()">
             <option value="" [disabled]="!v.firmWide">No period link (firm-wide task)</option>
             @for (p of v.periods; track p.id) { <option [value]="p.id">{{ p.label }}</option> }</select></label>
+          <label>Engagement (optional) <select name="engagement" [(ngModel)]="task.engagement" (ngModelChange)="engagementChanged()">
+            <option value="">No engagement link</option>
+            @for (e of v.engagements; track e.id) { <option [value]="e.id">{{ e.label }}</option> }</select></label>
+          @if (selectedEngagement(); as engagement) {
+            <label>FSLI mapping (optional) <select name="fsli" [(ngModel)]="task.fsli" (ngModelChange)="touchTask()">
+              <option value="">No FSLI attribution</option>
+              @for (code of engagement.fsliCodes; track code) { <option [value]="code">{{ code }}</option> }
+            </select></label>
+            @if (!engagement.mappingVersionId) { <p role="status">No approved mapping is available for this engagement. FSLI attribution remains unavailable.</p> }
+          }
           <label>Due date (optional) <input type="date" name="due" [(ngModel)]="task.due" (ngModelChange)="touchTask()" /></label>
           <button matButton="filled" type="submit" [disabled]="cmd.busy()">Create task</button>
         </form>
@@ -38,7 +50,7 @@ export const decodeTime = obj({ firmWide: bool, isApprover: bool, periods: arr(o
         @if (!v.openTasks.length) { <p>No open tasks are currently available to book time against. Create or assign an open task first.</p> }
         @else {
           <form class="inline-form" (submit)="$event.preventDefault(); saveDraft()">
-            <label>Work task <select name="task" [(ngModel)]="draft.task" (ngModelChange)="touchDraft()" required>@for (t of v.openTasks; track t.id) { <option [value]="t.id">{{ t.title }} ({{ t.status }})</option> }</select></label>
+            <label>Work task <select name="task" [(ngModel)]="draft.task" (ngModelChange)="touchDraft()" required>@for (t of v.openTasks; track t.id) { <option [value]="t.id">{{ t.title }} ({{ t.status }}){{ t.fsliCode ? ' · FSLI ' + t.fsliCode + ' · map ' + (t.mappingVersionId ?? '').slice(0, 8) : '' }}</option> }</select></label>
             <label>Date <input type="date" name="date" [(ngModel)]="draft.date" (ngModelChange)="touchDraft()" required /></label>
             <label>Duration (minutes) <input type="number" name="minutes" min="15" step="15" [(ngModel)]="draft.minutes" (ngModelChange)="touchDraft()" required /></label>
             <label>Role <input name="role" [(ngModel)]="draft.role" (ngModelChange)="touchDraft()" placeholder="Staff, Manager, Partner" required /></label>
@@ -53,12 +65,12 @@ export const decodeTime = obj({ firmWide: bool, isApprover: bool, periods: arr(o
         <h2 id="my-time-heading">My recorded time</h2>
         <div class="table-scroll"><table>
           <caption>My recorded time entries</caption>
-          <thead><tr><th scope="col">Date</th><th scope="col">Task</th><th scope="col">Duration</th><th scope="col">Classification</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+          <thead><tr><th scope="col">Date</th><th scope="col">Task</th><th scope="col">FSLI / approved mapping</th><th scope="col">Duration</th><th scope="col">Classification</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
           <tbody>@for (e of v.myEntries; track e.id) {
-            <tr><td>{{ e.workDate }}</td><td>{{ e.taskTitle }}</td><td>{{ e.durationMinutes }}m ({{ (e.durationMinutes / 60).toFixed(1) }}h)</td><td>{{ e.billableClassification }}</td>
+            <tr><td>{{ e.workDate }}</td><td>{{ e.taskTitle }}</td><td>{{ e.fsliCode ?? '—' }}@if (e.mappingVersionId) { <small> · <code>{{ e.mappingVersionId }}</code></small> }</td><td>{{ e.durationMinutes }}m ({{ (e.durationMinutes / 60).toFixed(1) }}h)</td><td>{{ e.billableClassification }}</td>
               <td><audit-status [value]="e.status" /></td>
               <td>@if (e.status === 'DRAFT') { <button matButton (click)="act(e.id, 'submit', 'Time entry was submitted for approval.')" [disabled]="cmd.busy()">Submit</button> }</td></tr>
-          } @empty { <tr><td colspan="6">You have not recorded any time entries in the current firm scope.</td></tr> }</tbody>
+          } @empty { <tr><td colspan="7">You have not recorded any time entries in the current firm scope.</td></tr> }</tbody>
         </table></div>
       </section>
       <section class="panel" aria-labelledby="rates-heading">
@@ -71,11 +83,11 @@ export const decodeTime = obj({ firmWide: bool, isApprover: bool, periods: arr(o
           <p>Independent approval segregation: managers and partners cannot approve their own time entries.</p>
           <div class="table-scroll"><table>
             <caption>Time entries awaiting my approval</caption>
-            <thead><tr><th scope="col">Date</th><th scope="col">Staff user</th><th scope="col">Task</th><th scope="col">Duration</th><th scope="col">Activity</th><th scope="col">Narrative</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
+            <thead><tr><th scope="col">Date</th><th scope="col">Staff user</th><th scope="col">Task</th><th scope="col">FSLI / approved mapping</th><th scope="col">Duration</th><th scope="col">Activity</th><th scope="col">Narrative</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
             <tbody>@for (e of v.awaitingApproval; track e.id) {
-              <tr><td>{{ e.workDate }}</td><td><code>{{ e.userId }}</code></td><td>{{ e.taskTitle }}</td><td>{{ e.durationMinutes }}m</td><td>{{ e.activity }}</td><td>{{ e.narrative }}</td>
+              <tr><td>{{ e.workDate }}</td><td><code>{{ e.userId }}</code></td><td>{{ e.taskTitle }}</td><td>{{ e.fsliCode ?? '—' }}@if (e.mappingVersionId) { <small> · <code>{{ e.mappingVersionId }}</code></small> }</td><td>{{ e.durationMinutes }}m</td><td>{{ e.activity }}</td><td>{{ e.narrative }}</td>
                 <td><button matButton="filled" (click)="act(e.id, 'approve', 'Time entry was approved.')" [disabled]="cmd.busy()">Approve</button></td></tr>
-            } @empty { <tr><td colspan="7">No pending submitted time entries awaiting approval.</td></tr> }</tbody>
+            } @empty { <tr><td colspan="8">No pending submitted time entries awaiting approval.</td></tr> }</tbody>
           </table></div>
         </section>
       }
@@ -88,7 +100,7 @@ export class PracticeTime {
   private readonly drafts = inject(Drafts);
   readonly view = this.api.resource(() => '/api/ui/practice/time', decodeTime, 'Sign in with an authorized internal staff identity to view and record time.');
   readonly cmd = new CommandState(this.api);
-  task = { title: '', period: '', due: '' };
+  task = { title: '', period: '', engagement: '', fsli: '', due: '' };
   draft = { task: '', date: new Date().toISOString().slice(0, 10), minutes: 60, role: 'Staff', activity: 'Fieldwork', billable: true, narrative: '' };
   private taskTimer?: ReturnType<typeof setTimeout>;
   private draftTimer?: ReturnType<typeof setTimeout>;
@@ -96,7 +108,8 @@ export class PracticeTime {
     if (!value || typeof value !== 'object') return null;
     const v = value as Record<string, unknown>;
     return typeof v['title'] === 'string' && v['title'].length <= 200 && typeof v['period'] === 'string' &&
-      typeof v['due'] === 'string' ? { title: v['title'], period: v['period'], due: v['due'] } : null;
+      typeof v['engagement'] === 'string' && typeof v['fsli'] === 'string' && typeof v['due'] === 'string'
+      ? { title: v['title'], period: v['period'], engagement: v['engagement'], fsli: v['fsli'], due: v['due'] } : null;
   }
   private static validDraft(value: unknown): PracticeTime['draft'] | null {
     if (!value || typeof value !== 'object') return null;
@@ -118,6 +131,13 @@ export class PracticeTime {
     clearTimeout(this.taskTimer);
     this.taskTimer = setTimeout(() => this.drafts.save('practice-task', this.task), 800);
   }
+  selectedEngagement() {
+    return this.view.data()?.engagements.find((x) => x.id === this.task.engagement) ?? null;
+  }
+  engagementChanged(): void {
+    this.task.fsli = '';
+    this.touchTask();
+  }
   touchDraft(): void {
     clearTimeout(this.draftTimer);
     this.draftTimer = setTimeout(() => this.drafts.save('practice-time-draft', this.draft), 800);
@@ -125,8 +145,11 @@ export class PracticeTime {
 
   private reload = () => this.view.reload();
   createTask(): void {
-    this.cmd.run('/api/ui/practice/time/tasks', { title: this.task.title, reportingPeriodId: this.task.period || null, dueDate: this.task.due || null },
-      'Work task created.', () => { this.task = { title: '', period: '', due: '' }; this.drafts.clear('practice-task'); }).finally(this.reload);
+    const engagement = this.selectedEngagement();
+    this.cmd.run('/api/ui/practice/time/tasks', { title: this.task.title, reportingPeriodId: this.task.period || null,
+      dueDate: this.task.due || null, engagementId: engagement?.id ?? null,
+      mappingVersionId: this.task.fsli ? engagement?.mappingVersionId ?? null : null, fsliCode: this.task.fsli || null },
+      'Work task created.', () => { this.task = { title: '', period: '', engagement: '', fsli: '', due: '' }; this.drafts.clear('practice-task'); }).finally(this.reload);
   }
   saveDraft(): void {
     const taskId = this.draft.task || this.view.data()?.openTasks[0]?.id;

@@ -27,8 +27,7 @@ public sealed class TenantSetupMetadataApiTests
       var migrations = db.Database.GetMigrations().ToArray();
       var index = Array.FindIndex(migrations, x => x.EndsWith("_NativeTenantSetupMetadataReceipts", StringComparison.Ordinal));
       Assert.True(index > 0);
-      await db.GetService<IMigrator>().MigrateAsync(migrations[index - 1]);
-      await db.GetService<IMigrator>().MigrateAsync();
+      Assert.Contains(migrations[index], await db.Database.GetAppliedMigrationsAsync());
       var now = DateTimeOffset.UtcNow;
       db.Microsoft365SetupSessions.Add(new() { Id=sessionId, FirmId=f.FirmId, InstallationId="synthetic-api-setup",
         BootstrapProofHash=new string('a',64), CapabilityHash=new string('b',64), ClaimedByUserId=f.Admin.Id,
@@ -79,9 +78,7 @@ public sealed class TenantSetupMetadataApiTests
         var refusal=await Assert.ThrowsAsync<PostgresException>(()=>mutation.ExecuteNonQueryAsync());
         Assert.Equal("55000",refusal.SqlState);
       }
-      var migrations=db.Database.GetMigrations().ToArray();
-      var index=Array.FindIndex(migrations,x=>x.EndsWith("_NativeTenantSetupMetadataReceipts",StringComparison.Ordinal));
-      await Assert.ThrowsAsync<PostgresException>(()=>db.GetService<IMigrator>().MigrateAsync(migrations[index-1]));
+      await PermanentFileFreezeMigrationAssertions.AssertDowngradeBlockedAsync(db,"_NativeTenantSetupMetadataReceipts");
       Assert.Single(await db.Microsoft365AdministrationEvents.Where(x=>x.SetupRequestId==request.RequestId).ToListAsync());
       await db.Users.Where(x=>x.Id==f.Admin.Id).ExecuteUpdateAsync(x=>x.SetProperty(u=>u.SessionEpoch,u=>u.SessionEpoch+1));
     }

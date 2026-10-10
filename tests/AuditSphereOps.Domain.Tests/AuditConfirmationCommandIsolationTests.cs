@@ -11,6 +11,32 @@ namespace AuditSphereOps.Domain.Tests;
 [Trait("Profile", "Database")]
 public sealed class AuditConfirmationCommandIsolationTests
 {
+  [Fact(DisplayName = "Legal is a confirmation category, not an audit-program section, and unsupported categories fail closed")]
+  public async Task ConfirmationTaxonomy_KeepsLegalSeparateAndRejectsUnknownCategories()
+  {
+    Assert.Equal(18, AuditAreaCodes.All.Count);
+    Assert.DoesNotContain(AuditConfirmationAreaCodes.Legal, AuditAreaCodes.All);
+    Assert.True(AuditConfirmationAreaCodes.IsSupported(" legal "));
+    Assert.False(AuditConfirmationAreaCodes.IsSupported("LEGAL_SERVICES"));
+
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PlanningSeed.CreateAsync(pg, role: "Partner");
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var legal = await AuditFieldworkService.CreateConfirmationAsync(db, fixture.Primary.Actor,
+      new CreateConfirmationRequest(fixture.Primary.EngagementId, null, AuditConfirmationAreaCodes.Legal,
+        "legal-confirmation-001", 0m, "QAR", new DateOnly(2026, 10, 9), "Synthetic legal contact",
+        "Synthetic approved contact register"));
+    Assert.True(legal.Succeeded, legal.Message);
+
+    var unsupported = await AuditFieldworkService.CreateConfirmationAsync(db, fixture.Primary.Actor,
+      new CreateConfirmationRequest(fixture.Primary.EngagementId, null, "LEGAL_SERVICES",
+        "unsupported-confirmation-001", 0m, "QAR", new DateOnly(2026, 10, 9), "Synthetic legal contact",
+        "Synthetic approved contact register"));
+    Assert.False(unsupported.Succeeded);
+    Assert.Equal(ErrorCodes.AuditPlanning.Invalid, unsupported.ErrorCode);
+    Assert.Equal(1, await db.AuditConfirmationCases.CountAsync(x => x.EngagementId == fixture.Primary.EngagementId));
+  }
+
   [Fact(DisplayName = "Client-scoped confirmation commands cannot create or mutate sibling client records by identifier")]
   public async Task SiblingClientIds_AreDeniedAcrossConfirmationLifecycle()
   {

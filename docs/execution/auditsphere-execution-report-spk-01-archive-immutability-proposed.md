@@ -1,6 +1,6 @@
 # SPK-01 — Making the ISA 230 archive actually immutable
 
-**Status: PROPOSED.** Written finding for spike SPK-01 (time box 3 days). It is based on the repository's ADRs, the client SharePoint design and the capability model. No live tenant was used, so none of the provider behaviour below is observed. The recommendation needs the owner's decision and the draft ADR-0009 (`PROPOSED`).
+**Status: DECISION RECORDED; PROVIDER ACCEPTANCE BLOCKED_EXTERNAL.** Written finding for spike SPK-01 (time box 3 days). ADR-0009 now accepts the release/archive store as authoritative and SharePoint as a working copy under the owner's delegated project decision dated 2026-10-10. No live tenant was used for this report, so provider behaviour is not observed; STE-NXT-011's selected read-only-copy implementation and provider readback remain separate work.
 
 ## 1. The problem, from the repository
 

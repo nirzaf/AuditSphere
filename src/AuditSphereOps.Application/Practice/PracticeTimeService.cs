@@ -1,6 +1,7 @@
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
+using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
@@ -17,7 +18,9 @@ public sealed record CreateTaskRequest(
   Guid? ReportingPeriodId = null,
   DateOnly? DueDate = null,
   string? Phase = null,
-  string? RiskArea = null);
+  string? RiskArea = null,
+  Guid? MappingVersionId = null,
+  string? FsliCode = null);
 
 public sealed record SaveTimeDraftRequest(
   Guid TaskId,
@@ -82,6 +85,10 @@ public static class PracticeTimeService
       return CommandResult<Guid>.Fail("time.invalid", "An engagement task requires its client scope.");
     if (PhaseError(request.Phase, request.RiskArea) is { } phaseError)
       return CommandResult<Guid>.Fail("time.invalid", phaseError);
+    var hasMappingVersion = request.MappingVersionId.HasValue;
+    var hasFsliCode = !string.IsNullOrWhiteSpace(request.FsliCode);
+    if (hasMappingVersion != hasFsliCode || (hasMappingVersion && (!request.ClientId.HasValue || !request.EngagementId.HasValue)))
+      return CommandResult<Guid>.Fail("time.invalid", "An FSLI attribution requires an engagement, approved mapping version and destination code together.");
     if (request.ReportingPeriodId.HasValue && !request.ClientId.HasValue)
       return CommandResult<Guid>.Fail("time.invalid", "A reporting-period task requires its client scope.");
     var accountingDb = request.ReportingPeriodId.HasValue ? db as IClientAccountingDbContext : null;
@@ -112,6 +119,25 @@ public static class PracticeTimeService
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var guard = await LockClientAsync(db, actor.FirmId, request.ClientId, ct);
     if (!guard.Succeeded) return CommandResult<Guid>.Fail(guard.ErrorCode!, guard.Message!);
+    MappingVersion? approvedMapping = null;
+    string? fsliCode = null;
+    if (hasMappingVersion)
+    {
+      approvedMapping = await db.MappingVersions.AsNoTracking()
+        .Where(x => x.FirmId == actor.FirmId && x.ClientId == request.ClientId && x.EngagementId == request.EngagementId &&
+          x.Status == AccountingPackageStates.MappingApproved)
+        .OrderByDescending(x => x.ApprovedAt).ThenByDescending(x => x.Version).FirstOrDefaultAsync(ct);
+      if (approvedMapping is null || approvedMapping.Id != request.MappingVersionId)
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Refresh the engagement and select its current approved FSLI mapping.");
+      var requestedCode = request.FsliCode!.Trim();
+      fsliCode = requestedCode.Length is 0 or > 100 ? null : await db.MappingAllocations.AsNoTracking()
+        .Where(x =>
+            x.FirmId == actor.FirmId && x.ClientId == request.ClientId && x.EngagementId == request.EngagementId &&
+            x.MappingVersionId == approvedMapping.Id && x.DestinationCode == requestedCode)
+        .Select(x => x.DestinationCode).FirstOrDefaultAsync(ct);
+      if (fsliCode is null)
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Choose a destination present in the current approved engagement mapping.");
+    }
     if (request.AssigneeUserId.HasValue)
     {
       var assignee = await ValidateAssigneeAsync(db, actor.FirmId, request.AssigneeUserId,
@@ -127,6 +153,7 @@ public static class PracticeTimeService
       Title = request.Title.Trim(), AssigneeUserId = request.AssigneeUserId,
       DueDate = request.DueDate,
       Phase = NormalizePhase(request.Phase), RiskArea = TrimOrNull(request.RiskArea),
+      MappingVersionId = approvedMapping?.Id, FsliCode = fsliCode,
       CreatedAt = DateTimeOffset.UtcNow,
       Status = request.AssigneeUserId.HasValue
         ? PracticeTimeStates.TaskInProgress : PracticeTimeStates.TaskOpen
@@ -208,6 +235,7 @@ public static class PracticeTimeService
       UserId = actor.UserId, WorkDate = request.WorkDate, StartMinute = request.StartMinute,
       DurationMinutes = request.DurationMinutes, Role = request.Role.Trim(), Activity = request.Activity.Trim(),
       Phase = task.Phase, RiskArea = task.RiskArea,
+      MappingVersionId = task.MappingVersionId, FsliCode = task.FsliCode,
       BillableClassification = request.BillableClassification.Trim().ToUpperInvariant(),
       Narrative = request.Narrative.Trim(), NarrativeVisibility = request.NarrativeVisibility.Trim().ToUpperInvariant(),
       RateCardVersionId = rate.Value?.Id, RatePerHour = rate.Value?.RatePerHour,
@@ -317,6 +345,7 @@ public static class PracticeTimeService
       EngagementId = entry.EngagementId, TaskId = entry.TaskId, UserId = entry.UserId,
       WorkDate = request.WorkDate, StartMinute = request.StartMinute, DurationMinutes = request.DurationMinutes,
       Role = entry.Role, Activity = request.Activity.Trim(), Phase = entry.Phase, RiskArea = entry.RiskArea,
+      MappingVersionId = entry.MappingVersionId, FsliCode = entry.FsliCode,
       BillableClassification = entry.BillableClassification,
       Narrative = request.Narrative.Trim(), NarrativeVisibility = request.NarrativeVisibility.Trim().ToUpperInvariant(),
       Currency = entry.Currency,

@@ -21,6 +21,9 @@ public sealed record RecordsProfileResult(Guid ProfileId, string ProfileCode, lo
 public sealed record ArchiveManifestResult(
   Guid ArchiveId, Guid ManifestId, string Status, string Digest, int EntryCount, string CompletenessStatus);
 
+public sealed record ArchiveEvidenceExport(
+  string FileName, byte[] Content, string ContentSha256, string ManifestSha256, string ProviderProtectionState);
+
 public sealed record RequestRecordsActionRequest(Guid ArchiveId, string? ExternalReference);
 
 public sealed record ObserveRecordsActionRequest(
@@ -205,6 +208,109 @@ public static class RecordsArchiveService
     await db.SaveChangesAsync(ct);
     return CommandResult<ArchiveManifestResult>.Ok(new(
       archive.Id, manifest.Id, manifest.Status, manifest.ManifestDigest, manifest.EntryCount, manifest.CompletenessStatus));
+  }
+
+  /// <summary>
+  /// Returns a deterministic read-only export of the latest reviewed local archive snapshot.
+  /// External document bytes are represented by their immutable manifest references and hashes;
+  /// the export never asserts provider-side protection unless the archive reached ARCHIVE_VERIFIED.
+  /// </summary>
+  public static async Task<CommandResult<ArchiveEvidenceExport>> ExportReviewedArchiveAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid archiveId, CancellationToken ct = default)
+  {
+    var authorized = await AuthorizeArchiveAsync(db, actor, archiveId, ct);
+    if (!authorized.Succeeded)
+      return CommandResult<ArchiveEvidenceExport>.Fail(authorized.ErrorCode!, authorized.Message!);
+
+    var archive = authorized.Value!;
+    var manifest = await db.ArchiveManifests.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.ArchiveId == archive.Id)
+      .OrderByDescending(x => x.Version).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+    if (manifest is null || manifest.Status != "REVIEWED" || manifest.CompletenessStatus != "COMPLETE" ||
+        manifest.SupersededByManifestId is not null)
+      return CommandResult<ArchiveEvidenceExport>.Fail(ErrorCodes.GateBlocked,
+        "A complete, current, reviewed archive manifest is required for export.");
+
+    var entries = await db.ArchiveManifestEntries.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.ArchiveManifestId == manifest.Id)
+      .OrderBy(x => x.Ordinal)
+      .Select(x => new
+      {
+        x.Ordinal, x.EntryKind, x.SourceKind, x.SourceId, x.RelativeName, x.ContentHash,
+        x.ByteCount, x.Required, x.MetadataJson
+      }).ToListAsync(ct);
+    if (entries.Count != manifest.EntryCount || entries.Count == 0)
+      return CommandResult<ArchiveEvidenceExport>.Fail(ErrorCodes.GateBlocked,
+        "The reviewed manifest entry count does not match its persisted entries.");
+
+    var entryDigest = JsonSerializer.Serialize(entries.Select(x => new
+    {
+      x.Ordinal, x.EntryKind, x.SourceKind, x.SourceId, x.RelativeName, x.ContentHash,
+      x.ByteCount, x.Required, x.MetadataJson
+    }));
+    if (!string.Equals(Hashing.Sha256Hex(entryDigest), manifest.ManifestDigest, StringComparison.OrdinalIgnoreCase))
+      return CommandResult<ArchiveEvidenceExport>.Fail(ErrorCodes.GateBlocked,
+        "The reviewed manifest digest does not match its persisted entries.");
+
+    var structured = await db.ArchiveStructuredExports.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ArchiveId == archive.Id &&
+        x.ArchiveManifestId == manifest.Id && x.Schema == "records-export.v1", ct);
+    var exportEntry = entries.SingleOrDefault(x => x.EntryKind == "STRUCTURED_EXPORT" &&
+      x.RelativeName == "structured/records-export.v1.json");
+    if (structured is null || exportEntry is null || structured.ByteCount != Encoding.UTF8.GetByteCount(structured.PayloadJson) ||
+        !string.Equals(Hashing.Sha256Hex(Encoding.UTF8.GetBytes(structured.PayloadJson)), structured.ContentHash,
+          StringComparison.OrdinalIgnoreCase) ||
+        !string.Equals(exportEntry.ContentHash, structured.ContentHash, StringComparison.OrdinalIgnoreCase) ||
+        exportEntry.ByteCount != structured.ByteCount)
+      return CommandResult<ArchiveEvidenceExport>.Fail(ErrorCodes.GateBlocked,
+        "The immutable structured export is missing or does not match its manifest hash.");
+
+    JsonElement records;
+    try
+    {
+      using var document = JsonDocument.Parse(structured.PayloadJson);
+      records = document.RootElement.Clone();
+    }
+    catch (JsonException)
+    {
+      return CommandResult<ArchiveEvidenceExport>.Fail(ErrorCodes.GateBlocked,
+        "The immutable structured export is not valid JSON.");
+    }
+
+    var providerProtectionState = archive.Status == ArchiveStates.ArchiveVerified
+      ? "VERIFIED" : "BLOCKED_EXTERNAL";
+    var payload = new
+    {
+      schema = "auditsphere-archive-evidence-export.v1",
+      archive = new
+      {
+        archive.Id, archive.EngagementId, archive.Status, archive.ProfileId, archive.ProfileVersion,
+        manifestReviewedAt = manifest.ReviewedAt
+      },
+      manifest = new
+      {
+        manifest.Id, manifest.Version, manifest.Status, manifest.CompletenessStatus,
+        manifest.ManifestDigest, manifest.EntryCount, manifest.BuiltAt, manifest.ReviewedAt,
+        entries
+      },
+      providerProtection = new
+      {
+        state = providerProtectionState,
+        note = providerProtectionState == "VERIFIED"
+          ? "AuditSphere records a completed protection observation; consult the included archive evidence for its scope."
+          : "Provider-side protection is not verified. This export does not claim external immutability.",
+        externalDocumentBytesIncluded = false,
+        externalDocumentBytesNote = "Externally stored document bytes are represented by their source references and SHA-256 hashes in the manifest."
+      },
+      structuredRecords = records
+    };
+    var content = JsonSerializer.SerializeToUtf8Bytes(payload, new JsonSerializerOptions(JsonSerializerDefaults.Web)
+    {
+      WriteIndented = true
+    });
+    var fileName = $"AuditSphere-Archive-{archive.Id:N}-Manifest-{manifest.Version}.json";
+    return CommandResult<ArchiveEvidenceExport>.Ok(new(fileName, content, Hashing.Sha256Hex(content),
+      manifest.ManifestDigest, providerProtectionState));
   }
 
   public static async Task<CommandResult> RequestRecordsActionAsync(

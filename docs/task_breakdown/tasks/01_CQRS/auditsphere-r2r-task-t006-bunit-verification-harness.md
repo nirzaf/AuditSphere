@@ -23,7 +23,7 @@ updated_at: ""
 
 ## Outcome
 
-Prepare a reusable test lane without replacing existing tests or claiming unrun results.
+Verify and document the existing layered test lanes, then add only missing reusable fixtures or evidence conventions without replacing tests or claiming unrun results.
 
 **Original work package:** `R2R-01` — static command and query services, async validation, explicit DTO mapping, one transaction-owner registry, Angular component specs
 **Original package exit:** One representative existing command/query migrated without behavior change or nested transaction.
@@ -73,16 +73,16 @@ Use predecessor outputs by exact identity/revision/manifest, not by selecting a 
 
 **Required outputs:**
 
-- Buildable component-test project and shared fixture/evidence conventions.
+- Reused Angular component-spec project and shared fixture/evidence conventions; no second component framework.
 - Observed pilot tests and baseline suite results.
 
 **Direct consumers unlocked by this task:**
 
 - [T007 — Enforce reporting scope, current actor and shared identities](../02_Shared_Foundation/auditsphere-r2r-task-t007-reporting-scope-actor-shared-identities.md)
 
-## 5. Blazor UI Architecture (`.Web`)
+## 5. Angular component-test architecture (`.Ui`)
 
-Extend the source-listed existing routes before adding a parallel workspace. Use immutable DTOs in per-circuit scoped UI state, separate EditContexts, EventCallbacks, server field errors and save/discard/cancel dirty guards. No circuit-owned DbContext, cross-user static state, optimistic approval or fake completion. Recheck selection tokens and clear protected content on route/scope loss.
+Use the existing Angular spec project for component tests and Playwright against the real API host for browser journeys. Do not add bUnit or new feature screens to the Blazor rollback/reference host (ADR-0001 and ADR-0002).
 
 ## 6. Edge Cases, Security & Verification
 

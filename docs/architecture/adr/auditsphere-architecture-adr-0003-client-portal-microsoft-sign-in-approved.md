@@ -1,6 +1,6 @@
 # ADR-0003: Client portal uses Microsoft sign-in instead of emailed temporary passwords
 
-**Status: PROPOSED** (retroactive record) · Date recorded: 2026-10-08 · Decider: repository owner
+**Status: APPROVED** (owner-delegated approval recorded 2026-10-10) · Date recorded: 2026-10-08 · Decider: repository owner (authority delegated 2026-10-10)
 
 ## Context
 Specification §3.1 and §4.1.5 say the system emails temporary credentials to the client audit liaison and forces a password reset on first login before uploads unlock. The implementation authenticates client users through Microsoft Entra (optionally via a separately consented guest invitation) and withholds PBC and signed-LOR uploads until the identity path's first-sign-in requirement is met (`docs/execution/auditsphere-ste-specification-coverage-current.md`, rows 4.1.5 and "Deliverable assembly and portal safety").

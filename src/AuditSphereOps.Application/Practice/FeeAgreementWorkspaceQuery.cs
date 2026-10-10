@@ -88,7 +88,7 @@ public static class FeeAgreementWorkspaceQuery
   {
     var advance = view?.Milestones.SingleOrDefault(m => m.Milestone.Kind == FeeMilestoneKinds.Advance);
     if (view is null || advance is null)
-      return new(AdvanceInvoicePreparationStates.NotApplicable, "No advance milestone exists until the Engagement Letter is generated.");
+      return new(AdvanceInvoicePreparationStates.NotApplicable, "Create the fee agreement to establish the 50% advance milestone.");
 
     if (advance.Milestone.InvoiceId is not null)
     {

@@ -1,4 +1,5 @@
 using AuditSphereOps.Application.Practice;
+using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Tests;
 using Microsoft.EntityFrameworkCore;
@@ -8,6 +9,90 @@ namespace AuditSphereOps.E2E.Tests;
 
 public sealed class AngularProposalWorkflowJourneyTests
 {
+  [Fact]
+  [Trait("CaseId", "STE-GAP-008-PROPOSAL-DISPATCH-STAGE3")]
+  public async Task ProposalDispatchMovesEngagementLifecycleFromProposalGenerationToDualKeyPending()
+  {
+    await using var host = await OwnedHost.StartAsync(startWorker: false,
+      caseId: "STE-GAP-008-PROPOSAL-DISPATCH-STAGE3");
+    var fixture = host.Fixture;
+    var partner = fixture.Reviewer;
+    var now = DateTimeOffset.UtcNow;
+    var leadId = Guid.NewGuid();
+    var opportunityId = Guid.NewGuid();
+    var proposalId = Guid.NewGuid();
+    await using (var db = host.CreateDbContext())
+    {
+      db.RoleGrants.Add(new RoleGrant
+      {
+        Id = Guid.NewGuid(), FirmId = fixture.FirmId, UserId = partner.Id,
+        Role = "Partner", GrantedAt = now, GrantedByUserId = fixture.Admin.Id
+      });
+      db.Leads.Add(new Lead
+      {
+        Id = leadId, FirmId = fixture.FirmId, Name = "Synthetic lifecycle proposal", Source = "Referral",
+        PrimaryContactName = "Synthetic contact", PrimaryContactEmail = "lifecycle@example.test",
+        Status = CrmStates.LeadQualified, CreatedAt = now
+      });
+      db.Opportunities.Add(new Opportunity
+      {
+        Id = opportunityId, FirmId = fixture.FirmId, LeadId = leadId,
+        PracticeClientId = fixture.ClientId, ServiceRoute = "FinancialStatementAudit",
+        EntityScope = "Synthetic lifecycle entity", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31",
+        ExpectedFee = 1200m, Currency = "QAR", Stage = CrmStates.OpportunityNegotiation, CreatedAt = now
+      });
+      db.Proposals.Add(new Proposal
+      {
+        Id = proposalId, FirmId = fixture.FirmId, OpportunityId = opportunityId, PracticeClientId = fixture.ClientId,
+        Revision = 1, Status = CrmStates.ProposalInternalReview, ServiceProfileId = "SYNTHETIC-STE-2026",
+        Scope = "Synthetic scope", Exclusions = "", Deliverables = "Synthetic report", Dependencies = "",
+        Fee = 1200m, Currency = "QAR", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31",
+        PreparedByUserId = fixture.Admin.Id, ApprovedByUserId = partner.Id, ApprovedAt = now, CreatedAt = now
+      });
+      await db.SaveChangesAsync();
+    }
+
+    var origin = await host.StartApiForIdentityAsync(partner, new Dictionary<string, string>
+    {
+      ["AngularUi__Enabled"] = "true"
+    });
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var errors = new List<string>();
+    page.PageError += (_, error) => errors.Add(error);
+    var engagementPath = $"/app/engagements/{fixture.EngagementId:D}";
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(engagementPath));
+    var lifecycle = page.GetByRole(AriaRole.Region, new() { Name = "Engagement lifecycle progression", Exact = true });
+    await page.GetByText("Canonical Engagement Lifecycle", new() { Exact = true }).ScrollIntoViewIfNeededAsync();
+    await Assertions.Expect(lifecycle).ToContainTextAsync("Stage 2 of 11: Proposal Generation");
+
+    await page.GotoAsync(origin + $"/app/practice/proposals/{proposalId:D}");
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "Proposal", Exact = true })).ToBeVisibleAsync();
+    var assent = page.GetByLabel(
+      "I reviewed this revision and confirm the selected commercial action.", new() { Exact = true });
+    await assent.CheckAsync();
+    await page.GetByRole(AriaRole.Button, new() { Name = "Mark as sent", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByText("SENT · Revision 1", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByText(
+      "Email queued for lifecycle@example.test; awaiting the isolated mail worker.", new() { Exact = true })).ToBeVisibleAsync();
+
+    await page.GotoAsync(origin + engagementPath);
+    await page.GetByText("Canonical Engagement Lifecycle", new() { Exact = true }).ScrollIntoViewIfNeededAsync();
+    await Assertions.Expect(lifecycle).ToContainTextAsync("Stage 3 of 11: Dual-Key Acceptance Pending");
+    await Assertions.Expect(lifecycle).ToContainTextAsync("Client commercial acceptance of proposal required");
+    await using (var db = host.CreateDbContext())
+    {
+      var proposal = await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId);
+      Assert.Equal(CrmStates.ProposalSent, proposal.Status);
+      Assert.NotNull(proposal.SentAt);
+      Assert.False(string.IsNullOrWhiteSpace(proposal.SentOfferSha256));
+    }
+    Assert.Empty(errors);
+  }
+
   [Theory]
   [InlineData(true)]
   [InlineData(false)]

@@ -41,12 +41,8 @@ public sealed class ValuationPreparationApiTests
       var view=await Read(c,$"/api/ui/accounting/evidence/{kind}/{row.EvidenceId}");Assert.Equal("DRAFT",view.GetProperty("status").GetString());Assert.Null(view.GetProperty("reviewedAt").GetString());
     }
     Assert.Equal(2,await db.ValuationPreparations.CountAsync());Assert.Equal(100.123456m,await db.AccountingReconciliations.Where(x=>x.Id==rec).Select(x=>x.SourceTotal).SingleAsync());
-    var migrations=db.Database.GetMigrations().ToArray();
-    var valuationIndex=Array.FindIndex(migrations,m=>m.EndsWith("_NativeValuationPreparation",StringComparison.Ordinal));
-    Assert.True(valuationIndex>0);
-    await Assert.ThrowsAsync<PostgresException>(()=>db.GetService<IMigrator>().MigrateAsync(migrations[valuationIndex-1]));
+    await PermanentFileFreezeMigrationAssertions.AssertDowngradeBlockedAsync(db,"_NativeValuationPreparation");
     Assert.Equal(2,await db.ValuationPreparations.CountAsync());
-    Assert.Contains(migrations[valuationIndex],await db.Database.GetAppliedMigrationsAsync());
   }
   [Fact]
   public async Task MissingUnsupportedStaleClosedAndRevokedInputsNeverCreateValuations()
@@ -111,17 +107,15 @@ public sealed class ValuationPreparationApiTests
     Assert.True(hidden.Succeeded);Assert.False(hidden.Value!.Found);Assert.Null(hidden.Value.Receipt);
   }
   [Fact]
-  public async Task EmptyPreparationMigrationRollsBackAndReappliesWithoutChangingSource()
+  public async Task CurrentPreparationSchemaCannotBeDowngradedAndSourceRemainsUnchanged()
   {
     await using var pg=await OwnedPostgresDatabase.CreateAsync("API-VALUATION-MIGRATION");
     var seed=await AccountingAnalysisReviewSeed.SeedAsync(pg,false,false);
-    await using var db=new AuditSphereDbContext(pg.Options);var migrations=db.Database.GetMigrations().ToArray();var migrator=db.GetService<IMigrator>();
+    await using var db=new AuditSphereDbContext(pg.Options);
     var existing=await db.EclAssessments.CountAsync();
-    var valuationIndex=Array.FindIndex(migrations,m=>m.EndsWith("_NativeValuationPreparation",StringComparison.Ordinal));
-    Assert.True(valuationIndex>0);
-    await migrator.MigrateAsync(migrations[valuationIndex-1]);Assert.DoesNotContain(migrations[valuationIndex],await db.Database.GetAppliedMigrationsAsync());
+    await PermanentFileFreezeMigrationAssertions.AssertDowngradeBlockedAsync(db,"_NativeValuationPreparation");
     Assert.Equal(existing,await db.EclAssessments.CountAsync());Assert.Equal(100.123456m,await db.TrialBalanceRows.Where(x=>x.DatasetId==seed.SourceId&&x.Amount>0).SumAsync(x=>x.Amount));
-    await migrator.MigrateAsync();Assert.Empty(await db.ValuationPreparations.ToListAsync());Assert.Equal(existing,await db.EclAssessments.CountAsync());
+    Assert.Empty(await db.ValuationPreparations.ToListAsync());
   }
   private static bool IsSerializationFailure(Exception ex)
   {

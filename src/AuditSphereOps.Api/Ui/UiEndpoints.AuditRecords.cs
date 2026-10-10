@@ -1,5 +1,9 @@
 using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Completion;
+using AuditSphereOps.Application.Records;
+using AuditSphereOps.Api.Authentication;
+using AuditSphereOps.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Api.Ui;
 
@@ -39,6 +43,29 @@ public static partial class UiEndpoints
     {
       if (afterOrdinal is < 0) return Task.FromResult<IResult>(Invalid("The archive cursor is invalid."));
       return ReadAsync(http, (db, actor, ct) => AuditRecordQueries.ArchiveAsync(db, actor, id, afterOrdinal, ct));
+    });
+    group.MapGet("/records/archives/{id:guid}/export", async (Guid id, HttpContext http) =>
+    {
+      var resolver = http.RequestServices.GetRequiredService<TrustedActorResolver>();
+      var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
+      if (actor is null) return Failure("session.unavailable", "Sign in again.", 401);
+      await using var db = await http.RequestServices.GetRequiredService<IDbContextFactory<AuditSphereDbContext>>()
+        .CreateDbContextAsync(http.RequestAborted);
+      var result = await RecordsArchiveService.ExportReviewedArchiveAsync(db, actor, id, http.RequestAborted);
+      if (!result.Succeeded)
+        return Failure(result.ErrorCode, result.Message,
+          result.ErrorCode == AuditSphereOps.Domain.Shared.ErrorCodes.ScopeDenied ? 403 : StatusFor(result.ErrorCode));
+      if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
+        return Failure("session.unavailable", "Sign in again.", 401);
+
+      var export = result.Value!;
+      http.Response.Headers.CacheControl = "no-store";
+      http.Response.Headers["X-Content-SHA256"] = export.ContentSha256;
+      http.Response.Headers["X-AuditSphere-Manifest-SHA256"] = export.ManifestSha256;
+      http.Response.Headers["X-AuditSphere-Provider-Protection"] = export.ProviderProtectionState;
+      http.Response.Headers["X-Content-Type-Options"] = "nosniff";
+      return Results.File(export.Content, "application/json; charset=utf-8", export.FileName,
+        enableRangeProcessing: false);
     });
     group.MapGet("/audit/workpapers/{id:guid}", (Guid id, HttpContext http) => ReadAsync(http, (db, actor, ct) => AuditRecordQueries.WorkpaperAsync(db, actor, id, ct)));
     group.MapPost("/audit/workpapers/{id:guid}/draft", (Guid id, WorkpaperDraftInput i, HttpContext http) =>

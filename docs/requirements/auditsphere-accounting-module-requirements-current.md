@@ -15,7 +15,7 @@
 
 ## Approved deviations
 
-The implementation intentionally differs from the original wording in the places below. Each line cites the decision record. The records are `PROPOSED` retroactive records of decisions already implemented, pending owner confirmation (ADR register). Do not "fix" an implemented behaviour back to the original wording unless its ADR is superseded.
+The implementation intentionally differs from the original wording in the places below. Each line cites an APPROVED decision record. These owner-delegated product and architecture decisions do not substitute for live provider acceptance or qualified professional accounting treatment. Do not "fix" an implemented behaviour back to the original wording unless its ADR is superseded.
 
 - **ADR-0002 (Angular canonical UI):** Angular 22 is the canonical user interface; Blazor Interactive Server is a rollback host until the retirement gate passes. Affects the header architecture row.
 - **ADR-0003 (Microsoft sign-in for the client portal):** no temporary passwords are emailed or stored; the first-sign-in requirement of the Microsoft identity path applies. Affects the §3.1 portal box and the §4.1.5 portal bullets.
@@ -23,7 +23,7 @@ The implementation intentionally differs from the original wording in the places
 - **ADR-0005 (visual credentials; no eSignature or Purview):** the signature and seal are PNG visual credentials, not certificate-backed signatures. Affects the digital-credential wording in §4.1.4 and §4.4.1.
 - **ADR-0006 (one SharePoint site per client; Full Control for assigned staff):** the archive folder is protected by the local freeze, not by the provider. Affects the archive wording in §4.4.3.
 - **ADR-0007 (drafts only for automatic invoicing):** automation creates draft invoices; finance reviews, posts and records payments. Affects §4.1.5 and §3.4.
-- **ADR-0009 (draft, from spike SPK-01):** the release and archive store is the authority for issued evidence; the SharePoint archive folder is a working copy. Affects §4.4.3.
+- **ADR-0009 (archive authority, from spike SPK-01):** the release and archive store is the authority for issued evidence; the SharePoint archive folder is a working copy. This does not claim provider-side immutability. Affects §4.4.3.
 - **ADR-0010 (end-of-service accrual, from STE-NXT-009):** end-of-service benefits are accrued as a provision entered by a person, not expensed only when paid. Affects §3.5.
 - **ADR-0011 (materiality without normalization, from STE-NXT-010):** the PBT benchmark is mapped balances excluding tax; "normalized" PBT is not applied. Affects §4.2.4.
 
@@ -447,7 +447,7 @@ The system shall strictly disallow the generation of an Engagement Letter until 
   * Auto-generate an isolated workspace for the client.
   * Email temporary access credentials to the designated Client Audit Liaison.
   * Enforce mandatory password reset on first login before document submission features are unlocked.
-  * *Superseded by ADR-0003 (PROPOSED): the client portal signs in with Microsoft and a first-sign-in requirement. No local password is issued, stored or emailed. The two bullets above are the original wording, kept for provenance.*
+  * *Superseded by approved ADR-0003: the client portal signs in with Microsoft and a first-sign-in requirement. No local password is issued, stored or emailed. The two bullets above are the original wording, kept for provenance. Live tenant acceptance remains a separate gate.*
   * Surface real-time status badges on requested items: `Pending Upload`, `Under Review`, `Approved`, `Rejected / Re-upload Required`.
   * **Mandatory Rejection Reason:** If an item is rejected, the auditor must enter a mandatory rejection reason that surfaces immediately on the client's screen.
   * **Temporal Lock:** Client document upload privileges automatically freeze when the final audit report is released.

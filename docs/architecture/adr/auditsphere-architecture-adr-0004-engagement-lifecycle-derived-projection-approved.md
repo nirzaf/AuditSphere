@@ -1,6 +1,6 @@
 # ADR-0004: The engagement lifecycle is a derived projection
 
-**Status: PROPOSED** (retroactive record) · Date recorded: 2026-10-08 · Decider: repository owner
+**Status: APPROVED** (owner-delegated approval recorded 2026-10-10) · Date recorded: 2026-10-08 · Decider: repository owner (authority delegated 2026-10-10)
 
 ## Context
 Specification §5 defines eleven states from `LEAD_INGESTION` to `ARCHIVED_READ_ONLY`, each with a gate. Commit `9e946d1` (STE-GAP-008, "lifecycle truthfulness") made the projection follow actual records: countdown anchored to report signing, archive only after a committed freeze, planning only with approved non-stale materiality, Partner approval only when the completion gate is clear.

@@ -64,9 +64,9 @@ These are separate layers and must not be merged into one module implementation.
 | COMPLETED | 2 |
 | IN_REVIEW | 0 |
 | IN_PROGRESS | 0 |
-| BLOCKED | 0 |
+| BLOCKED | 2 |
 | REOPENED | 0 |
-| NOT_STARTED | 73 |
+| NOT_STARTED | 71 |
 
 These are task-tracking totals, not a software-completion percentage or a transferred status from the source repository. Original criterion, fixture and integration acceptance are tracked separately.
 <!-- END PROGRESS -->
@@ -74,7 +74,7 @@ These are task-tracking totals, not a software-completion percentage or a transf
 ### Next eligible task
 
 <!-- BEGIN NEXT -->
-- [T003](tasks/00_Baseline/auditsphere-r2r-task-t003-accounting-policies-resource-bounds-golden-fixtures.md) — Approve accounting policies, resource bounds and golden fixtures
+No unstarted task is ready. Finish/review active tasks or resolve the recorded blockers.
 <!-- END NEXT -->
 
 <a id="status-rules"></a>
@@ -268,7 +268,7 @@ The following table is the only master navigation/status index. Each task opens 
 |---|---|---|---|---|---|
 | [x] | [T001 — Approve scope and inventory the current implementation](tasks/archive/auditsphere-r2r-task-t001-baseline-current-state-inventory.md) | Owner/scope review | COMPLETED | COMPLETED | Codex implementation coordinator |
 | [x] | [T002 — Approve architecture, contracts and transaction ownership](tasks/00_Baseline/auditsphere-r2r-task-t002-architecture-contracts-transaction-ownership.md) | [T001](tasks/archive/auditsphere-r2r-task-t001-baseline-current-state-inventory.md) | COMPLETED | COMPLETED | Codex implementation coordinator |
-| [ ] | [T003 — Approve accounting policies, resource bounds and golden fixtures](tasks/00_Baseline/auditsphere-r2r-task-t003-accounting-policies-resource-bounds-golden-fixtures.md) | [T002](tasks/00_Baseline/auditsphere-r2r-task-t002-architecture-contracts-transaction-ownership.md) | NOT_STARTED | READY | Unassigned |
+| [ ] | [T003 — Approve accounting policies, resource bounds and golden fixtures](tasks/00_Baseline/auditsphere-r2r-task-t003-accounting-policies-resource-bounds-golden-fixtures.md) | [T002](tasks/00_Baseline/auditsphere-r2r-task-t002-architecture-contracts-transaction-ownership.md) | BLOCKED | BLOCKED: The core numeric convention is recorded in ADR-0014. Qualified methodology-owner and independent-review signoff is still required for FX sources/effective periods, framework editions, consolidation methods and all eight GOLD-R2R fixtures. That evidence is absent; no amounts or accounting treatments will be inferred. | Codex implementation coordinator |
 
 <a id="wp-01"></a>
 ### R2R-01 — static command and query services, async validation, explicit DTO mapping, one transaction-owner registry, Angular component specs
@@ -306,7 +306,7 @@ The following table is the only master navigation/status index. Each task opens 
 | [ ] | [T011 — Build accounting profiles, fiscal periods and reporting books](tasks/03_M20_Setup/auditsphere-r2r-task-t011-accounting-profiles-fiscal-periods-books.md) | [T010](tasks/02_Shared_Foundation/auditsphere-r2r-task-t010-shared-blazor-forms-state-dirty-guards.md) | NOT_STARTED | WAITING: T010 | Unassigned |
 | [ ] | [T012 — Build chart and taxonomy revision authoring](tasks/03_M20_Setup/auditsphere-r2r-task-t012-chart-taxonomy-revision-authoring.md) | [T011](tasks/03_M20_Setup/auditsphere-r2r-task-t011-accounting-profiles-fiscal-periods-books.md) | NOT_STARTED | WAITING: T011 | Unassigned |
 | [ ] | [T013 — Build multidimensional accounting schema revisions](tasks/03_M20_Setup/auditsphere-r2r-task-t013-multidimensional-accounting-schema-revisions.md) | [T012](tasks/03_M20_Setup/auditsphere-r2r-task-t012-chart-taxonomy-revision-authoring.md) | NOT_STARTED | WAITING: T012 | Unassigned |
-| [ ] | [T014 — Activate exact reporting contexts and verify Module 20 setup](tasks/03_M20_Setup/auditsphere-r2r-task-t014-reporting-contexts-module-20-setup.md) | [T013](tasks/03_M20_Setup/auditsphere-r2r-task-t013-multidimensional-accounting-schema-revisions.md) | NOT_STARTED | WAITING: T013 | Unassigned |
+| [ ] | [T014 — Activate exact reporting contexts and verify Module 20 setup](tasks/03_M20_Setup/auditsphere-r2r-task-t014-reporting-contexts-module-20-setup.md) | [T007](tasks/02_Shared_Foundation/auditsphere-r2r-task-t007-reporting-scope-actor-shared-identities.md), [T013](tasks/03_M20_Setup/auditsphere-r2r-task-t013-multidimensional-accounting-schema-revisions.md) | NOT_STARTED | WAITING: T007, T013 | Unassigned |
 
 <a id="wp-04"></a>
 ### R2R-04 — M21 bounded TB CSV/XLSX receipt, profile/column mapping, staging, validation and acceptance
@@ -477,7 +477,7 @@ The following table is the only master navigation/status index. Each task opens 
 | [ ] | [T056 — Instantiate and tailor engagement audit programs](tasks/17_Audit_Foundation/auditsphere-audit-task-t056-engagement-audit-programs.md) | [T014](tasks/03_M20_Setup/auditsphere-r2r-task-t014-reporting-contexts-module-20-setup.md), [T055](tasks/17_Audit_Foundation/auditsphere-audit-task-t055-audit-program-library.md) | NOT_STARTED | WAITING: T014, T055 | Unassigned |
 | [ ] | [T057 — Reconcile audit lead schedules and source populations](tasks/17_Audit_Foundation/auditsphere-audit-task-t057-lead-schedules-source-populations.md) | [T020](tasks/05_M21_GL_Mapping/auditsphere-r2r-task-t020-opening-completeness-proofs-scoped-exports.md), [T056](tasks/17_Audit_Foundation/auditsphere-audit-task-t056-engagement-audit-programs.md) | NOT_STARTED | WAITING: T020, T056 | Unassigned |
 | [ ] | [T058 — Implement audit sampling, item testing and subsequent matching](tasks/17_Audit_Foundation/auditsphere-audit-task-t058-sampling-item-testing.md) | [T057](tasks/17_Audit_Foundation/auditsphere-audit-task-t057-lead-schedules-source-populations.md) | NOT_STARTED | WAITING: T057 | Unassigned |
-| [ ] | [T059 — Manage audit confirmations and alternative procedures](tasks/17_Audit_Foundation/auditsphere-audit-task-t059-confirmations-alternative-procedures.md) | [T058](tasks/17_Audit_Foundation/auditsphere-audit-task-t058-sampling-item-testing.md) | NOT_STARTED | WAITING: T058 | Unassigned |
+| [ ] | [T059 — Manage audit confirmations and alternative procedures](tasks/17_Audit_Foundation/auditsphere-audit-task-t059-confirmations-alternative-procedures.md) | [T058](tasks/17_Audit_Foundation/auditsphere-audit-task-t058-sampling-item-testing.md) | BLOCKED | WAITING: T058 | Codex implementation coordinator |
 
 <a id="wp-18"></a>
 ### AUD-18 — Audit planning, materiality, Cash & Bank, Receivables, Inventory, Revenue and Payables fieldwork

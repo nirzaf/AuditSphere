@@ -1,6 +1,6 @@
 # ADR-0001: One modular monolith with static capability services
 
-**Status: PROPOSED** (retroactive record) · Date recorded: 2026-10-08 · Decider: repository owner
+**Status: APPROVED** (owner-delegated approval recorded 2026-10-10) · Date recorded: 2026-10-08 · Decider: repository owner (authority delegated 2026-10-10)
 
 ## Context
 R2R-ADR-02 planned MediatR facades and bUnit component tests. The shipped code instead resolves every command and query through static service classes that return `CommandResult` / `CommandResult<T>` (for example `ClientAccountingService`, `ConsolidationService`, `MaterialityEngineService`). The variation was recorded on 2026-09-25 in §2.3.1 of the R2R baseline document and in the current architecture document.

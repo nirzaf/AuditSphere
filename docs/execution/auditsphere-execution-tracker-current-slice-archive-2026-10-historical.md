@@ -6157,3 +6157,74 @@ or Domain code changed in this slice, so the full Domain and Api suites were not
 Live mail delivery and client-identity acceptance remain named live gates under
 STE-REM-30/31. The browser journeys used owned isolated PostgreSQL schemas; no
 Development or production state was changed. Blazor retirement remains `NOT_READY`.
+
+## Handoff entries moved from the current slice on 2026-10-10
+
+## STE v2.1 evidence mapping and full-suite runs — 2026-10-09
+
+- Mapped 34 more journey steps to tests whose bodies execute the step: the manifest generator now cites 55 of 62 checks. Added `FieldworkOnSeparateFslisRunsInParallelForDifferentStaffWithoutInterference` (J23) and an explicit correspondence-trail assertion in the five-part bundle test (J40).
+- Not cited, with reasons: J48 (no regulator or read-only export exists; the archive endpoint is a paged manifest read) and N02 (the services cannot record a Partner risk acceptance before commercial acceptance, and the letter gate checks commercial acceptance first). J12–J14, J47 and N13 stay `BLOCKED_EXTERNAL`.
+- Full runs, recorded in `status.json`: E2E on `48168e2e` had one failure, an intermittent dialog-timing failure in a journey that passed in the three earlier full runs. Domain and API on `9013eeb2` failed only migration-rollback tests (1 and 10): rolling back from head runs the `PermanentFileFreeze` Down, which raises unconditionally. Because the cited suites recorded failures, the regenerated manifest reports 0 PASS; it is not inflated.
+- Open owner decision: either keep the unconditional Down and rewrite or retire those rollback tests, or let the Down downgrade a database that holds no freeze or supplementary-record evidence (the convention the other evidence migrations follow). The change was drafted and reverted because it relaxes a compliance boundary the owner set deliberately.
+
+## Terminal archive and mandatory advance control — 2026-10-09
+
+Changes committed on 2026-10-09 after review of the v2.1 acceptance findings:
+
+- Removed `AMENDMENT_OPEN`. Partner approval and closure now update a separate supplementary-record trail; neither changes the frozen state nor clears `ProfessionalWorkBlocked`. Angular and legacy Web screens say the archive remains read-only and disable editing when frozen.
+- Added migration `20261009141822_PermanentFileFreeze`: legacy open amendments are normalized to `FROZEN` and the engagement write block is restored; the database check and trigger protect frozen identity/freeze evidence, and amendment approval/closure transitions remain auditable and immutable. Its Down migration fails closed. No database migration has been applied.
+- Removed the configurable `WHEN_FEE_AGREEMENT_LINKED` exception. Activation always requires a linked fee agreement and paid advance; the review workspace reports the same blockers. ADR-0012 records the accepted mandatory rule.
+- Added an EF design-time context factory with an inert local-only fallback so migration scaffolding does not construct the full API host. `AUDITSPHERE_MIGRATION_CONNECTION` is required to direct EF database commands at a real database.
+- Lifecycle Stage 3 now requires a dispatched proposal; the projection separates local freeze and provider protection status. A due-but-uncommitted freeze remains in countdown with an explicit blocker.
+
+Verification on the current source: the API Release build, focused PostgreSQL Domain cohort, updated archive Playwright journey, Angular production build and Angular CI specs passed. The Angular build retains the existing `settings.scss` budget warning. EF reports no pending model changes; OpenAPI drift verification and Markdown, filename, narrative-metric and source-inventory gates pass. Exact counts and commands are recorded in `status.json`. The built-in browser served the app and showed the expected unauthenticated sign-in gate; no authenticated lifecycle page was verified. The full E2E suite has not been run on this tree. External tenant and SharePoint archive acceptance remain `BLOCKED_EXTERNAL`.
+
+
+## Pending-gap slice: fee-automation config alignment and truthful holding-letter delivery — 2026-10-09
+
+Owner-directed attempt to close the tracked STE v2.1 gaps. Two locally-closable code defects were fixed and verified; the
+remaining gaps are test-evidence, design or external work and were not started.
+
+- **STE-GAP-002 (host config alignment).** `AutomaticFeeInvoices` was declared only in the worker's `appsettings.json`, but the API host reads the same key to report the advance-invoice preparation state. With the key absent it always reported "automation disabled", even when the worker had automation enabled. The section is now declared identically in `src/AuditSphereOps.Api/appsettings.json` and `src/AuditSphereOps.Web/appsettings.json`, and `FeeAgreementConfigurationTests.EveryHostDeclaresTheSameAutomaticFeeInvoicesPolicy` refuses a drifted value or a host that omits the section.
+- **STE-GAP-005 (delivery truthfulness).** `HoldingLetterDispatch.StatusAsync` had an unreachable `FAILED` branch: nothing ever wrote `FAILED` to a `CommercialNotification`, so a blocked or dead-lettered mail operation was reported as `QUEUED` indefinitely, and the message told the operator to "dispatch again" although `QueueAsync` returns early for any existing notification. The status now consults the notification's durable operation and reports `FAILED` when that operation is in `OperationRecoveryService.RetryableStates`, naming the operations-screen recovery as the real route; `QueueAsync` states the no-op instead of implying a retry. `AuditDeliverablesTests` executes both branches. The Angular completion screen already renders the server state and message, so no UI change was required.
+
+- **STE-GAP-010 (acceptance manifest evidence model).** `scripts/acceptance/generate-ste-manifest.py` had no evidence input at all: `check()` returned `NOT_EXECUTED` with an empty `evidence` list for every step, so the register could never produce a PASS and the "0 PASS / 57 NOT_EXECUTED" reading measured the generator, not the product. Each step can now cite `"<test source path>#<method>"`; the generator refuses to run when a cited file or method is absent, requires the owning suite to have a recorded run with zero failures, and carries that run's commit in the step's evidence so staleness stays visible. 21 of 62 checks now PASS (lifecycle, materiality and rounding, review notes, SRM and clearance, opinion and report, LOR, five-part bundle, freeze and early lock, archive read-only, plus negative branches N03/N06/N08/N09); the overall result stays **FAIL** because 36 checks have no mapped executed evidence and 5 remain externally blocked. A probe with a deliberately wrong method name was refused, confirming the guard.
+
+Verification run in this slice: Release solution build 0 warnings / 0 errors; Domain `809/809` (3 m 3 s); Api `223/223` (16 m 50 s); `FeeAgreementConfigurationTests` `4/4`; `AuditDeliverablesTests` `12/12`; the manifest generator writes `21 PASS / 0 FAIL / 36 NOT_EXECUTED / 5 BLOCKED_EXTERNAL`.
+
+**Not started — still open.** STE-GAP-001, 003, 006 and 009 need their refusal branches *executed* (the code paths exist); STE-GAP-008 needs the provider-protection state model and the stage-3 dispatch check; STE-GAP-010 needs the journey suites executed against the manifest checks and the manifest regenerated; STE-GAP-004 and STE-GAP-007 are `BLOCKED_EXTERNAL` and need a live tenant. The nine `BLOCKED_EXTERNAL` gates, AS-PAR-002/AS-PAR-009 and the `NOT_READY` Blazor retirement gate are unchanged. No `BLOCKED_EXTERNAL` gate was converted and no external effect was enabled.
+
+## Requirements-alignment slice: advance gate and diagram traceability — 2026-10-09
+
+Owner-directed alignment of `workflow_architecture_suite.html` with `requirements.html` (the source-aligned v2.1 register)
+and with the code. Observed results:
+
+- **Suite ↔ register links repaired.** All 59 baseline links pointed at the non-existent `requirements(2).html`; they now resolve to `requirements.html`. All 22 distinct anchors (`#architecture`, `#boundaries`, `#controls`, `#lifecycle`, `#M1.01`…`#M5.02`) exist as `id` values in the register.
+- **Persona cards** carry the register's §1.2 role names: Audit Associate / Junior Auditor, Audit Senior / Audit Manager, Engagement Partner, Client Coordinator / CFO / MD.
+- **Profitability wording corrected** to match `PracticeAnalyticsQuery`: the source-defined charge-out indicator is stated, and the implemented actual-cost analytics (separate staff cost rate, profit, margin, realization, billed/collected) are described instead of being called undefined.
+- **Three externally blocked steps marked `BLOCKED_EXTERNAL`** in the suite: live PBC portal provisioning and the first-sign-in evidence gate (ADR-0003: Microsoft sign-in, not emailed temporary passwords), the five standard engagement folders in the client SharePoint site, and provider-enforced archive immutability.
+- **Advance gate is unconditional (ADR-0012, ACCEPTED).** `EngagementLifecycleService.ActivateAsync` refuses activation unless a linked fee agreement carries a `PAID` `ADVANCE` milestone. No configuration can weaken the mandatory control; the linked-only bypass was removed. `EngagementActivationWorkspace` reports the same rule as explicit blockers (`advance.fee-agreement-missing`, `advance.unpaid`) and includes the fee-agreement/advance position in the review-basis digest.
+- **Configuration surface:** an `EngagementActivation` section was added to `src/AuditSphereOps.Api/appsettings.json` and `src/AuditSphereOps.Web/appsettings.json`; the options are registered in `ApiHost.ConfigureProviders`, so the API host and the legacy Web host compose them. No request or response contract changed.
+
+Fixtures updated for the new default: `EngagementActivationReviewSeed.LinkFeeAgreement` stages lead → opportunity → accepted proposal → fee agreement → advance milestone; `AcceptanceChecklistTests` and the `OneClickDocuments…` commercial journey now link and pay the advance before activating; the new `EngagementActivationAdvanceGateTests` covers both modes and the unrecognised-mode refusal.
+
+Verification run in this slice: Domain `809/809` (2 m 58 s) and Api `222/222` (17 m 7 s) against PostgreSQL `auditsphere_tests`; the two `AngularEngagementActivationJourneyTests` Playwright journeys `2/2`; Release solution build 0 warnings / 0 errors; `dotnet ef migrations has-pending-model-changes` reports no model change; `verify-openapi.sh` reports the contract current; the three Markdown documentation gates and `scripts/ui/inventory.py --check` pass (the Razor dependency row for `EngagementActivationPanel.razor` was regenerated).
+
+**Not run:** the full Playwright E2E suite (only the activation journeys above), the Angular `test:ci` and production build (no Angular source changed), and any live external check. No production migration was applied and no `BLOCKED_EXTERNAL` gate changed state.
+
+## Owner-delegated plan: T002, STE test gaps, STE-NXT-013 and stale-doc repairs — 2026-10-09
+
+The owner delegated decisions on 2026-10-09 ("take any decision you wanted which makes the best for this project"). Observed results, in order:
+
+- **T002 is COMPLETED** on reviewed commit `b24c8426`, through `task_status.py set`. The static-service variation is accepted; MediatR and bUnit are declined. The helper validated the checklist, the full SHA, the evidence file and the reviewer rule. T003 is now READY; the audit gives it an OWNER_DECISION verdict and it has not been started.
+- **Contracts rewritten** for the variation in the affected task cards and module test tables. Request rows are unchanged, and the helper validates them.
+- **Owner decisions recorded** (PROPOSED ADRs, awaiting owner confirmation): STE-NXT-010 Option A (ADR-0011); STE-NXT-009 option (b), a provision accrual entered by a person (ADR-0010), with follow-up STE-NXT-014. STE-NXT-011 stays open.
+- **Test-only gaps closed:** STE-NXT-005 (successful Partner lock), STE-NXT-006 (NOT_APPLICABLE renders; the `AutomaticFeeInvoices:Enabled` key is tested), STE-NXT-004 (criterion figures and preparer refusal). STE-NXT-002 (ledger size budgets) and STE-NXT-007 (requirements-copy guard) are docs-gate checks; the guards were shown to fail on bad input.
+- **STE-NXT-013 implemented:** the statement links send the keys the screens read; the analytical screen pre-fills only after the server confirms the statement revision, refuses a stale link, and offers a validated return; fieldwork focuses the risks for the line.
+- **Stale statements repaired** against their records (telemetry hosts, restore-drill migration count, E2E checkpoint, Web parity row, agent-context hazards, helper test count).
+
+Verification run in this slice: UI `test:ci` 113 files / 616 tests passed; the production build completed; Domain `PracticalRounding` 16/16; Api `FeeAgreementConfigurationTests` 3/3; `MarkdownNamingGuard` 2/2; the docs gates and `task_status.py validate` pass; the task board is current.
+
+Not run in this slice: the full .NET suites and the Playwright E2E suite. The E2E run recorded in `docs/execution/status.json` (`testSuites.runs.e2e`) has 15 failing journeys at `f7304708`, which remain open.
+
+Open for the owner: STE-NXT-011 (independent archive copy); confirmation of ADR-0010 and ADR-0011; the accounting treatment for end-of-service accruals before STE-NXT-014 posts anything; the 15 failing E2E journeys.

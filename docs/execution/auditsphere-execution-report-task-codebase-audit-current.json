@@ -171,8 +171,8 @@
     },
     {
      "name": "Dependency: T002 COMPLETED with handoff",
-     "status": "MISSING",
-     "location": "Card frontmatter depends_on T002; T002 status IN_REVIEW; index :271 WAITING: T002"
+     "status": "PRESENT",
+     "location": "T002 was completed under the owner-delegated static-service variation on reviewed commit b24c8426; its handoff is recorded in docs/execution/auditsphere-execution-current-slice.md"
     },
     {
      "name": "No test derives its expected answer from the implementation",
@@ -192,8 +192,7 @@
     "A framework/edition policy registry backing FrameworkPolicyRef (module-20:64, module-26:70). None exists.",
     "Named methodology-owner approval for each GOLD-R2R fixture, an independent review record, and an approved-fixture register separate from proposed fixtures. All eight are NOT_APPROVED.",
     "Executable tests for GOLD-R2R-01, 03, 04, 05, 06 and 08 (after approval). GOLD-07 has tests but its policy is unapproved.",
-    "Decision on section 10.1 bounds: approve or lower each. Implement or record deferral for missing bounds (layout 1,000 definitions and depth 32, note cells, text lengths, 200-row page). Create a versioned resource-policy record that reports limits.",
-    "T002 must reach COMPLETED with an independent handoff before T003 starts."
+    "Decision on section 10.1 bounds: approve or lower each. Implement or record deferral for missing bounds (layout 1,000 definitions and depth 32, note cells, text lengths, 200-row page). Create a versioned resource-policy record that reports limits."
    ],
    "conflicts": [
     "Direct consumer T004 'Introduce MediatR facades' conflicts with AGENTS.md:71. Not a T003 requirement, but a downstream dependency to flag.",
@@ -209,7 +208,7 @@
     "reference contract clarifications section 10.1 (lines 141-205) labels all bounds as proposed, not observed, and says stricter existing limits win.",
     "LineTranslationTests.cs:82-93: expected values literal (400, -280, -144, 72, -48)."
    ],
-   "summary": "OWNER_DECISION. T003 owns no preserved requests; its outputs are professional and numeric decisions the owner has not made: ADR-03/04/09 approvals, framework edition and effective periods, fixture approvals and independent review, and section 10.1 resource bounds. Code shows existing support (six-decimal ToEven, existing stricter caps, fail-closed consolidation gates, GOLD-07 unit tests) but no approved records. Prerequisite T002 is IN_REVIEW, so T003 is also blocked by dependency. No agent action can close T003 without the owner.",
+   "summary": "OWNER_DECISION. T003 remains blocked on professional and numeric approvals: framework edition and effective periods, supported consolidation profiles, all eight GOLD-R2R fixture outcomes with independent review, and section 10.1 resource bounds. Existing code and tests do not substitute for those approvals. T002 is now completed on reviewed commit b24c8426, so its dependency is clear. The remaining approvals require the qualified methodology owner and independent reviewer; an agent must not infer them.",
    "refutation": "NOT_NEEDED"
   },
   {
@@ -272,7 +271,7 @@
    "conflicts": [
     "AGENTS.md:71 (section 5 Never): \"Add MediatR, Wolverine, MassTransit, AutoMapper, generic repositories/UnitOfWork, event sourcing or a `Features/` rewrite.\"",
     "docs/architecture/auditsphere-architecture-current-architecture.md:114: \"Not introduced, and not to be introduced: MediatR, Wolverine, MassTransit, ...\"",
-    "docs/architecture/adr/auditsphere-architecture-adr-0001-...-proposed.md:22: \"Introducing MediatR ... requires a new ADR, not a feature task.\"",
+    "docs/architecture/adr/auditsphere-architecture-adr-0001-modular-monolith-static-capability-services-approved.md:22: \"Introducing MediatR ... requires a new ADR, not a feature task.\" (the ADR was approved after this audit snapshot)",
     "Card title itself (tasks/01_CQRS/auditsphere-r2r-task-t004-command-query-boundary.md:18): \"Introduce MediatR facades without changing transaction behavior\"",
     "Reference baseline section 2.3.1 (lines 273-289) records the static-service variation: no MediatR and no bUnit"
    ],
@@ -439,7 +438,7 @@
     "bUnit is not named in AGENTS.md section 5. Baseline section 2.3 (line ~209): bUnit \"must likewise be selected and pinned\" and needs approval before package changes.",
     "Reference section 2.3.1 (line 289): \"Introducing MediatR or bUnit later is a separate reviewed package change under R2R-ADR-02, not a prerequisite\".",
     "Transitive conflict: step 4 exercises \"the CQRS pilot\", which is the T004 MediatR facade (AGENTS.md:71).",
-    "ADR-0001 (docs/architecture/adr/auditsphere-architecture-adr-0001-modular-monolith-static-capability-services-proposed.md) status is PROPOSED, so the owner has not yet approved the static-service decision."
+    "ADR-0001 (docs/architecture/adr/auditsphere-architecture-adr-0001-modular-monolith-static-capability-services-approved.md) status was PROPOSED at the 2026-10-08 audit snapshot; the current ADR register records the later approval."
    ],
    "evidence": [
     "Directory.Packages.props: no bunit or MediatR PackageVersion",
@@ -527,7 +526,7 @@
     "Hard dependency T006 (bUnit harness) is NOT_STARTED per the card front matter."
    ],
    "conflicts": [
-    "Section 5 requires new Blazor .Web work. ADR-0002 (docs/architecture/adr/auditsphere-architecture-adr-0002-angular-canonical-ui-blazor-rollback-proposed.md, Decision) states: \"New screens are built in Angular only.\" Blazor is not in the AGENTS.md section 5 ban list, so this is not CONFLICTS_WITH_AGENTS; the owner should retarget section 5 to Angular."
+    "Section 5 required new Blazor .Web work in the 2026-10-08 audit snapshot. ADR-0002 (docs/architecture/adr/auditsphere-architecture-adr-0002-angular-canonical-ui-blazor-rollback-approved.md, Decision) states: \"New screens are built in Angular only.\" The current ADR is approved; the card still needs retargeting to Angular."
    ],
    "evidence": [
     "AuthorizeAsync rejects disabled users (AuthorizationDecision.cs:68-69) and stale epochs with GenerationStale (:70-71).",
@@ -2881,7 +2880,7 @@
     "AGENTS.md s4 Fail closed / scope integrity: membership OwnershipPercent, EconomicInterestPercent and ControlMethod are written (Groups.cs:81-87) and archived (RecordsArchiveService.cs:571) but read by no gate. A 60% membership with a 100% CONTROLLED component passes ApproveScopeAsync (Scopes.cs:143-148). That is a silent fallback to full consolidation, contrary to VP-043-AC04.",
     "AGENTS.md s4 Optimistic fencing: 'Writes that edit a revisioned aggregate take an ExpectedRevision/ExpectedVersion and refuse stale input.' AddMembershipAsync (Groups.cs:58), AddOwnershipInterestAsync (Ownership.cs:16) and ApproveScopeAsync (Scopes.cs:111) take no expected revision.",
     "PLAUSIBLE, by reading only (not executed): group grant re-issue after revocation. ux_group_access_grant is a plain unique index on (firm_id, group_id, user_id, role) with no revoked filter (migration 20260920173839_ClientAccountingAndConsolidation.cs:1542; DbContext.ClientAccounting.cs:98). Revocation keeps the row (RoleAssignmentService.cs revoke path ~185-190). Re-grant looks only at non-revoked rows (RoleAssignmentService.cs:128-141), so the INSERT should violate the index.",
-    "Card wording 'IRequest<CommandResult<TResponse>>' and AbstractValidator are MediatR/FluentValidation shapes that AGENTS.md s5 bans. The recorded variation maps these rows to static services by behaviour (docs/task_breakdown/reference/auditsphere-r2r-reference-baseline-architecture-and-adrs.md:281-289; docs/architecture/adr/auditsphere-architecture-adr-0001-modular-monolith-static-capability-services-proposed.md). Not a verdict-level conflict."
+    "Card wording 'IRequest<CommandResult<TResponse>>' and AbstractValidator are MediatR/FluentValidation shapes that AGENTS.md s5 bans. The recorded variation maps these rows to static services by behaviour (docs/task_breakdown/reference/auditsphere-r2r-reference-baseline-architecture-and-adrs.md:281-289; docs/architecture/adr/auditsphere-architecture-adr-0001-modular-monolith-static-capability-services-approved.md). Not a verdict-level conflict."
    ],
    "evidence": [
     "Groups.cs:35-48: creator grant = own active firm-wide role only; test :28-48 asserts no Partner grant",
@@ -4414,7 +4413,7 @@
     {
      "name": "Registry covering Bank, Receivables, Payables, Debt, Legal confirmations",
      "status": "PARTIAL",
-     "location": "AreaCode is free text, never checked against AuditAreaCodes.All (src/AuditSphereOps.Domain/Audit/Fieldwork.cs:359-400); no LEGAL area; LOANS stands in for debt"
+     "location": "src/AuditSphereOps.Domain/Audit/Fieldwork.cs:407-419 defines a confirmation-only LEGAL category and retains the 18 audit-program areas; API and Application validate the controlled taxonomy. LOANS remains the debt category."
     },
     {
      "name": "Lifecycle states PREPARED, SENT, RECEIVED, NON_RESPONSE",
@@ -4473,19 +4472,18 @@
     "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs CriticalUnreturnedConfirmationKeepsBlockingAfterAlternativeClosureAndCriticalityReassessment (:366-; response :392, alternative :396, close :401-418)",
     "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs dashboard assertions (:423, :550)",
     "tests/AuditSphereOps.Domain.Tests/AuditSamplingServiceTests.cs ConfirmationBatch_IsAtomicAndSummarised (:187-; summary :241-256)",
-    "Not found: dispatch replay refusal, client-forwarded origin distinction, AGREED-with-difference refusal, LEGAL area, response aging"
+    "Not found: dispatch replay refusal, client-forwarded origin distinction, AGREED-with-difference refusal, response aging"
    ],
    "missing": [
     "Reconcile to the client ledger balance, not a client-supplied booked amount (AuditConfirmationBatchService.cs:108). Add a difference explanation with reconciling items (AS-AUD-006-AC05).",
     "Refuse AGREED when the confirmed amount differs from booked, or require an explanation. Close currently passes on AGREED with any difference (AuditFieldworkService.Confirmations.cs:77-81, :234, :240-241).",
     "Link confirmation exceptions to audit differences (SAD) and ReviewPoints. No such link exists.",
-    "Validate AreaCode against AuditAreaCodes.All. Add a LEGAL area or confirmation type (AS-AUD-006-AC08).",
     "Client-forwarded versus direct response is free text (Origin); enforce the distinction (AS-AUD-006-AC02).",
     "Record the contact-validation reviewer, not only the source text (AS-AUD-006-AC02).",
     "Response document hash reference (card section 2): absent from AuditConfirmationResponse.",
     "Response aging in the Angular register.",
     "Alternative procedures do not link to tests performed (AS-AUD-006-AC07).",
-    "Tests for dispatch replay refusal, client-forwarded origin, AGREED with a difference, and LEGAL area."
+    "Tests for dispatch replay refusal, client-forwarded origin, and AGREED with a difference."
    ],
    "conflicts": [
     "None against AGENTS section 5 bans."
@@ -4497,9 +4495,10 @@
     "AuditFieldworkService.Confirmations.cs:251-258 closure snapshot with SHA-256.",
     "AuditFieldworkService.Completion.cs:100-101 any non-closed confirmation blocks engagement completion.",
     "ConfirmationWorkspace.cs:114 review-token fence on every action.",
-    "Domain Fieldwork.cs:253-262 status vocabulary differs from card names."
+    "Domain Fieldwork.cs:253-262 status vocabulary differs from card names.",
+    "Legal confirmation taxonomy is defined separately from audit-program areas and rejects unsupported categories; covered by AuditConfirmationCommandIsolationTests.ConfirmationTaxonomy_KeepsLegalSeparateAndRejectsUnknownCategories and AngularConfirmationJourneyTests.NativeSignalForms_ObservedDispatch_IndependentAlternativeReview_AndSessionRevocation."
    ],
-   "summary": "Batch and single-case register, dispatch evidence gating, append-only responses with independent review, alternative work, maker-checker, critical-case blocker and SHA-256 closure snapshot are implemented and wired through the reviewer-token API and Angular register. Ledger reconciliation, difference explanation, SAD and ReviewPoint linkage, the Legal registry, area validation and response aging are missing, and AGREED can close with a non-zero difference.",
+   "summary": "Batch and single-case register, dispatch evidence gating, append-only responses with independent review, alternative work, maker-checker, critical-case blocker and SHA-256 closure snapshot are implemented and wired through the reviewer-token API and Angular register. The controlled Legal confirmation taxonomy is now implemented; ledger reconciliation, difference explanation, SAD and ReviewPoint linkage, structured response origin, response aging and alternative-procedure test linkage remain open, and AGREED can close with a non-zero difference.",
    "refutation": "NOT_NEEDED"
   },
   {
@@ -6455,7 +6454,7 @@
    ],
    "tests": [],
    "missing": [
-    "Owner approval of option 2 and of ADR-0009 (status PROPOSED: docs/architecture/adr/auditsphere-architecture-adr-0009-archive-authority-release-store-proposed.md:3)",
+    "Owner approval of option 2 and ADR-0009 was unresolved at the 2026-10-08 audit snapshot (status then PROPOSED; current ADR: docs/architecture/adr/auditsphere-architecture-adr-0009-archive-authority-release-store-approved.md:3)",
     "Design, then implementation of the archive library, grants, worker and copy path",
     "Live SharePoint and Graph verification for the provider-state acceptance items (EXTERNAL_BLOCKED until then)"
    ],
@@ -7152,7 +7151,7 @@
     "FileFreezeService.cs:67 only BLOCKED_EXTERNAL is ever assigned",
     "FileFreeze.cs:14-21 REQUESTED and OBSERVED states exist but are never set",
     "EngagementLifecycleQuery.cs:266-272 warning honest for archived state",
-    "docs/architecture/adr/auditsphere-architecture-adr-0009-archive-authority-release-store-proposed.md is still proposed"
+    "ADR-0009 was PROPOSED at the 2026-10-08 audit snapshot; it is now approved and option 2 remains out of current scope"
    ],
    "summary": "Only the honest local-freeze state with BLOCKED_EXTERNAL is implemented. No provider-protection operation, verification, or regulator export exists, and completion needs a live SharePoint or Graph tenant plus owner design approval.",
    "refutation": "NOT_NEEDED"
@@ -7436,5 +7435,51 @@
    "summary": "The machine-readable manifest exists and honestly reports FAIL, but no suite executes the 48-step happy path or the 14 negative branches. Existing unit fragments do not satisfy the journey, so the item is partial.",
    "refutation": "NOT_NEEDED"
   }
- ]
+ ],
+ "currentDispositionsAsOf": "2026-10-10",
+ "currentDispositions": {
+  "T003": {
+   "verdict": "OWNER_DECISION",
+   "summary": "Still blocked on qualified methodology ownership and independent professional review. ADR-0014 resolves the technical six-decimal and ToEven convention only; it does not choose framework editions, FX methodology, consolidation policy, resource bounds, or golden expected results.",
+   "missing": [
+    "A named qualified methodology owner and independent reviewer must approve supported framework editions and effective periods (R2R-ADR-04), consolidation profiles (R2R-ADR-09), and FX methodology beyond ADR-0014 (R2R-ADR-03).",
+    "A versioned framework and edition policy registry backing FrameworkPolicyRef, after its supported values are professionally approved.",
+    "Approval and independent review for all eight GOLD-R2R fixture outcomes, then executable tests for the six fixtures without tests.",
+    "Owner and technical review of section 10.1 resource limits; record any deferred limits and publish a versioned resource policy.",
+    "Do not mark T003 complete until approved policy records, fixture approvals, required tests, and the card-level independent review are recorded."
+   ],
+   "conflicts": []
+  },
+  "T004": {
+   "verdict": "PARTIAL",
+   "summary": "ADR-0001 resolves the architecture choice: keep static capability services and do not add a mediator facade or dependency. The card was rewritten to match. No architecture decision remains open; T004 itself remains NOT_STARTED and blocked by T003.",
+   "missing": [
+    "After T003, inspect one representative command and query and record the owning service, API boundary, and current wire behavior.",
+    "Complete a transaction-owner registry and an architecture check for the selected single-owner invariant.",
+    "Record observed before/after or characterization evidence for the selected command/query without changing business behavior."
+   ],
+   "conflicts": []
+  },
+  "T006": {
+   "verdict": "PARTIAL",
+   "summary": "The bUnit decision is closed under ADR-0001: use the existing Angular component-spec lane and do not add a second component framework. The card was rewritten accordingly. T006 remains NOT_STARTED, depends on T005, and still needs its harness evidence reviewed against the current checkout.",
+   "missing": [
+    "After T005, inspect the current xUnit, PostgreSQL, Angular spec, and Playwright lanes and record the shared fixture and evidence conventions required by the revised card.",
+    "Record exact current-tree commands, database/schema isolation, run commit, and observed results; do not infer completion from test counts or named cases."
+   ],
+   "conflicts": []
+  },
+  "T014": {
+   "verdict": "PARTIAL",
+   "summary": "ADR-0015 resolves the technical reporting-context identity decision: an immutable manifest pins existing scoped identities and approved revisions. No owner decision remains open. T014 is still NOT_STARTED and cannot implement the context until T013 and T007 are completed and reviewed.",
+   "missing": [
+    "Complete T013 dimension-schema revision work and T007 shared scoped-identity work before implementation.",
+    "Add immutable exact context pins and server-side scope/currentness validation; do not duplicate existing accounting entities or resolve by display name.",
+    "Implement named bind/get Application operations and the canonical Angular selector with change-impact preview.",
+    "Replace implicit chart selection and bind import/package evidence to the exact context revision; validate profile and legal-entity keys against server-owned records.",
+    "Verify sibling-client denial, successor-context invalidation, prior-chart resolution, and the full setup-to-import handoff."
+   ],
+   "conflicts": []
+  }
+ }
 }

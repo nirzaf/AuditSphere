@@ -1,5 +1,8 @@
+using System.Text;
+using System.Text.Json;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Records;
+using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Domain.Tests;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
@@ -57,6 +60,8 @@ public sealed class AngularArchiveCompletenessJourneyTests
     page.PageError += (_, error) => errors.Add(error);
     await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString($"/app/records/archives/{archiveId:D}"));
     await Assertions.Expect(page.GetByText("Showing 100 of 205 entries.", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Link,
+      new() { Name = "Download read-only evidence export", Exact = true })).ToHaveCountAsync(0);
     var rows = page.Locator("[aria-labelledby='archive-contents'] tbody tr");
     await Assertions.Expect(rows).ToHaveCountAsync(100);
     await Assertions.Expect(rows.First).ToContainTextAsync("item-001.pdf");
@@ -72,6 +77,105 @@ public sealed class AngularArchiveCompletenessJourneyTests
     await Assertions.Expect(rows).ToHaveCountAsync(205);
     await Assertions.Expect(rows.Last).ToContainTextAsync("item-205.pdf");
     await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Load next 100 entries", Exact = true })).ToHaveCountAsync(0);
+    Assert.Empty(errors);
+  }
+
+  [Fact]
+  [Trait("CaseId", "STE-GAP-007-READ-ONLY-ARCHIVE-EXPORT")]
+  public async Task RecordsCustodianDownloadsReviewedManifestAndStructuredExportWithExternalBoundary()
+  {
+    await using var host = await OwnedHost.StartAsync(startWorker: false,
+      caseId: "STE-GAP-007-READ-ONLY-ARCHIVE-EXPORT");
+    var f = host.Fixture;
+    var now = DateTimeOffset.UtcNow;
+    var archiveId = Guid.NewGuid();
+    var manifestId = Guid.NewGuid();
+    const string structuredPayload = "{\"schema\":\"records-export.v1\",\"documents\":[]}";
+    var structuredBytes = Encoding.UTF8.GetBytes(structuredPayload);
+    var structuredHash = Hashing.Sha256Hex(structuredBytes);
+    var entries = new[]
+    {
+      new ArchiveManifestEntry
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        ArchiveManifestId = manifestId, Ordinal = 1, EntryKind = "DOCUMENT", SourceKind = "SharePoint",
+        SourceId = Guid.NewGuid(), RelativeName = "evidence/signed-report.pdf", ContentHash = new string('a', 64),
+        ByteCount = 1024, Required = true, MetadataJson = "{}"
+      },
+      new ArchiveManifestEntry
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        ArchiveManifestId = manifestId, Ordinal = 2, EntryKind = "STRUCTURED_EXPORT", SourceKind = "AuditSphereOps",
+        RelativeName = "structured/records-export.v1.json", ContentHash = structuredHash,
+        ByteCount = structuredBytes.Length, Required = true,
+        MetadataJson = "{\"schema\":\"records-export.v1\",\"storage\":\"archive_structured_exports\"}"
+      }
+    };
+    var manifestEntriesDigest = JsonSerializer.Serialize(entries.Select(x => new
+    {
+      x.Ordinal, x.EntryKind, x.SourceKind, x.SourceId, x.RelativeName, x.ContentHash,
+      x.ByteCount, x.Required, x.MetadataJson
+    }));
+    var manifestDigest = Hashing.Sha256Hex(manifestEntriesDigest);
+    await using (var db = host.CreateDbContext())
+    {
+      db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Reviewer, "Partner"));
+      db.Archives.Add(new Archive
+      {
+        Id = archiveId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        ProfileId = "SYNTH-RECORDS", ProfileVersion = 1, Status = "ASSEMBLY_REVIEWED", CreatedAt = now
+      });
+      db.ArchiveManifests.Add(new ArchiveManifest
+      {
+        Id = manifestId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        ArchiveId = archiveId, Version = 1, Status = "REVIEWED", ManifestDigest = manifestDigest,
+        EntryCount = entries.Length, CompletenessStatus = "COMPLETE", BuiltAt = now,
+        ReviewedAt = now, ReviewedByUserId = f.Reviewer.Id
+      });
+      db.ArchiveManifestEntries.AddRange(entries);
+      db.ArchiveStructuredExports.Add(new ArchiveStructuredExport
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        ArchiveId = archiveId, ArchiveManifestId = manifestId, Version = 1, Schema = "records-export.v1",
+        PayloadJson = structuredPayload, ContentHash = structuredHash, ByteCount = structuredBytes.Length,
+        CreatedAt = now
+      });
+      await db.SaveChangesAsync();
+    }
+
+    var origin = await host.StartApiForIdentityAsync(f.Reviewer, new Dictionary<string, string>
+    {
+      ["AngularUi__Enabled"] = "true",
+      ["AngularUi__CanonicalRoutes"] = "true"
+    });
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var errors = new List<string>();
+    page.PageError += (_, error) => errors.Add(error);
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" +
+      Uri.EscapeDataString($"/app/records/archives/{archiveId:D}"));
+    await Assertions.Expect(page.GetByText("Manifest version 1 · 2 manifest entries · 0 active local holds",
+      new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByText("Provider protection remains separate; an export does not claim external immutability.",
+      new() { Exact = true })).ToBeVisibleAsync();
+
+    var exportLink = page.GetByRole(AriaRole.Link,
+      new() { Name = "Download read-only evidence export", Exact = true });
+    var download = await page.RunAndWaitForDownloadAsync(() => exportLink.ClickAsync());
+    Assert.Contains("AuditSphere-Archive-", download.SuggestedFilename, StringComparison.Ordinal);
+    using var stream = await download.CreateReadStreamAsync();
+    using var memory = new MemoryStream();
+    await stream.CopyToAsync(memory);
+    using var exported = JsonDocument.Parse(memory.ToArray());
+    var root = exported.RootElement;
+    Assert.Equal("auditsphere-archive-evidence-export.v1", root.GetProperty("schema").GetString());
+    Assert.Equal(manifestDigest, root.GetProperty("manifest").GetProperty("manifestDigest").GetString());
+    Assert.Equal(2, root.GetProperty("manifest").GetProperty("entries").GetArrayLength());
+    Assert.Equal("BLOCKED_EXTERNAL", root.GetProperty("providerProtection").GetProperty("state").GetString());
+    Assert.False(root.GetProperty("providerProtection").GetProperty("externalDocumentBytesIncluded").GetBoolean());
+    Assert.Equal("records-export.v1", root.GetProperty("structuredRecords").GetProperty("schema").GetString());
     Assert.Empty(errors);
   }
 

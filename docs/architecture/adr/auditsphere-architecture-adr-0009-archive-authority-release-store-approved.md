@@ -1,6 +1,6 @@
 # ADR-0009: Issued evidence is authoritative in the release and archive store; the SharePoint archive is a working copy
 
-**Status: PROPOSED** (draft from spike SPK-01) · Date: 2026-10-08 · Decider: repository owner
+**Status: APPROVED** (owner-delegated approval recorded 2026-10-10; external implementation gates remain separate) · Date: 2026-10-08 · Decider: repository owner (authority delegated 2026-10-10)
 
 ## Context
 

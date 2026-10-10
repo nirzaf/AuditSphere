@@ -1,6 +1,6 @@
 # ADR-0007: Automatic advance and balance invoicing creates drafts only
 
-**Status: PROPOSED** (retroactive record) · Date recorded: 2026-10-08 · Decider: repository owner
+**Status: APPROVED** (owner-delegated approval recorded 2026-10-10) · Date recorded: 2026-10-08 · Decider: repository owner (authority delegated 2026-10-10)
 
 ## Context
 The specification issues the 50 % advance invoice with the engagement letter and releases the 50 % balance invoice with the deliverables (§4.1.5, §4.4.2). Firm finance keeps maker/checker separation: FinanceReviewer approves, FinanceManager posts.

@@ -47,9 +47,9 @@ public static class AuditConfirmationBatchService
     IAuditSphereDbContext db, ActorContext actor, ConfirmationBatchRequest request,
     CancellationToken ct = default)
   {
-    if (string.IsNullOrWhiteSpace(request.AreaCode))
+    if (!AuditConfirmationAreaCodes.IsSupported(request.AreaCode))
       return CommandResult<ConfirmationBatchValue>.Fail(ErrorCodes.Accounting.MappingInvalid,
-        "A confirmation batch requires an area code.");
+        "A confirmation batch requires a supported confirmation area.");
     if (request.Cases is null || request.Cases.Count is < 1 or > 100)
       return CommandResult<ConfirmationBatchValue>.Fail(ErrorCodes.Accounting.MappingInvalid,
         "A confirmation batch requires between one and 100 cases.");

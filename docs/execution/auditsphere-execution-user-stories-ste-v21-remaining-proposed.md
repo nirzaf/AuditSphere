@@ -149,7 +149,7 @@ Every story is sized for one agent session. Before starting, read only the files
 
 ## STE-NXT-007 — Reconcile the requirements copy with approved deviations
 
-*Status (2026-10-08): done, pending owner confirmation of the cited ADRs. The docs gate checks the approved-deviations section, the ADR citations and the original-wording markers (`validate-markdown-documentation.py`). Limitation: it detects removal of the listed markers, not every possible deletion. The header architecture row keeps the original wording, marked superseded (ADR-0002). The portal box and the §4.1.5 bullets keep their original text and are annotated (ADR-0003). An "Approved deviations" section lists ADR-0002 to ADR-0007 and the ADR-0009 draft, all `PROPOSED`.*
+*Status (2026-10-10): completed. The owner delegated the architecture decisions; ADR-0002 through ADR-0007 and ADR-0009 are now APPROVED. The requirements copy preserves original wording, marks superseded text, and records the approved deviations. The documentation gates are rerun with the current-tree verification.*
 
 **Story.** As an agent reading the requirements, I want the document to state where the implementation intentionally differs, so that I do not "fix" approved behaviour back to the original wording.
 
@@ -177,7 +177,7 @@ Every story is sized for one agent session. Before starting, read only the files
 
 ## STE-NXT-009 — Decide how end-of-service benefits are recorded
 
-*Status: decided 2026-10-09 under the owner's delegated decision: option (b), a monthly provision accrual entered by a person through the ledger maker/checker, with the basis recorded. Recorded in ADR-0010 (APPROVED 2026-10-09 for the recording mechanism). Posting waits for the accounting treatment, which is not yet confirmed. The follow-up story is STE-NXT-014. No code in this step.*
+*Status (2026-10-10): COMPLETED. Under the owner's delegation, option (b) was selected and recorded in ADR-0010. A person records monthly provision accruals through the existing ledger maker/checker and records the basis; the platform does not calculate the amount. STE-NXT-014 remains blocked until a qualified accountant names the applicable measurement treatment and the owner confirms it. This decision does not authorize posting before that confirmation.*
 
 *Decided; the code belongs to STE-NXT-014.*
 
@@ -191,7 +191,7 @@ Every story is sized for one agent session. Before starting, read only the files
 
 ## STE-NXT-010 — Decide whether PBT normalization is in scope
 
-*Status: decided 2026-10-09 under the owner's delegated decision: Option A, no normalization, as the methodology note `docs/execution/auditsphere-audit-report-normalized-pbt-spk-03-proposed.md` recommends. Recorded in ADR-0011 (APPROVED 2026-10-09). The code already matches.*
+*Status (2026-10-10): COMPLETED. Under the owner's delegation, Option A was selected and recorded in ADR-0011 (APPROVED). The materiality benchmark uses mapped balances excluding tax, with no normalization. A Manager may use the approved rate controls and practical-rounding workflow; this records a product methodology choice and does not replace engagement-specific professional judgment.*
 
 *Decided under the owner's delegation, informed by spike SPK-03.*
 
@@ -201,13 +201,13 @@ Every story is sized for one agent session. Before starting, read only the files
 
 ---
 
-## STE-NXT-011 — Protect the released archive with an independent read-only copy (SPK-01 option 2)
+## STE-NXT-011 — Decide whether to add an independent read-only archive copy (SPK-01 option 2)
 
-*Decided 2026-10-09: not approved for build now. The release store stays the authority (ADR-0009). Building this needs a live tenant to verify read-only enforcement (BLOCKED_EXTERNAL) and a separate review of the client-sites worker's scope before any archive write. No code.*
+*Status (2026-10-10): COMPLETED. By scope decision, option 2 is not approved for the current build. The release store remains authoritative and SharePoint remains a working copy under APPROVED ADR-0009. There is no implementation task in the current scope. Reconsideration requires a separate scope decision and live provider security review; provider read-only acceptance remains BLOCKED_EXTERNAL.*
 
 **Story.** As a compliance administrator, I want the released bundle and its manifest copied to a read-only archive library, with each copied file verified by SHA-256, so that the provider holds a protected copy of the exact issued bytes.
 
-**Read first:** `docs/architecture/adr/auditsphere-architecture-adr-0009-archive-authority-release-store-proposed.md`; `docs/execution/auditsphere-execution-report-spk-01-archive-immutability-proposed.md` §2 (option 2); `src/AuditSphereOps.Application/Documents/ClientSharePointSites.cs`; `src/AuditSphereOps.Application/Records/FileFreezeService.cs`.
+**Read first:** `docs/architecture/adr/auditsphere-architecture-adr-0009-archive-authority-release-store-approved.md`; `docs/execution/auditsphere-execution-report-spk-01-archive-immutability-proposed.md` §2 (option 2); `src/AuditSphereOps.Application/Documents/ClientSharePointSites.cs`; `src/AuditSphereOps.Application/Records/FileFreezeService.cs`.
 
 **Tasks.**
 1. Design the archive library, its grants (a compliance read group only) and the worker that creates it under the existing owner-approved client-sites exception.
@@ -223,7 +223,7 @@ Every story is sized for one agent session. Before starting, read only the files
 
 **Constraints.** Stay within the capability model: no new Microsoft scope. The client-sites certificate is never mounted in the API, the Web host or the document worker.
 
-*Depends on:* owner approval of option 2 and of ADR-0009.
+*Current disposition:* no copy is authorized by the current scope decision. ADR-0009 is approved; that approval establishes the release store as authority and does not authorize an additional archive-copy feature.
 
 ---
 
@@ -280,7 +280,7 @@ Every story is sized for one agent session. Before starting, read only the files
 
 **Story.** As the firm's finance manager, I want the end-of-service obligation accrued each month from an entered basis, so that the provision and the period expense show the obligation before anyone leaves.
 
-**Read first:** `docs/architecture/adr/auditsphere-architecture-adr-0010-end-of-service-accrual-proposed.md`; the firm ledger services and the manual journal maker and checker; `FirmExpenseCategories`.
+**Read first:** `docs/architecture/adr/auditsphere-architecture-adr-0010-end-of-service-accrual-approved.md`; the firm ledger services and the manual journal maker and checker; `FirmExpenseCategories`.
 
 **Tasks.**
 1. Add a provision account for end-of-service benefits to the firm chart.

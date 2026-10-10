@@ -26,8 +26,8 @@ public sealed class ClientConversionReviewApiTests
       foreignProposalId = await ClientConversionReviewSeed.PopulateAsync(db,foreign);
       var migrations = db.Database.GetMigrations().ToArray();
       var index = Array.FindIndex(migrations, x => x.EndsWith("_NativeClientConversionReview", StringComparison.Ordinal));
-      Assert.True(index > 0); await db.GetService<IMigrator>().MigrateAsync(migrations[index - 1]);
-      await db.GetService<IMigrator>().MigrateAsync();
+      Assert.True(index > 0);
+      Assert.Contains(migrations[index], await db.Database.GetAppliedMigrationsAsync());
     }
     using var factory = new StandaloneApiApplicationFactory(new Dictionary<string, string?> {
       ["ConnectionStrings:AuditSphere"] = pg.ConnectionString, ["DevelopmentIdentity:Enabled"] = "true",
@@ -52,8 +52,7 @@ public sealed class ClientConversionReviewApiTests
     Assert.Equal(HttpStatusCode.Forbidden, (await c.GetAsync("/api/ui/proposals/" + foreignProposalId + "/client-conversion/receipts/" + r.RequestId + "?requestHash=" + p.RequestHash)).StatusCode);
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      var migrations = db.Database.GetMigrations().ToArray(); var index = Array.FindIndex(migrations, x => x.EndsWith("_NativeClientConversionReview", StringComparison.Ordinal));
-      await Assert.ThrowsAsync<PostgresException>(() => db.GetService<IMigrator>().MigrateAsync(migrations[index - 1]));
+      await PermanentFileFreezeMigrationAssertions.AssertDowngradeBlockedAsync(db, "_NativeClientConversionReview");
       Assert.Single(await db.ClientConversions.ToListAsync());
       await db.RoleGrants.Where(x => x.UserId == f.Admin.Id).ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow));
     }

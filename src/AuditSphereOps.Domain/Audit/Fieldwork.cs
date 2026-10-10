@@ -399,6 +399,24 @@ public static class AuditAreaCodes
   };
 }
 
+/// <summary>
+/// Controlled categories for external confirmations. Legal confirmations are a
+/// confirmation type, not a substantive audit-area section, so they do not alter
+/// the 18-section audit-program taxonomy.
+/// </summary>
+public static class AuditConfirmationAreaCodes
+{
+  public const string Legal = "LEGAL";
+
+  public static readonly IReadOnlySet<string> All = new HashSet<string>(AuditAreaCodes.All, StringComparer.Ordinal)
+  {
+    Legal
+  };
+
+  public static bool IsSupported(string? value) =>
+    !string.IsNullOrWhiteSpace(value) && All.Contains(value.Trim().ToUpperInvariant());
+}
+
 public static class AuditAreaAssessmentKinds
 {
   public const string AggregateDifferences = "AGGREGATE_DIFFERENCES";

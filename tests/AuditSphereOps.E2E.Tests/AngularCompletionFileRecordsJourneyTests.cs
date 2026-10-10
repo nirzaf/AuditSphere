@@ -1,4 +1,5 @@
 using AuditSphereOps.Application.Records;
+using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Records;
 using AuditSphereOps.Domain.Tests;
@@ -15,6 +16,108 @@ public sealed class AngularCompletionFileRecordsJourneyTests
     ["AngularUi__Enabled"] = "true",
     ["AngularUi__CanonicalRoutes"] = "true"
   };
+
+  [Fact]
+  [Trait("CaseId", "STE-GAP-006-EARLY-LOCK-BROWSER")]
+  public async Task PartnerReviewsReadinessLocksScheduledFileAndLifecycleKeepsProviderStateSeparate()
+  {
+    await using var host = await OwnedHost.StartAsync(startWorker: false,
+      caseId: "STE-GAP-006-EARLY-LOCK-BROWSER");
+    var f = host.Fixture;
+    var partner = PbcSeed.User(f.FirmId, "Staff");
+    var associate = PbcSeed.User(f.FirmId, "Staff");
+    var senior = PbcSeed.User(f.FirmId, "Staff");
+    var secondPartner = PbcSeed.User(f.FirmId, "Staff");
+    var manager = PbcSeed.User(f.FirmId, "Staff");
+    var now = DateTimeOffset.UtcNow;
+    var report = new AuditDeliverable
+    {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+      Kind = DeliverableKinds.IndependentAuditorsReport, Version = 1, TemplateVersion = "synthetic-early-lock-e2e",
+      InputDigest = new string('c', 64), InputSummaryJson = "{}", FileName = "synthetic-report.pdf",
+      ContentType = "application/pdf", Content = [1, 2, 3], ContentSha256 = new string('d', 64),
+      CreatedByUserId = partner.Id, CreatedAt = now
+    };
+    var scope = new CompletionBundleScope(f.FirmId, f.ClientId, f.EngagementId, new()
+    {
+      ["partner"] = partner, ["associate"] = associate, ["senior"] = senior,
+      ["partner2"] = secondPartner, ["manager"] = manager
+    });
+    await using (var db = host.CreateDbContext())
+    {
+      db.Users.AddRange(partner, associate, senior, secondPartner, manager);
+      await db.SaveChangesAsync();
+    }
+    await CompletionBundleFixture.ReleasedFinancialPackageAsync(host.DbOptions, scope);
+
+    await using (var db = host.CreateDbContext())
+    {
+      db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, partner, "Partner", f.ClientId, f.EngagementId));
+      db.AuditDeliverables.Add(report);
+      db.EngagementFileFreezes.Add(new EngagementFileFreeze
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        ReportDeliverableId = report.Id, ReportSignedAt = now, DueAt = now.AddDays(FileFreezeService.FreezeDays),
+        State = FileFreezeStates.Scheduled, Revision = 1,
+        ExternalReadOnly = ExternalReadOnlyStates.BlockedExternal, UpdatedAt = now
+      });
+      await db.SaveChangesAsync();
+    }
+
+    var origin = await host.StartApiForIdentityAsync(partner, Angular);
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var errors = new List<string>();
+    page.PageError += (_, error) => errors.Add(error);
+
+    var engagementRoute = $"/app/engagements/{f.EngagementId:D}";
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(engagementRoute));
+    await page.GetByText("Canonical Engagement Lifecycle", new() { Exact = true }).ScrollIntoViewIfNeededAsync();
+    var lifecycle = page.GetByRole(AriaRole.Region,
+      new() { Name = "Engagement lifecycle progression", Exact = true });
+    await Assertions.Expect(lifecycle.GetByText("Stage 10 of 11: Compliance Countdown", new() { Exact = true }))
+      .ToBeVisibleAsync();
+    await Assertions.Expect(lifecycle).ToContainTextAsync("Local archive state: SCHEDULED");
+    await Assertions.Expect(lifecycle).ToContainTextAsync("Provider protection state: BLOCKED_EXTERNAL");
+
+    var completionRoute = engagementRoute + "/completion";
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(completionRoute));
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "File freeze and activity trail", Exact = true })).ToBeVisibleAsync();
+    var earlyLock = page.GetByRole(AriaRole.Region,
+      new() { Name = "Early compliance lock (STE 4.4.3)", Exact = true });
+    await Assertions.Expect(earlyLock.GetByText("Reviewed readiness digest:", new() { Exact = false })).ToBeVisibleAsync();
+    await earlyLock.GetByLabel("I confirm the file is complete and I am locking it now as the Engagement Partner.",
+      new() { Exact = true }).CheckAsync();
+    await earlyLock.GetByLabel("Reason for the early lock", new() { Exact = true })
+      .FillAsync("Synthetic browser acceptance: reviewed final release and archive readiness.");
+    await earlyLock.GetByRole(AriaRole.Button, new() { Name = "Lock audit file early", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByText(
+      "The audit file is locked early and is read-only in AuditSphere. Provider protection is recorded separately.",
+      new() { Exact = true })).ToBeVisibleAsync();
+
+    await using (var db = host.CreateDbContext())
+    {
+      var freeze = await db.EngagementFileFreezes.AsNoTracking().SingleAsync(x => x.EngagementId == f.EngagementId);
+      Assert.Equal(FileFreezeStates.Frozen, freeze.State);
+      Assert.Equal(ExternalReadOnlyStates.BlockedExternal, freeze.ExternalReadOnly);
+      var evidence = await db.FileFreezeEarlyLocks.AsNoTracking().SingleAsync(x => x.FreezeId == freeze.Id);
+      Assert.Equal(partner.Id, evidence.LockedByUserId);
+      Assert.Contains("reviewed final release", evidence.Rationale, StringComparison.Ordinal);
+    }
+
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(engagementRoute));
+    await page.GetByText("Canonical Engagement Lifecycle", new() { Exact = true }).ScrollIntoViewIfNeededAsync();
+    lifecycle = page.GetByRole(AriaRole.Region,
+      new() { Name = "Engagement lifecycle progression", Exact = true });
+    await Assertions.Expect(lifecycle.GetByText("Stage 11 of 11: Archived (Read-Only)", new() { Exact = true }))
+      .ToBeVisibleAsync();
+    await Assertions.Expect(lifecycle).ToContainTextAsync("Local archive state: FROZEN");
+    await Assertions.Expect(lifecycle).ToContainTextAsync("Provider protection state: BLOCKED_EXTERNAL");
+    Assert.Empty(errors);
+  }
 
   [Fact]
   [Trait("CaseId", "AS-PAR-002-ANGULAR-COMPLETION-FILE-RECORDS-01")]

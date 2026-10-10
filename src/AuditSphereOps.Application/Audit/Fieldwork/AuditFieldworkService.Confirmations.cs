@@ -17,9 +17,9 @@ public static partial class AuditFieldworkService
   public static async Task<CommandResult<ConfirmationValue>> CreateConfirmationAsync(
     IAuditSphereDbContext db, ActorContext actor, CreateConfirmationRequest request, CancellationToken ct = default)
   {
-    if (string.IsNullOrWhiteSpace(request.AreaCode) || string.IsNullOrWhiteSpace(request.SourceRecordId) ||
+    if (!AuditConfirmationAreaCodes.IsSupported(request.AreaCode) || string.IsNullOrWhiteSpace(request.SourceRecordId) ||
         string.IsNullOrWhiteSpace(request.Respondent) || string.IsNullOrWhiteSpace(request.ContactValidationSource) || !IsCurrency(request.Currency))
-      return Invalid<ConfirmationValue>("A confirmation requires a record, respondent, validated contact source and currency.");
+      return Invalid<ConfirmationValue>("Select a supported confirmation area and provide a record, respondent, validated contact source and currency.");
     var auth = await AuthorizeEngagementAsync(db, actor, request.EngagementId, PlanningRoles, ct);
     if (!auth.Succeeded)
       return CommandResult<ConfirmationValue>.Fail(auth.ErrorCode!, auth.Message!);

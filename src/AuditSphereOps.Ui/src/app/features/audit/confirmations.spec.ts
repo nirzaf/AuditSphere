@@ -41,6 +41,7 @@ const page = {
   canPrepare: true,
   canReview: true,
   canSetCriticality: true,
+  areaCodes: ['CASH_BANK', 'LEGAL'],
   items: [row],
 };
 const detail = {

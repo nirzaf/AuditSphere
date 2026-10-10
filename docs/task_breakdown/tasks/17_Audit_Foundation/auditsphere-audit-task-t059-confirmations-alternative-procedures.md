@@ -2,24 +2,39 @@
 id: "T059"
 work_package: "AUD-17"
 modules: []
-status: "NOT_STARTED"
+status: "BLOCKED"
 depends_on: ["T058"]
-owner: ""
+owner: "Codex implementation coordinator"
 reviewer: ""
 review_decision: ""
 reviewed_commit: ""
 evidence_ref: ""
 approval_ref: ""
-blocked_reason: ""
+blocked_reason: "The Legal confirmation taxonomy slice is implemented in this change, but full T059 acceptance is still blocked by incomplete hard dependency T058 and other listed gaps: ledger-derived balance reconciliation, difference explanation, SAD/ReviewPoint links, structured response origin, reviewer identity, response hash, aging, and procedure-to-test linkage."
 branch: ""
 issue_pr: ""
-updated_at: ""
+updated_at: "2026-10-10T17:46:04+00:00"
 ---
 # T059 — Manage audit confirmations and alternative procedures
 
 [Master index](../../auditsphere-r2r-index-task-breakdown.md) · [Status rules](../../auditsphere-r2r-index-task-breakdown.md#status-rules) · [Traceability ledger](../../tracking/auditsphere-audit-tracker-workflow-traceability.md)
 
-**Status scope:** NOT_STARTED means this new task has not been assessed/executed under this breakdown. It does not assert that its underlying code is absent. First inspect and reuse the current implementation. No current repository progress has been imported.
+**Current assessment (2026-10-10): BLOCKED.** The Legal confirmation taxonomy slice is implemented, but the full task remains blocked by incomplete hard dependency T058 and the residual criteria below. Do not mark the whole task complete based on the taxonomy slice.
+
+### Verified local slice: Legal confirmation taxonomy
+
+- `AuditConfirmationAreaCodes` defines confirmation categories separately from the 18 audit-program `AuditAreaCodes`; `LEGAL` is supported and `LEGAL_SERVICES` and other unknown categories fail closed.
+- Single-case and batch application/API paths validate the same controlled taxonomy. Angular renders the server-provided category choices instead of accepting arbitrary free text.
+- Evidence: `src/AuditSphereOps.Domain/Audit/Fieldwork.cs`, `src/AuditSphereOps.Application/Audit/Fieldwork/AuditFieldworkService.Confirmations.cs`, `src/AuditSphereOps.Api/Ui/UiEndpoints.Confirmations.cs`, `src/AuditSphereOps.Ui/src/app/features/audit/confirmations.ts`, `tests/AuditSphereOps.Domain.Tests/AuditConfirmationCommandIsolationTests.cs`, and `tests/AuditSphereOps.E2E.Tests/AngularConfirmationJourneyTests.cs`.
+- Current-tree verification passed on 2026-10-10: Domain `AuditConfirmationCommandIsolationTests.ConfirmationTaxonomy_KeepsLegalSeparateAndRejectsUnknownCategories` and E2E `AngularConfirmationJourneyTests.NativeSignalForms_ObservedDispatch_IndependentAlternativeReview_AndSessionRevocation`; suite totals and source commit are recorded in `docs/execution/status.json`.
+
+### Remaining full-task blockers
+
+- Reconcile confirmations to the authoritative client ledger balance and preserve reconciling items and explanations.
+- Refuse an `AGREED` decision when the confirmed amount differs from the booked amount without an approved explanation.
+- Link exceptions to SAD and ReviewPoints; structure direct versus client-forwarded response origin and retain the contact-validation reviewer.
+- Persist response-document SHA-256 lineage, expose response aging, and link alternative procedures to the tests performed.
+- Complete hard dependency T058 before promoting this card to active implementation or review.
 
 ## Outcome
 
@@ -54,17 +69,17 @@ Confirmation models: `ConfirmationBatch`, `ConfirmationRequest`, `ConfirmationRe
 
 Confirmation tables with third-party details, contact info, response document hash references, and audit-senior review sign-offs.
 
-## 3. Application & CQRS Contracts (`.Application`)
+## 3. Application service and API contracts (`.Application` / `.Api`)
 
-Owned requests: `CreateConfirmationBatchCommand`, `RecordConfirmationDispatchCommand`, `RecordConfirmationResponseCommand`, `DocumentAlternativeProcedureCommand`, `GetConfirmationSummaryQuery`.
+Keep the existing static capability-service pattern and stable API contracts; do not introduce a mediator layer. Existing paths include batch creation, dispatch evidence, response review and alternative-procedure recording. Extend those contracts only for the residual criteria above.
 
 ## 4. Inter-Module Lineage & Boundaries
 
 Consumes sample selections (T058); feeds Cash & Bank (T061), Receivables (T062), Payables (T065), and Loans (T069).
 
-## 5. Blazor UI Architecture (`.Web`)
+## 5. Angular UI (`.Ui`)
 
-Confirmation tracking dashboard under `/app/audit/confirmations` with status breakdown, response aging, reconciliation view, and alternative procedure editor.
+Continue the Angular confirmation workspace under `/ui/app/audit/confirmations`, using bounded decoders, server-computed capability flags, explicit draft recovery, revision fencing and session-revocation clearing. Add response aging and reconciliation detail only with corresponding authorized API projections.
 
 ## 6. Edge Cases, Security & Verification
 

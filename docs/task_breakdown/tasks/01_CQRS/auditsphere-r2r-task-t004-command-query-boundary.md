@@ -23,7 +23,7 @@ updated_at: ""
 
 ## Outcome
 
-Add a verified application dispatch seam over one representative existing command and query.
+Document and verify the existing static service boundaries for one representative command and query, preserving one transaction owner and the current wire behavior.
 
 **Original work package:** `R2R-01` — static command and query services, async validation, explicit DTO mapping, one transaction-owner registry, Angular component specs
 **Original package exit:** One representative existing command/query migrated without behavior change or nested transaction.
@@ -46,10 +46,10 @@ Hard dependencies must be COMPLETED, with reviewed handoff evidence:
 
 ## Sequential work
 
-1. Add approved package registrations and choose one existing accounting command/query as the migration pilot.
-2. Route the request through the declared transaction owner; delegate to existing guarded services first.
+1. Choose one existing accounting command and query and record their owning static capability service and API boundary.
+2. Trace the write path and document its single transaction owner; preserve the existing guarded service and do not add a facade or dependency.
 3. Keep operation identity, current authority, mutation, invalidation and evidence in the same authoritative commit.
-4. Add architecture checks for one transaction owner and keep domain projects independent of EF/UI/provider types, and reference no mediator package (declined variation, ADR-0001).
+4. Add an architecture check for the selected transaction-owner invariant and keep domain projects independent of EF/UI/provider types (ADR-0001).
 
 ## 1. Domain Modeling (`.Domain`)
 
@@ -73,16 +73,16 @@ Use predecessor outputs by exact identity/revision/manifest, not by selecting a 
 
 **Required outputs:**
 
-- Registered request dispatch, pilot handler/query and transaction-owner enforcement.
+- A transaction-owner registry and a verified representative service/API boundary.
 - Before/after behavior evidence for the pilot.
 
 **Direct consumers unlocked by this task:**
 
 - [T005 — Implement asynchronous validation and explicit DTO mapping](auditsphere-r2r-task-t005-asynchronous-validation-dto-mapping.md)
 
-## 5. Blazor UI Architecture (`.Web`)
+## 5. Presentation boundary
 
-Extend the source-listed existing routes before adding a parallel workspace. Use immutable DTOs in per-circuit scoped UI state, separate EditContexts, EventCallbacks, server field errors and save/discard/cancel dirty guards. No circuit-owned DbContext, cross-user static state, optimistic approval or fake completion. Recheck selection tokens and clear protected content on route/scope loss.
+No presentation rewrite is part of this task. Preserve the current API contract and Angular UI; the legacy Blazor host remains rollback/reference per ADR-0002.
 
 ## 6. Edge Cases, Security & Verification
 

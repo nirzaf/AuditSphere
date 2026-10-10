@@ -34,8 +34,20 @@ public static class CompletionBundleFixture
     decimal netIncome = 100m;
     await using (var db = new AuditSphereDbContext(options))
     {
-      foreach (var (name, role) in new[] { ("associate", "AccountingPreparer"), ("senior", "AccountingReviewer") })
-        db.RoleGrants.Add(new RoleGrant { Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = w.U[name].Id, Role = role, GrantedAt = now, GrantedByUserId = w.U["partner"].Id });
+      foreach (var (name, role) in new[]
+      {
+        ("associate", "AccountingPreparer"), ("senior", "AccountingReviewer"), ("partner", "Partner")
+      })
+      {
+        var userId = w.U[name].Id;
+        if (!await db.RoleGrants.AsNoTracking().AnyAsync(x => x.FirmId == w.FirmId && x.UserId == userId &&
+              x.Role == role && x.ClientId == null && x.EngagementId == null))
+          db.RoleGrants.Add(new RoleGrant
+          {
+            Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = userId, Role = role,
+            GrantedAt = now, GrantedByUserId = w.U["partner"].Id
+          });
+      }
 
       var existingMapping = await db.MappingVersions.AsNoTracking()
         .Where(x => x.FirmId == w.FirmId && x.EngagementId == w.EngagementId && x.Status == AccountingPackageStates.MappingApproved)
@@ -61,12 +73,16 @@ public static class CompletionBundleFixture
         db.ClientReportingBooks.Add(new ClientReportingBook { Id = book, FirmId = w.FirmId, ClientId = w.ClientId, PeriodId = period, Code = "STATUTORY", Basis = "STATUTORY", InclusionRule = "ALL_ENTITIES",
           Currency = "QAR", Status = AccountingWorkflowStates.Active, CreatedByUserId = w.U["associate"].Id, CreatedAt = now });
         db.TrialBalanceDatasets.Add(new TrialBalanceDataset { Id = dataset, FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId, PeriodId = period, BookId = book, Basis = "STATUTORY",
-          SourceKind = "Raw", Currency = "QAR", Balanced = true, ValidationStatus = "Accepted", ImportedAt = now, ImportedByUserId = w.U["associate"].Id });
+          SourceKind = "Raw", Currency = "QAR", Balanced = true, ValidationStatus = "Accepted", ImportState = TrialBalanceImportStates.Loading,
+          ImportedAt = now, ImportedByUserId = w.U["associate"].Id });
         db.TrialBalanceRows.AddRange(new TrialBalanceRow { Id = Guid.NewGuid(), DatasetId = dataset, AccountCode = "1000", AccountName = "Cash", Amount = 100m, Currency = "QAR", Entity = "TEST" },
           new TrialBalanceRow { Id = Guid.NewGuid(), DatasetId = dataset, AccountCode = "4000", AccountName = "Revenue", Amount = -100m, Currency = "QAR", Entity = "TEST" });
         targetDataset = dataset;
       }
       await db.SaveChangesAsync();
+      if (targetMappingId == Guid.Empty)
+        await db.TrialBalanceDatasets.Where(x => x.Id == targetDataset)
+          .ExecuteUpdateAsync(update => update.SetProperty(x => x.ImportState, TrialBalanceImportStates.Sealed));
     }
     var preparer = w.A("associate", "AccountingPreparer"); var reviewer = w.A("senior", "AccountingReviewer"); var partner = w.A("partner", "Partner");
     Guid packageId;
@@ -74,8 +90,10 @@ public static class CompletionBundleFixture
     {
       if (targetMappingId == Guid.Empty)
       {
+        await CompletionTestFixtures.SeedTaxonomyAsync(db, w.FirmId, w.U["partner"].Id);
         var mapping = await FinancialStatementService.CreateMappingVersionAsync(db, preparer, new(targetDataset, "TEST-IFRS", "2026-01-01", "2026-12-31",
           [new("1000", "CASH", "ASSETS", 1m, "Cash mapping"), new("4000", "REVENUE", "INCOME", 1m, "Revenue mapping")]));
+        Assert.True(mapping.Succeeded, $"CreateMappingVersion failed: {mapping.ErrorCode} - {mapping.Message}");
         var mappingRow = await db.MappingVersions.AsNoTracking().SingleAsync(x => x.Id == mapping.Value);
         var approved = await FinancialStatementService.ApproveMappingAsync(db, reviewer, mapping.Value, mappingRow.Version);
         Assert.True(approved.Succeeded, $"ApproveMapping failed: {approved.ErrorCode} - {approved.Message}");

@@ -130,6 +130,7 @@ describe('Audit Records Contracts', () => {
       profileId: 'ISQM1-PROFILE',
       profileVersion: 1,
       manifestVersion: 1,
+      manifestStatus: 'REVIEWED',
       manifestDigest: hash64,
       completenessStatus: 'COMPLETE',
       completenessException: null,
@@ -162,7 +163,7 @@ describe('Audit Records Contracts', () => {
   it('preserves loaded archive entries and retries a failed next-page read', async () => {
     const archive = decodeArchive({
       id: id1, engagementId: id2, status: 'SEALED', createdAt: '2026-10-02T18:00:00Z',
-      profileId: 'ISQM1-PROFILE', profileVersion: 1, manifestVersion: 1, manifestDigest: hash64,
+      profileId: 'ISQM1-PROFILE', profileVersion: 1, manifestVersion: 1, manifestStatus: 'REVIEWED', manifestDigest: hash64,
       completenessStatus: 'COMPLETE', completenessException: null,
       entries: [{ ordinal: 1, entryKind: 'DOCUMENT', relativeName: 'first.pdf', contentHash: hash64, byteCount: 1 }],
       totalEntryCount: 2, nextOrdinal: 2, activeHoldCount: 0, observedProtection: null,

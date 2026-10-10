@@ -1,25 +1,27 @@
 # STE v2.1 gap-closure story definitions (STE-GAP-001 to STE-GAP-010)
 
-**Status: CURRENT.** The ten definitions that commits `9e946d1`, `9c625a2` and `27449f0` cite. No repository file defined them before this document (spike SPK-02).
+**Status: CURRENT.** This document preserves the ten definitions that commits `9e946d1`, `9c625a2` and `27449f0` cite. No repository file defined them before this document (spike SPK-02).
 
-The definitions below are copied verbatim from the owner's STE v2.1 gap analysis (prepared 2026-10-08; reviewed repository revision `214579b9583bae5a209cb4cf3476a5fcb459251d`). Sections 1 to 4 of that analysis are not reproduced. The mapping table is new. It records each story's state on `master` after STE-NXT-003 to STE-NXT-008. "Closed locally" means the code path and its UI or API exist and were read. It does not mean the acceptance criteria were executed; the acceptance manifest records that separately.
+The story definitions below are copied verbatim from the owner's STE v2.1 gap analysis (prepared 2026-10-08; reviewed repository revision `214579b9583bae5a209cb4cf3476a5fcb459251d`). Sections 1 to 4 of that analysis are not reproduced. The mapping table is the current implementation and local-evidence assessment, refreshed against code and test runs. "Closed locally" means the behavior has implementation and local test evidence. It never claims live-provider acceptance. The acceptance manifest separately records which cited checks passed on the current tree.
 
 ## Mapping to the verification table
 
 | Story | Title | Priority | Verification rows | State on `master` | Remaining work |
 | --- | --- | --- | --- | --- | --- |
-| STE-GAP-001 | Versioned service-specific engagement letter templates | P1 | 4.1.4 (both rows) | Closed locally: templates by route, unsupported routes fail closed | Letter generation per route not executed |
-| STE-GAP-002 | 50 % advance invoice automation | P1 | 4.1.5 (ADR-0007, preparation state) | Closed locally: nine-state preparation display (STE-NXT-006), PAID-advance activation gate (ADR-0012), host `AutomaticFeeInvoices` alignment pinned by `FeeAgreementConfigurationTests` | Preparation states not executed in a browser with a linked agreement |
-| STE-GAP-003 | Controlled ±5 % practical materiality rounding | P0 | 4.2.4 (rounding) | Closed locally: rounding form, server flag and exact decimal bounds (STE-NXT-004) | Runtime browser check of the form; N06 has a PostgreSQL-backed Domain test and manifest evidence |
+| STE-GAP-001 | Versioned service-specific engagement letter templates | P1 | 4.1.4 (both rows) | Closed locally: route-specific templates, unsupported routes fail closed | Three-route synthetic Angular browser journey: `AngularSteCommercialAcceptanceJourneyTests.PartnerGeneratesTheRouteBoundLetterAndReviewsAdvancePreparation`; wording release review remains separate |
+| STE-GAP-002 | 50 % advance invoice automation | P1 | 4.1.5 (ADR-0007, preparation state) | Closed locally: nine-state preparation display (STE-NXT-006), PAID-advance activation gate (ADR-0012), host `AutomaticFeeInvoices` alignment pinned by `FeeAgreementConfigurationTests` | Linked agreement and disabled-automation preparation state exercised in the same browser journey; live finance-provider acceptance remains separate |
+| STE-GAP-003 | Controlled ±5 % practical materiality rounding | P0 | 4.2.4 (rounding) | Closed locally: rounding form, server flag and exact decimal bounds (STE-NXT-004) | Seeded Angular journey covers rounding and separate Partner approval; Domain tests cover exact ±5% boundaries and refusal |
 | STE-GAP-004 | Live client portal provisioning and credential acceptance | P1 | 4.1.5 (sign-in), 4.2.3 (folders) | BLOCKED_EXTERNAL: local orchestration only | Real tenant evidence (story section "External acceptance evidence") |
-| STE-GAP-005 | Automatic holding letter dispatch | P1 | 4.3.4 | Closed locally: one dispatch per blocker set; a blocked or dead-lettered mail operation is reported as FAILED with the operations-screen recovery route, and re-dispatch is honest about the no-op; a superseded letter is refused at dispatch and reissued (`AuditDeliverablesTests`) | Re-arming is the guarded operations recovery; not executed end to end against a live mail provider |
-| STE-GAP-006 | Partner early compliance lock | P0 | 4.4.3 (early lock) | Closed locally: panel and API (STE-NXT-005) | PostgreSQL-backed test executes refusal branches; the separate frozen-file Playwright journey now verifies supplementary-record decisions cannot reopen the archive. A scheduled-freeze early-lock UI journey remains |
-| STE-GAP-007 | Provider-enforced read-only compliance archive | P0 | 4.4.3 (permanent archive) | BLOCKED_EXTERNAL: no provider protection implemented | Approved design (SPK-01 and ADR-0009 draft); real-tenant tests |
-| STE-GAP-008 | Canonical eleven-stage lifecycle truthfulness | P0 | 5 (lifecycle) | Partly closed: derived projection, Stage 3 requires a dispatched proposal, separate local/provider archive states, countdown anchor, and archive only when FROZEN | Lifecycle browser journey remains; provider enforcement stays BLOCKED_EXTERNAL under STE-GAP-007 |
-| STE-GAP-009 | Approved STE default charge-out policy | P2 | 4.5.1 (rates, rate cards) | Closed locally: QAR baseline drafts, second-person approval, role aliases and fail-closed missing rate (STE-NXT-003) | Browser check of second-person approval and rate resolution against a time entry remains |
-| STE-GAP-010 | End-to-end acceptance journey | P0 | No verification row | The manifest generator now requires every cited test and the source/test trees to match the recorded zero-failure suite-run snapshot. The latest recorded runs are stale against the current tree, so no local check currently qualifies as PASS; overall result stays FAIL | Current-tree suite runs are required before local evidence can pass; live tenant checks remain BLOCKED_EXTERNAL |
+| STE-GAP-005 | Automatic holding letter dispatch | P1 | 4.3.4 | Closed locally: one dispatch per blocker set; a blocked/dead-lettered operation is reported as FAILED with its durable recovery route; duplicate dispatch is an honest no-op; superseded letters are refused and reissued | Live mail-provider delivery is unverified; same-blocker-set idempotency and recovery-state decisions are covered by PostgreSQL-backed tests |
+| STE-GAP-006 | Partner early compliance lock | P0 | 4.4.3 (early lock) | Closed locally: readiness panel, row-locked API and immutable evidence (STE-NXT-005) | Playwright verifies scheduled freeze → reviewed early lock → local FROZEN while provider remains BLOCKED_EXTERNAL; Domain tests execute refusal branches |
+| STE-GAP-007 | Provider-enforced read-only compliance archive | P0 | 4.4.3 (permanent archive) | Local reviewed-manifest and structured-record export implemented; provider protection remains BLOCKED_EXTERNAL | Authorized Records Custodian export validates the current reviewed manifest and hashes. External document bytes and provider immutability are not claimed; approved provider strategy, read-back and denial tests remain |
+| STE-GAP-008 | Canonical eleven-stage lifecycle truthfulness | P0 | 5 (lifecycle) | Closed locally: derived projection, Stage 3 dispatch gate, separate local/provider states, countdown anchor and archive only when FROZEN | Joined browser journey verifies Stage 2 → dispatched proposal → Stage 3; provider enforcement is separately tracked under STE-GAP-007 |
+| STE-GAP-009 | Approved STE default charge-out policy | P2 | 4.5.1 (rates, rate cards) | Closed locally: QAR baseline drafts, second-person approval, role aliases, FSLI-pinned billable time and fail-closed missing rate (STE-NXT-003) | Synthetic Angular journey verifies separate approval and time resolution against the approved rate and mapping |
+| STE-GAP-010 | End-to-end acceptance journey | P0 | No verification row | Current-tree manifest: 57 local checks PASS, 0 FAIL, 0 NOT_EXECUTED; five Microsoft/provider checks remain BLOCKED_EXTERNAL | Production tenant/provider evidence and separate professional/release acceptance remain |
 
-## Gap index (verbatim from the analysis)
+## Original gap index (baseline from the 2026-10-08 analysis; preserved verbatim)
+
+The original statuses below are historical baseline classifications. Use the current mapping table above for present status.
 
 ### Primary remaining gaps
 
@@ -1075,7 +1077,9 @@ Older task cards should not cause these capabilities to be duplicated under para
 
 ---
 
-# 9. Notable Current-Code Findings That Should Be Fixed During the Stories
+# 9. Historical Findings from the 2026-10-08 Baseline Analysis
+
+The findings below are preserved from the original gap analysis as historical source text. They describe the reviewed 2026-10-08 baseline, not the current implementation. Consult the current mapping table at the top of this document and the generated acceptance manifest for present evidence and status.
 
 ## Finding A — Materiality documentation overstates practical rounding
 
@@ -1121,6 +1125,14 @@ Do not mark the supplied specification as fully implemented until all of the fol
 - [ ] no current STE coverage row relies solely on historical/stale documentation
 - [ ] external acceptance evidence is current for the production tenant
 - [ ] no known blocker is hidden behind an "Implemented" label
+
+## Current local evidence assessment — 2026-10-10
+
+The full current-tree .NET regression passed: API **223/223**, Domain **808/808**, and Angular Playwright E2E **234/234**. Angular component specs passed **618/618** across 113 files. The manifest therefore records **57 PASS / 0 FAIL / 0 NOT_EXECUTED / 5 BLOCKED_EXTERNAL** and an overall `BLOCKED_EXTERNAL` result. The five blocked checks are J12, J13, J14, J47 and N13; they require live tenant/workspace or provider-side protection evidence.
+
+The Release solution build completed with zero errors and six `NU1900` warnings because the NuGet vulnerability service was unreachable. EF model-drift, OpenAPI drift, documentation, filename, narrative-metric, Angular inventory and task-board checks passed. The OpenAPI artifact includes the reviewed archive export endpoint. The Angular production build passed with the supported SQLite cache backend and retains the existing `commercial/settings.scss` component-style budget warning. On this macOS host, Angular's automatic LMDB cache backend aborted inside its native binding; that local cache failure is not hidden as a build pass.
+
+Legal confirmation taxonomy and exact FSLI-pinned time attribution are implemented and covered by the Domain/E2E suites. ADR-0013 through ADR-0015 and the previously delegated architecture decisions are recorded as approved technical decisions. This does not close professional accounting approval: T003 remains blocked on a qualified methodology owner and independent reviewer for standards, FX/consolidation policy, resource limits and golden-fixture outcomes. T014 remains not started until hard dependencies T007 and T013 are completed and reviewed. No accounting treatment or fixture amount was inferred, and no production database migration or live-provider acceptance was performed in this verification.
 
 ---
 

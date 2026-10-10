@@ -94,6 +94,11 @@ public sealed class FirmOperationsTests
     var partner = w.A("partner", "Partner");
     var manager = w.A("manager", "Manager");
     var finance = w.A("finance", "FinanceManager");
+    var today = DateOnly.FromDateTime(DateTime.UtcNow);
+    var periodStart = today.AddDays(-4);
+    var workDate = today.AddDays(-1);
+    var capacityDays = Enumerable.Range(0, 5).Select(offset => periodStart.AddDays(offset))
+      .Count(date => date.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday));
     Guid entryId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
@@ -101,8 +106,8 @@ public sealed class FirmOperationsTests
       Assert.True((await PracticeTimeService.ApproveRateCardAsync(db, partner, card)).Succeeded);
       var budget = (await PracticeTimeService.ReviseBudgetAsync(db, manager, new(w.EngagementId, "QAR", [new("Staff", "AUDIT", 600, BudgetPhases.Fieldwork)]))).Value;
       Assert.True((await PracticeTimeService.ApproveBudgetAsync(db, partner, budget)).Succeeded);
-      var task = (await PracticeTimeService.CreateTaskAsync(db, manager, new("Bank reconciliation", w.ClientId, w.EngagementId, w.U["staff"].Id, DueDate: new DateOnly(2026, 10, 9)))).Value;
-      entryId = (await PracticeTimeService.SaveTimeDraftAsync(db, w.A("staff", "Staff"), new(task, new DateOnly(2026, 10, 6), 540, 300, "Staff", "AUDIT"))).Value;
+      var task = (await PracticeTimeService.CreateTaskAsync(db, manager, new("Bank reconciliation", w.ClientId, w.EngagementId, w.U["staff"].Id, DueDate: today))).Value;
+      entryId = (await PracticeTimeService.SaveTimeDraftAsync(db, w.A("staff", "Staff"), new(task, workDate, 540, 300, "Staff", "AUDIT"))).Value;
       Assert.True((await PracticeTimeService.SubmitTimeAsync(db, w.A("staff", "Staff"), entryId)).Succeeded);
       Assert.True((await PracticeTimeService.ApproveTimeAsync(db, manager, entryId)).Succeeded);
       Assert.True((await PracticeTimeService.CompleteTaskAsync(db, manager, task)).Succeeded);
@@ -123,7 +128,7 @@ public sealed class FirmOperationsTests
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       Assert.Equal(ErrorCodes.ScopeDenied, (await PracticeAnalyticsQuery.GetAsync(db, manager, new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31))).ErrorCode);
-      var view = (await PracticeAnalyticsQuery.GetAsync(db, partner, new DateOnly(2026, 10, 5), new DateOnly(2026, 10, 9))).Value!;
+      var view = (await PracticeAnalyticsQuery.GetAsync(db, partner, periodStart, today)).Value!;
       var row = view.Engagements.Single(x => x.EngagementId == w.EngagementId);
       Assert.Equal("QAR", row.Currency);
       Assert.Equal(300, row.ActualMinutes);
@@ -135,7 +140,8 @@ public sealed class FirmOperationsTests
       Assert.Equal((100.0m, 80.0m, 2000m, 66.7m, 300), (row.RealizationPercent!.Value, row.CollectionPercent!.Value, row.Profit!.Value, row.MarginPercent!.Value, row.BudgetVarianceMinutes));
       Assert.True(row.CostComplete);
       var audit = view.Departments.Single(x => x.Department == "Audit");
-      Assert.Equal((2400, 300, 12.5m), (audit.CapacityMinutes, audit.ChargeableMinutes, audit.UtilizationPercent!.Value));
+      Assert.Equal((capacityDays * 480, 300, Math.Round(300m * 100m / (capacityDays * 480), 1)),
+        (audit.CapacityMinutes, audit.ChargeableMinutes, audit.UtilizationPercent!.Value));
       Assert.Equal((1, 1, 100.0m), (view.Milestones.Due, view.Milestones.CompletedOnTime, view.Milestones.OnTimePercent!.Value));
       Assert.Contains(view.Definitions, d => d.Contains("charge-out rates are not costs"));
     }

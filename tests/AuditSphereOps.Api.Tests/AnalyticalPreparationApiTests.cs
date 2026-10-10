@@ -64,8 +64,7 @@ public sealed class AnalyticalPreparationApiTests
     var zeroEvidence=await db.AnalyticalReviews.SingleAsync(x=>x.Id==zeroReceipt.GetProperty("evidenceId").GetGuid());
     Assert.Null(zeroEvidence.Ratio);Assert.Equal("INSUFFICIENT_DATA",zeroEvidence.Status);
     Assert.Equal(2,await db.AccountingAnalysisPreparations.CountAsync());
-    var migrations=db.Database.GetMigrations().ToArray();var migrationIndex=Array.FindIndex(migrations,x=>x.EndsWith("_NativeAnalyticalReviewPreparation",StringComparison.Ordinal));
-    Assert.True(migrationIndex>0);await Assert.ThrowsAsync<PostgresException>(()=>db.GetService<IMigrator>().MigrateAsync(migrations[migrationIndex-1]));
+    await PermanentFileFreezeMigrationAssertions.AssertDowngradeBlockedAsync(db,"_NativeAnalyticalReviewPreparation");
   }
 
   [Fact]

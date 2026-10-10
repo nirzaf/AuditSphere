@@ -6,7 +6,7 @@
 
 ## SPK-01 — Making the ISA 230 archive actually immutable
 
-*Status (2026-10-08): finding written, `auditsphere-execution-report-spk-01-archive-immutability-proposed.md`, with draft ADR-0009 (PROPOSED) and follow-up stories STE-NXT-011 and STE-NXT-012. The recommendation awaits the owner's decision. No live tenant was used.*
+*Status (2026-10-10): archive authority is accepted by ADR-0009 under the owner's delegated project decision. The selected provider-side read-only-copy implementation and live permission readback remain open under STE-NXT-011/012; no live tenant evidence is claimed here.*
 
 **Time box:** 3 days. **Blocks:** STE package 6 acceptance, gate P2 archive scope.
 

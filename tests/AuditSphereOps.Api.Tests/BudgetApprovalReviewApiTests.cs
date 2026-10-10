@@ -23,8 +23,9 @@ public sealed class BudgetApprovalReviewApiTests
     {
       var migrations = db.Database.GetMigrations().ToArray();
       var index = Array.FindIndex(migrations, x => x.EndsWith("_NativeBudgetApprovalReview", StringComparison.Ordinal));
-      Assert.True(index > 0); await db.GetService<IMigrator>().MigrateAsync(migrations[index - 1]);
-      await db.GetService<IMigrator>().MigrateAsync(); budgetId = await BudgetApprovalReviewSeed.PopulateAsync(db, f);
+      Assert.True(index > 0);
+      Assert.Contains(migrations[index], await db.Database.GetAppliedMigrationsAsync());
+      budgetId = await BudgetApprovalReviewSeed.PopulateAsync(db, f);
     }
     using var factory = new StandaloneApiApplicationFactory(new Dictionary<string, string?> {
       ["ConnectionStrings:AuditSphere"] = pg.ConnectionString, ["DevelopmentIdentity:Enabled"] = "true",
@@ -49,8 +50,7 @@ public sealed class BudgetApprovalReviewApiTests
     Assert.Equal(HttpStatusCode.Forbidden, (await c.GetAsync("/api/ui/engagements/" + foreign.EngagementId + "/budget-approval/receipts/" + r.RequestId + "?requestHash=" + p.RequestHash)).StatusCode);
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      var migrations = db.Database.GetMigrations().ToArray(); var index = Array.FindIndex(migrations, x => x.EndsWith("_NativeBudgetApprovalReview", StringComparison.Ordinal));
-      await Assert.ThrowsAsync<PostgresException>(() => db.GetService<IMigrator>().MigrateAsync(migrations[index - 1]));
+      await PermanentFileFreezeMigrationAssertions.AssertDowngradeBlockedAsync(db, "_NativeBudgetApprovalReview");
       Assert.Single(await db.BudgetApprovals.ToListAsync());
       await db.RoleGrants.Where(x => x.UserId == f.Admin.Id).ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow));
     }

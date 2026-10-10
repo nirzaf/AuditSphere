@@ -5,6 +5,7 @@ public sealed class AngularConfirmationJourneyTests
 {
   [Fact]
   [Trait("CaseId","ANGULAR-CONFIRMATION-LIFECYCLE")]
+  [Trait("CaseId", "T059-LEGAL-TAXONOMY-BROWSER")]
   public async Task NativeSignalForms_ObservedDispatch_IndependentAlternativeReview_AndSessionRevocation()
   {
     await using var host=await OwnedHost.StartAsync(startWorker:false,caseId:"ANGULAR-CONFIRMATION-LIFECYCLE");
@@ -17,7 +18,8 @@ public sealed class AngularConfirmationJourneyTests
     await staff.GotoAsync(origin+"/auth/sign-in?returnUrl="+Uri.EscapeDataString(route));
     await Assertions.Expect(staff.GetByRole(AriaRole.Heading,new(){Name="Confirmations",Exact=true})).ToBeVisibleAsync();
     await staff.GetByText("Prepare confirmation",new(){Exact=true}).ClickAsync();
-    foreach(var (label,value) in new[]{("Audit area","CASH_BANK"),("Source record","bank-001"),("Booked amount","123456789.123456"),("Currency","QAR"),("Confirmation date","2026-10-02"),("Respondent","Synthetic bank"),("Validated contact source","Approved contact register")})await staff.GetByLabel(label,new(){Exact=true}).FillAsync(value);
+    await staff.Locator("audit-confirmations form").First.GetByRole(AriaRole.Combobox).First.SelectOptionAsync("LEGAL");
+    foreach(var (label,value) in new[]{("Source record","bank-001"),("Booked amount","123456789.123456"),("Currency","QAR"),("Confirmation date","2026-10-02"),("Respondent","Synthetic bank"),("Validated contact source","Approved contact register")})await staff.GetByLabel(label,new(){Exact=true}).FillAsync(value);
     await Assertions.Expect(staff.GetByRole(AriaRole.Button,new(){Name="Prepare reviewed confirmation",Exact=true})).ToBeDisabledAsync();
     await staff.GetByRole(AriaRole.Checkbox,new(){Name="I reviewed the case identity, amount, date and contact source.",Exact=true}).CheckAsync();
     await staff.GetByRole(AriaRole.Button,new(){Name="Prepare reviewed confirmation",Exact=true}).ClickAsync();
@@ -50,7 +52,7 @@ public sealed class AngularConfirmationJourneyTests
     var route="/ui/app/engagements/"+host.Fixture.EngagementId+"/confirmations";
     await page.GotoAsync(origin+"/auth/sign-in?returnUrl="+Uri.EscapeDataString(route));
     await page.GetByText("Prepare confirmation batch",new(){Exact=true}).ClickAsync();
-    await page.GetByLabel("Batch audit area",new(){Exact=true}).FillAsync("CASH_BANK");await page.GetByLabel("Batch currency",new(){Exact=true}).FillAsync("QAR");await page.GetByLabel("Batch confirmation date",new(){Exact=true}).FillAsync("2026-10-02");
+    await page.Locator("audit-confirmations form").Nth(1).GetByRole(AriaRole.Combobox).First.SelectOptionAsync("CASH_BANK");await page.GetByLabel("Batch currency",new(){Exact=true}).FillAsync("QAR");await page.GetByLabel("Batch confirmation date",new(){Exact=true}).FillAsync("2026-10-02");
     await page.GetByRole(AriaRole.Button,new(){Name="Add batch case",Exact=true}).ClickAsync();
     async Task Fill(int n,string source,string amount)
     {
@@ -63,7 +65,7 @@ public sealed class AngularConfirmationJourneyTests
     await reviewed.CheckAsync();await page.RunAndWaitForResponseAsync(()=>submit.ClickAsync(),r=>r.Url.EndsWith("/confirmations/batch")&&r.Request.Method=="POST");
     await Assertions.Expect(page.Locator("audit-confirmations table")).ToContainTextAsync("Synthetic batch bank 1");await Assertions.Expect(page.Locator("audit-confirmations table")).ToContainTextAsync("Synthetic batch bank 2");
     await page.ReloadAsync();await Assertions.Expect(page.Locator("audit-confirmations table")).ToContainTextAsync("Synthetic batch bank 2");
-    await page.GetByText("Prepare confirmation batch",new(){Exact=true}).ClickAsync();await page.GetByLabel("Batch audit area",new(){Exact=true}).FillAsync("CASH_BANK");await page.GetByLabel("Batch currency",new(){Exact=true}).FillAsync("QAR");await page.GetByLabel("Batch confirmation date",new(){Exact=true}).FillAsync("2026-10-02");await page.GetByRole(AriaRole.Button,new(){Name="Add batch case",Exact=true}).ClickAsync();await Fill(1,"batch-003","1.000001");await Fill(2,"batch-002","1.000001");await reviewed.CheckAsync();
+    await page.GetByText("Prepare confirmation batch",new(){Exact=true}).ClickAsync();await page.Locator("audit-confirmations form").Nth(1).GetByRole(AriaRole.Combobox).First.SelectOptionAsync("CASH_BANK");await page.GetByLabel("Batch currency",new(){Exact=true}).FillAsync("QAR");await page.GetByLabel("Batch confirmation date",new(){Exact=true}).FillAsync("2026-10-02");await page.GetByRole(AriaRole.Button,new(){Name="Add batch case",Exact=true}).ClickAsync();await Fill(1,"batch-003","1.000001");await Fill(2,"batch-002","1.000001");await reviewed.CheckAsync();
     var refusal=await page.RunAndWaitForResponseAsync(()=>submit.ClickAsync(),r=>r.Url.EndsWith("/confirmations/batch")&&r.Request.Method=="POST");Assert.Equal(400,refusal.Status);
     await Assertions.Expect(page.Locator("audit-command-message")).ToContainTextAsync("entire batch was refused");await Assertions.Expect(reviewed).Not.ToBeCheckedAsync();
     await page.SetViewportSizeAsync(390,844);Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));
@@ -81,7 +83,7 @@ public sealed class AngularConfirmationJourneyTests
     var route="/ui/app/engagements/"+host.Fixture.EngagementId+"/confirmations";
     await page.GotoAsync(origin+"/auth/sign-in?returnUrl="+Uri.EscapeDataString(route));
     await page.GetByText("Prepare confirmation",new(){Exact=true}).ClickAsync();
-    async Task Fill(IPage target,string source,string respondent){foreach(var (label,value) in new[]{("Audit area","CASH_BANK"),("Source record",source),("Booked amount","123456789.123456"),("Currency","QAR"),("Confirmation date","2026-10-02"),("Respondent",respondent),("Validated contact source","Approved synthetic register")})await target.GetByLabel(label,new(){Exact=true}).FillAsync(value);}
+    async Task Fill(IPage target,string source,string respondent){await target.Locator("audit-confirmations form").First.GetByRole(AriaRole.Combobox).First.SelectOptionAsync("CASH_BANK");foreach(var (label,value) in new[]{("Source record",source),("Booked amount","123456789.123456"),("Currency","QAR"),("Confirmation date","2026-10-02"),("Respondent",respondent),("Validated contact source","Approved synthetic register")})await target.GetByLabel(label,new(){Exact=true}).FillAsync(value);}
     await Fill(page,"recover-001","Recoverable synthetic bank");
     var save=page.GetByRole(AriaRole.Button,new(){Name="Save case draft in tab",Exact=true});var recover=page.GetByRole(AriaRole.Button,new(){Name="Recover case draft",Exact=true});
     await save.ClickAsync();await Assertions.Expect(page.GetByRole(AriaRole.Region,new(){Name="Confirmation draft recovery",Exact=true})).ToContainTextAsync("saved in this tab only");

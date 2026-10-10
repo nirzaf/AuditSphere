@@ -18,7 +18,7 @@ public sealed class BudgetPreparationReviewApiTests
     await using var pg=await OwnedPostgresDatabase.CreateAsync("API-BUDGET-PREPARATION");var f=await PbcSeed.SeedAsync(pg);var foreign=await PbcSeed.SeedAsync(pg);
     await using(var db=new AuditSphereDbContext(pg.Options)){
       var migrations=db.Database.GetMigrations().ToArray();var index=Array.FindIndex(migrations,x=>x.EndsWith("_NativeBudgetPreparationReview",StringComparison.Ordinal));Assert.True(index>0);
-      await db.GetService<IMigrator>().MigrateAsync(migrations[index-1]);await db.GetService<IMigrator>().MigrateAsync();
+      Assert.Contains(migrations[index],await db.Database.GetAppliedMigrationsAsync());
       await BudgetPreparationReviewSeed.PopulateAsync(db,f);
     }
     using var factory=new StandaloneApiApplicationFactory(new Dictionary<string,string?>{["ConnectionStrings:AuditSphere"]=pg.ConnectionString,["DevelopmentIdentity:Enabled"]="true",["DevelopmentIdentity:Subject"]=f.Staff.Subject,["DevelopmentIdentity:TenantId"]=f.Staff.TenantId,["Application:AllowSimulationAdapters"]="true",["ExternalEffects:Enabled"]="false"});
@@ -37,8 +37,8 @@ public sealed class BudgetPreparationReviewApiTests
     Assert.False((await c.GetFromJsonAsync<BudgetPreparationLookup>(url+"/receipts/"+Guid.NewGuid()+"?requestHash="+p.RequestHash))!.Found);
     Assert.Equal(HttpStatusCode.Forbidden,(await c.GetAsync("/api/ui/engagements/"+foreign.EngagementId+"/budget-preparation/receipts/"+r.RequestId+"?requestHash="+p.RequestHash)).StatusCode);
     await using(var db=new AuditSphereDbContext(pg.Options)){
-      Assert.Single(await db.BudgetPreparations.ToListAsync());var migrations=db.Database.GetMigrations().ToArray();var index=Array.FindIndex(migrations,x=>x.EndsWith("_NativeBudgetPreparationReview",StringComparison.Ordinal));
-      await Assert.ThrowsAsync<PostgresException>(()=>db.GetService<IMigrator>().MigrateAsync(migrations[index-1]));Assert.Single(await db.BudgetPreparations.ToListAsync());
+      await PermanentFileFreezeMigrationAssertions.AssertDowngradeBlockedAsync(db,"_NativeBudgetPreparationReview");
+      Assert.Single(await db.BudgetPreparations.ToListAsync());
       await db.RoleGrants.Where(x=>x.UserId==f.Staff.Id&&x.Role=="Manager").ExecuteUpdateAsync(x=>x.SetProperty(y=>y.RevokedAt,DateTimeOffset.UtcNow));
     }
     Assert.Equal(HttpStatusCode.Forbidden,(await c.GetAsync(url+"/receipts/"+r.RequestId+"?requestHash="+p.RequestHash)).StatusCode);

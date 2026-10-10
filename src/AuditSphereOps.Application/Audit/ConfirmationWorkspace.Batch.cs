@@ -2,6 +2,7 @@ using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Records;
 using AuditSphereOps.Application.Security;
+using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,16 +14,17 @@ public static partial class ConfirmationWorkspace
     IAuditSphereDbContext db, ActorContext actor, ConfirmationBatchRequest request,
     string reviewToken, bool reviewed, CancellationToken ct = default)
   {
+    var cases = request.Cases;
     if (!(await Auth(db, actor, request.EngagementId, PrepareRoles, true, ct)).Succeeded)
       return Denied<ConfirmationBatchValue>();
-    if (request.Cases is null || request.Cases.Count is < 1 or > 100 ||
-        string.IsNullOrWhiteSpace(request.AreaCode) || request.AreaCode.Length > 40 ||
-        request.Cases.Any(x => x is null || string.IsNullOrWhiteSpace(x.SourceRecordId) || x.SourceRecordId.Length > 200 ||
+    if (cases is null || cases.Count is < 1 or > 100 ||
+        !AuditConfirmationAreaCodes.IsSupported(request.AreaCode) || request.AreaCode.Length > 40 ||
+        cases.Any(x => x is null || string.IsNullOrWhiteSpace(x.SourceRecordId) || x.SourceRecordId.Length > 200 ||
           string.IsNullOrWhiteSpace(x.Respondent) || x.Respondent.Length > 500 ||
           string.IsNullOrWhiteSpace(x.ContactValidationSource) || x.ContactValidationSource.Length > 2000 ||
           x.BookedAmount <= -100000000000000m || x.BookedAmount >= 100000000000000m || decimal.Round(x.BookedAmount, 6) != x.BookedAmount))
       return CommandResult<ConfirmationBatchValue>.Fail("request.invalid", "Review one to 100 bounded cases with exact supported amounts.");
-    var sources = request.Cases.Select(x => x.SourceRecordId.Trim()).ToArray();
+    var sources = cases.Select(x => x.SourceRecordId.Trim()).ToArray();
     if (sources.Distinct(StringComparer.Ordinal).Count() != sources.Length)
       return CommandResult<ConfirmationBatchValue>.Fail("request.invalid", "Each batch source record must be unique.");
     await using var tx = await db.Database.BeginTransactionAsync(ct);

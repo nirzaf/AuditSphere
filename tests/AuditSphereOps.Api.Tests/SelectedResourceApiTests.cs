@@ -38,6 +38,13 @@ public sealed class SelectedResourceApiTests
     Assert.Equal(1, await db.Microsoft365AdministrationEvents.CountAsync(x => x.Operation == "FOLDER_TEMPLATE_APPROVED"));
     Assert.Equal(1, await db.Microsoft365AdministrationEvents.CountAsync(x => x.Operation == "FOLDER_TEMPLATE_SAVED"));
     var sibling = await PbcSeed.SeedAsync(pg);
+    sibling.Admin.TenantId = s.F.Admin.TenantId;
+    await using (var siblingDb = new AuditSphereDbContext(pg.Options))
+    {
+      var siblingAdmin = await siblingDb.Users.SingleAsync(x => x.Id == sibling.Admin.Id);
+      siblingAdmin.TenantId = sibling.Admin.TenantId;
+      await siblingDb.SaveChangesAsync();
+    }
     using var siblingFactory = Factory(pg, s with { F = sibling }); using var other = siblingFactory.CreateClient(new() { AllowAutoRedirect = false });
     var otherCsrf = await SignIn(other);
     Assert.Equal(HttpStatusCode.Forbidden, (await Post(other, "templates/approve", otherCsrf, new { templateId = id, expectedDigest = digest, reviewed = true })).StatusCode);
@@ -105,7 +112,11 @@ public sealed class SelectedResourceApiTests
   private static async Task<Seeded> Seed(OwnedPostgresDatabase pg)
   {
     var f = await PbcSeed.SeedAsync(pg); await using var db = new AuditSphereDbContext(pg.Options);
-    var admin = await db.Users.SingleAsync(x => x.Id == f.Admin.Id); f.Admin.TenantId = admin.TenantId = Guid.NewGuid().ToString("D"); f.Admin.Subject = admin.Subject = Guid.NewGuid().ToString("D");
+    var tenantId = Guid.NewGuid().ToString("D");
+    var users = await db.Users.Where(x => x.FirmId == f.FirmId).ToListAsync();
+    foreach (var user in users) user.TenantId = tenantId;
+    f.Admin.TenantId = f.Staff.TenantId = f.Reviewer.TenantId = f.Client.TenantId = tenantId;
+    var admin = users.Single(x => x.Id == f.Admin.Id); f.Admin.Subject = admin.Subject = Guid.NewGuid().ToString("D");
     var now = DateTimeOffset.UtcNow; var session = new Microsoft365SetupSession { Id = Guid.NewGuid(), FirmId = f.FirmId, InstallationId = "synthetic-resource-test", BootstrapProofHash = new string('a',64), CapabilityHash = new string('b',64), ClaimedByUserId = admin.Id, ClaimedAt = now, ExpiresAt = now.AddHours(1) };
     var connection = new Microsoft365ConnectionRevision { Id = Guid.NewGuid(), FirmId = f.FirmId, TenantId = admin.TenantId, RuntimeCredentialReference = "private-synthetic-slot", LoginClientIdReference = "configuration:Identity:ClientId", State = "VERIFIED", ConsentState = "VERIFIED", CreatedAt = now };
     var draft = new Microsoft365SetupDraft { Id = Guid.NewGuid(), FirmId = f.FirmId, SetupSessionId = session.Id, ConnectionRevisionId = connection.Id, State = "VERIFIED", ExpectedTenantId = admin.TenantId, SiteUrl = "https://synthetic.sharepoint.com/sites/working", SiteId = "site-1", DriveId = "drive-1", RootFolderId = "root-1", CreatedAt = now, UpdatedAt = now };
@@ -118,7 +129,8 @@ public sealed class SelectedResourceApiTests
   {
     ["ConnectionStrings:AuditSphere"] = pg.ConnectionString, ["DevelopmentIdentity:Enabled"] = "true", ["DevelopmentIdentity:TenantId"] = staff ? s.F.Staff.TenantId : s.F.Admin.TenantId, ["DevelopmentIdentity:Subject"] = staff ? s.F.Staff.Subject : s.F.Admin.Subject,
     ["Application:AllowSimulationAdapters"] = "true", ["ExternalEffects:Enabled"] = "false",
-    ["SelectedSite:TenantId"] = s.F.Admin.TenantId, ["SelectedSite:ClientId"] = Guid.NewGuid().ToString(), ["SelectedSite:CredentialReference"] = "synthetic-test", ["SelectedSite:CertificatePath"] = "synthetic-unused", ["SelectedSite:PrivateKeyPath"] = "synthetic-unused", ["SelectedSite:NegativeControlSiteUrl"] = "https://synthetic.sharepoint.com/sites/control"
+    ["TenantAdministration:Simulation:Enabled"] = "true",
+    ["SelectedSite:TenantId"] = s.F.Admin.TenantId, ["SelectedSite:ClientId"] = Guid.NewGuid().ToString(), ["SelectedSite:CredentialReference"] = "synthetic-test", ["SelectedSite:CertificatePath"] = Path.Combine(Path.GetTempPath(), "auditsphere-synthetic-selected-site-cert.pem"), ["SelectedSite:PrivateKeyPath"] = Path.Combine(Path.GetTempPath(), "auditsphere-synthetic-selected-site-key.pem"), ["SelectedSite:NegativeControlSiteUrl"] = "https://synthetic.sharepoint.com/sites/control"
   }, services => services.AddSingleton<ISelectedSiteBoundaryProbe>(probe ?? new FakeProbe(pg.Options)));
   private sealed class FakeProbe(DbContextOptions<AuditSphereDbContext> options) : ISelectedSiteBoundaryProbe
   {

@@ -1,4 +1,5 @@
 using AuditSphereOps.Application.Audit;
+using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Shared;
 namespace AuditSphereOps.Api.Ui;
 public static partial class UiEndpoints
@@ -19,7 +20,7 @@ public static partial class UiEndpoints
       ReadAsync(http,(db,a,ct)=>ConfirmationWorkspace.DetailAsync(db,a,id,caseId,ct)));
     group.MapPost("/engagements/{id:guid}/confirmations/batch", (Guid id, UiConfirmationBatch i, HttpContext http) => CommandAsync(http, (db,a,ct) =>
     {
-      if (i.Cases is not {Length:>=1 and <=100} || !Bound(i.AreaCode,40) || i.Currency is not {Length:3} ||
+      if (i.Cases is not {Length:>=1 and <=100} || !AuditConfirmationAreaCodes.IsSupported(i.AreaCode) || i.Currency is not {Length:3} ||
           !DateOnly.TryParseExact(i.ConfirmationDate,"yyyy-MM-dd",out var date) || i.ReviewToken is not {Length:64})
         return Task.FromResult(CommandResult<ConfirmationBatchValue>.Fail("request.invalid","Review one to 100 cases with explicit area, currency and date."));
       var cases = new List<ConfirmationBatchItem>(i.Cases.Length);
@@ -34,7 +35,7 @@ public static partial class UiEndpoints
     group.MapPost("/engagements/{id:guid}/confirmations",(Guid id,UiConfirmationCreate i,HttpContext http)=>CommandAsync(http,(db,a,ct)=>
     {
       if(!TryConfirmationAmount(i.BookedAmount,out var amount) || !DateOnly.TryParseExact(i.ConfirmationDate,"yyyy-MM-dd",out var date) ||
-        !Bound(i.AreaCode,40) || !Bound(i.SourceRecordId,200) || !Bound(i.Respondent,500) || !Bound(i.ContactValidationSource,2000) ||
+        !AuditConfirmationAreaCodes.IsSupported(i.AreaCode) || !Bound(i.SourceRecordId,200) || !Bound(i.Respondent,500) || !Bound(i.ContactValidationSource,2000) ||
         i.Currency is not {Length:3} || i.ReviewToken is not {Length:64})
         return Task.FromResult(CommandResult<ConfirmationValue>.Fail("request.invalid","Provide a reviewed identity, exact amount, date and bounded contact evidence."));
       return ConfirmationWorkspace.CreateAsync(db,a,new(id,i.ProcedureId,i.AreaCode,i.SourceRecordId,amount,i.Currency,date,i.Respondent,i.ContactValidationSource),i.ReviewToken,i.Reviewed,ct);

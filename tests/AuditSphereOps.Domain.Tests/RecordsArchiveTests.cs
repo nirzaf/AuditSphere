@@ -1,7 +1,9 @@
 using AuditSphereOps.Application.Records;
+using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Records;
+using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -101,6 +103,33 @@ public sealed class RecordsArchiveTests
     Assert.True(reviewed.Succeeded, reviewed.Message);
     Assert.True((await db.ArchiveManifests.SingleAsync(x => x.ArchiveId == archiveId)).ReviewedAt.HasValue);
 
+    var localExport = await RecordsArchiveService.ExportReviewedArchiveAsync(db, scope.Actor, archiveId);
+    Assert.True(localExport.Succeeded, localExport.Message);
+    Assert.Equal("BLOCKED_EXTERNAL", localExport.Value!.ProviderProtectionState);
+    Assert.Equal(Hashing.Sha256Hex(localExport.Value.Content), localExport.Value.ContentSha256);
+    using (var exportJson = System.Text.Json.JsonDocument.Parse(localExport.Value.Content))
+    {
+      Assert.Equal("auditsphere-archive-evidence-export.v1",
+        exportJson.RootElement.GetProperty("schema").GetString());
+      Assert.Equal("BLOCKED_EXTERNAL", exportJson.RootElement.GetProperty("providerProtection")
+        .GetProperty("state").GetString());
+      Assert.Equal(1, exportJson.RootElement.GetProperty("manifest").GetProperty("entryCount").GetInt32());
+      Assert.False(exportJson.RootElement.GetProperty("providerProtection")
+        .GetProperty("externalDocumentBytesIncluded").GetBoolean());
+    }
+    var unprivilegedId = Guid.NewGuid();
+    db.Users.Add(new AppUser
+    {
+      Id = unprivilegedId, FirmId = scope.FirmId, Subject = "archive-unprivileged-" + unprivilegedId.ToString("N"),
+      TenantId = "tenant-archive-test", Email = "unprivileged@example.test", DisplayName = "Unprivileged reader",
+      UserKind = "Staff", SessionEpoch = 1, CreatedAt = DateTimeOffset.UtcNow
+    });
+    await db.SaveChangesAsync();
+    var unprivileged = new ActorContext(unprivilegedId, scope.FirmId, 1, ["Staff"]);
+    var deniedExport = await RecordsArchiveService.ExportReviewedArchiveAsync(db, unprivileged, archiveId);
+    Assert.False(deniedExport.Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, deniedExport.ErrorCode);
+
     Assert.True((await RecordsArchiveService.RequestRecordsActionAsync(db, scope.Actor,
       new RequestRecordsActionRequest(archiveId, "purview-request-test-1"))).Succeeded);
     Assert.Equal(ArchiveStates.RecordsActionRequested, (await db.Archives.AsNoTracking().SingleAsync(x => x.Id == archiveId)).Status);
@@ -121,6 +150,9 @@ public sealed class RecordsArchiveTests
     var verified = await RecordsArchiveService.VerifyArchiveAsync(db, scope.Actor, archiveId);
     Assert.True(verified.Succeeded, verified.Message);
     Assert.Equal(ArchiveStates.ArchiveVerified, (await db.Archives.AsNoTracking().SingleAsync(x => x.Id == archiveId)).Status);
+    var verifiedExport = await RecordsArchiveService.ExportReviewedArchiveAsync(db, scope.Actor, archiveId);
+    Assert.True(verifiedExport.Succeeded, verifiedExport.Message);
+    Assert.Equal("VERIFIED", verifiedExport.Value!.ProviderProtectionState);
 
     Assert.True((await RecordsArchiveService.RequestLegalHoldAsync(db, scope.Actor,
       new RequestLegalHoldRequest(archiveId, "HOLD-001", "Synthetic test hold"))).Succeeded);

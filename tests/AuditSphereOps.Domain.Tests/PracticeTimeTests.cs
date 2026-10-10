@@ -142,6 +142,94 @@ public sealed class PracticeTimeTests
   }
 
   [Fact]
+  public async Task EngagementTaskPinsApprovedFsliMapping_AndTimeCorrectionRetainsItsLineage()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    Guid mappingId;
+    Guid taskId;
+    Guid originalId;
+    Guid correctedId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      mappingId = await SeedApprovedTimeMappingAsync(db, fixture);
+      var refused = await PracticeTimeService.CreateTaskAsync(db, fixture.PreparerActor,
+        new CreateTaskRequest("Unmapped destination", fixture.ClientId, fixture.EngagementId,
+          MappingVersionId: mappingId, FsliCode: "NOT_IN_MAPPING"));
+      Assert.False(refused.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, refused.ErrorCode);
+
+      var created = await PracticeTimeService.CreateTaskAsync(db, fixture.PreparerActor,
+        new CreateTaskRequest("Map cash testing", fixture.ClientId, fixture.EngagementId,
+          MappingVersionId: mappingId, FsliCode: " Cash "));
+      Assert.True(created.Succeeded, created.Message);
+      taskId = created.Value;
+      var task = await db.WorkTasks.SingleAsync(x => x.Id == taskId);
+      Assert.Equal(mappingId, task.MappingVersionId);
+      Assert.Equal("Cash", task.FsliCode);
+
+      await CreateApprovedRateAsync(db, fixture, "FSLI journey");
+      var draft = await PracticeTimeService.SaveTimeDraftAsync(db, fixture.PreparerActor,
+        new SaveTimeDraftRequest(taskId, new DateOnly(2026, 1, 12), 540, 60,
+          "Staff", "FSLI journey", Currency: "QAR"));
+      Assert.True(draft.Succeeded, draft.Message);
+      originalId = draft.Value;
+      var entry = await db.TimeEntries.SingleAsync(x => x.Id == originalId);
+      Assert.Equal(mappingId, entry.MappingVersionId);
+      Assert.Equal("Cash", entry.FsliCode);
+      Assert.True((await PracticeTimeService.SubmitTimeAsync(db, fixture.PreparerActor, originalId)).Succeeded);
+      Assert.True((await PracticeTimeService.ApproveTimeAsync(db, fixture.PartnerActor, originalId)).Succeeded);
+      var correction = await PracticeTimeService.CorrectTimeAsync(db, fixture.PreparerActor,
+        new CorrectTimeRequest(originalId, new DateOnly(2026, 1, 12), 540, 75,
+          "FSLI journey", "Corrected duration", Reason: "Corrected recorded duration"));
+      Assert.True(correction.Succeeded, correction.Message);
+      correctedId = correction.Value;
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var original = await db.TimeEntries.SingleAsync(x => x.Id == originalId);
+      var correction = await db.TimeEntries.SingleAsync(x => x.Id == correctedId);
+      Assert.Equal(PracticeTimeStates.TimeSuperseded, original.Status);
+      Assert.Equal(mappingId, correction.MappingVersionId);
+      Assert.Equal("Cash", correction.FsliCode);
+      Assert.Equal(originalId, correction.SupersedesId);
+    }
+  }
+
+  private static async Task<Guid> SeedApprovedTimeMappingAsync(AuditSphereDbContext db, Fixture fixture)
+  {
+    var now = DateTimeOffset.UtcNow;
+    var datasetId = Guid.NewGuid();
+    var mappingId = Guid.NewGuid();
+    db.TrialBalanceDatasets.Add(new TrialBalanceDataset
+    {
+      Id = datasetId, FirmId = fixture.FirmId, ClientId = fixture.ClientId, EngagementId = fixture.EngagementId,
+      SourceKind = "Raw", Currency = "QAR", Balanced = true, ControlTotal = 0m, ValidationStatus = "Accepted",
+      ImportState = TrialBalanceImportStates.Loading, NormalizedDatasetDigest = Hashing.Sha256Hex(datasetId.ToString()),
+      ImportedAt = now, ImportedByUserId = fixture.Preparer.Id
+    });
+    await db.SaveChangesAsync();
+    await db.TrialBalanceDatasets.Where(x => x.Id == datasetId)
+      .ExecuteUpdateAsync(update => update.SetProperty(x => x.ImportState, TrialBalanceImportStates.Sealed));
+    db.MappingVersions.Add(new MappingVersion
+    {
+      Id = mappingId, FirmId = fixture.FirmId, ClientId = fixture.ClientId, EngagementId = fixture.EngagementId,
+      DatasetId = datasetId, TaxonomyVersion = "time-test-v1", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31",
+      Status = AccountingPackageStates.MappingApproved, CreatedByUserId = fixture.Preparer.Id,
+      ApprovedByUserId = fixture.Manager.Id, ApprovedAt = now, CreatedAt = now
+    });
+    db.MappingAllocations.Add(new MappingAllocation
+    {
+      Id = Guid.NewGuid(), FirmId = fixture.FirmId, ClientId = fixture.ClientId, EngagementId = fixture.EngagementId,
+      MappingVersionId = mappingId, SourceAccountCode = "1000", DestinationCode = "Cash",
+      StatementSection = "ASSETS", Fraction = 1m, Rationale = "Synthetic approved mapping for time lineage", CreatedAt = now
+    });
+    await db.SaveChangesAsync();
+    return mappingId;
+  }
+
+  [Fact]
   public async Task TimeWorkflow_RequiresReview_UsesIntegerMinutes_AndRejectsOverlap()
   {
     await using var pg = await PgTestSchema.CreateAsync();

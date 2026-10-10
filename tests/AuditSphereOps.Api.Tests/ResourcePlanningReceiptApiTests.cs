@@ -18,8 +18,8 @@ public sealed class ResourcePlanningReceiptApiTests
   {
     await using var pg=await OwnedPostgresDatabase.CreateAsync("API-RESOURCE-RECEIPTS");var f=await PbcSeed.SeedAsync(pg);
     await using(var db=new AuditSphereDbContext(pg.Options)) {
-      var migrations=db.Database.GetMigrations().ToArray();var index=Array.FindIndex(migrations,x=>x.EndsWith("_NativeResourcePlanningReceipts",StringComparison.Ordinal));Assert.True(index>0);
-      await db.GetService<IMigrator>().MigrateAsync(migrations[index-1]);await db.GetService<IMigrator>().MigrateAsync();
+      var migrations=db.Database.GetMigrations().ToArray();
+      Assert.Contains(migrations,x=>x.EndsWith("_NativeResourcePlanningReceipts",StringComparison.Ordinal));
     }
     using var factory=new StandaloneApiApplicationFactory(new Dictionary<string,string?>{["ConnectionStrings:AuditSphere"]=pg.ConnectionString,["DevelopmentIdentity:Enabled"]="true",["DevelopmentIdentity:Subject"]=f.Admin.Subject,["DevelopmentIdentity:TenantId"]=f.Admin.TenantId,["Application:AllowSimulationAdapters"]="true",["ExternalEffects:Enabled"]="false"});
     using var c=factory.CreateClient(new(){AllowAutoRedirect=false});const string url="/api/ui/practice/resources";
@@ -36,7 +36,7 @@ public sealed class ResourcePlanningReceiptApiTests
     var lookupUrl=url+"/receipts/"+p.RequestId+"?requestHash="+p.RequestHash;using var lookup=await c.GetAsync(lookupUrl);Assert.True(lookup.Headers.CacheControl!.NoStore);Assert.True((await lookup.Content.ReadFromJsonAsync<ResourcePlanningReceiptLookup>())!.Found);
     Assert.Equal(HttpStatusCode.Forbidden,(await c.GetAsync(url+"/receipts/"+p.RequestId+"?requestHash="+new string('a',64))).StatusCode);
     await using(var db=new AuditSphereDbContext(pg.Options)) {
-      var migrations=db.Database.GetMigrations().ToArray();var index=Array.FindIndex(migrations,x=>x.EndsWith("_NativeResourcePlanningReceipts",StringComparison.Ordinal));await Assert.ThrowsAsync<PostgresException>(()=>db.GetService<IMigrator>().MigrateAsync(migrations[index-1]));
+      await PermanentFileFreezeMigrationAssertions.AssertDowngradeBlockedAsync(db,"_NativeResourcePlanningReceipts");
       Assert.Single(await db.ResourcePlanningReceipts.ToListAsync());Assert.Single(await db.StaffCertifications.ToListAsync());
       await db.Users.Where(x=>x.Id==f.Admin.Id).ExecuteUpdateAsync(s=>s.SetProperty(x=>x.SessionEpoch,x=>x.SessionEpoch+1));
     }

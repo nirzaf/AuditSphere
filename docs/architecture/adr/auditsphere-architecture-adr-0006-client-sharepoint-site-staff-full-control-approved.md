@@ -1,6 +1,6 @@
 # ADR-0006: One SharePoint site per new client, with Full Control for assigned staff
 
-**Status: PROPOSED** (retroactive record of an owner-approved scope change) · Date recorded: 2026-10-08 · Decider: repository owner
+**Status: APPROVED** (owner-delegated approval recorded 2026-10-10) · Date recorded: 2026-10-08 · Decider: repository owner (authority delegated 2026-10-10)
 
 ## Context
 The specification provisions a five-folder directory per engagement (§4.2.3). The owner added one dedicated SharePoint site per new client and approved Full Control over the whole site for every assigned staff member, including engagement-only staff. Detail: `docs/architecture/auditsphere-client-sharepoint-sites-current.md`.

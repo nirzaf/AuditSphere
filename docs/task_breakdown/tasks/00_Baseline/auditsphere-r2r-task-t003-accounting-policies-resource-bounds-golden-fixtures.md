@@ -2,28 +2,30 @@
 id: "T003"
 work_package: "R2R-00"
 modules: []
-status: "NOT_STARTED"
+status: "BLOCKED"
 depends_on: ["T002"]
-owner: ""
+owner: "Codex implementation coordinator"
 reviewer: ""
 review_decision: ""
 reviewed_commit: ""
 evidence_ref: ""
 approval_ref: ""
-blocked_reason: ""
+blocked_reason: "The core numeric convention is recorded in ADR-0014. Qualified methodology-owner and independent-review signoff is still required for FX sources/effective periods, framework editions, consolidation methods and all eight GOLD-R2R fixtures. That evidence is absent; no amounts or accounting treatments will be inferred."
 branch: ""
 issue_pr: ""
-updated_at: ""
+updated_at: "2026-10-10T13:14:02+00:00"
 ---
 # T003 — Approve accounting policies, resource bounds and golden fixtures
 
 [Master index](../../auditsphere-r2r-index-task-breakdown.md) · [Status rules](../../auditsphere-r2r-index-task-breakdown.md#status-rules) · [Original work-package order](../../reference/auditsphere-r2r-reference-execution-coordination-and-handover.md#section-6-1)
 
-**Status scope:** NOT_STARTED means this new task has not been assessed/executed under this breakdown. It does not assert that its underlying code is absent. First inspect and reuse the current implementation. No current repository progress has been imported.
+**Current assessment (2026-10-10): BLOCKED.** T002's architecture variation is accepted and recorded separately. T003 still needs a named, qualified methodology owner and independent reviewer to approve the professional accounting policies and exact GOLD-R2R fixture outcomes. No sign-off or fixture approval is present. Do not infer accounting treatment or numerical expected values from code or synthetic tests.
 
 ## Outcome
 
 Obtain the professional and numerical policy decisions needed by all downstream tasks.
+
+**Open decision register:** R2R-specific standards, effective-period and consolidation-profile approvals; all eight GOLD-R2R fixture approvals; and the proposed resource-bound approvals. These are distinct from the approved repository architecture ADRs. The owner-delegated approval of ADR-0001–0007 and ADR-0009 does not supply professional policy sign-off or an independent review.
 
 **Original work package:** `R2R-00` — Pin current SHA; inventory existing models/services/migrations/UI/tests; reconcile ADRs and scope conflicts
 **Original package exit:** Existing/new symbol ledger, policy approvals, preserved baseline tests and dependency licence decisions.
@@ -47,7 +49,7 @@ Hard dependencies must be COMPLETED, with reviewed handoff evidence:
 
 ## Sequential work
 
-1. Record R2R-ADR-03, 04 and 09 with approved framework edition, effective periods, supported consolidation profiles, precision and rounding.
+1. Reuse ADR-0014 for R2R-ADR-03's technical six-decimal/ToEven convention. A qualified methodology owner and independent reviewer must still approve FX sources/effective periods, framework editions and supported methods, and R2R-ADR-09 consolidation profiles; do not record these as approved without that evidence.
 2. Review all eight GOLD-R2R fixtures independently; retain their identities and exact expected values separately from existing approved fixtures.
 3. Approve or lower the proposed resource limits in section 10.1; retain any stricter existing limit until changed by an approved decision.
 4. Separate source-derived standards research from current professional approval. Do not infer tax balances, new methods, market FX rates or a universal compliance claim.

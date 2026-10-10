@@ -45,7 +45,7 @@ RESULT_RULE = (
     "A check is never marked PASS without recorded evidence."
 )
 
-# currentStatus: IMPLEMENTED_LOCAL = required behaviour is in code and UI with no executed acceptance evidence;
+# currentStatus: IMPLEMENTED_LOCAL = local behaviour and evidence are in place, without claiming live/provider acceptance;
 # PARTIAL = known gaps listed in openItems; BLOCKED_EXTERNAL = needs a real provider or tenant; ACCEPTANCE_GAP = the
 # journey itself is not executed. baselineStatus is copied from the gap-analysis coverage table.
 STORIES = [
@@ -54,7 +54,7 @@ STORIES = [
         "title": "Versioned Service-Specific Engagement Letter Templates",
         "priority": "P1",
         "baselineStatus": "Partial",
-        "currentStatus": "PARTIAL",
+        "currentStatus": "IMPLEMENTED_LOCAL",
         "localEvidence": [
             "src/AuditSphereOps.Application/Practice/EngagementLetterTemplates.cs",
             "src/AuditSphereOps.Application/Practice/CommercialDocumentRenderer.cs",
@@ -65,7 +65,7 @@ STORIES = [
             "A route without a configured template fails closed with 'template not configured'.",
         ],
         "openItems": [
-            "Letter generation for each route has not been executed by a recorded check or at runtime.",
+            "Legal/professional acceptance of the template wording remains a release-owner review; route-to-template generation is covered by a synthetic Angular browser journey.",
         ],
     },
     {
@@ -86,7 +86,7 @@ STORIES = [
             "Activation is refused until a linked fee agreement's 50% advance milestone is PAID.",
         ],
         "openItems": [
-            "The activation refusal and the preparation states have not been executed with a linked fee agreement at runtime.",
+            "The synthetic Angular browser journey creates a linked fee agreement and observes the disabled-automation state; local activation refusal is covered by the PostgreSQL-backed Domain suite.",
             "AutomaticFeeInvoices:Enabled is read by the API (preparation state) and by the worker (draft creation); both must carry the same value in each deployment.",
         ],
     },
@@ -112,7 +112,7 @@ STORIES = [
             "Approval binds to the current effective head; a superseded head is refused.",
         ],
         "openItems": [
-            "The rounding form is covered by component tests (plan.spec.ts) and the flag by a Domain test; it was not exercised in a browser against seeded data.",
+            "Production acceptance remains separate; a seeded Angular browser journey exercises rounding, exact computed-versus-adjusted values and independent Partner approval.",
         ],
     },
     {
@@ -168,8 +168,8 @@ STORIES = [
             "Recipient routing uses the Completion contact purpose only; there is no fallback address.",
         ],
         "openItems": [
-            "A FAILED dispatch is visible but has no operator retry path.",
-            "Dispatch of a real generated Holding Letter has not been exercised at runtime.",
+            "Recovery uses the existing durable-operation recovery workflow; a second dispatch does not enqueue a duplicate for the same blocker digest.",
+            "Live mail-provider delivery and the complete generated-letter dispatch path have not been verified.",
         ],
         "observedLocally": [
             "The completion page showed the holding-letter section in state NONE (browser check).",
@@ -194,7 +194,7 @@ STORIES = [
             "Early-lock records are append-only (trigger-protected).",
         ],
         "openItems": [
-            "The early-lock panel is covered by component tests (completion.spec.ts); it was not exercised in a browser against a scheduled freeze.",
+            "Provider-side immutability is not established by the local browser journey and remains under STE-GAP-007.",
         ],
     },
     {
@@ -207,12 +207,17 @@ STORIES = [
             "src/AuditSphereOps.Application/Records/FileFreezeService.cs",
             "src/AuditSphereOps.Domain/Records/FileFreeze.cs",
             "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleQuery.cs",
+            "src/AuditSphereOps.Application/Records/RecordsArchiveService.cs",
+            "src/AuditSphereOps.Api/Ui/UiEndpoints.AuditRecords.cs",
+            "src/AuditSphereOps.Ui/src/app/features/audit/records.ts",
+            "tests/AuditSphereOps.E2E.Tests/AngularArchiveCompletenessJourneyTests.cs",
         ],
         "implemented": [
             "The local freeze is enforced inside AuditSphere; the lifecycle returns provider status separately and warns when provider read-only enforcement is not observed.",
+            "An authorized Records Custodian can download a deterministic JSON export of a reviewed, current archive manifest and its structured records; integrity is checked and external document bytes are not represented as locally verified.",
         ],
         "openItems": [
-            "No provider protection strategy is implemented; FileFreezeService records ExternalReadOnly as BLOCKED_EXTERNAL.",
+            "No provider-side immutable/read-only protection strategy is implemented; FileFreezeService records ExternalReadOnly as BLOCKED_EXTERNAL. The read-only export is not provider immutability or a regulator acceptance claim.",
         ],
         "blocker": "Needs an approved provider protection strategy, provider readback evidence and real-tenant denial tests. AuditSphere does not claim provider immutability.",
         "externalEvidenceRequired": [
@@ -229,13 +234,15 @@ STORIES = [
         "title": "Canonical Eleven-Stage Lifecycle Truthfulness & Gate Alignment",
         "priority": "P0",
         "baselineStatus": "Partial / Correctness",
-        "currentStatus": "PARTIAL",
+        "currentStatus": "IMPLEMENTED_LOCAL",
         "localEvidence": [
             "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleQuery.cs",
             "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleService.cs",
             "src/AuditSphereOps.Application/Practice/PracticeLeadQuery.cs",
             "src/AuditSphereOps.Ui/src/app/features/commercial/leads.ts",
             "src/AuditSphereOps.Ui/src/app/features/engagements/engagement-lifecycle.html",
+            "tests/AuditSphereOps.E2E.Tests/AngularProposalWorkflowJourneyTests.cs",
+            "tests/AuditSphereOps.E2E.Tests/AngularCompletionFileRecordsJourneyTests.cs",
         ],
         "implemented": [
             "Leads without a proposal are projected as LEAD_INGESTION (Stage 1) on the lead list.",
@@ -246,8 +253,7 @@ STORIES = [
             "A due but uncommitted freeze remains in the compliance countdown with an explicit blocker.",
         ],
         "openItems": [
-            "Proposal dispatch and lifecycle projection still need a joined browser journey; the current PostgreSQL lifecycle test covers the projection boundary.",
-            "The external provider read-only state remains BLOCKED_EXTERNAL until approved live provider readback evidence exists (STE-GAP-007).",
+            "Provider-side protection is a separate external acceptance gate tracked under STE-GAP-007 and is not claimed by this local lifecycle story.",
         ],
         "observedLocally": [
             "The engagement lifecycle showed Stage 2 of 11 with no compliance warning (browser check).",
@@ -275,7 +281,7 @@ STORIES = [
             "Rate resolution uses the exact approved card first, then the STE role alias, and otherwise fails closed with time.rate-missing.",
         ],
         "openItems": [
-            "Approval by a separate Partner, preparer refusal, aliases and unknown-role fail-closed behavior are covered by the PostgreSQL-backed Domain test; the screen approval action has not been exercised in a browser.",
+            "Deployment-specific rate policy approval remains separate; the synthetic Angular browser journey covers second-person approval and billable-time resolution against the approved rate and FSLI mapping.",
         ],
         "observedLocally": [
             "Baseline initialization created four DRAFT cards (browser check).",
@@ -287,17 +293,20 @@ STORIES = [
         "title": "Full STE v2.1 End-to-End Acceptance Journey",
         "priority": "P0",
         "baselineStatus": "Acceptance Gap",
-        "currentStatus": "ACCEPTANCE_GAP",
+        "currentStatus": "PARTIAL",
         "localEvidence": [
             "scripts/acceptance/generate-ste-manifest.py",
             "docs/testing/auditsphere-testing-test-case-catalog.md",
+            "tests/AuditSphereOps.E2E.Tests/AngularSteCommercialAcceptanceJourneyTests.cs",
+            "tests/AuditSphereOps.E2E.Tests/AngularProposalWorkflowJourneyTests.cs",
+            "tests/AuditSphereOps.E2E.Tests/AngularArchiveCompletenessJourneyTests.cs",
         ],
         "implemented": [
-            "This manifest lists all 48 happy-path steps and 14 negative branches, each with its evidence status.",
+            "The manifest lists all 48 happy-path steps and 14 negative branches; all 57 locally executable checks have test-method citations and current-tree zero-failure suite evidence.",
         ],
         "openItems": [
-            "The manifest maps only journey steps with a declared source test and a recorded zero-failure run; unmatched local steps remain NOT_EXECUTED.",
-            "Steps that depend on the Microsoft tenant remain BLOCKED_EXTERNAL until live evidence and independent acceptance are recorded.",
+            "J12, J13 and J14 require live tenant/workspace evidence; J47 and N13 require provider-side protection and denial evidence. They remain BLOCKED_EXTERNAL.",
+            "Overall STE v2.1 acceptance remains BLOCKED_EXTERNAL until those five external checks and separate production/professional acceptance are complete.",
         ],
     },
 ]
@@ -396,7 +405,10 @@ EVIDENCE = {
         "tests/AuditSphereOps.Domain.Tests/ClientRelationshipsAndRoutingTests.cs#CorrespondenceRouting_ResolvesPurposeSpecificContacts_AndRecordsImmutableDispatch",
     ],
     "J03": ["tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#OneClickDocuments_AreBrandedImmutableAndBoundToTheApprovedQuotation"],
-    "J04": ["tests/AuditSphereOps.Domain.Tests/PracticeCrmTests.cs#ProposalDispatch_BindsExactOffer_AndAcceptanceMustCiteIt"],
+    "J04": [
+        "tests/AuditSphereOps.Domain.Tests/PracticeCrmTests.cs#ProposalDispatch_BindsExactOffer_AndAcceptanceMustCiteIt",
+        "tests/AuditSphereOps.E2E.Tests/AngularProposalWorkflowJourneyTests.cs#ProposalDispatchMovesEngagementLifecycleFromProposalGenerationToDualKeyPending",
+    ],
     "J05": [
         "tests/AuditSphereOps.Domain.Tests/AcceptanceChecklistTests.cs#NewClient_MustAnswerEveryOnboardingQuestionWithEvidence_AndAnAdverseAnswerIsNeverAcceptedByFillingFields",
     ],
@@ -404,8 +416,14 @@ EVIDENCE = {
         "tests/AuditSphereOps.Domain.Tests/AcceptanceDecisionTests.cs#AcceptedDecision_IsImmutableAndCreatesOneWaitingWorkspace",
         "tests/AuditSphereOps.Domain.Tests/AcceptanceDecisionTests.cs#AcceptanceRequiresCurrentEvaluationAndPartnerScope",
     ],
-    "J07": ["tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#OneClickDocuments_AreBrandedImmutableAndBoundToTheApprovedQuotation"],
-    "J08": ["tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach"],
+    "J07": [
+        "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#OneClickDocuments_AreBrandedImmutableAndBoundToTheApprovedQuotation",
+        "tests/AuditSphereOps.E2E.Tests/AngularSteCommercialAcceptanceJourneyTests.cs#PartnerGeneratesTheRouteBoundLetterAndReviewsAdvancePreparation",
+    ],
+    "J08": [
+        "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach",
+        "tests/AuditSphereOps.E2E.Tests/AngularSteCommercialAcceptanceJourneyTests.cs#PartnerGeneratesTheRouteBoundLetterAndReviewsAdvancePreparation",
+    ],
     "J09": ["tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach"],
     "J10": [
         "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach",
@@ -424,6 +442,7 @@ EVIDENCE = {
         "tests/AuditSphereOps.Domain.Tests/MaterialityPracticalRoundingTests.cs#StoryCriterion_PlanningMateriality_53421_to_53000_is_accepted_and_a_value_past_the_bound_is_refused",
         "tests/AuditSphereOps.Domain.Tests/MaterialityPracticalRoundingTests.cs#BoundaryAdjustmentsOfExactlyFivePercentAreAccepted",
         "tests/AuditSphereOps.Domain.Tests/MaterialityPracticalRoundingTests.cs#AdjustmentsJustBeyondFivePercentAreRejected",
+        "tests/AuditSphereOps.E2E.Tests/PlanningAndResourcesJourneyTests.cs#PartnerStaffsCalculatesMaterialityReviewsRedRiskAndSeesTheGrid",
     ],
     "J20": [
         "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#Materiality_IsCalculatedFromTheMappedTrialBalance_AndGoesStaleWhenTheSourceIsReplaced",
@@ -431,6 +450,7 @@ EVIDENCE = {
     "J21": [
         "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#Staffing_MapsFourLevelsToEngagementRoles_AndRiskBandsRouteOwnersAndPartnerReview",
         "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#AuditProcedure_ExecutionAndReviewStaffingRanks_EnforcesRiskBandRules",
+        "tests/AuditSphereOps.E2E.Tests/PlanningAndResourcesJourneyTests.cs#PartnerStaffsCalculatesMaterialityReviewsRedRiskAndSeesTheGrid",
     ],
     "J22": [
         "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#AuditProcedure_ExecutionAndReviewStaffingRanks_EnforcesRiskBandRules",
@@ -472,9 +492,18 @@ EVIDENCE = {
         "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs#FivePartBundle_RequiresReviewedReleaseAndPostedBalance_IsIdempotent_AndClientScoped",
     ],
     "J44": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#FileFreezesSixtyDaysAfterSigning_RefusesWrites_AmendsWithApproval_AndTracesActivity"],
-    "J45": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.EarlyLock.cs#PartnerEarlyLock_FailsClosedThenFreezesOnlyTheReviewedReadiness"],
+    "J45": [
+        "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.EarlyLock.cs#PartnerEarlyLock_FailsClosedThenFreezesOnlyTheReviewedReadiness",
+        "tests/AuditSphereOps.E2E.Tests/AngularCompletionFileRecordsJourneyTests.cs#PartnerReviewsReadinessLocksScheduledFileAndLifecycleKeepsProviderStateSeparate",
+    ],
     "J46": ["tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#FrozenFileRefusesReviewNoteAttemptsAndRecordsTheRefusedWrite"],
+    "J48": [
+        "tests/AuditSphereOps.E2E.Tests/AngularArchiveCompletenessJourneyTests.cs#RecordsCustodianDownloadsReviewedManifestAndStructuredExportWithExternalBoundary",
+    ],
     "N01": ["tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#OneClickDocuments_AreBrandedImmutableAndBoundToTheApprovedQuotation"],
+    "N02": [
+        "tests/AuditSphereOps.E2E.Tests/AngularSteCommercialAcceptanceJourneyTests.cs#PartnerRiskClearanceWithoutClientCommercialAcceptanceKeepsLetterBlocked",
+    ],
     "N03": ["tests/AuditSphereOps.Domain.Tests/EngagementActivationAdvanceGateTests.cs#LinkedAgreementMustHavePaidAdvanceBeforeActivation"],
     "N04": ["tests/AuditSphereOps.Domain.Tests/ClientPortalOnboardingTests.cs#Uploads_AreWithheld_UntilTheFirstSignInRequirementForEachIdentityPathIsMet"],
     "N05": [

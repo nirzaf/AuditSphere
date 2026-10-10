@@ -24,7 +24,7 @@ public sealed record ReleaseCandidateView(Guid Id, string Status, string TargetK
   ReleaseGateView Checkpoint, ReleaseGateView Attestation, ReleaseGateView Lineage, bool PreflightReady);
 public sealed record ArchiveEntryView(int Ordinal, string EntryKind, string RelativeName, string ContentHash, long ByteCount);
 public sealed record ArchiveRecordView(Guid Id, Guid EngagementId, string Status, DateTimeOffset CreatedAt, string ProfileId, long ProfileVersion, long? ManifestVersion,
-  string? ManifestDigest, string? CompletenessStatus, string? CompletenessException, IReadOnlyList<ArchiveEntryView> Entries, int TotalEntryCount, int? NextOrdinal, int ActiveHoldCount,
+  string? ManifestStatus, string? ManifestDigest, string? CompletenessStatus, string? CompletenessException, IReadOnlyList<ArchiveEntryView> Entries, int TotalEntryCount, int? NextOrdinal, int ActiveHoldCount,
   string? ObservedProtection, string? DesiredLabel, string? ObservedLabel, string? ActionState, string? ExternalReference);
 
 public sealed record WorkpaperSubmissionView(long Revision, DateTimeOffset SubmittedAt, string? Conclusion);
@@ -165,7 +165,7 @@ public static class AuditRecordQueries
     var nextOrdinal = hasMore ? entries[^1].Ordinal : (int?)null;
     var action = await db.RecordsActions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ArchiveId == a.Id, ct);
     var holds = await db.LegalHolds.AsNoTracking().CountAsync(x => x.FirmId == actor.FirmId && x.ArchiveId == a.Id && x.State != "RELEASED", ct);
-    return CommandResult<ArchiveRecordView>.Ok(new(a.Id, a.EngagementId, a.Status, a.CreatedAt, a.ProfileId, a.ProfileVersion, manifest?.Version, manifest?.ManifestDigest,
+    return CommandResult<ArchiveRecordView>.Ok(new(a.Id, a.EngagementId, a.Status, a.CreatedAt, a.ProfileId, a.ProfileVersion, manifest?.Version, manifest?.Status, manifest?.ManifestDigest,
       manifest?.CompletenessStatus, manifest?.CompletenessException, entries, totalEntryCount, nextOrdinal, holds, action?.ObservedProtection, action?.DesiredLabel, action?.ObservedLabel, action?.State,
       action?.ExternalReference));
   }

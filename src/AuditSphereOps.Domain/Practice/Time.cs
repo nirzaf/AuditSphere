@@ -38,6 +38,9 @@ public sealed class WorkTask
   /// <summary>Budget phase the task's time counts toward (see <see cref="BudgetPhases"/>).</summary>
   public string Phase { get; set; } = BudgetPhases.Unassigned;
   public string? RiskArea { get; set; }
+  /// <summary>Approved reporting mapping and destination pinned when this task was created.</summary>
+  public Guid? MappingVersionId { get; set; }
+  public string? FsliCode { get; set; }
   public DateTimeOffset CreatedAt { get; set; }
   public DateTimeOffset? CompletedAt { get; set; }
 }
@@ -58,6 +61,9 @@ public sealed class TimeEntry
   /// <summary>Copied from the task when recorded so approved time keeps its budget attribution.</summary>
   public string Phase { get; set; } = BudgetPhases.Unassigned;
   public string? RiskArea { get; set; }
+  /// <summary>FSLI attribution copied from the task so approved time retains its exact mapping lineage.</summary>
+  public Guid? MappingVersionId { get; set; }
+  public string? FsliCode { get; set; }
   public string BillableClassification { get; set; } = PracticeTimeStates.Billable;
   public string Narrative { get; set; } = string.Empty;
   public string NarrativeVisibility { get; set; } = PracticeTimeStates.NarrativeInternal;

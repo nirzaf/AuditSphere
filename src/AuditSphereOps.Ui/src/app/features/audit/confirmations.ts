@@ -185,7 +185,7 @@ import { confirmationPage, confirmationDetail, confirmationAmount } from './conf
           <form (submit)="$event.preventDefault(); create()">
             <fieldset [disabled]="busy() || uncertain()">
               <legend>New case identity</legend>
-              <label>Audit area<input [formField]="createForm.areaCode" /></label
+              <label>Confirmation area<select [formField]="createForm.areaCode"><option value="" disabled>Select an area</option>@for (code of w.areaCodes; track code) { <option [value]="code">{{ code }}</option> }</select></label
               ><label>Source record<input [formField]="createForm.sourceRecordId" /></label>
               <label
                 >Booked amount<input
@@ -234,7 +234,7 @@ import { confirmationPage, confirmationDetail, confirmationAmount } from './conf
                 drafts and sends no confirmations. Up to 100 cases may share an area, currency and
                 confirmation date.
               </p>
-              <label>Batch audit area<input [formField]="batchForm.areaCode" /></label>
+              <label>Batch confirmation area<select [formField]="batchForm.areaCode"><option value="" disabled>Select an area</option>@for (code of w.areaCodes; track code) { <option [value]="code">{{ code }}</option> }</select></label>
               <label>Batch currency<input [formField]="batchForm.currency" /></label>
               <label
                 >Batch confirmation date<input type="date" [formField]="batchForm.confirmationDate"
