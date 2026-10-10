@@ -217,8 +217,8 @@ export function decodeProposal(value: unknown): Proposal {
             {{
               proposal.dispatchState +
                 (proposal.dispatchedAt
-                  ? ' · delivered ' + proposal.dispatchedAt.slice(0, 16).replace('T', ' ') + ' UTC'
-                  : ' · awaiting the mail worker') +
+                  ? ' · provider receipt ' + proposal.dispatchedAt.slice(0, 16).replace('T', ' ') + ' UTC'
+                  : ' · no delivery confirmation recorded') +
                 ' → ' +
                 (proposal.dispatchRecipient ?? 'recipient not recorded')
             }}
@@ -307,14 +307,25 @@ export function decodeProposal(value: unknown): Proposal {
           <dt>Offer dispatch</dt>
           <dd>
             {{
-              proposal.dispatchState === 'SENT'
-                ? 'Email delivered to ' + (proposal.dispatchRecipient ?? 'the recorded recipient') +
-                  ' at ' + (proposal.dispatchedAt ?? 'an unrecorded time').slice(0, 16).replace('T', ' ') + ' UTC'
-                : proposal.dispatchState === 'FAILED'
-                  ? 'Email delivery failed for ' + (proposal.dispatchRecipient ?? 'the recorded recipient') +
-                    '; recover delivery before relying on client receipt.'
-                  : 'Email queued for ' + (proposal.dispatchRecipient ?? 'the recorded recipient') +
-                    '; awaiting the isolated mail worker.'
+              proposal.dispatchState === 'PROVIDER_ACCEPTED' || proposal.dispatchState === 'DELIVERED'
+                ? 'The mail provider accepted the send to ' +
+                  (proposal.dispatchRecipient ?? 'the recorded recipient') +
+                  ' at ' +
+                  (proposal.dispatchedAt ?? 'an unrecorded time').slice(0, 16).replace('T', ' ') +
+                  ' UTC; delivery confirmation is separate evidence.'
+                : proposal.dispatchState === 'REJECTED'
+                  ? 'The mail provider refused the send to ' +
+                    (proposal.dispatchRecipient ?? 'the recorded recipient') +
+                    '; recover the dispatch before relying on client receipt.'
+                  : proposal.dispatchState === 'UNKNOWN'
+                    ? 'The send outcome for ' +
+                      (proposal.dispatchRecipient ?? 'the recorded recipient') +
+                      ' is unknown; reconcile the mail operation before relying on client receipt.'
+                    : proposal.dispatchState === 'DISPATCHED'
+                      ? 'The send to ' + (proposal.dispatchRecipient ?? 'the recorded recipient') +
+                        ' is in flight with the isolated mail worker.'
+                      : 'Email queued for ' + (proposal.dispatchRecipient ?? 'the recorded recipient') +
+                        '; awaiting the isolated mail worker.'
             }}
           </dd>
           <dt>Dispatched offer identity</dt>
@@ -366,7 +377,7 @@ export function decodeProposal(value: unknown): Proposal {
         </label>
         <button
           matButton
-          [disabled]="!reviewed || busy() || uncertain() || !respondentName"
+          [disabled]="!reviewed || busy() || uncertain() || !respondentName.trim() || !respondentEmail.trim()"
           (click)="recordResponse('ACCEPTED')"
         >
           Record client acceptance
@@ -908,7 +919,11 @@ export class ProposalDetail {
   recordResponse(decision: 'ACCEPTED' | 'DECLINED'): void {
     const proposal = this.data();
     if (!proposal || !this.reviewed || this.busy() || this.uncertain()) return;
-    if (decision === 'ACCEPTED' && (!this.respondentName.trim() || !proposal.sentOfferSha256)) return;
+    if (
+      decision === 'ACCEPTED' &&
+      (!this.respondentName.trim() || !this.respondentEmail.trim() || !proposal.sentOfferSha256)
+    )
+      return;
     this.action('response', {
       decision,
       reason: this.reason,

@@ -27,6 +27,9 @@ const version = {
   discount: '0',
   nonStandardTerms: false,
   note: null,
+  validUntil: null,
+  approvalsStand: false,
+  expired: false,
   amounts,
   rules: [],
 };
@@ -66,6 +69,10 @@ describe('Quotation contracts', () => {
       approvedBy: null,
       approvedAt: null,
       reason: null,
+      approvalId: null,
+      canRevoke: false,
+      revokedAt: null,
+      revocationReason: null,
     };
     expect(
       decodeQuotation({ ...workspace, versions: [{ ...version, rules: [rule] }] }).versions[0]
@@ -77,5 +84,12 @@ describe('Quotation contracts', () => {
         versions: [{ ...version, rules: [{ ...rule, canApprove: 'yes' }] }],
       }),
     ).toThrow();
+    // A standing approval always carries its identity; a revocation flag is never inferred client-side.
+    const approved = { ...rule, approved: true, approvedBy: id, approvedAt: '2026-10-10T10:00:00+00:00', reason: 'Agreed', approvalId: id, canRevoke: true };
+    const decoded = decodeQuotation({ ...workspace, versions: [{ ...version, status: 'APPROVED', approvalsStand: true, rules: [approved] }] });
+    expect([decoded.versions[0].approvalsStand, decoded.versions[0].rules[0].canRevoke]).toEqual([true, true]);
+    for (const forged of [{ ...approved, approvalId: null }, { ...approved, canRevoke: undefined }, { ...rule, approvalId: id }])
+      expect(() => decodeQuotation({ ...workspace, versions: [{ ...version, rules: [forged] }] })).toThrow();
+    expect(() => decodeQuotation({ ...workspace, versions: [{ ...version, approvalsStand: undefined }] })).toThrow();
   });
 });

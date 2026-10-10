@@ -13,6 +13,7 @@ public static partial class UiEndpoints
   public sealed record QuotationInput(string ProposalRevision, string Revision, IReadOnlyList<QuotationLineInputDto> Lines,
     string Complexity, string Risk, string Discount, bool NonStandardTerms, string? Note, string? RequestId = null);
   public sealed record QuotationApprovalInput(string RuleKey, string Reason);
+  public sealed record QuotationRevocationInput(string Reason);
   private static bool DecimalInput(string? text, out decimal value)
   {
     value = 0;
@@ -104,6 +105,19 @@ public static partial class UiEndpoints
         || input.Reason.Length > 1000) return Results.Json(new { code = "request.invalid" }, statusCode: 400);
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await QuotationService.ApproveAsync(db, actor, id, input.RuleKey, input.Reason, http.RequestAborted);
+      return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
+    });
+    group.MapPost("/quotations/approvals/{id:guid}/revoke", async (Guid id, QuotationRevocationInput input, HttpContext http,
+      TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
+    {
+      var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
+      if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      try { await csrf.ValidateRequestAsync(http); }
+      catch (AntiforgeryValidationException) { return Results.Json(new { code = "csrf.invalid" }, statusCode: 403); }
+      if (string.IsNullOrWhiteSpace(input.Reason) || input.Reason.Length is < 5 or > 1000)
+        return Results.Json(new { code = "request.invalid" }, statusCode: 400);
+      await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
+      var result = await QuotationService.RevokeApprovalAsync(db, actor, id, input.Reason, http.RequestAborted);
       return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
     });
   }

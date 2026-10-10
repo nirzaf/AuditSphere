@@ -297,10 +297,12 @@ public static partial class PracticeCrmService
       return CommandResult.Fail(ErrorCodes.ProtectedState, "A proposal without recorded authorship cannot enter internal review.");
     if (proposal.PreparedByUserId == actor.UserId)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Proposal preparers cannot approve their own revision.");
-    // A calculated quotation is authoritative for the fee: it must be approved (per the approval matrix) and equal to it.
+    // A calculated quotation is authoritative for the fee: it must be approved with all its approvals standing
+    // (per the approval matrix) and equal to it.
     var quotation = await db.QuotationVersions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ProposalId == proposal.Id)
       .OrderByDescending(x => x.Revision).FirstOrDefaultAsync(ct);
-    if (quotation is not null && (quotation.Status != QuotationStates.Approved || quotation.Fee != proposal.Fee))
+    if (quotation is not null && (quotation.Status != QuotationStates.Approved || quotation.Fee != proposal.Fee ||
+      !await QuotationService.ApprovalsStandAsync(db, actor.FirmId, quotation.Id, ct)))
       return CommandResult.Fail(ErrorCodes.GateBlocked, "The calculated quotation must be approved and match the proposal fee before internal review.");
     proposal.Status = CrmStates.ProposalInternalReview;
     proposal.ApprovedByUserId = actor.UserId;
@@ -342,6 +344,17 @@ public static partial class PracticeCrmService
     if (document is not null && quotation is not null && document.QuotationVersionId != quotation.Id)
       return CommandResult.Fail(ErrorCodes.StaleRevision,
         $"The reviewed quotation artifact belongs to quotation revision {document.QuotationVersionId}, not the current revision {quotation.Id}. Generate the current brief before dispatch.");
+    // A dispatched offer must stand on a currently approved, unexpired quotation (STE 4.1.2): a revoked required
+    // approval or an elapsed validity window invalidates the offer before it can leave the firm.
+    if (quotation is not null)
+    {
+      if (quotation.Status != QuotationStates.Approved)
+        return CommandResult.Fail(ErrorCodes.GateBlocked, "The current quotation is not approved; restore its approval before dispatch.");
+      if (quotation.ValidUntil is { } validUntil && validUntil < DateTimeOffset.UtcNow)
+        return CommandResult.Fail(ErrorCodes.GateBlocked, "The approved quotation's validity window has expired; reprice the proposal to issue a fresh offer.");
+      if (!await QuotationService.ApprovalsStandAsync(db, actor.FirmId, quotation.Id, ct))
+        return CommandResult.Fail(ErrorCodes.GateBlocked, "A required quotation approval has been revoked; record a fresh approval before dispatch.");
+    }
     var offerSha256 = ProposalOfferSha256(proposal, quotation, document);
     var existing = await db.CommercialNotifications.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ProposalId == proposal.Id, ct);
     if (existing is null)
@@ -407,6 +420,36 @@ public static partial class PracticeCrmService
         !string.Equals(proposal.SentOfferSha256, citedOffer, StringComparison.OrdinalIgnoreCase))
         return CommandResult.Fail("crm.stale-offer",
           "The cited offer does not match the dispatched proposal revision; a superseded or revised offer cannot be accepted.");
+      // The offer must still stand when the response arrives: an elapsed validity window or a revoked required
+      // approval invalidates acceptance without touching the historical documents (STE 4.1.2).
+      var boundQuotation = await db.QuotationVersions.AsNoTracking()
+        .Where(x => x.FirmId == actor.FirmId && x.ProposalId == proposal.Id)
+        .OrderByDescending(x => x.Revision).FirstOrDefaultAsync(ct);
+      if (boundQuotation is not null)
+      {
+        if (boundQuotation.ValidUntil is { } validUntil && validUntil < DateTimeOffset.UtcNow)
+          return CommandResult.Fail("crm.expired-offer",
+            "The dispatched offer's validity window has expired; acceptance must be recorded against a fresh approved offer.");
+        if (boundQuotation.Status != QuotationStates.Approved || !await QuotationService.ApprovalsStandAsync(db, actor.FirmId, boundQuotation.Id, ct))
+          return CommandResult.Fail("crm.revoked-approval",
+            "A required quotation approval no longer stands; the dispatched offer cannot be accepted.");
+      }
+      // Version-bound client authority: the recorded respondent email must be the addressed signatory — the
+      // dispatch recipient or the lead's primary contact. Any other address cannot accept the offer.
+      var respondentEmail = (request.RespondentEmail ?? string.Empty).Trim();
+      if (respondentEmail.Length == 0)
+        return CommandResult.Fail("crm.invalid", "Acceptance must record the responding signatory's email.");
+      {
+        var dispatch = await db.CommercialNotifications.AsNoTracking()
+          .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ProposalId == proposal.Id, ct);
+        var boundOpportunity = await db.Opportunities.AsNoTracking().SingleAsync(x => x.Id == proposal.OpportunityId && x.FirmId == actor.FirmId, ct);
+        var lead = await db.Leads.AsNoTracking().SingleAsync(x => x.Id == boundOpportunity.LeadId && x.FirmId == actor.FirmId, ct);
+        var authoritative = new[] { dispatch?.Recipient, lead.PrimaryContactEmail }
+          .Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x!.Trim().ToUpperInvariant()).ToHashSet(StringComparer.Ordinal);
+        if (!authoritative.Contains(respondentEmail.ToUpperInvariant()))
+          return CommandResult.Fail("crm.unauthorized-respondent",
+            "The respondent email does not match the dispatched signatory; acceptance must come from the addressed recipient.");
+      }
     }
     proposal.Status = decision;
     proposal.ResponseAt = DateTimeOffset.UtcNow;

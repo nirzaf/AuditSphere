@@ -28,7 +28,8 @@ public sealed record QuotationView(
   QuotationVersion Version,
   IReadOnlyList<QuotationLineResult> Lines,
   IReadOnlyList<RequiredApproval> RequiredApprovals,
-  IReadOnlyList<QuotationApproval> Approvals);
+  IReadOnlyList<QuotationApproval> Approvals,
+  IReadOnlyList<QuotationApprovalRevocation> Revocations);
 
 /// <summary>
 /// Versioned quotation workflow: the fee is calculated from approved rate cards, billable hours, a complexity factor
@@ -37,7 +38,7 @@ public sealed record QuotationView(
 /// </summary>
 public static class QuotationService
 {
-  private static readonly string[] CommercialRoles = ["Administrator", "Partner", "Manager", "RelationshipManager"];
+  internal static readonly string[] CommercialRoles = ["Administrator", "Partner", "Manager", "RelationshipManager"];
   private static readonly string[] RuleAdminRoles = ["Administrator", "Partner"];
   private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
@@ -80,6 +81,24 @@ public static class QuotationService
     var input = new QuotationPricingInput(currency, priced, request.ComplexityFactor, request.RiskPremiumPercent, request.DiscountPercent);
     var invalid = QuotationCalculator.Validate(input);
     if (invalid is not null) return CommandResult<Guid>.Fail("quotation.invalid", invalid);
+    var calculated = QuotationCalculator.Calculate(input);
+    // The approved pricing policy bounds the quotation (STE 4.1.2): without an approved policy nothing changes;
+    // with one, a discount over the cap or a fee outside the approved band fails closed.
+    var policy = await db.FirmPricingPolicies.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.Currency == currency && x.Status == FirmPricingPolicyStates.Approved)
+      .OrderByDescending(x => x.Version).FirstOrDefaultAsync(ct);
+    if (policy is not null)
+    {
+      if (policy.MaxDiscountPercent.HasValue && request.DiscountPercent > policy.MaxDiscountPercent.Value)
+        return CommandResult<Guid>.Fail("quotation.limit",
+          $"The discount {request.DiscountPercent:0.####}% exceeds the approved maximum of {policy.MaxDiscountPercent.Value:0.####}% for {currency}; revise the quotation within the approved pricing policy.");
+      if (policy.MinimumFee.HasValue && calculated.Fee < policy.MinimumFee.Value)
+        return CommandResult<Guid>.Fail("quotation.limit",
+          $"The calculated fee falls below the approved minimum of {policy.MinimumFee.Value:N2} {currency}.");
+      if (policy.MaximumFee.HasValue && calculated.Fee > policy.MaximumFee.Value)
+        return CommandResult<Guid>.Fail("quotation.limit",
+          $"The calculated fee exceeds the approved maximum of {policy.MaximumFee.Value:N2} {currency}; a new approved policy version is required.");
+    }
 
     var hash = QuotationCalculator.InputHash(input, request.NonStandardTerms, note);
 
@@ -107,7 +126,7 @@ public static class QuotationService
 
     if (request.ExpectedRevision.HasValue && request.ExpectedRevision != (latest?.Revision ?? 0))
       return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision, "Quotation revision changed.");
-    var result = QuotationCalculator.Calculate(input);
+    var result = calculated;
     var rules = await db.CommercialApprovalRules.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.Active).ToListAsync(ct);
     var required = CommercialApprovalMatrix.Required(rules, request.DiscountPercent, request.NonStandardTerms);
 
@@ -151,6 +170,7 @@ public static class QuotationService
     {
       version.Status = QuotationStates.Approved;
       version.ApprovedAt = DateTimeOffset.UtcNow;
+      await ApplyValidityWindowAsync(db, version, ct);
     }
     else version.Status = QuotationStates.PendingApproval;
     await db.SaveChangesAsync(ct);
@@ -177,10 +197,12 @@ public static class QuotationService
     if (!auth.Succeeded) return auth;
     if (version.CreatedByUserId == actor.UserId)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "The preparer of a quotation cannot approve it.");
-    if (version.Status == QuotationStates.Approved) return CommandResult.Ok();
-    if (version.Status != QuotationStates.PendingApproval)
+    // An approved version is revisited only to replace a withdrawn approval; a draft or superseded version never is.
+    if (version.Status is not (QuotationStates.PendingApproval or QuotationStates.Approved))
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Only a submitted, current quotation can be approved.");
-    var already = await db.QuotationApprovals.AnyAsync(x => x.FirmId == actor.FirmId && x.QuotationVersionId == version.Id && x.RuleKey == ruleKey, ct);
+    // A withdrawn approval no longer counts: the rule key can be approved again by a fresh decision.
+    var already = await db.QuotationApprovals.AnyAsync(x => x.FirmId == actor.FirmId && x.QuotationVersionId == version.Id &&
+      x.RuleKey == ruleKey && !db.QuotationApprovalRevocations.Any(r => r.FirmId == actor.FirmId && r.QuotationApprovalId == x.Id), ct);
     if (already) return CommandResult.Ok();
 
     db.QuotationApprovals.Add(new QuotationApproval
@@ -189,16 +211,72 @@ public static class QuotationService
       RequiredRole = needed.Role, ApprovedByUserId = actor.UserId, Reason = reason.Trim(), ApprovedAt = DateTimeOffset.UtcNow
     });
     await db.SaveChangesAsync(ct);
-    var approvedKeys = await db.QuotationApprovals.Where(x => x.FirmId == actor.FirmId && x.QuotationVersionId == version.Id)
-      .Select(x => x.RuleKey).ToListAsync(ct);
-    if (required.All(x => approvedKeys.Contains(x.RuleKey)))
+    var wasApproved = version.Status == QuotationStates.Approved;
+    if (await RequiredApprovalsStandAsync(db, actor.FirmId, version, ct))
     {
-      version.Status = QuotationStates.Approved;
-      version.ApprovedAt = DateTimeOffset.UtcNow;
+      if (!wasApproved)
+      {
+        version.Status = QuotationStates.Approved;
+        version.ApprovedAt = DateTimeOffset.UtcNow;
+        await ApplyValidityWindowAsync(db, version, ct);
+      }
       await db.SaveChangesAsync(ct);
     }
     await tx.CommitAsync(ct);
     return CommandResult.Ok();
+  }
+
+  /// <summary>
+  /// Withdraws a required approval with an append-only revocation record signed by a distinct role-holder (or the
+  /// firm's Administrator safety authority). The approval row and the quotation version are never edited: the
+  /// dispatched offer simply no longer stands, so dispatch and acceptance are refused.
+  /// </summary>
+  public static async Task<CommandResult> RevokeApprovalAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid approvalId, string reason, CancellationToken ct = default)
+  {
+    if (string.IsNullOrWhiteSpace(reason) || reason.Trim().Length is < 5 or > 1000)
+      return CommandResult.Fail("quotation.invalid", "Record a revocation reason of 5 to 1000 characters.");
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    if (await LockFirmAsync(db, actor.FirmId, ct) is null)
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+    var approval = await db.QuotationApprovals.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.Id == approvalId && x.FirmId == actor.FirmId, ct);
+    if (approval is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    // The revoker must hold the role the matrix named — or act as the firm's Administrator safety authority —
+    // and must never be the original approver.
+    var auth = await AuthorizeAsync(db, actor, [approval.RequiredRole], ct);
+    if (!auth.Succeeded)
+    {
+      auth = await AuthorizeAsync(db, actor, ["Administrator"], ct);
+      if (!auth.Succeeded) return auth;
+    }
+    if (approval.ApprovedByUserId == actor.UserId)
+      return CommandResult.Fail(ErrorCodes.ProtectedState, "An approver cannot revoke their own approval; a distinct role-holder revokes it.");
+    var version = await db.QuotationVersions.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.Id == approval.QuotationVersionId && x.FirmId == actor.FirmId, ct);
+    if (version is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (await db.QuotationApprovalRevocations.AnyAsync(x => x.FirmId == actor.FirmId && x.QuotationApprovalId == approval.Id, ct))
+      return CommandResult.Ok();
+    // A superseded revision is history: nothing can be dispatched or accepted on it, so there is nothing to withdraw.
+    if (version.Status is not (QuotationStates.PendingApproval or QuotationStates.Approved))
+      return CommandResult.Fail(ErrorCodes.ProtectedState, "Only an approval on the current quotation revision can be revoked.");
+    db.QuotationApprovalRevocations.Add(new QuotationApprovalRevocation
+    {
+      Id = Guid.CreateVersion7(), FirmId = actor.FirmId, QuotationApprovalId = approval.Id,
+      Reason = reason.Trim(), RevokedByUserId = actor.UserId, RevokedAt = DateTimeOffset.UtcNow
+    });
+    await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
+    return CommandResult.Ok();
+  }
+
+  /// <summary>An approved pricing policy gives the quotation its validity window; without one the offer carries no expiry.</summary>
+  private static async Task ApplyValidityWindowAsync(IAuditSphereDbContext db, QuotationVersion version, CancellationToken ct)
+  {
+    var policy = await db.FirmPricingPolicies.AsNoTracking()
+      .Where(x => x.FirmId == version.FirmId && x.Currency == version.Currency && x.Status == FirmPricingPolicyStates.Approved)
+      .OrderByDescending(x => x.Version).FirstOrDefaultAsync(ct);
+    version.ValidUntil = policy is null ? null : DateTimeOffset.UtcNow.AddDays(policy.ValidityDays);
   }
 
   public static async Task<CommandResult<IReadOnlyList<QuotationView>>> ListAsync(
@@ -213,9 +291,16 @@ public static class QuotationService
     var versions = await query.ToListAsync(ct);
     var ids = versions.Select(x => x.Id).ToList();
     var approvals = await db.QuotationApprovals.AsNoTracking().Where(x => x.FirmId == actor.FirmId && ids.Contains(x.QuotationVersionId)).ToListAsync(ct);
-    IReadOnlyList<QuotationView> views = versions.Select(v => new QuotationView(v,
-      JsonSerializer.Deserialize<List<QuotationLineResult>>(v.LinesJson, Json) ?? [], ReadRequired(v),
-      approvals.Where(a => a.QuotationVersionId == v.Id).OrderBy(a => a.ApprovedAt).ToList())).ToList();
+    var approvalIds = approvals.Select(x => x.Id).ToList();
+    var revocations = await db.QuotationApprovalRevocations.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && approvalIds.Contains(x.QuotationApprovalId)).ToListAsync(ct);
+    IReadOnlyList<QuotationView> views = versions.Select(v =>
+    {
+      var own = approvals.Where(a => a.QuotationVersionId == v.Id).OrderBy(a => a.ApprovedAt).ThenBy(a => a.Id).ToList();
+      var ownIds = own.Select(a => a.Id).ToHashSet();
+      return new QuotationView(v, JsonSerializer.Deserialize<List<QuotationLineResult>>(v.LinesJson, Json) ?? [], ReadRequired(v),
+        own, revocations.Where(r => ownIds.Contains(r.QuotationApprovalId)).ToList());
+    }).ToList();
     return CommandResult<IReadOnlyList<QuotationView>>.Ok(views);
   }
 
@@ -316,6 +401,25 @@ public static class QuotationService
 
   private static IReadOnlyList<RequiredApproval> ReadRequired(QuotationVersion version) =>
     JsonSerializer.Deserialize<List<RequiredApproval>>(version.RequiredApprovalsJson, Json) ?? [];
+
+  /// <summary>True when every approval the matrix requires for this version still stands (none has been revoked).</summary>
+  internal static async Task<bool> ApprovalsStandAsync(IAuditSphereDbContext db, Guid firmId, Guid quotationVersionId, CancellationToken ct)
+  {
+    var version = await db.QuotationVersions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == firmId && x.Id == quotationVersionId, ct);
+    if (version is null) return false;
+    return await RequiredApprovalsStandAsync(db, firmId, version, ct);
+  }
+
+  private static async Task<bool> RequiredApprovalsStandAsync(IAuditSphereDbContext db, Guid firmId, QuotationVersion version, CancellationToken ct)
+  {
+    var required = ReadRequired(version);
+    if (required.Count == 0) return true;
+    var activeKeys = await db.QuotationApprovals.AsNoTracking()
+      .Where(x => x.FirmId == firmId && x.QuotationVersionId == version.Id &&
+        !db.QuotationApprovalRevocations.Any(r => r.FirmId == firmId && r.QuotationApprovalId == x.Id))
+      .Select(x => x.RuleKey).ToListAsync(ct);
+    return required.All(r => activeKeys.Contains(r.RuleKey));
+  }
 
   private static Task<CommandResult> AuthorizeAsync(IAuditSphereDbContext db, ActorContext actor, string[] roles, CancellationToken ct) =>
     AuthorizationDecision.AuthorizeAsync(db, actor,

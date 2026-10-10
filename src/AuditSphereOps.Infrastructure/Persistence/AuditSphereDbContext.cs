@@ -114,6 +114,10 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
 
   public DbSet<QuotationApproval> QuotationApprovals => Set<QuotationApproval>();
 
+  public DbSet<QuotationApprovalRevocation> QuotationApprovalRevocations => Set<QuotationApprovalRevocation>();
+
+  public DbSet<FirmPricingPolicy> FirmPricingPolicies => Set<FirmPricingPolicy>();
+
   public DbSet<FirmCommercialProfile> FirmCommercialProfiles => Set<FirmCommercialProfile>();
 
   public DbSet<CommercialDocument> CommercialDocuments => Set<CommercialDocument>();
@@ -169,6 +173,8 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<FirmPeriod> FirmPeriods => Set<FirmPeriod>();
 
   public DbSet<FirmJournal> FirmJournals => Set<FirmJournal>();
+
+
 
   public DbSet<FirmJournalLine> FirmJournalLines => Set<FirmJournalLine>();
 

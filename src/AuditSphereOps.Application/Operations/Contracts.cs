@@ -200,6 +200,8 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<QuotationVersion> QuotationVersions { get; }
   DbSet<CommercialApprovalRule> CommercialApprovalRules { get; }
   DbSet<QuotationApproval> QuotationApprovals { get; }
+  DbSet<QuotationApprovalRevocation> QuotationApprovalRevocations { get; }
+  DbSet<FirmPricingPolicy> FirmPricingPolicies { get; }
   DbSet<FirmCommercialProfile> FirmCommercialProfiles { get; }
   DbSet<CommercialDocument> CommercialDocuments { get; }
   DbSet<EngagementFeeAgreement> EngagementFeeAgreements { get; }

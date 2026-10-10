@@ -11,9 +11,11 @@ public sealed record QuotationAmountLine(string Role, string Activity, string Ho
 public sealed record QuotationAmounts(string BaseAmount, string ComplexityAmount, string RiskPremiumAmount,
   string DiscountAmount, string Fee, IReadOnlyList<QuotationAmountLine> Lines);
 public sealed record QuotationRule(string Key, string Role, string Requirement, bool Approved, bool CanApprove,
-  Guid? ApprovedBy, DateTimeOffset? ApprovedAt, string? Reason);
+  Guid? ApprovedBy, DateTimeOffset? ApprovedAt, string? Reason, Guid? ApprovalId, bool CanRevoke,
+  DateTimeOffset? RevokedAt, string? RevocationReason);
 public sealed record QuotationRevision(Guid Id, string Revision, string Status, string Complexity, string Risk,
-  string Discount, bool NonStandardTerms, string? Note, QuotationAmounts Amounts, IReadOnlyList<QuotationRule> Rules);
+  string Discount, bool NonStandardTerms, string? Note, DateTimeOffset? ValidUntil, bool ApprovalsStand, bool Expired,
+  QuotationAmounts Amounts, IReadOnlyList<QuotationRule> Rules);
 public sealed record QuotationWorkspace(Guid ProposalId, string ProposalRevision, string Currency, bool Editable,
   IReadOnlyList<QuotationRate> Rates, IReadOnlyList<QuotationRevision> Versions);
 
@@ -42,16 +44,29 @@ public static class QuotationWorkspaceQuery
       var rules = new List<QuotationRule>();
       foreach (var needed in view.RequiredApprovals)
       {
-        var approved = view.Approvals.FirstOrDefault(a => a.RuleKey == needed.RuleKey);
-        var allowed = approved is null && view.Version.CreatedByUserId != actor.UserId && view.Version.Status == "PENDING_APPROVAL"
-          && (await AuthorizationDecision.AuthorizeAsync(db, actor,
-            new AuthorizationRequest(actor.FirmId, RequiredRoles: [needed.Role], InternalOnly: true, RequireFirmWide: true), ct)).Succeeded;
+        // The standing approval is the one no revocation has withdrawn; a withdrawn approval stays visible as evidence.
+        var revoked = view.Revocations.Select(r => r.QuotationApprovalId).ToHashSet();
+        var approved = view.Approvals.LastOrDefault(a => a.RuleKey == needed.RuleKey && !revoked.Contains(a.Id));
+        var withdrawn = approved is null
+          ? view.Revocations.Where(r => view.Approvals.Any(a => a.Id == r.QuotationApprovalId && a.RuleKey == needed.RuleKey))
+              .OrderByDescending(r => r.RevokedAt).FirstOrDefault()
+          : null;
+        var open = view.Version.Status is "PENDING_APPROVAL" or "APPROVED";
+        var holdsRole = (await AuthorizationDecision.AuthorizeAsync(db, actor,
+          new AuthorizationRequest(actor.FirmId, RequiredRoles: [needed.Role], InternalOnly: true, RequireFirmWide: true), ct)).Succeeded;
+        var allowed = approved is null && view.Version.CreatedByUserId != actor.UserId && open && holdsRole;
+        var revocable = approved is not null && open && approved.ApprovedByUserId != actor.UserId && (holdsRole ||
+          (await AuthorizationDecision.AuthorizeAsync(db, actor,
+            new AuthorizationRequest(actor.FirmId, RequiredRoles: ["Administrator"], InternalOnly: true, RequireFirmWide: true), ct)).Succeeded);
         rules.Add(new(needed.RuleKey, needed.Role, needed.Reason, approved is not null, allowed,
-          approved?.ApprovedByUserId, approved?.ApprovedAt, approved?.Reason));
+          approved?.ApprovedByUserId, approved?.ApprovedAt, approved?.Reason, approved?.Id, revocable,
+          withdrawn?.RevokedAt, withdrawn?.Reason));
       }
       var v = view.Version;
+      var stands = v.Status == "APPROVED" && rules.All(r => r.Approved);
       rows.Add(new(v.Id, v.Revision.ToString(CultureInfo.InvariantCulture), v.Status, Exact(v.ComplexityFactor),
-        Exact(v.RiskPremiumPercent), Exact(v.DiscountPercent), v.NonStandardTerms, v.NonStandardTermsNote,
+        Exact(v.RiskPremiumPercent), Exact(v.DiscountPercent), v.NonStandardTerms, v.NonStandardTermsNote, v.ValidUntil,
+        stands, v.ValidUntil is { } until && until < DateTimeOffset.UtcNow,
         Amounts(new(view.Lines, v.BaseAmount, v.ComplexityAmount, v.RiskPremiumAmount, v.DiscountAmount, v.Fee)), rules));
     }
     if (!(await CommercialWorkspaceQuery.ProposalAsync(db, actor, proposalId, ct)).Succeeded)

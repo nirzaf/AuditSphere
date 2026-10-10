@@ -45,10 +45,33 @@ public sealed partial class AuditSphereDbContext
     });
     b.Entity<QuotationApproval>(e =>
     {
-      e.HasIndex(x => new { x.FirmId, x.QuotationVersionId, x.RuleKey }).IsUnique();
+      // Not unique: a withdrawn approval's rule key can be approved again by a fresh decision, and the revoked
+      // evidence is append-only. At most one approval per rule key stands at a time; QuotationService enforces
+      // that under the firm lock.
+      e.HasIndex(x => new { x.FirmId, x.QuotationVersionId, x.RuleKey });
       e.HasOne<QuotationVersion>().WithMany().HasForeignKey(x => x.QuotationVersionId).OnDelete(DeleteBehavior.Restrict);
       e.ToTable("quotation_approvals", t => t.HasCheckConstraint("ck_quotation_approval_values",
         "length(rule_key) > 0 AND length(required_role) > 0 AND length(reason) > 0"));
+    });
+    b.Entity<QuotationApprovalRevocation>(e =>
+    {
+      e.HasIndex(x => x.QuotationApprovalId).IsUnique();
+      e.HasOne<QuotationApproval>().WithMany().HasForeignKey(x => x.QuotationApprovalId).OnDelete(DeleteBehavior.Restrict);
+      e.ToTable("quotation_approval_revocations", t => t.HasCheckConstraint("ck_quotation_approval_revocation_values",
+        "length(reason) > 0"));
+    });
+    b.Entity<FirmPricingPolicy>(e =>
+    {
+      e.HasIndex(x => new { x.FirmId, x.Currency, x.Version }).IsUnique();
+      e.Property(x => x.MinimumFee).HasPrecision(18, 2);
+      e.Property(x => x.MaximumFee).HasPrecision(18, 2);
+      e.Property(x => x.MaxDiscountPercent).HasPrecision(9, 4);
+      e.ToTable("firm_pricing_policies", t => t.HasCheckConstraint("ck_firm_pricing_policy_values",
+        "version >= 1 AND currency ~ '^[A-Z]{3}$' AND validity_days >= 1 AND validity_days <= 365 AND " +
+        "(minimum_fee IS NULL OR minimum_fee >= 0) AND (maximum_fee IS NULL OR maximum_fee >= 0) AND " +
+        "(minimum_fee IS NULL OR maximum_fee IS NULL OR minimum_fee <= maximum_fee) AND " +
+        "(max_discount_percent IS NULL OR (max_discount_percent >= 0 AND max_discount_percent < 100)) AND " +
+        "status IN ('DRAFT','PENDING_APPROVAL','APPROVED') AND ((status = 'APPROVED') = (approved_by_user_id IS NOT NULL AND approved_at IS NOT NULL))"));
     });
     b.Entity<FirmCommercialProfile>(e =>
     {
@@ -94,7 +117,7 @@ public sealed partial class AuditSphereDbContext
       // One holding-letter dispatch per exact outstanding blocker set: regenerating an unchanged set cannot send twice.
       e.HasIndex(x => new { x.FirmId, x.DispatchKey }).IsUnique().HasFilter("dispatch_key IS NOT NULL");
       e.ToTable("commercial_notifications", t => t.HasCheckConstraint("ck_commercial_notification_values",
-        "delivery_state IN ('QUEUED','SENT','FAILED') AND kind IN ('RECEIPT','PROPOSAL','HOLDING_LETTER') AND length(recipient) > 0 AND length(subject) > 0 AND ((delivery_state = 'SENT') = (delivered_at IS NOT NULL)) AND " +
+        "delivery_state IN ('QUEUED','DISPATCHED','PROVIDER_ACCEPTED','DELIVERED','REJECTED','UNKNOWN') AND kind IN ('RECEIPT','PROPOSAL','HOLDING_LETTER') AND length(recipient) > 0 AND length(subject) > 0 AND ((delivery_state IN ('PROVIDER_ACCEPTED','DELIVERED')) = (delivered_at IS NOT NULL)) AND " +
         "((kind = 'RECEIPT') = (fee_milestone_id IS NOT NULL)) AND ((kind = 'PROPOSAL') = (proposal_id IS NOT NULL)) AND ((kind = 'HOLDING_LETTER') = (deliverable_id IS NOT NULL)) AND ((kind = 'HOLDING_LETTER') = (dispatch_key IS NOT NULL))"));
     });
   }

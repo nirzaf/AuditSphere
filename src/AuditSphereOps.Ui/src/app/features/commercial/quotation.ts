@@ -158,6 +158,10 @@ interface Rule {
   approvedBy: string | null;
   approvedAt: string | null;
   reason: string | null;
+  approvalId: string | null;
+  canRevoke: boolean;
+  revokedAt: string | null;
+  revocationReason: string | null;
 }
 interface Version {
   id: string;
@@ -168,6 +172,9 @@ interface Version {
   discount: string;
   nonStandardTerms: boolean;
   note: string | null;
+  validUntil: string | null;
+  approvalsStand: boolean;
+  expired: boolean;
   amounts: Amounts;
   rules: Rule[];
 }
@@ -233,6 +240,9 @@ export function decodeQuotation(value: unknown): Workspace {
       !['complexity', 'risk', 'discount'].every((k) => exactDecimal(v[k])) ||
       typeof v['nonStandardTerms'] !== 'boolean' ||
       !(v['note'] === null || typeof v['note'] === 'string') ||
+      !(v['validUntil'] === null || typeof v['validUntil'] === 'string') ||
+      typeof v['approvalsStand'] !== 'boolean' ||
+      typeof v['expired'] !== 'boolean' ||
       !Array.isArray(v['rules']) ||
       v['rules'].length > 100
     )
@@ -246,7 +256,12 @@ export function decodeQuotation(value: unknown): Workspace {
         typeof r['canApprove'] !== 'boolean' ||
         !(r['approvedBy'] === null || identity(r['approvedBy'])) ||
         !(r['approvedAt'] === null || typeof r['approvedAt'] === 'string') ||
-        !(r['reason'] === null || typeof r['reason'] === 'string')
+        !(r['reason'] === null || typeof r['reason'] === 'string') ||
+        !(r['approvalId'] === null || identity(r['approvalId'])) ||
+        typeof r['canRevoke'] !== 'boolean' ||
+        r['approved'] !== (r['approvalId'] !== null) ||
+        !(r['revokedAt'] === null || typeof r['revokedAt'] === 'string') ||
+        !(r['revocationReason'] === null || typeof r['revocationReason'] === 'string')
       )
         throw new Error('Invalid approval');
   }
@@ -410,7 +425,22 @@ export function decodeQuotation(value: unknown): Workspace {
           <section>
             <h4>
               Revision {{ v.revision }} · {{ v.status }} · {{ v.amounts.fee }} {{ w.currency }}
+              @if (v.validUntil) {
+                <span> · valid until {{ v.validUntil.slice(0, 16).replace('T', ' ') }} UTC</span>
+              }
             </h4>
+            @if (v.status === 'APPROVED' && !v.approvalsStand) {
+              <p role="alert">
+                A required approval was revoked. This revision cannot be dispatched or accepted
+                until a fresh approval is recorded.
+              </p>
+            }
+            @if (v.expired) {
+              <p role="alert">
+                The validity window has elapsed. This offer cannot be dispatched or accepted;
+                revise the proposal to issue a fresh quotation.
+              </p>
+            }
             <div class="table-scroll">
               <table>
                 <caption>
@@ -461,7 +491,29 @@ export function decodeQuotation(value: unknown): Workspace {
                   {{ r.role }} · {{ r.requirement }}
                   @if (r.approved) {
                     <p>Approved by {{ r.approvedBy }} at {{ r.approvedAt }}: {{ r.reason }}</p>
+                    @if (r.canRevoke) {
+                      <label
+                        >Revocation reason<textarea
+                          [(ngModel)]="revocations[v.id + r.key]"
+                          maxlength="1000"
+                        ></textarea>
+                      </label>
+                      <button
+                        matButton
+                        [disabled]="
+                          busy() || uncertain() || (revocations[v.id + r.key] ?? '').trim().length < 5
+                        "
+                        (click)="revoke(v, r)"
+                      >
+                        Revoke this approval
+                      </button>
+                    }
                   } @else if (r.canApprove) {
+                    @if (r.revokedAt) {
+                      <p>
+                        Previous approval revoked at {{ r.revokedAt }}: {{ r.revocationReason }}
+                      </p>
+                    }
                     <label
                       >Approval reason<textarea
                         [(ngModel)]="reasons[v.id + r.key]"
@@ -476,6 +528,11 @@ export function decodeQuotation(value: unknown): Workspace {
                       Approve as {{ r.role }}
                     </button>
                   } @else {
+                    @if (r.revokedAt) {
+                      <p>
+                        Previous approval revoked at {{ r.revokedAt }}: {{ r.revocationReason }}
+                      </p>
+                    }
                     <p>Awaiting authorized independent review.</p>
                   }
                 </li>
@@ -578,6 +635,7 @@ export class Quotation {
   note = '';
   reviewed = false;
   reasons: Record<string, string> = {};
+  revocations: Record<string, string> = {};
   constructor() {
     effect(() => {
       this.proposalId();
@@ -598,6 +656,7 @@ export class Quotation {
         this.uncertain.set(false);
         this.message.set('');
         this.reasons = {};
+        this.revocations = {};
         this.lines = [{ rateCardId: '', hours: '1' }];
         this.complexity = '1';
         this.risk = this.discount = '0';
@@ -854,6 +913,11 @@ export class Quotation {
       ruleKey: r.key,
       reason: this.reasons[v.id + r.key],
     });
+  }
+  revoke(v: Version, r: Rule): void {
+    const reason = (this.revocations[v.id + r.key] ?? '').trim();
+    if (!r.canRevoke || !r.approvalId || reason.length < 5) return;
+    this.command('/api/ui/quotations/approvals/' + r.approvalId + '/revoke', { reason });
   }
   private command(url: string, body: object, changesFee = false): void {
     if (!this.data() || this.busy() || this.uncertain()) return;

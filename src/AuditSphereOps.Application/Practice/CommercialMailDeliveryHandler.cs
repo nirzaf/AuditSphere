@@ -9,9 +9,10 @@ using Microsoft.EntityFrameworkCore;
 namespace AuditSphereOps.Application.Practice;
 
 /// <summary>
-/// Delivers queued commercial emails (the official advance-payment receipt) through the isolated Acceptance "mail"
-/// worker and the same provider adapters as PBC mail. The operation is keyed to the notification, so a retry can
-/// never send a second email; an uncertain provider outcome is never re-sent blindly.
+/// Delivers queued commercial emails (the official advance-payment receipt, proposal dispatches) through the isolated
+/// Acceptance "mail" worker and the same provider adapters as PBC mail. The operation is keyed to the notification, so
+/// a verified provider receipt is terminal and never sent twice; refused and unknown outcomes are durable receipt
+/// states that only an explicit operator re-arm can re-attempt.
 /// </summary>
 public sealed class CommercialMailDeliveryHandler(IAuditSphereDbContextFactory factory, IPbcMailSender sender) : IOperationHandler
 {
@@ -41,7 +42,10 @@ public sealed class CommercialMailDeliveryHandler(IAuditSphereDbContextFactory f
     var mail = await db.CommercialNotifications.FromSqlInterpolated($"""
       SELECT * FROM commercial_notifications WHERE firm_id = {op.FirmId} AND id = {op.TargetId} FOR UPDATE
       """).SingleOrDefaultAsync(ct);
-    if (mail is null || mail.DeliveryState != "QUEUED" || string.IsNullOrWhiteSpace(mail.Recipient) || string.IsNullOrWhiteSpace(mail.Subject))
+    // A verified provider receipt is terminal: the send is never repeated. A refused or unknown outcome may be
+    // re-attempted only through an explicit operator re-arm, which re-enters this lock through the same path.
+    if (mail is null || mail.DeliveryState is CommercialDeliveryStates.ProviderAccepted or CommercialDeliveryStates.Delivered ||
+      string.IsNullOrWhiteSpace(mail.Recipient) || string.IsNullOrWhiteSpace(mail.Subject))
       throw new OperationBlockedException("mail-scope-or-state-conflict", authorization: true);
   }
 
@@ -49,7 +53,31 @@ public sealed class CommercialMailDeliveryHandler(IAuditSphereDbContextFactory f
   {
     await using var db = await factory.CreateAsync(ct);
     var mail = await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.FirmId == op.FirmId && x.Id == op.TargetId, ct);
-    await sender.SendAsync(new(mail.Recipient, mail.Subject, mail.Body, op.CorrelationId), ct);
+    // The send attempt is durable before the provider call: queued, in-flight, accepted, refused and unknown
+    // outcomes remain distinguishable whatever happens next (STE 4.1.2 delivery receipts).
+    await MarkDeliveryStateAsync(factory, op.FirmId, op.TargetId, CommercialDeliveryStates.Dispatched, ct);
+    try
+    {
+      await sender.SendAsync(new(mail.Recipient, mail.Subject, mail.Body, op.CorrelationId), ct);
+    }
+    catch (SafeRetryException)
+    {
+      throw; // transient pre-provider failure: the attempt stays DISPATCHED and the operation retries
+    }
+    catch (OperationCanceledException)
+    {
+      throw;
+    }
+    catch (OperationBlockedException)
+    {
+      await MarkDeliveryStateAsync(factory, op.FirmId, op.TargetId, CommercialDeliveryStates.Rejected, ct);
+      throw; // the provider refused the send; the email was not accepted
+    }
+    catch (Exception)
+    {
+      await MarkDeliveryStateAsync(factory, op.FirmId, op.TargetId, CommercialDeliveryStates.Unknown, ct);
+      throw; // the outcome is uncertain: reconciliation — never a blind resend — must resolve it
+    }
     return Expected(op);
   }
 
@@ -61,9 +89,17 @@ public sealed class CommercialMailDeliveryHandler(IAuditSphereDbContextFactory f
     var expected = Expected(op);
     if (verifiedRemoteResult != expected) throw new OperationBlockedException("mail-provider-receipt-conflict");
     var mail = await db.CommercialNotifications.SingleAsync(x => x.FirmId == op.FirmId && x.Id == op.TargetId, ct);
-    mail.DeliveryState = "SENT";
+    mail.DeliveryState = CommercialDeliveryStates.ProviderAccepted;
     mail.DeliveredAt = DateTimeOffset.UtcNow;
     return expected;
+  }
+
+  private static async Task MarkDeliveryStateAsync(IAuditSphereDbContextFactory factory, Guid firmId, Guid notificationId, string state, CancellationToken ct)
+  {
+    await using var db = await factory.CreateAsync(ct);
+    await db.CommercialNotifications
+      .Where(x => x.FirmId == firmId && x.Id == notificationId)
+      .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.DeliveryState, state), ct);
   }
 
   private static OperationResult Expected(DurableOperation op) => new(op.CorrelationId.ToString("D"), Hashing.Sha256Hex(op.PayloadJson));

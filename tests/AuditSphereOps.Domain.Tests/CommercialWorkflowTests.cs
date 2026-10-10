@@ -656,7 +656,7 @@ public sealed class CommercialWorkflowTests
     Assert.Contains(sender.Plans, p => p.Subject.StartsWith("Payment receipt"));
     Assert.Contains(sender.Plans, p => p.Subject.Contains("Proposal revision"));
     var deliveredReceipt = await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.Kind == CommercialNotificationKinds.Receipt);
-    Assert.Equal(("SENT", true), (deliveredReceipt.DeliveryState, deliveredReceipt.DeliveredAt is not null));
+    Assert.Equal(("PROVIDER_ACCEPTED", true), (deliveredReceipt.DeliveryState, deliveredReceipt.DeliveredAt is not null));
 
     // Balance: needs the linked engagement and an issued release (final report delivered and signed off).
     Assert.Equal(ErrorCodes.GateBlocked, (await FeeAgreementService.IssueBalanceInvoiceAsync(db, w.FinanceManager, agreementId)).ErrorCode);
@@ -868,8 +868,10 @@ public sealed class CommercialWorkflowTests
       expectedQuotationId: quote2.Value, expectedProfileVersion: 1)).Succeeded);
     Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Prep, proposal2)).Succeeded);
     var offer2 = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposal2)).SentOfferSha256;
+    Assert.Equal("crm.unauthorized-respondent", (await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposal2,
+      new("ACCEPTED", null, offer2, "A. Owner", "owner@gulf.example.test"))).ErrorCode);
     Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposal2,
-      new("ACCEPTED", null, offer2, "A. Owner", "owner@gulf.example.test", "Signed acceptance letter"))).Succeeded);
+      new("ACCEPTED", null, offer2, "B. Owner", "binding-client@example.test", "Signed acceptance letter"))).Succeeded);
     var converted2 = await PracticeCrmService.ConvertToClientDraftAsync(db, w.Prep, new(proposal2, "Binding Client LLC"));
     Assert.True(converted2.Succeeded, converted2.Message);
     var agreement = await FeeAgreementService.CreateAgreementAsync(db, w.Prep, proposal2);

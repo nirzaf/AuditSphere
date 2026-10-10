@@ -419,6 +419,201 @@
       }
     </section>
 
+    <section class="panel" aria-labelledby="pricing-policy-title">
+      <header class="section-header">
+        <div>
+          <p class="eyebrow">Quotation governance</p>
+          <h2 id="pricing-policy-title">Pricing basis and limits</h2>
+          <p class="section-description">
+            The latest approved policy for a currency bounds new quotations: a discount above the cap
+            or a fee outside the approved band is refused, and approved quotations carry a validity
+            window. Existing quotations and documents keep their original terms.
+          </p>
+        </div>
+      </header>
+
+      <div class="table-scroll">
+        <table>
+          <caption>Pricing policy versions</caption>
+          <thead>
+            <tr>
+              <th scope="col">Currency</th>
+              <th scope="col">Fee band</th>
+              <th scope="col">Max discount</th>
+              <th scope="col">Validity</th>
+              <th scope="col">Status</th>
+              <th scope="col">Version</th>
+              @if (w.canEdit) {
+                <th scope="col">Action</th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (p of policies(); track p.id) {
+              <tr>
+                <td>{{ p.currency }}</td>
+                <td>
+                  {{
+                    (p.minimumFee === null ? 'no minimum' : p.minimumFee) +
+                      ' – ' +
+                      (p.maximumFee === null ? 'no maximum' : p.maximumFee)
+                  }}
+                </td>
+                <td>{{ p.maxDiscountPercent === null ? 'Not capped' : p.maxDiscountPercent + '%' }}</td>
+                <td>{{ p.validityDays }} days</td>
+                <td>
+                  {{
+                    p.status === 'PENDING_APPROVAL'
+                      ? 'Pending approval'
+                      : p.status === 'APPROVED'
+                        ? p.current
+                          ? 'Approved · in force'
+                          : 'Approved · replaced'
+                        : 'Draft'
+                  }}
+                </td>
+                <td>{{ p.version }}</td>
+                @if (w.canEdit) {
+                  <td>
+                    @if (p.canSubmit) {
+                      <button
+                        matButton="outlined"
+                        [disabled]="policyBusy() || busy() || uncertain()"
+                        (click)="submitPolicy(p)"
+                      >
+                        Submit for approval
+                      </button>
+                    } @else if (p.canApprove) {
+                      <button
+                        matButton="outlined"
+                        [disabled]="
+                          policyBusy() || busy() || uncertain() || policyApprovalReason.trim().length < 5
+                        "
+                        (click)="approvePolicy(p, policyApprovalReason)"
+                      >
+                        Approve with recorded reason
+                      </button>
+                    } @else if (p.status === 'PENDING_APPROVAL') {
+                      Awaiting a second rule administrator
+                    }
+                  </td>
+                }
+              </tr>
+            } @empty {
+              <tr>
+                <td [attr.colspan]="w.canEdit ? 7 : 6" class="empty-cell">
+                  No pricing policy is configured for any currency; quotations are not bounded yet.
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      @if (w.canEdit) {
+        <form class="rule-form" (ngSubmit)="savePolicy()">
+          <fieldset [disabled]="policyBusy() || busy() || uncertain()">
+            <legend>Propose a new policy version</legend>
+            <p class="form-intro">
+              A distinct rule administrator must approve a submitted version before it bounds
+              quotations.
+            </p>
+            <div class="rule-grid">
+              <div class="field">
+                <label for="policy-currency">Currency</label>
+                <input
+                  id="policy-currency"
+                  class="field-control"
+                  name="policyCurrency"
+                  maxlength="3"
+                  [(ngModel)]="policyCurrency"
+                  (ngModelChange)="policyReviewed.set(false)"
+                />
+              </div>
+              <div class="field">
+                <label for="policy-minimum-fee">Minimum fee (empty for none)</label>
+                <input
+                  id="policy-minimum-fee"
+                  class="field-control"
+                  name="policyMinimumFee"
+                  maxlength="60"
+                  [(ngModel)]="policyMinimumFee"
+                  (ngModelChange)="policyReviewed.set(false)"
+                />
+              </div>
+              <div class="field">
+                <label for="policy-maximum-fee">Maximum fee (empty for none)</label>
+                <input
+                  id="policy-maximum-fee"
+                  class="field-control"
+                  name="policyMaximumFee"
+                  maxlength="60"
+                  [(ngModel)]="policyMaximumFee"
+                  (ngModelChange)="policyReviewed.set(false)"
+                />
+              </div>
+              <div class="field">
+                <label for="policy-max-discount">Maximum discount % (empty for none)</label>
+                <input
+                  id="policy-max-discount"
+                  class="field-control"
+                  name="policyMaxDiscount"
+                  maxlength="60"
+                  [(ngModel)]="policyMaxDiscount"
+                  (ngModelChange)="policyReviewed.set(false)"
+                />
+              </div>
+              <div class="field">
+                <label for="policy-validity-days">Quotation validity window (days)</label>
+                <input
+                  id="policy-validity-days"
+                  class="field-control"
+                  name="policyValidityDays"
+                  maxlength="3"
+                  [(ngModel)]="policyValidityDays"
+                  (ngModelChange)="policyReviewed.set(false)"
+                />
+              </div>
+              @if (canApproveAnyPolicy()) {
+                <div class="field">
+                  <label for="policy-approval-reason">Approval reason (5 to 1000 characters)</label>
+                  <input
+                    id="policy-approval-reason"
+                    class="field-control"
+                    name="policyApprovalReason"
+                    maxlength="1000"
+                    [(ngModel)]="policyApprovalReason"
+                  />
+                </div>
+              }
+            </div>
+            <div class="review-confirmation rule-review">
+              <input
+                id="policy-reviewed"
+                type="checkbox"
+                name="policyReviewed"
+                [checked]="policyReviewed()"
+                (change)="policyReviewed.set(!policyReviewed())"
+              />
+              <label for="policy-reviewed"
+                >I reviewed the effect on future quotations in this currency.</label
+              >
+            </div>
+            <div class="form-footer rule-footer">
+              <p>A second rule administrator approves the submitted version.</p>
+              <button
+                matButton="filled"
+                type="submit"
+                [disabled]="!policyReviewed() || policyBusy() || busy() || uncertain()"
+              >
+                {{ policyBusy() ? 'Saving…' : 'Save pricing policy draft' }}
+              </button>
+            </div>
+          </fieldset>
+        </form>
+      }
+    </section>
+
     @if (deactivation(); as r) {
       <section class="confirm-card" role="alert" aria-labelledby="deactivation-title">
         <div>

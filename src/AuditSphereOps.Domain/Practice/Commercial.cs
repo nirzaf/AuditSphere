@@ -10,6 +10,50 @@ public static class QuotationStates
   public const string Superseded = "SUPERSEDED";
 }
 
+/// <summary>Durable delivery-receipt states for commercial email (STE 4.1.2): a queued offer, an in-flight send
+/// attempt, a provider-verified receipt, explicit delivery evidence, a provider refusal and an unknown outcome are
+/// all distinct and never conflated.</summary>
+public static class CommercialDeliveryStates
+{
+  public const string Queued = "QUEUED";
+  public const string Dispatched = "DISPATCHED";
+  public const string ProviderAccepted = "PROVIDER_ACCEPTED";
+  public const string Delivered = "DELIVERED";
+  public const string Rejected = "REJECTED";
+  public const string Unknown = "UNKNOWN";
+  /// <summary>True once the mail provider's receipt is verified: the send is terminal and never repeated.</summary>
+  public static bool IsProviderReceipt(string state) => state is ProviderAccepted or Delivered;
+}
+
+/// <summary>
+/// Firm-approved pricing basis and limits (STE 4.1.2): versioned rows authored by a rule administrator and approved
+/// by a distinct one. The latest approved row for a currency bounds new quotations and sets their validity window;
+/// it never alters historical documents.
+/// </summary>
+public sealed class FirmPricingPolicy
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public long Version { get; set; } = 1;
+  public string Currency { get; set; } = string.Empty;
+  public decimal? MinimumFee { get; set; }
+  public decimal? MaximumFee { get; set; }
+  public decimal? MaxDiscountPercent { get; set; }
+  public int ValidityDays { get; set; } = 30;
+  public string Status { get; set; } = FirmPricingPolicyStates.Draft;
+  public Guid CreatedByUserId { get; set; }
+  public DateTimeOffset CreatedAt { get; set; }
+  public Guid? ApprovedByUserId { get; set; }
+  public DateTimeOffset? ApprovedAt { get; set; }
+}
+
+public static class FirmPricingPolicyStates
+{
+  public const string Draft = "DRAFT";
+  public const string PendingApproval = "PENDING_APPROVAL";
+  public const string Approved = "APPROVED";
+}
+
 public static class CommercialRuleKinds
 {
   /// <summary>Applies when the discount percentage is strictly above the threshold.</summary>
@@ -61,6 +105,8 @@ public sealed class QuotationVersion
   public decimal Fee { get; set; }
   public string InputHash { get; set; } = string.Empty;
   public string Status { get; set; } = QuotationStates.Draft;
+  /// <summary>When the approved pricing policy defines a validity window, the offer expires at this instant; an expired offer cannot be dispatched or accepted.</summary>
+  public DateTimeOffset? ValidUntil { get; set; }
   /// <summary>Canonical JSON of the approvals this version requires (rule, rule version, role).</summary>
   public string RequiredApprovalsJson { get; set; } = "[]";
   public Guid CreatedByUserId { get; set; }
@@ -92,6 +138,21 @@ public sealed class QuotationApproval
   public Guid ApprovedByUserId { get; set; }
   public string Reason { get; set; } = string.Empty;
   public DateTimeOffset ApprovedAt { get; set; }
+}
+
+/// <summary>
+/// A required approval stands until this append-only record withdraws it. Approval rows themselves are never
+/// edited — commercial approval history is append-only — so revocation is a distinct record that a distinct
+/// role-holder signs, and the historical approval evidence is preserved unchanged.
+/// </summary>
+public sealed class QuotationApprovalRevocation
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid QuotationApprovalId { get; set; }
+  public string Reason { get; set; } = string.Empty;
+  public Guid RevokedByUserId { get; set; }
+  public DateTimeOffset RevokedAt { get; set; }
 }
 
 /// <summary>Firm letterhead used by generated commercial documents. Versioned; latest row applies.</summary>

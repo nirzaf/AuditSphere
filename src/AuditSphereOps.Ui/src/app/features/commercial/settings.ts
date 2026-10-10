@@ -1,4 +1,4 @@
-import { Component, DestroyRef, effect, inject, signal, untracked } from '@angular/core';
+import { Component, DestroyRef, computed, effect, inject, signal, untracked } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -28,6 +28,43 @@ interface Rule {
   kind: string;
   threshold: string | null;
   role: string;
+}
+interface Policy {
+  id: string;
+  version: string;
+  currency: string;
+  minimumFee: string | null;
+  maximumFee: string | null;
+  maxDiscountPercent: string | null;
+  validityDays: string;
+  status: string;
+  current: boolean;
+  canSubmit: boolean;
+  canApprove: boolean;
+}
+const policyState = (v: unknown): v is string =>
+  typeof v === 'string' && ['DRAFT', 'PENDING_APPROVAL', 'APPROVED'].includes(v);
+export function decodePolicies(value: unknown): Policy[] {
+  if (!Array.isArray(value) || value.length > 100) throw new Error('Invalid pricing policies');
+  return value.map((entry) => {
+    const p = entry as Record<string, unknown>;
+    if (
+      !p ||
+      typeof p['id'] !== 'string' ||
+      !guidPattern.test(p['id']) ||
+      !revision(p['version']) ||
+      typeof p['currency'] !== 'string' ||
+      !/^[A-Z]{3}$/.test(p['currency']) ||
+      !(p['minimumFee'] === null || exactDecimal(p['minimumFee'])) ||
+      !(p['maximumFee'] === null || exactDecimal(p['maximumFee'])) ||
+      !(p['maxDiscountPercent'] === null || exactDecimal(p['maxDiscountPercent'])) ||
+      !revision(p['validityDays']) ||
+      !policyState(p['status']) ||
+      !['current', 'canSubmit', 'canApprove'].every((k) => typeof p[k] === 'boolean')
+    )
+      throw new Error('Invalid pricing policy');
+    return p as unknown as Policy;
+  });
 }
 interface Workspace {
   canEdit: boolean;
@@ -181,6 +218,16 @@ export class CommercialSettings {
   readonly uncertain = signal(false);
   readonly message = signal('');
   readonly deactivation = signal<Rule | null>(null);
+  readonly policies = signal<Policy[]>([]);
+  readonly policyReviewed = signal(false);
+  readonly canApproveAnyPolicy = computed(() => this.policies().some((x) => x.canApprove));
+  policyCurrency = 'QAR';
+  policyMinimumFee = '';
+  policyMaximumFee = '';
+  policyMaxDiscount = '';
+  policyValidityDays = '30';
+  policyApprovalReason = '';
+  policyBusy = signal(false);
   profile = blank();
   reviewed = false;
   ruleReviewed = false;
@@ -200,6 +247,9 @@ export class CommercialSettings {
         this.profile = blank();
         this.reviewed = this.ruleReviewed = false;
         this.deactivation.set(null);
+        this.policies.set([]);
+        this.policyReviewed.set(false);
+        this.policyBusy.set(false);
         this.kind = 'DISCOUNT_OVER_PERCENT';
         this.threshold = '10';
         this.role = 'Partner';
@@ -251,6 +301,111 @@ export class CommercialSettings {
         { rulesRevision: w.rulesRevision, reviewed: true },
         true,
       );
+  }
+  savePolicy(): void {
+    if (!this.policyReviewed() || !this.policyValidity('saving')) return;
+    this.policyCommand('', {
+      currency: this.policyCurrency.trim().toUpperCase(),
+      minimumFee: this.policyMinimumFee.trim() || null,
+      maximumFee: this.policyMaximumFee.trim() || null,
+      maxDiscount: this.policyMaxDiscount.trim() || null,
+      validityDays: this.policyValidityDays.trim(),
+      expectedRevision: null,
+      reviewed: true,
+    });
+  }
+  submitPolicy(p: Policy): void {
+    if (!p.canSubmit || !this.policies().some((x) => x.id === p.id)) return;
+    this.policyCommand('/' + p.id + '/submit', {}, true);
+  }
+  approvePolicy(p: Policy, reason: string): void {
+    const trimmed = reason.trim();
+    if (!p.canApprove || !this.policies().some((x) => x.id === p.id)) return;
+    if (trimmed.length < 5 || trimmed.length > 1000) {
+      this.message.set('Record an approval reason of 5 to 1000 characters before approving.');
+      return;
+    }
+    this.policyCommand('/' + p.id + '/approve', { reason: trimmed, reviewed: true }, true);
+  }
+  private policyValidity(action: string): boolean {
+    if (!/^[A-Za-z]{3}$/.test(this.policyCurrency.trim())) {
+      this.message.set('Enter a three-letter policy currency before ' + action + '.');
+      return false;
+    }
+    for (const value of [this.policyMinimumFee, this.policyMaximumFee, this.policyMaxDiscount]) {
+      if (value.trim() && !exactDecimal(value.trim())) {
+        this.message.set('Policy limits must be exact decimals or left empty.');
+        return false;
+      }
+    }
+    const days = this.policyValidityDays.trim();
+    if (!/^\d{1,3}$/.test(days) || Number(days) < 1 || Number(days) > 365) {
+      this.message.set('Enter a validity window of 1 to 365 days.');
+      return false;
+    }
+    return true;
+  }
+  private policyCommand(path: string, body: object, noContent = false): void {
+    if (!this.data()?.canEdit || this.policyBusy() || this.busy() || this.uncertain()) return;
+    const fence = this.fence;
+    this.policyBusy.set(true);
+    this.message.set('Saving reviewed pricing policy…');
+    this.http
+      .post<unknown>('/api/ui/commercial-settings/pricing-policy' + path, body)
+      .pipe(timeout(15000))
+      .subscribe({
+        next: (value) => {
+          if (fence !== this.fence) return;
+          this.policyBusy.set(false);
+          const r = value as { id?: unknown };
+          if (!noContent && (typeof r?.id !== 'string' || !guidPattern.test(r.id))) {
+            this.uncertain.set(true);
+            this.data.set(null);
+            this.message.set('Pricing policy outcome unconfirmed. Refresh persisted settings.');
+            return;
+          }
+          this.policyReviewed.set(false);
+          this.policyApprovalReason = '';
+          this.message.set(
+            'Pricing policy recorded. Existing quotations and documents retain their original terms.',
+          );
+          this.loadPolicies();
+        },
+        error: (failure) => {
+          if (fence !== this.fence) return;
+          this.policyBusy.set(false);
+          this.policyReviewed.set(false);
+          this.uncertain.set(!(failure.status >= 400 && failure.status < 500));
+          this.data.set(null);
+          this.message.set(
+            this.uncertain()
+              ? 'Pricing policy outcome unconfirmed. Refresh before another command.'
+              : 'Pricing policy refused. Check current authority, the reviewed confirmation and field limits.',
+          );
+          if (failure.status === 401) this.session.clear();
+        },
+      });
+  }
+  loadPolicies(): void {
+    const fence = this.fence;
+    this.http
+      .get<unknown>('/api/ui/commercial-settings/pricing-policy')
+      .pipe(timeout(15000))
+      .subscribe({
+        next: (value) => {
+          if (fence !== this.fence) return;
+          try {
+            this.policies.set(decodePolicies(value));
+          } catch {
+            this.policies.set([]);
+            this.message.set('Unsupported pricing policy response; refresh.');
+          }
+        },
+        error: (failure) => {
+          if (fence !== this.fence) return;
+          if (failure.status === 401) this.session.clear();
+        },
+      });
   }
   private command(path: string, body: object, noContent = false): void {
     if (!this.data()?.canEdit || this.busy() || this.uncertain()) return;
@@ -315,6 +470,7 @@ export class CommercialSettings {
           try {
             const w = decodeSettings(value);
             this.data.set(w);
+            this.loadPolicies();
             const persisted=w.profile ? { ...w.profile } : blank();
             this.profile=preserve === 'profile' ? {...previous.profile,version:persisted.version} : persisted;
             this.kind=preserve === 'rule' ? previous.kind : 'DISCOUNT_OVER_PERCENT';
