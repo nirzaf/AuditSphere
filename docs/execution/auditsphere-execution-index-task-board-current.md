@@ -12,13 +12,13 @@
 
 | Code verdict | Items |
 | --- | ---: |
-| COMPLETE | 0 |
-| PARTIAL | 3 |
+| COMPLETE | 4 |
+| PARTIAL | 7 |
 | NOT_STARTED | 0 |
 | CONFLICTS_WITH_AGENTS | 0 |
 | OWNER_DECISION | 1 |
-| EXTERNAL_BLOCKED | 0 |
-| NOT_AUDITED | 95 |
+| EXTERNAL_BLOCKED | 3 |
+| NOT_AUDITED | 84 |
 | **Total** | **99** |
 
 Card status in the front matter: 2 COMPLETED, 0 IN_REVIEW, 71 NOT_STARTED of 75 cards. Nothing is COMPLETED from the audit: no item met every completion test in the card.
@@ -85,7 +85,7 @@ Card status in the front matter: 2 COMPLETED, 0 IN_REVIEW, 71 NOT_STARTED of 75 
 | T056 | AUD-17 | Instantiate and tailor engagement audit programs | NOT_STARTED | NOT_AUDITED | T014 (NOT_STARTED), T055 (NOT_STARTED) | — | Audit against the codebase before building |
 | T057 | AUD-17 | Reconcile audit lead schedules and source populations | NOT_STARTED | NOT_AUDITED | T020 (NOT_STARTED), T056 (NOT_STARTED) | — | Audit against the codebase before building |
 | T058 | AUD-17 | Implement audit sampling, item testing and subsequent matching | NOT_STARTED | NOT_AUDITED | T057 (NOT_STARTED) | — | Audit against the codebase before building |
-| T059 | AUD-17 | Manage audit confirmations and alternative procedures | BLOCKED | NOT_AUDITED | T058 (NOT_STARTED) | — | Audit against the codebase before building |
+| T059 | AUD-17 | Manage audit confirmations and alternative procedures | BLOCKED | PARTIAL | T058 (NOT_STARTED) | 4 | Build the open gaps |
 | T060 | AUD-18 | Implement audit planning, materiality and risk assessment | NOT_STARTED | NOT_AUDITED | T056 (NOT_STARTED), T057 (NOT_STARTED) | — | Audit against the codebase before building |
 | T061 | AUD-18 | Implement cash and bank audit workpapers | NOT_STARTED | NOT_AUDITED | T026 (NOT_STARTED), T059 (BLOCKED), T060 (NOT_STARTED) | — | Audit against the codebase before building |
 | T062 | AUD-18 | Implement trade receivables and allowance audit workpapers | NOT_STARTED | NOT_AUDITED | T058 (NOT_STARTED), T059 (BLOCKED), T060 (NOT_STARTED) | — | Audit against the codebase before building |
@@ -116,16 +116,16 @@ Card status in the front matter: 2 COMPLETED, 0 IN_REVIEW, 71 NOT_STARTED of 75 
 | STE-NXT-012 | STE-NXT | Show the local, provider and lifecycle archive states separately | — | NOT_AUDITED | — | — | Audit against the codebase before building |
 | STE-NXT-013 | STE-NXT | Make the statement analysis links reach their screens | implemented 2026-10-08 | NOT_AUDITED | — | — | Audit against the codebase before building |
 | STE-NXT-014 | STE-NXT | Record end-of-service accruals as a provision | open and blocked | NOT_AUDITED | — | — | Audit against the codebase before building |
-| STE-GAP-001 | STE-GAP | Versioned Service-Specific Engagement Letter Templates | — | NOT_AUDITED | — | — | Audit against the codebase before building |
-| STE-GAP-002 | STE-GAP | Specification-Compliant 50% Advance Invoice Automation | — | NOT_AUDITED | — | — | Audit against the codebase before building |
-| STE-GAP-003 | STE-GAP | Controlled ±5% Practical Materiality Rounding | — | NOT_AUDITED | — | — | Audit against the codebase before building |
-| STE-GAP-004 | STE-GAP | Live Client Portal Provisioning & Credential Acceptance | — | NOT_AUDITED | — | — | Audit against the codebase before building |
-| STE-GAP-005 | STE-GAP | Automatic Holding Letter Dispatch for Critical Confirmations | — | NOT_AUDITED | — | — | Audit against the codebase before building |
-| STE-GAP-006 | STE-GAP | Partner Early/Manual Compliance Lock | — | NOT_AUDITED | — | — | Audit against the codebase before building |
-| STE-GAP-007 | STE-GAP | Provider-Enforced Read-Only Compliance Archive | — | NOT_AUDITED | — | — | Audit against the codebase before building |
-| STE-GAP-008 | STE-GAP | Canonical Eleven-Stage Lifecycle Truthfulness & Gate Alignment | — | NOT_AUDITED | — | — | Audit against the codebase before building |
-| STE-GAP-009 | STE-GAP | Approved STE Default Charge-Out Rate Policy | — | NOT_AUDITED | — | — | Audit against the codebase before building |
-| STE-GAP-010 | STE-GAP | Full STE v2.1 End-to-End Acceptance Journey | — | NOT_AUDITED | — | — | Audit against the codebase before building |
+| STE-GAP-001 | STE-GAP | Versioned Service-Specific Engagement Letter Templates | — | PARTIAL | — | 1 | Build the open gaps |
+| STE-GAP-002 | STE-GAP | Specification-Compliant 50% Advance Invoice Automation | — | PARTIAL | — | 1 | Build the open gaps |
+| STE-GAP-003 | STE-GAP | Controlled ±5% Practical Materiality Rounding | — | COMPLETE | — | 1 | Verify the checklist, then record COMPLETED with task_status.py |
+| STE-GAP-004 | STE-GAP | Live Client Portal Provisioning & Credential Acceptance | — | EXTERNAL_BLOCKED | live evidence | 1 | Needs live evidence; stays BLOCKED_EXTERNAL |
+| STE-GAP-005 | STE-GAP | Automatic Holding Letter Dispatch for Critical Confirmations | — | PARTIAL | — | 1 | Build the open gaps |
+| STE-GAP-006 | STE-GAP | Partner Early/Manual Compliance Lock | — | COMPLETE | — | 1 | Verify the checklist, then record COMPLETED with task_status.py |
+| STE-GAP-007 | STE-GAP | Provider-Enforced Read-Only Compliance Archive | — | EXTERNAL_BLOCKED | live evidence | 1 | Needs live evidence; stays BLOCKED_EXTERNAL |
+| STE-GAP-008 | STE-GAP | Canonical Eleven-Stage Lifecycle Truthfulness & Gate Alignment | — | COMPLETE | — | 0 | Verify the checklist, then record COMPLETED with task_status.py |
+| STE-GAP-009 | STE-GAP | Approved STE Default Charge-Out Rate Policy | — | COMPLETE | — | 1 | Verify the checklist, then record COMPLETED with task_status.py |
+| STE-GAP-010 | STE-GAP | Full STE v2.1 End-to-End Acceptance Journey | — | EXTERNAL_BLOCKED | live evidence | 1 | Needs live evidence; stays BLOCKED_EXTERNAL |
 
 ## 3. Decisions for the owner
 
@@ -161,6 +161,49 @@ T002 was COMPLETED on 2026-10-09 under the owner-delegated static-service variat
 - Implement named bind/get Application operations and the canonical Angular selector with change-impact preview.
 - Replace implicit chart selection and bind import/package evidence to the exact context revision; validate profile and legal-entity keys against server-owned records.
 - Verify sibling-client denial, successor-context invalidation, prior-chart resolution, and the full setup-to-import handoff.
+
+### T059 — Manage audit confirmations and alternative procedures (PARTIAL)
+
+- Complete and independently review hard dependency T058 before advancing the task.
+- Reconcile confirmations against authoritative client ledger balances and require approved explanations for differences before AGREED.
+- Link exceptions to SAD and ReviewPoints; retain response origin and contact-validation reviewer identity.
+- Persist response-document SHA-256 lineage, expose response aging, and link alternative procedures to the tests performed.
+
+### STE-GAP-001 — Versioned Service-Specific Engagement Letter Templates (PARTIAL)
+
+- Record firm legal/professional acceptance of the template wording before production release.
+
+### STE-GAP-002 — Specification-Compliant 50% Advance Invoice Automation (PARTIAL)
+
+- Keep per-deployment API and worker AutomaticFeeInvoices:Enabled settings aligned and obtain live finance-provider acceptance.
+
+### STE-GAP-003 — Controlled ±5% Practical Materiality Rounding (COMPLETE)
+
+- Production and professional acceptance remain separate from this local implementation verdict.
+
+### STE-GAP-004 — Live Client Portal Provisioning & Credential Acceptance (EXTERNAL_BLOCKED)
+
+- Complete the live Microsoft tenant/workspace identity, access, revocation and cross-client-denial acceptance required by the manifest.
+
+### STE-GAP-005 — Automatic Holding Letter Dispatch for Critical Confirmations (PARTIAL)
+
+- Verify actual approved mail-provider delivery and end-to-end generated-letter dispatch in the authorized tenant.
+
+### STE-GAP-006 — Partner Early/Manual Compliance Lock (COMPLETE)
+
+- Provider-side immutability is tracked separately under STE-GAP-007.
+
+### STE-GAP-007 — Provider-Enforced Read-Only Compliance Archive (EXTERNAL_BLOCKED)
+
+- Obtain approved provider protection strategy, exact-resource readback and real-tenant edit/delete/overwrite denial evidence.
+
+### STE-GAP-009 — Approved STE Default Charge-Out Rate Policy (COMPLETE)
+
+- This implements attribution only; no accounting classification or ledger posting is inferred.
+
+### STE-GAP-010 — Full STE v2.1 End-to-End Acceptance Journey (EXTERNAL_BLOCKED)
+
+- Complete manifest checks J12, J13, J14, J47 and N13 with live tenant/provider evidence; obtain separate professional and release acceptance.
 
 ---
 

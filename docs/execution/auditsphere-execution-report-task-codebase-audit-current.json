@@ -7480,6 +7480,119 @@
     "Verify sibling-client denial, successor-context invalidation, prior-chart resolution, and the full setup-to-import handoff."
    ],
    "conflicts": []
+  },
+  "T059": {
+   "verdict": "PARTIAL",
+   "summary": "The Legal confirmation taxonomy slice is implemented: LEGAL is controlled, unknown categories fail closed, single/batch/API paths align, and the Angular choices are server-derived. The full confirmation task remains BLOCKED by hard dependency T058 and its remaining reconciliation, response-lineage, aging and procedure-linkage criteria.",
+   "missing": [
+    "Complete and independently review hard dependency T058 before advancing the task.",
+    "Reconcile confirmations against authoritative client ledger balances and require approved explanations for differences before AGREED.",
+    "Link exceptions to SAD and ReviewPoints; retain response origin and contact-validation reviewer identity.",
+    "Persist response-document SHA-256 lineage, expose response aging, and link alternative procedures to the tests performed."
+   ],
+   "conflicts": [],
+   "observedCommit": "bc66c38b6a03010a7d1e468da3537481af81339c",
+   "observedAtUtc": "2026-10-10T17:51:40Z"
+  },
+  "STE-GAP-001": {
+   "verdict": "PARTIAL",
+   "summary": "Service-specific versioned engagement-letter templates and fail-closed route selection are implemented and covered by current-tree tests/browser journeys. Legal/ISA wording remains a separate firm release review.",
+   "missing": [
+    "Record firm legal/professional acceptance of the template wording before production release."
+   ],
+   "conflicts": [],
+   "observedCommit": "bc66c38b6a03010a7d1e468da3537481af81339c",
+   "observedAtUtc": "2026-10-10T17:51:40Z"
+  },
+  "STE-GAP-002": {
+   "verdict": "PARTIAL",
+   "summary": "Advance preparation state, API/worker configuration alignment, disabled-automation status and paid-advance activation gate have current-tree regression coverage.",
+   "missing": [
+    "Keep per-deployment API and worker AutomaticFeeInvoices:Enabled settings aligned and obtain live finance-provider acceptance."
+   ],
+   "conflicts": [],
+   "observedCommit": "bc66c38b6a03010a7d1e468da3537481af81339c",
+   "observedAtUtc": "2026-10-10T17:51:40Z"
+  },
+  "STE-GAP-003": {
+   "verdict": "COMPLETE",
+   "summary": "Practical materiality rounding is implemented with exact ±5% bounds, head fencing, independent approval and current-tree Domain/API/E2E regression evidence.",
+   "missing": [
+    "Production and professional acceptance remain separate from this local implementation verdict."
+   ],
+   "conflicts": [],
+   "observedCommit": "bc66c38b6a03010a7d1e468da3537481af81339c",
+   "observedAtUtc": "2026-10-10T17:51:40Z"
+  },
+  "STE-GAP-004": {
+   "verdict": "EXTERNAL_BLOCKED",
+   "summary": "Local portal provisioning and controls exist, but no current-tree test can establish live tenant provisioning, first sign-in, or selected-resource access.",
+   "missing": [
+    "Complete the live Microsoft tenant/workspace identity, access, revocation and cross-client-denial acceptance required by the manifest."
+   ],
+   "conflicts": [],
+   "observedCommit": "bc66c38b6a03010a7d1e468da3537481af81339c",
+   "observedAtUtc": "2026-10-10T17:51:40Z"
+  },
+  "STE-GAP-005": {
+   "verdict": "PARTIAL",
+   "summary": "Holding-letter blocker-set idempotency, durable failure reporting and recovery routing are implemented and current-tree regression passed.",
+   "missing": [
+    "Verify actual approved mail-provider delivery and end-to-end generated-letter dispatch in the authorized tenant."
+   ],
+   "conflicts": [],
+   "observedCommit": "bc66c38b6a03010a7d1e468da3537481af81339c",
+   "observedAtUtc": "2026-10-10T17:51:40Z"
+  },
+  "STE-GAP-006": {
+   "verdict": "COMPLETE",
+   "summary": "Partner early-lock readiness review, digest/revision fencing, refusal branches and immutable local evidence pass the current-tree Domain and Playwright suites.",
+   "missing": [
+    "Provider-side immutability is tracked separately under STE-GAP-007."
+   ],
+   "conflicts": [],
+   "observedCommit": "bc66c38b6a03010a7d1e468da3537481af81339c",
+   "observedAtUtc": "2026-10-10T17:51:40Z"
+  },
+  "STE-GAP-007": {
+   "verdict": "EXTERNAL_BLOCKED",
+   "summary": "Local frozen-state controls and reviewed-manifest/structured-record export pass current-tree evidence; these do not establish provider-side read-only protection.",
+   "missing": [
+    "Obtain approved provider protection strategy, exact-resource readback and real-tenant edit/delete/overwrite denial evidence."
+   ],
+   "conflicts": [],
+   "observedCommit": "bc66c38b6a03010a7d1e468da3537481af81339c",
+   "observedAtUtc": "2026-10-10T17:51:40Z"
+  },
+  "STE-GAP-008": {
+   "verdict": "COMPLETE",
+   "summary": "The lifecycle projection reports lead ingestion and eleven stages from current gates; proposal dispatch advances the verified browser flow to Stage 3, local archive state and provider state remain distinct, and archive status requires FROZEN. Current-tree regression passed.",
+   "missing": [],
+   "conflicts": [],
+   "observedCommit": "bc66c38b6a03010a7d1e468da3537481af81339c",
+   "observedAtUtc": "2026-10-10T17:51:40Z"
+  },
+  "STE-GAP-009": {
+   "verdict": "COMPLETE",
+   "summary": "The QAR baseline, draft initialization, independent rate-card approval, aliases, missing-rate refusal and exact approved-FSLI time attribution are implemented and current-tree regression/browser evidence passed.",
+   "missing": [
+    "This implements attribution only; no accounting classification or ledger posting is inferred."
+   ],
+   "conflicts": [],
+   "observedCommit": "bc66c38b6a03010a7d1e468da3537481af81339c",
+   "observedAtUtc": "2026-10-10T17:51:40Z"
+  },
+  "STE-GAP-010": {
+   "verdict": "EXTERNAL_BLOCKED",
+   "summary": "All 57 locally executable manifest checks passed on the current source/test commit; 0 failed and 0 remain unexecuted. The acceptance result remains externally blocked by five live tenant/provider checks and separate professional/release acceptance.",
+   "missing": [
+    "Complete manifest checks J12, J13, J14, J47 and N13 with live tenant/provider evidence; obtain separate professional and release acceptance."
+   ],
+   "conflicts": [],
+   "observedCommit": "bc66c38b6a03010a7d1e468da3537481af81339c",
+   "observedAtUtc": "2026-10-10T17:51:40Z"
   }
- }
+ },
+ "currentDispositionRecordedAtUtc": "2026-10-10T17:51:40Z",
+ "currentDispositionObservedCommit": "bc66c38b6a03010a7d1e468da3537481af81339c"
 }
