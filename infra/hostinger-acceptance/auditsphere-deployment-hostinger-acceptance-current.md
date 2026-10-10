@@ -151,6 +151,27 @@ The checked `.env` contained no M365 key names or enable flags, and the configur
 contained zero PEM, CRT or key files. No values were displayed or changed. The repository Compose
 wiring remains disabled by default and has not been confirmed deployed to the VPS.
 
+### Follow-up: Selected Site credential provisioned (2026-10-10)
+
+With the owner's explicit authorization, a dedicated RSA certificate was created on the VPS for the
+Selected Site app. The private key remains in the VPS credential store with owner/group-only read
+permissions for the API identity; only the public certificate was uploaded to the matching Entra app.
+The protected `.env` now contains that non-secret app ID and the separate control-site URL. The
+Selected Site enablement flag remains off; no capability was enabled and no service was restarted.
+Certificate contents, IDs and exact tenant resource URLs are intentionally omitted.
+
+A read-only check of the current API container shows it cannot read either certificate file and its
+process environment does not contain the new app ID. The bind mount and environment were captured
+when the container started, before these files/settings were added. Leave this container untouched
+until the owner separately authorizes a configuration reload; do not report the credential as
+runtime-available yet.
+
+No exact-site permission or test file has been created. Microsoft Graph's site-permission creation
+API requires `Sites.FullControl.All` for the grant operation. The Selected Site app was not given
+that tenant-wide permission; the grant must use a separately approved administrator mechanism.
+Until that exact `write` grant exists, the disposable create/read/delete probe and denial check at the
+unrelated control site cannot run. AuditSphere remains `BLOCKED_EXTERNAL` for this capability.
+
 ### Configure a capability
 
 1. **Use a dedicated app identity.** Keep the OIDC sign-in application separate. Give each Graph

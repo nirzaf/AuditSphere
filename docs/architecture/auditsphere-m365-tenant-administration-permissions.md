@@ -182,9 +182,16 @@ selected-resource target; a separate same-tenant site is the negative control. T
 draft was saved with the App mediated profile and is `VALIDATING`; its latest selected-site result
 is `BLOCKED_EXTERNAL` (`selected-resource-draft-edited`). The user authorized a write grant only to
 the selected site and one disposable file create/read/delete probe, including denial at the
-unrelated control site. Neither the grant nor the probe has run because the dedicated certificate
-and server configuration are absent. No site was created. Mail remains disabled pending an approved
-sender restriction, synthetic recipient, and server-side certificate/configuration.
+unrelated control site. A later authorized setup created the dedicated certificate on the VPS,
+uploaded only its public certificate to the matching Entra app, and stored the non-secret app ID and
+control-site URL in the protected deployment `.env`. The capability switch remains off. The running
+API container cannot read the new certificate or see its app ID; it was left untouched and requires
+a separately approved configuration reload. Neither the site grant nor probe has run, and no site
+permission or file was changed. Microsoft Graph requires `Sites.FullControl.All` for the site
+permission-creation operation; that tenant-wide permission was not added to the Selected Site app.
+The grant still needs an approved administrator mechanism that does not widen the runtime app.
+Mail remains disabled pending an approved sender restriction, synthetic recipient, and server-side
+certificate/configuration.
 
 The Hostinger acceptance deployment guide records the live server-side setup state, the read-only
 configuration inspection, and remaining operator steps. Portal consent must never be described as
@@ -204,4 +211,6 @@ Sources: [Microsoft admin consent protocol](https://learn.microsoft.com/en-us/en
 [advanced directory filters](https://learn.microsoft.com/en-us/graph/aad-advanced-queries),
 [create user](https://learn.microsoft.com/en-us/graph/api/user-post-users?view=graph-rest-1.0),
 [create invitation](https://learn.microsoft.com/en-us/graph/api/invitation-post?view=graph-rest-1.0),
-and [add group members](https://learn.microsoft.com/en-us/graph/api/group-post-members?view=graph-rest-1.0).
+[add group members](https://learn.microsoft.com/en-us/graph/api/group-post-members?view=graph-rest-1.0),
+[Selected permissions and grant requirements](https://learn.microsoft.com/en-us/graph/permissions-selected-overview),
+and [create site permission](https://learn.microsoft.com/en-us/graph/api/site-post-permissions?view=graph-rest-1.0).

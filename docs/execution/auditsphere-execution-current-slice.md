@@ -43,28 +43,37 @@ no consent attempt and directory `NOT_VERIFIED`; all mutation capabilities were 
 selected-resource form was then saved with the existing site, empty workpapers library and App
 mediated profile. AuditSphere reported draft revision 4 in `VALIDATING` and a latest selected-site
 result of `BLOCKED_EXTERNAL` (`selected-resource-draft-edited`); this is not a verified site grant.
-Mail and Records drafts were Not Configured, and no client workspaces existed. A read-only VPS check
-found the deployment `.env` file but no M365 configuration-key names or enable flags; the configured
-credential directory contained zero PEM, CRT or key files. No values were read, no VPS setting or
-credential was changed, and no external capability was enabled.
+Mail and Records drafts were Not Configured, and no client workspaces existed. The initial VPS check
+found no M365 configuration or certificate files. A later, explicitly authorized setup created a
+dedicated Selected Site certificate on the VPS, uploaded only its public certificate to the matching
+Entra app, and wrote that app ID and the unrelated control-site URL to the protected deployment
+`.env`. No values or certificate material are recorded here.
 
 The tenant page also rendered `BLOCKED_EXTERNAL: configure the separately approved consent identity
 and fixed callback`, with no Connect action. The nonce-bound consent handshake has not started. The
-read-only VPS check confirmed that the M365 environment configuration and certificate prerequisites
-are absent; Compose maps the consent flow to the dedicated Directory Reader app ID and its
-disabled-by-default flag and certificate credential.
+consent app ID, certificate and enablement remain absent from the deployment configuration. The
+Selected Site flag remains off, and no M365 capability is enabled. A read-only check inside the
+already-running API container confirmed that it cannot read the newly created certificate files and
+does not have the new app ID in its environment. Services were left untouched as instructed; the
+running API therefore needs a separately approved configuration reload before it can use the new
+files.
 
-**Still pending:** user Register assent for the group app; explicit approval to create/install a
-dedicated selected-site certificate and populate the matching server configuration; the
-nonce-bound AuditSphere tenant-consent handshake; the previously authorized exact-site `write`
-grant and positive-target/negative-control file probe once that credential is installed; approved
-Exchange sender restriction and synthetic recipient for mail; and fresh persisted AuditSphere
-verification before any capability is enabled. Do not place IDs, account names, secrets or
-certificate material in repository docs.
+The exact site grant and file probe remain pending. Microsoft Graph's site-permission creation API
+requires `Sites.FullControl.All`; that tenant-wide permission was not added to any app. Use an
+approved administrator grant path without broadening the Selected Site app. No site permission or
+file was changed. The unrelated control site received no grant.
+
+**Still pending:** user Register assent for the group app; a separately approved API configuration
+reload; the nonce-bound AuditSphere tenant-consent handshake; the exact-site `write` grant and
+positive-target/negative-control file probe; the dedicated consent app and its certificate-backed
+configuration; approved Exchange sender restriction and synthetic recipient for mail; and fresh
+persisted AuditSphere verification before any capability is enabled. Do not place IDs, account names,
+secrets or certificate material in repository docs.
 
 Verification in this documentation slice: current built-in-browser views of Entra, SharePoint Admin
-Center, the selected-site API response and AuditSphere tenant-connection page; no tests, live
-capability probe, site mutation, mail send, or VPS configuration command was run.
+Center, the selected-site API response and AuditSphere tenant-connection page; GitHub Actions for the
+preceding documentation commit passed Angular, .NET Release and Docs Health. No site permission,
+live capability probe, disposable file, mail send or service restart was performed.
 
 ## STE v2.1 evidence mapping and full-suite runs — 2026-10-09
 
