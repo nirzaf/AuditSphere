@@ -57,6 +57,12 @@ public static partial class ApiHost
     builder.Services.AddHttpClient("directory-reader-token").ConfigurePrimaryHttpMessageHandler(() =>
       new HttpClientHandler { AllowAutoRedirect = false });
     TenantAdministrationComposition.Register(builder);
+    // Report signing (ADR-0016): no certificate configured keeps the image-only signature; Required fails closed.
+    builder.Services.AddSingleton<AuditSphereOps.Application.Completion.IReportSigningCredentialSource>(
+      new PemReportSigningCredentialSource(new ReportSigningOptions(
+        builder.Configuration["ReportSigning:CertificatePath"] ?? string.Empty,
+        builder.Configuration["ReportSigning:PrivateKeyPath"] ?? string.Empty,
+        builder.Configuration.GetValue("ReportSigning:Required", false))));
     builder.Services.AddTransient<ISelectedSiteTokenSource>(services =>
       new CertificateSelectedSiteTokenSource(services.GetRequiredService<IHttpClientFactory>().CreateClient(),
         new SelectedSiteCertificateOptions(

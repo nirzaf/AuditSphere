@@ -3,6 +3,7 @@ using System;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AuditSphereDbContext))]
-    partial class AuditSphereDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261010195818_FirmEndOfServiceAccruals")]
+    partial class FirmEndOfServiceAccruals
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -17046,30 +17049,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
-                    b.Property<string>("CertificateIssuer")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)")
-                        .HasColumnName("certificate_issuer");
-
-                    b.Property<DateTimeOffset?>("CertificateNotAfter")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("certificate_not_after");
-
-                    b.Property<string>("CertificateSerialNumber")
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)")
-                        .HasColumnName("certificate_serial_number");
-
-                    b.Property<string>("CertificateSubject")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)")
-                        .HasColumnName("certificate_subject");
-
-                    b.Property<string>("CertificateThumbprintSha256")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
-                        .HasColumnName("certificate_thumbprint_sha256");
-
                     b.Property<Guid>("EngagementId")
                         .HasColumnType("uuid")
                         .HasColumnName("engagement_id");
@@ -17077,14 +17056,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("FirmId")
                         .HasColumnType("uuid")
                         .HasColumnName("firm_id");
-
-                    b.Property<string>("SignatureKind")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)")
-                        .HasDefaultValue("VISUAL")
-                        .HasColumnName("signature_kind");
 
                     b.Property<DateTimeOffset>("SignedAt")
                         .HasColumnType("timestamp with time zone")
@@ -17113,10 +17084,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasIndex("FirmId", "SourceDeliverableId")
                         .IsUnique();
 
-                    b.ToTable("signature_applications", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_signature_application_kind", "signature_kind IN ('VISUAL','CERTIFICATE') AND ((signature_kind = 'CERTIFICATE') = (certificate_thumbprint_sha256 IS NOT NULL)) AND ((certificate_thumbprint_sha256 IS NULL AND certificate_subject IS NULL AND certificate_issuer IS NULL AND certificate_serial_number IS NULL AND certificate_not_after IS NULL) OR (certificate_thumbprint_sha256 ~ '^[0-9a-f]{64}$' AND length(certificate_subject) > 0 AND length(certificate_issuer) > 0 AND length(certificate_serial_number) > 0 AND certificate_not_after IS NOT NULL))");
-                        });
+                    b.ToTable("signature_applications", (string)null);
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Completion.SignatureLineage", b =>

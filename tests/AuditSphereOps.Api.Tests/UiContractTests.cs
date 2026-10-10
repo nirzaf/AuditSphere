@@ -90,6 +90,35 @@ public sealed class UiContractTests
     using var settingsWithoutProof = await client.PostAsJsonAsync("/api/ui/commercial-settings/rules",
       new { rulesRevision = new string('a', 64), kind = "DISCOUNT_OVER_PERCENT", threshold = "10", role = "Partner", reviewed = true });
     Assert.Equal(HttpStatusCode.Forbidden, settingsWithoutProof.StatusCode);
+    Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/ui/commercial-settings/pricing-policy")).StatusCode);
+    using var policyWithoutProof = await client.PostAsJsonAsync("/api/ui/commercial-settings/pricing-policy",
+      new { currency = "QAR", minimumFee = "1000", maximumFee = "50000", maxDiscount = "10", validityDays = "30", expectedRevision = (long?)null, reviewed = true });
+    Assert.Equal(HttpStatusCode.Forbidden, policyWithoutProof.StatusCode);
+    using var policySubmitWithoutProof = await client.PostAsJsonAsync("/api/ui/commercial-settings/pricing-policy/" + Guid.NewGuid() + "/submit", new { });
+    Assert.Equal(HttpStatusCode.Forbidden, policySubmitWithoutProof.StatusCode);
+    using var policyApprovalWithoutProof = await client.PostAsJsonAsync("/api/ui/commercial-settings/pricing-policy/" + Guid.NewGuid() + "/approve",
+      new { reason = "Reviewed pricing basis", reviewed = true });
+    Assert.Equal(HttpStatusCode.Forbidden, policyApprovalWithoutProof.StatusCode);
+    using var revocationWithoutProof = await client.PostAsJsonAsync("/api/ui/quotations/approvals/" + Guid.NewGuid() + "/revoke",
+      new { reason = "Reviewed revocation" });
+    Assert.Equal(HttpStatusCode.Forbidden, revocationWithoutProof.StatusCode);
+    Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/ui/deliverables/" + Guid.NewGuid() + "/signature")).StatusCode);
+    Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/ui/finance/end-of-service")).StatusCode);
+    using var treatmentWithoutProof = await client.PostAsJsonAsync("/api/ui/finance/end-of-service/treatment",
+      new { measurementTreatment = "Measured per the firm's reporting framework", accountantName = "N. Accountant", accountantCredential = "CPA 1",
+        provisionAccountId = Guid.NewGuid(), expenseAccountId = Guid.NewGuid(), expectedVersion = 0, reviewed = true });
+    Assert.Equal(HttpStatusCode.Forbidden, treatmentWithoutProof.StatusCode);
+    using var treatmentConfirmationWithoutProof = await client.PostAsJsonAsync("/api/ui/finance/end-of-service/treatment/" + Guid.NewGuid() + "/confirm",
+      new { note = "Confirmed treatment", reviewed = true });
+    Assert.Equal(HttpStatusCode.Forbidden, treatmentConfirmationWithoutProof.StatusCode);
+    using var accrualForm = new MultipartFormDataContent
+    {
+      { new StringContent(Guid.NewGuid().ToString()), "periodId" }, { new StringContent(Guid.NewGuid().ToString()), "requestId" },
+      { new StringContent("100.00"), "amount" }, { new StringContent("2026-10-01"), "calculationDate" }, { new StringContent("true"), "reviewed" },
+      { new StringContent("Entered method"), "method" }, { new StringContent("Entered inputs"), "inputs" }, { new StringContent("Entered reason"), "reason" }
+    };
+    using var accrualWithoutProof = await client.PostAsync("/api/ui/finance/end-of-service/accruals", accrualForm);
+    Assert.Equal(HttpStatusCode.Forbidden, accrualWithoutProof.StatusCode);
     using var proposalWithoutProof = await client.PostAsJsonAsync("/api/ui/proposals/" + Guid.NewGuid() + "/review", new { });
     Assert.Equal(HttpStatusCode.Forbidden, proposalWithoutProof.StatusCode);
     using var revisionWithoutProof = await client.PostAsJsonAsync("/api/ui/opportunities/" + Guid.NewGuid() + "/proposals",

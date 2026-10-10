@@ -2,6 +2,8 @@
 
 **Status: APPROVED** (owner-delegated approval recorded 2026-10-10) · Date recorded: 2026-10-08 · Decider: repository owner (authority delegated 2026-10-10)
 
+**Partly superseded (2026-10-10):** ADR-0016 adds certificate signing of the final report with a firm-held certificate. Only the "PKI signing" exclusion below is superseded; the visual credentials and the exclusion of eSignature providers and Purview stand.
+
 ## Context
 Specification §4.1.4 and §4.4.1 call for the Partner's "digital signature" and the firm seal on letters and reports. The owner excluded eSignature providers (issue #19) and Purview records integration (issues #17, #18), recorded as gates P5 and P4 `OUT_OF_SCOPE` and as R2R-ADR-08.
 

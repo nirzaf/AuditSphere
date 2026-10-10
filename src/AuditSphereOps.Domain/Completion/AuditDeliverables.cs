@@ -163,6 +163,20 @@ public sealed class SignatureApplication
   public Guid SignedDeliverableId { get; set; }
   public Guid SignedByUserId { get; set; }
   public DateTimeOffset SignedAt { get; set; }
+  /// <summary>VISUAL: signature image and seal only. CERTIFICATE: the PDF is also certificate-signed and tamper-evident (ADR-0016).</summary>
+  public string SignatureKind { get; set; } = ReportSignatureKinds.Visual;
+  public string? CertificateSubject { get; set; }
+  public string? CertificateIssuer { get; set; }
+  public string? CertificateSerialNumber { get; set; }
+  public string? CertificateThumbprintSha256 { get; set; }
+  public DateTimeOffset? CertificateNotAfter { get; set; }
+}
+
+public static class ReportSignatureKinds
+{
+  public const string None = "NONE";
+  public const string Visual = "VISUAL";
+  public const string Certificate = "CERTIFICATE";
 }
 
 public static class ClientReviewStates

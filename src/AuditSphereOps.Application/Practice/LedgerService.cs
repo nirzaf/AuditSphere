@@ -35,7 +35,8 @@ public sealed record CreateFirmJournalDraftRequest(
   IReadOnlyList<FirmJournalLineRequest> Lines,
   string? SupportingEvidenceFileName = null,
   string? SupportingEvidenceContentType = null,
-  byte[]? SupportingEvidenceContent = null);
+  byte[]? SupportingEvidenceContent = null,
+  EndOfServiceAccrualBasis? EndOfServiceBasis = null);
 
 public sealed record ReverseFirmPostingRequest(Guid PostingId, Guid PeriodId, string Reason);
 
@@ -43,7 +44,7 @@ public sealed record ReverseFirmPostingRequest(Guid PostingId, Guid PeriodId, st
 /// One guarded transaction owns the firm ledger state transition. Posted rows are copied
 /// into immutable posting tables; journals and source links remain idempotent.
 /// </summary>
-public static class LedgerService
+public static partial class LedgerService
 {
   private static readonly string[] ManagerRoles = ["FinanceManager"];
   private static readonly string[] ReviewerRoles = ["FinanceReviewer"];
@@ -149,7 +150,8 @@ public static class LedgerService
     {
       var existingLines = await db.FirmJournalLines.AsNoTracking()
         .Where(x => x.FirmId == actor.FirmId && x.JournalId == existingSource.Id).ToListAsync(ct);
-      if (MatchesJournalRequest(existingSource, existingLines, request, sourceKind, purpose))
+      if (MatchesJournalRequest(existingSource, existingLines, request, sourceKind, purpose) &&
+          await MatchesEndOfServiceBasisAsync(db, actor.FirmId, existingSource.Id, request.EndOfServiceBasis, ct))
       {
         await tx.CommitAsync(ct);
         return CommandResult<Guid>.Ok(existingSource.Id);
@@ -173,6 +175,13 @@ public static class LedgerService
          !request.Lines.Any(x => x.Debit > 0) || !request.Lines.Any(x => x.Credit > 0)))
       return CommandResult<Guid>.Fail("ledger.drawing-accounts-invalid",
         "Partner drawings must debit equity accounts and credit asset accounts such as cash.");
+    FirmEndOfServiceTreatment? treatment = null;
+    if (purpose == LedgerStates.EndOfServiceAccrualPurpose)
+    {
+      var gate = await RequireEndOfServiceTreatmentAsync(db, actor.FirmId, request.Lines, ct);
+      if (!gate.Succeeded) return CommandResult<Guid>.Fail(gate.ErrorCode!, gate.Message!);
+      treatment = gate.Value;
+    }
     var journal = new FirmJournal
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, PeriodId = lockedPeriod.Id,
@@ -198,6 +207,8 @@ public static class LedgerService
         FirmAccountId = line.FirmAccountId, Description = line.Description.Trim(),
         Debit = line.Debit, Credit = line.Credit
       });
+    if (treatment is not null)
+      db.FirmEndOfServiceAccruals.Add(EndOfServiceAccrualFor(journal, treatment, request));
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(journal.Id);
@@ -245,6 +256,11 @@ public static class LedgerService
       x.FirmId == actor.FirmId && x.JournalId == lockedJournal.Id).ToListAsync(ct);
     var balance = ValidatePostingLines(lines);
     if (balance is not null) return CommandResult<Guid>.Fail("ledger.unbalanced", balance);
+    if (lockedJournal.PostingPurpose == LedgerStates.EndOfServiceAccrualPurpose)
+    {
+      var gate = await EndOfServicePostingGateAsync(db, actor.FirmId, lockedJournal.Id, lines, ct);
+      if (!gate.Succeeded) return CommandResult<Guid>.Fail(gate.ErrorCode!, gate.Message!);
+    }
     if (await db.LedgerSourceLinks.AnyAsync(x => x.FirmId == actor.FirmId &&
         x.SourceKind == lockedJournal.SourceKind && x.SourceKey == lockedJournal.SourceKey &&
         x.SourceRevision == lockedJournal.SourceRevision && x.PostingPurpose == lockedJournal.PostingPurpose, ct))
@@ -516,8 +532,10 @@ public static class LedgerService
     if (currencyError is not null) return currencyError;
     if (request.SourceKind.Trim().Equals("MANUAL", StringComparison.OrdinalIgnoreCase) &&
         request.PostingPurpose.Trim().ToUpperInvariant() is not ("MANUAL" or "OPENING_BALANCE" or "PARTNER_DRAWING" or
-          "CAPITAL" or "MONTHLY_REVENUE" or LedgerStates.YearEndClosingPurpose))
+          "CAPITAL" or "MONTHLY_REVENUE" or LedgerStates.YearEndClosingPurpose or LedgerStates.EndOfServiceAccrualPurpose))
       return "Manual journal purpose is invalid.";
+    var basisError = ValidateEndOfServiceBasis(request);
+    if (basisError is not null) return basisError;
     var hasEvidence = request.SupportingEvidenceContent is { Length: > 0 };
     var safeEvidenceFileName = string.IsNullOrWhiteSpace(request.SupportingEvidenceFileName)
       ? string.Empty

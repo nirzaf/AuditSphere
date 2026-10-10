@@ -11,7 +11,7 @@ ADR-0001 to ADR-0007, ADR-0009 to ADR-0011, and ADR-0013 to ADR-0015 are approve
 | [ADR-0002](auditsphere-architecture-adr-0002-angular-canonical-ui-blazor-rollback-approved.md) | Angular 22 is the canonical UI; Blazor Web kept as rollback until the readiness gate | APPROVED | Specification header "Blazor Interactive Server" |
 | [ADR-0003](auditsphere-architecture-adr-0003-client-portal-microsoft-sign-in-approved.md) | Client portal uses Microsoft sign-in, not emailed temporary passwords | APPROVED | Deviates from specification §3.1 / §4.1.5; live tenant gates remain separate |
 | [ADR-0004](auditsphere-architecture-adr-0004-engagement-lifecycle-derived-projection-approved.md) | Specification §5 lifecycle is a derived projection over gate records | APPROVED | Specification §5 |
-| [ADR-0005](auditsphere-architecture-adr-0005-visual-credentials-no-esignature-purview-approved.md) | PNG signature/seal as visual credentials; eSignature and Purview out of scope | APPROVED | R2R-ADR-08; gates P4, P5 |
+| [ADR-0005](auditsphere-architecture-adr-0005-visual-credentials-no-esignature-purview-approved.md) | PNG signature/seal as visual credentials; eSignature and Purview out of scope | APPROVED | R2R-ADR-08; gates P4, P5; PKI-signing exclusion superseded by ADR-0016 |
 | [ADR-0006](auditsphere-architecture-adr-0006-client-sharepoint-site-staff-full-control-approved.md) | One SharePoint site per new client; assigned staff get Full Control | APPROVED | Provider acceptance and exact-site grants remain separately gated |
 | [ADR-0007](auditsphere-architecture-adr-0007-fee-invoice-automation-drafts-only-approved.md) | Automatic 50/50 invoicing creates drafts only | APPROVED | Specification §4.1.5, §4.4.2 |
 | [ADR-0008](auditsphere-architecture-adr-0008-automated-test-suites-temporarily-removed-superseded.md) | Automated test suites removed temporarily, then restored (STE-NXT-001) | SUPERSEDED | Restored by STE-NXT-001; the Definition of Done follows the restored suites |
@@ -22,6 +22,7 @@ ADR-0001 to ADR-0007, ADR-0009 to ADR-0011, and ADR-0013 to ADR-0015 are approve
 | [ADR-0013](auditsphere-architecture-adr-0013-approved-mapping-lineage-for-practice-time-approved.md) | Engagement tasks and time entries pin the exact approved FSLI mapping and destination | APPROVED | Technical attribution only; no accounting classification or posting decision |
 | [ADR-0014](auditsphere-architecture-adr-0014-monetary-scale-and-rounding-approved.md) | Preserve six-decimal monetary arithmetic, explicit scale changes and ToEven rounding | APPROVED | Resolves R2R-ADR-03's core numeric convention; FX methodology and professional policy approval remain under T003 |
 | [ADR-0015](auditsphere-architecture-adr-0015-reporting-context-identity-pins-approved.md) | Bind exact reporting contexts to existing scoped identities and approved revisions | APPROVED | Resolves T014's technical identity decision; implementation follows T013 and T007 |
+| [ADR-0016](auditsphere-architecture-adr-0016-certificate-signed-final-report-approved.md) | The final signed report is certificate-signed with a firm-held certificate; fails closed when required | APPROVED | Supersedes only the PKI-signing exclusion in ADR-0005; eSignature providers and Purview stay out of scope |
 
 ## Earlier decision records (R2R)
 

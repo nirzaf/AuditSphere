@@ -25,7 +25,7 @@ public sealed record EngagementCompletionWorkspace(Guid EngagementId, IReadOnlyL
   IReadOnlyList<ConfirmationDashboardRow> Confirmations, IReadOnlyList<DeliverableView> Deliverables, CompletionClearance? Clearance, CompletionOpinion? Opinion,
   IReadOnlyList<OpinionFsliOption> OpinionAreas, IReadOnlyList<CompletionShared> Shared, IReadOnlyList<SignedLetterView> SignedLetters, BundleAssemblyState? Bundles,
   IReadOnlyList<string> OpinionTypes, CompletionFreeze? Freeze, int FreezeDays, IReadOnlyList<ActivityEvent>? Trail, string TrailCoverageNote, IReadOnlyList<DocumentLockView> Locks,
-  HoldingLetterStatus? HoldingLetter = null);
+  HoldingLetterStatus? HoldingLetter = null, ReportSigningStatus? ReportSigning = null);
 
 /// <summary>
 /// Engagement completion projection: gate rows from persisted reviews, representations, EQR and release state, plus
@@ -35,7 +35,8 @@ public static class EngagementCompletionWorkspaceQuery
 {
   private static readonly string[] CompletionRoles = ["Administrator", "Partner", "Manager", "Senior", "Staff", "EngagementLeader", "Auditor"];
 
-  public static async Task<CommandResult<EngagementCompletionWorkspace>> GetAsync(IClientAccountingDbContext db, ActorContext actor, Guid engagementId, DateTimeOffset now, CancellationToken ct = default)
+  public static async Task<CommandResult<EngagementCompletionWorkspace>> GetAsync(IClientAccountingDbContext db, ActorContext actor, Guid engagementId, DateTimeOffset now, CancellationToken ct = default,
+    IReportSigningCredentialSource? signing = null)
   {
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, EngagementId: engagementId, RequiredRoles: CompletionRoles, InternalOnly: true), ct);
     if (!auth.Succeeded) return CommandResult<EngagementCompletionWorkspace>.Fail(auth.ErrorCode!, auth.Message!);
@@ -103,7 +104,8 @@ public static class EngagementCompletionWorkspaceQuery
       freeze is null ? null : new CompletionFreeze(freeze.State, freeze.ReportSignedAt, freeze.DueAt, freeze.ExternalReadOnly, freeze.DaysRemaining,
         freeze.Amendments.Select(a => new CompletionAmendment(a.Id, a.Reason, a.OpenedAt, a.ClosedAt)).ToList(), freeze.FrozenAt),
       FileFreezeService.FreezeDays, trail.Succeeded ? trail.Value : null, EngagementActivityQuery.ExternalCoverageNote,
-      await EngagementActivityQuery.LocksAsync(db, actor, engagementId, ct), await HoldingLetterDispatch.StatusAsync(db, actor.FirmId, engagementId, ct)));
+      await EngagementActivityQuery.LocksAsync(db, actor, engagementId, ct), await HoldingLetterDispatch.StatusAsync(db, actor.FirmId, engagementId, ct),
+      ReportCertificateSigning.Status(signing, now)));
   }
 
   /// <summary>

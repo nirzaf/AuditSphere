@@ -24,7 +24,8 @@ public static partial class UiEndpoints
   private static void MapCompletionEndpoints(RouteGroupBuilder group)
   {
     group.MapGet("/engagements/{id:guid}/completion", (Guid id, HttpContext http) =>
-      ReadAsync(http, (db, actor, ct) => EngagementCompletionWorkspaceQuery.GetAsync(db, actor, id, DateTimeOffset.UtcNow, ct)));
+      ReadAsync(http, (db, actor, ct) => EngagementCompletionWorkspaceQuery.GetAsync(db, actor, id, DateTimeOffset.UtcNow, ct,
+        http.RequestServices.GetRequiredService<IReportSigningCredentialSource>())));
     group.MapPost("/engagements/{id:guid}/completion/release-candidate", (Guid id, ReleaseCandidateInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => EngagementCompletionWorkspaceQuery.PrepareReleaseCandidateAsync(db, actor, id, i.PackageId, ct)));
     group.MapPost("/confirmations/{caseId:guid}/criticality", (Guid caseId, CriticalityInput i, HttpContext http) =>
@@ -51,7 +52,12 @@ public static partial class UiEndpoints
     group.MapPost("/deliverables/{id:guid}/share", (Guid id, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => AuditDeliverableService.ShareWithClientAsync(db, actor, id, ct)));
     group.MapPost("/deliverables/{id:guid}/sign", (Guid id, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => AuditDeliverableService.SignIndependentReportAsync(db, actor, id, ct)));
+      CommandAsync(http, (db, actor, ct) => AuditDeliverableService.SignIndependentReportAsync(db, actor, id, ct,
+        http.RequestServices.GetRequiredService<IReportSigningCredentialSource>())));
+    group.MapUiGet("/deliverables/{id:guid}/signature", http =>
+      Guid.TryParse(http.Request.RouteValues["id"]?.ToString(), out var id)
+        ? ReadAsync(http, (db, actor, ct) => AuditDeliverableService.VerifyReportSignatureAsync(db, actor, id, ct))
+        : Task.FromResult(Invalid("The deliverable identity is invalid.")));
     group.MapPost("/deliverable-comments/{id:guid}/resolve", (Guid id, CommentResolutionInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => AuditDeliverableService.ResolveCommentAsync(db, actor, id, i.Resolution ?? "", ct)));
     group.MapPost("/representation-scans/{id:guid}/verify", (Guid id, ScanVerificationInput i, HttpContext http) =>
@@ -59,7 +65,8 @@ public static partial class UiEndpoints
         ? CommandAsync(http, (db, actor, ct) => AuditDeliverableService.VerifySignedRepresentationAsync(db, actor, id, i.ExpectedSha256 ?? "", i.Reason ?? "", ct))
         : Task.FromResult(Invalid("Confirm you reviewed this exact scan.")));
     group.MapPost("/engagements/{id:guid}/completion/bundle", (Guid id, BundleInput i, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => AuditDeliverableService.AssembleBundleAsync(db, actor, id, i.StatementsReviewed, ct)));
+      CommandAsync(http, (db, actor, ct) => AuditDeliverableService.AssembleBundleAsync(db, actor, id, i.StatementsReviewed, ct,
+        http.RequestServices.GetRequiredService<IReportSigningCredentialSource>())));
     group.MapUiPost("/signatures", async http =>
     {
       var png = await ReadUploadAsync(http, "file", AuditDeliverableService.MaxSignatureBytes);

@@ -13,7 +13,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Application.Completion;
 
-public sealed record DeliverableView(Guid Id, string Kind, string Title, int Version, bool Signed, bool Current, string ContentSha256, DateTimeOffset CreatedAt);
+public sealed record DeliverableView(Guid Id, string Kind, string Title, int Version, bool Signed, bool Current, string ContentSha256, DateTimeOffset CreatedAt,
+  string SignatureKind = ReportSignatureKinds.None, string? CertificateSubject = null);
+public sealed record ReportSignatureCheck(string SignatureKind, string State, string? Subject, string? ThumbprintSha256, string Message);
 public sealed record ReportAttempt(Guid? DeliverableId, Guid? HoldingLetterId, string Message);
 public sealed record ConfirmationDashboardRow(Guid CaseId, string Type, string Respondent, decimal BookedAmount, string Currency, string Status,
   string Monitoring, int? DaysSinceDispatch, bool Critical, string? CriticalityRationale, bool ReturnedEvaluatedResponse = false);
@@ -463,7 +465,13 @@ public static partial class AuditDeliverableService
     return CommandResult<Guid>.Ok(specimen.Id);
   }
 
-  public static async Task<CommandResult<Guid>> SignIndependentReportAsync(IAuditSphereDbContext db, ActorContext actor, Guid reportId, CancellationToken ct = default)
+  /// <summary>
+  /// The deciding Engagement Partner signs the current report. The signature image and seal are always applied; when
+  /// the host supplies a report-signing certificate the PDF is also certificate-signed (ADR-0016), and a required or
+  /// configured certificate that cannot be used blocks signing instead of falling back to the image alone.
+  /// </summary>
+  public static async Task<CommandResult<Guid>> SignIndependentReportAsync(IAuditSphereDbContext db, ActorContext actor, Guid reportId, CancellationToken ct = default,
+    IReportSigningCredentialSource? signing = null)
   {
     var report = await db.AuditDeliverables.AsNoTracking().SingleOrDefaultAsync(x => x.Id == reportId && x.FirmId == actor.FirmId &&
       x.Kind == DeliverableKinds.IndependentAuditorsReport && x.SignedFromDeliverableId == null, ct);
@@ -503,16 +511,25 @@ public static partial class AuditDeliverableService
     var facts = await FactsAsync(db, actor, report.EngagementId, ct);
     var sections = OpinionSections(opinion, facts.Client, facts.PeriodEnd).Append(new DocumentSection("Responsibilities",
       ["Management is responsible for the preparation of the financial statements. Our responsibility is to express an opinion on them based on our audit."])).ToList();
-    var signed = await StoreAsync(db, actor, report.EngagementId, DeliverableKinds.IndependentAuditorsReport, report.InputDigest, new { SignedFrom = report.Id, Specimen = specimen.Sha256, Seal = seal.Id, SealHash = seal.Sha256 },
+    var credential = ReportCertificateSigning.Resolve(signing, DateTimeOffset.UtcNow);
+    if (!credential.Succeeded) return CommandResult<Guid>.Fail(credential.ErrorCode!, credential.Message!);
+    using var certificate = credential.Value;
+    var evidence = certificate is null ? null : ReportCertificateSigning.Evidence(certificate);
+    var signed = await StoreAsync(db, actor, report.EngagementId, DeliverableKinds.IndependentAuditorsReport, report.InputDigest,
+      new { SignedFrom = report.Id, Specimen = specimen.Sha256, Seal = seal.Id, SealHash = seal.Sha256, CertificateThumbprintSha256 = evidence?.ThumbprintSha256 },
       facts.Client, sections, "Engagement Partner", new DeliverableSignature(specimen.PngContent, specimen.WidthPixels, specimen.HeightPixels, partner.DisplayName, "Engagement Partner",
-        DateOnly.FromDateTime(DateTime.UtcNow)), ct, signedFrom: report, firmSeal: seal.PngContent);
+        DateOnly.FromDateTime(DateTime.UtcNow)), ct, signedFrom: report, firmSeal: seal.PngContent, certificate: certificate,
+      signingReason: $"Independent auditor's report signed by {partner.DisplayName}, Engagement Partner");
     if (!signed.Succeeded) return signed;
     var signedDoc = await db.AuditDeliverables.SingleAsync(x => x.Id == signed.Value, ct);
     await AuditSphereOps.Application.Records.FileFreezeService.ScheduleAsync(db, signedDoc, signedDoc.CreatedAt, ct);
     db.SignatureApplications.Add(new SignatureApplication
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, EngagementId = report.EngagementId, SpecimenId = specimen.Id, SourceDeliverableId = report.Id,
-      SignedDeliverableId = signed.Value, SignedByUserId = actor.UserId, SignedAt = DateTimeOffset.UtcNow
+      SignedDeliverableId = signed.Value, SignedByUserId = actor.UserId, SignedAt = DateTimeOffset.UtcNow,
+      SignatureKind = evidence is null ? ReportSignatureKinds.Visual : ReportSignatureKinds.Certificate,
+      CertificateSubject = evidence?.Subject, CertificateIssuer = evidence?.Issuer, CertificateSerialNumber = evidence?.SerialNumber,
+      CertificateThumbprintSha256 = evidence?.ThumbprintSha256, CertificateNotAfter = evidence?.NotAfter
     });
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
@@ -739,11 +756,47 @@ public static partial class AuditDeliverableService
   {
     if (!(await AuthorizeAsync(db, actor, engagementId, ReaderRoles, ct)).Succeeded) return [];
     var rows = await db.AuditDeliverables.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId).OrderBy(x => x.Kind).ThenByDescending(x => x.Version).ThenByDescending(x => x.CreatedAt).ToListAsync(ct);
+    var signedIds = rows.Where(x => x.SignedFromDeliverableId is not null).Select(x => x.Id).ToList();
+    var applications = await db.SignatureApplications.AsNoTracking().Where(x => x.FirmId == actor.FirmId && signedIds.Contains(x.SignedDeliverableId))
+      .ToDictionaryAsync(x => x.SignedDeliverableId, ct);
     var result = new List<DeliverableView>();
     foreach (var row in rows)
+    {
+      applications.TryGetValue(row.Id, out var application);
       result.Add(new(row.Id, row.Kind, DeliverableKinds.Title(row.Kind), row.Version, row.SignedFromDeliverableId is not null,
-        row.Kind == DeliverableKinds.HoldingLetter || await IsCurrentAsync(db, actor, row, ct), row.ContentSha256, row.CreatedAt));
+        row.Kind == DeliverableKinds.HoldingLetter || await IsCurrentAsync(db, actor, row, ct), row.ContentSha256, row.CreatedAt,
+        application?.SignatureKind ?? ReportSignatureKinds.None, application?.CertificateSubject));
+    }
     return result;
+  }
+
+  /// <summary>
+  /// Re-checks the stored signed report against its own certificate signature and against the certificate recorded at
+  /// signing. It reports whether the bytes are unchanged; it does not assess whether the certificate is trusted.
+  /// </summary>
+  public static async Task<CommandResult<ReportSignatureCheck>> VerifyReportSignatureAsync(IAuditSphereDbContext db, ActorContext actor, Guid deliverableId, CancellationToken ct = default)
+  {
+    var report = await db.AuditDeliverables.AsNoTracking().SingleOrDefaultAsync(x => x.Id == deliverableId && x.FirmId == actor.FirmId &&
+      x.Kind == DeliverableKinds.IndependentAuditorsReport && x.SignedFromDeliverableId != null, ct);
+    if (report is null || !(await AuthorizeAsync(db, actor, report.EngagementId, ReaderRoles, ct)).Succeeded)
+      return CommandResult<ReportSignatureCheck>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var application = await db.SignatureApplications.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.SignedDeliverableId == report.Id, ct);
+    if (application is null) return CommandResult<ReportSignatureCheck>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    return CommandResult<ReportSignatureCheck>.Ok(CheckReportSignature(report, application));
+  }
+
+  internal static ReportSignatureCheck CheckReportSignature(AuditDeliverable report, SignatureApplication application)
+  {
+    if (Hashing.Sha256Hex(report.Content) != report.ContentSha256)
+      return new(application.SignatureKind, ReportSignatureStates.Altered, null, null, "The stored report no longer matches the hash recorded when it was issued.");
+    var check = ReportSignatureVerifier.Verify(report.Content);
+    if (application.SignatureKind != ReportSignatureKinds.Certificate)
+      return new(application.SignatureKind, ReportSignatureStates.NotCertificateSigned, null, null,
+        "This report carries the signature image and firm seal only. It matches its recorded hash, but the document itself is not tamper-evident.");
+    if (check.State == ReportSignatureStates.Valid && check.ThumbprintSha256 != application.CertificateThumbprintSha256)
+      return new(application.SignatureKind, ReportSignatureStates.Altered, check.Subject, check.ThumbprintSha256,
+        "The report is signed by a different certificate from the one recorded when the Partner signed.");
+    return new(application.SignatureKind, check.State, check.Subject ?? application.CertificateSubject, check.ThumbprintSha256, check.Message);
   }
 
   public static async Task<PartnerCompletionClearance?> CurrentClearanceAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default) =>
@@ -768,7 +821,8 @@ public static partial class AuditDeliverableService
   }
 
   private static async Task<CommandResult<Guid>> StoreAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, string kind, string digest, object summary,
-    string client, IReadOnlyList<DocumentSection> sections, string? signatureLabel, DeliverableSignature? signature, CancellationToken ct, AuditDeliverable? signedFrom = null, byte[]? firmSeal = null)
+    string client, IReadOnlyList<DocumentSection> sections, string? signatureLabel, DeliverableSignature? signature, CancellationToken ct, AuditDeliverable? signedFrom = null, byte[]? firmSeal = null,
+    System.Security.Cryptography.X509Certificates.X509Certificate2? certificate = null, string? signingReason = null)
   {
     var engagement = await db.Engagements.AsNoTracking().SingleAsync(x => x.Id == engagementId && x.FirmId == actor.FirmId, ct);
     var firm = await db.FirmCommercialProfiles.AsNoTracking().Where(x => x.FirmId == actor.FirmId).OrderByDescending(x => x.Version).Select(x => x.LegalName).FirstOrDefaultAsync(ct);
@@ -778,11 +832,17 @@ public static partial class AuditDeliverableService
     var model = new AuditDeliverableModel(firm ?? "Audit firm", DeliverableKinds.Title(kind), reference, DateOnly.FromDateTime(DateTime.UtcNow),
       kind == DeliverableKinds.RepresentationLetter ? "The auditors" : $"Those charged with governance, {client}", sections, signatureLabel, signature, firmSeal);
     var finalPdf = signedFrom != null && kind == DeliverableKinds.IndependentAuditorsReport;
-    var content = finalPdf ? AuditDeliverableRenderer.RenderPdf(model) : AuditDeliverableRenderer.RenderDocx(model);
+    var certified = finalPdf && certificate is not null;
+    var content = certified ? await AuditDeliverableRenderer.RenderCertificateSignedPdfAsync(model, certificate!, signingReason ?? model.Title)
+      : finalPdf ? AuditDeliverableRenderer.RenderPdf(model) : AuditDeliverableRenderer.RenderDocx(model);
+    // Never store a report as certificate-signed unless its own signature verifies against the certificate just used.
+    if (certified && ReportSignatureVerifier.Verify(content) is var check &&
+        (check.State != ReportSignatureStates.Valid || check.ThumbprintSha256 != ReportCertificateSigning.ThumbprintSha256(certificate!)))
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The certificate signature could not be verified after signing; the report was not issued.");
     var deliverable = new AuditDeliverable
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = engagement.PracticeClientId, EngagementId = engagementId, Kind = kind, Version = version,
-      TemplateVersion = finalPdf ? "AUDIT-SIGNED-PDF-v1" : AuditDeliverableRenderer.TemplateVersion, InputDigest = digest, InputSummaryJson = JsonSerializer.Serialize(summary),
+      TemplateVersion = certified ? "AUDIT-SIGNED-PDF-v2-CERT" : finalPdf ? "AUDIT-SIGNED-PDF-v1" : AuditDeliverableRenderer.TemplateVersion, InputDigest = digest, InputSummaryJson = JsonSerializer.Serialize(summary),
       FileName = $"{reference}.{(finalPdf ? "pdf" : "docx")}", ContentType = finalPdf ? "application/pdf" : AuditDeliverableRenderer.DocxContentType, Content = content, ContentSha256 = Hashing.Sha256Hex(content),
       SignedFromDeliverableId = signedFrom?.Id, CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     };

@@ -174,7 +174,9 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
 
   public DbSet<FirmJournal> FirmJournals => Set<FirmJournal>();
 
+  public DbSet<FirmEndOfServiceTreatment> FirmEndOfServiceTreatments => Set<FirmEndOfServiceTreatment>();
 
+  public DbSet<FirmEndOfServiceAccrual> FirmEndOfServiceAccruals => Set<FirmEndOfServiceAccrual>();
 
   public DbSet<FirmJournalLine> FirmJournalLines => Set<FirmJournalLine>();
 

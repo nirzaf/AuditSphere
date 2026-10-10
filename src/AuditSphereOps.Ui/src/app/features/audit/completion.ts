@@ -3,10 +3,14 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { Api, CommandState, routeGuid } from '../../core/api';
-import { arr, bool, dec, guid, instant, int, nat, nullable, obj, text } from '../../core/decode';
+import { arr, bool, dec, guid, instant, int, nat, nullable, obj, oneOf, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
 
-const deliverable = obj({ id: guid, kind: text, title: text, version: nat, signed: bool, current: bool, contentSha256: text, createdAt: instant });
+const deliverable = obj({ id: guid, kind: text, title: text, version: nat, signed: bool, current: bool, contentSha256: text, createdAt: instant,
+  signatureKind: oneOf('NONE', 'VISUAL', 'CERTIFICATE'), certificateSubject: nullable(text) });
+/** Result of re-checking a signed report against its own certificate signature (ADR-0016). */
+export const decodeSignatureCheck = obj({ signatureKind: oneOf('VISUAL', 'CERTIFICATE'), state: oneOf('NOT_CERTIFICATE_SIGNED', 'VALID', 'ALTERED', 'UNREADABLE'),
+  subject: nullable(text), thumbprintSha256: nullable(text), message: text });
 export const decodeCompletion = obj({ engagementId: guid,
   gates: arr(obj({ name: text, status: text, tone: text, authority: nullable(text), date: nullable(instant) }), 50),
   representations: arr(obj({ code: text, title: text, narrative: text, obtained: bool }), 500),
@@ -24,7 +28,8 @@ export const decodeCompletion = obj({ engagementId: guid,
     amendments: arr(obj({ id: guid, reason: text, openedAt: nullable(instant), closedAt: nullable(instant) }), 500) })),
   freezeDays: nat, trail: nullable(arr(obj({ at: instant, kind: text, actor: text, description: text, entityId: guid }), 20000)), trailCoverageNote: text,
   locks: arr(obj({ id: guid, documentKey: text, lockedBy: text, lockedAt: instant }), 500),
-  holdingLetter: nullable(obj({ deliverableId: nullable(guid), issuedAt: nullable(instant), outstandingCount: nat, state: text, message: text })) });
+  holdingLetter: nullable(obj({ deliverableId: nullable(guid), issuedAt: nullable(instant), outstandingCount: nat, state: text, message: text })),
+  reportSigning: obj({ mode: oneOf('VISUAL', 'CERTIFICATE'), required: bool, ready: bool, subject: nullable(text), notAfter: nullable(instant), message: text }) });
 /** Archive readiness reviewed before an early compliance lock (STE 4.4.3). */
 const archiveReadiness = obj({ freezeId: guid, revision: nat, state: text, dueAt: instant, archiveReadinessDigest: nullable(text), blockers: arr(text, 50) });
 type Completion = ReturnType<typeof decodeCompletion>;
@@ -96,10 +101,11 @@ const REPORTS: [string, string][] = [['AUDIT_FINDINGS_REPORT', 'Audit Findings R
           <div class="table-scroll"><table aria-label="Generated deliverables">
             <thead><tr><th>Document</th><th>Version</th><th>State</th><th>SHA-256</th><th><span class="sr-only">Actions</span></th></tr></thead>
             <tbody>@for (d of w.deliverables; track d.id) {
-              <tr><td><a [href]="'/api/deliverables/' + d.id + '/download'">{{ d.title }}</a></td><td>v{{ d.version }}{{ d.signed ? ' signed' : '' }}</td><td>{{ d.current ? 'Current' : 'Stale' }}</td><td><code>{{ d.contentSha256.slice(0, 12) }}</code></td>
+              <tr><td><a [href]="'/api/deliverables/' + d.id + '/download'">{{ d.title }}</a></td><td>v{{ d.version }}{{ d.signatureKind === 'CERTIFICATE' ? ' certificate-signed' : d.signed ? ' signed (image only)' : '' }}@if (d.certificateSubject) { <small>{{ d.certificateSubject }}</small> }</td><td>{{ d.current ? 'Current' : 'Stale' }}</td><td><code>{{ d.contentSha256.slice(0, 12) }}</code></td>
                 <td class="actions">
                   @if (!d.signed && d.kind !== 'SUMMARY_REVIEW_MEMORANDUM' && d.kind !== 'HOLDING_LETTER') { <button matButton (click)="send('/api/ui/deliverables/' + d.id + '/share', {}, 'Shared with client management.')" [disabled]="cmd.busy()" [attr.aria-label]="'Share ' + d.title + ' v' + d.version + ' with the client'">Share with client</button> }
-                  @if (!d.signed && d.kind === 'INDEPENDENT_AUDITORS_REPORT' && d.current) { <button matButton="filled" (click)="send('/api/ui/deliverables/' + d.id + '/sign', {}, 'Report signed; the signed version and its hash are recorded.')" [disabled]="cmd.busy()">Sign with registered signature</button> }
+                  @if (!d.signed && d.kind === 'INDEPENDENT_AUDITORS_REPORT' && d.current) { <button matButton="filled" (click)="send('/api/ui/deliverables/' + d.id + '/sign', {}, 'Report signed; the signed version and its hash are recorded.')" [disabled]="cmd.busy() || !w.reportSigning.ready">{{ w.reportSigning.mode === 'CERTIFICATE' ? 'Sign with signature and firm certificate' : 'Sign with registered signature' }}</button> }
+                  @if (d.signed && d.kind === 'INDEPENDENT_AUDITORS_REPORT') { <button matButton (click)="verifySignature(d.id)" [disabled]="verifying()" [attr.aria-label]="'Check the signature on ' + d.title + ' v' + d.version">Check signature</button> }
                 </td></tr> }</tbody>
           </table></div>
         }
@@ -128,10 +134,16 @@ const REPORTS: [string, string][] = [['AUDIT_FINDINGS_REPORT', 'Audit Findings R
           <ul class="blockers">@for (x of b.blockers; track $index) { <li>{{ x }}</li> }</ul>
           @for (x of b.bundles; track x.id) { <p><a [href]="'/api/deliverable-bundles/' + x.id + '/download'">Download five-part final bundle</a> <code>{{ x.sha256.slice(0, 12) }}</code> {{ x.assembledAt.slice(0, 10) }}</p> }
         }
+        @if (signatureCheck(); as check) {
+          <p [attr.role]="check.state === 'VALID' ? 'status' : 'alert'" data-signature-check><strong>{{ check.state === 'VALID' ? 'Signature valid' : check.state === 'ALTERED' ? 'Document changed after signing' : check.state === 'NOT_CERTIFICATE_SIGNED' ? 'Image-only signature' : 'Signature unreadable' }}.</strong>
+            {{ check.message }}@if (check.subject) { Signed by {{ check.subject }}. }</p>
+        }
+        <p [attr.role]="w.reportSigning.ready ? null : 'alert'" data-report-signing><strong>Report signing: {{ w.reportSigning.mode === 'CERTIFICATE' ? 'firm certificate' : 'signature image only' }}{{ w.reportSigning.required ? ' (required)' : '' }}.</strong>
+          {{ w.reportSigning.message }}@if (w.reportSigning.subject && w.reportSigning.notAfter) { Certificate: {{ w.reportSigning.subject }}, valid until {{ w.reportSigning.notAfter.slice(0, 10) }}. }</p>
         <label><span><input type="checkbox" name="stmts" [(ngModel)]="f.statementsReviewed" /> I reviewed the exact released financial statements for certification with this report.</span></label>
         <button matButton="filled" (click)="send(base() + '/bundle', { statementsReviewed: f.statementsReviewed }, 'Five-part final bundle assembled and available to the assigned client.')" [disabled]="cmd.busy() || !f.statementsReviewed || !w.bundles || w.bundles.blockers.length > 0">Assemble five-part bundle (Partner)</button>
         <h4>Partner signature specimen</h4>
-        <p><small>A PNG image placed into the signed report. It is not a cryptographic signature; the signed document's hash is the evidence.</small></p>
+        <p><small>A PNG image placed into the signed report as its visible signature. On its own it is not a cryptographic signature; when the firm certificate is configured the report is also certificate-signed.</small></p>
         <label>Signature PNG <input type="file" accept=".png" (change)="upload($event, '/api/ui/signatures', 'Signature specimen registered.')" /></label>
         <h4>Official firm seal</h4>
         <p><small>A firm-wide Partner or Administrator registers the approved seal. Each report retains the exact seal version used.</small></p>
@@ -259,6 +271,16 @@ export class EngagementCompletion {
   obtained(w: Completion): number { return w.representations.filter((r) => r.obtained).length; }
   filtered(t: NonNullable<Completion['trail']>) { const k = this.kind(); return k ? t.filter((e) => e.kind === k) : t; }
   send(url: string, body: unknown, ok: string): void { void this.cmd.run(url, body, ok).finally(() => this.ws.reload()); }
+  readonly signatureCheck = signal<ReturnType<typeof decodeSignatureCheck> | null>(null);
+  readonly verifying = signal(false);
+  /** Asks the server to re-check the stored signed report; the result is shown, never inferred in the browser. */
+  async verifySignature(id: string): Promise<void> {
+    if (this.verifying()) return;
+    this.verifying.set(true); this.signatureCheck.set(null);
+    try { this.signatureCheck.set(await this.api.get(`/api/ui/deliverables/${id}/signature`, decodeSignatureCheck)); }
+    catch { this.signatureCheck.set({ signatureKind: 'VISUAL', state: 'UNREADABLE', subject: null, thumbprintSha256: null, message: 'The signature could not be checked. Refresh and try again.' }); }
+    finally { this.verifying.set(false); }
+  }
   /** Explicit, idempotent dispatch of the current holding letter; the server refuses a superseded letter. */
   dispatchHoldingLetter(): void {
     this.send(`/api/ui/engagements/${this.id()}/holding-letter/dispatch`, {},

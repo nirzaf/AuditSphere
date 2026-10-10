@@ -52,7 +52,7 @@
 | 4.3.3 | SRM auto-compiled on final approval | `DeliverableKinds.SummaryReviewMemorandum`; STE package 5 | PRESENT |
 | 4.3.4 | Critical confirmation blocks report; holding letter auto-generated and queued | `AuditDeliverableService.cs` report path; `HoldingLetterDispatch.cs` (one per blocker set) | PRESENT |
 | 4.4.1 | Four opinions; modified → FSLI + basis | `AuditOpinionTypes` (`UNMODIFIED` = "Clean/Unqualified") | PRESENT |
-| 4.4.1 | Partner signature and seal | PNG visual credentials | DEVIATION (ADR-0005) |
+| 4.4.1 | Partner signature and seal | PNG visual credentials, and certificate signing of the final report and certified statements when the firm's certificate is configured (`ReportCertificateSigning.cs`, ADR-0016); image-only when it is not. Verified locally with a throwaway certificate only | PRESENT when configured (ADR-0016); firm certificate and legal acceptance EXTERNAL |
 | 4.4.2 | Five-part bundle | `AuditDeliverableService.Bundle.cs` (100 MB bound) | PRESENT |
 | 4.4.3 | 60-day countdown from signature, worker freeze | `FileFreeze` model, worker schedule | PRESENT |
 | 4.4.3 | Partner manual (early) lock | At e0afe18 (GAP): `FileFreezeService.RequestEarlyComplianceLockAsync`, `POST /api/ui/engagements/{id}/early-lock` and `/readiness`; no Angular caller. Now: panel in `features/audit/completion.ts` (readiness, digest-bound confirmation, stale refusal reloads readiness) | PRESENT (STE-NXT-005) |
@@ -62,7 +62,7 @@
 | 4.5.1 / audit-work attribution | Billable time can retain its exact approved FSLI mapping | ADR-0013 defines the technical lineage decision; `WorkTask` and `TimeEntry` pin mapping version and FSLI, and time capture validates the approved mapping | PRESENT in code; current-tree regression evidence is recorded separately |
 | 4.5.1 | Profitability, realization, budget variance | `PracticeAnalyticsQuery` in `FirmOperationsServices.cs` | PRESENT |
 | 4.5.2 | Ledger: rent, salaries and benefits, petty cash, overheads | `FirmExpenseCategories`: `RENT`, `SALARIES`, `PETTY_CASH`, `UTILITIES`, `OTHER` | PRESENT |
-| 3.5 | End-of-service benefits | No accrual implementation found; ADR-0010 decides the recording mechanism, while the applicable measurement treatment still blocks posting (STE-NXT-014) | DECIDED_MECHANISM / PROFESSIONAL_TREATMENT_BLOCKED |
+| 3.5 | End-of-service benefits | Manual provision accrual implemented per ADR-0010 (`LedgerService.EndOfService.cs`): entered amount and basis, journal maker and checker, and posting refused until the treatment is recorded and Partner-confirmed in the system. Not locally tested; no treatment has been confirmed (STE-NXT-014) | LOCAL_PRESENT_UNTESTED / PROFESSIONAL_TREATMENT_BLOCKED |
 | 4.5.2 | Partner withdrawals | Posted as equity drawings in `LedgerService.cs`, not as expenses | PRESENT (correct treatment) |
 | 4.5.2 | Firm TB, P&L, AR ageing (advance/final) | Ledger services; `FirmReceivablesAgingQuery.cs`; `features/finance/receivables-aging.ts` | PRESENT |
 | 5 | Lifecycle states and gates | `EngagementLifecycleQuery` projection | DEVIATION in form (ADR-0004); PRESENT in substance |

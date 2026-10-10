@@ -75,6 +75,50 @@ public sealed partial class AuditDeliverablesTests
   }
 
   [Fact]
+  public async Task CertificateSignedReport_IsReleasedWithCertificateSignedStatements_OrNotAtAll()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var iar = await ReportReadyForSigningAsync(pg, w);
+    var partner = w.A("partner", "Partner"); var manager = w.A("manager", "Manager");
+    using var firmCertificate = ReportCertificateSigningTests.TestCertificate();
+    var pfx = firmCertificate.Export(System.Security.Cryptography.X509Certificates.X509ContentType.Pkcs12);
+    var source = new ReportCertificateSigningTests.FixedSource(
+      () => System.Security.Cryptography.X509Certificates.X509CertificateLoader.LoadPkcs12(pfx, null), required: true);
+    var thumbprint = ReportCertificateSigning.ThumbprintSha256(firmCertificate);
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.True((await AuditDeliverableService.SignIndependentReportAsync(db, partner, iar, default, source)).Succeeded);
+      Assert.True((await AuditDeliverableService.GenerateReportAsync(db, manager, w.EngagementId, DeliverableKinds.ManagementLetter)).Succeeded);
+    }
+    await CompletionBundleFixture.ReleasedFinancialPackageAsync(pg.Options, new(w.FirmId, w.ClientId, w.EngagementId, w.U));
+    await CompletionBundleFixture.SeedPostedFeeAsync(pg.Options, new(w.FirmId, w.ClientId, w.EngagementId, w.U), automateBalance: true);
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      // The certificate must be available again to certify the statements: without it nothing is assembled.
+      Assert.Equal(ErrorCodes.GateBlocked, (await AuditDeliverableService.AssembleBundleAsync(db, partner, w.EngagementId, true)).ErrorCode);
+      Assert.Equal(ErrorCodes.GateBlocked, (await AuditDeliverableService.AssembleBundleAsync(db, partner, w.EngagementId, true, default,
+        new ReportCertificateSigningTests.FixedSource(null, required: true))).ErrorCode);
+      Assert.Empty(await db.CommercialDeliverableBundles.ToListAsync());
+
+      var assembled = await AuditDeliverableService.AssembleBundleAsync(db, partner, w.EngagementId, true, default, source);
+      Assert.True(assembled.Succeeded, assembled.Message);
+      var row = await db.CommercialDeliverableBundles.AsNoTracking().SingleAsync(x => x.Id == assembled.Value);
+      using var archive = new ZipArchive(new MemoryStream(row.Content), ZipArchiveMode.Read);
+      foreach (var path in new[] { "01_Report_and_statements/Independent_auditors_report.pdf", "01_Report_and_statements/Certified_financial_statements.pdf" })
+      {
+        using var bytes = new MemoryStream();
+        using (var stream = archive.GetEntry(path)!.Open()) await stream.CopyToAsync(bytes);
+        var check = ReportSignatureVerifier.Verify(bytes.ToArray());
+        Assert.Equal((ReportSignatureStates.Valid, thumbprint), (check.State, check.ThumbprintSha256));
+      }
+      using var manifest = System.Text.Json.JsonDocument.Parse(row.ManifestJson);
+      Assert.Equal(ReportSignatureKinds.Certificate, manifest.RootElement.GetProperty("ReportSignatureKind").GetString());
+      Assert.Equal(thumbprint, manifest.RootElement.GetProperty("ReportCertificateThumbprintSha256").GetString());
+    }
+  }
+
+  [Fact]
   public async Task FivePartBundle_RequiresReviewedReleaseAndPostedBalance_IsIdempotent_AndClientScoped()
   {
     await using var pg = await PgTestSchema.CreateAsync();
@@ -96,6 +140,11 @@ public sealed partial class AuditDeliverablesTests
     {
       Assert.Equal(ErrorCodes.ScopeDenied, (await AuditDeliverableService.AssembleBundleAsync(db, manager, w.EngagementId, true)).ErrorCode);
       Assert.Equal(ErrorCodes.GateBlocked, (await AuditDeliverableService.AssembleBundleAsync(db, partner, w.EngagementId, false)).ErrorCode);
+      // ADR-0016: once certificate signing is required, an image-only report cannot be released in a bundle.
+      var imageOnly = await AuditDeliverableService.AssembleBundleAsync(db, partner, w.EngagementId, true, default,
+        new ReportCertificateSigningTests.FixedSource(null, required: true));
+      Assert.Equal(ErrorCodes.GateBlocked, imageOnly.ErrorCode);
+      Assert.Contains("signature image only", imageOnly.Message);
       var assembled = await AuditDeliverableService.AssembleBundleAsync(db, partner, w.EngagementId, true);
       Assert.True(assembled.Succeeded, assembled.Message);
       var again = await AuditDeliverableService.AssembleBundleAsync(db, partner, w.EngagementId, true);

@@ -747,6 +747,10 @@ public sealed partial class AuditDeliverablesTests
       }
       Assert.Equal(Hashing.Sha256Hex(signedDoc.Content), signedDoc.ContentSha256);
       Assert.True(await db.SignatureApplications.AnyAsync(x => x.SourceDeliverableId == iar && x.SignedByUserId == w.U["partner"].Id));
+      // Without a configured certificate the report is honestly recorded and reported as image-only.
+      Assert.Equal(ReportSignatureKinds.Visual, (await db.SignatureApplications.AsNoTracking().SingleAsync(x => x.SourceDeliverableId == iar)).SignatureKind);
+      var imageOnly = await AuditDeliverableService.VerifyReportSignatureAsync(db, manager, signed.Value);
+      Assert.Equal((ReportSignatureKinds.Visual, ReportSignatureStates.NotCertificateSigned), (imageOnly.Value!.SignatureKind, imageOnly.Value.State));
       await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"UPDATE audit_deliverables SET content_sha256 = {new string('f', 64)} WHERE id = {signed.Value}"));
     }
   }
@@ -758,6 +762,16 @@ public sealed partial class AuditDeliverablesTests
   }
 
   private static async Task<Guid> SignedReportAsync(PgTestSchema pg, World w)
+  {
+    var iar = await ReportReadyForSigningAsync(pg, w);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var signed = await AuditDeliverableService.SignIndependentReportAsync(db, w.A("partner", "Partner"), iar);
+    Assert.True(signed.Succeeded, $"Sign failed with: {signed.ErrorCode} - {signed.Message}");
+    return signed.Value;
+  }
+
+  /// <summary>Everything the signing gate needs, stopping just before the Partner signs.</summary>
+  private static async Task<Guid> ReportReadyForSigningAsync(PgTestSchema pg, World w)
   {
     var partner = w.A("partner", "Partner");
     var manager = w.A("manager", "Manager");
@@ -778,9 +792,65 @@ public sealed partial class AuditDeliverablesTests
     Assert.True((await AuditDeliverableService.RegisterFirmSealAsync(db, partner, Png(100, 100))).Succeeded);
     var iar = (await AuditDeliverableService.GenerateReportAsync(db, manager, w.EngagementId, DeliverableKinds.IndependentAuditorsReport)).Value!.DeliverableId!.Value;
     Assert.True((await AuditDeliverableService.RegisterSignatureAsync(db, partner, Png(120, 40))).Succeeded);
-    var signed = await AuditDeliverableService.SignIndependentReportAsync(db, partner, iar);
-    Assert.True(signed.Succeeded, $"Sign failed with: {signed.ErrorCode} - {signed.Message}");
-    return signed.Value;
+    return iar;
+  }
+
+  [Fact]
+  public async Task PartnerSigning_AppliesTheFirmCertificate_AndFailsClosedWithoutAUsableOne()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var iar = await ReportReadyForSigningAsync(pg, w);
+    var partner = w.A("partner", "Partner");
+    var manager = w.A("manager", "Manager");
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var now = DateTimeOffset.UtcNow;
+
+    // Required but absent, and configured but expired: both block, and neither falls back to the image alone.
+    Assert.Equal(ErrorCodes.GateBlocked, (await AuditDeliverableService.SignIndependentReportAsync(db, partner, iar, default,
+      new ReportCertificateSigningTests.FixedSource(null, required: true))).ErrorCode);
+    Assert.Equal(ErrorCodes.GateBlocked, (await AuditDeliverableService.SignIndependentReportAsync(db, partner, iar, default,
+      new ReportCertificateSigningTests.FixedSource(() => ReportCertificateSigningTests.TestCertificate(notBefore: now.AddYears(-2), notAfter: now.AddDays(-1)), required: false))).ErrorCode);
+    Assert.Empty(await db.SignatureApplications.AsNoTracking().Where(x => x.SourceDeliverableId == iar).ToListAsync());
+    Assert.Empty(await db.EngagementFileFreezes.AsNoTracking().Where(x => x.EngagementId == w.EngagementId).ToListAsync());
+
+    // With the firm certificate the Partner's signing produces a certificate-signed PDF and records which certificate signed.
+    using var firmCertificate = ReportCertificateSigningTests.TestCertificate();
+    var pfx = firmCertificate.Export(System.Security.Cryptography.X509Certificates.X509ContentType.Pkcs12);
+    var source = new ReportCertificateSigningTests.FixedSource(
+      () => System.Security.Cryptography.X509Certificates.X509CertificateLoader.LoadPkcs12(pfx, null), required: true);
+    var thumbprint = ReportCertificateSigning.ThumbprintSha256(firmCertificate);
+    var signed = await AuditDeliverableService.SignIndependentReportAsync(db, partner, iar, default, source);
+    Assert.True(signed.Succeeded, signed.Message);
+    var document = await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.Id == signed.Value);
+    var application = await db.SignatureApplications.AsNoTracking().SingleAsync(x => x.SignedDeliverableId == signed.Value);
+    Assert.Equal((ReportSignatureKinds.Certificate, thumbprint, "AUDIT-SIGNED-PDF-v2-CERT"),
+      (application.SignatureKind, application.CertificateThumbprintSha256, document.TemplateVersion));
+    Assert.Equal(firmCertificate.Subject, application.CertificateSubject);
+    Assert.Equal(Hashing.Sha256Hex(document.Content), document.ContentSha256);
+    Assert.Equal((ReportSignatureStates.Valid, thumbprint), (ReportSignatureVerifier.Verify(document.Content).State, ReportSignatureVerifier.Verify(document.Content).ThumbprintSha256));
+    // The signature image and seal remain the visible appearance of the certificate-signed report.
+    using (var pdf = PdfSharp.Pdf.IO.PdfReader.Open(new MemoryStream(document.Content), PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import))
+      Assert.Contains(pdf.Internals.GetAllObjects(), x => x is PdfSharp.Pdf.PdfDictionary d && d.Elements.GetName("/Subtype") == "/Image");
+
+    // Staff on the engagement can re-check the stored report; a copy changed after signing no longer verifies.
+    var check = await AuditDeliverableService.VerifyReportSignatureAsync(db, manager, signed.Value);
+    Assert.True(check.Succeeded, check.Message);
+    Assert.Equal((ReportSignatureKinds.Certificate, ReportSignatureStates.Valid, thumbprint), (check.Value!.SignatureKind, check.Value.State, check.Value.ThumbprintSha256));
+    var changed = (byte[])document.Content.Clone();
+    changed[Array.IndexOf(changed, (byte)'%', 20) + 1] ^= 0x01;
+    Assert.Equal(ReportSignatureStates.Altered, ReportSignatureVerifier.Verify(changed).State);
+    Assert.Equal(ErrorCodes.ScopeDenied, (await AuditDeliverableService.VerifyReportSignatureAsync(db, manager, iar)).ErrorCode); // the unsigned source is not a signed report
+    var listed = (await AuditDeliverableService.ListAsync(db, manager, w.EngagementId)).Single(x => x.Id == signed.Value);
+    Assert.Equal((ReportSignatureKinds.Certificate, firmCertificate.Subject), (listed.SignatureKind, listed.CertificateSubject));
+
+    // The evidence is append-only and a certificate signature can never be recorded without its certificate.
+    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      $"UPDATE signature_applications SET certificate_thumbprint_sha256 = NULL, signature_kind = 'VISUAL' WHERE id = {application.Id}"));
+    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
+      INSERT INTO signature_applications (id, firm_id, engagement_id, specimen_id, source_deliverable_id, signed_deliverable_id, signed_by_user_id, signed_at, signature_kind)
+      VALUES ({Guid.NewGuid()}, {application.FirmId}, {application.EngagementId}, {application.SpecimenId}, {Guid.NewGuid()}, {Guid.NewGuid()}, {application.SignedByUserId}, now(), 'CERTIFICATE')
+      """));
   }
 
   [Fact]

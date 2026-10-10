@@ -90,6 +90,9 @@ describe('client response binding', () => {
     const noRespondent = responseWorkspace({ respondentName: '   ' });
     ProposalDetail.prototype.recordResponse.call(noRespondent.w as unknown as ProposalDetail, 'ACCEPTED');
     expect(noRespondent.actions).toHaveLength(0);
+    const noEmail = responseWorkspace({ respondentEmail: '  ' });
+    ProposalDetail.prototype.recordResponse.call(noEmail.w as unknown as ProposalDetail, 'ACCEPTED');
+    expect(noEmail.actions).toHaveLength(0);
     const noOffer = responseWorkspace({ data: signal({ ...proposal, status: 'SENT', sentOfferSha256: null }) });
     ProposalDetail.prototype.recordResponse.call(noOffer.w as unknown as ProposalDetail, 'ACCEPTED');
     expect(noOffer.actions).toHaveLength(0);

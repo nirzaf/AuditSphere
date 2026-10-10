@@ -100,7 +100,16 @@ public sealed partial class AuditSphereDbContext
     {
       e.HasIndex(x => new { x.FirmId, x.SourceDeliverableId }).IsUnique();
       e.HasOne<SignatureSpecimen>().WithMany().HasForeignKey(x => x.SpecimenId).OnDelete(DeleteBehavior.Restrict);
-      e.ToTable("signature_applications");
+      e.Property(x => x.SignatureKind).HasMaxLength(16).HasDefaultValue(ReportSignatureKinds.Visual);
+      e.Property(x => x.CertificateSubject).HasMaxLength(1000);
+      e.Property(x => x.CertificateIssuer).HasMaxLength(1000);
+      e.Property(x => x.CertificateSerialNumber).HasMaxLength(128);
+      e.Property(x => x.CertificateThumbprintSha256).HasMaxLength(64);
+      // A certificate signature always records which certificate signed; a visual one records none.
+      e.ToTable("signature_applications", t => t.HasCheckConstraint("ck_signature_application_kind",
+        "signature_kind IN ('VISUAL','CERTIFICATE') AND ((signature_kind = 'CERTIFICATE') = (certificate_thumbprint_sha256 IS NOT NULL)) AND " +
+        "((certificate_thumbprint_sha256 IS NULL AND certificate_subject IS NULL AND certificate_issuer IS NULL AND certificate_serial_number IS NULL AND certificate_not_after IS NULL) OR " +
+        "(certificate_thumbprint_sha256 ~ '^[0-9a-f]{64}$' AND length(certificate_subject) > 0 AND length(certificate_issuer) > 0 AND length(certificate_serial_number) > 0 AND certificate_not_after IS NOT NULL))"));
     });
     b.Entity<ClientDeliverableReview>(e =>
     {

@@ -276,7 +276,7 @@ Every story is sized for one agent session. Before starting, read only the files
 
 ## STE-NXT-014 — Record end-of-service accruals as a provision
 
-*Status: open and blocked. Follow-up of ADR-0010 (approved 2026-10-09). No posting may happen until the accounting treatment is named by a qualified accountant and confirmed by the owner. That confirmation has not been given.*
+*Status (2026-10-10): code implemented, not locally tested; posting remains blocked. Follow-up of ADR-0010 (approved 2026-10-09). The recording mechanism is built with a fail-closed gate: no accrual can be prepared or posted until finance records the treatment named by a qualified accountant and a different Partner confirms it in the system. That confirmation has not been given, and the new tests have not been run.*
 
 **Story.** As the firm's finance manager, I want the end-of-service obligation accrued each month from an entered basis, so that the provision and the period expense show the obligation before anyone leaves.
 

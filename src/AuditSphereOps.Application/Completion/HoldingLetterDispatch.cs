@@ -46,19 +46,20 @@ public static class HoldingLetterDispatch
       .SingleOrDefaultAsync(x => x.FirmId == firmId && x.DispatchKey == letter.InputDigest, ct);
     if (notification is not null)
     {
-      if (notification.DeliveryState == "SENT")
-        return new(letter.Id, letter.CreatedAt, count, "SENT", "The holding letter was delivered to the client-management recipient.");
-      // The notification itself only records QUEUED or SENT; delivery failure lives on the durable operation. A blocked
-      // or dead-lettered operation means this letter will not arrive, so the status must say so instead of reporting a
-      // queued letter that can never be sent. Re-arming is the operations screen's guarded recovery, not a re-dispatch.
+      if (CommercialDeliveryStates.IsProviderReceipt(notification.DeliveryState))
+        return new(letter.Id, letter.CreatedAt, count, "SENT", "The mail provider accepted the holding letter for the client-management recipient.");
+      // A refused or unknown send is recorded on the notification and the durable operation. A blocked or dead-lettered
+      // operation means this letter will not arrive, so the status must say so instead of reporting a queued letter
+      // that can never be sent. Re-arming is the operations screen's guarded recovery, not a re-dispatch.
       var operation = await db.DurableOperations.AsNoTracking()
         .Where(x => x.FirmId == firmId && x.TargetId == notification.Id && x.OperationKind == CommercialMailDeliveryHandler.Kind)
         .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
         .Select(x => new { x.Status, x.ErrorCode })
         .FirstOrDefaultAsync(ct);
-      if (operation is not null && OperationRecoveryService.RetryableStates.Contains(operation.Status))
+      if (notification.DeliveryState is CommercialDeliveryStates.Rejected or CommercialDeliveryStates.Unknown ||
+        (operation is not null && OperationRecoveryService.RetryableStates.Contains(operation.Status)))
         return new(letter.Id, letter.CreatedAt, count, "FAILED",
-          $"Holding letter delivery is {operation.Status}{(operation.ErrorCode is null ? string.Empty : $" ({operation.ErrorCode})")}. " +
+          $"Holding letter delivery is {operation?.Status.ToString() ?? notification.DeliveryState}{(operation?.ErrorCode is null ? string.Empty : $" ({operation.ErrorCode})")}. " +
           "Dispatching again cannot re-arm it: re-arm the mail operation from the Operations screen in local-only mode, which redispatches this exact letter without sending a second email.");
       return new(letter.Id, letter.CreatedAt, count, "QUEUED", "The holding letter is queued for the client-management recipient. Queued is not yet delivered.");
     }
@@ -103,8 +104,8 @@ public static class HoldingLetterDispatch
     if (existing is not null)
       return (existing.DeliveryState,
         $"The holding letter for this exact outstanding set was already dispatched, so it is never sent twice; its recorded state is {existing.DeliveryState}. " +
-        (existing.DeliveryState == "SENT"
-          ? "It was delivered to the client-management recipient."
+        (CommercialDeliveryStates.IsProviderReceipt(existing.DeliveryState)
+          ? "The mail provider accepted it for the client-management recipient."
           : "If delivery is blocked or dead-lettered, re-arm the mail operation from the Operations screen in local-only mode."));
 
     var engagement = await db.Engagements.AsNoTracking().SingleAsync(x => x.Id == engagementId && x.FirmId == firmId, ct);

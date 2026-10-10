@@ -54,6 +54,8 @@ export const routes: Routes = [
     loadComponent: () => import('./features/finance/ledger').then(m => m.FirmLedger) },
   { path: 'app/finance/receivables-aging', canActivate: [staffGuard], title: 'Firm receivables ageing · AuditSphere',
     loadComponent: () => import('./features/finance/receivables-aging').then(m => m.FirmReceivablesAging) },
+  { path: 'app/finance/end-of-service', canActivate: [staffGuard], title: 'End-of-service provision · AuditSphere',
+    loadComponent: () => import('./features/finance/end-of-service').then(m => m.EndOfServiceProvision) },
   { path: 'app/practice/invoices/:id', canActivate: [staffGuard], title: 'Invoice · AuditSphere',
     loadComponent: () => import('./features/finance/invoice').then(m => m.InvoiceDetail) },
   { path: 'app/accounting/currency-configuration', canActivate: [staffGuard], canDeactivate: [unsavedChangesGuard], title: 'FX rates & policies · AuditSphere',

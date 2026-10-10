@@ -20,6 +20,62 @@ public static class LedgerStates
   public const string JournalPosted = "POSTED";
   /// <summary>Posted-period purpose used for year-end transfers out of revenue and expense accounts.</summary>
   public const string YearEndClosingPurpose = "YEAR_END_CLOSE";
+  /// <summary>Manual monthly accrual of the end-of-service obligation to a provision account (ADR-0010).</summary>
+  public const string EndOfServiceAccrualPurpose = "END_OF_SERVICE_ACCRUAL";
+}
+
+public static class EndOfServiceTreatmentStates
+{
+  /// <summary>Recorded by finance; no accrual may be prepared or posted under it yet.</summary>
+  public const string Recorded = "RECORDED";
+  /// <summary>Confirmed by a firm Partner distinct from the recorder; the latest confirmed version governs accruals.</summary>
+  public const string Confirmed = "CONFIRMED";
+}
+
+/// <summary>
+/// The accounting treatment for end-of-service benefits as named by a qualified accountant and confirmed by the
+/// firm's owner (ADR-0010, STE-NXT-014). The platform stores who named it and who confirmed it; it never derives a
+/// treatment or an amount. No accrual can be prepared or posted until a version is confirmed.
+/// </summary>
+public sealed class FirmEndOfServiceTreatment
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public long Version { get; set; } = 1;
+  /// <summary>The measurement basis and the standard it follows, in the accountant's words.</summary>
+  public string MeasurementTreatment { get; set; } = string.Empty;
+  public string AccountantName { get; set; } = string.Empty;
+  /// <summary>The accountant's qualification or membership reference, as recorded by finance.</summary>
+  public string AccountantCredential { get; set; } = string.Empty;
+  public Guid ProvisionAccountId { get; set; }
+  public Guid ExpenseAccountId { get; set; }
+  public string Status { get; set; } = EndOfServiceTreatmentStates.Recorded;
+  public Guid RecordedByUserId { get; set; }
+  public DateTimeOffset RecordedAt { get; set; }
+  public Guid? ConfirmedByUserId { get; set; }
+  public DateTimeOffset? ConfirmedAt { get; set; }
+  public string? ConfirmationNote { get; set; }
+}
+
+/// <summary>
+/// The entered basis of one end-of-service accrual journal: the method, the inputs and the date of the calculation a
+/// person performed outside the platform, with the reason for the entry. Append-only; a correction is a reversing
+/// journal followed by a new accrual.
+/// </summary>
+public sealed class FirmEndOfServiceAccrual
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid JournalId { get; set; }
+  public Guid TreatmentId { get; set; }
+  public Guid PeriodId { get; set; }
+  public decimal Amount { get; set; }
+  public string Method { get; set; } = string.Empty;
+  public string Inputs { get; set; } = string.Empty;
+  public DateOnly CalculationDate { get; set; }
+  public string Reason { get; set; } = string.Empty;
+  public Guid CreatedByUserId { get; set; }
+  public DateTimeOffset CreatedAt { get; set; }
 }
 
 public sealed class FirmAccount

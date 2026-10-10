@@ -38,7 +38,7 @@ public static partial class UiEndpoints
     "/ui/app/audit/library", "/ui/app/audit/populations/{id:guid}", "/ui/app/audit/workpapers/{id:guid}", "/ui/app/findings/{id:guid}", "/ui/app/reviews/{id:guid}",
     "/ui/app/releases/{id:guid}", "/ui/app/records/archives/{id:guid}",
     "/ui/app/engagements/{id:guid}/reconciliation/new", "/ui/app/engagements/{id:guid}/specialists/new",
-    "/ui/app/overview", "/ui/app/assessments/{id:guid}", "/ui/app/assessments/{id:guid}/decision", "/ui/app/operations", "/ui/app/administration/project-progress", "/ui/app/consolidation", "/ui/app/consolidation/scopes/{id:guid}", "/ui/app/consolidation/advanced/{id:guid}", "/ui/app/audit/plans/{id:guid}", "/ui/app/finance/receivables-aging",
+    "/ui/app/overview", "/ui/app/assessments/{id:guid}", "/ui/app/assessments/{id:guid}/decision", "/ui/app/operations", "/ui/app/administration/project-progress", "/ui/app/consolidation", "/ui/app/consolidation/scopes/{id:guid}", "/ui/app/consolidation/advanced/{id:guid}", "/ui/app/audit/plans/{id:guid}", "/ui/app/finance/receivables-aging", "/ui/app/finance/end-of-service",
   ];
 
   /// <summary>Response options for /api/ui: camelCase, decimals as exact invariant strings, enums as names.</summary>
@@ -95,6 +95,7 @@ public static partial class UiEndpoints
     MapPeriodMaintenanceEndpoints(group);
     MapRemeasurementEndpoints(group);
     MapFinanceEndpoints(group);
+    MapEndOfServiceEndpoints(group);
     MapAuditRecordEndpoints(group);
     MapRouteResolutionEndpoints(group);
     MapOperationsEndpoints(group);

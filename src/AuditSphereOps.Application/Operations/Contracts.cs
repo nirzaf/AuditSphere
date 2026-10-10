@@ -210,6 +210,8 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<FirmAccount> FirmAccounts { get; }
   DbSet<FirmPeriod> FirmPeriods { get; }
   DbSet<FirmJournal> FirmJournals { get; }
+  DbSet<FirmEndOfServiceTreatment> FirmEndOfServiceTreatments { get; }
+  DbSet<FirmEndOfServiceAccrual> FirmEndOfServiceAccruals { get; }
   DbSet<FirmJournalLine> FirmJournalLines { get; }
   DbSet<FirmPosting> FirmPostings { get; }
   DbSet<FirmPostingLine> FirmPostingLines { get; }

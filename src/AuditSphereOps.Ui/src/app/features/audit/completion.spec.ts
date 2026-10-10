@@ -5,7 +5,7 @@ import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/route
 import { BehaviorSubject } from 'rxjs';
 import { afterEach, describe, expect, it } from 'vitest';
 import { SessionService } from '../../core/session';
-import { EngagementCompletion, decodeCompletion } from './completion';
+import { EngagementCompletion, decodeCompletion, decodeSignatureCheck } from './completion';
 
 const id1 = '11111111-1111-4111-8111-111111111111';
 const id2 = '22222222-2222-4222-8222-222222222222';
@@ -61,6 +61,8 @@ const validPayload = {
           current: true,
           contentSha256: hash64,
           createdAt: '2026-10-02T11:00:00Z',
+          signatureKind: 'CERTIFICATE',
+          certificateSubject: 'CN=Test Audit Firm',
         },
       ],
       clearance: {
@@ -134,6 +136,14 @@ const validPayload = {
           lockedAt: '2026-10-02T12:05:00Z',
         },
       ],
+      reportSigning: {
+        mode: 'CERTIFICATE',
+        required: true,
+        ready: true,
+        subject: 'CN=Test Audit Firm',
+        notAfter: '2027-10-01T00:00:00Z',
+        message: 'The signed report is certificate-signed.',
+      },
     };
 
 describe('Audit Completion Contracts', () => {
@@ -269,6 +279,72 @@ describe('Early compliance lock panel (STE 4.4.3)', () => {
     expect(host.textContent).toContain('Frozen at 2026-10-08 10:00 UTC.');
     expect(host.textContent).not.toContain('Early compliance lock (STE 4.4.3)');
     expect(page.early.confirmed).toBe(false);
+  });
+});
+
+const draft = { ...validPayload.deliverables[0], id: id3, signed: false, signatureKind: 'NONE', certificateSubject: null };
+
+describe('Report signing contract (ADR-0016)', () => {
+  it('requires the server to state how each report was signed', () => {
+    expect(decodeCompletion(validPayload, 'completion').deliverables[0].signatureKind).toBe('CERTIFICATE');
+    expect(() => decodeCompletion({ ...validPayload, reportSigning: undefined }, 'completion')).toThrow();
+    expect(() => decodeCompletion({ ...validPayload, deliverables: [{ ...draft, signatureKind: 'SIGNED' }] }, 'completion')).toThrow();
+    expect(() => decodeSignatureCheck({ signatureKind: 'CERTIFICATE', state: 'TRUSTED', subject: null, thumbprintSha256: null, message: '' }, 'check')).toThrow();
+  });
+});
+
+describe('Report certificate signing (ADR-0016)', () => {
+  function open(payload: object) {
+    const params = new BehaviorSubject(convertToParamMap({ id: id1 }));
+    TestBed.configureTestingModule({
+      imports: [EngagementCompletion],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([]), { provide: ActivatedRoute, useValue: { paramMap: params } }],
+    });
+    TestBed.inject(SessionService).current.set({ userId: id3, firmId: id2, generation: '1', staff: true });
+    const http = TestBed.inject(HttpTestingController);
+    const f = TestBed.createComponent(EngagementCompletion);
+    f.detectChanges();
+    http.expectOne(`/api/ui/engagements/${id1}/completion`).flush(payload);
+    f.detectChanges();
+    return { f, http };
+  }
+  afterEach(() => {
+    TestBed.inject(HttpTestingController).verify({ ignoreCancelled: true });
+    TestBed.resetTestingModule();
+  });
+
+  it('labels a certificate-signed report and shows the certificate in force', () => {
+    const { f } = open(validPayload);
+    const host = f.nativeElement as HTMLElement;
+    expect(host.textContent).toContain('certificate-signed');
+    expect(host.querySelector('[data-report-signing]')?.textContent).toContain('firm certificate (required)');
+    expect(host.querySelector('[data-report-signing]')?.textContent).toContain('valid until 2027-10-01');
+    f.destroy();
+  });
+
+  it('withholds signing while a required certificate is unavailable and says why', () => {
+    const blocked = { ...validPayload, deliverables: [draft],
+      reportSigning: { mode: 'CERTIFICATE', required: true, ready: false, subject: null, notAfter: null, message: 'No report-signing certificate is configured.' } };
+    const { f } = open(blocked);
+    const host = f.nativeElement as HTMLElement;
+    const sign = Array.from(host.querySelectorAll('button')).find((b) => b.textContent?.includes('Sign with')) as HTMLButtonElement;
+    expect(sign.disabled).toBe(true);
+    expect(host.querySelector('[data-report-signing]')?.getAttribute('role')).toBe('alert');
+    expect(host.textContent).toContain('No report-signing certificate is configured.');
+    f.destroy();
+  });
+
+  it('shows the server result of a signature check and flags a changed document', async () => {
+    const { f, http } = open(validPayload);
+    const checking = f.componentInstance.verifySignature(id2);
+    http.expectOne(`/api/ui/deliverables/${id2}/signature`).flush({ signatureKind: 'CERTIFICATE', state: 'ALTERED', subject: null, thumbprintSha256: null,
+      message: 'The signature does not match the document: it was changed after signing.' });
+    await checking;
+    f.detectChanges();
+    const result = (f.nativeElement as HTMLElement).querySelector('[data-signature-check]');
+    expect(result?.getAttribute('role')).toBe('alert');
+    expect(result?.textContent).toContain('Document changed after signing');
+    f.destroy();
   });
 });
 

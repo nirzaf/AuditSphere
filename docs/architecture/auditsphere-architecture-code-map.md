@@ -202,6 +202,10 @@ identities; provider acceptance (Purview/eSignature) is never claimed.
 
 - UI: legacy `Leads.razor`, `Portfolio.razor`, `ClientDetail.razor`, `Finance.razor`, `InvoiceDetail.razor`, `PracticeTime.razor`; native Angular invoice actions and term/reversal review in `AuditSphereOps.Ui/src/app/features/finance/invoice.ts`, plus the firm-fee ageing report/export in `AuditSphereOps.Ui/src/app/features/finance/receivables-aging.ts`, through `Api/UiEndpoints.Finance.cs`
 
+- Report certificate signing (ADR-0016): signer policy and PDF signature verifier in `Application/Completion/ReportCertificateSigning.cs`; signing paths in `AuditDeliverableRenderer.cs` and `AuditDeliverableService.cs` (`SignIndependentReportAsync`, `VerifyReportSignatureAsync`) and `AuditDeliverableService.Bundle.cs`; certificate source `Infrastructure/Providers/PemReportSigningCredentialSource.cs` (`ReportSigning:*` settings); Angular `features/audit/completion.ts`; `ReportCertificateSigningTests`, `AuditDeliverablesTests`
+
+- End-of-service provision (ADR-0010): treatment record and Partner confirmation, accrual draft and posting gate in `Application/Practice/LedgerService.EndOfService.cs`; projection in `EndOfServiceWorkspaceQuery.cs`; `Api/UiEndpoints.EndOfService.cs`; Angular `features/finance/end-of-service.ts`; database guards in migration `FirmEndOfServiceAccruals`; `EndOfServiceAccrualTests`
+
 - Verification: `BillingWorkspaceApiTests` checks current authorization, CSRF and exact receipt/allocation/credit balances; `FirmReceivablesAgingQueryTests` and `FirmReceivablesAgingApiTests` cover historical balances, terms, reversals, scope denial and protected export; `AngularBillingWorkspaceJourneyTests` exercises the native flow and lost-response review.
 
 Boundary: this is the firm's own books (`Practice/FirmLedger`); it never writes client

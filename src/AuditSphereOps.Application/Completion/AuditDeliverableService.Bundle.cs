@@ -21,7 +21,7 @@ public static partial class AuditDeliverableService
 {
   /// <summary>All byte assembly is local. The financial release/checkpoint and posted invoice must already exist.</summary>
   public static async Task<CommandResult<Guid>> AssembleBundleAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId,
-    bool financialStatementsReviewed, CancellationToken ct = default)
+    bool financialStatementsReviewed, CancellationToken ct = default, IReportSigningCredentialSource? signing = null)
   {
     var auth = await AuthorizePartnerAsync(db, actor, engagementId, ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
@@ -68,6 +68,26 @@ public static partial class AuditDeliverableService
         new DocumentTable(["Description", "Quantity", "Unit price", "Amount"], lines.Select(x => (IReadOnlyList<string>)[x.Description,
           x.Quantity.ToString(System.Globalization.CultureInfo.InvariantCulture), x.UnitPrice.ToString(System.Globalization.CultureInfo.InvariantCulture), x.LineTotal.ToString(System.Globalization.CultureInfo.InvariantCulture)]).ToList()))]));
     var signatureApplication = await db.SignatureApplications.AsNoTracking().SingleAsync(x => x.FirmId == actor.FirmId && x.SignedDeliverableId == report.Id, ct);
+    // A certificate-signed report must still verify before it is released, and when certificate signing is required
+    // an image-only report cannot be bundled (ADR-0016). The certified statements are signed with the same certificate.
+    var certificateSigned = signatureApplication.SignatureKind == ReportSignatureKinds.Certificate;
+    if ((signing?.Required ?? false) && !certificateSigned)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+        "Certificate signing is required, but this report carries a signature image only. Generate a new report version and sign it with the firm's certificate.");
+    System.Security.Cryptography.X509Certificates.X509Certificate2? certificate = null;
+    if (certificateSigned)
+    {
+      var integrity = CheckReportSignature(report, signatureApplication);
+      if (integrity.State != ReportSignatureStates.Valid)
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, $"The signed report failed its certificate check and cannot be released: {integrity.Message}");
+      var credential = ReportCertificateSigning.Resolve(signing, DateTimeOffset.UtcNow);
+      if (!credential.Succeeded) return CommandResult<Guid>.Fail(credential.ErrorCode!, credential.Message!);
+      certificate = credential.Value;
+      if (certificate is null)
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+          "The report is certificate-signed, but no report-signing certificate is available to certify the financial statements.");
+    }
+    using var certificateScope = certificate;
     var specimen = await db.SignatureSpecimens.AsNoTracking().SingleAsync(x => x.FirmId == actor.FirmId && x.Id == signatureApplication.SpecimenId, ct);
     using var summary = JsonDocument.Parse(report.InputSummaryJson);
     var sealId = summary.RootElement.GetProperty("Seal").GetGuid();
@@ -76,9 +96,18 @@ public static partial class AuditDeliverableService
     var cover = AuditDeliverableRenderer.RenderPdf(new(firm?.LegalName ?? "Audit firm", "Financial statements certification", statements.Id.ToString("D"), date,
       client.LegalName, [new("Exact reviewed financial statements", [$"Package: {statements.FinancialPackageId}; revision: {statements.PackageRevision}.",
         $"Source PDF SHA-256: {statements.ArtifactSha256Hex}", $"Released under manifest: {release.ManifestDigest}.",
-        "The Engagement Partner confirms these exact released statements accompany the signed auditor's report. Signature and seal are approved visual images."])],
+        certificateSigned
+          ? "The Engagement Partner confirms these exact released statements accompany the signed auditor's report. This document is certificate-signed; the signature and seal images are its visible appearance."
+          : "The Engagement Partner confirms these exact released statements accompany the signed auditor's report. Signature and seal are approved visual images."])],
       "Engagement Partner", new(specimen.PngContent, specimen.WidthPixels, specimen.HeightPixels, signer.DisplayName, "Engagement Partner", date), seal.PngContent));
     var certifiedStatements = JoinPdfs(statements.ArtifactBytes, cover);
+    if (certificate is not null)
+    {
+      certifiedStatements = await AuditDeliverableRenderer.CertificateSignPdfAsync(certifiedStatements, certificate,
+        $"Financial statements certified with the independent auditor's report by {signer.DisplayName}, Engagement Partner", firm?.LegalName ?? "Audit firm");
+      if (ReportSignatureVerifier.Verify(certifiedStatements).State != ReportSignatureStates.Valid)
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The certified statements could not be verified after signing; the bundle was not assembled.");
+    }
     var files = new SortedDictionary<string, byte[]>(StringComparer.Ordinal)
     {
       ["01_Report_and_statements/Independent_auditors_report.pdf"] = report.Content,
@@ -96,6 +125,7 @@ public static partial class AuditDeliverableService
       ManagementLetter = management.Id, RepresentationLetter = representation.Id, SignedRepresentation = scan.Id, scan.ContentSha256,
       BalanceInvoice = invoice.Id, InvoiceRevision = invoice.Revision, InvoiceStatus = invoice.Status,
       CertifiedBy = actor.UserId, SourceSignature = specimen.Sha256, Seal = seal.Sha256,
+      ReportSignatureKind = signatureApplication.SignatureKind, ReportCertificateThumbprintSha256 = signatureApplication.CertificateThumbprintSha256,
       Parts = files.Select(x => new { Path = x.Key, Sha256 = Hashing.Sha256Hex(x.Value), Bytes = x.Value.Length })
     });
     var digest = Hashing.Sha256Hex(manifest);

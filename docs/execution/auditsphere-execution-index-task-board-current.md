@@ -115,7 +115,7 @@ Card status in the front matter: 2 COMPLETED, 0 IN_REVIEW, 71 NOT_STARTED of 75 
 | STE-NXT-011 | STE-NXT | Decide whether to add an independent read-only archive copy (SPK-01 option 2) | COMPLETED | NOT_AUDITED | — | — | None; completed |
 | STE-NXT-012 | STE-NXT | Show the local, provider and lifecycle archive states separately | — | NOT_AUDITED | — | — | Audit against the codebase before building |
 | STE-NXT-013 | STE-NXT | Make the statement analysis links reach their screens | implemented 2026-10-08 | NOT_AUDITED | — | — | Audit against the codebase before building |
-| STE-NXT-014 | STE-NXT | Record end-of-service accruals as a provision | open and blocked | NOT_AUDITED | — | — | Audit against the codebase before building |
+| STE-NXT-014 | STE-NXT | Record end-of-service accruals as a provision | code implemented, not locally tested; posting remains blocked | NOT_AUDITED | — | — | Audit against the codebase before building |
 | STE-GAP-001 | STE-GAP | Versioned Service-Specific Engagement Letter Templates | — | PARTIAL | — | 1 | Build the open gaps |
 | STE-GAP-002 | STE-GAP | Specification-Compliant 50% Advance Invoice Automation | — | PARTIAL | — | 1 | Build the open gaps |
 | STE-GAP-003 | STE-GAP | Controlled ±5% Practical Materiality Rounding | — | COMPLETE | — | 1 | Verify the checklist, then record COMPLETED with task_status.py |

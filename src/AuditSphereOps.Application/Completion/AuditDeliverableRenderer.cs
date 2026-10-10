@@ -17,8 +17,8 @@ public sealed record AuditDeliverableModel(
 
 /// <summary>
 /// Renders audit deliverables as Word documents from a data model; optionally embeds a validated PNG signature image
-/// in the signature block. Embedding a picture is not a cryptographic signature; the stored document hash is the
-/// evidence of what was issued.
+/// in the signature block. Embedding a picture is not a cryptographic signature. The final report PDF can in addition
+/// be certificate-signed (ADR-0016), which makes any later change to it detectable in a PDF reader.
 /// </summary>
 public static class AuditDeliverableRenderer
 {
@@ -72,8 +72,47 @@ public static class AuditDeliverableRenderer
     return stream.ToArray();
   }
 
-  /// <summary>Final signed report PDF with its approved signature image; never represented as a certificate signature.</summary>
+  /// <summary>PDF with the approved signature image and seal only; never represented as a certificate signature.</summary>
   public static byte[] RenderPdf(AuditDeliverableModel model)
+  {
+    using var pdf = BuildPdf(model);
+    using var output = new MemoryStream();
+    pdf.Save(output, closeStream: false);
+    return output.ToArray();
+  }
+
+  /// <summary>
+  /// The same document, certificate-signed over its whole content with SHA-256. The signature image and seal remain
+  /// the visible appearance; the certificate signature itself is invisible and is what a PDF reader validates.
+  /// </summary>
+  public static async Task<byte[]> RenderCertificateSignedPdfAsync(AuditDeliverableModel model,
+    System.Security.Cryptography.X509Certificates.X509Certificate2 certificate, string reason)
+  {
+    using var pdf = BuildPdf(model);
+    return await CertificateSignAsync(pdf, certificate, reason, model.FirmName);
+  }
+
+  /// <summary>Certificate-signs an existing PDF (for example the certified financial statements) without changing its pages.</summary>
+  public static async Task<byte[]> CertificateSignPdfAsync(byte[] pdfBytes,
+    System.Security.Cryptography.X509Certificates.X509Certificate2 certificate, string reason, string location)
+  {
+    using var source = new MemoryStream(pdfBytes);
+    using var pdf = PdfSharp.Pdf.IO.PdfReader.Open(source, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Modify);
+    return await CertificateSignAsync(pdf, certificate, reason, location);
+  }
+
+  private static async Task<byte[]> CertificateSignAsync(PdfSharp.Pdf.PdfDocument pdf,
+    System.Security.Cryptography.X509Certificates.X509Certificate2 certificate, string reason, string location)
+  {
+    var options = new PdfSharp.Pdf.Signatures.DigitalSignatureOptions { Reason = reason, Location = location, AppName = "AuditSphere" };
+    PdfSharp.Pdf.Signatures.DigitalSignatureHandler.ForDocument(pdf,
+      new PdfSharp.Pdf.Signatures.PdfSharpDefaultSigner(certificate, PdfSharp.Pdf.Signatures.PdfMessageDigestType.SHA256), options);
+    using var output = new MemoryStream();
+    await pdf.SaveAsync(output, closeStream: false);
+    return output.ToArray();
+  }
+
+  private static PdfSharp.Pdf.PdfDocument BuildPdf(AuditDeliverableModel model)
   {
     AuditSphereOps.Application.Accounting.FinancialPackageOfficeRenderer.EnsurePdfFonts();
     var document = new MigraDoc.DocumentObjectModel.Document();
@@ -136,9 +175,7 @@ public static class AuditDeliverableRenderer
     footer.AddText(model.Reference + " · Page "); footer.AddPageField();
     var renderer = new MigraDoc.Rendering.PdfDocumentRenderer { Document = document };
     renderer.RenderDocument();
-    using var output = new MemoryStream();
-    renderer.PdfDocument.Save(output, closeStream: false);
-    return output.ToArray();
+    return renderer.PdfDocument;
   }
 
   public static bool IsRenderablePng(byte[] bytes)

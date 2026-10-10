@@ -605,6 +605,8 @@ public sealed class AuthorizationDecisionTests
     public DbSet<FirmAccount> FirmAccounts => db.FirmAccounts;
     public DbSet<FirmPeriod> FirmPeriods => db.FirmPeriods;
     public DbSet<FirmJournal> FirmJournals => db.FirmJournals;
+    public DbSet<FirmEndOfServiceTreatment> FirmEndOfServiceTreatments => db.FirmEndOfServiceTreatments;
+    public DbSet<FirmEndOfServiceAccrual> FirmEndOfServiceAccruals => db.FirmEndOfServiceAccruals;
     public DbSet<FirmJournalLine> FirmJournalLines => db.FirmJournalLines;
     public DbSet<FirmPosting> FirmPostings => db.FirmPostings;
     public DbSet<FirmPostingLine> FirmPostingLines => db.FirmPostingLines;
