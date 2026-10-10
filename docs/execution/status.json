@@ -159,7 +159,7 @@
     {
       "gate": "M365-ADMIN",
       "status": "BLOCKED_EXTERNAL",
-      "required": "Development live acceptance observed for optional provisioning, managed group add/remove, guest invitation with HTTPS redirect and Graph-accepted PBC mail request. Configure an approved reachable HTTPS application guest redirect, confirm mailbox delivery and independent/production acceptance; maintain separate capability credentials and tenant consent."
+      "required": "Development live acceptance observed for optional provisioning, managed group add/remove, guest invitation with HTTPS redirect and Graph-accepted PBC mail request. Entra admin consent is observed for the dedicated User.Read.All, Mail.Send and User.Invite.All applications, but AuditSphere remains Consent Required and no capability is enabled or freshly verified. The Group Membership app awaits user registration assent; the combined Administration app remains unchanged and disabled. A read-only Hostinger check found no M365 environment-key names or enable flags and zero PEM/CRT/key files in the configured credential store. The exact-site Sites.Selected write grant and one disposable create/read/delete plus unrelated-site denial probe are user-authorized but pending a dedicated certificate and server configuration. Configure an approved reachable HTTPS guest redirect, restrict mail to an approved sender, confirm delivery to a synthetic recipient, and complete independent/production acceptance; maintain separate capability credentials and tenant consent."
     },
     {
       "gate": "P2b",

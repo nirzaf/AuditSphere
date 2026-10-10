@@ -31,30 +31,36 @@ and `GroupMember.ReadWrite.All`; it remains disabled until the new Group Members
 registered, configured with only its approved application role, and consented. Remove the two
 extra roles only after that replacement is verified.
 
-SharePoint Admin Center and read-only site/library requests confirmed an existing `AuditSphere
-Development` site and an empty `Internal Workpapers` library root. An existing `AuditSphere P0
-Unrelated` site can serve as the negative control; it must not receive an app grant. No site-level
-grant, test upload, or new site creation occurred.
+SharePoint Admin Center and read-only site/library requests confirmed an existing synthetic
+development site and an empty workpapers library root. A separate same-tenant site can serve as the
+negative control and must not receive an app grant. No site-level grant, test upload, or new site
+creation occurred. The user authorized a write grant only to the selected site and one disposable
+file create/read/delete probe, including a denied request to the control site; execution is pending
+the missing server credential/configuration.
 
 The AuditSphere browser page was refreshed after these portal changes. It showed Consent Required,
 no consent attempt and directory `NOT_VERIFIED`; all mutation capabilities were Disabled. The
 selected-resource form was then saved with the existing site, empty workpapers library and App
 mediated profile. AuditSphere reported draft revision 4 in `VALIDATING` and a latest selected-site
 result of `BLOCKED_EXTERNAL` (`selected-resource-draft-edited`); this is not a verified site grant.
-Mail and Records drafts were Not Configured, and no client workspaces existed. Earlier read-only
-VPS inspection found no M365 credential variables or certificate/key files. No VPS configuration
-was changed or rechecked in this continuation, and no external capability was enabled.
+Mail and Records drafts were Not Configured, and no client workspaces existed. A read-only VPS check
+found the deployment `.env` file but no M365 configuration-key names or enable flags; the configured
+credential directory contained zero PEM, CRT or key files. No values were read, no VPS setting or
+credential was changed, and no external capability was enabled.
 
 The tenant page also rendered `BLOCKED_EXTERNAL: configure the separately approved consent identity
-and fixed callback`, with no Connect action. The nonce-bound consent handshake has not started; the
-specific VPS setting or certificate gap remains unknown because the server was not re-inspected.
+and fixed callback`, with no Connect action. The nonce-bound consent handshake has not started. The
+read-only VPS check confirmed that the M365 environment configuration and certificate prerequisites
+are absent; Compose maps the consent flow to the dedicated Directory Reader app ID and its
+disabled-by-default flag and certificate credential.
 
-**Still pending:** user Register assent for the group app; nonce-bound AuditSphere tenant-consent
-handshake; app certificates installed privately on the VPS and matching disabled-by-default
-configuration; the exact `Sites.Selected` grant on the reviewed acceptance site plus a fresh
-positive-target/negative-control boundary verification; approved Exchange sender restriction and
-synthetic recipient for mail; and fresh persisted AuditSphere verification before any capability
-is enabled. Do not place IDs, account names, secrets or certificate material in repository docs.
+**Still pending:** user Register assent for the group app; explicit approval to create/install a
+dedicated selected-site certificate and populate the matching server configuration; the
+nonce-bound AuditSphere tenant-consent handshake; the previously authorized exact-site `write`
+grant and positive-target/negative-control file probe once that credential is installed; approved
+Exchange sender restriction and synthetic recipient for mail; and fresh persisted AuditSphere
+verification before any capability is enabled. Do not place IDs, account names, secrets or
+certificate material in repository docs.
 
 Verification in this documentation slice: current built-in-browser views of Entra, SharePoint Admin
 Center, the selected-site API response and AuditSphere tenant-connection page; no tests, live

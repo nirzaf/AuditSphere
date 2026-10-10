@@ -163,11 +163,11 @@ verification `NOT_VERIFIED`. The Directory Reader and Mail capabilities were Dis
 M365 capability was runtime-verified in this observation.
 
 The tenant-connection page displayed `BLOCKED_EXTERNAL: configure the separately approved consent
-identity and fixed callback` and did not offer the Connect action. The consent handshake therefore
-has not started. The acceptance deployment's current private environment was not re-inspected, so
-the missing or mismatched server setting/certificate is not identified; inspect it on the VPS
-without printing secret values. The deployment guide documents the required consent identity,
-certificate and fixed callbacks.
+identity and fixed callback` and did not offer the Connect action. A read-only VPS check found that
+the deployment `.env` exists but has no M365 configuration-key names or enable flags, and the
+dedicated credential directory has no PEM, CRT or key files. The consent handshake has not started;
+the missing server-side configuration and certificate prerequisites are now identified. No values
+were read or changed. The deployment guide records the checks and fixed callback requirements.
 
 The separate Group Membership app is not yet registered because the final Register action carries
 Microsoft Platform Policies assent and is handed off to the user. The former Administration app
@@ -177,18 +177,19 @@ disabled; after the new Group Membership app is registered and its single role a
 verified, remove `User.Invite.All` and `GroupMember.ReadWrite.All` from the former app, leaving
 `User.Create` only.
 
-The existing SharePoint `AuditSphere Development` site and its empty `Internal Workpapers` library
-were identified as the synthetic selected-resource candidate; `AuditSphere P0 Unrelated` is the
-negative-control site. The selected-resource draft was saved with the App mediated profile and is
-`VALIDATING`; its latest selected-site result is `BLOCKED_EXTERNAL` (`selected-resource-draft-edited`).
-The selected-site permission `Sites.Selected` was consented on its app, but no site-level grant was
-observed and the boundary check has not run. No site was created. Mail also remains disabled
-pending sender-mailbox restriction, an approved synthetic recipient, and server-side
-certificate/configuration.
+An existing synthetic development site and its empty workpapers library were identified as the
+selected-resource target; a separate same-tenant site is the negative control. The selected-resource
+draft was saved with the App mediated profile and is `VALIDATING`; its latest selected-site result
+is `BLOCKED_EXTERNAL` (`selected-resource-draft-edited`). The user authorized a write grant only to
+the selected site and one disposable file create/read/delete probe, including denial at the
+unrelated control site. Neither the grant nor the probe has run because the dedicated certificate
+and server configuration are absent. No site was created. Mail remains disabled pending an approved
+sender restriction, synthetic recipient, and server-side certificate/configuration.
 
-The Hostinger acceptance deployment guide records the live server-side setup state and remaining
-operator steps. Portal consent must never be described as an AuditSphere `CONSENT_VERIFIED` state;
-only the nonce-bound connection flow and fresh persisted capability checks establish those states.
+The Hostinger acceptance deployment guide records the live server-side setup state, the read-only
+configuration inspection, and remaining operator steps. Portal consent must never be described as
+an AuditSphere `CONSENT_VERIFIED` state; only the nonce-bound connection flow and fresh persisted
+capability checks establish those states.
 
 For the live Hostinger acceptance deployment, the dated read-only status, certificate mount,
 callback, capability setup and verification procedure are recorded in the

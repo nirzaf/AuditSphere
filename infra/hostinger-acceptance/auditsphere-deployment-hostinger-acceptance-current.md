@@ -120,9 +120,13 @@ and no client workspace intents existed.
 
 The tenant-connection page explicitly showed `BLOCKED_EXTERNAL: configure the separately approved
 consent identity and fixed callback`; the Connect action was not available, so the nonce-bound
-handshake has not begun. The VPS environment was not re-inspected after the portal changes, and the
-specific missing or mismatched setting/certificate is unknown. Check the server privately against
-the consent prerequisites below without displaying `.env` or credential material.
+handshake has not begun. A read-only check in the Hostinger terminal confirmed that the deployment
+`.env` exists, but no M365 configuration-key names or capability enable flags are present. A
+file-count check under `/opt/auditsphere/storage/m365-credentials` found no PEM, CRT or key files.
+No values were read, and no server setting or credential was changed. This identifies the immediate
+blocker: the consent app ID/enablement and its certificate-backed credential are not configured on
+the server. The fixed callback settings are present in the repository Compose definition; the live
+handshake remains unstarted.
 
 The group-membership registration is prepared in Entra but is not registered: Microsoft displays
 its Platform Policies assent on the final Register action, which remains a user hand-off. The
@@ -131,21 +135,21 @@ existing Administration registration still carries `User.Create`, `User.Invite.A
 registration is registered, has only `GroupMember.ReadWrite.All`, and its tenant consent is
 verified; then leave the old registration with `User.Create` only.
 
-SharePoint Admin Center confirmed the existing `AuditSphere Development` site is present. Its
-`Internal Workpapers` library root was read-only inspected and had zero children. The existing
-`AuditSphere P0 Unrelated` site is available as the same-tenant negative control and must not be
-granted to the selected-site app. No new SharePoint site was created. The existing site and library
-were saved as the selected-resource draft using the App mediated profile (revision 4, state
-`VALIDATING`). The latest selected-site result is `BLOCKED_EXTERNAL` with diagnostic
-`selected-resource-draft-edited`; AuditSphere application consent still reads `REQUIRED`. The
-selected-site app's exact site-level `write` grant has not been made, and no boundary probe or
-disposable upload was run. The SharePoint tenant consent for `Sites.Selected` does not itself
-authorize a site.
+SharePoint Admin Center confirmed an existing synthetic development site and an empty workpapers
+library; a separate same-tenant site is available as the negative control. No new site was created.
+The target and library were saved as the selected-resource draft using the App mediated profile
+(revision 4, state `VALIDATING`). The latest selected-site result is `BLOCKED_EXTERNAL` with
+diagnostic `selected-resource-draft-edited`; AuditSphere application consent still reads `REQUIRED`.
+The user authorized granting `write` only to the selected site and a single disposable file
+create/read/delete probe, plus verification that access to the unrelated control site is denied.
+Neither the grant nor the probe has run because the selected-site certificate is not installed and
+the app is not configured on the server. The SharePoint tenant consent for `Sites.Selected` does
+not itself authorize a site.
 
 No M365 credential or capability flag was installed or enabled on the VPS during this follow-up.
-The earlier read-only host inspection found no M365 variable names or certificate/key files; the
-host was not re-inspected after the portal changes. The repository Compose wiring remains disabled
-by default and has not been confirmed deployed to the VPS.
+The checked `.env` contained no M365 key names or enable flags, and the configured credential store
+contained zero PEM, CRT or key files. No values were displayed or changed. The repository Compose
+wiring remains disabled by default and has not been confirmed deployed to the VPS.
 
 ### Configure a capability
 
@@ -176,13 +180,14 @@ by default and has not been confirmed deployed to the VPS.
    the app, and finish the nonce-bound identity check. Then use **Verify all enabled capabilities**
    and refresh persisted status. A portal consent receipt alone does not update AuditSphere's
    verification rows.
-5. **Verify Selected SharePoint separately.** The owner must provide the exact synthetic test-site
-   URL. Resolve its Site ID, library/drive ID and root folder ID from that site, save the reviewed
-   resource draft, and grant the selected-site app access to that site only. Configure an unrelated
-   same-tenant negative-control site. Run the selected-site boundary check and require both the
-   approved target check and the unrelated-site denial. Only then may a separate workspace
-   activation review proceed. The boundary check writes and reads a disposable test object; use
-   only an approved synthetic site.
+5. **Verify Selected SharePoint separately.** For this acceptance, the existing synthetic
+   development site and its empty workpapers library are the reviewed target; a separate
+   same-tenant site is the negative control. The resource draft is saved. The user authorized a
+   `write` grant only to the reviewed target and one disposable file create/read/delete probe, with
+   the unrelated-site denial checked. The probe is pending until the dedicated certificate and
+   server configuration are installed. Then run the selected-site boundary check and require both
+   the approved-target result and unrelated-site denial before any workspace activation review.
+   Do not create a new site or grant the control site.
 6. **Verify outbound mail separately.** The owner must identify one approved sender mailbox.
    Keep the `Mail.Send` app restricted to that mailbox through the approved Exchange application
    access control, and configure the isolated Acceptance mail worker. The optional `worker-mail`
