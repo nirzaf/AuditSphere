@@ -17,7 +17,7 @@ namespace AuditSphereOps.Domain.Tests;
 /// through the real Application services, external-operation lifecycle and durable mail worker. It creates
 /// real directory objects and sends real email, so it runs only when AUDITSPHERE_LIVE_M365_MUTATIONS=1 and
 /// every live input is supplied as a private environment variable; otherwise it reports BLOCKED_EXTERNAL.
-/// Inputs: the AUDITSPHERE_LIVE_M365_TENANT_ID and READER/ADMIN/MAIL CLIENT_ID, CERT and KEY triples used by
+/// Inputs: the AUDITSPHERE_LIVE_M365_TENANT_ID and READER/PROVISIONING/INVITATION/GROUPS/MAIL CLIENT_ID, CERT and KEY triples used by
 /// <see cref="LiveMicrosoftTenantAcceptanceTests"/>, plus CONSENT_CLIENT_ID, CONSENT_REDIRECT_URI, MAIL_SENDER, RECIPIENT (an operator-approved
 /// external address), GROUP_ID (a non-role-assignable security group) and UPN_DOMAIN. The operator removes the
 /// synthetic user and guest it reports (the administration identity deliberately cannot delete users).
@@ -27,9 +27,9 @@ public sealed class LiveTenantAdministrationMutationTests(ITestOutputHelper outp
 {
   private static string? Env(string name) => Environment.GetEnvironmentVariable("AUDITSPHERE_LIVE_M365_" + name);
 
-  private static GraphCapabilityCredentialOptions? Credential(string tenant, string prefix, string role, IReadOnlySet<string>? approved = null) =>
+  private static GraphCapabilityCredentialOptions? Credential(string tenant, string prefix, string role) =>
     Guid.TryParse(Env(prefix + "_CLIENT_ID"), out _) && File.Exists(Env(prefix + "_CERT")) && File.Exists(Env(prefix + "_KEY"))
-      ? new(true, tenant, Env(prefix + "_CLIENT_ID")!, Env(prefix + "_CERT")!, Env(prefix + "_KEY")!, role, approved)
+      ? new(true, tenant, Env(prefix + "_CLIENT_ID")!, Env(prefix + "_CERT")!, Env(prefix + "_KEY")!, role)
       : null;
 
   [Fact]
@@ -37,13 +37,12 @@ public sealed class LiveTenantAdministrationMutationTests(ITestOutputHelper outp
   public async Task ProvisioningGroupMembershipGuestInvitationAndMail_OrBlockedExternal()
   {
     var tenant = Env("TENANT_ID");
-    var adminRoles = new HashSet<string>(StringComparer.Ordinal) { "User.Create", "User.Invite.All", "GroupMember.ReadWrite.All" };
     var reader = Guid.TryParse(tenant, out _) ? Credential(tenant!, "READER", "User.Read.All") : null;
-    var create = reader is null ? null : Credential(tenant!, "ADMIN", "User.Create", adminRoles);
-    var invite = reader is null ? null : Credential(tenant!, "ADMIN", "User.Invite.All", adminRoles);
-    var groups = reader is null ? null : Credential(tenant!, "ADMIN", "GroupMember.ReadWrite.All", adminRoles);
+    var create = reader is null ? null : Credential(tenant!, "PROVISIONING", "User.Create");
+    var invite = reader is null ? null : Credential(tenant!, "INVITATION", "User.Invite.All");
+    var groups = reader is null ? null : Credential(tenant!, "GROUPS", "GroupMember.ReadWrite.All");
     var mail = reader is null ? null : Credential(tenant!, "MAIL", "Mail.Send");
-    if (Env("MUTATIONS") != "1" || reader is null || create is null || mail is null ||
+    if (Env("MUTATIONS") != "1" || reader is null || create is null || invite is null || groups is null || mail is null ||
         !Guid.TryParse(Env("GROUP_ID"), out var groupId) || string.IsNullOrWhiteSpace(Env("RECIPIENT")) ||
         string.IsNullOrWhiteSpace(Env("MAIL_SENDER")) || string.IsNullOrWhiteSpace(Env("UPN_DOMAIN")))
     {

@@ -38,10 +38,6 @@ public sealed record TenantAdministrationSettings(
 
 public static class TenantAdministrationComposition
 {
-  /// <summary>The only roles the shared tenant-administration identity may hold.</summary>
-  public static readonly IReadOnlySet<string> TenantAdministrationRoleSet =
-    new HashSet<string>(StringComparer.Ordinal) { "User.Create", "User.Invite.All", "GroupMember.ReadWrite.All" };
-
   public static void Register(WebApplicationBuilder builder)
   {
     var configuration = builder.Configuration;
@@ -71,34 +67,39 @@ public static class TenantAdministrationComposition
     }
     else
     {
-      // Each capability uses its own app identity holding exactly its documented permission. The three
-      // tenant-administration capabilities may share one approved identity limited to exactly their roles.
-      GraphCapabilityCredentialOptions Credential(string path, string role, bool enabled,
-        IReadOnlySet<string>? approved = null) => new(enabled,
+      // Every capability uses a distinct app identity holding only its documented permission.
+      GraphCapabilityCredentialOptions Credential(string path, string role, bool enabled) => new(enabled,
         settings.Options.TenantId, configuration[$"{path}:ClientId"] ?? string.Empty,
-        configuration[$"{path}:CertificatePath"] ?? string.Empty, configuration[$"{path}:PrivateKeyPath"] ?? string.Empty, role, approved);
-      var administrationRoles = TenantAdministrationRoleSet;
+        configuration[$"{path}:CertificatePath"] ?? string.Empty, configuration[$"{path}:PrivateKeyPath"] ?? string.Empty, role);
       var reader = Credential("DirectoryReader", "User.Read.All", configuration.GetValue<bool>("DirectoryReader:Enabled"));
-      var provisioning = Credential("TenantAdministration:Provisioning", "User.Create", settings.Options.ProvisioningEnabled, administrationRoles);
-      var invitation = Credential("TenantAdministration:GuestInvitation", "User.Invite.All", settings.Options.GuestInvitationEnabled, administrationRoles);
-      var groupMembership = Credential("TenantAdministration:GroupMembership", "GroupMember.ReadWrite.All", settings.Options.GroupMembershipEnabled, administrationRoles);
+      var provisioning = Credential("TenantAdministration:Provisioning", "User.Create", settings.Options.ProvisioningEnabled);
+      var invitation = Credential("TenantAdministration:GuestInvitation", "User.Invite.All", settings.Options.GuestInvitationEnabled);
+      var groupMembership = Credential("TenantAdministration:GroupMembership", "GroupMember.ReadWrite.All", settings.Options.GroupMembershipEnabled);
       var mail = Credential("TenantAdministration:OutboundMail", "Mail.Send", settings.Options.OutboundMailEnabled);
       var selectedSite = Credential("SelectedSite", "Sites.Selected", !string.IsNullOrWhiteSpace(configuration["SelectedSite:ClientId"]));
-      foreach (var (name, credential) in new[] { ("Provisioning", provisioning), ("GuestInvitation", invitation),
+      foreach (var (name, credential) in new[] { ("DirectoryReader", reader), ("SelectedSite", selectedSite),
+                 ("Provisioning", provisioning), ("GuestInvitation", invitation),
                  ("GroupMembership", groupMembership), ("OutboundMail", mail) })
       {
         if (!credential.Enabled) continue;
         if (!credential.IsComplete)
-          throw new InvalidOperationException($"TenantAdministration:{name} is enabled without a complete separate certificate credential.");
-        if (string.Equals(credential.ClientId, configuration["Identity:ClientId"], StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(credential.ClientId, configuration["SelectedSite:ClientId"], StringComparison.OrdinalIgnoreCase))
-          throw new InvalidOperationException($"TenantAdministration:{name} must use an app identity separate from sign-in and the selected-site worker.");
-        if (string.Equals(credential.ClientId, configuration["DirectoryReader:ClientId"], StringComparison.OrdinalIgnoreCase))
-          throw new InvalidOperationException($"TenantAdministration:{name} must use an app identity separate from the directory reader.");
+          throw new InvalidOperationException($"Microsoft 365 capability {name} is configured without a complete separate certificate credential.");
       }
-      if (mail.Enabled && new[] { provisioning, invitation, groupMembership }.Any(x => x.Enabled &&
-            string.Equals(x.ClientId, mail.ClientId, StringComparison.OrdinalIgnoreCase)))
-        throw new InvalidOperationException("TenantAdministration:OutboundMail must use its own app identity.");
+      var identities = new[]
+      {
+        (Name: "Identity", ClientId: configuration["Identity:ClientId"], Enabled: true),
+        (Name: "DirectoryReader", ClientId: reader.ClientId, Enabled: reader.Enabled),
+        (Name: "SelectedSite", ClientId: selectedSite.ClientId, Enabled: selectedSite.Enabled),
+        (Name: "TenantAdministration:Provisioning", ClientId: provisioning.ClientId, Enabled: provisioning.Enabled),
+        (Name: "TenantAdministration:GuestInvitation", ClientId: invitation.ClientId, Enabled: invitation.Enabled),
+        (Name: "TenantAdministration:GroupMembership", ClientId: groupMembership.ClientId, Enabled: groupMembership.Enabled),
+        (Name: "TenantAdministration:OutboundMail", ClientId: mail.ClientId, Enabled: mail.Enabled)
+      };
+      var duplicateIdentity = identities.Where(x => x.Enabled && !string.IsNullOrWhiteSpace(x.ClientId))
+        .GroupBy(x => x.ClientId!, StringComparer.OrdinalIgnoreCase)
+        .FirstOrDefault(group => group.Count() > 1);
+      if (duplicateIdentity is not null)
+        throw new InvalidOperationException($"Microsoft 365 capability identities must be distinct; {string.Join(", ", duplicateIdentity.Select(x => x.Name))} reuse one app identity.");
       if (settings.Options.GuestInvitationEnabled &&
           (!Uri.TryCreate(settings.Options.GuestRedirectUrl, UriKind.Absolute, out var redirect) ||
            redirect.Scheme != Uri.UriSchemeHttps && !(builder.Environment.IsDevelopment() && redirect.IsLoopback)))

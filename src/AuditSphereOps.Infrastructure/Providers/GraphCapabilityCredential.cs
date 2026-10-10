@@ -8,16 +8,14 @@ namespace AuditSphereOps.Infrastructure.Providers;
 
 /// <summary>
 /// One Microsoft capability = one app identity with one certificate and exactly one Graph application
-/// role, unless the deployment approved a shared identity for a fixed role set (the tenant administration
-/// app: User.Create, User.Invite.All, GroupMember.ReadWrite.All). A token holding any other role is refused.
+/// role. A token holding a different or additional role is refused.
 /// Certificate/private-key files come from an approved secret store mount; nothing here is persisted.
 /// </summary>
 public sealed record GraphCapabilityCredentialOptions(
-  bool Enabled, string TenantId, string ClientId, string CertificatePath, string PrivateKeyPath, string RequiredRole,
-  IReadOnlySet<string>? ApprovedRoleSet = null)
+  bool Enabled, string TenantId, string ClientId, string CertificatePath, string PrivateKeyPath, string RequiredRole)
 {
-  /// <summary>Roles the identity may hold: the approved shared set, otherwise only the required role.</summary>
-  public IReadOnlySet<string> AllowedRoles => ApprovedRoleSet ?? new HashSet<string>(StringComparer.Ordinal) { RequiredRole };
+  /// <summary>The one application role permitted for this capability identity.</summary>
+  public IReadOnlySet<string> AllowedRoles => new HashSet<string>(StringComparer.Ordinal) { RequiredRole };
 
   public bool IsComplete => Enabled && Guid.TryParse(TenantId, out _) && Guid.TryParse(ClientId, out _) &&
     Path.IsPathFullyQualified(CertificatePath) && Path.IsPathFullyQualified(PrivateKeyPath) &&

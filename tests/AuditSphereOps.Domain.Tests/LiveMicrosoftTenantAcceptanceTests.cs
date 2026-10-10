@@ -11,7 +11,7 @@ namespace AuditSphereOps.Domain.Tests;
 /// capability — never a fake pass. Live inputs are private environment variables, never repository files:
 /// AUDITSPHERE_LIVE_M365_TENANT_ID, AUDITSPHERE_LIVE_M365_READER_CLIENT_ID,
 /// AUDITSPHERE_LIVE_M365_READER_CERT, AUDITSPHERE_LIVE_M365_READER_KEY, and optionally the
-/// AUDITSPHERE_LIVE_M365_ADMIN_* and AUDITSPHERE_LIVE_M365_MAIL_* CLIENT_ID/CERT/KEY triples.
+/// AUDITSPHERE_LIVE_M365_PROVISIONING_*, INVITATION_*, GROUPS_* and MAIL_* CLIENT_ID/CERT/KEY triples.
 /// </summary>
 [Trait("Category", "LiveMicrosoft")]
 public sealed class LiveMicrosoftTenantAcceptanceTests(ITestOutputHelper output)
@@ -28,24 +28,23 @@ public sealed class LiveMicrosoftTenantAcceptanceTests(ITestOutputHelper output)
     using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
     var reader = new GraphCapabilityCredentialOptions(live, tenantId, client ?? string.Empty, cert ?? string.Empty, key ?? string.Empty, "User.Read.All");
     var tokens = new Dictionary<string, GraphCapabilityTokenSource> { [Microsoft365Capabilities.DirectoryRead] = new(http, reader) };
-    // Optional live credentials for the shared tenant-administration identity and the mail identity.
-    var adminRoles = new HashSet<string>(StringComparer.Ordinal) { "User.Create", "User.Invite.All", "GroupMember.ReadWrite.All" };
-    GraphCapabilityCredentialOptions? Optional(string prefix, string role, IReadOnlySet<string>? approved = null)
+    // Each capability uses its own app identity and exactly one Graph application role.
+    GraphCapabilityCredentialOptions? Optional(string prefix, string role)
     {
       var id = Environment.GetEnvironmentVariable($"AUDITSPHERE_LIVE_M365_{prefix}_CLIENT_ID");
       var c = Environment.GetEnvironmentVariable($"AUDITSPHERE_LIVE_M365_{prefix}_CERT");
       var k = Environment.GetEnvironmentVariable($"AUDITSPHERE_LIVE_M365_{prefix}_KEY");
       return live && Guid.TryParse(id, out _) && File.Exists(c) && File.Exists(k)
-        ? new(true, tenantId, id!, c!, k!, role, approved) : null;
+        ? new(true, tenantId, id!, c!, k!, role) : null;
     }
-    foreach (var (capability, prefix, role, approved) in new (string, string, string, IReadOnlySet<string>?)[]
+    foreach (var (capability, prefix, role) in new (string, string, string)[]
              {
-               (Microsoft365Capabilities.TenantUserProvisioning, "ADMIN", "User.Create", adminRoles),
-               (Microsoft365Capabilities.GuestInvitation, "ADMIN", "User.Invite.All", adminRoles),
-               (Microsoft365Capabilities.GroupMembership, "ADMIN", "GroupMember.ReadWrite.All", adminRoles),
-               (Microsoft365Capabilities.OutboundMail, "MAIL", "Mail.Send", null),
+               (Microsoft365Capabilities.TenantUserProvisioning, "PROVISIONING", "User.Create"),
+               (Microsoft365Capabilities.GuestInvitation, "INVITATION", "User.Invite.All"),
+               (Microsoft365Capabilities.GroupMembership, "GROUPS", "GroupMember.ReadWrite.All"),
+               (Microsoft365Capabilities.OutboundMail, "MAIL", "Mail.Send"),
              })
-      if (Optional(prefix, role, approved) is { } credential) tokens[capability] = new(http, credential);
+      if (Optional(prefix, role) is { } credential) tokens[capability] = new(http, credential);
     var verifier = new GraphTenantConsentVerifier(http,
       new TenantConsentVerifierOptions(false, tenantId, client ?? string.Empty, string.Empty, cert ?? string.Empty, key ?? string.Empty),
       tokens);

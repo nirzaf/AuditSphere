@@ -56,6 +56,39 @@ services:
       Identity__CallbackPath: /signin-oidc
       DevelopmentIdentity__Enabled: "false"
       ExternalEffects__Enabled: "false"
+      TenantConsent__Enabled: ${TENANT_CONSENT_ENABLED:-false}
+      TenantConsent__ClientId: ${TENANT_CONSENT_CLIENT_ID:-}
+      TenantConsent__RedirectUri: https://audit.steaudit.com/auth/m365-consent/callback
+      TenantConsent__IdentityRedirectUri: https://audit.steaudit.com/auth/m365-consent/identity-callback
+      DirectoryReader__Enabled: ${DIRECTORY_READER_ENABLED:-false}
+      DirectoryReader__ClientId: ${DIRECTORY_READER_CLIENT_ID:-}
+      DirectoryReader__CertificatePath: /run/auditsphere/m365/directory-reader/certificate.pem
+      DirectoryReader__PrivateKeyPath: /run/auditsphere/m365/directory-reader/private-key.pem
+      SelectedSite__TenantId: ${IDENTITY_TENANT_ID:?Set IDENTITY_TENANT_ID in .env}
+      SelectedSite__ClientId: ${SELECTED_SITE_CLIENT_ID:-}
+      SelectedSite__CredentialReference: ${SELECTED_SITE_CREDENTIAL_REFERENCE:-hostinger-acceptance-selected-site-certificate}
+      SelectedSite__CertificatePath: /run/auditsphere/m365/selected-site/certificate.pem
+      SelectedSite__PrivateKeyPath: /run/auditsphere/m365/selected-site/private-key.pem
+      SelectedSite__NegativeControlSiteUrl: ${SELECTED_SITE_NEGATIVE_CONTROL_URL:-}
+      PbcTransfer__LiveProvider: ${PBC_TRANSFER_LIVE_PROVIDER:-false}
+      TenantAdministration__GuestRedirectUrl: ${TENANT_ADMINISTRATION_GUEST_REDIRECT_URL:-https://audit.steaudit.com/auth/landing}
+      TenantAdministration__Provisioning__Enabled: ${TENANT_ADMINISTRATION_PROVISIONING_ENABLED:-false}
+      TenantAdministration__Provisioning__ClientId: ${TENANT_ADMINISTRATION_PROVISIONING_CLIENT_ID:-}
+      TenantAdministration__Provisioning__CertificatePath: /run/auditsphere/m365/provisioning/certificate.pem
+      TenantAdministration__Provisioning__PrivateKeyPath: /run/auditsphere/m365/provisioning/private-key.pem
+      TenantAdministration__GuestInvitation__Enabled: ${TENANT_ADMINISTRATION_GUEST_INVITATION_ENABLED:-false}
+      TenantAdministration__GuestInvitation__ClientId: ${TENANT_ADMINISTRATION_GUEST_INVITATION_CLIENT_ID:-}
+      TenantAdministration__GuestInvitation__CertificatePath: /run/auditsphere/m365/guest-invitation/certificate.pem
+      TenantAdministration__GuestInvitation__PrivateKeyPath: /run/auditsphere/m365/guest-invitation/private-key.pem
+      TenantAdministration__GroupMembership__Enabled: ${TENANT_ADMINISTRATION_GROUP_MEMBERSHIP_ENABLED:-false}
+      TenantAdministration__GroupMembership__ClientId: ${TENANT_ADMINISTRATION_GROUP_MEMBERSHIP_CLIENT_ID:-}
+      TenantAdministration__GroupMembership__CertificatePath: /run/auditsphere/m365/group-membership/certificate.pem
+      TenantAdministration__GroupMembership__PrivateKeyPath: /run/auditsphere/m365/group-membership/private-key.pem
+      TenantAdministration__OutboundMail__Enabled: ${OUTBOUND_MAIL_ENABLED:-false}
+      TenantAdministration__OutboundMail__ClientId: ${OUTBOUND_MAIL_CLIENT_ID:-}
+      TenantAdministration__OutboundMail__SenderMailbox: ${OUTBOUND_MAIL_SENDER_MAILBOX:-}
+      TenantAdministration__OutboundMail__CertificatePath: /run/auditsphere/m365/outbound-mail/certificate.pem
+      TenantAdministration__OutboundMail__PrivateKeyPath: /run/auditsphere/m365/outbound-mail/private-key.pem
       FeatureActivation__LiveAuditRelease: "false"
       ForwardedHeaders__KnownProxies__0: 172.29.91.1
       Storage__PbcStagingRoot: /var/lib/auditsphere/pbc-staging
@@ -64,6 +97,7 @@ services:
       - data_protection:/app/data-protection-home
       - pbc_staging:/var/lib/auditsphere/pbc-staging
       - release_checkpoints:/var/lib/auditsphere/release-checkpoints
+      - m365_credentials:/run/auditsphere/m365:ro
     ports:
       - "127.0.0.1:18080:8080"
     depends_on:
@@ -128,6 +162,55 @@ services:
     networks:
       - acceptance
 
+  worker-mail:
+    profiles: ["m365-mail"]
+    image: ghcr.io/nirzaf/auditsphere-acceptance-worker:${RELEASE_TAG:?Set RELEASE_TAG in .env}
+    restart: unless-stopped
+    init: true
+    environment:
+      <<: *worker_environment
+      Worker__Group: mail
+      ExternalEffects__Enabled: "true"
+      Mail__Provider: GRAPH
+      GraphMail__TenantId: ${IDENTITY_TENANT_ID:?Set IDENTITY_TENANT_ID in .env}
+      GraphMail__ClientId: ${OUTBOUND_MAIL_CLIENT_ID:-}
+      GraphMail__SenderMailbox: ${OUTBOUND_MAIL_SENDER_MAILBOX:-}
+      GraphMail__CertificatePath: /run/auditsphere/m365/outbound-mail/certificate.pem
+      GraphMail__PrivateKeyPath: /run/auditsphere/m365/outbound-mail/private-key.pem
+    volumes:
+      - pbc_staging:/var/lib/auditsphere/pbc-staging
+      - release_checkpoints:/var/lib/auditsphere/release-checkpoints
+      - m365_credentials:/run/auditsphere/m365:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - acceptance
+
+  worker-pbc:
+    profiles: ["m365-pbc"]
+    image: ghcr.io/nirzaf/auditsphere-acceptance-worker:${RELEASE_TAG:?Set RELEASE_TAG in .env}
+    restart: unless-stopped
+    init: true
+    environment:
+      <<: *worker_environment
+      Worker__Group: pbc
+      ExternalEffects__Enabled: "true"
+      SelectedSite__TenantId: ${IDENTITY_TENANT_ID:?Set IDENTITY_TENANT_ID in .env}
+      SelectedSite__ClientId: ${SELECTED_SITE_CLIENT_ID:-}
+      SelectedSite__CredentialReference: ${SELECTED_SITE_CREDENTIAL_REFERENCE:-hostinger-acceptance-selected-site-certificate}
+      SelectedSite__CertificatePath: /run/auditsphere/m365/selected-site/certificate.pem
+      SelectedSite__PrivateKeyPath: /run/auditsphere/m365/selected-site/private-key.pem
+    volumes:
+      - pbc_staging:/var/lib/auditsphere/pbc-staging
+      - release_checkpoints:/var/lib/auditsphere/release-checkpoints
+      - m365_credentials:/run/auditsphere/m365:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - acceptance
+
 volumes:
   postgres_data:
     driver: local
@@ -153,6 +236,12 @@ volumes:
       type: none
       o: bind
       device: /opt/auditsphere/storage/release-checkpoints
+  m365_credentials:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/auditsphere/storage/m365-credentials
 
 networks:
   acceptance:

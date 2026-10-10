@@ -17,7 +17,7 @@ and data only.
 
 ## Deployment outline
 
-Run commands from `/opt/auditsphere/infra/hostinger-acceptance` on the VPS. The deployment
+Run commands from `/opt/auditsphere/repo/infra/hostinger-acceptance` on the VPS. The deployment
 operator must first install Git and Docker Compose if unavailable, create `/opt/auditsphere` with
 owner-only access, and check out the approved source revision there. Do not run OS upgrades or
 restart the VPS as part of this deployment.
@@ -75,6 +75,92 @@ Run `fallocate` after `mkfs.ext4`; formatting the image can discard preallocated
    certificate is validated.
 7. Bootstrap the initial firm administrator through the application's proof-backed setup flow.
    Confirm only synthetic acceptance records are present.
+
+## Microsoft 365 capability setup
+
+Microsoft 365 is configured capability by capability. OIDC sign-in, tenant consent, a Graph
+application permission, a SharePoint site grant, library access, mail transport and AuditSphere
+workspace activation are separate states. Never set the saved Mail or Records setup draft to
+Configured as a substitute for external verification.
+
+### Acceptance deployment observation (2026-10-10)
+
+The deployed `Administration → Microsoft 365 → Tenant connection` page and Hostinger web terminal
+were inspected read-only. Sign-in was Enabled and Verified. The tenant connection showed Consent
+Required, no recorded attempt, and directory verification `NOT_VERIFIED`. The `Sites.Selected`
+capability was Enabled but Not Verified; its site URL, site ID, drive/library ID and root folder ID
+were blank. Directory reading, outbound mail, user provisioning, guest invitations and group
+membership were Disabled. Mail and Records setup drafts were Not Configured. No client or
+engagement workspace intents were present.
+
+The current Entra registration page for the selected-site app showed tenant consent for
+`Sites.Selected` and delegated `User.Read`. That consent is not an exact SharePoint site grant and
+does not prove access to a library or root folder. The Directory Reader registration listed
+`User.Read.All`, but the portal did not show a tenant grant for it. The Mail registration listed
+`Mail.Send`, but the portal did not show a tenant grant for it. The Administration registration
+showed all three application roles (`User.Create`, `User.Invite.All`,
+`GroupMember.ReadWrite.All`) granted; this combined identity does not meet the current
+one-role-per-app policy and must remain disabled until split. The server `.env` inspection found no
+M365 capability key names, and a file-name-only search under `/opt/auditsphere` found no PEM, CRT
+or key files. No secret values were displayed. Therefore the acceptance server had no usable Graph
+capability credentials at this observation. No Graph capability or external effect was enabled
+by this inspection.
+
+### Configure a capability
+
+1. **Use a dedicated app identity.** Keep the OIDC sign-in application separate. Give each Graph
+   identity exactly one application role: `User.Read.All`, `Sites.Selected`, `Mail.Send`,
+   `User.Create`, `User.Invite.All` or `GroupMember.ReadWrite.All`. Do not enable the existing
+   combined Administration registration until its permissions have been split. Do not grant
+   `Directory.ReadWrite.All`, broad SharePoint scopes or directory-role assignment.
+2. **Create and install a certificate per Graph identity.** The API and optional M365 workers read
+   only the read-only mount `/run/auditsphere/m365`; its host source is
+   `/opt/auditsphere/storage/m365-credentials`. Create the host directory with owner-only
+   permissions and keep each private key in its capability subdirectory. Upload only the public
+   certificate to the matching Entra app. The repository and browser/chat are not credential
+   stores. The compose wiring maps certificate paths for Directory Reader, Selected Site,
+   provisioning, guest invitation, group membership and outbound mail. All corresponding switches
+   default to `false`.
+3. **Set deployment configuration privately.** Use `.env` for non-secret enablement flags,
+   application IDs, sender mailbox and approved resource targets. Configure `TENANT_CONSENT_*`,
+   `DIRECTORY_READER_*`, `SELECTED_SITE_*`, `TENANT_ADMINISTRATION_*` and `OUTBOUND_MAIL_*` only
+   after the matching registration, certificate and consent are ready. Never print or commit `.env`.
+   Keep `ExternalEffects__Enabled=false` for the API and core workers.
+4. **Complete the consent handshake.** Register the fixed callback
+   `https://audit.steaudit.com/auth/m365-consent/callback` and identity callback
+   `https://audit.steaudit.com/auth/m365-consent/identity-callback`. From the tenant-connection
+   page, start the reviewed consent flow, complete the Microsoft administrator step, return to
+   the app, and finish the nonce-bound identity check. Then use **Verify all enabled capabilities**
+   and refresh persisted status. A portal consent receipt alone does not update AuditSphere's
+   verification rows.
+5. **Verify Selected SharePoint separately.** The owner must provide the exact synthetic test-site
+   URL. Resolve its Site ID, library/drive ID and root folder ID from that site, save the reviewed
+   resource draft, and grant the selected-site app access to that site only. Configure an unrelated
+   same-tenant negative-control site. Run the selected-site boundary check and require both the
+   approved target check and the unrelated-site denial. Only then may a separate workspace
+   activation review proceed. The boundary check writes and reads a disposable test object; use
+   only an approved synthetic site.
+6. **Verify outbound mail separately.** The owner must identify one approved sender mailbox.
+   Keep the `Mail.Send` app restricted to that mailbox through the approved Exchange application
+   access control, and configure the isolated Acceptance mail worker. The optional `worker-mail`
+   service is excluded from default startup; it can run only through the `m365-mail` Compose
+   profile. Send only a reviewed test to a controlled synthetic recipient. Do not start that
+   profile until the permission, mailbox restriction, recipient and queued operation have been
+   reviewed.
+7. **Keep directory mutations off until individually reviewed.** Provisioning, invitations and
+   group membership each need their own one-role app and consent. Use only synthetic test users,
+   a designated test group and an HTTPS guest redirect. Review the exact target before enabling
+   any operation; do not infer an AuditSphere role from Microsoft group membership.
+
+The optional `worker-pbc` service is also excluded from default startup and requires the
+`m365-pbc` profile. `PBC_TRANSFER_LIVE_PROVIDER` defaults to `false`; enabling it changes new
+client uploads from a local queue disposition to live SharePoint delivery. Start that worker only
+after the approved site and negative-control checks pass, and after reviewing the exact queued
+synthetic transfer. The `client-sites` privileged worker remains a separate owner-approved rollout.
+
+The compose changes in the repository remain disabled by default. A deployed status changes only
+after the approved revision is deployed and the relevant capability is freshly verified in the UI.
+The observation above remains the live-server baseline until then.
 
 ## Operational boundaries
 
