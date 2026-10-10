@@ -52,28 +52,31 @@ Entra app, and wrote that app ID and the unrelated control-site URL to the prote
 The tenant page also rendered `BLOCKED_EXTERNAL: configure the separately approved consent identity
 and fixed callback`, with no Connect action. The nonce-bound consent handshake has not started. The
 consent app ID, certificate and enablement remain absent from the deployment configuration. The
-Selected Site flag remains off, and no M365 capability is enabled. A read-only check inside the
-already-running API container confirmed that it cannot read the newly created certificate files and
-does not have the new app ID in its environment. Services were left untouched as instructed; the
-running API therefore needs a separately approved configuration reload before it can use the new
-files.
+Selected Site flag remains off, and no M365 capability is enabled. A read-only inspection of the
+running API container found no `/run/auditsphere/m365` mount and no Selected Site app ID or
+certificate-path environment setting. The checked-in Compose file declares the expected mount and
+settings, but the running container is not using that configuration. Services were left untouched as
+instructed; a separately approved API-container recreation from the current Compose configuration
+is required before the certificate can be used.
 
 The exact site grant and file probe remain pending. Microsoft Graph's site-permission creation API
 requires `Sites.FullControl.All`; that tenant-wide permission was not added to any app. Use an
 approved administrator grant path without broadening the Selected Site app. No site permission or
 file was changed. The unrelated control site received no grant.
 
-**Still pending:** user Register assent for the group app; a separately approved API configuration
-reload; the nonce-bound AuditSphere tenant-consent handshake; the exact-site `write` grant and
+**Still pending:** user Register assent for the group app; a separately approved API-container
+recreation from the current Compose configuration, with the Selected Site flag off; the nonce-bound
+AuditSphere tenant-consent handshake; the exact-site `write` grant and
 positive-target/negative-control file probe; the dedicated consent app and its certificate-backed
 configuration; approved Exchange sender restriction and synthetic recipient for mail; and fresh
 persisted AuditSphere verification before any capability is enabled. Do not place IDs, account names,
 secrets or certificate material in repository docs.
 
 Verification in this documentation slice: current built-in-browser views of Entra, SharePoint Admin
-Center, the selected-site API response and AuditSphere tenant-connection page; GitHub Actions for the
-preceding documentation commit passed Angular, .NET Release and Docs Health. No site permission,
-live capability probe, disposable file, mail send or service restart was performed.
+Center, the selected-site API response and AuditSphere tenant-connection page; read-only VPS
+container inspection; GitHub Actions run #1242 for commit `ab322af6` passed Angular, .NET Release
+and Docs Health. No site permission, live capability probe, disposable file, mail send or service
+restart was performed.
 
 ## STE v2.1 evidence mapping and full-suite runs — 2026-10-09
 

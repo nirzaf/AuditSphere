@@ -160,11 +160,11 @@ The protected `.env` now contains that non-secret app ID and the separate contro
 Selected Site enablement flag remains off; no capability was enabled and no service was restarted.
 Certificate contents, IDs and exact tenant resource URLs are intentionally omitted.
 
-A read-only check of the current API container shows it cannot read either certificate file and its
-process environment does not contain the new app ID. The bind mount and environment were captured
-when the container started, before these files/settings were added. Leave this container untouched
-until the owner separately authorizes a configuration reload; do not report the credential as
-runtime-available yet.
+A read-only inspection of the current API container found no `/run/auditsphere/m365` mount and no
+Selected Site app ID or certificate-path environment setting. The checked-in Compose file declares
+the mount and settings, but the running container is not using that configuration. Recreating the
+API container from the current Compose configuration requires separate owner approval. The service
+was left untouched, the capability flag remains off, and the credential is not runtime-available.
 
 No exact-site permission or test file has been created. Microsoft Graph's site-permission creation
 API requires `Sites.FullControl.All` for the grant operation. The Selected Site app was not given

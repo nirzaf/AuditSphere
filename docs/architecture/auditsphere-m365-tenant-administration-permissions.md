@@ -184,10 +184,13 @@ is `BLOCKED_EXTERNAL` (`selected-resource-draft-edited`). The user authorized a 
 the selected site and one disposable file create/read/delete probe, including denial at the
 unrelated control site. A later authorized setup created the dedicated certificate on the VPS,
 uploaded only its public certificate to the matching Entra app, and stored the non-secret app ID and
-control-site URL in the protected deployment `.env`. The capability switch remains off. The running
-API container cannot read the new certificate or see its app ID; it was left untouched and requires
-a separately approved configuration reload. Neither the site grant nor probe has run, and no site
-permission or file was changed. Microsoft Graph requires `Sites.FullControl.All` for the site
+control-site URL in the protected deployment `.env`. The capability switch remains off. A read-only
+inspection found that the running API container has no `/run/auditsphere/m365` mount and no Selected
+Site app ID or certificate-path environment setting. The checked-in Compose file declares these
+settings, but the running container is not using that configuration. A separately approved API
+container recreation from the current Compose configuration is required; it was not restarted.
+Neither the site grant nor probe has run, and no site permission or file was changed. Microsoft Graph
+requires `Sites.FullControl.All` for the site
 permission-creation operation; that tenant-wide permission was not added to the Selected Site app.
 The grant still needs an approved administrator mechanism that does not widen the runtime app.
 Mail remains disabled pending an approved sender restriction, synthetic recipient, and server-side
