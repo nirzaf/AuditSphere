@@ -607,25 +607,24 @@ Client locking and database checks fence overlapping approvals, self-review and 
 
 Two managed solution-build attempts were interrupted when a concurrent process merged the branches and removed their checkouts. The preserved test/contract commit passed the full solution build in an independent temporary verification checkout. Work continues in a new managed worktree, with user-authorized cleanup coordination requested. This role slice does not implement default/system invoice postings, AR/AP open items, approved-role replacement or end-date amendments. The full epic remains active; the final merge is pending completion. The calculator-baseline regression continues separately and must not be attributed to this newer model.
 
-## Hostinger acceptance Microsoft 365 readiness snapshot (2026-10-10)
+## Hostinger acceptance Microsoft 365 readiness snapshot (2026-10-10, refreshed)
 
-The live tenant-connection page showed sign-in Enabled/Verified, consent Required with no recorded
-attempt, directory verification `NOT_VERIFIED`, and Selected SharePoint Enabled/Not Verified with
-the site, drive and root IDs blank. Outbound mail, directory reading, provisioning, invitations and
-group membership were Disabled; saved Mail and Records setup drafts were Not Configured. The
-Entra showed consent for `Sites.Selected` on the selected-site registration, but that is not the
-exact-site grant or a resource-boundary check. The Directory Reader `User.Read.All` and Mail
-`Mail.Send` permission rows did not show a tenant grant. The Administration app had its three
-mutation permissions granted together, which does not meet the one-role-per-app policy. A
-read-only Hostinger terminal inspection found no M365 capability variables in the deployment
-`.env` and no certificate/private-key files under the deployment root at the inspected depth. No
-secret values were displayed, and no provider capability was enabled.
+The VPS checkout was fast-forwarded to master for the Compose mount; the existing API image was
+retained (no new application image deployment). `docker compose up -d --no-deps --force-recreate
+api` recreated only the API. Database and workers stayed up; no migration or Graph call occurred.
+`/health/ready` returned HTTP 200.
 
-The repository Compose file now maps the capability settings and mounts credentials read-only;
-optional `m365-mail` and `m365-pbc` worker profiles are excluded from normal startup and their
-switches default off. This configuration has been validated locally but has not yet been deployed
-to the VPS. Release API build passed with two `NU1900` vulnerability-feed warnings caused by the
-unreachable NuGet service; `GraphTenantAdministrationProviderTests` passed 22/22, the Compose
-configuration parsed with dummy deployment placeholders, and the three Markdown documentation gates
-passed. Fresh selected-site, Exchange sender and tenant-mutation acceptance remain `BLOCKED_EXTERNAL`
-pending exact targets, credentials and authorized live checks.
+To keep Selected Site inactive until the user's exact-site grant, `SELECTED_SITE_CLIENT_ID` was
+cleared from the protected VPS `.env`. The certificate directory remains mounted read-only, but
+the API has no app ID and reports the provider unconfigured. `ExternalEffects`, DirectoryReader,
+tenant provisioning, guest invitation, group membership, outbound mail and live PBC transfer are
+false.
+
+The reloaded page shows consent `REQUIRED` with no attempt, directory `NOT_VERIFIED`, selected
+resource `BLOCKED_EXTERNAL`, unavailable activation, and Mail/Records `Not Configured`. The
+capability catalog's Selected SharePoint `Enabled` label is not evidence of a configured provider
+or access; the runtime credential is absent. The user will grant only the exact site. Afterward,
+restore the app ID privately and run the authorized positive and unrelated-site denial probe; never
+add tenant-wide `Sites.FullControl.All` to the runtime app. User-reported Entra admin consent has
+not produced an AuditSphere consent attempt or verified state. No site grant/probe or activation
+was performed; M365 remains `BLOCKED_EXTERNAL`.
