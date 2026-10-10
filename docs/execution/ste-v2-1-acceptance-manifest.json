@@ -1,15 +1,15 @@
 {
   "schemaVersion": 1,
-  "generatedAtUtc": "2026-10-09T16:36:17Z",
+  "generatedAtUtc": "2026-10-10T17:53:04Z",
   "generatedBy": "scripts/acceptance/generate-ste-manifest.py",
   "repository": {
-    "commit": "a7fb50a0d1d3d09121700166ba468afdd89f243e",
+    "commit": "d3e69ebcdd14094df497e6158ffe393fe5d157d7",
     "branch": "master",
-    "workingTreeClean": false
+    "workingTreeClean": true
   },
   "migrations": {
-    "head": "20261009141822_PermanentFileFreeze",
-    "count": 186
+    "head": "20261010131335_PracticeTimeFsliAttribution",
+    "count": 188
   },
   "specification": {
     "title": "STE Audit Management Tool — Functional Requirements & End-to-End System Workflow Specification",
@@ -62,7 +62,9 @@
       "J44",
       "J45",
       "J46",
+      "J48",
       "N01",
+      "N02",
       "N03",
       "N04",
       "N05",
@@ -77,7 +79,8 @@
     ],
     "executedTestSuites": [
       "api",
-      "domain"
+      "domain",
+      "e2e"
     ],
     "removedInCommit": "47ca0b05",
     "restoredBy": "STE-NXT-001",
@@ -130,115 +133,122 @@
       {
         "id": "J01",
         "text": "Lead created with entity and contact profile.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/PracticeCrmTests.cs#LeadCreation_ReconcilesExactRetry_AndRejectsRequestIdentityReuse"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/PracticeCrmTests.cs#LeadCreation_ReconcilesExactRetry_AndRejectsRequestIdentityReuse",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J02",
         "text": "Client converted/profiled with relevant relationship/contact routing.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/PracticeCrmTests.cs#CommercialWorkflow_ConvertsIdempotently_AndLeavesAcceptancePending",
-          "tests/AuditSphereOps.Domain.Tests/ClientRelationshipsAndRoutingTests.cs#CorrespondenceRouting_ResolvesPurposeSpecificContacts_AndRecordsImmutableDispatch"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/ClientRelationshipsAndRoutingTests.cs#CorrespondenceRouting_ResolvesPurposeSpecificContacts_AndRecordsImmutableDispatch",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J03",
         "text": "Brief or comprehensive proposal generated.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#OneClickDocuments_AreBrandedImmutableAndBoundToTheApprovedQuotation"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#OneClickDocuments_AreBrandedImmutableAndBoundToTheApprovedQuotation",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J04",
         "text": "Proposal dispatched and client commercial acceptance recorded.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/PracticeCrmTests.cs#ProposalDispatch_BindsExactOffer_AndAcceptanceMustCiteIt"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/PracticeCrmTests.cs#ProposalDispatch_BindsExactOffer_AndAcceptanceMustCiteIt",
+          "tests/AuditSphereOps.E2E.Tests/AngularProposalWorkflowJourneyTests.cs#ProposalDispatchMovesEngagementLifecycleFromProposalGenerationToDualKeyPending",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)",
+          "docs/execution/status.json#testSuites.runs.e2e (234 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J05",
         "text": "New/continuance acceptance checklist completed.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/AcceptanceChecklistTests.cs#NewClient_MustAnswerEveryOnboardingQuestionWithEvidence_AndAnAdverseAnswerIsNeverAcceptedByFillingFields"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/AcceptanceChecklistTests.cs#NewClient_MustAnswerEveryOnboardingQuestionWithEvidence_AndAnAdverseAnswerIsNeverAcceptedByFillingFields",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J06",
         "text": "Independent Partner risk acceptance recorded.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AcceptanceDecisionTests.cs#AcceptedDecision_IsImmutableAndCreatesOneWaitingWorkspace",
-          "tests/AuditSphereOps.Domain.Tests/AcceptanceDecisionTests.cs#AcceptanceRequiresCurrentEvaluationAndPartnerScope"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/AcceptanceDecisionTests.cs#AcceptanceRequiresCurrentEvaluationAndPartnerScope",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J07",
         "text": "Engagement Letter generated from correct service-specific template.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#OneClickDocuments_AreBrandedImmutableAndBoundToTheApprovedQuotation"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#OneClickDocuments_AreBrandedImmutableAndBoundToTheApprovedQuotation",
+          "tests/AuditSphereOps.E2E.Tests/AngularSteCommercialAcceptanceJourneyTests.cs#PartnerGeneratesTheRouteBoundLetterAndReviewsAdvancePreparation",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)",
+          "docs/execution/status.json#testSuites.runs.e2e (234 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J08",
         "text": "50% advance invoice workflow initiated.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach",
+          "tests/AuditSphereOps.E2E.Tests/AngularSteCommercialAcceptanceJourneyTests.cs#PartnerGeneratesTheRouteBoundLetterAndReviewsAdvancePreparation",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)",
+          "docs/execution/status.json#testSuites.runs.e2e (234 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J09",
         "text": "Official invoice posted/delivered through approved finance flow.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J10",
         "text": "Payment recorded and allocated.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach",
-          "tests/AuditSphereOps.Api.Tests/BillingWorkspaceApiTests.cs#InvoiceWorkspaceRecordsAllocatesAndCreditsWithCurrentAuthorizationAndAntiforgery"
-        ],
-        "note": "api recorded 10 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Api.Tests/BillingWorkspaceApiTests.cs#InvoiceWorkspaceRecordsAllocatesAndCreditsWithCurrentAuthorizationAndAntiforgery",
+          "docs/execution/status.json#testSuites.runs.api (223 passed, 0 failed, bc66c38b)",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J11",
         "text": "Official receipt generated.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J12",
@@ -264,328 +274,334 @@
       {
         "id": "J15",
         "text": "staff assigned and capacity/schedule visible.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#ResourceGrid_ShowsCapacityUnavailabilityAndOverAllocation_AndBudgetsReconcileByPhaseAndRiskArea"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#ResourceGrid_ShowsCapacityUnavailabilityAndOverAllocation_AndBudgetsReconcileByPhaseAndRiskArea",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J16",
         "text": "TB uploaded and sealed.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Api.Tests/TrialBalanceUploadApiTests.cs#EngagementScopedPreview_AllPeriodValidation_Csrf_AndExactReceipts"
-        ],
-        "note": "api recorded 10 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Api.Tests/TrialBalanceUploadApiTests.cs#EngagementScopedPreview_AllPeriodValidation_Csrf_AndExactReceipts",
+          "docs/execution/status.json#testSuites.runs.api (223 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J17",
         "text": "mapping approved.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Api.Tests/MappingApprovalApiTests.cs#FreshIndependentReviewSerializesConcurrentApprovalAndPreservesAllocations"
-        ],
-        "note": "api recorded 10 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Api.Tests/MappingApprovalApiTests.cs#FreshIndependentReviewSerializesConcurrentApprovalAndPreservesAllocations",
+          "docs/execution/status.json#testSuites.runs.api (223 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J18",
         "text": "materiality calculated.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#Materiality_IsCalculatedFromTheMappedTrialBalance_AndGoesStaleWhenTheSourceIsReplaced"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#Materiality_IsCalculatedFromTheMappedTrialBalance_AndGoesStaleWhenTheSourceIsReplaced",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J19",
         "text": "optional practical rounding applied within ±5%.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/MaterialityPracticalRoundingTests.cs#StoryCriterion_PlanningMateriality_53421_to_53000_is_accepted_and_a_value_past_the_bound_is_refused",
           "tests/AuditSphereOps.Domain.Tests/MaterialityPracticalRoundingTests.cs#BoundaryAdjustmentsOfExactlyFivePercentAreAccepted",
-          "tests/AuditSphereOps.Domain.Tests/MaterialityPracticalRoundingTests.cs#AdjustmentsJustBeyondFivePercentAreRejected"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/MaterialityPracticalRoundingTests.cs#AdjustmentsJustBeyondFivePercentAreRejected",
+          "tests/AuditSphereOps.E2E.Tests/PlanningAndResourcesJourneyTests.cs#PartnerStaffsCalculatesMaterialityReviewsRedRiskAndSeesTheGrid",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)",
+          "docs/execution/status.json#testSuites.runs.e2e (234 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J20",
         "text": "independent Partner materiality approval recorded.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#Materiality_IsCalculatedFromTheMappedTrialBalance_AndGoesStaleWhenTheSourceIsReplaced"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#Materiality_IsCalculatedFromTheMappedTrialBalance_AndGoesStaleWhenTheSourceIsReplaced",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J21",
         "text": "FSLI risk bands visible and staffing routes enforced.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#Staffing_MapsFourLevelsToEngagementRoles_AndRiskBandsRouteOwnersAndPartnerReview",
-          "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#AuditProcedure_ExecutionAndReviewStaffingRanks_EnforcesRiskBandRules"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#AuditProcedure_ExecutionAndReviewStaffingRanks_EnforcesRiskBandRules",
+          "tests/AuditSphereOps.E2E.Tests/PlanningAndResourcesJourneyTests.cs#PartnerStaffsCalculatesMaterialityReviewsRedRiskAndSeesTheGrid",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)",
+          "docs/execution/status.json#testSuites.runs.e2e (234 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J22",
         "text": "fieldwork program adopted.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#AuditProcedure_ExecutionAndReviewStaffingRanks_EnforcesRiskBandRules",
-          "tests/AuditSphereOps.Domain.Tests/AuditAreaSummaryTests.cs#AreaSummary_ReportsCoveragePerArea"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/AuditAreaSummaryTests.cs#AreaSummary_ReportsCoveragePerArea",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J23",
         "text": "parallel FSLI work executed.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#FieldworkOnSeparateFslisRunsInParallelForDifferentStaffWithoutInterference"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#FieldworkOnSeparateFslisRunsInParallelForDifferentStaffWithoutInterference",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J24",
         "text": "digital and physical evidence linked.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/FieldworkConnectionsTests.cs#Statements_DrillIntoProcedures_AndSamplingPhysicalAndAdHocStepsConnect",
-          "tests/AuditSphereOps.Domain.Tests/FieldworkConnectionsTests.cs#ClientEvidence_LinksOnlyTheExactCurrentReceivedVersionOfThisEngagement"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/FieldworkConnectionsTests.cs#ClientEvidence_LinksOnlyTheExactCurrentReceivedVersionOfThisEngagement",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J25",
         "text": "sampling run persisted/reproducible.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/FieldworkConnectionsTests.cs#Statements_DrillIntoProcedures_AndSamplingPhysicalAndAdHocStepsConnect"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/FieldworkConnectionsTests.cs#Statements_DrillIntoProcedures_AndSamplingPhysicalAndAdHocStepsConnect",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J26",
         "text": "analytical review completed/reviewed.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Api.Tests/AnalyticalPreparationApiTests.cs#ReviewedAnalyticalPreparationIsScopedIdempotentAndKeepsIndependentReviewWritable"
-        ],
-        "note": "api recorded 10 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Api.Tests/AnalyticalPreparationApiTests.cs#ReviewedAnalyticalPreparationIsScopedIdempotentAndKeepsIndependentReviewWritable",
+          "docs/execution/status.json#testSuites.runs.api (223 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J27",
         "text": "going-concern assessment completed/reviewed.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/AuditCompletionTests.cs#CompletionRecords_DeriveConclusionsAndBlockUnresolved"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/AuditCompletionTests.cs#CompletionRecords_DeriveConclusionsAndBlockUnresolved",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J28",
         "text": "Preparer submits work.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/AuditPlanningTests.cs#Workpaper_CreateAndSubmit_RevisionConflict"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/AuditPlanningTests.cs#Workpaper_CreateAndSubmit_RevisionConflict",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J29",
         "text": "Reviewer returns at least one item with mandatory note.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#InlineNotesBlockApproval_AndOnlySomeoneStaffedAboveThePreparerReviews"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#InlineNotesBlockApproval_AndOnlySomeoneStaffedAboveThePreparerReviews",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J30",
         "text": "Preparer reworks and resubmits.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#LateAndReopenedNotesBlockClearanceUntilRespondedResolvedAndReviewed"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#LateAndReopenedNotesBlockClearanceUntilRespondedResolvedAndReviewed",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J31",
         "text": "review note resolved.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#LateAndReopenedNotesBlockClearanceUntilRespondedResolvedAndReviewed"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#LateAndReopenedNotesBlockClearanceUntilRespondedResolvedAndReviewed",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J32",
         "text": "SRM generated from current evidence.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmPresentsCurrencyAwareDifferences_AndDocumentsDoNotAssertAutomaticImmateriality"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmPresentsCurrencyAwareDifferences_AndDocumentsDoNotAssertAutomaticImmateriality",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J33",
         "text": "Partner reviews required Red areas.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J34",
         "text": "critical confirmations are returned/evaluated.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#CriticalUnreturnedConfirmationKeepsBlockingAfterAlternativeClosureAndCriticalityReassessment"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#CriticalUnreturnedConfirmationKeepsBlockingAfterAlternativeClosureAndCriticalityReassessment",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J35",
         "text": "Partner clears current SRM.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J36",
         "text": "opinion selected.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J37",
         "text": "report generated and signed/sealed.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J38",
         "text": "Management Letter generated.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.ManagementLetter.cs#ManagementLetterRendersOnlyDesignatedCompleteMatters_AndStalesOnTheirChange"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.ManagementLetter.cs#ManagementLetterRendersOnlyDesignatedCompleteMatters_AndStalesOnTheirChange",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J39",
         "text": "LOR generated, downloaded, signed by client and re-uploaded.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs#SignedRepresentation_IsVersionBound_Idempotent_Immutable_AndScoped"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs#SignedRepresentation_IsVersionBound_Idempotent_Immutable_AndScoped",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J40",
         "text": "correspondence trail included.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs#FivePartBundle_RequiresReviewedReleaseAndPostedBalance_IsIdempotent_AndClientScoped"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs#FivePartBundle_RequiresReviewedReleaseAndPostedBalance_IsIdempotent_AndClientScoped",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J41",
         "text": "five-part bundle assembled.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs#FivePartBundle_RequiresReviewedReleaseAndPostedBalance_IsIdempotent_AndClientScoped"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs#FivePartBundle_RequiresReviewedReleaseAndPostedBalance_IsIdempotent_AndClientScoped",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J42",
         "text": "final 50% invoice generated/posting workflow completed.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J43",
         "text": "client portal uploads become read-only/frozen.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/ClientPortalOnboardingTests.cs#RequireUploadWindow_AllowsUploadsDuringInternalFinancialPackageRelease_AndFreezesOnFinalBundle",
-          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs#FivePartBundle_RequiresReviewedReleaseAndPostedBalance_IsIdempotent_AndClientScoped"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs#FivePartBundle_RequiresReviewedReleaseAndPostedBalance_IsIdempotent_AndClientScoped",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J44",
         "text": "countdown begins from report signature.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#FileFreezesSixtyDaysAfterSigning_RefusesWrites_AmendsWithApproval_AndTracesActivity"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#FileFreezesSixtyDaysAfterSigning_RefusesWrites_AmendsWithApproval_AndTracesActivity",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J45",
         "text": "either automatic day-60 freeze or Partner early lock succeeds.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.EarlyLock.cs#PartnerEarlyLock_FailsClosedThenFreezesOnlyTheReviewedReadiness"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.EarlyLock.cs#PartnerEarlyLock_FailsClosedThenFreezesOnlyTheReviewedReadiness",
+          "tests/AuditSphereOps.E2E.Tests/AngularCompletionFileRecordsJourneyTests.cs#PartnerReviewsReadinessLocksScheduledFileAndLifecycleKeepsProviderStateSeparate",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)",
+          "docs/execution/status.json#testSuites.runs.e2e (234 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J46",
         "text": "archive becomes locally read-only.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#FrozenFileRefusesReviewNoteAttemptsAndRecordsTheRefusedWrite"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#FrozenFileRefusesReviewNoteAttemptsAndRecordsTheRefusedWrite",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "J47",
@@ -597,128 +613,134 @@
       {
         "id": "J48",
         "text": "regulator/read-only export succeeds.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.E2E.Tests/AngularArchiveCompletenessJourneyTests.cs#RecordsCustodianDownloadsReviewedManifestAndStructuredExportWithExternalBoundary",
+          "docs/execution/status.json#testSuites.runs.e2e (234 passed, 0 failed, bc66c38b)"
+        ]
       }
     ],
     "negativeBranches": [
       {
         "id": "N01",
         "text": "Client accepted quote but Partner risk gate missing → no Engagement Letter.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#OneClickDocuments_AreBrandedImmutableAndBoundToTheApprovedQuotation"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#OneClickDocuments_AreBrandedImmutableAndBoundToTheApprovedQuotation",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "N02",
         "text": "Partner risk gate complete but client commercial acceptance missing → no Engagement Letter.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
-        "evidence": []
+        "evidence": [
+          "tests/AuditSphereOps.E2E.Tests/AngularSteCommercialAcceptanceJourneyTests.cs#PartnerRiskClearanceWithoutClientCommercialAcceptanceKeepsLetterBlocked",
+          "docs/execution/status.json#testSuites.runs.e2e (234 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "N03",
         "text": "Advance invoice unpaid → no active upload workspace.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/EngagementActivationAdvanceGateTests.cs#LinkedAgreementMustHavePaidAdvanceBeforeActivation"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/EngagementActivationAdvanceGateTests.cs#LinkedAgreementMustHavePaidAdvanceBeforeActivation",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "N04",
         "text": "First sign-in not completed → no upload.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/ClientPortalOnboardingTests.cs#Uploads_AreWithheld_UntilTheFirstSignInRequirementForEachIdentityPathIsMet"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/ClientPortalOnboardingTests.cs#Uploads_AreWithheld_UntilTheFirstSignInRequirementForEachIdentityPathIsMet",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "N05",
         "text": "Stale TB/mapping → materiality cannot be approved.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#Materiality_IsCalculatedFromTheMappedTrialBalance_AndGoesStaleWhenTheSourceIsReplaced"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#Materiality_IsCalculatedFromTheMappedTrialBalance_AndGoesStaleWhenTheSourceIsReplaced",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "N06",
         "text": "Practical rounding >5% → rejected.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/MaterialityPracticalRoundingTests.cs#AdjustmentsJustBeyondFivePercentAreRejected"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/MaterialityPracticalRoundingTests.cs#AdjustmentsJustBeyondFivePercentAreRejected",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "N07",
         "text": "Junior assigned to Amber/Red work below required level → rejected.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#AuditProcedure_ExecutionAndReviewStaffingRanks_EnforcesRiskBandRules"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#AuditProcedure_ExecutionAndReviewStaffingRanks_EnforcesRiskBandRules",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "N08",
         "text": "Open review note → completion blocked.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#InlineNotesBlockApproval_AndOnlySomeoneStaffedAboveThePreparerReviews"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#InlineNotesBlockApproval_AndOnlySomeoneStaffedAboveThePreparerReviews",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "N09",
         "text": "Critical confirmation outstanding → audit report blocked + Holding Letter generated.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#CriticalUnreturnedConfirmationKeepsBlockingAfterAlternativeClosureAndCriticalityReassessment"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#CriticalUnreturnedConfirmationKeepsBlockingAfterAlternativeClosureAndCriticalityReassessment",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "N10",
         "text": "Modified opinion without affected FSLI/basis → rejected.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "N11",
         "text": "Final release → subsequent client upload rejected.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs#FivePartBundle_RequiresReviewedReleaseAndPostedBalance_IsIdempotent_AndClientScoped"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs#FivePartBundle_RequiresReviewedReleaseAndPostedBalance_IsIdempotent_AndClientScoped",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "N12",
         "text": "Day 60 with a due but uncommitted freeze → cannot falsely claim archived.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
-          "tests/AuditSphereOps.Domain.Tests/EngagementLifecycleQueryTests.cs#EngagementTraversesCanonicalStagesAndEnforcesScope"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/EngagementLifecycleQueryTests.cs#EngagementTraversesCanonicalStagesAndEnforcesScope",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       },
       {
         "id": "N13",
@@ -730,15 +752,15 @@
       {
         "id": "N14",
         "text": "Cross-client user → denied throughout.",
-        "result": "NOT_EXECUTED",
+        "result": "PASS",
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuthorizationDecisionTests.cs#CrossClient_GrantForOtherClient_IsDenied",
           "tests/AuditSphereOps.Domain.Tests/WorkspaceQueryTests.cs#EngagementGrantCannotReadClientOrSibling_AndRevocationClearsAccess",
           "tests/AuditSphereOps.Domain.Tests/AuditConfirmationCommandIsolationTests.cs#SiblingClientIds_AreDeniedAcrossConfirmationLifecycle",
-          "tests/AuditSphereOps.Domain.Tests/BillingCommandScopeIsolationTests.cs#ClientScopedFinanceCommandsCannotReadOrMutateSiblingClientBillingRecords"
-        ],
-        "note": "domain recorded 1 failure(s) on 9013eeb2"
+          "tests/AuditSphereOps.Domain.Tests/BillingCommandScopeIsolationTests.cs#ClientScopedFinanceCommandsCannotReadOrMutateSiblingClientBillingRecords",
+          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+        ]
       }
     ]
   },
@@ -748,7 +770,7 @@
       "title": "Versioned Service-Specific Engagement Letter Templates",
       "priority": "P1",
       "baselineStatus": "Partial",
-      "currentStatus": "PARTIAL",
+      "currentStatus": "IMPLEMENTED_LOCAL",
       "localEvidence": [
         "src/AuditSphereOps.Application/Practice/EngagementLetterTemplates.cs",
         "src/AuditSphereOps.Application/Practice/CommercialDocumentRenderer.cs",
@@ -759,7 +781,7 @@
         "A route without a configured template fails closed with 'template not configured'."
       ],
       "openItems": [
-        "Letter generation for each route has not been executed by a recorded check or at runtime."
+        "Legal/professional acceptance of the template wording remains a release-owner review; route-to-template generation is covered by a synthetic Angular browser journey."
       ]
     },
     {
@@ -780,7 +802,7 @@
         "Activation is refused until a linked fee agreement's 50% advance milestone is PAID."
       ],
       "openItems": [
-        "The activation refusal and the preparation states have not been executed with a linked fee agreement at runtime.",
+        "The synthetic Angular browser journey creates a linked fee agreement and observes the disabled-automation state; local activation refusal is covered by the PostgreSQL-backed Domain suite.",
         "AutomaticFeeInvoices:Enabled is read by the API (preparation state) and by the worker (draft creation); both must carry the same value in each deployment."
       ]
     },
@@ -806,7 +828,7 @@
         "Approval binds to the current effective head; a superseded head is refused."
       ],
       "openItems": [
-        "The rounding form is covered by component tests (plan.spec.ts) and the flag by a Domain test; it was not exercised in a browser against seeded data."
+        "Production acceptance remains separate; a seeded Angular browser journey exercises rounding, exact computed-versus-adjusted values and independent Partner approval."
       ]
     },
     {
@@ -862,8 +884,8 @@
         "Recipient routing uses the Completion contact purpose only; there is no fallback address."
       ],
       "openItems": [
-        "A FAILED dispatch is visible but has no operator retry path.",
-        "Dispatch of a real generated Holding Letter has not been exercised at runtime."
+        "Recovery uses the existing durable-operation recovery workflow; a second dispatch does not enqueue a duplicate for the same blocker digest.",
+        "Live mail-provider delivery and the complete generated-letter dispatch path have not been verified."
       ],
       "observedLocally": [
         "The completion page showed the holding-letter section in state NONE (browser check)."
@@ -888,7 +910,7 @@
         "Early-lock records are append-only (trigger-protected)."
       ],
       "openItems": [
-        "The early-lock panel is covered by component tests (completion.spec.ts); it was not exercised in a browser against a scheduled freeze."
+        "Provider-side immutability is not established by the local browser journey and remains under STE-GAP-007."
       ]
     },
     {
@@ -900,13 +922,18 @@
       "localEvidence": [
         "src/AuditSphereOps.Application/Records/FileFreezeService.cs",
         "src/AuditSphereOps.Domain/Records/FileFreeze.cs",
-        "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleQuery.cs"
+        "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleQuery.cs",
+        "src/AuditSphereOps.Application/Records/RecordsArchiveService.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.AuditRecords.cs",
+        "src/AuditSphereOps.Ui/src/app/features/audit/records.ts",
+        "tests/AuditSphereOps.E2E.Tests/AngularArchiveCompletenessJourneyTests.cs"
       ],
       "implemented": [
-        "The local freeze is enforced inside AuditSphere; the lifecycle returns provider status separately and warns when provider read-only enforcement is not observed."
+        "The local freeze is enforced inside AuditSphere; the lifecycle returns provider status separately and warns when provider read-only enforcement is not observed.",
+        "An authorized Records Custodian can download a deterministic JSON export of a reviewed, current archive manifest and its structured records; integrity is checked and external document bytes are not represented as locally verified."
       ],
       "openItems": [
-        "No provider protection strategy is implemented; FileFreezeService records ExternalReadOnly as BLOCKED_EXTERNAL."
+        "No provider-side immutable/read-only protection strategy is implemented; FileFreezeService records ExternalReadOnly as BLOCKED_EXTERNAL. The read-only export is not provider immutability or a regulator acceptance claim."
       ],
       "blocker": "Needs an approved provider protection strategy, provider readback evidence and real-tenant denial tests. AuditSphere does not claim provider immutability.",
       "externalEvidenceRequired": [
@@ -923,13 +950,15 @@
       "title": "Canonical Eleven-Stage Lifecycle Truthfulness & Gate Alignment",
       "priority": "P0",
       "baselineStatus": "Partial / Correctness",
-      "currentStatus": "PARTIAL",
+      "currentStatus": "IMPLEMENTED_LOCAL",
       "localEvidence": [
         "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleQuery.cs",
         "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleService.cs",
         "src/AuditSphereOps.Application/Practice/PracticeLeadQuery.cs",
         "src/AuditSphereOps.Ui/src/app/features/commercial/leads.ts",
-        "src/AuditSphereOps.Ui/src/app/features/engagements/engagement-lifecycle.html"
+        "src/AuditSphereOps.Ui/src/app/features/engagements/engagement-lifecycle.html",
+        "tests/AuditSphereOps.E2E.Tests/AngularProposalWorkflowJourneyTests.cs",
+        "tests/AuditSphereOps.E2E.Tests/AngularCompletionFileRecordsJourneyTests.cs"
       ],
       "implemented": [
         "Leads without a proposal are projected as LEAD_INGESTION (Stage 1) on the lead list.",
@@ -940,8 +969,7 @@
         "A due but uncommitted freeze remains in the compliance countdown with an explicit blocker."
       ],
       "openItems": [
-        "Proposal dispatch and lifecycle projection still need a joined browser journey; the current PostgreSQL lifecycle test covers the projection boundary.",
-        "The external provider read-only state remains BLOCKED_EXTERNAL until approved live provider readback evidence exists (STE-GAP-007)."
+        "Provider-side protection is a separate external acceptance gate tracked under STE-GAP-007 and is not claimed by this local lifecycle story."
       ],
       "observedLocally": [
         "The engagement lifecycle showed Stage 2 of 11 with no compliance warning (browser check).",
@@ -969,7 +997,7 @@
         "Rate resolution uses the exact approved card first, then the STE role alias, and otherwise fails closed with time.rate-missing."
       ],
       "openItems": [
-        "Approval by a separate Partner, preparer refusal, aliases and unknown-role fail-closed behavior are covered by the PostgreSQL-backed Domain test; the screen approval action has not been exercised in a browser."
+        "Deployment-specific rate policy approval remains separate; the synthetic Angular browser journey covers second-person approval and billable-time resolution against the approved rate and FSLI mapping."
       ],
       "observedLocally": [
         "Baseline initialization created four DRAFT cards (browser check).",
@@ -981,28 +1009,31 @@
       "title": "Full STE v2.1 End-to-End Acceptance Journey",
       "priority": "P0",
       "baselineStatus": "Acceptance Gap",
-      "currentStatus": "ACCEPTANCE_GAP",
+      "currentStatus": "PARTIAL",
       "localEvidence": [
         "scripts/acceptance/generate-ste-manifest.py",
-        "docs/testing/auditsphere-testing-test-case-catalog.md"
+        "docs/testing/auditsphere-testing-test-case-catalog.md",
+        "tests/AuditSphereOps.E2E.Tests/AngularSteCommercialAcceptanceJourneyTests.cs",
+        "tests/AuditSphereOps.E2E.Tests/AngularProposalWorkflowJourneyTests.cs",
+        "tests/AuditSphereOps.E2E.Tests/AngularArchiveCompletenessJourneyTests.cs"
       ],
       "implemented": [
-        "This manifest lists all 48 happy-path steps and 14 negative branches, each with its evidence status."
+        "The manifest lists all 48 happy-path steps and 14 negative branches; all 57 locally executable checks have test-method citations and current-tree zero-failure suite evidence."
       ],
       "openItems": [
-        "The manifest maps only journey steps with a declared source test and a recorded zero-failure run; unmatched local steps remain NOT_EXECUTED.",
-        "Steps that depend on the Microsoft tenant remain BLOCKED_EXTERNAL until live evidence and independent acceptance are recorded."
+        "J12, J13 and J14 require live tenant/workspace evidence; J47 and N13 require provider-side protection and denial evidence. They remain BLOCKED_EXTERNAL.",
+        "Overall STE v2.1 acceptance remains BLOCKED_EXTERNAL until those five external checks and separate production/professional acceptance are complete."
       ]
     }
   ],
   "summary": {
     "mandatoryChecks": 62,
-    "PASS": 0,
+    "PASS": 57,
     "FAIL": 0,
-    "NOT_EXECUTED": 57,
+    "NOT_EXECUTED": 0,
     "BLOCKED_EXTERNAL": 5
   },
-  "overallResult": "FAIL",
-  "overallReason": "57 mandatory checks have no executed evidence; 5 are blocked by external providers (STE-GAP-004, STE-GAP-007); 0 checks failed.",
+  "overallResult": "BLOCKED_EXTERNAL",
+  "overallReason": "0 mandatory checks have no executed evidence; 5 are blocked by external providers (STE-GAP-004, STE-GAP-007); 0 checks failed.",
   "resultRule": "FAIL when a mandatory check failed, or has no executed evidence and no external block. PASS only when every mandatory check passed with recorded evidence. BLOCKED_EXTERNAL when every unresolved mandatory check is blocked by an external provider. A check is never marked PASS without recorded evidence."
 }
