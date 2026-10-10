@@ -106,6 +106,47 @@ or key files. No secret values were displayed. Therefore the acceptance server h
 capability credentials at this observation. No Graph capability or external effect was enabled
 by this inspection.
 
+### Portal and SharePoint follow-up (2026-10-10)
+
+A later read-only Entra review showed tenant admin consent on the dedicated Directory Reader
+`User.Read.All` application permission and the dedicated Mail `Mail.Send` application permission.
+A dedicated Guest Invitation registration was created with `User.Invite.All` as its only
+application role (plus delegated `User.Read` for sign-in), and Entra confirmed tenant-wide admin
+consent. These portal grants do not enable the corresponding AuditSphere capabilities. The page
+still showed the tenant connection as Consent Required with no recorded attempt and directory
+verification `NOT_VERIFIED`. Directory reading, mail, user provisioning, guest invitations and
+group membership were Disabled. The saved Mail and Records setup drafts remained Not Configured,
+and no client workspace intents existed.
+
+The tenant-connection page explicitly showed `BLOCKED_EXTERNAL: configure the separately approved
+consent identity and fixed callback`; the Connect action was not available, so the nonce-bound
+handshake has not begun. The VPS environment was not re-inspected after the portal changes, and the
+specific missing or mismatched setting/certificate is unknown. Check the server privately against
+the consent prerequisites below without displaying `.env` or credential material.
+
+The group-membership registration is prepared in Entra but is not registered: Microsoft displays
+its Platform Policies assent on the final Register action, which remains a user hand-off. The
+existing Administration registration still carries `User.Create`, `User.Invite.All` and
+`GroupMember.ReadWrite.All` together. Do not enable it or remove roles until the dedicated group
+registration is registered, has only `GroupMember.ReadWrite.All`, and its tenant consent is
+verified; then leave the old registration with `User.Create` only.
+
+SharePoint Admin Center confirmed the existing `AuditSphere Development` site is present. Its
+`Internal Workpapers` library root was read-only inspected and had zero children. The existing
+`AuditSphere P0 Unrelated` site is available as the same-tenant negative control and must not be
+granted to the selected-site app. No new SharePoint site was created. The existing site and library
+were saved as the selected-resource draft using the App mediated profile (revision 4, state
+`VALIDATING`). The latest selected-site result is `BLOCKED_EXTERNAL` with diagnostic
+`selected-resource-draft-edited`; AuditSphere application consent still reads `REQUIRED`. The
+selected-site app's exact site-level `write` grant has not been made, and no boundary probe or
+disposable upload was run. The SharePoint tenant consent for `Sites.Selected` does not itself
+authorize a site.
+
+No M365 credential or capability flag was installed or enabled on the VPS during this follow-up.
+The earlier read-only host inspection found no M365 variable names or certificate/key files; the
+host was not re-inspected after the portal changes. The repository Compose wiring remains disabled
+by default and has not been confirmed deployed to the VPS.
+
 ### Configure a capability
 
 1. **Use a dedicated app identity.** Keep the OIDC sign-in application separate. Give each Graph
@@ -160,9 +201,12 @@ client uploads from a local queue disposition to live SharePoint delivery. Start
 after the approved site and negative-control checks pass, and after reviewing the exact queued
 synthetic transfer. The `client-sites` privileged worker remains a separate owner-approved rollout.
 
-The compose changes in the repository remain disabled by default. A deployed status changes only
+The Compose changes in the repository remain disabled by default. A deployed status changes only
 after the approved revision is deployed and the relevant capability is freshly verified in the UI.
-The observation above remains the live-server baseline until then.
+The portal grants above do not change the server configuration or verify capability access. The
+live connection remains Consent Required, and the saved selected-site draft remains
+`BLOCKED_EXTERNAL` until the exact site grant, certificate-backed probe and nonce-bound consent are
+completed.
 
 ## Operational boundaries
 

@@ -15,6 +15,51 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Hostinger M365 portal follow-up and verified SharePoint target — 2026-10-10
+
+The user authorized the dedicated Graph permission plan and asked to use the existing SharePoint
+site intended for acceptance. The Entra browser showed the Directory Reader `User.Read.All` and
+Mail `Mail.Send` application permissions granted for the tenant. A dedicated Guest Invitation app
+was created with `User.Invite.All` as its only application role (plus delegated `User.Read`), and
+the portal confirmed tenant admin consent. These grants are not capability verification in
+AuditSphere.
+
+The separate Group Membership registration was prepared as single-tenant, but left at the Register
+screen because it states that proceeding agrees to Microsoft Platform Policies. The user must
+perform that legal assent. The old Administration app still has `User.Create`, `User.Invite.All`
+and `GroupMember.ReadWrite.All`; it remains disabled until the new Group Membership app has been
+registered, configured with only its approved application role, and consented. Remove the two
+extra roles only after that replacement is verified.
+
+SharePoint Admin Center and read-only site/library requests confirmed an existing `AuditSphere
+Development` site and an empty `Internal Workpapers` library root. An existing `AuditSphere P0
+Unrelated` site can serve as the negative control; it must not receive an app grant. No site-level
+grant, test upload, or new site creation occurred.
+
+The AuditSphere browser page was refreshed after these portal changes. It showed Consent Required,
+no consent attempt and directory `NOT_VERIFIED`; all mutation capabilities were Disabled. The
+selected-resource form was then saved with the existing site, empty workpapers library and App
+mediated profile. AuditSphere reported draft revision 4 in `VALIDATING` and a latest selected-site
+result of `BLOCKED_EXTERNAL` (`selected-resource-draft-edited`); this is not a verified site grant.
+Mail and Records drafts were Not Configured, and no client workspaces existed. Earlier read-only
+VPS inspection found no M365 credential variables or certificate/key files. No VPS configuration
+was changed or rechecked in this continuation, and no external capability was enabled.
+
+The tenant page also rendered `BLOCKED_EXTERNAL: configure the separately approved consent identity
+and fixed callback`, with no Connect action. The nonce-bound consent handshake has not started; the
+specific VPS setting or certificate gap remains unknown because the server was not re-inspected.
+
+**Still pending:** user Register assent for the group app; nonce-bound AuditSphere tenant-consent
+handshake; app certificates installed privately on the VPS and matching disabled-by-default
+configuration; the exact `Sites.Selected` grant on the reviewed acceptance site plus a fresh
+positive-target/negative-control boundary verification; approved Exchange sender restriction and
+synthetic recipient for mail; and fresh persisted AuditSphere verification before any capability
+is enabled. Do not place IDs, account names, secrets or certificate material in repository docs.
+
+Verification in this documentation slice: current built-in-browser views of Entra, SharePoint Admin
+Center, the selected-site API response and AuditSphere tenant-connection page; no tests, live
+capability probe, site mutation, mail send, or VPS configuration command was run.
+
 ## STE v2.1 evidence mapping and full-suite runs — 2026-10-09
 
 - Mapped 34 more journey steps to tests whose bodies execute the step: the manifest generator now cites 55 of 62 checks. Added `FieldworkOnSeparateFslisRunsInParallelForDifferentStaffWithoutInterference` (J23) and an explicit correspondence-trail assertion in the five-part bundle test (J40).
