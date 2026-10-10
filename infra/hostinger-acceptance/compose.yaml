@@ -57,7 +57,7 @@ services:
       DevelopmentIdentity__Enabled: "false"
       ExternalEffects__Enabled: "false"
       TenantConsent__Enabled: ${TENANT_CONSENT_ENABLED:-false}
-      TenantConsent__ClientId: ${TENANT_CONSENT_CLIENT_ID:-}
+      TenantConsent__ClientId: ${DIRECTORY_READER_CLIENT_ID:-}
       TenantConsent__RedirectUri: https://audit.steaudit.com/auth/m365-consent/callback
       TenantConsent__IdentityRedirectUri: https://audit.steaudit.com/auth/m365-consent/identity-callback
       DirectoryReader__Enabled: ${DIRECTORY_READER_ENABLED:-false}

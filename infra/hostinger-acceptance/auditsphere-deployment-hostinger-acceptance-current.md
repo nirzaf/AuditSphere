@@ -122,7 +122,9 @@ by this inspection.
    provisioning, guest invitation, group membership and outbound mail. All corresponding switches
    default to `false`.
 3. **Set deployment configuration privately.** Use `.env` for non-secret enablement flags,
-   application IDs, sender mailbox and approved resource targets. Configure `TENANT_CONSENT_*`,
+   application IDs, sender mailbox and approved resource targets. The consent callback uses the
+   Directory Reader app ID and certificate; `TENANT_CONSENT_ENABLED` controls the flow, while
+   `TenantConsent__ClientId` is bound to `DIRECTORY_READER_CLIENT_ID` in Compose. Configure
    `DIRECTORY_READER_*`, `SELECTED_SITE_*`, `TENANT_ADMINISTRATION_*` and `OUTBOUND_MAIL_*` only
    after the matching registration, certificate and consent are ready. Never print or commit `.env`.
    Keep `ExternalEffects__Enabled=false` for the API and core workers.
