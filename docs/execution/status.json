@@ -4,12 +4,12 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "bc66c38b6a03010a7d1e468da3537481af81339c",
-  "verifiedCommit": "bc66c38b6a03010a7d1e468da3537481af81339c",
+  "headCommit": "c9bea82ae52ee9e4867ad26d2c4059991e19dade",
+  "verifiedCommit": "c9bea82ae52ee9e4867ad26d2c4059991e19dade",
   "remoteHeadVerified": false,
   "verifiedCommitWasRemoteHead": false,
   "productionEnabled": false,
-  "verifiedAt": "2026-10-10T17:51:40Z",
+  "verifiedAt": "2026-10-11T00:35:43Z",
   "toolchain": {
     "sdk": ".NET 10",
     "efCore": "10.0.12",
@@ -44,12 +44,12 @@
     {
       "item": "STE-NXT-014 — End-of-service accrual as a provision (ADR-0010)",
       "status": "PARTIAL",
-      "details": "Slice on top of cee546f9 (2026-10-10), built under the owner's delegation to decide: the recording mechanism is implemented with posting blocked until the accounting treatment is recorded and confirmed. Finance records the treatment named by a qualified accountant (measurement basis, accountant name and credential, liability provision account, expense account); a firm-wide Partner other than the recorder confirms it. Accruals are manual journals with purpose END_OF_SERVICE_ACCRUAL carrying an entered amount, method, inputs, calculation date and reason, through the existing journal maker and checker; corrections are reversing journals. The gate is enforced at draft, at posting and by a database trigger on firm_postings; treatment and basis rows are append-only. The platform computes no estimate. Also includes report certificate signing and evidence (migration 20261010203413_ReportCertificateSignatureEvidence, PEM signing credential source, signature verification endpoint and UI). Migration 20261010195818_FirmEndOfServiceAccruals; API /api/ui/finance/end-of-service; Angular /app/finance/end-of-service. Observed locally: Release build 0 errors; EF model drift none; OpenAPI contract regenerated; Angular production build passed. NOT RUN at the owner's instruction: automated tests were not run locally; the migrations have not been applied to any database. Still open: no treatment has been named by a qualified accountant or confirmed by the owner, so no accrual may be posted; the firm chart needs its provision and expense accounts; no browser E2E journey; the firm statements show the two accounts through the existing account-based reports without a dedicated provision line."
+      "details": "The manual end-of-service provision mechanism is implemented per ADR-0010: treatment and basis are immutable, manual journals use the existing maker/checker, a different firm-wide Partner confirms treatment, and posting is gated at draft, posting and database trigger. The current-tree browser journey AngularPricingAndAccrualJourneyTests.EndOfServicePageExplainsProfessionalGateAndDoesNotOfferAccrual passed; it confirms the professional warning and that no accrual draft action is offered before the treatment is recorded. The full Domain/API/E2E and Angular suites pass at code commit c9bea82a. Still blocked on firm input: a qualified accountant must name the measurement treatment, a Partner must confirm it, and the provision and expense accounts must exist in the approved firm chart. No firm treatment was entered and no accrual was posted. The next step is outside local code work."
     },
     {
       "item": "ADR-0016 — Certificate signing of the final report (specification 4.4.1, 4.4.2)",
       "status": "PARTIAL",
-      "details": "Working-tree slice on top of cee546f9 (2026-10-10), built on the owner's instruction to implement certificate signing. When ReportSigning:CertificatePath and ReportSigning:PrivateKeyPath are configured, the Partner's signing certificate-signs the final report PDF (SHA-256, whole document) in addition to the signature image and seal; bundle assembly re-verifies the report and certificate-signs the certified financial statements. ReportSigning:Required=true fails closed when no usable certificate is available and refuses an image-only report in the bundle. With no certificate configured the behaviour is unchanged (image only) and is labelled as such. Signature evidence columns on signature_applications via migration ReportCertificateSignatureEvidence; verifier endpoint GET /api/ui/deliverables/{id}/signature; Angular completion screen shows the mode and a signature check. No NuGet package was added (PDFsharp 6.2.4 already pinned). Observed locally: Release build 0 errors; EF model drift none; OpenAPI contract current; Domain tests ReportCertificateSigningTests and AuditDeliverablesTests 18/18 against PostgreSQL; Angular completion.spec.ts 12/12. NOT RUN: the full Domain, API and E2E suites and the full Angular suite; the added UiContractTests denial check. Still open: tested only with a throwaway self-signed certificate; the firm must obtain and install its own certificate and decide legal sufficiency; no trusted timestamp is embedded; readers show a self-issued signer as not trusted; engagement letters and other documents are not certificate-signed; the deployment guide (Wiki) does not yet describe the ReportSigning settings."
+      "details": "Certificate signing is implemented for the final report and certified statements when ReportSigning:CertificatePath and ReportSigning:PrivateKeyPath are configured; Required=true fails closed, and the UI labels image-only output when no certificate is configured. The full current-tree Domain/API/E2E suites passed at c9bea82a, including report-signing browser evidence; Angular CI specs passed 630/630. The GitHub Wiki Production Environment Settings page was reviewed and already documents the ReportSigning keys, certificate paths and fail-closed behavior; no publish was needed. Still external: the firm must provide its certificate and decide legal sufficiency; there is no trusted timestamp, and other documents are not certificate-signed."
     }
   ],
   "targetedVerification": {
@@ -169,7 +169,7 @@
     {
       "gate": "M365-ADMIN",
       "status": "BLOCKED_EXTERNAL",
-      "required": "Development M365 live acceptance remains BLOCKED_EXTERNAL. The Hostinger checkout was fast-forwarded to master for the Compose mount; the existing API image was retained. An owner-approved API-only recreation completed and /health/ready returned HTTP 200; database and workers were not recreated and no migration ran. The staged certificate directory is mounted read-only, while SELECTED_SITE_CLIENT_ID is intentionally blank in the protected VPS .env pending the user-granted exact-site permission, so the running API reports the selected-site provider unconfigured. ExternalEffects, DirectoryReader, provisioning, guest invitation, group membership, outbound mail, and live PBC transfer are false. The reloaded AuditSphere page still reports consent REQUIRED with no attempt, directory NOT_VERIFIED, selected-resource BLOCKED_EXTERNAL, and activation unavailable; its catalog Enabled label for Selected SharePoint does not mean the credential is configured or access is verified. Mail and Records drafts remain Not Configured. No consent flow, Graph call, site grant, file probe, or workspace activation was performed. The user will grant only the exact approved site. After that, privately restore the app ID and run the already-authorized positive and unrelated-site denial probe; never add tenant-wide Sites.FullControl.All to the runtime app. Keep this gate blocked until the exact resource checks and remaining external acceptance pass."
+    "required": "Development M365 live acceptance remains BLOCKED_EXTERNAL. The Hostinger checkout was fast-forwarded to master for the Compose mount; the existing API image was retained. An owner-approved API-only recreation completed and /health/ready returned HTTP 200; database and workers were not recreated and no migration ran. The staged certificate directory is mounted read-only, while SELECTED_SITE_CLIENT_ID is intentionally blank in the protected VPS .env pending the user-granted exact-site permission, so the running API reports the selected-site provider unconfigured. ExternalEffects, DirectoryReader, provisioning, guest invitation, group membership, outbound mail, and live PBC transfer are false. The live AuditSphere page reports consent REQUIRED, no attempt, and the consent action unavailable until the separately approved consent identity and fixed callback are configured; directory verification is NOT_VERIFIED, selected-resource is BLOCKED_EXTERNAL, and activation is unavailable. The target fields are an unsubmitted browser-tab draft, not persisted server configuration. The catalog Enabled label for Selected SharePoint does not mean the credential is configured or access is verified. Mail and Records drafts remain Not Configured. No consent flow, Graph call, site grant, file probe, or workspace activation was performed. The user will grant only the exact approved site. After that, privately restore the app ID and run the already-authorized positive and unrelated-site denial probe; never add tenant-wide Sites.FullControl.All to the runtime app. Keep this gate blocked until the exact resource checks and remaining external acceptance pass."
     },
     {
       "gate": "P2b",
@@ -197,82 +197,83 @@
     "restoredFromCommit": "2713b58c",
     "removedByCommit": "47ca0b05",
     "restoredByCommit": "5ce2481e",
-    "productCodeCommit": "bc66c38b6a03010a7d1e468da3537481af81339c",
-    "recordedAtUtc": "2026-10-10T17:51:40Z",
-    "database": "auditsphere_tests on 127.0.0.1:5433 for every .NET suite; the development database auditsphere was not used by any run",
+    "productCodeCommit": "c9bea82ae52ee9e4867ad26d2c4059991e19dade",
+    "recordedAtUtc": "2026-10-11T00:35:43Z",
+    "database": "auditsphere_tests on 127.0.0.1:5433",
     "runs": {
       "dotnetBuild": {
         "command": "dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1",
         "result": "PASS_WITH_WARNING",
         "warnings": 6,
         "errors": 0,
-        "ranOn": "bc66c38b",
-        "note": "Six NU1900 warnings because the NuGet vulnerability service was unreachable; the Release solution build succeeded."
+        "ranOn": "c9bea82ae52ee9e4867ad26d2c4059991e19dade",
+        "note": "The Release solution build succeeded. Six NU1900 warnings report that the NuGet vulnerability service was unreachable."
       },
       "domain": {
-        "command": "dotnet test AuditSphereOps.slnx --no-build --configuration Release --maxcpucount:1",
-        "project": "Domain",
-        "total": 808,
-        "passed": 808,
+        "command": "dotnet test AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1",
+        "project": "DOMAIN",
+        "total": 825,
+        "passed": 825,
         "failed": 0,
         "skipped": 0,
-        "duration": "2 m 59 s",
-        "ranOn": "bc66c38b",
+        "duration": "3 m 26 s",
+        "ranOn": "c9bea82ae52ee9e4867ad26d2c4059991e19dade",
         "database": "auditsphere_tests on 127.0.0.1:5433"
       },
       "api": {
-        "command": "dotnet test AuditSphereOps.slnx --no-build --configuration Release --maxcpucount:1",
+        "command": "dotnet test AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1",
         "project": "API",
         "total": 223,
         "passed": 223,
         "failed": 0,
         "skipped": 0,
-        "duration": "16 m 54 s",
-        "ranOn": "bc66c38b",
+        "duration": "18 m 03 s",
+        "ranOn": "c9bea82ae52ee9e4867ad26d2c4059991e19dade",
         "database": "auditsphere_tests on 127.0.0.1:5433"
       },
       "e2e": {
-        "command": "dotnet test AuditSphereOps.slnx --no-build --configuration Release --maxcpucount:1",
+        "command": "dotnet test AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1",
         "project": "E2E",
-        "total": 234,
-        "passed": 234,
+        "total": 236,
+        "passed": 236,
         "failed": 0,
         "skipped": 0,
-        "duration": "24 m 50 s",
-        "ranOn": "bc66c38b",
+        "duration": "26 m 27 s",
+        "ranOn": "c9bea82ae52ee9e4867ad26d2c4059991e19dade",
         "database": "auditsphere_tests on 127.0.0.1:5433",
         "browser": "Playwright Chromium from the local cache"
       },
       "angular": {
         "command": "npm --prefix src/AuditSphereOps.Ui run test:ci",
-        "specFiles": 113,
-        "tests": 618,
-        "passed": 618,
+        "specFiles": 114,
+        "tests": 630,
+        "passed": 630,
         "failed": 0,
-        "ranOn": "bc66c38b"
+        "skipped": 0,
+        "ranOn": "c9bea82ae52ee9e4867ad26d2c4059991e19dade"
       },
       "openapi": {
         "command": "bash scripts/contracts/verify-openapi.sh",
         "result": "PASS: contract is current",
-        "ranOn": "bc66c38b"
+        "ranOn": "c9bea82ae52ee9e4867ad26d2c4059991e19dade"
       },
       "efModelDrift": {
         "command": "dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Api --no-build --configuration Release",
         "result": "PASS: no pending model changes",
-        "ranOn": "bc66c38b"
+        "ranOn": "c9bea82ae52ee9e4867ad26d2c4059991e19dade"
       },
       "docsGates": {
         "result": "PASS",
-        "markdownFiles": 197,
-        "relativeLinks": 2652,
+        "markdownFiles": 198,
+        "relativeLinks": 2654,
         "filenamePolicy": "PASS",
         "narrativeMetrics": "PASS",
-        "ranOn": "bc66c38b"
+        "ranOn": "c9bea82ae52ee9e4867ad26d2c4059991e19dade"
       },
       "angularBuild": {
         "command": "NG_BUILD_CACHE_STORE=sqlite NG_BUILD_MAX_WORKERS=2 npm run build -- --progress=false",
         "result": "PASS_WITH_WARNING",
-        "ranOn": "bc66c38b",
+        "ranOn": "c9bea82ae52ee9e4867ad26d2c4059991e19dade",
         "note": "The supported SQLite cache override passed. The native LMDB cache backend aborts on this host (SIGABRT in @lmdb/lmdb), including with compatible Node 24; no source or dependency change was made. Existing commercial/settings.scss component stylesheet exceeds its 4 KB budget by 3.53 KB."
       },
       "taskBoard": {
@@ -282,10 +283,10 @@
       },
       "angularInventory": {
         "result": "PASS",
-        "ranOn": "bc66c38b"
+        "ranOn": "c9bea82ae52ee9e4867ad26d2c4059991e19dade"
       }
     },
-    "notes": "Current-tree full PostgreSQL-backed regression at bc66c38b6a03010a7d1e468da3537481af81339c: API 223/223, Domain 808/808, and E2E 234/234 (1,265 total, zero failures) against auditsphere_tests on 127.0.0.1:5433. Angular CI specs passed 618/618 across 113 files. The Angular production build passed using the supported SQLite cache override; native LMDB cache aborts on this local host and the existing commercial/settings.scss stylesheet budget warning remains. No live Microsoft/provider acceptance or production/development database migration was performed.",
-    "migrationHead": "20261010131335_PracticeTimeFsliAttribution"
+    "notes": "Current-tree regression on code commit c9bea82ae52ee9e4867ad26d2c4059991e19dade: API 223/223, Domain 825/825, and E2E 236/236 (1,284 total, zero failures) against auditsphere_tests on 127.0.0.1:5433. Angular CI specs passed 630/630 across 114 files. The Release solution build passed with six NU1900 warnings because the NuGet vulnerability service was unreachable. Angular production build passed using the SQLite cache override; the existing commercial/settings.scss stylesheet exceeds its 4 KB budget by 3.53 KB. EF reports no pending model changes and OpenAPI matches the committed contract. No production or development database migration, live Microsoft consent handshake, or external provider acceptance was performed.",
+    "migrationHead": "20261010203413_ReportCertificateSignatureEvidence"
   }
 }

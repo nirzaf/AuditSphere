@@ -219,8 +219,11 @@ separate mutation registrations each show only their named application role, wit
 `User.Read` retained for sign-in.
 
 This verifies Entra registration and tenant consent only. A fresh AuditSphere page observation still
-shows the tenant consent handshake as not attempted, directory verification `NOT_VERIFIED`, and all
-three mutation capabilities Disabled. No role-specific certificate or credential was configured
+shows the tenant consent handshake as not attempted; the consent action is unavailable because the
+deployment-owned consent identity/fixed callback is not configured. Directory verification remains
+`NOT_VERIFIED`, and all three mutation capabilities are Disabled. The selected-site target fields are
+still an unsubmitted browser-tab draft, not a persisted server-side resource configuration. No
+role-specific certificate or credential was configured
 for these three identities, and no Graph mutation was run. Keep the capabilities disabled until the
 credentials, synthetic target and live verification are separately completed. No tenant-wide Graph
 permission was added beyond the individually listed capability roles.

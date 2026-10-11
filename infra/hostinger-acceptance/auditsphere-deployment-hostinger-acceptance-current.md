@@ -239,7 +239,9 @@ run the already-authorized positive target and unrelated-site denial probe. Do n
    verification rows.
 5. **Verify Selected SharePoint separately.** For this acceptance, the existing synthetic
    development site and its empty workpapers library are the reviewed target; a separate
-   same-tenant site is the negative control. The resource draft is saved. The user authorized a
+   same-tenant site is the negative control. The current page shows the target fields populated, but
+   labels them as unsubmitted fields saved in this browser tab; this is not a
+   persisted server-side resource configuration. The user authorized a
    `write` grant only to the reviewed target and one disposable file create/read/delete probe, with
    the unrelated-site denial checked. The probe is pending until the dedicated certificate and
    server configuration are installed. Then run the selected-site boundary check and require both

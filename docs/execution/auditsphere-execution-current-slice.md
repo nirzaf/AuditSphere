@@ -15,6 +15,30 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Current-tree acceptance verification — 2026-10-11
+
+The complete .NET and Angular suites, Release build, OpenAPI drift check, EF model-drift check,
+documentation validators and source inventory now have current-tree evidence. Exact commands,
+counts, durations, migration head and the verified code commit are recorded in [`status.json`](status.json).
+The PostgreSQL-backed tests used only the isolated `auditsphere_tests` database. The previous
+four failing browser journeys were diagnosed and fixed; the pricing-policy maker/checker and
+end-of-service professional-gate journeys are now included in browser coverage.
+
+The end-of-service page correctly blocks accrual preparation until a qualified accountant names
+the treatment and a Partner confirms it. No firm treatment or chart accounts were supplied, so no
+real accrual was prepared or posted. Certificate signing remains implemented and locally verified;
+the firm certificate and legal-sufficiency decision are still outstanding. The GitHub Wiki's
+Production Environment Settings page already documents the `ReportSigning` configuration, so no
+Wiki edit was needed.
+
+The Entra permission split is visible in the portal, but AuditSphere's tenant-connection page still
+shows no consent attempt; the consent action is unavailable until the deployment-owned consent
+identity and fixed callback are configured. Directory verification remains `NOT_VERIFIED`. The
+selected SharePoint target fields remain an unsubmitted browser-tab draft; the user will grant the
+exact site. Runtime Graph capabilities remain disabled, and the selected-resource probe and
+workspace activation remain blocked on that grant and credential setup. Do not mark those external
+states complete from local or Entra-registration evidence.
+
 ## Hostinger Entra mutation-app permission split — 2026-10-11
 
 The user authorized three dedicated, single-role registrations and admin consent, plus removal of
