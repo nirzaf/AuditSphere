@@ -361,6 +361,49 @@ Exchange administrator connection before policy verification; retain the protect
 credential and disabled settings. Do not use browser token extraction or expand application roles
 to bypass this authentication failure.
 
+## Verified sender restriction and synthetic delivery — 2026-10-11
+
+This follow-up supersedes the earlier authentication blocker. Exact deployment observations,
+request correlation and persisted capability checks are in the execution ledger.
+
+1. Use a temporary official Microsoft PowerShell Linux container on the VPS when the local
+   authentication library rejects the operator's Mac OS. This run used the official PowerShell
+   Debian image and ExchangeOnlineManagement from PSGallery. Install/import the module, then
+   run `Connect-ExchangeOnline -Device -ShowBanner:$false`; the administrator completes the
+   specific device sign-in. Require an active connection before policy commands. No app
+   credentials need to be mounted into this administrator container.
+2. Inspect mailbox scope with
+   `Test-ApplicationAccessPolicy -Identity <APPROVED_SENDER> -AppId <MAIL_APP_ID>` and the same
+   command for `<UNRELATED_SYNTHETIC_MAILBOX>`. Both initially returned Granted. Create a
+   mail-enabled security group containing only the approved sender, with closed join/departure
+   settings. Check its membership before applying a policy; refuse an existing broader group.
+3. Apply `New-ApplicationAccessPolicy -AppId <MAIL_APP_ID> -PolicyScopeGroupId <SCOPE_GROUP_EMAIL>
+   -AccessRight RestrictAccess -Description <REVIEWED_DESCRIPTION>` only for the approved Mail
+   identity. Check the approved sender is Granted and the unrelated fixture Denied. Then check
+   Graph authorization separately: an unrelated-mailbox request with no recipients returned
+   `403 ErrorAccessDenied`. An empty body instead returned a parser error and was not counted
+   as an authorization pass. Never send a negative-control message or treat parsing failure as
+   proof of isolation.
+4. Send only the reviewed synthetic message from the approved sender to its approved controlled
+   recipient. This self-addressed test returned Graph acceptance; a filtered Exchange Message
+   Trace confirmed Delivered. Include the actual send time in the trace interval, accounting for
+   the portal's displayed timezone. An initially stale trace end time excluded this message and
+   was corrected. Do not confuse Graph acceptance with delivery.
+5. With the existing matching certificate in the protected mount, set `OUTBOUND_MAIL_ENABLED=true`
+   in the private environment. Validate Compose and recreate only the API. Readiness and key
+   readability passed, and existing workers were unchanged. Use **Verify all enabled capabilities**
+   in AuditSphere; Outbound Mail now reports verified application permission. Review/save the
+   Mail local metadata and acknowledge its immutable receipt before refreshing the displayed
+   configuration. Records remains unconfigured until its separate provider checks pass.
+6. Disconnect Exchange and remove the temporary container and verification files. Retain the
+   protected app credential and environment backups. The live mail worker was not started;
+   review queued recipients and exact durable operations before enabling that separate profile.
+   A direct transport test does not establish proposal/PBC workflow delivery or receipt integration.
+
+The restrictive policy affects every use of the existing dedicated Mail identity, including its
+local development use: it can send only from the approved sender. No tenant role or additional
+Graph permission was granted. SharePoint access and directory mutations remain separate work.
+
 ## Operational boundaries
 
 - PostgreSQL is not published on a host port. The API is published only on host loopback port

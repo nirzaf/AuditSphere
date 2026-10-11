@@ -15,6 +15,30 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Restricted outbound mail verified and delivered — 2026-10-11
+
+The local interactive authentication alternative failed because the Exchange authentication
+library rejects this Mac's OS version. A temporary official Linux PowerShell container on the VPS
+provided an active supported Exchange connection. The initial access checks allowed both the
+approved sender and unrelated synthetic mailbox, proving a sender restriction was needed.
+
+A mail-enabled security scope group containing only the approved sender and an exact-app
+`RestrictAccess` policy were created. Exchange then allowed the sender and denied the unrelated
+fixture. A structurally valid Graph authorization probe with no recipients also denied the
+unrelated mailbox. The dedicated token contained only `Mail.Send`; the existing certificate was
+reused and no new application credential was added.
+
+The approved self-addressed synthetic message was accepted by Graph and Exchange's filtered
+message trace confirmed delivery. The API-only recreation enabled the mail capability; readiness
+passed, existing workers were unchanged, and fresh AuditSphere capability verification passed.
+The reviewed local Mail metadata was saved and its immutable receipt reconciled; Records remains
+unconfigured. The live mail worker was not started, so this is transport and configuration evidence,
+not durable commercial/PBC mail workflow acceptance. Temporary verification containers and files
+were removed. Exact timestamps, status and correlation evidence are in [`status.json`](status.json).
+
+The prior authentication blocker is resolved by the supported Linux path. SharePoint's exact-site
+denial and the disabled mutation capabilities remain separate blockers.
+
 ## Exchange authentication failure retained — 2026-10-11
 
 The administrator completed the Microsoft device sign-in and its browser page showed success.
@@ -680,25 +704,3 @@ Client books now support immutable role proposals and independent approval/rejec
 Client locking and database checks fence overlapping approvals, self-review and control activation over posted generic activity. Generic native journals cannot create unexplained AR/AP activity: preparation, preview/submission/post validation and a specific database posting trigger refuse that path. Earlier drafted journals become ineligible after an applicable control role is approved. Angular offers bounded account search, paged retained history, explicit proposal assent and independent review; unconfirmed commands require fresh history before further preparation. Focused PostgreSQL, Angular, API contract and automated browser checks passed. Exact source and observed counts live in `verification.clientAccountRoles` in `status.json`.
 
 Two managed solution-build attempts were interrupted when a concurrent process merged the branches and removed their checkouts. The preserved test/contract commit passed the full solution build in an independent temporary verification checkout. Work continues in a new managed worktree, with user-authorized cleanup coordination requested. This role slice does not implement default/system invoice postings, AR/AP open items, approved-role replacement or end-date amendments. The full epic remains active; the final merge is pending completion. The calculator-baseline regression continues separately and must not be attributed to this newer model.
-
-## Hostinger acceptance Microsoft 365 readiness snapshot (2026-10-10, refreshed)
-
-The VPS checkout was fast-forwarded to master for the Compose mount; the existing API image was
-retained (no new application image deployment). `docker compose up -d --no-deps --force-recreate
-api` recreated only the API. Database and workers stayed up; no migration or Graph call occurred.
-`/health/ready` returned HTTP 200.
-
-To keep Selected Site inactive until the user's exact-site grant, `SELECTED_SITE_CLIENT_ID` was
-cleared from the protected VPS `.env`. The certificate directory remains mounted read-only, but
-the API has no app ID and reports the provider unconfigured. `ExternalEffects`, DirectoryReader,
-tenant provisioning, guest invitation, group membership, outbound mail and live PBC transfer are
-false.
-
-The reloaded page shows consent `REQUIRED` with no attempt, directory `NOT_VERIFIED`, selected
-resource `BLOCKED_EXTERNAL`, unavailable activation, and Mail/Records `Not Configured`. The
-capability catalog's Selected SharePoint `Enabled` label is not evidence of a configured provider
-or access; the runtime credential is absent. The user will grant only the exact site. Afterward,
-restore the app ID privately and run the authorized positive and unrelated-site denial probe; never
-add tenant-wide `Sites.FullControl.All` to the runtime app. User-reported Entra admin consent has
-not produced an AuditSphere consent attempt or verified state. No site grant/probe or activation
-was performed; M365 remains `BLOCKED_EXTERNAL`.

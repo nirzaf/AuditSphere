@@ -6228,3 +6228,25 @@ Verification run in this slice: UI `test:ci` 113 files / 616 tests passed; the p
 Not run in this slice: the full .NET suites and the Playwright E2E suite. The E2E run recorded in `docs/execution/status.json` (`testSuites.runs.e2e`) has 15 failing journeys at `f7304708`, which remain open.
 
 Open for the owner: STE-NXT-011 (independent archive copy); confirmation of ADR-0010 and ADR-0011; the accounting treatment for end-of-service accruals before STE-NXT-014 posts anything; the 15 failing E2E journeys.
+
+## Hostinger acceptance Microsoft 365 readiness snapshot (2026-10-10, refreshed)
+
+The VPS checkout was fast-forwarded to master for the Compose mount; the existing API image was
+retained (no new application image deployment). `docker compose up -d --no-deps --force-recreate
+api` recreated only the API. Database and workers stayed up; no migration or Graph call occurred.
+`/health/ready` returned HTTP 200.
+
+To keep Selected Site inactive until the user's exact-site grant, `SELECTED_SITE_CLIENT_ID` was
+cleared from the protected VPS `.env`. The certificate directory remains mounted read-only, but
+the API has no app ID and reports the provider unconfigured. `ExternalEffects`, DirectoryReader,
+tenant provisioning, guest invitation, group membership, outbound mail and live PBC transfer are
+false.
+
+The reloaded page shows consent `REQUIRED` with no attempt, directory `NOT_VERIFIED`, selected
+resource `BLOCKED_EXTERNAL`, unavailable activation, and Mail/Records `Not Configured`. The
+capability catalog's Selected SharePoint `Enabled` label is not evidence of a configured provider
+or access; the runtime credential is absent. The user will grant only the exact site. Afterward,
+restore the app ID privately and run the authorized positive and unrelated-site denial probe; never
+add tenant-wide `Sites.FullControl.All` to the runtime app. User-reported Entra admin consent has
+not produced an AuditSphere consent attempt or verified state. No site grant/probe or activation
+was performed; M365 remains `BLOCKED_EXTERNAL`.

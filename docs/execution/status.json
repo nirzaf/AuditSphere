@@ -169,7 +169,7 @@
     {
       "gate": "M365-ADMIN",
       "status": "BLOCKED_EXTERNAL",
-      "required": "Hostinger acceptance API upgraded with the approved migrations; public readiness HTTP 200 and existing worker containers unchanged. Dedicated Directory Reader Web callbacks and certificate configured, User.Read.All enabled, and AuditSphere nonce-bound consent and consenting identity persisted. Fresh capability verification returned bounded-read-succeeded. Mail, user creation, guest invitation and group membership remain disabled. Selected Site certificate and exact Sites.Selected token verified, but approved target and unrelated control both returned HTTP 403 accessDenied; no file write or site grant occurred. SELECTED_SITE_CLIENT_ID remains unset pending the user-granted exact-site permission. Resource fields remain a browser-tab draft and workspace activation is blocked. Complete exact resource verification, approved mail sender restriction and synthetic recipient, separately scoped mutation fixtures, and remaining external acceptance before closing this gate. Never add tenant-wide Sites.FullControl.All to the runtime document app."
+      "required": "Acceptance API and approved migrations are deployed and ready. Directory Reader consent and bounded read are verified. Dedicated Mail.Send app is restricted to the approved sender by an Exchange RestrictAccess policy with a sender-only scope group; approved sender Granted, unrelated fixture Denied, and a live no-recipient Graph authorization probe returned 403 ErrorAccessDenied. The approved self-addressed synthetic transport test returned 202 and Exchange message trace reported Delivered. API Outbound Mail capability is enabled and verified; saved Mail draft is CONFIGURED. Existing worker containers were unchanged and the live mail worker was not started, so durable commercial/PBC mail workflows are not evidenced by this direct transport check. User creation, invitations and group membership remain disabled. Selected Site certificate and exact Sites.Selected token pass, but approved target and unrelated control both returned 403 accessDenied despite the owner-reported grant; further duplicate probes paused pending exact grant investigation. The selected-site app ID remains unset, Records draft is NOT_CONFIGURED and workspace activation blocked. Retain BLOCKED_EXTERNAL until resource verification, scoped mutation cases and remaining external acceptance pass."
     },
     {
       "gate": "P2b",
@@ -290,7 +290,7 @@
     "migrationHead": "20261010203413_ReportCertificateSignatureEvidence"
   },
   "hostingerAcceptance": {
-    "recordedAtUtc": "2026-10-11T10:07:01Z",
+    "recordedAtUtc": "2026-10-11T10:50:55Z",
     "vpsCheckout": "e42a57073702fd41292d39acaf651043b2fcbc57",
     "releaseImageSource": "e64a0cf97adc93fa8416c6288e02bb62fb30db00",
     "liveMigrationHead": "20261010203413_ReportCertificateSignatureEvidence",
@@ -337,8 +337,8 @@
       "identityObservedAtUtc": "2026-10-11T10:06:21.662753Z",
       "directoryState": "VERIFIED_RECENT",
       "capabilityDiagnostic": "bounded-read-succeeded",
-      "capabilityObservedAtUtc": "2026-10-11T10:06:44.481492Z",
-      "mailAndMutationCapabilitiesEnabled": false
+      "capabilityObservedAtUtc": "2026-10-11T10:48:27.840287Z",
+      "mutationCapabilitiesEnabled": false
     },
     "apiReadyHttp": 200,
     "publicReadyHttp": 200,
@@ -350,20 +350,43 @@
       "catalogValidated": true
     },
     "mailSetup": {
-      "status": "STAGED_DISABLED_BLOCKED_EXCHANGE_AUTHENTICATION",
+      "status": "LIVE_TRANSPORT_DELIVERED_AND_CAPABILITY_VERIFIED",
       "senderAndControlledRecipientApproved": true,
       "senderMailboxObservedInExchange": true,
       "existingCertificateMatchesRegistration": true,
       "existingCredentialStagedPrivatelyOnVps": true,
       "newEntraCredentialAdded": false,
       "environmentDraftUpdated": true,
-      "runtimeRecreated": false,
-      "mailEnabled": false,
-      "testSent": false,
+      "runtimeRecreated": true,
+      "mailEnabled": true,
+      "testSent": true,
       "exchangeCloudShell": "NO_VALID_AZURE_SUBSCRIPTION",
-      "exchangePowerShell": "BROKEN_CONNECTION_EXPIRED_TOKEN_AFTER_DEVICE_SIGN_IN",
-      "mailboxPolicyChanged": false,
-      "authenticationDiagnostic": "Microsoft browser displayed successful sign-in; Exchange PowerShell connection reported Broken and Expired. Further duplicate authentication attempts stopped."
+      "exchangePowerShell": "CONNECTED_ACTIVE_IN_TEMPORARY_LINUX_CONTAINER",
+      "mailboxPolicyChanged": true,
+      "authenticationDiagnostic": "Local interactive authentication rejected macOS 27.0.1; official temporary Linux PowerShell container succeeded.",
+      "approvedSenderPolicyResult": "Granted",
+      "unrelatedFixturePolicyResult": "Denied",
+      "scopeGroupMemberCount": 1,
+      "unrelatedGraphHttp": 403,
+      "unrelatedGraphDiagnostic": "ErrorAccessDenied",
+      "tokenRoles": [
+        "Mail.Send"
+      ],
+      "syntheticMailHttp": 202,
+      "syntheticMailSentAtUtc": "2026-10-11T10:47:31Z",
+      "syntheticMailCorrelationId": "50f113bd-dfe8-4348-aaab-643331485803",
+      "syntheticMailProviderRequestId": "fa31aa11-77dc-4848-be9c-dabbe8ed9172",
+      "exchangeTraceStatus": "Delivered",
+      "exchangeTraceObservedAtUtc": "2026-10-11T10:50:55Z",
+      "apiCapabilityState": "VERIFIED",
+      "apiCapabilityDiagnostic": "app-role-present",
+      "apiCapabilityObservedAtUtc": "2026-10-11T10:48:27.840287Z",
+      "savedMailSetup": "CONFIGURED",
+      "savedRecordsSetup": "NOT_CONFIGURED",
+      "savedSetupRevision": 6,
+      "existingWorkersUnchanged": true,
+      "liveMailWorkerStarted": false,
+      "temporaryVerificationResourcesRemoved": true
     },
     "documentationCi": {
       "runId": 38131117854,

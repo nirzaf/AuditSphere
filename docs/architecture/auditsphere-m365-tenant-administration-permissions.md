@@ -209,7 +209,7 @@ Directory Reader and Mail registrations:
 | Registration | Application permission | Entra consent | AuditSphere runtime |
 |---|---|---|---|
 | `AuditSphere Acceptance - Directory Reader` | `User.Read.All` only, plus delegated `User.Read` for sign-in | Granted | Enabled; fresh bounded read verified |
-| `AuditSphereOps Development Mail` | `Mail.Send` only | Granted | Disabled; no capability verification |
+| `AuditSphereOps Development Mail` | `Mail.Send` only | Granted | Enabled; permission verified; sender-restricted synthetic delivery verified |
 | `AuditSphereOps Development Administration` | `User.Create` only | Granted | Disabled; no capability verification |
 | `AuditSphereOps Acceptance Guest Invitation` | `User.Invite.All` only, plus delegated `User.Read` for sign-in | Granted | Disabled; no capability verification |
 | `AuditSphereOps Acceptance Group Membership` | `GroupMember.ReadWrite.All` only, plus delegated `User.Read` for sign-in | Granted | Disabled; no capability verification |
@@ -237,13 +237,23 @@ and API upgrade also completed with public readiness passing; existing workers w
 Exact observation timestamps and deployment evidence are in
 [`status.json`](../execution/status.json).
 
-Mail and all three directory-mutation capabilities remain Disabled. Their registration consent
-alone does not verify runtime access. No Graph mutation was run. Selected-site target fields
+All three directory-mutation capabilities remain Disabled. Their registration consent
+alone does not verify runtime access. Mail was subsequently enabled only after its sender restriction
+and synthetic transport verification described below. No Graph mutation was run. Selected-site target fields
 remain a browser-tab draft; the runtime document app ID is unset pending the exact-site grant.
 The certificate-backed probe returned access denied for the approved target and unrelated control,
 so no file write was attempted. Resource verification and workspace activation remain blocked.
 The connection revision label is separate from verified consent and does not establish workspace
 readiness. No tenant-wide Graph permission was added beyond the individually listed roles.
+
+The dedicated Mail identity is now restricted by an Exchange `RestrictAccess` policy scoped to a
+mail-enabled security group containing only the approved sender. Exchange allows that sender and
+denies an unrelated synthetic mailbox; Graph also denied the unrelated no-recipient request.
+The existing matching certificate was reused. The approved synthetic message was accepted and
+Exchange Message Trace confirmed delivery. API capability verification and the reviewed Mail
+draft are saved; the separate live mail worker remains stopped. This direct transport evidence
+does not establish durable proposal or PBC workflow acceptance. Exact observations are in the
+execution ledger; operator steps are in the Hostinger guide.
 
 For the live Hostinger acceptance deployment, the dated read-only status, certificate mount,
 callback, capability setup and verification procedure are recorded in the
