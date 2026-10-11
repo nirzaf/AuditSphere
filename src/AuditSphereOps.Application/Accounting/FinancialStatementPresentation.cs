@@ -11,7 +11,7 @@ namespace AuditSphereOps.Application.Accounting;
 /// </summary>
 public static class FinancialStatementPresentationPolicy
 {
-  public const string BuilderVersion = "auditsphere.statement-presentation.v2";
+  public const string BuilderVersion = "auditsphere.statement-presentation.v3";
   public const string DisplayPolicy = "whole units; half-even rounding of displayed amounts; negatives in brackets; zero shown as a dash";
   public const string DraftStatus = "UNAPPROVED_DRAFT";
   public const int DefaultDisplayDecimals = 0;
@@ -53,12 +53,15 @@ public sealed record PresentationEquityMovement(
   string LineCode, string Description, decimal OpeningAmount, decimal ProfitOrLossAmount,
   decimal OciAmount, decimal CapitalMovementAmount, decimal DividendsAmount, decimal ClosingAmount);
 
+public sealed record PresentationPackageValidation(string Code, bool Passed, string Detail);
+
 /// <summary>Persisted supplementary schedules. Source references remain opaque preparer text until a source-binding workflow exists.</summary>
 public sealed record PresentationSupplementarySchedules(
   decimal? CashBeginning, decimal? CashEnding,
   IReadOnlyList<PresentationCashFlowMovement> CashFlowLines,
   IReadOnlyList<PresentationFxCashEffect> FxCashEffects,
-  IReadOnlyList<PresentationEquityMovement> EquityLines);
+  IReadOnlyList<PresentationEquityMovement> EquityLines,
+  IReadOnlyList<PresentationPackageValidation>? PackageValidations = null);
 
 public sealed record PresentationHeader(
   string Entity, string Framework, string Currency, string CurrentPeriodEnd, string? PriorPeriodEnd, string Reference);
@@ -356,8 +359,10 @@ public static class FinancialStatementPresentationBuilder
     Pass("STATEMENTS", $"{statements.Count} primary statement(s) presented from the published layout.");
 
     var readinessNotes = new List<PresentationWarning>();
-    var equityStatement = BuildEquityStatement(currentSupplementary, priorSupplementary, checks, readinessNotes, manifest.ComparativePackageId is not null);
-    var cashFlowStatement = BuildCashFlowStatement(currentSupplementary, priorSupplementary, checks, readinessNotes, manifest.ComparativePackageId is not null);
+    var equityStatement = BuildEquityStatement(currentSupplementary, priorSupplementary, currentBalances, priorBalances,
+      checks, readinessNotes, manifest.ComparativePackageId is not null);
+    var cashFlowStatement = BuildCashFlowStatement(currentSupplementary, priorSupplementary, checks, readinessNotes,
+      manifest.ComparativePackageId is not null);
     statements.Add(equityStatement);
     statements.Add(cashFlowStatement);
 
@@ -369,6 +374,8 @@ public static class FinancialStatementPresentationBuilder
   private static PresentationStatement BuildEquityStatement(
     PresentationSupplementarySchedules? current,
     PresentationSupplementarySchedules? prior,
+    IReadOnlyDictionary<string, (string Section, decimal Amount)> currentBalances,
+    IReadOnlyDictionary<string, (string Section, decimal Amount)>? priorBalances,
     List<PresentationCheck> checks,
     List<PresentationWarning> warnings,
     bool comparativeBound)
@@ -394,6 +401,52 @@ public static class FinancialStatementPresentationBuilder
       checks.Add(new PresentationCheck("EQUITY_ROLLFORWARD", rollforwardPassed,
         rollforwardPassed ? "Each current-period equity line reconciles its opening balance and recorded movements to closing balance."
           : "Current-period equity movements are missing or do not reconcile to closing balance."));
+      var currentControl = EquityControlTotals.From(currentBalances);
+      var profitCrossCast = currentControl.ProfitOrLoss is { } profit &&
+        MoneyPolicy.Normalize(currentLines.Sum(x => x.ProfitOrLossAmount) + profit) == 0m;
+      checks.Add(new PresentationCheck("EQUITY_PROFIT_CROSS_CAST", profitCrossCast,
+        profitCrossCast ? "Equity profit movements agree to the signed profit-or-loss balances."
+          : "Equity profit movements do not cross-cast to a complete mapped profit-or-loss balance."));
+      var ociCrossCast = currentControl.OtherComprehensiveIncome is { } oci &&
+        MoneyPolicy.Normalize(currentLines.Sum(x => x.OciAmount) + oci) == 0m;
+      checks.Add(new PresentationCheck("EQUITY_OCI_CROSS_CAST", ociCrossCast,
+        ociCrossCast ? "Equity OCI movements agree to the signed mapped OCI balances."
+          : "Equity OCI movements do not cross-cast to a complete mapped OCI balance."));
+      var scheduledClosingEquity = MoneyPolicy.Normalize(currentLines.Sum(x => x.ClosingAmount));
+      var sfpCrossCast = currentControl.ClosingEquity is { } expectedClosingEquity &&
+        Math.Abs(scheduledClosingEquity) == Math.Abs(expectedClosingEquity);
+      checks.Add(new PresentationCheck("EQUITY_SFP_CROSS_CAST", sfpCrossCast,
+        sfpCrossCast ? "Equity schedule closing components cross-cast to mapped SFP equity plus current-period profit and OCI."
+          : currentControl.ClosingEquity is null
+            ? "Mapped SFP equity and current-period profit/OCI are incomplete; the equity schedule cannot be cross-cast."
+            : $"Equity schedule closing components {Math.Abs(scheduledClosingEquity):0.######} do not equal mapped SFP equity plus current-period profit and OCI {Math.Abs(currentControl.ClosingEquity.Value):0.######}."));
+
+      if (comparativeBound)
+      {
+        var priorControl = priorBalances is null ? EquityControlTotals.Empty : EquityControlTotals.From(priorBalances);
+        var priorRollforwardPassed = priorLines.Count > 0 && priorLines.All(x =>
+          MoneyPolicy.Normalize(x.OpeningAmount + x.ProfitOrLossAmount + x.OciAmount + x.CapitalMovementAmount - x.DividendsAmount) ==
+          MoneyPolicy.Normalize(x.ClosingAmount));
+        checks.Add(new PresentationCheck("EQUITY_COMPARATIVE_ROLLFORWARD", priorRollforwardPassed,
+          priorRollforwardPassed ? "Each comparative equity line reconciles to closing balance."
+            : "The bound comparative has no complete equity rollforward; comparative amounts remain unavailable or unverified."));
+        var priorProfitCrossCast = priorControl.ProfitOrLoss is { } priorProfit && priorLines.Count > 0 &&
+          MoneyPolicy.Normalize(priorLines.Sum(x => x.ProfitOrLossAmount) + priorProfit) == 0m;
+        checks.Add(new PresentationCheck("EQUITY_COMPARATIVE_PROFIT_CROSS_CAST", priorProfitCrossCast,
+          priorProfitCrossCast ? "Comparative equity profit movements cross-cast to mapped comparative profit or loss."
+            : "Comparative equity profit movements do not cross-cast to a complete mapped comparative profit-or-loss balance."));
+        var priorOciCrossCast = priorControl.OtherComprehensiveIncome is { } priorOci && priorLines.Count > 0 &&
+          MoneyPolicy.Normalize(priorLines.Sum(x => x.OciAmount) + priorOci) == 0m;
+        checks.Add(new PresentationCheck("EQUITY_COMPARATIVE_OCI_CROSS_CAST", priorOciCrossCast,
+          priorOciCrossCast ? "Comparative equity OCI movements cross-cast to mapped comparative OCI."
+            : "Comparative equity OCI movements do not cross-cast to a complete mapped comparative OCI balance."));
+        var priorClosing = MoneyPolicy.Normalize(priorLines.Sum(x => x.ClosingAmount));
+        var priorSfpCrossCast = priorControl.ClosingEquity is { } expectedPriorClosing && priorLines.Count > 0 &&
+          Math.Abs(priorClosing) == Math.Abs(expectedPriorClosing);
+        checks.Add(new PresentationCheck("EQUITY_COMPARATIVE_SFP_CROSS_CAST", priorSfpCrossCast,
+          priorSfpCrossCast ? "Comparative equity schedule closing components cross-cast to mapped comparative SFP equity, profit and OCI."
+            : "The comparative equity schedule does not cross-cast to a complete mapped comparative SFP equity, profit and OCI balance."));
+      }
       var index = 0;
       foreach (var code in codes)
       {
@@ -413,15 +466,13 @@ public static class FinancialStatementPresentationBuilder
           rows.Add(new PresentationRow(kind, $"EQ_{index}_{label.Replace(' ', '_').ToUpperInvariant()}", label, 1, null,
             c is null ? null : amount(c), p is null ? null : amount(p)));
       }
-      checks.Add(new PresentationCheck("EQUITY_SFP_CROSS_CAST", false,
-        "The equity schedule is not cross-cast to the statement of financial position; current-year profit transfer treatment is not yet pinned."));
       checks.Add(new PresentationCheck("EQUITY_SOURCE_LINEAGE", false,
         "Equity evidence references are preparer-entered text and are not resolved to accepted source records."));
-      if (comparativeBound && priorLines.Count == 0)
-        checks.Add(new PresentationCheck("EQUITY_COMPARATIVE", false, "The comparative package has no equity movement schedule; comparative amounts are shown as unavailable."));
-      warnings.Add(new PresentationWarning("EQUITY_CROSS_CAST_PENDING",
-        "Equity movements are a draft schedule; SFP cross-casting and source-record lineage remain incomplete."));
+      warnings.Add(new PresentationWarning("EQUITY_READINESS_PENDING",
+        "Equity movements remain an unapproved draft; source-record lineage and professional policy are incomplete."));
     }
+    if (comparativeBound && priorLines.Count == 0)
+      checks.Add(new PresentationCheck("EQUITY_COMPARATIVE", false, "The comparative package has no equity movement schedule; comparative amounts are shown as unavailable."));
     return new PresentationStatement("CHANGES_IN_EQUITY", "Statement of changes in equity", rows);
   }
 
@@ -502,6 +553,10 @@ public static class FinancialStatementPresentationBuilder
 
     var currentComplete = sections.All(x => sectionTotals[x] is not null) && currentFx.Count > 0;
     var priorComplete = sections.All(x => priorSectionTotals[x] is not null) && priorFx.Count > 0;
+    var missingCurrentSections = sections.Where(x => sectionTotals[x] is null).ToArray();
+    checks.Add(new PresentationCheck("CASH_FLOW_REQUIRED_SECTIONS", missingCurrentSections.Length == 0,
+      missingCurrentSections.Length == 0 ? "Operating, investing and financing cash movements are all present."
+        : "Cash-flow movements are missing or have no cash amount for: " + string.Join(", ", missingCurrentSections) + "."));
     var currentNetChange = currentComplete
       ? MoneyPolicy.Normalize(sectionTotals.Values.Sum(x => x!.Value) + currentFx.Sum(x => x.Amount)) : (decimal?)null;
     var priorNetChange = priorComplete
@@ -520,6 +575,26 @@ public static class FinancialStatementPresentationBuilder
     checks.Add(new PresentationCheck("CASH_FLOW_BRIDGE", bridgePassed,
       bridgePassed ? "Supplied operating, investing, financing and FX amounts reconcile opening to closing cash."
         : "The cash-flow bridge is incomplete or does not reconcile; missing sections and FX effects are not assumed to be zero."));
+    var packageCashValidation = current?.PackageValidations?.FirstOrDefault(x => x.Code == "CASH_FLOW_RECONCILED");
+    checks.Add(new PresentationCheck("CASH_FLOW_PACKAGE_RECONCILIATION", packageCashValidation?.Passed == true,
+      packageCashValidation?.Detail ?? "No persisted package validation confirms the cash bridge and selected closing-cash account population."));
+    if (comparativeBound)
+    {
+      var priorBridgePassed = prior?.CashBeginning is { } priorOpen && prior.CashEnding is { } priorClose && priorComplete &&
+        priorSectionTotals.Values.All(x => x is not null) &&
+        MoneyPolicy.Normalize(priorOpen + priorSectionTotals.Values.Sum(x => x!.Value) + priorFx.Sum(x => x.Amount)) ==
+        MoneyPolicy.Normalize(priorClose);
+      checks.Add(new PresentationCheck("CASH_FLOW_COMPARATIVE_REQUIRED_SECTIONS", sections.All(x => priorSectionTotals[x] is not null),
+        sections.All(x => priorSectionTotals[x] is not null)
+          ? "Comparative operating, investing and financing cash movements are all present."
+          : "The bound comparative is missing one or more required cash-flow sections."));
+      checks.Add(new PresentationCheck("CASH_FLOW_COMPARATIVE_BRIDGE", priorBridgePassed,
+        priorBridgePassed ? "Comparative cash movements and FX reconcile opening to closing cash."
+          : "The comparative cash-flow bridge is incomplete or does not reconcile."));
+      var priorPackageCashValidation = prior?.PackageValidations?.FirstOrDefault(x => x.Code == "CASH_FLOW_RECONCILED");
+      checks.Add(new PresentationCheck("CASH_FLOW_COMPARATIVE_PACKAGE_RECONCILIATION", priorPackageCashValidation?.Passed == true,
+        priorPackageCashValidation?.Detail ?? "No persisted comparative package validation confirms the cash bridge and selected closing-cash account population."));
+    }
     if (currentLines.Count > 0 || priorLines.Count > 0)
     {
       checks.Add(new PresentationCheck("CASH_FLOW_SOURCE_LINEAGE", false,
@@ -559,6 +634,31 @@ public static class FinancialStatementPresentationBuilder
       }
     }
     return result;
+  }
+
+  private sealed record EquityControlTotals(
+    decimal? ProfitOrLoss,
+    decimal? OtherComprehensiveIncome,
+    decimal? ClosingEquity)
+  {
+    public static EquityControlTotals Empty { get; } = new(null, null, null);
+
+    public static EquityControlTotals From(IReadOnlyDictionary<string, (string Section, decimal Amount)> balances)
+    {
+      var sections = balances.Values.ToArray();
+      var equity = sections.Where(x => x.Section == "EQUITY").ToArray();
+      if (equity.Length == 0) return Empty;
+      var profitAndLossSections = new HashSet<string>(StringComparer.Ordinal)
+        { "INCOME", "REVENUE", "EXPENSE", "EXPENSES", "P&L", "P_AND_L", "PROFIT_LOSS" };
+      var profitAndLoss = sections.Where(x => profitAndLossSections.Contains(x.Section)).ToArray();
+      var oci = sections.Where(x => x.Section == "OCI").ToArray();
+      if (profitAndLoss.Length == 0 || oci.Length == 0) return Empty;
+      var signedProfitOrLoss = MoneyPolicy.Normalize(profitAndLoss.Sum(x => x.Amount));
+      var signedOci = MoneyPolicy.Normalize(oci.Sum(x => x.Amount));
+      var signedEquity = MoneyPolicy.Normalize(equity.Sum(x => x.Amount));
+      return new EquityControlTotals(signedProfitOrLoss, signedOci,
+        MoneyPolicy.Normalize(signedEquity + signedProfitOrLoss + signedOci));
+    }
   }
 
   private static string? SectionOf(StatementLineDefinition line,

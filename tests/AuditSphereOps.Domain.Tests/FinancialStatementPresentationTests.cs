@@ -74,7 +74,7 @@ public sealed class FinancialStatementPresentationTests
   [
     new("PPE", "ASSETS", 70406m), new("RECEIVABLES", "ASSETS", 2651857m), new("CASH", "ASSETS", 1090993m), new("OTHER_CA", "ASSETS", 2359565m),
     new("SHARE_CAPITAL", "EQUITY", -500000m), new("RETAINED_EARNINGS", "EQUITY", -479299m),
-    new("LONG_TERM_LOAN", "LIABILITIES", -349594m), new("PAYABLES", "LIABILITIES", -1025756m),
+    new("LONG_TERM_LOAN", "LIABILITIES", -349594m), new("PAYABLES", "LIABILITIES", -1025756m), new("OCI", "OCI", 0m),
     new("REVENUE", "INCOME", -11986252m), new("GENERAL_ADMIN", "EXPENSE", 8154593m), new("DEPRECIATION", "EXPENSE", 13487m),
   ];
 
@@ -83,7 +83,7 @@ public sealed class FinancialStatementPresentationTests
   [
     new("PPE", "ASSETS", 34101m), new("RECEIVABLES", "ASSETS", 2258345m), new("CASH", "ASSETS", 58372m), new("OTHER_CA", "ASSETS", 845533m),
     new("SHARE_CAPITAL", "EQUITY", -500000m), new("RETAINED_EARNINGS", "EQUITY", 508247m),
-    new("LONG_TERM_LOAN", "LIABILITIES", 0m), new("PAYABLES", "LIABILITIES", -509273m),
+    new("LONG_TERM_LOAN", "LIABILITIES", 0m), new("PAYABLES", "LIABILITIES", -509273m), new("OCI", "OCI", 0m),
     new("REVENUE", "INCOME", -6442992m), new("GENERAL_ADMIN", "EXPENSE", 3700000m), new("DEPRECIATION", "EXPENSE", 47667m),
   ];
 
@@ -123,10 +123,14 @@ public sealed class FinancialStatementPresentationTests
 
     Assert.Equal(FinancialStatementPresentationPolicy.DraftStatus, p.Status);
     Assert.Equal(new[] { "FINANCIAL_POSITION", "PROFIT_OR_LOSS", "CHANGES_IN_EQUITY", "CASH_FLOWS" }, p.Statements.Select(x => x.Code));
-    Assert.All(p.Checks.Where(x => x.Code is not ("EQUITY_SCHEDULE" or "CASH_FLOW_BRIDGE" or "CASH_FLOW_SCHEDULE" or "CASH_FLOW_COMPARATIVE")),
+    Assert.All(p.Checks.Where(x => x.Code is not ("EQUITY_SCHEDULE" or "CASH_FLOW_REQUIRED_SECTIONS" or "CASH_FLOW_BRIDGE" or
+      "CASH_FLOW_PACKAGE_RECONCILIATION" or "CASH_FLOW_COMPARATIVE_REQUIRED_SECTIONS" or "CASH_FLOW_COMPARATIVE_BRIDGE" or
+      "CASH_FLOW_COMPARATIVE_PACKAGE_RECONCILIATION" or "CASH_FLOW_SCHEDULE" or "CASH_FLOW_COMPARATIVE" or "EQUITY_COMPARATIVE")),
       check => Assert.True(check.Passed, $"{check.Code}: {check.Detail}"));
     Assert.Contains(p.Checks, x => x.Code == "EQUITY_SCHEDULE" && !x.Passed);
+    Assert.Contains(p.Checks, x => x.Code == "CASH_FLOW_REQUIRED_SECTIONS" && !x.Passed);
     Assert.Contains(p.Checks, x => x.Code == "CASH_FLOW_BRIDGE" && !x.Passed);
+    Assert.Contains(p.Checks, x => x.Code == "CASH_FLOW_PACKAGE_RECONCILIATION" && !x.Passed);
     Assert.Contains(p.Checks, x => x.Code == "CASH_FLOW_SCHEDULE" && !x.Passed);
     Assert.Contains(p.Checks, x => x.Code == "CASH_FLOW_COMPARATIVE" && !x.Passed);
 
@@ -165,7 +169,8 @@ public sealed class FinancialStatementPresentationTests
         new("FINANCING", "New borrowing", 32621m, false, "BORROWING")
       ],
       [new("USD/QAR", 0m)],
-      [new("RETAINED_EARNINGS", "Retained earnings", 100m, 100m, 0m, 0m, 0m, 200m)]);
+      [new("RETAINED_EARNINGS", "Retained earnings", 979299m, 3818172m, 0m, 0m, 0m, 4797471m)],
+      [new("CASH_FLOW_RECONCILED", true, "Cash bridge and selected closing-cash population reconcile to the package build.")]);
 
     var result = FinancialStatementPresentationBuilder.Build(Layout(), Current(), Prior(), Notes(), Header(withPrior: true), Manifest(withPrior: true),
       currentSupplementary: schedules, priorSupplementary: null);
@@ -179,13 +184,18 @@ public sealed class FinancialStatementPresentationTests
     Assert.Contains(presentation.Statements.Single(x => x.Code == "CASH_FLOWS").Rows,
       x => x.Label.Contains("Noncash transaction", StringComparison.Ordinal) && x.Current == -50000m);
     Assert.Contains(presentation.Checks, x => x.Code == "CASH_FLOW_BRIDGE" && x.Passed);
+    Assert.Contains(presentation.Checks, x => x.Code == "CASH_FLOW_REQUIRED_SECTIONS" && x.Passed);
+    Assert.Contains(presentation.Checks, x => x.Code == "CASH_FLOW_PACKAGE_RECONCILIATION" && x.Passed);
     Assert.Contains(presentation.Checks, x => x.Code == "CASH_FLOW_SOURCE_LINEAGE" && !x.Passed);
     Assert.Contains(presentation.Checks, x => x.Code == "EQUITY_ROLLFORWARD" && x.Passed);
-    Assert.Contains(presentation.Checks, x => x.Code == "EQUITY_SFP_CROSS_CAST" && !x.Passed);
+    Assert.Contains(presentation.Checks, x => x.Code == "EQUITY_PROFIT_CROSS_CAST" && x.Passed);
+    Assert.Contains(presentation.Checks, x => x.Code == "EQUITY_OCI_CROSS_CAST" && x.Passed);
+    Assert.Contains(presentation.Checks, x => x.Code == "EQUITY_SFP_CROSS_CAST" && x.Passed);
+    Assert.Contains(presentation.Checks, x => x.Code == "CASH_FLOW_COMPARATIVE_BRIDGE" && !x.Passed);
     Assert.Contains(presentation.Checks, x => x.Code == "CASH_FLOW_COMPARATIVE" && !x.Passed);
     Assert.Contains(presentation.Checks, x => x.Code == "EQUITY_COMPARATIVE" && !x.Passed);
     Assert.Contains(presentation.Warnings, x => x.Code == "CASH_FLOW_LINEAGE_PENDING");
-    Assert.Contains(presentation.Warnings, x => x.Code == "EQUITY_CROSS_CAST_PENDING");
+    Assert.Contains(presentation.Warnings, x => x.Code == "EQUITY_READINESS_PENDING");
 
     var word = FinancialStatementPresentationRenderer.Render(presentation, FinancialStatementPresentationRenderer.WordFormat);
     using var wordStream = new MemoryStream(word);
@@ -194,8 +204,44 @@ public sealed class FinancialStatementPresentationTests
     Assert.Contains("Statement of changes in equity", content, StringComparison.Ordinal);
     Assert.Contains("Statement of cash flows", content, StringComparison.Ordinal);
     Assert.Contains("Noncash transaction", content, StringComparison.Ordinal);
-    Assert.Contains("SFP cross-casting", content, StringComparison.Ordinal);
+    Assert.Contains("Check EQUITY_SFP_CROSS_CAST: PASS", content, StringComparison.Ordinal);
+    Assert.Contains("Check CASH_FLOW_PACKAGE_RECONCILIATION: PASS", content, StringComparison.Ordinal);
     Assert.Contains("Not available", content, StringComparison.Ordinal);
+  }
+
+  [Fact]
+  public void CompleteComparativeCashAndEquitySchedules_CrossCastForBothPeriods()
+  {
+    var current = new PresentationSupplementarySchedules(
+      58372m, 1090993m,
+      [new("OPERATING", "Net operating cash", 1200000m, false, "OPERATING"),
+       new("INVESTING", "Investment payments", -200000m, false, "INVESTING"),
+       new("FINANCING", "New borrowing", 32621m, false, "FINANCING")],
+      [new("USD/QAR", 0m)],
+      [new("EQUITY", "Total equity", 979299m, 3818172m, 0m, 0m, 0m, 4797471m)],
+      [new("CASH_FLOW_RECONCILED", true, "Current bridge and cash population reconcile.")]);
+    var prior = new PresentationSupplementarySchedules(
+      0m, 58372m,
+      [new("OPERATING", "Net operating cash", 58372m, false, "OPERATING"),
+       new("INVESTING", "Investment payments", 0m, false, "INVESTING"),
+       new("FINANCING", "Financing cash", 0m, false, "FINANCING")],
+      [new("USD/QAR", 0m)],
+      [new("EQUITY", "Total equity", -8247m, 2695325m, 0m, 0m, 0m, 2687078m)],
+      [new("CASH_FLOW_RECONCILED", true, "Comparative bridge and cash population reconcile.")]);
+
+    var result = FinancialStatementPresentationBuilder.Build(Layout(), Current(), Prior(), Notes(),
+      Header(withPrior: true), Manifest(withPrior: true), currentSupplementary: current, priorSupplementary: prior);
+    Assert.True(result.Succeeded, result.Message);
+    var presentation = result.Value!;
+    Assert.Contains(presentation.Checks, x => x.Code == "EQUITY_COMPARATIVE_ROLLFORWARD" && x.Passed);
+    Assert.Contains(presentation.Checks, x => x.Code == "EQUITY_COMPARATIVE_PROFIT_CROSS_CAST" && x.Passed);
+    Assert.Contains(presentation.Checks, x => x.Code == "EQUITY_COMPARATIVE_OCI_CROSS_CAST" && x.Passed);
+    Assert.Contains(presentation.Checks, x => x.Code == "EQUITY_COMPARATIVE_SFP_CROSS_CAST" && x.Passed);
+    Assert.Contains(presentation.Checks, x => x.Code == "CASH_FLOW_COMPARATIVE_REQUIRED_SECTIONS" && x.Passed);
+    Assert.Contains(presentation.Checks, x => x.Code == "CASH_FLOW_COMPARATIVE_BRIDGE" && x.Passed);
+    Assert.Contains(presentation.Checks, x => x.Code == "CASH_FLOW_COMPARATIVE_PACKAGE_RECONCILIATION" && x.Passed);
+    Assert.Equal(58372m, presentation.Statements.Single(x => x.Code == "CASH_FLOWS").Rows.Single(x => x.Code == "CF_ENDING_CASH").Prior);
+    Assert.Equal(2687078m, presentation.Statements.Single(x => x.Code == "CHANGES_IN_EQUITY").Rows.Single(x => x.Label == "Closing balance").Prior);
   }
 
   [Fact]
@@ -325,6 +371,7 @@ public sealed class FinancialStatementPresentationTests
     Assert.Contains("(508,247)", text, StringComparison.Ordinal);
     Assert.Contains("–", text, StringComparison.Ordinal);
     Assert.Contains(FinancialStatementPresentationRenderer.Banner, text, StringComparison.Ordinal);
+    Assert.Contains("Check CASH_FLOW_PACKAGE_RECONCILIATION: FAIL", text, StringComparison.Ordinal);
   }
 
   [Fact]
@@ -348,6 +395,10 @@ public sealed class FinancialStatementPresentationTests
     Assert.Contains(6172821m, numericCells);
     Assert.Contains(-508247m, numericCells);
     Assert.Contains(3818172m, numericCells);
+    var firstCheck = p.Checks[0];
+    var expectedCheck = $"Check {firstCheck.Code}: {(firstCheck.Passed ? "PASS" : "FAIL")} — {firstCheck.Detail}";
+    Assert.Contains(expectedCheck, FinancialStatementPresentationRenderer.ManifestLines(p));
+    Assert.Contains(expectedCheck, worksheets[^1].Descendants<S.Text>().Select(x => x.Text));
   }
 
   [Fact]

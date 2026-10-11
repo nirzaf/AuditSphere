@@ -70,6 +70,10 @@ public static partial class FinancialStatementService
     var typedAccounting = db as IClientAccountingDbContext;
     var currentEquityLines = typedAccounting is null ? [] : await typedAccounting.FinancialPackageEquityLines.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == package.Id).ToListAsync(ct);
+    var packageIds = comparative is null ? new[] { package.Id } : new[] { package.Id, comparative.Id };
+    var packageValidations = await db.FinancialPackageValidations.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && packageIds.Contains(x.FinancialPackageId) && x.Code == "CASH_FLOW_RECONCILED")
+      .ToListAsync(ct);
     var noteLines = await db.FinancialPackageNoteLines.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == package.Id).ToListAsync(ct);
     IReadOnlyList<FinancialPackageCashFlowLine> priorCashLines = [];
@@ -97,10 +101,12 @@ public static partial class FinancialStatementService
       comparative?.Id, comparative?.CalculationHash,
       FinancialStatementPresentationPolicy.BuilderVersion, FinancialStatementPresentationPolicy.DisplayPolicy);
 
-    var currentSupplementary = ToPresentationSchedules(package, currentCashLines, currentFxEffects, currentEquityLines);
+    var currentSupplementary = ToPresentationSchedules(package, currentCashLines, currentFxEffects, currentEquityLines,
+      packageValidations.Where(x => x.FinancialPackageId == package.Id).ToArray());
     var priorSupplementary = comparative is null
       ? null
-      : ToPresentationSchedules(comparative, priorCashLines, priorFxEffects, priorEquityLines);
+      : ToPresentationSchedules(comparative, priorCashLines, priorFxEffects, priorEquityLines,
+        packageValidations.Where(x => x.FinancialPackageId == comparative.Id).ToArray());
     return FinancialStatementPresentationBuilder.Build(
       layoutLines,
       currentLines.Select(x => new PresentationBalance(x.DestinationCode, x.StatementSection, x.Amount)).ToList(),
@@ -116,13 +122,15 @@ public static partial class FinancialStatementService
     FinancialPackage package,
     IReadOnlyList<FinancialPackageCashFlowLine> cashLines,
     IReadOnlyList<FinancialPackageFxEffect> fxEffects,
-    IReadOnlyList<FinancialPackageEquityLine> equityLines) => new(
+    IReadOnlyList<FinancialPackageEquityLine> equityLines,
+    IReadOnlyList<FinancialPackageValidation> packageValidations) => new(
       package.CashBeginning,
       package.CashEnding,
       cashLines.Select(x => new PresentationCashFlowMovement(x.Section, x.Description, x.Amount, x.IsNonCash, x.ActivityCode)).ToList(),
       fxEffects.Select(x => new PresentationFxCashEffect(x.CurrencyPair, x.Amount)).ToList(),
       equityLines.Select(x => new PresentationEquityMovement(x.LineCode, x.Description, x.OpeningAmount, x.ProfitOrLossAmount,
-        x.OciAmount, x.CapitalMovementAmount, x.DividendsAmount, x.ClosingAmount)).ToList());
+        x.OciAmount, x.CapitalMovementAmount, x.DividendsAmount, x.ClosingAmount)).ToList(),
+      packageValidations.Select(x => new PresentationPackageValidation(x.Code, x.Passed, x.Detail)).ToList());
 
   /// <summary>Renders the presentation as PDF, Word or Excel. Repeating the request yields identical bytes.</summary>
   public static async Task<CommandResult<FinancialStatementPresentationExport>> RenderPresentationAsync(

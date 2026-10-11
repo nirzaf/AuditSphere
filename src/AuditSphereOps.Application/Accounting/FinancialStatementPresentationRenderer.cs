@@ -108,6 +108,7 @@ public static class FinancialStatementPresentationRenderer
       $"Framework: {p.Header.Framework} · currency {p.Header.Currency} · reference {p.Header.Reference}"
     };
     lines.AddRange(p.Warnings.Select(x => $"{(x.Code == "DISPLAY_ROUNDING" ? "Rounding note" : "Readiness note")}: {x.Detail}"));
+    lines.AddRange(p.Checks.Select(x => $"Check {x.Code}: {(x.Passed ? "PASS" : "FAIL")} — {x.Detail}"));
     return lines;
   }
 
