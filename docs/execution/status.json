@@ -169,7 +169,7 @@
     {
       "gate": "M365-ADMIN",
       "status": "BLOCKED_EXTERNAL",
-      "required": "Development M365 live acceptance remains BLOCKED_EXTERNAL. The Hostinger checkout was fast-forwarded to master for the Compose mount; the existing API image was retained. An owner-approved API-only recreation completed and /health/ready returned HTTP 200; database and workers were not recreated and no migration ran. The staged certificate directory is mounted read-only, while SELECTED_SITE_CLIENT_ID is intentionally blank in the protected VPS .env pending the user-granted exact-site permission, so the running API reports the selected-site provider unconfigured. ExternalEffects, DirectoryReader, provisioning, guest invitation, group membership, outbound mail, and live PBC transfer are false. On 2026-10-11 the Entra portal confirmed tenant admin consent for User.Read.All (Application) and User.Read (Delegated) on the dedicated Directory Reader registration; the dedicated Mail.Send registration and separated User.Create, User.Invite.All, and GroupMember.ReadWrite.All registrations also show consent granted. This is registration-level consent only. The live AuditSphere page still reports its separate consent handshake REQUIRED with no attempt; DirectoryReader remains disabled, directory verification is NOT_VERIFIED, selected-resource is BLOCKED_EXTERNAL, and activation is unavailable. The consent action remains unavailable until the deployment-owned consent identity and fixed callback are configured. The target fields are an unsubmitted browser-tab draft, not persisted server configuration. The catalog Enabled label for Selected SharePoint does not mean the credential is configured or access is verified. Mail and Records drafts remain Not Configured. No AuditSphere nonce-bound consent flow, Graph call, site grant, file probe, or workspace activation was performed. The user will grant only the exact approved site. After that, privately restore the app ID and run the already-authorized positive and unrelated-site denial probe; never add tenant-wide Sites.FullControl.All to the runtime app. Keep this gate blocked until the exact resource checks and remaining external acceptance pass."
+      "required": "Development M365 live acceptance remains BLOCKED_EXTERNAL. The Hostinger checkout was fast-forwarded to master for the Compose mount; the existing API image was retained. An owner-approved API-only recreation completed and /health/ready returned HTTP 200; database and workers were not recreated and no migration ran. The staged certificate directory is mounted read-only, while SELECTED_SITE_CLIENT_ID is intentionally blank in the protected VPS .env pending the user-granted exact-site permission, so the running API reports the selected-site provider unconfigured. ExternalEffects, DirectoryReader, provisioning, guest invitation, group membership, outbound mail, and live PBC transfer are false. On 2026-10-11 the Entra portal confirmed tenant admin consent for User.Read.All (Application) and User.Read (Delegated) on the dedicated Directory Reader registration; the dedicated Mail.Send registration and separated User.Create, User.Invite.All, and GroupMember.ReadWrite.All registrations also show consent granted. This is registration-level consent only. The live AuditSphere page still reports its separate consent handshake REQUIRED with no attempt; DirectoryReader remains disabled, directory verification is NOT_VERIFIED, selected-resource is BLOCKED_EXTERNAL, and activation is unavailable. The consent action remains unavailable until the deployment-owned consent identity and fixed callback are configured. The target fields are an unsubmitted browser-tab draft, not persisted server configuration. The catalog Enabled label for Selected SharePoint does not mean the credential is configured or access is verified. Mail and Records drafts remain Not Configured. No AuditSphere nonce-bound consent flow, Graph mutation, site grant, file write, or workspace activation was performed. On 2026-10-11 owner-authorized SSH worked. The selected-site public certificate matched its Entra registration; the live token held exactly Sites.Selected, but both approved target and unrelated control returned HTTP 403 accessDenied. The positive grant is still missing. The release image and pending migrations passed on a disposable restored copy; the live database remains at 20261009225854_FirmSafetyStateBootstrapBackfill pending specific migration approval. Automatic approval review rejected configuring Web callbacks on the Directory Reader because the earlier callback approval named the Development app; exact permission for its callbacks, dedicated certificate and read-only enablement is pending. The user will grant only the exact approved site. After that, privately restore the app ID and run the already-authorized positive and unrelated-site denial probe; never add tenant-wide Sites.FullControl.All to the runtime app. Keep this gate blocked until the exact resource checks and remaining external acceptance pass."
     },
     {
       "gate": "P2b",
@@ -288,5 +288,40 @@
     },
     "notes": "Current-tree regression on code commit c9bea82ae52ee9e4867ad26d2c4059991e19dade: API 223/223, Domain 825/825, and E2E 236/236 (1,284 total, zero failures) against auditsphere_tests on 127.0.0.1:5433. Angular CI specs passed 630/630 across 114 files. The Release solution build passed with six NU1900 warnings because the NuGet vulnerability service was unreachable. Angular production build passed using the SQLite cache override; the existing commercial/settings.scss stylesheet exceeds its 4 KB budget by 3.53 KB. EF reports no pending model changes and OpenAPI matches the committed contract. No production or development database migration, live Microsoft consent handshake, or external provider acceptance was performed.",
     "migrationHead": "20261010203413_ReportCertificateSignatureEvidence"
+  },
+  "hostingerAcceptance": {
+    "recordedAtUtc": "2026-10-11",
+    "vpsCheckout": "e42a57073702fd41292d39acaf651043b2fcbc57",
+    "releaseImageSource": "e64a0cf97adc93fa8416c6288e02bb62fb30db00",
+    "liveMigrationHead": "20261009225854_FirmSafetyStateBootstrapBackfill",
+    "liveMigrationCount": 187,
+    "backup": {
+      "path": "/opt/auditsphere/storage/backups/pre-acceptance-upgrade-20261011T010144Z.dump",
+      "bytes": 1828313,
+      "format": "PostgreSQL custom",
+      "catalogValidated": true,
+      "restoredToDisposableDatabase": true
+    },
+    "rehearsal": {
+      "migrationHead": "20261010203413_ReportCertificateSignatureEvidence",
+      "migrationCount": 191,
+      "migrations": "PASS",
+      "apiReadyHttp": 200,
+      "temporaryResourcesRemoved": true,
+      "liveDatabaseChanged": false
+    },
+    "deploymentStatus": "AWAITING_SPECIFIC_MIGRATION_APPROVAL",
+    "selectedSiteProbe": {
+      "certificateMatchesRegistration": true,
+      "tokenRoles": [
+        "Sites.Selected"
+      ],
+      "approvedSiteHttp": 403,
+      "unrelatedControlHttp": 403,
+      "diagnostic": "accessDenied",
+      "fileWriteAttempted": false,
+      "siteGrantChanged": false
+    },
+    "directoryReaderSetup": "AWAITING_EXACT_CALLBACK_CERTIFICATE_ENABLEMENT_APPROVAL"
   }
 }

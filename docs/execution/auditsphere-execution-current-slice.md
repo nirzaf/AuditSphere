@@ -15,6 +15,28 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## VPS upgrade rehearsal and selected-site access check — 2026-10-11
+
+The previously authorized SSH access worked despite the expired Hostinger browser terminal.
+The clean VPS checkout was fast-forwarded, the published API and migration images were pulled,
+and a private custom-format PostgreSQL backup was catalog-checked and restored to a disposable
+database. The pending migrations applied there, and the new API returned readiness HTTP 200
+against that copy. The rehearsal container, database and temporary environment files were removed.
+The live database and existing services were unchanged. Its upgrade awaits the specific migration
+approval because the earlier deployment scope allowed API recreation without database migration.
+Exact image, migration and backup evidence is in [`status.json`](status.json).
+
+The installed Selected Site certificate matches the public certificate on the approved Entra app.
+A live token contained exactly `Sites.Selected` for the configured tenant. Read-only Graph checks
+returned HTTP 403 with `accessDenied` for both the approved synthetic site and its unrelated
+control. The positive grant is missing; no disposable file write was attempted and no site grant
+was changed. The server-side Selected Site app ID remains unset pending the user's exact-site grant.
+
+Automatic approval review rejected selecting the Web callback platform on the separate Directory
+Reader app because the earlier callback authorization named the Development app. Exact approval
+for the Directory Reader callbacks, certificate and read-only capability enablement has been
+requested. Its registration and runtime remain unchanged pending that response.
+
 ## Current-tree acceptance verification — 2026-10-11
 
 The complete .NET and Angular suites, Release build, OpenAPI drift check, EF model-drift check,

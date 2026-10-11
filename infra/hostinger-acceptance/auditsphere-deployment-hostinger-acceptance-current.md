@@ -207,6 +207,23 @@ Restore the Selected Site app ID privately only after the user grants the exact 
 run the already-authorized positive target and unrelated-site denial probe. Do not add
 `Sites.FullControl.All` to the runtime app.
 
+### Follow-up: upgrade rehearsal and exact-site access check (2026-10-11)
+
+Owner-authorized SSH access succeeded while the Hostinger browser terminal remained expired.
+The published API and migration images were pulled. A private custom-format database backup was
+catalog-checked, restored to a disposable database, and upgraded with the release migration bundle.
+The release API passed `/health/ready` against that copy. The temporary API, database and environment
+files were removed. The live database and existing containers were unchanged; applying the pending
+live migrations requires approval beyond the earlier API-only recreation scope. The execution
+ledger records the image, migration head and backup location.
+
+The selected-site certificate matched the public certificate in Entra, and its token held exactly
+`Sites.Selected`. A read-only check returned HTTP 403 `accessDenied` for the approved site as well
+as the unrelated control. The positive site grant is therefore still missing. No file was created,
+no site permission changed, and the runtime app ID remains unset. After the user grants the exact
+site, repeat the target and unrelated-site checks before activating the resource or attempting the
+already-authorized disposable file probe.
+
 ### Configure a capability
 
 1. **Use a dedicated app identity.** Keep the OIDC sign-in application separate. Give each Graph
@@ -243,8 +260,9 @@ run the already-authorized positive target and unrelated-site denial probe. Do n
    labels them as unsubmitted fields saved in this browser tab; this is not a
    persisted server-side resource configuration. The user authorized a
    `write` grant only to the reviewed target and one disposable file create/read/delete probe, with
-   the unrelated-site denial checked. The probe is pending until the dedicated certificate and
-   server configuration are installed. Then run the selected-site boundary check and require both
+   the unrelated-site denial checked. The dedicated certificate is installed, but the approved
+   site currently returns access denied and the runtime app ID remains unset. After the exact-site
+   grant, restore that app ID privately, run the selected-site boundary check, and require both
    the approved-target result and unrelated-site denial before any workspace activation review.
    Do not create a new site or grant the control site.
 6. **Verify outbound mail separately.** The owner must identify one approved sender mailbox.
