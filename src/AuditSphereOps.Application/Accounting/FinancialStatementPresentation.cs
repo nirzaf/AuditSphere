@@ -250,6 +250,11 @@ public static class FinancialStatementPresentationBuilder
     var invalidNoteIds = notes.Where(x => string.IsNullOrWhiteSpace(x.NoteCode) || x.NoteCode.Trim().Length > 100).ToArray();
     if (invalidNoteIds.Length > 0)
       Fail("NOTE_LOGICAL_ID", "Each note cross-cast must carry a non-empty logical note ID of at most 100 characters.");
+    var duplicateNotePointers = notes.GroupBy(x => (LogicalId: Normal(x.NoteCode), FaceDestination: Normal(x.FaceDestinationCode)))
+      .Where(x => x.Count() > 1).Select(x => x.Key).OrderBy(x => x.LogicalId, StringComparer.Ordinal)
+      .ThenBy(x => x.FaceDestination, StringComparer.Ordinal).ToArray();
+    if (duplicateNotePointers.Length > 0)
+      Fail("NOTE_POINTER_UNIQUE", "A stable note logical ID cannot bind to the same normalized face destination more than once.");
     var dangling = noteGroups.Where(g => !leafByDestination.ContainsKey(g.Key)).Select(g => g.Key).OrderBy(x => x, StringComparer.Ordinal).ToArray();
     if (dangling.Length > 0)
       Fail("NOTE_REFERENCE", "Notes point to face lines that the layout does not present: " + string.Join(", ", dangling) + ".");

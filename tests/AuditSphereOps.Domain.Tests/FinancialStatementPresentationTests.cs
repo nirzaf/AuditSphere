@@ -175,6 +175,17 @@ public sealed class FinancialStatementPresentationTests
   }
 
   [Fact]
+  public void DuplicateNormalizedNotePointer_IsRefused()
+  {
+    var notes = Notes();
+    notes.Add(new("5", " ppe ", 0m));
+    var result = Build(notes: notes, withPrior: false);
+
+    Assert.Equal(ErrorCodes.Accounting.PackageInvalid, result.ErrorCode);
+    Assert.Contains("same normalized face destination more than once", result.Message, StringComparison.Ordinal);
+  }
+
+  [Fact]
   public void SupplementaryStatements_ShowPersistedSchedules_ExcludeNoncashFromBridge_AndExposeUnverifiedGates()
   {
     var schedules = new PresentationSupplementarySchedules(
