@@ -351,6 +351,16 @@ A fresh Selected Site check after the owner's grant report still denied both the
 and unrelated control. Investigate the exact app/site grant before another probe. Do not broaden
 permissions to make the positive check pass. Exact outcomes are in the execution ledger.
 
+## Exchange authentication outcome — 2026-10-11
+
+The Microsoft device sign-in page showed success, but the local Exchange PowerShell connection
+reported `Broken` and an expired token. The preceding object-not-found policy response is not a
+mailbox-isolation pass. Duplicate authentication retries were stopped. No Exchange policy or group
+was changed, no mail capability was enabled, and no message was sent. Obtain a working supported
+Exchange administrator connection before policy verification; retain the protected staged
+credential and disabled settings. Do not use browser token extraction or expand application roles
+to bypass this authentication failure.
+
 ## Operational boundaries
 
 - PostgreSQL is not published on a host port. The API is published only on host loopback port

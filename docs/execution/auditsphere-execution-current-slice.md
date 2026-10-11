@@ -15,6 +15,20 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Exchange authentication failure retained — 2026-10-11
+
+The administrator completed the Microsoft device sign-in and its browser page showed success.
+The Exchange PowerShell connection did not become usable: it reported `Broken` and token status
+`Expired`. An earlier policy query returned object-not-found rather than verified mailbox
+isolation. Repeated authentication attempts were stopped; no application-access policy or scope
+group was created, no mail was enabled, and no synthetic message was sent. The mail credential and
+approved sender remain staged privately on the VPS. Exact state is in [`status.json`](status.json).
+
+Resume with a working supported Exchange administrator connection. Inspect the existing exact-app
+policy, establish approved-sender access and unrelated synthetic mailbox denial, then enable only
+the reviewed mail path and verify its synthetic message. A successful Microsoft browser page alone
+does not prove a usable Exchange session or restricted mailbox access.
+
 ## Mail staging and repeated selected-site denial — 2026-10-11
 
 The owner supplied the approved sender and confirmed the same controlled mailbox as the test

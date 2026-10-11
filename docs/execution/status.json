@@ -350,7 +350,7 @@
       "catalogValidated": true
     },
     "mailSetup": {
-      "status": "STAGED_DISABLED_AWAITING_EXCHANGE_POLICY_VERIFICATION",
+      "status": "STAGED_DISABLED_BLOCKED_EXCHANGE_AUTHENTICATION",
       "senderAndControlledRecipientApproved": true,
       "senderMailboxObservedInExchange": true,
       "existingCertificateMatchesRegistration": true,
@@ -361,7 +361,9 @@
       "mailEnabled": false,
       "testSent": false,
       "exchangeCloudShell": "NO_VALID_AZURE_SUBSCRIPTION",
-      "exchangePowerShell": "AWAITING_ADMINISTRATOR_DEVICE_SIGN_IN"
+      "exchangePowerShell": "BROKEN_CONNECTION_EXPIRED_TOKEN_AFTER_DEVICE_SIGN_IN",
+      "mailboxPolicyChanged": false,
+      "authenticationDiagnostic": "Microsoft browser displayed successful sign-in; Exchange PowerShell connection reported Broken and Expired. Further duplicate authentication attempts stopped."
     },
     "documentationCi": {
       "runId": 38131117854,
