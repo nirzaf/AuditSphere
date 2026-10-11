@@ -222,6 +222,7 @@ export class ResourcePlanning {
     return `${s?.firmId}/${s?.userId}/${s?.generation}/${this.session.invalidation()}`;
   }
   setDirty(kind: ResourceFormKind, value: boolean): void {
+    if (this.dirty()[kind] === value) return;
     this.editVisit++;
     this.preview.set(null);
     this.assentModel.set({ reviewed: false });

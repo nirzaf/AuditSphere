@@ -15,6 +15,25 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Hostinger Entra mutation-app permission split — 2026-10-11
+
+The user authorized three dedicated, single-role registrations and admin consent, plus removal of
+the duplicate roles from the former combined app. The Entra portal now shows `User.Create` only on
+`AuditSphereOps Development Administration`, `User.Invite.All` only (plus delegated `User.Read`)
+on `AuditSphereOps Acceptance Guest Invitation`, and `GroupMember.ReadWrite.All` only (plus
+delegated `User.Read`) on `AuditSphereOps Acceptance Group Membership`; each application role shows
+tenant consent granted. The former combined app's extra configured roles and their leftover tenant
+grants were removed.
+
+This is Entra registration evidence. The live AuditSphere tenant-connection page still reports no
+consent attempt, directory `NOT_VERIFIED`, and the three mutation capabilities Disabled. No
+role-specific VPS credentials were configured, no Graph mutation was run, and no capability was
+enabled. Selected SharePoint remains `BLOCKED_EXTERNAL`; the exact site grant and positive/negative
+resource probe are still pending. The previously owner-approved API-only Compose recreation
+returned `/health/ready` HTTP 200; the database and workers were not recreated and no migration ran.
+`SELECTED_SITE_CLIENT_ID` remains blank in the protected VPS environment until the exact-site grant.
+See the M365 permission matrix and Hostinger deployment guide.
+
 ## ADR-0016 certificate signing of the final report — 2026-10-10
 
 Working-tree slice on `cee546f9`. On the owner's instruction the final report PDF is certificate-signed when the firm's certificate is configured (`ReportSigning:*`), the bundle's certified statements are signed with it, and `ReportSigning:Required` fails closed. With no certificate the image-only behaviour is unchanged and labelled. Observed for this slice: Release build, EF drift check, OpenAPI check, the Domain test classes `ReportCertificateSigningTests` and `AuditDeliverablesTests`, and the `completion.spec.ts` screen specs passed, using a throwaway self-signed certificate. The full suites were not run. The firm's real certificate, its legal acceptance and the Wiki deployment note remain open; details are in `status.json` under ADR-0016.

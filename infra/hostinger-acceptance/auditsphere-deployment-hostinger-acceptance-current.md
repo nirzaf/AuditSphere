@@ -172,13 +172,49 @@ that tenant-wide permission; the grant must use a separately approved administra
 Until that exact `write` grant exists, the disposable create/read/delete probe and denial check at the
 unrelated control site cannot run. AuditSphere remains `BLOCKED_EXTERNAL` for this capability.
 
+### Follow-up: directory mutation permission split (2026-10-11)
+
+The owner authorized registering and consenting to three one-role identities and removing the two
+extra roles from the former combined Administration registration. The Entra API-permission pages
+now show:
+
+| Registration | Application permission | Entra consent |
+|---|---|---|
+| `AuditSphereOps Development Administration` | `User.Create` only | Granted |
+| `AuditSphereOps Acceptance Guest Invitation` | `User.Invite.All` only, plus delegated `User.Read` | Granted |
+| `AuditSphereOps Acceptance Group Membership` | `GroupMember.ReadWrite.All` only, plus delegated `User.Read` | Granted |
+
+For the former combined app, `User.Invite.All` and `GroupMember.ReadWrite.All` were removed from
+configured permissions and their leftover tenant grants were revoked. The group registration was
+created and tenant consent was granted. This completes Entra permission separation; it does not
+configure role-specific credentials on the VPS. A fresh AuditSphere page observation still shows
+the consent attempt as `None · Not attempted`, directory verification as `NOT_VERIFIED`, and
+User.Create, guest invitation and group membership as Disabled. No capability was enabled and no
+directory mutation was performed. Keep these capabilities disabled until their credentials and
+synthetic target checks are separately configured and verified.
+
+### Follow-up: safe API runtime state after approved recreation (2026-10-11)
+
+The owner-approved API-only recreation has completed from the repository Compose configuration;
+`/health/ready` returned HTTP 200. The database and workers were not recreated and no migration ran.
+The API received the read-only credential mount, but `SELECTED_SITE_CLIENT_ID` was cleared from the
+protected `.env` pending the exact-site grant, so the selected-site provider is not configured in
+the running API. `ExternalEffects`, Directory Reader, user provisioning, guest invitation, group
+membership, outbound mail and live PBC transfer remain false. A fresh AuditSphere page still reports
+consent `REQUIRED` with no attempt, directory `NOT_VERIFIED`, selected resource `BLOCKED_EXTERNAL`,
+and activation unavailable. No Graph call, site grant, file probe or workspace activation occurred.
+Restore the Selected Site app ID privately only after the user grants the exact approved site; then
+run the already-authorized positive target and unrelated-site denial probe. Do not add
+`Sites.FullControl.All` to the runtime app.
+
 ### Configure a capability
 
 1. **Use a dedicated app identity.** Keep the OIDC sign-in application separate. Give each Graph
    identity exactly one application role: `User.Read.All`, `Sites.Selected`, `Mail.Send`,
-   `User.Create`, `User.Invite.All` or `GroupMember.ReadWrite.All`. Do not enable the existing
-   combined Administration registration until its permissions have been split. Do not grant
-   `Directory.ReadWrite.All`, broad SharePoint scopes or directory-role assignment.
+   `User.Create`, `User.Invite.All` or `GroupMember.ReadWrite.All`. The three directory-mutation
+   registrations are now split as recorded above; configure a matching role-specific credential
+   before enabling any capability. Do not grant `Directory.ReadWrite.All`, broad SharePoint scopes
+   or directory-role assignment.
 2. **Create and install a certificate per Graph identity.** The API and optional M365 workers read
    only the read-only mount `/run/auditsphere/m365`; its host source is
    `/opt/auditsphere/storage/m365-credentials`. Create the host directory with owner-only

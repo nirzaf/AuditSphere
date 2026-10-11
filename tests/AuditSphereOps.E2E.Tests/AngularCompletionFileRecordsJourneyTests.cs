@@ -14,7 +14,10 @@ public sealed class AngularCompletionFileRecordsJourneyTests
   private static readonly Dictionary<string, string> Angular = new()
   {
     ["AngularUi__Enabled"] = "true",
-    ["AngularUi__CanonicalRoutes"] = "true"
+    ["AngularUi__CanonicalRoutes"] = "true",
+    ["ReportSigning__Required"] = "false",
+    ["ReportSigning__CertificatePath"] = "",
+    ["ReportSigning__PrivateKeyPath"] = ""
   };
 
   [Fact]
@@ -181,6 +184,9 @@ public sealed class AngularCompletionFileRecordsJourneyTests
         new() { Name = "Engagement completion checklist", Exact = true })).ToBeVisibleAsync();
       await Assertions.Expect(page.GetByRole(AriaRole.Heading,
         new() { Name = "File freeze and activity trail", Exact = true })).ToBeVisibleAsync();
+      var signing = page.Locator("[data-report-signing]");
+      await Assertions.Expect(signing).ToContainTextAsync("Report signing: signature image only.");
+      await Assertions.Expect(signing).ToContainTextAsync("not tamper-evident.");
       return page;
     }
 

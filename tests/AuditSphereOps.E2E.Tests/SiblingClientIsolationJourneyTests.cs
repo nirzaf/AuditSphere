@@ -201,12 +201,11 @@ public sealed partial class SiblingClientIsolationJourneyTests(ITestOutputHelper
       response.Url.EndsWith("/api/ui/consolidation", StringComparison.Ordinal));
     await page.GotoAsync(origin + "/app/consolidation");
     var consolidationResponse = await consolidationResponseTask;
-    var consolidationJson = await consolidationResponse.TextAsync();
     Assert.Equal(200, consolidationResponse.Status);
-    Assert.Contains("OWN-GROUP", consolidationJson, StringComparison.Ordinal);
     await page.GetByRole(AriaRole.Heading, new() { Name = "Group consolidation", Exact = true }).WaitForAsync();
     var groupWorkspace = await page.Locator("main").InnerTextAsync();
     Assert.Contains("OWN-GROUP", groupWorkspace, StringComparison.Ordinal);
+    Assert.DoesNotContain(Marker, groupWorkspace, StringComparison.Ordinal);
     Assert.Contains("Perimeter", groupWorkspace, StringComparison.Ordinal);
     foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
     {

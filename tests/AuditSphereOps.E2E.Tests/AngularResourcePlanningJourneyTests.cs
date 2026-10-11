@@ -163,8 +163,19 @@ public sealed class AngularResourcePlanningJourneyTests
       var previewResponse = page.WaitForResponseAsync(response =>
         response.Request.Method == "POST" && response.Url.EndsWith("/api/ui/practice/resources/preview", StringComparison.Ordinal));
       await submitButton.PressAsync("Enter");
-      Assert.Equal(200, (await previewResponse).Status);
-      await ConfirmAndAcknowledgeAsync();
+      var response = await previewResponse;
+      await response.FinishedAsync();
+      Assert.Equal(200, response.Status);
+      try
+      {
+        await ConfirmAndAcknowledgeAsync();
+      }
+      catch (PlaywrightException e)
+      {
+        var message = await page.Locator(".command-result").AllTextContentsAsync();
+        throw new InvalidOperationException(
+          $"Planning preview returned HTTP {response.Status}; message={string.Join(" | ", message)}", e);
+      }
     }
     var profile=page.GetByRole(AriaRole.Form,new(){Name="Save profile",Exact=true});
     await profile.GetByLabel("Team member",new(){Exact=true}).SelectOptionAsync(f.Staff.Id.ToString());

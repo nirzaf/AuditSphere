@@ -203,7 +203,7 @@ Every story is sized for one agent session. Before starting, read only the files
 
 ## STE-NXT-011 — Decide whether to add an independent read-only archive copy (SPK-01 option 2)
 
-*Status (2026-10-10): COMPLETED. By scope decision, option 2 is not approved for the current build. The release store remains authoritative and SharePoint remains a working copy under APPROVED ADR-0009. There is no implementation task in the current scope. Reconsideration requires a separate scope decision and live provider security review; provider read-only acceptance remains BLOCKED_EXTERNAL.*
+*Status (2026-10-11): DESIGN DECIDED; IMPLEMENTATION OPEN. Under the owner's delegated project authority, select SPK-01 option 2: a separate read-only SharePoint archive library. The release/archive store remains authoritative. Implement the copy, per-file SHA-256 verification, idempotency, reconciled permission readback and staff-denial evidence. Keep provider protection `BLOCKED_EXTERNAL` until live evidence is observed; site and tenant administrators retain provider authority. See the 2026-10-11 amendment to ADR-0009.*
 
 **Story.** As a compliance administrator, I want the released bundle and its manifest copied to a read-only archive library, with each copied file verified by SHA-256, so that the provider holds a protected copy of the exact issued bytes.
 
@@ -223,7 +223,7 @@ Every story is sized for one agent session. Before starting, read only the files
 
 **Constraints.** Stay within the capability model: no new Microsoft scope. The client-sites certificate is never mounted in the API, the Web host or the document worker.
 
-*Current disposition:* no copy is authorized by the current scope decision. ADR-0009 is approved; that approval establishes the release store as authority and does not authorize an additional archive-copy feature.
+*Current disposition:* the design is authorized by the 2026-10-11 ADR-0009 amendment. The provider operation and evidence remain open; no external acceptance is claimed.
 
 ---
 

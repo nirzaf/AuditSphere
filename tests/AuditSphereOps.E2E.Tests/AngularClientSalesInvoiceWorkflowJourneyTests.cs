@@ -224,6 +224,16 @@ public sealed class AngularClientSalesInvoiceWorkflowJourneyTests
     await purchases.GetByLabel("Supplier-stated tax", new() { Exact = true }).FillAsync("0");
     await purchases.GetByLabel("Supplier-stated gross", new() { Exact = true }).FillAsync("100");
     await purchases.GetByRole(AriaRole.Checkbox, new() { Name = "I checked this supplier, client, document dates, coding, supplier-stated totals and evidence reference.", Exact = true }).CheckAsync();
+    var draftButton = purchases.GetByRole(AriaRole.Button, new() { Name = "Save client purchase draft", Exact = true });
+    var readiness = await purchases.EvaluateAsync<string>("element => JSON.stringify({ disabled: element.querySelector('button[type=submit]')?.disabled, invalid: [...element.querySelectorAll(':invalid')].map(x => ({ name: x.getAttribute('name'), value: x.value, message: x.validationMessage })) })");
+    try
+    {
+      await Assertions.Expect(draftButton).ToBeEnabledAsync(new() { Timeout = 15000 });
+    }
+    catch (PlaywrightException e)
+    {
+      throw new InvalidOperationException($"Supplier invoice form was not ready to save: {readiness}", e);
+    }
     IResponse purchaseDraftResponse;
     // Saving navigates away from the draft, and Playwright cannot read a body after navigation, so the body is captured
     // when the response arrives; the id is read from it after the save completes.
@@ -237,7 +247,7 @@ public sealed class AngularClientSalesInvoiceWorkflowJourneyTests
     try
     {
       purchaseDraftResponse = await makerPage.RunAndWaitForResponseAsync(
-        async () => await purchases.GetByRole(AriaRole.Button, new() { Name = "Save client purchase draft", Exact = true }).ClickAsync(),
+        async () => await draftButton.ClickAsync(),
         response => response.Request.Method == "POST" && response.Url.EndsWith("/purchase-invoice-drafts", StringComparison.Ordinal));
     }
     catch (TimeoutException e)

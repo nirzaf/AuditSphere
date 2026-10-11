@@ -201,6 +201,39 @@ configuration inspection, and remaining operator steps. Portal consent must neve
 an AuditSphere `CONSENT_VERIFIED` state; only the nonce-bound connection flow and fresh persisted
 capability checks establish those states.
 
+## Hostinger acceptance permission split (observed 2026-10-11)
+
+The Entra portal now shows three separate registrations for directory-mutation permissions:
+
+| Registration | Application permission | Entra consent | AuditSphere runtime |
+|---|---|---|---|
+| `AuditSphereOps Development Administration` | `User.Create` only | Granted | Disabled; no capability verification |
+| `AuditSphereOps Acceptance Guest Invitation` | `User.Invite.All` only, plus delegated `User.Read` for sign-in | Granted | Disabled; no capability verification |
+| `AuditSphereOps Acceptance Group Membership` | `GroupMember.ReadWrite.All` only, plus delegated `User.Read` for sign-in | Granted | Disabled; no capability verification |
+
+The Group Membership registration was created after the owner authorized the exact permission split
+and Microsoft Platform Policies assent. The former Administration registration's `User.Invite.All`
+and `GroupMember.ReadWrite.All` application permissions and leftover tenant grants were removed.
+Its current API-permission view confirms `User.Create` is its only application permission. The two
+separate mutation registrations each show only their named application role, with delegated
+`User.Read` retained for sign-in.
+
+This verifies Entra registration and tenant consent only. A fresh AuditSphere page observation still
+shows the tenant consent handshake as not attempted, directory verification `NOT_VERIFIED`, and all
+three mutation capabilities Disabled. No role-specific certificate or credential was configured
+for these three identities, and no Graph mutation was run. Keep the capabilities disabled until the
+credentials, synthetic target and live verification are separately completed. No tenant-wide Graph
+permission was added beyond the individually listed capability roles.
+
+The owner-approved API-only recreation from the repository Compose configuration has since
+completed and `/health/ready` returned HTTP 200. The database and workers were not recreated and no
+migration ran. The Selected Site certificate mount is present, but `SELECTED_SITE_CLIENT_ID` remains
+blank in the protected deployment environment pending the exact-site grant; the runtime provider is
+therefore unconfigured. All external effects and Graph mutation switches remain off. The AuditSphere
+tenant-connection page still shows consent `REQUIRED` with no attempt, directory `NOT_VERIFIED`,
+and selected-resource verification `BLOCKED_EXTERNAL`. The exact-site permission and authorized
+positive/negative probe remain outstanding.
+
 For the live Hostinger acceptance deployment, the dated read-only status, certificate mount,
 callback, capability setup and verification procedure are recorded in the
 [Hostinger acceptance deployment guide](../../infra/hostinger-acceptance/auditsphere-deployment-hostinger-acceptance-current.md#microsoft-365-capability-setup).

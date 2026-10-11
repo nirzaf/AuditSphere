@@ -24,7 +24,7 @@
 | 4.1.2 | Brief quotation | `QuotationService`, `QuotationCalculator` | PRESENT |
 | 4.1.2 | Five-chapter proposal | `CommercialDocumentService.Tender.cs`; chapter fields incl. `IndustryCredentials`, `AuditMethodology` | PRESENT |
 | 4.1.2 | Pricing review, dispatch and client response | AS-PAR-009 `PARTIAL` in `status.json` `remainingLocalWork` | GAP (existing AS-PAR-009) |
-| 3.1 | Dispatch "via Email / WhatsApp" | Email via consented Graph mail; WhatsApp is a capture label only | DEVIATION (product brief non-goals) |
+| 3.1 | Dispatch "via Email / WhatsApp" | Commercial email is queued through the configured server-side mail adapter (Graph, SMTP or Resend); `PROVIDER_ACCEPTED` records provider acceptance, not recipient delivery. WhatsApp is a lead-source label only; no outbound integration exists. | DEVIATION (product brief non-goals); delivery evidence is provider-limited |
 | 4.1.3 | Dual-key gate before engagement letter | `CommercialDocumentService.cs` refuses without current unconditional Partner acceptance; client acceptance key per coverage row | PRESENT |
 | 4.1.4 | Templates per engagement type (ISA 210, internal audit, ISRS 4400) | `EngagementLetterTemplates.cs` (added `9e946d1`); unsupported routes fail closed | PRESENT |
 | 4.1.4 | Template choice visible in Angular | At e0afe18 (NOT CHECKED): not examined. Now: the service route is shown on the proposal (`src/AuditSphereOps.Ui/src/app/features/commercial/proposal.ts:173`) and each generated letter shows its template version (`features/commercial/documents.ts:206`). The template follows the route on the server (`EngagementLetterTemplates.Resolve`); the user makes no template choice, as the glossary defines it. | PRESENT (checked in STE-NXT-008) |

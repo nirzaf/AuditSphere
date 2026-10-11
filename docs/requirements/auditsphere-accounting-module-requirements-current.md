@@ -618,6 +618,8 @@ $$\text{Engagement Profitability} = \text{Contracted Audit Fee} - \sum (\text{St
 
 ---
 
+**Implementation note for the dispatch-channel requirement:** the source requirement above names Email and WhatsApp. The current product can queue email through its configured server-side mail provider; WhatsApp is a lead-source value only and has no outbound dispatch integration. Provider acceptance is not proof of recipient delivery or reading.
+
 ## 5.2 State Machine Visual Workflow
 
 ```mermaid

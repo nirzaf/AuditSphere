@@ -1,6 +1,6 @@
 # SPK-01 — Making the ISA 230 archive actually immutable
 
-**Status: DECISION RECORDED; PROVIDER ACCEPTANCE BLOCKED_EXTERNAL.** Written finding for spike SPK-01 (time box 3 days). ADR-0009 now accepts the release/archive store as authoritative and SharePoint as a working copy under the owner's delegated project decision dated 2026-10-10. No live tenant was used for this report, so provider behaviour is not observed; STE-NXT-011's selected read-only-copy implementation and provider readback remain separate work.
+**Status: DESIGN DECIDED; IMPLEMENTATION AND PROVIDER ACCEPTANCE OPEN.** Written finding for spike SPK-01 (time box 3 days). ADR-0009, amended 2026-10-11 under the owner's delegated project authority, selects option 2: a separate read-only SharePoint library as a secondary copy, with the release/archive store remaining authoritative. No live tenant was used for this report, so provider behaviour is not observed. STE-NXT-011 implementation, permission reconciliation, hash readback and staff-denial evidence remain open; STE-GAP-007 remains `BLOCKED_EXTERNAL`.
 
 ## 1. The problem, from the repository
 
@@ -25,15 +25,15 @@ Limits that apply to every option:
 
 ## 3. Recommendation
 
-1. Adopt option 3 now, as draft ADR-0009 describes. It needs no new permission, uses the store that already holds the authoritative bytes, and claims no provider immutability. The UI must label the SharePoint copy as a working copy.
-2. Plan option 2 as the follow-up if the owner wants provider-side protection inside Microsoft 365. It uses the existing worker exception, so it needs the owner's approval of the design, not a new capability. Story STE-NXT-011 carries it.
+1. Option 2 is selected by the 2026-10-11 ADR-0009 amendment. Copy the released bundle and manifest to a separate read-only SharePoint library, compare every file hash, and read back grants after provider reconciliation. The release/archive store remains authoritative; no administrator-proof immutability claim is made.
+2. Keep option 3's release-store-only boundary as the fallback whenever the provider copy or its permissions cannot be verified. In that state, report `BLOCKED_EXTERNAL` and do not imply the SharePoint archive is protected.
 3. Do not adopt option 4 without a separate ADR and owner approval for a new provider. It is the strongest technical control and the most expensive.
 
 ## 4. Follow-up stories
 
-- STE-NXT-011 (proposed, owner approval needed): copy the released bundle and manifest to a read-only archive library, verify hashes, record the observed provider state. Depends on option 2 being chosen.
+- STE-NXT-011 (implementation open): copy the released bundle and manifest to the selected read-only archive library, verify hashes, reconcile and read back grants, and record observed provider state. The design choice is complete; only live provider evidence can close its external gates.
 - STE-NXT-012 (proposed): show the local archive state, the provider protection state, the canonical lifecycle state and the compliance warning as four separate items (STE-GAP-008 section F). Today the lifecycle summary carries only the warning string.
 
 ## 5. What this finding does not decide
 
-It does not change `BLOCKED_EXTERNAL` for STE-GAP-007. Only a real-tenant test can close it, and only after the owner accepts a design.
+The design decision does not change `BLOCKED_EXTERNAL` for STE-GAP-007. Only a real-tenant test can close it after the selected library, hashes and read-only staff grants are observed.

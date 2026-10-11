@@ -6,7 +6,7 @@
 
 ## SPK-01 — Making the ISA 230 archive actually immutable
 
-*Status (2026-10-10): archive authority is accepted by ADR-0009 under the owner's delegated project decision. The selected provider-side read-only-copy implementation and live permission readback remain open under STE-NXT-011/012; no live tenant evidence is claimed here.*
+*Status (2026-10-11): ADR-0009 selects SPK-01 option 2 under the owner's delegated project authority: copy the released bundle and manifest to a separate read-only SharePoint library while keeping the release store authoritative. STE-NXT-011 implementation, provider permission readback, hash verification and staff-denial evidence remain open; no live tenant evidence is claimed here.*
 
 **Time box:** 3 days. **Blocks:** STE package 6 acceptance, gate P2 archive scope.
 
