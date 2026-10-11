@@ -16,7 +16,7 @@ const payload = {
   header: { entity: 'SYNTHETIC CLIENT', framework: 'IFRS', currency: 'QAR', currentPeriodEnd: '2025-12-31', priorPeriodEnd: '2024-12-31', reference: 'FSP-SYN' },
   manifest: {
     packageId: id, calculationHash: hash64, layoutVersionId: id, layoutHash: hash64,
-    comparativePackageId: null, comparativeCalculationHash: null, builderVersion: 'auditsphere.statement-presentation.v3', displayPolicy: 'whole units',
+    comparativePackageId: null, comparativeCalculationHash: null, builderVersion: 'auditsphere.statement-presentation.v4', displayPolicy: 'whole units',
   },
   statements: [
     { code: 'FINANCIAL_POSITION', title: 'Statement of financial position', rows: [row(), row({ kind: 'HEADING', code: 'H', label: 'Assets', noteReference: null, current: null, prior: null })] },

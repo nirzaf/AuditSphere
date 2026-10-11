@@ -11,7 +11,7 @@ namespace AuditSphereOps.Application.Accounting;
 /// </summary>
 public static class FinancialStatementPresentationPolicy
 {
-  public const string BuilderVersion = "auditsphere.statement-presentation.v3";
+  public const string BuilderVersion = "auditsphere.statement-presentation.v4";
   public const string DisplayPolicy = "whole units; half-even rounding of displayed amounts; negatives in brackets; zero shown as a dash";
   public const string DraftStatus = "UNAPPROVED_DRAFT";
   public const int DefaultDisplayDecimals = 0;
@@ -127,6 +127,7 @@ public static class FinancialStatementPresentationBuilder
 
     var checks = new List<PresentationCheck>();
     var failures = new List<string>();
+    var presentationWarnings = new List<PresentationWarning>();
     void Pass(string code, string detail) => checks.Add(new PresentationCheck(code, true, detail));
     void Fail(string code, string detail)
     {
@@ -246,6 +247,9 @@ public static class FinancialStatementPresentationBuilder
 
     // 7. Notes: every note points to a mapped face line and its amount cross-casts to that line's magnitude.
     var noteGroups = notes.GroupBy(x => Normal(x.FaceDestinationCode), StringComparer.Ordinal).ToList();
+    var invalidNoteIds = notes.Where(x => string.IsNullOrWhiteSpace(x.NoteCode) || x.NoteCode.Trim().Length > 100).ToArray();
+    if (invalidNoteIds.Length > 0)
+      Fail("NOTE_LOGICAL_ID", "Each note cross-cast must carry a non-empty logical note ID of at most 100 characters.");
     var dangling = noteGroups.Where(g => !leafByDestination.ContainsKey(g.Key)).Select(g => g.Key).OrderBy(x => x, StringComparer.Ordinal).ToArray();
     if (dangling.Length > 0)
       Fail("NOTE_REFERENCE", "Notes point to face lines that the layout does not present: " + string.Join(", ", dangling) + ".");
@@ -263,9 +267,37 @@ public static class FinancialStatementPresentationBuilder
       Fail("NOTE_CROSS_CAST", "Notes do not cross-cast to the statement: " + string.Join("; ", mismatchedNotes) + ".");
     else
       Pass("NOTE_CROSS_CAST", "Every note cross-casts to the magnitude of its face line.");
+    var sectionOrder = new Dictionary<string, int>(StringComparer.Ordinal)
+    {
+      [Normal(StatementLayoutSections.FinancialPosition)] = 0,
+      [Normal(StatementLayoutSections.ProfitOrLoss)] = 1,
+      [Normal(StatementLayoutSections.OtherComprehensiveIncome)] = 2
+    };
+    var faceOrder = layout.Where(x => x.Kind == StatementLayoutLineKinds.MappedTaxonomyBalance && x.TaxonomyNodeCode is not null)
+      .OrderBy(x => sectionOrder.GetValueOrDefault(Normal(x.Section), int.MaxValue))
+      .ThenBy(x => x.Order)
+      .ThenBy(x => Normal(x.LineCode), StringComparer.Ordinal)
+      .Select((line, index) => (Destination: Normal(line.TaxonomyNodeCode!), Index: index))
+      .ToDictionary(x => x.Destination, x => x.Index, StringComparer.Ordinal);
+    var noteOrder = notes.Select(x => x.NoteCode.Trim()).Distinct(StringComparer.Ordinal)
+      .Select(code => (Code: code, FirstFace: notes.Where(x => string.Equals(x.NoteCode.Trim(), code, StringComparison.Ordinal))
+        .Select(x => faceOrder.GetValueOrDefault(Normal(x.FaceDestinationCode), int.MaxValue)).Min()))
+      .OrderBy(x => x.FirstFace)
+      .ThenBy(x => x.Code, StringComparer.Ordinal)
+      .Select((note, index) => (note.Code, Number: index + 1))
+      .ToDictionary(x => x.Code, x => x.Number, StringComparer.Ordinal);
     var noteReferences = noteGroups.ToDictionary(g => g.Key,
-      g => string.Join(", ", g.Select(x => x.NoteCode.Trim()).Distinct(StringComparer.Ordinal).OrderBy(x => x, StringComparer.Ordinal)),
+      g => string.Join(", ", g.Select(x => x.NoteCode.Trim()).Distinct(StringComparer.Ordinal)
+        .OrderBy(code => noteOrder.GetValueOrDefault(code, int.MaxValue))
+        .Select(code => noteOrder.TryGetValue(code, out var number)
+          ? number.ToString(System.Globalization.CultureInfo.InvariantCulture) : string.Empty)
+        .Where(number => number.Length > 0)),
       StringComparer.Ordinal);
+    Pass("NOTE_NUMBERING", $"{noteOrder.Count} stable logical note ID(s) receive unique display numbers in published statement order.");
+    checks.Add(new PresentationCheck("NOTE_CONTENT", false,
+      "Persisted note cross-casts do not include ordered narrative/table content or comparative note values."));
+    presentationWarnings.Add(new PresentationWarning("NOTE_CONTENT_PENDING",
+      "Note references are dynamically numbered; full reviewed note content, typed tables and comparative note values are not supplied."));
 
     // 8. Presented rows, with display rounding and footing of every subtotal.
     var parentOf = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -289,7 +321,6 @@ public static class FinancialStatementPresentationBuilder
       decimal.Round(StatementLayoutEngine.ToDisplayAmount(canonical, sign), displayDecimals, MidpointRounding.ToEven);
 
     var footingFailures = new List<string>();
-    var rounding = new List<PresentationWarning>();
     void Foot(string period, IReadOnlyDictionary<string, decimal> values)
     {
       foreach (var sum in layout.Where(x => x.Kind == StatementLayoutLineKinds.SumChildLines))
@@ -306,7 +337,7 @@ public static class FinancialStatementPresentationBuilder
         if (Math.Abs(difference) > tolerance)
           footingFailures.Add($"{period} {code}: components show {childTotal:0.####} but the total shows {parent:0.####}");
         else if (difference != 0m)
-          rounding.Add(new PresentationWarning("DISPLAY_ROUNDING",
+          presentationWarnings.Add(new PresentationWarning("DISPLAY_ROUNDING",
             $"{period} {code}: the displayed components differ from the displayed total by {difference:0.####} because of rounding; the canonical amounts foot exactly."));
       }
     }
@@ -368,7 +399,7 @@ public static class FinancialStatementPresentationBuilder
 
     return CommandResult<FinancialStatementPresentation>.Ok(new FinancialStatementPresentation(
       FinancialStatementPresentationPolicy.DraftStatus, header, manifest, displayDecimals, statements, checks,
-      rounding.Concat(readinessNotes).ToList()));
+      presentationWarnings.Concat(readinessNotes).ToList()));
   }
 
   private static PresentationStatement BuildEquityStatement(

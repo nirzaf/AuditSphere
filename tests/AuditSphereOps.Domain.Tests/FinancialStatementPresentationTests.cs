@@ -125,7 +125,7 @@ public sealed class FinancialStatementPresentationTests
     Assert.Equal(new[] { "FINANCIAL_POSITION", "PROFIT_OR_LOSS", "CHANGES_IN_EQUITY", "CASH_FLOWS" }, p.Statements.Select(x => x.Code));
     Assert.All(p.Checks.Where(x => x.Code is not ("EQUITY_SCHEDULE" or "CASH_FLOW_REQUIRED_SECTIONS" or "CASH_FLOW_BRIDGE" or
       "CASH_FLOW_PACKAGE_RECONCILIATION" or "CASH_FLOW_COMPARATIVE_REQUIRED_SECTIONS" or "CASH_FLOW_COMPARATIVE_BRIDGE" or
-      "CASH_FLOW_COMPARATIVE_PACKAGE_RECONCILIATION" or "CASH_FLOW_SCHEDULE" or "CASH_FLOW_COMPARATIVE" or "EQUITY_COMPARATIVE")),
+      "CASH_FLOW_COMPARATIVE_PACKAGE_RECONCILIATION" or "CASH_FLOW_SCHEDULE" or "CASH_FLOW_COMPARATIVE" or "EQUITY_COMPARATIVE" or "NOTE_CONTENT")),
       check => Assert.True(check.Passed, $"{check.Code}: {check.Detail}"));
     Assert.Contains(p.Checks, x => x.Code == "EQUITY_SCHEDULE" && !x.Passed);
     Assert.Contains(p.Checks, x => x.Code == "CASH_FLOW_REQUIRED_SECTIONS" && !x.Passed);
@@ -151,10 +151,27 @@ public sealed class FinancialStatementPresentationTests
     Assert.Equal(-508247m, Amount(Row(p, "REBF").Prior));
 
     // Note references appear on the face lines they point to only.
-    Assert.Equal("5", Row(p, "PPE").NoteReference);
-    Assert.Equal("9", Row(p, "PAY").NoteReference);
-    Assert.Equal("10", Row(p, "GA").NoteReference);
+    Assert.Equal("1", Row(p, "PPE").NoteReference);
+    Assert.Equal("4", Row(p, "PAY").NoteReference);
+    Assert.Equal("5", Row(p, "GA").NoteReference);
     Assert.Null(Row(p, "REV").NoteReference);
+  }
+
+  [Fact]
+  public void NoteReferences_AreDynamicallyNumberedByPublishedFaceOrder_IndependentOfInputOrder()
+  {
+    var forward = Build(withPrior: false).Value!;
+    var reversedNotes = Notes().OrderByDescending(x => x.NoteCode, StringComparer.Ordinal).ToList();
+    var reversed = Build(notes: reversedNotes, withPrior: false).Value!;
+    var lineCodes = new[] { "PPE", "RECV", "CASH", "PAY", "GA", "DEP" };
+    var forwardReferences = lineCodes.Select(code => Row(forward, code).NoteReference).ToArray();
+    var reversedReferences = lineCodes.Select(code => Row(reversed, code).NoteReference).ToArray();
+
+    Assert.Equal(new[] { "1", "2", "3", "4", "5", "6" }, forwardReferences);
+    Assert.Equal(forwardReferences, reversedReferences);
+    Assert.Contains(forward.Checks, x => x.Code == "NOTE_NUMBERING" && x.Passed);
+    Assert.Contains(forward.Checks, x => x.Code == "NOTE_CONTENT" && !x.Passed);
+    Assert.Contains(forward.Warnings, x => x.Code == "NOTE_CONTENT_PENDING");
   }
 
   [Fact]

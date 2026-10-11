@@ -15,6 +15,12 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Dynamic statement note references — 2026-10-11
+
+Statement face-line note references now separate stable persisted note codes from display ordinals. The presentation assigns numbers from each code's first face-line position in the published layout, then uses the same number on each linked face line; reordering supplied note rows does not change numbering. Invalid blank/oversized logical IDs are refused. The presentation manifest builder version is v4. A failed `NOTE_CONTENT` check and warning state that the persisted data contains only cross-cast amounts, without ordered narrative, typed note tables or comparative note values. The output remains `UNAPPROVED_DRAFT`; no note content or accounting policy is invented.
+
+Observed: `FinancialStatementPresentationTests` passed 18/18; the focused Angular presentation spec passed 4/4. The API Release build passed with two `NU1900` vulnerability-feed warnings; Markdown health, filename, narrative-metric, UI inventory, status JSON and diff checks passed. The OpenAPI schema shape is unchanged by the note-number value update; its drift gate passed after the preceding presentation slice and was not rerun here. No migration or business-data change was made. FSR-008 remains PARTIAL: disclosure applicability, ordered note content, prior schedules, PPE/expense schedule completeness and seal-time pointer checks are open.
+
 ## Cross-statement readiness checks and export diagnostics — 2026-10-11
 
 The statement presentation now cross-casts current and comparative equity rollforwards to mapped profit or loss, OCI and SFP balances. Cash-flow readiness requires operating, investing and financing amounts, validates current and comparative bridges independently, and carries the package's persisted `CASH_FLOW_RECONCILED` check, which also validates the selected closing-cash population. PDF, DOCX and XLSX all include the same per-check `PASS`/`FAIL` diagnostics in the presentation basis. Builder version is v3. Missing comparative schedules and incomplete source data remain explicitly failed or unavailable; output remains `UNAPPROVED_DRAFT`.
