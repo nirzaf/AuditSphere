@@ -191,7 +191,50 @@
           "result": "Local Angular app displayed its unauthenticated sign-in gate; the local API was unavailable. Authenticated administration journey was verified by the Playwright test above."
         }
       ],
-      "externalAcceptance": "NOT_VERIFIED: no live Microsoft provisioning or membership reconciliation; no production database migration; code was not deployed to the VPS."
+      "externalAcceptance": "NOT_VERIFIED: no live Microsoft provisioning or membership reconciliation; no production database migration; code was not deployed to the VPS.",
+      "followUpVerification": {
+        "recordedAtUtc": "2026-10-11T21:15:44Z",
+        "domainTestCommit": "31cb175887125d23393f2994bbb8e7454b646ae6",
+        "runs": [
+          {
+            "name": "Client site rollout Domain tests",
+            "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --no-restore --configuration Release --maxcpucount:1 --filter 'FullyQualifiedName~ClientSharePointSitesTests|FullyQualifiedName~SharePointClientSiteProviderTests|FullyQualifiedName~EngagementWorkspaceProvisioningTests'",
+            "passed": 37,
+            "failed": 0,
+            "result": "PASS"
+          },
+          {
+            "name": "Workspace provisioning API tests",
+            "sourceCommit": "b6ced08923f3ea26e0ff6c057746ef9eaa9ae55e",
+            "passed": 4,
+            "failed": 0,
+            "result": "PASS",
+            "note": "Application and API source were unchanged in the later test-only commit."
+          },
+          {
+            "name": "Client site administration Playwright journey",
+            "sourceCommit": "b6ced08923f3ea26e0ff6c057746ef9eaa9ae55e",
+            "passed": 1,
+            "failed": 0,
+            "browser": "Playwright Chromium against the synthetic PostgreSQL test database",
+            "result": "PASS"
+          },
+          {
+            "name": "Angular client workspace administration spec",
+            "sourceCommit": "b6ced08923f3ea26e0ff6c057746ef9eaa9ae55e",
+            "command": "npm --prefix src/AuditSphereOps.Ui run test:ci -- --include='src/app/features/admin/workspaces.spec.ts'",
+            "passed": 4,
+            "failed": 0,
+            "result": "PASS"
+          }
+        ],
+        "fullDomainApiE2eSuitesOnThisSource": "NOT_RUN",
+        "builtInBrowserSmoke": {
+          "date": "2026-10-12",
+          "result": "Read-only acceptance tenant page rendered the Dedicated client SharePoint sites administration panel; no client site rows were present. The page did not expose its deployed source commit.",
+          "liveProvisioning": "NOT_VERIFIED"
+        }
+      }
     }
   },
   "externalGates": [
