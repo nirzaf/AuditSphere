@@ -251,8 +251,9 @@ mail-enabled security group containing only the approved sender. Exchange allows
 denies an unrelated synthetic mailbox; Graph also denied the unrelated no-recipient request.
 The existing matching certificate was reused. The approved synthetic message was accepted and
 Exchange Message Trace confirmed delivery. API capability verification and the reviewed Mail
-draft are saved; the separate live mail worker remains stopped. This direct transport evidence
-does not establish durable proposal or PBC workflow acceptance. Exact observations are in the
+draft are saved. The isolated live mail worker was subsequently started after queue review and
+now mounts only its own mail credential. Idle polling and the direct transport evidence do not
+establish durable proposal or PBC workflow acceptance. Exact observations are in the
 execution ledger; operator steps are in the Hostinger guide.
 
 The owner separately approved credential setup and enablement for all three directory capabilities.

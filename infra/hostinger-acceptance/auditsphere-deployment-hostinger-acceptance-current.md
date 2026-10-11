@@ -451,6 +451,31 @@ Check the worker is running without restart or failure, can read its own key, an
 sibling credential directories. Preserve the existing API and other worker containers. A running
 idle worker proves deployment readiness, not an unexecuted business-mail workflow.
 
+## Live isolated mail worker activation — 2026-10-11
+
+This follow-up supersedes earlier statements that the mail worker remained stopped. Current-firm
+queued commercial/PBC rows, pending durable mail operations and unreviewed recipients were checked
+before activation and were empty. The exact image was pulled and only `worker-mail` started through
+its optional profile. A credential-boundary review identified the broad parent mount; the canonical
+Compose definition now limits the mail worker to its own certificate directory and the PBC worker
+to its own Selected Site directory.
+
+After validating both profile definitions against the private server environment, the clean VPS
+checkout was fast-forwarded and only the new mail worker recreated. Dynamic checks confirmed its
+own key was readable, all sibling credential paths were absent and the credential mount read-only.
+The container remained running without restarts or failure log entries; successful database polling
+queries were observed. API readiness passed and the existing API/other worker containers were
+unchanged. The administrator Operations screen also passed a browser access/error check.
+No queued business mail was executed, so this does not establish complete proposal/PBC workflow
+acceptance. The PBC worker remains stopped pending SharePoint verification.
+
+SharePoint consent for the runtime identity is recorded in Entra, but a separate exact-site grant
+is still required, as described in Microsoft's
+[Selected permissions overview](https://learn.microsoft.com/en-us/graph/permissions-selected-overview).
+The owner-reported grant still produced approved-site denial. Request the exact grant receipt for
+the reviewed app and site; do not repeat admin consent, broaden the runtime scopes, or repeatedly
+probe an unchanged denial. Exact deployment and queue facts are in the execution ledger.
+
 ## Operational boundaries
 
 - PostgreSQL is not published on a host port. The API is published only on host loopback port

@@ -15,6 +15,24 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Isolated background mail worker active — 2026-10-11
+
+The acceptance mail queues and pending discovery rows were checked before activation; no
+unreviewed recipient was pending. The isolated mail profile was started with the previously
+verified sender credential. Its broad parent credential mount was identified and replaced with
+an outbound-mail-only read-only mount. The disabled PBC profile now also uses only its own
+Selected Site mount; it was not started.
+
+The clean VPS checkout was fast-forwarded to the reviewed Compose change and only the new mail
+worker recreated. Its own key is readable and sibling credentials are absent. Logs show successful
+queue polling without failures; API readiness and existing worker preservation passed. The
+administrator Operations page is accessible and has no browser errors. This verifies idle worker
+deployment, not an unexecuted business-mail workflow. Exact evidence is in [`status.json`](status.json).
+
+SharePoint's separate exact-site grant remains unresolved; its Entra consent is present and the
+runtime identity still cannot access the approved site. The exact grant receipt is requested
+before another provider probe. No tenant-wide scope or site permission was added.
+
 ## Separate directory capabilities configured and verified — 2026-10-11
 
 Following exact owner approval, the existing User Creation certificate was matched to its Entra
