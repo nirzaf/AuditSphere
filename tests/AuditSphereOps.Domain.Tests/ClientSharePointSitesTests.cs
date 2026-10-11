@@ -75,6 +75,21 @@ public sealed class ClientSharePointSitesTests
   }
 
   [Fact]
+  public async Task ProvisioningIntentCannotCrossClientOrEngagementBoundary()
+  {
+    var rig = await CreateAsync(); await using var _ = rig.H;
+    var payload = JsonSerializer.Serialize(new { desiredDigest = new string('a', 64) });
+    var crossClient = new OperationRequest(rig.H.A.FirmId, rig.H.A.ClientId, null,
+      ClientSharePointSiteHandler.Kind, rig.H.B.ClientId, 1, "cross-client", payload);
+    var engagementScoped = new OperationRequest(rig.H.A.FirmId, rig.H.A.ClientId, rig.H.A.EngagementId,
+      ClientSharePointSiteHandler.Kind, rig.H.A.ClientId, 1, "engagement-scoped", payload);
+
+    Assert.Throws<OperationBlockedException>(() => rig.Handler.NormalizePayload(crossClient));
+    Assert.Throws<OperationBlockedException>(() => rig.Handler.NormalizePayload(engagementScoped));
+    Assert.Empty(rig.Provider.Calls);
+  }
+
+  [Fact]
   public async Task EveryClientGetsAnIsolatedSite_StaffReceiveFullControlWithoutWideningLocalRoles_RepeatIsIdempotent()
   {
     var rig = await CreateAsync(); await using var _ = rig.H;
