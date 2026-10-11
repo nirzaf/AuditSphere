@@ -15,6 +15,26 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Separate directory capabilities configured and verified — 2026-10-11
+
+Following exact owner approval, the existing User Creation certificate was matched to its Entra
+registration and staged privately on the VPS. Guest Invitation and Group Membership received
+separate restricted VPS key pairs; only their public certificates were uploaded to their exact
+single-permission app registrations. All identities authenticated for the configured tenant with
+exactly their named application role, and their distinct app IDs were saved in the protected
+server environment.
+
+Only the API was recreated to enable the reviewed capabilities. Readiness passed and existing
+workers were unchanged. AuditSphere persisted verified permission checks for User Creation and
+Guest Invitation, plus a successful bounded read for Group Membership. Directory Reader and Mail
+also verified successfully; browser console error checks were empty. No user was created, guest
+invited or group membership modified. This completes capability setup and read/permission
+verification, not full mutation-journey acceptance. Exact observations are in [`status.json`](status.json).
+
+SharePoint remains separately blocked by the approved-target denial. The site's inspected General panel
+confirmed the reviewed site identity; no grant or permission scope was changed. Further duplicate target probes remain paused pending exact grant
+investigation, and the runtime Selected Site app ID stays unset.
+
 ## Restricted outbound mail verified and delivered — 2026-10-11
 
 The local interactive authentication alternative failed because the Exchange authentication
@@ -38,38 +58,6 @@ were removed. Exact timestamps, status and correlation evidence are in [`status.
 
 The prior authentication blocker is resolved by the supported Linux path. SharePoint's exact-site
 denial and the disabled mutation capabilities remain separate blockers.
-
-## Exchange authentication failure retained — 2026-10-11
-
-The administrator completed the Microsoft device sign-in and its browser page showed success.
-The Exchange PowerShell connection did not become usable: it reported `Broken` and token status
-`Expired`. An earlier policy query returned object-not-found rather than verified mailbox
-isolation. Repeated authentication attempts were stopped; no application-access policy or scope
-group was created, no mail was enabled, and no synthetic message was sent. The mail credential and
-approved sender remain staged privately on the VPS. Exact state is in [`status.json`](status.json).
-
-Resume with a working supported Exchange administrator connection. Inspect the existing exact-app
-policy, establish approved-sender access and unrelated synthetic mailbox denial, then enable only
-the reviewed mail path and verify its synthetic message. A successful Microsoft browser page alone
-does not prove a usable Exchange session or restricted mailbox access.
-
-## Mail staging and repeated selected-site denial — 2026-10-11
-
-The owner supplied the approved sender and confirmed the same controlled mailbox as the test
-recipient. Exchange's mailbox inventory confirms it exists. The dedicated Mail registration's
-existing public certificate matches the locally configured certificate; its existing credential
-was transferred privately to the protected VPS mount. Only non-secret Mail settings were staged
-in the protected environment, with Mail disabled and no API/worker recreation or message send.
-
-Exchange Cloud Shell requires an unavailable Azure subscription. The installed local Exchange
-PowerShell module offers a supported alternative; administrator device sign-in is pending before
-mailbox restriction inspection. The exact certificate is reused, with no new Entra credential.
-
-After the owner reported the exact SharePoint grant applied, a fresh certificate-backed token
-again held only `Sites.Selected`, but the approved target still returned access denied; the
-unrelated control was also denied. Repeated probes are paused pending grant-target investigation.
-No site grant or file write was performed. Exact observations and CI evidence are in
-[`status.json`](status.json). The previous documentation CI completed successfully.
 
 ## Live VPS upgrade and directory consent verified — 2026-10-11
 

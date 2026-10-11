@@ -6250,3 +6250,35 @@ restore the app ID privately and run the authorized positive and unrelated-site 
 add tenant-wide `Sites.FullControl.All` to the runtime app. User-reported Entra admin consent has
 not produced an AuditSphere consent attempt or verified state. No site grant/probe or activation
 was performed; M365 remains `BLOCKED_EXTERNAL`.
+
+## Exchange authentication failure retained — 2026-10-11
+
+The administrator completed the Microsoft device sign-in and its browser page showed success.
+The Exchange PowerShell connection did not become usable: it reported `Broken` and token status
+`Expired`. An earlier policy query returned object-not-found rather than verified mailbox
+isolation. Repeated authentication attempts were stopped; no application-access policy or scope
+group was created, no mail was enabled, and no synthetic message was sent. The mail credential and
+approved sender remain staged privately on the VPS. Exact state is in [`status.json`](status.json).
+
+Resume with a working supported Exchange administrator connection. Inspect the existing exact-app
+policy, establish approved-sender access and unrelated synthetic mailbox denial, then enable only
+the reviewed mail path and verify its synthetic message. A successful Microsoft browser page alone
+does not prove a usable Exchange session or restricted mailbox access.
+
+## Mail staging and repeated selected-site denial — 2026-10-11
+
+The owner supplied the approved sender and confirmed the same controlled mailbox as the test
+recipient. Exchange's mailbox inventory confirms it exists. The dedicated Mail registration's
+existing public certificate matches the locally configured certificate; its existing credential
+was transferred privately to the protected VPS mount. Only non-secret Mail settings were staged
+in the protected environment, with Mail disabled and no API/worker recreation or message send.
+
+Exchange Cloud Shell requires an unavailable Azure subscription. The installed local Exchange
+PowerShell module offers a supported alternative; administrator device sign-in is pending before
+mailbox restriction inspection. The exact certificate is reused, with no new Entra credential.
+
+After the owner reported the exact SharePoint grant applied, a fresh certificate-backed token
+again held only `Sites.Selected`, but the approved target still returned access denied; the
+unrelated control was also denied. Repeated probes are paused pending grant-target investigation.
+No site grant or file write was performed. Exact observations and CI evidence are in
+[`status.json`](status.json). The previous documentation CI completed successfully.

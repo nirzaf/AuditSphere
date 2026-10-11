@@ -404,6 +404,36 @@ The restrictive policy affects every use of the existing dedicated Mail identity
 local development use: it can send only from the approved sender. No tenant role or additional
 Graph permission was granted. SharePoint access and directory mutations remain separate work.
 
+## Separated directory capability setup — 2026-10-11
+
+The owner specifically approved public certificate uploads and API enablement for the separated
+Guest Invitation and Group Membership registrations, alongside the existing User Creation identity.
+This supersedes the earlier disabled-state observations; full mutation workflows remain untested.
+
+1. Inspect each exact registration and its existing credentials. The User Creation registration's
+   certificate matched the locally configured credential and was privately staged on the VPS.
+   Create separate RSA key pairs for Guest Invitation and Group Membership in their protected
+   capability directories. Match private-key group readability to the API process and keep the
+   keys on the VPS. Do not reuse the old combined Administration identity for the two new roles.
+2. Upload only each public certificate to its corresponding Entra registration after exact owner
+   confirmation. Verify the saved public thumbprint matches its VPS certificate. No new API
+   permission or tenant role was requested in this credential step.
+3. Save distinct app IDs in the protected environment. Acquire certificate-backed tokens privately
+   and require the configured tenant and exactly one role: `User.Create`, `User.Invite.All`, or
+   `GroupMember.ReadWrite.All` for the corresponding identity. Stop before enablement if any
+   role is missing or an extra role appears. Never log tokens or assertions.
+4. Enable the three reviewed `TENANT_ADMINISTRATION_*_ENABLED` flags, validate Compose, and
+   recreate only the API. Readiness and key readability passed; existing workers were unchanged.
+   In AuditSphere select **Verify all enabled capabilities**. User Creation and Guest Invitation
+   verified their app permissions; Group Membership verified a bounded read. Browser console
+   checks were empty. Exact timestamps and diagnostics are in the execution ledger.
+5. Keep actual directory actions behind their application preview/review gates. This run created
+   no user, invitation or group membership change and did not establish full mutation-journey
+   acceptance. Microsoft permissions do not assign AuditSphere roles or Entra administrator roles.
+
+The selected SharePoint target still requires exact-app grant investigation. No permission was
+changed through its site-admin panel, and no further duplicate provider probe was run.
+
 ## Operational boundaries
 
 - PostgreSQL is not published on a host port. The API is published only on host loopback port

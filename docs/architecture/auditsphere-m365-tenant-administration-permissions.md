@@ -210,9 +210,9 @@ Directory Reader and Mail registrations:
 |---|---|---|---|
 | `AuditSphere Acceptance - Directory Reader` | `User.Read.All` only, plus delegated `User.Read` for sign-in | Granted | Enabled; fresh bounded read verified |
 | `AuditSphereOps Development Mail` | `Mail.Send` only | Granted | Enabled; permission verified; sender-restricted synthetic delivery verified |
-| `AuditSphereOps Development Administration` | `User.Create` only | Granted | Disabled; no capability verification |
-| `AuditSphereOps Acceptance Guest Invitation` | `User.Invite.All` only, plus delegated `User.Read` for sign-in | Granted | Disabled; no capability verification |
-| `AuditSphereOps Acceptance Group Membership` | `GroupMember.ReadWrite.All` only, plus delegated `User.Read` for sign-in | Granted | Disabled; no capability verification |
+| `AuditSphereOps Development Administration` | `User.Create` only | Granted | Enabled; exact role verified |
+| `AuditSphereOps Acceptance Guest Invitation` | `User.Invite.All` only, plus delegated `User.Read` for sign-in | Granted | Enabled; exact role verified |
+| `AuditSphereOps Acceptance Group Membership` | `GroupMember.ReadWrite.All` only, plus delegated `User.Read` for sign-in | Granted | Enabled; bounded read verified |
 
 The Group Membership registration was created after the owner authorized the exact permission split
 and Microsoft Platform Policies assent. The former Administration registration's `User.Invite.All`
@@ -237,9 +237,9 @@ and API upgrade also completed with public readiness passing; existing workers w
 Exact observation timestamps and deployment evidence are in
 [`status.json`](../execution/status.json).
 
-All three directory-mutation capabilities remain Disabled. Their registration consent
-alone does not verify runtime access. Mail was subsequently enabled only after its sender restriction
-and synthetic transport verification described below. No Graph mutation was run. Selected-site target fields
+All three directory-mutation capabilities were subsequently configured and verified as described
+below; registration consent alone does not verify runtime access. Mail was enabled only after its
+sender restriction and synthetic transport verification. No directory mutation was run. Selected-site target fields
 remain a browser-tab draft; the runtime document app ID is unset pending the exact-site grant.
 The certificate-backed probe returned access denied for the approved target and unrelated control,
 so no file write was attempted. Resource verification and workspace activation remain blocked.
@@ -254,6 +254,15 @@ Exchange Message Trace confirmed delivery. API capability verification and the r
 draft are saved; the separate live mail worker remains stopped. This direct transport evidence
 does not establish durable proposal or PBC workflow acceptance. Exact observations are in the
 execution ledger; operator steps are in the Hostinger guide.
+
+The owner separately approved credential setup and enablement for all three directory capabilities.
+User Creation reused its existing matching certificate; Guest Invitation and Group Membership each
+received their own VPS key pair and public certificate upload to the exact registration. Token
+checks confirmed the configured tenant and exactly one named application role per identity.
+API-only recreation preserved existing workers. Fresh AuditSphere checks report verified
+application roles for User Creation and Guest Invitation, and a verified bounded group read.
+No user creation, guest invitation or membership mutation was executed. Capability verification
+must not be presented as acceptance of those complete mutation journeys.
 
 For the live Hostinger acceptance deployment, the dated read-only status, certificate mount,
 callback, capability setup and verification procedure are recorded in the
