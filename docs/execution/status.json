@@ -169,7 +169,7 @@
     {
       "gate": "M365-ADMIN",
       "status": "BLOCKED_EXTERNAL",
-    "required": "Development M365 live acceptance remains BLOCKED_EXTERNAL. The Hostinger checkout was fast-forwarded to master for the Compose mount; the existing API image was retained. An owner-approved API-only recreation completed and /health/ready returned HTTP 200; database and workers were not recreated and no migration ran. The staged certificate directory is mounted read-only, while SELECTED_SITE_CLIENT_ID is intentionally blank in the protected VPS .env pending the user-granted exact-site permission, so the running API reports the selected-site provider unconfigured. ExternalEffects, DirectoryReader, provisioning, guest invitation, group membership, outbound mail, and live PBC transfer are false. The live AuditSphere page reports consent REQUIRED, no attempt, and the consent action unavailable until the separately approved consent identity and fixed callback are configured; directory verification is NOT_VERIFIED, selected-resource is BLOCKED_EXTERNAL, and activation is unavailable. The target fields are an unsubmitted browser-tab draft, not persisted server configuration. The catalog Enabled label for Selected SharePoint does not mean the credential is configured or access is verified. Mail and Records drafts remain Not Configured. No consent flow, Graph call, site grant, file probe, or workspace activation was performed. The user will grant only the exact approved site. After that, privately restore the app ID and run the already-authorized positive and unrelated-site denial probe; never add tenant-wide Sites.FullControl.All to the runtime app. Keep this gate blocked until the exact resource checks and remaining external acceptance pass."
+      "required": "Development M365 live acceptance remains BLOCKED_EXTERNAL. The Hostinger checkout was fast-forwarded to master for the Compose mount; the existing API image was retained. An owner-approved API-only recreation completed and /health/ready returned HTTP 200; database and workers were not recreated and no migration ran. The staged certificate directory is mounted read-only, while SELECTED_SITE_CLIENT_ID is intentionally blank in the protected VPS .env pending the user-granted exact-site permission, so the running API reports the selected-site provider unconfigured. ExternalEffects, DirectoryReader, provisioning, guest invitation, group membership, outbound mail, and live PBC transfer are false. The live AuditSphere page reports consent REQUIRED, no attempt, and the consent action unavailable until the separately approved consent identity and fixed callback are configured; directory verification is NOT_VERIFIED, selected-resource is BLOCKED_EXTERNAL, and activation is unavailable. The target fields are an unsubmitted browser-tab draft, not persisted server configuration. The catalog Enabled label for Selected SharePoint does not mean the credential is configured or access is verified. Mail and Records drafts remain Not Configured. No consent flow, Graph call, site grant, file probe, or workspace activation was performed. The user will grant only the exact approved site. After that, privately restore the app ID and run the already-authorized positive and unrelated-site denial probe; never add tenant-wide Sites.FullControl.All to the runtime app. Keep this gate blocked until the exact resource checks and remaining external acceptance pass."
     },
     {
       "gate": "P2b",
@@ -268,7 +268,7 @@
         "relativeLinks": 2654,
         "filenamePolicy": "PASS",
         "narrativeMetrics": "PASS",
-        "ranOn": "c9bea82ae52ee9e4867ad26d2c4059991e19dade"
+        "ranOn": "e1fcf453"
       },
       "angularBuild": {
         "command": "NG_BUILD_CACHE_STORE=sqlite NG_BUILD_MAX_WORKERS=2 npm run build -- --progress=false",
@@ -283,7 +283,7 @@
       },
       "angularInventory": {
         "result": "PASS",
-        "ranOn": "c9bea82ae52ee9e4867ad26d2c4059991e19dade"
+        "ranOn": "e1fcf453"
       }
     },
     "notes": "Current-tree regression on code commit c9bea82ae52ee9e4867ad26d2c4059991e19dade: API 223/223, Domain 825/825, and E2E 236/236 (1,284 total, zero failures) against auditsphere_tests on 127.0.0.1:5433. Angular CI specs passed 630/630 across 114 files. The Release solution build passed with six NU1900 warnings because the NuGet vulnerability service was unreachable. Angular production build passed using the SQLite cache override; the existing commercial/settings.scss stylesheet exceeds its 4 KB budget by 3.53 KB. EF reports no pending model changes and OpenAPI matches the committed contract. No production or development database migration, live Microsoft consent handshake, or external provider acceptance was performed.",
