@@ -290,6 +290,44 @@ live connection remains Consent Required, and the saved selected-site draft rema
 `BLOCKED_EXTERNAL` until the exact site grant, certificate-backed probe and nonce-bound consent are
 completed.
 
+## Live upgrade and Directory Reader verification — 2026-10-11
+
+This follow-up supersedes earlier observations that the live upgrade or Directory Reader setup
+awaited approval. Exact image, database head, backup and persisted check timestamps are recorded
+in [`status.json`](../../docs/execution/status.json).
+
+1. On the VPS, retain a fresh private PostgreSQL custom-format backup and check its catalog.
+   The approved migration bundle had already passed against a restored disposable copy.
+   With the approved release tag in the protected environment, run
+   `docker compose --profile migration run --rm migrate` from this guide's Compose directory.
+   The bundle completed. Recreate only the API with `docker compose up -d --no-deps api`.
+   Public readiness returned HTTP 200; worker container IDs were unchanged.
+2. On the dedicated Directory Reader app's Web authentication configuration, save both fixed
+   callbacks listed in the capability setup section. Create a dedicated RSA certificate under the
+   protected VPS credential directory. Match its group to the API process, restrict private-key
+   access, and verify the API can read the mount. Upload only the public certificate in Entra's
+   Certificates and secrets page. Keep the private key on the VPS.
+3. Set `DIRECTORY_READER_CLIENT_ID` privately to the dedicated registration and enable
+   `DIRECTORY_READER_ENABLED` and `TENANT_CONSENT_ENABLED`. Validate Compose configuration
+   with `docker compose config -q`, then recreate only the API. Readiness passed again.
+   Keep outbound mail, directory mutations and live PBC transfer disabled.
+4. On AuditSphere's tenant-connection page, review the exact tenant and permissions, select
+   **Connect Microsoft 365 tenant**, complete Microsoft consent using the approved signed-in
+   administrator, and finish the identity callback. Then select **Verify all enabled capabilities**.
+   AuditSphere persisted verified consent, consenting identity and `bounded-read-succeeded`.
+   Browser console error checks were empty. The connection/resource revision is a separate state;
+   verified directory consent does not activate SharePoint or the workspace.
+5. The approved SharePoint target still returns access denied. Leave its runtime app ID unset
+   until the exact-site grant is made, then perform the already-reviewed positive and unrelated-site
+   denial probe. Mail still needs its approved sender restriction and synthetic recipient;
+   mutation capabilities need their separate credentials, synthetic targets and verification.
+   Do not mark saved Mail or Records drafts configured merely to remove a warning.
+
+The time page renders the FSLI attribution fields. End-of-service access is correctly restricted
+by Finance/Partner grants. The commercial settings screen also renders the pricing
+policy form and reports that no actual pricing policy has been configured. These observations do not replace workflow acceptance with reviewed
+business records or the firm's professional decisions.
+
 ## Operational boundaries
 
 - PostgreSQL is not published on a host port. The API is published only on host loopback port

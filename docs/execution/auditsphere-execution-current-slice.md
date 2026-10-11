@@ -15,6 +15,26 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Live VPS upgrade and directory consent verified — 2026-10-11
+
+After exact owner approval, a fresh catalog-checked database backup was retained, the approved
+migrations were applied to the synthetic acceptance database, and only the API was recreated.
+Public readiness passed. Existing worker containers and the local development database were
+unchanged. Exact image, migration, backup and observation evidence is in [`status.json`](status.json).
+
+The dedicated Directory Reader now has both fixed Web callbacks and its own certificate. Only
+its public certificate was uploaded to Entra; the private key remains on the VPS. Directory Reader
+and Tenant Consent were enabled. The reviewed Microsoft consent and identity flow completed,
+and AuditSphere persisted verified consent and a fresh successful bounded directory read.
+Mail and directory mutations remain disabled. Consent verification does not promote the separate
+resource revision or activate a workspace.
+
+The deployed time screen renders FSLI attribution. End-of-service access correctly refuses an
+administrator without a Finance or Partner grant. The commercial settings screen also renders the pricing
+policy form and reports that no actual pricing policy has been configured. These are live screen observations, not a
+record-specific business acceptance run. Selected SharePoint remains blocked by the missing
+exact-site grant; neither the unrelated control nor the approved target allowed access.
+
 ## VPS upgrade rehearsal and selected-site access check — 2026-10-11
 
 The previously authorized SSH access worked despite the expired Hostinger browser terminal.

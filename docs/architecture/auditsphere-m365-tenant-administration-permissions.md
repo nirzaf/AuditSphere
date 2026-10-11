@@ -208,7 +208,7 @@ Directory Reader and Mail registrations:
 
 | Registration | Application permission | Entra consent | AuditSphere runtime |
 |---|---|---|---|
-| `AuditSphere Acceptance - Directory Reader` | `User.Read.All` only, plus delegated `User.Read` for sign-in | Granted | Disabled; no capability verification |
+| `AuditSphere Acceptance - Directory Reader` | `User.Read.All` only, plus delegated `User.Read` for sign-in | Granted | Enabled; fresh bounded read verified |
 | `AuditSphereOps Development Mail` | `Mail.Send` only | Granted | Disabled; no capability verification |
 | `AuditSphereOps Development Administration` | `User.Create` only | Granted | Disabled; no capability verification |
 | `AuditSphereOps Acceptance Guest Invitation` | `User.Invite.All` only, plus delegated `User.Read` for sign-in | Granted | Disabled; no capability verification |
@@ -228,25 +228,22 @@ enable the corresponding AuditSphere runtime capabilities.
 
 For the Directory Reader grant, the operator opened **App registrations → AuditSphere Acceptance - Directory Reader → API permissions**, checked that the only application role was `User.Read.All` (with delegated `User.Read` for sign-in), selected **Grant admin consent for easyguide**, confirmed the displayed scope, and checked that both permission rows changed to **Granted for easyguide**. No permission was added or removed in this consent step, and no credential was read or changed.
 
-This verifies Entra registration and tenant consent only. A fresh AuditSphere page observation still
-shows the tenant consent handshake as not attempted; the consent action is unavailable because the
-deployment-owned consent identity/fixed callback is not configured. Directory verification remains
-`NOT_VERIFIED`; the Directory Reader, Mail and three mutation capabilities are Disabled. The
-selected-site target fields are still an unsubmitted browser-tab draft, not a persisted server-side
-resource configuration. No
-role-specific certificate or credential was configured
-for these three identities, and no Graph mutation was run. Keep the capabilities disabled until the
-credentials, synthetic target and live verification are separately completed. No tenant-wide Graph
-permission was added beyond the individually listed capability roles.
+With the owner's subsequent exact approval, the dedicated Directory Reader was configured with
+both fixed Web consent callbacks and its own VPS certificate. Only the public certificate was
+uploaded to Entra. Directory Reader and Tenant Consent were enabled, then the reviewed AuditSphere
+consent and nonce-bound identity flow completed. Fresh capability verification persisted
+`bounded-read-succeeded`; consent is verified and directory verification is recent. The migration
+and API upgrade also completed with public readiness passing; existing workers were unchanged.
+Exact observation timestamps and deployment evidence are in
+[`status.json`](../execution/status.json).
 
-The owner-approved API-only recreation from the repository Compose configuration has since
-completed and `/health/ready` returned HTTP 200. The database and workers were not recreated and no
-migration ran. The Selected Site certificate mount is present, but `SELECTED_SITE_CLIENT_ID` remains
-blank in the protected deployment environment pending the exact-site grant; the runtime provider is
-therefore unconfigured. All external effects and Graph mutation switches remain off. The AuditSphere
-tenant-connection page still shows consent `REQUIRED` with no attempt, directory `NOT_VERIFIED`,
-and selected-resource verification `BLOCKED_EXTERNAL`. The exact-site permission and authorized
-positive/negative probe remain outstanding.
+Mail and all three directory-mutation capabilities remain Disabled. Their registration consent
+alone does not verify runtime access. No Graph mutation was run. Selected-site target fields
+remain a browser-tab draft; the runtime document app ID is unset pending the exact-site grant.
+The certificate-backed probe returned access denied for the approved target and unrelated control,
+so no file write was attempted. Resource verification and workspace activation remain blocked.
+The connection revision label is separate from verified consent and does not establish workspace
+readiness. No tenant-wide Graph permission was added beyond the individually listed roles.
 
 For the live Hostinger acceptance deployment, the dated read-only status, certificate mount,
 callback, capability setup and verification procedure are recorded in the
