@@ -104,10 +104,13 @@ public static class CompletionBundleFixture
       var finalized = await AdjustmentPlanService.FinalizeAsync(db, preparer, plan.Value);
       Assert.True(finalized.Succeeded, finalized.Message);
       var built = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, new(plan.Value, targetMappingId, "IFRS", "2026-01-01", "2026-12-31", "bundle-test-v1",
-        new FinancialSupplementaryInformation(0m, netIncome, [new CashFlowLineInput("OPERATING", "Cash receipts", netIncome)],
+        new FinancialSupplementaryInformation(0m, netIncome, [new CashFlowLineInput("OPERATING", "Cash receipts", netIncome,
+            MovementDate: new DateOnly(2026, 6, 30), ActivityCode: "CASH_RECEIPTS", SourceReferences: ["bank-ledger-bundle"],
+            ClassificationRationale: "Synthetic receipt agreed to source.")],
           [new DisclosureInput("CASH_POLICY", "Cash is presented at face value."), new DisclosureInput("COMMITMENTS", "", true, "No commitments in the synthetic management information.")],
           [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, netIncome, 0m, 0m, 0m, netIncome, "equity-test")],
-          NoteLines: [new NoteLineInput("CASH_NOTE", "CASH", cashAmount, "note-test")])));
+          NoteLines: [new NoteLineInput("CASH_NOTE", "CASH", cashAmount, "note-test")],
+          CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-cash-bundle"], ClosingCashEvidenceReferences: ["closing-cash-bundle"])));
       Assert.True(built.Succeeded, built.Message);
       Assert.Equal(AccountingPackageStates.PackageValidated, built.Value!.Status);
       packageId = built.Value.PackageId;

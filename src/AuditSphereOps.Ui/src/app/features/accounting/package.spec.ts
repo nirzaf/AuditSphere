@@ -22,6 +22,9 @@ describe('Financial Package and Review Queue Contracts', () => {
       revision: 1,
       cashBeginning: '100000.00',
       cashEnding: '150000.00',
+      cashAccountCodes: ['1000'],
+      openingCashEvidenceReferences: ['opening-cash-evidence'],
+      closingCashEvidenceReferences: ['closing-cash-evidence'],
       validations: [
         { code: 'BS_BALANCED', passed: true, detail: 'Balance sheet balances exactly.' },
       ],
@@ -29,7 +32,8 @@ describe('Financial Package and Review Queue Contracts', () => {
         { section: 'ASSETS', amount: '500000.00' },
       ],
       cashFlow: [
-        { section: 'OPERATING', description: 'Operating cash flow', amount: '50000.00' },
+        { id: id2, section: 'OPERATING', description: 'Operating cash flow', amount: '50000.00', isNonCash: false, currency: 'QAR',
+          movementDate: '2026-06-30', activityCode: 'OPERATING_RESULT', sourceReferences: ['gl-batch-1'], classificationRationale: 'Agreed from the accepted general ledger.' },
       ],
       disclosures: [
         { code: 'NOTE_01', response: 'Summary of significant accounting policies.', notApplicable: false, rationale: null },

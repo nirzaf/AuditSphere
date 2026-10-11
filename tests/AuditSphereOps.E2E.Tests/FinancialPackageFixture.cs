@@ -114,11 +114,13 @@ internal static class FinancialPackageFixture
 
     var request = new BuildFinancialPackageRequest(planId, mappingId, "IFRS", "2026-01-01", "2026-12-31", "e2e-template-v1",
       new FinancialSupplementaryInformation(0m, 175_000m,
-        [new CashFlowLineInput("OPERATING", "Synthetic cash collections", 175_000m)],
+        [new CashFlowLineInput("OPERATING", "Synthetic cash collections", 175_000m, MovementDate: new DateOnly(2026, 6, 30),
+          ActivityCode: "CASH_COLLECTIONS", SourceReferences: ["synthetic-ledger-e2e"], ClassificationRationale: "Synthetic collections agreed to source.")],
         [new DisclosureInput("E2E_POLICY", "Synthetic test policy note."),
          new DisclosureInput("E2E_OTHER", string.Empty, NotApplicable: true, Rationale: "No other synthetic items.")],
         [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 175_000m, 0m, 0m, 0m, 175_000m, "e2e-equity")],
-        NoteLines: [new NoteLineInput("E2E_NOTE", "CASH", 175_000m, "e2e-note")]));
+        NoteLines: [new NoteLineInput("E2E_NOTE", "CASH", 175_000m, "e2e-note")],
+        CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["synthetic-opening-cash-e2e"], ClosingCashEvidenceReferences: ["synthetic-closing-cash-e2e"]));
     Guid packageId;
     var expected = new Dictionary<string, (byte[] Bytes, string Sha256)>(StringComparer.Ordinal);
     await using (var db = host.CreateDbContext())

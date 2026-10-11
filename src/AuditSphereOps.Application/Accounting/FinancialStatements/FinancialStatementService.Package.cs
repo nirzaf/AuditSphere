@@ -85,7 +85,8 @@ public static partial class FinancialStatementService
     if (allocationError is not null)
       return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.Accounting.MappingIncomplete, allocationError);
 
-    var supplementaryError = ValidateSupplementaryInformation(request.SupplementaryInformation);
+    var supplementaryError = ValidateSupplementaryInformation(
+      request.SupplementaryInformation, request.PeriodStart, request.PeriodEnd);
     if (supplementaryError is not null)
       return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.Accounting.PackageSupplementaryInvalid, supplementaryError);
     if ((request.SupplementaryInformation?.EquityLines is not null || request.SupplementaryInformation?.NoteLines is not null) && typedAccounting is null)
@@ -108,6 +109,10 @@ public static partial class FinancialStatementService
     }
 
     var packageLines = FinancialStatementCalculator.BuildPackageLines(calculated.Value.Balances, allocations, dataset.Currency);
+    var cashPopulationError = ValidateClosingCashPopulation(
+      request.SupplementaryInformation, calculated.Value.Balances);
+    if (cashPopulationError is not null)
+      return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.Accounting.PackageSupplementaryInvalid, cashPopulationError);
     var statementTotals = packageLines.GroupBy(x => x.StatementSection, StringComparer.Ordinal)
       .ToDictionary(x => x.Key, x => MoneyPolicy.Normalize(x.Sum(y => y.Amount)), StringComparer.Ordinal);
     var supplementaryHash = request.SupplementaryInformation is null
@@ -204,6 +209,9 @@ public static partial class FinancialStatementService
         ? AccountingPackageStates.PackageReviewRequired : AccountingPackageStates.PackageValidated,
       CashBeginning = request.SupplementaryInformation?.CashBeginning,
       CashEnding = request.SupplementaryInformation?.CashEnding,
+      CashAccountCodes = NormalizeReferences(request.SupplementaryInformation?.CashAccountCodes),
+      OpeningCashEvidenceReferences = NormalizeReferences(request.SupplementaryInformation?.OpeningCashEvidenceReferences),
+      ClosingCashEvidenceReferences = NormalizeReferences(request.SupplementaryInformation?.ClosingCashEvidenceReferences),
       SupplementaryHash = supplementaryHash,
       EquityHash = equityHash,
       ComparativePackageId = comparative?.Id,
@@ -245,7 +253,7 @@ public static partial class FinancialStatementService
         : $"The accounting equation has unclassified statement sections: {string.Join(", ", unclassifiedSections)}.");
     var hasSupplementary = request.SupplementaryInformation is not null;
     var cashBridgeReconciled = request.SupplementaryInformation is { } supplied &&
-      ValidateSupplementaryInformation(supplied) is null;
+      ValidateSupplementaryInformation(supplied, request.PeriodStart, request.PeriodEnd) is null;
     AddValidation(db, package, "CASH_FLOW_RECONCILED", hasSupplementary && cashBridgeReconciled,
       hasSupplementary
         ? "Cash movements, FX cash effects and noncash disclosures reconcile to the supplied opening and closing cash."
@@ -326,6 +334,10 @@ public static partial class FinancialStatementService
           EngagementId = package.EngagementId, FinancialPackageId = package.Id,
           Section = line.Section.Trim().ToUpperInvariant(), Description = line.Description.Trim(),
           Amount = MoneyPolicy.Normalize(line.Amount), IsNonCash = line.IsNonCash,
+          MovementDate = line.MovementDate,
+          ActivityCode = line.ActivityCode!.Trim().ToUpperInvariant(),
+          SourceReferences = NormalizeReferences(line.SourceReferences),
+          ClassificationRationale = line.ClassificationRationale!.Trim(),
           Currency = package.Currency, CreatedAt = package.CreatedAt
         });
       foreach (var fxEffect in request.SupplementaryInformation.FxCashEffects ?? [])
@@ -502,18 +514,23 @@ public static partial class FinancialStatementService
       : $"Mapping statement sections do not match the approved taxonomy: {string.Join("; ", mismatchedSections)}.";
   }
 
-  private static string? ValidateSupplementaryInformation(FinancialSupplementaryInformation? input)
+  private static string? ValidateSupplementaryInformation(
+    FinancialSupplementaryInformation? input, string periodStart, string periodEnd)
   {
     if (input is null) return null;
+    if (!DateOnly.TryParseExact(periodStart, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var start) ||
+        !DateOnly.TryParseExact(periodEnd, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var end) || start > end)
+      return "Cash-flow schedules require a valid reporting period.";
     if (input.CashFlowLines.Count == 0 || input.Disclosures.Count == 0)
       return "Cash-flow lines and disclosure responses are both required.";
-    if (input.CashFlowLines.Any(x => x.Section.Trim().ToUpperInvariant() is not ("OPERATING" or "INVESTING" or "FINANCING") ||
-                                     string.IsNullOrWhiteSpace(x.Description) || x.Description.Trim().Length > 2000))
-      return "Each cash-flow line needs an allowed section and description.";
-    if (input.CashFlowLines.Any(x => x.IsNonCash &&
-        !x.Section.Trim().Equals("INVESTING", StringComparison.OrdinalIgnoreCase) &&
-        !x.Section.Trim().Equals("FINANCING", StringComparison.OrdinalIgnoreCase)))
-      return "Only investing or financing movements can be noncash; noncash amounts never enter the cash bridge.";
+    if (input.CashFlowLines.Any(x => !ValidCashFlowMovement(x, start, end)))
+      return "Each cash-flow movement needs a date within the reporting period, activity code, evidence reference and classification rationale.";
+    if (input.CashAccountCodes is not { Count: > 0 and <= 100 } ||
+        input.CashAccountCodes.Any(x => string.IsNullOrWhiteSpace(x) || x.Trim().Length > 100) ||
+        input.CashAccountCodes.Select(x => x.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).Count() != input.CashAccountCodes.Count)
+      return "Opening and closing cash must use an explicit, unique cash-account population.";
+    if (!ValidEvidenceReferences(input.OpeningCashEvidenceReferences) || !ValidEvidenceReferences(input.ClosingCashEvidenceReferences))
+      return "Opening and closing cash balances each require at least one bounded evidence reference.";
     if (input.FxCashEffects is { Count: > 0 } fxEffects &&
         fxEffects.Any(x => string.IsNullOrWhiteSpace(x.CurrencyPair) || x.CurrencyPair.Trim().Length > 20 ||
           string.IsNullOrWhiteSpace(x.EvidenceReference) || x.EvidenceReference.Trim().Length > 2000 ||
@@ -563,6 +580,37 @@ public static partial class FinancialStatementService
       ? null
       : $"Cash-flow lines and FX effects total {MoneyPolicy.Normalize(cashMovements + fxTotal)} but the opening/closing cash bridge is {expected}.";
   }
+
+  private static bool ValidActivityCode(string? code) => !string.IsNullOrWhiteSpace(code) && code.Trim().Length <= 100 &&
+    code.Trim().All(c => char.IsAsciiLetterOrDigit(c) || c is '_' or '-' or '.');
+
+  private static bool ValidCashFlowMovement(CashFlowLineInput line, DateOnly start, DateOnly end) =>
+    line.Section.Trim().ToUpperInvariant() is "OPERATING" or "INVESTING" or "FINANCING" &&
+    !string.IsNullOrWhiteSpace(line.Description) && line.Description.Trim().Length <= 2000 &&
+    line.MovementDate is { } date && date >= start && date <= end && ValidActivityCode(line.ActivityCode) &&
+    ValidEvidenceReferences(line.SourceReferences) && !string.IsNullOrWhiteSpace(line.ClassificationRationale) &&
+    line.ClassificationRationale.Trim().Length <= 2000;
+
+  private static string? ValidateClosingCashPopulation(
+    FinancialSupplementaryInformation? input, IReadOnlyDictionary<string, decimal> adjustedBalances)
+  {
+    if (input is null) return null;
+    var accountCodes = NormalizeReferences(input.CashAccountCodes);
+    var missing = accountCodes.Where(code => !adjustedBalances.ContainsKey(code)).ToArray();
+    if (missing.Length > 0)
+      return $"The selected cash account population is absent from the adjusted source balances: {string.Join(", ", missing)}.";
+    var closing = MoneyPolicy.Normalize(accountCodes.Sum(code => adjustedBalances[code]));
+    return closing == input.CashEnding
+      ? null
+      : $"Closing cash {input.CashEnding.ToString("0.000000", CultureInfo.InvariantCulture)} does not cross-cast to the selected adjusted cash-account population ({closing.ToString("0.000000", CultureInfo.InvariantCulture)}).";
+  }
+
+  private static bool ValidEvidenceReferences(IReadOnlyList<string>? references) =>
+    references is { Count: > 0 and <= 50 } && references.All(x => !string.IsNullOrWhiteSpace(x) && x.Trim().Length <= 2000) &&
+    references.Select(x => x.Trim()).Distinct(StringComparer.Ordinal).Count() == references.Count;
+
+  private static string[] NormalizeReferences(IReadOnlyList<string>? references) =>
+    (references ?? []).Select(x => x.Trim()).Order(StringComparer.Ordinal).ToArray();
 
   private static void AddValidation(
     IAuditSphereDbContext db, FinancialPackage package, string code, bool passed, string detail) =>

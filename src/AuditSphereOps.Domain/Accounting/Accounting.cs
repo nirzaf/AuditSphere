@@ -340,6 +340,10 @@ public sealed class FinancialPackage
   public string Status { get; set; } = AccountingPackageStates.PackageReviewRequired;
   public decimal? CashBeginning { get; set; }
   public decimal? CashEnding { get; set; }
+  /// <summary>Cash populations and evidence supplied for this package; empty for legacy packages.</summary>
+  public string[] CashAccountCodes { get; set; } = [];
+  public string[] OpeningCashEvidenceReferences { get; set; } = [];
+  public string[] ClosingCashEvidenceReferences { get; set; } = [];
   public string? SupplementaryHash { get; set; }
   public string? EquityHash { get; set; }
   public Guid? ComparativePackageId { get; set; }
@@ -469,8 +473,13 @@ public sealed class FinancialPackageCashFlowLine
   public string Section { get; set; } = string.Empty;
   public string Description { get; set; } = string.Empty;
   public decimal Amount { get; set; }
-  /// <summary>Noncash investing/financing movements are disclosed separately and never enter the cash bridge.</summary>
+  /// <summary>Noncash adjustments and investing/financing items are retained for disclosure and never enter the cash bridge.</summary>
   public bool IsNonCash { get; set; }
+  /// <summary>Optional only for pre-lineage legacy rows; new package builds require all movement evidence fields.</summary>
+  public DateOnly? MovementDate { get; set; }
+  public string? ActivityCode { get; set; }
+  public string[] SourceReferences { get; set; } = [];
+  public string? ClassificationRationale { get; set; }
   public string Currency { get; set; } = string.Empty;
   public DateTimeOffset CreatedAt { get; set; }
 }

@@ -73,9 +73,12 @@ public static partial class FinancialStatementService
       sb.AppendLine("--- CASH FLOW RECONCILIATION ---");
       sb.AppendLine($"Beginning Cash: {package.CashBeginning?.ToString("0.000000", CultureInfo.InvariantCulture)} {package.Currency}");
       sb.AppendLine($"Ending Cash: {package.CashEnding?.ToString("0.000000", CultureInfo.InvariantCulture)} {package.Currency}");
+      sb.AppendLine($"Cash accounts: {string.Join(",", package.CashAccountCodes.Order(StringComparer.Ordinal))}");
+      sb.AppendLine($"Opening cash evidence: {string.Join(",", package.OpeningCashEvidenceReferences.Order(StringComparer.Ordinal))}");
+      sb.AppendLine($"Closing cash evidence: {string.Join(",", package.ClosingCashEvidenceReferences.Order(StringComparer.Ordinal))}");
       foreach (var cf in cashFlowLines.OrderBy(x => x.Section, StringComparer.OrdinalIgnoreCase).ThenBy(x => x.Description, StringComparer.Ordinal))
       {
-        sb.AppendLine($"{cf.Section} | {cf.Description} | {cf.Amount.ToString("0.000000", CultureInfo.InvariantCulture)} {cf.Currency}");
+        sb.AppendLine($"{cf.Id:D} | {cf.MovementDate:yyyy-MM-dd} | {cf.Section} | {cf.ActivityCode} | {cf.Description} | {cf.Amount.ToString("0.000000", CultureInfo.InvariantCulture)} {cf.Currency} | {(cf.IsNonCash ? "NONCASH" : "CASH")} | evidence={string.Join(",", cf.SourceReferences.Order(StringComparer.Ordinal))} | rationale={cf.ClassificationRationale}");
       }
       sb.AppendLine();
     }

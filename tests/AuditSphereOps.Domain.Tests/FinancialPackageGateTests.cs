@@ -36,10 +36,12 @@ public sealed class FinancialPackageGateTests
     {
       SupplementaryInformation = new FinancialSupplementaryInformation(
         0m, 100m,
-        [new CashFlowLineInput("OPERATING", "Cash receipts", 100m)],
+        [new CashFlowLineInput("OPERATING", "Cash receipts", 100m, MovementDate: new DateOnly(2026, 6, 30),
+          ActivityCode: "CASH_RECEIPTS", SourceReferences: ["bank-ledger-gate"], ClassificationRationale: "Synthetic receipts agreed to source.")],
         [new DisclosureInput("CASH_POLICY", "Cash is presented at face value."),
          new DisclosureInput("COMMITMENTS", string.Empty, NotApplicable: true, Rationale: "None identified.")],
-        [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 60m, 0m, 0m, 0m, 60m, "equity-gate-1")])
+        [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 60m, 0m, 0m, 0m, 60m, "equity-gate-1")],
+        CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-cash-gate"], ClosingCashEvidenceReferences: ["closing-cash-gate"])
     };
     Guid packageId;
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -124,10 +126,12 @@ public sealed class FinancialPackageGateTests
     {
       SupplementaryInformation = new FinancialSupplementaryInformation(
         0m, 100m,
-        [new CashFlowLineInput("OPERATING", "Cash receipts", 100m)],
+        [new CashFlowLineInput("OPERATING", "Cash receipts", 100m, MovementDate: new DateOnly(2026, 6, 30),
+          ActivityCode: "CASH_RECEIPTS", SourceReferences: ["bank-ledger-stage"], ClassificationRationale: "Synthetic receipts agreed to source.")],
         [new DisclosureInput("CASH_POLICY", "Cash is presented at face value."),
          new DisclosureInput("COMMITMENTS", string.Empty, NotApplicable: true, Rationale: "None identified.")],
-        [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 100m, "equity-stage-1")])
+        [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 100m, "equity-stage-1")],
+        CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-cash-stage"], ClosingCashEvidenceReferences: ["closing-cash-stage"])
     };
     Guid packageId;
     await using (var db = new AuditSphereDbContext(pg.Options))

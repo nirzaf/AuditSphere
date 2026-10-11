@@ -19,7 +19,7 @@ public sealed class CashFlowContractTests
 
   [Fact]
   [Trait("Profile", "Database")]
-  public async Task NonCashMovement_IsDisclosedButExcludedFromCashBridge()
+  public async Task SourceBackedNonCashOperatingAndInvestingMovements_AreRetainedButExcludedFromCashBridge()
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var fixture = await SeedAsync(pg);
@@ -31,11 +31,16 @@ public sealed class CashFlowContractTests
     {
       SupplementaryInformation = new FinancialSupplementaryInformation(
         0m, 100m,
-        [new CashFlowLineInput("OPERATING", "Cash receipts", 100m),
-         new CashFlowLineInput("INVESTING", "Equipment acquired under finance lease", 500m, IsNonCash: true)],
+        [new CashFlowLineInput("OPERATING", "Cash receipts", 100m, MovementDate: new DateOnly(2026, 6, 30),
+           ActivityCode: "CASH_RECEIPTS", SourceReferences: ["bank-ledger-cash-1"], ClassificationRationale: "Receipt agreed to the synthetic bank ledger."),
+         new CashFlowLineInput("OPERATING", "Depreciation adjustment", 25m, IsNonCash: true, MovementDate: new DateOnly(2026, 6, 30),
+           ActivityCode: "NON_CASH_ADJUSTMENT", SourceReferences: ["fixed-asset-register-1"], ClassificationRationale: "Noncash depreciation is an indirect-method adjustment."),
+         new CashFlowLineInput("INVESTING", "Equipment acquired under finance lease", 500m, IsNonCash: true, MovementDate: new DateOnly(2026, 6, 30),
+           ActivityCode: "NON_CASH_ACQUISITION", SourceReferences: ["lease-contract-1"], ClassificationRationale: "Lease acquisition did not consume cash in the period.")],
         [new DisclosureInput("CASH_POLICY", "Cash is presented at face value."),
          new DisclosureInput("COMMITMENTS", string.Empty, NotApplicable: true, Rationale: "None identified.")],
-        [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 100m, "equity-cash-1")])
+        [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 100m, "equity-cash-1")],
+        CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-bank-statement-1"], ClosingCashEvidenceReferences: ["closing-bank-statement-1"])
     };
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
@@ -47,26 +52,48 @@ public sealed class CashFlowContractTests
         .Select(x => x.Code).ToListAsync();
       Assert.True(builtPackage.Status == AccountingPackageStates.PackageValidated,
         $"Failed: {string.Join(",", failedCodes)}");
+      Assert.Equal(3, await db.FinancialPackageCashFlowLines.CountAsync(x => x.FinancialPackageId == builtPackage.PackageId));
       var line = await db.FinancialPackageCashFlowLines.SingleAsync(x => x.Description.Contains("finance lease"));
       Assert.True(line.IsNonCash);
-      var operating = await db.FinancialPackageCashFlowLines.SingleAsync(x => x.Section == "OPERATING");
+      Assert.Equal(new DateOnly(2026, 6, 30), line.MovementDate);
+      Assert.Equal(["lease-contract-1"], line.SourceReferences);
+      var operating = await db.FinancialPackageCashFlowLines.SingleAsync(x => x.ActivityCode == "CASH_RECEIPTS");
       Assert.False(operating.IsNonCash);
+      Assert.Equal("CASH_RECEIPTS", operating.ActivityCode);
     }
 
-    // A noncash operating line is rejected outright: operating cash flows are cash.
+    // An unreferenced movement is refused, while the noncash operating adjustment above is valid.
     var invalid = request with
     {
       TemplateVersion = "cash-v1-invalid",
       SupplementaryInformation = request.SupplementaryInformation with
       {
-        CashFlowLines = [new CashFlowLineInput("OPERATING", "Accrued income", 100m, IsNonCash: true)]
+        CashFlowLines = [new CashFlowLineInput("OPERATING", "Unreferenced cash flow", 100m,
+          MovementDate: new DateOnly(2026, 6, 30), ActivityCode: "OTHER", SourceReferences: [],
+          ClassificationRationale: "No evidence was supplied.")]
       }
     };
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var rejected = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, invalid);
       Assert.False(rejected.Succeeded);
-      Assert.Contains("noncash", rejected.Message!, StringComparison.OrdinalIgnoreCase);
+      Assert.Contains("evidence reference", rejected.Message!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    var mismatchedCashPopulation = request with
+    {
+      TemplateVersion = "cash-v1-cash-population-mismatch",
+      SupplementaryInformation = request.SupplementaryInformation with
+      {
+        CashEnding = 99m,
+        CashFlowLines = [request.SupplementaryInformation!.CashFlowLines[0] with { Amount = 99m }]
+      }
+    };
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var rejected = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, mismatchedCashPopulation);
+      Assert.False(rejected.Succeeded);
+      Assert.Contains("does not cross-cast", rejected.Message!, StringComparison.OrdinalIgnoreCase);
     }
   }
 
@@ -84,11 +111,13 @@ public sealed class CashFlowContractTests
     {
       SupplementaryInformation = new FinancialSupplementaryInformation(
         0m, 110m,
-        [new CashFlowLineInput("OPERATING", "Cash receipts", 100m)],
+        [new CashFlowLineInput("OPERATING", "Cash receipts", 100m, MovementDate: new DateOnly(2026, 6, 30),
+          ActivityCode: "CASH_RECEIPTS", SourceReferences: ["bank-ledger-cash-2"], ClassificationRationale: "Agreed to synthetic bank activity.")],
         [new DisclosureInput("CASH_POLICY", "Cash is presented at face value."),
          new DisclosureInput("COMMITMENTS", string.Empty, NotApplicable: true, Rationale: "None identified.")],
         [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 100m, "equity-fx-1")],
-        FxCashEffects: [new FxCashEffectInput("USD/QAR", 10m, "fx-rate-evidence-1")])
+        FxCashEffects: [new FxCashEffectInput("USD/QAR", 10m, "fx-rate-evidence-1")],
+        CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-bank-statement-2"], ClosingCashEvidenceReferences: ["closing-bank-statement-2"])
     };
     await using (var db = new AuditSphereDbContext(pg.Options))
     {

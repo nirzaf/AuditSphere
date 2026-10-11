@@ -275,11 +275,13 @@ public sealed class FinancialStatementTests
       TemplateVersion = "template-v2",
       SupplementaryInformation = new FinancialSupplementaryInformation(
         0m, 100m,
-        [new CashFlowLineInput("OPERATING", "Cash receipts", 100m)],
+        [new CashFlowLineInput("OPERATING", "Cash receipts", 100m, MovementDate: new DateOnly(2026, 6, 30),
+          ActivityCode: "CASH_RECEIPTS", SourceReferences: ["bank-ledger-template-v2"], ClassificationRationale: "Synthetic receipts agreed to source.")],
         [new DisclosureInput("CASH_POLICY", "Cash and cash equivalents are presented at face value."),
          new DisclosureInput("COMMITMENTS", string.Empty, NotApplicable: true, Rationale: "No commitments were identified in the supplied management information.")],
         [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 100m, "equity-schedule-1")],
-        NoteLines: [new NoteLineInput("CASH_NOTE", "CASH", 100m, "note-schedule-1")])
+        NoteLines: [new NoteLineInput("CASH_NOTE", "CASH", 100m, "note-schedule-1")],
+        CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-cash-template-v2"], ClosingCashEvidenceReferences: ["closing-cash-template-v2"])
     };
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
@@ -540,9 +542,11 @@ public sealed class FinancialStatementTests
       planId, mappingId, "IFRS", "2026-01-01", "2026-12-31", "template-v1",
       new FinancialSupplementaryInformation(
         0m, 100m,
-        [new CashFlowLineInput("OPERATING", "Cash collections", 100m)],
+        [new CashFlowLineInput("OPERATING", "Cash collections", 100m, MovementDate: new DateOnly(2026, 6, 30),
+          ActivityCode: "CASH_COLLECTIONS", SourceReferences: ["bank-ledger-template-v1"], ClassificationRationale: "Synthetic collections agreed to source.")],
         [new DisclosureInput("NOTE_1", "Summary of significant accounting policies."),
-         new DisclosureInput("NOTE_2", string.Empty, NotApplicable: true, Rationale: "No discontinued operations.")]));
+         new DisclosureInput("NOTE_2", string.Empty, NotApplicable: true, Rationale: "No discontinued operations.")],
+        CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-cash-template-v1"], ClosingCashEvidenceReferences: ["closing-cash-template-v1"]));
 
     Guid packageId;
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -682,8 +686,10 @@ public sealed class FinancialStatementTests
         planId, mappingId, "IFRS", "2026-01-01", "2026-12-31", "template-v1",
         new FinancialSupplementaryInformation(
           0m, 100m,
-          [new CashFlowLineInput("OPERATING", "Cash collections", 100m)],
-          [new DisclosureInput("NOTE_1", "Summary of significant accounting policies.")])));
+          [new CashFlowLineInput("OPERATING", "Cash collections", 100m, MovementDate: new DateOnly(2026, 6, 30),
+            ActivityCode: "CASH_COLLECTIONS", SourceReferences: ["bank-ledger-layout-test"], ClassificationRationale: "Synthetic collections agreed to source.")],
+          [new DisclosureInput("NOTE_1", "Summary of significant accounting policies.")],
+          CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-cash-layout-test"], ClosingCashEvidenceReferences: ["closing-cash-layout-test"])));
       Assert.True(built.Succeeded, built.Message);
       packageId = built.Value!.PackageId;
     }

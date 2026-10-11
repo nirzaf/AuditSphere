@@ -87,14 +87,23 @@ public static class FinancialStatementCalculator
   {
     var parts = new List<string>
     {
-      "financial-supplementary-information.v2", currency,
+      "financial-supplementary-information.v3", currency,
       input.CashBeginning.ToString("0.000000", CultureInfo.InvariantCulture),
-      input.CashEnding.ToString("0.000000", CultureInfo.InvariantCulture)
+      input.CashEnding.ToString("0.000000", CultureInfo.InvariantCulture),
+      string.Join(',', (input.CashAccountCodes ?? []).Select(x => x.Trim()).Order(StringComparer.Ordinal)),
+      string.Join(',', (input.OpeningCashEvidenceReferences ?? []).Select(x => x.Trim()).Order(StringComparer.Ordinal)),
+      string.Join(',', (input.ClosingCashEvidenceReferences ?? []).Select(x => x.Trim()).Order(StringComparer.Ordinal))
     };
     parts.AddRange(input.CashFlowLines.OrderBy(x => x.Section, StringComparer.OrdinalIgnoreCase)
       .ThenBy(x => x.Description, StringComparer.Ordinal)
+      .ThenBy(x => x.MovementDate)
+      .ThenBy(x => x.ActivityCode, StringComparer.Ordinal)
       .Select(x => string.Join('|', x.Section.Trim().ToUpperInvariant(), x.Description.Trim(),
-        x.Amount.ToString("0.000000", CultureInfo.InvariantCulture), x.IsNonCash ? "NONCASH" : "CASH")));
+        x.Amount.ToString("0.000000", CultureInfo.InvariantCulture), x.IsNonCash ? "NONCASH" : "CASH",
+        x.MovementDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? string.Empty,
+        x.ActivityCode?.Trim().ToUpperInvariant() ?? string.Empty,
+        string.Join(',', (x.SourceReferences ?? []).Select(r => r.Trim()).Order(StringComparer.Ordinal)),
+        x.ClassificationRationale?.Trim() ?? string.Empty)));
     parts.AddRange(input.Disclosures.OrderBy(x => x.Code, StringComparer.OrdinalIgnoreCase)
       .Select(x => string.Join('|', x.Code.Trim().ToUpperInvariant(),
         x.NotApplicable ? "NA" : x.Response.Trim(), x.Rationale?.Trim() ?? string.Empty)));

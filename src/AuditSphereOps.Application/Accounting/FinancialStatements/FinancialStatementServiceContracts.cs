@@ -43,9 +43,24 @@ public sealed record FinancialSupplementaryInformation(
   IReadOnlyList<EquityLineInput>? EquityLines = null,
   FinancialComparativeInput? Comparative = null,
   IReadOnlyList<NoteLineInput>? NoteLines = null,
-  IReadOnlyList<FxCashEffectInput>? FxCashEffects = null);
+  IReadOnlyList<FxCashEffectInput>? FxCashEffects = null,
+  IReadOnlyList<string>? CashAccountCodes = null,
+  IReadOnlyList<string>? OpeningCashEvidenceReferences = null,
+  IReadOnlyList<string>? ClosingCashEvidenceReferences = null);
 
-public sealed record CashFlowLineInput(string Section, string Description, decimal Amount, bool IsNonCash = false);
+/// <summary>
+/// One manually prepared cash-flow movement. Activity and evidence are recorded verbatim as preparer inputs;
+/// they are not an approved accounting policy or an independently verified source assertion.
+/// </summary>
+public sealed record CashFlowLineInput(
+  string Section,
+  string Description,
+  decimal Amount,
+  bool IsNonCash = false,
+  DateOnly? MovementDate = null,
+  string? ActivityCode = null,
+  IReadOnlyList<string>? SourceReferences = null,
+  string? ClassificationRationale = null);
 
 public sealed record FxCashEffectInput(string CurrencyPair, decimal Amount, string EvidenceReference);
 

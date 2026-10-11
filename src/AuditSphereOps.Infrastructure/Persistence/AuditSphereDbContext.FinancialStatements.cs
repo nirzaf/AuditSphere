@@ -201,6 +201,9 @@ public sealed partial class AuditSphereDbContext
     package.Property(x => x.EquityHash).HasMaxLength(64);
     package.Property(x => x.ComparativeBasis).HasMaxLength(100);
     package.Property(x => x.ComparativeEvidenceReference).HasMaxLength(2000);
+    package.Property(x => x.CashAccountCodes).HasColumnType("text[]").HasDefaultValueSql("ARRAY[]::text[]");
+    package.Property(x => x.OpeningCashEvidenceReferences).HasColumnType("text[]").HasDefaultValueSql("ARRAY[]::text[]");
+    package.Property(x => x.ClosingCashEvidenceReferences).HasColumnType("text[]").HasDefaultValueSql("ARRAY[]::text[]");
     package.HasIndex(x => new { x.FirmId, x.AdjustmentPlanId, x.MappingVersionId, x.TemplateVersion })
       .IsUnique().HasDatabaseName("ux_financial_package_identity");
     package.ToTable("financial_packages", t => t.HasCheckConstraint("ck_financial_package_values",
@@ -282,10 +285,15 @@ public sealed partial class AuditSphereDbContext
     cashFlow.Property(x => x.Section).HasMaxLength(20);
     cashFlow.Property(x => x.Description).HasMaxLength(2000);
     cashFlow.Property(x => x.Currency).HasMaxLength(3);
+    cashFlow.Property(x => x.ActivityCode).HasMaxLength(100);
+    cashFlow.Property(x => x.SourceReferences).HasColumnType("text[]").HasDefaultValueSql("ARRAY[]::text[]");
+    cashFlow.Property(x => x.ClassificationRationale).HasMaxLength(2000);
     cashFlow.HasIndex(x => new { x.FirmId, x.FinancialPackageId, x.Section, x.Description })
       .IsUnique().HasDatabaseName("ux_financial_package_cash_flow_line_identity");
     cashFlow.ToTable("financial_package_cash_flow_lines", t => t.HasCheckConstraint("ck_financial_package_cash_flow_values",
-      "section IN ('OPERATING','INVESTING','FINANCING') AND length(trim(description)) > 0 AND currency ~ '^[A-Z]{3}$'"));
+      "section IN ('OPERATING','INVESTING','FINANCING') AND length(trim(description)) > 0 AND currency ~ '^[A-Z]{3}$' " +
+      "AND ((movement_date IS NULL AND activity_code IS NULL AND classification_rationale IS NULL AND cardinality(source_references) = 0) " +
+      "OR (movement_date IS NOT NULL AND length(trim(activity_code)) > 0 AND cardinality(source_references) > 0 AND length(trim(classification_rationale)) > 0))"));
     cashFlow.HasOne<FinancialPackage>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);

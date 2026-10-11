@@ -9,8 +9,10 @@ import { StatementPresentation } from './presentation';
 
 export const decodePackage = obj({ id: guid, engagementId: guid, status: text, framework: text, periodStart: text, periodEnd: text, currency: text, templateVersion: text,
   calculationHash: text, supplementaryHash: nullable(text), revision: nat, cashBeginning: nullable(dec), cashEnding: nullable(dec),
+  cashAccountCodes: arr(text, 100), openingCashEvidenceReferences: arr(text, 50), closingCashEvidenceReferences: arr(text, 50),
   validations: arr(obj({ code: text, passed: bool, detail: text }), 500), statementTotals: arr(obj({ section: text, amount: dec }), 500),
-  cashFlow: arr(obj({ section: text, description: text, amount: dec }), 2000),
+  cashFlow: arr(obj({ id: guid, section: text, description: text, amount: dec, isNonCash: bool, currency: text,
+    movementDate: nullable(text), activityCode: nullable(text), sourceReferences: arr(text, 50), classificationRationale: nullable(text) }), 2000),
   disclosures: arr(obj({ code: text, response: text, notApplicable: bool, rationale: nullable(text) }), 2000),
   reviews: arr(obj({ stage: text, decision: text, evidenceMode: text, evidenceReference: text, packageHash: text, decidedAt: instant }), 500),
   artifact: nullable(obj({ artifactSha256Hex: text, byteCount: nat, renderedText: text })), canReview: bool, reviewStages: arr(text, 10), reviewDecisions: arr(text, 10) });
@@ -73,9 +75,10 @@ const ARTIFACTS: [string, string][] = [['financial-package-xlsx.v1', 'Download w
       @if (p.cashFlow.length) {
         <section class="panel" aria-labelledby="cash-flow-heading">
           <h2 id="cash-flow-heading">Cash-flow workings</h2>
-          <p>Opening {{ p.cashBeginning | money }} {{ p.currency }}; closing {{ p.cashEnding | money }} {{ p.currency }}.</p>
-          <div class="table-scroll"><table><thead><tr><th scope="col">Section</th><th scope="col">Description</th><th scope="col" class="number">Amount</th></tr></thead>
-            <tbody>@for (c of p.cashFlow; track $index) { <tr><td>{{ c.section }}</td><td>{{ c.description }}</td><td class="number">{{ c.amount | money }} {{ p.currency }}</td></tr> }</tbody></table></div>
+          <p>Cash accounts: {{ p.cashAccountCodes.join(', ') }}. Opening {{ p.cashBeginning | money }} {{ p.currency }}; closing {{ p.cashEnding | money }} {{ p.currency }}.</p>
+          <p>Opening evidence: {{ p.openingCashEvidenceReferences.join(', ') }}. Closing evidence: {{ p.closingCashEvidenceReferences.join(', ') }}.</p>
+          <div class="table-scroll"><table><thead><tr><th scope="col">Movement</th><th scope="col">Date</th><th scope="col">Section / activity</th><th scope="col">Description and classification rationale</th><th scope="col">Evidence references</th><th scope="col" class="number">Amount</th></tr></thead>
+            <tbody>@for (c of p.cashFlow; track c.id) { <tr><td><code>{{ c.id }}</code>{{ c.isNonCash ? ' · Noncash' : '' }}</td><td>{{ c.movementDate ?? 'Legacy date unavailable' }}</td><td>{{ c.section }} / {{ c.activityCode ?? 'Legacy activity unavailable' }}</td><td>{{ c.description }}<br />{{ c.classificationRationale ?? 'Legacy rationale unavailable' }}</td><td>{{ c.sourceReferences.join(', ') || 'Legacy evidence unavailable' }}</td><td class="number">{{ c.amount | money }} {{ p.currency }}</td></tr> }</tbody></table></div>
         </section>
       }
       @if (p.disclosures.length) {

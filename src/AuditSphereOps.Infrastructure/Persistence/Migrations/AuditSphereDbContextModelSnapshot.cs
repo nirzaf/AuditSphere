@@ -7306,6 +7306,13 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(64)")
                         .HasColumnName("calculation_hash");
 
+                    b.PrimitiveCollection<string[]>("CashAccountCodes")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text[]")
+                        .HasColumnName("cash_account_codes")
+                        .HasDefaultValueSql("ARRAY[]::text[]");
+
                     b.Property<decimal?>("CashBeginning")
                         .HasColumnType("numeric(19,6)")
                         .HasColumnName("cash_beginning");
@@ -7317,6 +7324,13 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("ClientId")
                         .HasColumnType("uuid")
                         .HasColumnName("client_id");
+
+                    b.PrimitiveCollection<string[]>("ClosingCashEvidenceReferences")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text[]")
+                        .HasColumnName("closing_cash_evidence_references")
+                        .HasDefaultValueSql("ARRAY[]::text[]");
 
                     b.Property<string>("ComparativeBasis")
                         .HasMaxLength(100)
@@ -7368,6 +7382,13 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("MappingVersionId")
                         .HasColumnType("uuid")
                         .HasColumnName("mapping_version_id");
+
+                    b.PrimitiveCollection<string[]>("OpeningCashEvidenceReferences")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text[]")
+                        .HasColumnName("opening_cash_evidence_references")
+                        .HasDefaultValueSql("ARRAY[]::text[]");
 
                     b.Property<string>("PeriodEnd")
                         .IsRequired()
@@ -7540,9 +7561,19 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<string>("ActivityCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("activity_code");
+
                     b.Property<decimal>("Amount")
                         .HasColumnType("numeric(19,6)")
                         .HasColumnName("amount");
+
+                    b.Property<string>("ClassificationRationale")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("classification_rationale");
 
                     b.Property<Guid>("ClientId")
                         .HasColumnType("uuid")
@@ -7580,11 +7611,22 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("is_non_cash");
 
+                    b.Property<DateOnly?>("MovementDate")
+                        .HasColumnType("date")
+                        .HasColumnName("movement_date");
+
                     b.Property<string>("Section")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
                         .HasColumnName("section");
+
+                    b.PrimitiveCollection<string[]>("SourceReferences")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text[]")
+                        .HasColumnName("source_references")
+                        .HasDefaultValueSql("ARRAY[]::text[]");
 
                     b.HasKey("Id");
 
@@ -7596,7 +7638,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.ToTable("financial_package_cash_flow_lines", null, t =>
                         {
-                            t.HasCheckConstraint("ck_financial_package_cash_flow_values", "section IN ('OPERATING','INVESTING','FINANCING') AND length(trim(description)) > 0 AND currency ~ '^[A-Z]{3}$'");
+                            t.HasCheckConstraint("ck_financial_package_cash_flow_values", "section IN ('OPERATING','INVESTING','FINANCING') AND length(trim(description)) > 0 AND currency ~ '^[A-Z]{3}$' AND ((movement_date IS NULL AND activity_code IS NULL AND classification_rationale IS NULL AND cardinality(source_references) = 0) OR (movement_date IS NOT NULL AND length(trim(activity_code)) > 0 AND cardinality(source_references) > 0 AND length(trim(classification_rationale)) > 0))");
                         });
                 });
 
