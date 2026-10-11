@@ -73,6 +73,22 @@ public static class FinancialStatementPresentationRenderer
       : $"As at {LongDate(p.Header.PriorPeriodEnd)}";
   }
 
+  /// <summary>Allocates the printable page width to the label, note and two amount columns.</summary>
+  internal static IReadOnlyList<double> PdfColumnWidthsInPoints(
+    double pageWidthPoints, double leftMarginPoints, double rightMarginPoints)
+  {
+    var printableWidth = pageWidthPoints - leftMarginPoints - rightMarginPoints;
+    if (!double.IsFinite(printableWidth) || printableWidth <= 0 || leftMarginPoints < 0 || rightMarginPoints < 0)
+      throw new ArgumentOutOfRangeException(nameof(pageWidthPoints), "The PDF page must have a positive printable width.");
+
+    var label = printableWidth * 0.55;
+    var note = printableWidth * 0.07;
+    var current = printableWidth * 0.19;
+    // Subtract the preceding widths so the table never exceeds the printable page from rounding drift.
+    var prior = printableWidth - label - note - current;
+    return [label, note, current, prior];
+  }
+
   /// <summary>Lines that identify exactly what was presented; the same lines appear in every format.</summary>
   internal static IReadOnlyList<string> ManifestLines(FinancialStatementPresentation p)
   {
@@ -122,10 +138,14 @@ public static class FinancialStatementPresentationRenderer
 
     var section = document.AddSection();
     section.PageSetup.PageFormat = PageFormat.A4;
-    section.PageSetup.TopMargin = Unit.FromCentimeter(1.8);
-    section.PageSetup.BottomMargin = Unit.FromCentimeter(1.8);
-    section.PageSetup.LeftMargin = Unit.FromCentimeter(2);
-    section.PageSetup.RightMargin = Unit.FromCentimeter(2);
+    var topMargin = Unit.FromCentimeter(1.8);
+    var bottomMargin = Unit.FromCentimeter(1.8);
+    var leftMargin = Unit.FromCentimeter(2);
+    var rightMargin = Unit.FromCentimeter(2);
+    section.PageSetup.TopMargin = topMargin;
+    section.PageSetup.BottomMargin = bottomMargin;
+    section.PageSetup.LeftMargin = leftMargin;
+    section.PageSetup.RightMargin = rightMargin;
 
     var header = section.Headers.Primary.AddParagraph(Banner);
     header.Format.Font.Bold = true;
@@ -157,14 +177,16 @@ public static class FinancialStatementPresentationRenderer
 
       var table = section.AddTable();
       table.Format.Font.Size = 9;
-      table.AddColumn(Unit.FromCentimeter(9.6));
-      table.AddColumn(Unit.FromCentimeter(1.4));
-      table.AddColumn(Unit.FromCentimeter(3.4));
-      table.AddColumn(Unit.FromCentimeter(3.4));
+      var columnWidths = PdfColumnWidthsInPoints(
+        Unit.FromCentimeter(21).Point,
+        leftMargin.Point,
+        rightMargin.Point);
+      foreach (var columnWidth in columnWidths) table.AddColumn(Unit.FromPoint(columnWidth));
 
       var headerRow = table.AddRow();
       headerRow.HeadingFormat = true;
       headerRow.Format.Font.Bold = true;
+      headerRow.Format.Font.Size = 7.5;
       headerRow.Cells[0].AddParagraph(string.Empty);
       headerRow.Cells[1].AddParagraph("Note");
       headerRow.Cells[2].AddParagraph(CurrentColumn(p, statement.Code));
@@ -178,7 +200,9 @@ public static class FinancialStatementPresentationRenderer
       {
         var tableRow = table.AddRow();
         var label = tableRow.Cells[0].AddParagraph(row.Label);
-        label.Format.LeftIndent = Unit.FromCentimeter(0.4 * row.Depth);
+        var availableIndent = Math.Max(0, columnWidths[0] - Unit.FromCentimeter(4.5).Point);
+        var requestedIndent = Math.Max(0, row.Depth) * Unit.FromCentimeter(0.4).Point;
+        label.Format.LeftIndent = Unit.FromPoint(Math.Min(requestedIndent, availableIndent));
         tableRow.Cells[1].AddParagraph(row.NoteReference ?? string.Empty);
         tableRow.Cells[2].AddParagraph(row.Kind == PresentationRowKinds.Heading ? string.Empty : FormatAmount(row.Current, p.DisplayDecimals));
         tableRow.Cells[3].AddParagraph(row.Kind == PresentationRowKinds.Heading ? string.Empty : FormatAmount(row.Prior, p.DisplayDecimals));

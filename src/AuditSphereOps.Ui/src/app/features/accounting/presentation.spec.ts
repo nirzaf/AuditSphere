@@ -52,7 +52,7 @@ describe('Statement presentation screen', () => {
     TestBed.resetTestingModule();
   });
 
-  it('shows the draft banner, the checks and grouped figures, and posts an export with its format', () => {
+  it('shows the draft banner, the checks and grouped figures, and exports the displayed layout version', () => {
     TestBed.configureTestingModule({ imports: [StatementPresentation], providers: [provideHttpClient(), provideHttpClientTesting()] });
     TestBed.inject(SessionService).current.set({ userId: id, firmId: id, generation: '1', staff: true });
     const http = TestBed.inject(HttpTestingController);
@@ -69,7 +69,7 @@ describe('Statement presentation screen', () => {
     expect(host.querySelector('tr.heading')).not.toBeNull();
     fixture.componentInstance.download('xlsx');
     const exported = http.expectOne(`/api/ui/accounting/packages/${id}/presentation/export`);
-    expect(exported.request.body).toEqual({ format: 'xlsx' });
+    expect(exported.request.body).toEqual({ format: 'xlsx', layoutVersionId: id });
     exported.flush(new Blob(['x']));
     fixture.destroy();
   });

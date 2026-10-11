@@ -742,13 +742,35 @@ public sealed class FinancialStatementTests
       Assert.Equal((persistedCash, -persistedRevenue), (cash.Current, revenue.Current));
       Assert.Null(cash.Prior);
 
-      // Exports are version-bound: repeating one yields identical bytes, and an unknown format is refused.
-      var first = await FinancialStatementService.RenderPresentationAsync(db, reviewer, packageId, "docx");
-      var second = await FinancialStatementService.RenderPresentationAsync(db, reviewer, packageId, "docx");
+      // Publish a successor after preview. An export must retain the exact layout version the user reviewed.
+      var successorLines = Lines().ToList();
+      successorLines[1] = successorLines[1] with { Label = "Cash and cash equivalents · successor layout" };
+      var successorDraft = await StatementLayoutService.SaveLayoutDraftAsync(db, preparer,
+        new StatementLayoutDraftRequest(fixture.ClientId, "IFRS", "Presentation test layout", successorLines, layoutId));
+      Assert.True(successorDraft.Succeeded, successorDraft.Message);
+      Assert.True((await StatementLayoutService.ValidateLayoutAsync(db, preparer, successorDraft.Value!.LayoutVersionId)).Value!.IsValid);
+      var successor = await StatementLayoutService.PublishLayoutAsync(db, reviewer, successorDraft.Value.LayoutVersionId,
+        "Verify an already-viewed presentation remains pinned to its original layout version");
+      Assert.True(successor.Succeeded, successor.Message);
+      Assert.NotEqual(layoutId, successor.Value!.LayoutVersionId);
+      var latest = await FinancialStatementService.BuildPresentationAsync(db, reviewer, packageId);
+      Assert.True(latest.Succeeded, latest.Message);
+      Assert.Equal(successor.Value.LayoutVersionId, latest.Value!.Manifest.LayoutVersionId);
+
+      // Explicit exports preserve the reviewed version and remain deterministic; unknown formats are refused.
+      var first = await FinancialStatementService.RenderPresentationAsync(db, reviewer, packageId, "docx", layoutId);
+      var second = await FinancialStatementService.RenderPresentationAsync(db, reviewer, packageId, "docx", layoutId);
       Assert.True(first.Succeeded && second.Succeeded);
       Assert.Equal(first.Value!.ArtifactSha256Hex, second.Value!.ArtifactSha256Hex);
       Assert.Equal(first.Value.Bytes, second.Value.Bytes);
       Assert.Equal("auditsphere-statement-presentation-" + packageId.ToString("D") + ".docx", first.Value.FileName);
+      using (var archive = new ZipArchive(new MemoryStream(first.Value.Bytes), ZipArchiveMode.Read))
+      using (var documentXml = archive.GetEntry("word/document.xml")!.Open())
+      {
+        var renderedText = XDocument.Load(documentXml).Root!.Value;
+        Assert.Contains($"Statement layout: {layoutId:D}", renderedText, StringComparison.Ordinal);
+        Assert.DoesNotContain($"Statement layout: {successor.Value.LayoutVersionId:D}", renderedText, StringComparison.Ordinal);
+      }
       Assert.Equal(ErrorCodes.Accounting.PackageInvalid,
         (await FinancialStatementService.RenderPresentationAsync(db, reviewer, packageId, "html")).ErrorCode);
 

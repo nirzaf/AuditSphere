@@ -316,6 +316,42 @@ public sealed class FinancialStatementPresentationTests
   }
 
   [Fact]
+  public void PdfColumns_FitInsideA4PrintableWidth_AndLongLabelsRemainRenderable()
+  {
+    const double a4WidthPoints = 595.2756;
+    const double marginPoints = 56.6929;
+    var widths = FinancialStatementPresentationRenderer.PdfColumnWidthsInPoints(a4WidthPoints, marginPoints, marginPoints);
+    Assert.Equal(4, widths.Count);
+    Assert.All(widths, width => Assert.True(width > 0));
+    Assert.Equal(a4WidthPoints - marginPoints * 2, widths.Sum(), precision: 6);
+    Assert.Throws<ArgumentOutOfRangeException>(() =>
+      FinancialStatementPresentationRenderer.PdfColumnWidthsInPoints(100, 60, 60));
+
+    var original = Build().Value!;
+    var longLabel = string.Join(' ', Enumerable.Repeat("Receivables and other long statement label", 120));
+    var withLongLabel = original with
+    {
+      Statements = original.Statements.Select(statement => statement with
+      {
+        Rows = statement.Rows.Select(row => row.Code == "RECV" ? row with { Label = longLabel } : row).ToList()
+      }).ToList()
+    };
+    using var baselineStream = new MemoryStream(FinancialStatementPresentationRenderer.Render(
+      original, FinancialStatementPresentationRenderer.PdfFormat));
+    using var baselineDocument = PdfReader.Open(baselineStream, PdfDocumentOpenMode.Import);
+    var bytes = FinancialStatementPresentationRenderer.Render(withLongLabel, FinancialStatementPresentationRenderer.PdfFormat);
+    using var stream = new MemoryStream(bytes);
+    using var document = PdfReader.Open(stream, PdfDocumentOpenMode.Import);
+    Assert.True(document.PageCount > baselineDocument.PageCount,
+      "A long statement label should wrap and consume printable page space rather than be clipped horizontally.");
+    Assert.All(document.Pages.Cast<PdfSharp.Pdf.PdfPage>(), page =>
+    {
+      Assert.InRange(Math.Abs(page.Width.Point - a4WidthPoints), 0, 0.1);
+      Assert.InRange(Math.Abs(page.Height.Point - 841.8898), 0, 0.1);
+    });
+  }
+
+  [Fact]
   public void EveryFormat_IsByteIdenticalWhenRepeated_AndSeparatelyDigested()
   {
     var p = Build().Value!;

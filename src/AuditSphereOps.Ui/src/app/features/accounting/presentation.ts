@@ -130,10 +130,18 @@ export class StatementPresentation {
 
   async download(format: string): Promise<void> {
     if (this.busy()) return;
+    const presentation = this.presentation.data();
+    if (!presentation) {
+      this.status.set('Refresh the presentation before exporting so the selected layout version is explicit.');
+      return;
+    }
     this.busy.set(true);
     this.status.set('Preparing the version-bound statement presentation…');
     try {
-      const outcome = await this.api.download(`/api/ui/accounting/packages/${this.packageId()}/presentation/export`, { format });
+      const outcome = await this.api.download(`/api/ui/accounting/packages/${this.packageId()}/presentation/export`, {
+        format,
+        layoutVersionId: presentation.manifest.layoutVersionId,
+      });
       this.status.set(outcome.ok
         ? 'Download started. This is an unapproved draft, not an issued statement.'
         : outcome.message);
