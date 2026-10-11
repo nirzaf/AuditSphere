@@ -3,7 +3,9 @@
 This is a separate, synthetic-data acceptance environment for the Hostinger VPS. It uses the
 existing host Caddy instance and does not publish the API or PostgreSQL ports publicly. Its
 Compose project, network, database, data-protection keys and upload staging are isolated from
-the VPS's existing applications. External provider effects and development identity are off.
+the VPS's existing applications. Development identity and external effects for core workers are
+off. The dedicated client-sites worker is enabled by default but remains blocked until its explicit
+rollout boundary, separate credentials and Microsoft authorization are ready.
 
 ## Required owner configuration
 
@@ -53,7 +55,14 @@ Run `fallocate` after `mkfs.ext4`; formatting the image can discard preallocated
 1. Create `.env` with `umask 077` and mode `0600`. Set `RELEASE_TAG` to the full source commit,
    a generated `POSTGRES_PASSWORD`, `FIRM_ID`, `INSTALLATION_ID`, `BOOTSTRAP_PROOF_HASH`,
    `IDENTITY_TENANT_ID`, `IDENTITY_CLIENT_ID`, `IDENTITY_CLIENT_SECRET`,
-   `INITIAL_ADMIN_OBJECT_ID`, and a positive `DEPLOYMENT_EPOCH`. Use synthetic values only.
+   `INITIAL_ADMIN_OBJECT_ID`, and a positive `DEPLOYMENT_EPOCH`. For dedicated new-client sites,
+   set `CLIENT_SITES_ENABLED=true` (the default) and an explicitly approved UTC
+   `CLIENT_SITES_CLIENTS_CREATED_AFTER` boundary. Do not backdate the boundary to include existing
+   clients. Configure `CLIENT_SITES_CLIENT_ID`, `CLIENT_SITES_SITE_HOST`,
+   `CLIENT_SITES_CUSTODIAN_OBJECT_ID`, and `CLIENT_SITES_ADMINISTRATOR_USER_ID`; place the
+   dedicated provisioner certificate/key and separate directory-reader certificate/key under their
+   respective protected host directories. Leave capability configuration incomplete until the
+   exact Entra permissions and site policy are approved. Use synthetic values only.
 2. Build the three `linux/amd64` images from the approved source commit using the GitHub Actions
    workflow `Hostinger acceptance images`. It publishes them to private GitHub Container Registry
    packages. On the VPS, authenticate Docker to `ghcr.io` with a GitHub token that has only
@@ -64,8 +73,13 @@ Run `fallocate` after `mkfs.ext4`; formatting the image can discard preallocated
 3. Start only PostgreSQL, wait for its healthy status, then run the one-shot migration job:
    `docker compose up -d db`; `docker compose --profile migration run --rm migrate`.
    Application containers never apply schema changes at startup.
-4. Start the API and three core workers with `docker compose up -d api worker-general
-   worker-processing worker-records`. Verify their logs and `http://127.0.0.1:18080/health/ready`
+4. Start the API, three core workers and isolated client-sites worker with
+   `docker compose up -d api worker-general worker-processing worker-records worker-client-sites`.
+   The isolated worker starts with no shared credential mount; absent certificate files or rollout
+   configuration produce a blocked heartbeat and no provisioning. The same explicit cutoff is passed
+   to the API and optional `worker-pbc`, which refuse shared-site folder creation for an eligible client
+   until its dedicated site is verified. Verify the worker state in the
+   Administration client-sites panel. Verify the API logs and `http://127.0.0.1:18080/health/ready`
    locally on the VPS before changing DNS or Caddy.
 5. Add the Caddy site block from `Caddyfile.audit.steaudit.com` to the existing host Caddyfile.
    Back up that file first, validate the complete config with `caddy validate`, then reload Caddy.
@@ -525,9 +539,10 @@ runtime scopes. Exact deployment and queue facts are in the execution ledger.
 - The network uses `172.29.91.0/24`; the API trusts forwarded headers only from its Docker
   gateway `172.29.91.1`. Change both the Compose subnet and trusted proxy together if the range
   conflicts with the VPS.
-- Keep `ExternalEffects__Enabled=false`, `DevelopmentIdentity__Enabled=false`, and
-  `AllowSimulationAdapters=false`. Do not add production client data, approved release data or
-  external-effect credentials to this environment.
+- Keep `ExternalEffects__Enabled=false` on the API and core workers, `DevelopmentIdentity__Enabled=false`,
+  and `AllowSimulationAdapters=false`. The dedicated client-sites worker alone uses external effects
+  and only the approved isolated certificate mounts; do not add production client data or approved
+  release data to this environment.
 - Set both `ASPNETCORE_ENVIRONMENT=Acceptance` and `DOTNET_ENVIRONMENT=Acceptance` for worker
   containers. The API uses the ASP.NET Core host; the Worker uses the Generic Host, which reads
   `DOTNET_ENVIRONMENT`.

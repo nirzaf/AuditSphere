@@ -58,7 +58,8 @@ public sealed class ClientSharePointSitesTests
     var provider = new FakeSites();
     var handler = new ClientSharePointSiteHandler(h.Factory, provider);
     var options = new WorkerOptions(h.A.FirmId, "Acceptance", false, true, ClientSharePointSiteHandler.Group);
-    return new(h, provider, handler, new(h.Factory, h.Store, handler, options, new(true, Tenant, "example.sharepoint.com", h.A.Admin.Id)),
+    return new(h, provider, handler, new(h.Factory, h.Store, handler, options,
+        new(true, Tenant, "example.sharepoint.com", h.A.Admin.Id, DateTimeOffset.UtcNow.AddDays(-1))),
       new(h.Store, new DurableOperationRegistry([handler], options), options), staffB.Id);
   }
 
@@ -98,6 +99,104 @@ public sealed class ClientSharePointSitesTests
     Assert.True(await db.Microsoft365AdministrationEvents.AnyAsync(x => x.Operation == "CLIENT_SITE_STAFF_ACCESS" && x.NewState == "FULL_CONTROL"));
     Assert.All(await db.DurableOperations.Where(x => x.OperationKind == ClientSharePointSiteHandler.Kind).ToListAsync(), o =>
       Assert.DoesNotContain("access_token", o.ResultIdentity ?? "", StringComparison.OrdinalIgnoreCase));
+  }
+
+  [Fact]
+  public async Task NewlyCreatedEligibleClient_GetsExactlyOneAutomaticProvisioningIntent()
+  {
+    var rig = await CreateAsync(); await using var _ = rig.H;
+    await rig.Discovery.EnqueuePendingAsync(default);
+    while (await rig.Dispatcher.ProcessNextAsync()) { }
+    var createdAt = DateTimeOffset.UtcNow;
+    var clientId = Guid.NewGuid();
+    await using (var db = rig.H.Db())
+    {
+      db.PracticeClients.Add(new PracticeClient { Id = clientId, FirmId = rig.H.A.FirmId,
+        LegalName = "Synthetic rollout client", CreatedAt = createdAt });
+      db.ClientSafetyStates.Add(new ClientSafetyState { Id = clientId, FirmId = rig.H.A.FirmId, InputGeneration = 1 });
+      await db.SaveChangesAsync();
+    }
+
+    Assert.Equal(1, await rig.Discovery.EnqueuePendingAsync(default));
+    Assert.Equal(0, await rig.Discovery.EnqueuePendingAsync(default));
+    await using var verify = rig.H.Db();
+    var intent = await verify.DurableOperations.Where(x => x.FirmId == rig.H.A.FirmId && x.TargetId == clientId &&
+      x.OperationKind == ClientSharePointSiteHandler.Kind).ToListAsync();
+    Assert.Single(intent);
+    Assert.Equal(clientId, intent[0].ClientId);
+    Assert.Null(intent[0].EngagementId);
+    while (await rig.Dispatcher.ProcessNextAsync()) { }
+    Assert.Contains(clientId, rig.Provider.Sites.Keys);
+  }
+
+  [Fact]
+  public async Task ConcurrentDiscoveryRequests_QueueOnlyOneIntentPerEligibleClient()
+  {
+    var rig = await CreateAsync(); await using var _ = rig.H;
+    await Task.WhenAll(rig.Discovery.EnqueuePendingAsync(default), rig.Discovery.EnqueuePendingAsync(default));
+    await using var db = rig.H.Db();
+    var intents = await db.DurableOperations.Where(x => x.FirmId == rig.H.A.FirmId && x.OperationKind == ClientSharePointSiteHandler.Kind).ToListAsync();
+    Assert.Equal(2, intents.Count);
+    Assert.Equal(2, intents.Select(x => x.TargetId).Distinct().Count());
+  }
+
+  [Fact]
+  public async Task AdditionalEngagementForClient_ReusesItsSingleClientSite()
+  {
+    var rig = await CreateAsync(); await using var _ = rig.H;
+    await rig.Discovery.EnqueuePendingAsync(default);
+    while (await rig.Dispatcher.ProcessNextAsync()) { }
+    var clientId = rig.H.A.ClientId;
+    await using (var db = rig.H.Db())
+    {
+      db.Engagements.Add(new AuditSphereOps.Domain.Engagements.Engagement
+      {
+        Id = Guid.NewGuid(), FirmId = rig.H.A.FirmId, PracticeClientId = clientId,
+        Status = "Active", ProfessionalWorkBlocked = false, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+    }
+    Assert.Equal(0, await rig.Discovery.EnqueuePendingAsync(default));
+    await using var verify = rig.H.Db();
+    Assert.Single(await verify.ClientSharePointSites.Where(x => x.FirmId == rig.H.A.FirmId && x.ClientId == clientId).ToListAsync());
+    Assert.All(await verify.DurableOperations.Where(x => x.FirmId == rig.H.A.FirmId && x.TargetId == clientId &&
+      x.OperationKind == ClientSharePointSiteHandler.Kind).ToListAsync(), op => Assert.Null(op.EngagementId));
+  }
+
+  [Fact]
+  public async Task DisabledPolicy_DoesNotEnqueueOrChangeExistingClientRepositories()
+  {
+    var rig = await CreateAsync(); await using var _ = rig.H;
+    var disabled = new ClientSharePointSiteDiscovery(rig.H.Factory, rig.H.Store, rig.Handler,
+      new WorkerOptions(rig.H.A.FirmId, "Acceptance", false, true, ClientSharePointSiteHandler.Group),
+      new(false, Tenant, "example.sharepoint.com", rig.H.A.Admin.Id));
+    List<(Guid Id, DateTimeOffset CreatedAt)> clientFacts;
+    List<(Guid Id, long Revision, string? RemoteItemId)> workspaceFacts;
+    await using (var before = rig.H.Db())
+    {
+      clientFacts = await before.PracticeClients.Select(x => new ValueTuple<Guid, DateTimeOffset>(x.Id, x.CreatedAt)).ToListAsync();
+      workspaceFacts = await before.ClientWorkspaces.Select(x => new ValueTuple<Guid, long, string?>(x.Id, x.Revision, x.RemoteItemId)).ToListAsync();
+    }
+    Assert.Equal(0, await disabled.EnqueuePendingAsync(default));
+    await using var db = rig.H.Db();
+    Assert.Empty(await db.ClientSharePointSites.ToListAsync());
+    Assert.Empty(await db.DurableOperations.Where(x => x.OperationKind == ClientSharePointSiteHandler.Kind).ToListAsync());
+    Assert.Equal(clientFacts, await db.PracticeClients.Select(x => new ValueTuple<Guid, DateTimeOffset>(x.Id, x.CreatedAt)).ToListAsync());
+    Assert.Equal(workspaceFacts, await db.ClientWorkspaces.Select(x => new ValueTuple<Guid, long, string?>(x.Id, x.Revision, x.RemoteItemId)).ToListAsync());
+  }
+
+  [Fact]
+  public async Task EnabledPolicyWithoutExplicitBoundary_FailsClosedWithoutTreatingHistoryAsEligible()
+  {
+    var rig = await CreateAsync(); await using var _ = rig.H;
+    var missingBoundary = new ClientSharePointSiteDiscovery(rig.H.Factory, rig.H.Store, rig.Handler,
+      new WorkerOptions(rig.H.A.FirmId, "Acceptance", false, true, ClientSharePointSiteHandler.Group),
+      new(true, Tenant, "example.sharepoint.com", rig.H.A.Admin.Id));
+    var error = await Assert.ThrowsAsync<OperationBlockedException>(() => missingBoundary.EnqueuePendingAsync(default));
+    Assert.Equal("client-site-rollout-boundary-required", error.Code);
+    await using var db = rig.H.Db();
+    Assert.Empty(await db.ClientSharePointSites.ToListAsync());
+    Assert.Empty(await db.DurableOperations.Where(x => x.OperationKind == ClientSharePointSiteHandler.Kind).ToListAsync());
   }
 
   [Fact]
@@ -158,6 +257,35 @@ public sealed class ClientSharePointSitesTests
     await using var db = rig.H.Db();
     Assert.All(await db.ClientSharePointSites.ToListAsync(), s => Assert.Equal("REQUESTED", s.State));
     Assert.All(await db.DurableOperations.Where(x => x.OperationKind == ClientSharePointSiteHandler.Kind).ToListAsync(), o => Assert.Equal(OperationState.AUTHORIZATION_BLOCKED, o.Status));
+    var admin = await ClientSharePointSiteQuery.GetAdministrationAsync(db, rig.H.Admin, enabled: true,
+      configuredBoundary: DateTimeOffset.UtcNow.AddDays(-1), boundaryInvalid: false);
+    Assert.True(admin.Succeeded);
+    var blockedClient = Assert.Single(admin.Value!.Clients, x => x.ClientId == rig.H.A.ClientId);
+    Assert.Equal("BLOCKED_EXTERNAL", blockedClient.State);
+    Assert.NotNull(blockedClient.ErrorCode);
+    Assert.Contains("retry or reconcile", blockedClient.RequiredAction, StringComparison.OrdinalIgnoreCase);
+  }
+
+  [Fact]
+  public async Task MissingTenantConsent_IsVisibleAndQueuesNoSiteOperations()
+  {
+    var rig = await CreateAsync(); await using var _ = rig.H;
+    await using var db = rig.H.Db();
+    var connection = await db.Microsoft365ConnectionRevisions.SingleAsync(x => x.FirmId == rig.H.A.FirmId);
+    connection.ConsentState = "REQUIRED";
+    await db.SaveChangesAsync();
+
+    var admin = await ClientSharePointSiteQuery.GetAdministrationAsync(db, rig.H.Admin, enabled: true,
+      configuredBoundary: DateTimeOffset.UtcNow.AddDays(-1), boundaryInvalid: false);
+
+    Assert.True(admin.Succeeded);
+    Assert.Equal("TENANT_CONSENT_REQUIRED", admin.Value!.PolicyState);
+    Assert.Equal("REQUIRED", admin.Value.TenantConsentState);
+    Assert.Equal("BLOCKED_TENANT_CONSENT", admin.Value.MicrosoftPermissionState);
+    Assert.All(admin.Value.Clients, client => Assert.Equal("BLOCKED_EXTERNAL", client.State));
+    Assert.Empty(await db.ClientSharePointSites.ToListAsync());
+    Assert.Empty(await db.DurableOperations.Where(x => x.OperationKind == ClientSharePointSiteHandler.Kind).ToListAsync());
+    Assert.Empty(rig.Provider.Calls);
   }
 
   [Fact]
@@ -182,6 +310,11 @@ public sealed class ClientSharePointSitesTests
       new(true, Tenant, "example.sharepoint.com", rig.H.A.Admin.Id, cutover));
     Assert.Equal(0, await discovery.EnqueuePendingAsync(default));
     await rig.H.ProvisionAsync(rig.H.A); // Before-cutover repository still works.
+    await using (var before = rig.H.Db())
+    {
+      Assert.Empty(await before.ClientSharePointSites.ToListAsync());
+      Assert.Empty(await before.DurableOperations.Where(x => x.OperationKind == ClientSharePointSiteHandler.Kind).ToListAsync());
+    }
     var changed = new ClientSharePointSiteDiscovery(rig.H.Factory, rig.H.Store, rig.Handler, options,
       new(true, Tenant, "example.sharepoint.com", rig.H.A.Admin.Id, cutover.AddDays(-1)));
     await Assert.ThrowsAsync<OperationBlockedException>(() => changed.EnqueuePendingAsync(default));

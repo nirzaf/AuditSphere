@@ -29,7 +29,7 @@ public static class WorkspaceProvisioningAdministration
   }
 
   public static async Task<CommandResult<WorkspaceTargetReview>> ReviewAsync(IAuditSphereDbContext db, ActorContext actor,
-    Guid targetId, bool engagement, CancellationToken ct = default)
+    Guid targetId, bool engagement, CancellationToken ct = default, ClientSiteRolloutPolicy? rolloutPolicy = null)
   {
     if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<WorkspaceTargetReview>();
     var target = engagement ? await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == targetId, ct) : null;
@@ -39,7 +39,7 @@ public static class WorkspaceProvisioningAdministration
     var workspace = await db.ClientWorkspaces.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.PracticeClientId == clientId && x.Purpose == "PRIMARY", ct);
     if (client is null || workspace is null) return TenantAdministration.Denied<WorkspaceTargetReview>();
     var accepted = await db.AcceptanceDecisions.AsNoTracking().AnyAsync(x => x.Id == workspace.AcceptanceDecisionId && x.FirmId == actor.FirmId && x.PracticeClientId == clientId && x.Decision == "Accepted", ct);
-    var active = await PbcRepositoryProvisioningService.ActiveSiteAsync(db, actor.FirmId, ct, clientId);
+    var active = await PbcRepositoryProvisioningService.ActiveSiteAsync(db, actor.FirmId, ct, clientId, rolloutPolicy);
     var template = engagement ? await db.FolderTemplateVersions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.Purpose == FolderTemplatePurposes.EngagementWorkspace && x.ApprovedAt != null)
       .OrderByDescending(x => x.Version).FirstOrDefaultAsync(ct) : null;
     var binding = target is null ? null : await db.RepositoryBindings.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == target.Id && x.Classification == "working" && x.CapabilityProfile == "selected-site").FirstOrDefaultAsync(ct);
@@ -70,16 +70,17 @@ public static class WorkspaceProvisioningAdministration
   }
 
   public static async Task<CommandResult<WorkspaceProvisioningResult>> ProvisionAsync(IAuditSphereDbContext db, ActorContext actor,
-    ISelectedSiteWorkspaceProvisioner provider, Guid targetId, bool engagement, string reviewToken, string reason, DateTimeOffset now, CancellationToken ct = default)
+    ISelectedSiteWorkspaceProvisioner provider, Guid targetId, bool engagement, string reviewToken, string reason,
+    DateTimeOffset now, CancellationToken ct = default, ClientSiteRolloutPolicy? rolloutPolicy = null)
   {
     if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<WorkspaceProvisioningResult>();
     if (string.IsNullOrWhiteSpace(reason) || reason.Length > 1000 || reviewToken.Length != 64 || !reviewToken.All(Uri.IsHexDigit))
       return CommandResult<WorkspaceProvisioningResult>.Fail("review.required", "Review the exact target and provide a bounded reason.");
-    var current = await ReviewAsync(db, actor, targetId, engagement, ct);
+    var current = await ReviewAsync(db, actor, targetId, engagement, ct, rolloutPolicy);
     if (!current.Succeeded) return CommandResult<WorkspaceProvisioningResult>.Fail(current.ErrorCode!, current.Message!);
     if (current.Value!.ReviewToken != reviewToken) return CommandResult<WorkspaceProvisioningResult>.Fail(ErrorCodes.StaleRevision, "The workspace, resource binding or templates changed. Refresh and review again.");
     if (!current.Value.Eligible) return CommandResult<WorkspaceProvisioningResult>.Fail(ErrorCodes.GateBlocked, current.Value.RequiredAction);
-    return engagement ? await PbcRepositoryProvisioningService.ProvisionEngagementRepositoryAsync(db, actor, provider, targetId, now, ct, reviewToken, reason) :
-      await PbcRepositoryProvisioningService.ProvisionClientWorkspaceAsync(db, actor, provider, targetId, now, ct, reviewToken, reason);
+    return engagement ? await PbcRepositoryProvisioningService.ProvisionEngagementRepositoryAsync(db, actor, provider, targetId, now, ct, reviewToken, reason, rolloutPolicy) :
+      await PbcRepositoryProvisioningService.ProvisionClientWorkspaceAsync(db, actor, provider, targetId, now, ct, reviewToken, reason, rolloutPolicy);
   }
 }

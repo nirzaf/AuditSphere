@@ -29,7 +29,7 @@ public sealed class EngagementWorkspaceProvisioningTests
 
   private sealed record Rig(P2PbcHarness H, FakeGraphDrive Graph, AuditSphereOps.Worker.Worker Worker, EngagementWorkspaceProvisioningHandler Handler);
 
-  private static async Task<Rig> CreateAsync(bool ste)
+  private static async Task<Rig> CreateAsync(bool ste, ClientSiteRolloutPolicy? rolloutPolicy = null)
   {
     var graph = new FakeGraphDrive();
     var drive = new GraphSelectedSiteDrive(new HttpClient(graph), new FakeSelectedSiteTokens(), new GraphPreauthenticatedTransport(graph), configured: true);
@@ -45,7 +45,7 @@ public sealed class EngagementWorkspaceProvisioningTests
           template.ManifestJson = template.Purpose == FolderTemplatePurposes.ClientWorkspace ? SteClientManifest : SteEngagementManifest;
       await db.SaveChangesAsync();
     }
-    var handler = new EngagementWorkspaceProvisioningHandler(h.Factory, drive);
+    var handler = new EngagementWorkspaceProvisioningHandler(h.Factory, drive, rolloutPolicy);
     var options = new WorkerOptions(h.A.FirmId, "Acceptance", AllowSimulationAdapters: false, ExternalEffectsEnabled: true, Group: PbcDocumentTransferHandler.LiveGroup);
     var worker = new AuditSphereOps.Worker.Worker(new OperationDispatcher(h.Store, new DurableOperationRegistry([handler], options), options),
       [new EngagementWorkspaceDiscovery(h.Factory, h.Store, handler, options)], NullLogger<AuditSphereOps.Worker.Worker>.Instance);
@@ -133,6 +133,23 @@ public sealed class EngagementWorkspaceProvisioningTests
     Assert.DoesNotContain(rig.Graph.Items, x => x.Folder && x.Id != FakeGraphDrive.RootId);
     await using var db = rig.H.Db();
     Assert.False(await db.DurableOperations.AnyAsync(x => x.OperationKind == EngagementWorkspaceProvisioningHandler.Kind));
+  }
+
+  [Fact]
+  public async Task ConfiguredClientSiteCutoffBlocksAutomaticSharedProvisioningBeforeBoundaryPersistence()
+  {
+    var rig = await CreateAsync(ste: true, new ClientSiteRolloutPolicy(true, DateTimeOffset.UtcNow.AddDays(-1)));
+    await using var owned = rig.H;
+    await ActivateAsync(rig.H, rig.H.A.ClientId, rig.H.A.EngagementId);
+    var op = new DurableOperation { Id = Guid.NewGuid(), FirmId = rig.H.A.FirmId, ClientId = rig.H.A.ClientId,
+      EngagementId = rig.H.A.EngagementId, TargetId = rig.H.A.EngagementId, OperationKind = EngagementWorkspaceProvisioningHandler.Kind };
+
+    await Assert.ThrowsAsync<SafeRetryException>(() => rig.Handler.ExecuteEffectAsync(op, default));
+    Assert.DoesNotContain(rig.Graph.Items, x => x.Id != FakeGraphDrive.RootId);
+    await using var db = rig.H.Db();
+    Assert.Null((await db.FirmWorkspaceConfigurations.SingleAsync()).ClientSitesRequiredFrom);
+    Assert.Equal(ClientWorkspaceStates.WaitingForIntegration,
+      (await db.ClientWorkspaces.SingleAsync(x => x.PracticeClientId == rig.H.A.ClientId)).State);
   }
 
   [Fact]

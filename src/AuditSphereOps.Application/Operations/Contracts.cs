@@ -230,6 +230,7 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<IntegrationVerificationEvidence> IntegrationVerificationEvidences { get; }
   DbSet<ClientWorkspace> ClientWorkspaces { get; }
   DbSet<ClientSharePointSite> ClientSharePointSites { get; }
+  DbSet<ClientSiteWorkerHeartbeat> ClientSiteWorkerHeartbeats { get; }
   DbSet<DirectoryUserObservation> DirectoryUserObservations { get; }
   DbSet<UserAccessInvitation> UserAccessInvitations { get; }
   DbSet<TenantCapabilityVerification> TenantCapabilityVerifications { get; }

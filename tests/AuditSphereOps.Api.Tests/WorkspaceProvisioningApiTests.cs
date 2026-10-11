@@ -97,8 +97,49 @@ public sealed class WorkspaceProvisioningApiTests
     Assert.Equal(HttpStatusCode.BadRequest,(await Provision(admin,csrf,f.ClientId,false,pending)).StatusCode);Assert.Equal(0,provider.Calls);
     await using(var db=new AuditSphereDbContext(pg.Options)){var site=await db.ClientSharePointSites.SingleAsync(x=>x.FirmId==f.FirmId);site.State="READY";site.SiteId="site";site.DriveId="drive";site.RootItemId="root";await db.SaveChangesAsync();}
     using var unverified=JsonDocument.Parse(await admin.GetStringAsync(Prefix+"client-sites"));
-    Assert.Equal("BLOCKED_EXTERNAL",unverified.RootElement[0].GetProperty("state").GetString());
-    Assert.Contains("site verification",unverified.RootElement[0].GetProperty("requiredAction").GetString());
+    var sites = unverified.RootElement.GetProperty("clients");
+    Assert.Equal("BLOCKED_EXTERNAL",sites[0].GetProperty("state").GetString());
+    Assert.Contains("site verification",sites[0].GetProperty("requiredAction").GetString());
+    Assert.True(unverified.RootElement.GetProperty("enabled").GetBoolean());
+    Assert.Equal("ROLLOUT_BOUNDARY_REQUIRED",unverified.RootElement.GetProperty("policyState").GetString());
+  }
+
+  [Fact]
+  public async Task ClientSitePolicyDefaultsEnabledAndCanBeExplicitlyDisabled()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("API-CLIENT-SITE-POLICY"); var f = await Seed(pg);
+    var provider = new FakeProvider();
+    using var defaultFactory = Factory(pg, f, provider);
+    using var defaultClient = defaultFactory.CreateClient(new() { AllowAutoRedirect = false });
+    await SignIn(defaultClient);
+    using var enabled = JsonDocument.Parse(await defaultClient.GetStringAsync(Prefix + "client-sites"));
+    Assert.True(enabled.RootElement.GetProperty("enabled").GetBoolean());
+
+    using var disabledFactory = Factory(pg, f, provider, clientSitesEnabled: false);
+    using var disabledClient = disabledFactory.CreateClient(new() { AllowAutoRedirect = false });
+    await SignIn(disabledClient);
+    using var disabled = JsonDocument.Parse(await disabledClient.GetStringAsync(Prefix + "client-sites"));
+    Assert.False(disabled.RootElement.GetProperty("enabled").GetBoolean());
+    Assert.Equal("DISABLED", disabled.RootElement.GetProperty("policyState").GetString());
+
+    using var invalidBoundaryFactory = Factory(pg, f, provider, clientsCreatedAfter: "2026-10-11T12:00:00+03:00");
+    using var invalidBoundaryClient = invalidBoundaryFactory.CreateClient(new() { AllowAutoRedirect = false });
+    await SignIn(invalidBoundaryClient);
+    using var invalidBoundary = JsonDocument.Parse(await invalidBoundaryClient.GetStringAsync(Prefix + "client-sites"));
+    Assert.Equal("INVALID_ROLLOUT_BOUNDARY", invalidBoundary.RootElement.GetProperty("policyState").GetString());
+
+    var cutoff = DateTimeOffset.UtcNow.AddMinutes(-1).ToString("O");
+    using var rolloutFactory = Factory(pg, f, provider, clientsCreatedAfter: cutoff);
+    using var rolloutClient = rolloutFactory.CreateClient(new() { AllowAutoRedirect = false });
+    var csrf = await SignIn(rolloutClient);
+    var review = await Review(rolloutClient, f.ClientId, false);
+    Assert.False(review.GetProperty("eligible").GetBoolean());
+    Assert.Contains("shared-site fallback is refused", review.GetProperty("requiredAction").GetString());
+    using var blocked = await Provision(rolloutClient, csrf, f.ClientId, false, review);
+    Assert.NotEqual(HttpStatusCode.OK, blocked.StatusCode);
+    Assert.Equal(0, provider.Calls);
+    await using var unchanged = new AuditSphereDbContext(pg.Options);
+    Assert.Null((await unchanged.FirmWorkspaceConfigurations.SingleAsync()).ClientSitesRequiredFrom);
   }
 
   private static async Task<PbcSeed.Fixture> Seed(OwnedPostgresDatabase pg)
@@ -114,9 +155,10 @@ public sealed class WorkspaceProvisioningApiTests
     db.FirmWorkspaceConfigurations.Add(new FirmWorkspaceConfiguration{Id=Guid.NewGuid(),FirmId=f.FirmId,ConnectionRevisionId=connection,FolderTemplateVersionId=template,TenantId=admin.TenantId,SiteId="synthetic-site",DriveId="synthetic-drive",RootFolderId="synthetic-root",AccessProfile="APP_MEDIATED",DisplayUrl="https://synthetic.sharepoint.com/sites/working",CreatedAt=now});
     await db.SaveChangesAsync();return f;
   }
-  private static StandaloneApiApplicationFactory Factory(OwnedPostgresDatabase pg,PbcSeed.Fixture f,FakeProvider provider,bool staff=false)=>new(new Dictionary<string,string?>{
+  private static StandaloneApiApplicationFactory Factory(OwnedPostgresDatabase pg,PbcSeed.Fixture f,FakeProvider provider,bool staff=false,bool? clientSitesEnabled=null,string? clientsCreatedAfter=null)=>new(new Dictionary<string,string?>{
     ["ConnectionStrings:AuditSphere"]=pg.ConnectionString,["DevelopmentIdentity:Enabled"]="true",["DevelopmentIdentity:TenantId"]=staff?f.Staff.TenantId:f.Admin.TenantId,["DevelopmentIdentity:Subject"]=staff?f.Staff.Subject:f.Admin.Subject,
-    ["Application:AllowSimulationAdapters"]="true",["ExternalEffects:Enabled"]="false"},s=>s.AddSingleton<ISelectedSiteWorkspaceProvisioner>(provider));
+    ["Application:AllowSimulationAdapters"]="true",["ExternalEffects:Enabled"]="false",
+    ["ClientSites:Enabled"]=clientSitesEnabled?.ToString().ToLowerInvariant(),["ClientSites:ClientsCreatedAfter"]=clientsCreatedAfter},s=>s.AddSingleton<ISelectedSiteWorkspaceProvisioner>(provider));
   private sealed class FakeProvider:ISelectedSiteWorkspaceProvisioner
   {
     public bool IsConfigured=>true;public int Calls{get;private set;}public bool TestPass{get;set;}=true;public Func<Task>? Hook{get;set;}

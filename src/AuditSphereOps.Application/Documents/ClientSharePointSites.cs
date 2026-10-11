@@ -5,12 +5,14 @@ using AuditSphereOps.Application.Microsoft365;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Microsoft365;
+using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Application.Documents;
 
 public sealed record ClientSitePolicy(bool Enabled, string TenantId, string SiteHost, Guid AdministratorUserId, DateTimeOffset? ClientsCreatedAfter = null);
+public sealed record ClientSiteRolloutPolicy(bool Enabled, DateTimeOffset? ClientsCreatedAfter, bool BoundaryInvalid = false);
 public sealed record ClientSiteRequest(Guid FirmId, Guid ClientId, string TenantId, string Url, string Title, string OwnershipMarker,
   string? KnownSiteId, IReadOnlyList<string> StaffObjectIds, Guid? CorrelationId = null);
 public sealed record ClientSiteMutation(string Operation, string Target, string OldState, string NewState, string? CorrelationId);
@@ -184,6 +186,8 @@ public sealed class ClientSharePointSiteDiscovery(IAuditSphereDbContextFactory f
     if (!policy.Enabled) return 0;
     await using var read = await factory.CreateAsync(ct);
     await ClientSharePointSites.AdministratorAsync(read, options.FirmId, policy.AdministratorUserId, ct);
+    if (policy.ClientsCreatedAfter is not DateTimeOffset configuredBoundary)
+      throw new OperationBlockedException("client-site-rollout-boundary-required", authorization: true);
     var connection = await read.Microsoft365ConnectionRevisions.AsNoTracking().Where(x => x.FirmId == options.FirmId &&
       x.TenantId == policy.TenantId && x.State == Microsoft365RevisionStates.Active && x.ConsentState == "VERIFIED")
       .OrderByDescending(x => x.Revision).FirstOrDefaultAsync(ct);
@@ -191,20 +195,24 @@ public sealed class ClientSharePointSiteDiscovery(IAuditSphereDbContextFactory f
     if (!Uri.TryCreate("https://" + policy.SiteHost, UriKind.Absolute, out var host) || host.Host != policy.SiteHost ||
         !host.Host.EndsWith(".sharepoint.com", StringComparison.Ordinal) || host.AbsolutePath != "/")
       throw new OperationBlockedException("client-site-host-invalid");
-    var cutover = policy.ClientsCreatedAfter?.ToUniversalTime() ?? DateTimeOffset.MinValue;
+    var cutover = configuredBoundary.ToUniversalTime();
     await using (var policyDb = await factory.CreateAsync(ct))
     {
       await using var policyTx = await policyDb.Database.BeginTransactionAsync(ct);
-      var configurations = await policyDb.FirmWorkspaceConfigurations.FromSqlInterpolated($"SELECT * FROM firm_workspace_configurations WHERE firm_id = {options.FirmId} AND connection_revision_id = {connection.Id} FOR UPDATE").ToListAsync(ct);
-      if (configurations.Count != 1) return 0;
-      var configuration = configurations[0];
-      if (configuration.ClientSitesRequiredFrom != null && configuration.ClientSitesRequiredFrom != cutover)
+      var configurations = await policyDb.FirmWorkspaceConfigurations.FromSqlInterpolated(
+        $"SELECT * FROM firm_workspace_configurations WHERE firm_id = {options.FirmId} ORDER BY id FOR UPDATE").ToListAsync(ct);
+      var configuration = configurations.SingleOrDefault(x => x.ConnectionRevisionId == connection.Id);
+      if (configuration is null) return 0;
+      var existingBoundaries = configurations.Where(x => x.ClientSitesRequiredFrom != null)
+        .Select(x => x.ClientSitesRequiredFrom!.Value.ToUniversalTime()).Distinct().ToArray();
+      if (existingBoundaries.Length > 1 || existingBoundaries.Length == 1 && existingBoundaries[0] != cutover)
         throw new OperationBlockedException("client-site-rollout-policy-changed", authorization: true);
       if (configuration.ClientSitesRequiredFrom == null)
       {
         configuration.ClientSitesRequiredFrom = cutover;
         var actor = await ClientSharePointSites.AdministratorAsync(policyDb, options.FirmId, policy.AdministratorUserId, ct);
-        TenantAdministration.AddEvent(policyDb, actor, "CLIENT_SITE_POLICY_ENABLED", DateTimeOffset.UtcNow, "DISABLED", "ENABLED",
+        TenantAdministration.AddEvent(policyDb, actor, "CLIENT_SITE_POLICY_BOUNDARY_APPLIED", DateTimeOffset.UtcNow,
+          existingBoundaries.Length == 0 ? "NOT_APPLIED" : "APPLIED_ON_PRIOR_CONNECTION", "APPLIED",
           "Owner-approved new-client site policy; existing repositories retain their location", "AUTHORIZED",
           roleScopeChange: "Assigned staff: entire client site Full Control; local roles unchanged");
         await policyDb.SaveChangesAsync(ct);
@@ -258,18 +266,75 @@ public sealed class ClientSharePointSiteDiscovery(IAuditSphereDbContextFactory f
 }
 
 public sealed record ClientSiteStatusRow(Guid ClientId, string ClientName, string State, string MembershipState,
-  string? Url, int VerifiedMembers, DateTimeOffset? VerifiedAt, string? OperationState, string RequiredAction, DateTimeOffset? MembershipVerifiedAt = null);
+  string? Url, int VerifiedMembers, DateTimeOffset? VerifiedAt, string? OperationState, string RequiredAction,
+  DateTimeOffset? MembershipVerifiedAt = null, string? ErrorCode = null);
+
+public sealed record ClientSiteAdministrationView(
+  bool Enabled,
+  string PolicyState,
+  DateTimeOffset? ConfiguredRolloutBoundary,
+  DateTimeOffset? EffectiveRolloutBoundary,
+  int EligibleClientCount,
+  int ExistingClientsOutsideRollout,
+  string TenantConsentState,
+  string WorkerReadiness,
+  string? WorkerDiagnosticCode,
+  DateTimeOffset? WorkerLastSeenAt,
+  string MicrosoftPermissionState,
+  DateTimeOffset? MicrosoftPermissionVerifiedAt,
+  IReadOnlyList<ClientSiteStatusRow> Clients);
 
 public static class ClientSharePointSiteQuery
 {
-  public static async Task<CommandResult<IReadOnlyList<ClientSiteStatusRow>>> GetAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct = default)
+  public static async Task<CommandResult<IReadOnlyList<ClientSiteStatusRow>>> GetAsync(
+    IAuditSphereDbContext db, ActorContext actor, CancellationToken ct = default)
   {
-    if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<IReadOnlyList<ClientSiteStatusRow>>();
-    var clients = await db.PracticeClients.AsNoTracking().Where(x => x.FirmId == actor.FirmId).OrderBy(x => x.LegalName).ThenBy(x => x.Id).Take(100).ToListAsync(ct);
-    var ids = clients.Select(x => x.Id).ToArray();
-    var activeConnection = await db.Microsoft365ConnectionRevisions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.State == "ACTIVE" && x.ConsentState == "VERIFIED")
+    var result = await GetAdministrationAsync(db, actor, enabled: true, configuredBoundary: null, boundaryInvalid: false, ct);
+    return result.Succeeded && result.Value is not null
+      ? CommandResult<IReadOnlyList<ClientSiteStatusRow>>.Ok(result.Value.Clients)
+      : CommandResult<IReadOnlyList<ClientSiteStatusRow>>.Fail(result.ErrorCode!, result.Message!);
+  }
+
+  public static async Task<CommandResult<ClientSiteAdministrationView>> GetAdministrationAsync(
+    IAuditSphereDbContext db, ActorContext actor, bool enabled, DateTimeOffset? configuredBoundary,
+    bool boundaryInvalid, CancellationToken ct = default)
+  {
+    if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<ClientSiteAdministrationView>();
+    var latestConnection = await db.Microsoft365ConnectionRevisions.AsNoTracking().Where(x => x.FirmId == actor.FirmId)
       .OrderByDescending(x => x.Revision).FirstOrDefaultAsync(ct);
-    var sites = await db.ClientSharePointSites.AsNoTracking().Where(x => x.FirmId == actor.FirmId && ids.Contains(x.ClientId)).ToListAsync(ct);
+    var activeConnection = latestConnection is { State: "ACTIVE", ConsentState: "VERIFIED" } ? latestConnection : null;
+    var savedBoundaries = await db.FirmWorkspaceConfigurations.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientSitesRequiredFrom != null)
+      .Select(x => x.ClientSitesRequiredFrom).ToListAsync(ct);
+    var uniqueBoundaries = savedBoundaries.Where(x => x != null).Select(x => x!.Value.ToUniversalTime()).Distinct().ToArray();
+    var effectiveBoundary = uniqueBoundaries.Length == 1 ? uniqueBoundaries[0] : (DateTimeOffset?)null;
+    var reportingBoundary = effectiveBoundary ?? configuredBoundary?.ToUniversalTime();
+    var workspaceConfiguration = activeConnection is null ? null : await db.FirmWorkspaceConfigurations.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ConnectionRevisionId == activeConnection.Id, ct);
+    var heartbeat = await db.ClientSiteWorkerHeartbeats.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.WorkerGroup == ClientSharePointSiteHandler.Group)
+      .OrderByDescending(x => x.LastSeenAt).FirstOrDefaultAsync(ct);
+    var now = DateTimeOffset.UtcNow;
+    var heartbeatFresh = heartbeat is not null && heartbeat.LastSeenAt <= now.AddSeconds(5) && heartbeat.LastSeenAt >= now.AddSeconds(-45);
+    var workerReadiness = !enabled ? "DISABLED" : heartbeat is null ? "NOT_RUNNING" : !heartbeatFresh ? "STALE" : heartbeat.ReadinessState;
+    var workerDiagnostic = !enabled ? "client-site-policy-disabled" : heartbeatFresh ? heartbeat?.DiagnosticCode : "client-site-worker-heartbeat-stale";
+    var policyState = !enabled ? "DISABLED" : boundaryInvalid ? "INVALID_ROLLOUT_BOUNDARY" :
+      configuredBoundary is null ? "ROLLOUT_BOUNDARY_REQUIRED" : uniqueBoundaries.Length > 1 ? "ROLLOUT_BOUNDARY_CONFLICT" :
+      activeConnection is null ? "TENANT_CONSENT_REQUIRED" : workspaceConfiguration is null ? "RESOURCE_CONFIGURATION_REQUIRED" :
+      effectiveBoundary is null ? "ROLLOUT_BOUNDARY_PENDING" : effectiveBoundary != configuredBoundary.Value.ToUniversalTime() ?
+      "ROLLOUT_BOUNDARY_MISMATCH" : "ENABLED";
+
+    var allSites = await db.ClientSharePointSites.AsNoTracking().Where(x => x.FirmId == actor.FirmId).ToListAsync(ct);
+    var siteClientIds = allSites.Select(x => x.ClientId).ToArray();
+    var eligibleClientCount = reportingBoundary is null || !enabled ? 0 :
+      await db.PracticeClients.AsNoTracking().CountAsync(x => x.FirmId == actor.FirmId && x.CreatedAt >= reportingBoundary.Value, ct);
+    var eligibleClients = reportingBoundary is null || !enabled ? [] : await db.PracticeClients.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.CreatedAt >= reportingBoundary.Value)
+      .OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).Take(100).ToListAsync(ct);
+    var siteClients = siteClientIds.Length == 0 ? [] : await db.PracticeClients.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && siteClientIds.Contains(x.Id)).ToListAsync(ct);
+    var clients = eligibleClients.Concat(siteClients).DistinctBy(x => x.Id)
+      .OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).Take(100).ToArray();
+    var ids = clients.Select(x => x.Id).ToArray();
+    var sites = allSites.Where(x => ids.Contains(x.ClientId)).ToList();
     var operationIds = sites.Where(x => x.LastOperationId != null).Select(x => x.LastOperationId!.Value).ToArray();
     var operations = await db.DurableOperations.AsNoTracking().Where(x => x.FirmId == actor.FirmId && operationIds.Contains(x.Id) &&
       x.OperationKind == ClientSharePointSiteHandler.Kind).OrderByDescending(x => x.CreatedAt).ToListAsync(ct);
@@ -282,18 +347,31 @@ public static class ClientSharePointSiteQuery
         site.ConnectionRevisionId != activeConnection?.Id || site.TenantId != activeConnection?.TenantId ||
         string.IsNullOrWhiteSpace(site.SiteId) || string.IsNullOrWhiteSpace(site.DriveId) || string.IsNullOrWhiteSpace(site.RootItemId));
       var stale = site is not null && (site.LastMembershipSyncAt is null || site.LastMembershipSyncAt < DateTimeOffset.UtcNow.AddMinutes(-10) || site.LastMembershipSyncAt > DateTimeOffset.UtcNow);
-      var action = site == null ? "Enable the isolated client-sites worker with separately consented credentials and approved administrator policy." :
+      var action = site == null && !enabled ? "Dedicated site provisioning is disabled by server configuration; no automatic request will be queued." :
+        site == null && reportingBoundary is null ? "Set one explicit UTC rollout boundary; historical clients will remain on their current repositories." :
+        site == null && activeConnection is null ? "Verify the Microsoft tenant connection and consent before provisioning can start." :
+        site == null && workerReadiness != "READY" ? "Restore the isolated client-sites worker configuration and verify its heartbeat before provisioning." :
+        site == null ? "The isolated worker will enqueue this eligible client on its next discovery cycle." :
         invalidSite ? "Review the active consent-verified tenant connection, exact site resources and site verification before using this site." :
-        blocked ? "Review Microsoft consent, site ownership and operation evidence; use Operations to re-arm reconciliation. Never replace an uncertain create." :
+        blocked ? "Review Microsoft consent, site ownership and operation evidence; use Operations to retry or reconcile. Never replace an uncertain create." :
         site.MembershipState == "PENDING" ? "The worker must reconcile the updated team before staff permissions are verified." :
         site.MembershipState == "PARTIAL" ? "Some assigned identities are disabled, absent or changed. Verify their Microsoft directory status; membership will be reconciled." :
         stale ? "Membership verification is stale. Check the client-sites worker." :
         site.State == "READY" ? "No action required." : "Wait for site provisioning and exact-site verification.";
-      return new ClientSiteStatusRow(client.Id, client.CommercialName ?? client.LegalName, blocked || invalidSite ? "BLOCKED_EXTERNAL" : site?.State ?? "BLOCKED_EXTERNAL",
+      var state = site is null ? !enabled ? "DISABLED" : policyState != "ENABLED" || activeConnection is null || workerReadiness != "READY" ? "BLOCKED_EXTERNAL" : "PENDING" :
+        blocked || invalidSite ? "BLOCKED_EXTERNAL" : site.State;
+      return new ClientSiteStatusRow(client.Id, client.CommercialName ?? client.LegalName, state,
         stale ? "STALE" : site?.MembershipState ?? "PENDING", site?.RequestedUrl, site == null ? 0 : (JsonSerializer.Deserialize<string[]>(site.MemberObjectIdsJson) ?? []).Length,
-        site?.VerifiedAt, op?.Status.ToString(), action, site?.LastMembershipSyncAt);
+        site?.VerifiedAt, op?.Status.ToString(), action, site?.LastMembershipSyncAt, op?.ErrorCode);
     }).ToArray();
-    if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<IReadOnlyList<ClientSiteStatusRow>>();
-    return CommandResult<IReadOnlyList<ClientSiteStatusRow>>.Ok(rows);
+    var outsideRollout = reportingBoundary is null ? await db.PracticeClients.AsNoTracking().CountAsync(x => x.FirmId == actor.FirmId, ct) :
+      await db.PracticeClients.AsNoTracking().CountAsync(x => x.FirmId == actor.FirmId && x.CreatedAt < reportingBoundary.Value, ct);
+    var verifiedSite = allSites.Where(x => x.State == "READY" && x.VerifiedAt != null && x.ConnectionRevisionId == activeConnection?.Id)
+      .OrderByDescending(x => x.VerifiedAt).FirstOrDefault();
+    if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<ClientSiteAdministrationView>();
+    return CommandResult<ClientSiteAdministrationView>.Ok(new(enabled, policyState, configuredBoundary?.ToUniversalTime(), effectiveBoundary,
+      eligibleClientCount, outsideRollout, latestConnection?.ConsentState ?? "REQUIRED", workerReadiness, workerDiagnostic,
+      heartbeat?.LastSeenAt, activeConnection is null ? "BLOCKED_TENANT_CONSENT" : verifiedSite is null ? "NOT_YET_VERIFIED" : "VERIFIED",
+      verifiedSite?.VerifiedAt, rows));
   }
 }

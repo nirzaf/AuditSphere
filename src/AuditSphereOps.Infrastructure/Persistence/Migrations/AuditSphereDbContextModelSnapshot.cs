@@ -18958,6 +18958,67 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Microsoft365.ClientSiteWorkerHeartbeat", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<long>("DeploymentEpoch")
+                        .HasColumnType("bigint")
+                        .HasColumnName("deployment_epoch");
+
+                    b.Property<string>("DiagnosticCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("diagnostic_code");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<DateTimeOffset>("LastSeenAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_seen_at");
+
+                    b.Property<string>("ReadinessState")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("readiness_state");
+
+                    b.Property<DateTimeOffset>("StartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("started_at");
+
+                    b.Property<string>("WorkerGroup")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("worker_group");
+
+                    b.Property<string>("WorkerInstanceId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("worker_instance_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FirmId", "WorkerGroup", "LastSeenAt")
+                        .HasDatabaseName("ix_client_site_worker_heartbeat_recent");
+
+                    b.HasIndex("FirmId", "WorkerGroup", "WorkerInstanceId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_client_site_worker_heartbeat_instance");
+
+                    b.ToTable("client_site_worker_heartbeats", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_client_site_worker_heartbeat_state", "worker_group = 'client-sites' AND deployment_epoch >= 1 AND readiness_state IN ('READY','DISABLED','BLOCKED_CONFIGURATION')");
+                        });
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Microsoft365.ClientWorkspace", b =>
                 {
                     b.Property<Guid>("Id")

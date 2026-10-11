@@ -15,6 +15,14 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Dedicated client SharePoint sites default rollout — 2026-10-11
+
+`ClientSites:Enabled` now defaults to `true` in the API, worker and Hostinger Compose stack, with an explicit false override. The rollout still requires one administrator-approved UTC `ClientSites:ClientsCreatedAfter` boundary; an absent or invalid boundary never becomes the beginning of time. Historical clients before the boundary are not selected or migrated. The `client-sites` worker starts as an isolated group and reports blocked readiness when its configuration, certificate, tenant consent or rollout boundary is unavailable.
+
+The API and `worker-pbc` receive the same cutoff. Repository resolution blocks shared-site folder creation for clients covered by the enabled or already-persisted cutoff until a dedicated site is verified, including while the dedicated-site worker is blocked and before it can persist the cutoff. Invalid/mismatched settings block dedicated-site discovery; a saved boundary remains authoritative, and conflicting saved values use the earliest recorded boundary for no-fallback enforcement while earlier clients retain their repositories. With no valid or saved boundary, the worker reports the missing prerequisite and no clients are eligible. A verified dedicated site continues to serve its client. Automatic discovery remains idempotent per client, and the existing approved yearly engagement templates remain in use. Administration now shows the effective policy, cutoff, counts, tenant consent, worker heartbeat, site permission evidence, per-client site and membership states, durable operation diagnostics, and the existing Operations recovery route.
+
+The heartbeat migration is part of the source tree and model snapshot; it was not applied to any database. No live SharePoint site was created or modified and no VPS containers were restarted for this code change. The built-in browser displayed the local Angular sign-in gate; its local API was unavailable, so authenticated UI state was not assessed there. The PostgreSQL-backed Playwright client-sites journey passed. The exact build/test and documentation gate results are in [`status.json`](status.json). Live acceptance still requires deploying the approved image, setting the same explicit UTC cutoff in API and worker configuration, and verifying real provisioning and staff membership reconciliation against the tenant.
+
 ## Dynamic statement note references — 2026-10-11
 
 Statement face-line note references now separate stable persisted note codes from display ordinals. The presentation assigns numbers from each code's first face-line position in the published layout, then uses the same number on each linked face line; reordering supplied note rows does not change numbering. Blank/oversized logical IDs and duplicate case-normalized (ID, face destination) pointers are refused. The presentation manifest builder version is v4. A failed `NOTE_CONTENT` check and warning state that the persisted data contains only cross-cast amounts, without ordered narrative, typed note tables or comparative note values. The output remains `UNAPPROVED_DRAFT`; no note content or accounting policy is invented.
@@ -305,4 +313,24 @@ reverify its bounded read before relying on current directory data. Records rema
 the broader M365, PBC, client workflow and production acceptance gates remain open. Do not place IDs,
 account names, secrets or certificate material in repository docs.
 
+## Dedicated client SharePoint sites enabled by default — 2026-10-11
+
+On owner approval, dedicated client SharePoint site provisioning is now enabled by default (`ClientSites:Enabled=true`) in API, worker, and Compose configuration, while preserving explicit administrator disablement (`ClientSites:Enabled=false`).
+
+Key architectural invariants verified:
+1. **Rollout safety & explicit boundary**: An explicit UTC rollout boundary (`ClientSites:ClientsCreatedAfter`) is required and persisted to firm configuration. An unspecified boundary fails closed with `client-site-rollout-boundary-required` and never defaults to beginning-of-time (`DateTimeOffset.MinValue`). Existing clients created before the boundary are never automatically migrated or provisioned.
+2. **Fail-closed shared-site fallback prohibition**: When the dedicated-site policy applies, PBC provisioning and workspace administration refuse fallback to the shared site (`client-site-required-pending`).
+3. **Dedicated isolated worker & heartbeat**: An isolated `client-sites` worker group with a dedicated certificate mount manages site creation and staff membership. `ClientSiteWorkerHeartbeatService` persists periodic worker heartbeats (`ClientSiteWorkerHeartbeat` in `AuditSphereDbContext.ClientSharePointSites.cs` via migration `20261011201129_ClientSiteWorkerHeartbeats`).
+4. **Administration & Monitoring**: `/api/ui/administration/microsoft365/client-sites` returns comprehensive `ClientSiteAdministrationView` including policy status, rollout boundary, worker readiness, heartbeat age, and per-client site and membership reconciliation details.
+5. **Local verification**: Targeted suites pass cleanly:
+   - `WorkspaceProvisioningApiTests`: 4/4 passed
+   - `ClientSharePointSitesTests`: 18/18 passed
+   - `EngagementWorkspaceProvisioningTests`: 6/6 passed
+   - `SharePointClientSiteProviderTests`: 11/11 passed
+   - Angular CI specs: 634/634 passed across 115 files
+   - Angular production build: passed
+   - OpenAPI contract verification: 0 drift
+   - Documentation, filename, and narrative-metric checks: passed
+
 > **Archived handoff history:** superseded 2026-10-09 evidence and implementation notes are preserved in the [historical slice archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md#ste-v2-1-evidence-mapping-and-full-suite-runs--2026-10-09).
+

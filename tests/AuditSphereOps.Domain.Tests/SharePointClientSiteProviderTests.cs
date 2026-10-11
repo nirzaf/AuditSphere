@@ -123,11 +123,12 @@ public sealed class SharePointClientSiteProviderTests : IDisposable
       throw new InvalidOperationException("Unmapped fake endpoint: " + message.RequestUri.AbsolutePath);
     }
   }
-  private SharePointClientSiteProvider Provider(Remote remote, bool extraRole = false)
+  private SharePointClientSiteProvider Provider(Remote remote, bool extraRole = false, ClientSiteProviderOptions? providerOptions = null)
   {
+    var effectiveOptions = providerOptions ?? options;
     var tokens = new HttpClient(new TokenHandler(readerId, extraRole));
-    return new(new HttpClient(remote), tokens, options,
-      new GraphCapabilityTokenSource(tokens, new(true, Tenant, readerId, options.CertificatePath, options.PrivateKeyPath, "User.Read.All")));
+    return new(new HttpClient(remote), tokens, effectiveOptions,
+      new GraphCapabilityTokenSource(tokens, new(true, Tenant, readerId, effectiveOptions.CertificatePath, effectiveOptions.PrivateKeyPath, "User.Read.All")));
   }
   private static ClientSiteRequest Request()
   {
@@ -193,5 +194,23 @@ public sealed class SharePointClientSiteProviderTests : IDisposable
     var throttled = new Remote(options) { Throttle = true };
     Assert.True((await Assert.ThrowsAsync<ClientSitePreflightException>(() => Provider(throttled).ReconcileAsync(Request(), true, default))).Retryable);
     Assert.Equal(0, throttled.CreateCount);
+  }
+
+  [Fact]
+  public async Task MissingMicrosoftCertificate_BlocksBeforeAnyProviderRequest()
+  {
+    var remote = new Remote(options);
+    var missing = options with
+    {
+      CertificatePath = Path.Combine(directory, "missing-certificate.pem"),
+      PrivateKeyPath = Path.Combine(directory, "missing-private-key.pem")
+    };
+
+    var failure = await Assert.ThrowsAsync<OperationBlockedException>(() =>
+      Provider(remote, providerOptions: missing).ReconcileAsync(Request(), mayCreate: true, default));
+
+    Assert.Equal("client-site-credential-unavailable", failure.Code);
+    Assert.Equal(0, remote.CreateCount);
+    Assert.Empty(remote.Bodies);
   }
 }

@@ -26,7 +26,8 @@ namespace AuditSphereOps.Application.Documents;
 /// </para>
 /// </summary>
 public sealed class EngagementWorkspaceProvisioningHandler(
-  IAuditSphereDbContextFactory factory, ISelectedSiteWorkspaceProvisioner provider) : IOperationHandler
+  IAuditSphereDbContextFactory factory, ISelectedSiteWorkspaceProvisioner provider,
+  ClientSiteRolloutPolicy? rolloutPolicy = null) : IOperationHandler
 {
   public const string Kind = "ProvisionEngagementWorkspace.v1";
 
@@ -64,7 +65,7 @@ public sealed class EngagementWorkspaceProvisioningHandler(
   {
     if (!provider.IsConfigured) throw new SafeRetryException(TimeSpan.FromMinutes(5));
     await using var db = await factory.CreateAsync(ct);
-    var plan = await PlanAsync(db, op.FirmId, op.TargetId, ct);
+    var plan = await PlanAsync(db, op.FirmId, op.TargetId, ct, rolloutPolicy);
     var location = new SelectedSiteLocation(plan.Config.TenantId, plan.Config.SiteId, plan.Config.DriveId, plan.Connection.RuntimeCredentialReference);
 
     var clientName = plan.Ste ? SteClientName(plan.Client) : PbcRepositoryProvisioningService.FolderName(plan.Client.CommercialName ?? plan.Client.LegalName, plan.Client.Id);
@@ -102,9 +103,9 @@ public sealed class EngagementWorkspaceProvisioningHandler(
     if (verifiedRemoteResult is null || !string.Equals(Hashing.Sha256Hex(System.Text.Encoding.UTF8.GetBytes(verifiedRemoteResult.Identity)), verifiedRemoteResult.Digest, StringComparison.Ordinal))
       throw new OperationBlockedException("provider-result-unverifiable");
     var remote = JsonSerializer.Deserialize<RemoteResult>(verifiedRemoteResult.Identity) ?? throw new OperationBlockedException("provider-result-unverifiable");
-    var plan = await PlanAsync(db, op.FirmId, op.TargetId, ct);
+    var plan = await PlanAsync(db, op.FirmId, op.TargetId, ct, rolloutPolicy);
     if (!await PbcRepositoryProvisioningService.LockWorkspacePublicationAsync(db, op.FirmId, plan.Config.TenantId, plan.Config.DriveId, ct)) throw new OperationBlockedException("workspace-firm-guard-unavailable");
-    plan = await PlanAsync(db, op.FirmId, op.TargetId, ct);
+    plan = await PlanAsync(db, op.FirmId, op.TargetId, ct, rolloutPolicy);
     if (remote.PlanDigest != PlanDigest(plan)) throw new OperationBlockedException("workspace-provider-binding-changed");
     if (await db.ClientWorkspaces.AsNoTracking().AnyAsync(x => x.TenantId == plan.Config.TenantId && x.PracticeClientId != plan.Client.Id &&
         x.DriveId == plan.Config.DriveId && x.RemoteItemId == remote.ClientFolderId, ct))
@@ -142,7 +143,8 @@ public sealed class EngagementWorkspaceProvisioningHandler(
     Microsoft365ConnectionRevision Connection, FolderTemplateVersion ClientTemplate, FolderTemplateVersion EngagementTemplate,
     bool Ste, IReadOnlyList<Engagement> Siblings);
 
-  private static async Task<Plan> PlanAsync(IAuditSphereDbContext db, Guid firmId, Guid engagementId, CancellationToken ct)
+  private static async Task<Plan> PlanAsync(IAuditSphereDbContext db, Guid firmId, Guid engagementId, CancellationToken ct,
+    ClientSiteRolloutPolicy? rolloutPolicy)
   {
     var engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == firmId && x.Id == engagementId, ct)
       ?? throw new OperationBlockedException("engagement-not-found", authorization: true);
@@ -154,7 +156,7 @@ public sealed class EngagementWorkspaceProvisioningHandler(
     if (!await db.AcceptanceDecisions.AsNoTracking().AnyAsync(x => x.Id == workspace.AcceptanceDecisionId && x.FirmId == firmId &&
           x.PracticeClientId == client.Id && x.Decision == "Accepted", ct))
       throw new OperationBlockedException("client-not-accepted", authorization: true);
-    var active = await PbcRepositoryProvisioningService.ActiveSiteAsync(db, firmId, ct, client.Id);
+    var active = await PbcRepositoryProvisioningService.ActiveSiteAsync(db, firmId, ct, client.Id, rolloutPolicy);
     if (!active.Succeeded) throw new SafeRetryException(TimeSpan.FromMinutes(5));
     var (config, connection, clientTemplate) = active.Value!;
     var engagementTemplate = await db.FolderTemplateVersions.AsNoTracking()

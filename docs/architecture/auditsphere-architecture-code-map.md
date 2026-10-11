@@ -333,9 +333,9 @@ For the complete documentation index, authority hierarchy, current requirements,
 
 ## Dedicated client SharePoint sites
 
-- Application: `Documents/ClientSharePointSites.cs` owns standing administrator authorization, rollout cutoff, durable operation lifecycle, immutable identity decisions and separate site/member projections.
-- Domain: `Microsoft365/ClientSharePointSite.cs`; EF mapping: `AuditSphereDbContext.ClientSharePointSites.cs`.
-- Infrastructure: `Providers/SharePointClientSiteProvider.cs`; isolated Acceptance `client-sites` worker. The `pbc` worker stays Sites.Selected.
+- Application: `Documents/ClientSharePointSites.cs` owns standing administrator authorization, the fixed UTC rollout boundary, discovery, durable operation lifecycle, immutable identity decisions and separate site/member projections. `Documents/PbcRepositoryProvisioning.cs` applies the configured/saved cutoff before any shared-site fallback; invalid or mismatched boundaries block, even before the client-sites worker persists the cutoff.
+- Domain: `Microsoft365/ClientSharePointSite.cs`, `Microsoft365/ClientSiteWorkerHeartbeat.cs`; EF mapping: `AuditSphereDbContext.ClientSharePointSites.cs`.
+- Infrastructure: `Providers/SharePointClientSiteProvider.cs`; enabled-by-default isolated Acceptance `client-sites` worker with a read-only, dedicated credential mount. Missing rollout/configuration/consent remains visible as blocked; the `pbc` worker stays Sites.Selected.
 - Web: `Administration/ClientSharePointSitesPanel.razor`, with explicit site-wide Full Control warning in `Planning/EngagementStaffingPanel.razor`.
 - Tests: `ClientSharePointSitesTests`, `SharePointClientSiteProviderTests`, `ClientSharePointSitesJourneyTests`.
 - Permission and configuration authority: [client-site decision](auditsphere-client-sharepoint-sites-current.md).
@@ -383,9 +383,9 @@ For the complete documentation index, authority hierarchy, current requirements,
 
 - Application: `Documents/WorkspaceProvisioningAdministration.cs` supplies bounded administrator workspace pages, exact target/resource/template review fingerprints and reviewed calls to existing `PbcRepositoryProvisioningService`. `ClientSharePointSiteQuery` projects separate dedicated-site and membership health.
 - API: `Ui/UiEndpoints.WorkspaceProvisioning.cs` exposes authenticated bounded reads and CSRF-protected client/engagement folder commands. It does not host privileged site creation or membership providers.
-- Angular: `features/admin/workspaces.ts` and `workspace-contracts.ts` render native target review, reasons, idempotent folder actions, independent PBC verification and read-only dedicated-site status; unknown responses fence further writes.
-- Worker: `EngagementWorkspaceProvisioningHandler` fingerprints the provider plan and refuses changed plans or folder ownership collisions before binding; publication serialization stays local to PostgreSQL after provider I/O.
-- Checks: `WorkspaceProvisioningApiTests`, `AngularWorkspaceAdministrationJourneyTests`, `workspaces.spec.ts` and `EngagementWorkspaceProvisioningTests`. Observed results belong to the execution ledger.
+- Angular: `features/admin/workspaces.ts` and `workspace-contracts.ts` render native target review, reasons, idempotent folder actions, independent PBC verification, policy/boundary/worker/permission status and per-client site/member recovery details; unknown responses fence further writes.
+- Worker: `EngagementWorkspaceProvisioningHandler` fingerprints the provider plan, applies the same rollout cutoff, and refuses shared-site fallback, changed plans or folder ownership collisions before binding; publication serialization stays local to PostgreSQL after provider I/O.
+- Checks: `WorkspaceProvisioningApiTests`, `AngularWorkspaceAdministrationJourneyTests`, `ClientSharePointSitesTests`, `SharePointClientSiteProviderTests`, `ClientSharePointSitesJourneyTests`, `workspaces.spec.ts` and `EngagementWorkspaceProvisioningTests`. Observed results belong to the execution ledger.
 
 ### Angular confirmation administration
 

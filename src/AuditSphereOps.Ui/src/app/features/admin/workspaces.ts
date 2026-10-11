@@ -49,12 +49,20 @@ const prefix = '/api/ui/administration/microsoft365/';
     <p>Site creation and membership reconciliation run in the isolated client-sites worker. Its privileged certificate is unavailable to this API and browser.</p>
     <p role="note">Assigned staff have Full Control over the entire client site, including sibling engagements, sharing and deletion. AuditSphere roles and client/engagement scopes remain separate. SharePoint permission revocation completes when the worker reconciles it; local session revocation does not prove Microsoft revocation.</p>
     <audit-state [loading]="sites.loading()" [error]="sites.error()" label="Dedicated client sites" />
-    @if(sites.data(); as rows) { <p>The first 100 clients are shown. <a routerLink="/app/operations">Review worker operation evidence and recovery</a>.</p>
-      @if(!rows.length) { <p>No client sites are available.</p> }
-      <div class="table-scroll"><table><caption>Client-site and membership verification</caption><thead><tr><th>Client</th><th>Site</th><th>Membership</th><th>Last verified members</th><th>Last site verification</th><th>Last membership verification</th><th>Operation</th><th>Required action</th></tr></thead><tbody>
-        @for(s of rows; track s.clientId) { <tr><td>{{ s.clientName }}</td><td><audit-status [value]="s.state" />
+    @if(sites.data(); as status) {
+      <dl><dt>Provisioning policy</dt><dd><audit-status [value]="status.enabled ? 'ENABLED' : 'DISABLED'" /> · {{ status.policyState }}</dd>
+        <dt>Configured rollout boundary</dt><dd>{{ status.configuredRolloutBoundary ?? 'Not set' }}</dd>
+        <dt>Effective persisted boundary</dt><dd>{{ status.effectiveRolloutBoundary ?? 'Not applied' }}</dd>
+        <dt>Eligible clients</dt><dd>{{ status.eligibleClientCount }} · {{ status.existingClientsOutsideRollout }} remain outside the rollout</dd>
+        <dt>Tenant consent</dt><dd><audit-status [value]="status.tenantConsentState" /></dd>
+        <dt>Worker readiness</dt><dd><audit-status [value]="status.workerReadiness" /> · last heartbeat {{ status.workerLastSeenAt ?? 'Never observed' }} · {{ status.workerDiagnosticCode ?? 'No configuration blocker recorded' }}</dd>
+        <dt>Microsoft site permissions</dt><dd><audit-status [value]="status.microsoftPermissionState" /> · last verified {{ status.microsoftPermissionVerifiedAt ?? 'Not yet verified by a live site operation' }}</dd></dl>
+      <p>The first 100 eligible or already-provisioned clients are shown. <a routerLink="/app/operations">Review worker operations for retry or reconciliation</a>.</p>
+      @if(!status.clients.length) { <p>No eligible or provisioned client sites are available.</p> }
+      <div class="table-scroll"><table><caption>Client-site and membership verification</caption><thead><tr><th>Client</th><th>Site</th><th>Membership</th><th>Last verified members</th><th>Last site verification</th><th>Last membership verification</th><th>Operation</th><th>Error</th><th>Required action</th></tr></thead><tbody>
+        @for(s of status.clients; track s.clientId) { <tr><td>{{ s.clientName }}</td><td><audit-status [value]="s.state" />
           @if(siteLink(s.state,s.url); as link) { <a [href]="link" target="_blank" rel="noopener noreferrer">Open verified site</a> }</td>
-          <td><audit-status [value]="s.membershipState" /></td><td>{{ s.verifiedMembers }}</td><td>{{ s.verifiedAt ?? 'Never' }}</td><td>{{ s.membershipVerifiedAt ?? 'Never' }}</td><td>{{ s.operationState ?? 'Not queued' }}</td><td>{{ s.requiredAction }}</td></tr> }
+          <td><audit-status [value]="s.membershipState" /></td><td>{{ s.verifiedMembers }}</td><td>{{ s.verifiedAt ?? 'Never' }}</td><td>{{ s.membershipVerifiedAt ?? 'Never' }}</td><td>{{ s.operationState ?? 'Not queued' }}</td><td>{{ s.errorCode ?? 'None' }}</td><td>{{ s.requiredAction }}</td></tr> }
       </tbody></table></div>
     }
   </section>

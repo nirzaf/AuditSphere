@@ -41,10 +41,22 @@ var externalEffects = builder.Configuration.GetValue<bool>("ExternalEffects:Enab
 var liveMail = builder.Environment.IsEnvironment("Acceptance") && externalEffects && group == "mail";
 // Live selected-site PBC transfers run only in an isolated Acceptance worker for the "pbc" group.
 var livePbc = builder.Environment.IsEnvironment("Acceptance") && externalEffects && group == PbcDocumentTransferHandler.LiveGroup;
-var liveClientSites = builder.Environment.IsEnvironment("Acceptance") && externalEffects && group == ClientSharePointSiteHandler.Group && builder.Configuration.GetValue<bool>("ClientSites:Enabled");
+var clientSitesWorker = builder.Environment.IsEnvironment("Acceptance") && group == ClientSharePointSiteHandler.Group;
+var clientSitesEnabled = builder.Configuration.GetValue("ClientSites:Enabled", true);
+var rawClientSitesBoundary = builder.Configuration["ClientSites:ClientsCreatedAfter"];
+var parsedClientSitesBoundary = DateTimeOffset.TryParse(rawClientSitesBoundary, System.Globalization.CultureInfo.InvariantCulture,
+  System.Globalization.DateTimeStyles.RoundtripKind, out var clientSitesBoundary);
+var validClientSitesBoundary = parsedClientSitesBoundary && clientSitesBoundary.Offset == TimeSpan.Zero;
+var clientSiteRolloutPolicy = new ClientSiteRolloutPolicy(clientSitesEnabled,
+  validClientSitesBoundary ? clientSitesBoundary.ToUniversalTime() : null,
+  clientSitesEnabled && !string.IsNullOrWhiteSpace(rawClientSitesBoundary) && !validClientSitesBoundary);
+var liveClientSites = false;
+var clientSitesReadiness = new ClientSiteWorkerReadiness(
+  !clientSitesEnabled ? "DISABLED" : "BLOCKED_CONFIGURATION",
+  !clientSitesEnabled ? "client-site-policy-disabled" : "client-site-worker-configuration-pending");
 var safeCoreWorker = (builder.Environment.IsEnvironment("Acceptance") || builder.Environment.IsProduction()) &&
                      !externalEffects && group is ("general" or "processing" or "records");
-if (!builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Test") && !safeCoreWorker && !liveMail && !livePbc && !liveClientSites)
+if (!builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Test") && !safeCoreWorker && !liveMail && !livePbc && !clientSitesWorker)
   throw new InvalidOperationException("This worker composition is not approved for the current environment.");
 var connection = builder.Configuration.GetConnectionString("AuditSphere");
 if (string.IsNullOrWhiteSpace(connection))
@@ -61,7 +73,7 @@ var workerOptions = new WorkerOptions(firmId, builder.Environment.EnvironmentNam
   builder.Configuration.GetValue<bool>("AllowSimulationAdapters"),
   externalEffects, group,
   DeploymentEpoch: deploymentEpoch);
-if (externalEffects && !liveMail && !livePbc && !liveClientSites)
+if (externalEffects && !liveMail && !livePbc && !clientSitesWorker)
   throw new InvalidOperationException("External effects require an isolated Acceptance mail, pbc or enabled client-sites worker.");
 
 var releaseSafety = builder.Configuration.GetSection(ReleaseSafetyOptions.SectionName).Get<ReleaseSafetyOptions>() ?? new();
@@ -78,6 +90,7 @@ builder.Services.AddSingleton<IReleaseCheckpointStore>(new LocalAppendOnlyCheckp
 builder.Services.AddSingleton<ReleaseCheckpointHandler>();
 
 builder.Services.AddSingleton(workerOptions);
+builder.Services.AddSingleton(clientSiteRolloutPolicy);
 builder.Services.AddSingleton<IAuditSphereDbContextFactory, OperationContextFactory>();
 builder.Services.AddSingleton<IOperationStore, PostgresOperationStore>();
 
@@ -159,43 +172,70 @@ else if (livePbc)
   // Automatic folder provisioning when a Partner activates an engagement (same isolated live group and credential).
   builder.Services.AddSingleton<ISelectedSiteWorkspaceProvisioner>(sp => sp.GetRequiredService<GraphSelectedSiteDrive>());
   builder.Services.AddSingleton(sp => new EngagementWorkspaceProvisioningHandler(sp.GetRequiredService<IAuditSphereDbContextFactory>(),
-    sp.GetRequiredService<ISelectedSiteWorkspaceProvisioner>()));
+    sp.GetRequiredService<ISelectedSiteWorkspaceProvisioner>(), sp.GetRequiredService<ClientSiteRolloutPolicy>()));
   builder.Services.AddSingleton<IPendingOperationDiscovery>(sp => new EngagementWorkspaceDiscovery(
     sp.GetRequiredService<IAuditSphereDbContextFactory>(), sp.GetRequiredService<IOperationStore>(),
     sp.GetRequiredService<EngagementWorkspaceProvisioningHandler>(), workerOptions));
 }
-else if (liveClientSites)
+else if (clientSitesWorker)
 {
-  var siteOptions = new ClientSiteProviderOptions(builder.Configuration["ClientSites:TenantId"] ?? "",
-    builder.Configuration["ClientSites:ClientId"] ?? "", builder.Configuration["ClientSites:SiteHost"] ?? "",
-    builder.Configuration["ClientSites:CertificatePath"] ?? "", builder.Configuration["ClientSites:PrivateKeyPath"] ?? "",
-    builder.Configuration["SelectedSite:ClientId"] ?? "", builder.Configuration["ClientSites:CustodianObjectId"] ?? "");
-  siteOptions.Validate();
-  // Reject shared identities even if a token would otherwise satisfy a required role.
-  if (!Guid.TryParse(builder.Configuration["Identity:ClientId"], out _))
-    throw new InvalidOperationException("Identity:ClientId is required to verify provisioning credential separation.");
-  var forbiddenIds = new[] { "Identity:ClientId", "DirectoryReader:ClientId", "TenantConsent:ClientId", "TenantAdministration:Provisioning:ClientId",
-    "TenantAdministration:GuestInvitation:ClientId", "TenantAdministration:GroupMembership:ClientId", "TenantAdministration:OutboundMail:ClientId", "GraphMail:ClientId" };
-  if (forbiddenIds.Any(key => string.Equals(builder.Configuration[key], siteOptions.ProvisionerClientId, StringComparison.OrdinalIgnoreCase)))
-    throw new InvalidOperationException("Client site provisioning must use a separate app identity.");
-  if (!Guid.TryParse(builder.Configuration["ClientSites:AdministratorUserId"], out var administrator))
-    throw new InvalidOperationException("ClientSites:AdministratorUserId is required.");
-  if (!DateTimeOffset.TryParse(builder.Configuration["ClientSites:ClientsCreatedAfter"], System.Globalization.CultureInfo.InvariantCulture,
-      System.Globalization.DateTimeStyles.AssumeUniversal, out var cutover))
-    throw new InvalidOperationException("ClientSites:ClientsCreatedAfter must be an explicit approved UTC rollout timestamp.");
-  var policy = new ClientSitePolicy(true, siteOptions.TenantId, siteOptions.SiteHost, administrator, cutover);
-  var readerOptions = new GraphCapabilityCredentialOptions(true, siteOptions.TenantId,
-    builder.Configuration["DirectoryReader:ClientId"] ?? "", builder.Configuration["DirectoryReader:CertificatePath"] ?? "",
-    builder.Configuration["DirectoryReader:PrivateKeyPath"] ?? "", "User.Read.All");
-  readerOptions.Validate();
-  var tokenHttp = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(30) };
-  var siteHttp = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(100) };
-  builder.Services.AddSingleton<IClientSharePointSiteProvider>(new SharePointClientSiteProvider(siteHttp, tokenHttp, siteOptions,
-    new GraphCapabilityTokenSource(tokenHttp, readerOptions)));
-  builder.Services.AddSingleton<ClientSharePointSiteHandler>();
-  builder.Services.AddSingleton<IPendingOperationDiscovery>(sp => new ClientSharePointSiteDiscovery(
-    sp.GetRequiredService<IAuditSphereDbContextFactory>(), sp.GetRequiredService<IOperationStore>(),
-    sp.GetRequiredService<ClientSharePointSiteHandler>(), workerOptions, policy));
+  if (clientSitesEnabled && externalEffects)
+  {
+    try
+    {
+      var siteOptions = new ClientSiteProviderOptions(builder.Configuration["ClientSites:TenantId"] ?? "",
+        builder.Configuration["ClientSites:ClientId"] ?? "", builder.Configuration["ClientSites:SiteHost"] ?? "",
+        builder.Configuration["ClientSites:CertificatePath"] ?? "", builder.Configuration["ClientSites:PrivateKeyPath"] ?? "",
+        builder.Configuration["SelectedSite:ClientId"] ?? "", builder.Configuration["ClientSites:CustodianObjectId"] ?? "");
+      siteOptions.Validate();
+      // Reject shared identities even if a token would otherwise satisfy a required role.
+      if (!Guid.TryParse(builder.Configuration["Identity:ClientId"], out _))
+        throw new InvalidOperationException("client-site-identity-separation-required");
+      var forbiddenIds = new[] { "Identity:ClientId", "DirectoryReader:ClientId", "TenantConsent:ClientId", "TenantAdministration:Provisioning:ClientId",
+        "TenantAdministration:GuestInvitation:ClientId", "TenantAdministration:GroupMembership:ClientId", "TenantAdministration:OutboundMail:ClientId", "GraphMail:ClientId" };
+      if (forbiddenIds.Any(key => string.Equals(builder.Configuration[key], siteOptions.ProvisionerClientId, StringComparison.OrdinalIgnoreCase)))
+        throw new InvalidOperationException("client-site-identity-separation-required");
+      if (!Guid.TryParse(builder.Configuration["ClientSites:AdministratorUserId"], out var administrator))
+        throw new InvalidOperationException("client-site-administrator-required");
+      if (clientSiteRolloutPolicy.BoundaryInvalid || clientSiteRolloutPolicy.ClientsCreatedAfter is not DateTimeOffset cutover)
+        throw new InvalidOperationException("client-site-rollout-boundary-required");
+      var policy = new ClientSitePolicy(true, siteOptions.TenantId, siteOptions.SiteHost, administrator, cutover.ToUniversalTime());
+      var readerOptions = new GraphCapabilityCredentialOptions(true, siteOptions.TenantId,
+        builder.Configuration["DirectoryReader:ClientId"] ?? "", builder.Configuration["DirectoryReader:CertificatePath"] ?? "",
+        builder.Configuration["DirectoryReader:PrivateKeyPath"] ?? "", "User.Read.All");
+      readerOptions.Validate();
+      var tokenHttp = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(30) };
+      var siteHttp = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(100) };
+      var provider = new SharePointClientSiteProvider(siteHttp, tokenHttp, siteOptions,
+        new GraphCapabilityTokenSource(tokenHttp, readerOptions));
+      builder.Services.AddSingleton<IClientSharePointSiteProvider>(provider);
+      builder.Services.AddSingleton<ClientSharePointSiteHandler>();
+      builder.Services.AddSingleton<IPendingOperationDiscovery>(sp => new ClientSharePointSiteDiscovery(
+        sp.GetRequiredService<IAuditSphereDbContextFactory>(), sp.GetRequiredService<IOperationStore>(),
+        sp.GetRequiredService<ClientSharePointSiteHandler>(), workerOptions, policy));
+      clientSitesReadiness = new("READY", null);
+      liveClientSites = true;
+    }
+    catch (Exception ex) when (ex is OperationBlockedException or InvalidOperationException or ArgumentException or IOException)
+    {
+      var diagnostic = ex switch
+      {
+        OperationBlockedException blocked => blocked.Code,
+        InvalidOperationException invalid when invalid.Message.StartsWith("client-site-", StringComparison.Ordinal) => invalid.Message,
+        _ => "client-site-worker-configuration-invalid"
+      };
+      clientSitesReadiness = new("BLOCKED_CONFIGURATION", diagnostic);
+    }
+  }
+  else if (clientSitesEnabled)
+  {
+    clientSitesReadiness = new("BLOCKED_CONFIGURATION", "client-site-external-effects-disabled");
+  }
+  if (clientSitesWorker)
+  {
+    builder.Services.AddSingleton(clientSitesReadiness);
+    builder.Services.AddHostedService<ClientSiteWorkerHeartbeatService>();
+  }
 }
 else
 {
@@ -227,7 +267,7 @@ else
 // Simulation adapters compose only in a Test environment with the explicit enablement flag.
 // In Development the PBC transfer operations remain queued pending an approved provider
 // boundary; the durable queue records the truthful pending state instead of executing.
-var simulationAllowed = !liveMail && !livePbc && !liveClientSites && workerOptions.EnvironmentName == "Test" && workerOptions.AllowSimulationAdapters;
+var simulationAllowed = !liveMail && !livePbc && !liveClientSites && !clientSitesWorker && workerOptions.EnvironmentName == "Test" && workerOptions.AllowSimulationAdapters;
 if (simulationAllowed)
 {
   var providerRoot = builder.Configuration["Storage:PbcProviderSimulationRoot"]
@@ -241,19 +281,20 @@ if (simulationAllowed)
     workerOptions));
 }
 
-if (!liveMail && !livePbc && !liveClientSites)
+if (!liveMail && !livePbc && !liveClientSites && !clientSitesWorker)
   builder.Services.AddSingleton<IPendingOperationDiscovery>(sp =>
     sp.GetRequiredService<TrialBalanceDiscovery>());
 builder.Services.AddSingleton(sp => new DurableOperationRegistry(
-  ResolveHandlers(sp, simulationAllowed, liveMail, livePbc, liveClientSites), workerOptions));
+  ResolveHandlers(sp, simulationAllowed, liveMail, livePbc, liveClientSites, clientSitesWorker), workerOptions));
 builder.Services.AddSingleton<OperationDispatcher>();
 builder.Services.AddHostedService<Worker>();
 
 var host = builder.Build();
 host.Run();
 
-static IOperationHandler[] ResolveHandlers(IServiceProvider sp, bool simulationAllowed, bool liveMail, bool livePbc, bool liveClientSites)
+static IOperationHandler[] ResolveHandlers(IServiceProvider sp, bool simulationAllowed, bool liveMail, bool livePbc, bool liveClientSites, bool clientSitesWorker)
 {
+  if (clientSitesWorker) return liveClientSites ? [sp.GetRequiredService<ClientSharePointSiteHandler>()] : [];
   if (liveClientSites) return [sp.GetRequiredService<ClientSharePointSiteHandler>()];
   if (liveMail) return [sp.GetRequiredService<PbcMailDeliveryHandler>(), sp.GetRequiredService<CommercialMailDeliveryHandler>()];
   if (livePbc) return [sp.GetRequiredService<PbcDocumentTransferHandler>(), sp.GetRequiredService<EngagementWorkspaceProvisioningHandler>()];

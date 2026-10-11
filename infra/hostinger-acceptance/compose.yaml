@@ -89,6 +89,8 @@ services:
       TenantAdministration__OutboundMail__SenderMailbox: ${OUTBOUND_MAIL_SENDER_MAILBOX:-}
       TenantAdministration__OutboundMail__CertificatePath: /run/auditsphere/m365/outbound-mail/certificate.pem
       TenantAdministration__OutboundMail__PrivateKeyPath: /run/auditsphere/m365/outbound-mail/private-key.pem
+      ClientSites__Enabled: ${CLIENT_SITES_ENABLED:-true}
+      ClientSites__ClientsCreatedAfter: ${CLIENT_SITES_CLIENTS_CREATED_AFTER:-}
       FeatureActivation__LiveAuditRelease: "false"
       ForwardedHeaders__KnownProxies__0: 172.29.91.1
       Storage__PbcStagingRoot: /var/lib/auditsphere/pbc-staging
@@ -196,6 +198,8 @@ services:
       <<: *worker_environment
       Worker__Group: pbc
       ExternalEffects__Enabled: "true"
+      ClientSites__Enabled: ${CLIENT_SITES_ENABLED:-true}
+      ClientSites__ClientsCreatedAfter: ${CLIENT_SITES_CLIENTS_CREATED_AFTER:-}
       SelectedSite__TenantId: ${IDENTITY_TENANT_ID:?Set IDENTITY_TENANT_ID in .env}
       SelectedSite__ClientId: ${SELECTED_SITE_CLIENT_ID:-}
       SelectedSite__CredentialReference: ${SELECTED_SITE_CREDENTIAL_REFERENCE:-hostinger-acceptance-selected-site-certificate}
@@ -205,6 +209,53 @@ services:
       - pbc_staging:/var/lib/auditsphere/pbc-staging
       - release_checkpoints:/var/lib/auditsphere/release-checkpoints
       - m365_selected_site_credentials:/run/auditsphere/m365/selected-site:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - acceptance
+
+  worker-client-sites:
+    image: ghcr.io/nirzaf/auditsphere-acceptance-worker:${RELEASE_TAG:?Set RELEASE_TAG in .env}
+    restart: unless-stopped
+    init: true
+    environment:
+      <<: *worker_environment
+      Worker__Group: client-sites
+      ExternalEffects__Enabled: "true"
+      ClientSites__Enabled: ${CLIENT_SITES_ENABLED:-true}
+      ClientSites__TenantId: ${IDENTITY_TENANT_ID:?Set IDENTITY_TENANT_ID in .env}
+      ClientSites__ClientId: ${CLIENT_SITES_CLIENT_ID:-}
+      ClientSites__SiteHost: ${CLIENT_SITES_SITE_HOST:-}
+      ClientSites__CertificatePath: /run/auditsphere/m365/client-sites/certificate.pem
+      ClientSites__PrivateKeyPath: /run/auditsphere/m365/client-sites/private-key.pem
+      ClientSites__CustodianObjectId: ${CLIENT_SITES_CUSTODIAN_OBJECT_ID:-}
+      ClientSites__AdministratorUserId: ${CLIENT_SITES_ADMINISTRATOR_USER_ID:-}
+      ClientSites__ClientsCreatedAfter: ${CLIENT_SITES_CLIENTS_CREATED_AFTER:-}
+      Identity__ClientId: ${IDENTITY_CLIENT_ID:?Set IDENTITY_CLIENT_ID in .env}
+      DirectoryReader__ClientId: ${DIRECTORY_READER_CLIENT_ID:-}
+      DirectoryReader__CertificatePath: /run/auditsphere/m365/directory-reader/certificate.pem
+      DirectoryReader__PrivateKeyPath: /run/auditsphere/m365/directory-reader/private-key.pem
+      TenantConsent__ClientId: ${DIRECTORY_READER_CLIENT_ID:-}
+      SelectedSite__ClientId: ${SELECTED_SITE_CLIENT_ID:-}
+      TenantAdministration__Provisioning__ClientId: ${TENANT_ADMINISTRATION_PROVISIONING_CLIENT_ID:-}
+      TenantAdministration__GuestInvitation__ClientId: ${TENANT_ADMINISTRATION_GUEST_INVITATION_CLIENT_ID:-}
+      TenantAdministration__GroupMembership__ClientId: ${TENANT_ADMINISTRATION_GROUP_MEMBERSHIP_CLIENT_ID:-}
+      TenantAdministration__OutboundMail__ClientId: ${OUTBOUND_MAIL_CLIENT_ID:-}
+      GraphMail__ClientId: ${OUTBOUND_MAIL_CLIENT_ID:-}
+    volumes:
+      - type: bind
+        source: /opt/auditsphere/storage/m365-credentials/client-sites
+        target: /run/auditsphere/m365/client-sites
+        read_only: true
+        bind:
+          create_host_path: true
+      - type: bind
+        source: /opt/auditsphere/storage/m365-credentials/directory-reader
+        target: /run/auditsphere/m365/directory-reader
+        read_only: true
+        bind:
+          create_host_path: true
     depends_on:
       db:
         condition: service_healthy
@@ -254,7 +305,6 @@ volumes:
       type: none
       o: bind
       device: /opt/auditsphere/storage/m365-credentials/selected-site
-
 networks:
   acceptance:
     name: auditsphere-acceptance

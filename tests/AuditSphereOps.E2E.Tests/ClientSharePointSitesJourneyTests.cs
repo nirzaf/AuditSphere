@@ -39,6 +39,10 @@ public sealed class ClientSharePointSitesJourneyTests
     var panel = page.Locator("audit-workspace-administration");
     await Assertions.Expect(panel.GetByRole(AriaRole.Heading, new() { Name = "Dedicated client SharePoint sites", Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(panel).ToContainTextAsync("Full Control over the entire client site");
+    await Assertions.Expect(panel).ToContainTextAsync("Provisioning policy");
+    await Assertions.Expect(panel).ToContainTextAsync("ROLLOUT_BOUNDARY_REQUIRED");
+    await Assertions.Expect(panel).ToContainTextAsync("not running");
+    await Assertions.Expect(panel).ToContainTextAsync("Microsoft site permissions");
     var sites = panel.GetByRole(AriaRole.Table, new() { Name = "Client-site and membership verification", Exact = true });
     await Assertions.Expect(sites.GetByText("partial", new() { Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(sites.GetByRole(AriaRole.Link, new() { Name = "Open verified site", Exact = true })).ToBeVisibleAsync();

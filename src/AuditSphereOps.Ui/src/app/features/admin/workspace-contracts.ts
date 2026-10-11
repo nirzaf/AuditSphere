@@ -7,8 +7,13 @@ export const workspaceReview = obj({ targetId: guid, kind: oneOf('CLIENT', 'ENGA
   reviewToken: sha256, eligible: bool, requiredAction: text, tenantId: nullable(guid), siteId: nullable(str(2000)),
   driveId: nullable(str(2000)), rootFolderId: nullable(str(2000)), clientTemplateId: nullable(guid), engagementTemplateId: nullable(guid) });
 export const workspaceResult = obj({ workspaceOrBindingId: guid, state: text, message: text, diagnosticCode: nullable(text) });
-export const clientSites = arr(obj({ clientId: guid, clientName: text, state: text, membershipState: text, url: nullable(str(2000)),
-  verifiedMembers: nat, verifiedAt: nullable(instant), membershipVerifiedAt: nullable(instant), operationState: nullable(text), requiredAction: text }), 100);
+export const clientSiteRow = obj({ clientId: guid, clientName: text, state: text, membershipState: text, url: nullable(str(2000)),
+  verifiedMembers: nat, verifiedAt: nullable(instant), membershipVerifiedAt: nullable(instant), operationState: nullable(text),
+  requiredAction: text, errorCode: nullable(text) });
+export const clientSites = obj({ enabled: bool, policyState: text, configuredRolloutBoundary: nullable(instant),
+  effectiveRolloutBoundary: nullable(instant), eligibleClientCount: nat, existingClientsOutsideRollout: nat,
+  tenantConsentState: text, workerReadiness: text, workerDiagnosticCode: nullable(text), workerLastSeenAt: nullable(instant),
+  microsoftPermissionState: text, microsoftPermissionVerifiedAt: nullable(instant), clients: arr(clientSiteRow, 100) });
 
 /** Only a verified site may be opened; never render signed URLs or arbitrary URI schemes as links. */
 export function siteLink(state: string, value: string | null): string | null {

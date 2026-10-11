@@ -52,7 +52,7 @@ public static class PbcRepositoryProvisioningService
   public static async Task<CommandResult<WorkspaceProvisioningResult>> ProvisionClientWorkspaceAsync(
     IAuditSphereDbContext db, ActorContext actor, ISelectedSiteWorkspaceProvisioner provider,
     Guid practiceClientId, DateTimeOffset now, CancellationToken ct = default, string? reviewedToken = null,
-    string reason = "Administrator provisioned client workspace")
+    string reason = "Administrator provisioned client workspace", ClientSiteRolloutPolicy? rolloutPolicy = null)
   {
     if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<WorkspaceProvisioningResult>();
     if (!provider.IsConfigured)
@@ -65,11 +65,11 @@ public static class PbcRepositoryProvisioningService
     if (!await db.AcceptanceDecisions.AsNoTracking().AnyAsync(x => x.Id == workspace.AcceptanceDecisionId &&
           x.FirmId == actor.FirmId && x.PracticeClientId == practiceClientId && x.Decision == "Accepted", ct))
       return Fail(ErrorCodes.GateBlocked, "The client acceptance decision is not Accepted.");
-    var active = await ActiveSiteAsync(db, actor.FirmId, ct, practiceClientId);
+    var active = await ActiveSiteAsync(db, actor.FirmId, ct, practiceClientId, rolloutPolicy);
     if (!active.Succeeded) return Fail(active.ErrorCode!, active.Message!);
     var (config, connection, template) = active.Value!;
     var workspaceRevision = workspace.Revision;
-    if (reviewedToken is not null && !await ReviewMatchesAsync(db, actor, practiceClientId, false, reviewedToken, ct))
+    if (reviewedToken is not null && !await ReviewMatchesAsync(db, actor, practiceClientId, false, reviewedToken, ct, rolloutPolicy))
       return Fail(ErrorCodes.StaleRevision, "The reviewed workspace inputs changed before dispatch.");
     if (workspace.State == ClientWorkspaceStates.Ready && workspace.RemoteItemId is not null &&
         workspace.ConnectionRevisionId == connection.Id && workspace.DriveId == config.DriveId)
@@ -94,7 +94,7 @@ public static class PbcRepositoryProvisioningService
       var current = await db.ClientWorkspaces.FromSqlInterpolated($"SELECT * FROM client_workspaces WHERE id = {workspace.Id} AND firm_id = {actor.FirmId} FOR UPDATE")
         .AsNoTracking().SingleOrDefaultAsync(ct);
       if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<WorkspaceProvisioningResult>();
-      if (current?.Revision != workspaceRevision || reviewedToken is not null && !await ReviewMatchesAsync(db, actor, practiceClientId, false, reviewedToken, ct))
+      if (current?.Revision != workspaceRevision || reviewedToken is not null && !await ReviewMatchesAsync(db, actor, practiceClientId, false, reviewedToken, ct, rolloutPolicy))
         return Fail(ErrorCodes.StaleRevision, "The workspace changed while the provider request was in flight. Refresh persisted state.");
       workspace.State = ClientWorkspaceStates.BlockedConfiguration;
       workspace.LastErrorCode = ProviderCode(ex);
@@ -111,9 +111,9 @@ public static class PbcRepositoryProvisioningService
     if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<WorkspaceProvisioningResult>();
     var locked = await db.ClientWorkspaces.FromSqlInterpolated($"SELECT * FROM client_workspaces WHERE id = {workspace.Id} AND firm_id = {actor.FirmId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
-    var latest = await ActiveSiteAsync(db, actor.FirmId, ct, practiceClientId);
+    var latest = await ActiveSiteAsync(db, actor.FirmId, ct, practiceClientId, rolloutPolicy);
     if (locked?.Revision != workspaceRevision || !latest.Succeeded || !SameBinding(active.Value, latest.Value) ||
-        reviewedToken is not null && !await ReviewMatchesAsync(db, actor, practiceClientId, false, reviewedToken, ct))
+        reviewedToken is not null && !await ReviewMatchesAsync(db, actor, practiceClientId, false, reviewedToken, ct, rolloutPolicy))
       return Fail(ErrorCodes.StaleRevision, "The workspace or selected resource changed during provisioning. Refresh before reconciliation.");
     if (await db.ClientWorkspaces.AsNoTracking().AnyAsync(x => x.TenantId == config.TenantId && x.PracticeClientId != practiceClientId &&
         x.DriveId == config.DriveId && x.RemoteItemId == clientFolder.ItemId, ct))
@@ -141,7 +141,7 @@ public static class PbcRepositoryProvisioningService
   public static async Task<CommandResult<WorkspaceProvisioningResult>> ProvisionEngagementRepositoryAsync(
     IAuditSphereDbContext db, ActorContext actor, ISelectedSiteWorkspaceProvisioner provider,
     Guid engagementId, DateTimeOffset now, CancellationToken ct = default, string? reviewedToken = null,
-    string reason = "Administrator provisioned engagement PBC repository")
+    string reason = "Administrator provisioned engagement PBC repository", ClientSiteRolloutPolicy? rolloutPolicy = null)
   {
     if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<WorkspaceProvisioningResult>();
     if (!provider.IsConfigured)
@@ -152,7 +152,7 @@ public static class PbcRepositoryProvisioningService
       x.PracticeClientId == engagement.PracticeClientId && x.Purpose == "PRIMARY", ct);
     if (workspace is null || workspace.State != ClientWorkspaceStates.Ready || workspace.RemoteItemId is null)
       return Fail(ErrorCodes.GateBlocked, "Provision the client workspace before the engagement repository.");
-    var active = await ActiveSiteAsync(db, actor.FirmId, ct, engagement.PracticeClientId);
+    var active = await ActiveSiteAsync(db, actor.FirmId, ct, engagement.PracticeClientId, rolloutPolicy);
     if (!active.Succeeded) return Fail(active.ErrorCode!, active.Message!);
     var (config, connection, clientTemplate) = active.Value!;
     if (workspace.ConnectionRevisionId != connection.Id || workspace.DriveId != config.DriveId)
@@ -163,7 +163,7 @@ public static class PbcRepositoryProvisioningService
     if (engagementTemplate is null || FindNode(engagementTemplate.ManifestJson, PbcNodeKey) is null)
       return Fail(ErrorCodes.GateBlocked, "Approve an engagement folder template that contains the PBC intake folder first.");
     var engagementsNode = FindNode(clientTemplate.ManifestJson, EngagementsNodeKey);
-    if (reviewedToken is not null && !await ReviewMatchesAsync(db, actor, engagementId, true, reviewedToken, ct))
+    if (reviewedToken is not null && !await ReviewMatchesAsync(db, actor, engagementId, true, reviewedToken, ct, rolloutPolicy))
       return Fail(ErrorCodes.StaleRevision, "The reviewed engagement inputs changed before dispatch.");
 
     var location = new SelectedSiteLocation(config.TenantId, config.SiteId, config.DriveId, connection.RuntimeCredentialReference);
@@ -192,11 +192,11 @@ public static class PbcRepositoryProvisioningService
     if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<WorkspaceProvisioningResult>();
     var locked = await db.ClientWorkspaces.FromSqlInterpolated($"SELECT * FROM client_workspaces WHERE id = {workspace.Id} AND firm_id = {actor.FirmId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
-    var latest = await ActiveSiteAsync(db, actor.FirmId, ct, engagement.PracticeClientId);
+    var latest = await ActiveSiteAsync(db, actor.FirmId, ct, engagement.PracticeClientId, rolloutPolicy);
     var templateId = await db.FolderTemplateVersions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.Purpose == FolderTemplatePurposes.EngagementWorkspace && x.ApprovedAt != null)
       .OrderByDescending(x => x.Version).Select(x => (Guid?)x.Id).FirstOrDefaultAsync(ct);
     if (locked?.Revision != workspace.Revision || !latest.Succeeded || !SameBinding(active.Value, latest.Value) || templateId != engagementTemplate.Id ||
-        reviewedToken is not null && !await ReviewMatchesAsync(db, actor, engagementId, true, reviewedToken, ct))
+        reviewedToken is not null && !await ReviewMatchesAsync(db, actor, engagementId, true, reviewedToken, ct, rolloutPolicy))
       return Fail(ErrorCodes.StaleRevision, "The workspace, templates or resource binding changed during provisioning. Refresh before reconciliation.");
     var applied = await ApplyEngagementBindingAsync(db, actor, engagement, config, pbcFolder.ItemId, test, now,
       reason, ct);
@@ -257,7 +257,8 @@ public static class PbcRepositoryProvisioningService
   }
 
   internal static async Task<CommandResult<(FirmWorkspaceConfiguration Config, Microsoft365ConnectionRevision Connection, FolderTemplateVersion Template)>>
-    ActiveSiteAsync(IAuditSphereDbContext db, Guid firmId, CancellationToken ct, Guid? clientId = null)
+    ActiveSiteAsync(IAuditSphereDbContext db, Guid firmId, CancellationToken ct, Guid? clientId = null,
+      ClientSiteRolloutPolicy? rolloutPolicy = null)
   {
     var connection = await db.Microsoft365ConnectionRevisions.AsNoTracking()
       .Where(x => x.FirmId == firmId && x.State == Microsoft365RevisionStates.Active && x.ConsentState == "VERIFIED")
@@ -274,12 +275,27 @@ public static class PbcRepositoryProvisioningService
     if (clientId != null)
     {
       var site = await db.ClientSharePointSites.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == firmId && x.ClientId == clientId, ct);
-      var cutover = await db.FirmWorkspaceConfigurations.AsNoTracking().Where(x => x.FirmId == firmId)
-        .MinAsync(x => x.ClientSitesRequiredFrom, ct);
-      if (site == null && cutover != null && await db.PracticeClients.AnyAsync(x => x.FirmId == firmId && x.Id == clientId && x.CreatedAt >= cutover, ct))
-        return CommandResult<(FirmWorkspaceConfiguration, Microsoft365ConnectionRevision, FolderTemplateVersion)>.Fail(ErrorCodes.GateBlocked,
-          "The dedicated client site is pending; shared-site fallback is refused.");
-      if (site != null)
+      if (site is null)
+      {
+        var persistedBoundaries = await db.FirmWorkspaceConfigurations.AsNoTracking()
+          .Where(x => x.FirmId == firmId && x.ClientSitesRequiredFrom != null)
+          .Select(x => x.ClientSitesRequiredFrom).ToListAsync(ct);
+        var uniqueBoundaries = persistedBoundaries.Where(x => x != null).Select(x => x!.Value.ToUniversalTime()).Distinct().ToArray();
+        // On a damaged/conflicting saved policy, the earliest recorded cutoff is the conservative
+        // enforcement boundary. Historic clients before it keep their existing shared repository.
+        var persistedCutover = uniqueBoundaries.Length == 0 ? (DateTimeOffset?)null : uniqueBoundaries.Min();
+        var configuredCutover = rolloutPolicy is { Enabled: true, BoundaryInvalid: false }
+          ? rolloutPolicy.ClientsCreatedAfter?.ToUniversalTime() : null;
+        // A saved cutoff is authoritative once established. A changed environment value blocks the
+        // worker's discovery, but must not reclassify clients that predate the saved boundary.
+        var cutover = persistedCutover ?? configuredCutover;
+        var clientCreatedAt = await db.PracticeClients.AsNoTracking().Where(x => x.FirmId == firmId && x.Id == clientId)
+          .Select(x => (DateTimeOffset?)x.CreatedAt).SingleOrDefaultAsync(ct);
+        if (cutover is not null && clientCreatedAt >= cutover)
+          return CommandResult<(FirmWorkspaceConfiguration, Microsoft365ConnectionRevision, FolderTemplateVersion)>.Fail(ErrorCodes.GateBlocked,
+            "The dedicated client site is required by the rollout policy and is pending; shared-site fallback is refused.");
+      }
+      else
       {
         if (site.State != "READY" || site.VerifiedAt == null || site.ConnectionRevisionId != connection.Id ||
             site.TenantId != connection.TenantId || site.SiteId == null || site.DriveId == null || site.RootItemId == null)
@@ -342,9 +358,10 @@ public static class PbcRepositoryProvisioningService
 
   internal static string ProviderCode(Exception ex) => ex is OperationBlockedException blocked ? blocked.Code : "provider-request-failed";
 
-  private static async Task<bool> ReviewMatchesAsync(IAuditSphereDbContext db, ActorContext actor, Guid id, bool engagement, string token, CancellationToken ct)
+  private static async Task<bool> ReviewMatchesAsync(IAuditSphereDbContext db, ActorContext actor, Guid id, bool engagement,
+    string token, CancellationToken ct, ClientSiteRolloutPolicy? rolloutPolicy)
   {
-    var current = await WorkspaceProvisioningAdministration.ReviewAsync(db, actor, id, engagement, ct);
+    var current = await WorkspaceProvisioningAdministration.ReviewAsync(db, actor, id, engagement, ct, rolloutPolicy);
     return current.Succeeded && current.Value!.ReviewToken == token && current.Value.Eligible;
   }
 

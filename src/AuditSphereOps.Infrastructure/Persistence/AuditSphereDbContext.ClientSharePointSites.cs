@@ -8,6 +8,7 @@ namespace AuditSphereOps.Infrastructure.Persistence;
 public sealed partial class AuditSphereDbContext
 {
   public DbSet<ClientSharePointSite> ClientSharePointSites => Set<ClientSharePointSite>();
+  public DbSet<ClientSiteWorkerHeartbeat> ClientSiteWorkerHeartbeats => Set<ClientSiteWorkerHeartbeat>();
 
   private static void ConfigureClientSharePointSites(ModelBuilder b)
   {
@@ -34,5 +35,18 @@ public sealed partial class AuditSphereDbContext
     site.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.RequestedByUserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     site.ToTable("client_share_point_sites", t => t.HasCheckConstraint("ck_client_sharepoint_site_state", "state IN ('REQUESTED','READY') AND membership_state IN ('PENDING','VERIFIED','PARTIAL')"));
+
+    var heartbeat = b.Entity<ClientSiteWorkerHeartbeat>();
+    heartbeat.HasIndex(x => new { x.FirmId, x.WorkerGroup, x.WorkerInstanceId }).IsUnique()
+      .HasDatabaseName("ux_client_site_worker_heartbeat_instance");
+    heartbeat.HasIndex(x => new { x.FirmId, x.WorkerGroup, x.LastSeenAt })
+      .HasDatabaseName("ix_client_site_worker_heartbeat_recent");
+    heartbeat.Property(x => x.WorkerGroup).HasMaxLength(40);
+    heartbeat.Property(x => x.WorkerInstanceId).HasMaxLength(64);
+    heartbeat.Property(x => x.ReadinessState).HasMaxLength(40);
+    heartbeat.Property(x => x.DiagnosticCode).HasMaxLength(100);
+    heartbeat.ToTable("client_site_worker_heartbeats", t => t.HasCheckConstraint(
+      "ck_client_site_worker_heartbeat_state",
+      "worker_group = 'client-sites' AND deployment_epoch >= 1 AND readiness_state IN ('READY','DISABLED','BLOCKED_CONFIGURATION')"));
   }
 }
