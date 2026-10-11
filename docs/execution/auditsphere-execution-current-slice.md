@@ -31,13 +31,15 @@ the firm certificate and legal-sufficiency decision are still outstanding. The G
 Production Environment Settings page already documents the `ReportSigning` configuration, so no
 Wiki edit was needed.
 
-The Entra permission split is visible in the portal, but AuditSphere's tenant-connection page still
-shows no consent attempt; the consent action is unavailable until the deployment-owned consent
-identity and fixed callback are configured. Directory verification remains `NOT_VERIFIED`. The
-selected SharePoint target fields remain an unsubmitted browser-tab draft; the user will grant the
-exact site. Runtime Graph capabilities remain disabled, and the selected-resource probe and
-workspace activation remain blocked on that grant and credential setup. Do not mark those external
-states complete from local or Entra-registration evidence.
+The Entra portal now confirms admin consent for `User.Read.All` on the dedicated Directory Reader
+registration, alongside its delegated `User.Read` sign-in permission. This is registration-level
+consent only: AuditSphere's tenant-connection page still shows no nonce-bound consent attempt, and
+its consent action remains unavailable until the deployment-owned consent identity and fixed
+callback are configured. Directory verification remains `NOT_VERIFIED` and the Directory Reader
+runtime switch remains disabled. The selected SharePoint target fields remain an unsubmitted
+browser-tab draft; the user will grant the exact site. Runtime Graph capabilities remain disabled,
+and the selected-resource probe and workspace activation remain blocked on that grant and credential
+setup. Do not mark those external states complete from local or Entra-registration evidence.
 
 ## Hostinger Entra mutation-app permission split — 2026-10-11
 
@@ -48,6 +50,12 @@ on `AuditSphereOps Acceptance Guest Invitation`, and `GroupMember.ReadWrite.All`
 delegated `User.Read`) on `AuditSphereOps Acceptance Group Membership`; each application role shows
 tenant consent granted. The former combined app's extra configured roles and their leftover tenant
 grants were removed.
+
+The dedicated `AuditSphere Acceptance - Directory Reader` registration shows application
+`User.Read.All` and delegated `User.Read`, both with tenant consent granted in the Entra portal on
+2026-10-11. The separate Mail registration shows `Mail.Send` consent granted. AuditSphere's
+Directory Reader and Mail runtime switches remain disabled; no Graph capability verification or
+Graph mutation was performed.
 
 This is Entra registration evidence. The live AuditSphere tenant-connection page still reports no
 consent attempt, directory `NOT_VERIFIED`, and the three mutation capabilities Disabled. No

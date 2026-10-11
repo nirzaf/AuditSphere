@@ -203,10 +203,13 @@ capability checks establish those states.
 
 ## Hostinger acceptance permission split (observed 2026-10-11)
 
-The Entra portal now shows three separate registrations for directory-mutation permissions:
+The Entra portal now shows the three separated directory-mutation registrations plus dedicated
+Directory Reader and Mail registrations:
 
 | Registration | Application permission | Entra consent | AuditSphere runtime |
 |---|---|---|---|
+| `AuditSphere Acceptance - Directory Reader` | `User.Read.All` only, plus delegated `User.Read` for sign-in | Granted | Disabled; no capability verification |
+| `AuditSphereOps Development Mail` | `Mail.Send` only | Granted | Disabled; no capability verification |
 | `AuditSphereOps Development Administration` | `User.Create` only | Granted | Disabled; no capability verification |
 | `AuditSphereOps Acceptance Guest Invitation` | `User.Invite.All` only, plus delegated `User.Read` for sign-in | Granted | Disabled; no capability verification |
 | `AuditSphereOps Acceptance Group Membership` | `GroupMember.ReadWrite.All` only, plus delegated `User.Read` for sign-in | Granted | Disabled; no capability verification |
@@ -218,11 +221,19 @@ Its current API-permission view confirms `User.Create` is its only application p
 separate mutation registrations each show only their named application role, with delegated
 `User.Read` retained for sign-in.
 
+The separate `AuditSphere Acceptance - Directory Reader` registration shows `User.Read.All`
+application permission and delegated `User.Read`, both granted for the tenant in the Entra portal
+on 2026-10-11. The dedicated Mail registration has `Mail.Send` consent granted. These grants do not
+enable the corresponding AuditSphere runtime capabilities.
+
+For the Directory Reader grant, the operator opened **App registrations → AuditSphere Acceptance - Directory Reader → API permissions**, checked that the only application role was `User.Read.All` (with delegated `User.Read` for sign-in), selected **Grant admin consent for easyguide**, confirmed the displayed scope, and checked that both permission rows changed to **Granted for easyguide**. No permission was added or removed in this consent step, and no credential was read or changed.
+
 This verifies Entra registration and tenant consent only. A fresh AuditSphere page observation still
 shows the tenant consent handshake as not attempted; the consent action is unavailable because the
 deployment-owned consent identity/fixed callback is not configured. Directory verification remains
-`NOT_VERIFIED`, and all three mutation capabilities are Disabled. The selected-site target fields are
-still an unsubmitted browser-tab draft, not a persisted server-side resource configuration. No
+`NOT_VERIFIED`; the Directory Reader, Mail and three mutation capabilities are Disabled. The
+selected-site target fields are still an unsubmitted browser-tab draft, not a persisted server-side
+resource configuration. No
 role-specific certificate or credential was configured
 for these three identities, and no Graph mutation was run. Keep the capabilities disabled until the
 credentials, synthetic target and live verification are separately completed. No tenant-wide Graph
