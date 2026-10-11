@@ -63,8 +63,27 @@ public static partial class FinancialStatementService
 
     var currentLines = await db.FinancialPackageLines.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == package.Id).ToListAsync(ct);
+    var currentCashLines = await db.FinancialPackageCashFlowLines.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == package.Id).ToListAsync(ct);
+    var currentFxEffects = await db.FinancialPackageFxEffects.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == package.Id).ToListAsync(ct);
+    var typedAccounting = db as IClientAccountingDbContext;
+    var currentEquityLines = typedAccounting is null ? [] : await typedAccounting.FinancialPackageEquityLines.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == package.Id).ToListAsync(ct);
     var noteLines = await db.FinancialPackageNoteLines.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == package.Id).ToListAsync(ct);
+    IReadOnlyList<FinancialPackageCashFlowLine> priorCashLines = [];
+    IReadOnlyList<FinancialPackageFxEffect> priorFxEffects = [];
+    IReadOnlyList<FinancialPackageEquityLine> priorEquityLines = [];
+    if (comparative is not null)
+    {
+      priorCashLines = await db.FinancialPackageCashFlowLines.AsNoTracking()
+        .Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == comparative.Id).ToListAsync(ct);
+      priorFxEffects = await db.FinancialPackageFxEffects.AsNoTracking()
+        .Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == comparative.Id).ToListAsync(ct);
+      priorEquityLines = typedAccounting is null ? [] : await typedAccounting.FinancialPackageEquityLines.AsNoTracking()
+        .Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == comparative.Id).ToListAsync(ct);
+    }
     var client = await db.PracticeClients.AsNoTracking()
       .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == package.ClientId, ct);
     if (client is null)
@@ -78,14 +97,32 @@ public static partial class FinancialStatementService
       comparative?.Id, comparative?.CalculationHash,
       FinancialStatementPresentationPolicy.BuilderVersion, FinancialStatementPresentationPolicy.DisplayPolicy);
 
+    var currentSupplementary = ToPresentationSchedules(package, currentCashLines, currentFxEffects, currentEquityLines);
+    var priorSupplementary = comparative is null
+      ? null
+      : ToPresentationSchedules(comparative, priorCashLines, priorFxEffects, priorEquityLines);
     return FinancialStatementPresentationBuilder.Build(
       layoutLines,
       currentLines.Select(x => new PresentationBalance(x.DestinationCode, x.StatementSection, x.Amount)).ToList(),
       priorLines?.Select(x => new PresentationBalance(x.DestinationCode, x.StatementSection, x.Amount)).ToList(),
       noteLines.Select(x => new PresentationNoteLine(x.NoteCode, x.FaceDestinationCode, x.Amount)).ToList(),
       header,
-      manifest);
+      manifest,
+      currentSupplementary: currentSupplementary,
+      priorSupplementary: priorSupplementary);
   }
+
+  private static PresentationSupplementarySchedules ToPresentationSchedules(
+    FinancialPackage package,
+    IReadOnlyList<FinancialPackageCashFlowLine> cashLines,
+    IReadOnlyList<FinancialPackageFxEffect> fxEffects,
+    IReadOnlyList<FinancialPackageEquityLine> equityLines) => new(
+      package.CashBeginning,
+      package.CashEnding,
+      cashLines.Select(x => new PresentationCashFlowMovement(x.Section, x.Description, x.Amount, x.IsNonCash, x.ActivityCode)).ToList(),
+      fxEffects.Select(x => new PresentationFxCashEffect(x.CurrencyPair, x.Amount)).ToList(),
+      equityLines.Select(x => new PresentationEquityMovement(x.LineCode, x.Description, x.OpeningAmount, x.ProfitOrLossAmount,
+        x.OciAmount, x.CapitalMovementAmount, x.DividendsAmount, x.ClosingAmount)).ToList());
 
   /// <summary>Renders the presentation as PDF, Word or Excel. Repeating the request yields identical bytes.</summary>
   public static async Task<CommandResult<FinancialStatementPresentationExport>> RenderPresentationAsync(

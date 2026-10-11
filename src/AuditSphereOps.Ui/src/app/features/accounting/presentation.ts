@@ -56,7 +56,7 @@ export function presentationAmount(value: string | null | undefined, decimals = 
       <button matButton="outlined" (click)="presentation.reload()">Refresh presentation</button>
       <audit-state [loading]="presentation.loading()" [error]="presentation.error()" label="the statement presentation" />
       @if (presentation.data(); as p) {
-        <p role="status">{{ p.checks.length }} checks · {{ failedCount(p.checks) }} failed · {{ p.warnings.length }} rounding note(s)</p>
+        <p role="status">{{ p.checks.length }} checks · {{ failedCount(p.checks) }} failed · {{ p.warnings.length }} readiness note(s)</p>
         <p class="actions" aria-label="Presentation exports">
           @for (format of formats; track format[0]) {
             <button matButton="outlined" (click)="download(format[0])" [disabled]="busy()">{{ format[1] }}</button>
@@ -91,7 +91,7 @@ export function presentationAmount(value: string | null | undefined, decimals = 
           </div>
         }
         @if (p.warnings.length) {
-          <h3>Rounding notes</h3>
+          <h3>Readiness and rounding notes</h3>
           <ul>@for (warning of p.warnings; track warning.detail) { <li>{{ warning.detail }}</li> }</ul>
         }
         <details>
@@ -120,12 +120,16 @@ export class StatementPresentation {
   }
 
   currentHeading(p: { header: { currentPeriodEnd: string } }, statementCode: string): string {
-    return statementCode === 'PROFIT_OR_LOSS' ? `Year ended ${longDate(p.header.currentPeriodEnd)}` : `As at ${longDate(p.header.currentPeriodEnd)}`;
+    return this.isPeriodStatement(statementCode) ? `Year ended ${longDate(p.header.currentPeriodEnd)}` : `As at ${longDate(p.header.currentPeriodEnd)}`;
   }
 
   priorHeading(p: { header: { priorPeriodEnd: string | null } }, statementCode: string): string {
     if (!p.header.priorPeriodEnd) return 'Prior period not supplied';
-    return statementCode === 'PROFIT_OR_LOSS' ? `Year ended ${longDate(p.header.priorPeriodEnd)}` : `As at ${longDate(p.header.priorPeriodEnd)}`;
+    return this.isPeriodStatement(statementCode) ? `Year ended ${longDate(p.header.priorPeriodEnd)}` : `As at ${longDate(p.header.priorPeriodEnd)}`;
+  }
+
+  private isPeriodStatement(statementCode: string): boolean {
+    return ['PROFIT_OR_LOSS', 'CASH_FLOWS', 'CHANGES_IN_EQUITY'].includes(statementCode);
   }
 
   async download(format: string): Promise<void> {

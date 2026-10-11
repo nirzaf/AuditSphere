@@ -11,13 +11,16 @@ namespace AuditSphereOps.Application.Accounting;
 /// </summary>
 public static class FinancialStatementPresentationPolicy
 {
-  public const string BuilderVersion = "auditsphere.statement-presentation.v1";
+  public const string BuilderVersion = "auditsphere.statement-presentation.v2";
   public const string DisplayPolicy = "whole units; half-even rounding of displayed amounts; negatives in brackets; zero shown as a dash";
   public const string DraftStatus = "UNAPPROVED_DRAFT";
   public const int DefaultDisplayDecimals = 0;
   public const int MaxBalanceRows = 20000;
+  public const int MaxCashFlowLinesPerPeriod = 100;
+  public const int MaxFxEffectsPerPeriod = 100;
+  public const int MaxEquityLinesPerPeriod = 35;
 
-  /// <summary>Sections this presentation renders. Equity movements, cash flows and notes are separate stories.</summary>
+  /// <summary>Sections evaluated by the published layout; supplementary schedules are rendered from persisted typed rows.</summary>
   public static readonly IReadOnlySet<string> SupportedSections = new HashSet<string>(StringComparer.Ordinal)
   {
     StatementLayoutSections.FinancialPosition, StatementLayoutSections.ProfitOrLoss, StatementLayoutSections.OtherComprehensiveIncome
@@ -41,6 +44,21 @@ public sealed record PresentationBalance(string DestinationCode, string Statemen
 
 /// <summary>A persisted note cross-cast: its amount must equal the magnitude of the face line it points to.</summary>
 public sealed record PresentationNoteLine(string NoteCode, string FaceDestinationCode, decimal Amount);
+
+public sealed record PresentationCashFlowMovement(string Section, string Description, decimal Amount, bool IsNonCash, string? ActivityCode);
+
+public sealed record PresentationFxCashEffect(string CurrencyPair, decimal Amount);
+
+public sealed record PresentationEquityMovement(
+  string LineCode, string Description, decimal OpeningAmount, decimal ProfitOrLossAmount,
+  decimal OciAmount, decimal CapitalMovementAmount, decimal DividendsAmount, decimal ClosingAmount);
+
+/// <summary>Persisted supplementary schedules. Source references remain opaque preparer text until a source-binding workflow exists.</summary>
+public sealed record PresentationSupplementarySchedules(
+  decimal? CashBeginning, decimal? CashEnding,
+  IReadOnlyList<PresentationCashFlowMovement> CashFlowLines,
+  IReadOnlyList<PresentationFxCashEffect> FxCashEffects,
+  IReadOnlyList<PresentationEquityMovement> EquityLines);
 
 public sealed record PresentationHeader(
   string Entity, string Framework, string Currency, string CurrentPeriodEnd, string? PriorPeriodEnd, string Reference);
@@ -92,7 +110,9 @@ public static class FinancialStatementPresentationBuilder
     IReadOnlyList<PresentationNoteLine> notes,
     PresentationHeader header,
     PresentationManifest manifest,
-    int displayDecimals = FinancialStatementPresentationPolicy.DefaultDisplayDecimals)
+    int displayDecimals = FinancialStatementPresentationPolicy.DefaultDisplayDecimals,
+    PresentationSupplementarySchedules? currentSupplementary = null,
+    PresentationSupplementarySchedules? priorSupplementary = null)
   {
     ArgumentNullException.ThrowIfNull(layout);
     ArgumentNullException.ThrowIfNull(current);
@@ -118,6 +138,14 @@ public static class FinancialStatementPresentationBuilder
         (prior?.Count ?? 0) > FinancialStatementPresentationPolicy.MaxBalanceRows)
     {
       Fail("BOUNDS", "The package has more balance rows than the presentation bound allows.");
+      return Refuse();
+    }
+    if (new[] { currentSupplementary, priorSupplementary }.Where(x => x is not null).Any(x =>
+        x!.CashFlowLines.Count > FinancialStatementPresentationPolicy.MaxCashFlowLinesPerPeriod ||
+        x.FxCashEffects.Count > FinancialStatementPresentationPolicy.MaxFxEffectsPerPeriod ||
+        x.EquityLines.Count > FinancialStatementPresentationPolicy.MaxEquityLinesPerPeriod))
+    {
+      Fail("SUPPLEMENTARY_BOUNDS", "The supplementary statement schedules exceed their presentation row limits; no rows were truncated.");
       return Refuse();
     }
 
@@ -325,10 +353,187 @@ public static class FinancialStatementPresentationBuilder
       Fail("STATEMENTS", "The layout presents no statement lines.");
       return Refuse();
     }
-    Pass("STATEMENTS", $"{statements.Count} statement(s) presented from the published layout.");
+    Pass("STATEMENTS", $"{statements.Count} primary statement(s) presented from the published layout.");
+
+    var readinessNotes = new List<PresentationWarning>();
+    var equityStatement = BuildEquityStatement(currentSupplementary, priorSupplementary, checks, readinessNotes, manifest.ComparativePackageId is not null);
+    var cashFlowStatement = BuildCashFlowStatement(currentSupplementary, priorSupplementary, checks, readinessNotes, manifest.ComparativePackageId is not null);
+    statements.Add(equityStatement);
+    statements.Add(cashFlowStatement);
 
     return CommandResult<FinancialStatementPresentation>.Ok(new FinancialStatementPresentation(
-      FinancialStatementPresentationPolicy.DraftStatus, header, manifest, displayDecimals, statements, checks, rounding));
+      FinancialStatementPresentationPolicy.DraftStatus, header, manifest, displayDecimals, statements, checks,
+      rounding.Concat(readinessNotes).ToList()));
+  }
+
+  private static PresentationStatement BuildEquityStatement(
+    PresentationSupplementarySchedules? current,
+    PresentationSupplementarySchedules? prior,
+    List<PresentationCheck> checks,
+    List<PresentationWarning> warnings,
+    bool comparativeBound)
+  {
+    var currentLines = current?.EquityLines ?? [];
+    var priorLines = prior?.EquityLines ?? [];
+    var currentByCode = currentLines.ToDictionary(x => Normal(x.LineCode), StringComparer.Ordinal);
+    var priorByCode = priorLines.ToDictionary(x => Normal(x.LineCode), StringComparer.Ordinal);
+    var codes = currentByCode.Keys.Concat(priorByCode.Keys).Distinct(StringComparer.Ordinal)
+      .OrderBy(x => x, StringComparer.Ordinal).ToArray();
+    var rows = new List<PresentationRow>();
+    if (codes.Length == 0)
+    {
+      rows.Add(new PresentationRow(PresentationRowKinds.Line, "EQUITY_NOT_SUPPLIED",
+        "Equity movement schedule not supplied", 0, null, null, null));
+      checks.Add(new PresentationCheck("EQUITY_SCHEDULE", false, "No equity movement schedule is available for this package."));
+    }
+    else
+    {
+      var rollforwardPassed = currentLines.Count > 0 && currentLines.All(x =>
+        MoneyPolicy.Normalize(x.OpeningAmount + x.ProfitOrLossAmount + x.OciAmount + x.CapitalMovementAmount - x.DividendsAmount) ==
+        MoneyPolicy.Normalize(x.ClosingAmount));
+      checks.Add(new PresentationCheck("EQUITY_ROLLFORWARD", rollforwardPassed,
+        rollforwardPassed ? "Each current-period equity line reconciles its opening balance and recorded movements to closing balance."
+          : "Current-period equity movements are missing or do not reconcile to closing balance."));
+      var index = 0;
+      foreach (var code in codes)
+      {
+        currentByCode.TryGetValue(code, out var c);
+        priorByCode.TryGetValue(code, out var p);
+        var description = c?.Description ?? p!.Description;
+        rows.Add(new PresentationRow(PresentationRowKinds.Heading, $"EQ_{index}_HEADING", description, 0, null, null, null));
+        Add("Opening balance", x => x.OpeningAmount);
+        Add("Profit or loss", x => x.ProfitOrLossAmount);
+        Add("Other comprehensive income", x => x.OciAmount);
+        Add("Capital movements", x => x.CapitalMovementAmount);
+        Add("Dividends and distributions", x => x.DividendsAmount);
+        Add("Closing balance", x => x.ClosingAmount, PresentationRowKinds.Total);
+        index++;
+
+        void Add(string label, Func<PresentationEquityMovement, decimal> amount, string kind = PresentationRowKinds.Line) =>
+          rows.Add(new PresentationRow(kind, $"EQ_{index}_{label.Replace(' ', '_').ToUpperInvariant()}", label, 1, null,
+            c is null ? null : amount(c), p is null ? null : amount(p)));
+      }
+      checks.Add(new PresentationCheck("EQUITY_SFP_CROSS_CAST", false,
+        "The equity schedule is not cross-cast to the statement of financial position; current-year profit transfer treatment is not yet pinned."));
+      checks.Add(new PresentationCheck("EQUITY_SOURCE_LINEAGE", false,
+        "Equity evidence references are preparer-entered text and are not resolved to accepted source records."));
+      if (comparativeBound && priorLines.Count == 0)
+        checks.Add(new PresentationCheck("EQUITY_COMPARATIVE", false, "The comparative package has no equity movement schedule; comparative amounts are shown as unavailable."));
+      warnings.Add(new PresentationWarning("EQUITY_CROSS_CAST_PENDING",
+        "Equity movements are a draft schedule; SFP cross-casting and source-record lineage remain incomplete."));
+    }
+    return new PresentationStatement("CHANGES_IN_EQUITY", "Statement of changes in equity", rows);
+  }
+
+  private static PresentationStatement BuildCashFlowStatement(
+    PresentationSupplementarySchedules? current,
+    PresentationSupplementarySchedules? prior,
+    List<PresentationCheck> checks,
+    List<PresentationWarning> warnings,
+    bool comparativeBound)
+  {
+    var currentLines = current?.CashFlowLines ?? [];
+    var priorLines = prior?.CashFlowLines ?? [];
+    static string Key(PresentationCashFlowMovement x) =>
+      $"{Normal(x.Section)}\u001f{Normal(x.ActivityCode ?? string.Empty)}\u001f{x.IsNonCash}\u001f{x.Description.Trim()}";
+    var currentByKey = currentLines.ToDictionary(Key, StringComparer.Ordinal);
+    var priorByKey = priorLines.ToDictionary(Key, StringComparer.Ordinal);
+    var rows = new List<PresentationRow>();
+    var sections = new[] { "OPERATING", "INVESTING", "FINANCING" };
+    var sectionTotals = new Dictionary<string, decimal?>(StringComparer.Ordinal);
+    var priorSectionTotals = new Dictionary<string, decimal?>(StringComparer.Ordinal);
+    var rowIndex = 0;
+    foreach (var section in sections)
+    {
+      rows.Add(new PresentationRow(PresentationRowKinds.Heading, $"CF_{section}_HEADING", TitleCase(section) + " activities", 0, null, null, null));
+      var sectionKeys = currentByKey.Keys.Concat(priorByKey.Keys).Distinct(StringComparer.Ordinal)
+        .Where(key => key.StartsWith(section + "\u001f", StringComparison.Ordinal))
+        .OrderBy(key => key, StringComparer.Ordinal).ToArray();
+      if (sectionKeys.Length == 0)
+      {
+        rows.Add(new PresentationRow(PresentationRowKinds.Line, $"CF_{section}_NOT_SUPPLIED",
+          $"{TitleCase(section)} movements not supplied", 1, null, null, null));
+        sectionTotals[section] = null;
+        priorSectionTotals[section] = null;
+      }
+      else
+      {
+        foreach (var key in sectionKeys)
+        {
+          currentByKey.TryGetValue(key, out var c);
+          priorByKey.TryGetValue(key, out var p);
+          var line = c ?? p!;
+          var label = line.IsNonCash ? $"Noncash transaction — {line.Description}" : line.Description;
+          rows.Add(new PresentationRow(PresentationRowKinds.Line, $"CF_{rowIndex++}", label, 1, null,
+            c?.Amount, p?.Amount));
+        }
+        var currentSectionLines = currentLines.Where(x => Normal(x.Section) == section && !x.IsNonCash).ToArray();
+        var priorSectionLines = priorLines.Where(x => Normal(x.Section) == section && !x.IsNonCash).ToArray();
+        sectionTotals[section] = currentSectionLines.Length == 0 ? null : MoneyPolicy.Normalize(currentSectionLines.Sum(x => x.Amount));
+        priorSectionTotals[section] = priorSectionLines.Length == 0 ? null : MoneyPolicy.Normalize(priorSectionLines.Sum(x => x.Amount));
+        rows.Add(new PresentationRow(PresentationRowKinds.Subtotal, $"CF_{section}_TOTAL", $"Net {TitleCase(section).ToLowerInvariant()} cash flows", 0,
+          null, sectionTotals[section], priorSectionTotals[section]));
+      }
+    }
+
+    var currentFx = current?.FxCashEffects ?? [];
+    var priorFx = prior?.FxCashEffects ?? [];
+    var fxKeys = currentFx.Select(x => Normal(x.CurrencyPair)).Concat(priorFx.Select(x => Normal(x.CurrencyPair)))
+      .Distinct(StringComparer.Ordinal).OrderBy(x => x, StringComparer.Ordinal).ToArray();
+    rows.Add(new PresentationRow(PresentationRowKinds.Heading, "CF_FX_HEADING", "Foreign exchange effect on cash", 0, null, null, null));
+    if (fxKeys.Length == 0)
+    {
+      rows.Add(new PresentationRow(PresentationRowKinds.Line, "CF_FX_NOT_SUPPLIED", "Foreign exchange effect not supplied", 1, null, null, null));
+    }
+    else
+    {
+      foreach (var key in fxKeys)
+      {
+        var c = currentFx.Where(x => Normal(x.CurrencyPair) == key).ToArray();
+        var p = priorFx.Where(x => Normal(x.CurrencyPair) == key).ToArray();
+        rows.Add(new PresentationRow(PresentationRowKinds.Line, $"CF_FX_{rowIndex++}", key, 1, null,
+          c.Length == 0 ? null : MoneyPolicy.Normalize(c.Sum(x => x.Amount)),
+          p.Length == 0 ? null : MoneyPolicy.Normalize(p.Sum(x => x.Amount))));
+      }
+      rows.Add(new PresentationRow(PresentationRowKinds.Subtotal, "CF_FX_TOTAL", "Total foreign exchange effect on cash", 0, null,
+        currentFx.Count == 0 ? null : MoneyPolicy.Normalize(currentFx.Sum(x => x.Amount)),
+        priorFx.Count == 0 ? null : MoneyPolicy.Normalize(priorFx.Sum(x => x.Amount))));
+    }
+
+    var currentComplete = sections.All(x => sectionTotals[x] is not null) && currentFx.Count > 0;
+    var priorComplete = sections.All(x => priorSectionTotals[x] is not null) && priorFx.Count > 0;
+    var currentNetChange = currentComplete
+      ? MoneyPolicy.Normalize(sectionTotals.Values.Sum(x => x!.Value) + currentFx.Sum(x => x.Amount)) : (decimal?)null;
+    var priorNetChange = priorComplete
+      ? MoneyPolicy.Normalize(priorSectionTotals.Values.Sum(x => x!.Value) + priorFx.Sum(x => x.Amount)) : (decimal?)null;
+    var beginning = new PresentationRow(PresentationRowKinds.Line, "CF_BEGINNING_CASH", "Cash and cash equivalents at beginning of period", 0, null,
+      current?.CashBeginning, prior?.CashBeginning);
+    var net = new PresentationRow(PresentationRowKinds.Subtotal, "CF_NET_CHANGE", "Net increase / (decrease) in cash", 0, null,
+      currentNetChange, priorNetChange);
+    var ending = new PresentationRow(PresentationRowKinds.Total, "CF_ENDING_CASH", "Cash and cash equivalents at end of period", 0, null,
+      current?.CashEnding, prior?.CashEnding);
+    rows.Add(beginning);
+    rows.Add(net);
+    rows.Add(ending);
+    var bridgePassed = current?.CashBeginning is { } open && current.CashEnding is { } close && currentComplete && currentNetChange is { } movement &&
+      MoneyPolicy.Normalize(open + movement) == MoneyPolicy.Normalize(close);
+    checks.Add(new PresentationCheck("CASH_FLOW_BRIDGE", bridgePassed,
+      bridgePassed ? "Supplied operating, investing, financing and FX amounts reconcile opening to closing cash."
+        : "The cash-flow bridge is incomplete or does not reconcile; missing sections and FX effects are not assumed to be zero."));
+    if (currentLines.Count > 0 || priorLines.Count > 0)
+    {
+      checks.Add(new PresentationCheck("CASH_FLOW_SOURCE_LINEAGE", false,
+        "Movement references are preparer-entered text and are not resolved to accepted source records."));
+      warnings.Add(new PresentationWarning("CASH_FLOW_LINEAGE_PENDING",
+        "Cash-flow movements are a draft schedule; evidence references and classifications are not source-verified."));
+    }
+    if (comparativeBound && priorLines.Count == 0)
+      checks.Add(new PresentationCheck("CASH_FLOW_COMPARATIVE", false, "The comparative package has no cash-flow schedule; comparative amounts are shown as unavailable."));
+    if (currentLines.Count == 0)
+      checks.Add(new PresentationCheck("CASH_FLOW_SCHEDULE", false, "No cash-flow movement schedule is available for this package."));
+    return new PresentationStatement("CASH_FLOWS", "Statement of cash flows", rows);
+
+    static string TitleCase(string value) => value[..1] + value[1..].ToLowerInvariant();
   }
 
   private static Dictionary<string, (string Section, decimal Amount)> Aggregate(

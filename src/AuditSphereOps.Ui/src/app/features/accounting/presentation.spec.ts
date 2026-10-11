@@ -16,11 +16,18 @@ const payload = {
   header: { entity: 'SYNTHETIC CLIENT', framework: 'IFRS', currency: 'QAR', currentPeriodEnd: '2025-12-31', priorPeriodEnd: '2024-12-31', reference: 'FSP-SYN' },
   manifest: {
     packageId: id, calculationHash: hash64, layoutVersionId: id, layoutHash: hash64,
-    comparativePackageId: null, comparativeCalculationHash: null, builderVersion: 'auditsphere.statement-presentation.v1', displayPolicy: 'whole units',
+    comparativePackageId: null, comparativeCalculationHash: null, builderVersion: 'auditsphere.statement-presentation.v2', displayPolicy: 'whole units',
   },
-  statements: [{ code: 'FINANCIAL_POSITION', title: 'Statement of financial position', rows: [row(), row({ kind: 'HEADING', code: 'H', label: 'Assets', noteReference: null, current: null, prior: null })] }],
-  checks: [{ code: 'TB_BALANCED', passed: true, detail: 'The current balances net to zero.' }],
-  warnings: [],
+  statements: [
+    { code: 'FINANCIAL_POSITION', title: 'Statement of financial position', rows: [row(), row({ kind: 'HEADING', code: 'H', label: 'Assets', noteReference: null, current: null, prior: null })] },
+    { code: 'CHANGES_IN_EQUITY', title: 'Statement of changes in equity', rows: [row({ code: 'EQ1', label: 'Closing balance', noteReference: null, current: null, prior: null })] },
+    { code: 'CASH_FLOWS', title: 'Statement of cash flows', rows: [row({ code: 'CF1', label: 'Net change in cash', noteReference: null, current: null, prior: null })] },
+  ],
+  checks: [
+    { code: 'TB_BALANCED', passed: true, detail: 'The current balances net to zero.' },
+    { code: 'CASH_FLOW_SOURCE_LINEAGE', passed: false, detail: 'Movement references are not source-resolved.' },
+  ],
+  warnings: [{ code: 'CASH_FLOW_LINEAGE_PENDING', detail: 'Cash-flow evidence is not source-verified.' }],
 };
 
 describe('Statement presentation contract', () => {
@@ -65,7 +72,11 @@ describe('Statement presentation screen', () => {
     expect(host.textContent).toContain('Unapproved presentation draft');
     expect(host.textContent).toContain('1,090,993');
     expect(host.textContent).toContain('As at 31 December 2025');
-    expect(host.textContent).toContain('1 checks · 0 failed');
+    expect(host.textContent).toContain('Statement of changes in equity');
+    expect(host.textContent).toContain('Statement of cash flows');
+    expect(host.textContent).toContain('Year ended 31 December 2025');
+    expect(host.textContent).toContain('2 checks · 1 failed');
+    expect(host.textContent).toContain('Readiness and rounding notes');
     expect(host.querySelector('tr.heading')).not.toBeNull();
     fixture.componentInstance.download('xlsx');
     const exported = http.expectOne(`/api/ui/accounting/packages/${id}/presentation/export`);

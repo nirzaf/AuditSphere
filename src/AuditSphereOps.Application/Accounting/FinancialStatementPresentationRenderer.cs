@@ -61,17 +61,20 @@ public static class FinancialStatementPresentationRenderer
     DateOnly.ParseExact(isoDate, "yyyy-MM-dd", CultureInfo.InvariantCulture).ToString("d MMMM yyyy", CultureInfo.InvariantCulture);
 
   internal static string CurrentColumn(FinancialStatementPresentation p, string statementCode) =>
-    statementCode == "PROFIT_OR_LOSS"
+    IsPeriodStatement(statementCode)
       ? $"Year ended {LongDate(p.Header.CurrentPeriodEnd)}"
       : $"As at {LongDate(p.Header.CurrentPeriodEnd)}";
 
   internal static string PriorColumn(FinancialStatementPresentation p, string statementCode)
   {
     if (p.Header.PriorPeriodEnd is null) return "Prior period not supplied";
-    return statementCode == "PROFIT_OR_LOSS"
+    return IsPeriodStatement(statementCode)
       ? $"Year ended {LongDate(p.Header.PriorPeriodEnd)}"
       : $"As at {LongDate(p.Header.PriorPeriodEnd)}";
   }
+
+  private static bool IsPeriodStatement(string statementCode) =>
+    statementCode is "PROFIT_OR_LOSS" or "CASH_FLOWS" or "CHANGES_IN_EQUITY";
 
   /// <summary>Allocates the printable page width to the label, note and two amount columns.</summary>
   internal static IReadOnlyList<double> PdfColumnWidthsInPoints(
@@ -104,7 +107,7 @@ public static class FinancialStatementPresentationRenderer
       $"Presentation: {m.BuilderVersion} · {m.DisplayPolicy}",
       $"Framework: {p.Header.Framework} · currency {p.Header.Currency} · reference {p.Header.Reference}"
     };
-    lines.AddRange(p.Warnings.Select(x => $"Rounding note: {x.Detail}"));
+    lines.AddRange(p.Warnings.Select(x => $"{(x.Code == "DISPLAY_ROUNDING" ? "Rounding note" : "Readiness note")}: {x.Detail}"));
     return lines;
   }
 

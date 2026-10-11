@@ -122,8 +122,13 @@ public sealed class FinancialStatementPresentationTests
     var p = result.Value!;
 
     Assert.Equal(FinancialStatementPresentationPolicy.DraftStatus, p.Status);
-    Assert.Equal(new[] { "FINANCIAL_POSITION", "PROFIT_OR_LOSS" }, p.Statements.Select(x => x.Code));
-    Assert.All(p.Checks, check => Assert.True(check.Passed, $"{check.Code}: {check.Detail}"));
+    Assert.Equal(new[] { "FINANCIAL_POSITION", "PROFIT_OR_LOSS", "CHANGES_IN_EQUITY", "CASH_FLOWS" }, p.Statements.Select(x => x.Code));
+    Assert.All(p.Checks.Where(x => x.Code is not ("EQUITY_SCHEDULE" or "CASH_FLOW_BRIDGE" or "CASH_FLOW_SCHEDULE" or "CASH_FLOW_COMPARATIVE")),
+      check => Assert.True(check.Passed, $"{check.Code}: {check.Detail}"));
+    Assert.Contains(p.Checks, x => x.Code == "EQUITY_SCHEDULE" && !x.Passed);
+    Assert.Contains(p.Checks, x => x.Code == "CASH_FLOW_BRIDGE" && !x.Passed);
+    Assert.Contains(p.Checks, x => x.Code == "CASH_FLOW_SCHEDULE" && !x.Passed);
+    Assert.Contains(p.Checks, x => x.Code == "CASH_FLOW_COMPARATIVE" && !x.Passed);
 
     // Reference-shaped totals (synthetic fixture built to match the reference assertions).
     Assert.Equal((6172821m, 3196351m), (Amount(Row(p, "TA").Current), Amount(Row(p, "TA").Prior)));
@@ -146,6 +151,51 @@ public sealed class FinancialStatementPresentationTests
     Assert.Equal("9", Row(p, "PAY").NoteReference);
     Assert.Equal("10", Row(p, "GA").NoteReference);
     Assert.Null(Row(p, "REV").NoteReference);
+  }
+
+  [Fact]
+  public void SupplementaryStatements_ShowPersistedSchedules_ExcludeNoncashFromBridge_AndExposeUnverifiedGates()
+  {
+    var schedules = new PresentationSupplementarySchedules(
+      58372m, 1090993m,
+      [
+        new("OPERATING", "Operating receipts and payments", 1200000m, false, "OPERATING_NET"),
+        new("INVESTING", "Equipment purchases", -200000m, false, "PPE_PURCHASE"),
+        new("INVESTING", "Lease asset recognised", -50000m, true, "NONCASH_LEASE"),
+        new("FINANCING", "New borrowing", 32621m, false, "BORROWING")
+      ],
+      [new("USD/QAR", 0m)],
+      [new("RETAINED_EARNINGS", "Retained earnings", 100m, 100m, 0m, 0m, 0m, 200m)]);
+
+    var result = FinancialStatementPresentationBuilder.Build(Layout(), Current(), Prior(), Notes(), Header(withPrior: true), Manifest(withPrior: true),
+      currentSupplementary: schedules, priorSupplementary: null);
+    Assert.True(result.Succeeded, result.Message);
+    var presentation = result.Value!;
+
+    Assert.Equal(1032621m, Amount(Row(presentation, "CF_NET_CHANGE").Current));
+    Assert.Equal(58372m, Amount(Row(presentation, "CF_BEGINNING_CASH").Current));
+    Assert.Equal(1090993m, Amount(Row(presentation, "CF_ENDING_CASH").Current));
+    Assert.Null(Row(presentation, "CF_NET_CHANGE").Prior);
+    Assert.Contains(presentation.Statements.Single(x => x.Code == "CASH_FLOWS").Rows,
+      x => x.Label.Contains("Noncash transaction", StringComparison.Ordinal) && x.Current == -50000m);
+    Assert.Contains(presentation.Checks, x => x.Code == "CASH_FLOW_BRIDGE" && x.Passed);
+    Assert.Contains(presentation.Checks, x => x.Code == "CASH_FLOW_SOURCE_LINEAGE" && !x.Passed);
+    Assert.Contains(presentation.Checks, x => x.Code == "EQUITY_ROLLFORWARD" && x.Passed);
+    Assert.Contains(presentation.Checks, x => x.Code == "EQUITY_SFP_CROSS_CAST" && !x.Passed);
+    Assert.Contains(presentation.Checks, x => x.Code == "CASH_FLOW_COMPARATIVE" && !x.Passed);
+    Assert.Contains(presentation.Checks, x => x.Code == "EQUITY_COMPARATIVE" && !x.Passed);
+    Assert.Contains(presentation.Warnings, x => x.Code == "CASH_FLOW_LINEAGE_PENDING");
+    Assert.Contains(presentation.Warnings, x => x.Code == "EQUITY_CROSS_CAST_PENDING");
+
+    var word = FinancialStatementPresentationRenderer.Render(presentation, FinancialStatementPresentationRenderer.WordFormat);
+    using var wordStream = new MemoryStream(word);
+    using var wordDocument = WordprocessingDocument.Open(wordStream, false);
+    var content = wordDocument.MainDocumentPart!.Document!.Body!.InnerText;
+    Assert.Contains("Statement of changes in equity", content, StringComparison.Ordinal);
+    Assert.Contains("Statement of cash flows", content, StringComparison.Ordinal);
+    Assert.Contains("Noncash transaction", content, StringComparison.Ordinal);
+    Assert.Contains("SFP cross-casting", content, StringComparison.Ordinal);
+    Assert.Contains("Not available", content, StringComparison.Ordinal);
   }
 
   [Fact]
@@ -268,7 +318,7 @@ public sealed class FinancialStatementPresentationTests
     using var document = WordprocessingDocument.Open(stream, false);
     var body = document.MainDocumentPart!.Document!.Body!;
     var tables = body.Descendants<W.Table>().ToList();
-    Assert.Equal(2, tables.Count);
+    Assert.Equal(4, tables.Count);
     Assert.NotNull(tables[0].Descendants<W.TableHeader>().FirstOrDefault());
     var text = body.InnerText;
     Assert.Contains("6,172,821", text, StringComparison.Ordinal);
@@ -286,7 +336,7 @@ public sealed class FinancialStatementPresentationTests
     using var document = SpreadsheetDocument.Open(stream, false);
     var workbookPart = document.WorkbookPart!;
     var sheetNames = workbookPart.Workbook!.Descendants<S.Sheet>().Select(x => x.Name!.Value!).ToList();
-    Assert.Equal(3, sheetNames.Count);
+    Assert.Equal(5, sheetNames.Count);
     Assert.All(sheetNames, name => Assert.True(name!.Length <= 31));
 
     var worksheets = workbookPart.WorksheetParts.Select(x => x.Worksheet!).ToList();
