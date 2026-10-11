@@ -1,15 +1,15 @@
 {
   "schemaVersion": 1,
-  "generatedAtUtc": "2026-10-10T17:53:04Z",
+  "generatedAtUtc": "2026-10-11T00:37:16Z",
   "generatedBy": "scripts/acceptance/generate-ste-manifest.py",
   "repository": {
-    "commit": "d3e69ebcdd14094df497e6158ffe393fe5d157d7",
+    "commit": "ebcfab0df0828c443f7df622466b4129d772fba1",
     "branch": "master",
     "workingTreeClean": true
   },
   "migrations": {
-    "head": "20261010131335_PracticeTimeFsliAttribution",
-    "count": 188
+    "head": "20261010203413_ReportCertificateSignatureEvidence",
+    "count": 191
   },
   "specification": {
     "title": "STE Audit Management Tool — Functional Requirements & End-to-End System Workflow Specification",
@@ -137,7 +137,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/PracticeCrmTests.cs#LeadCreation_ReconcilesExactRetry_AndRejectsRequestIdentityReuse",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -148,7 +148,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/PracticeCrmTests.cs#CommercialWorkflow_ConvertsIdempotently_AndLeavesAcceptancePending",
           "tests/AuditSphereOps.Domain.Tests/ClientRelationshipsAndRoutingTests.cs#CorrespondenceRouting_ResolvesPurposeSpecificContacts_AndRecordsImmutableDispatch",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -158,7 +158,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#OneClickDocuments_AreBrandedImmutableAndBoundToTheApprovedQuotation",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -169,8 +169,8 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/PracticeCrmTests.cs#ProposalDispatch_BindsExactOffer_AndAcceptanceMustCiteIt",
           "tests/AuditSphereOps.E2E.Tests/AngularProposalWorkflowJourneyTests.cs#ProposalDispatchMovesEngagementLifecycleFromProposalGenerationToDualKeyPending",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)",
-          "docs/execution/status.json#testSuites.runs.e2e (234 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)",
+          "docs/execution/status.json#testSuites.runs.e2e (236 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -180,7 +180,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AcceptanceChecklistTests.cs#NewClient_MustAnswerEveryOnboardingQuestionWithEvidence_AndAnAdverseAnswerIsNeverAcceptedByFillingFields",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -191,7 +191,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AcceptanceDecisionTests.cs#AcceptedDecision_IsImmutableAndCreatesOneWaitingWorkspace",
           "tests/AuditSphereOps.Domain.Tests/AcceptanceDecisionTests.cs#AcceptanceRequiresCurrentEvaluationAndPartnerScope",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -202,8 +202,8 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#OneClickDocuments_AreBrandedImmutableAndBoundToTheApprovedQuotation",
           "tests/AuditSphereOps.E2E.Tests/AngularSteCommercialAcceptanceJourneyTests.cs#PartnerGeneratesTheRouteBoundLetterAndReviewsAdvancePreparation",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)",
-          "docs/execution/status.json#testSuites.runs.e2e (234 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)",
+          "docs/execution/status.json#testSuites.runs.e2e (236 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -214,8 +214,8 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach",
           "tests/AuditSphereOps.E2E.Tests/AngularSteCommercialAcceptanceJourneyTests.cs#PartnerGeneratesTheRouteBoundLetterAndReviewsAdvancePreparation",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)",
-          "docs/execution/status.json#testSuites.runs.e2e (234 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)",
+          "docs/execution/status.json#testSuites.runs.e2e (236 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -225,7 +225,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -236,8 +236,8 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach",
           "tests/AuditSphereOps.Api.Tests/BillingWorkspaceApiTests.cs#InvoiceWorkspaceRecordsAllocatesAndCreditsWithCurrentAuthorizationAndAntiforgery",
-          "docs/execution/status.json#testSuites.runs.api (223 passed, 0 failed, bc66c38b)",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.api (223 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)",
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -247,7 +247,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -278,7 +278,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#ResourceGrid_ShowsCapacityUnavailabilityAndOverAllocation_AndBudgetsReconcileByPhaseAndRiskArea",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -288,7 +288,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Api.Tests/TrialBalanceUploadApiTests.cs#EngagementScopedPreview_AllPeriodValidation_Csrf_AndExactReceipts",
-          "docs/execution/status.json#testSuites.runs.api (223 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.api (223 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -298,7 +298,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Api.Tests/MappingApprovalApiTests.cs#FreshIndependentReviewSerializesConcurrentApprovalAndPreservesAllocations",
-          "docs/execution/status.json#testSuites.runs.api (223 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.api (223 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -308,7 +308,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#Materiality_IsCalculatedFromTheMappedTrialBalance_AndGoesStaleWhenTheSourceIsReplaced",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -321,8 +321,8 @@
           "tests/AuditSphereOps.Domain.Tests/MaterialityPracticalRoundingTests.cs#BoundaryAdjustmentsOfExactlyFivePercentAreAccepted",
           "tests/AuditSphereOps.Domain.Tests/MaterialityPracticalRoundingTests.cs#AdjustmentsJustBeyondFivePercentAreRejected",
           "tests/AuditSphereOps.E2E.Tests/PlanningAndResourcesJourneyTests.cs#PartnerStaffsCalculatesMaterialityReviewsRedRiskAndSeesTheGrid",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)",
-          "docs/execution/status.json#testSuites.runs.e2e (234 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)",
+          "docs/execution/status.json#testSuites.runs.e2e (236 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -332,7 +332,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#Materiality_IsCalculatedFromTheMappedTrialBalance_AndGoesStaleWhenTheSourceIsReplaced",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -344,8 +344,8 @@
           "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#Staffing_MapsFourLevelsToEngagementRoles_AndRiskBandsRouteOwnersAndPartnerReview",
           "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#AuditProcedure_ExecutionAndReviewStaffingRanks_EnforcesRiskBandRules",
           "tests/AuditSphereOps.E2E.Tests/PlanningAndResourcesJourneyTests.cs#PartnerStaffsCalculatesMaterialityReviewsRedRiskAndSeesTheGrid",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)",
-          "docs/execution/status.json#testSuites.runs.e2e (234 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)",
+          "docs/execution/status.json#testSuites.runs.e2e (236 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -356,7 +356,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#AuditProcedure_ExecutionAndReviewStaffingRanks_EnforcesRiskBandRules",
           "tests/AuditSphereOps.Domain.Tests/AuditAreaSummaryTests.cs#AreaSummary_ReportsCoveragePerArea",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -366,7 +366,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#FieldworkOnSeparateFslisRunsInParallelForDifferentStaffWithoutInterference",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -377,7 +377,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/FieldworkConnectionsTests.cs#Statements_DrillIntoProcedures_AndSamplingPhysicalAndAdHocStepsConnect",
           "tests/AuditSphereOps.Domain.Tests/FieldworkConnectionsTests.cs#ClientEvidence_LinksOnlyTheExactCurrentReceivedVersionOfThisEngagement",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -387,7 +387,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/FieldworkConnectionsTests.cs#Statements_DrillIntoProcedures_AndSamplingPhysicalAndAdHocStepsConnect",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -397,7 +397,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Api.Tests/AnalyticalPreparationApiTests.cs#ReviewedAnalyticalPreparationIsScopedIdempotentAndKeepsIndependentReviewWritable",
-          "docs/execution/status.json#testSuites.runs.api (223 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.api (223 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -407,7 +407,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditCompletionTests.cs#CompletionRecords_DeriveConclusionsAndBlockUnresolved",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -417,7 +417,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditPlanningTests.cs#Workpaper_CreateAndSubmit_RevisionConflict",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -427,7 +427,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#InlineNotesBlockApproval_AndOnlySomeoneStaffedAboveThePreparerReviews",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -437,7 +437,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#LateAndReopenedNotesBlockClearanceUntilRespondedResolvedAndReviewed",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -447,7 +447,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#LateAndReopenedNotesBlockClearanceUntilRespondedResolvedAndReviewed",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -457,7 +457,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmPresentsCurrencyAwareDifferences_AndDocumentsDoNotAssertAutomaticImmateriality",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -467,7 +467,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -477,7 +477,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#CriticalUnreturnedConfirmationKeepsBlockingAfterAlternativeClosureAndCriticalityReassessment",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -487,7 +487,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -497,7 +497,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -507,7 +507,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -517,7 +517,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.ManagementLetter.cs#ManagementLetterRendersOnlyDesignatedCompleteMatters_AndStalesOnTheirChange",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -527,7 +527,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs#SignedRepresentation_IsVersionBound_Idempotent_Immutable_AndScoped",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -537,7 +537,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs#FivePartBundle_RequiresReviewedReleaseAndPostedBalance_IsIdempotent_AndClientScoped",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -547,7 +547,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs#FivePartBundle_RequiresReviewedReleaseAndPostedBalance_IsIdempotent_AndClientScoped",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -557,7 +557,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -568,7 +568,7 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/ClientPortalOnboardingTests.cs#RequireUploadWindow_AllowsUploadsDuringInternalFinancialPackageRelease_AndFreezesOnFinalBundle",
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs#FivePartBundle_RequiresReviewedReleaseAndPostedBalance_IsIdempotent_AndClientScoped",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -578,7 +578,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#FileFreezesSixtyDaysAfterSigning_RefusesWrites_AmendsWithApproval_AndTracesActivity",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -589,8 +589,8 @@
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.EarlyLock.cs#PartnerEarlyLock_FailsClosedThenFreezesOnlyTheReviewedReadiness",
           "tests/AuditSphereOps.E2E.Tests/AngularCompletionFileRecordsJourneyTests.cs#PartnerReviewsReadinessLocksScheduledFileAndLifecycleKeepsProviderStateSeparate",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)",
-          "docs/execution/status.json#testSuites.runs.e2e (234 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)",
+          "docs/execution/status.json#testSuites.runs.e2e (236 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -600,7 +600,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#FrozenFileRefusesReviewNoteAttemptsAndRecordsTheRefusedWrite",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -617,7 +617,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.E2E.Tests/AngularArchiveCompletenessJourneyTests.cs#RecordsCustodianDownloadsReviewedManifestAndStructuredExportWithExternalBoundary",
-          "docs/execution/status.json#testSuites.runs.e2e (234 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.e2e (236 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       }
     ],
@@ -629,7 +629,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs#OneClickDocuments_AreBrandedImmutableAndBoundToTheApprovedQuotation",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -639,7 +639,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.E2E.Tests/AngularSteCommercialAcceptanceJourneyTests.cs#PartnerRiskClearanceWithoutClientCommercialAcceptanceKeepsLetterBlocked",
-          "docs/execution/status.json#testSuites.runs.e2e (234 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.e2e (236 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -649,7 +649,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/EngagementActivationAdvanceGateTests.cs#LinkedAgreementMustHavePaidAdvanceBeforeActivation",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -659,7 +659,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/ClientPortalOnboardingTests.cs#Uploads_AreWithheld_UntilTheFirstSignInRequirementForEachIdentityPathIsMet",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -669,7 +669,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#Materiality_IsCalculatedFromTheMappedTrialBalance_AndGoesStaleWhenTheSourceIsReplaced",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -679,7 +679,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/MaterialityPracticalRoundingTests.cs#AdjustmentsJustBeyondFivePercentAreRejected",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -689,7 +689,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs#AuditProcedure_ExecutionAndReviewStaffingRanks_EnforcesRiskBandRules",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -699,7 +699,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#InlineNotesBlockApproval_AndOnlySomeoneStaffedAboveThePreparerReviews",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -709,7 +709,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#CriticalUnreturnedConfirmationKeepsBlockingAfterAlternativeClosureAndCriticalityReassessment",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -719,7 +719,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs#SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -729,7 +729,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs#FivePartBundle_RequiresReviewedReleaseAndPostedBalance_IsIdempotent_AndClientScoped",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -739,7 +739,7 @@
         "blockedBy": null,
         "evidence": [
           "tests/AuditSphereOps.Domain.Tests/EngagementLifecycleQueryTests.cs#EngagementTraversesCanonicalStagesAndEnforcesScope",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       },
       {
@@ -759,7 +759,7 @@
           "tests/AuditSphereOps.Domain.Tests/WorkspaceQueryTests.cs#EngagementGrantCannotReadClientOrSibling_AndRevocationClearsAccess",
           "tests/AuditSphereOps.Domain.Tests/AuditConfirmationCommandIsolationTests.cs#SiblingClientIds_AreDeniedAcrossConfirmationLifecycle",
           "tests/AuditSphereOps.Domain.Tests/BillingCommandScopeIsolationTests.cs#ClientScopedFinanceCommandsCannotReadOrMutateSiblingClientBillingRecords",
-          "docs/execution/status.json#testSuites.runs.domain (808 passed, 0 failed, bc66c38b)"
+          "docs/execution/status.json#testSuites.runs.domain (825 passed, 0 failed, c9bea82ae52ee9e4867ad26d2c4059991e19dade)"
         ]
       }
     ]
