@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "1f783baf651e0cb09a28957237d9b438313c6c09",
+  "headCommit": "74a21cf7961b39a9fdfc4684848639b0da11d1b5",
   "verifiedCommit": "c9bea82ae52ee9e4867ad26d2c4059991e19dade",
   "remoteHeadVerified": false,
   "verifiedCommitWasRemoteHead": false,
@@ -123,7 +123,76 @@
         "result": "served app and displayed unauthenticated sign-in gate; API was unavailable, so no authenticated workflow was assessed"
       }
     ],
-    "fullE2eSuiteOnThisSource": "PASS: 234/234 at bc66c38b6a03010a7d1e468da3537481af81339c; full solution total 1265/1265 in testSuites.runs.e2e, api, and domain."
+    "fullE2eSuiteOnThisSource": "PASS: 234/234 at bc66c38b6a03010a7d1e468da3537481af81339c; full solution total 1265/1265 in testSuites.runs.e2e, api, and domain.",
+    "clientSitesDefaultRollout": {
+      "sourceCommit": "74a21cf7961b39a9fdfc4684848639b0da11d1b5",
+      "recordedAtUtc": "2026-10-11T21:00:44Z",
+      "database": "auditsphere_tests on 127.0.0.1:5433",
+      "migrationHead": "20261011201129_ClientSiteWorkerHeartbeats",
+      "fullDomainApiE2eSuitesOnThisSource": "NOT_RUN",
+      "runs": [
+        {
+          "name": "Workspace provisioning API tests",
+          "command": "dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-build --no-restore --configuration Release --maxcpucount:1 --filter FullyQualifiedName~WorkspaceProvisioningApiTests",
+          "passed": 4,
+          "failed": 0
+        },
+        {
+          "name": "Client site rollout Domain tests",
+          "classes": [
+            "ClientSharePointSitesTests",
+            "SharePointClientSiteProviderTests",
+            "EngagementWorkspaceProvisioningTests"
+          ],
+          "passed": 36,
+          "failed": 0
+        },
+        {
+          "name": "Client site administration Playwright journey",
+          "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-build --no-restore --configuration Release --maxcpucount:1 --filter FullyQualifiedName~ClientSharePointSitesJourneyTests",
+          "passed": 1,
+          "failed": 0,
+          "browser": "Playwright Chromium against the synthetic PostgreSQL test database"
+        },
+        {
+          "name": "Angular CI specs",
+          "command": "npm --prefix src/AuditSphereOps.Ui run test:ci",
+          "specFiles": 115,
+          "passed": 634,
+          "failed": 0
+        },
+        {
+          "name": "Angular production build",
+          "command": "env NG_BUILD_CACHE_STORE=sqlite NG_BUILD_MAX_WORKERS=2 npm --prefix src/AuditSphereOps.Ui run build -- --progress=false",
+          "result": "PASS_WITH_WARNING",
+          "warning": "Existing src/app/features/commercial/settings.scss component stylesheet exceeds the 4 KB budget by 3.53 KB."
+        },
+        {
+          "name": "EF model drift",
+          "command": "dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Api --no-build --configuration Release",
+          "result": "PASS: no pending model changes"
+        },
+        {
+          "name": "OpenAPI drift",
+          "command": "bash scripts/contracts/verify-openapi.sh",
+          "result": "PASS: contract is current"
+        },
+        {
+          "name": "Documentation and source inventory gates",
+          "result": "PASS",
+          "markdownFiles": 198,
+          "relativeLinks": 2665,
+          "filenamePolicy": "PASS",
+          "narrativeMetrics": "PASS",
+          "angularSourceInventory": "PASS"
+        },
+        {
+          "name": "Built-in browser smoke check",
+          "result": "Local Angular app displayed its unauthenticated sign-in gate; the local API was unavailable. Authenticated administration journey was verified by the Playwright test above."
+        }
+      ],
+      "externalAcceptance": "NOT_VERIFIED: no live Microsoft provisioning or membership reconciliation; no production database migration; code was not deployed to the VPS."
+    }
   },
   "externalGates": [
     {
