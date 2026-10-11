@@ -434,6 +434,23 @@ This supersedes the earlier disabled-state observations; full mutation workflows
 The selected SharePoint target still requires exact-app grant investigation. No permission was
 changed through its site-admin panel, and no further duplicate provider probe was run.
 
+## Isolated worker credential mounts
+
+The live mail profile mounts only the outbound-mail certificate directory through
+`m365_mail_credentials`; it cannot read Directory Reader, User Creation, invitation, group or
+Selected Site keys. The optional PBC profile mounts only its Selected Site certificate directory
+through `m365_selected_site_credentials`. Both mounts are read-only. The API retains the parent
+credential mount because it composes the individually configured capability providers.
+
+Before starting the mail profile, inspect current-firm pending durable mail operations and queued
+commercial/PBC notifications, including whether any queued recipient is outside the approved test
+scope. Refuse activation when an unreviewed send is pending. Validate both optional profiles with
+`docker compose --profile m365-mail --profile m365-pbc config -q`, then start only the reviewed
+mail service with `docker compose --profile m365-mail up -d --no-deps worker-mail`.
+Check the worker is running without restart or failure, can read its own key, and cannot see
+sibling credential directories. Preserve the existing API and other worker containers. A running
+idle worker proves deployment readiness, not an unexecuted business-mail workflow.
+
 ## Operational boundaries
 
 - PostgreSQL is not published on a host port. The API is published only on host loopback port
