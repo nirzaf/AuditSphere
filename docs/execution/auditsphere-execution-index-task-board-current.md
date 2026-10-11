@@ -112,7 +112,7 @@ Card status in the front matter: 2 COMPLETED, 0 IN_REVIEW, 71 NOT_STARTED of 75 
 | STE-NXT-008 | STE-NXT | Verify the two unchecked requirement rows | done for the evidence, not for the link | NOT_AUDITED | — | — | Audit against the codebase before building |
 | STE-NXT-009 | STE-NXT | Decide how end-of-service benefits are recorded | COMPLETED | NOT_AUDITED | — | — | None; completed |
 | STE-NXT-010 | STE-NXT | Decide whether PBT normalization is in scope | COMPLETED | NOT_AUDITED | — | — | None; completed |
-| STE-NXT-011 | STE-NXT | Decide whether to add an independent read-only archive copy (SPK-01 option 2) | COMPLETED | NOT_AUDITED | — | — | None; completed |
+| STE-NXT-011 | STE-NXT | Decide whether to add an independent read-only archive copy (SPK-01 option 2) | DESIGN DECIDED; IMPLEMENTATION OPEN | NOT_AUDITED | — | — | Audit against the codebase before building |
 | STE-NXT-012 | STE-NXT | Show the local, provider and lifecycle archive states separately | — | NOT_AUDITED | — | — | Audit against the codebase before building |
 | STE-NXT-013 | STE-NXT | Make the statement analysis links reach their screens | implemented 2026-10-08 | NOT_AUDITED | — | — | Audit against the codebase before building |
 | STE-NXT-014 | STE-NXT | Record end-of-service accruals as a provision | code implemented, not locally tested; posting remains blocked | NOT_AUDITED | — | — | Audit against the codebase before building |

@@ -5,6 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { Api, CommandState, routeGuid } from '../../core/api';
 import { arr, bool, dec, guid, instant, nat, nullable, obj, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
+import { StatementPresentation } from './presentation';
 
 export const decodePackage = obj({ id: guid, engagementId: guid, status: text, framework: text, periodStart: text, periodEnd: text, currency: text, templateVersion: text,
   calculationHash: text, supplementaryHash: nullable(text), revision: nat, cashBeginning: nullable(dec), cashEnding: nullable(dec),
@@ -18,7 +19,7 @@ const ARTIFACTS: [string, string][] = [['financial-package-xlsx.v1', 'Download w
 
 @Component({
   selector: 'audit-financial-package',
-  imports: [FormsModule, RouterLink, MatButtonModule, ...SHARED],
+  imports: [FormsModule, RouterLink, MatButtonModule, ...SHARED, StatementPresentation],
   template: `
     <nav aria-label="Breadcrumb"><a routerLink="/app">Portfolio</a> / <a routerLink="/app/accounting">Client accounting</a> / <a routerLink="/app/accounting/reviews">Package reviews</a> / <span>Package</span></nav>
     <audit-page-header title="Financial statement package" eyebrow="Client accounting" description="Deterministic package calculations, validation status, immutable review decisions, and artifact outputs." />
@@ -84,6 +85,7 @@ const ARTIFACTS: [string, string][] = [['financial-package-xlsx.v1', 'Download w
             <tbody>@for (d of p.disclosures; track d.code) { <tr><td>{{ d.code }}</td><td>{{ d.notApplicable ? d.rationale : d.response }}</td><td>{{ d.notApplicable ? 'Not applicable' : 'Answered' }}</td></tr> }</tbody></table></div>
         </section>
       }
+      <audit-statement-presentation [packageId]="p.id" />
       @if (p.artifact; as a) {
         <section class="panel" aria-labelledby="artifact-heading">
           <h2 id="artifact-heading">Deterministic package artifact</h2>

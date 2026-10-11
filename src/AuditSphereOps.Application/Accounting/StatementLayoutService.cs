@@ -223,7 +223,7 @@ public static class StatementLayoutService
       Section = x.Section.Trim().ToUpperInvariant()
     }).ToList();
 
-  private static async Task<List<StatementLineDefinition>> LoadLinesAsync(
+  internal static async Task<List<StatementLineDefinition>> LoadLinesAsync(
     IClientAccountingDbContext db, Guid firmId, Guid layoutVersionId, CancellationToken ct)
   {
     var stored = await db.StatementLayoutLines.AsNoTracking()

@@ -642,6 +642,122 @@ public sealed class FinancialStatementTests
     }
   }
 
+  [Fact]
+  public async Task StatementPresentation_RequiresAPublishedLayout_AndIsScopedAndRepeatable()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    var preparer = Actor(fixture.Preparer, "AccountingPreparer");
+    var reviewer = Actor(fixture.Reviewer, "AccountingReviewer");
+
+    Guid mappingId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var created = await FinancialStatementService.CreateMappingVersionAsync(db, preparer,
+        new CreateMappingVersionRequest(
+          fixture.DatasetId, "tax-v1", "2026-01-01", "2026-12-31",
+          [new("1000", "CASH", "ASSETS", 1m, "Cash mapping"),
+           new("4000", "REVENUE", "INCOME", 1m, "Revenue mapping")]));
+      mappingId = created.Value;
+      Assert.True((await FinancialStatementService.ApproveMappingAsync(db, reviewer, mappingId, 1)).Succeeded);
+    }
+
+    Guid planId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var journal = (await AdjustmentJournalService.CreateDraftAsync(db, preparer, fixture.DatasetId,
+        "AJ-001", [("1000", 10m, 0m), ("4000", 0m, 10m)])).Value;
+      Assert.True((await AdjustmentJournalService.PostAsync(db, reviewer, journal)).Succeeded);
+      Assert.True((await SourceReconciliationService.ResolveAsync(db, reviewer, fixture.DatasetId,
+        "AJ-001", 1, ReflectionStates.NotApplicable, string.Empty)).Succeeded);
+      planId = (await AdjustmentPlanService.CreatePlanAsync(db, preparer, fixture.DatasetId,
+        [new PlanLineInput("AJ-001", 1)])).Value;
+      Assert.True((await AdjustmentPlanService.FinalizeAsync(db, preparer, planId)).Succeeded);
+    }
+
+    Guid packageId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var built = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, new BuildFinancialPackageRequest(
+        planId, mappingId, "IFRS", "2026-01-01", "2026-12-31", "template-v1",
+        new FinancialSupplementaryInformation(
+          0m, 100m,
+          [new CashFlowLineInput("OPERATING", "Cash collections", 100m)],
+          [new DisclosureInput("NOTE_1", "Summary of significant accounting policies.")])));
+      Assert.True(built.Succeeded, built.Message);
+      packageId = built.Value!.PackageId;
+    }
+
+    static StatementLineDefinition Heading(string code, string label, string section, int order) =>
+      new(code, label, StatementLayoutLineKinds.Heading, section, order);
+    static StatementLineDefinition Mapped(string code, string label, string section, int order, string node, string sign) =>
+      new(code, label, StatementLayoutLineKinds.MappedTaxonomyBalance, section, order, sign, TaxonomyNodeCode: node);
+    static StatementLineDefinition Sum(string code, string label, string section, int order, string sign, params string[] children) =>
+      new(code, label, StatementLayoutLineKinds.SumChildLines, section, order, sign, ChildLineCodes: children, IsSubtotal: true);
+    IReadOnlyList<StatementLineDefinition> Lines() =>
+    [
+      Heading("H_FP", "Assets", StatementLayoutSections.FinancialPosition, 1),
+      Mapped("CASH", "Cash", StatementLayoutSections.FinancialPosition, 2, "CASH", StatementLayoutDisplaySigns.Signed),
+      Sum("TA", "Total assets", StatementLayoutSections.FinancialPosition, 3, StatementLayoutDisplaySigns.Signed, "CASH"),
+      Heading("H_PL", "Revenue", StatementLayoutSections.ProfitOrLoss, 1),
+      Mapped("REV", "Revenue", StatementLayoutSections.ProfitOrLoss, 2, "REVENUE", StatementLayoutDisplaySigns.Inverted),
+    ];
+
+    Guid layoutId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      // Without a published layout the presentation is refused rather than guessed from unpublished work.
+      var before = await FinancialStatementService.BuildPresentationAsync(db, reviewer, packageId);
+      Assert.Equal(ErrorCodes.Accounting.MappingIncomplete, before.ErrorCode);
+
+      var draft = await StatementLayoutService.SaveLayoutDraftAsync(db, preparer,
+        new StatementLayoutDraftRequest(fixture.ClientId, "IFRS", "Presentation test layout", Lines()));
+      Assert.True(draft.Succeeded, draft.Message);
+      layoutId = draft.Value!.LayoutVersionId;
+      Assert.True((await StatementLayoutService.ValidateLayoutAsync(db, preparer, layoutId)).Value!.IsValid);
+
+      // An explicitly named draft is never presented, and a preparer without publishing authority cannot publish it.
+      Assert.Equal(ErrorCodes.Accounting.MappingIncomplete,
+        (await FinancialStatementService.BuildPresentationAsync(db, reviewer, packageId, layoutId)).ErrorCode);
+      Assert.False((await StatementLayoutService.PublishLayoutAsync(db, preparer, layoutId, "Self publish")).Succeeded);
+      Assert.True((await StatementLayoutService.PublishLayoutAsync(db, reviewer, layoutId, "Reviewed for the presentation test")).Succeeded);
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var presented = await FinancialStatementService.BuildPresentationAsync(db, reviewer, packageId);
+      Assert.True(presented.Succeeded, presented.Message);
+      var p = presented.Value!;
+      Assert.Equal(FinancialStatementPresentationPolicy.DraftStatus, p.Status);
+      Assert.Equal(layoutId, p.Manifest.LayoutVersionId);
+      Assert.Equal(packageId, p.Manifest.PackageId);
+      Assert.All(p.Checks, check => Assert.True(check.Passed, $"{check.Code}: {check.Detail}"));
+      // The presentation is a read of the persisted package: each figure equals the stored line, shown with its sign.
+      var persistedCash = await db.FinancialPackageLines.AsNoTracking()
+        .Where(x => x.FinancialPackageId == packageId && x.DestinationCode == "CASH").SumAsync(x => x.Amount);
+      var persistedRevenue = await db.FinancialPackageLines.AsNoTracking()
+        .Where(x => x.FinancialPackageId == packageId && x.DestinationCode == "REVENUE").SumAsync(x => x.Amount);
+      var cash = p.Statements.SelectMany(x => x.Rows).Single(x => x.Code == "CASH");
+      var revenue = p.Statements.SelectMany(x => x.Rows).Single(x => x.Code == "REV");
+      Assert.Equal((persistedCash, -persistedRevenue), (cash.Current, revenue.Current));
+      Assert.Null(cash.Prior);
+
+      // Exports are version-bound: repeating one yields identical bytes, and an unknown format is refused.
+      var first = await FinancialStatementService.RenderPresentationAsync(db, reviewer, packageId, "docx");
+      var second = await FinancialStatementService.RenderPresentationAsync(db, reviewer, packageId, "docx");
+      Assert.True(first.Succeeded && second.Succeeded);
+      Assert.Equal(first.Value!.ArtifactSha256Hex, second.Value!.ArtifactSha256Hex);
+      Assert.Equal(first.Value.Bytes, second.Value.Bytes);
+      Assert.Equal("auditsphere-statement-presentation-" + packageId.ToString("D") + ".docx", first.Value.FileName);
+      Assert.Equal(ErrorCodes.Accounting.PackageInvalid,
+        (await FinancialStatementService.RenderPresentationAsync(db, reviewer, packageId, "html")).ErrorCode);
+
+      // A caller with no grant on this package learns nothing about it.
+      var stranger = Actor(User(fixture.FirmId), "AccountingPreparer");
+      Assert.False((await FinancialStatementService.BuildPresentationAsync(db, stranger, packageId)).Succeeded);
+    }
+  }
+
   private static async Task<Fixture> SeedAsync(PgTestSchema pg)
   {
     var firmId = Guid.NewGuid();

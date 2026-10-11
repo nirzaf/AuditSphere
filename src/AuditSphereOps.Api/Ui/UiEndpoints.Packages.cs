@@ -12,6 +12,7 @@ public static partial class UiEndpoints
 {
   public sealed record PackageReviewInput(string Stage, string Decision, string EvidenceMode, string EvidenceReference, string? Comment);
   public sealed record PackageArtifactInput(string ArtifactVersion);
+  public sealed record StatementPresentationExportInput(string? Format, Guid? LayoutVersionId);
 
   private static void MapPackageEndpoints(RouteGroupBuilder group)
   {
@@ -39,6 +40,24 @@ public static partial class UiEndpoints
       var office = await FinancialStatementService.RenderPackageOfficeArtifactAsync(db, actor, id, i.ArtifactVersion ?? "", http.RequestAborted);
       if (!office.Succeeded || office.Value is null || package is null) return Failure(office.ErrorCode, office.Message ?? "Export artifact generation was blocked.");
       return Results.File(office.Value.ArtifactBytes, office.Value.ContentType, $"auditsphere-financial-package-{id:D}-r{package.Revision}.{office.Value.FileExtension}");
+    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export));
+    // Statement presentation (FSR-002/010/011 slice): a read-only typed view, and version-bound exports of the same view.
+    group.MapGet("/accounting/packages/{id:guid}/presentation", (Guid id, Guid? layoutVersionId, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => FinancialStatementService.BuildPresentationAsync(db, actor, id, layoutVersionId, ct)));
+    group.MapPost("/accounting/packages/{id:guid}/presentation/export", async (Guid id, StatementPresentationExportInput i, HttpContext http,
+      TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
+    {
+      var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
+      if (actor is null) return Failure("session.unavailable", "Sign in again.", 401);
+      try { await csrf.ValidateRequestAsync(http); }
+      catch (AntiforgeryValidationException) { return Failure("csrf.invalid", "Refresh the page and try again.", 403); }
+      await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
+      var result = await FinancialStatementService.RenderPresentationAsync(db, actor, id, i.Format ?? string.Empty, i.LayoutVersionId, http.RequestAborted);
+      if (!result.Succeeded || result.Value is null) return Failure(result.ErrorCode, result.Message ?? "The statement presentation is unavailable.");
+      if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null) return Failure("session.unavailable", "Sign in again.", 401);
+      http.Response.Headers["X-Content-Type-Options"] = "nosniff";
+      http.Response.Headers["X-Statement-Presentation-SHA256"] = result.Value.ArtifactSha256Hex;
+      return Results.File(result.Value.Bytes, result.Value.ContentType, result.Value.FileName);
     }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export));
   }
 }

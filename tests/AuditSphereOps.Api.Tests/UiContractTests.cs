@@ -103,6 +103,9 @@ public sealed class UiContractTests
       new { reason = "Reviewed revocation" });
     Assert.Equal(HttpStatusCode.Forbidden, revocationWithoutProof.StatusCode);
     Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/ui/deliverables/" + Guid.NewGuid() + "/signature")).StatusCode);
+    Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/ui/accounting/packages/" + Guid.NewGuid() + "/presentation")).StatusCode);
+    using var presentationExportWithoutProof = await client.PostAsJsonAsync("/api/ui/accounting/packages/" + Guid.NewGuid() + "/presentation/export", new { format = "pdf" });
+    Assert.Equal(HttpStatusCode.Forbidden, presentationExportWithoutProof.StatusCode);
     Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/ui/finance/end-of-service")).StatusCode);
     using var treatmentWithoutProof = await client.PostAsJsonAsync("/api/ui/finance/end-of-service/treatment",
       new { measurementTreatment = "Measured per the firm's reporting framework", accountantName = "N. Accountant", accountantCredential = "CPA 1",

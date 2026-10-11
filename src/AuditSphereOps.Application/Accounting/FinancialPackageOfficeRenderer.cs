@@ -170,7 +170,7 @@ public static class FinancialPackageOfficeRenderer
     return NormalizePdfMetadata(output.ToArray(), artifactHash);
   }
 
-  private static byte[] NormalizePdfMetadata(byte[] bytes, string artifactHash)
+  internal static byte[] NormalizePdfMetadata(byte[] bytes, string artifactHash)
   {
     var stableIds = new[]
     {
@@ -184,7 +184,7 @@ public static class FinancialPackageOfficeRenderer
     return Encoding.Latin1.GetBytes(pdf);
   }
 
-  private static void NormalizePdfFontNames(PdfDocument document)
+  internal static void NormalizePdfFontNames(PdfDocument document)
   {
     foreach (var dictionary in document.Internals.GetAllObjects().OfType<PdfDictionary>())
     foreach (var key in new[] { "/BaseFont", "/FontName" })
@@ -205,7 +205,7 @@ public static class FinancialPackageOfficeRenderer
   private static IEnumerable<string> Lines(string text) =>
     text.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
 
-  private static byte[] NormalizeZip(byte[] source)
+  internal static byte[] NormalizeZip(byte[] source)
   {
     using var input = new MemoryStream(source);
     using var archive = new ZipArchive(input, ZipArchiveMode.Read);
@@ -233,7 +233,7 @@ public static class FinancialPackageOfficeRenderer
     return output.ToArray();
   }
 
-  private sealed class EmbeddedPdfFontResolver : IFontResolver
+  internal sealed class EmbeddedPdfFontResolver : IFontResolver
   {
     public const string FamilyName = "AuditSphere Noto Sans";
     private const string FaceName = "AuditSphere-Noto-Sans-Regular";
