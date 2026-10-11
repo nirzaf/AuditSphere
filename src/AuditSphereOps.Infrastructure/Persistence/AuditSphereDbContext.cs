@@ -262,6 +262,10 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
 
   public DbSet<FinancialPackageArtifact> FinancialPackageArtifacts => Set<FinancialPackageArtifact>();
 
+  public DbSet<FinancialStatementPresentationRevision> FinancialStatementPresentationRevisions => Set<FinancialStatementPresentationRevision>();
+
+  public DbSet<FinancialStatementPresentationArtifact> FinancialStatementPresentationArtifacts => Set<FinancialStatementPresentationArtifact>();
+
   public DbSet<FinancialPackageLine> FinancialPackageLines => Set<FinancialPackageLine>();
 
   public DbSet<FinancialPackageValidation> FinancialPackageValidations => Set<FinancialPackageValidation>();

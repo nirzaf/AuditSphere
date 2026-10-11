@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
@@ -75,7 +76,9 @@ public static partial class FinancialStatementService
       .Where(x => x.FirmId == actor.FirmId && packageIds.Contains(x.FinancialPackageId) && x.Code == "CASH_FLOW_RECONCILED")
       .ToListAsync(ct);
     var noteLines = await db.FinancialPackageNoteLines.AsNoTracking()
-      .Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == package.Id).ToListAsync(ct);
+      .Where(x => x.FirmId == actor.FirmId && packageIds.Contains(x.FinancialPackageId)).ToListAsync(ct);
+    var disclosures = await db.FinancialPackageDisclosures.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && packageIds.Contains(x.FinancialPackageId)).ToListAsync(ct);
     IReadOnlyList<FinancialPackageCashFlowLine> priorCashLines = [];
     IReadOnlyList<FinancialPackageFxEffect> priorFxEffects = [];
     IReadOnlyList<FinancialPackageEquityLine> priorEquityLines = [];
@@ -99,7 +102,11 @@ public static partial class FinancialStatementService
     var manifest = new PresentationManifest(
       package.Id, package.CalculationHash, layout.Id, layout.LayoutHash,
       comparative?.Id, comparative?.CalculationHash,
-      FinancialStatementPresentationPolicy.BuilderVersion, FinancialStatementPresentationPolicy.DisplayPolicy);
+      FinancialStatementPresentationPolicy.BuilderVersion, FinancialStatementPresentationPolicy.DisplayPolicy,
+      ComputeNoteSourceManifestHash(packageIds, noteLines, disclosures), package.PeriodId, package.BookId,
+      package.Basis, package.Framework, package.TaxonomyVersion, package.TemplateVersion,
+      package.CalculationEngineVersion, package.Currency, package.PeriodStart, package.PeriodEnd,
+      package.ComparativeBasis, package.ComparativeEvidenceReference);
 
     var currentSupplementary = ToPresentationSchedules(package, currentCashLines, currentFxEffects, currentEquityLines,
       packageValidations.Where(x => x.FinancialPackageId == package.Id).ToArray());
@@ -107,15 +114,22 @@ public static partial class FinancialStatementService
       ? null
       : ToPresentationSchedules(comparative, priorCashLines, priorFxEffects, priorEquityLines,
         packageValidations.Where(x => x.FinancialPackageId == comparative.Id).ToArray());
-    return FinancialStatementPresentationBuilder.Build(
+    var built = FinancialStatementPresentationBuilder.Build(
       layoutLines,
       currentLines.Select(x => new PresentationBalance(x.DestinationCode, x.StatementSection, x.Amount)).ToList(),
       priorLines?.Select(x => new PresentationBalance(x.DestinationCode, x.StatementSection, x.Amount)).ToList(),
-      noteLines.Select(x => new PresentationNoteLine(x.NoteCode, x.FaceDestinationCode, x.Amount)).ToList(),
+      noteLines.Select(x => new PresentationNoteLine(x.NoteCode, x.FaceDestinationCode, x.Amount, x.FinancialPackageId,
+        x.Currency, x.EvidenceReference)).ToList(),
       header,
       manifest,
       currentSupplementary: currentSupplementary,
-      priorSupplementary: priorSupplementary);
+      priorSupplementary: priorSupplementary,
+      disclosures: disclosures.Select(x => new PresentationDisclosureSource(
+        x.Code, x.Response, x.NotApplicable, x.Rationale, x.FinancialPackageId)).ToList());
+    if (!built.Succeeded || built.Value is null) return built;
+    var pinAuthorization = await AuthorizeAsync(db, actor, package.FirmId, package.ClientId, package.EngagementId,
+      PreparerRoles, ct);
+    return CommandResult<FinancialStatementPresentation>.Ok(built.Value with { CanPin = pinAuthorization.Succeeded });
   }
 
   private static PresentationSupplementarySchedules ToPresentationSchedules(
@@ -131,6 +145,27 @@ public static partial class FinancialStatementService
       equityLines.Select(x => new PresentationEquityMovement(x.LineCode, x.Description, x.OpeningAmount, x.ProfitOrLossAmount,
         x.OciAmount, x.CapitalMovementAmount, x.DividendsAmount, x.ClosingAmount)).ToList(),
       packageValidations.Select(x => new PresentationPackageValidation(x.Code, x.Passed, x.Detail)).ToList());
+
+  private static string ComputeNoteSourceManifestHash(
+    IReadOnlyCollection<Guid> packageIds,
+    IReadOnlyList<FinancialPackageNoteLine> noteLines,
+    IReadOnlyList<FinancialPackageDisclosure> disclosures)
+  {
+    var packages = packageIds.Distinct().OrderBy(x => x).Select(packageId => new
+    {
+      PackageId = packageId,
+      NoteLines = noteLines.Where(x => x.FinancialPackageId == packageId).OrderBy(x => x.NoteCode, StringComparer.Ordinal)
+        .ThenBy(x => x.FaceDestinationCode, StringComparer.Ordinal).ThenBy(x => x.Id)
+        .Select(x => new { x.Id, x.NoteCode, x.FaceDestinationCode, x.Amount, x.Currency, x.EvidenceReference }).ToArray(),
+      Disclosures = disclosures.Where(x => x.FinancialPackageId == packageId).OrderBy(x => x.Code, StringComparer.Ordinal)
+        .ThenBy(x => x.Id).Select(x => new { x.Id, x.Code, x.Response, x.NotApplicable, x.Rationale }).ToArray()
+    }).ToArray();
+    return Hashing.Sha256Hex(JsonSerializer.SerializeToUtf8Bytes(new
+    {
+      Version = "auditsphere.statement-note-source-manifest.v1",
+      Packages = packages
+    }));
+  }
 
   /// <summary>Renders the presentation as PDF, Word or Excel. Repeating the request yields identical bytes.</summary>
   public static async Task<CommandResult<FinancialStatementPresentationExport>> RenderPresentationAsync(

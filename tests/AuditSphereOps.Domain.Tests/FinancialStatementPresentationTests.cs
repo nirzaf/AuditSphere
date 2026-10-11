@@ -89,8 +89,12 @@ public sealed class FinancialStatementPresentationTests
 
   private static List<PresentationNoteLine> Notes() =>
   [
-    new("5", "PPE", 70406m), new("6", "RECEIVABLES", 2651857m), new("7", "CASH", 1090993m),
-    new("9", "PAYABLES", 1025756m), new("10", "GENERAL_ADMIN", 8154593m), new("11", "DEPRECIATION", 13487m),
+    new("5", "PPE", 70406m, Currency: "QAR", EvidenceReference: "synthetic-note-source"),
+    new("6", "RECEIVABLES", 2651857m, Currency: "QAR", EvidenceReference: "synthetic-note-source"),
+    new("7", "CASH", 1090993m, Currency: "QAR", EvidenceReference: "synthetic-note-source"),
+    new("9", "PAYABLES", 1025756m, Currency: "QAR", EvidenceReference: "synthetic-note-source"),
+    new("10", "GENERAL_ADMIN", 8154593m, Currency: "QAR", EvidenceReference: "synthetic-note-source"),
+    new("11", "DEPRECIATION", 13487m, Currency: "QAR", EvidenceReference: "synthetic-note-source"),
   ];
 
   private static PresentationHeader Header(bool withPrior) => new("SYNTHETIC FIXTURE CLIENT", "IFRS", "QAR", "2025-12-31",
@@ -105,9 +109,9 @@ public sealed class FinancialStatementPresentationTests
   private static CommandResult<FinancialStatementPresentation> Build(
     IReadOnlyList<StatementLineDefinition>? layout = null, IReadOnlyList<PresentationBalance>? current = null,
     IReadOnlyList<PresentationBalance>? prior = null, IReadOnlyList<PresentationNoteLine>? notes = null,
-    bool withPrior = true) =>
+    bool withPrior = true, IReadOnlyList<PresentationDisclosureSource>? disclosures = null) =>
     FinancialStatementPresentationBuilder.Build(layout ?? Layout(), current ?? Current(), withPrior ? prior ?? Prior() : null,
-      notes ?? Notes(), Header(withPrior), Manifest(withPrior));
+      notes ?? Notes(), Header(withPrior), Manifest(withPrior), disclosures: disclosures);
 
   private static PresentationRow Row(FinancialStatementPresentation p, string code) =>
     p.Statements.SelectMany(x => x.Rows).Single(x => x.Code == code);
@@ -175,14 +179,104 @@ public sealed class FinancialStatementPresentationTests
   }
 
   [Fact]
+  public void NoteContentAndAmounts_AreShownForCurrentAndComparativeAsUnreviewedPreparerInputs()
+  {
+    var manifest = Manifest(withPrior: true);
+    var notes = Notes().Select(x => x with { PackageId = manifest.PackageId }).ToList();
+    var comparativeId = manifest.ComparativePackageId!.Value;
+    notes.AddRange(new[]
+    {
+      new PresentationNoteLine("5", "PPE", 34101m, comparativeId, "QAR", "comparative-note-source"),
+      new PresentationNoteLine("6", "RECEIVABLES", 2258345m, comparativeId, "QAR", "comparative-note-source"),
+      new PresentationNoteLine("7", "CASH", 58372m, comparativeId, "QAR", "comparative-note-source"),
+      new PresentationNoteLine("9", "PAYABLES", 509273m, comparativeId, "QAR", "comparative-note-source"),
+      new PresentationNoteLine("10", "GENERAL_ADMIN", 3700000m, comparativeId, "QAR", "comparative-note-source"),
+      new PresentationNoteLine("11", "DEPRECIATION", 47667m, comparativeId, "QAR", "comparative-note-source")
+    });
+    var disclosures = new[]
+    {
+      new PresentationDisclosureSource("5", "Property additions are preparer described.", false, null, manifest.PackageId),
+      new PresentationDisclosureSource("5", "Comparative property note is preparer described.", false, null, comparativeId),
+      new PresentationDisclosureSource("12", string.Empty, true, "No related balance was reported by the preparer.", manifest.PackageId)
+    };
+
+    var result = FinancialStatementPresentationBuilder.Build(Layout(), Current(), Prior(), notes, Header(true), manifest,
+      disclosures: disclosures);
+
+    Assert.True(result.Succeeded, result.Message);
+    var currentNote = Assert.Single(result.Value!.Notes!, x => x.Code == "5");
+    Assert.Equal(PresentationDisclosureStates.PreparerSupplied, currentNote.Current.State);
+    Assert.Equal("Property additions are preparer described.", currentNote.Current.Text);
+    Assert.Equal(PresentationDisclosureStates.PreparerSupplied, currentNote.Comparative.State);
+    Assert.Equal("Comparative property note is preparer described.", currentNote.Comparative.Text);
+    Assert.Equal((70406m, 34101m), (currentNote.Amounts[0].Current, currentNote.Amounts[0].Comparative));
+    Assert.Equal(StatementLayoutSections.FinancialPosition, currentNote.Amounts[0].StatementSection);
+    Assert.Equal("synthetic-note-source", currentNote.Amounts[0].CurrentEvidenceReference);
+    var notApplicable = Assert.Single(result.Value.Notes!, x => x.Code == "12");
+    Assert.Equal(PresentationDisclosureStates.PreparerMarkedNotApplicable, notApplicable.Current.State);
+    Assert.Equal("No related balance was reported by the preparer.", notApplicable.Current.Rationale);
+    Assert.Contains(result.Value.Checks, x => x.Code == "NOTE_CONTENT" && !x.Passed);
+    Assert.Equal(FinancialStatementPresentationPolicy.DraftStatus, result.Value.Status);
+  }
+
+  [Fact]
+  public void NoteDisclosureDuplicateAndUnsafeContent_AreRefusedWithoutThrowing()
+  {
+    var manifest = Manifest(withPrior: false);
+    var duplicate = new[]
+    {
+      new PresentationDisclosureSource("TEXT", "First", false, null, manifest.PackageId),
+      new PresentationDisclosureSource(" text ", "Second", false, null, manifest.PackageId)
+    };
+    var duplicateResult = FinancialStatementPresentationBuilder.Build(Layout(), Current(), null, Notes(), Header(false), manifest,
+      disclosures: duplicate);
+    Assert.Equal(ErrorCodes.Accounting.PackageInvalid, duplicateResult.ErrorCode);
+    Assert.Contains("one disclosure response", duplicateResult.Message, StringComparison.Ordinal);
+
+    var unsafeContent = new[] { new PresentationDisclosureSource("TEXT", "Bad\u0001content", false, null, manifest.PackageId) };
+    var unsafeResult = FinancialStatementPresentationBuilder.Build(Layout(), Current(), null, Notes(), Header(false), manifest,
+      disclosures: unsafeContent);
+    Assert.Equal(ErrorCodes.Accounting.PackageInvalid, unsafeResult.ErrorCode);
+    Assert.Contains("unsupported control character", unsafeResult.Message, StringComparison.Ordinal);
+  }
+
+  [Fact]
   public void DuplicateNormalizedNotePointer_IsRefused()
   {
     var notes = Notes();
-    notes.Add(new("5", " ppe ", 0m));
+    notes.Add(new("5", " ppe ", 0m, Currency: "QAR", EvidenceReference: "synthetic-note-source"));
     var result = Build(notes: notes, withPrior: false);
 
     Assert.Equal(ErrorCodes.Accounting.PackageInvalid, result.ErrorCode);
     Assert.Contains("same normalized face destination more than once", result.Message, StringComparison.Ordinal);
+  }
+
+  [Fact]
+  public void ComparativeNoteCrossCasts_UseTheirOwnPackageBalances()
+  {
+    var manifest = Manifest(withPrior: true);
+    var currentNotes = Notes().Select(x => x with { PackageId = manifest.PackageId }).ToList();
+    var comparativeId = manifest.ComparativePackageId!.Value;
+    var comparativeNotes = new List<PresentationNoteLine>
+    {
+      new("5", "PPE", 34101m, comparativeId, "QAR", "comparative-note-source"),
+      new("6", "RECEIVABLES", 2258345m, comparativeId, "QAR", "comparative-note-source"),
+      new("7", "CASH", 58372m, comparativeId, "QAR", "comparative-note-source"),
+      new("9", "PAYABLES", 509273m, comparativeId, "QAR", "comparative-note-source"),
+      new("10", "GENERAL_ADMIN", 3700000m, comparativeId, "QAR", "comparative-note-source"),
+      new("11", "DEPRECIATION", 47667m, comparativeId, "QAR", "comparative-note-source")
+    };
+
+    var valid = FinancialStatementPresentationBuilder.Build(Layout(), Current(), Prior(),
+      currentNotes.Concat(comparativeNotes).ToList(), Header(withPrior: true), manifest);
+    Assert.True(valid.Succeeded, valid.Message);
+    Assert.Contains(valid.Value!.Checks, x => x.Code == "NOTE_CROSS_CAST" && x.Passed);
+
+    comparativeNotes[0] = comparativeNotes[0] with { Amount = 70406m };
+    var mismatched = FinancialStatementPresentationBuilder.Build(Layout(), Current(), Prior(),
+      currentNotes.Concat(comparativeNotes).ToList(), Header(withPrior: true), manifest);
+    Assert.False(mismatched.Succeeded);
+    Assert.Contains("comparative PPE notes total", mismatched.Message, StringComparison.Ordinal);
   }
 
   [Fact]
@@ -328,7 +422,7 @@ public sealed class FinancialStatementPresentationTests
   public void Notes_MustPointAtPresentedLines_AndCrossCastToThem()
   {
     var dangling = Notes();
-    dangling.Add(new PresentationNoteLine("12", "NOT_PRESENTED", 1m));
+    dangling.Add(new PresentationNoteLine("12", "NOT_PRESENTED", 1m, Currency: "QAR", EvidenceReference: "synthetic-note-source"));
     Assert.Contains("NOT_PRESENTED", Build(notes: dangling).Message);
 
     var offByOne = Notes();
@@ -386,13 +480,20 @@ public sealed class FinancialStatementPresentationTests
   [Fact]
   public void WordRendering_IsGenuineTables_WithTheSameFiguresAsThePresentation()
   {
-    var p = Build().Value!;
+    var manifest = Manifest(withPrior: true);
+    var disclosures = new[]
+    {
+      new PresentationDisclosureSource("5", "Property additions are preparer described.", false, null, manifest.PackageId),
+      new PresentationDisclosureSource("5", "Comparative property note is preparer described.", false, null, manifest.ComparativePackageId!.Value),
+      new PresentationDisclosureSource("12", string.Empty, true, "No related balance was reported by the preparer.", manifest.PackageId)
+    };
+    var p = Build(disclosures: disclosures).Value!;
     var bytes = FinancialStatementPresentationRenderer.Render(p, FinancialStatementPresentationRenderer.WordFormat);
     using var stream = new MemoryStream(bytes);
     using var document = WordprocessingDocument.Open(stream, false);
     var body = document.MainDocumentPart!.Document!.Body!;
     var tables = body.Descendants<W.Table>().ToList();
-    Assert.Equal(4, tables.Count);
+    Assert.Equal(10, tables.Count);
     Assert.NotNull(tables[0].Descendants<W.TableHeader>().FirstOrDefault());
     var text = body.InnerText;
     Assert.Contains("6,172,821", text, StringComparison.Ordinal);
@@ -400,6 +501,9 @@ public sealed class FinancialStatementPresentationTests
     Assert.Contains("–", text, StringComparison.Ordinal);
     Assert.Contains(FinancialStatementPresentationRenderer.Banner, text, StringComparison.Ordinal);
     Assert.Contains("Check CASH_FLOW_PACKAGE_RECONCILIATION: FAIL", text, StringComparison.Ordinal);
+    Assert.Contains("Property additions are preparer described.", text, StringComparison.Ordinal);
+    Assert.Contains("synthetic-note-source", text, StringComparison.Ordinal);
+    Assert.Contains("not independently verified", text, StringComparison.Ordinal);
   }
 
   [Fact]
@@ -411,7 +515,7 @@ public sealed class FinancialStatementPresentationTests
     using var document = SpreadsheetDocument.Open(stream, false);
     var workbookPart = document.WorkbookPart!;
     var sheetNames = workbookPart.Workbook!.Descendants<S.Sheet>().Select(x => x.Name!.Value!).ToList();
-    Assert.Equal(5, sheetNames.Count);
+    Assert.Equal(6, sheetNames.Count);
     Assert.All(sheetNames, name => Assert.True(name!.Length <= 31));
 
     var worksheets = workbookPart.WorksheetParts.Select(x => x.Worksheet!).ToList();
@@ -423,6 +527,10 @@ public sealed class FinancialStatementPresentationTests
     Assert.Contains(6172821m, numericCells);
     Assert.Contains(-508247m, numericCells);
     Assert.Contains(3818172m, numericCells);
+    var noteSheet = workbookPart.Workbook!.Descendants<S.Sheet>().Single(x => x.Name!.Value == "Notes");
+    var noteWorksheet = (WorksheetPart)workbookPart.GetPartById(noteSheet.Id!.Value!);
+    Assert.Contains("NOTE_SCHEDULE", noteWorksheet.Worksheet!.Descendants<S.Text>().Select(x => x.Text));
+    Assert.Contains("synthetic-note-source", noteWorksheet.Worksheet.Descendants<S.Text>().Select(x => x.Text));
     var firstCheck = p.Checks[0];
     var expectedCheck = $"Check {firstCheck.Code}: {(firstCheck.Passed ? "PASS" : "FAIL")} — {firstCheck.Detail}";
     Assert.Contains(expectedCheck, FinancialStatementPresentationRenderer.ManifestLines(p));

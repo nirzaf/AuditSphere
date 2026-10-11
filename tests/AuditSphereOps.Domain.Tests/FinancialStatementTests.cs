@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Text.Json;
 using System.Xml.Linq;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Abstractions;
@@ -694,6 +695,30 @@ public sealed class FinancialStatementTests
       packageId = built.Value!.PackageId;
     }
 
+    // Create a second package with source-derived supplementary values so the seal assertion exercises
+    // the permitted path through the package's real cash and equity validation gates.
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var sourceLines = await db.FinancialPackageLines.AsNoTracking()
+        .Where(x => x.FinancialPackageId == packageId).ToListAsync();
+      var signedProfitOrLoss = sourceLines.Where(x => x.StatementSection is "INCOME" or "REVENUE" or "EXPENSE" or "EXPENSES" or "P&L" or "P_AND_L" or "PROFIT_LOSS")
+        .Sum(x => x.Amount);
+      var closingCash = sourceLines.Where(x => x.DestinationCode == "CASH").Sum(x => x.Amount);
+      var completed = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer,
+        new BuildFinancialPackageRequest(planId, mappingId, "IFRS", "2026-01-01", "2026-12-31", "presentation-seal-v2",
+          new FinancialSupplementaryInformation(0m, closingCash,
+            [new CashFlowLineInput("OPERATING", "Cash movement", closingCash, MovementDate: new DateOnly(2026, 6, 30),
+              ActivityCode: "CASH_MOVEMENT", SourceReferences: ["synthetic-cash-movement"], ClassificationRationale: "Synthetic test input derived from the package cash balance.")],
+            [new DisclosureInput("NOTE_1", "Synthetic policy disclosure for the test.")],
+            [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, -signedProfitOrLoss, 0m, 0m, 0m,
+              -signedProfitOrLoss, "synthetic-equity-movement")],
+            CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["synthetic-opening-cash"],
+            ClosingCashEvidenceReferences: ["synthetic-closing-cash"],
+            NoteLines: [new NoteLineInput("NOTE_1", "CASH", closingCash, "synthetic-note-source")] )));
+      Assert.True(completed.Succeeded, completed.Message);
+      packageId = completed.Value!.PackageId;
+    }
+
     static StatementLineDefinition Heading(string code, string label, string section, int order) =>
       new(code, label, StatementLayoutLineKinds.Heading, section, order);
     static StatementLineDefinition Mapped(string code, string label, string section, int order, string node, string sign) =>
@@ -735,9 +760,19 @@ public sealed class FinancialStatementTests
       Assert.True(presented.Succeeded, presented.Message);
       var p = presented.Value!;
       Assert.Equal(FinancialStatementPresentationPolicy.DraftStatus, p.Status);
+      Assert.True(p.CanPin);
       Assert.Equal(layoutId, p.Manifest.LayoutVersionId);
       Assert.Equal(packageId, p.Manifest.PackageId);
-      Assert.All(p.Checks, check => Assert.True(check.Passed, $"{check.Code}: {check.Detail}"));
+      Assert.Equal(new[] { "FINANCIAL_POSITION", "PROFIT_OR_LOSS", "CHANGES_IN_EQUITY", "CASH_FLOWS" },
+        p.Statements.Select(statement => statement.Code).ToArray());
+      var knownUnapprovedGaps = new[]
+      {
+        "NOTE_CONTENT", "EQUITY_PROFIT_CROSS_CAST", "EQUITY_OCI_CROSS_CAST", "EQUITY_SFP_CROSS_CAST",
+        "EQUITY_SOURCE_LINEAGE", "CASH_FLOW_REQUIRED_SECTIONS", "CASH_FLOW_BRIDGE", "CASH_FLOW_SOURCE_LINEAGE"
+      };
+      Assert.Equal(knownUnapprovedGaps.OrderBy(x => x, StringComparer.Ordinal),
+        p.Checks.Where(check => !check.Passed).Select(check => check.Code).OrderBy(x => x, StringComparer.Ordinal));
+      Assert.All(p.Checks.Where(check => check.Passed), check => Assert.True(check.Passed, $"{check.Code}: {check.Detail}"));
       // The presentation is a read of the persisted package: each figure equals the stored line, shown with its sign.
       var persistedCash = await db.FinancialPackageLines.AsNoTracking()
         .Where(x => x.FinancialPackageId == packageId && x.DestinationCode == "CASH").SumAsync(x => x.Amount);
@@ -747,6 +782,28 @@ public sealed class FinancialStatementTests
       var revenue = p.Statements.SelectMany(x => x.Rows).Single(x => x.Code == "REV");
       Assert.Equal((persistedCash, -persistedRevenue), (cash.Current, revenue.Current));
       Assert.Null(cash.Prior);
+      var note = Assert.Single(p.Notes!, x => x.Code == "NOTE_1");
+      Assert.Equal(PresentationDisclosureStates.PreparerSupplied, note.Current.State);
+      Assert.Equal("Synthetic policy disclosure for the test.", note.Current.Text);
+      Assert.Equal(PresentationDisclosureStates.NotSupplied, note.Comparative.State);
+      var noteAmount = Assert.Single(note.Amounts);
+      Assert.Equal(persistedCash, noteAmount.Current);
+      Assert.Equal("synthetic-note-source", noteAmount.CurrentEvidenceReference);
+
+      // Pin the exact package, note sources and layout version. Repeating the same selection is idempotent.
+      var pinnedResult = await FinancialStatementService.PinPresentationAsync(db, preparer, packageId, layoutId);
+      Assert.True(pinnedResult.Succeeded, pinnedResult.Message);
+      var pin = pinnedResult.Value!;
+      Assert.Equal(FinancialStatementPresentationRevisionStatuses.UnapprovedDraft, pin.Status);
+      Assert.Equal(layoutId, pin.LayoutVersionId);
+      Assert.Equal(p.Manifest.PeriodId, pin.PeriodId);
+      Assert.Equal(p.Manifest.TaxonomyVersion, pin.TaxonomyVersion);
+      Assert.Equal(p.Manifest.Currency, pin.Currency);
+      Assert.Equal(p.Manifest.NoteSourceManifestHash, pin.NoteSourceManifestHash);
+      Assert.Equal(64, pin.NoteSourceManifestHash.Length);
+      var repeatedPin = await FinancialStatementService.PinPresentationAsync(db, preparer, packageId, layoutId);
+      Assert.True(repeatedPin.Succeeded, repeatedPin.Message);
+      Assert.Equal(pin.RevisionId, repeatedPin.Value!.RevisionId);
 
       // Publish a successor after preview. An export must retain the exact layout version the user reviewed.
       var successorLines = Lines().ToList();
@@ -762,6 +819,77 @@ public sealed class FinancialStatementTests
       var latest = await FinancialStatementService.BuildPresentationAsync(db, reviewer, packageId);
       Assert.True(latest.Succeeded, latest.Message);
       Assert.Equal(successor.Value.LayoutVersionId, latest.Value!.Manifest.LayoutVersionId);
+
+      var pinnedRead = await FinancialStatementService.GetPinnedPresentationAsync(db, reviewer, packageId, pin.RevisionId);
+      Assert.True(pinnedRead.Succeeded, pinnedRead.Message);
+      Assert.Equal(layoutId, pinnedRead.Value!.Manifest.LayoutVersionId);
+      Assert.NotEqual(successor.Value.LayoutVersionId, pinnedRead.Value.Manifest.LayoutVersionId);
+      Assert.Equal(pin.NoteSourceManifestHash, pinnedRead.Value.Manifest.NoteSourceManifestHash);
+
+      var canonicalArtifact = await FinancialStatementService.RenderPackageArtifactAsync(db, preparer, packageId);
+      Assert.True(canonicalArtifact.Succeeded, canonicalArtifact.Message);
+      foreach (var format in new[]
+      {
+        FinancialPackageArtifactVersions.Workbook,
+        FinancialPackageArtifactVersions.Word,
+        FinancialPackageArtifactVersions.Pdf
+      })
+      {
+        var rendered = await FinancialStatementService.RenderPackageOfficeArtifactAsync(db, preparer, packageId, format);
+        Assert.True(rendered.Succeeded, rendered.Message);
+      }
+      var packageArtifactCount = await db.FinancialPackageArtifacts.CountAsync(x => x.FinancialPackageId == packageId);
+      Assert.Equal(4, packageArtifactCount);
+      var firstPinnedDocx = await FinancialStatementService.RenderPinnedPresentationArtifactAsync(db, reviewer, pin.RevisionId, "docx");
+      var repeatedPinnedDocx = await FinancialStatementService.RenderPinnedPresentationArtifactAsync(db, reviewer, pin.RevisionId, "docx");
+      Assert.True(firstPinnedDocx.Succeeded, firstPinnedDocx.Message);
+      Assert.True(repeatedPinnedDocx.Succeeded, repeatedPinnedDocx.Message);
+      Assert.Equal(firstPinnedDocx.Value!.ArtifactId, repeatedPinnedDocx.Value!.ArtifactId);
+      Assert.Equal(firstPinnedDocx.Value.ArtifactSha256Hex, Hashing.Sha256Hex(firstPinnedDocx.Value.Bytes));
+      Assert.Equal(firstPinnedDocx.Value.Bytes, repeatedPinnedDocx.Value.Bytes);
+      Assert.Equal(packageArtifactCount + 1, await db.FinancialPackageArtifacts.CountAsync(x => x.FinancialPackageId == packageId));
+      var persistedPinnedArtifact = await db.FinancialPackageArtifacts.SingleAsync(x => x.Id == firstPinnedDocx.Value.ArtifactId);
+      Assert.Equal(FinancialPackageArtifactVersions.StatementPresentation(pin.RevisionId, "docx"), persistedPinnedArtifact.ArtifactVersion);
+      Assert.Equal(firstPinnedDocx.Value.ArtifactSha256Hex, persistedPinnedArtifact.ArtifactSha256Hex);
+      Assert.Equal(firstPinnedDocx.Value.Bytes, persistedPinnedArtifact.ArtifactBytes);
+      var seal = await PackageSealService.SealPackageAsync(db, preparer, packageId);
+      Assert.True(seal.Succeeded, seal.Message);
+      Assert.Equal(5, seal.Value!.ArtifactCount); // four canonical artifacts plus the exact pinned statement DOCX
+      var sealRecord = await db.FinancialPackageSeals.SingleAsync(x => x.Id == seal.Value.SealId);
+      Assert.Equal("package-seal.v2", sealRecord.SealVersion);
+      Assert.True((await PackageSealService.GetSealStatusAsync(db, reviewer, packageId)).Value!.IsSealed);
+      using (var sealedManifest = JsonDocument.Parse(sealRecord.ArtifactManifestJson))
+      {
+        var entry = sealedManifest.RootElement.EnumerateArray().Single(x =>
+            x.GetProperty(nameof(PackageArtifactManifestEntry.PresentationRevisionId)) is { ValueKind: JsonValueKind.String } revisionId &&
+            revisionId.GetGuid() == pin.RevisionId);
+        Assert.Equal(pin.RevisionHash, entry.GetProperty(nameof(PackageArtifactManifestEntry.PresentationRevisionHash)).GetString());
+        Assert.Equal(layoutId, entry.GetProperty(nameof(PackageArtifactManifestEntry.LayoutVersionId)).GetGuid());
+        Assert.Equal(pin.LayoutHash, entry.GetProperty(nameof(PackageArtifactManifestEntry.LayoutHash)).GetString());
+        Assert.Equal(pin.NoteSourceManifestHash, entry.GetProperty(nameof(PackageArtifactManifestEntry.NoteSourceManifestHash)).GetString());
+        Assert.Equal(firstPinnedDocx.Value.ArtifactSha256Hex, entry.GetProperty(nameof(PackageArtifactManifestEntry.Sha256Hex)).GetString());
+      }
+      Assert.Equal("docx", (await FinancialStatementService.ListPresentationPinsAsync(db, reviewer, packageId)).Value!.Single().ArtifactFormats.Single());
+
+      using (var archive = new ZipArchive(new MemoryStream(firstPinnedDocx.Value.Bytes), ZipArchiveMode.Read))
+      using (var documentXml = archive.GetEntry("word/document.xml")!.Open())
+      {
+        var renderedText = XDocument.Load(documentXml).Root!.Value;
+        Assert.Contains($"Statement layout: {layoutId:D}", renderedText, StringComparison.Ordinal);
+        Assert.Contains($"Note source manifest: {pin.NoteSourceManifestHash}", renderedText, StringComparison.Ordinal);
+        Assert.DoesNotContain($"Statement layout: {successor.Value.LayoutVersionId:D}", renderedText, StringComparison.Ordinal);
+      }
+
+      // Both the immutable input snapshot and the exact rendered bytes are protected by database triggers.
+      var updatePin = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+        $"UPDATE financial_statement_presentation_revisions SET display_policy = {"tampered"} WHERE id = {pin.RevisionId}"));
+      Assert.Equal("P0001", updatePin.SqlState);
+      var updateBytes = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+        $"UPDATE financial_package_artifacts SET artifact_sha256_hex = {new string('0', 64)} WHERE id = {firstPinnedDocx.Value.ArtifactId}"));
+      Assert.Equal("P0001", updateBytes.SqlState);
+      var deleteArtifact = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+        $"DELETE FROM financial_statement_presentation_artifacts WHERE id = {firstPinnedDocx.Value.ArtifactId}"));
+      Assert.Equal("P0001", deleteArtifact.SqlState);
 
       // Explicit exports preserve the reviewed version and remain deterministic; unknown formats are refused.
       var first = await FinancialStatementService.RenderPresentationAsync(db, reviewer, packageId, "docx", layoutId);
@@ -783,6 +911,24 @@ public sealed class FinancialStatementTests
       // A caller with no grant on this package learns nothing about it.
       var stranger = Actor(User(fixture.FirmId), "AccountingPreparer");
       Assert.False((await FinancialStatementService.BuildPresentationAsync(db, stranger, packageId)).Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied,
+        (await FinancialStatementService.GetPinnedPresentationAsync(db, stranger, packageId, pin.RevisionId)).ErrorCode);
+
+      // A changed client input generation makes the pin stale instead of silently refreshing its snapshot.
+      var safety = await db.ClientSafetyStates.SingleAsync(x => x.FirmId == fixture.FirmId && x.Id == fixture.ClientId);
+      safety.InputGeneration++;
+      await db.SaveChangesAsync();
+      var stalePin = await FinancialStatementService.GetPinnedPresentationAsync(db, reviewer, packageId, pin.RevisionId);
+      Assert.False(stalePin.Succeeded);
+      Assert.Equal(ErrorCodes.StaleRevision, stalePin.ErrorCode);
+      var staleList = await FinancialStatementService.ListPresentationPinsAsync(db, reviewer, packageId);
+      Assert.False(staleList.Value!.Single().SourceIsCurrent);
+      var historicalDocx = await FinancialStatementService.GetPinnedPresentationArtifactAsync(db, reviewer, pin.RevisionId, "docx");
+      Assert.True(historicalDocx.Succeeded, historicalDocx.Message);
+      Assert.Equal(firstPinnedDocx.Value.Bytes, historicalDocx.Value!.Bytes);
+      var unrenderedStalePdf = await FinancialStatementService.RenderPinnedPresentationArtifactAsync(db, reviewer, pin.RevisionId, "pdf");
+      Assert.False(unrenderedStalePdf.Succeeded);
+      Assert.Equal(ErrorCodes.StaleRevision, unrenderedStalePdf.ErrorCode);
     }
   }
 

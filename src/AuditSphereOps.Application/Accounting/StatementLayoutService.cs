@@ -242,7 +242,7 @@ public static class StatementLayoutService
   private static IReadOnlyList<string>? Deserialize(string? json) =>
     string.IsNullOrWhiteSpace(json) ? null : System.Text.Json.JsonSerializer.Deserialize<List<string>>(json);
 
-  private static string ComputeLayoutHash(IReadOnlyList<StatementLineDefinition> lines) =>
+  internal static string ComputeLayoutHash(IReadOnlyList<StatementLineDefinition> lines) =>
     Hashing.Sha256Hex(string.Join('\n', lines
       .OrderBy(x => x.Section, StringComparer.Ordinal).ThenBy(x => x.Order)
       .Select(x => string.Join('|', x.LineCode, x.Kind, x.Section, x.Order, x.DisplaySign,

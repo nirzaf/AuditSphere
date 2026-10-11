@@ -253,6 +253,91 @@ public sealed partial class AuditSphereDbContext
       .HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
+    var presentationRevision = b.Entity<FinancialStatementPresentationRevision>();
+    presentationRevision.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("AK_financial_statement_presentation_revisions_scope_id");
+    presentationRevision.Property(x => x.Basis).HasMaxLength(50);
+    presentationRevision.Property(x => x.Framework).HasMaxLength(100);
+    presentationRevision.Property(x => x.TaxonomyVersion).HasMaxLength(100);
+    presentationRevision.Property(x => x.TemplateVersion).HasMaxLength(100);
+    presentationRevision.Property(x => x.CalculationEngineVersion).HasMaxLength(100);
+    presentationRevision.Property(x => x.Currency).HasMaxLength(3);
+    presentationRevision.Property(x => x.PeriodStart).HasMaxLength(10);
+    presentationRevision.Property(x => x.PeriodEnd).HasMaxLength(10);
+    presentationRevision.Property(x => x.PackageCalculationHash).HasMaxLength(64);
+    presentationRevision.Property(x => x.LayoutHash).HasMaxLength(64);
+    presentationRevision.Property(x => x.ComparativeCalculationHash).HasMaxLength(64);
+    presentationRevision.Property(x => x.ComparativeBasis).HasMaxLength(100);
+    presentationRevision.Property(x => x.ComparativeEvidenceReference).HasMaxLength(2000);
+    presentationRevision.Property(x => x.NoteSourceManifestHash).HasMaxLength(64);
+    presentationRevision.Property(x => x.BuilderVersion).HasMaxLength(100);
+    presentationRevision.Property(x => x.RendererVersion).HasMaxLength(100);
+    presentationRevision.Property(x => x.DisplayPolicy).HasMaxLength(100);
+    presentationRevision.Property(x => x.Status).HasMaxLength(30);
+    presentationRevision.Property(x => x.RevisionHash).HasMaxLength(64);
+    presentationRevision.Property(x => x.SnapshotSha256Hex).HasMaxLength(64);
+    presentationRevision.Property(x => x.SnapshotJson).HasColumnType("bytea");
+    presentationRevision.HasIndex(x => new { x.FirmId, x.FinancialPackageId, x.RevisionHash }).IsUnique()
+      .HasDatabaseName("ux_financial_statement_presentation_revision_identity");
+    presentationRevision.HasIndex(x => new { x.FirmId, x.FinancialPackageId, x.CreatedAt })
+      .HasDatabaseName("ix_financial_statement_presentation_revision_history");
+    presentationRevision.ToTable("financial_statement_presentation_revisions", t => t.HasCheckConstraint(
+      "ck_financial_statement_presentation_revision_values",
+      "package_revision >= 1 AND package_generation >= 1 AND package_calculation_hash ~ '^[0-9a-f]{64}$' " +
+      "AND length(trim(framework)) > 0 AND length(trim(taxonomy_version)) > 0 AND length(trim(template_version)) > 0 " +
+      "AND length(trim(calculation_engine_version)) > 0 AND currency ~ '^[A-Z]{3}$' " +
+      "AND period_start ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' AND period_end ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' " +
+      "AND layout_hash ~ '^[0-9a-f]{64}$' AND note_source_manifest_hash ~ '^[0-9a-f]{64}$' AND revision_hash ~ '^[0-9a-f]{64}$' " +
+      "AND snapshot_sha256_hex ~ '^[0-9a-f]{64}$' AND octet_length(snapshot_json) BETWEEN 1 AND 8388608 " +
+      "AND length(trim(builder_version)) > 0 AND length(trim(renderer_version)) > 0 " +
+      "AND length(trim(display_policy)) > 0 AND status = 'UNAPPROVED_DRAFT' " +
+      "AND ((comparative_package_id IS NULL AND comparative_package_revision IS NULL AND comparative_package_generation IS NULL " +
+      "AND comparative_calculation_hash IS NULL AND comparative_basis IS NULL AND comparative_evidence_reference IS NULL) " +
+      "OR (comparative_package_id IS NOT NULL AND comparative_package_revision IS NOT NULL AND comparative_package_revision >= 1 " +
+      "AND comparative_package_generation IS NOT NULL AND comparative_package_generation >= 1 " +
+      "AND comparative_calculation_hash IS NOT NULL AND comparative_calculation_hash ~ '^[0-9a-f]{64}$' " +
+      "AND comparative_basis IS NOT NULL AND length(trim(comparative_basis)) > 0 " +
+      "AND comparative_evidence_reference IS NOT NULL AND length(trim(comparative_evidence_reference)) > 0))"));
+    presentationRevision.HasOne<FinancialPackage>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    presentationRevision.HasOne<FinancialPackage>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ComparativePackageId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    presentationRevision.HasOne<ClientReportingPeriod>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.PeriodId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    presentationRevision.HasOne<ClientReportingBook>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.BookId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    presentationRevision.HasOne<StatementLayoutVersion>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.LayoutVersionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    presentationRevision.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var presentationArtifact = b.Entity<FinancialStatementPresentationArtifact>();
+    presentationArtifact.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("AK_financial_statement_presentation_artifacts_scope_id");
+    presentationArtifact.Property(x => x.Format).HasMaxLength(10);
+    presentationArtifact.Property(x => x.FileName).HasMaxLength(240);
+    presentationArtifact.Property(x => x.ContentType).HasMaxLength(120);
+    presentationArtifact.Property(x => x.RendererVersion).HasMaxLength(100);
+    presentationArtifact.HasIndex(x => new { x.FirmId, x.PresentationRevisionId, x.Format }).IsUnique()
+      .HasDatabaseName("ux_financial_statement_presentation_artifact_format");
+    presentationArtifact.ToTable("financial_statement_presentation_artifacts", t => t.HasCheckConstraint(
+      "ck_financial_statement_presentation_artifact_values",
+      "format IN ('pdf','docx','xlsx') AND length(trim(file_name)) > 0 AND length(trim(content_type)) > 0 " +
+      "AND length(trim(renderer_version)) > 0"));
+    presentationArtifact.HasOne<FinancialPackageArtifact>().WithOne()
+      .HasForeignKey<FinancialStatementPresentationArtifact>(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasPrincipalKey<FinancialPackageArtifact>(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+    presentationArtifact.HasOne<FinancialStatementPresentationRevision>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.PresentationRevisionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
     var packageLine = b.Entity<FinancialPackageLine>();
     packageLine.Property(x => x.SourceAccountCode).HasMaxLength(100);
     packageLine.Property(x => x.DestinationCode).HasMaxLength(100);

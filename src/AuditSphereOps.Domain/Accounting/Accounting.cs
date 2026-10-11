@@ -372,6 +372,66 @@ public sealed class FinancialPackageArtifact
   public DateTimeOffset CreatedAt { get; set; }
 }
 
+/// <summary>An immutable, unapproved statement-presentation snapshot pinned to exact package and layout revisions.</summary>
+public sealed class FinancialStatementPresentationRevision
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid FinancialPackageId { get; set; }
+  public Guid? PeriodId { get; set; }
+  public Guid? BookId { get; set; }
+  public string? Basis { get; set; }
+  public string Framework { get; set; } = string.Empty;
+  public string TaxonomyVersion { get; set; } = string.Empty;
+  public string TemplateVersion { get; set; } = string.Empty;
+  public string CalculationEngineVersion { get; set; } = string.Empty;
+  public string Currency { get; set; } = string.Empty;
+  public string PeriodStart { get; set; } = string.Empty;
+  public string PeriodEnd { get; set; } = string.Empty;
+  public long PackageRevision { get; set; }
+  public long PackageGeneration { get; set; }
+  public string PackageCalculationHash { get; set; } = string.Empty;
+  public Guid LayoutVersionId { get; set; }
+  public string LayoutHash { get; set; } = string.Empty;
+  public Guid? ComparativePackageId { get; set; }
+  public long? ComparativePackageRevision { get; set; }
+  public long? ComparativePackageGeneration { get; set; }
+  public string? ComparativeCalculationHash { get; set; }
+  public string? ComparativeBasis { get; set; }
+  public string? ComparativeEvidenceReference { get; set; }
+  public string NoteSourceManifestHash { get; set; } = string.Empty;
+  public string BuilderVersion { get; set; } = string.Empty;
+  public string RendererVersion { get; set; } = string.Empty;
+  public string DisplayPolicy { get; set; } = string.Empty;
+  public string Status { get; set; } = FinancialStatementPresentationRevisionStatuses.UnapprovedDraft;
+  public string RevisionHash { get; set; } = string.Empty;
+  public string SnapshotSha256Hex { get; set; } = string.Empty;
+  public byte[] SnapshotJson { get; set; } = [];
+  public Guid CreatedByUserId { get; set; }
+  public DateTimeOffset CreatedAt { get; set; }
+}
+
+public static class FinancialStatementPresentationRevisionStatuses
+{
+  public const string UnapprovedDraft = "UNAPPROVED_DRAFT";
+}
+
+/// <summary>Immutable presentation metadata linked to the exact-byte financial-package artifact covered by the package seal.</summary>
+public sealed class FinancialStatementPresentationArtifact
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid PresentationRevisionId { get; set; }
+  public string Format { get; set; } = string.Empty;
+  public string FileName { get; set; } = string.Empty;
+  public string ContentType { get; set; } = string.Empty;
+  public string RendererVersion { get; set; } = string.Empty;
+}
+
 public static class FinancialPackageArtifactVersions
 {
   public const string Text = "financial-package-text.v1";
@@ -379,6 +439,9 @@ public static class FinancialPackageArtifactVersions
   public const string ControlledWorkbook = "financial-package-xlsx-controlled.v1";
   public const string Word = "financial-package-docx.v1";
   public const string Pdf = "financial-package-pdf.v1";
+
+  public static string StatementPresentation(Guid revisionId, string format) =>
+    $"statement-presentation.{format}.v1.{revisionId:N}";
 }
 
 public static class FinancialPackageReviewStages

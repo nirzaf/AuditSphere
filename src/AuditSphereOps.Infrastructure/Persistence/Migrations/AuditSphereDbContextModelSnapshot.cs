@@ -8258,6 +8258,286 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.FinancialStatementPresentationArtifact", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("content_type");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(240)
+                        .HasColumnType("character varying(240)")
+                        .HasColumnName("file_name");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("Format")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("format");
+
+                    b.Property<Guid>("PresentationRevisionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("presentation_revision_id");
+
+                    b.Property<string>("RendererVersion")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("renderer_version");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .HasName("AK_financial_statement_presentation_artifacts_scope_id");
+
+                    b.HasIndex("FirmId", "PresentationRevisionId", "Format")
+                        .IsUnique()
+                        .HasDatabaseName("ux_financial_statement_presentation_artifact_format");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "PresentationRevisionId");
+
+                    b.ToTable("financial_statement_presentation_artifacts", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_financial_statement_presentation_artifact_values", "format IN ('pdf','docx','xlsx') AND length(trim(file_name)) > 0 AND length(trim(content_type)) > 0 AND length(trim(renderer_version)) > 0");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.FinancialStatementPresentationRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Basis")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("basis");
+
+                    b.Property<Guid?>("BookId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("book_id");
+
+                    b.Property<string>("BuilderVersion")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("builder_version");
+
+                    b.Property<string>("CalculationEngineVersion")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("calculation_engine_version");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<string>("ComparativeBasis")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("comparative_basis");
+
+                    b.Property<string>("ComparativeCalculationHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("comparative_calculation_hash");
+
+                    b.Property<string>("ComparativeEvidenceReference")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("comparative_evidence_reference");
+
+                    b.Property<long?>("ComparativePackageGeneration")
+                        .HasColumnType("bigint")
+                        .HasColumnName("comparative_package_generation");
+
+                    b.Property<Guid?>("ComparativePackageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("comparative_package_id");
+
+                    b.Property<long?>("ComparativePackageRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("comparative_package_revision");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasColumnName("currency");
+
+                    b.Property<string>("DisplayPolicy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("display_policy");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FinancialPackageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("financial_package_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("Framework")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("framework");
+
+                    b.Property<string>("LayoutHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("layout_hash");
+
+                    b.Property<Guid>("LayoutVersionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("layout_version_id");
+
+                    b.Property<string>("NoteSourceManifestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("note_source_manifest_hash");
+
+                    b.Property<string>("PackageCalculationHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("package_calculation_hash");
+
+                    b.Property<long>("PackageGeneration")
+                        .HasColumnType("bigint")
+                        .HasColumnName("package_generation");
+
+                    b.Property<long>("PackageRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("package_revision");
+
+                    b.Property<string>("PeriodEnd")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("period_end");
+
+                    b.Property<Guid?>("PeriodId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("period_id");
+
+                    b.Property<string>("PeriodStart")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("period_start");
+
+                    b.Property<string>("RendererVersion")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("renderer_version");
+
+                    b.Property<string>("RevisionHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("revision_hash");
+
+                    b.Property<byte[]>("SnapshotJson")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("snapshot_json");
+
+                    b.Property<string>("SnapshotSha256Hex")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("snapshot_sha256_hex");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("TaxonomyVersion")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("taxonomy_version");
+
+                    b.Property<string>("TemplateVersion")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("template_version");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .HasName("AK_financial_statement_presentation_revisions_scope_id");
+
+                    b.HasIndex("FirmId", "ComparativePackageId");
+
+                    b.HasIndex("FirmId", "CreatedByUserId");
+
+                    b.HasIndex("FirmId", "ClientId", "BookId");
+
+                    b.HasIndex("FirmId", "ClientId", "LayoutVersionId")
+                        .HasDatabaseName("IX_financial_statement_presentation_revisions_firm_id_client_~1");
+
+                    b.HasIndex("FirmId", "ClientId", "PeriodId")
+                        .HasDatabaseName("IX_financial_statement_presentation_revisions_firm_id_client_~2");
+
+                    b.HasIndex("FirmId", "FinancialPackageId", "CreatedAt")
+                        .HasDatabaseName("ix_financial_statement_presentation_revision_history");
+
+                    b.HasIndex("FirmId", "FinancialPackageId", "RevisionHash")
+                        .IsUnique()
+                        .HasDatabaseName("ux_financial_statement_presentation_revision_identity");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "FinancialPackageId")
+                        .HasDatabaseName("IX_financial_statement_presentation_revisions_firm_id_client_~3");
+
+                    b.ToTable("financial_statement_presentation_revisions", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_financial_statement_presentation_revision_values", "package_revision >= 1 AND package_generation >= 1 AND package_calculation_hash ~ '^[0-9a-f]{64}$' AND length(trim(framework)) > 0 AND length(trim(taxonomy_version)) > 0 AND length(trim(template_version)) > 0 AND length(trim(calculation_engine_version)) > 0 AND currency ~ '^[A-Z]{3}$' AND period_start ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' AND period_end ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' AND layout_hash ~ '^[0-9a-f]{64}$' AND note_source_manifest_hash ~ '^[0-9a-f]{64}$' AND revision_hash ~ '^[0-9a-f]{64}$' AND snapshot_sha256_hex ~ '^[0-9a-f]{64}$' AND octet_length(snapshot_json) BETWEEN 1 AND 8388608 AND length(trim(builder_version)) > 0 AND length(trim(renderer_version)) > 0 AND length(trim(display_policy)) > 0 AND status = 'UNAPPROVED_DRAFT' AND ((comparative_package_id IS NULL AND comparative_package_revision IS NULL AND comparative_package_generation IS NULL AND comparative_calculation_hash IS NULL AND comparative_basis IS NULL AND comparative_evidence_reference IS NULL) OR (comparative_package_id IS NOT NULL AND comparative_package_revision IS NOT NULL AND comparative_package_revision >= 1 AND comparative_package_generation IS NOT NULL AND comparative_package_generation >= 1 AND comparative_calculation_hash IS NOT NULL AND comparative_calculation_hash ~ '^[0-9a-f]{64}$' AND comparative_basis IS NOT NULL AND length(trim(comparative_basis)) > 0 AND comparative_evidence_reference IS NOT NULL AND length(trim(comparative_evidence_reference)) > 0))");
+                        });
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.GeneralLedgerCompletenessBridge", b =>
                 {
                     b.Property<Guid>("Id")
@@ -27837,6 +28117,67 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasPrincipalKey("FirmId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.FinancialStatementPresentationArtifact", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Accounting.FinancialPackageArtifact", null)
+                        .WithOne()
+                        .HasForeignKey("AuditSphereOps.Domain.Accounting.FinancialStatementPresentationArtifact", "FirmId", "ClientId", "EngagementId", "Id")
+                        .HasPrincipalKey("AuditSphereOps.Domain.Accounting.FinancialPackageArtifact", "FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.FinancialStatementPresentationRevision", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "PresentationRevisionId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.FinancialStatementPresentationRevision", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Accounting.FinancialPackage", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ComparativePackageId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "CreatedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientReportingBook", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "BookId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.StatementLayoutVersion", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "LayoutVersionId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientReportingPeriod", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "PeriodId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_financial_statement_presentation_revisions_client_reportin~1");
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.FinancialPackage", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "FinancialPackageId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_financial_statement_presentation_revisions_financial_packa~1");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.GeneralLedgerCompletenessBridge", b =>

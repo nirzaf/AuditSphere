@@ -11,7 +11,8 @@ namespace AuditSphereOps.Application.Accounting;
 /// </summary>
 public static class FinancialStatementPresentationPolicy
 {
-  public const string BuilderVersion = "auditsphere.statement-presentation.v4";
+  public const string BuilderVersion = "auditsphere.statement-presentation.v6";
+  public const string RendererVersion = "auditsphere.statement-renderer.v3";
   public const string DisplayPolicy = "whole units; half-even rounding of displayed amounts; negatives in brackets; zero shown as a dash";
   public const string DraftStatus = "UNAPPROVED_DRAFT";
   public const int DefaultDisplayDecimals = 0;
@@ -19,6 +20,8 @@ public static class FinancialStatementPresentationPolicy
   public const int MaxCashFlowLinesPerPeriod = 100;
   public const int MaxFxEffectsPerPeriod = 100;
   public const int MaxEquityLinesPerPeriod = 35;
+  public const int MaxNoteLinesPerPeriod = 500;
+  public const int MaxDisclosuresPerPeriod = 100;
 
   /// <summary>Sections evaluated by the published layout; supplementary schedules are rendered from persisted typed rows.</summary>
   public static readonly IReadOnlySet<string> SupportedSections = new HashSet<string>(StringComparer.Ordinal)
@@ -43,7 +46,31 @@ public static class FinancialStatementPresentationPolicy
 public sealed record PresentationBalance(string DestinationCode, string StatementSection, decimal Amount);
 
 /// <summary>A persisted note cross-cast: its amount must equal the magnitude of the face line it points to.</summary>
-public sealed record PresentationNoteLine(string NoteCode, string FaceDestinationCode, decimal Amount);
+public sealed record PresentationNoteLine(
+  string NoteCode, string FaceDestinationCode, decimal Amount, Guid? PackageId = null,
+  string? Currency = null, string? EvidenceReference = null);
+
+/// <summary>Existing package disclosure content; it remains an unreviewed preparer input in presentation output.</summary>
+public sealed record PresentationDisclosureSource(
+  string Code, string Response, bool NotApplicable, string? Rationale, Guid? PackageId = null);
+
+public static class PresentationDisclosureStates
+{
+  public const string NotSupplied = "NOT_SUPPLIED";
+  public const string PreparerSupplied = "PREPARER_SUPPLIED_UNREVIEWED";
+  public const string PreparerMarkedNotApplicable = "PREPARER_MARKED_NOT_APPLICABLE_UNREVIEWED";
+}
+
+public sealed record PresentationDisclosurePeriod(string State, string? Text, string? Rationale);
+
+public sealed record PresentationNoteAmount(
+  string FaceDestinationCode, string Label, string StatementSection, string Currency, decimal? Current, decimal? Comparative,
+  string? CurrentEvidenceReference, string? ComparativeEvidenceReference);
+
+/// <summary>Draft note view numbered from statement order; included content is not reviewed or policy-approved.</summary>
+public sealed record PresentationNote(
+  int Number, string Code, PresentationDisclosurePeriod Current, PresentationDisclosurePeriod Comparative,
+  IReadOnlyList<PresentationNoteAmount> Amounts);
 
 public sealed record PresentationCashFlowMovement(string Section, string Description, decimal Amount, bool IsNonCash, string? ActivityCode);
 
@@ -69,7 +96,11 @@ public sealed record PresentationHeader(
 /// <summary>Identities that let a reader prove exactly which inputs produced the presented statements.</summary>
 public sealed record PresentationManifest(
   Guid PackageId, string CalculationHash, Guid LayoutVersionId, string LayoutHash,
-  Guid? ComparativePackageId, string? ComparativeCalculationHash, string BuilderVersion, string DisplayPolicy);
+  Guid? ComparativePackageId, string? ComparativeCalculationHash, string BuilderVersion, string DisplayPolicy,
+  string? NoteSourceManifestHash = null, Guid? PeriodId = null, Guid? BookId = null, string? Basis = null,
+  string? Framework = null, string? TaxonomyVersion = null, string? TemplateVersion = null,
+  string? CalculationEngineVersion = null, string? Currency = null, string? PeriodStart = null,
+  string? PeriodEnd = null, string? ComparativeBasis = null, string? ComparativeEvidenceReference = null);
 
 public static class PresentationRowKinds
 {
@@ -96,7 +127,9 @@ public sealed record FinancialStatementPresentation(
   int DisplayDecimals,
   IReadOnlyList<PresentationStatement> Statements,
   IReadOnlyList<PresentationCheck> Checks,
-  IReadOnlyList<PresentationWarning> Warnings);
+  IReadOnlyList<PresentationWarning> Warnings,
+  bool CanPin = false,
+  IReadOnlyList<PresentationNote>? Notes = null);
 
 /// <summary>
 /// Pure, deterministic presentation of canonical package balances through a published statement layout. It evaluates
@@ -115,7 +148,8 @@ public static class FinancialStatementPresentationBuilder
     PresentationManifest manifest,
     int displayDecimals = FinancialStatementPresentationPolicy.DefaultDisplayDecimals,
     PresentationSupplementarySchedules? currentSupplementary = null,
-    PresentationSupplementarySchedules? priorSupplementary = null)
+    PresentationSupplementarySchedules? priorSupplementary = null,
+    IReadOnlyList<PresentationDisclosureSource>? disclosures = null)
   {
     ArgumentNullException.ThrowIfNull(layout);
     ArgumentNullException.ThrowIfNull(current);
@@ -150,6 +184,13 @@ public static class FinancialStatementPresentationBuilder
         x.EquityLines.Count > FinancialStatementPresentationPolicy.MaxEquityLinesPerPeriod))
     {
       Fail("SUPPLEMENTARY_BOUNDS", "The supplementary statement schedules exceed their presentation row limits; no rows were truncated.");
+      return Refuse();
+    }
+
+    if (notes.Count > FinancialStatementPresentationPolicy.MaxNoteLinesPerPeriod * 2 ||
+        (disclosures?.Count ?? 0) > FinancialStatementPresentationPolicy.MaxDisclosuresPerPeriod * 2)
+    {
+      Fail("NOTE_BOUNDS", "The note source exceeds the bounded note-line or disclosure count; no content was truncated.");
       return Refuse();
     }
 
@@ -245,33 +286,112 @@ public static class FinancialStatementPresentationBuilder
     else
       Fail("ACCOUNTING_EQUATION", "Total assets do not equal liabilities, equity and profit for the year.");
 
-    // 7. Notes: every note points to a mapped face line and its amount cross-casts to that line's magnitude.
-    var noteGroups = notes.GroupBy(x => Normal(x.FaceDestinationCode), StringComparer.Ordinal).ToList();
-    var invalidNoteIds = notes.Where(x => string.IsNullOrWhiteSpace(x.NoteCode) || x.NoteCode.Trim().Length > 100).ToArray();
+    // 7. Notes are scoped to their exact package so comparative values never cross-cast against current balances.
+    var allowedNotePackages = manifest.ComparativePackageId is Guid comparativePackageId
+      ? new HashSet<Guid> { manifest.PackageId, comparativePackageId }
+      : new HashSet<Guid> { manifest.PackageId };
+    var outOfScopeNotes = notes.Where(x => x.PackageId is Guid packageId && !allowedNotePackages.Contains(packageId)).ToArray();
+    if (outOfScopeNotes.Length > 0)
+      Fail("NOTE_PACKAGE_SCOPE", "A note source belongs to a package outside the pinned current/comparative pair.");
+    var currentNotes = notes.Where(x => x.PackageId is null || x.PackageId == manifest.PackageId).ToList();
+    var priorNotes = manifest.ComparativePackageId is null
+      ? []
+      : notes.Where(x => x.PackageId == manifest.ComparativePackageId).ToList();
+    var disclosureSources = disclosures ?? [];
+    var outOfScopeDisclosures = disclosureSources.Where(x => x.PackageId is Guid packageId && !allowedNotePackages.Contains(packageId)).ToArray();
+    if (outOfScopeDisclosures.Length > 0)
+      Fail("DISCLOSURE_PACKAGE_SCOPE", "A disclosure belongs to a package outside the pinned current/comparative pair.");
+    var currentDisclosures = disclosureSources.Where(x => x.PackageId is null || x.PackageId == manifest.PackageId).ToList();
+    var comparativeDisclosures = manifest.ComparativePackageId is null
+      ? []
+      : disclosureSources.Where(x => x.PackageId == manifest.ComparativePackageId).ToList();
+    if (currentNotes.Count > FinancialStatementPresentationPolicy.MaxNoteLinesPerPeriod ||
+        priorNotes.Count > FinancialStatementPresentationPolicy.MaxNoteLinesPerPeriod ||
+        currentDisclosures.Count > FinancialStatementPresentationPolicy.MaxDisclosuresPerPeriod ||
+        comparativeDisclosures.Count > FinancialStatementPresentationPolicy.MaxDisclosuresPerPeriod)
+    {
+      Fail("NOTE_BOUNDS", "A current or comparative package exceeds its bounded note-line or disclosure count; no content was truncated.");
+      return Refuse();
+    }
+    var invalidNoteIds = currentNotes.Select(x => x.NoteCode)
+      .Concat(currentDisclosures.Select(x => x.Code)).Concat(priorNotes.Select(x => x.NoteCode))
+      .Concat(comparativeDisclosures.Select(x => x.Code))
+      .Where(x => string.IsNullOrWhiteSpace(x) || !SafeDraftText(x, 100)).ToArray();
     if (invalidNoteIds.Length > 0)
-      Fail("NOTE_LOGICAL_ID", "Each note cross-cast must carry a non-empty logical note ID of at most 100 characters.");
-    var duplicateNotePointers = notes.GroupBy(x => (LogicalId: Normal(x.NoteCode), FaceDestination: Normal(x.FaceDestinationCode)))
+      Fail("NOTE_LOGICAL_ID", "Each note or disclosure must carry a non-empty logical note ID of at most 100 supported characters.");
+    var invalidNoteLines = currentNotes.Concat(priorNotes).Where(x =>
+      !SafeDraftText(x.NoteCode, 100) || string.IsNullOrWhiteSpace(x.NoteCode) ||
+      !SafeDraftText(x.FaceDestinationCode, 100) || string.IsNullOrWhiteSpace(x.FaceDestinationCode) ||
+      !SafeDraftText(x.Currency, 3) || string.IsNullOrWhiteSpace(x.Currency) || x.Currency.Length != 3 || x.Currency.Any(c => !char.IsAsciiLetter(c)) ||
+      !SafeDraftText(x.EvidenceReference, 2000) || string.IsNullOrWhiteSpace(x.EvidenceReference)).ToArray();
+    if (invalidNoteLines.Length > 0)
+      Fail("NOTE_LINE_CONTENT", "A note line has a missing or unsupported destination, currency or preparer reference.");
+    var invalidDisclosureContent = currentDisclosures.Concat(comparativeDisclosures).Where(x =>
+      (x.Response?.Length ?? 0) > 4000 || (x.Rationale?.Length ?? 0) > 2000 ||
+      !SafeDraftText(x.Code, 100) || !SafeDraftText(x.Response, 4000) || !SafeDraftText(x.Rationale, 2000) ||
+      (x.NotApplicable ? string.IsNullOrWhiteSpace(x.Rationale) : string.IsNullOrWhiteSpace(x.Response))).ToArray();
+    if (invalidDisclosureContent.Length > 0)
+      Fail("DISCLOSURE_CONTENT_BOUNDS", "A disclosure has missing required content, an unsupported control character, or exceeds its bounded text length.");
+    if (failures.Count > 0) return Refuse();
+
+    var currentNoteGroups = currentNotes.GroupBy(x => Normal(x.FaceDestinationCode), StringComparer.Ordinal).ToList();
+    var priorNoteGroups = priorNotes.GroupBy(x => Normal(x.FaceDestinationCode), StringComparer.Ordinal).ToList();
+    var duplicateDisclosures = currentDisclosures.Select(x => (PackageId: manifest.PackageId, Disclosure: x))
+      .Concat(comparativeDisclosures.Select(x => (PackageId: manifest.ComparativePackageId!.Value, Disclosure: x)))
+      .GroupBy(x => (x.PackageId, Code: Normal(x.Disclosure.Code)))
+      .Where(x => x.Count() > 1).Select(x => x.Key).ToArray();
+    if (duplicateDisclosures.Length > 0)
+      Fail("DISCLOSURE_CODE_UNIQUE", "Each package may supply only one disclosure response for a normalized logical note ID.");
+    var noteCurrencyMismatch = currentNotes.Concat(priorNotes)
+      .Where(x => x.Currency is { Length: > 0 } currency && !string.Equals(currency, header.Currency, StringComparison.OrdinalIgnoreCase))
+      .Select(x => Normal(x.NoteCode)).Distinct(StringComparer.Ordinal).ToArray();
+    if (noteCurrencyMismatch.Length > 0)
+      Fail("NOTE_CURRENCY", "Note amounts must use the same currency as the pinned statement package.");
+    var duplicateNotePointers = currentNotes.Concat(priorNotes)
+      .GroupBy(x => (PackageId: x.PackageId ?? manifest.PackageId,
+        LogicalId: Normal(x.NoteCode), FaceDestination: Normal(x.FaceDestinationCode)))
       .Where(x => x.Count() > 1).Select(x => x.Key).OrderBy(x => x.LogicalId, StringComparer.Ordinal)
       .ThenBy(x => x.FaceDestination, StringComparer.Ordinal).ToArray();
     if (duplicateNotePointers.Length > 0)
       Fail("NOTE_POINTER_UNIQUE", "A stable note logical ID cannot bind to the same normalized face destination more than once.");
-    var dangling = noteGroups.Where(g => !leafByDestination.ContainsKey(g.Key)).Select(g => g.Key).OrderBy(x => x, StringComparer.Ordinal).ToArray();
+    var notApplicableWithAmounts = currentDisclosures.Where(x => x.NotApplicable && currentNotes.Any(n => Normal(n.NoteCode) == Normal(x.Code)))
+      .Select(x => $"current:{Normal(x.Code)}")
+      .Concat(comparativeDisclosures.Where(x => x.NotApplicable && priorNotes.Any(n => Normal(n.NoteCode) == Normal(x.Code)))
+        .Select(x => $"comparative:{Normal(x.Code)}")).ToArray();
+    if (notApplicableWithAmounts.Length > 0)
+      Fail("DISCLOSURE_APPLICABILITY_CONFLICT", "A disclosure marked not applicable also has numeric note lines: " + string.Join(", ", notApplicableWithAmounts) + ".");
+    var dangling = currentNoteGroups.SelectMany(g => g.Select(_ => (Period: "current", Destination: g.Key)))
+      .Concat(priorNoteGroups.SelectMany(g => g.Select(_ => (Period: "comparative", Destination: g.Key))))
+      .Where(x => !leafByDestination.ContainsKey(x.Destination))
+      .Select(x => $"{x.Period}:{x.Destination}").Distinct(StringComparer.Ordinal)
+      .OrderBy(x => x, StringComparer.Ordinal).ToArray();
     if (dangling.Length > 0)
-      Fail("NOTE_REFERENCE", "Notes point to face lines that the layout does not present: " + string.Join(", ", dangling) + ".");
+      Fail("NOTE_REFERENCE", "Current or comparative notes point to face lines that the layout does not present: " + string.Join(", ", dangling) + ".");
     else
-      Pass("NOTE_REFERENCE", "Every note points to a presented face line.");
+      Pass("NOTE_REFERENCE", "Every current and comparative note points to a presented face line.");
     var mismatchedNotes = new List<string>();
-    foreach (var group in noteGroups.Where(g => leafByDestination.ContainsKey(g.Key)))
+    foreach (var group in currentNoteGroups.Where(g => leafByDestination.ContainsKey(g.Key)))
     {
       var noted = MoneyPolicy.Normalize(group.Sum(x => x.Amount));
       var face = Math.Abs(currentValues[leafByDestination[group.Key]]);
       if (Math.Abs(noted) != face)
-        mismatchedNotes.Add($"{group.Key} notes total {noted:0.######} but the face line is {face:0.######}");
+        mismatchedNotes.Add($"current {group.Key} notes total {noted:0.######} but the face line is {face:0.######}");
     }
+    if (priorNoteGroups.Count > 0 && priorValues is null)
+      mismatchedNotes.Add("comparative notes were supplied without a pinned comparative balance set");
+    else if (priorValues is not null)
+      foreach (var group in priorNoteGroups.Where(g => leafByDestination.ContainsKey(g.Key)))
+      {
+        var noted = MoneyPolicy.Normalize(group.Sum(x => x.Amount));
+        var face = Math.Abs(priorValues[leafByDestination[group.Key]]);
+        if (Math.Abs(noted) != face)
+          mismatchedNotes.Add($"comparative {group.Key} notes total {noted:0.######} but the face line is {face:0.######}");
+      }
     if (mismatchedNotes.Count > 0)
-      Fail("NOTE_CROSS_CAST", "Notes do not cross-cast to the statement: " + string.Join("; ", mismatchedNotes) + ".");
+      Fail("NOTE_CROSS_CAST", "Current or comparative notes do not cross-cast to their respective statements: " + string.Join("; ", mismatchedNotes) + ".");
     else
-      Pass("NOTE_CROSS_CAST", "Every note cross-casts to the magnitude of its face line.");
+      Pass("NOTE_CROSS_CAST", "Every supplied current and comparative note cross-casts to its own period's face line.");
+    if (failures.Count > 0) return Refuse();
     var sectionOrder = new Dictionary<string, int>(StringComparer.Ordinal)
     {
       [Normal(StatementLayoutSections.FinancialPosition)] = 0,
@@ -283,26 +403,68 @@ public static class FinancialStatementPresentationBuilder
       .ThenBy(x => x.Order)
       .ThenBy(x => Normal(x.LineCode), StringComparer.Ordinal)
       .Select((line, index) => (Destination: Normal(line.TaxonomyNodeCode!), Index: index))
-      .ToDictionary(x => x.Destination, x => x.Index, StringComparer.Ordinal);
-    var noteOrder = notes.Select(x => x.NoteCode.Trim()).Distinct(StringComparer.Ordinal)
-      .Select(code => (Code: code, FirstFace: notes.Where(x => string.Equals(x.NoteCode.Trim(), code, StringComparison.Ordinal))
-        .Select(x => faceOrder.GetValueOrDefault(Normal(x.FaceDestinationCode), int.MaxValue)).Min()))
+      .GroupBy(x => x.Destination, StringComparer.Ordinal)
+      .ToDictionary(x => x.Key, x => x.Min(row => row.Index), StringComparer.Ordinal);
+    var allPeriodNotes = currentNotes.Concat(priorNotes).ToList();
+    var allNoteCodes = allPeriodNotes.Select(x => Normal(x.NoteCode))
+      .Concat(currentDisclosures.Concat(comparativeDisclosures).Select(x => Normal(x.Code)))
+      .Distinct(StringComparer.Ordinal).ToArray();
+    var noteOrder = allNoteCodes
+      .Select(code => (Code: code, FirstFace: allPeriodNotes.Where(x => Normal(x.NoteCode) == code)
+        .Select(x => faceOrder.GetValueOrDefault(Normal(x.FaceDestinationCode), int.MaxValue)).DefaultIfEmpty(int.MaxValue).Min()))
       .OrderBy(x => x.FirstFace)
       .ThenBy(x => x.Code, StringComparer.Ordinal)
       .Select((note, index) => (note.Code, Number: index + 1))
       .ToDictionary(x => x.Code, x => x.Number, StringComparer.Ordinal);
-    var noteReferences = noteGroups.ToDictionary(g => g.Key,
-      g => string.Join(", ", g.Select(x => x.NoteCode.Trim()).Distinct(StringComparer.Ordinal)
+    var noteReferences = currentNotes.Concat(priorNotes)
+      .GroupBy(x => Normal(x.FaceDestinationCode), StringComparer.Ordinal).ToDictionary(g => g.Key,
+      g => string.Join(", ", g.Select(x => Normal(x.NoteCode)).Distinct(StringComparer.Ordinal)
         .OrderBy(code => noteOrder.GetValueOrDefault(code, int.MaxValue))
         .Select(code => noteOrder.TryGetValue(code, out var number)
           ? number.ToString(System.Globalization.CultureInfo.InvariantCulture) : string.Empty)
         .Where(number => number.Length > 0)),
       StringComparer.Ordinal);
-    Pass("NOTE_NUMBERING", $"{noteOrder.Count} stable logical note ID(s) receive unique display numbers in published statement order.");
+    Pass("NOTE_NUMBERING", $"{noteOrder.Count} stable logical note ID(s) receive deterministic draft numbers by first face-line order, then code for unlinked disclosures.");
     checks.Add(new PresentationCheck("NOTE_CONTENT", false,
-      "Persisted note cross-casts do not include ordered narrative/table content or comparative note values."));
+      "Preparer-supplied disclosure text and note schedules are reproduced as unreviewed inputs; no approved applicability policy or independent note review is bound."));
     presentationWarnings.Add(new PresentationWarning("NOTE_CONTENT_PENDING",
-      "Note references are dynamically numbered; full reviewed note content, typed tables and comparative note values are not supplied."));
+      "Displayed note text and references are preparer-supplied and unreviewed. Disclosure applicability, ordered policy approval and complete source-backed schedules remain open."));
+
+    var labelByDestination = layout.Where(x => x.Kind == StatementLayoutLineKinds.MappedTaxonomyBalance && x.TaxonomyNodeCode is not null)
+      .GroupBy(x => Normal(x.TaxonomyNodeCode!), StringComparer.Ordinal)
+      .ToDictionary(x => x.Key, x => x.First().Label.Trim(), StringComparer.Ordinal);
+    var sectionByDestination = layout.Where(x => x.Kind == StatementLayoutLineKinds.MappedTaxonomyBalance && x.TaxonomyNodeCode is not null)
+      .GroupBy(x => Normal(x.TaxonomyNodeCode!), StringComparer.Ordinal)
+      .ToDictionary(x => x.Key, x => Normal(x.First().Section), StringComparer.Ordinal);
+    PresentationDisclosurePeriod DisclosurePeriod(IReadOnlyList<PresentationDisclosureSource> sources, string code)
+    {
+      var disclosure = sources.FirstOrDefault(x => Normal(x.Code) == code);
+      if (disclosure is null) return new PresentationDisclosurePeriod(PresentationDisclosureStates.NotSupplied, null, null);
+      return disclosure.NotApplicable
+        ? new PresentationDisclosurePeriod(PresentationDisclosureStates.PreparerMarkedNotApplicable, null, disclosure.Rationale)
+        : new PresentationDisclosurePeriod(PresentationDisclosureStates.PreparerSupplied, disclosure.Response, null);
+    }
+    var presentationNotes = noteOrder.Select(note =>
+    {
+      var code = note.Key;
+      var noteLines = allPeriodNotes.Where(x => Normal(x.NoteCode) == code)
+        .GroupBy(x => Normal(x.FaceDestinationCode), StringComparer.Ordinal)
+        .OrderBy(x => faceOrder.GetValueOrDefault(x.Key, int.MaxValue)).ThenBy(x => x.Key, StringComparer.Ordinal)
+        .Select(group =>
+        {
+          var currentLines = group.Where(x => x.PackageId is null || x.PackageId == manifest.PackageId).ToArray();
+          var comparativeLines = manifest.ComparativePackageId is Guid comparativeId
+            ? group.Where(x => x.PackageId == comparativeId).ToArray() : [];
+          return new PresentationNoteAmount(group.Key, labelByDestination.GetValueOrDefault(group.Key, group.Key),
+            sectionByDestination.GetValueOrDefault(group.Key, "UNKNOWN"), header.Currency,
+            currentLines.Length == 0 ? null : MoneyPolicy.Normalize(currentLines.Sum(x => x.Amount)),
+            comparativeLines.Length == 0 ? null : MoneyPolicy.Normalize(comparativeLines.Sum(x => x.Amount)),
+            string.Join("; ", currentLines.Select(x => x.EvidenceReference).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.Ordinal)),
+            string.Join("; ", comparativeLines.Select(x => x.EvidenceReference).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.Ordinal)));
+        }).ToArray();
+      return new PresentationNote(note.Value, code, DisclosurePeriod(currentDisclosures, code),
+        DisclosurePeriod(comparativeDisclosures, code), noteLines);
+    }).ToArray();
 
     // 8. Presented rows, with display rounding and footing of every subtotal.
     var parentOf = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -404,7 +566,7 @@ public static class FinancialStatementPresentationBuilder
 
     return CommandResult<FinancialStatementPresentation>.Ok(new FinancialStatementPresentation(
       FinancialStatementPresentationPolicy.DraftStatus, header, manifest, displayDecimals, statements, checks,
-      presentationWarnings.Concat(readinessNotes).ToList()));
+      presentationWarnings.Concat(readinessNotes).ToList(), Notes: presentationNotes));
   }
 
   private static PresentationStatement BuildEquityStatement(
@@ -705,6 +867,9 @@ public static class FinancialStatementPresentationBuilder
     if (current.TryGetValue(destination, out var c)) return c.Section;
     return prior is not null && prior.TryGetValue(destination, out var p) ? p.Section : null;
   }
+
+  private static bool SafeDraftText(string? value, int maxLength) =>
+    value is null || (value.Length <= maxLength && value.All(c => !char.IsControl(c) || c is '\r' or '\n' or '\t'));
 
   private static string Normal(string value) => value.Trim().ToUpperInvariant();
 }

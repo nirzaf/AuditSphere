@@ -21,7 +21,7 @@ public sealed class WorkspaceProvisioningApiTests
   public async Task ExactReviewedTargets_CreateOnce_VerifySeparately_AndRetainActorReasonAndScopeEvidence()
   {
     await using var pg = await OwnedPostgresDatabase.CreateAsync("API-WORKSPACE-PROVISION"); var f = await Seed(pg); var provider = new FakeProvider();
-    using var factory = Factory(pg,f,provider); using var client = factory.CreateClient(new() { AllowAutoRedirect = false }); var csrf = await SignIn(client);
+    using var factory = Factory(pg,f,provider,clientSitesEnabled:false); using var client = factory.CreateClient(new() { AllowAutoRedirect = false }); var csrf = await SignIn(client);
     Assert.Equal(HttpStatusCode.Forbidden,(await client.PostAsJsonAsync(Prefix+"workspaces/clients/provision",new { targetId=f.ClientId,reviewed=true })).StatusCode);
     var before = await Review(client,f.ClientId,false);
     Assert.True(before.GetProperty("eligible").GetBoolean());
@@ -67,7 +67,7 @@ public sealed class WorkspaceProvisioningApiTests
   public async Task ConfigurationChangedDuringMicrosoftCall_OrRevokedAdministrator_PreventsLocalPublication()
   {
     await using var pg = await OwnedPostgresDatabase.CreateAsync("API-WORKSPACE-FENCES"); var f=await Seed(pg);var provider=new FakeProvider();
-    using var factory=Factory(pg,f,provider);using var client=factory.CreateClient(new(){AllowAutoRedirect=false});var csrf=await SignIn(client);
+    using var factory=Factory(pg,f,provider,clientSitesEnabled:false);using var client=factory.CreateClient(new(){AllowAutoRedirect=false});var csrf=await SignIn(client);
     var review=await Review(client,f.ClientId,false);
     provider.Hook=async()=>{await using var changed=new AuditSphereDbContext(pg.Options);(await changed.FirmWorkspaceConfigurations.SingleAsync()).RootFolderId="changed-root";await changed.SaveChangesAsync();};
     Assert.Equal(HttpStatusCode.Conflict,(await Provision(client,csrf,f.ClientId,false,review)).StatusCode);
@@ -114,6 +114,9 @@ public sealed class WorkspaceProvisioningApiTests
     await SignIn(defaultClient);
     using var enabled = JsonDocument.Parse(await defaultClient.GetStringAsync(Prefix + "client-sites"));
     Assert.True(enabled.RootElement.GetProperty("enabled").GetBoolean());
+    var missingBoundaryReview = await Review(defaultClient, f.ClientId, false);
+    Assert.False(missingBoundaryReview.GetProperty("eligible").GetBoolean());
+    Assert.Contains("explicit UTC rollout boundary", missingBoundaryReview.GetProperty("requiredAction").GetString());
 
     using var disabledFactory = Factory(pg, f, provider, clientSitesEnabled: false);
     using var disabledClient = disabledFactory.CreateClient(new() { AllowAutoRedirect = false });
@@ -121,12 +124,16 @@ public sealed class WorkspaceProvisioningApiTests
     using var disabled = JsonDocument.Parse(await disabledClient.GetStringAsync(Prefix + "client-sites"));
     Assert.False(disabled.RootElement.GetProperty("enabled").GetBoolean());
     Assert.Equal("DISABLED", disabled.RootElement.GetProperty("policyState").GetString());
+    Assert.True((await Review(disabledClient, f.ClientId, false)).GetProperty("eligible").GetBoolean());
 
     using var invalidBoundaryFactory = Factory(pg, f, provider, clientsCreatedAfter: "2026-10-11T12:00:00+03:00");
     using var invalidBoundaryClient = invalidBoundaryFactory.CreateClient(new() { AllowAutoRedirect = false });
     await SignIn(invalidBoundaryClient);
     using var invalidBoundary = JsonDocument.Parse(await invalidBoundaryClient.GetStringAsync(Prefix + "client-sites"));
     Assert.Equal("INVALID_ROLLOUT_BOUNDARY", invalidBoundary.RootElement.GetProperty("policyState").GetString());
+    var invalidBoundaryReview = await Review(invalidBoundaryClient, f.ClientId, false);
+    Assert.False(invalidBoundaryReview.GetProperty("eligible").GetBoolean());
+    Assert.Contains("shared-site fallback is refused", invalidBoundaryReview.GetProperty("requiredAction").GetString());
 
     var cutoff = DateTimeOffset.UtcNow.AddMinutes(-1).ToString("O");
     using var rolloutFactory = Factory(pg, f, provider, clientsCreatedAfter: cutoff);

@@ -286,6 +286,9 @@ public static class PbcRepositoryProvisioningService
         var persistedCutover = uniqueBoundaries.Length == 0 ? (DateTimeOffset?)null : uniqueBoundaries.Min();
         var configuredCutover = rolloutPolicy is { Enabled: true, BoundaryInvalid: false }
           ? rolloutPolicy.ClientsCreatedAfter?.ToUniversalTime() : null;
+        if (rolloutPolicy is { Enabled: true } && persistedCutover is null && configuredCutover is null)
+          return CommandResult<(FirmWorkspaceConfiguration, Microsoft365ConnectionRevision, FolderTemplateVersion)>.Fail(ErrorCodes.GateBlocked,
+            "The enabled dedicated-site policy needs one valid explicit UTC rollout boundary; shared-site fallback is refused until the boundary is configured or the policy is explicitly disabled.");
         // A saved cutoff is authoritative once established. A changed environment value blocks the
         // worker's discovery, but must not reclassify clients that predate the saved boundary.
         var cutover = persistedCutover ?? configuredCutover;

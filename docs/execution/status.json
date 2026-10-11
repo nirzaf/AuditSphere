@@ -54,7 +54,7 @@
     {
       "item": "FSR-002 / FSR-010 / FSR-011 first slice — typed statement presentation as genuine PDF, Word and Excel (unapproved draft)",
       "status": "PARTIAL",
-      "details": "Working-tree slice based on 789793905330922209a6873ac3da81eb1e848c3b, implementing the recommended first slice of the NAQAHA implementation stories. The SFP and profit-or-loss statements use persisted package lines evaluated through a published, same-client/framework statement layout; presentation remains explicitly UNAPPROVED_DRAFT. Current and supplied comparative columns are displayed with server-computed values, persisted note cross-casts, blocking balance/mapping/sign/equation/footing checks, and rounding warnings. PDF, DOCX and XLSX are genuine deterministic outputs from one presentation model; XLSX values are numeric and have no formulas. API GET/export routes enforce package scope; export validates CSRF and carries the artifact hash. No migration; existing package artifacts remain unchanged. Fixture data is synthetic and matches selected reference arithmetic only; it is not the customer ledger or accountant-approved. Observed on this working tree: Release solution build succeeded with six NU1900 vulnerability-feed warnings and zero errors; focused Domain tests 24/24; API UiContractTests 1/1; Angular CI suite 634/634; Angular production build passed with the existing commercial-settings stylesheet budget warning; EF model has no pending changes; OpenAPI drift, Markdown documentation, filename, narrative-metric, Angular inventory and git diff checks passed. Built-in browser rendered the local Angular shell and its unauthenticated access guard. The local API/session service was unavailable, so no signed-in package view or record-level browser journey was observed. NOT DONE: FSR-001/T003 professional framework, period and fixture approval; full approved brand/layout policy; complete cash-flow, equity and disclosure-note presentation; automatic note numbering; complete source-lineage and cross-statement acceptance; report composition and full artifact sealing; independent management/audit approvals; legal sign-off, production certificate trust/timestamp, release/archive and production pilot. R2R task-board items remain governed by their existing dependency and independent-review rules; this slice does not complete T027–T037 or the attached FSR backlog. Follow-up working-tree change based on HEAD 1f783baf (not committed): PDF columns are constrained to the 17 cm A4 text width and the long-label regression verifies wrapping/pagination; Angular export now sends the preview manifest layoutVersionId. Observed: Application Release build passed with one NU1900 vulnerability-feed warning; FinancialStatementPresentationTests passed 15/15; the targeted Angular presentation spec passed 4/4; Angular production build passed with the existing commercial-settings stylesheet budget warning; modified Domain test assembly compiled; Markdown, filename, narrative-metric, status JSON and diff checks passed. The PostgreSQL-backed StatementPresentation_RequiresAPublishedLayout_AndIsScopedAndRepeatable test was not run: the required loopback PostgreSQL service was down, and startup failed because its data directory reported a shared-memory block still in use. The in-app browser did not reach the local dev-server route, so no authenticated screen journey was observed. The FSR backlog remains PARTIAL; this does not close the professional, composition, sealing, signing or release gates.\n\nCash-flow and equity presentation follow-up based on 3012b495: persisted cash-flow movements and equity rollforward are now rendered in the typed presentation and PDF/DOCX/XLSX exports. The bridge excludes noncash lines, does not infer missing sections or FX effects as zero, and leaves unprovided comparative amounts unavailable. Oversized supplementary schedules are refused rather than truncated. Readiness checks report missing schedules, bridge failure, absent comparative rows, unresolved preparer-entered source references and missing equity-to-SFP cross-cast. Status remains PARTIAL and UNAPPROVED_DRAFT; no migration or business-data change. Observed on the working tree: FinancialStatementPresentationTests 16/16; targeted Angular presentation spec 4/4; API project Release build succeeded with two NU1900 vulnerability-feed warnings; Angular production build succeeded with the existing commercial/settings.scss budget warning. The full solution build was cancelled after Domain and Application compiled and Infrastructure compilation stopped progressing; it is not a pass. The built-in browser rendered the local Angular shell and Access unavailable sign-in gate; /api/ui/session was refused because the local API was unavailable, so authenticated data and export were not browser-verified. No PostgreSQL integration run, migration, OpenAPI change or live provider verification is claimed.\n\nCross-statement readiness follow-up on 2026-10-11, based on HEAD cf481979: added current and comparative equity rollforward, profit, OCI and SFP cross-casts; required cash-flow section checks and separate current/comparative bridges; and surfaced the persisted CASH_FLOW_RECONCILED validation, including closing-cash account population, in the typed presentation. PDF, DOCX and XLSX now include the same per-check PASS/FAIL diagnostics in their basis/manifest section. Builder version is v4. Face-statement note references are dynamically numbered in published layout order while persisted note codes remain their logical identifiers; note narratives, typed disclosure tables and comparative note values remain absent. No migration or business data changed. Verification: FinancialStatementPresentationTests passed 17/17; targeted Angular presentation spec passed 4/4; API Release build passed with two NU1900 vulnerability-feed warnings; Markdown, filename, narrative-metric, status JSON and git diff checks passed. Full suite, PostgreSQL-backed scope and authenticated browser export were not run. FSR remains PARTIAL and UNAPPROVED_DRAFT; this does not resolve source-record lineage, approved accounting policy, full disclosures, composition, sealing, professional approval or release. Verification after this follow-up: FinancialStatementPresentationTests passed 19/19 and the focused Angular presentation spec passed 4/4. FSR-008 remains PARTIAL; numbering alone does not provide reviewed note content, applicability policy or sealing-time pointer enforcement. The API Release build then passed with two NU1900 vulnerability-feed warnings; Markdown, filename, narrative-metric, UI-inventory, JSON and diff checks passed. OpenAPI shape is unchanged by the note-number value change; its drift gate passed after the immediately preceding presentation slice and was not rerun for this value-only update."
+      "details": "Working-tree slice based on 789793905330922209a6873ac3da81eb1e848c3b, implementing the recommended first slice of the NAQAHA implementation stories. The SFP and profit-or-loss statements use persisted package lines evaluated through a published, same-client/framework statement layout; presentation remains explicitly UNAPPROVED_DRAFT. Current and supplied comparative columns are displayed with server-computed values, persisted note cross-casts, blocking balance/mapping/sign/equation/footing checks, and rounding warnings. PDF, DOCX and XLSX are genuine deterministic outputs from one presentation model; XLSX values are numeric and have no formulas. API GET/export routes enforce package scope; export validates CSRF and carries the artifact hash. No migration; existing package artifacts remain unchanged. Fixture data is synthetic and matches selected reference arithmetic only; it is not the customer ledger or accountant-approved. Observed on this working tree: Release solution build succeeded with six NU1900 vulnerability-feed warnings and zero errors; focused Domain tests 24/24; API UiContractTests 1/1; Angular CI suite 634/634; Angular production build passed with the existing commercial-settings stylesheet budget warning; EF model has no pending changes; OpenAPI drift, Markdown documentation, filename, narrative-metric, Angular inventory and git diff checks passed. Built-in browser rendered the local Angular shell and its unauthenticated access guard. The local API/session service was unavailable, so no signed-in package view or record-level browser journey was observed. NOT DONE: FSR-001/T003 professional framework, period and fixture approval; full approved brand/layout policy; complete cash-flow, equity and disclosure-note presentation; automatic note numbering; complete source-lineage and cross-statement acceptance; report composition and full artifact sealing; independent management/audit approvals; legal sign-off, production certificate trust/timestamp, release/archive and production pilot. R2R task-board items remain governed by their existing dependency and independent-review rules; this slice does not complete T027–T037 or the attached FSR backlog. Follow-up working-tree change based on HEAD 1f783baf (not committed): PDF columns are constrained to the 17 cm A4 text width and the long-label regression verifies wrapping/pagination; Angular export now sends the preview manifest layoutVersionId. Observed: Application Release build passed with one NU1900 vulnerability-feed warning; FinancialStatementPresentationTests passed 15/15; the targeted Angular presentation spec passed 4/4; Angular production build passed with the existing commercial-settings stylesheet budget warning; modified Domain test assembly compiled; Markdown, filename, narrative-metric, status JSON and diff checks passed. The PostgreSQL-backed StatementPresentation_RequiresAPublishedLayout_AndIsScopedAndRepeatable test was not run: the required loopback PostgreSQL service was down, and startup failed because its data directory reported a shared-memory block still in use. The in-app browser did not reach the local dev-server route, so no authenticated screen journey was observed. The FSR backlog remains PARTIAL; this does not close the professional, composition, sealing, signing or release gates.\n\nCash-flow and equity presentation follow-up based on 3012b495: persisted cash-flow movements and equity rollforward are now rendered in the typed presentation and PDF/DOCX/XLSX exports. The bridge excludes noncash lines, does not infer missing sections or FX effects as zero, and leaves unprovided comparative amounts unavailable. Oversized supplementary schedules are refused rather than truncated. Readiness checks report missing schedules, bridge failure, absent comparative rows, unresolved preparer-entered source references and missing equity-to-SFP cross-cast. Status remains PARTIAL and UNAPPROVED_DRAFT; no migration or business-data change. Observed on the working tree: FinancialStatementPresentationTests 16/16; targeted Angular presentation spec 4/4; API project Release build succeeded with two NU1900 vulnerability-feed warnings; Angular production build succeeded with the existing commercial/settings.scss budget warning. The full solution build was cancelled after Domain and Application compiled and Infrastructure compilation stopped progressing; it is not a pass. The built-in browser rendered the local Angular shell and Access unavailable sign-in gate; /api/ui/session was refused because the local API was unavailable, so authenticated data and export were not browser-verified. No PostgreSQL integration run, migration, OpenAPI change or live provider verification is claimed.\n\nCross-statement readiness follow-up on 2026-10-11, based on HEAD cf481979: added current and comparative equity rollforward, profit, OCI and SFP cross-casts; required cash-flow section checks and separate current/comparative bridges; and surfaced the persisted CASH_FLOW_RECONCILED validation, including closing-cash account population, in the typed presentation. PDF, DOCX and XLSX now include the same per-check PASS/FAIL diagnostics in their basis/manifest section. Builder version is v4. Face-statement note references are dynamically numbered in published layout order while persisted note codes remain their logical identifiers; note narratives, typed disclosure tables and comparative note values remain absent. No migration or business data changed. Verification: FinancialStatementPresentationTests passed 17/17; targeted Angular presentation spec passed 4/4; API Release build passed with two NU1900 vulnerability-feed warnings; Markdown, filename, narrative-metric, status JSON and git diff checks passed. Full suite, PostgreSQL-backed scope and authenticated browser export were not run. FSR remains PARTIAL and UNAPPROVED_DRAFT; this does not resolve source-record lineage, approved accounting policy, full disclosures, composition, sealing, professional approval or release. Verification after this follow-up: FinancialStatementPresentationTests passed 19/19 and the focused Angular presentation spec passed 4/4. FSR-008 remains PARTIAL; numbering alone does not provide reviewed note content, applicability policy or sealing-time pointer enforcement. The API Release build then passed with two NU1900 vulnerability-feed warnings; Markdown, filename, narrative-metric, UI-inventory, JSON and diff checks passed. OpenAPI shape is unchanged by the note-number value change; its drift gate passed after the immediately preceding presentation slice and was not rerun for this value-only update.\n\nFollow-up on 2026-10-12 (working tree based on 00376915402b68cc3340eac3a3730a75bcf05779; changes remain uncommitted): added immutable exact-input presentation pins, idempotent pin creation, package-scoped pin listing/read/export, persisted PDF/DOCX/XLSX bytes linked to the pin revision, stale-source refusal for new rendering, retrieval of already-rendered historical bytes, and inclusion of pinned revision/layout/note-source/artifact hashes in package-seal.v2. Current and comparative note cross-casts now validate against their respective package balances. This follow-up supersedes the earlier no-migration/no-package-artifact-change statement for this increment; it adds migration 20261011221155_FinancialStatementPresentationPins and uses the existing immutable package-artifact store. Observed: focused PostgreSQL Domain tests passed 30/30; targeted Angular presentation spec passed 4/4; API and OpenAPI emitter Release builds passed; EF model drift reported no pending changes; OpenAPI drift passed; documentation, filename, narrative-metric, Angular inventory and diff checks passed; Angular production build passed with the existing commercial/settings.scss budget warning. No full suite, authenticated browser journey, development/production migration or live financial-data change was run. Status remains PARTIAL and UNAPPROVED_DRAFT. Professional policy and golden-fixture approval, complete source-record lineage and disclosure notes, full cash/equity methodology acceptance, review, final report assembly, signing/legal acceptance, release/archive and production acceptance remain open."
     },
     {
       "item": "FSR-005 first slice — cash-flow movement evidence and adjusted cash cross-cast",
@@ -234,7 +234,103 @@
           "result": "Read-only acceptance tenant page rendered the Dedicated client SharePoint sites administration panel; no client site rows were present. The page did not expose its deployed source commit.",
           "liveProvisioning": "NOT_VERIFIED"
         }
+      },
+      "latestWorkingTreeVerification": {
+        "recordedAtUtc": "2026-10-11T22:54:16Z",
+        "baseCommit": "00376915402b68cc3340eac3a3730a75bcf05779",
+        "sourceTree": "Uncommitted working tree; includes the no-shared-fallback guard and unrelated in-progress financial statement presentation edits.",
+        "database": "Isolated synthetic PostgreSQL test fixtures",
+        "runs": [
+          {
+            "name": "Client site rollout Domain tests",
+            "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --no-restore --configuration Release --maxcpucount:1 --filter 'FullyQualifiedName~ClientSharePointSitesTests|FullyQualifiedName~SharePointClientSiteProviderTests|FullyQualifiedName~EngagementWorkspaceProvisioningTests'",
+            "passed": 37,
+            "failed": 0,
+            "result": "PASS"
+          },
+          {
+            "name": "Workspace provisioning API tests",
+            "command": "dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-restore --configuration Release --maxcpucount:1 --filter 'FullyQualifiedName~WorkspaceProvisioningApiTests'",
+            "passed": 4,
+            "failed": 0,
+            "result": "PASS"
+          },
+          {
+            "name": "Client site administration Playwright journey",
+            "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release --maxcpucount:1 --filter 'FullyQualifiedName~ClientSharePointSitesJourneyTests'",
+            "passed": 1,
+            "failed": 0,
+            "result": "PASS"
+          },
+          {
+            "name": "Angular workspace administration spec",
+            "command": "npm --prefix src/AuditSphereOps.Ui run test:ci -- --include='src/app/features/admin/workspaces.spec.ts'",
+            "passed": 4,
+            "failed": 0,
+            "result": "PASS"
+          }
+        ],
+        "documentationGates": "PASS: Markdown health, filenames and narrative metrics",
+        "diffCheck": "PASS",
+        "buildWarnings": "NU1900 vulnerability-feed warnings because api.nuget.org was unavailable.",
+        "fullDomainApiE2eSuitesOnThisSource": "NOT_RUN",
+        "externalAcceptance": "NOT_VERIFIED: no live Microsoft client-site provisioning or staff-membership reconciliation; no VPS deployment performed."
       }
+    },
+    "financialStatementPresentationPins": {
+      "recordedAtUtc": "2026-10-11T22:31:54Z",
+      "baseCommit": "00376915402b68cc3340eac3a3730a75bcf05779",
+      "sourceTree": "Uncommitted working tree; baseCommit is not the tested source revision.",
+      "database": "auditsphere_tests on 127.0.0.1:5433",
+      "runs": [
+        {
+          "name": "Focused PostgreSQL Domain financial statement regressions",
+          "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore --configuration Release --maxcpucount:1 --filter 'FullyQualifiedName~FinancialStatementTests|FullyQualifiedName~FinancialStatementPresentationTests'",
+          "passed": 30,
+          "failed": 0,
+          "result": "PASS"
+        },
+        {
+          "name": "Angular statement presentation spec",
+          "command": "npm run test:ci -- --include=app/features/accounting/presentation.spec.ts",
+          "environment": "Node 24; NG_BUILD_CACHE_STORE=sqlite",
+          "passed": 4,
+          "failed": 0,
+          "result": "PASS"
+        },
+        {
+          "name": "API Release build",
+          "result": "PASS"
+        },
+        {
+          "name": "OpenAPI emitter Release build",
+          "result": "PASS"
+        },
+        {
+          "name": "EF model drift",
+          "result": "PASS: no pending model changes"
+        },
+        {
+          "name": "OpenAPI drift",
+          "result": "PASS: contract is current"
+        },
+        {
+          "name": "Angular production build",
+          "result": "PASS_WITH_WARNING",
+          "warning": "Existing src/app/features/commercial/settings.scss component stylesheet exceeds the configured 4 KB budget by 3.53 KB; SQLite cache backend used."
+        },
+        {
+          "name": "Documentation, filename, narrative metric, Angular inventory and diff gates",
+          "result": "PASS",
+          "markdownFiles": 198,
+          "relativeLinks": 2665
+        },
+        {
+          "name": "Authenticated browser workflow",
+          "result": "NOT_RUN: no authenticated local API/package session was available."
+        }
+      ],
+      "externalAcceptance": "NOT_VERIFIED: professional approval, signed-in package workflow, live tenant/provider acceptance, production migration and release remain open."
     }
   },
   "externalGates": [

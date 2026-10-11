@@ -3,6 +3,7 @@ using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Api.Authentication;
 using AuditSphereOps.Api.HttpBoundary;
+using AuditSphereOps.Domain.Accounting;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,6 +14,8 @@ public static partial class UiEndpoints
   public sealed record PackageReviewInput(string Stage, string Decision, string EvidenceMode, string EvidenceReference, string? Comment);
   public sealed record PackageArtifactInput(string ArtifactVersion);
   public sealed record StatementPresentationExportInput(string? Format, Guid? LayoutVersionId);
+  public sealed record StatementPresentationPinInput(Guid LayoutVersionId);
+  public sealed record StatementPresentationPinnedArtifactInput(string? Format);
 
   private static void MapPackageEndpoints(RouteGroupBuilder group)
   {
@@ -57,6 +60,36 @@ public static partial class UiEndpoints
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null) return Failure("session.unavailable", "Sign in again.", 401);
       http.Response.Headers["X-Content-Type-Options"] = "nosniff";
       http.Response.Headers["X-Statement-Presentation-SHA256"] = result.Value.ArtifactSha256Hex;
+      return Results.File(result.Value.Bytes, result.Value.ContentType, result.Value.FileName);
+    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export));
+
+    // A pinned draft is immutable; its exact bytes use the package artifact and seal manifest, while its status stays UNAPPROVED_DRAFT.
+    group.MapUiGet("/accounting/packages/{id:guid}/presentation/pins", http =>
+      ReadAsync(http, (db, actor, ct) => FinancialStatementService.ListPresentationPinsAsync(db, actor,
+        Guid.Parse(http.Request.RouteValues["id"]!.ToString()!), ct)));
+    group.MapPost("/accounting/packages/{id:guid}/presentation/pins", (Guid id, StatementPresentationPinInput i, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => FinancialStatementService.PinPresentationAsync(db, actor, id, i.LayoutVersionId, ct)));
+    group.MapGet("/accounting/packages/{id:guid}/presentation/pins/{revisionId:guid}", (Guid id, Guid revisionId, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => FinancialStatementService.GetPinnedPresentationAsync(db, actor, id, revisionId, ct)));
+    group.MapPost("/accounting/packages/{id:guid}/presentation/pins/{revisionId:guid}/artifacts", async (
+      Guid id, Guid revisionId, StatementPresentationPinnedArtifactInput i, HttpContext http,
+      TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
+    {
+      var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
+      if (actor is null) return Failure("session.unavailable", "Sign in again.", 401);
+      try { await csrf.ValidateRequestAsync(http); }
+      catch (AntiforgeryValidationException) { return Failure("csrf.invalid", "Refresh the page and try again.", 403); }
+      await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
+      var pin = await db.FinancialStatementPresentationRevisions.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.Id == revisionId && x.FinancialPackageId == id && x.FirmId == actor.FirmId, http.RequestAborted);
+      if (pin is null) return Failure("scope.denied", "Access denied.", 404);
+      var result = await FinancialStatementService.RenderPinnedPresentationArtifactAsync(db, actor, revisionId,
+        i.Format ?? string.Empty, http.RequestAborted);
+      if (!result.Succeeded || result.Value is null) return Failure(result.ErrorCode, result.Message ?? "The pinned draft export was blocked.");
+      if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null) return Failure("session.unavailable", "Sign in again.", 401);
+      http.Response.Headers["X-Content-Type-Options"] = "nosniff";
+      http.Response.Headers["X-Statement-Presentation-SHA256"] = result.Value.ArtifactSha256Hex;
+      http.Response.Headers["X-Statement-Presentation-Revision"] = result.Value.RevisionId.ToString("D");
       return Results.File(result.Value.Bytes, result.Value.ContentType, result.Value.FileName);
     }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export));
   }

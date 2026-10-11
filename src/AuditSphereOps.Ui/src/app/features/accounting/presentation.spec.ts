@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SessionService } from '../../core/session';
 import { StatementPresentation, decodePresentation, longDate, presentationAmount } from './presentation';
 
@@ -12,17 +12,25 @@ const row = (overrides: Record<string, unknown> = {}) => ({
 });
 const payload = {
   status: 'UNAPPROVED_DRAFT',
+  canPin: true,
   displayDecimals: 0,
   header: { entity: 'SYNTHETIC CLIENT', framework: 'IFRS', currency: 'QAR', currentPeriodEnd: '2025-12-31', priorPeriodEnd: '2024-12-31', reference: 'FSP-SYN' },
   manifest: {
     packageId: id, calculationHash: hash64, layoutVersionId: id, layoutHash: hash64,
-    comparativePackageId: null, comparativeCalculationHash: null, builderVersion: 'auditsphere.statement-presentation.v4', displayPolicy: 'whole units',
+    comparativePackageId: null, comparativeCalculationHash: null, builderVersion: 'auditsphere.statement-presentation.v6', displayPolicy: 'whole units',
+    noteSourceManifestHash: hash64,
   },
   statements: [
     { code: 'FINANCIAL_POSITION', title: 'Statement of financial position', rows: [row(), row({ kind: 'HEADING', code: 'H', label: 'Assets', noteReference: null, current: null, prior: null })] },
     { code: 'CHANGES_IN_EQUITY', title: 'Statement of changes in equity', rows: [row({ code: 'EQ1', label: 'Closing balance', noteReference: null, current: null, prior: null })] },
     { code: 'CASH_FLOWS', title: 'Statement of cash flows', rows: [row({ code: 'CF1', label: 'Net change in cash', noteReference: null, current: null, prior: null })] },
   ],
+  notes: [{
+    number: 1, code: '7',
+    current: { state: 'PREPARER_SUPPLIED_UNREVIEWED', text: 'Cash note content supplied by preparer.', rationale: null },
+    comparative: { state: 'NOT_SUPPLIED', text: null, rationale: null },
+    amounts: [{ faceDestinationCode: 'CASH', label: 'Cash and cash equivalents', statementSection: 'FINANCIAL_POSITION', currency: 'QAR', current: '1090993', comparative: '58372', currentEvidenceReference: 'synthetic-source', comparativeEvidenceReference: null }],
+  }],
   checks: [
     { code: 'TB_BALANCED', passed: true, detail: 'The current balances net to zero.' },
     { code: 'CASH_FLOW_SOURCE_LINEAGE', passed: false, detail: 'Movement references are not source-resolved.' },
@@ -34,6 +42,7 @@ describe('Statement presentation contract', () => {
   it('keeps exact amounts as strings and the draft status', () => {
     const decoded = decodePresentation(payload, 'presentation');
     expect(decoded.statements[0].rows[0].current).toBe('1090993');
+    expect(decoded.notes[0].amounts[0].comparative).toBe('58372');
     expect(decoded.status).toBe('UNAPPROVED_DRAFT');
   });
 
@@ -41,6 +50,7 @@ describe('Statement presentation contract', () => {
     expect(() => decodePresentation({ ...payload, statements: [{ code: 'X', title: 'X', rows: [row({ current: 1090993 })] }] }, 'p')).toThrow();
     expect(() => decodePresentation({ ...payload, status: 'APPROVED' }, 'p')).toThrow();
     expect(() => decodePresentation({ ...payload, manifest: undefined }, 'p')).toThrow();
+    expect(() => decodePresentation({ ...payload, notes: [{ ...payload.notes[0], amounts: [{ ...payload.notes[0].amounts[0], current: 1090993 }] }] }, 'p')).toThrow();
   });
 
   it('formats amounts as the server text does: grouped, brackets for negatives, dash for zero', () => {
@@ -59,7 +69,7 @@ describe('Statement presentation screen', () => {
     TestBed.resetTestingModule();
   });
 
-  it('shows the draft banner, the checks and grouped figures, and exports the displayed layout version', () => {
+  it('shows the draft, pins the displayed layout, and downloads bytes bound to the saved revision', async () => {
     TestBed.configureTestingModule({ imports: [StatementPresentation], providers: [provideHttpClient(), provideHttpClientTesting()] });
     TestBed.inject(SessionService).current.set({ userId: id, firmId: id, generation: '1', staff: true });
     const http = TestBed.inject(HttpTestingController);
@@ -67,6 +77,7 @@ describe('Statement presentation screen', () => {
     fixture.componentRef.setInput('packageId', id);
     fixture.detectChanges();
     http.expectOne(`/api/ui/accounting/packages/${id}/presentation`).flush(payload);
+    http.expectOne(`/api/ui/accounting/packages/${id}/presentation/pins`).flush([]);
     fixture.detectChanges();
     const host = fixture.nativeElement as HTMLElement;
     expect(host.textContent).toContain('Unapproved presentation draft');
@@ -75,13 +86,40 @@ describe('Statement presentation screen', () => {
     expect(host.textContent).toContain('Statement of changes in equity');
     expect(host.textContent).toContain('Statement of cash flows');
     expect(host.textContent).toContain('Year ended 31 December 2025');
+    expect(host.textContent).toContain('Notes and disclosures');
+    expect(host.textContent).toContain('Cash note content supplied by preparer.');
+    expect(host.textContent).toContain('Current preparer reference, not independently verified: synthetic-source');
     expect(host.textContent).toContain('2 checks · 1 failed');
     expect(host.textContent).toContain('Readiness and rounding notes');
     expect(host.querySelector('tr.heading')).not.toBeNull();
-    fixture.componentInstance.download('xlsx');
-    const exported = http.expectOne(`/api/ui/accounting/packages/${id}/presentation/export`);
-    expect(exported.request.body).toEqual({ format: 'xlsx', layoutVersionId: id });
-    exported.flush(new Blob(['x']));
+    const revisionId = '22222222-2222-4222-8222-222222222222';
+    const pin = {
+      revisionId, packageId: id, packageCalculationHash: hash64, periodId: id, bookId: id, basis: 'ACCRUAL',
+      framework: 'IFRS', taxonomyVersion: 'NAQAHA-2025', templateVersion: 'statements.v1',
+      calculationEngineVersion: 'package-calculation.v1', currency: 'QAR', periodStart: '2025-01-01', periodEnd: '2025-12-31',
+      layoutVersionId: id, layoutHash: hash64,
+      comparativePackageId: null, comparativeCalculationHash: null, comparativeBasis: null, comparativeEvidenceReference: null,
+      noteSourceManifestHash: hash64,
+      builderVersion: 'auditsphere.statement-presentation.v6', rendererVersion: 'auditsphere.statement-renderer.v3',
+      displayPolicy: 'whole units', status: 'UNAPPROVED_DRAFT', revisionHash: hash64, snapshotSha256Hex: hash64,
+      createdAt: '2026-10-12T00:00:00Z', sourceIsCurrent: true, artifactFormats: [],
+    };
+    const download = fixture.componentInstance.download('xlsx');
+    const pinsUrl = `/api/ui/accounting/packages/${id}/presentation/pins`;
+    const createPin = await vi.waitFor(() => http.expectOne(pinsUrl));
+    expect(createPin.request.body).toEqual({ layoutVersionId: id });
+    createPin.flush({ value: pin });
+    const refreshedPins = await vi.waitFor(() => http.expectOne(pinsUrl));
+    refreshedPins.flush([pin]);
+    const exported = await vi.waitFor(() => http.expectOne(`/api/ui/accounting/packages/${id}/presentation/pins/${revisionId}/artifacts`));
+    expect(exported.request.body).toEqual({ format: 'xlsx' });
+    exported.flush(new Blob(['x']), { headers: {
+      'Content-Disposition': 'attachment; filename="statement.xlsx"',
+      'X-Statement-Presentation-Revision': revisionId,
+      'X-Statement-Presentation-SHA256': hash64,
+    } });
+    await download;
+    (await vi.waitFor(() => http.expectOne(pinsUrl))).flush([{ ...pin, artifactFormats: ['xlsx'] }]);
     fixture.destroy();
   });
 });
