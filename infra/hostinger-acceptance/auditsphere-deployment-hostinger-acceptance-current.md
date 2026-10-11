@@ -256,15 +256,13 @@ already-authorized disposable file probe.
    verification rows.
 5. **Verify Selected SharePoint separately.** For this acceptance, the existing synthetic
    development site and its empty workpapers library are the reviewed target; a separate
-   same-tenant site is the negative control. The current page shows the target fields populated, but
-   labels them as unsubmitted fields saved in this browser tab; this is not a
-   persisted server-side resource configuration. The user authorized a
-   `write` grant only to the reviewed target and one disposable file create/read/delete probe, with
-   the unrelated-site denial checked. The dedicated certificate is installed, but the approved
-   site currently returns access denied and the runtime app ID remains unset. After the exact-site
-   grant, restore that app ID privately, run the selected-site boundary check, and require both
-   the approved-target result and unrelated-site denial before any workspace activation review.
-   Do not create a new site or grant the control site.
+   same-tenant site is the negative control. Confirm the server-side selected-site app ID,
+   certificate paths and `SelectedSite:CredentialReference` match the persisted connection
+   revision before probing. The AuditSphere boundary check reads only the saved site, drive and
+   root, then requires HTTP 403 from the unrelated same-tenant site; it writes trusted evidence
+   only when both results pass. A separate disposable file probe requires explicit authorization,
+   an empty test library, read-back verification and confirmed deletion. Never grant the control
+   site or activate a workspace from the boundary check alone.
 6. **Verify outbound mail separately.** The owner must identify one approved sender mailbox.
    Keep the `Mail.Send` app restricted to that mailbox through the approved Exchange application
    access control, and configure the isolated Acceptance mail worker. The optional `worker-mail`
@@ -317,11 +315,13 @@ in [`status.json`](../../docs/execution/status.json).
    AuditSphere persisted verified consent, consenting identity and `bounded-read-succeeded`.
    Browser console error checks were empty. The connection/resource revision is a separate state;
    verified directory consent does not activate SharePoint or the workspace.
-5. The approved SharePoint target still returns access denied. Leave its runtime app ID unset
-   until the exact-site grant is made, then perform the already-reviewed positive and unrelated-site
-   denial probe. Mail still needs its approved sender restriction and synthetic recipient;
-   mutation capabilities need their separate credentials, synthetic targets and verification.
-   Do not mark saved Mail or Records drafts configured merely to remove a warning.
+5. Selected Site is now configured and independently verified as described in
+   [Selected-site grant and runtime verification](#selected-site-grant-and-runtime-verification--2026-10-11).
+   The exact approved site is allowed and the unrelated control site is denied. The disposable file
+   probe was created, read and deleted, and the library was confirmed empty afterward. Directory
+   Reader freshness showed `STALE` at the latest tenant-page observation; refresh and verify it
+   before relying on current directory data. Records remains `NOT_CONFIGURED`, no client workspace
+   was activated, and broader M365 and production acceptance remain open.
 
 The time page renders the FSLI attribution fields. End-of-service access is correctly restricted
 by Finance/Partner grants. The commercial settings screen also renders the pricing
@@ -475,6 +475,48 @@ is still required, as described in Microsoft's
 The owner-reported grant still produced approved-site denial. Request the exact grant receipt for
 the reviewed app and site; do not repeat admin consent, broaden the runtime scopes, or repeatedly
 probe an unchanged denial. Exact deployment and queue facts are in the execution ledger.
+
+## Selected-site grant and runtime verification — 2026-10-11
+
+This observation supersedes earlier statements in this guide that the selected-site app ID was
+unset, the target was denied, or the grant and probe had not run. With the owner's authorization,
+the temporary single-tenant public-client grantor received delegated `Sites.FullControl.All`
+consent only for creating the one approved site grant. It granted `write` to the `AuditSphere
+Development` site for the dedicated `AuditSphere SharePoint UAT` runtime app. The temporary
+registration and its delegated consent were then deleted and the Entra enterprise-application
+search confirmed it was absent. No application `Sites.FullControl.All` role was granted; the
+runtime token continued to contain exactly `Sites.Selected`. The unrelated control site received
+no grant.
+
+The VPS already held the matching certificate and private key. The initial application check
+exposed a credential-reference mismatch: the saved AuditSphere connection expects
+`configuration:SelectedSite`, while Compose defaults to
+`hostinger-acceptance-selected-site-certificate`. The protected `.env` was updated with the
+selected-site app ID and `SELECTED_SITE_CREDENTIAL_REFERENCE=configuration:SelectedSite`; its
+mode is `0600`. Only the API container was recreated. Its certificate and private-key files were
+readable, its provider settings matched the saved connection, and `/health/ready` returned HTTP
+200. The database and other worker containers were left running; no migration ran.
+
+The built-in AuditSphere verification recorded the saved resource as `VERIFIED` at draft revision
+7 with diagnostic `exact-resource-and-control-denial`. The app token's tenant and Graph audience
+matched, and its only application role was `Sites.Selected`. Graph returned HTTP 200 for the exact
+approved site, `Internal Workpapers` drive and saved root folder, and HTTP 403 for the unrelated
+same-tenant control site. AuditSphere persisted the positive resource reads and control denial.
+
+The separately authorized disposable-file check used the empty `Internal Workpapers` library. One
+uniquely named text file uploaded with HTTP 201, its content read back byte-for-byte, and it was
+deleted with HTTP 204. A follow-up item read returned HTTP 404; the SharePoint library browser
+again showed an empty list. No client workspace was activated and the PBC worker remains stopped.
+The current tenant page shows connection and consent `VERIFIED`; the Directory Reader freshness
+label showed `STALE` at the latest page observation and needs its own refresh before relying on
+current directory-verification recency. This selected-site result does not complete the wider
+M365 or production acceptance gates.
+
+SharePoint consent for the runtime identity is recorded in Entra, but the exact-site grant was
+required separately, as described in Microsoft's
+[Selected permissions overview](https://learn.microsoft.com/en-us/graph/permissions-selected-overview).
+The site grant is now verified as described above. Do not repeat admin consent or broaden the
+runtime scopes. Exact deployment and queue facts are in the execution ledger.
 
 ## Operational boundaries
 

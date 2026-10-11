@@ -231,20 +231,46 @@ For the Directory Reader grant, the operator opened **App registrations → Audi
 With the owner's subsequent exact approval, the dedicated Directory Reader was configured with
 both fixed Web consent callbacks and its own VPS certificate. Only the public certificate was
 uploaded to Entra. Directory Reader and Tenant Consent were enabled, then the reviewed AuditSphere
-consent and nonce-bound identity flow completed. Fresh capability verification persisted
-`bounded-read-succeeded`; consent is verified and directory verification is recent. The migration
-and API upgrade also completed with public readiness passing; existing workers were unchanged.
+consent and nonce-bound identity flow completed. Capability verification persisted
+`bounded-read-succeeded`; at that observation consent was verified and directory verification was
+recent. The later 2026-10-11 tenant-page observation showed Directory Reader freshness as `STALE`,
+as recorded in the selected-site follow-up and `status.json`. The migration and API upgrade also
+completed with public readiness passing; existing workers were unchanged.
 Exact observation timestamps and deployment evidence are in
 [`status.json`](../execution/status.json).
 
 All three directory-mutation capabilities were subsequently configured and verified as described
 below; registration consent alone does not verify runtime access. Mail was enabled only after its
-sender restriction and synthetic transport verification. No directory mutation was run. Selected-site target fields
-remain a browser-tab draft; the runtime document app ID is unset pending the exact-site grant.
-The certificate-backed probe returned access denied for the approved target and unrelated control,
-so no file write was attempted. Resource verification and workspace activation remain blocked.
-The connection revision label is separate from verified consent and does not establish workspace
-readiness. No tenant-wide Graph permission was added beyond the individually listed roles.
+sender restriction and synthetic transport verification. No directory mutation was run. At the time
+of the following observation, the selected-site target was only a browser-tab draft and the
+certificate-backed probe denied both the approved target and control. That state was superseded by
+the dated verification below. The connection revision label remains separate from resource
+verification and does not establish workspace readiness. No tenant-wide Graph permission was added
+beyond the individually listed roles.
+
+### Selected-site grant and runtime verification — 2026-10-11
+
+With the owner's approval, the runtime app received `write` access only to the approved
+`AuditSphere Development` SharePoint site. A temporary single-tenant grantor with delegated
+`Sites.FullControl.All` was used only to create that one site grant, then its Entra registration,
+service principal and delegated consent were removed. The runtime app retained only the
+`Sites.Selected` application role; the unrelated same-tenant control site received no grant.
+
+The VPS `.env` now privately configures the runtime app and the persisted credential reference
+`configuration:SelectedSite` (file mode `0600`). Only the API container was recreated; readiness
+returned HTTP 200 and the database and worker containers were unchanged. AuditSphere persisted the
+selected resource as `VERIFIED` at revision 7 with diagnostic
+`exact-resource-and-control-denial`. Microsoft Graph allowed the exact approved site, its
+`Internal Workpapers` library and saved root folder (HTTP 200), while denying the unrelated control
+site (HTTP 403).
+
+The separately authorized disposable-file probe uploaded one unique text file (HTTP 201), read back
+matching content, deleted it (HTTP 204), and confirmed the deleted item returned HTTP 404. The
+SharePoint library was empty afterward. No client workspace was activated and the PBC worker remains
+stopped. The Directory Reader freshness label showed `STALE` on the latest tenant-page observation;
+refresh its bounded read before relying on current directory data. These results verify the selected
+resource boundary and file operation only; they do not establish full PBC workflow or production
+acceptance.
 
 The dedicated Mail identity is now restricted by an Exchange `RestrictAccess` policy scoped to a
 mail-enabled security group containing only the approved sender. Exchange allows that sender and
@@ -268,8 +294,9 @@ must not be presented as acceptance of those complete mutation journeys.
 For the live Hostinger acceptance deployment, the dated read-only status, certificate mount,
 callback, capability setup and verification procedure are recorded in the
 [Hostinger acceptance deployment guide](../../infra/hostinger-acceptance/auditsphere-deployment-hostinger-acceptance-current.md#microsoft-365-capability-setup).
-The consent screen and this permission matrix do not substitute for a fresh persisted capability
-verification, exact selected-site grant, Exchange sender restriction, or live external acceptance.
+The consent screen and this permission matrix do not substitute for fresh persisted capability
+verification, selected-workspace activation, Exchange sender restriction, or live external
+acceptance.
 
 Sources: [Microsoft admin consent protocol](https://learn.microsoft.com/en-us/entra/identity-platform/v2-admin-consent),
 [tenant admin-consent role prerequisites](https://learn.microsoft.com/en-us/entra/identity/enterprise-apps/grant-admin-consent),

@@ -174,7 +174,7 @@
     {
       "gate": "M365-ADMIN",
       "status": "BLOCKED_EXTERNAL",
-      "required": "Acceptance API and approved migrations are deployed and ready. Directory Reader consent and bounded read are verified. Dedicated Mail.Send app is restricted to the approved sender by an Exchange RestrictAccess policy with a sender-only scope group; approved sender Granted, unrelated fixture Denied, and a live no-recipient Graph authorization probe returned 403 ErrorAccessDenied. The approved self-addressed synthetic transport test returned 202 and Exchange message trace reported Delivered. API Outbound Mail capability is enabled and verified; saved Mail draft is CONFIGURED. The isolated mail worker is now running and polling after pre-activation queues and unreviewed recipients were confirmed empty. Its read-only mount exposes only its own mail credential; API and other existing workers were unchanged. No business mail operation was executed, so durable commercial/PBC workflows remain unevidenced by the direct transport check and idle worker startup. User creation, invitations and group membership now use separate certificate-backed identities with exactly one application role each, and API verification reports VERIFIED for all three. No user creation, invitation or membership mutation was executed; full reviewed mutation journeys remain outstanding. Selected Site certificate and exact Sites.Selected token pass, but approved target and unrelated control both returned 403 accessDenied despite the owner-reported grant; further duplicate probes paused pending exact grant investigation. The selected-site app ID remains unset, Records draft is NOT_CONFIGURED and workspace activation blocked. Retain BLOCKED_EXTERNAL until resource verification, scoped mutation cases and remaining external acceptance pass."
+      "required": "Acceptance API and approved migrations are deployed and ready. The Directory Reader, consent and bounded-read verification were previously recorded, but its freshness label showed STALE at the latest tenant-page observation and must be refreshed. Dedicated Mail.Send is restricted to the approved sender; unrelated mailbox denial, synthetic delivery and Exchange Delivered trace were verified, and the isolated mail worker is running with only its own read-only credential mount. The exact SharePoint boundary is now verified: runtime token has only Sites.Selected, the approved AuditSphere Development site/library/root returned HTTP 200, the unrelated control site returned HTTP 403, and AuditSphere persisted VERIFIED at revision 7. A single authorized disposable file was uploaded, read back, deleted and confirmed absent; the library is empty. The temporary grantor and its delegated consent were removed. Only the API was recreated; the database and workers were unchanged. No workspace was activated and the PBC worker remains stopped. Records is NOT_CONFIGURED. No user, invitation or group-membership mutation was run, so full mutation journeys remain outstanding. No business mail or PBC workflow was executed. Retain BLOCKED_EXTERNAL until directory freshness is refreshed, remaining scoped mutation and business workflows are accepted, and the separate live external and production gates pass."
     },
     {
       "gate": "P2b",
@@ -295,7 +295,7 @@
     "migrationHead": "20261010203413_ReportCertificateSignatureEvidence"
   },
   "hostingerAcceptance": {
-    "recordedAtUtc": "2026-10-11T11:10:35Z",
+    "recordedAtUtc": "2026-10-11T17:36:47.672211Z",
     "vpsCheckout": "107a9f97257274e708b76d08d94c58fdbd704d5a",
     "releaseImageSource": "e64a0cf97adc93fa8416c6288e02bb62fb30db00",
     "liveMigrationHead": "20261010203413_ReportCertificateSignatureEvidence",
@@ -321,14 +321,40 @@
       "tokenRoles": [
         "Sites.Selected"
       ],
-      "approvedSiteHttp": 403,
+      "approvedSiteHttp": 200,
       "unrelatedControlHttp": 403,
-      "diagnostic": "accessDenied",
-      "fileWriteAttempted": false,
-      "siteGrantChanged": false,
-      "recheckedAtUtc": "2026-10-11T10:22:38Z",
+      "diagnostic": "exact-resource-and-control-denial",
+      "fileWriteAttempted": true,
+      "siteGrantChanged": true,
+      "recheckedAtUtc": "2026-10-11T17:36:47.672211Z",
       "ownerReportedGrantApplied": true,
-      "furtherRetriesPaused": true
+      "furtherRetriesPaused": false,
+      "siteGrantRole": "write",
+      "siteGrantTarget": "AuditSphere Development",
+      "temporaryGrantorRemoved": true,
+      "temporaryGrantorConsentRemoved": true,
+      "runtimeAppIdConfigured": true,
+      "runtimeCredentialReference": "configuration:SelectedSite",
+      "credentialReferenceAligned": true,
+      "environmentFileMode": "0600",
+      "apiOnlyRecreated": true,
+      "apiReadyHttp": 200,
+      "workerContainersUnchanged": true,
+      "liveDatabaseChanged": false,
+      "migrationRan": false,
+      "controlSiteGrantCreated": false,
+      "auditSphereState": "VERIFIED",
+      "auditSphereRevision": 7,
+      "auditSphereDiagnostic": "exact-resource-and-control-denial",
+      "auditSphereObservedAtUtc": "2026-10-11T17:36:47.672211Z",
+      "probeResult": "PASS",
+      "uploadHttp": 201,
+      "readBackMatched": true,
+      "deleteHttp": 204,
+      "deletedItemHttp": 404,
+      "libraryEmptyAfterProbe": true,
+      "workspaceActivated": false,
+      "pbcWorkerStarted": false
     },
     "directoryReaderSetup": {
       "status": "LIVE_VERIFIED",
@@ -340,10 +366,11 @@
       "consentState": "CONSENT_VERIFIED",
       "consentObservedAtUtc": "2026-10-11T10:06:09.505075Z",
       "identityObservedAtUtc": "2026-10-11T10:06:21.662753Z",
-      "directoryState": "VERIFIED_RECENT",
+      "directoryState": "STALE",
       "capabilityDiagnostic": "bounded-read-succeeded",
       "capabilityObservedAtUtc": "2026-10-11T11:00:22.852302Z",
-      "mutationCapabilitiesEnabled": true
+      "mutationCapabilitiesEnabled": true,
+      "freshnessObservedAtUtc": "2026-10-11T17:36:47.672211Z"
     },
     "apiReadyHttp": 200,
     "publicReadyHttp": 200,
