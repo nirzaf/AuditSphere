@@ -213,26 +213,36 @@ public static class EngagementLifecycleQuery
         "AuditManager", $"/app/engagements/{engagementId}/audit-plan", null, false, false), now);
     }
 
-    // 4. Advance Billing
-    var acceptance = await db.AcceptanceDecisions.AsNoTracking()
-      .Where(x => x.FirmId == actor.FirmId && x.PracticeClientId == engagement.PracticeClientId &&
-        x.ServiceRoute == engagement.ServiceRoute && x.Decision == "Accepted")
-      .OrderByDescending(x => x.DecidedAt).FirstOrDefaultAsync(ct);
+    // 4. Advance Billing & 3. Dual-Key Pending. Both keys are read from the evidence the protected engagement-letter and
+    // fee-agreement guards use: the newest non-pending Partner decision must be an unconditional Accepted decision at the
+    // current client generation, and client acceptance must cite the exact dispatched offer. A stale, conditional or
+    // declined key never advances the stage.
+    var acceptance = await DualKeyEvidence.CurrentUnconditionalRiskClearanceAsync(
+      db, actor.FirmId, engagement.PracticeClientId, engagement.ServiceRoute, ct);
+    var proposal = await DualKeyEvidence.ResolveEngagementProposalAsync(db, actor.FirmId, engagementId, engagement.PracticeClientId, ct);
+    var commercialAccepted = proposal is { SentAt: not null } &&
+      await DualKeyEvidence.CommercialAcceptanceStandsAsync(db, actor.FirmId, proposal, ct);
 
-    if (acceptance is not null)
+    if (acceptance is not null && proposal is not null && commercialAccepted)
     {
       var feeBlocked = new List<string>();
       if (holds.Count > 0) feeBlocked.AddRange(holds.Select(h => $"Open hold: {h}"));
-      feeBlocked.Add("50% advance invoice payment allocation required to activate portal onboarding");
+      // Both keys are current; the stage still needs the authorized letter for that exact risk clearance and the linked fee agreement.
+      var letterIssued = await db.CommercialDocuments.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId &&
+        x.ProposalId == proposal.Id && x.Kind == CommercialDocumentKinds.EngagementLetter && x.AcceptanceDecisionId == acceptance.Id, ct);
+      if (!letterIssued) feeBlocked.Add("Issue the Engagement Letter for the current accepted offer");
+      var agreement = await db.EngagementFeeAgreements.AsNoTracking()
+        .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ProposalId == proposal.Id, ct);
+      if (agreement is null) feeBlocked.Add("Create the fee agreement and its 50% advance milestone");
+      else if (agreement.EngagementId != engagementId) feeBlocked.Add("Link the fee agreement to this engagement");
+      // Activation reads the milestone state (PAID), never a receipt total or a user-entered flag, so the same state is required here.
+      var advancePaid = agreement is not null && await db.FeeMilestones.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId &&
+        x.AgreementId == agreement.Id && x.Kind == FeeMilestoneKinds.Advance && x.State == FeeMilestoneStates.Paid, ct);
+      if (!advancePaid) feeBlocked.Add("50% advance invoice payment allocation required to activate portal onboarding");
       return Success(engagement, client.LegalName, new EngagementLifecycleSummary(
         CanonicalEngagementStages.AdvanceBilling, "Advance Billing & Payment", 4, feeBlocked,
         "FinanceManager", $"/app/finance", null, false, false), now);
     }
-
-    // 3. Dual-Key Pending
-    var proposal = await db.Proposals.AsNoTracking()
-      .Where(x => x.FirmId == actor.FirmId && x.PracticeClientId == engagement.PracticeClientId)
-      .OrderByDescending(x => x.CreatedAt).FirstOrDefaultAsync(ct);
 
     if (proposal is { SentAt: not null, Status: CrmStates.ProposalSent or CrmStates.ProposalAccepted or CrmStates.ProposalDeclined })
     {
@@ -242,6 +252,8 @@ public static class EngagementLifecycleQuery
         dualBlocked.Add("The client declined the dispatched proposal; revise and resend or close the opportunity.");
       else if (proposal.Status != CrmStates.ProposalAccepted)
         dualBlocked.Add("Client commercial acceptance of proposal required");
+      else if (!commercialAccepted)
+        dualBlocked.Add("Client acceptance does not cite the current dispatched offer or quotation revision; re-record acceptance against the exact current offer.");
       return Success(engagement, client.LegalName, new EngagementLifecycleSummary(
         CanonicalEngagementStages.DualKeyPending, "Dual-Key Acceptance Pending", 3, dualBlocked,
         "EngagementPartner", $"/app/assessments/{engagement.PracticeClientId}", null, false, false), now);

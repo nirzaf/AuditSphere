@@ -37,6 +37,8 @@ public static class CommercialDocumentWorkspaceQuery
       letter.Add("A current firm-wide Partner must generate the engagement letter.");
     if (proposal.Status != "ACCEPTED" || proposal.ResponseAt is null || proposal.PracticeClientId is null)
       letter.Add("Record client commercial acceptance and convert the proposal to a prospect client.");
+    else if (!await AuditSphereOps.Application.Acceptance.DualKeyEvidence.CommercialAcceptanceStandsAsync(db, actor.FirmId, proposal, ct))
+      letter.Add("Client acceptance must cite the current dispatched offer; re-record acceptance against the exact current offer.");
     if (proposal.PracticeClientId is { } clientId)
     {
       var safety = await db.ClientSafetyStates.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == clientId, ct);
@@ -47,6 +49,8 @@ public static class CommercialDocumentWorkspaceQuery
         || decision.DecidedByUserId is null || decision.DecidedAt is null)
         letter.Add("Complete the current acceptance checklist and record unconditional Partner risk clearance for this service.");
     }
+    if (EngagementLetterTemplates.Resolve(authorized.Value!.ServiceRoute) is null)
+      letter.Add("The engagement letter template is not configured for this service route.");
     if (!await db.SignatureSpecimens.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId && x.RevokedAt == null, ct)
       || !await db.FirmSealSpecimens.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId, ct))
       letter.Add("Register the approved Partner signature and official firm seal.");

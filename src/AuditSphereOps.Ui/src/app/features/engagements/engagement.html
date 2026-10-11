@@ -91,16 +91,21 @@
         <a matButton [routerLink]="['/app/engagements', engagement.id, 'activation']" [queryParams]="location()">Review and activate engagement</a>
       </section>
     }
+    <audit-engagement-workflow [engagementId]="engagement.id" />
+    <audit-onboarding-readiness [engagementId]="engagement.id" />
     @defer (on viewport) {
       <audit-engagement-planning [engagementId]="engagement.id" />
     } @placeholder {
       <p>Team and budget</p>
     }
-    @defer (on viewport) {
-      <audit-engagement-lifecycle [engagementId]="engagement.id" />
-    } @placeholder {
-      <p>Canonical Engagement Lifecycle</p>
-    }
+    <details class="technical-lifecycle">
+      <summary>Technical lifecycle: 11 canonical stages</summary>
+      @defer (on viewport) {
+        <audit-engagement-lifecycle [engagementId]="engagement.id" />
+      } @placeholder {
+        <p>Canonical Engagement Lifecycle</p>
+      }
+    </details>
     <section id="engagement-clearance" aria-label="Holds and clearance gates">
       <h2>Holds and clearance gates</h2>
       <p>

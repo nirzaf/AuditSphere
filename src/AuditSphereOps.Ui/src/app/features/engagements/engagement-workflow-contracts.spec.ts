@@ -1,0 +1,202 @@
+import { describe, expect, it } from 'vitest';
+import {
+  WORKFLOW_PHASES,
+  decodeEngagementWorkflowReport,
+  decodeOnboardingReadinessReport,
+} from './engagement-workflow-contracts';
+
+const id = '11111111-2222-3333-4444-555555555555';
+const clientId = '66666666-7777-8888-9999-000000000000';
+
+const phases = (current: number, status: string) =>
+  WORKFLOW_PHASES.map((p) => ({
+    index: p.index,
+    code: p.code,
+    label: p.label,
+    status: p.index < current ? 'COMPLETED' : p.index === current ? status : 'NOT_STARTED',
+  }));
+
+function workflow(overrides: Record<string, unknown> = {}) {
+  return {
+    engagementId: id,
+    clientId,
+    serviceRoute: 'Audit',
+    canonicalStage: 'DUAL_KEY_PENDING',
+    canonicalIndex: 3,
+    canonicalLabel: 'Dual-Key Acceptance Pending',
+    currentPhase: { index: 1, code: 'CLIENT_ONBOARDING', label: 'Client Onboarding', status: 'BLOCKED' },
+    phases: phases(1, 'BLOCKED'),
+    responsibleRole: 'EngagementPartner',
+    blockers: ['Unconditional Partner risk acceptance decision required'],
+    nextActions: [{ key: 'OPEN_CANONICAL_ACTION', label: 'Open: Dual-Key Acceptance Pending', href: `/app/assessments/${clientId}` }],
+    archive: null,
+    evaluatedAtUtc: '2026-10-12T12:00:00Z',
+    ...overrides,
+  };
+}
+
+describe('Seven-phase workflow projection contract (WF-01/WF-02)', () => {
+  it('defines seven ordered visible phases', () => {
+    expect(WORKFLOW_PHASES.map((p) => p.index)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    expect(WORKFLOW_PHASES[0].code).toBe('CLIENT_ONBOARDING');
+    expect(WORKFLOW_PHASES[6].code).toBe('ARCHIVE_CLOSE');
+  });
+
+  it('decodes a truthful projection for an engagement still in client onboarding', () => {
+    const decoded = decodeEngagementWorkflowReport(workflow());
+    expect(decoded.canonicalStage).toBe('DUAL_KEY_PENDING');
+    expect(decoded.currentPhase.status).toBe('BLOCKED');
+    expect(decoded.phases).toHaveLength(7);
+    expect(decoded.blockers).toHaveLength(1);
+    expect(decoded.archive).toBeNull();
+  });
+
+  it('decodes archive and provider protection state without treating them as cleared', () => {
+    const decoded = decodeEngagementWorkflowReport(
+      workflow({
+        canonicalStage: 'COMPLIANCE_COUNTDOWN',
+        canonicalIndex: 10,
+        currentPhase: { index: 7, code: 'ARCHIVE_CLOSE', label: 'Archive and Close', status: 'IN_PROGRESS' },
+        phases: phases(7, 'IN_PROGRESS'),
+        archive: {
+          localArchiveState: 'SCHEDULED',
+          providerProtectionState: 'BLOCKED_EXTERNAL',
+          complianceWarning: 'Provider protection state is BLOCKED_EXTERNAL.',
+          complianceCountdownDays: 45,
+        },
+      }),
+    );
+    expect(decoded.archive?.providerProtectionState).toBe('BLOCKED_EXTERNAL');
+    expect(decoded.archive?.complianceCountdownDays).toBe(45);
+  });
+
+  it('fails closed on an unknown phase status', () => {
+    const raw = workflow({ currentPhase: { index: 1, code: 'CLIENT_ONBOARDING', label: 'Client Onboarding', status: 'CLEARED' } });
+    expect(() => decodeEngagementWorkflowReport(raw)).toThrow();
+  });
+
+  it('fails closed when the phase list is not exactly seven phases', () => {
+    expect(() => decodeEngagementWorkflowReport(workflow({ phases: phases(1, 'BLOCKED').slice(0, 6) }))).toThrow(
+      'Workflow phase count mismatch',
+    );
+  });
+
+  it('fails closed on an out-of-range canonical stage index', () => {
+    expect(() => decodeEngagementWorkflowReport(workflow({ canonicalIndex: 12 }))).toThrow(
+      'Invalid canonical stage index bounds',
+    );
+  });
+
+  it('fails closed when phases are not in canonical order', () => {
+    const swapped = phases(1, 'BLOCKED');
+    [swapped[1], swapped[2]] = [swapped[2], swapped[1]];
+    expect(() => decodeEngagementWorkflowReport(workflow({ phases: swapped }))).toThrow('Workflow phase order mismatch');
+  });
+
+  it('fails closed on an out-of-range current phase index', () => {
+    expect(() =>
+      decodeEngagementWorkflowReport(
+        workflow({ currentPhase: { index: 8, code: 'X', label: 'X', status: 'BLOCKED' } }),
+      ),
+    ).toThrow('Invalid workflow phase index bounds');
+  });
+});
+
+function readiness(overrides: Record<string, unknown> = {}) {
+  return {
+    engagementId: id,
+    clientId,
+    serviceRoute: 'Audit',
+    clientApproval: {
+      status: 'CURRENT',
+      label: 'The client accepted the exact current offer.',
+      fee: '50000.000000',
+      currency: 'QAR',
+      quotationRevision: 2,
+      respondedAtUtc: '2026-10-10T09:00:00Z',
+      offerSha256Prefix: 'abcdef123456',
+    },
+    partnerRisk: {
+      status: 'MISSING',
+      label: 'No unconditional Partner risk clearance is recorded for this service.',
+      serviceRoute: 'Audit',
+      decidedAtUtc: null,
+      decidedByName: null,
+      generation: null,
+    },
+    engagementLetter: { status: 'NOT_ELIGIBLE', label: 'Both approval keys must be current before a letter can be issued.', documentId: null },
+    advancePayment: {
+      status: 'NO_AGREEMENT',
+      label: 'No fee agreement yet.',
+      amount: null,
+      allocated: null,
+      outstanding: null,
+      invoiceStatus: null,
+      currency: null,
+      advancePercent: null,
+      preparationState: 'NOT_APPLICABLE',
+    },
+    activation: { status: 'BLOCKED', label: 'Unconditional Partner risk clearance is recorded for this service.' },
+    blockers: [{ code: 'PARTNER_ACCEPTANCE_REQUIRED', label: 'No unconditional Partner risk clearance is recorded for this service.' }],
+    nextActions: [{ key: 'OPEN_ACCEPTANCE', label: 'Review the acceptance checklist and risk clearance', href: `/app/clients/${clientId}/assessment` }],
+    canGenerateLetter: false,
+    canActivate: false,
+    evaluatedAtUtc: '2026-10-12T12:00:00Z',
+    ...overrides,
+  };
+}
+
+describe('Dual-Key onboarding readiness contract (WF-03)', () => {
+  it('decodes independent cards with exact decimal money and never merges the keys', () => {
+    const decoded = decodeOnboardingReadinessReport(readiness());
+    expect(decoded.clientApproval.status).toBe('CURRENT');
+    expect(decoded.clientApproval.fee).toBe('50000.000000');
+    expect(decoded.partnerRisk.status).toBe('MISSING');
+    expect(decoded.engagementLetter.status).toBe('NOT_ELIGIBLE');
+    expect(decoded.activation.status).toBe('BLOCKED');
+  });
+
+  it('keeps a stale Partner clearance visible as stale', () => {
+    const decoded = decodeOnboardingReadinessReport(
+      readiness({
+        partnerRisk: {
+          status: 'STALE', label: 'Partner clearance predates the current client inputs.', serviceRoute: 'Audit',
+          decidedAtUtc: '2026-10-01T09:00:00Z', decidedByName: 'Partner A', generation: 1,
+        },
+      }),
+    );
+    expect(decoded.partnerRisk.status).toBe('STALE');
+    expect(decoded.partnerRisk.decidedByName).toBe('Partner A');
+  });
+
+  it('fails closed on an unknown commercial status', () => {
+    expect(() => decodeOnboardingReadinessReport(readiness({
+      clientApproval: { ...readiness().clientApproval, status: 'ACCEPTED_BY_EMAIL' },
+    }))).toThrow();
+  });
+
+  it('decodes a fee agreement that is not linked to this engagement as its own state', () => {
+    const decoded = decodeOnboardingReadinessReport(readiness({
+      advancePayment: {
+        status: 'NOT_LINKED', label: 'The fee agreement is not linked to this engagement.', amount: '25000.000000',
+        allocated: '0.000000', outstanding: '25000.000000', invoiceStatus: null, currency: 'QAR', advancePercent: '50.000000',
+        preparationState: 'AWAITING_ENGAGEMENT_LETTER',
+      },
+    }));
+    expect(decoded.advancePayment.status).toBe('NOT_LINKED');
+    expect(decoded.advancePayment.advancePercent).toBe('50.000000');
+    expect(decoded.canActivate).toBe(false);
+  });
+
+  it('carries the server-computed action flags without treating them as status', () => {
+    const decoded = decodeOnboardingReadinessReport(readiness({ canGenerateLetter: true, canActivate: false }));
+    expect(decoded.canGenerateLetter).toBe(true);
+    expect(decoded.engagementLetter.status).toBe('NOT_ELIGIBLE');
+  });
+
+  it('fails closed on a non-exact money amount', () => {
+    expect(() => decodeOnboardingReadinessReport(readiness({
+      advancePayment: { ...readiness().advancePayment, amount: '25000.5e3' },
+    }))).toThrow();
+  });
+});

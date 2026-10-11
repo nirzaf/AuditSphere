@@ -8,6 +8,7 @@ using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Application.Reviews;
 using AuditSphereOps.Application.Security;
+using AuditSphereOps.Domain.Acceptance;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Documents;
@@ -1037,5 +1038,107 @@ public sealed class CommercialWorkflowTests
     // A null-client ClientUser grant is not a firm-wide fallback.
     Assert.Equal(ErrorCodes.ScopeDenied, (await CommercialDocumentService.GetAsync(db, nullClientActor, receiptA.Id)).ErrorCode);
     Assert.Empty((await ClientPortalFinanceQuery.GetAsync(db, nullClientActor)).Value!.Agreements);
+  }
+  /// <summary>
+  /// WF-03: the readiness cards are evaluated independently from real commercial records: the client's exact-offer acceptance,
+  /// the Partner's unconditional clearance (current, conditional, stale), the letter and the fee agreement. No single key opens
+  /// the letter or activation, and a foreign firm learns nothing.
+  /// </summary>
+  [Fact]
+  public async Task OnboardingReadinessEvaluatesEachKeyIndependentlyFromRealCommercialRecords()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var foreign = await SeedAsync(pg);
+    var (_, _, proposalId) = await DraftProposalAsync(pg, w);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var quote = await QuotationService.SaveAsync(db, w.Prep, Quote(proposalId));
+    Assert.True((await QuotationService.SubmitAsync(db, w.Prep, quote.Value)).Succeeded);
+    Assert.True((await PracticeCrmService.ApproveProposalAsync(db, w.Partner, proposalId)).Succeeded);
+    Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Prep, proposalId)).Succeeded);
+    var offerSha = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId)).SentOfferSha256;
+    Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
+      new("ACCEPTED", null, offerSha, "A. Owner", "owner@gulf.example.test", "Signed acceptance letter"))).Succeeded);
+    var client = await PracticeCrmService.ConvertToClientDraftAsync(db, w.Prep, new(proposalId, "Readiness client"));
+    Assert.True(client.Succeeded, client.Message);
+    var created = await FeeAgreementService.CreateAgreementAsync(db, w.Prep, proposalId);
+    Assert.True(created.Succeeded, created.Message);
+    var engagementId = Guid.NewGuid();
+    db.Engagements.Add(new Engagement { Id = engagementId, FirmId = w.FirmId, PracticeClientId = client.Value, ServiceRoute = "FinancialStatementAudit", CreatedAt = DateTimeOffset.UtcNow });
+    await db.SaveChangesAsync();
+    // Activation reads only the agreement linked to this engagement, so the readiness advance card reads the same link.
+    var linked = await FeeAgreementService.LinkEngagementAsync(db, w.Prep, created.Value, engagementId);
+    Assert.True(linked.Succeeded, linked.Message);
+
+    // Client accepted the exact offer; no Partner clearance yet. The client card is current, the Partner card is missing, and
+    // the advance is not yet invoiced, so activation stays blocked.
+    var readiness = await ClientOnboardingReadinessQuery.GetAsync(db, w.Prep, engagementId);
+    Assert.True(readiness.Succeeded, readiness.Message);
+    Assert.Equal(OnboardingReadinessStatuses.Current, readiness.Value!.ClientApproval.Status);
+    Assert.Equal(OnboardingReadinessStatuses.Missing, readiness.Value.PartnerRisk.Status);
+    Assert.Equal(OnboardingReadinessStatuses.NotEligible, readiness.Value.EngagementLetter.Status);
+    Assert.Equal(OnboardingReadinessStatuses.NotInvoiced, readiness.Value.AdvancePayment.Status);
+    Assert.Equal(OnboardingReadinessStatuses.Blocked, readiness.Value.Activation.Status);
+    Assert.Contains(readiness.Value.Blockers, b => b.Code == "PARTNER_ACCEPTANCE_REQUIRED");
+    Assert.DoesNotContain(readiness.Value.Blockers, b => b.Code == "CLIENT_ACCEPTANCE_REQUIRED");
+
+    // A conditional Partner decision never clears its key, even when it is the newest decision.
+    var partnerId = w.PartnerUser.Id;
+    db.AcceptanceDecisions.Add(new AcceptanceDecision
+    {
+      Id = Guid.NewGuid(), FirmId = w.FirmId, PracticeClientId = client.Value, ServiceRoute = "FinancialStatementAudit",
+      Decision = "AcceptedWithConditions", Conditions = "Obtain bank confirmation", DecidedByUserId = partnerId,
+      DecidedAt = DateTimeOffset.UtcNow.AddMinutes(-2), Path = "NEW_CLIENT", Generation = 1, Rationale = "Conditional",
+      EvaluationTemplateVersion = "V2", EvaluationSnapshotDigest = new string('a', 64)
+    });
+    await db.SaveChangesAsync();
+    readiness = await ClientOnboardingReadinessQuery.GetAsync(db, w.Prep, engagementId);
+    Assert.Equal(OnboardingReadinessStatuses.Conditional, readiness.Value!.PartnerRisk.Status);
+    Assert.Contains(readiness.Value.Blockers, b => b.Code == "PARTNER_ACCEPTANCE_CONDITIONAL");
+
+    // An unconditional clearance for the current generation is current, and it names the deciding Partner.
+    db.AcceptanceDecisions.Add(new AcceptanceDecision
+    {
+      Id = Guid.NewGuid(), FirmId = w.FirmId, PracticeClientId = client.Value, ServiceRoute = "FinancialStatementAudit",
+      Decision = "Accepted", DecidedByUserId = partnerId, DecidedAt = DateTimeOffset.UtcNow, Path = "NEW_CLIENT", Generation = 1,
+      Rationale = "Unconditional", EvaluationTemplateVersion = "V2", EvaluationSnapshotDigest = new string('b', 64)
+    });
+    await db.SaveChangesAsync();
+    readiness = await ClientOnboardingReadinessQuery.GetAsync(db, w.Prep, engagementId);
+    Assert.Equal(OnboardingReadinessStatuses.Current, readiness.Value!.PartnerRisk.Status);
+    Assert.Equal(w.PartnerUser.DisplayName, readiness.Value.PartnerRisk.DecidedByName);
+    Assert.Equal(OnboardingReadinessStatuses.Current, readiness.Value.ClientApproval.Status);
+    // Both keys are current, but no registered signature and seal yet, so the letter stays not eligible and says why.
+    Assert.Equal(OnboardingReadinessStatuses.NotEligible, readiness.Value.EngagementLetter.Status);
+    // The letter's prerequisites are checked in the order the protected command refuses them: no commercial profile is configured here.
+    Assert.Equal(OnboardingReadinessStatuses.NotEligible, readiness.Value.EngagementLetter.Status);
+    Assert.Contains("Configure the firm commercial profile", readiness.Value.EngagementLetter.Label);
+    // Only a firm-wide Partner with a registered signature may act: the Relationship Manager can see the cards but cannot act.
+    Assert.False(readiness.Value.CanGenerateLetter);
+    Assert.False(readiness.Value.CanActivate);
+
+    // Client inputs change: the clearance is stale and no longer opens the letter.
+    await db.ClientSafetyStates.Where(x => x.Id == client.Value).ExecuteUpdateAsync(x => x.SetProperty(v => v.InputGeneration, v => v.InputGeneration + 1));
+    readiness = await ClientOnboardingReadinessQuery.GetAsync(db, w.Prep, engagementId);
+    Assert.Equal(OnboardingReadinessStatuses.Stale, readiness.Value!.PartnerRisk.Status);
+    Assert.Contains(readiness.Value.Blockers, b => b.Code == "PARTNER_ACCEPTANCE_STALE");
+
+    // A second engagement of the same client on another service route: the letter route and the risk route cannot be matched to
+    // it, and its fee agreement is linked to the first engagement, so readiness must not treat that agreement as its own.
+    var otherEngagementId = Guid.NewGuid();
+    db.Engagements.Add(new Engagement { Id = otherEngagementId, FirmId = w.FirmId, PracticeClientId = client.Value, ServiceRoute = "Accounting", CreatedAt = DateTimeOffset.UtcNow });
+    await db.SaveChangesAsync();
+    var other = await ClientOnboardingReadinessQuery.GetAsync(db, w.Prep, otherEngagementId);
+    Assert.True(other.Succeeded, other.Message);
+    Assert.Equal(OnboardingReadinessStatuses.NotLinked, other.Value!.AdvancePayment.Status);
+    Assert.Contains(other.Value.Blockers, b => b.Code == "FEE_AGREEMENT_NOT_LINKED");
+    Assert.Contains(other.Value.Blockers, b => b.Code == "ROUTE_MISMATCH");
+    Assert.Equal(OnboardingReadinessStatuses.NotEligible, other.Value.EngagementLetter.Status);
+    Assert.False(other.Value.CanActivate);
+
+    // Scope: a user from another firm learns nothing about this engagement.
+    var denied = await ClientOnboardingReadinessQuery.GetAsync(db, foreign.Prep, engagementId);
+    Assert.False(denied.Succeeded);
+    Assert.Null(denied.Value);
   }
 }

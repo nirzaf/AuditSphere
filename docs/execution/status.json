@@ -60,6 +60,11 @@
       "item": "FSR-005 first slice — cash-flow movement evidence and adjusted cash cross-cast",
       "status": "PARTIAL",
       "details": "PARTIAL at code commit 49e7f137. The package build now persists period-dated cash movements, activity codes, preparer-entered source references and classification rationale; it hashes and displays those fields, retains noncash operating adjustments outside cash arithmetic, records opening/closing cash populations and evidence references, and refuses a closing amount that does not cross-cast to the selected adjusted cash accounts. These are supplied text references, not resolved source-record identities or independently verified documents. No schedule editor or approved framework-specific classification policy is present. T030 remains NOT_STARTED/WAITING on T029 in the task board; this increment does not satisfy full FSR-005 acceptance. Verification on this tree: Release solution build passed (0 errors, 6 NU1900 feed warnings); Angular CI passed 634/634; FinancialStatementPresentationTests passed 15/15; Angular production build passed with the existing commercial-settings stylesheet budget warning; EF model drift, OpenAPI, Markdown, filename, narrative-metric, source-inventory and diff checks passed. New PostgreSQL-backed cash-flow cases were compiled but not run because PostgreSQL at 127.0.0.1:5433 did not respond. Built-in browser showed the local app unauthenticated access guard; the API/session service was unavailable, so no signed-in cash-flow workflow was observed."
+    },
+    {
+      "item": "AS-WF-V22 — v2.2 workflow experience PRs D–I (WF-04 to WF-15) and production acceptance",
+      "status": "PARTIAL",
+      "details": "PRs A–C implemented on master without schema change: read-only seven-phase projection (GET /api/ui/engagements/{id}/workflow), Dual-Key readiness cards (GET /api/ui/engagements/{id}/onboarding-readiness), advance-billing truthfulness correction in the lifecycle, Angular engagement workbench with the eleven-stage view kept as a technical panel. Not started: workflow task persistence and templates (WF-04 to WF-06), queues, dependencies and rework routing (WF-07, WF-08, WF-12), automations and PBC follow-up (WF-09, WF-10), annual recurrence (WF-11), completion and archive cards (WF-13), analytics (WF-14), production acceptance (WF-15). Lead-level pre-engagement journey (WF-01 scope LEAD) is not implemented. Open findings are in targetedVerification.workflowExperienceV22. No production acceptance is claimed; the independent pilot and owner approval remain outstanding."
     }
   ],
   "targetedVerification": {
@@ -331,6 +336,85 @@
         }
       ],
       "externalAcceptance": "NOT_VERIFIED: professional approval, signed-in package workflow, live tenant/provider acceptance, production migration and release remain open."
+    },
+    "workflowExperienceV22": {
+      "recordedAtUtc": "2026-10-11T23:35:10Z",
+      "baseCommit": "87e41328",
+      "sourceTree": "Uncommitted working tree on master at 87e41328; the commit carrying this record is the source revision.",
+      "database": "auditsphere_tests on 127.0.0.1:5433",
+      "scope": "WF-00 characterization, WF-01 seven-phase read model and lifecycle advance-billing correction, WF-02 Angular workbench, WF-03 Dual-Key readiness. PRs A-C only; no schema change.",
+      "runs": [
+        {
+          "name": "Full Domain PostgreSQL suite",
+          "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --configuration Release",
+          "total": 861,
+          "passed": 860,
+          "failed": 1,
+          "result": "FAIL_PRE_EXISTING",
+          "note": "CashFlowContractTests.FxCashEffect_ReconcilesSeparatelyAndPersistsEvidence fails identically on a clean checkout of 87e41328 (closing cash 110 does not cross-cast to the adjusted cash-account population 100). Not touched by this slice."
+        },
+        {
+          "name": "Focused API subset",
+          "command": "dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-build --configuration Release --filter 'Engagement|FeeAgreement|Commercial|Angular|Contract|Canonical|Activation'",
+          "passed": 32,
+          "failed": 0,
+          "result": "PASS"
+        },
+        {
+          "name": "Angular full suite",
+          "command": "npx ng test --watch=false (npm run test:ci)",
+          "test_files": 116,
+          "passed": 648,
+          "failed": 0,
+          "result": "PASS"
+        },
+        {
+          "name": "Angular production build",
+          "command": "npx ng build (npm run build)",
+          "result": "PASS_WITH_WARNING",
+          "note": "Pre-existing budget warning for commercial/settings.scss; not touched by this slice."
+        },
+        {
+          "name": "Solution Release build",
+          "command": "dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1",
+          "result": "PASS (0 errors); NuGet vulnerability lookup warnings only (offline)"
+        },
+        {
+          "name": "OpenAPI drift",
+          "command": "bash scripts/contracts/verify-openapi.sh",
+          "result": "PASS: contract is current (adds the workflow and onboarding-readiness paths)"
+        },
+        {
+          "name": "EF model drift",
+          "command": "dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Api --no-build --configuration Release",
+          "result": "PASS: no pending model changes"
+        }
+      ],
+      "review": {
+        "method": "Read-only adversarial review by three independent lenses (truthfulness, authorization and exposure, Angular contract and accessibility); each finding was verified against source before action.",
+        "fixedInThisSlice": [
+          "Advance card and activation readiness now use the milestone PAID state that activation checks, not an allocation total that credit notes can inflate.",
+          "The advance is read only from a fee agreement linked to this engagement; an unlinked agreement reports NOT_LINKED, as activation refuses it.",
+          "The letter card requires the letter template, commercial profile and firm seal, in the order the letter command refuses them.",
+          "A route mismatch between the proposal and the engagement blocks the letter and reports ROUTE_MISMATCH.",
+          "Readiness requires a firm-wide grant, so an engagement-only grant cannot read client-level Partner decisions or the decider's name.",
+          "Letter and activation actions are server-computed flags (canGenerateLetter, canActivate) for the requesting actor, not inferred in the browser.",
+          "The stage 4 advance blocker is listed only while the advance is unpaid.",
+          "The engagement's proposal is the one its linked fee agreement binds, falling back to the client's newest proposal only when none is linked.",
+          "The workflow route allowlist no longer admits dot segments.",
+          "READY_FOR_REVIEW is shown as pending, not as a success state; phases carry visible status text, list semantics and canonical-order validation; 401 ends the session and 403 says the panel is unavailable to the role."
+        ],
+        "openDecisionsOrDeferred": [
+          "The protected letter guard applies offer identity only when a dispatch record exists; the read model additionally requires the sent and response offer hashes to match. Hardening the command is an owner decision and was not changed in this slice.",
+          "FeeAgreementWorkspaceQuery.CanCreate does not repeat the quotation-revision check of the create command (pre-existing; this file is not in the slice).",
+          "With no linked fee agreement, the engagement is bound to the client's newest proposal; a newer draft for another route can hide a cleared engagement until a fee agreement is linked.",
+          "The readiness read does not pass the automatic advance-invoice setting, so the preparation message can read as drafting disabled when it is enabled.",
+          "The workflow card shows lifecycle blocker text to every role that the lifecycle endpoint already accepts; this is an existing exposure, now more prominent.",
+          "Non-permission refusals (projection and reconciliation gates) map to HTTP 403, following the existing UI read pattern.",
+          "The shared instant decoder accepts timestamps without an offset (pre-existing decoder).",
+          "No automated test drives a fully paid advance through receipt allocation; the PAID branch relies on the same milestone predicate that ActivateAsync checks, verified by code reading."
+        ]
+      }
     }
   },
   "externalGates": [

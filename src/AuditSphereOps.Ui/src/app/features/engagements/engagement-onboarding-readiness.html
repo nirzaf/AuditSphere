@@ -1,0 +1,109 @@
+<section class="readiness-panel" aria-labelledby="readiness-heading">
+  <div class="readiness-header">
+    <h3 id="readiness-heading">Client onboarding readiness</h3>
+    <button matButton (click)="load()" [disabled]="loading()">Refresh readiness</button>
+  </div>
+
+  @if (loading()) {
+    <p>Evaluating onboarding evidence...</p>
+  }
+  @if (error()) {
+    <p role="alert">{{ error() }}</p>
+  }
+  @if (data(); as report) {
+    <p class="readiness-note">
+      Each card reflects its own recorded evidence. Completing one card never completes another, and no card approves anything on
+      its own.
+    </p>
+
+    <div class="card-grid">
+      <article class="readiness-card" [attr.data-tone]="tone(report.clientApproval.status)" aria-labelledby="card-client">
+        <h4 id="card-client">Client commercial acceptance</h4>
+        <p class="card-status">
+          <span class="status-pill">{{ report.clientApproval.status }}</span>
+        </p>
+        <p>{{ report.clientApproval.label }}</p>
+        <dl class="card-facts">
+          @if (report.clientApproval.fee) {
+            <dt>Fee</dt><dd>{{ amount(report.clientApproval.fee) }} {{ report.clientApproval.currency }}</dd>
+          }
+          @if (report.clientApproval.quotationRevision !== null) {
+            <dt>Quotation revision</dt><dd>{{ report.clientApproval.quotationRevision }}</dd>
+          }
+          @if (report.clientApproval.respondedAtUtc) {
+            <dt>Responded</dt><dd>{{ report.clientApproval.respondedAtUtc | date: 'medium' }}</dd>
+          }
+          @if (report.clientApproval.offerSha256Prefix) {
+            <dt>Offer identity</dt><dd><code>{{ report.clientApproval.offerSha256Prefix }}</code></dd>
+          }
+        </dl>
+      </article>
+
+      <article class="readiness-card" [attr.data-tone]="tone(report.partnerRisk.status)" aria-labelledby="card-partner">
+        <h4 id="card-partner">Partner risk clearance</h4>
+        <p class="card-status">
+          <span class="status-pill">{{ report.partnerRisk.status }}</span>
+        </p>
+        <p>{{ report.partnerRisk.label }}</p>
+        <dl class="card-facts">
+          <dt>Service route</dt><dd>{{ report.partnerRisk.serviceRoute }}</dd>
+          @if (report.partnerRisk.decidedAtUtc) {
+            <dt>Decided</dt><dd>{{ report.partnerRisk.decidedAtUtc | date: 'medium' }}</dd>
+          }
+          @if (report.partnerRisk.decidedByName) {
+            <dt>Decided by</dt><dd>{{ report.partnerRisk.decidedByName }}</dd>
+          }
+        </dl>
+        <a matButton [routerLink]="'/app/clients/' + report.clientId + '/assessment'">Open acceptance checklist</a>
+      </article>
+
+      <article class="readiness-card" [attr.data-tone]="tone(report.engagementLetter.status)" aria-labelledby="card-letter">
+        <h4 id="card-letter">Engagement letter</h4>
+        <p class="card-status">
+          <span class="status-pill">{{ report.engagementLetter.status }}</span>
+        </p>
+        <p>{{ report.engagementLetter.label }}</p>
+      </article>
+
+      <article class="readiness-card" [attr.data-tone]="tone(report.advancePayment.status)" aria-labelledby="card-advance">
+        <h4 id="card-advance">Advance payment</h4>
+        <p class="card-status">
+          <span class="status-pill">{{ report.advancePayment.status }}</span>
+        </p>
+        <p>{{ report.advancePayment.label }}</p>
+        @if (report.advancePayment.amount) {
+          <dl class="card-facts">
+            <dt>Advance{{ report.advancePayment.advancePercent ? ' (' + report.advancePayment.advancePercent + '%)' : '' }}</dt>
+            <dd>{{ report.advancePayment.currency }} {{ amount(report.advancePayment.amount) }}</dd>
+            <dt>Allocated</dt><dd>{{ amount(report.advancePayment.allocated) }}</dd>
+            <dt>Outstanding</dt><dd>{{ amount(report.advancePayment.outstanding) }}</dd>
+          </dl>
+        }
+      </article>
+    </div>
+
+    <div class="activation-banner" [attr.data-status]="report.activation.status" role="status">
+      <strong>Activation: {{ report.activation.status }}</strong>
+      <span>{{ report.activation.label }}</span>
+    </div>
+
+    @if (report.blockers.length > 0) {
+      <div class="blockers-section">
+        <h4>Blocked until resolved</h4>
+        <ul>
+          @for (blocker of report.blockers; track blocker.code) {
+            <li><code>{{ blocker.code }}</code> {{ blocker.label }}</li>
+          }
+        </ul>
+      </div>
+    }
+
+    @if (report.nextActions.length > 0) {
+      <div class="readiness-actions">
+        @for (action of report.nextActions; track action.key) {
+          <a matButton [routerLink]="action.href">{{ action.label }}</a>
+        }
+      </div>
+    }
+  }
+</section>

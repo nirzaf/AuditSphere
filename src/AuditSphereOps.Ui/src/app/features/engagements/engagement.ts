@@ -5,6 +5,8 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { Subscription, timeout } from 'rxjs';
 import { EngagementLifecycle } from './engagement-lifecycle';
+import { EngagementWorkflow } from './engagement-workflow';
+import { EngagementOnboardingReadiness } from './engagement-onboarding-readiness';
 import { EngagementPlanning } from './planning';
 import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
@@ -30,7 +32,16 @@ export function engagementWorkflowAvailable(requiresAccountingPreparation: boole
 
 @Component({
   selector: 'audit-engagement',
-  imports: [EngagementLifecycle, EngagementPlanning, RouterLink, MatButtonModule, MatProgressBarModule, ...SHARED],
+  imports: [
+    EngagementLifecycle,
+    EngagementWorkflow,
+    EngagementOnboardingReadiness,
+    EngagementPlanning,
+    RouterLink,
+    MatButtonModule,
+    MatProgressBarModule,
+    ...SHARED,
+  ],
   templateUrl: './engagement.html',
   styleUrl: './engagement.scss',
 })

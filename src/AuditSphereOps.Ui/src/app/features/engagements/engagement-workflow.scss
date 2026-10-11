@@ -1,0 +1,203 @@
+:host {
+  display: block;
+}
+
+.workflow-panel {
+  padding: 1.25rem;
+  border: 1px solid var(--mat-sys-outline-variant, #e0e0e0);
+  border-radius: 0.75rem;
+  background: var(--mat-sys-surface-container-low, #fcfcfc);
+  margin-block: 1.5rem;
+}
+
+.workflow-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+
+  h3 {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 600;
+  }
+}
+
+// Desktop shows all seven phases in one row; narrow screens wrap them and the position line names the current phase.
+.phase-stepper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  list-style: none;
+}
+
+.phase-step {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.75rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 2rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  background: var(--mat-sys-surface-container, #eeeeee);
+  color: var(--mat-sys-on-surface-variant, #555555);
+  border: 1px solid transparent;
+
+  &.completed {
+    background: var(--mat-sys-primary-container, #e3f2fd);
+    color: var(--mat-sys-on-primary-container, #0d47a1);
+  }
+
+  &.current {
+    background: var(--mat-sys-primary, #1976d2);
+    color: var(--mat-sys-on-primary, #ffffff);
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  }
+
+  &.current.blocked {
+    border-color: #bc852e;
+    background: #fff3dc;
+    color: #754d13;
+  }
+
+  // Status is written out as text, so colour is never the only signal.
+  .phase-text {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.2;
+  }
+
+  .phase-status {
+    font-size: 0.7rem;
+    font-weight: 500;
+    opacity: 0.9;
+  }
+
+  .phase-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.35rem;
+    height: 1.35rem;
+    border-radius: 50%;
+    font-size: 0.75rem;
+    background: rgba(0, 0, 0, 0.1);
+  }
+}
+
+.phase-position {
+  margin: 0 0 1rem;
+  font-weight: 600;
+}
+
+.phase-card {
+  padding: 1rem;
+  border-radius: 0.5rem;
+  background: var(--mat-sys-surface, #ffffff);
+  border: 1px solid var(--mat-sys-outline-variant, #e0e0e0);
+}
+
+.phase-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: var(--mat-sys-surface-container, #eeeeee);
+
+  &[data-status='BLOCKED'] {
+    background: #fff3dc;
+    color: #754d13;
+  }
+
+  &[data-status='COMPLETED'],
+  &[data-status='ARCHIVED'] {
+    background: #dff3e5;
+    color: #175d34;
+  }
+}
+
+.role-badge {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  background: var(--mat-sys-secondary-container, #e8eaf6);
+  color: var(--mat-sys-on-secondary-container, #1a237e);
+}
+
+.canonical-note {
+  margin: 0.25rem 0 0.75rem;
+  font-size: 0.875rem;
+  color: var(--mat-sys-on-surface-variant, #555555);
+}
+
+.archive-block {
+  margin-bottom: 0.75rem;
+  font-size: 0.875rem;
+}
+
+.provider-warning {
+  display: block;
+  margin-top: 0.25rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  background: #fff8e1;
+  color: #795548;
+  border: 1px solid #ffe082;
+}
+
+.blockers-section {
+  margin-top: 0.75rem;
+
+  h4 {
+    margin: 0 0 0.5rem;
+    font-size: 0.9rem;
+    color: var(--mat-sys-error, #b00020);
+  }
+
+  ul {
+    margin: 0;
+    padding-left: 1.25rem;
+  }
+
+  li {
+    margin-bottom: 0.25rem;
+    font-size: 0.875rem;
+  }
+}
+
+.no-blockers {
+  margin: 0.75rem 0 0;
+  font-size: 0.875rem;
+}
+
+.phase-actions {
+  margin-top: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+@media (max-width: 600px) {
+  .phase-step {
+    flex: 1 1 calc(50% - 0.5rem);
+    font-size: 0.8rem;
+  }
+}

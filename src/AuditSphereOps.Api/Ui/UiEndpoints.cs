@@ -273,6 +273,32 @@ public static partial class UiEndpoints
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);
     });
+    // Seven-phase workflow projection (WF-01). Read-only: it never accepts a stage, and the canonical 11-stage route above stays unchanged.
+    group.MapGet("/engagements/{id:guid}/workflow", async (Guid id, HttpContext http, TrustedActorResolver resolver,
+      IDbContextFactory<AuditSphereDbContext> factory) =>
+    {
+      var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
+      if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
+      var result = await AuditSphereOps.Application.Acceptance.EngagementWorkflowWorkspaceQuery.GetAsync(db, actor, id, http.RequestAborted);
+      if (!result.Succeeded) return Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "request.invalid" ? 400 : 403);
+      if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
+        return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      return Results.Ok(result.Value);
+    });
+    // Dual-Key onboarding readiness (WF-03): independent cards for client consent, Partner risk, letter and advance payment. Read-only.
+    group.MapGet("/engagements/{id:guid}/onboarding-readiness", async (Guid id, HttpContext http, TrustedActorResolver resolver,
+      IDbContextFactory<AuditSphereDbContext> factory) =>
+    {
+      var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
+      if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
+      var result = await AuditSphereOps.Application.Acceptance.ClientOnboardingReadinessQuery.GetAsync(db, actor, id, http.RequestAborted);
+      if (!result.Succeeded) return Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "request.invalid" ? 400 : 403);
+      if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
+        return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      return Results.Ok(result.Value);
+    });
     group.MapGet("/clients/{id:guid}", async (Guid id, int? engagementPage, int? engagementPageSize, int? contactPage, int? contactPageSize,
       HttpContext http, TrustedActorResolver resolver,
       IDbContextFactory<AuditSphereDbContext> factory) =>

@@ -112,9 +112,19 @@ describe('Engagement read and command lifetime', () => {
     });
   });
   afterEach(() => {
-    TestBed.inject(HttpTestingController).verify({ ignoreCancelled: true });
+    const http = TestBed.inject(HttpTestingController);
+    // The workflow and readiness panels load their own projections; this spec verifies only the engagement read.
+    // Each panel read must be a GET for this engagement; anything else is a regression in the panel, not in this read.
+    for (const panel of http.match((r) => isOwnedPanelRead(r.url))) {
+      expect(panel.request.method).toBe('GET');
+      expect(panel.request.url).toContain(id);
+    }
+    http.verify({ ignoreCancelled: true });
     TestBed.resetTestingModule();
   });
+  function isOwnedPanelRead(url: string): boolean {
+    return url.endsWith('/workflow') || url.endsWith('/onboarding-readiness');
+  }
   function open() {
     const f = TestBed.createComponent(EngagementDetail);
     f.detectChanges();
@@ -123,7 +133,7 @@ describe('Engagement read and command lifetime', () => {
   }
   function read() {
     const active = TestBed.inject(HttpTestingController)
-      .match((r) => r.method === 'GET' && !r.url.endsWith('/planning'))
+      .match((r) => r.method === 'GET' && !r.url.endsWith('/planning') && !isOwnedPanelRead(r.url))
       .filter((r) => !r.cancelled);
     expect(active).toHaveLength(1);
     return active[0];

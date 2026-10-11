@@ -15,6 +15,12 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## v2.2 workflow experience, PRs A–C — 2026-10-11
+
+The engagement page now opens on a read-only seven-phase workflow projection and independently evaluated Dual-Key readiness cards, with the eleven-stage lifecycle kept as a technical panel. The projection derives from the existing canonical stage and persists nothing new; no stage is writable. Advance billing no longer opens on a Partner clearance alone: both keys must be current on the exact dispatched offer. The advance and activation cards read the same milestone state and engagement link that activation checks. The protected letter, fee-agreement and activation commands are unchanged.
+
+Not yet delivered: workflow task persistence and templates (WF-04 to WF-06), queues, automation and recurrence (WF-07 to WF-11), completion and archive cards (WF-13), and the lead-level pre-engagement journey. One owner decision is open: the protected letter guard applies offer identity only when a dispatch record exists, while the read model requires it always. Evidence and the open review findings are recorded in `status.json` under `targetedVerification.workflowExperienceV22`.
+
 ## Exact pinned financial statement drafts — 2026-10-12
 
 The FSR presentation slice now saves an immutable draft revision against the exact package inputs, published layout version/hash, comparative package/hash, note-source manifest, builder/renderer versions and display policy. Repeating the same pin request is idempotent. PDF, DOCX and XLSX bytes are stored as package artifacts and linked to that revision; repeat downloads reuse the stored bytes. A source change makes the pin stale: the historical rendered bytes remain retrievable, while an unrendered format cannot be created from the stale snapshot. The package seal manifest records pinned presentation identity and artifact hashes without changing the draft's `UNAPPROVED_DRAFT` status or treating it as an approved/issued statement. Cross-casts for current and comparative note amounts are checked against their own package balances.

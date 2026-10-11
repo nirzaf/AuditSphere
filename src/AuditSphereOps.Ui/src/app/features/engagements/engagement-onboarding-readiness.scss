@@ -1,0 +1,150 @@
+:host {
+  display: block;
+}
+
+.readiness-panel {
+  padding: 1.25rem;
+  border: 1px solid var(--mat-sys-outline-variant, #e0e0e0);
+  border-radius: 0.75rem;
+  background: var(--mat-sys-surface-container-low, #fcfcfc);
+  margin-block: 1.5rem;
+}
+
+.readiness-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+
+  h3 {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 600;
+  }
+}
+
+.readiness-note {
+  margin: 0 0 1rem;
+  font-size: 0.875rem;
+  color: var(--mat-sys-on-surface-variant, #555555);
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 0.75rem;
+}
+
+.readiness-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  background: var(--mat-sys-surface, #ffffff);
+  border: 1px solid var(--mat-sys-outline-variant, #e0e0e0);
+  border-left-width: 0.3rem;
+
+  h4 {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+  }
+
+  p {
+    margin: 0;
+    font-size: 0.875rem;
+  }
+
+  &[data-tone='satisfied'] {
+    border-left-color: #28864b;
+  }
+
+  &[data-tone='pending'] {
+    border-left-color: #bc852e;
+  }
+
+  &[data-tone='blocked'] {
+    border-left-color: #b00020;
+  }
+}
+
+.status-pill {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 1rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: var(--mat-sys-surface-container, #eeeeee);
+}
+
+.card-facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.2rem 0.75rem;
+  margin: 0;
+  font-size: 0.8rem;
+
+  dt {
+    color: var(--mat-sys-on-surface-variant, #555555);
+  }
+
+  dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+}
+
+.activation-banner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: baseline;
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  background: var(--mat-sys-surface-container, #eeeeee);
+  font-size: 0.9rem;
+
+  // Ready for review is still pending: the reviewed activation has not run, so it keeps the pending colour.
+  &[data-status='READY_FOR_REVIEW'],
+  &[data-status='BLOCKED'] {
+    background: #fff3dc;
+    color: #754d13;
+  }
+}
+
+.blockers-section {
+  margin-top: 0.75rem;
+
+  h4 {
+    margin: 0 0 0.5rem;
+    font-size: 0.9rem;
+    color: var(--mat-sys-error, #b00020);
+  }
+
+  ul {
+    margin: 0;
+    padding-left: 1.25rem;
+  }
+
+  li {
+    margin-bottom: 0.25rem;
+    font-size: 0.875rem;
+  }
+}
+
+.readiness-actions {
+  margin-top: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+@media (max-width: 600px) {
+  .card-grid {
+    grid-template-columns: 1fr;
+  }
+}

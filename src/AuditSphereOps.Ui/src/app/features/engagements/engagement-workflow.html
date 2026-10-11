@@ -1,0 +1,87 @@
+<section class="workflow-panel" aria-labelledby="workflow-heading">
+  <div class="workflow-header">
+    <h3 id="workflow-heading">Engagement workflow</h3>
+    <button matButton (click)="load()" [disabled]="loading()">Refresh workflow</button>
+  </div>
+
+  @if (loading()) {
+    <p>Evaluating engagement progression...</p>
+  }
+  @if (error()) {
+    <p role="alert">{{ error() }}</p>
+  }
+  @if (data(); as report) {
+    <ol class="phase-stepper" role="list" aria-label="Seven workflow phases">
+      @for (phase of report.phases; track phase.index) {
+        <li
+          class="phase-step"
+          [class.completed]="phase.status === 'COMPLETED' || phase.status === 'ARCHIVED'"
+          [class.current]="phase.index === report.currentPhase.index"
+          [class.blocked]="phase.index === report.currentPhase.index && phase.status === 'BLOCKED'"
+          [attr.aria-current]="phase.index === report.currentPhase.index ? 'step' : null"
+        >
+          <span class="phase-number" aria-hidden="true">{{ phase.index }}</span>
+          <span class="phase-text">
+            <span class="phase-label">{{ phase.label }}</span>
+            <span class="phase-status">{{ statusLabel(phase.status) }}</span>
+          </span>
+          <span class="sr-only">Phase {{ phase.index }}</span>
+        </li>
+      }
+    </ol>
+
+    <p class="phase-position">
+      Phase {{ report.currentPhase.index }} of {{ report.phases.length }}: {{ report.currentPhase.label }}
+    </p>
+
+    <article class="phase-card" aria-label="Current phase">
+      <div class="phase-meta">
+        <strong>{{ report.currentPhase.label }}</strong>
+        <span class="status-badge" [attr.data-status]="report.currentPhase.status">{{ statusLabel(report.currentPhase.status) }}</span>
+        <span class="role-badge">Responsible: {{ report.responsibleRole }}</span>
+      </div>
+
+      <p class="canonical-note">
+        Current step: {{ report.canonicalLabel }} (stage {{ report.canonicalIndex }} of 11)
+      </p>
+
+      @if (report.archive; as archive) {
+        <div class="archive-block">
+          @if (archive.localArchiveState) {
+            <p><strong>Local archive state:</strong> {{ archive.localArchiveState }}</p>
+          }
+          @if (archive.providerProtectionState; as providerState) {
+            <p>
+              <strong>External provider protection:</strong> {{ providerState }}
+              @if (providerState !== 'OBSERVED') {
+                <span class="provider-warning">Not verified. AuditSphere does not claim provider immutability.</span>
+              }
+            </p>
+          }
+          @if (archive.complianceWarning) {
+            <p class="provider-warning" role="status">{{ archive.complianceWarning }}</p>
+          }
+        </div>
+      }
+
+      @if (report.blockers.length > 0) {
+        <div class="blockers-section">
+          <h4>Blocked until resolved</h4>
+          <ul>
+            @for (blocker of report.blockers; track blocker) {
+              <li>{{ blocker }}</li>
+            }
+          </ul>
+        </div>
+      } @else {
+        <p class="no-blockers">No blockers recorded for this phase.</p>
+      }
+
+      <div class="phase-actions">
+        @for (action of report.nextActions; track action.key) {
+          <a matButton [routerLink]="action.href">{{ action.label }}</a>
+        }
+      </div>
+    </article>
+  }
+</section>

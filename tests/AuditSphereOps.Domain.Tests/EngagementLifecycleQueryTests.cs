@@ -109,10 +109,48 @@ public sealed class EngagementLifecycleQueryTests
       });
       await db.SaveChangesAsync();
 
+      // WF-01 correction: a Partner's unconditional clearance alone never advances billing while the client has not accepted.
+      report = await EngagementLifecycleQuery.GetAsync(db, partner, engagementId);
+      Assert.True(report.Succeeded);
+      Assert.Equal(CanonicalEngagementStages.DualKeyPending, report.Value!.Summary.CanonicalStage);
+      Assert.Equal(3, report.Value.Summary.StageIndex);
+      Assert.Contains("Client commercial acceptance of proposal required", report.Value.Summary.BlockedReasons);
+
+      // Acceptance that answers an offer identity other than the dispatched one does not complete the commercial key.
+      var sentOffer = new string('c', 64);
+      db.QuotationVersions.Add(new QuotationVersion
+      {
+        Id = Guid.NewGuid(), FirmId = seed.FirmId, ProposalId = proposal.Id, Revision = 1, Currency = "QAR",
+        BaseAmount = proposal.Fee, Fee = proposal.Fee, InputHash = new string('e', 64), Status = QuotationStates.Approved,
+        ApprovedAt = now
+      });
+      proposal.Status = CrmStates.ProposalAccepted;
+      proposal.ResponseAt = now;
+      proposal.SentOfferSha256 = sentOffer;
+      proposal.ResponseOfferSha256 = new string('d', 64);
+      await db.SaveChangesAsync();
+
+      report = await EngagementLifecycleQuery.GetAsync(db, partner, engagementId);
+      Assert.Equal(CanonicalEngagementStages.DualKeyPending, report.Value!.Summary.CanonicalStage);
+      Assert.Contains("Client acceptance does not cite the current dispatched offer or quotation revision; re-record acceptance against the exact current offer.",
+        report.Value.Summary.BlockedReasons);
+
+      // Exact acceptance of the dispatched offer -> AdvanceBilling, still gated on the letter and the fee agreement.
+      proposal.ResponseOfferSha256 = sentOffer;
+      await db.SaveChangesAsync();
+
       report = await EngagementLifecycleQuery.GetAsync(db, partner, engagementId);
       Assert.True(report.Succeeded);
       Assert.Equal(CanonicalEngagementStages.AdvanceBilling, report.Value!.Summary.CanonicalStage);
       Assert.Equal(4, report.Value.Summary.StageIndex);
+      Assert.Contains("Issue the Engagement Letter for the current accepted offer", report.Value.Summary.BlockedReasons);
+      Assert.Contains("Create the fee agreement and its 50% advance milestone", report.Value.Summary.BlockedReasons);
+
+      // An engagement letter can only be issued by the protected command (the database refuses a hand-written letter without
+      // a signature, seal and current risk clearance), so the issued-letter branch is covered by the real-command readiness tests.
+      report = await EngagementLifecycleQuery.GetAsync(db, partner, engagementId);
+      Assert.Equal(CanonicalEngagementStages.AdvanceBilling, report.Value!.Summary.CanonicalStage);
+      Assert.Contains("Issue the Engagement Letter for the current accepted offer", report.Value.Summary.BlockedReasons);
 
       // 4. Activate engagement -> PortalActivePlanning
       db.EngagementActivations.Add(new EngagementActivation
@@ -295,6 +333,108 @@ public sealed class EngagementLifecycleQueryTests
       // 11. Unauthorized actor is scope-denied
       var denied = await EngagementLifecycleQuery.GetAsync(db, unauthorized, engagementId);
       Assert.Equal(ErrorCodes.ScopeDenied, denied.ErrorCode);
+    }
+  }
+
+  /// <summary>
+  /// Advance billing reads the same evidence as the protected letter guard. Mutating one key at a time shows that a stale client
+  /// generation, a conditional Partner decision that supersedes the unconditional one, or a declined proposal returns the
+  /// engagement to Dual-Key Pending, and that restoring the evidence restores the stage.
+  /// </summary>
+  [Fact]
+  public async Task AdvanceBillingNeverAdvancesOnStaleConditionalOrDeclinedEvidence()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var seed = await PbcSeed.SeedAsync(pg);
+    var partner = PbcSeed.Actor(seed.Admin, "Partner");
+    var now = DateTimeOffset.UtcNow;
+    var offer = new string('c', 64);
+    Guid engagementId = Guid.NewGuid();
+    Guid unconditionalId = Guid.NewGuid();
+    var conditionalId = Guid.NewGuid();
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, seed.Admin, "Partner"));
+      var lead = new Lead { Id = Guid.NewGuid(), FirmId = seed.FirmId, Name = "Synthetic matrix client", Source = "Referral", CreatedAt = now };
+      var opportunity = new Opportunity
+      {
+        Id = Guid.NewGuid(), FirmId = seed.FirmId, LeadId = lead.Id, PracticeClientId = seed.ClientId,
+        ServiceRoute = "Audit", EntityScope = "TEST", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", Currency = "QAR", CreatedAt = now
+      };
+      var proposal = new Proposal
+      {
+        Id = Guid.NewGuid(), FirmId = seed.FirmId, PracticeClientId = seed.ClientId, OpportunityId = opportunity.Id,
+        Status = CrmStates.ProposalAccepted, Fee = 50000m, Currency = "QAR", ServiceProfileId = "AUDIT-2026",
+        Scope = "Statutory Financial Audit", Deliverables = "Audit Report", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31",
+        SentAt = now, SentOfferSha256 = offer, ResponseAt = now, ResponseOfferSha256 = offer
+      };
+      db.Engagements.Add(new Engagement
+      {
+        Id = engagementId, FirmId = seed.FirmId, PracticeClientId = seed.ClientId, ServiceRoute = "Audit",
+        PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", ServiceProfileId = "CommercialAudit", Status = "Draft",
+        ProfessionalWorkBlocked = true, CreatedAt = now
+      });
+      db.Leads.Add(lead);
+      db.Opportunities.Add(opportunity);
+      db.Proposals.Add(proposal);
+      db.QuotationVersions.Add(new QuotationVersion
+      {
+        Id = Guid.NewGuid(), FirmId = seed.FirmId, ProposalId = proposal.Id, Revision = 1, Currency = "QAR",
+        BaseAmount = 50000m, Fee = 50000m, InputHash = new string('e', 64), Status = QuotationStates.Approved, ApprovedAt = now
+      });
+      db.AcceptanceDecisions.Add(new AcceptanceDecision
+      {
+        Id = unconditionalId, FirmId = seed.FirmId, PracticeClientId = seed.ClientId, ServiceRoute = "Audit",
+        Decision = "Accepted", DecidedByUserId = seed.Admin.Id, DecidedAt = now, Path = "NEW_CLIENT", Generation = 1,
+        Rationale = "Partner assessment passed", EvaluationTemplateVersion = "V2", EvaluationSnapshotDigest = new string('a', 64)
+      });
+      await db.SaveChangesAsync();
+
+      // Both keys current -> AdvanceBilling (the letter and fee agreement remain blockers, asserted in the traversal test).
+      var report = await EngagementLifecycleQuery.GetAsync(db, partner, engagementId);
+      Assert.Equal(CanonicalEngagementStages.AdvanceBilling, report.Value!.Summary.CanonicalStage);
+
+      // The client generation moves on: the Partner clearance is stale and must not carry billing.
+      await db.ClientSafetyStates.Where(x => x.Id == seed.ClientId).ExecuteUpdateAsync(s => s.SetProperty(x => x.InputGeneration, 2));
+      report = await EngagementLifecycleQuery.GetAsync(db, partner, engagementId);
+      Assert.Equal(CanonicalEngagementStages.DualKeyPending, report.Value!.Summary.CanonicalStage);
+      Assert.Contains("Unconditional Partner risk acceptance decision required", report.Value.Summary.BlockedReasons);
+
+      await db.ClientSafetyStates.Where(x => x.Id == seed.ClientId).ExecuteUpdateAsync(s => s.SetProperty(x => x.InputGeneration, 1));
+      report = await EngagementLifecycleQuery.GetAsync(db, partner, engagementId);
+      Assert.Equal(CanonicalEngagementStages.AdvanceBilling, report.Value!.Summary.CanonicalStage);
+
+      // A later conditional decision supersedes the unconditional one for the same generation: it is not a clearance.
+      db.AcceptanceDecisions.Add(new AcceptanceDecision
+      {
+        Id = conditionalId, FirmId = seed.FirmId, PracticeClientId = seed.ClientId, ServiceRoute = "Audit",
+        Decision = "AcceptedWithConditions", Conditions = "Obtain bank confirmation before fieldwork",
+        DecidedByUserId = seed.Admin.Id, DecidedAt = now.AddSeconds(1), Path = "NEW_CLIENT", Generation = 1,
+        Rationale = "Conditional assessment", EvaluationTemplateVersion = "V2", EvaluationSnapshotDigest = new string('b', 64)
+      });
+      await db.SaveChangesAsync();
+      report = await EngagementLifecycleQuery.GetAsync(db, partner, engagementId);
+      Assert.Equal(CanonicalEngagementStages.DualKeyPending, report.Value!.Summary.CanonicalStage);
+
+      // Acceptance decisions are append-only, so the conditional decision stays; a newer unconditional decision supersedes it.
+      db.AcceptanceDecisions.Add(new AcceptanceDecision
+      {
+        Id = Guid.NewGuid(), FirmId = seed.FirmId, PracticeClientId = seed.ClientId, ServiceRoute = "Audit",
+        Decision = "Accepted", DecidedByUserId = seed.Admin.Id, DecidedAt = now.AddSeconds(2), Path = "NEW_CLIENT", Generation = 1,
+        Rationale = "Conditions discharged", EvaluationTemplateVersion = "V2", EvaluationSnapshotDigest = new string('d', 64)
+      });
+      await db.SaveChangesAsync();
+      report = await EngagementLifecycleQuery.GetAsync(db, partner, engagementId);
+      Assert.Equal(CanonicalEngagementStages.AdvanceBilling, report.Value!.Summary.CanonicalStage);
+
+      // A declined dispatched proposal is never treated as client commercial consent.
+      var declined = await db.Proposals.SingleAsync(x => x.FirmId == seed.FirmId && x.PracticeClientId == seed.ClientId);
+      declined.Status = CrmStates.ProposalDeclined;
+      await db.SaveChangesAsync();
+      report = await EngagementLifecycleQuery.GetAsync(db, partner, engagementId);
+      Assert.Equal(CanonicalEngagementStages.DualKeyPending, report.Value!.Summary.CanonicalStage);
+      Assert.Contains("The client declined the dispatched proposal; revise and resend or close the opportunity.", report.Value.Summary.BlockedReasons);
     }
   }
 }
