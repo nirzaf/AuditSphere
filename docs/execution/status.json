@@ -320,7 +320,10 @@
       "unrelatedControlHttp": 403,
       "diagnostic": "accessDenied",
       "fileWriteAttempted": false,
-      "siteGrantChanged": false
+      "siteGrantChanged": false,
+      "recheckedAtUtc": "2026-10-11T10:22:38Z",
+      "ownerReportedGrantApplied": true,
+      "furtherRetriesPaused": true
     },
     "directoryReaderSetup": {
       "status": "LIVE_VERIFIED",
@@ -345,6 +348,25 @@
       "bytes": 1828313,
       "format": "PostgreSQL custom",
       "catalogValidated": true
+    },
+    "mailSetup": {
+      "status": "STAGED_DISABLED_AWAITING_EXCHANGE_POLICY_VERIFICATION",
+      "senderAndControlledRecipientApproved": true,
+      "senderMailboxObservedInExchange": true,
+      "existingCertificateMatchesRegistration": true,
+      "existingCredentialStagedPrivatelyOnVps": true,
+      "newEntraCredentialAdded": false,
+      "environmentDraftUpdated": true,
+      "runtimeRecreated": false,
+      "mailEnabled": false,
+      "testSent": false,
+      "exchangeCloudShell": "NO_VALID_AZURE_SUBSCRIPTION",
+      "exchangePowerShell": "AWAITING_ADMINISTRATOR_DEVICE_SIGN_IN"
+    },
+    "documentationCi": {
+      "runId": 38131117854,
+      "commit": "4a348ac80a8926da2fdc5a2093c426b021d52155",
+      "conclusion": "success"
     }
   }
 }

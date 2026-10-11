@@ -15,6 +15,24 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Mail staging and repeated selected-site denial — 2026-10-11
+
+The owner supplied the approved sender and confirmed the same controlled mailbox as the test
+recipient. Exchange's mailbox inventory confirms it exists. The dedicated Mail registration's
+existing public certificate matches the locally configured certificate; its existing credential
+was transferred privately to the protected VPS mount. Only non-secret Mail settings were staged
+in the protected environment, with Mail disabled and no API/worker recreation or message send.
+
+Exchange Cloud Shell requires an unavailable Azure subscription. The installed local Exchange
+PowerShell module offers a supported alternative; administrator device sign-in is pending before
+mailbox restriction inspection. The exact certificate is reused, with no new Entra credential.
+
+After the owner reported the exact SharePoint grant applied, a fresh certificate-backed token
+again held only `Sites.Selected`, but the approved target still returned access denied; the
+unrelated control was also denied. Repeated probes are paused pending grant-target investigation.
+No site grant or file write was performed. Exact observations and CI evidence are in
+[`status.json`](status.json). The previous documentation CI completed successfully.
+
 ## Live VPS upgrade and directory consent verified — 2026-10-11
 
 After exact owner approval, a fresh catalog-checked database backup was retained, the approved

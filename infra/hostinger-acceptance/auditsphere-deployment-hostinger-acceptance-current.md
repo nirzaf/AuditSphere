@@ -328,6 +328,29 @@ by Finance/Partner grants. The commercial settings screen also renders the prici
 policy form and reports that no actual pricing policy has been configured. These observations do not replace workflow acceptance with reviewed
 business records or the firm's professional decisions.
 
+## Mail staging and Exchange sign-in prerequisite — 2026-10-11
+
+The owner approved the same existing mailbox as sender and controlled recipient. Exchange's
+mailbox inventory confirmed the mailbox exists. The dedicated Mail app already has a current
+certificate matching the locally configured credential, so no additional Entra credential was
+created. The credential was transferred privately into the protected outbound-mail VPS mount;
+private-key access follows the API process group and restricted permissions. The protected
+environment now contains the app and sender settings with `OUTBOUND_MAIL_ENABLED=false`.
+Compose configuration validation passed. No service was recreated and no mail was sent.
+
+Mailbox-scoping verification must precede enabling Mail or its isolated worker. Exchange Cloud
+Shell was unavailable because there is no valid Azure subscription. Local PowerShell and the
+ExchangeOnlineManagement module are installed; the supported device sign-in is awaiting the
+administrator. Inspect the existing policy for the exact Mail app, check the approved sender,
+and require an unrelated mailbox denial before proceeding. Microsoft documents this restriction
+and its verification in [Application Access Policies](https://learn.microsoft.com/en-us/exchange/permissions-exo/application-access-policies)
+and [Test-ApplicationAccessPolicy](https://learn.microsoft.com/en-us/powershell/module/exchangepowershell/test-applicationaccesspolicy?view=exchange-ps).
+A policy test alone does not establish message delivery.
+
+A fresh Selected Site check after the owner's grant report still denied both the approved target
+and unrelated control. Investigate the exact app/site grant before another probe. Do not broaden
+permissions to make the positive check pass. Exact outcomes are in the execution ledger.
+
 ## Operational boundaries
 
 - PostgreSQL is not published on a host port. The API is published only on host loopback port
