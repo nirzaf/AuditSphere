@@ -20,10 +20,13 @@
       <article class="readiness-card" [attr.data-tone]="tone(report.clientApproval.status)" aria-labelledby="card-client">
         <h4 id="card-client">Client commercial acceptance</h4>
         <p class="card-status">
-          <span class="status-pill">{{ report.clientApproval.status }}</span>
+          <span class="status-pill">{{ approvalLabel(report.clientApproval.displayStatus) }}</span>
         </p>
         <p>{{ report.clientApproval.label }}</p>
         <dl class="card-facts">
+          @if (report.clientApproval.owner) {
+            <dt>Recorded by</dt><dd>{{ report.clientApproval.owner }}</dd>
+          }
           @if (report.clientApproval.fee) {
             <dt>Fee</dt><dd>{{ amount(report.clientApproval.fee) }} {{ report.clientApproval.currency }}</dd>
           }
@@ -37,12 +40,15 @@
             <dt>Offer identity</dt><dd><code>{{ report.clientApproval.offerSha256Prefix }}</code></dd>
           }
         </dl>
+        @if (report.clientApproval.evidenceHref; as href) {
+          <a matButton [routerLink]="href">Open the dispatched offer</a>
+        }
       </article>
 
       <article class="readiness-card" [attr.data-tone]="tone(report.partnerRisk.status)" aria-labelledby="card-partner">
         <h4 id="card-partner">Partner risk clearance</h4>
         <p class="card-status">
-          <span class="status-pill">{{ report.partnerRisk.status }}</span>
+          <span class="status-pill">{{ approvalLabel(report.partnerRisk.displayStatus) }}</span>
         </p>
         <p>{{ report.partnerRisk.label }}</p>
         <dl class="card-facts">
@@ -54,7 +60,9 @@
             <dt>Decided by</dt><dd>{{ report.partnerRisk.decidedByName }}</dd>
           }
         </dl>
-        <a matButton [routerLink]="'/app/clients/' + report.clientId + '/assessment'">Open acceptance checklist</a>
+        @if (report.partnerRisk.evidenceHref; as href) {
+          <a matButton [routerLink]="href">Open acceptance checklist</a>
+        }
       </article>
 
       <article class="readiness-card" [attr.data-tone]="tone(report.engagementLetter.status)" aria-labelledby="card-letter">

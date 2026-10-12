@@ -528,6 +528,11 @@ public sealed partial class AuditDeliverablesTests
     Assert.Contains("5,000.00", srmText);            // USD remains separately identified
     Assert.Contains("no approved translation basis", srmText);
     Assert.Contains("Gross exceeds PM.", srmText);   // factual SAD/PM comparison (PM is QAR 1.00 in this fixture)
+    // STE 4.3.3: each recorded adjustment is itemised with its correction state and journal link, not only per-currency counts.
+    Assert.Contains("Correction state", srmText);
+    Assert.Contains("PROPOSED", srmText);
+    Assert.Contains("REJECTED", srmText);
+    Assert.Contains("No journal recorded", srmText);
     Assert.Contains("Planning materiality (PM): 1.00 QAR.", srmText);
     Assert.Contains("QAR: proposed 1, agreed 0, rejected 1, applied 0.", srmText);
     Assert.Contains("are outstanding, of which 0 are critical", srmText);

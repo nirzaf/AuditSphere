@@ -8,7 +8,16 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { SessionService } from '../../core/session';
 import { EngagementPlanning } from './planning';
 import { describe, expect, it } from 'vitest';
-import { decodePlanning, exactDecimal, editablePlanningBudget } from './planning';
+import { budgetVarianceLabel, decodePlanning, exactDecimal, editablePlanningBudget } from './planning';
+describe('Budget variance by phase (STE 4.5.1)', () => {
+  it('states the direction in words, not only as a sign', () => {
+    expect(budgetVarianceLabel(480, 480)).toBe('0 (on budget)');
+    expect(budgetVarianceLabel(480, 540)).toBe('+60 (over budget)');
+    expect(budgetVarianceLabel(480, 420)).toBe('-60 (under budget)');
+    expect(budgetVarianceLabel(0, 15)).toBe('+15 (over budget)');
+  });
+});
+
 describe('Exact planning contracts', () => {
   it('never accepts floating point money', () => {
     expect(exactDecimal('9007199254740993.01')).toBe(true);

@@ -355,7 +355,7 @@ public sealed class CommercialWorkflowTests
   private static async Task<(Guid LeadId, Guid OpportunityId, Guid ProposalId)> DraftProposalSecondAsync(PgTestSchema pg, World w)
   {
     await using var db = new AuditSphereDbContext(pg.Options);
-    var lead = await PracticeCrmService.CreateLeadAsync(db, w.Prep, new CreateLeadRequest("Second Client WLL", "Web", "B. Owner", "b@second.example.test"));
+    var lead = await PracticeCrmService.CreateLeadAsync(db, w.Prep, new CreateLeadRequest("Second Client WLL", "Web Form", "B. Owner", "b@second.example.test"));
     Assert.True((await PracticeCrmService.QualifyLeadAsync(db, w.Prep, lead.Value)).Succeeded);
     var opportunity = await PracticeCrmService.CreateOpportunityAsync(db, w.Prep, new CreateOpportunityRequest(lead.Value, "AccountingOnly", "SECOND", "2026-01-01", "2026-12-31", 9000m, "QAR"));
     var proposal = await PracticeCrmService.ReviseProposalAsync(db, w.Prep, new ReviseProposalRequest(opportunity.Value, "ACC-2026", "Monthly accounting", "", "Management accounts", "", 1m, "QAR", "2026-01-01", "2026-12-31"));
@@ -848,7 +848,7 @@ public sealed class CommercialWorkflowTests
     await using (var db2 = new AuditSphereDbContext(pg.Options))
     {
       var lead2 = await PracticeCrmService.CreateLeadAsync(db2, w.Prep,
-        new CreateLeadRequest("Binding Client Lead", "Web", "B. Owner", "binding-client@example.test"));
+        new CreateLeadRequest("Binding Client Lead", "Web Form", "B. Owner", "binding-client@example.test"));
       Assert.True(lead2.Succeeded, lead2.Message);
       Assert.True((await PracticeCrmService.QualifyLeadAsync(db2, w.Prep, lead2.Value)).Succeeded);
       var opportunity2 = await PracticeCrmService.CreateOpportunityAsync(db2, w.Prep,
@@ -1075,7 +1075,12 @@ public sealed class CommercialWorkflowTests
     var readiness = await ClientOnboardingReadinessQuery.GetAsync(db, w.Prep, engagementId);
     Assert.True(readiness.Succeeded, readiness.Message);
     Assert.Equal(OnboardingReadinessStatuses.Current, readiness.Value!.ClientApproval.Status);
+    Assert.Equal(OnboardingDisplayStatus.Approved, readiness.Value.ClientApproval.DisplayStatus);
+    Assert.Equal("A. Owner", readiness.Value.ClientApproval.Owner);
+    Assert.StartsWith("/app/practice/proposals/", readiness.Value.ClientApproval.EvidenceHref, StringComparison.Ordinal);
     Assert.Equal(OnboardingReadinessStatuses.Missing, readiness.Value.PartnerRisk.Status);
+    Assert.Equal(OnboardingDisplayStatus.Pending, readiness.Value.PartnerRisk.DisplayStatus);
+    Assert.Equal($"/app/clients/{client.Value}/assessment", readiness.Value.PartnerRisk.EvidenceHref);
     Assert.Equal(OnboardingReadinessStatuses.NotEligible, readiness.Value.EngagementLetter.Status);
     Assert.Equal(OnboardingReadinessStatuses.NotInvoiced, readiness.Value.AdvancePayment.Status);
     Assert.Equal(OnboardingReadinessStatuses.Blocked, readiness.Value.Activation.Status);
@@ -1106,6 +1111,7 @@ public sealed class CommercialWorkflowTests
     await db.SaveChangesAsync();
     readiness = await ClientOnboardingReadinessQuery.GetAsync(db, w.Prep, engagementId);
     Assert.Equal(OnboardingReadinessStatuses.Current, readiness.Value!.PartnerRisk.Status);
+    Assert.Equal(OnboardingDisplayStatus.Approved, readiness.Value.PartnerRisk.DisplayStatus);
     Assert.Equal(w.PartnerUser.DisplayName, readiness.Value.PartnerRisk.DecidedByName);
     Assert.Equal(OnboardingReadinessStatuses.Current, readiness.Value.ClientApproval.Status);
     // Both keys are current, but no registered signature and seal yet, so the letter stays not eligible and says why.
@@ -1121,6 +1127,7 @@ public sealed class CommercialWorkflowTests
     await db.ClientSafetyStates.Where(x => x.Id == client.Value).ExecuteUpdateAsync(x => x.SetProperty(v => v.InputGeneration, v => v.InputGeneration + 1));
     readiness = await ClientOnboardingReadinessQuery.GetAsync(db, w.Prep, engagementId);
     Assert.Equal(OnboardingReadinessStatuses.Stale, readiness.Value!.PartnerRisk.Status);
+    Assert.Equal(OnboardingDisplayStatus.Stale, readiness.Value.PartnerRisk.DisplayStatus);
     Assert.Contains(readiness.Value.Blockers, b => b.Code == "PARTNER_ACCEPTANCE_STALE");
 
     // A second engagement of the same client on another service route: the letter route and the risk route cannot be matched to

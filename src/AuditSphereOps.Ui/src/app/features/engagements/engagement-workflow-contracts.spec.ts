@@ -109,20 +109,25 @@ function readiness(overrides: Record<string, unknown> = {}) {
     serviceRoute: 'Audit',
     clientApproval: {
       status: 'CURRENT',
+      displayStatus: 'APPROVED',
       label: 'The client accepted the exact current offer.',
       fee: '50000.000000',
       currency: 'QAR',
       quotationRevision: 2,
       respondedAtUtc: '2026-10-10T09:00:00Z',
       offerSha256Prefix: 'abcdef123456',
+      owner: 'A. Owner',
+      evidenceHref: `/app/practice/proposals/${clientId}`,
     },
     partnerRisk: {
       status: 'MISSING',
+      displayStatus: 'PENDING',
       label: 'No unconditional Partner risk clearance is recorded for this service.',
       serviceRoute: 'Audit',
       decidedAtUtc: null,
       decidedByName: null,
       generation: null,
+      evidenceHref: `/app/clients/${clientId}/assessment`,
     },
     engagementLetter: { status: 'NOT_ELIGIBLE', label: 'Both approval keys must be current before a letter can be issued.', documentId: null },
     advancePayment: {
@@ -156,12 +161,25 @@ describe('Dual-Key onboarding readiness contract (WF-03)', () => {
     expect(decoded.activation.status).toBe('BLOCKED');
   });
 
+  it('decodes only the STE approval vocabulary for each key', () => {
+    const decoded = decodeOnboardingReadinessReport(readiness());
+    expect(decoded.clientApproval.displayStatus).toBe('APPROVED');
+    expect(decoded.partnerRisk.displayStatus).toBe('PENDING');
+    expect(decoded.clientApproval.owner).toBe('A. Owner');
+    expect(() =>
+      decodeOnboardingReadinessReport(readiness({
+        partnerRisk: { ...readiness().partnerRisk, displayStatus: 'CLEARED' },
+      })),
+    ).toThrow();
+  });
+
   it('keeps a stale Partner clearance visible as stale', () => {
     const decoded = decodeOnboardingReadinessReport(
       readiness({
         partnerRisk: {
           status: 'STALE', label: 'Partner clearance predates the current client inputs.', serviceRoute: 'Audit',
           decidedAtUtc: '2026-10-01T09:00:00Z', decidedByName: 'Partner A', generation: 1,
+          displayStatus: 'STALE', evidenceHref: `/app/clients/${clientId}/assessment`,
         },
       }),
     );

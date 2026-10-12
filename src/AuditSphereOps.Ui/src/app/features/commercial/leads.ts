@@ -59,6 +59,14 @@ export function decodeLeads(value: unknown): LeadPage {
       throw new Error('Invalid lead');
   return v as unknown as LeadPage;
 }
+/** Lead channels from the owner-approved set (STE 4.1.1). The server stores the same canonical values. */
+export const LEAD_CHANNELS = ['Phone', 'WhatsApp', 'Email', 'Web Form', 'Referral', 'In-person'] as const;
+
+/** True only for a channel in the approved set. Matching is exact: the server normalises case, the browser sends a chosen option. */
+export function isLeadChannel(value: string): boolean {
+  return (LEAD_CHANNELS as readonly string[]).includes(value);
+}
+
 @Component({
   selector: 'audit-leads',
   imports: [
@@ -102,16 +110,22 @@ export function decodeLeads(value: unknown): LeadPage {
               [disabled]="busy() || createPending()"
           /></mat-form-field>
           <mat-form-field
-            ><mat-label>Source</mat-label
-            ><input
-              matInput
+            ><mat-label>Channel</mat-label
+            ><select
+              matNativeControl
               name="source"
+              aria-label="Lead channel"
               [(ngModel)]="source"
               (ngModelChange)="touchDraft()"
               required
-              maxlength="200"
               [disabled]="busy() || createPending()"
-          /></mat-form-field>
+            >
+              <option value="" disabled>Choose a channel</option>
+              @for (channel of channels; track channel) {
+                <option [value]="channel">{{ channel }}</option>
+              }
+            </select></mat-form-field
+          >
           <mat-form-field
             ><mat-label>Contact name</mat-label
             ><input
@@ -244,6 +258,7 @@ export class Leads {
   search = '';
   name = '';
   source = '';
+  readonly channels = LEAD_CHANNELS;
   contactName = '';
   contactEmail = '';
   private readonly drafts = inject(Drafts);
@@ -257,7 +272,14 @@ export class Leads {
       source = str('source', 200);
     const contactName = str('contactName', 200),
       contactEmail = str('contactEmail', 254);
-    if (name === null || source === null || contactName === null || contactEmail === null)
+    // A draft saved before channels were enforced carries free text; it is discarded rather than shown with no option.
+    if (
+      name === null ||
+      source === null ||
+      !isLeadChannel(source) ||
+      contactName === null ||
+      contactEmail === null
+    )
       return null;
     const hasRequestId = Object.hasOwn(v, 'requestId');
     const hasPending = Object.hasOwn(v, 'submissionPending');

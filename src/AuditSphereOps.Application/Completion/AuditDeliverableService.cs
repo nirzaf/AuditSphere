@@ -47,12 +47,15 @@ public static partial class AuditDeliverableService
 
   private sealed record UnresolvedVariance(string AccountArea, string PeriodReference, decimal DifferenceAmount, string Currency, string Conclusion);
 
+  /// <summary>One itemised adjustment (STE 4.3.3): the signed difference, its correction state and the linked journal, if any.</summary>
+  private sealed record AdjustmentLine(string Currency, decimal Amount, string CorrectionState, Guid? JournalId, long? JournalRevision);
+
   private sealed record Facts(
     string Client, string PeriodEnd, MaterialitySummary? Materiality, IReadOnlyList<object> Risks, IReadOnlyList<string> RedAreas,
     IReadOnlyList<object> Procedures, int OpenReviewNotes, IReadOnlyList<Finding> Findings,
     IReadOnlyList<DifferenceCurrencySummary> UnadjustedDifferences, int ConfirmationsOutstanding, int ConfirmationsCriticalOutstanding,
     IReadOnlyList<object> Confirmations, object? GoingConcern, IReadOnlyList<UnresolvedVariance> UnresolvedVariances,
-    IReadOnlyList<string> Blockers);
+    IReadOnlyList<string> Blockers, IReadOnlyList<AdjustmentLine> Adjustments);
 
   private static async Task<Facts> FactsAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct)
   {
@@ -111,7 +114,11 @@ public static partial class AuditDeliverableService
       procedures.Select(p => (object)p).ToList(), openNotes, findings, unadjustedDifferences,
       outstandingConfirmations, criticalConfirmations,
       confirmations.Select(c => (object)new { c.CaseId, c.Status, c.Critical }).ToList(), gc, unresolvedVariances,
-      completion.Succeeded ? completion.Value!.Blockers : ["completion:unavailable"]);
+      completion.Succeeded ? completion.Value!.Blockers : ["completion:unavailable"],
+      differenceRows.Where(x => x.CorrectionState is not null || x.ProposedJournalId is not null)
+        .OrderBy(x => x.Currency, StringComparer.Ordinal).ThenBy(x => x.Id)
+        .Select(x => new AdjustmentLine(x.Currency.ToUpperInvariant(), MoneyPolicy.Normalize(x.Amount), x.CorrectionState ?? "NOT_RECORDED",
+          x.ProposedJournalId, x.ProposedJournalRevision)).ToList());
   }
 
   private static string Digest(object value) => Hashing.Sha256Hex(JsonSerializer.Serialize(value));
@@ -223,6 +230,9 @@ public static partial class AuditDeliverableService
       .Where(d => d.ProposedAdjustments + d.AgreedAdjustments + d.RejectedAdjustments + d.AppliedAdjustments > 0)
       .Select(d => $"{d.Currency}: proposed {d.ProposedAdjustments}, agreed {d.AgreedAdjustments}, rejected {d.RejectedAdjustments}, applied {d.AppliedAdjustments}.")
       .ToList();
+    // Each recorded adjustment, not only the per-currency counts: amount, correction state and the journal it is linked to.
+    var adjustmentRows = facts.Adjustments.Select(a => (IReadOnlyList<string>)[a.Currency, Amount(a.Amount), a.CorrectionState,
+      a.JournalId is { } journal ? $"{journal} (revision {a.JournalRevision})" : "No journal recorded"]).ToList();
     var sections = new List<DocumentSection>
     {
       new("Engagement", [$"Client: {facts.Client}. Period ended {facts.PeriodEnd}."]),
@@ -243,7 +253,8 @@ public static partial class AuditDeliverableService
         : new DocumentTable(["Currency", "Count", "Gross", "Net (signed)", "SAD/PM comparison"], differenceRows)),
       new("Adjusting journal entries", adjustmentLines.Count == 0
         ? ["No recorded difference is linked to an adjusting journal entry. Adjustment decisions remain the responsible team's human judgment."]
-        : adjustmentLines),
+        : adjustmentLines, adjustmentRows.Count == 0 ? null
+        : new DocumentTable(["Currency", "Difference (signed)", "Correction state", "Journal reference"], adjustmentRows)),
       new("Significant variances", facts.UnresolvedVariances.Count == 0 ? ["No unresolved analytical-review variance investigations are recorded."] : [],
         facts.UnresolvedVariances.Count == 0 ? null
         : new DocumentTable(["Area", "Period", "Difference", "Currency", "Conclusion"],

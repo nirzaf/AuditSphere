@@ -95,7 +95,7 @@ public static partial class PracticeCrmService
       $"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if (guard is null) return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
     var name = request.Name.Trim();
-    var source = request.Source.Trim();
+    var source = LeadChannel(request.Source)!;
     var contactName = TrimOrNull(request.PrimaryContactName);
     var contactEmail = TrimOrNull(request.PrimaryContactEmail);
     var consentRestrictions = TrimOrNull(request.ConsentRestrictions);
@@ -680,8 +680,15 @@ public static partial class PracticeCrmService
       return "A nonempty operation identity is required.";
     var error = Required(request.Name, "Lead name") ?? Required(request.Source, "Lead source");
     if (error is not null) return error;
+    if (LeadChannel(request.Source) is null)
+      return "Lead source must be a supported channel: Phone, WhatsApp, Email, Web Form, Referral or In-person.";
     return string.IsNullOrWhiteSpace(request.PrimaryContactEmail) ? null : EmailError(request.PrimaryContactEmail);
   }
+
+  /// <summary>The canonical channel for a lead source, matched case-insensitively against the owner-approved set; null when unsupported.</summary>
+  internal static string? LeadChannel(string? source) =>
+    string.IsNullOrWhiteSpace(source) ? null
+      : LeadChannels.All.FirstOrDefault(channel => string.Equals(channel, source.Trim(), StringComparison.OrdinalIgnoreCase));
 
   private static string? ValidateOpportunity(CreateOpportunityRequest request)
   {

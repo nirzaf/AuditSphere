@@ -290,7 +290,7 @@ public sealed class AngularPracticeBillingLedgerParityTests
     await using (var db = host.CreateDbContext())
     {
       var lead = await PracticeCrmService.CreateLeadAsync(db, admin,
-        new CreateLeadRequest(leadName, "Synthetic test", OwnerUserId: admin.UserId));
+        new CreateLeadRequest(leadName, "Referral", OwnerUserId: admin.UserId));
       Assert.True(lead.Succeeded, lead.Message);
       Assert.True((await PracticeCrmService.QualifyLeadAsync(db, admin, lead.Value)).Succeeded);
       var opportunity = await PracticeCrmService.CreateOpportunityAsync(db, admin,

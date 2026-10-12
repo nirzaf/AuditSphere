@@ -92,7 +92,7 @@ public sealed class PracticeCrmTests
       Assert.Equal(1, await retryDb.Leads.CountAsync(x => x.FirmId == fixture.FirmId));
 
       var changedIntent = await PracticeCrmService.CreateLeadAsync(retryDb, fixture.Actor,
-        request with { Source = "Website" });
+        request with { Source = "Email" });
       Assert.False(changedIntent.Succeeded);
       Assert.Equal(ErrorCodes.IdempotencyConflict, changedIntent.ErrorCode);
 
@@ -102,6 +102,26 @@ public sealed class PracticeCrmTests
       Assert.Equal("crm.duplicate", newIdentityDuplicate.ErrorCode);
       Assert.Equal(1, await retryDb.Leads.CountAsync(x => x.FirmId == fixture.FirmId));
     }
+  }
+
+  [Fact]
+  public async Task LeadSourceMustBeASupportedChannelAndIsStoredCanonically()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+
+    var unsupported = await PracticeCrmService.CreateLeadAsync(db, fixture.Actor,
+      new CreateLeadRequest("Unsupported source lead", "Carrier pigeon", RequestId: Guid.NewGuid()));
+    Assert.False(unsupported.Succeeded);
+    Assert.Equal("crm.invalid", unsupported.ErrorCode);
+    Assert.Equal(0, await db.Leads.CountAsync(x => x.FirmId == fixture.FirmId));
+
+    var canonical = await PracticeCrmService.CreateLeadAsync(db, fixture.Actor,
+      new CreateLeadRequest("Canonical channel lead", "web form", RequestId: Guid.NewGuid()));
+    Assert.True(canonical.Succeeded, canonical.Message);
+    var stored = await db.Leads.AsNoTracking().SingleAsync(x => x.FirmId == fixture.FirmId && x.Name == "Canonical channel lead");
+    Assert.Equal(LeadChannels.WebForm, stored.Source);
   }
 
   [Fact]
@@ -152,7 +172,7 @@ public sealed class PracticeCrmTests
     await using (var setupDb = new AuditSphereDbContext(pg.Options))
     {
       var lead = await PracticeCrmService.CreateLeadAsync(setupDb, fixture.Actor,
-        new("Proposal recovery lead", "Recovery journey"));
+        new("Proposal recovery lead", "Referral"));
       Assert.True(lead.Succeeded, lead.Message);
       Assert.True((await PracticeCrmService.QualifyLeadAsync(setupDb, fixture.Actor, lead.Value)).Succeeded);
       var opportunity = await PracticeCrmService.CreateOpportunityAsync(setupDb, fixture.Actor,
@@ -230,7 +250,7 @@ public sealed class PracticeCrmTests
       leadId = (await PracticeCrmService.CreateLeadAsync(db, fixture.Actor,
         new CreateLeadRequest("Example Trading LLC", "Referral", "A. Owner", "owner@example.test"))).Value;
       var duplicate = await PracticeCrmService.CreateLeadAsync(db, fixture.Actor,
-        new CreateLeadRequest("EXAMPLE TRADING LLC", "Web", "A. Owner", "OWNER@EXAMPLE.TEST"));
+        new CreateLeadRequest("EXAMPLE TRADING LLC", "Web Form", "A. Owner", "OWNER@EXAMPLE.TEST"));
       Assert.False(duplicate.Succeeded);
       Assert.Equal("crm.duplicate", duplicate.ErrorCode);
       Assert.True((await PracticeCrmService.QualifyLeadAsync(db, fixture.Actor, leadId)).Succeeded);
@@ -306,7 +326,7 @@ public sealed class PracticeCrmTests
 
     var result = await PracticeCrmService.CreateLeadAsync(db,
       new ActorContext(scoped.Id, fixture.FirmId, scoped.SessionEpoch, ["RelationshipManager"]),
-      new CreateLeadRequest("Unauthorized firm-wide lead", "Test"));
+      new CreateLeadRequest("Unauthorized firm-wide lead", "Referral"));
 
     Assert.False(result.Succeeded);
     Assert.Equal(ErrorCodes.ScopeDenied, result.ErrorCode);
@@ -337,7 +357,7 @@ public sealed class PracticeCrmTests
 
     var result = await PracticeCrmService.CreateLeadAsync(db,
       new ActorContext(client.Id, fixture.FirmId, client.SessionEpoch, ["RelationshipManager"]),
-      new CreateLeadRequest("Client-classified firm lead", "Test"));
+      new CreateLeadRequest("Client-classified firm lead", "Referral"));
 
     Assert.False(result.Succeeded);
     Assert.Equal(ErrorCodes.ScopeDenied, result.ErrorCode);
@@ -450,7 +470,7 @@ public sealed class PracticeCrmTests
     {
       // Evidence-bound dispatch: the send queues exactly one durable email bound to the exact offer identity.
       secondLeadId = (await PracticeCrmService.CreateLeadAsync(db, fixture.Actor,
-        new CreateLeadRequest("Offer Bound Sender", "Web", "O. Owner", "offer-owner@example.test"))).Value;
+        new CreateLeadRequest("Offer Bound Sender", "Web Form", "O. Owner", "offer-owner@example.test"))).Value;
       await PracticeCrmService.QualifyLeadAsync(db, fixture.Actor, secondLeadId);
       secondOpportunityId = (await PracticeCrmService.CreateOpportunityAsync(db, fixture.Actor, Opportunity(secondLeadId))).Value;
       sentProposalId = (await PracticeCrmService.ReviseProposalAsync(db, fixture.Actor, Proposal(secondOpportunityId))).Value;
@@ -607,14 +627,14 @@ public sealed class PracticeCrmTests
     var fixture = await SeedAsync(pg);
     await using var db = new AuditSphereDbContext(pg.Options);
 
-    var lead = await PracticeCrmService.CreateLeadAsync(db, fixture.Actor, new CreateLeadRequest("Order Client", "Web"));
+    var lead = await PracticeCrmService.CreateLeadAsync(db, fixture.Actor, new CreateLeadRequest("Order Client", "Web Form"));
     Assert.True(lead.Succeeded);
     var beforeQualification = await PracticeCrmService.CreateOpportunityAsync(db, fixture.Actor, Opportunity(lead.Value));
     Assert.False(beforeQualification.Succeeded);
     Assert.Equal(ErrorCodes.GateBlocked, beforeQualification.ErrorCode);
 
     var foreign = fixture.Actor with { FirmId = Guid.NewGuid() };
-    var denied = await PracticeCrmService.CreateLeadAsync(db, foreign, new CreateLeadRequest("Foreign", "Web"));
+    var denied = await PracticeCrmService.CreateLeadAsync(db, foreign, new CreateLeadRequest("Foreign", "Web Form"));
     Assert.False(denied.Succeeded);
     Assert.Equal(ErrorCodes.ScopeDenied, denied.ErrorCode);
 
@@ -633,17 +653,17 @@ public sealed class PracticeCrmTests
     await using var db = new AuditSphereDbContext(pg.Options);
 
     var foreignOwner = await PracticeCrmService.CreateLeadAsync(db, fixture.Actor,
-      new CreateLeadRequest("Foreign Owner", "Web", OwnerUserId: Guid.NewGuid()));
+      new CreateLeadRequest("Foreign Owner", "Web Form", OwnerUserId: Guid.NewGuid()));
     Assert.False(foreignOwner.Succeeded);
     Assert.Equal(ErrorCodes.ScopeDenied, foreignOwner.ErrorCode);
 
     var invalidContact = await PracticeCrmService.CreateLeadAsync(db, fixture.Actor,
-      new CreateLeadRequest("Invalid Contact", "Web", PrimaryContactEmail: "not-an-email"));
+      new CreateLeadRequest("Invalid Contact", "Web Form", PrimaryContactEmail: "not-an-email"));
     Assert.False(invalidContact.Succeeded);
     Assert.Equal("crm.invalid", invalidContact.ErrorCode);
 
     var lead = await PracticeCrmService.CreateLeadAsync(db, fixture.Actor,
-      new CreateLeadRequest("Date Client", "Web"));
+      new CreateLeadRequest("Date Client", "Web Form"));
     Assert.True(lead.Succeeded);
     Assert.True((await PracticeCrmService.QualifyLeadAsync(db, fixture.Actor, lead.Value)).Succeeded);
 

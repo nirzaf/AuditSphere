@@ -80,26 +80,34 @@ const letterStatus = oneOf('NOT_ELIGIBLE', 'ELIGIBLE', 'ISSUED', 'STALE');
 const advanceStatus = oneOf('NO_AGREEMENT', 'NOT_LINKED', 'NOT_INVOICED', 'INVOICED_UNPAID', 'PARTIALLY_ALLOCATED', 'PAID');
 const activationStatus = oneOf('BLOCKED', 'READY_FOR_REVIEW', 'ACTIVE');
 
+/** The STE v2.2 approval vocabulary (section 4.1.3). Only APPROVED clears a key. */
+const displayStatus = oneOf('PENDING', 'AWAITING_EVIDENCE', 'APPROVED', 'REJECTED', 'STALE');
+
 const readinessDecoder = obj({
   engagementId: guid,
   clientId: guid,
   serviceRoute: str(200),
   clientApproval: obj({
     status: clientStatus,
+    displayStatus,
     label: str(400),
     fee: nullable(dec),
     currency: nullable(str(10)),
     quotationRevision: nullable(int),
     respondedAtUtc: nullable(instant),
     offerSha256Prefix: nullable(str(12)),
+    owner: nullable(str(200)),
+    evidenceHref: nullable(str(500)),
   }),
   partnerRisk: obj({
     status: partnerStatus,
+    displayStatus,
     label: str(400),
     serviceRoute: str(200),
     decidedAtUtc: nullable(instant),
     decidedByName: nullable(str(200)),
     generation: nullable(int),
+    evidenceHref: nullable(str(500)),
   }),
   engagementLetter: obj({
     status: letterStatus,
