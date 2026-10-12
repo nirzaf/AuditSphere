@@ -54,6 +54,20 @@ public static class FeeAgreementWorkspaceQuery
       .OrderByDescending(x => x.Revision).FirstOrDefaultAsync(ct);
     var fee = decimal.Parse(p.Fee, CultureInfo.InvariantCulture);
     if (quote is null || quote.Status != "APPROVED" || quote.Fee != fee) blockers.Add("Approve the current quotation and match the accepted proposal fee.");
+    if (p.Status == CrmStates.ProposalAccepted && p.ClientId is not null)
+    {
+      var dispatch = await db.CommercialNotifications.AsNoTracking().SingleOrDefaultAsync(
+        x => x.FirmId == actor.FirmId && x.ProposalId == proposalId && x.Kind == CommercialNotificationKinds.Proposal, ct);
+      if (p.SentAt is null || p.ResponseAt is null || dispatch is null)
+        blockers.Add("Require a recorded dispatch and client response before creating the fee agreement.");
+      else if (quote is not null && dispatch.QuotationVersionId != quote.Id)
+        blockers.Add("Dispatch the current approved quotation and record fresh client acceptance.");
+      else if (string.IsNullOrWhiteSpace(p.SentOfferSha256) || string.IsNullOrWhiteSpace(p.ResponseOfferSha256) ||
+        string.IsNullOrWhiteSpace(dispatch.OfferSha256) ||
+        !string.Equals(p.SentOfferSha256, dispatch.OfferSha256, StringComparison.OrdinalIgnoreCase) ||
+        !string.Equals(p.SentOfferSha256, p.ResponseOfferSha256, StringComparison.OrdinalIgnoreCase))
+        blockers.Add("Record client acceptance against the exact dispatched offer identity.");
+    }
     var advance = MoneyPolicy.Normalize(fee * FeeAgreementService.DefaultAdvancePercent / 100m, QuotationCalculator.CurrencyScale);
     if (advance <= 0 || fee - advance <= 0) blockers.Add("The accepted fee must support positive advance and balance milestones.");
     var finance = p.ClientId.HasValue && (await AuthorizationDecision.AuthorizeAsync(db, actor,

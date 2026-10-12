@@ -154,12 +154,18 @@ public static class CompletionBundleFixture
     {
       var lead = new Lead { Id = Guid.NewGuid(), FirmId = w.FirmId, Name = "Synthetic bundle client", Source = "Referral", PrimaryContactEmail = "director@bundle.example.test", CreatedAt = now };
       var opportunity = new Opportunity { Id = Guid.NewGuid(), FirmId = w.FirmId, LeadId = lead.Id, ServiceRoute = "FinancialStatementAudit", EntityScope = "TEST", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", Currency = "QAR", CreatedAt = now };
+      var quotationId = Guid.NewGuid();
+      var offerHash = Hashing.Sha256Hex("synthetic dispatched completion offer");
       var proposal = new Proposal { Id = Guid.NewGuid(), FirmId = w.FirmId, OpportunityId = opportunity.Id, PracticeClientId = w.ClientId, Status = CrmStates.ProposalAccepted,
-        Currency = "QAR", Fee = 25000m, ServiceProfileId = "AUDIT-2026", Scope = "Synthetic statutory audit", Deliverables = "Auditor report", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", CreatedAt = now, ResponseAt = now };
+        Currency = "QAR", Fee = 25000m, ServiceProfileId = "AUDIT-2026", Scope = "Synthetic statutory audit", Deliverables = "Auditor report", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31",
+        CreatedAt = now, SentAt = now, SentOfferSha256 = offerHash, ResponseAt = now, ResponseOfferSha256 = offerHash };
       proposalId = proposal.Id;
       db.Leads.Add(lead); db.Opportunities.Add(opportunity); db.Proposals.Add(proposal);
-      db.QuotationVersions.Add(new QuotationVersion { Id = Guid.NewGuid(), FirmId = w.FirmId, ProposalId = proposal.Id, Currency = "QAR", BaseAmount = 25000m, Fee = 25000m, InputHash = Hashing.Sha256Hex("synthetic price"),
+      db.QuotationVersions.Add(new QuotationVersion { Id = quotationId, FirmId = w.FirmId, ProposalId = proposal.Id, Currency = "QAR", BaseAmount = 25000m, Fee = 25000m, InputHash = Hashing.Sha256Hex("synthetic price"),
         Status = QuotationStates.Approved, CreatedByUserId = w.U["manager"].Id, ApprovedAt = now, CreatedAt = now });
+      db.CommercialNotifications.Add(new CommercialNotification { Id = Guid.NewGuid(), FirmId = w.FirmId, Kind = CommercialNotificationKinds.Proposal,
+        ProposalId = proposal.Id, PracticeClientId = w.ClientId, QuotationVersionId = quotationId, OfferSha256 = offerHash,
+        Recipient = "director@bundle.example.test", Subject = "Synthetic dispatched offer", Body = "Synthetic test evidence", CreatedAt = now });
       foreach (var (name, role) in new[] { ("manager", "FinanceManager"), ("partner2", "FinanceReviewer") })
         db.RoleGrants.Add(new RoleGrant { Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = w.U[name].Id, Role = role, GrantedByUserId = w.U["partner"].Id, GrantedAt = now });
       db.FirmFinanceProfiles.Add(new FirmFinanceProfile { Id = Guid.NewGuid(), FirmId = w.FirmId, FunctionalCurrency = "QAR", ProfileKind = BillingStates.TestProfile, Approved = true,

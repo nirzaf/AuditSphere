@@ -76,6 +76,18 @@ public static class EngagementLifecycleQuery
     if (client is null) return CommandResult<EngagementLifecycleReport>.Fail(ErrorCodes.ScopeDenied, "Client unavailable.");
 
     var now = DateTimeOffset.UtcNow;
+    var detailAuthorization = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, EngagementId: engagementId,
+        RequiredRoles: ["Administrator", "Partner", "Manager", "SeniorManager"], InternalOnly: true, RequireFirmWide: true), ct);
+    var canViewDetailedBlockers = detailAuthorization.Succeeded;
+
+    CommandResult<EngagementLifecycleReport> Project(EngagementLifecycleSummary summary)
+    {
+      if (!canViewDetailedBlockers && summary.BlockedReasons.Count > 0)
+        summary = summary with { BlockedReasons = ["Some engagement readiness details are restricted to firm-wide management."] };
+      return Success(engagement, client.LegalName, summary, now);
+    }
+
     var holds = await db.EngagementHolds.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId && !x.Released)
       .Select(x => x.Reason).ToListAsync(ct);
@@ -90,10 +102,10 @@ public static class EngagementLifecycleQuery
 
     if (freeze is { State: FileFreezeStates.Frozen })
     {
-      return Success(engagement, client.LegalName, new EngagementLifecycleSummary(
+      return Project(new EngagementLifecycleSummary(
         CanonicalEngagementStages.ArchivedReadOnly, "Archived (Read-Only)", 11, [],
         "None", $"/app/records/archives/{engagementId}", 0, true, false, ComplianceWarningFor(freeze),
-        freeze.State, freeze.ExternalReadOnly), now);
+        freeze.State, freeze.ExternalReadOnly));
     }
 
     if (freeze is not null)
@@ -102,18 +114,18 @@ public static class EngagementLifecycleQuery
       var countdownBlocked = new List<string>();
       if (now >= freeze.DueAt)
         countdownBlocked.Add("The freeze is due but has not committed; the file is not archived until the local freeze succeeds.");
-      return Success(engagement, client.LegalName, new EngagementLifecycleSummary(
+      return Project(new EngagementLifecycleSummary(
         CanonicalEngagementStages.ComplianceCountdown, "Compliance Countdown", 10, countdownBlocked,
         "EngagementPartner", completionLink, remaining, false, false, ComplianceWarningFor(freeze),
-        freeze.State, freeze.ExternalReadOnly), now);
+        freeze.State, freeze.ExternalReadOnly));
     }
 
     if (release is not null)
     {
-      return Success(engagement, client.LegalName, new EngagementLifecycleSummary(
+      return Project(new EngagementLifecycleSummary(
         CanonicalEngagementStages.DeliverableRelease, "Deliverable Release", 9,
         ["The compliance countdown starts when the Partner signs the Independent Auditor's Report."],
-        "EngagementPartner", completionLink, null, false, false), now);
+        "EngagementPartner", completionLink, null, false, false));
     }
 
     // 9. Deliverable Release & 8. Partner Approval
@@ -152,9 +164,9 @@ public static class EngagementLifecycleQuery
       var blocked = new List<string>();
       if (holds.Count > 0) blocked.AddRange(holds.Select(h => $"Open hold: {h}"));
       blocked.Add("Awaiting final client deliverable release and portal upload freeze");
-      return Success(engagement, client.LegalName, new EngagementLifecycleSummary(
+      return Project(new EngagementLifecycleSummary(
         CanonicalEngagementStages.DeliverableRelease, "Deliverable Release", 9, blocked,
-        "EngagementPartner", $"/app/engagements/{engagementId}/completion", null, false, false), now);
+        "EngagementPartner", $"/app/engagements/{engagementId}/completion", null, false, false));
     }
 
     if (partnerClearance is not null && opinion is not null && handoverBlockers.Count == 0)
@@ -162,9 +174,9 @@ public static class EngagementLifecycleQuery
       var partnerBlocked = new List<string>();
       if (holds.Count > 0) partnerBlocked.AddRange(holds.Select(h => $"Open hold: {h}"));
       if (bundle is null || bundle.Content.Length == 0) partnerBlocked.Add("Assembly of 5-part final completion bundle required");
-      return Success(engagement, client.LegalName, new EngagementLifecycleSummary(
+      return Project(new EngagementLifecycleSummary(
         CanonicalEngagementStages.PartnerApproval, "Partner Approval & Signing", 8, partnerBlocked,
-        "EngagementPartner", $"/app/engagements/{engagementId}/completion", null, false, false), now);
+        "EngagementPartner", $"/app/engagements/{engagementId}/completion", null, false, false));
     }
 
     if (allExecuted || handoverBlockers.Count > 0)
@@ -174,9 +186,9 @@ public static class EngagementLifecycleQuery
       if (openReviewNotes > 0 && handoverBlockers.Count == 0) mgrBlocked.Add($"{openReviewNotes} open review note(s) require resolution");
       mgrBlocked.AddRange(handoverBlockers);
       if (opinion is null) mgrBlocked.Add("Partner audit opinion decision pending");
-      return Success(engagement, client.LegalName, new EngagementLifecycleSummary(
+      return Project(new EngagementLifecycleSummary(
         CanonicalEngagementStages.ManagerialReview, "Managerial Review", 7, mgrBlocked,
-        "AuditManager", $"/app/engagements/{engagementId}/audit-fieldwork", null, false, false), now);
+        "AuditManager", $"/app/engagements/{engagementId}/audit-fieldwork", null, false, false));
     }
 
     // Planning approval means the CURRENT materiality is Partner-approved and not stale (STE 3.2), not merely calculated.
@@ -191,9 +203,9 @@ public static class EngagementLifecycleQuery
       if (holds.Count > 0) fwBlocked.AddRange(holds.Select(h => $"Open hold: {h}"));
       var pendingCount = procedures.Count(x => x.CurrentResultRevision == 0);
       if (pendingCount > 0) fwBlocked.Add($"{pendingCount} substantive audit procedure(s) pending execution");
-      return Success(engagement, client.LegalName, new EngagementLifecycleSummary(
+      return Project(new EngagementLifecycleSummary(
         CanonicalEngagementStages.FieldworkExecution, "Fieldwork Execution", 6, fwBlocked,
-        "SeniorAuditor", $"/app/engagements/{engagementId}/audit-fieldwork", null, false, false), now);
+        "SeniorAuditor", $"/app/engagements/{engagementId}/audit-fieldwork", null, false, false));
     }
 
     // 5. Portal Active & Planning
@@ -208,9 +220,9 @@ public static class EngagementLifecycleQuery
         planBlocked.Add("Materiality is stale: the mapping or trial balance changed. Recalculate and re-approve before planning can advance.");
       else if (!planApproved) planBlocked.Add("Materiality calculation and formal Partner planning approval required");
       if (engagement.ProfessionalWorkBlocked) planBlocked.Add("Engagement professional work is currently blocked");
-      return Success(engagement, client.LegalName, new EngagementLifecycleSummary(
+      return Project(new EngagementLifecycleSummary(
         CanonicalEngagementStages.PortalActivePlanning, "Portal Active & Planning", 5, planBlocked,
-        "AuditManager", $"/app/engagements/{engagementId}/audit-plan", null, false, false), now);
+        "AuditManager", $"/app/engagements/{engagementId}/audit-plan", null, false, false));
     }
 
     // 4. Advance Billing & 3. Dual-Key Pending. Both keys are read from the evidence the protected engagement-letter and
@@ -219,7 +231,8 @@ public static class EngagementLifecycleQuery
     // declined key never advances the stage.
     var acceptance = await DualKeyEvidence.CurrentUnconditionalRiskClearanceAsync(
       db, actor.FirmId, engagement.PracticeClientId, engagement.ServiceRoute, ct);
-    var proposal = await DualKeyEvidence.ResolveEngagementProposalAsync(db, actor.FirmId, engagementId, engagement.PracticeClientId, ct);
+    var proposal = await DualKeyEvidence.ResolveEngagementProposalAsync(db, actor.FirmId, engagementId,
+      engagement.PracticeClientId, engagement.ServiceRoute, ct);
     var commercialAccepted = proposal is { SentAt: not null } &&
       await DualKeyEvidence.CommercialAcceptanceStandsAsync(db, actor.FirmId, proposal, ct);
 
@@ -239,9 +252,9 @@ public static class EngagementLifecycleQuery
       var advancePaid = agreement is not null && await db.FeeMilestones.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId &&
         x.AgreementId == agreement.Id && x.Kind == FeeMilestoneKinds.Advance && x.State == FeeMilestoneStates.Paid, ct);
       if (!advancePaid) feeBlocked.Add("50% advance invoice payment allocation required to activate portal onboarding");
-      return Success(engagement, client.LegalName, new EngagementLifecycleSummary(
+      return Project(new EngagementLifecycleSummary(
         CanonicalEngagementStages.AdvanceBilling, "Advance Billing & Payment", 4, feeBlocked,
-        "FinanceManager", $"/app/finance", null, false, false), now);
+        "FinanceManager", $"/app/finance", null, false, false));
     }
 
     if (proposal is { SentAt: not null, Status: CrmStates.ProposalSent or CrmStates.ProposalAccepted or CrmStates.ProposalDeclined })
@@ -254,16 +267,16 @@ public static class EngagementLifecycleQuery
         dualBlocked.Add("Client commercial acceptance of proposal required");
       else if (!commercialAccepted)
         dualBlocked.Add("Client acceptance does not cite the current dispatched offer or quotation revision; re-record acceptance against the exact current offer.");
-      return Success(engagement, client.LegalName, new EngagementLifecycleSummary(
+      return Project(new EngagementLifecycleSummary(
         CanonicalEngagementStages.DualKeyPending, "Dual-Key Acceptance Pending", 3, dualBlocked,
-        "EngagementPartner", $"/app/assessments/{engagement.PracticeClientId}", null, false, false), now);
+        "EngagementPartner", $"/app/assessments/{engagement.PracticeClientId}", null, false, false));
     }
 
     // 2. Proposal Generation & 1. Lead Ingestion
-    return Success(engagement, client.LegalName, new EngagementLifecycleSummary(
+    return Project(new EngagementLifecycleSummary(
       CanonicalEngagementStages.ProposalGeneration, "Proposal Generation", 2,
       ["Commercial proposal preparation and dispatch required"],
-      "CommercialManager", $"/app/clients/{engagement.PracticeClientId}", null, false, false), now);
+      "CommercialManager", $"/app/clients/{engagement.PracticeClientId}", null, false, false));
   }
 
   /// <summary>

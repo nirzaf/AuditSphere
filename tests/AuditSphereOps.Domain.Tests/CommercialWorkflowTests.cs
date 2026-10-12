@@ -429,6 +429,19 @@ public sealed class CommercialWorkflowTests
     Assert.Contains("Finance must prepare the draft manually", pending.AdvancePreparation.Message);
     var automated = (await FeeAgreementWorkspaceQuery.GetAsync(db, w.Partner, proposalId, default, automaticDraftingEnabled: true)).Value!;
     Assert.Equal(AdvanceInvoicePreparationStates.AwaitingAutomation, automated.AdvancePreparation.State);
+    var engagement = await EngagementLifecycleService.CreateDraftAsync(db, w.Partner,
+      new(clientId, "FinancialStatementAudit", "2026-01-01", "2026-12-31", "AUDIT-2026"));
+    Assert.True(engagement.Succeeded, engagement.Message);
+    var feeAgreementId = await db.EngagementFeeAgreements.AsNoTracking().Where(x => x.ProposalId == proposalId)
+      .Select(x => x.Id).SingleAsync();
+    Assert.True((await FeeAgreementService.LinkEngagementAsync(db, w.Prep, feeAgreementId, engagement.Value)).Succeeded);
+    var readinessDisabled = await ClientOnboardingReadinessQuery.GetAsync(db, w.Prep, engagement.Value);
+    Assert.True(readinessDisabled.Succeeded, readinessDisabled.Message);
+    Assert.Equal(AdvanceInvoicePreparationStates.PendingAutomationDisabled, readinessDisabled.Value!.AdvancePayment.PreparationState);
+    var readinessEnabled = await ClientOnboardingReadinessQuery.GetAsync(db, w.Prep, engagement.Value,
+      automaticDraftingEnabled: true);
+    Assert.True(readinessEnabled.Succeeded, readinessEnabled.Message);
+    Assert.Equal(AdvanceInvoicePreparationStates.AwaitingAutomation, readinessEnabled.Value!.AdvancePayment.PreparationState);
     Assert.All(new[] { q, letter }, d =>
     {
       Assert.Equal(Hashing.Sha256Hex(d.Bytes), d.Sha256Hex);
@@ -496,10 +509,7 @@ public sealed class CommercialWorkflowTests
       await db.SaveChangesAsync();
       var clientActor = Actor(clientUser, "ClientUser");
       Assert.Equal(ErrorCodes.GateBlocked, (await AuthorizationDecision.AuthorizeAsync(db, clientActor, new(w.FirmId, clientId, RequiredRoles: ["ClientUser"]))).ErrorCode);
-      var engagement = await EngagementLifecycleService.CreateDraftAsync(db, w.Partner, new(clientId, "FinancialStatementAudit", "2026-01-01", "2026-12-31", "AUDIT-2026"));
-      Assert.True(engagement.Succeeded, engagement.Message);
       // STE 4.1.5 / C-02: a linked agreement whose 50% advance is not yet paid can no longer activate the engagement.
-      Assert.True((await FeeAgreementService.LinkEngagementAsync(db, w.Prep, agreement.Id, engagement.Value)).Succeeded);
       Assert.Equal(ErrorCodes.GateBlocked, (await EngagementLifecycleService.ActivateAsync(db, w.Partner, engagement.Value)).ErrorCode);
       Assert.Equal(ErrorCodes.GateBlocked, (await AuthorizationDecision.AuthorizeAsync(db, clientActor, new(w.FirmId, clientId, engagement.Value, ["ClientUser"]))).ErrorCode);
       Assert.Empty(await ClientPortalService.AuthorizedPortalGrantIdsAsync(db, clientActor));
@@ -511,6 +521,12 @@ public sealed class CommercialWorkflowTests
       Assert.True((await BillingService.PostInvoiceAsync(db, w.FinanceManager, invoice.Id)).Succeeded);
       var paid = await FeeAgreementService.RecordAdvancePaymentAsync(db, w.FinanceManager, agreement.Id, 16500m, "PORTAL-TEST-ADVANCE");
       Assert.True(paid.Succeeded, paid.Message);
+      var paidReadiness = await ClientOnboardingReadinessQuery.GetAsync(db, w.Prep, engagement.Value,
+        automaticDraftingEnabled: true);
+      Assert.True(paidReadiness.Succeeded, paidReadiness.Message);
+      Assert.Equal(OnboardingReadinessStatuses.Paid, paidReadiness.Value!.AdvancePayment.Status);
+      Assert.Equal(OnboardingReadinessStatuses.ReadyForReview, paidReadiness.Value.Activation.Status);
+      Assert.True(paidReadiness.Value.CanActivate);
       // The recorded advance now satisfies the activation gate.
       Assert.True((await EngagementLifecycleService.ActivateAsync(db, w.Partner, engagement.Value)).Succeeded);
       Assert.Equal(ErrorCodes.ScopeDenied, (await FeeAgreementService.RecordAdvancePaymentAsync(db, w.Prep, agreement.Id, 16500m, "PORTAL-TEST-ADVANCE")).ErrorCode);
@@ -924,6 +940,39 @@ public sealed class CommercialWorkflowTests
   }
 
   [Fact]
+  public async Task FeeAgreement_RefusesAcceptedProposalWithoutRecordedDispatch()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var (_, opportunityId, proposalId) = await DraftProposalAsync(pg, w);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var quote = await QuotationService.SaveAsync(db, w.Prep, Quote(proposalId));
+    Assert.True((await QuotationService.SubmitAsync(db, w.Prep, quote.Value)).Succeeded);
+    Assert.True((await PracticeCrmService.ApproveProposalAsync(db, w.Partner, proposalId)).Succeeded);
+
+    // A legacy/corrupt accepted row without its immutable outbox evidence is not treated as a dispatched client offer.
+    var offerHash = Hashing.Sha256Hex("synthetic missing-dispatch offer");
+    var now = DateTimeOffset.UtcNow;
+    await db.Proposals.Where(x => x.Id == proposalId).ExecuteUpdateAsync(s => s
+      .SetProperty(x => x.Status, CrmStates.ProposalAccepted)
+      .SetProperty(x => x.SentAt, now)
+      .SetProperty(x => x.ResponseAt, now)
+      .SetProperty(x => x.SentOfferSha256, offerHash)
+      .SetProperty(x => x.ResponseOfferSha256, offerHash));
+    await db.Opportunities.Where(x => x.Id == opportunityId)
+      .ExecuteUpdateAsync(s => s.SetProperty(x => x.Stage, CrmStates.OpportunityWon));
+    var client = await PracticeCrmService.ConvertToClientDraftAsync(db, w.Prep, new(proposalId, "Missing Dispatch Client"));
+    Assert.True(client.Succeeded, client.Message);
+
+    var workspace = await FeeAgreementWorkspaceQuery.GetAsync(db, w.Prep, proposalId);
+    Assert.True(workspace.Succeeded, workspace.Message);
+    Assert.False(workspace.Value!.CanCreate);
+    Assert.Contains(workspace.Value.CreationBlockers, x => x.Contains("recorded dispatch", StringComparison.OrdinalIgnoreCase));
+    Assert.Equal(ErrorCodes.GateBlocked, (await FeeAgreementService.CreateAgreementAsync(db, w.Prep, proposalId)).ErrorCode);
+    Assert.Empty(await db.EngagementFeeAgreements.AsNoTracking().Where(x => x.ProposalId == proposalId).ToListAsync());
+  }
+
+  [Fact]
   public async Task PortalFinanceAndReceiptDownloads_RespectExactClientAndEngagementScope()
   {
     await using var pg = await PgTestSchema.CreateAsync();
@@ -1061,11 +1110,32 @@ public sealed class CommercialWorkflowTests
       new("ACCEPTED", null, offerSha, "A. Owner", "owner@gulf.example.test", "Signed acceptance letter"))).Succeeded);
     var client = await PracticeCrmService.ConvertToClientDraftAsync(db, w.Prep, new(proposalId, "Readiness client"));
     Assert.True(client.Succeeded, client.Message);
+    var engagementId = Guid.NewGuid();
+    db.Engagements.Add(new Engagement { Id = engagementId, FirmId = w.FirmId, PracticeClientId = client.Value, ServiceRoute = "FinancialStatementAudit",
+      PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", CreatedAt = DateTimeOffset.UtcNow });
+    await db.SaveChangesAsync();
+
+    // A newer draft on another route must not shadow the accepted offer for this engagement.
+    var unrelatedLead = await PracticeCrmService.CreateLeadAsync(db, w.Prep,
+      new CreateLeadRequest("Readiness accounting prospect", "Referral", "B. Owner", "accounting@example.test"));
+    Assert.True(unrelatedLead.Succeeded, unrelatedLead.Message);
+    Assert.True((await PracticeCrmService.QualifyLeadAsync(db, w.Prep, unrelatedLead.Value)).Succeeded);
+    var unrelatedOpportunity = await PracticeCrmService.CreateOpportunityAsync(db, w.Prep,
+      new CreateOpportunityRequest(unrelatedLead.Value, "Accounting", "READINESS-ACCOUNTING", "2026-01-01", "2026-12-31", 12000m, "QAR", 50m));
+    Assert.True(unrelatedOpportunity.Succeeded, unrelatedOpportunity.Message);
+    await db.Opportunities.Where(x => x.Id == unrelatedOpportunity.Value)
+      .ExecuteUpdateAsync(s => s.SetProperty(x => x.PracticeClientId, client.Value));
+    var unrelatedProposal = await PracticeCrmService.ReviseProposalAsync(db, w.Prep,
+      new ReviseProposalRequest(unrelatedOpportunity.Value, "ACCOUNTING-2026", "Accounting preparation", "Tax", "Statements",
+        "Client supplies records", 1m, "QAR", "2026-01-01", "2026-12-31"));
+    Assert.True(unrelatedProposal.Succeeded, unrelatedProposal.Message);
+    var unlinkedReadiness = await ClientOnboardingReadinessQuery.GetAsync(db, w.Prep, engagementId);
+    Assert.True(unlinkedReadiness.Succeeded, unlinkedReadiness.Message);
+    Assert.Equal(OnboardingReadinessStatuses.Current, unlinkedReadiness.Value!.ClientApproval.Status);
+    Assert.Equal($"/app/practice/proposals/{proposalId}", unlinkedReadiness.Value.ClientApproval.EvidenceHref);
+
     var created = await FeeAgreementService.CreateAgreementAsync(db, w.Prep, proposalId);
     Assert.True(created.Succeeded, created.Message);
-    var engagementId = Guid.NewGuid();
-    db.Engagements.Add(new Engagement { Id = engagementId, FirmId = w.FirmId, PracticeClientId = client.Value, ServiceRoute = "FinancialStatementAudit", CreatedAt = DateTimeOffset.UtcNow });
-    await db.SaveChangesAsync();
     // Activation reads only the agreement linked to this engagement, so the readiness advance card reads the same link.
     var linked = await FeeAgreementService.LinkEngagementAsync(db, w.Prep, created.Value, engagementId);
     Assert.True(linked.Succeeded, linked.Message);
@@ -1137,9 +1207,9 @@ public sealed class CommercialWorkflowTests
     await db.SaveChangesAsync();
     var other = await ClientOnboardingReadinessQuery.GetAsync(db, w.Prep, otherEngagementId);
     Assert.True(other.Succeeded, other.Message);
-    Assert.Equal(OnboardingReadinessStatuses.NotLinked, other.Value!.AdvancePayment.Status);
-    Assert.Contains(other.Value.Blockers, b => b.Code == "FEE_AGREEMENT_NOT_LINKED");
-    Assert.Contains(other.Value.Blockers, b => b.Code == "ROUTE_MISMATCH");
+    Assert.Equal(OnboardingReadinessStatuses.NoAgreement, other.Value!.AdvancePayment.Status);
+    Assert.Equal(OnboardingReadinessStatuses.NotDispatched, other.Value.ClientApproval.Status);
+    Assert.DoesNotContain(other.Value.Blockers, b => b.Code == "ROUTE_MISMATCH");
     Assert.Equal(OnboardingReadinessStatuses.NotEligible, other.Value.EngagementLetter.Status);
     Assert.False(other.Value.CanActivate);
 

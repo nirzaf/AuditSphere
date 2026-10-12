@@ -53,21 +53,30 @@ public sealed class FirmReceivablesAgingQueryTests
         ServiceRoute = "FinancialStatementAudit", EntityScope = "TEST", PeriodStart = "2026-01-01",
         PeriodEnd = "2026-12-31", Currency = "QAR", CreatedAt = now
       };
+      var quotationId = Guid.NewGuid();
+      var offerHash = Hashing.Sha256Hex("synthetic dispatched receivables offer");
       var proposal = new Proposal
       {
         Id = Guid.NewGuid(), FirmId = seed.FirmId, OpportunityId = opportunity.Id, PracticeClientId = seed.ClientId,
         Status = CrmStates.ProposalAccepted, Currency = "QAR", Fee = 200m,
         ServiceProfileId = "AUDIT-2026", Scope = "Synthetic audit scope", Deliverables = "Synthetic audit report",
-        PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", CreatedAt = now, ResponseAt = now
+        PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", CreatedAt = now, SentAt = now, ResponseAt = now,
+        SentOfferSha256 = offerHash, ResponseOfferSha256 = offerHash
       };
       db.Leads.Add(lead);
       db.Opportunities.Add(opportunity);
       db.Proposals.Add(proposal);
       db.QuotationVersions.Add(new QuotationVersion
       {
-        Id = Guid.NewGuid(), FirmId = seed.FirmId, ProposalId = proposal.Id, Currency = "QAR",
+        Id = quotationId, FirmId = seed.FirmId, ProposalId = proposal.Id, Currency = "QAR",
         BaseAmount = 200m, Fee = 200m, InputHash = Hashing.Sha256Hex("synthetic ageing quotation"),
         Status = QuotationStates.Approved, CreatedByUserId = seed.Admin.Id, ApprovedAt = now, CreatedAt = now
+      });
+      db.CommercialNotifications.Add(new CommercialNotification
+      {
+        Id = Guid.NewGuid(), FirmId = seed.FirmId, Kind = CommercialNotificationKinds.Proposal,
+        ProposalId = proposal.Id, PracticeClientId = seed.ClientId, QuotationVersionId = quotationId, OfferSha256 = offerHash,
+        Recipient = "owner@receivables.example.test", Subject = "Synthetic dispatched offer", Body = "Synthetic test evidence", CreatedAt = now
       });
       await db.SaveChangesAsync();
 

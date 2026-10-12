@@ -63,6 +63,7 @@ public static class EngagementWorkflowWorkspaceQuery
         "The engagement stage could not be projected to a workflow phase.");
 
     var hasBlockers = summary.BlockedReasons.Count > 0;
+    var blockers = summary.BlockedReasons;
     var phases = EngagementDisplayPhaseMapper.Phases
       .Select(p => new EngagementWorkflowPhaseState(p.Index, p.Code, p.Label,
         PhaseStatus(p.Index, phase.Index, summary.CanonicalStage, hasBlockers)))
@@ -84,7 +85,7 @@ public static class EngagementWorkflowWorkspaceQuery
     return CommandResult<EngagementWorkflowReport>.Ok(new EngagementWorkflowReport(
       report.EngagementId, report.ClientId, report.ServiceRoute,
       summary.CanonicalStage, summary.StageIndex, summary.StageLabel,
-      current, phases, summary.ResponsibleRole, summary.BlockedReasons, nextActions, archive, report.EvaluatedAtUtc));
+      current, phases, summary.ResponsibleRole, blockers, nextActions, archive, report.EvaluatedAtUtc));
   }
 
   /// <summary>

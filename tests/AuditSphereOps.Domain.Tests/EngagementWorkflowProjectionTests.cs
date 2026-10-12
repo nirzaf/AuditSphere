@@ -55,17 +55,20 @@ public sealed class EngagementWorkflowProjectionTests
     var seed = await PbcSeed.SeedAsync(pg);
     var partner = PbcSeed.Actor(seed.Admin, "Partner");
     var unauthorized = PbcSeed.Actor(seed.Staff, "Staff");
+    var scopedStaff = PbcSeed.User(seed.FirmId, "Staff");
     var now = DateTimeOffset.UtcNow;
     var engagementId = Guid.NewGuid();
 
     await using var db = new AuditSphereDbContext(pg.Options);
     db.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, seed.Admin, "Partner"));
+    db.Users.Add(scopedStaff);
     db.Engagements.Add(new Engagement
     {
       Id = engagementId, FirmId = seed.FirmId, PracticeClientId = seed.ClientId, ServiceRoute = "Audit",
       PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", ServiceProfileId = "CommercialAudit", Status = "Draft",
       ProfessionalWorkBlocked = true, CreatedAt = now
     });
+    db.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, scopedStaff, "Staff", seed.ClientId, engagementId));
     await db.SaveChangesAsync();
 
     var canonical = await EngagementLifecycleQuery.GetAsync(db, partner, engagementId);
@@ -77,6 +80,16 @@ public sealed class EngagementWorkflowProjectionTests
     Assert.Equal(canonical.Value!.Summary.CanonicalStage, report.CanonicalStage);
     Assert.Equal(canonical.Value.Summary.StageIndex, report.CanonicalIndex);
     Assert.Equal(canonical.Value.Summary.BlockedReasons, report.Blockers);
+
+    // Neither the canonical lifecycle endpoint nor its workflow projection disclose firm-wide blocker details to scoped staff.
+    var scopedActor = PbcSeed.Actor(scopedStaff, "Staff");
+    var scopedLifecycle = await EngagementLifecycleQuery.GetAsync(db, scopedActor, engagementId);
+    Assert.True(scopedLifecycle.Succeeded, scopedLifecycle.Message);
+    Assert.Equal(["Some engagement readiness details are restricted to firm-wide management."], scopedLifecycle.Value!.Summary.BlockedReasons);
+    var scoped = await EngagementWorkflowWorkspaceQuery.GetAsync(db, scopedActor, engagementId);
+    Assert.True(scoped.Succeeded, scoped.Message);
+    Assert.Equal(["Some engagement readiness details are restricted to firm-wide management."], scoped.Value!.Blockers);
+    Assert.DoesNotContain(canonical.Value.Summary.BlockedReasons, reason => scoped.Value.Blockers.Contains(reason));
 
     // A draft with no dispatched proposal sits in the first visible phase, which is blocked, and later phases have not started.
     Assert.Equal(7, report.Phases.Count);

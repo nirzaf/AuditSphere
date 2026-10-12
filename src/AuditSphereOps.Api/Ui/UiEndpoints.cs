@@ -270,7 +270,7 @@ public static partial class UiEndpoints
       if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await AuditSphereOps.Application.Acceptance.EngagementLifecycleQuery.GetAsync(db, actor, id, http.RequestAborted);
-      if (!result.Succeeded) return Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "request.invalid" ? 400 : 403);
+      if (!result.Succeeded) return Results.Json(new { code = result.ErrorCode }, statusCode: WorkflowReadFailureStatusCode(result.ErrorCode));
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);
@@ -283,7 +283,7 @@ public static partial class UiEndpoints
       if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await AuditSphereOps.Application.Acceptance.EngagementWorkflowWorkspaceQuery.GetAsync(db, actor, id, http.RequestAborted);
-      if (!result.Succeeded) return Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "request.invalid" ? 400 : 403);
+      if (!result.Succeeded) return Results.Json(new { code = result.ErrorCode }, statusCode: WorkflowReadFailureStatusCode(result.ErrorCode));
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);
@@ -295,8 +295,10 @@ public static partial class UiEndpoints
       var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
       if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
-      var result = await AuditSphereOps.Application.Acceptance.ClientOnboardingReadinessQuery.GetAsync(db, actor, id, http.RequestAborted);
-      if (!result.Succeeded) return Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "request.invalid" ? 400 : 403);
+      var automaticDrafting = AutomaticDraftingEnabled(http.RequestServices.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>());
+      var result = await AuditSphereOps.Application.Acceptance.ClientOnboardingReadinessQuery.GetAsync(
+        db, actor, id, http.RequestAborted, automaticDrafting);
+      if (!result.Succeeded) return Results.Json(new { code = result.ErrorCode }, statusCode: WorkflowReadFailureStatusCode(result.ErrorCode));
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);

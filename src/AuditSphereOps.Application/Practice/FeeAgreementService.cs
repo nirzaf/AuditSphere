@@ -54,7 +54,7 @@ public static class FeeAgreementService
     if (existing is not null) return CommandResult<Guid>.Ok(existing.Id);
     var proposal = await db.Proposals.AsNoTracking().SingleOrDefaultAsync(x => x.Id == proposalId && x.FirmId == actor.FirmId, ct);
     if (proposal is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    if (proposal.Status != CrmStates.ProposalAccepted || proposal.PracticeClientId is null)
+    if (proposal.Status != CrmStates.ProposalAccepted || proposal.SentAt is null || proposal.ResponseAt is null || proposal.PracticeClientId is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "A fee agreement needs an accepted proposal that has been converted to a client.");
     var quotation = await db.QuotationVersions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ProposalId == proposalId)
       .OrderByDescending(x => x.Revision).FirstOrDefaultAsync(ct);
@@ -64,18 +64,19 @@ public static class FeeAgreementService
     // quotation revision, and a later approved revision needs a new dispatch and fresh acceptance.
     var dispatch = await db.CommercialNotifications.AsNoTracking().SingleOrDefaultAsync(
       x => x.FirmId == actor.FirmId && x.ProposalId == proposalId && x.Kind == CommercialNotificationKinds.Proposal, ct);
-    if (dispatch is not null)
-    {
-      if (dispatch.QuotationVersionId is { } acceptedQuotation && acceptedQuotation != quotation.Id)
-        return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision,
-          "The client accepted a different quotation revision than the current one; use a newly approved commercial revision with fresh acceptance before creating the fee agreement.");
-      // The agreement carries the accepted terms, so the recorded acceptance must cite the dispatched
-      // offer identity — the same dual-key evidence the engagement letter requires (STE 4.1.3).
-      if (dispatch.OfferSha256 is { } sentOffer &&
-        !string.Equals(proposal.ResponseOfferSha256, sentOffer, StringComparison.OrdinalIgnoreCase))
-        return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale,
-          "The recorded client acceptance does not cite the dispatched offer identity; re-record the acceptance against the exact dispatched offer before creating the fee agreement.");
-    }
+    if (dispatch is null)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+        "A recorded dispatch of the approved offer is required before creating the fee agreement.");
+    if (dispatch.QuotationVersionId != quotation.Id)
+      return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision,
+        "The client accepted a different quotation revision than the current one; use a newly approved commercial revision with fresh acceptance before creating the fee agreement.");
+    // The agreement carries the accepted terms, so the recorded acceptance and dispatch must cite one exact offer identity.
+    if (string.IsNullOrWhiteSpace(proposal.SentOfferSha256) || string.IsNullOrWhiteSpace(proposal.ResponseOfferSha256) ||
+      string.IsNullOrWhiteSpace(dispatch.OfferSha256) ||
+      !string.Equals(proposal.SentOfferSha256, dispatch.OfferSha256, StringComparison.OrdinalIgnoreCase) ||
+      !string.Equals(proposal.SentOfferSha256, proposal.ResponseOfferSha256, StringComparison.OrdinalIgnoreCase))
+      return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale,
+        "The recorded client acceptance does not cite the exact dispatched offer identity; re-record acceptance against that offer before creating the fee agreement.");
 
     var advance = MoneyPolicy.Normalize(proposal.Fee * DefaultAdvancePercent / 100m, QuotationCalculator.CurrencyScale);
     if (advance <= 0m || proposal.Fee - advance <= 0m)

@@ -127,7 +127,8 @@ public static class ClientOnboardingReadinessQuery
   private static readonly string[] CommercialRoles = ["Administrator", "Partner", "Manager", "RelationshipManager"];
 
   public static async Task<CommandResult<OnboardingReadinessReport>> GetAsync(
-    IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)
+    IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default,
+    bool automaticDraftingEnabled = false)
   {
     // Firm-wide: the client's Partner risk decision and payment detail are firm commercial evidence. An engagement-only grant
     // must not read a client-level decision or its decider, even for a client that has no proposal yet.
@@ -141,8 +142,9 @@ public static class ClientOnboardingReadinessQuery
     var blockers = new List<OnboardingReadinessBlocker>();
     var actions = new List<OnboardingReadinessAction>();
 
-    // The proposal this engagement is bound to: the linked fee agreement first, otherwise the client's newest proposal.
-    var proposal = await DualKeyEvidence.ResolveEngagementProposalAsync(db, actor.FirmId, engagementId, clientId, ct);
+    // The proposal this engagement is bound to: the linked fee agreement first, otherwise the newest proposal on this service route.
+    var proposal = await DualKeyEvidence.ResolveEngagementProposalAsync(db, actor.FirmId, engagementId,
+      clientId, engagement.ServiceRoute, ct);
     var quotation = proposal is null ? null : await db.QuotationVersions.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.ProposalId == proposal.Id)
       .OrderByDescending(x => x.Revision).FirstOrDefaultAsync(ct);
@@ -170,7 +172,7 @@ public static class ClientOnboardingReadinessQuery
     // The protected letter guard reads the opportunity's route for the risk decision. A different route cannot be matched to this engagement.
     var opportunity = proposal is null ? null : await db.Opportunities.AsNoTracking()
       .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == proposal.OpportunityId, ct);
-    var routeMatches = opportunity is null || opportunity.ServiceRoute == engagement.ServiceRoute;
+    var routeMatches = proposal is null || opportunity is not null && opportunity.ServiceRoute == engagement.ServiceRoute;
     if (!routeMatches)
       blockers.Add(new("ROUTE_MISMATCH", "The proposal's service route differs from this engagement, so its letter and clearance cannot be matched to it."));
     var letterTemplateReady = opportunity is not null && EngagementLetterTemplates.Resolve(opportunity.ServiceRoute) is not null;
@@ -186,7 +188,7 @@ public static class ClientOnboardingReadinessQuery
     FeeAgreementWorkspace? fee = null;
     if (proposal is not null)
     {
-      var feeView = await FeeAgreementWorkspaceQuery.GetAsync(db, actor, proposal.Id, ct);
+      var feeView = await FeeAgreementWorkspaceQuery.GetAsync(db, actor, proposal.Id, ct, automaticDraftingEnabled);
       if (!feeView.Succeeded) return CommandResult<OnboardingReadinessReport>.Fail(feeView.ErrorCode!, feeView.Message!);
       fee = feeView.Value;
     }

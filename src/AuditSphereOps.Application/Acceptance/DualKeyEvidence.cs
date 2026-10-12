@@ -23,19 +23,26 @@ internal static class DualKeyEvidence
 
   /// <summary>
   /// The proposal an engagement is bound to. The fee agreement linked to the engagement is authoritative, because activation reads
-  /// that link; without one, the client's newest proposal is used, as the lifecycle always did.
+  /// that link; without one, only a proposal for the engagement's own service route is considered.
   /// </summary>
   public static async Task<Proposal?> ResolveEngagementProposalAsync(
-    IAuditSphereDbContext db, Guid firmId, Guid engagementId, Guid clientId, CancellationToken ct)
+    IAuditSphereDbContext db, Guid firmId, Guid engagementId, Guid clientId, string serviceRoute, CancellationToken ct)
   {
-    var linkedProposalId = await db.EngagementFeeAgreements.AsNoTracking()
+    var linked = await db.EngagementFeeAgreements.AsNoTracking()
       .Where(x => x.FirmId == firmId && x.EngagementId == engagementId)
-      .Select(x => (Guid?)x.ProposalId).FirstOrDefaultAsync(ct);
-    if (linkedProposalId is { } proposalId)
-      return await db.Proposals.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == firmId && x.Id == proposalId, ct);
-    return await db.Proposals.AsNoTracking()
-      .Where(x => x.FirmId == firmId && x.PracticeClientId == clientId)
-      .OrderByDescending(x => x.CreatedAt).FirstOrDefaultAsync(ct);
+      .Select(x => new { x.ProposalId, x.PracticeClientId }).FirstOrDefaultAsync(ct);
+    if (linked is not null)
+    {
+      if (linked.PracticeClientId != clientId) return null;
+      return await db.Proposals.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == firmId && x.Id == linked.ProposalId, ct);
+    }
+
+    return await (from proposal in db.Proposals.AsNoTracking()
+      join opportunity in db.Opportunities.AsNoTracking()
+        on new { proposal.FirmId, Id = proposal.OpportunityId } equals new { opportunity.FirmId, Id = opportunity.Id }
+      where proposal.FirmId == firmId && proposal.PracticeClientId == clientId && opportunity.ServiceRoute == serviceRoute
+      orderby proposal.CreatedAt descending, proposal.Id descending
+      select proposal).FirstOrDefaultAsync(ct);
   }
 
   /// <summary>The client's current input generation; null when its safety state is missing, which fails closed.</summary>
@@ -56,15 +63,13 @@ internal static class DualKeyEvidence
   }
 
   /// <summary>
-  /// The client commercial key: an accepted proposal whose response cites the exact offer hash it was sent with. When a dispatch
-  /// record exists it must also bind the newest approved quotation revision and that same offer hash. The sent-versus-response
-  /// hash check is stricter than the protected engagement-letter guard, which applies identity only when a dispatch record
-  /// exists; a response that answers a different offer never counts as consent here.
+  /// The client commercial key: an accepted proposal whose response cites the exact offer hash it was sent with, and whose
+  /// dispatch record binds that hash to the newest approved quotation revision. Missing dispatch evidence fails closed.
   /// </summary>
   public static async Task<bool> CommercialAcceptanceStandsAsync(
     IAuditSphereDbContext db, Guid firmId, Proposal proposal, CancellationToken ct)
   {
-    if (proposal.Status != CrmStates.ProposalAccepted || proposal.ResponseAt is null || proposal.PracticeClientId is null) return false;
+    if (proposal.Status != CrmStates.ProposalAccepted || proposal.SentAt is null || proposal.ResponseAt is null || proposal.PracticeClientId is null) return false;
     if (string.IsNullOrWhiteSpace(proposal.SentOfferSha256) || string.IsNullOrWhiteSpace(proposal.ResponseOfferSha256) ||
       !string.Equals(proposal.SentOfferSha256, proposal.ResponseOfferSha256, StringComparison.OrdinalIgnoreCase))
       return false;
@@ -75,8 +80,9 @@ internal static class DualKeyEvidence
     if (newestQuotation is null || newestQuotation.Status != QuotationStates.Approved || newestQuotation.Fee != proposal.Fee) return false;
     var dispatch = await db.CommercialNotifications.AsNoTracking().SingleOrDefaultAsync(
       x => x.FirmId == firmId && x.ProposalId == proposal.Id && x.Kind == CommercialNotificationKinds.Proposal, ct);
-    if (dispatch is null) return true;
-    return dispatch.QuotationVersionId == newestQuotation.Id &&
+    return dispatch is not null && dispatch.QuotationVersionId == newestQuotation.Id &&
+      !string.IsNullOrWhiteSpace(dispatch.OfferSha256) &&
+      string.Equals(dispatch.OfferSha256, proposal.SentOfferSha256, StringComparison.OrdinalIgnoreCase) &&
       string.Equals(dispatch.OfferSha256, proposal.ResponseOfferSha256, StringComparison.OrdinalIgnoreCase);
   }
 }

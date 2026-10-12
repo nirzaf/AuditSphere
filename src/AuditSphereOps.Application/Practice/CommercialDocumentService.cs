@@ -133,7 +133,7 @@ public static partial class CommercialDocumentService
     {
       var partnerAuth = await AuthorizeAsync(db, actor, ["Partner"], ct);
       if (!partnerAuth.Succeeded) return CommandResult<CommercialDocument>.Fail(partnerAuth.ErrorCode!, partnerAuth.Message!);
-      if (proposal.Status != CrmStates.ProposalAccepted || proposal.ResponseAt is null || proposal.PracticeClientId is not { } clientId)
+      if (proposal.Status != CrmStates.ProposalAccepted || proposal.SentAt is null || proposal.ResponseAt is null || proposal.PracticeClientId is not { } clientId)
         return CommandResult<CommercialDocument>.Fail(ErrorCodes.GateBlocked, "Record client acceptance of the current quotation and open client acceptance before generating the engagement letter.");
       var guard = await db.ClientSafetyStates.FromSqlInterpolated(
         $"SELECT * FROM client_safety_states WHERE id = {clientId} AND firm_id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
@@ -148,15 +148,18 @@ public static partial class CommercialDocumentService
       // quotation revision, and the recorded acceptance must cite that dispatched offer identity.
       var dispatch = await db.CommercialNotifications.AsNoTracking().SingleOrDefaultAsync(
         x => x.FirmId == actor.FirmId && x.ProposalId == proposal.Id && x.Kind == CommercialNotificationKinds.Proposal, ct);
-      if (dispatch is not null)
-      {
-        if (dispatch.QuotationVersionId is not { } acceptedQuotation || acceptedQuotation != quotation.Id)
-          return CommandResult<CommercialDocument>.Fail(ErrorCodes.StaleRevision,
-            "The client accepted a different quotation revision than the current one; use a newly approved commercial revision with fresh acceptance for reissue.");
-        if (!string.Equals(dispatch.OfferSha256, proposal.ResponseOfferSha256, StringComparison.OrdinalIgnoreCase))
-          return CommandResult<CommercialDocument>.Fail(ErrorCodes.GenerationStale,
-            "The recorded client acceptance does not cite the dispatched offer identity; re-record the acceptance against the exact dispatched offer.");
-      }
+      if (dispatch is null)
+        return CommandResult<CommercialDocument>.Fail(ErrorCodes.GateBlocked,
+          "A recorded dispatch of the approved offer is required before generating the engagement letter.");
+      if (dispatch.QuotationVersionId != quotation.Id)
+        return CommandResult<CommercialDocument>.Fail(ErrorCodes.StaleRevision,
+          "The client accepted a different quotation revision than the current one; use a newly approved commercial revision with fresh acceptance for reissue.");
+      if (string.IsNullOrWhiteSpace(proposal.SentOfferSha256) || string.IsNullOrWhiteSpace(proposal.ResponseOfferSha256) ||
+        string.IsNullOrWhiteSpace(dispatch.OfferSha256) ||
+        !string.Equals(dispatch.OfferSha256, proposal.SentOfferSha256, StringComparison.OrdinalIgnoreCase) ||
+        !string.Equals(proposal.SentOfferSha256, proposal.ResponseOfferSha256, StringComparison.OrdinalIgnoreCase))
+        return CommandResult<CommercialDocument>.Fail(ErrorCodes.GenerationStale,
+          "The recorded client acceptance does not cite the exact dispatched offer identity; re-record the acceptance against that offer.");
     }
 
     var existing = await db.CommercialDocuments.AsNoTracking()

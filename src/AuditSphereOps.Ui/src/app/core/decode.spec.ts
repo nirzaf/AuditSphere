@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { arr, dec, decimalInput, decode, guid, money, nullable, obj, oneOf, percent, str } from './decode';
+import { arr, dec, decimalInput, decode, guid, instant, money, nullable, obj, oneOf, percent, str } from './decode';
 
 describe('decoder kit', () => {
   const row = obj({ id: guid, amount: dec, status: oneOf('DRAFT', 'POSTED'), note: nullable(str(10)) });
@@ -29,5 +29,11 @@ describe('decoder kit', () => {
     expect(decimalInput('1,234.50')).toBe('1234.50');
     expect(decimalInput('1e5')).toBeNull();
     expect(decimalInput('1.123456')).toBeNull();
+  });
+  it('requires timestamps to declare their timezone', () => {
+    expect(decode(instant, '2026-10-12T10:15:30Z')).toBe('2026-10-12T10:15:30Z');
+    expect(decode(instant, '2026-10-12T10:15:30.123+03:00')).toBe('2026-10-12T10:15:30.123+03:00');
+    expect(() => decode(instant, '2026-10-12T10:15:30')).toThrow();
+    expect(() => decode(instant, '2026-10-12T10:15Z')).toThrow();
   });
 });

@@ -23,7 +23,7 @@ export const nat: Decoder<number> = (v, p) => (Number.isSafeInteger(v) && (v as 
 export const bool: Decoder<boolean> = (v, p) => (typeof v === 'boolean' ? v : fail(p, 'boolean'));
 export const date: Decoder<string> = (v, p) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : fail(p, 'date'));
 export const instant: Decoder<string> = (v, p) =>
-  typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T[\d:.]+(Z|[+-]\d{2}:\d{2})?$/.test(v) ? v : fail(p, 'timestamp');
+  typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(v) ? v : fail(p, 'timestamp');
 /** Non-sensitive opaque concurrency tokens (row versions, generations, hashes). */
 export const token: Decoder<string> = (v, p) => (typeof v === 'string' && /^[A-Za-z0-9+/=_:.-]{1,200}$/.test(v) ? v : fail(p, 'token'));
 export const sha256: Decoder<string> = (v, p) => (typeof v === 'string' && /^[0-9a-f]{64}$/i.test(v) ? v : fail(p, 'SHA-256'));

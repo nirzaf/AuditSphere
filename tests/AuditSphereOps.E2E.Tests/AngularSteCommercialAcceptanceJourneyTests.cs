@@ -137,6 +137,7 @@ public sealed class AngularSteCommercialAcceptanceJourneyTests
     var opportunityId = Guid.NewGuid();
     var proposalId = Guid.NewGuid();
     var quotationId = Guid.NewGuid();
+    var offerHash = Hashing.Sha256Hex("synthetic accepted and dispatched offer:" + serviceRoute);
     await using (var db = host.CreateDbContext())
     {
       db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, partner, "Partner"));
@@ -159,7 +160,8 @@ public sealed class AngularSteCommercialAcceptanceJourneyTests
         Revision = 1, Status = CrmStates.ProposalAccepted, ServiceProfileId = "SYNTHETIC-STE-2026",
         Scope = "Synthetic route-specific engagement", Deliverables = "Synthetic final report",
         Exclusions = "", Dependencies = "", Fee = 20_000m, Currency = "QAR",
-        PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", ResponseAt = now,
+        PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", SentAt = now, SentOfferSha256 = offerHash,
+        ResponseAt = now, ResponseOfferSha256 = offerHash,
         ResponseEvidenceReference = "synthetic-accepted-offer", RespondentName = "Synthetic signatory",
         RespondentEmail = "signatory@example.test", CreatedAt = now
       });
@@ -170,6 +172,13 @@ public sealed class AngularSteCommercialAcceptanceJourneyTests
         InputHash = Hashing.Sha256Hex("synthetic-approved-quotation:" + serviceRoute),
         Status = QuotationStates.Approved, RequiredApprovalsJson = "[]", CreatedByUserId = f.Admin.Id,
         CreatedAt = now, ApprovedAt = now
+      });
+      db.CommercialNotifications.Add(new CommercialNotification
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, Kind = CommercialNotificationKinds.Proposal,
+        ProposalId = proposalId, PracticeClientId = f.ClientId, QuotationVersionId = quotationId,
+        OfferSha256 = offerHash, Recipient = "signatory@example.test", Subject = "Synthetic dispatched offer",
+        Body = "Synthetic test evidence", CreatedAt = now
       });
       db.FirmCommercialProfiles.Add(new FirmCommercialProfile
       {
