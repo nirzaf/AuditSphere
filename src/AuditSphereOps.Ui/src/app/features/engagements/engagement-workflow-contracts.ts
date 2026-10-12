@@ -11,6 +11,41 @@ export const WORKFLOW_PHASES = [
   { index: 7, code: 'ARCHIVE_CLOSE', label: 'Archive and Close' },
 ] as const;
 
+/**
+ * Workbench links that matter in each visible phase (STE v2.2 section 6.2). Each link opens an existing workbench, and that
+ * workbench enforces its own permissions: the browser never decides who may open one.
+ */
+export interface WorkbenchLink {
+  readonly key: string;
+  readonly label: string;
+  readonly href: string;
+}
+
+const WORKBENCH_KEYS_BY_PHASE: Readonly<Record<string, readonly string[]>> = {
+  CLIENT_ONBOARDING: ['client', 'finance'],
+  AUDIT_PLANNING: ['planning', 'statements', 'pbc', 'client'],
+  AUDIT_FIELDWORK: ['statements', 'fieldwork', 'pbc'],
+  MANAGER_REVIEW: ['fieldwork', 'pbc', 'completion'],
+  PARTNER_SIGNOFF: ['completion', 'fieldwork'],
+  REPORT_DELIVERY: ['completion', 'pbc', 'finance'],
+  ARCHIVE_CLOSE: ['records', 'completion', 'finance'],
+};
+
+export function workbenchLinksFor(phaseCode: string, engagementId: string, clientId: string): WorkbenchLink[] {
+  const keys = WORKBENCH_KEYS_BY_PHASE[phaseCode] ?? [];
+  const build: Record<string, { label: string; href: string }> = {
+    client: { label: 'Client workbench', href: `/app/clients/${clientId}` },
+    planning: { label: 'Engagement planning', href: `/app/engagements/${engagementId}/audit-plan` },
+    statements: { label: 'Financial statement lines (FSLI)', href: `/app/engagements/${engagementId}/statements` },
+    fieldwork: { label: 'Fieldwork and review', href: `/app/engagements/${engagementId}/audit-fieldwork` },
+    pbc: { label: 'Client requests (PBC)', href: `/app/engagements/${engagementId}/pbc` },
+    completion: { label: 'Completion and report', href: `/app/engagements/${engagementId}/completion` },
+    finance: { label: 'Finance', href: '/app/finance' },
+    records: { label: 'Records and archive', href: `/app/records/archives/${engagementId}` },
+  };
+  return keys.map((key) => ({ key, ...build[key] }));
+}
+
 const phaseStatus = oneOf('NOT_STARTED', 'IN_PROGRESS', 'BLOCKED', 'COMPLETED', 'ARCHIVED');
 
 const phaseDecoder = obj({

@@ -5,7 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { Subscription, timeout } from 'rxjs';
 import { SessionService } from '../../core/session';
 import { guidPattern } from '../../core/contracts';
-import { EngagementWorkflowReport, decodeEngagementWorkflowReport } from './engagement-workflow-contracts';
+import { EngagementWorkflowReport, decodeEngagementWorkflowReport, workbenchLinksFor, WorkbenchLink } from './engagement-workflow-contracts';
 
 const PHASE_STATUS_LABELS: Record<string, string> = {
   NOT_STARTED: 'Not started',
@@ -55,6 +55,10 @@ export class EngagementWorkflow {
       this.destroyed = true;
       this.request?.unsubscribe();
     });
+  }
+
+  workbenchLinks(report: EngagementWorkflowReport): WorkbenchLink[] {
+    return workbenchLinksFor(report.currentPhase.code, report.engagementId, report.clientId);
   }
 
   statusLabel(status: string): string {

@@ -3,6 +3,7 @@ import {
   WORKFLOW_PHASES,
   decodeEngagementWorkflowReport,
   decodeOnboardingReadinessReport,
+  workbenchLinksFor,
 } from './engagement-workflow-contracts';
 
 const id = '11111111-2222-3333-4444-555555555555';
@@ -216,5 +217,32 @@ describe('Dual-Key onboarding readiness contract (WF-03)', () => {
     expect(() => decodeOnboardingReadinessReport(readiness({
       advancePayment: { ...readiness().advancePayment, amount: '25000.5e3' },
     }))).toThrow();
+  });
+});
+
+describe('Phase workbench links (STE v2.2 section 6.2)', () => {
+  it('offers the workbenches that matter in each phase, and only those', () => {
+    const keys = (phase: string) => workbenchLinksFor(phase, id, clientId).map((link) => link.key);
+    expect(keys('AUDIT_FIELDWORK')).toEqual(['statements', 'fieldwork', 'pbc']);
+    expect(keys('PARTNER_SIGNOFF')).toEqual(['completion', 'fieldwork']);
+    expect(keys('ARCHIVE_CLOSE')).toEqual(['records', 'completion', 'finance']);
+  });
+
+  it('routes each link to its existing workbench for this engagement and client', () => {
+    const links = workbenchLinksFor('AUDIT_PLANNING', id, clientId);
+    expect(links.find((link) => link.key === 'planning')?.href).toBe(`/app/engagements/${id}/audit-plan`);
+    expect(links.find((link) => link.key === 'client')?.href).toBe(`/app/clients/${clientId}`);
+  });
+
+  it('keeps every link on an internal application route', () => {
+    for (const phase of WORKFLOW_PHASES) {
+      for (const link of workbenchLinksFor(phase.code, id, clientId)) {
+        expect(link.href).toMatch(/^\/app\/[A-Za-z0-9/_-]+$/);
+      }
+    }
+  });
+
+  it('offers no workbench for a phase it does not recognise', () => {
+    expect(workbenchLinksFor('UNKNOWN_PHASE', id, clientId)).toEqual([]);
   });
 });

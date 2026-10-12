@@ -82,6 +82,15 @@
           <a matButton [routerLink]="action.href">{{ action.label }}</a>
         }
       </div>
+
+      <nav class="workbench-links" aria-label="Workbenches for this phase">
+        <h4>Workbenches for this phase</h4>
+        <ul>
+          @for (link of workbenchLinks(report); track link.key) {
+            <li><a [routerLink]="link.href">{{ link.label }}</a></li>
+          }
+        </ul>
+      </nav>
     </article>
   }
 </section>
