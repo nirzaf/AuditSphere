@@ -4,7 +4,8 @@
 
 | Attribute | Specification Details |
 | :--- | :--- |
-| **Document Version** | 2.1 |
+| **Document Version** | 2.2 |
+| **Source Baseline** | Audit Management Tool Specification v2.2 (Google Drive source). v2.2 keeps the five modules, the eleven canonical states and all v2.1 requirements, and adds the seven-phase workflow layer (Workflow Experience Addendum, §4.1.3 Enhanced Dual-Key Acceptance, §5.3, §6 and §7). Delivery status of the v2.2 additions is recorded in the [v2.2 workflow-experience delta](../execution/auditsphere-execution-tracker-ste-v21-gap-verification-current.md#v22-workflow-experience-delta), not here. |
 | **Document Status** | `CURRENT` |
 | **Target Focus** | Business Logic, Functional Requirements, Task Sequences & Module Workflows |
 | **Auditing Standards Context** | International Standards on Auditing (ISA) & International Financial Reporting Standards (IFRS) |
@@ -29,6 +30,9 @@ The implementation intentionally differs from the original wording in the places
 
 ## Executive Table of Contents
 
+- [Workflow Experience Addendum — Version 2.2](#workflow-experience-addendum--version-22)
+  - [Visual overview — seven user-facing phases](#visual-overview--seven-user-facing-phases)
+  - [Two-layer authority model](#two-layer-authority-model)
 - [1. Requirement Gathering & Operational Context](#1-requirement-gathering--operational-context)
   - [1.1 Business Objectives & Problem Statement](#11-business-objectives--problem-statement)
   - [1.2 User Personas & Responsibility Matrix](#12-user-personas--responsibility-matrix)
@@ -48,6 +52,63 @@ The implementation intentionally differs from the original wording in the places
 - [5. System State Machine & Lifecycle Transitions](#5-system-state-machine--lifecycle-transitions)
   - [5.1 State Machine Transition Matrix](#51-state-machine-transition-matrix)
   - [5.2 State Machine Visual Workflow](#52-state-machine-visual-workflow)
+  - [5.3 Display Phases and Canonical States](#53-display-phases-and-canonical-states)
+- [6. Simplified Seven-Phase Engagement Workflow — New Requirements](#6-simplified-seven-phase-engagement-workflow--new-requirements)
+  - [6.1 Purpose and mapping](#61-purpose-and-mapping)
+  - [6.2 Engagement dashboard](#62-engagement-dashboard)
+  - [6.3 Phase detail requirements](#63-phase-detail-requirements)
+  - [6.4 Reusable practice templates](#64-reusable-practice-templates)
+  - [6.5 Recurring audit engagements](#65-recurring-audit-engagements)
+  - [6.6 Safe workflow automation](#66-safe-workflow-automation)
+  - [6.7 User role, security and progress rules](#67-user-role-security-and-progress-rules)
+  - [6.8 Acceptance criteria](#68-acceptance-criteria)
+- [7. Architectural Non-Regression Requirements — New](#7-architectural-non-regression-requirements--new)
+
+---
+
+# Workflow Experience Addendum — Version 2.2
+
+The product SHALL present a Karbon-inspired, easy-to-follow seven-phase engagement workflow while preserving all five functional modules and the eleven mandatory backend lifecycle states in Section 5. The display phases are a projection of audited business records; they are NOT a second state machine. Completing a UI task never substitutes for a verified acceptance, finance, audit review, Partner, release or archive command.
+
+Seven visible phases: 1. Client Onboarding; 2. Audit Planning; 3. Audit Fieldwork; 4. Manager Review; 5. Partner Sign-off; 6. Report & Delivery; 7. Archive & Close.
+
+Design principles: show current phase, responsible role, next action, due date, completion progress and exact blockers; expand advanced checks inside a phase; display Waiting for Client, Under Review, Rework Required and Blocked clearly. Keep internal lifecycle codes away from ordinary navigation. The existing detailed requirements remain authoritative.
+
+## Visual overview — seven user-facing phases
+
+The diagram below is a **simplified user-facing projection**, not a new backend state machine. In particular, Dual-Key Acceptance is a subsection of Client Onboarding, and the advance-payment gate remains distinct.
+
+```mermaid
+flowchart LR
+    ON["1. Client Onboarding"] --> PLAN["2. Audit Planning"]
+    PLAN --> FIELD["3. Audit Fieldwork"]
+    FIELD --> REVIEW["4. Manager Review"]
+    REVIEW --> DEC{"Review accepted?"}
+    DEC -->|"No: documented rework"| FIELD
+    DEC -->|"Yes"| PARTNER["5. Partner Sign-off"]
+    PARTNER --> REPORT["6. Report and Delivery"]
+    REPORT --> ARCHIVE["7. Archive and Close"]
+    classDef decision fill:#fff1d6,stroke:#b88b2c,color:#5d4316
+    classDef archived fill:#e0f4e5,stroke:#21844a,color:#165d34
+    class DEC decision
+    class ARCHIVE archived
+```
+
+## Two-layer authority model
+
+```mermaid
+flowchart TB
+    subgraph UI["Presentation and orchestration layer"]
+        PHASE["Seven visible phases"] --> TASK["Tasks, templates, work queues and reminders"]
+    end
+    subgraph CORE["Authoritative business and compliance layer"]
+        EVIDENCE["Versioned business evidence"] --> PROJECTION["Eleven-state derived lifecycle"]
+        COMMAND["Authorized domain commands and gates"] --> EVIDENCE
+    end
+    TASK -->|"Request authorized action"| COMMAND
+    PROJECTION -->|"Project current phase, blockers and permitted next action"| PHASE
+    TASK -.->|"May not directly set stage or forge approval"| PROJECTION
+```
 
 ---
 
@@ -430,6 +491,59 @@ The system shall strictly disallow the generation of an Engagement Letter until 
 * **Key 1 (Commercial Approval):** Recorded confirmation of client quote acceptance.
 * **Key 2 (Risk Clearance):** Partner completion and digital sign-off of the Client Acceptance/Continuance Checklist (ISA 220).
 
+#### Enhanced Dual-Key Acceptance — mandatory workflow requirements for version 2.2
+
+**Approval decision matrix**
+
+| Key 1: client commercial acceptance | Key 2: Partner risk clearance | Engagement Letter | Planning activation |
+| --- | --- | --- | --- |
+| Missing | Missing | Blocked | Blocked |
+| Approved | Missing or stale | Blocked | Blocked |
+| Missing or stale | Approved | Blocked | Blocked |
+| Current and valid | Current and unconditional | Eligible for separately authorized issuance | Blocked until 50% advance is fully paid and allocated |
+| Current and valid | Current and unconditional; 50% advance allocated | Eligible for separately authorized issuance | Eligible, subject to other holds and authorization checks |
+
+**Actor sequence**
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant CRM as Commercial Workspace
+    participant Partner
+    participant Risk as Acceptance Records
+    participant Docs as Engagement Documents
+    participant Finance
+    participant Planning
+    Client->>CRM: Accept exact dispatched quotation revision
+    CRM->>Risk: Persist commercial response evidence
+    Partner->>Risk: Review AML, KYC, independence and continuance
+    Partner->>Risk: Record current risk decision
+    CRM->>Risk: Recheck both independent approval keys
+    alt Both keys current and approved
+        Risk-->>Docs: Engagement Letter generation eligible
+        Docs->>Finance: Initiate 50 percent advance fee workflow
+        Finance->>Finance: Record and allocate payment
+        alt Advance fully paid and no outstanding hold
+            Finance-->>Planning: Activation may proceed through authorized command
+        else Unpaid, partial, stale or held
+            Finance-->>Planning: Activation blocked with exact reasons
+        end
+    else Missing or invalid approval
+        Risk-->>CRM: Block document; show missing or stale key
+    end
+```
+
+- **Key 1 — Client Commercial Acceptance:** Capture the client's acceptance of the exact dispatched quotation revision, scope, legal entity, service route, period, currency, fee and 50/50 payment terms. Record authorized contact, response channel, timestamp and linked acceptance evidence. A changed offer requires a renewed acceptance.
+- **Key 2 — Partner Risk Clearance:** Independently require the Engagement Partner's current, unconditional client acceptance/continuance decision against the current due-diligence generation. Require AML/KYC, beneficial ownership, independence, conflicts, management integrity and other relevant risk checks. Conditional, rejected, superseded or stale decisions never clear this key.
+- **Gate outcomes:** neither key ⇒ blocked, two approvals needed; only Key 1 ⇒ awaiting Partner risk clearance; only Key 2 ⇒ awaiting client commercial acceptance; both current keys ⇒ eligible for Engagement Letter, NOT automatically activated.
+- The full 50% advance payment is a separate gate after the two keys: generate the Engagement Letter and advance invoice under their existing authorization rules; activate engagement and portal-enabled planning only after the linked 50% advance is fully paid and allocated. A partially paid or merely invoiced advance is not sufficient.
+- **Changes and exceptions:** a declined proposal returns to revision/re-dispatch or closure; a conditional or refused Partner decision returns to risk remediation and fresh unconditional review; open holds, stale commercial revisions and mismatched client/service scopes block protected operations. Never let task completion, workflow rules or staff overrides bypass these guards.
+- **Onboarding interface:** provide two independent approval cards, each showing Pending, Awaiting Evidence, Approved, Rejected or Stale as applicable, owner, time, evidence link, revision and authorized next action. Show a separate Engagement Letter readiness row and a third 50% Advance Payment card. Hide sensitive AML/KYC findings from the client portal.
+- **Audit history:** preserve the authentic approving actor, decision generation, source evidence, timestamps and reason for rejection; re-evaluate both keys at document generation and activation, and reject stale or concurrently changed inputs.
+- **Worked example:** on an accepted QAR 20,000 quotation, Partner acceptance is still mandatory before an Engagement Letter may be issued. Both keys permit letter issuance and the QAR 10,000 advance invoice, but activation waits until the full QAR 10,000 is received and allocated.
+
+*Implementation note:* the unconditional 50% advance activation gate is recorded in ADR-0012. The matrix describes required behaviour; it does not by itself prove it. Verification status is in the v2.2 delta of the gap-verification tracker.
+
 ### 4.1.4 Engagement Letter Generation (ISA 210)
 
 * **Template Selection:** Automatically pull standardized templates based on engagement type:
@@ -644,3 +758,101 @@ stateDiagram-v2
     COMPLIANCE_COUNTDOWN --> ARCHIVED_READ_ONLY: 60 Calendar Days Elapsed (ISA 230) OR Manual Partner Lock
     ARCHIVED_READ_ONLY --> [*]: Permanently Sealed Read-Only Archive
 ```
+
+## 5.3 Display Phases and Canonical States
+
+The eleven canonical states in §5.1 remain authoritative. Sections 6 and 7 present a simpler seven-phase user-facing workflow but do not replace these gate conditions. The diagram in §5.2 is not itself a permission model: transitions follow their underlying business commands and evidentiary gates.
+
+| Display phase | Canonical states represented |
+| --- | --- |
+| 1. Client Onboarding | `LEAD_INGESTION`, `PROPOSAL_GENERATION`, `DUAL_KEY_PENDING`, `ADVANCE_BILLING` |
+| 2. Audit Planning | `PORTAL_ACTIVE_PLANNING` |
+| 3. Audit Fieldwork | `FIELDWORK_EXECUTION` |
+| 4. Manager Review | `MANAGERIAL_REVIEW` |
+| 5. Partner Sign-off | `PARTNER_APPROVAL` |
+| 6. Report and Delivery | `DELIVERABLE_RELEASE` |
+| 7. Archive and Close | `COMPLIANCE_COUNTDOWN`, `ARCHIVED_READ_ONLY` |
+
+---
+
+# 6. Simplified Seven-Phase Engagement Workflow — New Requirements
+
+## 6.1 Purpose and mapping
+
+This user-interface and task orchestration layer SHALL NOT modify the canonical Section 5 lifecycle state names, stage gates, reviews, or compliance evidence. Map stages as follows:
+
+- Phase 1 Client Onboarding: `LEAD_INGESTION`, `PROPOSAL_GENERATION`, `DUAL_KEY_PENDING`, `ADVANCE_BILLING`.
+- Phase 2 Audit Planning: `PORTAL_ACTIVE_PLANNING`.
+- Phase 3 Audit Fieldwork: `FIELDWORK_EXECUTION`.
+- Phase 4 Manager Review: `MANAGERIAL_REVIEW`, with procedure-level rework loop back to affected fieldwork.
+- Phase 5 Partner Sign-off: `PARTNER_APPROVAL`.
+- Phase 6 Report & Delivery: `DELIVERABLE_RELEASE`.
+- Phase 7 Archive & Close: `COMPLIANCE_COUNTDOWN` and `ARCHIVED_READ_ONLY`.
+
+## 6.2 Engagement dashboard
+
+Show a seven-step visual tracker with simple titles, responsible user, relevant milestone/date, task completion, gate readiness, explicit blockers and the next permitted action. Offer expandable phase checklists and contextual links to client, planning, financial statement line item, PBC, review, completion, finance and records workbenches. Distinguish task completion from regulatory clearance. Make the design responsive and keyboard accessible.
+
+## 6.3 Phase detail requirements
+
+- **Client Onboarding:** quotation and client response, separated dual-key approvals, Engagement Letter, 50% invoice/payment and activation eligibility.
+- **Audit Planning:** staff and deadlines, workspace provisioning, TB import, approved mapping, materiality PM/TE/SAD, risk routing and Partner planning approval. Updated inputs must invalidate stale approvals.
+- **Audit Fieldwork:** FSLI action links, workprograms, evidence, analytical reviews, sampling, preparer assignments and versioned result submission.
+- **Manager Review:** independent reviewer authority and risk-based hierarchy; mandatory comments on rejection; preserve history and route affected work back to its preparer; resolve all relevant review notes; compile a current SRM.
+- **Partner Sign-off:** review high-risk areas/SRM, select an ISA opinion and rationale when modified, and sign the final report under approved credentials.
+- **Report & Delivery:** independently evaluated critical confirmations, controlled audited statement and report delivery, management letter, LOR, correspondence, final fee note and release checkpoints.
+- **Archive & Close:** signature-anchored 60-day countdown, authorized early lock and effective local read-only freeze. Show external provider retention/protection independently; an expired timer alone is not archive success.
+
+## 6.4 Reusable practice templates
+
+Permit administrator-approved versioned templates by engagement type and industry, with editable task groups, owners, due-date offsets, dependencies, effort estimates, client requests and ad-hoc tasks. Pin a template revision to each engagement; changes to templates do not silently rewrite existing work. These templates cannot remove mandatory domain gates. Provide My Tasks, Team Work, Waiting for Client, Under Review, Rework, Overdue and Completed list filters plus Kanban/calendar views.
+
+## 6.5 Recurring audit engagements
+
+Support creating the next annual engagement with reusable templates, prior-year client details and historical mapping suggestions. Require fresh commercial consent, current Partner continuance risk approval, current TB/materiality, professional audit review and reporting decisions. Never carry prior-year acceptance or opinion sign-offs forward as valid authorization.
+
+## 6.6 Safe workflow automation
+
+```mermaid
+flowchart LR
+    T["Versioned task template"] --> RUN["Engagement task instances"]
+    RUN --> AUTO["Task automator"]
+    AUTO --> GOOD["Permitted: assignments, follow-ups, reminders and escalation"]
+    AUTO --> G{"Needs protected professional or financial decision?"}
+    G -->|"Yes"| C["Submit to authorized domain command and independent actor"]
+    G -->|"No"| GOOD
+    C --> V["Check role, client scope, evidence and current revision"]
+    V --> E["Persist authentic decision and audit event"]
+    E --> PROJ["Recompute canonical lifecycle projection"]
+    classDef decision fill:#fff1d6,stroke:#b88b2c,color:#5d4316
+    class G decision
+```
+
+Automators MAY assign tasks, create follow-up checklists, set reminders and due dates, escalate overdue PBC requests and notify permitted users after genuine domain events. They SHALL NOT synthesize approvals, record payment, clear risk, approve materiality, sign an opinion, post invoices, issue release or freeze files. Every automation must reauthorize, use idempotency keys, pin current versions, log its changes and fail safely on stale inputs. Task graphs must reject dependency cycles.
+
+## 6.7 User role, security and progress rules
+
+Preparer sees assigned fieldwork/rework; Reviewer sees submissions and review notes; Partner sees acceptance, high-risk areas, opinion and release; Client sees only authorized commercial and PBC status. Calculate phase readiness from server-side records, not mutable task flags. Track task percentage separately from mandatory gate satisfaction, avoid leaking AML/KYC evidence to client users and show readable blocker reasons.
+
+## 6.8 Acceptance criteria
+
+Acceptance criteria to verify:
+
+1. All 11 canonical states map to exactly one of seven phases.
+2. Absent/one-key approvals block Engagement Letter issuance.
+3. Both keys allow the letter but do not bypass the full 50% advance.
+4. Changed offer or risk basis invalidates the affected approval.
+5. Rejection/conditional clearance and open holds cannot be overwritten through tasks.
+6. Independent reviewer and mandatory rework comments remain enforced.
+7. Open review notes and stale materiality block subsequent professional decisions.
+8. Critical confirmation cases block report release.
+9. Frozen archival state requires an effective committed lock and does not imply external immutability.
+10. Recurring templates never copy professional sign-offs as current.
+11. Scoped actors cannot access unrelated clients.
+12. Automation retries cannot duplicate or forge domain events.
+
+---
+
+# 7. Architectural Non-Regression Requirements — New
+
+All domain commands and evidence records remain the sole authority for progression. The existing 11-stage derived lifecycle and five function modules remain unchanged. The seven-phase user experience is a deterministic presentation mapping. Task templates, personal work queues, recurring-engagement creation, deadline automation and dashboard analytics are separate supporting capabilities. All permissions, professional judgments, signed document integrity, 50/50 commercial terms and archive protections must continue to be enforced by authoritative services. Review external Microsoft identity/SharePoint/records protections separately before labelling them production compliant.

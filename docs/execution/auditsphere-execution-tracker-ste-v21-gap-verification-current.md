@@ -3,7 +3,7 @@
 **Status: CURRENT** as a requirement map. Its original source baseline is `e0afe18` (2026-10-08); later rows carry their implementation story and later verification is recorded in `docs/execution/status.json` and the current-slice handoff. This map is not a full acceptance certification of the current tree.
 **Method:** each baseline row was checked against source at its cited commit. "Present" means the code path exists and was read; it does **not** by itself mean the behaviour was executed. Tests restored under STE-NXT-001 provide executable evidence, but current-tree acceptance requires the recorded suite results. The earlier [coverage table](auditsphere-ste-specification-coverage-current.md) remains the narrative record; its verification column cites test classes that no longer exist.
 
-**Verdicts:** `PRESENT` code path exists · `GAP` required piece missing (story listed) · `DEVIATION` intentional difference (ADR listed) · `EXTERNAL` needs live tenant (`BLOCKED_EXTERNAL`) · `DECISION` needs an owner decision · `NOT CHECKED` not examined in this pass.
+**Verdicts:** `PRESENT` code path exists · `PARTIAL` some of the required behaviour exists, the remainder is a listed gap · `GAP` required piece missing (story listed) · `DEVIATION` intentional difference (ADR listed) · `EXTERNAL` needs live tenant (`BLOCKED_EXTERNAL`) · `DECISION` needs an owner decision · `NOT CHECKED` not examined in this pass.
 
 ## Current-tree verification and decision status — 2026-10-10
 
@@ -75,3 +75,24 @@
 - 1 open existing story with commercial impact: AS-PAR-009.
 - Archive immutability and live Microsoft behaviour remain external (ADR-0006, SPK-01; BLOCKED_EXTERNAL).
 - Not checked at `e0afe18`: engagement-letter template selection in Angular, the split-dashboard layout. The engagement-letter template choice was checked in STE-NXT-008 and is present. The split-dashboard layout is present, and its per-line links carry their context to the screens (STE-NXT-013). Requirements copy accuracy was open at `e0afe18`; STE-NXT-007 applied the corrections and the owner-delegated ADR confirmations are recorded in the current ADR register.
+
+## v2.2 workflow-experience delta
+
+**Status: CURRENT** as a requirement map for the additions in STE v2.2 (workflow experience addendum, enhanced Dual-Key Acceptance in §4.1.3, display-phase mapping in §5.3, §6 and §7 of the [requirements copy](../requirements/auditsphere-accounting-module-requirements-current.md)). v2.2 keeps every v2.1 requirement, persona and number; the v2.1 rows above remain the baseline and were **not** re-verified in this pass. This delta records where the current code stands against the new text. It reads the delivery recorded under the AS-WF-V22 epic; it does not execute anything and is not an acceptance certification. Exact test results, counts and commits are recorded in `docs/execution/status.json` (`remainingLocalWork` item AS-WF-V22 and `targetedVerification.workflowExperienceV22`) and in the current-slice handoff.
+
+| Spec | Requirement | Evidence | Verdict |
+| --- | --- | --- | --- |
+| Addendum, 5.3, 6.1, 6.8 (1) | Seven display phases derived from the existing canonical states; phases are presentation only | `Application/Acceptance/EngagementDisplayPhaseMapper.cs`, `EngagementWorkflowWorkspaceQuery.cs`, read-only Angular projection `features/engagements/engagement-workflow.ts`; domain projection tests | PRESENT (AS-WF-V22 PRs A to C) |
+| 4.1.3 | Enhanced Dual-Key Acceptance: client approval and Partner risk approval, with engagement letter and 50% advance as separate readiness cards; activation gate unconditional | Readiness cards in the workflow projection; advance gate per ADR-0012 with `EngagementActivationAdvanceGateTests` | PRESENT; owner decision open: the protected-letter guard applies offer identity only when a dispatch record exists, while the read model requires it always |
+| 6.2 | Engagement dashboard: phase tracker, responsible role, blockers, one next action, local versus provider archive state | Present in the workflow projection contract. Not in the contract: milestone dates, task-completion percentage, expandable checklists, multi-workbench contextual links | PARTIAL |
+| 6.3 | Phase detail views | Onboarding detail present; completion and archive cards (WF-13) not delivered | PARTIAL |
+| 6.4 | Task templates, plan instantiation, My Tasks, Team Work, Kanban and calendar views | `WorkflowTaskBinding` on the existing `WorkTask` and its migration exist as persistence only; the API is default-off (`WorkflowExperience:Enabled=false`) and the migration is created but not applied. No templates, queues or Angular task views (WF-05 to WF-08, WF-12) | GAP |
+| 6.5 | Recurring annual engagement creation | Only the existing continuance acceptance path (`AcceptanceChecklistService.StartContinuanceAsync`); no next-year creation from a template (WF-11) | GAP |
+| 6.6 | Safe automation: task automator, PBC reminders | Not delivered (WF-09, WF-10) | GAP |
+| 6.7 | Roles, security and progress: readiness derived on the server, task progress separate from gates | Server-derived readiness present; the separation of task percentage from gates cannot be verified until task progress exists; Readiness projection requires a firm-wide grant | PARTIAL |
+| 6.8 (2, 3, 5 to 9, 11) | Acceptance criteria that rest on existing v2.1 gates | Underlying v2.1 rows above are PRESENT; not re-verified against the v2.2 wording | NOT CHECKED |
+| 6.8 (4, 10, 12) | Criteria that need templates, automation or recurrence | Depend on the open items above | GAP |
+| 7 | Architectural non-regression: no new canonical states, no change to the three financial boundaries, additive and default-off | PRs A to C add no schema change; the task foundation is additive and default-off | PRESENT by design; regression evidence is recorded in `status.json` |
+
+- The generated acceptance manifest (`docs/execution/ste-v2-1-acceptance-manifest.json`) and its generator keep the v2.1 scope and were not regenerated for v2.2.
+- The lead-level pre-engagement journey and AS-WF-V22 production acceptance (WF-15) remain open. Live provider and tenant behaviour stays `BLOCKED_EXTERNAL`.

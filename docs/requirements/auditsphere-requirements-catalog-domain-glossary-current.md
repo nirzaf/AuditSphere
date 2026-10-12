@@ -80,6 +80,18 @@ This badge mapping is inferred from the state names and the portal behaviour des
 
 The specification §5 states are a **derived projection** (`CanonicalEngagementStages` in `Application/Acceptance/EngagementLifecycleQuery.cs`, endpoint `GET /api/ui/engagements/{id}/lifecycle`), not a stored status column: `LEAD_INGESTION` → `PROPOSAL_GENERATION` → `DUAL_KEY_PENDING` → `ADVANCE_BILLING` → `PORTAL_ACTIVE_PLANNING` → `FIELDWORK_EXECUTION` → `MANAGERIAL_REVIEW` → `PARTNER_APPROVAL` → `DELIVERABLE_RELEASE` → `COMPLIANCE_COUNTDOWN` → `ARCHIVED_READ_ONLY`. A stage advances only when the underlying gates' records exist (ADR-0004).
 
+## Workflow experience (specification v2.2)
+
+Display phases are a second, presentation-only layer over the canonical stages above. They never add a stored status, never replace a gate and never change a financial boundary.
+
+| Term | Meaning | Code identifier |
+| --- | --- | --- |
+| Display phase | One of seven user-facing phases: `CLIENT_ONBOARDING`, `AUDIT_PLANNING`, `AUDIT_FIELDWORK`, `MANAGER_REVIEW`, `PARTNER_SIGNOFF`, `REPORT_DELIVERY`, `ARCHIVE_CLOSE`. Each groups one or more canonical stages (onboarding covers lead ingestion through advance billing; archive covers the compliance countdown and read-only stages). | `EngagementDisplayPhaseMapper` |
+| Workflow projection | Read-only server-computed view of the seven phases with status, responsible role, blockers, at most one next action, Dual-Key readiness cards and local versus provider archive state. | `EngagementWorkflowWorkspaceQuery` |
+| Enhanced Dual-Key Acceptance | Client approval (Key 1) and Partner risk approval (Key 2) shown with the engagement letter and the 50 % advance as separate readiness cards; activation still requires the unconditional advance gate (ADR-0012). | `EngagementWorkflowWorkspaceQuery`, `EngagementActivationAdvanceGateTests` |
+| Workflow task | An existing `WorkTask` bound to a display phase, with optional template revision and step origin, a stable source key and a due-date policy. Task completion never satisfies a gate by itself. Persistence exists and is default-off. | `WorkflowTaskBinding` |
+| Task template, task automator | Specification v2.2 requirements for reusable phase task plans and for safe automation that only creates tasks, reminders and drafts. Not yet delivered; see the [v2.2 delta](../execution/auditsphere-execution-tracker-ste-v21-gap-verification-current.md#v22-workflow-experience-delta). | — |
+
 ## Status vocabulary used in docs
 
 `CURRENT`, `APPROVED`, `PROPOSED`, `HISTORICAL_SOURCE`, `SUPERSEDED` (document authority); `PASS_LOCAL_SLICE`, `LOCAL_VERIFIED`, `PARTIAL`, `READY_FOR_REVIEW`, `BLOCKED_EXTERNAL`, `OUT_OF_SCOPE` (evidence and gate state, recorded only in `docs/execution/status.json`).

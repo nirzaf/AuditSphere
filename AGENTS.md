@@ -89,7 +89,7 @@ python3 scripts/ui/inventory.py --check
 
 - Documentation map, authority order and reading order: `docs/auditsphere-docs-index.md`. Agent context slots: `docs/architecture/auditsphere-architecture-index-agent-context-current.md`.
 - Implementation architecture: `docs/architecture/auditsphere-architecture-current-architecture.md`. Angular conventions: `docs/architecture/auditsphere-angular-conventions-current.md`. HTTP boundary and OpenAPI: `docs/architecture/auditsphere-architecture-http-boundary-and-contract-current.md`.
-- Functional requirements (STE v2.1): `docs/requirements/auditsphere-accounting-module-requirements-current.md`. Product brief and non-goals: `docs/requirements/auditsphere-requirements-specification-product-brief-current.md`. Glossary: `docs/requirements/auditsphere-requirements-catalog-domain-glossary-current.md`.
+- Functional requirements (STE v2.2): `docs/requirements/auditsphere-accounting-module-requirements-current.md`. Product brief and non-goals: `docs/requirements/auditsphere-requirements-specification-product-brief-current.md`. Glossary: `docs/requirements/auditsphere-requirements-catalog-domain-glossary-current.md`.
 - Preserved requirement and blueprint sources under `docs/task_breakdown/source/` are `HISTORICAL_SOURCE`: never implementation authority.
 - Backlog: `docs/execution/auditsphere-execution-pending-tasks.md` and `docs/execution/auditsphere-execution-user-stories-ste-v21-remaining-proposed.md`. Volatile facts (verified SHA, counts, blockers): `docs/execution/status.json` only.
 

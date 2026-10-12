@@ -1,6 +1,6 @@
 # AuditSphere — Product Brief
 
-**Status: CURRENT.** One-page product framing for agents and reviewers. The binding detail is the [STE Audit Management Tool specification v2.1](auditsphere-accounting-module-requirements-current.md); where this brief and an ADR differ from that specification, the ADR records the approved deviation.
+**Status: CURRENT.** One-page product framing for agents and reviewers. The binding detail is the [STE Audit Management Tool specification v2.2](auditsphere-accounting-module-requirements-current.md); where this brief and an ADR differ from that specification, the ADR records the approved deviation.
 
 ## Problem
 
@@ -25,11 +25,14 @@ AuditSphere authorizes each of these through explicit `RoleGrant` scope (`FIRM_W
 4. **Reporting and archive** — four-way opinion with modified-opinion basis, signed report, five-part bundle, balance invoice, portal freeze, 60-day (or Partner early) lock.
 5. **Practice management** — charge-out rates, profitability, utilization, budget variance, firm ledger, firm TB/P&L, AR ageing.
 
+Specification v2.2 adds a **workflow experience layer** over these modules: a seven-phase display of the existing canonical engagement states, enhanced Dual-Key Acceptance readiness cards, and task templates, queues, recurrence and safe automation (specification addendum and §§5.3, 6, 7). The phases are presentation only; the canonical states, gates and the three financial boundaries are unchanged. Delivery status is tracked in the [v2.2 delta](../execution/auditsphere-execution-tracker-ste-v21-gap-verification-current.md#v22-workflow-experience-delta).
+
 Beyond the specification, the owner added: client accounting workspace and group consolidation (`Accounting/`), one SharePoint site per new client, and an optional authorized client-bookkeeping service (see `AGENTS.md` §1).
 
 ## Non-goals
 
 - Autonomous audit conclusions or opinions; every professional judgement stays human.
+- Workflow automation that approves, signs, posts, sends or releases anything, or that moves an engagement past a gate; the v2.2 task layer only creates tasks, reminders and drafts for a human to act on.
 - Certificate-backed digital signatures and eSignature providers (ADR-0005); Purview records integration.
 - Live outbound WhatsApp or social channels — channels are captured as labels on leads; outbound mail goes through the consented Graph mail capability only.
 - Emailed temporary passwords for the client portal (replaced by Microsoft sign-in, ADR-0003).

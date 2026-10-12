@@ -20,7 +20,7 @@ An agent should normally hold slot 8, one story from slot 11, and the two to fou
 
 | # | Slot | Authoritative file(s) | State |
 | --- | --- | --- | --- |
-| 1 | Product brief / PRD | [Product brief](../requirements/auditsphere-requirements-specification-product-brief-current.md) → detail in [STE v2.1 requirements](../requirements/auditsphere-accounting-module-requirements-current.md) | Brief **new**. Requirements copy is v2.1 but its header and portal-onboarding text predate two implemented decisions (ADR-0002, ADR-0003). |
+| 1 | Product brief / PRD | [Product brief](../requirements/auditsphere-requirements-specification-product-brief-current.md) → detail in [STE v2.2 requirements](../requirements/auditsphere-accounting-module-requirements-current.md) | Brief **new**. Requirements copy is v2.2 (v2.1 plus the workflow experience layer) but its header and portal-onboarding text predate two implemented decisions (ADR-0002, ADR-0003). |
 | 2 | Glossary | [Domain glossary](../requirements/auditsphere-requirements-catalog-domain-glossary-current.md) | **New.** Previously spread across code constants and narrative docs. |
 | 3 | Architecture overview | [Current architecture](auditsphere-architecture-current-architecture.md), [Code map](auditsphere-architecture-code-map.md) | Exists. Architecture doc links a missing file (`auditsphere-ui-mudblazor-conventions-migration-current.md`). Code map's Tests column names files removed in PR #30. |
 | 4 | ADRs | [ADR register](adr/auditsphere-architecture-index-adr-register-current.md) + R2R-ADR-01..10 in [baseline and ADRs](../task_breakdown/reference/auditsphere-r2r-reference-baseline-architecture-and-adrs.md) | ADR-0001..0007 and ADR-0009 are approved under the owner's delegated project decision; ADR-0008 is superseded. Provider and professional gates remain separate. |
@@ -33,7 +33,7 @@ An agent should normally hold slot 8, one story from slot 11, and the two to fou
 | 11 | Stories | [Remaining STE v2.1 stories](../execution/auditsphere-execution-user-stories-ste-v21-remaining-proposed.md); existing [pending tasks](../execution/auditsphere-execution-pending-tasks.md), [R2R/audit task index](../task_breakdown/auditsphere-r2r-index-task-breakdown.md) | Stories **new**, each grounded in a verified code gap. |
 | 12 | Spikes | [Technical spikes](../execution/auditsphere-execution-tracker-technical-spikes-proposed.md) | **New.** |
 | 13 | Task prompt | [Agent task prompt guide](../execution/auditsphere-execution-guide-agent-task-prompt-current.md) | **New** template plus a filled example. |
-| — | Spec verification | [STE v2.1 gap verification](../execution/auditsphere-execution-tracker-ste-v21-gap-verification-current.md) | **New.** Requirement-by-requirement check against current code, separate from the earlier coverage table whose verification sources were test files. |
+| — | Spec verification | [STE v2.1 gap verification](../execution/auditsphere-execution-tracker-ste-v21-gap-verification-current.md) | **New.** Requirement-by-requirement check against current code, separate from the earlier coverage table whose verification sources were test files. Also carries the v2.2 workflow-experience delta. |
 
 ## 3. Context hazards found (2026-10-08, `e0afe18`)
 
