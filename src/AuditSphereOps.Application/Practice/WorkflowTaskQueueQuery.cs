@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 namespace AuditSphereOps.Application.Practice;
 
 public sealed record WorkflowTaskQueueRequest(string View = "MY_TASKS", DateOnly? AfterDueDate = null,
-  Guid? AfterTaskId = null, int PageSize = 50);
+  Guid? AfterTaskId = null, int PageSize = 50, Guid? AssigneeUserId = null, bool UnassignedOnly = false);
 public sealed record WorkflowTaskQueueCursor(DateOnly? DueDate, Guid TaskId);
 public sealed record WorkflowTaskQueueRow(Guid TaskId, Guid ClientId, string ClientName, Guid EngagementId,
   string EngagementServiceRoute, string EngagementPeriod, string Title, string Phase, int Ordinal,
@@ -45,7 +45,10 @@ public static class WorkflowTaskQueueQuery
   {
     var view = request.View?.Trim().ToUpperInvariant();
     if (view is not (MyTasks or Team or Overdue or Completed or WaitingForClient or ChangesRequired or UnderReview) || request.PageSize is < 1 or > 100 ||
-        (request.AfterTaskId is null && request.AfterDueDate.HasValue))
+        (request.AfterTaskId is null && request.AfterDueDate.HasValue) || request.AssigneeUserId == Guid.Empty ||
+        (request.UnassignedOnly && request.AssigneeUserId.HasValue) ||
+        (view == MyTasks && (request.UnassignedOnly ||
+          (request.AssigneeUserId.HasValue && request.AssigneeUserId != actor.UserId))))
       return CommandResult<WorkflowTaskQueue>.Fail("workflow.queue-invalid",
         "Choose a supported queue view, page size from 1 to 100, and a valid task cursor.");
 
@@ -142,6 +145,12 @@ public static class WorkflowTaskQueueQuery
       query = query.Where(x => x.ReviewState == UnderReview);
     else
       query = query.Where(x => x.Status == PracticeTimeStates.TaskCompleted);
+
+    // Assignee selection only narrows the already grant-scoped query. It is never an authority source.
+    if (request.AssigneeUserId.HasValue)
+      query = query.Where(x => x.AssigneeUserId == request.AssigneeUserId);
+    else if (request.UnassignedOnly)
+      query = query.Where(x => x.AssigneeUserId == null);
 
     if (request.AfterTaskId.HasValue)
     {

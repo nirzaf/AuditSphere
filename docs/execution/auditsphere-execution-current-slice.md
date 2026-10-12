@@ -15,11 +15,13 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## v2.2 scoped queue assignment filters — 2026-10-12
+
+Assignment filters now narrow authorized rows before paging and feed the existing list, board and calendar. Contradictory filters cannot widen My Tasks. UI checks and bounded builds passed; browser access stopped at sign-in and PostgreSQL assertions await CI. Evidence and limits are under `targetedVerification.workflowQueueAssignmentFilter` in [status.json](status.json). Overall v2.2 stays partial.
+
 ## Agent capability runner pilot — 2026-10-12
 
-`./scripts/agent-check` connects three bounded packets to existing code maps, task cards, tests and synthetic fixtures. Default preflight is read-only; `--run` opts into focused suites. Reports distinguish source stability, prerequisites and test outcomes from release and external acceptance. CI checks packet references and runner guards.
-
-The UI pilot passed; authorization and accounting cohorts were blocked by the unavailable PostgreSQL test target. No .NET/browser cohort or productivity comparison ran. Commands, timings and limits are under `targetedVerification.agentCapabilityRunner` in [status.json](status.json). See the [capability-check guide](../testing/auditsphere-testing-guide-agent-capability-checks-current.md).
+The [capability runner](../testing/auditsphere-testing-guide-agent-capability-checks-current.md) connects existing task cards, sources and tests. UI pilot evidence, database blockers, timings and unmeasured productivity assumptions remain under `targetedVerification.agentCapabilityRunner` in [status.json](status.json).
 
 ## Practice management program, third slice — 2026-10-12
 

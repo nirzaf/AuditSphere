@@ -138,6 +138,21 @@ public sealed class EngagementWorkflowTaskTests
       Assert.True(secondPage.Succeeded, secondPage.Message);
       Assert.False(secondPage.Value!.HasMore);
       Assert.Equal(taskA, Assert.Single(secondPage.Value.Tasks).TaskId);
+      var assigned = await WorkflowTaskQueueQuery.GetAsync(db, staffAActor,
+        new WorkflowTaskQueueRequest("TEAM", AssigneeUserId: staffA.Id));
+      Assert.True(assigned.Succeeded, assigned.Message);
+      Assert.Equal(taskA, Assert.Single(assigned.Value!.Tasks).TaskId);
+      var siblingOwner = await WorkflowTaskQueueQuery.GetAsync(db, staffAActor,
+        new WorkflowTaskQueueRequest("TEAM", AssigneeUserId: staffB.Id));
+      Assert.True(siblingOwner.Succeeded, siblingOwner.Message);
+      Assert.Empty(siblingOwner.Value!.Tasks);
+      var contradictory = await WorkflowTaskQueueQuery.GetAsync(db, staffAActor,
+        new WorkflowTaskQueueRequest("TEAM", AssigneeUserId: staffA.Id, UnassignedOnly: true));
+      Assert.False(contradictory.Succeeded);
+      Assert.Equal("workflow.queue-invalid", contradictory.ErrorCode);
+      var widenedMine = await WorkflowTaskQueueQuery.GetAsync(db, staffAActor,
+        new WorkflowTaskQueueRequest("MY_TASKS", AssigneeUserId: staffB.Id));
+      Assert.False(widenedMine.Succeeded);
       var overdue = await WorkflowTaskQueueQuery.GetAsync(db, staffAActor,
         new WorkflowTaskQueueRequest("OVERDUE"));
       Assert.True(overdue.Succeeded, overdue.Message);

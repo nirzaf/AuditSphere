@@ -5,6 +5,7 @@ import { RouterLink } from '@angular/router';
 import { Api, CommandState } from '../../core/api';
 import { arr, bool, date, guid, instant, int, nullable, obj, oneOf, str, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
+import { SessionService } from '../../core/session';
 import { QUEUE_DISPLAYS, QueueDisplay, boardColumns, queueCalendar } from './work-queue-views';
 
 const nonBlank = (max: number) => (value: unknown, path: string): string => {
@@ -88,6 +89,15 @@ const queueViews: { key: QueueView; label: string }[] = [
       }
     </section>
     <audit-state [loading]="queue.loading()" [error]="queue.error()" label="work queue" />
+    @if (selectedView() !== 'MY_TASKS') {
+      <label>Task assignment
+        <select [value]="ownerFilter()" (change)="selectOwnerFilter($any($event.target).value)">
+          <option value="ALL">All authorized assignments</option>
+          <option value="ME">Assigned to me</option>
+          <option value="UNASSIGNED">Unassigned</option>
+        </select>
+      </label>
+    }
     <nav class="queue-views" aria-label="Work queue views">
       @for (item of views; track item.key) {
         <button matButton [attr.aria-pressed]="selectedView() === item.key" (click)="selectView(item.key)">{{ item.label }}</button>
@@ -232,6 +242,8 @@ const queueViews: { key: QueueView; label: string }[] = [
 })
 export class WorkflowWorkQueue {
   private readonly api = inject(Api);
+  private readonly session = inject(SessionService);
+  readonly ownerFilter = signal<'ALL' | 'ME' | 'UNASSIGNED'>('ALL');
   readonly views = queueViews;
   readonly displays = QUEUE_DISPLAYS;
   /** How the loaded page is arranged. It never changes which tasks are requested or shown. */
@@ -245,6 +257,13 @@ export class WorkflowWorkQueue {
   private readonly activityCursor = signal<{ occurredAt: string; activityId: string } | null>(null);
   readonly queue = this.api.resource(() => {
     const params = new URLSearchParams({ view: this.selectedView(), pageSize: '50' });
+    if (this.selectedView() !== 'MY_TASKS') {
+      if (this.ownerFilter() === 'ME') {
+        const user = this.session.current()?.userId;
+        if (!user) return null;
+        params.set('assigneeUserId', user);
+      } else if (this.ownerFilter() === 'UNASSIGNED') params.set('unassignedOnly', 'true');
+    }
     const after = this.cursor();
     if (after) {
       if (after.dueDate) params.set('afterDueDate', after.dueDate);
@@ -280,7 +299,14 @@ export class WorkflowWorkQueue {
 
   selectView(value: QueueView): void {
     this.cursor.set(null);
+    this.ownerFilter.set('ALL');
     this.selectedView.set(value);
+  }
+
+  selectOwnerFilter(value: string): void {
+    if (this.selectedView() === 'MY_TASKS' || !['ALL', 'ME', 'UNASSIGNED'].includes(value)) return;
+    this.cursor.set(null);
+    this.ownerFilter.set(value as 'ALL' | 'ME' | 'UNASSIGNED');
   }
 
   nextPage(cursor: { dueDate: string | null; taskId: string }): void {

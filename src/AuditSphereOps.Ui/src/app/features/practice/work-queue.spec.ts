@@ -52,3 +52,39 @@ describe('workflow task activity contract', () => {
     expect(decoded.events[0].newDueDate).toBeNull();
   });
 });
+
+import { TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { provideRouter } from '@angular/router';
+import { SessionService } from '../../core/session';
+import { WorkflowWorkQueue } from './work-queue';
+
+describe('workflow queue assignment filters', () => {
+  it('sends the current session owner, resets paging when assignment changes, and clears assignment on view changes', () => {
+    TestBed.configureTestingModule({ imports: [WorkflowWorkQueue], providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])] });
+    const userId = '11111111-1111-4111-8111-111111111111';
+    TestBed.inject(SessionService).current.set({ userId, firmId: userId, generation: '1', staff: true });
+    const fixture = TestBed.createComponent(WorkflowWorkQueue);
+    const http = TestBed.inject(HttpTestingController);
+    const flushQueue = (url: string, view: string) => http.expectOne(url).flush({ view, tasks: [], hasMore: false, nextCursor: null });
+    try {
+      fixture.detectChanges(); TestBed.tick();
+      flushQueue('/api/ui/work/tasks?view=MY_TASKS&pageSize=50', 'MY_TASKS');
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      const component = fixture.componentInstance;
+      component.selectView('TEAM'); TestBed.tick();
+      flushQueue('/api/ui/work/tasks?view=TEAM&pageSize=50', 'TEAM');
+      component.selectOwnerFilter('ME'); TestBed.tick();
+      flushQueue(`/api/ui/work/tasks?view=TEAM&pageSize=50&assigneeUserId=${userId}`, 'TEAM');
+      component.nextPage({ dueDate: null, taskId: userId }); TestBed.tick();
+      flushQueue(`/api/ui/work/tasks?view=TEAM&pageSize=50&assigneeUserId=${userId}&afterTaskId=${userId}`, 'TEAM');
+      component.selectOwnerFilter('UNASSIGNED'); TestBed.tick();
+      flushQueue('/api/ui/work/tasks?view=TEAM&pageSize=50&unassignedOnly=true', 'TEAM');
+      component.selectView('MY_TASKS'); TestBed.tick();
+      flushQueue('/api/ui/work/tasks?view=MY_TASKS&pageSize=50', 'MY_TASKS');
+      expect(component.ownerFilter()).toBe('ALL');
+      http.verify({ ignoreCancelled: true });
+    } finally { fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+});

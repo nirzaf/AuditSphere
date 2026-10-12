@@ -31832,6 +31832,21 @@
               ],
               "format": "int32"
             }
+          },
+          {
+            "name": "assigneeUserId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "unassignedOnly",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
