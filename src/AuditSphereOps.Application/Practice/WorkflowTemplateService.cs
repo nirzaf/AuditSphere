@@ -65,6 +65,14 @@ public sealed record WorkflowTemplateRevisionView(
   DateTimeOffset? ArchivedAt,
   IReadOnlyList<WorkflowTemplateStepView> Steps);
 
+public sealed record WorkflowTemplatePublishedRevision(
+  Guid RevisionId,
+  int Version,
+  string Name,
+  string ServiceRoute,
+  string? IndustryKey,
+  string ContentDigest);
+
 public sealed record WorkflowTemplateCatalogItem(
   Guid TemplateId,
   Guid? LatestRevisionId,
@@ -74,7 +82,8 @@ public sealed record WorkflowTemplateCatalogItem(
   string? IndustryKey,
   string? RevisionStatus,
   bool Archived,
-  DateTimeOffset CreatedAt);
+  DateTimeOffset CreatedAt,
+  WorkflowTemplatePublishedRevision? CurrentPublishedRevision);
 
 /// <summary>
 /// Firm-wide operational checklist templates. They only create or organize WorkTask records and never satisfy a
@@ -99,11 +108,17 @@ public static class WorkflowTemplateService
       .Where(x => x.FirmId == actor.FirmId && ids.Contains(x.TemplateId))
       .OrderByDescending(x => x.Version).ToListAsync(ct);
     var latest = revisions.GroupBy(x => x.TemplateId).ToDictionary(x => x.Key, x => x.First());
+    var published = revisions.Where(x => x.Status == WorkflowTemplateStates.Published)
+      .GroupBy(x => x.TemplateId).ToDictionary(x => x.Key, x => x.First());
     IReadOnlyList<WorkflowTemplateCatalogItem> result = templates.Take(100).Select(template =>
     {
       latest.TryGetValue(template.Id, out var revision);
+      published.TryGetValue(template.Id, out var publishedRevision);
       return new WorkflowTemplateCatalogItem(template.Id, revision?.Id, revision?.Version, revision?.Name,
-        revision?.ServiceRoute, revision?.IndustryKey, revision?.Status, template.ArchivedAt.HasValue, template.CreatedAt);
+        revision?.ServiceRoute, revision?.IndustryKey, revision?.Status, template.ArchivedAt.HasValue, template.CreatedAt,
+        publishedRevision is null ? null : new WorkflowTemplatePublishedRevision(publishedRevision.Id,
+          publishedRevision.Version, publishedRevision.Name, publishedRevision.ServiceRoute,
+          publishedRevision.IndustryKey, publishedRevision.ContentDigest));
     }).ToArray();
     return CommandResult<IReadOnlyList<WorkflowTemplateCatalogItem>>.Ok(result);
   }

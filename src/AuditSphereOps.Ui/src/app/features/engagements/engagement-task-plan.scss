@@ -1,0 +1,24 @@
+:host { display: block; }
+.task-plan, .preview, .recovery, .receipt { min-width: 0; }
+.task-plan { margin-block: 1.5rem; padding: 1rem; border: 1px solid var(--mat-sys-outline-variant, #cbd6e3); border-radius: 0.75rem; }
+.task-plan p { max-width: 78ch; }
+.template-choice { display: flex; gap: 0.65rem; align-items: flex-start; margin-block: 0.65rem; }
+.template-choice input, .review-check input { margin-block-start: 0.25rem; }
+.template-choice span, .template-choice small { display: block; min-width: 0; }
+.template-choice small, .preview dd { overflow-wrap: anywhere; }
+.actions { margin-block: 1rem; }
+.preview, .recovery, .receipt { margin-block: 1rem; padding: 1rem; background: var(--mat-sys-surface-container-low, #f5f7fa); border-radius: 0.5rem; }
+.preview dl { display: grid; grid-template-columns: minmax(10rem, max-content) minmax(0, 1fr); gap: 0.35rem 0.8rem; }
+.preview dt { font-weight: 600; }
+.preview dd { margin: 0; }
+.plan-steps { padding-inline-start: 1.5rem; }
+.plan-steps li { padding: 0.5rem 0 0.85rem; border-bottom: 1px solid var(--mat-sys-outline-variant, #cbd6e3); }
+.plan-steps h4 { margin-block: 0.25rem; }
+.plan-steps select { display: block; max-width: 100%; min-height: 2.5rem; margin-block: 0.35rem; }
+.recovery code, .receipt code { overflow-wrap: anywhere; }
+.error-text { color: var(--mat-sys-error, #8f1f17); }
+@media (max-width: 42rem) {
+  .task-plan { padding: 0.75rem; }
+  .preview dl { grid-template-columns: 1fr; gap: 0.1rem; }
+  .preview dd { margin-bottom: 0.5rem; }
+}

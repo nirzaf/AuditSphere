@@ -24,9 +24,11 @@ public sealed class EngagementWorkflowPlanTests
     var secondEngagementId = Guid.NewGuid();
     var admin = User(firmId, "PlanAdmin");
     var partner = User(firmId, "PlanPartner");
+    var staff = User(firmId, "PlanStaff");
     var adminActor = Actor(admin, "Administrator");
     var partnerActor = Actor(partner, "Partner");
-    await SeedAsync(pg.Options, firmId, clientId, engagementId, secondEngagementId, admin, partner);
+    var staffActor = Actor(staff, "Staff");
+    await SeedAsync(pg.Options, firmId, clientId, engagementId, secondEngagementId, admin, partner, staff);
 
     Guid templateId;
     Guid revisionId;
@@ -42,6 +44,10 @@ public sealed class EngagementWorkflowPlanTests
       revisionId = draft.Value;
       var revision = await db.WorkflowTemplateRevisions.SingleAsync(x => x.Id == revisionId);
       templateId = revision.TemplateId;
+      var initialCatalog = await WorkflowTemplateService.ListAsync(db, adminActor);
+      Assert.True(initialCatalog.Succeeded, initialCatalog.Message);
+      var initialCatalogItem = Assert.Single(initialCatalog.Value!, x => x.TemplateId == templateId);
+      Assert.Null(initialCatalogItem.CurrentPublishedRevision);
       var reviewed = await WorkflowTemplateService.ReviewAsync(db, partnerActor, templateId, revisionId,
         revision.Revision, "Review the annual audit task plan.");
       Assert.True(reviewed.Succeeded, reviewed.Message);
@@ -49,6 +55,11 @@ public sealed class EngagementWorkflowPlanTests
       var published = await WorkflowTemplateService.PublishAsync(db, partnerActor, templateId, revisionId,
         revision.Revision, "Publish the reviewed annual task plan.");
       Assert.True(published.Succeeded, published.Message);
+      var catalog = await WorkflowTemplateService.ListAsync(db, adminActor);
+      Assert.True(catalog.Succeeded, catalog.Message);
+      var catalogItem = Assert.Single(catalog.Value!, x => x.TemplateId == templateId);
+      Assert.Equal(revisionId, catalogItem.CurrentPublishedRevision?.RevisionId);
+      Assert.Equal(1, catalogItem.CurrentPublishedRevision?.Version);
 
       var missingSchedule = await EngagementWorkflowPlanService.PreviewAsync(db, adminActor, engagementId,
         new PreviewEngagementWorkflowPlanRequest(revisionId));
@@ -62,10 +73,15 @@ public sealed class EngagementWorkflowPlanTests
       var preview = await EngagementWorkflowPlanService.PreviewAsync(db, adminActor, engagementId,
         new PreviewEngagementWorkflowPlanRequest(revisionId));
       Assert.True(preview.Succeeded, preview.Message);
+      Assert.True(preview.Value!.CanExecute);
       Assert.Equal(new DateOnly(2027, 4, 20), preview.Value!.Steps[0].DueDate);
       Assert.Equal(new DateOnly(2027, 4, 25), preview.Value.Steps[1].DueDate);
       Assert.Equal(schedule.Value!.Id, preview.Value!.MilestonePlanId);
       Assert.Equal(schedule.Value.Revision, preview.Value.MilestonePlanRevision);
+      var staffPreview = await EngagementWorkflowPlanService.PreviewAsync(db, staffActor, engagementId,
+        new PreviewEngagementWorkflowPlanRequest(revisionId));
+      Assert.True(staffPreview.Succeeded, staffPreview.Message);
+      Assert.False(staffPreview.Value!.CanExecute);
 
       var idempotencyKey = Guid.NewGuid();
       var request = new ExecuteEngagementWorkflowPlanRequest(revisionId, preview.Value.PreviewDigest, idempotencyKey);
@@ -131,6 +147,13 @@ public sealed class EngagementWorkflowPlanTests
           Step("REPORT", 3, -2)
         ]));
       Assert.True(nextDraft.Succeeded, nextDraft.Message);
+      var catalogWithDraft = await WorkflowTemplateService.ListAsync(db, adminActor);
+      Assert.True(catalogWithDraft.Succeeded, catalogWithDraft.Message);
+      var draftCatalogItem = Assert.Single(catalogWithDraft.Value!, x => x.TemplateId == templateId);
+      Assert.Equal(nextDraft.Value, draftCatalogItem.LatestRevisionId);
+      Assert.Equal("DRAFT", draftCatalogItem.RevisionStatus);
+      Assert.Equal(revisionId, draftCatalogItem.CurrentPublishedRevision?.RevisionId);
+      Assert.Equal(1, draftCatalogItem.CurrentPublishedRevision?.Version);
       var nextRevision = await db.WorkflowTemplateRevisions.SingleAsync(x => x.Id == nextDraft.Value);
       var nextReviewed = await WorkflowTemplateService.ReviewAsync(db, partnerActor, templateId, nextDraft.Value,
         nextRevision.Revision, "Review the revised annual task plan.");
@@ -174,7 +197,7 @@ public sealed class EngagementWorkflowPlanTests
       null, 60, dueOffset, null, true, order, dependsOn);
 
   private static async Task SeedAsync(DbContextOptions<AuditSphereDbContext> options, Guid firmId,
-    Guid clientId, Guid engagementId, Guid secondEngagementId, AppUser admin, AppUser partner)
+    Guid clientId, Guid engagementId, Guid secondEngagementId, AppUser admin, AppUser partner, AppUser staff)
   {
     await using var db = new AuditSphereDbContext(options);
     db.FirmSafetyStates.Add(new FirmSafetyState { Id = firmId });
@@ -193,9 +216,9 @@ public sealed class EngagementWorkflowPlanTests
       ServiceRoute = "FinancialStatementAudit", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31",
       ServiceProfileId = "test", CreatedAt = DateTimeOffset.UtcNow
     });
-    db.Users.AddRange(admin, partner);
+    db.Users.AddRange(admin, partner, staff);
     await db.SaveChangesAsync();
-    db.RoleGrants.AddRange(Grant(firmId, admin, "Administrator"), Grant(firmId, partner, "Partner"));
+    db.RoleGrants.AddRange(Grant(firmId, admin, "Administrator"), Grant(firmId, partner, "Partner"), Grant(firmId, staff, "Staff"));
     await db.SaveChangesAsync();
   }
 

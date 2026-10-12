@@ -8,6 +8,7 @@ import { EngagementLifecycle } from './engagement-lifecycle';
 import { EngagementWorkflow } from './engagement-workflow';
 import { EngagementOnboardingReadiness } from './engagement-onboarding-readiness';
 import { EngagementPlanning } from './planning';
+import { EngagementTaskPlan } from './engagement-task-plan';
 import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
 import { guidPattern } from '../../core/contracts';
@@ -37,6 +38,7 @@ export function engagementWorkflowAvailable(requiresAccountingPreparation: boole
     EngagementWorkflow,
     EngagementOnboardingReadiness,
     EngagementPlanning,
+    EngagementTaskPlan,
     RouterLink,
     MatButtonModule,
     MatProgressBarModule,

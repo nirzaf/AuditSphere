@@ -98,6 +98,11 @@
     } @placeholder {
       <p>Team and budget</p>
     }
+    @defer (on viewport) {
+      <audit-engagement-task-plan [engagementId]="engagement.id" [serviceRoute]="engagement.serviceRoute" />
+    } @placeholder {
+      <p>Operational task plan</p>
+    }
     <details class="technical-lifecycle">
       <summary>Technical lifecycle: 11 canonical stages</summary>
       @defer (on viewport) {

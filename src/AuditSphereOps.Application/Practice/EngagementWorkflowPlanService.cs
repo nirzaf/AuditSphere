@@ -25,7 +25,7 @@ public sealed record EngagementWorkflowPlanPreview(Guid EngagementId, long Engag
   Guid TemplateRevisionId, int TemplateVersion, string TemplateName, string TemplateContentDigest,
   Guid? MilestonePlanId, long? MilestonePlanRevision, DateOnly? ScheduleBasisDate, string PreviewDigest,
   bool AlreadyInstantiated, int ExistingTaskCount, string? TemplateUpdateNotice,
-  IReadOnlyList<WorkflowPlanStepPreview> Steps);
+  IReadOnlyList<WorkflowPlanStepPreview> Steps, bool CanExecute = false);
 public sealed record EngagementWorkflowPlanReceipt(Guid ReceiptId, Guid EngagementId, Guid TemplateId,
   Guid TemplateRevisionId, int TemplateVersion, string RequestDigest, int TaskCount, bool Replayed,
   DateTimeOffset CreatedAt, IReadOnlyList<Guid> TaskIds);
@@ -52,9 +52,12 @@ public static class EngagementWorkflowPlanService
       new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagement.Id, ReadRoles, InternalOnly: true), ct);
     if (!auth.Succeeded)
       return CommandResult<EngagementWorkflowPlanPreview>.Fail(auth.ErrorCode!, auth.Message!);
+    var configure = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagement.Id, ConfigureRoles, InternalOnly: true), ct);
     var loaded = await LoadPreviewAsync(db, actor, engagement, request.TemplateRevisionId, request.Owners, ct);
     return loaded.Succeeded
-      ? CommandResult<EngagementWorkflowPlanPreview>.Ok(loaded.Value!)
+      ? CommandResult<EngagementWorkflowPlanPreview>.Ok(loaded.Value! with
+        { CanExecute = configure.Succeeded && !loaded.Value!.AlreadyInstantiated })
       : CommandResult<EngagementWorkflowPlanPreview>.Fail(loaded.ErrorCode!, loaded.Message!);
   }
 
