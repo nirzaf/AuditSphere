@@ -5,6 +5,7 @@ const payload = {
   from: '2026-10-01',
   to: '2026-10-31',
   engagements: [],
+  engagementPageSize: 50, hasMoreEngagements: false, nextEngagementId: null,
   departments: [],
   milestones: {
     due: 4,
@@ -65,5 +66,46 @@ describe('Practice analytics task completion contract', () => {
 
   it('rejects workload rows without bounded integer counts', () => {
     expect(() => decodeAnalytics({ ...payload, workload: [{ ...payload.workload[0], overdue: '1' }] }, 'analytics')).toThrow();
+  });
+});
+
+
+describe('Analytics economics page fences', () => {
+  it('refuses an oversized page or continuation without its last engagement identity', () => {
+    expect(() => decodeAnalytics({ ...payload, engagementPageSize: 101 }, 'analytics')).toThrow();
+    expect(() => decodeAnalytics({ ...payload, hasMoreEngagements: true }, 'analytics')).toThrow();
+    expect(() => decodeAnalytics({ ...payload, nextEngagementId: '11111111-1111-4111-8111-111111111111' }, 'analytics')).toThrow();
+  });
+});
+
+import { TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { SessionService } from '../../core/session';
+import { PracticeAnalytics } from './analytics';
+
+describe('Analytics economics continuation', () => {
+  it('sends the page cursor and resets it when the reporting period is applied again', () => {
+    TestBed.configureTestingModule({ imports: [PracticeAnalytics], providers: [provideHttpClient(), provideHttpClientTesting()] });
+    const id = '11111111-1111-4111-8111-111111111111';
+    TestBed.inject(SessionService).current.set({ userId: id, firmId: id, generation: '1', staff: true });
+    const fixture = TestBed.createComponent(PracticeAnalytics);
+    const http = TestBed.inject(HttpTestingController);
+    const read = () => http.expectOne(request => request.url.startsWith('/api/ui/practice/analytics?'));
+    try {
+      fixture.detectChanges(); TestBed.tick();
+      const first = read();
+      expect(new URL(first.request.url, 'http://localhost').searchParams.get('engagementPageSize')).toBe('50');
+      first.flush(payload);
+      fixture.componentInstance.nextPage(id); TestBed.tick();
+      const second = read();
+      expect(new URL(second.request.url, 'http://localhost').searchParams.get('afterEngagementId')).toBe(id);
+      second.flush(payload);
+      fixture.componentInstance.apply(); TestBed.tick();
+      const reset = read();
+      expect(new URL(reset.request.url, 'http://localhost').searchParams.has('afterEngagementId')).toBe(false);
+      reset.flush(payload);
+      http.verify({ ignoreCancelled: true });
+    } finally { fixture.destroy(); TestBed.resetTestingModule(); }
   });
 });

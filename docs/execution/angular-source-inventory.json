@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "sourceCommit": "f5ef3e3787ab3138eeceef17176fc51fa493fb9a",
+  "sourceCommit": "6025343470ac8bfa5bb10201cfdf94c32f4820c5",
   "coverage": "Source discovery only; dynamic actions, scope and parity tests require manual review.",
   "items": [
     {
@@ -3169,11 +3169,12 @@
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/PracticeAnalytics.razor",
-      "sourceSha256": "efffb372115bdea3922475345351ba3211f025c6770be148c8dca2e6a8eab510",
+      "sourceSha256": "621db88b652605d981ead4ad1e16862dfddfe50e9aa935a8b5da1e0fe614a3bd",
       "routes": [
         "/app/practice/analytics"
       ],
       "actions": [
+        "@(() => LoadPageAsync(next))",
         "LoadAsync"
       ],
       "injectedServices": [
@@ -3191,6 +3192,7 @@
         "CreateDbContextAsync",
         "GetAsync",
         "LoadAsync",
+        "LoadPageAsync",
         "OnInitializedAsync",
         "ResolveAsync"
       ],

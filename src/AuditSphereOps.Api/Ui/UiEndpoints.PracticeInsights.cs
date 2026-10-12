@@ -10,9 +10,10 @@ public static partial class UiEndpoints
 
   private static void MapPracticeInsightEndpoints(RouteGroupBuilder group)
   {
-    group.MapGet("/practice/analytics", (string from, string to, HttpContext http) =>
+    group.MapGet("/practice/analytics", (string from, string to, Guid? afterEngagementId, int? engagementPageSize, HttpContext http) =>
       TryDate(from, out var f) && TryDate(to, out var t)
-        ? ReadAsync(http, (db, actor, ct) => PracticeAnalyticsQuery.GetAsync(db, actor, f, t, ct))
+        ? ReadAsync(http, (db, actor, ct) => PracticeAnalyticsQuery.GetAsync(db, actor, f, t,
+          new PracticeAnalyticsPageRequest(afterEngagementId, engagementPageSize ?? 50), ct))
         : Task.FromResult(Invalid("Choose a from and to date.")));
 
     group.MapUiGet("/library", http => ReadAsync(http, (db, actor, ct) => TechnicalLibraryWorkspaceQuery.CatalogueAsync(db, actor, ct)));

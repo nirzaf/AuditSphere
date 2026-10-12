@@ -15,13 +15,11 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
-## v2.2 scoped queue assignment filters — 2026-10-12
+## Agent capability tooling and bounded analytics — 2026-10-12
 
-Assignment filters now narrow authorized rows before paging and feed the existing list, board and calendar. Contradictory filters cannot widen My Tasks. UI checks and bounded builds passed; browser access stopped at sign-in and PostgreSQL assertions await CI. Evidence and limits are under `targetedVerification.workflowQueueAssignmentFilter` in [status.json](status.json). Overall v2.2 stays partial.
+The [capability runner](../testing/auditsphere-testing-guide-agent-capability-checks-current.md) connects three task packets to owning files, invariants, fixtures and focused checks. Socket denial is distinct from database outage; default preflight changes no configuration. Comparative productivity measurements remain pending.
 
-## Agent capability runner pilot — 2026-10-12
-
-The [capability runner](../testing/auditsphere-testing-guide-agent-capability-checks-current.md) connects existing task cards, sources and tests. UI pilot evidence, database blockers, timings and unmeasured productivity assumptions remain under `targetedVerification.agentCapabilityRunner` in [status.json](status.json).
+Engagement economics now pages before loading financial evidence, with Angular and legacy navigation. Period-wide task and utilization denominators stay unchanged. The owned synthetic API/browser fixture verified forward/reset navigation; focused PostgreSQL assertions also cover queue assignment narrowing. Evidence and limitations are in `targetedVerification.workflowAnalyticsPaging` and `agentCapabilityRunner` in [status.json](status.json). Overall workflow and release acceptance remain partial.
 
 ## Practice management program, third slice — 2026-10-12
 

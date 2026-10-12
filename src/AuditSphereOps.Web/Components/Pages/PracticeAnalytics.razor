@@ -21,6 +21,14 @@ else
 {
   <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" role="region" aria-labelledby="econ-heading">
     <h2 id="econ-heading">Engagement economics</h2>
+    <p>Current engagement page in stable ID order; the workload summaries cover the entire selected period.</p>
+    <nav aria-label="Engagement economics pages">
+      <MudButton OnClick="LoadAsync" Disabled="@(_afterEngagementId is null)">First engagements</MudButton>
+      @if (_view.HasMoreEngagements && _view.NextEngagementId is { } next)
+      {
+        <MudButton OnClick="@(() => LoadPageAsync(next))">Next engagements</MudButton>
+      }
+    </nav>
     <div class="table-wrap">
       <table class="statement-table" aria-label="Engagement economics">
         <thead><tr><th>Engagement</th><th>Currency</th><th class="num">Budget h</th><th class="num">Actual h</th><th class="num">Standard value</th><th class="num">Cost</th><th class="num">Billed</th><th class="num">Collected</th><th class="num">Realization</th><th class="num">Collection</th><th class="num">Profit</th><th class="num">Margin</th><th class="num">Contract fee</th><th class="num">Lifetime standard value</th><th class="num">Fee less standard value</th></tr></thead>
@@ -67,6 +75,7 @@ else
 @code {
   private DateTime _from = new(DateTime.Today.Year, 1, 1), _to = DateTime.Today;
   private PracticeAnalyticsView? _view;
+  private Guid? _afterEngagementId;
   private string? _message;
 
   private static string Pct(decimal? value) => value is null ? "n/a" : $"{value:0.#}%";
@@ -79,13 +88,17 @@ else
 
   protected override Task OnInitializedAsync() => LoadAsync();
 
-  private async Task LoadAsync()
+  private Task LoadAsync() => LoadPageAsync(null);
+
+  private async Task LoadPageAsync(Guid? after)
   {
+    _afterEngagementId = after;
     _view = null;
     var actor = await ActorResolver.ResolveAsync();
     if (actor is null) { _message = "Sign in with a staff identity."; return; }
     await using var db = await DbFactory.CreateDbContextAsync();
-    var result = await PracticeAnalyticsQuery.GetAsync(db, actor, DateOnly.FromDateTime(_from), DateOnly.FromDateTime(_to));
+    var result = await PracticeAnalyticsQuery.GetAsync(db, actor, DateOnly.FromDateTime(_from), DateOnly.FromDateTime(_to),
+      new PracticeAnalyticsPageRequest(after));
     _view = result.Succeeded ? result.Value : null;
     _message = result.Succeeded ? null : result.Message;
   }

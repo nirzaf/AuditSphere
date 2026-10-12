@@ -15138,6 +15138,82 @@
           "WorkflowExperience remains disabled by default; enabling it requires an explicit deployment configuration decision.",
           "Full Domain/API/E2E suites were not run; only the focused workflow PostgreSQL cohort and API OpenAPI contract test ran."
         ]
+      },
+      "workflowManagerReviewPrF": {
+        "recordedAtUtc": "2026-10-12T02:29:56Z",
+        "baseCommit": "d252da5c11e81254a84dadacd58ba529f396a757",
+        "sourceTree": "Uncommitted Manager Review/rework slice on master based on d252da5c; the exact source and documentation changes are committed together in this slice.",
+        "database": "Focused PostgreSQL tests used disposable PgTestSchema databases; no persistent development, acceptance or VPS database was changed.",
+        "scope": "WF-12 partial: read-only manager review summary with redacted blockers, evidence counts and SRM freshness; feature-flagged ChangesRequired task creation, tied to exact procedure/result revision and atomically committed with the append-only review decision.",
+        "migrations": {
+          "created_not_applied": [],
+          "persistent_database_changed": false,
+          "historical_work_tasks_or_time_entries_backfilled": false
+        },
+        "runs": [
+          {
+            "name": "Focused manager-review PostgreSQL tests",
+            "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore --configuration Release --maxcpucount:1 --filter 'FullyQualifiedName~ManagerReviewSummaryUsesCurrentCompletionFactsAndStableRedactedBlockers|FullyQualifiedName~ChangesRequiredReviewCreatesOneLinkedOperationalReworkTaskWithoutChangingReviewAuthority'",
+            "result": "PASS",
+            "passed": 2,
+            "failed": 0,
+            "note": "Asserts stable redaction, current blockers, ChangesRequired task uniqueness, prior-preparer assignment, manager-summary visibility, and immutable review decision."
+          },
+          {
+            "name": "API Release build",
+            "command": "dotnet build src/AuditSphereOps.Api/AuditSphereOps.Api.csproj --no-restore --configuration Release --maxcpucount:1",
+            "result": "PASS",
+            "warnings": 2,
+            "errors": 0,
+            "note": "NU1900 vulnerability-feed lookup warnings because api.nuget.org was unreachable."
+          },
+          {
+            "name": "Angular production build",
+            "command": "npm --prefix src/AuditSphereOps.Ui run build",
+            "result": "PASS"
+          },
+          {
+            "name": "EF model drift",
+            "command": "dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Api --no-build --configuration Release",
+            "result": "PASS"
+          },
+          {
+            "name": "OpenAPI drift",
+            "command": "bash scripts/contracts/verify-openapi.sh",
+            "result": "PASS",
+            "note": "Contract regenerated with the manager-review route; local contract verification passes."
+          },
+          {
+            "name": "Markdown documentation and filename gates",
+            "result": "BLOCKED_BY_PREEXISTING_FILE",
+            "note": "Both validators report only the already-staged user file STE_Audit_Management_Requirements_v2.2.md for its filename; that file was left untouched and excluded from this slice."
+          },
+          {
+            "name": "Narrative metrics gate",
+            "command": "python3 scripts/docs/validate-narrative-metrics.py",
+            "result": "PASS"
+          },
+          {
+            "name": "Angular source inventory",
+            "command": "python3 scripts/ui/inventory.py --check",
+            "result": "PASS"
+          },
+          {
+            "name": "Built-in browser local fieldwork route",
+            "result": "BLOCKED_LOCAL_SERVER",
+            "note": "The existing local UI tab showed the staff sign-in guard; opening the fieldwork route returned ERR_CONNECTION_REFUSED because the local Angular server was no longer listening. No authenticated UI was exercised."
+          },
+          {
+            "name": "Diff and status JSON",
+            "command": "git diff --check && python3 -m json.tool docs/execution/status.json",
+            "result": "PASS"
+          }
+        ],
+        "limits": [
+          "Full Domain/API/E2E suites were not run, per the requested batched verification approach.",
+          "WorkflowExperience remains default-off; no authenticated browser journey or live/professional acceptance was performed.",
+          "Canonical lifecycle regression on rework, task notifications, general procedure assignment/resubmission restrictions and remaining queue views remain open."
+        ]
       }
     }
   }

@@ -9,7 +9,8 @@ const row = obj({ engagementId: guid, label: text, currency: text, budgetMinutes
   actualCost: nullable(dec), billed: nullable(dec), collected: nullable(dec), realizationPercent: nullable(dec), collectionPercent: nullable(dec), profit: nullable(dec),
   marginPercent: nullable(dec), budgetVarianceMinutes: int, costComplete: bool, contractedFee: nullable(dec), contractCurrency: nullable(text),
   lifetimeStandardValue: nullable(dec), contractedFeeLessStandardValue: nullable(dec), nonChargeableMinutes: nat });
-export const decodeAnalytics = obj({ from: date, to: date, engagements: arr(row, 2000),
+const analyticsProjection = obj({ from: date, to: date, engagements: arr(row, 100),
+  engagementPageSize: int, hasMoreEngagements: bool, nextEngagementId: nullable(guid),
   departments: arr(obj({ department: text, capacityMinutes: nat, chargeableMinutes: nat, utilizationPercent: nullable(dec), targetPercent: nullable(dec) })),
   milestones: obj({ due: nat, completed: nat, completedOnTime: nat, completedLate: nat, overdue: nat,
     completionPercent: nullable(dec), onTimePercent: nullable(dec) }),
@@ -19,6 +20,17 @@ export const decodeAnalytics = obj({ from: date, to: date, engagements: arr(row,
   clientWait: obj({ intervals: nat, completed: nat, open: nat, excluded: nat, averageCompletedHours: nullable(dec),
     averageOpenHours: nullable(dec), available: bool, unavailableReason: nullable(text) }),
   definitions: arr(text, 50) });
+
+export function decodeAnalytics(value: unknown, path: string) {
+  const result = analyticsProjection(value, path);
+  if (result.engagementPageSize < 1 || result.engagementPageSize > 100 ||
+      result.engagements.length > result.engagementPageSize ||
+      result.hasMoreEngagements !== (result.nextEngagementId !== null) ||
+      (result.hasMoreEngagements && (result.engagements.length !== result.engagementPageSize ||
+        result.nextEngagementId?.toLowerCase() !== result.engagements.at(-1)?.engagementId.toLowerCase())))
+    throw new Error('Unsupported analytics page or cursor.');
+  return result;
+}
 
 export function hours(minutes: number, places = 1): string {
   return (minutes / 60).toLocaleString('en-US', { minimumFractionDigits: places, maximumFractionDigits: places });
@@ -53,8 +65,15 @@ export function hours(minutes: number, places = 1): string {
               <td class="number">{{ r.contractedFee === null ? 'Unavailable' : (r.contractedFee | money) }} {{ r.contractCurrency }}</td>
               <td class="number">{{ r.lifetimeStandardValue === null ? 'Unavailable' : (r.lifetimeStandardValue | money) }} {{ r.contractCurrency }}</td>
               <td class="number">{{ r.contractedFeeLessStandardValue === null ? 'Unavailable' : (r.contractedFeeLessStandardValue | money) }} {{ r.contractCurrency }}</td></tr>
-          } @empty { <tr><td colspan="15">No engagement activity in this period.</td></tr> }</tbody>
+          } @empty { <tr><td colspan="15">No engagement economics on this page.</td></tr> }</tbody>
         </table></div>
+        <p>Engagement economics shows the current page in stable engagement-ID order. Workload and period summaries below cover the whole selected period.</p>
+        <nav aria-label="Engagement economics pages">
+          <button matButton (click)="firstPage()" [disabled]="!economicsCursor() || view.loading()">First engagements</button>
+          @if (v.hasMoreEngagements && v.nextEngagementId) {
+            <button matButton (click)="nextPage(v.nextEngagementId)" [disabled]="view.loading()">Next engagements</button>
+          }
+        </nav>
       </section>
       <section class="panel" aria-labelledby="util-heading">
         <h2 id="util-heading">Utilization by department</h2>
@@ -119,10 +138,18 @@ export class PracticeAnalytics {
   from = new Date().getFullYear() + '-01-01';
   to = new Date().toISOString().slice(0, 10);
   private readonly range = signal({ from: this.from, to: this.to });
-  readonly view = this.api.resource(() => `/api/ui/practice/analytics?from=${this.range().from}&to=${this.range().to}`, decodeAnalytics,
-    'Practice analytics require a firm-wide Partner, Manager or finance assignment.');
+  readonly economicsCursor = signal<string | null>(null);
+  readonly view = this.api.resource(() => {
+    const params = new URLSearchParams({ from: this.range().from, to: this.range().to, engagementPageSize: '50' });
+    const after = this.economicsCursor();
+    if (after) params.set('afterEngagementId', after);
+    return `/api/ui/practice/analytics?${params.toString()}`;
+  }, decodeAnalytics,
+    'Practice analytics require a firm-wide Partner, Administrator, or Finance Manager assignment.');
   readonly hrs = hours;
-  apply(): void { this.range.set({ from: this.from, to: this.to }); }
+  apply(): void { this.economicsCursor.set(null); this.range.set({ from: this.from, to: this.to }); }
+  firstPage(): void { this.economicsCursor.set(null); }
+  nextPage(after: string): void { this.economicsCursor.set(after); }
   currencyLabel(currency: string): string {
     if (currency === 'MIXED') return 'Mixed — financial totals unavailable';
     if (currency === 'UNAVAILABLE') return 'Currency unavailable';

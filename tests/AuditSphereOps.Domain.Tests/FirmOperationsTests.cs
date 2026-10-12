@@ -18,7 +18,7 @@ namespace AuditSphereOps.Domain.Tests;
 /// through the ledger, and the calculated firm trial balance with reconciled summaries.
 /// </summary>
 [Trait("Profile", "Database")]
-public sealed class FirmOperationsTests
+public sealed partial class FirmOperationsTests
 {
   private sealed record World(Guid FirmId, Guid ClientId, Guid EngagementId, Dictionary<string, AppUser> U)
   {

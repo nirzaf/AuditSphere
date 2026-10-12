@@ -70,6 +70,7 @@ jobs:
   # regressions, EF model drift, and standalone API + Angular publication verification. The OpenAPI
   # drift check below runs the real API host through tools/AuditSphereOps.OpenApiEmitter.
   dotnet-build:
+    needs: ui-build
     name: Build · .NET Release
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -133,7 +134,7 @@ jobs:
           set -euo pipefail
           dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --no-restore \
             --configuration Release --maxcpucount:1 \
-            --filter 'FullyQualifiedName~EngagementWorkflowTaskTests|FullyQualifiedName~WorkflowTemplateTests|FullyQualifiedName~EngagementWorkflowPlanTests|FullyQualifiedName~DueDateRevisionIsManagerScopedAndRecordedWithExactBeforeAndAfterValues|FullyQualifiedName~ChangesRequiredReviewCreatesOneLinkedOperationalReworkTaskWithoutChangingReviewAuthority|FullyQualifiedName~PriorPeriodAcceptedOfferDoesNotAdvanceANewPeriodEngagement'
+            --filter 'FullyQualifiedName~FirmOperationsTests.Analytics_|FullyQualifiedName~EngagementWorkflowTaskTests|FullyQualifiedName~WorkflowTemplateTests|FullyQualifiedName~EngagementWorkflowPlanTests|FullyQualifiedName~DueDateRevisionIsManagerScopedAndRecordedWithExactBeforeAndAfterValues|FullyQualifiedName~ChangesRequiredReviewCreatesOneLinkedOperationalReworkTaskWithoutChangingReviewAuthority|FullyQualifiedName~PriorPeriodAcceptedOfferDoesNotAdvanceANewPeriodEngagement'
           dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-build --no-restore \
             --configuration Release --maxcpucount:1 \
             --filter 'FullyQualifiedName~AngularRoutingContractTests.ApiDeepLinks_ExactlyMatchTheAngularRouteCatalogue'
@@ -149,6 +150,16 @@ jobs:
         with:
           name: angular-ui-browser
           path: src/AuditSphereOps.Ui/dist/auditsphere-ui/browser
+
+      - name: Verify analytics paging through the real API and browser
+        env:
+          AUDITSPHERE_TEST_CONNECTION: Host=127.0.0.1;Port=5432;Database=auditsphere_tests;Username=postgres;Password=postgres;Pooling=false
+          E2E_BROWSER: chromium
+        run: |
+          set -euo pipefail
+          pwsh tests/AuditSphereOps.E2E.Tests/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
+          dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-build --no-restore \
+            --configuration Release --maxcpucount:1 --filter 'FullyQualifiedName~AngularAnalyticsPagingJourneyTests'
 
       - name: Verify standalone API and Angular publication
         run: |

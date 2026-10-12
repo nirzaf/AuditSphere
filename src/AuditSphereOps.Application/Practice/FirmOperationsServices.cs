@@ -165,9 +165,15 @@ public sealed record TaskPhasePerformance(string Phase, string Label, int Due, i
 public sealed record ReviewTurnaround(int Decisions, int Reviewed, int ChangesRequired, int Measured, int Excluded, decimal? AverageHours);
 public sealed record ClientWaitSummary(int Intervals, int Completed, int Open, int Excluded,
   decimal? AverageCompletedHours, decimal? AverageOpenHours, bool Available, string? UnavailableReason);
+public sealed record PracticeAnalyticsPageRequest(Guid? AfterEngagementId = null, int PageSize = 50);
 public sealed record PracticeAnalyticsView(DateOnly From, DateOnly To, IReadOnlyList<EngagementEconomicsRow> Engagements, IReadOnlyList<DepartmentUtilizationRow> Departments,
   MilestonePerformance Milestones, IReadOnlyList<TaskWorkloadRow> Workload, IReadOnlyList<TaskPhasePerformance> PhaseWorkload,
-  ReviewTurnaround ReviewTurnaround, ClientWaitSummary ClientWait, IReadOnlyList<string> Definitions);
+  ReviewTurnaround ReviewTurnaround, ClientWaitSummary ClientWait, IReadOnlyList<string> Definitions)
+{
+  public int EngagementPageSize { get; init; } = 50;
+  public bool HasMoreEngagements { get; init; }
+  public Guid? NextEngagementId { get; init; }
+}
 
 /// <summary>
 /// Defined practice measures from persisted evidence. Financial totals use approved time and posted billing records;
@@ -175,7 +181,7 @@ public sealed record PracticeAnalyticsView(DateOnly From, DateOnly To, IReadOnly
 /// captured charge-out rate; cost is the staff member's recorded internal cost rate, never the charge-out rate. Missing
 /// inputs are reported as unavailable rather than zero.
 /// </summary>
-public static class PracticeAnalyticsQuery
+public static partial class PracticeAnalyticsQuery
 {
   public static readonly string[] Definitions =
   [
@@ -194,13 +200,25 @@ public static class PracticeAnalyticsQuery
     "Client wait = intervals beginning with the first provider-accepted PBC email send while no prior client response is outstanding, and ending at the first recorded client message, acknowledgement/resubmission action, or client upload initiation. The selected period filters interval starts; later client actions are observed through query time. Queued, failed, uncertain and reminder emails do not start or reset a wait. Provider acceptance is not proof of inbox delivery. Open intervals are shown only for requests still in a client-waiting state; terminal requests without a recorded response are excluded. Large samples return unavailable and require a narrower period instead of a partial result."
   ];
 
-  public static async Task<CommandResult<PracticeAnalyticsView>> GetAsync(IClientAccountingDbContext db, ActorContext actor, DateOnly from, DateOnly to, CancellationToken ct = default)
+  public static Task<CommandResult<PracticeAnalyticsView>> GetAsync(IClientAccountingDbContext db, ActorContext actor,
+    DateOnly from, DateOnly to, CancellationToken ct = default) =>
+    GetAsync(db, actor, from, to, new PracticeAnalyticsPageRequest(), ct);
+
+  public static async Task<CommandResult<PracticeAnalyticsView>> GetAsync(IClientAccountingDbContext db, ActorContext actor,
+    DateOnly from, DateOnly to, PracticeAnalyticsPageRequest page, CancellationToken ct = default)
   {
+    if (page is null || page.PageSize is < 1 or > 100 || page.AfterEngagementId == Guid.Empty)
+      return CommandResult<PracticeAnalyticsView>.Fail("analytics.invalid-page", "Choose an engagement page size from 1 to 100 and a valid cursor.");
     if (to < from || to.DayNumber - from.DayNumber > 800) return CommandResult<PracticeAnalyticsView>.Fail("analytics.invalid", "Choose a period of up to about two years.");
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, RequiredRoles: ["Partner", "Administrator", "FinanceManager"],
       InternalOnly: true, RequireFirmWide: true), ct);
     if (!auth.Succeeded) return CommandResult<PracticeAnalyticsView>.Fail(auth.ErrorCode!, auth.Message!);
     var f = actor.FirmId;
+    var engagementIds = await SelectEconomicsPageAsync(db, f, from, to, page, ct);
+    var hasMore = engagementIds.Count > page.PageSize;
+    if (hasMore) engagementIds.RemoveAt(engagementIds.Count - 1);
+    var nextEngagementId = hasMore ? engagementIds[^1] : (Guid?)null;
+    var selectedInvoiceIds = await SelectEconomicsInvoiceIdsAsync(db, f, engagementIds, ct);
     var time = await db.TimeEntries.AsNoTracking().Where(x => x.FirmId == f && x.Status == PracticeTimeStates.TimeApproved && x.WorkDate >= from && x.WorkDate <= to).ToListAsync(ct);
     var costRates = await db.StaffCostRates.AsNoTracking().Where(x => x.FirmId == f).ToListAsync(ct);
     static string? NormalizeCurrency(string? currency) => string.IsNullOrWhiteSpace(currency) || currency.Trim().Length != 3
@@ -213,21 +231,18 @@ public static class PracticeAnalyticsQuery
         .OrderByDescending(r => r.EffectiveFrom).FirstOrDefault();
       return rate is null ? null : t.DurationMinutes * rate.HourlyCost / 60m;
     }
-    var engagementIds = time.Where(x => x.EngagementId.HasValue).Select(x => x.EngagementId!.Value).Distinct().ToList();
     // Billing traced to engagements through invoice line sources.
     var lines = await db.InvoiceLines.AsNoTracking().Join(db.Invoices.AsNoTracking(), l => l.InvoiceId, i => i.Id, (l, i) => new { l, i })
-      .Where(x => x.i.FirmId == f && x.i.Status == BillingStates.InvoicePosted && x.i.PostedAt != null).ToListAsync(ct);
+      .Where(x => x.i.FirmId == f && x.i.Status == BillingStates.InvoicePosted && x.i.PostedAt != null && selectedInvoiceIds.Contains(x.i.Id)).ToListAsync(ct);
     var timeSources = lines.Where(x => x.l.SourceKind == "TIME" && x.l.SourceId.HasValue).Select(x => x.l.SourceId!.Value).ToArray();
-    var timeEngagement = await db.TimeEntries.AsNoTracking().Where(x => timeSources.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.EngagementId, ct);
+    var timeEngagement = await db.TimeEntries.AsNoTracking().Where(x => x.FirmId == f && timeSources.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.EngagementId, ct);
     var milestoneSources = lines.Where(x => x.l.SourceKind == FeeAgreementService.MilestoneSourceKind && x.l.SourceId.HasValue).Select(x => x.l.SourceId!.Value).ToArray();
-    var milestoneEngagement = await db.FeeMilestones.AsNoTracking().Where(x => milestoneSources.Contains(x.Id))
-      .Join(db.EngagementFeeAgreements.AsNoTracking(), m => m.AgreementId, a => a.Id, (m, a) => new { m.Id, a.EngagementId }).ToDictionaryAsync(x => x.Id, x => x.EngagementId, ct);
+    var milestoneEngagement = await db.FeeMilestones.AsNoTracking().Where(x => x.FirmId == f && milestoneSources.Contains(x.Id))
+      .Join(db.EngagementFeeAgreements.AsNoTracking().Where(x => x.FirmId == f), m => m.AgreementId, a => a.Id, (m, a) => new { m.Id, a.EngagementId }).ToDictionaryAsync(x => x.Id, x => x.EngagementId, ct);
     Guid? LineEngagement(InvoiceLine l) => l.SourceKind == "TIME" && l.SourceId is { } t ? timeEngagement.GetValueOrDefault(t)
       : l.SourceKind == FeeAgreementService.MilestoneSourceKind && l.SourceId is { } m ? milestoneEngagement.GetValueOrDefault(m) : null;
-    var billedLines = lines.Select(x => new { x.l, x.i, Engagement = LineEngagement(x.l) }).Where(x => x.Engagement.HasValue).ToList();
-    engagementIds = engagementIds.Union(billedLines.Select(x => x.Engagement!.Value)).Distinct().ToList();
-    var agreements = await db.EngagementFeeAgreements.AsNoTracking().Where(x => x.FirmId == f && x.EngagementId != null).ToListAsync(ct);
-    engagementIds = engagementIds.Union(agreements.Select(x => x.EngagementId!.Value)).ToList();
+    var billedLines = lines.Select(x => new { x.l, x.i, Engagement = LineEngagement(x.l) }).Where(x => x.Engagement.HasValue && engagementIds.Contains(x.Engagement.Value)).ToList();
+    var agreements = await db.EngagementFeeAgreements.AsNoTracking().Where(x => x.FirmId == f && x.EngagementId != null && engagementIds.Contains(x.EngagementId.Value)).ToListAsync(ct);
     var lifetimeTime = await db.TimeEntries.AsNoTracking().Where(x => x.FirmId == f && x.Status == PracticeTimeStates.TimeApproved &&
       x.EngagementId != null && engagementIds.Contains(x.EngagementId.Value)).Select(x => new { x.EngagementId, x.DurationMinutes, x.RatePerHour, x.Currency, x.BillableClassification }).ToListAsync(ct);
     var invoiceIds = billedLines.Select(x => x.i.Id).Distinct().ToArray();
@@ -246,8 +261,8 @@ public static class PracticeAnalyticsQuery
       .ToDictionaryAsync(x => x.InvoiceId, x => x.Amount, ct);
     var credits = await db.CreditNotes.AsNoTracking().Where(x => x.FirmId == f && invoiceIds.Contains(x.InvoiceId)).GroupBy(x => x.InvoiceId)
       .Select(g => new { g.Key, Amount = g.Sum(x => x.Amount) }).ToDictionaryAsync(x => x.Key, x => x.Amount, ct);
-    var labels = await db.Engagements.AsNoTracking().Where(x => engagementIds.Contains(x.Id))
-      .Join(db.PracticeClients.AsNoTracking(), e => e.PracticeClientId, c => c.Id, (e, c) => new { e.Id, Label = (c.CommercialName ?? c.LegalName) + " · " + e.ServiceRoute + " " + e.PeriodEnd })
+    var labels = await db.Engagements.AsNoTracking().Where(x => x.FirmId == f && engagementIds.Contains(x.Id))
+      .Join(db.PracticeClients.AsNoTracking().Where(x => x.FirmId == f), e => e.PracticeClientId, c => c.Id, (e, c) => new { e.Id, Label = (c.CommercialName ?? c.LegalName) + " · " + e.ServiceRoute + " " + e.PeriodEnd })
       .ToDictionaryAsync(x => x.Id, x => x.Label, ct);
     var budgets = await db.EngagementBudgets.AsNoTracking().Where(x => x.FirmId == f && engagementIds.Contains(x.EngagementId) && x.Status == PracticeTimeStates.BudgetApproved).ToListAsync(ct);
     var budgetIds = budgets.Select(x => x.Id).ToArray();
@@ -306,7 +321,7 @@ public static class PracticeAnalyticsQuery
       { ContractedFee = contract?.AgreedFee, ContractCurrency = contract?.Currency,
         LifetimeStandardValue = contribution?.LifetimeStandardValue, ContractedFeeLessStandardValue = contribution?.FeeLessStandardValue,
         NonChargeableMinutes = mine.Sum(t => t.DurationMinutes) - valued.Sum(t => t.DurationMinutes) };
-    }).OrderBy(x => x.Label).ToList();
+    }).OrderBy(x => x.EngagementId).ToList();
 
     // Department utilization over the same period.
     var profiles = await db.StaffProfiles.AsNoTracking().Where(x => x.FirmId == f).ToListAsync(ct);
@@ -411,7 +426,8 @@ public static class PracticeAnalyticsQuery
       reviewRows.Count(x => x.Decision == AuditProcedureReviewDecisions.ChangesRequired), measurableReviews.Length,
       reviewRows.Count - measurableReviews.Length, averageReviewHours);
     var clientWait = await PracticeClientWaitQuery.GetAsync(db, f, from, to, ct);
-    return CommandResult<PracticeAnalyticsView>.Ok(new(from, to, rows, departments, milestones, workload, phaseWorkload, reviewTurnaround, clientWait, Definitions));
+    return CommandResult<PracticeAnalyticsView>.Ok(new(from, to, rows, departments, milestones, workload, phaseWorkload, reviewTurnaround, clientWait, Definitions)
+      { EngagementPageSize = page.PageSize, HasMoreEngagements = hasMore, NextEngagementId = nextEngagementId });
   }
 
   public static async Task<CommandResult<Guid>> RecordCostRateAsync(IClientAccountingDbContext db, ActorContext actor, Guid userId, decimal hourlyCost, string currency, DateOnly effectiveFrom, CancellationToken ct = default)
