@@ -1,10 +1,14 @@
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
+using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Documents;
+using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Cryptography;
+using System.Globalization;
+using System.Text;
 using System.Text.Json;
 
 namespace AuditSphereOps.Application.Documents;
@@ -152,7 +156,7 @@ public static class PbcService
 
   public static async Task<CommandResult> SendRequestAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid requestId, long expectedRevision,
-    string publicBaseUrl, CancellationToken ct = default)
+    string publicBaseUrl, CancellationToken ct = default, bool createWorkflowTask = false)
   {
     if (requestId == Guid.Empty || expectedRevision < 1 || !TryPortalUrl(publicBaseUrl, requestId, out var portalUrl))
       return CommandResult.Fail("pbc.invalid", "A request, current revision and valid public application URL are required.");
@@ -165,10 +169,32 @@ public static class PbcService
     if (!auth.Succeeded) return auth;
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
+    if (createWorkflowTask)
+    {
+      var firm = await db.FirmSafetyStates.FromSqlInterpolated(
+        $"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
+      if (firm is null)
+        return CommandResult.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+      var clientGuard = await db.ClientSafetyStates.FromSqlInterpolated($"""
+        SELECT * FROM client_safety_states WHERE id = {current.ClientId} AND firm_id = {actor.FirmId} FOR UPDATE
+        """).SingleOrDefaultAsync(ct);
+      if (clientGuard is null)
+        return CommandResult.Fail(ErrorCodes.GateBlocked, "Client safety state is unavailable.");
+      var lockedEngagement = await db.Engagements.FromSqlInterpolated($"""
+        SELECT * FROM engagements WHERE firm_id = {actor.FirmId} AND practice_client_id = {current.ClientId}
+          AND id = {current.EngagementId} FOR UPDATE
+        """).SingleOrDefaultAsync(ct);
+      if (lockedEngagement is null)
+        return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+      auth = await AuthorizeStaffAsync(db, actor, current.ClientId, current.EngagementId, ct);
+      if (!auth.Succeeded) return auth;
+    }
     var request = await db.PbcRequests.FromSqlInterpolated($"""
       SELECT * FROM pbc_requests WHERE firm_id = {actor.FirmId} AND id = {requestId} FOR UPDATE
       """).SingleOrDefaultAsync(ct);
     if (request is null)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (request.ClientId != current.ClientId || request.EngagementId != current.EngagementId)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (request.Revision != expectedRevision)
       return CommandResult.Fail(ErrorCodes.StaleRevision, "The PBC request changed; reload before sending it.");
@@ -178,6 +204,57 @@ public static class PbcService
       x.FirmId == actor.FirmId && x.Id == request.ClientOwnerUserId, ct);
     if (string.IsNullOrWhiteSpace(client.Email))
       return CommandResult.Fail("pbc.client-email", "The assigned client user does not have a valid email destination.");
+
+    if (createWorkflowTask)
+    {
+      if (!DateOnly.TryParseExact(request.DueDate, "yyyy-MM-dd", CultureInfo.InvariantCulture,
+          DateTimeStyles.None, out var dueDate))
+        return CommandResult.Fail("pbc.due-date", "The PBC due date must be a valid ISO date before it can be scheduled.");
+
+      var sourceKey = $"PBC-FOLLOW-UP:{request.Id:N}";
+      var digestBytes = JsonSerializer.SerializeToUtf8Bytes(new
+      {
+        version = 1,
+        request.FirmId,
+        request.ClientId,
+        request.EngagementId,
+        request.Id,
+        request.Area,
+        request.DueDate
+      });
+      var digest = Convert.ToHexString(SHA256.HashData(digestBytes)).ToLowerInvariant();
+      var existing = await db.WorkflowTaskBindings.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.FirmId == actor.FirmId && x.PbcRequestId == request.Id, ct);
+      if (existing is not null && !string.Equals(existing.CreationRequestDigest, digest, StringComparison.Ordinal))
+        return CommandResult.Fail(ErrorCodes.IdempotencyConflict,
+          "This PBC request already has a follow-up task with different content.");
+      if (existing is null)
+      {
+        var ordinal = (await db.WorkflowTaskBindings.AsNoTracking().Where(x =>
+          x.FirmId == actor.FirmId && x.EngagementId == request.EngagementId &&
+          x.Phase == WorkflowTaskPhases.AuditFieldwork).MaxAsync(x => (int?)x.Ordinal, ct) ?? 0) + 1;
+        if (ordinal > 100000)
+          return CommandResult.Fail(ErrorCodes.ProtectedState, "The fieldwork task ordering limit has been reached.");
+
+        var binding = new WorkflowTaskBinding
+        {
+          PbcRequestId = request.Id,
+          Phase = WorkflowTaskPhases.AuditFieldwork,
+          Ordinal = ordinal,
+          SourceKey = sourceKey,
+          CreationRequestDigest = digest,
+          Generation = 1,
+          DueDatePolicy = "FIXED",
+          AssigneeUserIdSnapshot = request.FirmOwnerUserId,
+          AssignmentSource = "AUTOMATION"
+        };
+        var task = await PracticeTimeService.CreateWorkflowTaskAsync(db, actor,
+          new CreateTaskRequest($"PBC follow-up: {request.Area}", request.ClientId, request.EngagementId,
+            request.FirmOwnerUserId, DueDate: dueDate), binding, ct, StaffRoles, allowUnassignedAssignee: true);
+        if (!task.Succeeded)
+          return CommandResult.Fail(task.ErrorCode!, task.Message!);
+      }
+    }
 
     var now = DateTimeOffset.UtcNow;
     request.State = PbcStates.Sent;

@@ -1,5 +1,6 @@
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Engagements;
+using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Security;
 using Microsoft.EntityFrameworkCore;
 
@@ -14,6 +15,9 @@ public sealed partial class AuditSphereDbContext
     b.Entity<WorkflowTaskBinding>().HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
       .HasName("AK_workflow_task_bindings_scope_id");
     b.Entity<WorkflowTaskBinding>().HasIndex(x => new { x.FirmId, x.WorkTaskId }).IsUnique();
+    b.Entity<WorkflowTaskBinding>().HasIndex(x => new { x.FirmId, x.PbcRequestId })
+      .IsUnique().HasFilter("pbc_request_id IS NOT NULL")
+      .HasDatabaseName("UX_workflow_task_bindings_pbc_request");
     b.Entity<WorkflowTaskBinding>().HasIndex(x => new { x.FirmId, x.EngagementId, x.SourceKey, x.Generation })
       .IsUnique().HasDatabaseName("UX_workflow_task_bindings_source_generation");
     b.Entity<WorkflowTaskBinding>().HasIndex(x => new { x.FirmId, x.EngagementId, x.Phase, x.Ordinal });
@@ -39,6 +43,9 @@ public sealed partial class AuditSphereDbContext
     b.Entity<WorkflowTaskBinding>().HasOne<Engagement>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId })
       .HasPrincipalKey(x => new { x.FirmId, x.PracticeClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<WorkflowTaskBinding>().HasOne<PbcRequest>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.PbcRequestId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     b.Entity<WorkflowTaskBinding>().HasOne<AppUser>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);

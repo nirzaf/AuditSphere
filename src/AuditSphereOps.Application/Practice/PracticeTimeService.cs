@@ -3,6 +3,7 @@ using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Completion;
+using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
@@ -85,8 +86,9 @@ public static class PracticeTimeService
 
   internal static Task<CommandResult<Guid>> CreateWorkflowTaskAsync(
     IAuditSphereDbContext db, ActorContext actor, CreateTaskRequest request,
-    WorkflowTaskBinding binding, CancellationToken ct = default) =>
-    CreateTaskCoreAsync(db, actor, request, binding, ct);
+    WorkflowTaskBinding binding, CancellationToken ct = default, string[]? authorizationRoles = null,
+    bool allowUnassignedAssignee = false) =>
+    CreateTaskCoreAsync(db, actor, request, binding, ct, authorizationRoles, allowUnassignedAssignee);
 
   /// <summary>
   /// Creates one operational rework task for an already-authorized ChangesRequired review.
@@ -304,6 +306,18 @@ public static class PracticeTimeService
     if (task.Status == PracticeTimeStates.TaskCompleted) return CommandResult.Ok();
     if (task.Status == PracticeTimeStates.TaskCancelled)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "A cancelled task cannot be completed.");
+    if (workflowBinding?.PbcRequestId is { } pbcRequestId)
+    {
+      var pbc = await db.PbcRequests.FromSqlInterpolated($"""
+        SELECT * FROM pbc_requests WHERE firm_id = {actor.FirmId} AND client_id = {task.ClientId}
+          AND engagement_id = {task.EngagementId} AND id = {pbcRequestId} FOR UPDATE
+        """).SingleOrDefaultAsync(ct);
+      if (pbc is null)
+        return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+      if (pbc.State is not (PbcStates.Accepted or PbcStates.Closed))
+        return CommandResult.Fail(ErrorCodes.GateBlocked,
+          "The linked PBC request must be accepted or closed before completing its follow-up task.");
+    }
     if (workflowBinding is not null)
     {
       var hasIncompletePredecessor = await (from dependency in db.WorkflowTaskDependencies.AsNoTracking()

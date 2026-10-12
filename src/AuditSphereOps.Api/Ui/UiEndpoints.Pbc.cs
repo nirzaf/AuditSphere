@@ -18,8 +18,10 @@ public static partial class UiEndpoints
     group.MapGet("/engagements/{id:guid}/pbc", (Guid id, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => PbcInboxWorkspaceQuery.GetAsync(db, actor, id, ct)));
     group.MapPost("/engagements/{id:guid}/pbc", (Guid id, PbcCreateInput i, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => PbcInboxWorkspaceQuery.CreateAndSendAsync(db, actor, id, i.Description ?? "", i.ClientOwnerId, i.ReviewerId,
-        i.DueDate ?? "", i.RequestedFormat, PublicBaseUrl(http), ct)));
+      CommandAsync(http, (db, actor, ct) => PbcInboxWorkspaceQuery.CreateAndSendAsync(db, actor, id,
+        i.Description ?? "", i.ClientOwnerId, i.ReviewerId, i.DueDate ?? "", i.RequestedFormat,
+        PublicBaseUrl(http), ct,
+        http.RequestServices.GetRequiredService<IConfiguration>().GetValue<bool>("WorkflowExperience:Enabled"))));
     group.MapPost("/pbc-requests/{id:guid}/more-files", (Guid id, PbcMoreInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => PbcService.RequestMoreFilesAsync(db, actor, new PbcMessageRequest(id, i.Body ?? "", PublicBaseUrl(http)), ct)));
     // The staff boundary verifies the staged bytes and binds a durable transfer; the declared hash is the only admissible identity.

@@ -72,7 +72,8 @@ public static class PbcInboxWorkspaceQuery
 
   /// <summary>Opens a request with the engagement's scope and queues the minimal client email in one user action.</summary>
   public static async Task<CommandResult<Guid>> CreateAndSendAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, string description,
-    Guid clientOwnerId, Guid reviewerId, string dueDate, string? requestedFormat, string publicBaseUrl, CancellationToken ct = default)
+    Guid clientOwnerId, Guid reviewerId, string dueDate, string? requestedFormat, string publicBaseUrl,
+    CancellationToken ct = default, bool createWorkflowTask = false)
   {
     var engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x => x.Id == engagementId && x.FirmId == actor.FirmId, ct);
     if (engagement is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
@@ -80,7 +81,7 @@ public static class PbcInboxWorkspaceQuery
       engagement.PeriodEnd, "Client documents", string.IsNullOrWhiteSpace(requestedFormat) ? "Any safe readable format" : requestedFormat, string.Empty,
       clientOwnerId, actor.UserId, reviewerId, dueDate, "Confidential", "Readable, complete, and relevant to the request description."), ct);
     if (!created.Succeeded) return created;
-    var sent = await PbcService.SendRequestAsync(db, actor, created.Value, 1, publicBaseUrl, ct);
+    var sent = await PbcService.SendRequestAsync(db, actor, created.Value, 1, publicBaseUrl, ct, createWorkflowTask);
     return sent.Succeeded ? created : CommandResult<Guid>.Fail(sent.ErrorCode!, sent.Message!);
   }
 }

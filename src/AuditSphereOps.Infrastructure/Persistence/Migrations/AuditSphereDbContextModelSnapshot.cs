@@ -24830,6 +24830,10 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("ordinal");
 
+                    b.Property<Guid?>("PbcRequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("pbc_request_id");
+
                     b.Property<string>("Phase")
                         .IsRequired()
                         .HasMaxLength(40)
@@ -24881,12 +24885,19 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("FirmId", "CreatedByUserId");
 
+                    b.HasIndex("FirmId", "PbcRequestId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_workflow_task_bindings_pbc_request")
+                        .HasFilter("pbc_request_id IS NOT NULL");
+
                     b.HasIndex("FirmId", "WorkTaskId")
                         .IsUnique();
 
                     b.HasIndex("FirmId", "AssigneeUserIdSnapshot", "Phase");
 
                     b.HasIndex("FirmId", "TemplateRevisionId", "TemplateStepId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "PbcRequestId");
 
                     b.HasIndex("FirmId", "EngagementId", "Phase", "Ordinal");
 
@@ -32159,6 +32170,12 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("FirmId", "TemplateRevisionId", "TemplateStepId")
                         .HasPrincipalKey("FirmId", "TemplateRevisionId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Documents.PbcRequest", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "PbcRequestId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
