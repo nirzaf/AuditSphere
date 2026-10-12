@@ -870,14 +870,20 @@ public static partial class AuditDeliverableService
       : await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagementId, roles, InternalOnly: true), ct);
   }
 
-  /// <summary>A Partner on the engagement; when the engagement is staffed, it must be its Engagement Partner.</summary>
+  /// <summary>
+  /// Only the engagement's staffed Engagement Partner may clear, decide the opinion, sign and assemble the bundle (STE 4.4.1).
+  /// An engagement with no current Engagement Partner fails closed: the Partner role alone is never enough (ADR-0017).
+  /// </summary>
   private static async Task<CommandResult> AuthorizePartnerAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct)
   {
     var auth = await AuthorizeAsync(db, actor, engagementId, ["Partner"], ct);
     if (!auth.Succeeded) return auth;
     var partner = await db.EngagementStaffAssignments.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId &&
       x.RevokedAt == null && x.StaffingLevel == StaffingLevels.EngagementPartner, ct);
-    return partner is null || partner.UserId == actor.UserId
+    if (partner is null)
+      return CommandResult.Fail(ErrorCodes.GateBlocked,
+        "Staff an Engagement Partner on this engagement first. Only the staffed Engagement Partner can clear, decide the opinion and sign.");
+    return partner.UserId == actor.UserId
       ? CommandResult.Ok()
       : CommandResult.Fail(ErrorCodes.ScopeDenied, "Only the staffed Engagement Partner can clear, decide the opinion and sign.");
   }

@@ -8,12 +8,19 @@ public sealed record ResourceWeekCell(
 
 /// <summary>
 /// Pure week-by-week capacity arithmetic. Capacity is the profile's weekly minutes less recorded unavailability on
-/// working days (Monday–Friday unless a firm calendar is supplied); utilization is only reported
+/// working days (the firm working week, Sunday to Thursday, unless a calendar is supplied); utilization is only reported
 /// when capacity is positive, and planned and approved-actual figures are kept separate so nothing is inferred.
 /// </summary>
 public static class ResourceGridCalculator
 {
-  public static readonly DayOfWeek[] MondayToFriday = [DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday];
+  /// <summary>
+  /// The firm working week (ADR-0017): Sunday to Thursday, with Friday and Saturday as the weekend, which is the normal working
+  /// week in Qatar. Capacity and utilization both read this one definition. Public holidays are not modelled here; they are
+  /// recorded as unavailability.
+  /// </summary>
+  public static readonly DayOfWeek[] FirmWorkingWeek = [DayOfWeek.Sunday, DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday];
+
+  public static bool IsWorkingDay(DateOnly date) => Array.IndexOf(FirmWorkingWeek, date.DayOfWeek) >= 0;
 
   public static DateOnly WeekStart(DateOnly date) => date.AddDays(-(((int)date.DayOfWeek + 6) % 7));
 
@@ -21,7 +28,7 @@ public static class ResourceGridCalculator
     int weeklyCapacityMinutes, IReadOnlyCollection<StaffAvailability> availability, IReadOnlyCollection<StaffAllocation> allocations,
     IReadOnlyCollection<(DateOnly WorkDate, int Minutes)> approvedTime, DateOnly firstWeek, int weeks, IReadOnlyCollection<DayOfWeek>? workingDays = null)
   {
-    workingDays ??= MondayToFriday;
+    workingDays ??= FirmWorkingWeek;
     var cells = new List<ResourceWeekCell>(weeks);
     var perDayCapacity = workingDays.Count == 0 ? 0 : weeklyCapacityMinutes / workingDays.Count;
     for (var w = 0; w < weeks; w++)

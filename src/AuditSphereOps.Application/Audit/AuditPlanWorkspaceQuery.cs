@@ -99,7 +99,8 @@ public static class AuditPlanWorkspaceQuery
           var significant = matchingRisks.Any(r => r.SignificanceDecision == SignificanceDecisions.Significant) ||
                             matchingAssessments.Any(a => a.Significant);
           var fraud = matchingAssessments.Any(a => a.FraudRisk);
-          var critical = matchingRisks.Any(r => ProcedureRiskBandEvaluator.HasEstimateIndicator(r.Description) ||
+          var critical = matchingAssessments.Any(a => a.CriticalEstimate) ||
+                         matchingRisks.Any(r => ProcedureRiskBandEvaluator.HasEstimateIndicator(r.Description) ||
                                                 ProcedureRiskBandEvaluator.HasEstimateIndicator(r.Drivers));
           var highInherent = matchingAssessments.Any(a => a.LikelihoodScore == 3 && a.MagnitudeScore >= 2);
 

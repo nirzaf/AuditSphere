@@ -51,7 +51,8 @@ public sealed record ReviseProposalRequest(
   Guid? RequestId = null);
 
 public sealed record ProposalResponseRequest(string Decision, string? Reason = null,
-  string? OfferSha256 = null, string? RespondentName = null, string? RespondentEmail = null, string? EvidenceReference = null);
+  string? OfferSha256 = null, string? RespondentName = null, string? RespondentEmail = null, string? EvidenceReference = null,
+  string? Channel = null);
 
 public sealed record ConvertToClientDraftRequest(
   Guid ProposalId,
@@ -390,6 +391,13 @@ public static partial class PracticeCrmService
       return CommandResult.Fail("crm.invalid", "Proposal response must be ACCEPTED or DECLINED.");
     if (decision == CrmStates.ProposalDeclined && string.IsNullOrWhiteSpace(request.Reason))
       return CommandResult.Fail("crm.invalid", "A declined proposal needs a reason.");
+    // The response channel is part of the commercial key's evidence (STE 4.1.3): required on acceptance, and when given it must
+    // be one of the approved channels.
+    var channel = ResponseChannel(request.Channel);
+    if (!string.IsNullOrWhiteSpace(request.Channel) && channel is null)
+      return CommandResult.Fail("crm.invalid", "Response channel must be EMAIL, SIGNED_LETTER, IN_PERSON or PHONE.");
+    if (decision == CrmStates.ProposalAccepted && channel is null)
+      return CommandResult.Fail("crm.invalid", "Acceptance must record the channel the response arrived by.");
     var auth = await AuthorizeAsync(db, actor, ct);
     if (!auth.Succeeded) return auth;
     await using var tx = await db.Database.BeginTransactionAsync(ct);
@@ -459,6 +467,7 @@ public static partial class PracticeCrmService
     proposal.RespondentName = TrimOrNull(request.RespondentName);
     proposal.RespondentEmail = TrimOrNull(request.RespondentEmail);
     proposal.ResponseEvidenceReference = TrimOrNull(request.EvidenceReference);
+    proposal.ResponseChannel = channel;
     var opportunity = await db.Opportunities.SingleAsync(x => x.Id == proposal.OpportunityId && x.FirmId == actor.FirmId, ct);
     opportunity.Stage = decision == CrmStates.ProposalAccepted
       ? CrmStates.OpportunityWon : CrmStates.OpportunityLost;
@@ -684,6 +693,11 @@ public static partial class PracticeCrmService
       return "Lead source must be a supported channel: Phone, WhatsApp, Email, Web Form, Referral or In-person.";
     return string.IsNullOrWhiteSpace(request.PrimaryContactEmail) ? null : EmailError(request.PrimaryContactEmail);
   }
+
+  /// <summary>The canonical response channel, matched case-insensitively against the approved set; null when absent or unsupported.</summary>
+  internal static string? ResponseChannel(string? channel) =>
+    string.IsNullOrWhiteSpace(channel) ? null
+      : ProposalResponseChannels.All.FirstOrDefault(c => string.Equals(c, channel.Trim(), StringComparison.OrdinalIgnoreCase));
 
   /// <summary>The canonical channel for a lead source, matched case-insensitively against the owner-approved set; null when unsupported.</summary>
   internal static string? LeadChannel(string? source) =>

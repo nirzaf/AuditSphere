@@ -42806,6 +42806,12 @@
               "null",
               "string"
             ]
+          },
+          "channel": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -43995,6 +44001,10 @@
           },
           "rationale": {
             "type": "string"
+          },
+          "criticalEstimate": {
+            "type": "boolean",
+            "default": false
           }
         }
       },

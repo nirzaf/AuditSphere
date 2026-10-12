@@ -18,7 +18,8 @@ const calculation = obj({ assessmentId: guid, state: text, route: text, benchmar
   rounding: nullable(obj({ decidedAt: instant, decidedByUserId: guid, rationale: text, adjustedPlanningMateriality: dec, adjustedTolerableError: dec,
     adjustedSadThreshold: dec, planningDeltaPercent: dec, tolerableDeltaPercent: dec, sadDeltaPercent: dec })) });
 const routing = obj({ riskId: guid, area: text, assertion: text, significanceDecision: text, assessmentId: nullable(guid), assessedByUserId: nullable(guid), band: nullable(text), likelihood: nullable(int),
-  magnitude: nullable(int), fraudRisk: bool, route: text, partnerReviewRequired: bool, partnerCleared: bool, partnerName: nullable(text), ownerName: nullable(text), ownerLevel: nullable(text) });
+  magnitude: nullable(int), fraudRisk: bool, route: text, partnerReviewRequired: bool, partnerCleared: bool, partnerName: nullable(text), ownerName: nullable(text), ownerLevel: nullable(text),
+  criticalEstimate: bool });
 const fsliRow = obj({
   destinationCode: text, statementSection: text, auditArea: nullable(text), balance: dec, absoluteBalance: dec,
   currency: text, tolerableError: dec, planningMateriality: dec, band: text, criticalEstimate: bool,
@@ -42,7 +43,7 @@ export const decodePlan = obj({ engagementId: guid, professionalWorkBlocked: boo
   canAssignOwners: bool, isPartner: bool, fsliStratification: arr(fsliRow, 500),
   milestonePlan: nullable(milestonePlan), canApplyPracticalRounding: bool });
 type Plan = ReturnType<typeof decodePlan>;
-interface RowInput { likelihood: number; magnitude: number; fraud: boolean; rationale: string; owner: string; note: string }
+interface RowInput { likelihood: number; magnitude: number; fraud: boolean; criticalEstimate: boolean; rationale: string; owner: string; note: string }
 
 @Component({
   selector: 'audit-plan',
@@ -193,7 +194,7 @@ interface RowInput { likelihood: number; magnitude: number; fraud: boolean; rati
 
       <section class="panel" aria-labelledby="risk-routing-heading">
         <h2 id="risk-routing-heading">Risk routing</h2>
-        <p><small>Green: a Staff Associate may perform. Amber: Senior Auditor or above performs, Manager reviews. Red (any significant or fraud risk, or likelihood × magnitude ≥ 6): Audit Manager or above performs and the Engagement Partner must review before completion. ({{ p.riskRuleVersion }})</small></p>
+        <p><small>Green: a Staff Associate may perform. Amber: Senior Auditor or above performs, Manager reviews. Red (any significant or fraud risk, a recorded critical accounting estimate, or likelihood × magnitude ≥ 6): Audit Manager or above performs and the Engagement Partner must review before completion. ({{ p.riskRuleVersion }})</small></p>
         @for (row of p.routing; track row.riskId) {
           <article class="panel" [attr.data-risk]="row.area">
             <p><strong>{{ row.area }}</strong> — {{ row.assertion }} <span class="status-chip" [attr.aria-label]="'Band ' + (row.band ?? 'not assessed')">{{ row.band ?? 'NOT ASSESSED' }}</span>
@@ -203,6 +204,7 @@ interface RowInput { likelihood: number; magnitude: number; fraud: boolean; rati
               <label>Likelihood <select [(ngModel)]="input(row).likelihood" [name]="'l-' + row.riskId"><option [ngValue]="1">1 Low</option><option [ngValue]="2">2 Moderate</option><option [ngValue]="3">3 High</option></select></label>
               <label>Magnitude <select [(ngModel)]="input(row).magnitude" [name]="'m-' + row.riskId"><option [ngValue]="1">1 Low</option><option [ngValue]="2">2 Moderate</option><option [ngValue]="3">3 High</option></select></label>
               <label><span><input type="checkbox" [(ngModel)]="input(row).fraud" [name]="'f-' + row.riskId" /> Fraud risk</span></label>
+              <label><span><input type="checkbox" [(ngModel)]="input(row).criticalEstimate" [name]="'e-' + row.riskId" /> Critical accounting estimate</span></label>
               <label>Rationale <input [(ngModel)]="input(row).rationale" [name]="'r-' + row.riskId" maxlength="500" required [attr.aria-label]="'Band rationale for ' + row.area" /></label>
               <button matButton="outlined" (click)="assess(row.riskId)" [disabled]="cmd.busy() || !input(row).rationale.trim()" [attr.aria-label]="'Assess band for ' + row.area">Assess band</button>
             </div>
@@ -332,9 +334,9 @@ export class AuditPlan {
     return first ? first.kind + '|' + (first.destinationCode ?? '') : '';
   }
   range(p: Plan) { const kind = this.option(p).split('|')[0]; return p.rateRanges.find((r) => r.kind === kind) ?? null; }
-  input(row: { riskId: string; likelihood: number | null; magnitude: number | null; fraudRisk: boolean }): RowInput {
+  input(row: { riskId: string; likelihood: number | null; magnitude: number | null; fraudRisk: boolean; criticalEstimate: boolean }): RowInput {
     let i = this.inputs.get(row.riskId);
-    if (!i) this.inputs.set(row.riskId, (i = { likelihood: row.likelihood ?? 1, magnitude: row.magnitude ?? 1, fraud: row.fraudRisk, rationale: '', owner: '', note: '' }));
+    if (!i) this.inputs.set(row.riskId, (i = { likelihood: row.likelihood ?? 1, magnitude: row.magnitude ?? 1, fraud: row.fraudRisk, criticalEstimate: row.criticalEstimate, rationale: '', owner: '', note: '' }));
     return i;
   }
   send(url: string, body: unknown, ok: string, after?: () => void): void {
@@ -382,7 +384,7 @@ export class AuditPlan {
   }
   assess(riskId: string): void {
     const i = this.inputs.get(riskId)!;
-    this.send(`/api/ui/risks/${riskId}/band`, { likelihood: i.likelihood, magnitude: i.magnitude, fraud: i.fraud, rationale: i.rationale }, 'Band assessed.');
+    this.send(`/api/ui/risks/${riskId}/band`, { likelihood: i.likelihood, magnitude: i.magnitude, fraud: i.fraud, criticalEstimate: i.criticalEstimate, rationale: i.rationale }, 'Band assessed.');
   }
   assign(riskId: string): void { this.send(`/api/ui/risks/${riskId}/owner`, { ownerUserId: this.inputs.get(riskId)!.owner }, 'Owner assigned.'); }
   clear(riskId: string): void { this.send(`/api/ui/risks/${riskId}/partner-review`, { note: this.inputs.get(riskId)!.note }, 'Partner review recorded.'); }

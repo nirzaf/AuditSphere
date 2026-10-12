@@ -411,9 +411,17 @@ public sealed partial class AcceptanceChecklistTests
     Assert.Equal(2L, next.Value);
 
     var review = (await AcceptanceChecklistService.GetAsync(db, w.Staff, w.ClientId)).Value!;
-    Assert.Equal((AcceptancePaths.Continuance, 30, first.Value), (review.Path, review.Items.Count, review.PriorDecision!.Id));
+    Assert.Equal((AcceptancePaths.Continuance, 32, first.Value), (review.Path, review.Items.Count, review.PriorDecision!.Id));
     Assert.All(review.Items, x => Assert.Equal("RV", x.Question.Bank));
-    Assert.Equal(["RV-003", "RV-007", "RV-009", "RV-020"], review.Items.Where(x => x.Question.EscalatesOnChange).Select(x => x.Question.Code));
+    Assert.Equal(["RV-003", "RV-007", "RV-009", "RV-020", "RV-031"], review.Items.Where(x => x.Question.EscalatesOnChange).Select(x => x.Question.Code));
+    // STE v2.2 Track B (ADR-0017): legal notices and prior-year fee settlement are asked on their own, each with evidence.
+    var legalNotice = review.Items.Single(x => x.Question.Code == "RV-031").Question;
+    Assert.Equal((true, "YES"), (legalNotice.RequiresEvidence, legalNotice.AdverseAnswer));
+    var feesSettled = review.Items.Single(x => x.Question.Code == "RV-032").Question;
+    Assert.Equal((true, "NO"), (feesSettled.RequiresEvidence, feesSettled.AdverseAnswer));
+    // The concluding question stays last.
+    Assert.Equal("RV-030", review.Items[^1].Question.Code);
+    Assert.All(review.Items, x => Assert.Equal("1.1", x.Question.TemplateVersion));
     Assert.Equal(ErrorCodes.ScopeDenied, (await AcceptanceChecklistService.RecordAnswerAsync(db, w.Staff, w.ClientId, "CE-001", "Yes", "DOC")).ErrorCode); // onboarding bank is not asked again
     var oldGeneration = await AcceptanceDecisionService.RecordAsync(db, w.Partner, new(w.ClientId, null, "AccountingOnly", "ACCEPTED", "Stale.", null, 1));
     Assert.Equal(ErrorCodes.StaleRevision, oldGeneration.ErrorCode);

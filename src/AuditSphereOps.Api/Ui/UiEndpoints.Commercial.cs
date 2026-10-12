@@ -14,7 +14,7 @@ public static partial class UiEndpoints
     string PeriodStart, string PeriodEnd, string ExpectedFee, string Currency);
   public sealed record LeadInput(Guid RequestId, string Name, string Source, string? ContactName, string? ContactEmail);
   public sealed record ProposalResponseInput(string Decision, string? Reason, string? OfferSha256 = null,
-    string? RespondentName = null, string? RespondentEmail = null, string? EvidenceReference = null);
+    string? RespondentName = null, string? RespondentEmail = null, string? EvidenceReference = null, string? Channel = null);
   public sealed record ClientConversionInput(string LegalName);
   public sealed record ProposalRevisionInput(string ExpectedRevision, string ServiceProfile, string Scope,
     string Exclusions, string Deliverables, string Dependencies, string Fee, string Currency,
@@ -124,7 +124,8 @@ public static partial class UiEndpoints
       catch (AntiforgeryValidationException) { return Results.Json(new { code = "csrf.invalid" }, statusCode: 403); }
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await PracticeCrmService.RecordProposalResponseAsync(db, actor, id,
-        new(input.Decision, input.Reason, input.OfferSha256, input.RespondentName, input.RespondentEmail, input.EvidenceReference), http.RequestAborted);
+        new(input.Decision, input.Reason, input.OfferSha256, input.RespondentName, input.RespondentEmail, input.EvidenceReference, input.Channel),
+        http.RequestAborted);
       return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
     });
     group.MapPost("/proposals/{id:guid}/convert", async (Guid id, ClientConversionInput input, HttpContext http, TrustedActorResolver resolver,

@@ -102,10 +102,14 @@ public static class RiskBandRules
 {
   public const string RuleVersion = "STE-RISK-BAND-2026.1";
 
-  public static string Band(int likelihood, int magnitude, bool significant, bool fraudRisk)
+  /// <summary>
+  /// The rule version is unchanged by the recorded critical-estimate flag (ADR-0017): an assessment without the flag bands exactly
+  /// as before, and completed results compare the captured rule version, so a new version string would mark them stale.
+  /// </summary>
+  public static string Band(int likelihood, int magnitude, bool significant, bool fraudRisk, bool criticalEstimate = false)
   {
     if (likelihood is < 1 or > 3 || magnitude is < 1 or > 3) throw new ArgumentOutOfRangeException(nameof(likelihood));
-    if (significant || fraudRisk) return RiskBands.Red;
+    if (significant || fraudRisk || criticalEstimate) return RiskBands.Red;
     var score = likelihood * magnitude;
     return score >= 6 ? RiskBands.Red : score >= 3 ? RiskBands.Amber : RiskBands.Green;
   }

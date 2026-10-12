@@ -493,6 +493,36 @@ public sealed partial class AuditDeliverablesTests
 
 
 
+  /// <summary>
+  /// STE v2.2 section 4.4.1 (ADR-0017): Partner-only completion actions need the staffed Engagement Partner. With none staffed
+  /// they fail closed for every Partner, including the one who used to hold the assignment.
+  /// </summary>
+  [Fact]
+  public async Task PartnerOnlyActionsFailClosedWithoutAStaffedEngagementPartner()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var assignment = await db.EngagementStaffAssignments.AsNoTracking().SingleAsync(x => x.EngagementId == w.EngagementId &&
+      x.StaffingLevel == StaffingLevels.EngagementPartner && x.RevokedAt == null);
+    var revoked = await StaffingService.RevokeAsync(db, w.A("partner2", "Partner"), assignment.Id);
+    Assert.True(revoked.Succeeded, revoked.Message);
+
+    // A staffing change moves session epochs on, so each actor is rebuilt from its current epoch before acting.
+    async Task<ActorContext> CurrentPartnerAsync(string name)
+    {
+      var user = await db.Users.AsNoTracking().SingleAsync(x => x.Id == w.U[name].Id);
+      return new(user.Id, w.FirmId, user.SessionEpoch, ["Partner"]);
+    }
+
+    var otherPartner = await AuditDeliverableService.DecideOpinionAsync(db, await CurrentPartnerAsync("partner2"), w.EngagementId, AuditOpinionTypes.Unmodified, null, null);
+    Assert.Equal(ErrorCodes.GateBlocked, otherPartner.ErrorCode);
+    Assert.Contains("Staff an Engagement Partner", otherPartner.Message);
+    var formerPartner = await AuditDeliverableService.DecideOpinionAsync(db, await CurrentPartnerAsync("partner"), w.EngagementId, AuditOpinionTypes.Unmodified, null, null);
+    Assert.Equal(ErrorCodes.GateBlocked, formerPartner.ErrorCode);
+    Assert.Empty(await db.AuditOpinionDecisions.Where(x => x.EngagementId == w.EngagementId).ToListAsync());
+  }
+
   [Fact]
   public async Task SrmPresentsCurrencyAwareDifferences_AndDocumentsDoNotAssertAutomaticImmateriality()
   {

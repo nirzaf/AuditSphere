@@ -23,7 +23,7 @@ public static class QuestionnaireSeed
   {
     Id = RvTemplateId,
     Bank = "RV",
-    Version = "1.0",
+    Version = "1.1",
     Name = "Continuance & Review Question Bank (RV-30)",
     IsActive = true,
     CreatedAt = DateTimeOffset.UnixEpoch
@@ -145,7 +145,11 @@ public static class QuestionnaireSeed
     new() { Id = Guid.NewGuid(), TemplateId = RvTemplateId, QuestionCode = "RV-027", Section = "B.1", PromptText = "Has client risk rating increased?", Category = "Continuance", AnswerType = "BOOLEAN", RequiresEvidence = false, SortOrder = 27 },
     new() { Id = Guid.NewGuid(), TemplateId = RvTemplateId, QuestionCode = "RV-028", Section = "B.1", PromptText = "Should engagement scope/fee change?", Category = "Continuance", AnswerType = "BOOLEAN", RequiresEvidence = false, SortOrder = 28 },
     new() { Id = Guid.NewGuid(), TemplateId = RvTemplateId, QuestionCode = "RV-029", Section = "B.1", PromptText = "Is a new engagement letter required by policy/change?", Category = "Continuance", AnswerType = "BOOLEAN", RequiresEvidence = false, SortOrder = 29 },
-    new() { Id = Guid.NewGuid(), TemplateId = RvTemplateId, QuestionCode = "RV-030", Section = "B.1", PromptText = "Should the relationship continue?", Category = "Continuance", AnswerType = "BOOLEAN", RequiresEvidence = true, SortOrder = 30 }
+    new() { Id = Guid.NewGuid(), TemplateId = RvTemplateId, QuestionCode = "RV-030", Section = "B.1", PromptText = "Should the relationship continue?", Category = "Continuance", AnswerType = "BOOLEAN", RequiresEvidence = true, SortOrder = 40 },
+    // STE v2.2 section 4.2.1 Track B (ADR-0017): legal notices are asked separately from major litigation, and prior-year fee
+    // settlement is a recorded confirmation with evidence. RV-030 stays last as the concluding question.
+    new() { Id = Guid.NewGuid(), TemplateId = RvTemplateId, QuestionCode = "RV-031", Section = "B.1", PromptText = "Any legal notice, claim or demand received since the last acceptance?", Category = "Continuance", AnswerType = "BOOLEAN", RequiresEvidence = true, SortOrder = 31 },
+    new() { Id = Guid.NewGuid(), TemplateId = RvTemplateId, QuestionCode = "RV-032", Section = "B.1", PromptText = "Are all prior-year professional fees settled?", Category = "Continuance", AnswerType = "BOOLEAN", RequiresEvidence = true, SortOrder = 32 }
   ];
 
   private static readonly string[] CeAdverseWhenNo =
@@ -153,7 +157,7 @@ public static class QuestionnaireSeed
     "CE-001", "CE-002", "CE-003", "CE-004", "CE-005", "CE-006", "CE-010", "CE-011", "CE-012", "CE-022", "CE-023", "CE-024",
     "CE-030", "CE-034", "CE-035", "CE-037", "CE-040", "CE-050", "CE-054", "CE-060", "CE-062", "CE-070", "CE-073", "CE-075",
     "CE-076", "CE-080", "CE-081", "CE-082", "CE-083", "CE-084", "CE-090", "CE-091", "CE-093", "CE-096", "CE-097",
-    "RV-023", "RV-024", "RV-025", "RV-026", "RV-030"
+    "RV-023", "RV-024", "RV-025", "RV-026", "RV-030", "RV-032"
   ];
 
   private static readonly string[] CeAdverseWhenYes =
@@ -161,12 +165,15 @@ public static class QuestionnaireSeed
     "CE-013", "CE-014", "CE-015", "CE-020", "CE-021", "CE-025", "CE-031", "CE-032", "CE-033", "CE-036", "CE-041", "CE-042",
     "CE-043", "CE-044", "CE-051", "CE-052", "CE-053", "CE-055", "CE-071", "CE-072", "CE-074", "CE-094",
     "RV-001", "RV-002", "RV-003", "RV-004", "RV-005", "RV-006", "RV-007", "RV-008", "RV-009", "RV-010", "RV-011", "RV-012",
-    "RV-013", "RV-014", "RV-015", "RV-016", "RV-017", "RV-018", "RV-019", "RV-020", "RV-021", "RV-022", "RV-027"
+    "RV-013", "RV-014", "RV-015", "RV-016", "RV-017", "RV-018", "RV-019", "RV-020", "RV-021", "RV-022", "RV-027", "RV-031"
   ];
 
-  /// <summary>The four continuance delta items the engagement acceptance specification names: management, new borrowings, litigation, fraud.</summary>
+  /// <summary>
+  /// The continuance delta items the acceptance specification names as changes: management, new borrowings, litigation, legal
+  /// notices and fraud. Unsettled fees (RV-032) are an adverse answer rather than a change, so they are not in this set.
+  /// </summary>
   public static readonly IReadOnlySet<string> EscalatingDeltaItems = new HashSet<string>(StringComparer.Ordinal)
-    { "RV-003", "RV-007", "RV-009", "RV-020" };
+    { "RV-003", "RV-007", "RV-009", "RV-020", "RV-031" };
 
   /// <summary>Adverse answers by question code (YES or NO). Informational questions have no entry.</summary>
   public static IReadOnlyDictionary<string, string> AdverseAnswers { get; } = CeAdverseWhenNo.ToDictionary(x => x, _ => "NO", StringComparer.Ordinal)

@@ -12,7 +12,7 @@ public static partial class UiEndpoints
   public sealed record FindingInput(string FindingType, string ImpactDescription, string? MonetaryAmount);
   public sealed record MaterialityCalculationInput(string BenchmarkKind, string? DestinationCode, string RatePercent, string PerformancePercent, string TrivialPercent, string Rationale);
   public sealed record PracticalRoundingInput(string PlanningMateriality, string TolerableError, string SadThreshold, string Rationale);
-  public sealed record RiskBandInput(int Likelihood, int Magnitude, bool Fraud, string Rationale);
+  public sealed record RiskBandInput(int Likelihood, int Magnitude, bool Fraud, string Rationale, bool CriticalEstimate = false);
   public sealed record RiskOwnerInput(Guid OwnerUserId);
   public sealed record PartnerClearInput(string Note);
   public sealed record MilestonePlanInput(
@@ -55,7 +55,7 @@ public static partial class UiEndpoints
         new CreateFindingRequest(id, i.FindingType, i.ImpactDescription, false, amount, null), ct));
     });
     group.MapPost("/risks/{riskId:guid}/band", (Guid riskId, RiskBandInput i, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => RiskBandService.AssessAsync(db, actor, new AssessRiskBandRequest(riskId, i.Likelihood, i.Magnitude, i.Fraud, i.Rationale ?? ""), ct)));
+      CommandAsync(http, (db, actor, ct) => RiskBandService.AssessAsync(db, actor, new AssessRiskBandRequest(riskId, i.Likelihood, i.Magnitude, i.Fraud, i.Rationale ?? "", i.CriticalEstimate), ct)));
     group.MapPost("/risks/{riskId:guid}/owner", (Guid riskId, RiskOwnerInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => RiskBandService.AssignOwnerAsync(db, actor, riskId, i.OwnerUserId, ct)));
     group.MapPost("/risks/{riskId:guid}/partner-review", (Guid riskId, PartnerClearInput i, HttpContext http) =>

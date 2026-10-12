@@ -88,7 +88,24 @@ public sealed class Proposal
   public string? RespondentName { get; set; }
   public string? RespondentEmail { get; set; }
   public string? ResponseEvidenceReference { get; set; }
+  /// <summary>How the response reached the firm; null on responses recorded before channels were captured.</summary>
+  public string? ResponseChannel { get; set; }
   public DateTimeOffset CreatedAt { get; set; }
+}
+
+/// <summary>
+/// How a client's response to a dispatched proposal reached the firm (STE v2.2 section 4.1.3, ADR-0017). It labels the recorded
+/// evidence and sends nothing. There is no catch-all value: a response by another route is recorded under the nearest channel
+/// with its evidence reference.
+/// </summary>
+public static class ProposalResponseChannels
+{
+  public const string Email = "EMAIL";
+  public const string SignedLetter = "SIGNED_LETTER";
+  public const string InPerson = "IN_PERSON";
+  public const string Phone = "PHONE";
+
+  public static readonly string[] All = [Email, SignedLetter, InPerson, Phone];
 }
 
 public static class LeadChannels

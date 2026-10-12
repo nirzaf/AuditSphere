@@ -23,6 +23,7 @@ ADR-0001 to ADR-0007, ADR-0009 to ADR-0011, and ADR-0013 to ADR-0015 are approve
 | [ADR-0014](auditsphere-architecture-adr-0014-monetary-scale-and-rounding-approved.md) | Preserve six-decimal monetary arithmetic, explicit scale changes and ToEven rounding | APPROVED | Resolves R2R-ADR-03's core numeric convention; FX methodology and professional policy approval remain under T003 |
 | [ADR-0015](auditsphere-architecture-adr-0015-reporting-context-identity-pins-approved.md) | Bind exact reporting contexts to existing scoped identities and approved revisions | APPROVED | Resolves T014's technical identity decision; implementation follows T013 and T007 |
 | [ADR-0016](auditsphere-architecture-adr-0016-certificate-signed-final-report-approved.md) | The final signed report is certificate-signed with a firm-held certificate; fails closed when required | APPROVED | Supersedes only the PKI-signing exclusion in ADR-0005; eSignature providers and Purview stay out of scope |
+| [ADR-0017](auditsphere-architecture-adr-0017-ste-v22-delegated-requirement-decisions-approved.md) | STE v2.2 delegated decisions: recorded deviations stand; Partner-only actions fail closed; Track B questions; response channel; Sunday to Thursday working week; recorded critical-estimate flag | APPROVED | Keeps ADR-0003 and ADR-0011 and the product-brief WhatsApp non-goal; decides open STE v2.2 rows |
 
 ## Earlier decision records (R2R)
 

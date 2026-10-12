@@ -158,11 +158,11 @@ public sealed class CommercialPricingPolicyTests
     await db.QuotationVersions.Where(x => x.Id == quote.Value)
       .ExecuteUpdateAsync(s => s.SetProperty(x => x.ValidUntil, DateTimeOffset.UtcNow.AddDays(-1)));
     Assert.Equal("crm.expired-offer", (await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
-      new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "A. Owner", "owner@gulf.example.test"))).ErrorCode);
+      new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "A. Owner", "owner@gulf.example.test", Channel: ProposalResponseChannels.Email))).ErrorCode);
     await db.QuotationVersions.Where(x => x.Id == quote.Value)
       .ExecuteUpdateAsync(s => s.SetProperty(x => x.ValidUntil, DateTimeOffset.UtcNow.AddDays(30)));
     Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
-      new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "A. Owner", "owner@gulf.example.test"))).Succeeded);
+      new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "A. Owner", "owner@gulf.example.test", Channel: ProposalResponseChannels.Email))).Succeeded);
   }
 
   [Fact]
@@ -209,7 +209,7 @@ public sealed class CommercialPricingPolicyTests
     Assert.True((await QuotationService.RevokeApprovalAsync(db, w.Admin, second.Id,
       "Revoked after dispatch pending signatory verification")).Succeeded);
     Assert.Equal("crm.revoked-approval", (await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
-      new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "A. Owner", "owner@gulf.example.test"))).ErrorCode);
+      new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "A. Owner", "owner@gulf.example.test", Channel: ProposalResponseChannels.Email))).ErrorCode);
   }
 
   [Fact]
@@ -227,13 +227,13 @@ public sealed class CommercialPricingPolicyTests
     var offerSha = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId)).SentOfferSha256;
     // An acceptance from an address that was never dispatched to cannot bind the offer.
     Assert.Equal("crm.unauthorized-respondent", (await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
-      new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "A. Owner", "stranger@elsewhere.example.test"))).ErrorCode);
+      new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "A. Owner", "stranger@elsewhere.example.test", Channel: ProposalResponseChannels.Email))).ErrorCode);
     // The addressed signatory (the dispatch recipient) can accept, and the replay is safe.
     var accepted = await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
-      new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "A. Owner", "owner@gulf.example.test", "Signed acceptance letter"));
+      new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "A. Owner", "owner@gulf.example.test", "Signed acceptance letter", Channel: ProposalResponseChannels.Email));
     Assert.True(accepted.Succeeded, accepted.Message);
     Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
-      new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "A. Owner", "owner@gulf.example.test"))).Succeeded);
+      new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "A. Owner", "owner@gulf.example.test", Channel: ProposalResponseChannels.Email))).Succeeded);
   }
 
   [Fact]
@@ -386,7 +386,7 @@ public sealed class CommercialPricingPolicyTests
     var offerSha = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId)).SentOfferSha256;
     // A name alone identifies nobody: acceptance without the signatory's email cannot bypass the authority check.
     Assert.Equal("crm.invalid", (await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
-      new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "A. Owner"))).ErrorCode);
+      new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "A. Owner", Channel: ProposalResponseChannels.Email))).ErrorCode);
     Assert.Equal(CrmStates.ProposalSent, (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId)).Status);
   }
 

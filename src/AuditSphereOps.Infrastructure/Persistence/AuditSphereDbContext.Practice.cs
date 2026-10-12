@@ -91,7 +91,10 @@ public sealed partial class AuditSphereDbContext
         "length(service_profile_id) > 0 AND length(scope) > 0 AND length(deliverables) > 0 AND length(period_start) = 10 AND length(period_end) = 10 AND period_start <= period_end AND fee >= 0 AND currency ~ '^[A-Z]{3}$'");
       t.HasCheckConstraint("ck_proposal_create_request_hash",
         "create_request_hash IS NULL OR create_request_hash ~ '^[a-f0-9]{64}$'");
+      t.HasCheckConstraint("ck_proposal_response_channel",
+        "response_channel IS NULL OR response_channel IN ('EMAIL','SIGNED_LETTER','IN_PERSON','PHONE')");
     });
+    b.Entity<Proposal>().Property(x => x.ResponseChannel).HasMaxLength(20);
     b.Entity<PracticeClient>().Property(x => x.TaxRegistrationNumber).HasMaxLength(64);
     b.Entity<PracticeClient>().Property(x => x.EntityType).HasMaxLength(64);
     b.Entity<PracticeClient>().ToTable("practice_clients", t => t.HasCheckConstraint("ck_practice_client_name",

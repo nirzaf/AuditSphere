@@ -94,6 +94,11 @@ public sealed class RiskBandAssessment
   public int MagnitudeScore { get; set; }
   public bool Significant { get; set; }
   public bool FraudRisk { get; set; }
+  /// <summary>
+  /// The assessor's recorded judgement that the risk involves a critical accounting estimate (STE v2.2 section 4.2.4, ADR-0017).
+  /// A recorded flag always bands Red. Wording in the risk description is a second, weaker signal and never lowers the band.
+  /// </summary>
+  public bool CriticalEstimate { get; set; }
   public string Band { get; set; } = RiskBands.Green;
   public string RuleVersion { get; set; } = string.Empty;
   public string Rationale { get; set; } = string.Empty;

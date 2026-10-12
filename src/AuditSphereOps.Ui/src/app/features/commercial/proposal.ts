@@ -59,6 +59,7 @@ interface Proposal {
   responseOfferSha256: string | null;
   respondentName: string | null;
   respondentEmail: string | null;
+  responseChannel: string | null;
   responseEvidenceReference: string | null;
   versions: History[];
 }
@@ -122,6 +123,8 @@ export function decodeProposal(value: unknown): Proposal {
       'respondentEmail',
       'responseEvidenceReference',
     ].every((k) => v[k] === null || typeof v[k] === 'string') ||
+    // Null on responses recorded before channels were captured; any other value must be an approved channel.
+    (v['responseChannel'] !== null && (typeof v['responseChannel'] !== 'string' || !isResponseChannel(v['responseChannel']))) ||
     !Array.isArray(v['versions']) ||
     v['versions'].length > 100
   )
@@ -140,6 +143,18 @@ export function decodeProposal(value: unknown): Proposal {
       throw new Error('Invalid version');
   return v as unknown as Proposal;
 }
+/** How the client's response reached the firm (STE v2.2 section 4.1.3). The server stores and validates the same values. */
+export const RESPONSE_CHANNELS = [
+  { value: 'EMAIL', label: 'Email' },
+  { value: 'SIGNED_LETTER', label: 'Signed letter' },
+  { value: 'IN_PERSON', label: 'In person' },
+  { value: 'PHONE', label: 'Phone' },
+] as const;
+
+export function isResponseChannel(value: string): boolean {
+  return RESPONSE_CHANNELS.some((channel) => channel.value === value);
+}
+
 @Component({
   selector: 'audit-proposal',
   imports: [
@@ -239,6 +254,10 @@ export function decodeProposal(value: unknown): Proposal {
                 (proposal.responseEvidenceReference ? ' · evidence: ' + proposal.responseEvidenceReference : '')
             }}
           </dd>
+        }
+        @if (proposal.responseChannel) {
+          <dt>Response channel</dt>
+          <dd>{{ channelLabel(proposal.responseChannel) }}</dd>
         }
         @if (proposal.supersedesId) {
           <dt>Supersedes</dt>
@@ -357,6 +376,19 @@ export function decodeProposal(value: unknown): Proposal {
             name="respondentEmail"
         /></label>
         <label
+          >Response channel<select
+            [(ngModel)]="responseChannel"
+            (ngModelChange)="reviewed = false"
+            [disabled]="busy()"
+            name="responseChannel"
+          >
+            <option value="" disabled>Choose how the response arrived</option>
+            @for (channel of responseChannels; track channel.value) {
+              <option [value]="channel.value">{{ channel.label }}</option>
+            }
+          </select></label
+        >
+        <label
           >Evidence reference<input
             type="text"
             [(ngModel)]="evidenceReference"
@@ -377,7 +409,9 @@ export function decodeProposal(value: unknown): Proposal {
         </label>
         <button
           matButton
-          [disabled]="!reviewed || busy() || uncertain() || !respondentName.trim() || !respondentEmail.trim()"
+          [disabled]="
+            !reviewed || busy() || uncertain() || !respondentName.trim() || !respondentEmail.trim() || !responseChannel
+          "
           (click)="recordResponse('ACCEPTED')"
         >
           Record client acceptance
@@ -662,6 +696,11 @@ export class ProposalDetail {
   respondentName = '';
   respondentEmail = '';
   evidenceReference = '';
+  responseChannel = '';
+  readonly responseChannels = RESPONSE_CHANNELS;
+  channelLabel(value: string): string {
+    return RESPONSE_CHANNELS.find((channel) => channel.value === value)?.label ?? value;
+  }
   legalName = '';
   draft = {
     serviceProfile: '',
@@ -921,7 +960,10 @@ export class ProposalDetail {
     if (!proposal || !this.reviewed || this.busy() || this.uncertain()) return;
     if (
       decision === 'ACCEPTED' &&
-      (!this.respondentName.trim() || !this.respondentEmail.trim() || !proposal.sentOfferSha256)
+      (!this.respondentName.trim() ||
+        !this.respondentEmail.trim() ||
+        !proposal.sentOfferSha256 ||
+        !isResponseChannel(this.responseChannel))
     )
       return;
     this.action('response', {
@@ -931,6 +973,7 @@ export class ProposalDetail {
       respondentName: this.respondentName.trim() || null,
       respondentEmail: this.respondentEmail.trim() || null,
       evidenceReference: this.evidenceReference.trim() || null,
+      channel: isResponseChannel(this.responseChannel) ? this.responseChannel : null,
     });
   }
   action(path: string, body: object = {}): void {

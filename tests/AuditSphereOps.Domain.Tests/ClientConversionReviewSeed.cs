@@ -23,7 +23,7 @@ internal static class ClientConversionReviewSeed
     var sent=await PracticeCrmService.SendProposalAsync(db,author,proposal.Value);
     if(!sent.Succeeded)throw new InvalidOperationException(sent.ErrorCode);
     var accepted=await PracticeCrmService.RecordProposalResponseAsync(db,author,proposal.Value,
-      new("ACCEPTED",null,(await db.Proposals.AsNoTracking().SingleAsync(x=>x.Id==proposal.Value)).SentOfferSha256,"Primary contact","contact@example.test","Signed acceptance letter"));
+      new("ACCEPTED",null,(await db.Proposals.AsNoTracking().SingleAsync(x=>x.Id==proposal.Value)).SentOfferSha256,"Primary contact","contact@example.test","Signed acceptance letter", Channel: AuditSphereOps.Domain.Practice.ProposalResponseChannels.Email));
     if(!accepted.Succeeded)throw new InvalidOperationException(accepted.ErrorCode);
     return proposal.Value;
   }

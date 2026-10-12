@@ -650,7 +650,7 @@ public sealed class AngularCommercialJourneyTests
       Assert.True((await PracticeCrmService.SendProposalAsync(db, author, proposalId)).Succeeded);
       var offerSha = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId)).SentOfferSha256;
       Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, author, proposalId,
-        new("ACCEPTED", null, offerSha, "Synthetic contact", "contact@example.test", "Signed acceptance letter"))).Succeeded);
+        new("ACCEPTED", null, offerSha, "Synthetic contact", "contact@example.test", "Signed acceptance letter", Channel: ProposalResponseChannels.Email))).Succeeded);
       var converted = await PracticeCrmService.ConvertToClientDraftAsync(db, author, new(proposalId, "Angular fee client"));
       Assert.True(converted.Succeeded, converted.Message);
     }

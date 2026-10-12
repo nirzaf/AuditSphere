@@ -15,6 +15,12 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## STE v2.2 delegated owner decisions — 2026-10-12
+
+ADR-0017 records the STE v2.2 decisions the owner delegated. Three keep an earlier decision: WhatsApp stays a lead-channel label, client users sign in through Microsoft with no emailed password (ADR-0003), and the materiality benchmark is not normalised (ADR-0011). The rest set new behaviour: opinion, signing, clearance and bundle assembly need the staffed Engagement Partner and fail closed without one; the continuance bank gains a legal-notice question and a fees-settled confirmation, both with evidence; a client acceptance records the channel it arrived by; the firm working week is Sunday to Thursday; and a critical accounting estimate is a flag the assessor records, which bands the risk Red.
+
+Migration `SteV22OwnerDecisions` adds two columns, extends the band check constraint and adds the two questions where the continuance bank already exists. It has run only against the test database. Operators should expect three effects: an engagement with no staffed Engagement Partner cannot reach the opinion until one is staffed; a continuance checklist in progress needs the two new answers; and capacity figures change for ranges that include a Friday or a Sunday. Evidence and open items are in `status.json` under `targetedVerification.steV22OwnerDecisions`.
+
 ## v2.2 unlinked procedure review inbox — 2026-10-12
 
 The staff work queue now has a separate, read-only inbox for current submitted procedure results that have no operational task linked anywhere to that procedure. The query enforces current reviewer role grants, exact client/engagement scope, session freshness, reviewer independence and staffing hierarchy. Results already represented by a linked rework task stay in the task views instead, including after resubmission. The inbox links to the existing fieldwork workspace; that workspace and the review command remain authoritative for planning generation, risk basis, holds and final review eligibility. No task, review decision or migration is created by this query. `WorkflowExperience:Enabled` remains default-off.
@@ -109,7 +115,7 @@ Migrations `20261012000128_WorkflowTaskBindings`, `20261012003440_WorkflowTempla
 
 The engagement page now opens on a read-only seven-phase workflow projection and independently evaluated Dual-Key readiness cards, with the eleven-stage lifecycle kept as a technical panel. The projection derives from the existing canonical stage and persists nothing new; no stage is writable. Advance billing no longer opens on a Partner clearance alone: both keys must be current on the exact dispatched offer. The advance and activation cards read the same milestone state and engagement link that activation checks. The protected letter, fee-agreement and activation commands are unchanged.
 
-Not yet delivered: workflow task persistence and templates (WF-04 to WF-06), queues, automation and recurrence (WF-07 to WF-11), completion and archive cards (WF-13), and the lead-level pre-engagement journey. One owner decision is open: the protected letter guard applies offer identity only when a dispatch record exists, while the read model requires it always. Evidence and the open review findings are recorded in `status.json` under `targetedVerification.workflowExperienceV22`.
+Not yet delivered: workflow task persistence and templates (WF-04 to WF-06), queues, automation and recurrence (WF-07 to WF-11), completion and archive cards (WF-13), and the lead-level pre-engagement journey. One owner decision is open: the protected letter guard applies offer identity only when a dispatch record exists, while the read model requires it always. Evidence and the open review findings are recorded in `status-archive-2026-10.json` under `keys.verification.workflowExperienceV22`.
 
 ## Exact pinned financial statement drafts — 2026-10-12
 

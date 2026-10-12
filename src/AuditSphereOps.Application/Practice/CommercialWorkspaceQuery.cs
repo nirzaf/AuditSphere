@@ -16,7 +16,7 @@ public sealed record ProposalWorkspace(Guid Id, Guid OpportunityId, string LeadN
   DateTimeOffset? ApprovedAt, DateTimeOffset? SentAt, DateTimeOffset? ResponseAt, Guid? SupersedesId,
   string? SentOfferSha256, string? DispatchState, DateTimeOffset? DispatchedAt, string? DispatchRecipient,
   string? ResponseOfferSha256, string? RespondentName, string? RespondentEmail, string? ResponseEvidenceReference,
-  IReadOnlyList<ProposalHistory> Versions);
+  IReadOnlyList<ProposalHistory> Versions, string? ResponseChannel = null);
 
 public sealed record OpportunityItem(Guid Id, string ServiceRoute, string EntityScope, string Stage,
   string ExpectedFee, string Currency, string PeriodStart, string PeriodEnd, Guid? ProposalId, string Revision);
@@ -86,6 +86,7 @@ public static class CommercialWorkspaceQuery
       p.SentOfferSha256, dispatch?.DeliveryState, dispatch?.DeliveredAt, dispatch?.Recipient,
       p.ResponseOfferSha256, p.RespondentName, p.RespondentEmail, p.ResponseEvidenceReference,
       versions.Select(v => new ProposalHistory(v.Id, v.Revision.ToString(CultureInfo.InvariantCulture), v.Status,
-        v.Fee.ToString(CultureInfo.InvariantCulture), v.Currency, v.CreatedAt, v.SentAt, v.ResponseAt)).ToArray()));
+        v.Fee.ToString(CultureInfo.InvariantCulture), v.Currency, v.CreatedAt, v.SentAt, v.ResponseAt)).ToArray(),
+      p.ResponseChannel));
   }
 }

@@ -259,8 +259,15 @@ public sealed class PracticeCrmTests
       Assert.True((await PracticeCrmService.ApproveProposalAsync(db, fixture.Reviewer, proposalId)).Succeeded);
       Assert.True((await PracticeCrmService.SendProposalAsync(db, fixture.Actor, proposalId)).Succeeded);
       var offerSha = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId)).SentOfferSha256;
+      // STE v2.2 section 4.1.3 (ADR-0017): an acceptance records the channel it arrived by, from the approved set only.
+      Assert.Equal("crm.invalid", (await PracticeCrmService.RecordProposalResponseAsync(db, fixture.Actor, proposalId,
+        new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "A. Owner", "owner@example.test", "Signed acceptance letter"))).ErrorCode);
+      Assert.Equal("crm.invalid", (await PracticeCrmService.RecordProposalResponseAsync(db, fixture.Actor, proposalId,
+        new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "A. Owner", "owner@example.test", "Signed acceptance letter", Channel: "WHATSAPP"))).ErrorCode);
+      Assert.Equal(CrmStates.ProposalSent, (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId)).Status);
       Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, fixture.Actor, proposalId,
-        new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "A. Owner", "owner@example.test", "Signed acceptance letter"))).Succeeded);
+        new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "A. Owner", "owner@example.test", "Signed acceptance letter", Channel: "signed_letter"))).Succeeded);
+      Assert.Equal(ProposalResponseChannels.SignedLetter, (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId)).ResponseChannel);
     }
 
     Guid clientId;
@@ -499,25 +506,25 @@ public sealed class PracticeCrmTests
       var currentSha = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == revised.Value)).SentOfferSha256;
       Assert.NotEqual(offerSha, currentSha);
       Assert.Equal("crm.stale-offer", (await PracticeCrmService.RecordProposalResponseAsync(db, fixture.Actor, revised.Value,
-        new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "O. Owner", "offer-owner@example.test"))).ErrorCode);
+        new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "O. Owner", "offer-owner@example.test", Channel: ProposalResponseChannels.Email))).ErrorCode);
       Assert.Equal("crm.invalid", (await PracticeCrmService.RecordProposalResponseAsync(db, fixture.Actor, revised.Value,
-        new ProposalResponseRequest(CrmStates.ProposalAccepted))).ErrorCode);
+        new ProposalResponseRequest(CrmStates.ProposalAccepted, Channel: ProposalResponseChannels.Email))).ErrorCode);
       Assert.Equal("crm.invalid", (await PracticeCrmService.RecordProposalResponseAsync(db, fixture.Actor, revised.Value,
-        new ProposalResponseRequest(CrmStates.ProposalAccepted, null, currentSha))).ErrorCode);
+        new ProposalResponseRequest(CrmStates.ProposalAccepted, null, currentSha, Channel: ProposalResponseChannels.Email))).ErrorCode);
       // The current offer accepted with identity and respondent evidence; replay is safe, contradiction conflicts.
       Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, fixture.Actor, revised.Value,
-        new ProposalResponseRequest(CrmStates.ProposalAccepted, null, currentSha, "O. Owner", "offer-owner@example.test", "Signed acceptance letter"))).Succeeded);
+        new ProposalResponseRequest(CrmStates.ProposalAccepted, null, currentSha, "O. Owner", "offer-owner@example.test", "Signed acceptance letter", Channel: ProposalResponseChannels.Email))).Succeeded);
       var accepted = await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == revised.Value);
       Assert.Equal(currentSha, accepted.ResponseOfferSha256);
       Assert.Equal("O. Owner", accepted.RespondentName);
       Assert.Equal("Signed acceptance letter", accepted.ResponseEvidenceReference);
       Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, fixture.Actor, revised.Value,
-        new ProposalResponseRequest(CrmStates.ProposalAccepted, null, currentSha, "O. Owner", "offer-owner@example.test"))).Succeeded);
+        new ProposalResponseRequest(CrmStates.ProposalAccepted, null, currentSha, "O. Owner", "offer-owner@example.test", Channel: ProposalResponseChannels.Email))).Succeeded);
       Assert.Equal("crm.conflict", (await PracticeCrmService.RecordProposalResponseAsync(db, fixture.Actor, revised.Value,
-        new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "O. Owner", "offer-owner@example.test"))).ErrorCode);
+        new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "O. Owner", "offer-owner@example.test", Channel: ProposalResponseChannels.Email))).ErrorCode);
       // The superseded revision can no longer be accepted through any path.
       Assert.Equal(ErrorCodes.ProtectedState, (await PracticeCrmService.RecordProposalResponseAsync(db, fixture.Actor, sentProposalId,
-        new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "O. Owner", "offer-owner@example.test"))).ErrorCode);
+        new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "O. Owner", "offer-owner@example.test", Channel: ProposalResponseChannels.Email))).ErrorCode);
     }
   }
 
@@ -705,7 +712,7 @@ public sealed class PracticeCrmTests
       Assert.True((await PracticeCrmService.SendProposalAsync(db, fixture.Actor, proposal.Value)).Succeeded);
       var candidateOfferSha = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposal.Value)).SentOfferSha256;
       Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, fixture.Actor, proposal.Value,
-        new ProposalResponseRequest(CrmStates.ProposalAccepted, null, candidateOfferSha, "C. Owner", "candidate-owner@example.test", "Signed acceptance letter"))).Succeeded);
+        new ProposalResponseRequest(CrmStates.ProposalAccepted, null, candidateOfferSha, "C. Owner", "candidate-owner@example.test", "Signed acceptance letter", Channel: ProposalResponseChannels.Email))).Succeeded);
       proposalId = proposal.Value;
     }
 
@@ -748,7 +755,7 @@ public sealed class PracticeCrmTests
       Assert.True((await PracticeCrmService.SendProposalAsync(db, fixture.Actor, proposal.Value)).Succeeded);
       var existingOfferSha = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposal.Value)).SentOfferSha256;
       Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, fixture.Actor, proposal.Value,
-        new ProposalResponseRequest(CrmStates.ProposalAccepted, null, existingOfferSha, "E. Owner", "existing-owner@example.test", "Signed acceptance letter"))).Succeeded);
+        new ProposalResponseRequest(CrmStates.ProposalAccepted, null, existingOfferSha, "E. Owner", "existing-owner@example.test", "Signed acceptance letter", Channel: ProposalResponseChannels.Email))).Succeeded);
       proposalId = proposal.Value;
     }
 

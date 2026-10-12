@@ -15476,6 +15476,10 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("client_id");
 
+                    b.Property<bool>("CriticalEstimate")
+                        .HasColumnType("boolean")
+                        .HasColumnName("critical_estimate");
+
                     b.Property<Guid>("EngagementId")
                         .HasColumnType("uuid")
                         .HasColumnName("engagement_id");
@@ -15522,7 +15526,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.ToTable("risk_band_assessments", null, t =>
                         {
-                            t.HasCheckConstraint("ck_risk_band_assessment_rule", "likelihood_score BETWEEN 1 AND 3 AND magnitude_score BETWEEN 1 AND 3 AND length(rationale) > 0 AND band = CASE WHEN significant OR fraud_risk THEN 'RED' WHEN likelihood_score * magnitude_score >= 6 THEN 'RED' WHEN likelihood_score * magnitude_score >= 3 THEN 'AMBER' ELSE 'GREEN' END");
+                            t.HasCheckConstraint("ck_risk_band_assessment_rule", "likelihood_score BETWEEN 1 AND 3 AND magnitude_score BETWEEN 1 AND 3 AND length(rationale) > 0 AND band = CASE WHEN significant OR fraud_risk OR critical_estimate THEN 'RED' WHEN likelihood_score * magnitude_score >= 6 THEN 'RED' WHEN likelihood_score * magnitude_score >= 3 THEN 'AMBER' ELSE 'GREEN' END");
                         });
                 });
 
@@ -23532,6 +23536,11 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("response_at");
 
+                    b.Property<string>("ResponseChannel")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("response_channel");
+
                     b.Property<string>("ResponseEvidenceReference")
                         .HasColumnType("text")
                         .HasColumnName("response_evidence_reference");
@@ -23591,6 +23600,8 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("ck_proposal_content", "length(service_profile_id) > 0 AND length(scope) > 0 AND length(deliverables) > 0 AND length(period_start) = 10 AND length(period_end) = 10 AND period_start <= period_end AND fee >= 0 AND currency ~ '^[A-Z]{3}$'");
 
                             t.HasCheckConstraint("ck_proposal_create_request_hash", "create_request_hash IS NULL OR create_request_hash ~ '^[a-f0-9]{64}$'");
+
+                            t.HasCheckConstraint("ck_proposal_response_channel", "response_channel IS NULL OR response_channel IN ('EMAIL','SIGNED_LETTER','IN_PERSON','PHONE')");
 
                             t.HasCheckConstraint("ck_proposal_state", "status IN ('DRAFT','INTERNAL_REVIEW','SENT','ACCEPTED','DECLINED','SUPERSEDED') AND revision >= 1");
                         });

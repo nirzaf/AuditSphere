@@ -2,7 +2,7 @@
   "schemaVersion": "1",
   "archiveOf": "docs/execution/status.json",
   "archivedOn": "2026-10-12",
-  "note": "Keys moved verbatim from status.json. Values are unchanged; only the JSON layout is normalised. No script reads these keys; query them with jq when needed. On 2026-10-12, the closed workflowChangesRequiredQueue evidence was moved verbatim from status.json to keep the live ledger below its 100 KB limit.",
+  "note": "Keys moved verbatim from status.json. Values are unchanged; only the JSON layout is normalised. No script reads these keys; query them with jq when needed. On 2026-10-12, the closed workflowChangesRequiredQueue evidence was moved verbatim from status.json to keep the live ledger below its 100 KB limit. On 2026-10-12, the closed workflowExperienceV22 evidence (seven-phase projection and Dual-Key readiness, commit f7753f72) was moved verbatim from status.json for the same reason.",
   "keys": {
     "verification": {
       "firmExpenseCreationRecovery": {
@@ -13466,6 +13466,144 @@
         "acceptance": "Focused local evidence only. WorkflowExperience remains disabled by default. Full Domain/API/E2E suites were not run; migration was not applied to a persistent database; no live, production or professional acceptance is claimed. Workflow epic remains PARTIAL.",
         "sourceCommit": "c21a24d3e490ef1798fa03bbc82f877406874805",
         "sourceTree": "Code and evidence commits through a26dac22 are pushed to origin/master. gh run list could not connect to api.github.com, so the GitHub Actions result is unobserved; the separately staged user requirements document remains excluded."
+      },
+      "workflowExperienceV22": {
+        "recordedAtUtc": "2026-10-11T23:35:10Z",
+        "baseCommit": "87e41328",
+        "sourceTree": "Uncommitted working tree on master at 87e41328; the commit carrying this record is the source revision.",
+        "database": "auditsphere_tests on 127.0.0.1:5433",
+        "scope": "WF-00 characterization, WF-01 seven-phase read model and lifecycle advance-billing correction, WF-02 Angular workbench, WF-03 Dual-Key readiness. PRs A-C only; no schema change.",
+        "runs": [
+          {
+            "name": "Full Domain PostgreSQL suite",
+            "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --configuration Release",
+            "total": 861,
+            "passed": 860,
+            "failed": 1,
+            "result": "FAIL_PRE_EXISTING",
+            "note": "CashFlowContractTests.FxCashEffect_ReconcilesSeparatelyAndPersistsEvidence fails identically on a clean checkout of 87e41328 (closing cash 110 does not cross-cast to the adjusted cash-account population 100). Not touched by this slice."
+          },
+          {
+            "name": "Focused API subset",
+            "command": "dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-build --configuration Release --filter 'Engagement|FeeAgreement|Commercial|Angular|Contract|Canonical|Activation'",
+            "passed": 32,
+            "failed": 0,
+            "result": "PASS"
+          },
+          {
+            "name": "Angular full suite",
+            "command": "npx ng test --watch=false (npm run test:ci)",
+            "test_files": 116,
+            "passed": 648,
+            "failed": 0,
+            "result": "PASS"
+          },
+          {
+            "name": "Angular production build",
+            "command": "npx ng build (npm run build)",
+            "result": "PASS_WITH_WARNING",
+            "note": "Pre-existing budget warning for commercial/settings.scss; not touched by this slice."
+          },
+          {
+            "name": "Solution Release build",
+            "command": "dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1",
+            "result": "PASS (0 errors); NuGet vulnerability lookup warnings only (offline)"
+          },
+          {
+            "name": "OpenAPI drift",
+            "command": "bash scripts/contracts/verify-openapi.sh",
+            "result": "PASS: contract is current (adds the workflow and onboarding-readiness paths)"
+          },
+          {
+            "name": "EF model drift",
+            "command": "dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Api --no-build --configuration Release",
+            "result": "PASS: no pending model changes"
+          }
+        ],
+        "review": {
+          "method": "Read-only adversarial review by three independent lenses (truthfulness, authorization and exposure, Angular contract and accessibility); each finding was verified against source before action.",
+          "fixedInThisSlice": [
+            "Advance card and activation readiness now use the milestone PAID state that activation checks, not an allocation total that credit notes can inflate.",
+            "The advance is read only from a fee agreement linked to this engagement; an unlinked agreement reports NOT_LINKED, as activation refuses it.",
+            "The letter card requires the letter template, commercial profile and firm seal, in the order the letter command refuses them.",
+            "A route mismatch between the proposal and the engagement blocks the letter and reports ROUTE_MISMATCH.",
+            "Readiness requires a firm-wide grant, so an engagement-only grant cannot read client-level Partner decisions or the decider's name.",
+            "Letter and activation actions are server-computed flags (canGenerateLetter, canActivate) for the requesting actor, not inferred in the browser.",
+            "The stage 4 advance blocker is listed only while the advance is unpaid.",
+            "The engagement's proposal is the one its linked fee agreement binds, falling back to the client's newest proposal only when none is linked.",
+            "The workflow route allowlist no longer admits dot segments.",
+            "READY_FOR_REVIEW is shown as pending, not as a success state; phases carry visible status text, list semantics and canonical-order validation; 401 ends the session and 403 says the panel is unavailable to the role."
+          ],
+          "openDecisionsOrDeferred": [
+            "The protected letter guard applies offer identity only when a dispatch record exists; the read model additionally requires the sent and response offer hashes to match. Hardening the command is an owner decision and was not changed in this slice.",
+            "FeeAgreementWorkspaceQuery.CanCreate does not repeat the quotation-revision check of the create command (pre-existing; this file is not in the slice).",
+            "With no linked fee agreement, the engagement is bound to the client's newest proposal; a newer draft for another route can hide a cleared engagement until a fee agreement is linked.",
+            "The readiness read does not pass the automatic advance-invoice setting, so the preparation message can read as drafting disabled when it is enabled.",
+            "The workflow card shows lifecycle blocker text to every role that the lifecycle endpoint already accepts; this is an existing exposure, now more prominent.",
+            "Non-permission refusals (projection and reconciliation gates) map to HTTP 403, following the existing UI read pattern.",
+            "The shared instant decoder accepts timestamps without an offset (pre-existing decoder).",
+            "No automated test drives a fully paid advance through receipt allocation; the PAID branch relies on the same milestone predicate that ActivateAsync checks, verified by code reading."
+          ]
+        },
+        "workflowTaskFoundationPrD": {
+          "recordedAtUtc": "2026-10-12T00:18:35Z",
+          "baseCommit": "f7753f72a9ca5be7ea276a109b03ed96071a93be",
+          "sourceTree": "Uncommitted PR-D changes on master based on the recorded base commit.",
+          "database": "Isolated loopback auditsphere_tests clones created and dropped by PgTestSchema.",
+          "scope": "WF-04 PR-D task persistence foundation: bind optional workflow metadata to existing WorkTask, scoped create/read/assign/reassign/complete, task/time-entry lineage, revision fencing, idempotent create recovery, default-off API configuration.",
+          "migration": {
+            "id": "20261012000128_WorkflowTaskBindings",
+            "status": "CREATED_NOT_APPLIED",
+            "rollback": "Not applicable; no database migration was applied.",
+            "historicalRows": "No backfill or update to existing WorkTask or TimeEntry rows."
+          },
+          "runs": [
+            {
+              "name": "Release solution build",
+              "command": "dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1",
+              "result": "PASS",
+              "warnings": 6,
+              "errors": 0,
+              "note": "NU1900 vulnerability-feed lookup warnings because api.nuget.org was unreachable."
+            },
+            {
+              "name": "Workflow task PostgreSQL tests",
+              "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --configuration Release --maxcpucount:1 --filter FullyQualifiedName~EngagementWorkflowTaskTests",
+              "result": "PASS",
+              "passed": 2,
+              "failed": 0
+            },
+            {
+              "name": "API-host OpenAPI contract test",
+              "command": "dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-build --configuration Release --maxcpucount:1 --filter FullyQualifiedName~OpenApiContractTests.ContractIsGeneratedFromActualEndpointsAsOpenApi31",
+              "result": "PASS",
+              "passed": 1,
+              "failed": 0
+            },
+            {
+              "name": "EF model drift",
+              "command": "dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Api --no-build --configuration Release",
+              "result": "PASS",
+              "note": "No pending model changes."
+            },
+            {
+              "name": "OpenAPI drift",
+              "command": "bash scripts/contracts/verify-openapi.sh",
+              "result": "PASS",
+              "note": "Committed contract matches the real API host."
+            },
+            {
+              "name": "Documentation gates",
+              "result": "PASS",
+              "note": "Markdown health, filenames, narrative metrics and UI source inventory all passed after the PR-D documentation update."
+            }
+          ],
+          "limits": [
+            "No Angular task editor or team queue is part of PR D.",
+            "No signed-in browser journey or live tenant acceptance was performed.",
+            "The new API remains disabled by default until WorkflowExperience:Enabled is explicitly enabled."
+          ]
+        }
       }
     },
     "localEvidence": [

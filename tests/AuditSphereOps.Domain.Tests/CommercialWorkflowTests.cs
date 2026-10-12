@@ -139,7 +139,7 @@ public sealed class CommercialWorkflowTests
     Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Prep, proposalId)).Succeeded);
     var offerSha = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId)).SentOfferSha256;
     Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
-      new("ACCEPTED", null, offerSha, "A. Owner", "owner@gulf.example.test", "Signed acceptance letter"))).Succeeded);
+      new("ACCEPTED", null, offerSha, "A. Owner", "owner@gulf.example.test", "Signed acceptance letter", Channel: ProposalResponseChannels.Email))).Succeeded);
     var client = await PracticeCrmService.ConvertToClientDraftAsync(db, w.Prep, new(proposalId, "Fee workspace client"));
     var eligible = await FeeAgreementWorkspaceQuery.GetAsync(db, w.Prep, proposalId);
     Assert.True(eligible.Value!.CanCreate);
@@ -401,7 +401,7 @@ public sealed class CommercialWorkflowTests
     Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Prep, proposalId)).Succeeded);
     var offerSha = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId)).SentOfferSha256;
     Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
-      new("ACCEPTED", null, offerSha, "A. Owner", "owner@gulf.example.test", "Signed acceptance letter"))).Succeeded);
+      new("ACCEPTED", null, offerSha, "A. Owner", "owner@gulf.example.test", "Signed acceptance letter", Channel: ProposalResponseChannels.Email))).Succeeded);
     var clientId = (await PracticeCrmService.ConvertToClientDraftAsync(db, w.Prep, new(proposalId, "Gulf Trading LLC"))).Value;
     Assert.Equal(ErrorCodes.GateBlocked, (await CommercialDocumentService.GenerateEngagementLetterAsync(db, w.Partner, proposalId)).ErrorCode);
     await QuestionnaireSeed.SeedTemplatesAndDefinitionsAsync(db);
@@ -599,7 +599,7 @@ public sealed class CommercialWorkflowTests
     Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Prep, proposalId)).Succeeded);
     var offerSha = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId)).SentOfferSha256;
     Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
-      new("ACCEPTED", null, offerSha, "A. Owner", "owner@gulf.example.test", "Signed acceptance letter"))).Succeeded);
+      new("ACCEPTED", null, offerSha, "A. Owner", "owner@gulf.example.test", "Signed acceptance letter", Channel: ProposalResponseChannels.Email))).Succeeded);
     var clientId = (await PracticeCrmService.ConvertToClientDraftAsync(db, w.Prep, new(proposalId, "Gulf Trading LLC"))).Value;
 
     var agreementId = (await FeeAgreementService.CreateAgreementAsync(db, w.Prep, proposalId)).Value;
@@ -851,9 +851,9 @@ public sealed class CommercialWorkflowTests
     Assert.Equal(artifactB.Value!.Sha256Hex, notification.OfferSha256);
     var acceptedSha = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId)).SentOfferSha256;
     Assert.Equal("crm.stale-offer", (await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
-      new("ACCEPTED", null, artifactA.Value!.Sha256Hex, "A. Owner", "owner@gulf.example.test"))).ErrorCode);
+      new("ACCEPTED", null, artifactA.Value!.Sha256Hex, "A. Owner", "owner@gulf.example.test", Channel: ProposalResponseChannels.Email))).ErrorCode);
     Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
-      new("ACCEPTED", null, acceptedSha, "A. Owner", "owner@gulf.example.test", "Signed acceptance letter"))).Succeeded);
+      new("ACCEPTED", null, acceptedSha, "A. Owner", "owner@gulf.example.test", "Signed acceptance letter", Channel: ProposalResponseChannels.Email))).Succeeded);
 
     // Repricing after the proposal left draft is refused at the source, so an approved revision can
     // never silently diverge from the accepted artifact downstream; material changes require a new
@@ -886,9 +886,9 @@ public sealed class CommercialWorkflowTests
     Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Prep, proposal2)).Succeeded);
     var offer2 = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposal2)).SentOfferSha256;
     Assert.Equal("crm.unauthorized-respondent", (await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposal2,
-      new("ACCEPTED", null, offer2, "A. Owner", "owner@gulf.example.test"))).ErrorCode);
+      new("ACCEPTED", null, offer2, "A. Owner", "owner@gulf.example.test", Channel: ProposalResponseChannels.Email))).ErrorCode);
     Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposal2,
-      new("ACCEPTED", null, offer2, "B. Owner", "binding-client@example.test", "Signed acceptance letter"))).Succeeded);
+      new("ACCEPTED", null, offer2, "B. Owner", "binding-client@example.test", "Signed acceptance letter", Channel: ProposalResponseChannels.Email))).Succeeded);
     var converted2 = await PracticeCrmService.ConvertToClientDraftAsync(db, w.Prep, new(proposal2, "Binding Client LLC"));
     Assert.True(converted2.Succeeded, converted2.Message);
     var agreement = await FeeAgreementService.CreateAgreementAsync(db, w.Prep, proposal2);
@@ -917,7 +917,7 @@ public sealed class CommercialWorkflowTests
     Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Prep, proposalId)).Succeeded);
     var proposal = await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId);
     Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
-      new("ACCEPTED", null, proposal.SentOfferSha256, "A. Owner", "owner@gulf.example.test", "Signed acceptance letter"))).Succeeded);
+      new("ACCEPTED", null, proposal.SentOfferSha256, "A. Owner", "owner@gulf.example.test", "Signed acceptance letter", Channel: ProposalResponseChannels.Email))).Succeeded);
     Assert.True((await PracticeCrmService.ConvertToClientDraftAsync(db, w.Prep, new(proposalId, "Binding Client LLC"))).Succeeded);
 
     // A recorded acceptance that does not cite the dispatched offer identity (a stale, replayed, or
@@ -987,7 +987,7 @@ public sealed class CommercialWorkflowTests
     Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Prep, proposalA)).Succeeded);
     var offerA = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalA)).SentOfferSha256;
     Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalA,
-      new("ACCEPTED", null, offerA, "A. Owner", "owner@gulf.example.test", "Signed acceptance letter"))).Succeeded);
+      new("ACCEPTED", null, offerA, "A. Owner", "owner@gulf.example.test", "Signed acceptance letter", Channel: ProposalResponseChannels.Email))).Succeeded);
     var converted = await PracticeCrmService.ConvertToClientDraftAsync(db, w.Prep, new(proposalA, "Scoped Group Client"));
     Assert.True(converted.Succeeded, converted.Message);
     var clientId = converted.Value;
@@ -1107,7 +1107,7 @@ public sealed class CommercialWorkflowTests
     Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Prep, proposalId)).Succeeded);
     var offerSha = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId)).SentOfferSha256;
     Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
-      new("ACCEPTED", null, offerSha, "A. Owner", "owner@gulf.example.test", "Signed acceptance letter"))).Succeeded);
+      new("ACCEPTED", null, offerSha, "A. Owner", "owner@gulf.example.test", "Signed acceptance letter", Channel: ProposalResponseChannels.Email))).Succeeded);
     var client = await PracticeCrmService.ConvertToClientDraftAsync(db, w.Prep, new(proposalId, "Readiness client"));
     Assert.True(client.Succeeded, client.Message);
     var engagementId = Guid.NewGuid();

@@ -108,6 +108,7 @@ const planPayload = {
       partnerName: null,
       ownerName: 'Senior Auditor',
       ownerLevel: 'SENIOR',
+      criticalEstimate: true,
     },
   ],
   team: [
@@ -178,6 +179,8 @@ describe('Audit Plan Contracts', () => {
     expect(decoded.latestCalculation?.planningMateriality).toBe('100000.00');
     expect(decoded.latestCalculation?.rounding).toBeNull();
     expect(decoded.routing[0].fraudRisk).toBe(true);
+    // STE v2.2 section 4.2.4 (ADR-0017): the recorded critical-estimate flag is part of the routing contract.
+    expect(decoded.routing[0].criticalEstimate).toBe(true);
     expect(decoded.routing[0].assessedByUserId).toBe(id2);
     expect(decoded.team[0].name).toBe('Audit Senior');
     expect(decoded.isPartner).toBe(true);

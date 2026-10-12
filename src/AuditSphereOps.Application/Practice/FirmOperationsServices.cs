@@ -310,10 +310,10 @@ public static class PracticeAnalyticsQuery
       foreach (var profile in g)
       {
         var weekly = profile.WeeklyCapacityMinutes;
-        var perDay = weekly / 5;
+        var perDay = weekly / ResourceGridCalculator.FirmWorkingWeek.Length;
         for (var d = from; d <= to; d = d.AddDays(1))
         {
-          if (d.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday) continue;
+          if (!ResourceGridCalculator.IsWorkingDay(d)) continue;
           capacity += Math.Max(0, perDay - Math.Min(perDay, availability.Where(a => a.UserId == profile.UserId && a.StartDate <= d && a.EndDate >= d).Sum(a => a.MinutesPerDay)));
         }
         chargeable += time.Where(t => t.UserId == profile.UserId && t.BillableClassification == PracticeTimeStates.Billable).Sum(t => t.DurationMinutes);

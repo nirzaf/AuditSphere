@@ -110,6 +110,45 @@ public sealed partial class PlanningResourcesAndMaterialityTests
     return assessmentId;
   }
 
+  /// <summary>
+  /// STE v2.2 section 4.2.4 (ADR-0017): a critical accounting estimate is a judgement the assessor records. The recorded flag
+  /// bands the risk Red on its own, without the risk text containing any particular wording.
+  /// </summary>
+  [Fact]
+  public async Task RecordedCriticalEstimateFlagBandsTheRiskRedWithoutRelyingOnWording()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var partner = w.Actor("partner", "Partner");
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var created = await AuditPlanningService.CreateAuditRiskAsync(db, partner,
+      new(w.EngagementId, "Receivables", "Valuation", "Expected credit loss allowance", "Management judgement",
+        SignificanceDecisions.Normal, null, "Test the model, assumptions and source data"));
+    Assert.True(created.Succeeded, created.Message);
+    var riskId = created.Value!.RiskId;
+
+    // Lowest scores, no fraud, no significance and no estimate wording: Green.
+    var plain = await RiskBandService.AssessAsync(db, partner, new(riskId, 1, 1, false, "Low inherent risk"));
+    Assert.True(plain.Succeeded, plain.Message);
+    var plainRow = await db.RiskBandAssessments.AsNoTracking().SingleAsync(x => x.Id == plain.Value);
+    Assert.Equal((RiskBands.Green, false), (plainRow.Band, plainRow.CriticalEstimate));
+
+    // The same scores with the recorded flag: Red, and the Partner review becomes mandatory.
+    var flagged = await RiskBandService.AssessAsync(db, partner,
+      new(riskId, 1, 1, false, "The allowance rests on a critical accounting estimate", CriticalEstimate: true));
+    Assert.True(flagged.Succeeded, flagged.Message);
+    var flaggedRow = await db.RiskBandAssessments.AsNoTracking().SingleAsync(x => x.Id == flagged.Value);
+    Assert.Equal((RiskBands.Red, true), (flaggedRow.Band, flaggedRow.CriticalEstimate));
+
+    var routing = await RiskBandService.GetRoutingAsync(db, partner, w.EngagementId);
+    Assert.True(routing.Succeeded, routing.Message);
+    var row = Assert.Single(routing.Value!, x => x.RiskId == riskId);
+    Assert.True(row.CriticalEstimate);
+    Assert.True(row.PartnerReviewRequired);
+    // The earlier Green assessment is history: it is still stored, unchanged.
+    Assert.Equal(2, await db.RiskBandAssessments.CountAsync(x => x.RiskId == riskId));
+  }
+
   [Fact]
   public async Task AuditProcedure_MappedNegativeFslIControlsRoutingAndStaleApprovalFailsClosed()
   {

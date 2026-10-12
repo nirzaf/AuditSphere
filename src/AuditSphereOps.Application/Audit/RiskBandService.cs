@@ -8,12 +8,13 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Application.Audit;
 
-public sealed record AssessRiskBandRequest(Guid RiskId, int LikelihoodScore, int MagnitudeScore, bool FraudRisk, string Rationale);
+public sealed record AssessRiskBandRequest(Guid RiskId, int LikelihoodScore, int MagnitudeScore, bool FraudRisk, string Rationale,
+  bool CriticalEstimate = false);
 
 public sealed record RiskRoutingRow(
   Guid RiskId, string Area, string Assertion, string SignificanceDecision, Guid? AssessmentId, Guid? AssessedByUserId, string? Band, int? Likelihood,
   int? Magnitude, bool FraudRisk, string Route, bool PartnerReviewRequired, bool PartnerCleared, string? PartnerName,
-  string? OwnerName, string? OwnerLevel);
+  string? OwnerName, string? OwnerLevel, bool CriticalEstimate = false);
 
 /// <summary>
 /// Green/amber/red routing for identified risks. The band is computed from recorded inputs (and the database rejects
@@ -39,7 +40,8 @@ public static class RiskBandService
     {
       Id = Guid.CreateVersion7(), FirmId = risk.FirmId, ClientId = risk.ClientId, EngagementId = risk.EngagementId, RiskId = risk.Id,
       LikelihoodScore = request.LikelihoodScore, MagnitudeScore = request.MagnitudeScore, Significant = significant, FraudRisk = request.FraudRisk,
-      Band = RiskBandRules.Band(request.LikelihoodScore, request.MagnitudeScore, significant, request.FraudRisk),
+      CriticalEstimate = request.CriticalEstimate,
+      Band = RiskBandRules.Band(request.LikelihoodScore, request.MagnitudeScore, significant, request.FraudRisk, request.CriticalEstimate),
       RuleVersion = RiskBandRules.RuleVersion, Rationale = request.Rationale.Trim(), AssessedByUserId = actor.UserId, AssessedAt = DateTimeOffset.UtcNow
     };
     db.RiskBandAssessments.Add(assessment);
@@ -124,7 +126,7 @@ public static class RiskBandService
         current?.LikelihoodScore, current?.MagnitudeScore, current?.FraudRisk ?? false,
         current is null ? "Band not assessed." : RiskBandRules.Route(current.Band), current?.Band == RiskBands.Red, clearance is not null,
         clearance is null ? null : names.GetValueOrDefault(clearance.PartnerUserId), owner is null ? null : names.GetValueOrDefault(owner.OwnerUserId),
-        owner is null ? null : StaffingLevels.Label(owner.OwnerStaffingLevel));
+        owner is null ? null : StaffingLevels.Label(owner.OwnerStaffingLevel), current?.CriticalEstimate ?? false);
     }).ToList();
     return CommandResult<IReadOnlyList<RiskRoutingRow>>.Ok(rows);
   }

@@ -146,7 +146,8 @@ internal static class ProcedureRiskBandEvaluator
       latestByRisk.TryGetValue(id, out var assessment);
       var significant = risk.SignificanceDecision == SignificanceDecisions.Significant || assessment?.Significant == true;
       var fraud = assessment?.FraudRisk == true;
-      var criticalEstimate = HasEstimateIndicator(risk.Description) || HasEstimateIndicator(risk.Drivers);
+      // The assessor's recorded flag decides; wording in the risk text is kept as a floor so nothing recorded earlier bands lower.
+      var criticalEstimate = assessment?.CriticalEstimate == true || HasEstimateIndicator(risk.Description) || HasEstimateIndicator(risk.Drivers);
       var highInherentRisk = assessment is { LikelihoodScore: 3, MagnitudeScore: >= 2 };
       var qualitativeBand = assessment?.Band ?? RiskBandRules.Band(1, 1, significant, fraud);
       var qualitativeFloor = criticalEstimate || highInherentRisk ? RiskBands.Red : qualitativeBand;

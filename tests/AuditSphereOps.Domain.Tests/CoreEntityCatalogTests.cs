@@ -299,8 +299,8 @@ public sealed class CoreEntityCatalogTests
 
       // CE bank must contain all 55 defined questions across sections A.1 through A.10
       Assert.True(ceCount >= 50, $"Expected CE question bank to have >= 50 questions, found {ceCount}");
-      // RV bank must contain all 30 questions from Appendix B
-      Assert.Equal(30, rvCount);
+      // RV bank: the 30 questions from Appendix B plus the two STE v2.2 Track B questions (ADR-0017)
+      Assert.Equal(32, rvCount);
 
       // Verify idempotency of seed call
       await QuestionnaireSeed.SeedTemplatesAndDefinitionsAsync(ctx);
