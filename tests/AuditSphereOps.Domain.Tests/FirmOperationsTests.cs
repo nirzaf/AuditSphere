@@ -386,10 +386,22 @@ public sealed class FirmOperationsTests
       Assert.Equal(6_500m, tb.ProfitLossActivity[0].ExpenseActivity);
       Assert.DoesNotContain(tb.ProfitLossActivity, x => x.JournalNumber is "J-OPEN" or "J-CLOSE");
       Assert.Equal(tb.TotalDebit, tb.TotalCredit);
+      // Month by month: each month carries only its own operating activity, and the months add up to the range totals.
+      var twoMonths = (await FirmExpenseService.TrialBalanceAsync(db, w.A("partner", "Partner"), "2026-01", "2026-02")).Value!;
+      Assert.Equal([("2026-01", 10_000m, 18_000m, -8_000m), ("2026-02", 0m, 6_500m, -6_500m)],
+        twoMonths.MonthlyProfitLoss.Select(x => (x.PeriodCode, x.Revenue, x.Expenses, x.Profit)));
+      Assert.Equal((twoMonths.Revenue, twoMonths.Expenses, twoMonths.Profit),
+        (twoMonths.MonthlyProfitLoss.Sum(x => x.Revenue), twoMonths.MonthlyProfitLoss.Sum(x => x.Expenses), twoMonths.MonthlyProfitLoss.Sum(x => x.Profit)));
+      // No accounting period exists a year earlier, so the comparator is absent and not a zero.
+      Assert.All(twoMonths.MonthlyProfitLoss, x => Assert.Null(x.PriorYearProfit));
+      Assert.Equal(("2026-02", -6_500m), (Assert.Single(tb.MonthlyProfitLoss).PeriodCode, tb.MonthlyProfitLoss[0].Profit));
+      // A range far wider than the stored periods is still bounded by them.
+      Assert.Equal(2, (await FirmExpenseService.TrialBalanceAsync(db, w.A("partner", "Partner"), "1990-01", "2099-12")).Value!.MonthlyProfitLoss.Count);
       var export = await FirmExpenseService.ExportTrialBalanceAsync(db, w.A("partner", "Partner"), "2026-02", "2026-02");
       Assert.True(export.Succeeded, export.Message);
       Assert.Contains("PROFIT_LOSS_SUMMARY", export.Value!.Csv);
       Assert.Contains("PROFIT_LOSS_ACTIVITY", export.Value.Csv);
+      Assert.Contains("\"PROFIT_LOSS_MONTH\",\"2026-02\",\"2026-02\",\"QAR\"", export.Value.Csv);
       Assert.Contains("6500", export.Value.Csv);
       Assert.DoesNotContain("J-OPEN", export.Value.Csv);
       var januaryExport = await FirmExpenseService.ExportTrialBalanceAsync(db, w.A("partner", "Partner"), "2026-01", "2026-01");

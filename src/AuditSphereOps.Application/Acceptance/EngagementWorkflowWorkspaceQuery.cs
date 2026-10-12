@@ -1,7 +1,9 @@
 using System.Text.RegularExpressions;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
+using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
+using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Application.Acceptance;
 
@@ -36,6 +38,7 @@ public sealed record EngagementWorkflowReport(
   EngagementWorkflowPhaseState CurrentPhase,
   IReadOnlyList<EngagementWorkflowPhaseState> Phases,
   string ResponsibleRole,
+  IReadOnlyList<string> ResponsibleUsers,
   IReadOnlyList<string> Blockers,
   IReadOnlyList<EngagementWorkflowNextAction> NextActions,
   EngagementWorkflowArchiveState? Archive,
@@ -82,10 +85,36 @@ public static class EngagementWorkflowWorkspaceQuery
       }
       : new List<EngagementWorkflowNextAction>();
 
+    var responsibleUsers = await ResponsibleUsersAsync(db, actor.FirmId, report.EngagementId, summary.ResponsibleRole, ct);
+
     return CommandResult<EngagementWorkflowReport>.Ok(new EngagementWorkflowReport(
       report.EngagementId, report.ClientId, report.ServiceRoute,
       summary.CanonicalStage, summary.StageIndex, summary.StageLabel,
-      current, phases, summary.ResponsibleRole, blockers, nextActions, archive, report.EvaluatedAtUtc));
+      current, phases, summary.ResponsibleRole, responsibleUsers, blockers, nextActions, archive, report.EvaluatedAtUtc));
+  }
+
+  /// <summary>
+  /// The people currently staffed on this engagement at the level that owns the current step. It is a display fact taken from
+  /// live staffing: it grants nothing, and it is empty when the step belongs to a firm role outside engagement staffing
+  /// (commercial or finance) or when nobody is staffed at that level.
+  /// </summary>
+  private static async Task<IReadOnlyList<string>> ResponsibleUsersAsync(
+    IAuditSphereDbContext db, Guid firmId, Guid engagementId, string responsibleRole, CancellationToken ct)
+  {
+    var level = responsibleRole switch
+    {
+      "EngagementPartner" => StaffingLevels.EngagementPartner,
+      "AuditManager" => StaffingLevels.AuditManager,
+      "SeniorAuditor" => StaffingLevels.SeniorAuditor,
+      _ => null,
+    };
+    if (level is null) return [];
+    return await (from assignment in db.EngagementStaffAssignments.AsNoTracking()
+      join user in db.Users.AsNoTracking() on new { assignment.FirmId, assignment.UserId } equals new { user.FirmId, UserId = user.Id }
+      where assignment.FirmId == firmId && assignment.EngagementId == engagementId && assignment.RevokedAt == null &&
+        assignment.StaffingLevel == level && !user.Disabled
+      orderby user.DisplayName, user.Id
+      select user.DisplayName).Take(20).ToListAsync(ct);
   }
 
   /// <summary>

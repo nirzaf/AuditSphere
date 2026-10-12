@@ -217,6 +217,10 @@ describe('Finance & Firm Ledger Contracts', () => {
       totalActivityCount: 0,
       hasMoreActivity: false,
       profitLossActivity: [],
+      monthlyProfitLoss: [
+        { periodCode: '2026-01', revenue: '50000.00', expenses: '20000.00', profit: '30000.00',
+          priorYearRevenue: null, priorYearExpenses: null, priorYearProfit: null },
+      ],
     };
 
     const decoded = decodeTrialBalance(raw, 'trialBalance');
@@ -225,5 +229,7 @@ describe('Finance & Firm Ledger Contracts', () => {
     expect(decoded.currency).toBe('QAR');
     expect(decoded.activityPageSize).toBe(100);
     expect(decoded.rows.length).toBe(1);
+    expect(decoded.monthlyProfitLoss[0].priorYearProfit).toBeNull();
+    expect(() => decodeTrialBalance({ ...raw, monthlyProfitLoss: [{ periodCode: '2026-01' }] }, 'trialBalance')).toThrow();
   });
 });

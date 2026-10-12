@@ -307,6 +307,33 @@ public sealed class EngagementLifecycleQueryTests
       Assert.Equal(ExternalReadOnlyStates.NotRequested, report.Value.Summary.ProviderProtectionState);
       Assert.Contains("does not claim provider immutability", report.Value.Summary.ComplianceWarning!);
 
+      // The dashboard names the people staffed at the level that owns the step. A revoked assignment and another level are not named.
+      var unstaffed = await EngagementWorkflowWorkspaceQuery.GetAsync(db, partner, engagementId);
+      Assert.Equal(("EngagementPartner", 0), (unstaffed.Value!.ResponsibleRole, unstaffed.Value.ResponsibleUsers.Count));
+      var staffedPartner = PbcSeed.User(seed.FirmId, "Staff"); staffedPartner.DisplayName = "Staffed Partner";
+      var formerPartner = PbcSeed.User(seed.FirmId, "Staff"); formerPartner.DisplayName = "Former Partner";
+      var staffedManager = PbcSeed.User(seed.FirmId, "Staff"); staffedManager.DisplayName = "Staffed Manager";
+      db.Users.AddRange(staffedPartner, formerPartner, staffedManager);
+      foreach (var (user, level, revoked) in new[]
+      {
+        (staffedPartner, StaffingLevels.EngagementPartner, false), (formerPartner, StaffingLevels.EngagementPartner, true),
+        (staffedManager, StaffingLevels.AuditManager, false)
+      })
+      {
+        var grant = PbcSeed.Grant(seed.FirmId, user, "Partner", seed.ClientId, engagementId);
+        db.RoleGrants.Add(grant);
+        db.EngagementStaffAssignments.Add(new EngagementStaffAssignment
+        {
+          Id = Guid.NewGuid(), FirmId = seed.FirmId, ClientId = seed.ClientId, EngagementId = engagementId, UserId = user.Id,
+          RoleGrantId = grant.Id, StaffingLevel = level, AssignedByUserId = seed.Admin.Id, AssignedAt = now,
+          RevokedAt = revoked ? now : null, RevokedByUserId = revoked ? seed.Admin.Id : null
+        });
+      }
+      await db.SaveChangesAsync();
+      var staffed = await EngagementWorkflowWorkspaceQuery.GetAsync(db, partner, engagementId);
+      Assert.Equal(["Staffed Partner"], staffed.Value!.ResponsibleUsers);
+      Assert.Equal(report.Value.Summary.ComplianceCountdownDays, staffed.Value.Archive!.ComplianceCountdownDays);
+
       // A due but uncommitted freeze stays in the countdown state and is not described as locally archived.
       freeze.ReportSignedAt = now.AddDays(-61);
       freeze.DueAt = freeze.ReportSignedAt.AddDays(60);

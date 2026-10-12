@@ -24,10 +24,12 @@ const tbRow = obj({ accountId: guid, code: text, name: text, accountType: text, 
 const pnlActivity = obj({ lineId: guid, postingId: guid, journalId: guid, periodCode: text, postedAt: text,
   journalNumber: text, postingPurpose: text, accountId: guid, accountCode: text, accountName: text, description: text,
   revenueActivity: dec, expenseActivity: dec });
+const pnlMonth = obj({ periodCode: text, revenue: dec, expenses: dec, profit: dec,
+  priorYearRevenue: nullable(dec), priorYearExpenses: nullable(dec), priorYearProfit: nullable(dec) });
 export const decodeTrialBalance = obj({ fromPeriod: text, toPeriod: text, rows: arr(tbRow), totalDebit: dec, totalCredit: dec, balanced: bool,
   revenue: dec, expenses: dec, profit: dec, cumulativeProfit: dec, assets: dec, liabilities: dec, equity: dec, positionReconciles: bool,
   currency: nullable(text), activityPage: nat, activityPageSize: nat, totalActivityCount: nat, hasMoreActivity: bool,
-  profitLossActivity: arr(pnlActivity, 100) });
+  profitLossActivity: arr(pnlActivity, 100), monthlyProfitLoss: arr(pnlMonth, 1200) });
 
 @Component({
   selector: 'audit-firm-expense-rejection-dialog',
@@ -150,6 +152,22 @@ export class FirmExpenseRejectionDialog {
           <p aria-label="Firm financial summary">{{ t.balanced ? 'Balanced.' : 'NOT balanced.' }} Selected-period P&amp;L ({{ t.currency ?? 'currency not configured' }}): revenue {{ t.revenue | money }}, expenses {{ t.expenses | money }}, profit {{ t.profit | money }}.
             Closing position: assets {{ t.assets | money }} = liabilities {{ t.liabilities | money }} + equity {{ t.equity | money }} + cumulative P&amp;L {{ t.cumulativeProfit | money }}: {{ t.positionReconciles ? 'reconciles' : 'does not reconcile' }}.</p>
           <p><small>Accounting-period basis: posted journals are assigned to the period shown below; the posted timestamp is audit context. Reversals and adjustments affect their assigned period. Opening-balance and YEAR_END_CLOSE journals remain in the trial balance but are excluded from operating P&amp;L. Mixed currencies fail closed until separately translated.</small></p>
+          <h3>Monthly profit and loss</h3>
+          @if (t.monthlyProfitLoss.length) {
+            <p>One row for each accounting month in the range. The months add up to the selected-period totals above. The comparison is the same month one year earlier.</p>
+            <div class="table-scroll"><table>
+              <caption>Monthly profit and loss from {{ t.fromPeriod }} to {{ t.toPeriod }} in {{ t.currency ?? 'unconfigured currency' }}</caption>
+              <thead><tr><th>Month</th><th class="number">Revenue</th><th class="number">Expenses</th><th class="number">Profit</th><th class="number">Profit, same month last year</th></tr></thead>
+              <tbody>@for (m of t.monthlyProfitLoss; track m.periodCode) {
+                <tr><th scope="row">{{ m.periodCode }}</th><td class="number">{{ m.revenue | money }}</td><td class="number">{{ m.expenses | money }}</td>
+                  <td class="number">{{ m.profit | money }}</td><td class="number">{{ m.priorYearProfit === null ? 'No period' : (m.priorYearProfit | money) }}</td></tr>
+              }</tbody>
+              <tfoot><tr><th scope="row">Total</th><td class="number"><strong>{{ t.revenue | money }}</strong></td><td class="number"><strong>{{ t.expenses | money }}</strong></td>
+                <td class="number"><strong>{{ t.profit | money }}</strong></td><td></td></tr></tfoot>
+            </table></div>
+          } @else {
+            <p>No accounting period exists in this range.</p>
+          }
           <h3>Profit and loss journal detail</h3>
           <p>These posted revenue and expense lines reconcile to the P&amp;L totals above. {{ t.totalActivityCount }} activity lines; page {{ t.activityPage }}.</p>
           <div class="table-scroll"><table>

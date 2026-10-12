@@ -647,10 +647,7 @@ public static class PracticeTimeService
     var resolved = new List<(BudgetLineRequest Request, RateCardVersion Card)>();
     foreach (var line in request.Lines)
     {
-      var card = await db.RateCardVersions.Where(x => x.FirmId == actor.FirmId &&
-        x.Role == line.Role.Trim() && x.Activity == line.Activity.Trim() &&
-        x.Currency == request.Currency.Trim().ToUpperInvariant() && x.Status == PracticeTimeStates.RateApproved)
-        .OrderByDescending(x => x.Version).FirstOrDefaultAsync(ct);
+      var card = await ApprovedCardOrAliasAsync(db, actor.FirmId, line.Role, line.Activity, request.Currency.Trim().ToUpperInvariant(), ct);
       if (card is null)
         return CommandResult<Guid>.Fail("time.rate-missing", "An approved rate card is required for every budget line.");
       resolved.Add((line, card));
@@ -832,19 +829,30 @@ public static class PracticeTimeService
     if (!string.Equals(billableClassification.Trim(), PracticeTimeStates.Billable, StringComparison.OrdinalIgnoreCase))
       return CommandResult<RateCardVersion?>.Ok(null);
     var normalizedCurrency = currency.Trim().ToUpperInvariant();
-    var card = await ApprovedCardAsync(db, firmId, role.Trim(), activity.Trim(), normalizedCurrency, ct);
-    // An exact approved card always wins. Only an explicit STE alias (e.g. Senior -> Audit Supervisor) may borrow a card;
-    // any other unknown role has no rate and fails closed.
-    if (card is null && SteChargeOutRateBaseline.CanonicalRole(role.Trim()) is { } canonical && canonical != role.Trim())
-      card = await ApprovedCardAsync(db, firmId, canonical, activity.Trim(), normalizedCurrency, ct);
+    var card = await ApprovedCardOrAliasAsync(db, firmId, role, activity, normalizedCurrency, ct);
     return card is null
       ? CommandResult<RateCardVersion?>.Fail("time.rate-missing", "An approved rate card is required for billable time.")
       : CommandResult<RateCardVersion?>.Ok(card);
   }
 
+  /// <summary>
+  /// The one rate lookup that time capture, budgets and quotations share, so the same role name prices the same way everywhere.
+  /// An exact approved card always wins. Only an explicit STE alias (for example Senior for Audit Supervisor) may borrow a card;
+  /// any other unknown role has no rate and the caller fails closed.
+  /// </summary>
+  internal static async Task<RateCardVersion?> ApprovedCardOrAliasAsync(IAuditSphereDbContext db, Guid firmId, string role, string activity,
+    string normalizedCurrency, CancellationToken ct, bool stored = false)
+  {
+    var card = await ApprovedCardAsync(db, firmId, role.Trim(), activity.Trim(), normalizedCurrency, ct, stored);
+    if (card is null && SteChargeOutRateBaseline.CanonicalRole(role.Trim()) is { } canonical && canonical != role.Trim())
+      card = await ApprovedCardAsync(db, firmId, canonical, activity.Trim(), normalizedCurrency, ct, stored);
+    return card;
+  }
+
   private static Task<RateCardVersion?> ApprovedCardAsync(IAuditSphereDbContext db, Guid firmId, string role, string activity, string currency,
-    CancellationToken ct) =>
-    db.RateCardVersions.Where(x => x.FirmId == firmId && x.Role == role && x.Activity == activity &&
+    CancellationToken ct, bool stored = false) =>
+    // A preview hashes the rate, so it reads the stored row and never a tracked copy that may carry a different decimal scale.
+    (stored ? db.RateCardVersions.AsNoTracking() : db.RateCardVersions).Where(x => x.FirmId == firmId && x.Role == role && x.Activity == activity &&
       x.Currency == currency && x.Status == PracticeTimeStates.RateApproved)
       .OrderByDescending(x => x.Version).FirstOrDefaultAsync(ct);
 

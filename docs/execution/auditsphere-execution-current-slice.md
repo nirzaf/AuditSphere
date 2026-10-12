@@ -15,6 +15,14 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Practice management completion program, first slice — 2026-10-12
+
+The owner supplied a completion program (stories PM-00 to PM-17, with an appendix of candidate gaps). It is stored as `auditsphere-execution-user-stories-cloud-practice-management-v22-proposed.md` and reconciled against the code in `auditsphere-execution-tracker-practice-management-v22-crosswalk-current.md`. Most open rows wait on an owner or professional decision, on live infrastructure, or on a scope choice; the crosswalk names which.
+
+Three decision-free gaps are closed. The firm trial balance report returns one profit and loss row per accounting month with the same month a year earlier as comparator, and the months add up to the range totals. Time capture, budgets, budget previews and quotations share one rate lookup, so an STE alias such as Senior prices the same everywhere and an unknown role still fails closed. The engagement dashboard names the people staffed at the level that owns the current step and shows the days left to the scheduled freeze. No lifecycle rule, gate or stage mapping changed, and there is no migration.
+
+The full .NET suites were left to CI. Evidence, what was not run and open items are in `status.json` under `targetedVerification.practiceManagementBaselineSlice`.
+
 ## Sunday week start, corrected commercial tests and specification rename — 2026-10-12
 
 Allocation weeks now start on Sunday, at the owner's request, so the Sunday to Thursday working week sits in one week bucket. `ResourceGridCalculator.WeekStart` returns the Sunday, the `staff_allocations` check constraint requires one, and migration `QatarSundayWeekStart` moves each stored Monday week one day earlier, to the Sunday-start week that contains it. Planning receipts committed before the change keep the Monday they recorded. ADR-0017 is amended. Operators should expect the resource grid and every stored allocation to show a date one day earlier after the migration; the planned minutes do not change.
@@ -22,12 +30,6 @@ Allocation weeks now start on Sunday, at the owner's request, so the Sunday to T
 Two `CommercialWorkflowTests` that failed on master were test defects and are corrected with no product change: one read a stale tracked proposal after raw updates, and one asserted the Partner-only activation flag for a Relationship Manager. The STE v2.2 source specification moved from the repository root to `docs/requirements/auditsphere-requirements-source-ste-audit-management-specification-v22.md`, and the filename validators no longer carry an exception for it.
 
 The full .NET suites were not run locally; the owner asked for test execution to be left to CI. Focused evidence and what was not run are in `status.json` under `targetedVerification.qatarSundayWeekStart`.
-
-## STE v2.2 delegated owner decisions — 2026-10-12
-
-ADR-0017 records the STE v2.2 decisions the owner delegated. Three keep an earlier decision: WhatsApp stays a lead-channel label, client users sign in through Microsoft with no emailed password (ADR-0003), and the materiality benchmark is not normalised (ADR-0011). The rest set new behaviour: opinion, signing, clearance and bundle assembly need the staffed Engagement Partner and fail closed without one; the continuance bank gains a legal-notice question and a fees-settled confirmation, both with evidence; a client acceptance records the channel it arrived by; the firm working week is Sunday to Thursday; and a critical accounting estimate is a flag the assessor records, which bands the risk Red.
-
-Migration `SteV22OwnerDecisions` adds two columns, extends the band check constraint and adds the two questions where the continuance bank already exists. It has run only against the test database. Operators should expect three effects: an engagement with no staffed Engagement Partner cannot reach the opinion until one is staffed; a continuance checklist in progress needs the two new answers; and capacity figures change for ranges that include a Friday or a Sunday. Evidence and open items are in `status-archive-2026-10.json` under `keys.verification.steV22OwnerDecisions`.
 
 ## v2.2 unlinked procedure review inbox — 2026-10-12
 

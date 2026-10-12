@@ -436,7 +436,14 @@ public sealed record FirmProfitLossActivity(Guid LineId, Guid PostingId, Guid Jo
 public sealed record FirmTrialBalanceView(string FromPeriod, string ToPeriod, IReadOnlyList<FirmTrialBalanceRow> Rows, decimal TotalDebit, decimal TotalCredit, bool Balanced,
   decimal Revenue, decimal Expenses, decimal Profit, decimal CumulativeProfit, decimal Assets, decimal Liabilities, decimal Equity, bool PositionReconciles,
   string? Currency, int ActivityPage, int ActivityPageSize, int TotalActivityCount, bool HasMoreActivity,
-  IReadOnlyList<FirmProfitLossActivity> ProfitLossActivity);
+  IReadOnlyList<FirmProfitLossActivity> ProfitLossActivity, IReadOnlyList<FirmProfitLossMonth> MonthlyProfitLoss);
+/// <summary>
+/// One accounting month of the firm's operating profit and loss, from the same posted lines as the range totals, so the months in
+/// a range add up to those totals exactly. The comparator is the same month one year earlier and is null when the firm has no
+/// accounting period for that month, which is different from a period with no activity.
+/// </summary>
+public sealed record FirmProfitLossMonth(string PeriodCode, decimal Revenue, decimal Expenses, decimal Profit,
+  decimal? PriorYearRevenue, decimal? PriorYearExpenses, decimal? PriorYearProfit);
 public sealed record FirmTrialBalanceCsvExport(string FileName, string Currency, string Csv);
 
 /// <summary>
@@ -682,14 +689,39 @@ public static class FirmExpenseService
     decimal Balance(string type, bool debitNormal) => rows.Where(r => r.AccountType == type).Sum(r => debitNormal ? r.ClosingDebit - r.ClosingCredit : r.ClosingCredit - r.ClosingDebit);
     var yearEndClosingPostingIds = lines.Where(x => string.Equals(x.PostingPurpose,
       LedgerStates.YearEndClosingPurpose, StringComparison.OrdinalIgnoreCase)).Select(x => x.PostingId).ToHashSet();
-    var operatingLines = lines.Where(x => !openingIds.Contains(x.PeriodId) &&
+    // Operating activity in any loaded period. The range totals and the monthly series both read this one set.
+    var operatingLinesAllPeriods = lines.Where(x =>
       !string.Equals(x.PostingPurpose, LedgerStates.YearEndClosingPurpose, StringComparison.OrdinalIgnoreCase) &&
       !string.Equals(x.PostingPurpose, "OPENING_BALANCE", StringComparison.OrdinalIgnoreCase) &&
       (x.ReversalOfPostingId is null || !yearEndClosingPostingIds.Contains(x.ReversalOfPostingId.Value))).ToList();
+    var operatingLines = operatingLinesAllPeriods.Where(x => !openingIds.Contains(x.PeriodId)).ToList();
     var revenueAccountIds = accounts.Where(x => x.AccountType == LedgerStates.AccountRevenue).Select(x => x.Id).ToHashSet();
     var expenseAccountIds = accounts.Where(x => x.AccountType == LedgerStates.AccountExpense).Select(x => x.Id).ToHashSet();
     var revenue = MoneyPolicy.Normalize(operatingLines.Where(x => revenueAccountIds.Contains(x.FirmAccountId)).Sum(x => x.Credit - x.Debit));
     var expenses = MoneyPolicy.Normalize(operatingLines.Where(x => expenseAccountIds.Contains(x.FirmAccountId)).Sum(x => x.Debit - x.Credit));
+    var periodCodes = periods.ToDictionary(p => p.Id, p => p.PeriodCode);
+    var activityByMonth = operatingLinesAllPeriods.GroupBy(x => periodCodes[x.PeriodId], StringComparer.Ordinal).ToDictionary(g => g.Key, g => (
+      Revenue: MoneyPolicy.Normalize(g.Where(x => revenueAccountIds.Contains(x.FirmAccountId)).Sum(x => x.Credit - x.Debit)),
+      Expenses: MoneyPolicy.Normalize(g.Where(x => expenseAccountIds.Contains(x.FirmAccountId)).Sum(x => x.Debit - x.Credit))), StringComparer.Ordinal);
+    var knownMonths = periodCodes.Values.ToHashSet(StringComparer.Ordinal);
+    // The series runs from the first to the last accounting period the firm holds inside the range, so its length is bounded by
+    // stored periods and not by the requested dates. A month between them with no period or no activity is shown as zero.
+    var monthsInRange = knownMonths.Where(code => string.CompareOrdinal(code, fromPeriod) >= 0).OrderBy(code => code, StringComparer.Ordinal).ToList();
+    var monthlyProfitLoss = new List<FirmProfitLossMonth>();
+    if (monthsInRange.Count > 0)
+    {
+      static DateOnly Month(string code) => DateOnly.ParseExact(code + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture);
+      static string Code(DateOnly month) => month.ToString("yyyy-MM", CultureInfo.InvariantCulture);
+      var last = Month(monthsInRange[^1]);
+      for (var month = Month(monthsInRange[0]); month <= last; month = month.AddMonths(1))
+      {
+        var current = activityByMonth.GetValueOrDefault(Code(month));
+        var priorCode = Code(month.AddYears(-1));
+        (decimal Revenue, decimal Expenses)? prior = knownMonths.Contains(priorCode) ? activityByMonth.GetValueOrDefault(priorCode) : null;
+        monthlyProfitLoss.Add(new(Code(month), current.Revenue, current.Expenses, current.Revenue - current.Expenses,
+          prior?.Revenue, prior?.Expenses, prior is null ? null : prior.Value.Revenue - prior.Value.Expenses));
+      }
+    }
     var revenueAndExpenseAccountIds = revenueAccountIds.Concat(expenseAccountIds).ToArray();
     var openingPeriodIds = openingIds.ToArray();
     var closingPostingIds = yearEndClosingPostingIds.ToArray();
@@ -747,7 +779,7 @@ public static class FirmExpenseService
       return CommandResult<FirmTrialBalanceView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     return CommandResult<FirmTrialBalanceView>.Ok(new(fromPeriod, toPeriod, rows, totalDebit, totalCredit, totalDebit == totalCredit,
       revenue, expenses, profit, cumulativeProfit, assets, liabilities, equity, assets == liabilities + equity + cumulativeProfit,
-      currency, activityPage, TrialBalanceActivityPageSize, totalActivityCount, hasMoreActivity, profitLossActivity));
+      currency, activityPage, TrialBalanceActivityPageSize, totalActivityCount, hasMoreActivity, profitLossActivity, monthlyProfitLoss));
   }
 
   public static async Task<CommandResult<FirmTrialBalanceCsvExport>> ExportTrialBalanceAsync(IClientAccountingDbContext db,
@@ -770,6 +802,9 @@ public static class FirmExpenseService
     var csv = new System.Text.StringBuilder();
     csv.AppendLine("record_type,from_period,to_period,currency,account_code,account_name,opening_debit,opening_credit,movement_debit,movement_credit,closing_debit,closing_credit,period,posted_at,journal_number,posting_purpose,description,revenue_activity,expense_activity,profit");
     csv.AppendLine(string.Join(",", new[] { "PROFIT_LOSS_SUMMARY", value.FromPeriod, value.ToPeriod, SafeText(value.Currency), "", "", "", "", "", "", "", "", "", "", "", "", "", Amount(value.Revenue), Amount(value.Expenses), Amount(value.Profit) }.Select(Cell)));
+    foreach (var month in value.MonthlyProfitLoss)
+      csv.AppendLine(string.Join(",", new[] { "PROFIT_LOSS_MONTH", value.FromPeriod, value.ToPeriod, SafeText(value.Currency), "", "", "", "", "", "", "", "",
+        month.PeriodCode, "", "", "", "", Amount(month.Revenue), Amount(month.Expenses), Amount(month.Profit) }.Select(Cell)));
     foreach (var row in value.Rows)
       csv.AppendLine(string.Join(",", new[] { "TRIAL_BALANCE", value.FromPeriod, value.ToPeriod, SafeText(value.Currency), SafeText(row.Code), SafeText(row.Name),
         Amount(row.OpeningDebit), Amount(row.OpeningCredit), Amount(row.MovementDebit), Amount(row.MovementCredit), Amount(row.ClosingDebit),

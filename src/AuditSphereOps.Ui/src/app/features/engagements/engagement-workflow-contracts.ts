@@ -78,6 +78,7 @@ const workflowDecoder = obj({
   currentPhase: phaseDecoder,
   phases: arr(phaseDecoder, 7),
   responsibleRole: str(100),
+  responsibleUsers: arr(str(300), 20),
   blockers: arr(str(2000), 100),
   nextActions: arr(actionDecoder, 1),
   archive: nullable(archiveDecoder),

@@ -41,7 +41,7 @@ public sealed class SteChargeOutRateBaselineTests
   public async Task BaselineInitialisesDraftsApprovedBySeparateApprover_AndResolvesAliasesToExactRates()
   {
     await using var pg = await PgTestSchema.CreateAsync();
-    var (firmId, _, _) = await pg.SeedScopeAsync();
+    var (firmId, _, engagementId) = await pg.SeedScopeAsync();
     var drafter = PbcSeed.User(firmId, "Staff");
     var approver = PbcSeed.User(firmId, "Staff");
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -79,5 +79,16 @@ public sealed class SteChargeOutRateBaselineTests
     Assert.Equal(200m, junior.Value!.RatePerHour);
     var intern = await PracticeTimeService.ResolveRateAsync(db2, firmId, "Intern", SteChargeOutRateBaseline.Activity, "QAR", PracticeTimeStates.Billable, default);
     Assert.Equal("time.rate-missing", intern.ErrorCode);
+
+    // A budget line reads the same lookup as time capture: the alias borrows the baseline card, and an unknown role still fails closed.
+    var budget = await PracticeTimeService.ReviseBudgetAsync(db2, drafterActor,
+      new(engagementId, "QAR", [new("Senior", SteChargeOutRateBaseline.Activity, 600), new("Junior", SteChargeOutRateBaseline.Activity, 300)]));
+    Assert.True(budget.Succeeded, budget.Message);
+    var supervisorCard = approved.Single(x => x.Role == "Audit Supervisor").Id;
+    var associateCard = approved.Single(x => x.Role == "Audit Associate").Id;
+    var budgetLines = await db2.BudgetLines.AsNoTracking().Where(x => x.EngagementBudgetId == budget.Value).ToListAsync();
+    Assert.Equal([associateCard, supervisorCard], budgetLines.OrderBy(x => x.Role).Select(x => x.RateCardVersionId));
+    Assert.Equal("time.rate-missing", (await PracticeTimeService.ReviseBudgetAsync(db2, drafterActor,
+      new(engagementId, "QAR", [new("Intern", SteChargeOutRateBaseline.Activity, 60)]))).ErrorCode);
   }
 }

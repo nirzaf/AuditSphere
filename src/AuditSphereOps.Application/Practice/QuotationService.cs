@@ -74,6 +74,8 @@ public static class QuotationService
         .Where(x => x.FirmId == actor.FirmId && x.Status == PracticeTimeStates.RateApproved && x.Currency == currency &&
           x.Role.ToUpper() == role.ToUpper() && x.Activity.ToUpper() == activity.ToUpper())
         .OrderByDescending(x => x.Version).FirstOrDefaultAsync(ct);
+      // The same STE aliases that price time and budgets price a quotation line, so Senior and Audit Supervisor never diverge.
+      card ??= await PracticeTimeService.ApprovedCardOrAliasAsync(db, actor.FirmId, role, activity, currency, ct, stored: true);
       if (line.ExpectedRateCardId.HasValue && line.ExpectedRateCardId != card?.Id)
         return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision, "An approved rate changed; refresh the quotation.");
       priced.Add(new(role, activity, line.Hours, card?.RatePerHour ?? 0m, card?.Id ?? Guid.Empty));

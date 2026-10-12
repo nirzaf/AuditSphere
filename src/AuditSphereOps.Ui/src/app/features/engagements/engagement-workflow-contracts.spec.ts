@@ -28,6 +28,7 @@ function workflow(overrides: Record<string, unknown> = {}) {
     currentPhase: { index: 1, code: 'CLIENT_ONBOARDING', label: 'Client Onboarding', status: 'BLOCKED' },
     phases: phases(1, 'BLOCKED'),
     responsibleRole: 'EngagementPartner',
+    responsibleUsers: ['Aisha Al-Thani'],
     blockers: ['Unconditional Partner risk acceptance decision required'],
     nextActions: [{ key: 'OPEN_CANONICAL_ACTION', label: 'Open: Dual-Key Acceptance Pending', href: `/app/assessments/${clientId}` }],
     archive: null,

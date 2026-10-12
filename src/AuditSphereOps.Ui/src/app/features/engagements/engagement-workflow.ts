@@ -61,6 +61,11 @@ export class EngagementWorkflow {
     return workbenchLinksFor(report.currentPhase.code, report.engagementId, report.clientId);
   }
 
+  /** True when the responsible role is an engagement staffing level, so an empty name list means the level is unstaffed. */
+  staffedRole(role: string): boolean {
+    return role === 'EngagementPartner' || role === 'AuditManager' || role === 'SeniorAuditor';
+  }
+
   statusLabel(status: string): string {
     return PHASE_STATUS_LABELS[status] ?? 'Unknown';
   }

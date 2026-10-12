@@ -38,7 +38,14 @@
       <div class="phase-meta">
         <strong>{{ report.currentPhase.label }}</strong>
         <span class="status-badge" [attr.data-status]="report.currentPhase.status">{{ statusLabel(report.currentPhase.status) }}</span>
-        <span class="role-badge">Responsible: {{ report.responsibleRole }}</span>
+        <span class="role-badge">
+          Responsible: {{ report.responsibleRole }}
+          @if (report.responsibleUsers.length > 0) {
+            ({{ report.responsibleUsers.join(', ') }})
+          } @else if (staffedRole(report.responsibleRole)) {
+            (nobody is staffed at this level)
+          }
+        </span>
       </div>
 
       <p class="canonical-note">
@@ -55,6 +62,16 @@
               <strong>External provider protection:</strong> {{ providerState }}
               @if (providerState !== 'OBSERVED') {
                 <span class="provider-warning">Not verified. AuditSphere does not claim provider immutability.</span>
+              }
+            </p>
+          }
+          @if (archive.complianceCountdownDays !== null && archive.localArchiveState !== 'FROZEN') {
+            <p>
+              <strong>Compliance countdown:</strong>
+              @if (archive.complianceCountdownDays > 0) {
+                {{ archive.complianceCountdownDays }} {{ archive.complianceCountdownDays === 1 ? 'day' : 'days' }} until the scheduled freeze.
+              } @else {
+                The scheduled freeze date has been reached. The engagement is archived only when the freeze is committed.
               }
             </p>
           }

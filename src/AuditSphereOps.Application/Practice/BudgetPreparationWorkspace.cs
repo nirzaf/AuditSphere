@@ -53,7 +53,7 @@ public static class BudgetPreparationWorkspace
     if(fields.ExpectedVersion!=(latest?.Version??0).ToString(CultureInfo.InvariantCulture))return CommandResult<BudgetPreparationPreview>.Fail(ErrorCodes.StaleRevision,"Budget changed. Refresh before review.");
     var lines=new List<BudgetPreparationLine>();decimal total=0;
     foreach(var l in fields.Lines){
-      var card=await db.RateCardVersions.AsNoTracking().Where(x=>x.FirmId==a.FirmId&&x.Role==l.Role&&x.Activity==l.Activity&&x.Currency==fields.Currency&&x.Status==PracticeTimeStates.RateApproved).OrderByDescending(x=>x.Version).FirstOrDefaultAsync(ct);
+      var card=await PracticeTimeService.ApprovedCardOrAliasAsync(db,a.FirmId,l.Role,l.Activity,fields.Currency,ct,stored:true);
       if(card is null)return CommandResult<BudgetPreparationPreview>.Fail("time.rate-missing","An approved rate card is required for every line.");
       var cost=MoneyPolicy.Normalize(l.ForecastMinutes*card.RatePerHour/60m);total+=cost;
       lines.Add(new(l.Role,l.Activity,l.Phase??BudgetPhases.Unassigned,l.RiskArea,l.ForecastMinutes,card.Id,Exact(card.RatePerHour),Exact(cost)));
