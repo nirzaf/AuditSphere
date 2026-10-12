@@ -15,6 +15,14 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## v2.2 final-release evidence projection — 2026-10-12
+
+The engagement completion query now projects the latest release candidate together with its exact external checkpoint and persisted release row. The view reports candidate and target revisions, manifest SHA-256, checkpoint identity/state/verification time, whether the checkpoint revision and read-back digest match the candidate, and whether the persisted Release identity, checkpoint, target revision and manifest agree. It labels a missing issue `NOT_ISSUED`, a fully matching persisted issue `ISSUED`, and inconsistent state `RECONCILIATION_REQUIRED`. The Angular completion screen displays these distinctions and explicitly says that a candidate is not a release. This is read-only; it adds no release or approval command and no migration.
+
+Verification on the working tree based on `87df1a24`: Release solution build passed with 0 errors and six offline `NU1900` vulnerability-feed warnings; the completion Angular contract spec passed 12/12; the focused PostgreSQL projection test passed 1/1; OpenAPI drift passed with no contract change. The Angular development server compiled the routes, but the built-in browser reached the staff sign-in guard because no local API session was available. The Angular production build aborted with exit 134 and no diagnostics. No full suite, persistent migration, signed-in browser workflow, live provider check or professional acceptance was run. Exact run records are in `status.json` under `targetedVerification.workflowReleaseEvidence`.
+
+This only improves visibility of locally persisted release evidence. Issuance still requires the current approval and verified external checkpoint read-back; live delivery and SharePoint/provider acceptance remain external. Overall WF-13 and v2.2 acceptance remain partial.
+
 ## v2.2 Manager Review and rework follow-up — 2026-10-12
 
 `ManagerReviewSummaryQuery` adds a read-only, scope-authorized summary over the existing fieldwork completion evaluation. It reports redacted blockers, procedure and evidence counts, unresolved threads, open confirmations, reconciliation/difference work, and whether the latest Summary Review Memorandum is current. `PartnerHandoffReady` requires both current completion readiness and a current SRM; this projection does not record a review decision, opinion, or lifecycle transition. `GET /api/ui/engagements/{id}/manager-review` serves the summary, and the Angular fieldwork page shows it only to actors who can review selections.

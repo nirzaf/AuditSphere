@@ -68,6 +68,60 @@
     }
   ],
   "targetedVerification": {
+    "workflowReleaseEvidence": {
+      "recordedAtUtc": "2026-10-12T04:23:41Z",
+      "baseCommit": "87df1a24",
+      "sourceTree": "Working tree on master based on 87df1a24; evidence changes are included in the commit carrying this record.",
+      "scope": "WF-13 read-only completion projection for exact candidate, external checkpoint and persisted Release reconciliation; no schema change or release command added.",
+      "database": "Disposable PostgreSQL test schema created and dropped by PgTestSchema; no persistent database was migrated.",
+      "runs": [
+        {
+          "name": "Release solution build",
+          "command": "dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1",
+          "result": "PASS",
+          "warnings": 6,
+          "errors": 0,
+          "note": "NU1900 vulnerability-feed warnings because NuGet was unreachable."
+        },
+        {
+          "name": "Completion Angular contract spec",
+          "command": "npm --prefix src/AuditSphereOps.Ui run test:ci -- --include=src/app/features/audit/completion.spec.ts",
+          "result": "PASS",
+          "passed": 12,
+          "failed": 0
+        },
+        {
+          "name": "PostgreSQL completion release projection",
+          "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --configuration Release --maxcpucount:1 --filter FullyQualifiedName~CompletionProjectionShowsTheExactCheckpointAndPersistedReleaseIdentity",
+          "result": "PASS",
+          "passed": 1,
+          "failed": 0
+        },
+        {
+          "name": "OpenAPI drift",
+          "command": "bash scripts/contracts/verify-openapi.sh",
+          "result": "PASS",
+          "note": "Canonical OpenAPI contract did not change."
+        },
+        {
+          "name": "Angular production build",
+          "command": "npm --prefix src/AuditSphereOps.Ui run build",
+          "result": "ABORTED",
+          "exitCode": 134,
+          "note": "The process exited without diagnostics; no repeat was attempted."
+        },
+        {
+          "name": "Built-in browser",
+          "result": "LIMITED",
+          "note": "The Angular development server compiled. The completion route reached the staff sign-in guard because no local API session was available; no authenticated page data was observed."
+        }
+      ],
+      "limits": [
+        "The full test suite was not run.",
+        "No live external checkpoint, SharePoint/provider delivery or professional acceptance was verified.",
+        "WF-13 and overall v2.2 workflow acceptance remain PARTIAL."
+      ]
+    },
     "sourceCommit": "ab2197075e54b337e233c0ad85593be76a388ef3",
     "recordedAtUtc": "2026-10-09T14:35:36Z",
     "runs": [

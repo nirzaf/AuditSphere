@@ -14,7 +14,12 @@ export const decodeSignatureCheck = obj({ signatureKind: oneOf('VISUAL', 'CERTIF
 export const decodeCompletion = obj({ engagementId: guid,
   gates: arr(obj({ name: text, status: text, tone: text, authority: nullable(text), date: nullable(instant) }), 50),
   representations: arr(obj({ code: text, title: text, narrative: text, obtained: bool }), 500),
-  packageId: nullable(guid), packageStatus: text, partnerApproved: bool, eqrStatus: text, releaseCandidateId: nullable(guid), canPrepareRelease: bool,
+  packageId: nullable(guid), packageStatus: text, partnerApproved: bool, eqrStatus: text, releaseCandidateId: nullable(guid),
+  release: nullable(obj({ candidateId: guid, candidateStatus: oneOf('READY', 'ISSUED'), targetKind: text, targetRevision: nat, candidateRevision: nat,
+    manifestDigest: text, candidateCreatedAt: instant, checkpointId: nullable(guid), checkpointState: oneOf('ABSENT', 'VERIFIED', 'PENDING', 'MISMATCHED', 'EXPIRED'),
+    checkpointVerifiedAt: nullable(instant), checkpointMatchesCandidate: bool, checkpointReadBackMatchesManifest: bool, releaseId: nullable(guid),
+    releasedAt: nullable(instant), releaseCheckpointId: nullable(guid), releaseManifestDigest: nullable(text), releaseMatchesCandidate: bool,
+    issueState: oneOf('NOT_ISSUED', 'ISSUED', 'RECONCILIATION_REQUIRED') })), canPrepareRelease: bool,
   confirmations: arr(obj({ caseId: guid, type: text, respondent: text, bookedAmount: dec, currency: text, status: text, monitoring: text,
     daysSinceDispatch: nullable(int), critical: bool, criticalityRationale: nullable(text) }), 2000),
   deliverables: arr(deliverable, 500), clearance: nullable(obj({ clearedAt: instant })),
@@ -47,6 +52,25 @@ const REPORTS: [string, string][] = [['AUDIT_FINDINGS_REPORT', 'Audit Findings R
     @if (ws.data(); as w) {
       <p class="actions" aria-label="Completion navigation"><a [routerLink]="['/app/engagements', w.engagementId, 'audit-plan']">Audit plan</a>
         <a [routerLink]="['/app/engagements', w.engagementId, 'audit-fieldwork']">Fieldwork control center</a><a [routerLink]="['/app/engagements', w.engagementId]">Engagement</a></p>
+
+      <section class="panel" aria-labelledby="release-state-heading">
+        <h2 id="release-state-heading">Final release evidence</h2>
+        @if (w.release; as r) {
+          <dl class="facts">
+            <dt>Candidate</dt><dd><a [routerLink]="['/app/releases', r.candidateId]">{{ r.candidateId }}</a> · {{ r.candidateStatus }} · {{ r.targetKind }} revision {{ r.targetRevision }} (candidate revision {{ r.candidateRevision }})</dd>
+            <dt>Candidate manifest SHA-256</dt><dd><code>{{ r.manifestDigest }}</code></dd>
+            <dt>External checkpoint</dt><dd><audit-status [value]="r.checkpointState" /> {{ r.checkpointId ?? 'No checkpoint recorded' }}@if (r.checkpointVerifiedAt) { · checked {{ r.checkpointVerifiedAt.slice(0, 16).replace('T', ' ') }} UTC }</dd>
+            <dt>Checkpoint bound to candidate</dt><dd>{{ r.checkpointMatchesCandidate ? 'Yes' : 'No' }} · read-back matches manifest: {{ r.checkpointReadBackMatchesManifest ? 'Yes' : 'No' }}</dd>
+            <dt>Release issue</dt><dd><audit-status [value]="r.issueState" />@if (r.releaseId) { {{ r.releaseId }} · {{ r.releasedAt?.slice(0, 16)?.replace('T', ' ') }} UTC }</dd>
+            @if (r.releaseManifestDigest) { <dt>Issued manifest SHA-256</dt><dd><code>{{ r.releaseManifestDigest }}</code></dd> }
+            @if (r.releaseCheckpointId) { <dt>Issued checkpoint identity</dt><dd>{{ r.releaseCheckpointId }}</dd> }
+          </dl>
+          @if (r.issueState === 'NOT_ISSUED') { <p role="status">A candidate and checkpoint do not by themselves mean the package was released. This engagement has no persisted release record for the candidate.</p> }
+          @if (r.issueState === 'RECONCILIATION_REQUIRED') { <p role="alert">The candidate, checkpoint, and persisted release facts do not agree. Review the exact candidate before taking a release action.</p> }
+        } @else {
+          <p>No release candidate is recorded for this engagement.</p>
+        }
+      </section>
 
       <section class="panel" aria-labelledby="deliverables-heading">
         <h2 id="deliverables-heading">Review, opinion and deliverables</h2>

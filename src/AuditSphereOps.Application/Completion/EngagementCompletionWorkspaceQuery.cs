@@ -18,10 +18,14 @@ public sealed record CompletionOpinion(string OpinionType, string Label, string?
 public sealed record CompletionComment(Guid Id, string Body);
 public sealed record CompletionShared(string Title, IReadOnlyList<CompletionComment> OpenComments);
 public sealed record CompletionAmendment(Guid Id, string Reason, DateTimeOffset? OpenedAt, DateTimeOffset? ClosedAt);
+public sealed record CompletionRelease(Guid CandidateId, string CandidateStatus, string TargetKind, long TargetRevision, long CandidateRevision,
+  string ManifestDigest, DateTimeOffset CandidateCreatedAt, Guid? CheckpointId, string CheckpointState, DateTimeOffset? CheckpointVerifiedAt,
+  bool CheckpointMatchesCandidate, bool CheckpointReadBackMatchesManifest, Guid? ReleaseId, DateTimeOffset? ReleasedAt,
+  Guid? ReleaseCheckpointId, string? ReleaseManifestDigest, bool ReleaseMatchesCandidate, string IssueState);
 public sealed record CompletionFreeze(string State, DateTimeOffset ReportSignedAt, DateTimeOffset DueAt, string ExternalReadOnly, int DaysRemaining,
   IReadOnlyList<CompletionAmendment> Amendments, DateTimeOffset? FrozenAt = null);
 public sealed record EngagementCompletionWorkspace(Guid EngagementId, IReadOnlyList<CompletionGate> Gates, IReadOnlyList<CompletionRepresentation> Representations,
-  Guid? PackageId, string PackageStatus, bool PartnerApproved, string EqrStatus, Guid? ReleaseCandidateId, bool CanPrepareRelease,
+  Guid? PackageId, string PackageStatus, bool PartnerApproved, string EqrStatus, Guid? ReleaseCandidateId, CompletionRelease? Release, bool CanPrepareRelease,
   IReadOnlyList<ConfirmationDashboardRow> Confirmations, IReadOnlyList<DeliverableView> Deliverables, CompletionClearance? Clearance, CompletionOpinion? Opinion,
   IReadOnlyList<OpinionFsliOption> OpinionAreas, IReadOnlyList<CompletionShared> Shared, IReadOnlyList<SignedLetterView> SignedLetters, BundleAssemblyState? Bundles,
   IReadOnlyList<string> OpinionTypes, CompletionFreeze? Freeze, int FreezeDays, IReadOnlyList<ActivityEvent>? Trail, string TrailCoverageNote, IReadOnlyList<DocumentLockView> Locks,
@@ -76,7 +80,8 @@ public static class EngagementCompletionWorkspaceQuery
     gates.Add(eqr is null ? new("EQR completed", "NOT_ASSIGNED", "neutral", null, null)
       : new("EQR completed", eqr.Status, eqr.Status == "CONCURRED" ? "ok" : "pending", $"Partner {eqr.EqrPartnerUserId.ToString()[..8]}", eqr.CompletedAt));
     var candidate = await db.ReleaseCandidates.AsNoTracking().Where(r => r.EngagementId == engagementId && r.FirmId == actor.FirmId)
-      .OrderByDescending(r => r.CreatedAt).Select(r => (Guid?)r.Id).FirstOrDefaultAsync(ct);
+      .OrderByDescending(r => r.CreatedAt).FirstOrDefaultAsync(ct);
+    var release = candidate is null ? null : await ReleaseSummaryAsync(db, candidate, ct);
 
     var dashboard = await AuditDeliverableService.ConfirmationDashboardAsync(db, actor, engagementId, ct);
     var clearance = await AuditDeliverableService.CurrentClearanceAsync(db, actor, engagementId, ct);
@@ -93,7 +98,7 @@ public static class EngagementCompletionWorkspaceQuery
     var freeze = await FileFreezeService.GetAsync(db, actor, engagementId, now, ct);
     var trail = await EngagementActivityQuery.GetAsync(db, actor, engagementId, ct);
     return CommandResult<EngagementCompletionWorkspace>.Ok(new(engagementId, gates, representations, package?.Id, package?.Status ?? "—", partnerApproved,
-      eqr?.Status ?? "NOT_ASSIGNED", candidate,
+      eqr?.Status ?? "NOT_ASSIGNED", candidate?.Id, release,
       actor.Roles.Any(x => x is "Administrator" or "Partner") && package?.Status == AccountingPackageStates.PackageValidated &&
         gates.Where(g => g.Name.StartsWith("Package ", StringComparison.Ordinal)).All(g => g.Status == FinancialPackageReviewDecisions.Approved) && package is not null,
       dashboard.Succeeded ? dashboard.Value! : [], await AuditDeliverableService.ListAsync(db, actor, engagementId, ct),
@@ -106,6 +111,37 @@ public static class EngagementCompletionWorkspaceQuery
       FileFreezeService.FreezeDays, trail.Succeeded ? trail.Value : null, EngagementActivityQuery.ExternalCoverageNote,
       await EngagementActivityQuery.LocksAsync(db, actor, engagementId, ct), await HoldingLetterDispatch.StatusAsync(db, actor.FirmId, engagementId, ct),
       ReportCertificateSigning.Status(signing, now)));
+  }
+
+  private static async Task<CompletionRelease> ReleaseSummaryAsync(IAuditSphereDbContext db, AuditSphereOps.Domain.Completion.ReleaseCandidate candidate, CancellationToken ct)
+  {
+    var release = await db.Releases.AsNoTracking().Where(x => x.FirmId == candidate.FirmId && x.ClientId == candidate.ClientId &&
+        x.EngagementId == candidate.EngagementId && x.ReleaseCandidateId == candidate.Id)
+      .OrderByDescending(x => x.ReleasedAt).FirstOrDefaultAsync(ct);
+    var currentCheckpoint = await db.ReleaseCheckpoints.AsNoTracking().Where(x => x.FirmId == candidate.FirmId && x.ClientId == candidate.ClientId &&
+        x.EngagementId == candidate.EngagementId && x.ReleaseCandidateId == candidate.Id && x.CandidateRevision == candidate.Revision &&
+        x.ManifestDigest == candidate.ManifestDigest)
+      .OrderByDescending(x => x.CreatedAt).FirstOrDefaultAsync(ct);
+    var checkpoint = release is null
+      ? currentCheckpoint ?? await db.ReleaseCheckpoints.AsNoTracking().Where(x => x.FirmId == candidate.FirmId && x.ClientId == candidate.ClientId &&
+          x.EngagementId == candidate.EngagementId && x.ReleaseCandidateId == candidate.Id)
+        .OrderByDescending(x => x.CreatedAt).FirstOrDefaultAsync(ct)
+      : await db.ReleaseCheckpoints.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == candidate.FirmId && x.ClientId == candidate.ClientId &&
+          x.EngagementId == candidate.EngagementId && x.Id == release.CheckpointId, ct);
+
+    var checkpointMatchesCandidate = checkpoint is not null && checkpoint.CandidateRevision == candidate.Revision &&
+      checkpoint.ManifestDigest == candidate.ManifestDigest;
+    var readBackMatches = checkpointMatchesCandidate && checkpoint!.VerifiedStatus == "VERIFIED" && checkpoint.VerifiedAt is not null &&
+      checkpoint.ReadBackDigest == candidate.ManifestDigest;
+    var releaseMatches = release is not null && candidate.Status == AuditSphereOps.Domain.Completion.ReleaseStates.Issued &&
+      release.PackageRevision == candidate.TargetRevision && release.ManifestDigest == candidate.ManifestDigest &&
+      release.CheckpointId == checkpoint?.Id && readBackMatches;
+    var issueState = releaseMatches ? "ISSUED"
+      : release is null && candidate.Status != AuditSphereOps.Domain.Completion.ReleaseStates.Issued ? "NOT_ISSUED" : "RECONCILIATION_REQUIRED";
+
+    return new(candidate.Id, candidate.Status, candidate.TargetKind, candidate.TargetRevision, candidate.Revision, candidate.ManifestDigest,
+      candidate.CreatedAt, checkpoint?.Id, checkpoint?.VerifiedStatus ?? "ABSENT", checkpoint?.VerifiedAt, checkpointMatchesCandidate,
+      readBackMatches, release?.Id, release?.ReleasedAt, release?.CheckpointId, release?.ManifestDigest, releaseMatches, issueState);
   }
 
   /// <summary>

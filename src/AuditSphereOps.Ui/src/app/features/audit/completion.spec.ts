@@ -36,6 +36,26 @@ const validPayload = {
       partnerApproved: true,
       eqrStatus: 'CONCURRED',
       releaseCandidateId: id3,
+      release: {
+        candidateId: id3,
+        candidateStatus: 'ISSUED',
+        targetKind: 'FINANCIAL_PACKAGE',
+        targetRevision: 4,
+        candidateRevision: 1,
+        manifestDigest: hash64,
+        candidateCreatedAt: '2026-10-02T12:20:00Z',
+        checkpointId: id2,
+        checkpointState: 'VERIFIED',
+        checkpointVerifiedAt: '2026-10-02T12:25:00Z',
+        checkpointMatchesCandidate: true,
+        checkpointReadBackMatchesManifest: true,
+        releaseId: id1,
+        releasedAt: '2026-10-02T12:30:00Z',
+        releaseCheckpointId: id2,
+        releaseManifestDigest: hash64,
+        releaseMatchesCandidate: true,
+        issueState: 'ISSUED',
+      },
       canPrepareRelease: true,
       confirmations: [
         {
@@ -157,6 +177,8 @@ describe('Audit Completion Contracts', () => {
     expect(decoded.partnerApproved).toBe(true);
     expect(decoded.opinion?.opinionType).toBe('UNMODIFIED');
     expect(decoded.freeze?.state).toBe('FROZEN');
+    expect(decoded.release?.issueState).toBe('ISSUED');
+    expect(decoded.release?.checkpointReadBackMatchesManifest).toBe(true);
     expect(decoded.locks.length).toBe(1);
   });
 
