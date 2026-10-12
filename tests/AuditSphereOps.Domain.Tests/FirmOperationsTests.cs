@@ -116,6 +116,15 @@ public sealed class FirmOperationsTests
     }
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
+      db.WorkTasks.AddRange(
+        new WorkTask { Id = Guid.NewGuid(), FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId,
+          Title = "Open task due in range", Status = PracticeTimeStates.TaskOpen, DueDate = today, CreatedAt = DateTimeOffset.UtcNow },
+        new WorkTask { Id = Guid.NewGuid(), FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId,
+          Title = "Cancelled task excluded", Status = PracticeTimeStates.TaskCancelled, DueDate = today, CreatedAt = DateTimeOffset.UtcNow });
+      await db.SaveChangesAsync();
+    }
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
       var account = (await BillingService.CreateBillingAccountAsync(db, finance, new CreateBillingAccountRequest(w.ClientId, "QAR"))).Value;
       var invoice = await BillingService.CreateInvoiceDraftAsync(db, finance, new CreateInvoiceDraftRequest(account, "INV-T1", [new InvoiceLineRequest("Audit fieldwork", 5m, 600m, "TIME", entryId, 1)]));
       Assert.True(invoice.Succeeded, invoice.Message);
@@ -142,7 +151,8 @@ public sealed class FirmOperationsTests
       var audit = view.Departments.Single(x => x.Department == "Audit");
       Assert.Equal((capacityDays * 480, 300, Math.Round(300m * 100m / (capacityDays * 480), 1)),
         (audit.CapacityMinutes, audit.ChargeableMinutes, audit.UtilizationPercent!.Value));
-      Assert.Equal((1, 1, 100.0m), (view.Milestones.Due, view.Milestones.CompletedOnTime, view.Milestones.OnTimePercent!.Value));
+      Assert.Equal((2, 1, 1, 0, 50.0m, 50.0m), (view.Milestones.Due, view.Milestones.Completed, view.Milestones.CompletedOnTime,
+        view.Milestones.CompletedLate, view.Milestones.CompletionPercent!.Value, view.Milestones.OnTimePercent!.Value));
       Assert.Contains(view.Definitions, d => d.Contains("charge-out rates are not costs"));
     }
   }

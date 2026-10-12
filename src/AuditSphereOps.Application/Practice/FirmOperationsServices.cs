@@ -154,7 +154,8 @@ public sealed record EngagementEconomicsRow(Guid EngagementId, string Label, str
   public decimal? ContractedFeeLessStandardValue { get; init; }
 }
 public sealed record DepartmentUtilizationRow(string Department, int CapacityMinutes, int ChargeableMinutes, decimal? UtilizationPercent, decimal? TargetPercent);
-public sealed record MilestonePerformance(int Due, int CompletedOnTime, int CompletedLate, int Overdue, decimal? OnTimePercent);
+public sealed record MilestonePerformance(int Due, int Completed, int CompletedOnTime, int CompletedLate, int Overdue,
+  decimal? CompletionPercent, decimal? OnTimePercent);
 public sealed record PracticeAnalyticsView(DateOnly From, DateOnly To, IReadOnlyList<EngagementEconomicsRow> Engagements, IReadOnlyList<DepartmentUtilizationRow> Departments,
   MilestonePerformance Milestones, IReadOnlyList<string> Definitions);
 
@@ -176,7 +177,7 @@ public static class PracticeAnalyticsQuery
     "Realization = billed ÷ standard value; collection = collected ÷ billed; margin = (billed − actual cost) ÷ billed.",
     "Period financial totals are available only when approved time, the current approved budget and posted invoices use one known currency; no foreign-exchange conversion is implied.",
     "Actual cost and profit are unavailable when an effective staff cost rate is missing or uses a different currency from the approved time entry.",
-    "Utilization = approved billable minutes ÷ (weekly capacity × weeks − recorded unavailability); on-time = tasks completed by their due date ÷ tasks due in the period."
+    "Utilization = approved billable minutes ÷ (weekly capacity × weeks − recorded unavailability). Task completion = due-date tasks completed ÷ non-cancelled tasks due in the selected period; tasks without a due date are not applicable. On-time = tasks completed by their due date ÷ tasks due in the period."
   ];
 
   public static async Task<CommandResult<PracticeAnalyticsView>> GetAsync(IClientAccountingDbContext db, ActorContext actor, DateOnly from, DateOnly to, CancellationToken ct = default)
@@ -315,7 +316,10 @@ public static class PracticeAnalyticsQuery
     var onTime = tasks.Count(t => t.CompletedAt is { } c && DateOnly.FromDateTime(c.UtcDateTime) <= t.DueDate);
     var late = tasks.Count(t => t.CompletedAt is { } c && DateOnly.FromDateTime(c.UtcDateTime) > t.DueDate);
     var overdue = tasks.Count(t => t.CompletedAt is null && t.DueDate < today);
-    var milestones = new MilestonePerformance(tasks.Count, onTime, late, overdue, tasks.Count > 0 ? Math.Round(onTime * 100m / tasks.Count, 1) : null);
+    var completed = tasks.Count(t => t.Status == PracticeTimeStates.TaskCompleted && t.CompletedAt is not null);
+    var milestones = new MilestonePerformance(tasks.Count, completed, onTime, late, overdue,
+      tasks.Count > 0 ? Math.Round(completed * 100m / tasks.Count, 1) : null,
+      tasks.Count > 0 ? Math.Round(onTime * 100m / tasks.Count, 1) : null);
     return CommandResult<PracticeAnalyticsView>.Ok(new(from, to, rows, departments, milestones, Definitions));
   }
 

@@ -11,7 +11,8 @@ const row = obj({ engagementId: guid, label: text, currency: text, budgetMinutes
   lifetimeStandardValue: nullable(dec), contractedFeeLessStandardValue: nullable(dec) });
 export const decodeAnalytics = obj({ from: date, to: date, engagements: arr(row, 2000),
   departments: arr(obj({ department: text, capacityMinutes: nat, chargeableMinutes: nat, utilizationPercent: nullable(dec), targetPercent: nullable(dec) })),
-  milestones: obj({ due: nat, completedOnTime: nat, completedLate: nat, overdue: nat, onTimePercent: nullable(dec) }), definitions: arr(text, 50) });
+  milestones: obj({ due: nat, completed: nat, completedOnTime: nat, completedLate: nat, overdue: nat,
+    completionPercent: nullable(dec), onTimePercent: nullable(dec) }), definitions: arr(text, 50) });
 
 export function hours(minutes: number, places = 1): string {
   return (minutes / 60).toLocaleString('en-US', { minimumFractionDigits: places, maximumFractionDigits: places });
@@ -55,9 +56,9 @@ export function hours(minutes: number, places = 1): string {
           <li>{{ d.department }}: {{ pct(d.utilizationPercent) }} of {{ hrs(d.capacityMinutes, 0) }} h capacity (target {{ pct(d.targetPercent) }})</li> }</ul>
       </section>
       <section class="panel" aria-labelledby="milestone-heading">
-        <h2 id="milestone-heading">Milestone performance</h2>
-        <p aria-label="Milestone performance">{{ v.milestones.due }} due · {{ v.milestones.completedOnTime }} on time · {{ v.milestones.completedLate }} late ·
-          {{ v.milestones.overdue }} overdue · on-time {{ pct(v.milestones.onTimePercent) }}</p>
+        <h2 id="milestone-heading">Task completion and milestone performance</h2>
+        <p aria-label="Task completion and milestone performance">{{ v.milestones.completed }} / {{ v.milestones.due }} applicable tasks completed · completion {{ pct(v.milestones.completionPercent) }} ·
+          {{ v.milestones.completedOnTime }} on time · {{ v.milestones.completedLate }} late · {{ v.milestones.overdue }} overdue · on-time {{ pct(v.milestones.onTimePercent) }}</p>
       </section>
       <section class="panel" aria-labelledby="defs-heading">
         <h2 id="defs-heading">Definitions</h2>
