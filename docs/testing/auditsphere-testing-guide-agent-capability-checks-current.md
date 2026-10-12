@@ -16,7 +16,7 @@ Run these commands from the repository root in a local development shell with Py
 1. List packets: `./scripts/agent-check --list`.
 2. Inspect the packet and prerequisites: `./scripts/agent-check review-permissions`.
    This performs read-only tool/version, configuration and database queries. A
-   blocker gives an action to take; it never installs tools, changes configuration,
+   blocker gives an action to take. Socket-access denial means this execution environment cannot verify the connection; it is not proof that PostgreSQL is down. The runner never installs tools, changes configuration,
    starts services, resets a database, applies migrations or requests Microsoft consent.
 3. After implementing a coherent slice, opt in to focused verification:
    `./scripts/agent-check review-permissions --run --report artifacts/agent-check/review-permissions.json`.

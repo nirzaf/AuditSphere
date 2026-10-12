@@ -30,5 +30,16 @@ class RunnerSafetyTests(unittest.TestCase):
         target = next(x for x in checks if x['name'] == 'Test database target')
         self.assertEqual('BLOCKED', target['status'])
 
+
+class SocketDiagnosticTests(unittest.TestCase):
+    def test_socket_denial_is_not_reported_as_database_down(self):
+        packet = dict(owningFiles=[], documents=[])
+        checks = [dict(kind='dotnet', database=True, project='tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj', testFile='tests/AuditSphereOps.Domain.Tests/AuthorizationDecisionTests.cs')]
+        with patch.dict(runner.os.environ, {}, clear=True), patch.object(runner, 'invoke', return_value=dict(exitCode=1, seconds=0, output='connection failed: Operation not permitted')):
+            results = runner.preflight(packet, checks)
+        database = next(x for x in results if x['name'] == 'PostgreSQL 18.6 test database')
+        self.assertEqual('SOCKET_ACCESS_DENIED', database['failureKind'])
+        self.assertIn('do not recreate or reset', database['action'])
+
 if __name__ == '__main__':
     unittest.main()

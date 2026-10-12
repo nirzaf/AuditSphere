@@ -99,6 +99,10 @@ def preflight(packet, checks):
         observed = db['output'].strip() if db['exitCode'] == 0 and db['output'].strip().isdigit() else 'unavailable'
         record('PostgreSQL 18.6 test database', observed == '180006', 'Make the existing PostgreSQL 18.6 auditsphere_tests database reachable on port 5433. No database is created, reset or migrated by preflight.')
         results[-1]['observedVersionNumber'] = observed
+        if db['exitCode'] != 0:
+            denied = any(term in db['output'].lower() for term in ['operation not permitted', 'permission denied'])
+            results[-1]['failureKind'] = 'SOCKET_ACCESS_DENIED' if denied else 'CONNECTION_UNVERIFIED'
+            results[-1]['action'] = ('This process is denied local test-socket access. Run preflight in a permitted local shell; do not recreate or reset the database.' if denied else 'Test connection was not verified in this environment. Check local service, authentication and socket access without resetting data.')
     if any(c.get('browser') for c in checks):
         record('Angular browser bundle', (ROOT / 'src/AuditSphereOps.Ui/dist/auditsphere-ui/browser/index.html').is_file(), 'Build the current Angular UI before browser journeys; the fixtures serve the built bundle.')
         record('Chromium selected', os.environ.get('E2E_BROWSER', 'chromium') in ('', 'chromium'), 'Unset E2E_BROWSER or select chromium for this pilot.')
