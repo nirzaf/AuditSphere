@@ -27,6 +27,7 @@ The following root files are preserved conventional exceptions recognized across
 - `README.md`: Primary public project introduction and entry point.
 - `AGENTS.md`: Mandatory engineering instructions and invariants for coding agents.
 - `CLAUDE.md`: Claude Code entry point; contains only `@AGENTS.md` so both agents read one instruction file.
+- `STE_Audit_Management_Requirements_v2.2.md`: Upstream STE functional requirements source specification v2.2.
 
 Nested `README.md` or `AGENTS.md` files are prohibited unless explicitly justified by external tooling conventions.
 
