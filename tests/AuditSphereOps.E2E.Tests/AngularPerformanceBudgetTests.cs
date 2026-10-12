@@ -33,7 +33,7 @@ public sealed class AngularPerformanceBudgetTests
       for (var i = 0; i < leadCount; i++)
       {
         var created = await PracticeCrmService.CreateLeadAsync(db, PbcSeed.Actor(f.Admin, "Administrator"),
-          new($"PERF LEAD {i:D3}", "PERFORMANCE", $"Contact {i:D3}", $"contact{i:D3}@example.test"));
+          new($"PERF LEAD {i:D3}", "Referral", $"Contact {i:D3}", $"contact{i:D3}@example.test"));
         Assert.True(created.Succeeded, created.Message);
       }
     }

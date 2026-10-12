@@ -113,6 +113,16 @@ export interface PlanningEditableBudget {
     forecastMinutes: number;
   }[];
 }
+/**
+ * Budget variance for one phase or total, in signed minutes (STE 4.5.1). Positive means more time than budgeted. The label states the
+ * direction in words, so the sign is never the only cue.
+ */
+export function budgetVarianceLabel(forecastMinutes: number, actualMinutes: number): string {
+  const variance = actualMinutes - forecastMinutes;
+  if (variance === 0) return '0 (on budget)';
+  return variance > 0 ? `+${variance} (over budget)` : `${variance} (under budget)`;
+}
+
 export function editablePlanningBudget(raw: unknown): PlanningEditableBudget | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const value = raw as Record<string, unknown>;
@@ -660,6 +670,7 @@ export function decodePlanning(value: unknown): Planning {
                 <th>Risk area</th>
                 <th>Budget minutes</th>
                 <th>Actual minutes</th>
+                <th>Variance (actual minus budget)</th>
                 <th>Budget value</th>
                 <th>Actual value</th>
               </tr>
@@ -671,6 +682,7 @@ export function decodePlanning(value: unknown): Planning {
                   <td>{{ row.riskArea }}</td>
                   <td>{{ row.forecastMinutes }}</td>
                   <td>{{ row.actualMinutes }}</td>
+                  <td>{{ budgetVariance(row.forecastMinutes, row.actualMinutes) }}</td>
                   <td>{{ row.forecastCost }}</td>
                   <td>{{ row.actualCost }}</td>
                 </tr>
@@ -682,6 +694,7 @@ export function decodePlanning(value: unknown): Planning {
                 <td></td>
                 <td>{{ budget.forecastMinutes }}</td>
                 <td>{{ budget.actualMinutes }}</td>
+                <td>{{ budgetVariance(budget.forecastMinutes, budget.actualMinutes) }}</td>
                 <td>{{ budget.forecastCost }}</td>
                 <td>{{ budget.actualCost }}</td>
               </tr>
@@ -699,6 +712,7 @@ export function decodePlanning(value: unknown): Planning {
   </section>`,
 })
 export class EngagementPlanning {
+  readonly budgetVariance = budgetVarianceLabel;
   readonly levels = [
     { value: 'ENGAGEMENT_PARTNER', label: 'Engagement Partner' },
     { value: 'AUDIT_MANAGER', label: 'Audit Manager' },

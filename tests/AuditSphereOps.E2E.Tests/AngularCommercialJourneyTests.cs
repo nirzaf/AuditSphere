@@ -54,7 +54,7 @@ public sealed class AngularCommercialJourneyTests
     await Assertions.Expect(page.GetByRole(AriaRole.Heading,
       new() { Name = "Practice leads", Exact = true })).ToBeVisibleAsync();
     await page.GetByRole(AriaRole.Textbox, new() { Name = "Lead name", Exact = true }).FillAsync("Synthetic lost-response lead");
-    await page.GetByRole(AriaRole.Textbox, new() { Name = "Source", Exact = true }).FillAsync("Recovery journey");
+    await page.GetByRole(AriaRole.Combobox, new() { Name = "Lead channel", Exact = true }).SelectOptionAsync("Referral");
     await page.GetByRole(AriaRole.Textbox, new() { Name = "Contact name", Exact = true }).FillAsync("Synthetic contact");
     await page.GetByRole(AriaRole.Textbox, new() { Name = "Contact email", Exact = true }).FillAsync("recovery@example.test");
     await page.GetByRole(AriaRole.Button, new() { Name = "Record lead", Exact = true }).ClickAsync();
@@ -93,7 +93,7 @@ public sealed class AngularCommercialJourneyTests
     await using (var db = host.CreateDbContext())
     {
       var actor = PbcSeed.Actor(host.Fixture.Admin, "Administrator");
-      var created = await PracticeCrmService.CreateLeadAsync(db, actor, new(leadName, "Migration review"));
+      var created = await PracticeCrmService.CreateLeadAsync(db, actor, new(leadName, "Referral"));
       Assert.True(created.Succeeded, created.Message);
       leadId = created.Value;
     }
@@ -145,7 +145,7 @@ public sealed class AngularCommercialJourneyTests
     {
       var actor = PbcSeed.Actor(host.Fixture.Admin, "Administrator");
       var lead = await PracticeCrmService.CreateLeadAsync(db, actor,
-        new("Synthetic opportunity recovery lead", "Recovery journey"));
+        new("Synthetic opportunity recovery lead", "Referral"));
       Assert.True(lead.Succeeded, lead.Message);
       Assert.True((await PracticeCrmService.QualifyLeadAsync(db, actor, lead.Value)).Succeeded);
       leadId = lead.Value;
@@ -259,7 +259,7 @@ public sealed class AngularCommercialJourneyTests
     {
       var actor = PbcSeed.Actor(host.Fixture.Admin, "Administrator");
       var lead = await PracticeCrmService.CreateLeadAsync(db, actor,
-        new("Synthetic proposal recovery lead", "Recovery journey"));
+        new("Synthetic proposal recovery lead", "Referral"));
       Assert.True(lead.Succeeded, lead.Message);
       Assert.True((await PracticeCrmService.QualifyLeadAsync(db, actor, lead.Value)).Succeeded);
       leadId = lead.Value;
@@ -390,7 +390,7 @@ public sealed class AngularCommercialJourneyTests
     {
       var actor = PbcSeed.Actor(host.Fixture.Admin, "Administrator");
       var lead = await PracticeCrmService.CreateLeadAsync(db, actor,
-        new("Synthetic proposal revision recovery lead", "Recovery journey"));
+        new("Synthetic proposal revision recovery lead", "Referral"));
       Assert.True(lead.Succeeded, lead.Message);
       Assert.True((await PracticeCrmService.QualifyLeadAsync(db, actor, lead.Value)).Succeeded);
       var opportunity = await PracticeCrmService.CreateOpportunityAsync(db, actor,

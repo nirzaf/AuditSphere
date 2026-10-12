@@ -114,7 +114,7 @@ public sealed class AngularProposalWorkflowJourneyTests
 
       var author = PbcSeed.Actor(fixture.Admin, "Administrator");
       var lead = await PracticeCrmService.CreateLeadAsync(db, author,
-        new("Synthetic proposal workflow", "Review journey", "Synthetic contact", "workflow@example.test"));
+        new("Synthetic proposal workflow", "Referral", "Synthetic contact", "workflow@example.test"));
       Assert.True(lead.Succeeded, lead.Message);
       Assert.True((await PracticeCrmService.QualifyLeadAsync(db, author, lead.Value)).Succeeded);
       var opportunity = await PracticeCrmService.CreateOpportunityAsync(db, author,

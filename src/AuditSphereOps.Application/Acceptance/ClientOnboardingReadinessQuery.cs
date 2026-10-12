@@ -41,13 +41,51 @@ public sealed record OnboardingReadinessBlocker(string Code, string Label);
 
 public sealed record OnboardingReadinessAction(string Key, string Label, string Href);
 
-/// <summary>Client commercial consent for the exact dispatched offer. Amounts are exact strings (ADR-0014), never floats.</summary>
-public sealed record ClientCommercialCard(string Status, string Label, string? Fee, string? Currency, long? QuotationRevision,
-  DateTimeOffset? RespondedAtUtc, string? OfferSha256Prefix);
+/// <summary>
+/// The approval vocabulary the STE v2.2 onboarding interface shows (section 4.1.3): Pending, Awaiting Evidence, Approved, Rejected or
+/// Stale. Only Approved clears a key. Each internal status maps to exactly one of these, and anything unrecognised is Pending.
+/// </summary>
+public static class OnboardingDisplayStatus
+{
+  public const string Pending = "PENDING";
+  public const string AwaitingEvidence = "AWAITING_EVIDENCE";
+  public const string Approved = "APPROVED";
+  public const string Rejected = "REJECTED";
+  public const string Stale = "STALE";
 
-/// <summary>The Partner's unconditional risk decision for this client and service, with the decider's display name when recorded.</summary>
+  public static string ForClient(string status) => status switch
+  {
+    OnboardingReadinessStatuses.Current => Approved,
+    OnboardingReadinessStatuses.AwaitingClient => AwaitingEvidence,
+    OnboardingReadinessStatuses.Declined => Rejected,
+    OnboardingReadinessStatuses.Superseded or OnboardingReadinessStatuses.Stale => Stale,
+    _ => Pending,
+  };
+
+  public static string ForPartner(string status) => status switch
+  {
+    OnboardingReadinessStatuses.Current => Approved,
+    OnboardingReadinessStatuses.Declined => Rejected,
+    OnboardingReadinessStatuses.Stale => Stale,
+    OnboardingReadinessStatuses.Unavailable => AwaitingEvidence,
+    _ => Pending,
+  };
+}
+
+/// <summary>
+/// Client commercial consent for the exact dispatched offer. Amounts are exact strings (ADR-0014), never floats. Owner is the
+/// authorized contact who recorded the response; the evidence link opens the offer the response answered.
+/// </summary>
+public sealed record ClientCommercialCard(string Status, string Label, string? Fee, string? Currency, long? QuotationRevision,
+  DateTimeOffset? RespondedAtUtc, string? OfferSha256Prefix, string DisplayStatus = OnboardingDisplayStatus.Pending,
+  string? Owner = null, string? EvidenceHref = null);
+
+/// <summary>
+/// The Partner's unconditional risk decision for this client and service, with the decider's display name when recorded. The
+/// evidence link opens the acceptance checklist that the decision was made against.
+/// </summary>
 public sealed record PartnerRiskCard(string Status, string Label, string ServiceRoute, DateTimeOffset? DecidedAtUtc, string? DecidedByName,
-  long? Generation);
+  long? Generation, string DisplayStatus = OnboardingDisplayStatus.Pending, string? EvidenceHref = null);
 
 public sealed record EngagementLetterCard(string Status, string Label, Guid? DocumentId);
 
@@ -112,7 +150,11 @@ public static class ClientOnboardingReadinessQuery
     var assessmentHref = $"/app/clients/{clientId}/assessment";
 
     // 1. Client commercial consent for the exact dispatched offer.
-    var clientCard = await ClientCommercialAsync(db, actor.FirmId, proposal, quotation, blockers, ct);
+    var clientBase = await ClientCommercialAsync(db, actor.FirmId, proposal, quotation, blockers, ct);
+    var clientCard = clientBase with
+    {
+      DisplayStatus = OnboardingDisplayStatus.ForClient(clientBase.Status), Owner = proposal?.RespondentName, EvidenceHref = proposalHref,
+    };
     var clientCurrent = clientCard.Status == OnboardingReadinessStatuses.Current;
     if (!clientCurrent && proposalHref is not null)
       actions.Add(new("OPEN_PROPOSAL", "Review the dispatched offer and client response", proposalHref));
@@ -120,7 +162,8 @@ public static class ClientOnboardingReadinessQuery
     // 2. The Partner's unconditional risk decision, evaluated on the engagement's service route (as activation is).
     var latestRisk = await DualKeyEvidence.LatestRiskDecisionAsync(db, actor.FirmId, clientId, engagement.ServiceRoute, ct);
     var inputGeneration = await DualKeyEvidence.InputGenerationAsync(db, actor.FirmId, clientId, ct);
-    var riskCard = await PartnerRiskAsync(db, actor.FirmId, latestRisk, inputGeneration, engagement.ServiceRoute, blockers, ct);
+    var riskBase = await PartnerRiskAsync(db, actor.FirmId, latestRisk, inputGeneration, engagement.ServiceRoute, blockers, ct);
+    var riskCard = riskBase with { DisplayStatus = OnboardingDisplayStatus.ForPartner(riskBase.Status), EvidenceHref = assessmentHref };
     var partnerCurrent = riskCard.Status == OnboardingReadinessStatuses.Current;
     if (!partnerCurrent) actions.Add(new("OPEN_ACCEPTANCE", "Review the acceptance checklist and risk clearance", assessmentHref));
 

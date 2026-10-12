@@ -9,6 +9,14 @@ import { guidPattern } from '../../core/contracts';
 import { money } from '../../core/decode';
 import { OnboardingReadinessReport, decodeOnboardingReadinessReport } from './engagement-workflow-contracts';
 
+const APPROVAL_LABELS: Record<string, string> = {
+  PENDING: 'Pending',
+  AWAITING_EVIDENCE: 'Awaiting evidence',
+  APPROVED: 'Approved',
+  REJECTED: 'Rejected',
+  STALE: 'Stale',
+};
+
 /** Statuses that are satisfied. Anything else is shown as pending or blocked, never as cleared. */
 const SATISFIED = new Set(['CURRENT', 'ISSUED', 'PAID', 'ACTIVE']);
 const PENDING = new Set(['AWAITING_CLIENT', 'ELIGIBLE', 'READY_FOR_REVIEW', 'NOT_INVOICED', 'INVOICED_UNPAID', 'PARTIALLY_ALLOCATED']);
@@ -53,6 +61,11 @@ export class EngagementOnboardingReadiness {
       this.destroyed = true;
       this.request?.unsubscribe();
     });
+  }
+
+  /** The STE v2.2 approval label for a card. Only Approved clears a key. */
+  approvalLabel(displayStatus: string): string {
+    return APPROVAL_LABELS[displayStatus] ?? 'Pending';
   }
 
   tone(status: string): 'satisfied' | 'pending' | 'blocked' {
