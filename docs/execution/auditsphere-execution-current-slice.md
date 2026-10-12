@@ -406,6 +406,6 @@ Verification on the working tree: the focused PostgreSQL case passed 1/1; the ta
 
 ## Workflow template authoring UI — 2026-10-12
 
-The Angular `/ui/app/practice/workflow-templates` screen now creates and edits operational task-template drafts, starts revisions, presents the API’s independent-review gate, publishes reviewed versions and archives templates. It preserves step metadata and warns that task plans do not satisfy professional gates. Role authorization, revision fencing, immutable publication and exact-plan pinning remain server-owned.
+Angular `/ui/app/practice/workflow-templates` provides draft create/edit, next revision, independent review, publication and archive. Task templates remain operational only; the API owns authorization, revision fencing, immutable publication and plan pins. Angular and API host `SpaRoutes` both register the deep link.
 
-Focused Angular authoring specs passed 4/4 and the production build passed with the existing `commercial/settings.scss` budget warning. The authenticated browser journey could not be exercised without a local staff session. No API contract or migration changed; no full suite or live/professional acceptance is claimed.
+Observed: focused specs passed 4/4; production build passed with the existing `commercial/settings.scss` budget warning. Built-in browser reached the local shell, then the staff guard; no authenticated session was available. A source route-parity check matched 94/94; the targeted .NET contract rebuild was stopped after stalling in Infrastructure compilation for over three minutes, so no .NET test ran. No OpenAPI/schema or database change; no full suite, provider, production or professional acceptance is claimed.
