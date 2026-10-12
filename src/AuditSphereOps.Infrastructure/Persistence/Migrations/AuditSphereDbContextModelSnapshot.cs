@@ -18147,6 +18147,9 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasAlternateKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .HasName("AK_pbc_communications_scope_id");
+
                     b.HasIndex("FirmId", "AuthorUserId");
 
                     b.HasIndex("FirmId", "PbcRequestId", "CreatedAt");
@@ -18156,6 +18159,65 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.ToTable("pbc_communications", null, t =>
                         {
                             t.HasCheckConstraint("ck_pbc_communication_values", "kind IN ('REQUEST','STAFF_MESSAGE','CLIENT_MESSAGE','EMAIL') AND length(trim(body)) > 0 AND (delivery_state IS NULL OR delivery_state IN ('QUEUED','SENT','FAILED','UNCERTAIN')) AND ((kind = 'EMAIL' AND recipient_email IS NOT NULL AND subject IS NOT NULL AND portal_url IS NOT NULL AND delivery_state IS NOT NULL) OR (kind <> 'EMAIL' AND recipient_email IS NULL AND subject IS NULL AND portal_url IS NULL AND delivery_state IS NULL))");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Documents.PbcReminderReceipt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ActionKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("action_key");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<Guid>("CommunicationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("communication_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<Guid>("PbcRequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("pbc_request_id");
+
+                    b.Property<Guid>("RuleRevisionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("rule_revision_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FirmId", "EngagementId", "CreatedAt");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "CommunicationId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "PbcRequestId");
+
+                    b.HasIndex("FirmId", "RuleRevisionId", "PbcRequestId", "ActionKey")
+                        .IsUnique()
+                        .HasDatabaseName("UX_pbc_reminder_receipts_action");
+
+                    b.ToTable("pbc_reminder_receipts", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_pbc_reminder_receipt_values", "rule_revision_id <> '00000000-0000-0000-0000-000000000000'::uuid AND action_key ~ '^(PRE_DUE:[0-9]{4}-[0-9]{2}-[0-9]{2}|OVERDUE:[0-9]{1,6})$'");
                         });
                 });
 
@@ -30846,6 +30908,23 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("FirmId", "AuthorUserId")
                         .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Documents.PbcRequest", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "PbcRequestId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Documents.PbcReminderReceipt", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Documents.PbcCommunication", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "CommunicationId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 

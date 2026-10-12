@@ -228,6 +228,8 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
 
   public DbSet<PbcCommunication> PbcCommunications => Set<PbcCommunication>();
 
+  public DbSet<PbcReminderReceipt> PbcReminderReceipts => Set<PbcReminderReceipt>();
+
   public DbSet<TrialBalanceDataset> TrialBalanceDatasets => Set<TrialBalanceDataset>();
 
   public DbSet<SourceAcceptanceDecision> SourceAcceptanceDecisions => Set<SourceAcceptanceDecision>();

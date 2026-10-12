@@ -100,6 +100,8 @@ public sealed partial class AuditSphereDbContext
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
     var communication = b.Entity<PbcCommunication>();
+    communication.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("AK_pbc_communications_scope_id");
     communication.Property(x => x.Kind).HasMaxLength(32);
     communication.Property(x => x.Body).HasMaxLength(4000);
     communication.Property(x => x.RecipientEmail).HasMaxLength(320);
@@ -116,5 +118,19 @@ public sealed partial class AuditSphereDbContext
     communication.HasOne<AppUser>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.AuthorUserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var reminder = b.Entity<PbcReminderReceipt>();
+    reminder.Property(x => x.ActionKey).HasMaxLength(64);
+    reminder.HasIndex(x => new { x.FirmId, x.RuleRevisionId, x.PbcRequestId, x.ActionKey })
+      .IsUnique().HasDatabaseName("UX_pbc_reminder_receipts_action");
+    reminder.HasIndex(x => new { x.FirmId, x.EngagementId, x.CreatedAt });
+    reminder.HasOne<PbcRequest>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.PbcRequestId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    reminder.HasOne<PbcCommunication>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, CommunicationId = x.CommunicationId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    reminder.ToTable("pbc_reminder_receipts", t => t.HasCheckConstraint("ck_pbc_reminder_receipt_values",
+      "rule_revision_id <> '00000000-0000-0000-0000-000000000000'::uuid AND action_key ~ '^(PRE_DUE:[0-9]{4}-[0-9]{2}-[0-9]{2}|OVERDUE:[0-9]{1,6})$'"));
   }
 }

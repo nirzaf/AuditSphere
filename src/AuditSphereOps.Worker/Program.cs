@@ -39,6 +39,16 @@ builder.Services.AddOpenTelemetry()
 var group = builder.Configuration["Worker:Group"] ?? "general";
 var externalEffects = builder.Configuration.GetValue<bool>("ExternalEffects:Enabled");
 var liveMail = builder.Environment.IsEnvironment("Acceptance") && externalEffects && group == "mail";
+var pbcReminders = new PbcReminderOptions(
+  builder.Configuration.GetValue<bool>("PbcReminders:Enabled"),
+  builder.Configuration.GetValue("PbcReminders:DaysBeforeDue", 3),
+  builder.Configuration.GetValue("PbcReminders:OverdueIntervalDays", 3),
+  builder.Configuration["PbcReminders:TimeZoneId"] ?? "Asia/Qatar",
+  builder.Configuration["PbcReminders:QuietHoursStart"] ?? "21:00",
+  builder.Configuration["PbcReminders:QuietHoursEnd"] ?? "07:00",
+  builder.Configuration.GetValue("PbcReminders:BatchSize", 50),
+  builder.Configuration["PbcReminders:PublicBaseUrl"] ?? string.Empty);
+pbcReminders.Validate(liveMail);
 // Live selected-site PBC transfers run only in an isolated Acceptance worker for the "pbc" group.
 var livePbc = builder.Environment.IsEnvironment("Acceptance") && externalEffects && group == PbcDocumentTransferHandler.LiveGroup;
 var clientSitesWorker = builder.Environment.IsEnvironment("Acceptance") && group == ClientSharePointSiteHandler.Group;
@@ -90,12 +100,18 @@ builder.Services.AddSingleton<IReleaseCheckpointStore>(new LocalAppendOnlyCheckp
 builder.Services.AddSingleton<ReleaseCheckpointHandler>();
 
 builder.Services.AddSingleton(workerOptions);
+builder.Services.AddSingleton(pbcReminders);
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton(clientSiteRolloutPolicy);
 builder.Services.AddSingleton<IAuditSphereDbContextFactory, OperationContextFactory>();
 builder.Services.AddSingleton<IOperationStore, PostgresOperationStore>();
 
 if (liveMail)
 {
+  if (pbcReminders.Enabled)
+    builder.Services.AddSingleton<IPendingOperationDiscovery>(sp => new PbcReminderDiscovery(
+      sp.GetRequiredService<IAuditSphereDbContextFactory>(), workerOptions, pbcReminders,
+      sp.GetRequiredService<TimeProvider>()));
   var provider = builder.Configuration["Mail:Provider"]?.Trim().ToUpperInvariant();
   switch (provider)
   {
@@ -257,7 +273,6 @@ else
       sp.GetRequiredService<IAuditSphereDbContextFactory>(), sp.GetRequiredService<IOperationStore>(),
       sp.GetRequiredService<AutomaticFeeInvoiceHandler>(), workerOptions, feeAutomation));
   // Regulatory file freeze: due 60 days after the signed report on the system clock.
-  builder.Services.AddSingleton(TimeProvider.System);
   builder.Services.AddSingleton<AuditSphereOps.Application.Records.FileFreezeHandler>();
   builder.Services.AddSingleton<IPendingOperationDiscovery>(sp => new AuditSphereOps.Application.Records.FileFreezeDiscovery(
     sp.GetRequiredService<IAuditSphereDbContextFactory>(), sp.GetRequiredService<IOperationStore>(),

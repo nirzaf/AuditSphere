@@ -50,6 +50,18 @@ public sealed class PbcMailDeliveryHandler(
         mail.DeliveryState != PbcDeliveryStates.Queued || string.IsNullOrWhiteSpace(mail.RecipientEmail) ||
         string.IsNullOrWhiteSpace(mail.Subject))
       throw new OperationBlockedException("mail-scope-or-state-conflict", authorization: true);
+
+    var reminder = await db.PbcReminderReceipts.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == op.FirmId && x.ClientId == op.ClientId && x.EngagementId == op.EngagementId &&
+      x.CommunicationId == mail.Id, ct);
+    if (reminder is not null)
+    {
+      var eligible = await PbcReminderEligibility.LockAndResolveAsync(db, op.FirmId,
+        op.ClientId!.Value, op.EngagementId!.Value, reminder.PbcRequestId, DateTimeOffset.UtcNow, ct);
+      if (eligible is null || !string.Equals(mail.RecipientEmail, eligible.Value.ClientOwner.Email,
+          StringComparison.OrdinalIgnoreCase))
+        throw new OperationBlockedException("pbc-reminder-no-longer-eligible", authorization: true);
+    }
   }
 
   public async Task<OperationResult> ExecuteEffectAsync(DurableOperation op, CancellationToken ct)
@@ -58,6 +70,19 @@ public sealed class PbcMailDeliveryHandler(
     var mail = await db.PbcCommunications.AsNoTracking().SingleAsync(x =>
       x.FirmId == op.FirmId && x.Id == op.TargetId && x.ClientId == op.ClientId &&
       x.EngagementId == op.EngagementId, ct);
+    var reminder = await db.PbcReminderReceipts.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == op.FirmId && x.ClientId == op.ClientId && x.EngagementId == op.EngagementId &&
+      x.CommunicationId == mail.Id, ct);
+    if (reminder is not null)
+    {
+      await using var tx = await db.Database.BeginTransactionAsync(ct);
+      var eligible = await PbcReminderEligibility.LockAndResolveAsync(db, op.FirmId,
+        op.ClientId!.Value, op.EngagementId!.Value, reminder.PbcRequestId, DateTimeOffset.UtcNow, ct);
+      if (eligible is null || !string.Equals(mail.RecipientEmail, eligible.Value.ClientOwner.Email,
+          StringComparison.OrdinalIgnoreCase))
+        throw new OperationBlockedException("pbc-reminder-no-longer-eligible", authorization: true);
+      await tx.CommitAsync(ct);
+    }
     await sender.SendAsync(new(mail.RecipientEmail!, mail.Subject!, mail.Body, op.CorrelationId), ct);
     return Expected(op);
   }

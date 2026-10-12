@@ -136,3 +136,20 @@ public sealed class PbcCommunication
   public DateTimeOffset? DeliveredAt { get; set; }
   public DateTimeOffset CreatedAt { get; set; }
 }
+
+/// <summary>
+/// Append-only idempotency receipt for a first-party PBC reminder action. The source event is the persisted PBC
+/// request; action keys identify a due window and never alter the request's authoritative state.
+/// </summary>
+public sealed class PbcReminderReceipt
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid PbcRequestId { get; set; }
+  public Guid RuleRevisionId { get; set; }
+  public string ActionKey { get; set; } = string.Empty;
+  public Guid CommunicationId { get; set; }
+  public DateTimeOffset CreatedAt { get; set; }
+}

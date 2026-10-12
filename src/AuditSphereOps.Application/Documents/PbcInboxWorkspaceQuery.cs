@@ -49,6 +49,10 @@ public static class PbcInboxWorkspaceQuery
     var operationIds = intents.Where(x => x.TransferOperationId.HasValue).Select(x => x.TransferOperationId!.Value).Distinct().ToArray();
     var operations = await db.DurableOperations.AsNoTracking().Where(o => o.FirmId == actor.FirmId && operationIds.Contains(o.Id)).ToDictionaryAsync(o => o.Id, o => o.Status.ToString(), ct);
     var communications = await db.PbcCommunications.AsNoTracking().Where(x => x.FirmId == actor.FirmId && requestIds.Contains(x.PbcRequestId)).OrderBy(x => x.CreatedAt).ToListAsync(ct);
+    var emailIds = communications.Where(x => x.Kind == PbcCommunicationKinds.Email).Select(x => x.Id).ToArray();
+    var emailOperationStates = await db.DurableOperations.AsNoTracking().Where(o =>
+        o.FirmId == actor.FirmId && emailIds.Contains(o.TargetId) && o.OperationKind == PbcMailDeliveryHandler.Kind)
+      .ToDictionaryAsync(o => o.TargetId, o => o.Status.ToString(), ct);
     var userIds = communications.Select(x => x.AuthorUserId).Distinct().ToArray();
     var names = await db.Users.AsNoTracking().Where(x => x.FirmId == actor.FirmId && userIds.Contains(x.Id))
       .ToDictionaryAsync(x => x.Id, x => string.IsNullOrWhiteSpace(x.DisplayName) ? x.Email : x.DisplayName, ct);
@@ -58,7 +62,7 @@ public static class PbcInboxWorkspaceQuery
     {
       var mine = intents.Where(i => i.PbcRequestId == r.Id).ToList();
       var timeline = communications.Where(c => c.PbcRequestId == r.Id).Select(c => new PbcTimelineItem(c.CreatedAt,
-          c.Kind == PbcCommunicationKinds.Email ? $"Email {c.DeliveryState?.ToLowerInvariant()} to client" :
+          c.Kind == PbcCommunicationKinds.Email ? EmailLabel(c, emailOperationStates) :
           c.Kind == PbcCommunicationKinds.ClientMessage ? $"Client — {Name(c.AuthorUserId)}" : $"Staff — {Name(c.AuthorUserId)}", c.Body))
         .Concat(mine.Select(i => new PbcTimelineItem(i.CreatedAt, $"Client uploaded {i.FileName}", $"{i.ReceivedByteCount} of {i.DeclaredByteCount} bytes — {i.State}")))
         .OrderBy(x => x.At).ToList();
@@ -68,6 +72,23 @@ public static class PbcInboxWorkspaceQuery
         timeline, r.State is not (PbcStates.Draft or PbcStates.Accepted or PbcStates.Closed));
     }).ToList();
     return CommandResult<PbcInboxWorkspace>.Ok(new(engagementId, engagement.ServiceRoute, engagement.PeriodStart, engagement.PeriodEnd, rows, clientOwners, reviewers));
+  }
+
+  private static string EmailLabel(PbcCommunication communication, IReadOnlyDictionary<Guid, string> operationStates)
+  {
+    if (operationStates.TryGetValue(communication.Id, out var operationState))
+    {
+      var delivery = operationState switch
+      {
+        "COMPLETED" => "sent",
+        "AUTHORIZATION_BLOCKED" or "PROVIDER_BLOCKED" or "CANCELLED_WITH_DISPOSITION" => "blocked before delivery",
+        "RESULT_UNCERTAIN" => "delivery uncertain",
+        "DEAD_LETTER" => "failed",
+        _ => communication.DeliveryState?.ToLowerInvariant() ?? "pending"
+      };
+      return $"Email {delivery} to client";
+    }
+    return $"Email {communication.DeliveryState?.ToLowerInvariant() ?? "pending"} to client";
   }
 
   /// <summary>Opens a request with the engagement's scope and queues the minimal client email in one user action.</summary>
