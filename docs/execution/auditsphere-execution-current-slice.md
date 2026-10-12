@@ -15,6 +15,12 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Agent capability runner pilot — 2026-10-12
+
+`./scripts/agent-check` connects three bounded packets to existing code maps, task cards, tests and synthetic fixtures. Default preflight is read-only; `--run` opts into focused suites. Reports distinguish source stability, prerequisites and test outcomes from release and external acceptance. CI checks packet references and runner guards.
+
+The UI pilot passed; authorization and accounting cohorts were blocked by the unavailable PostgreSQL test target. No .NET/browser cohort or productivity comparison ran. Commands, timings and limits are under `targetedVerification.agentCapabilityRunner` in [status.json](status.json). See the [capability-check guide](../testing/auditsphere-testing-guide-agent-capability-checks-current.md).
+
 ## Practice management program, third slice — 2026-10-12
 
 A proposal can carry an optional delivery timeline. It is part of the creation receipt and is rendered on the brief quotation and the engagement letter, so it sits inside the offer the client accepts: a changed timeline is a new revision and needs a fresh acceptance. Proposals created without one keep their identity. Migration `ProposalTimeline` adds the column and has run only against the test database.

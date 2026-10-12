@@ -236,6 +236,7 @@ The Record-to-Report workstream covers Modules 20–26 under `docs/task_breakdow
 | [`docs/testing/auditsphere-scope-and-tenant-admin-test-cases.md`](testing/auditsphere-scope-and-tenant-admin-test-cases.md) | Proposed scope-isolation and live Development tenant administration acceptance cases; execution results belong in the ledger. | `CURRENT` |
 
 | [`docs/testing/auditsphere-testing-strategy-definition-of-done-current.md`](testing/auditsphere-testing-strategy-definition-of-done-current.md) | Test strategy and Definition of Done for the restored suites: what counts as verification. | `CURRENT` |
+| [Agent capability checks](testing/auditsphere-testing-guide-agent-capability-checks-current.md) | Bounded task packets, read-only prerequisite checks, opt-in focused verification and evidence reports. | `CURRENT` |
 
 ---
 

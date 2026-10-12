@@ -193,6 +193,12 @@ jobs:
           set -euo pipefail
           python3 scripts/docs/validate-markdown-documentation.py
 
+      - name: Validate capability packets and runner safety guards
+        run: |
+          set -euo pipefail
+          python3 scripts/agent/agent-check.py --validate-catalog
+          python3 -m unittest discover -s scripts/agent -p 'test_*.py'
+
       - name: Check UI source discovery drift
         run: python3 scripts/ui/inventory.py --check
 

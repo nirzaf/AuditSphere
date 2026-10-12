@@ -83,6 +83,8 @@ python3 scripts/ui/inventory.py --check
 4. Run section 3. Report what you ran, what passed, what you could not run, and every assumption.
 5. Record observed facts only in `docs/execution/status.json` and `docs/execution/auditsphere-execution-current-slice.md`.
 
+For the three pilot capabilities, `./scripts/agent-check --list` identifies bounded packets; `./scripts/agent-check <capability>` checks prerequisites, and `--run` explicitly runs the selected cohort. See [capability checks](docs/testing/auditsphere-testing-guide-agent-capability-checks-current.md). Focused results supplement the task card and never replace section 3 or external acceptance.
+
 **Context budget.** `docs/execution/status.json` and `docs/execution/auditsphere-execution-current-slice.md` are very large. Never read either whole. Query `status.json` with `jq` (`jq '.active.packageId, .remainingLocalWork[].item, .externalGates' docs/execution/status.json`) and read only the newest section of the current-slice file.
 
 ## 7. Authority pointers
