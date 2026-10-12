@@ -78,5 +78,21 @@ public sealed partial class AuditDeliverablesTests
       new WorkflowTaskQueueRequest("CHANGES_REQUIRED"));
     Assert.True(clearedQueue.Succeeded, clearedQueue.Message);
     Assert.Empty(clearedQueue.Value!.Tasks);
+
+    var underReview = await WorkflowTaskQueueQuery.GetAsync(db, w.A("associate", "Staff"),
+      new WorkflowTaskQueueRequest("UNDER_REVIEW"));
+    Assert.True(underReview.Succeeded, underReview.Message);
+    var reviewRow = Assert.Single(underReview.Value!.Tasks);
+    Assert.Equal(task.Id, reviewRow.TaskId);
+    Assert.Equal("UNDER_REVIEW", reviewRow.ReviewState);
+    Assert.Equal(reviewComment, reviewRow.ReviewComment);
+
+    var independentReview = await AuditProgramService.ReviewResultAsync(db, reviewer,
+      new ReviewProcedureResultRequest(resubmission.Value!.AuditProcedureResultId, AuditProcedureReviewDecisions.Reviewed, null));
+    Assert.True(independentReview.Succeeded, independentReview.Message);
+    var reviewComplete = await WorkflowTaskQueueQuery.GetAsync(db, w.A("associate", "Staff"),
+      new WorkflowTaskQueueRequest("UNDER_REVIEW"));
+    Assert.True(reviewComplete.Succeeded, reviewComplete.Message);
+    Assert.Empty(reviewComplete.Value!.Tasks);
   }
 }

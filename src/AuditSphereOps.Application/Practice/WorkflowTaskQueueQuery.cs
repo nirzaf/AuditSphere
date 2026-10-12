@@ -36,6 +36,7 @@ public static class WorkflowTaskQueueQuery
   private const string Completed = "COMPLETED";
   private const string WaitingForClient = "WAITING_FOR_CLIENT";
   private const string ChangesRequired = "CHANGES_REQUIRED";
+  private const string UnderReview = "UNDER_REVIEW";
   private static readonly string[] ClientWaitingPbcStates =
     [PbcStates.Sent, PbcStates.Acknowledged, PbcStates.PartiallyReceived, PbcStates.ClarificationRequired];
 
@@ -43,7 +44,7 @@ public static class WorkflowTaskQueueQuery
     IAuditSphereDbContext db, ActorContext actor, WorkflowTaskQueueRequest request, CancellationToken ct = default)
   {
     var view = request.View?.Trim().ToUpperInvariant();
-    if (view is not (MyTasks or Team or Overdue or Completed or WaitingForClient or ChangesRequired) || request.PageSize is < 1 or > 100 ||
+    if (view is not (MyTasks or Team or Overdue or Completed or WaitingForClient or ChangesRequired or UnderReview) || request.PageSize is < 1 or > 100 ||
         (request.AfterTaskId is null && request.AfterDueDate.HasValue))
       return CommandResult<WorkflowTaskQueue>.Fail("workflow.queue-invalid",
         "Choose a supported queue view, page size from 1 to 100, and a valid task cursor.");
@@ -96,6 +97,13 @@ public static class WorkflowTaskQueueQuery
         equals new { reviewProcedure.FirmId, Id = reviewProcedure.Id }
         into reviewProcedures
       from reviewProcedure in reviewProcedures.DefaultIfEmpty()
+      join currentResult in db.AuditProcedureResults.AsNoTracking()
+        on new { reviewProcedure.FirmId, reviewProcedure.ClientId, reviewProcedure.EngagementId,
+          AuditProcedureId = reviewProcedure.Id, Revision = reviewProcedure.CurrentResultRevision }
+        equals new { currentResult.FirmId, currentResult.ClientId, currentResult.EngagementId,
+          currentResult.AuditProcedureId, currentResult.Revision }
+        into currentResults
+      from currentResult in currentResults.DefaultIfEmpty()
       where binding.FirmId == actor.FirmId &&
         (firmWide || clientIds.Contains(binding.ClientId) || engagementIds.Contains(binding.EngagementId))
       select new
@@ -106,10 +114,17 @@ public static class WorkflowTaskQueueQuery
         EngagementPeriod = engagement.PeriodStart + " – " + engagement.PeriodEnd,
         task.Title, task.Status, task.AssigneeUserId, task.DueDate, task.MappingVersionId, task.FsliCode,
         PbcRequestId = binding.PbcRequestId, PbcState = pbcRequest == null ? null : pbcRequest.State,
-        ReviewState = reviewResult != null && reviewProcedure != null &&
-          reviewProcedure.CurrentResultRevision == reviewResult.Revision ? reviewResult.Status : null,
-        ReviewComment = reviewResult != null && reviewProcedure != null &&
-          reviewProcedure.CurrentResultRevision == reviewResult.Revision ? reviewResult.ReviewComment : null
+        ReviewState = reviewResult != null && currentResult != null &&
+          reviewResult.Status == AuditProcedureResultStatuses.ChangesRequired &&
+          ((currentResult.Revision == reviewResult.Revision && currentResult.Status == AuditProcedureResultStatuses.ChangesRequired) ||
+           (currentResult.Revision == reviewResult.Revision + 1 && currentResult.Status == AuditProcedureResultStatuses.Submitted))
+          ? currentResult.Status == AuditProcedureResultStatuses.ChangesRequired ? ChangesRequired : UnderReview
+          : null,
+        ReviewComment = reviewResult != null && currentResult != null &&
+          reviewResult.Status == AuditProcedureResultStatuses.ChangesRequired &&
+          ((currentResult.Revision == reviewResult.Revision && currentResult.Status == AuditProcedureResultStatuses.ChangesRequired) ||
+           (currentResult.Revision == reviewResult.Revision + 1 && currentResult.Status == AuditProcedureResultStatuses.Submitted))
+          ? reviewResult.ReviewComment : null
       };
 
     if (view == MyTasks)
@@ -123,6 +138,8 @@ public static class WorkflowTaskQueueQuery
         x.PbcState != null && ClientWaitingPbcStates.Contains(x.PbcState));
     else if (view == ChangesRequired)
       query = query.Where(x => x.ReviewState == AuditProcedureResultStatuses.ChangesRequired);
+    else if (view == UnderReview)
+      query = query.Where(x => x.ReviewState == UnderReview);
     else
       query = query.Where(x => x.Status == PracticeTimeStates.TaskCompleted);
 
