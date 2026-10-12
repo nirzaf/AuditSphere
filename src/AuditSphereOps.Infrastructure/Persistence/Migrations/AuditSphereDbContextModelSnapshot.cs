@@ -24876,14 +24876,15 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasAlternateKey("FirmId", "Id")
                         .HasName("AK_workflow_task_bindings_firm_id_id");
 
+                    b.HasAlternateKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .HasName("AK_workflow_task_bindings_scope_id");
+
                     b.HasIndex("FirmId", "CreatedByUserId");
 
                     b.HasIndex("FirmId", "WorkTaskId")
                         .IsUnique();
 
                     b.HasIndex("FirmId", "AssigneeUserIdSnapshot", "Phase");
-
-                    b.HasIndex("FirmId", "ClientId", "EngagementId");
 
                     b.HasIndex("FirmId", "TemplateRevisionId", "TemplateStepId");
 
@@ -24898,6 +24899,81 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("ck_workflow_task_binding_phase", "phase IN ('CLIENT_ONBOARDING','AUDIT_PLANNING','AUDIT_FIELDWORK','MANAGER_REVIEW','PARTNER_SIGNOFF','REPORT_DELIVERY','ARCHIVE_CLOSE')");
 
                             t.HasCheckConstraint("ck_workflow_task_binding_values", "ordinal BETWEEN 1 AND 100000 AND generation >= 1 AND revision >= 1 AND (planned_effort_minutes IS NULL OR planned_effort_minutes BETWEEN 1 AND 1000000) AND due_date_policy IN ('MANUAL','FIXED','TEMPLATE_OFFSET') AND assignment_source IN ('MANUAL','TEMPLATE','MANUAL_REASSIGNMENT','AUTOMATION') AND (assigned_role IS NULL OR assigned_role IN ('ENGAGEMENT_PARTNER','AUDIT_MANAGER','SENIOR_AUDITOR','STAFF_ASSOCIATE')) AND length(source_key) BETWEEN 1 AND 160 AND creation_request_digest ~ '^[0-9a-f]{64}$' AND ((template_revision_id IS NULL AND template_step_id IS NULL) OR (template_revision_id IS NOT NULL AND template_step_id IS NOT NULL)) AND (cancellation_reason IS NULL OR length(trim(cancellation_reason)) > 0) AND (superseded_at IS NULL OR (supersession_reason IS NOT NULL AND length(trim(supersession_reason)) > 0))");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.WorkflowTaskDependency", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("DependencyType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("dependency_type");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<Guid>("PredecessorBindingId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("predecessor_binding_id");
+
+                    b.Property<Guid>("SuccessorBindingId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("successor_binding_id");
+
+                    b.Property<Guid>("TemplateDependencyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("template_dependency_id");
+
+                    b.Property<Guid>("TemplateRevisionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("template_revision_id");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "Id")
+                        .HasName("AK_workflow_task_dependencies_firm_id_id");
+
+                    b.HasIndex("FirmId", "CreatedByUserId");
+
+                    b.HasIndex("FirmId", "EngagementId", "SuccessorBindingId");
+
+                    b.HasIndex("FirmId", "TemplateRevisionId", "TemplateDependencyId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "PredecessorBindingId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "SuccessorBindingId")
+                        .HasDatabaseName("IX_workflow_task_dependencies_firm_id_client_id_engagement_id~1");
+
+                    b.HasIndex("FirmId", "EngagementId", "PredecessorBindingId", "SuccessorBindingId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_workflow_task_dependencies_edge");
+
+                    b.ToTable("workflow_task_dependencies", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_workflow_task_dependency_values", "predecessor_binding_id <> successor_binding_id AND dependency_type = 'TASK_COMPLETED'");
                         });
                 });
 
@@ -25130,6 +25206,9 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnName("template_revision_id");
 
                     b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "TemplateRevisionId", "Id")
+                        .HasName("AK_workflow_template_dependencies_revision_id");
 
                     b.HasIndex("FirmId", "TemplateRevisionId", "SuccessorStepId");
 
@@ -32081,6 +32160,38 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasForeignKey("FirmId", "TemplateRevisionId", "TemplateStepId")
                         .HasPrincipalKey("FirmId", "TemplateRevisionId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.WorkflowTaskDependency", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "CreatedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Practice.WorkflowTemplateDependency", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "TemplateRevisionId", "TemplateDependencyId")
+                        .HasPrincipalKey("FirmId", "TemplateRevisionId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Practice.WorkflowTaskBinding", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "PredecessorBindingId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Practice.WorkflowTaskBinding", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "SuccessorBindingId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_workflow_task_dependencies_workflow_task_bindings_firm_id_~1");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Practice.WorkflowTaskPlanReceipt", b =>

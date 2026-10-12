@@ -11,6 +11,8 @@ public sealed partial class AuditSphereDbContext
   {
     b.Entity<WorkflowTaskBinding>().HasAlternateKey(x => new { x.FirmId, x.Id })
       .HasName("AK_workflow_task_bindings_firm_id_id");
+    b.Entity<WorkflowTaskBinding>().HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("AK_workflow_task_bindings_scope_id");
     b.Entity<WorkflowTaskBinding>().HasIndex(x => new { x.FirmId, x.WorkTaskId }).IsUnique();
     b.Entity<WorkflowTaskBinding>().HasIndex(x => new { x.FirmId, x.EngagementId, x.SourceKey, x.Generation })
       .IsUnique().HasDatabaseName("UX_workflow_task_bindings_source_generation");
@@ -46,5 +48,28 @@ public sealed partial class AuditSphereDbContext
     b.Entity<WorkflowTaskBinding>().HasOne<WorkflowTemplateStep>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.TemplateRevisionId, x.TemplateStepId })
       .HasPrincipalKey(x => new { x.FirmId, x.TemplateRevisionId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var dependency = b.Entity<WorkflowTaskDependency>();
+    dependency.HasAlternateKey(x => new { x.FirmId, x.Id })
+      .HasName("AK_workflow_task_dependencies_firm_id_id");
+    dependency.HasIndex(x => new { x.FirmId, x.EngagementId, x.PredecessorBindingId, x.SuccessorBindingId })
+      .IsUnique().HasDatabaseName("UX_workflow_task_dependencies_edge");
+    dependency.HasIndex(x => new { x.FirmId, x.EngagementId, x.SuccessorBindingId });
+    dependency.Property(x => x.DependencyType).HasMaxLength(40);
+    dependency.HasOne<WorkflowTaskBinding>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.PredecessorBindingId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    dependency.HasOne<WorkflowTaskBinding>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.SuccessorBindingId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    dependency.HasOne<WorkflowTemplateDependency>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.TemplateRevisionId, x.TemplateDependencyId })
+      .HasPrincipalKey(x => new { x.FirmId, x.TemplateRevisionId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    dependency.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    dependency.ToTable("workflow_task_dependencies", t =>
+      t.HasCheckConstraint("ck_workflow_task_dependency_values",
+        "predecessor_binding_id <> successor_binding_id AND dependency_type = 'TASK_COMPLETED'"));
   }
 }

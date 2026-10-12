@@ -36,7 +36,7 @@ public sealed class EngagementWorkflowPlanTests
         new SaveWorkflowTemplateDraftRequest(null, "Annual statutory audit", "FinancialStatementAudit", "ProfessionalServices",
         [
           Step("PLANNING", 1, -10),
-          Step("FIELDWORK", 2, -5)
+          Step("FIELDWORK", 2, -5, ["PLANNING"])
         ]));
       Assert.True(draft.Succeeded, draft.Message);
       revisionId = draft.Value;
@@ -82,6 +82,25 @@ public sealed class EngagementWorkflowPlanTests
       Assert.Equal(2, executed.Value.TaskCount);
       Assert.Equal(2, await db.WorkflowTaskBindings.CountAsync(x => x.EngagementId == engagementId));
       Assert.Equal(2, await db.WorkTasks.CountAsync(x => x.EngagementId == engagementId));
+      Assert.Single(await db.WorkflowTaskDependencies.Where(x => x.EngagementId == engagementId).ToListAsync());
+      var plannedTasks = await EngagementWorkflowTaskService.GetAsync(db, adminActor, engagementId);
+      Assert.True(plannedTasks.Succeeded, plannedTasks.Message);
+      var predecessor = plannedTasks.Value!.Tasks.Single(x => x.Ordinal == 1);
+      var successor = plannedTasks.Value.Tasks.Single(x => x.Ordinal == 2);
+      var prematureCompletion = await EngagementWorkflowTaskService.CompleteAsync(
+        db, adminActor, successor.Id, successor.Revision);
+      Assert.False(prematureCompletion.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, prematureCompletion.ErrorCode);
+      Assert.Equal(PracticeTimeStates.TaskOpen,
+        (await db.WorkTasks.SingleAsync(x => x.Id == successor.Id)).Status);
+      var predecessorCompletion = await EngagementWorkflowTaskService.CompleteAsync(
+        db, adminActor, predecessor.Id, predecessor.Revision);
+      Assert.True(predecessorCompletion.Succeeded, predecessorCompletion.Message);
+      var refreshedTasks = await EngagementWorkflowTaskService.GetAsync(db, adminActor, engagementId);
+      var refreshedSuccessor = refreshedTasks.Value!.Tasks.Single(x => x.Ordinal == 2);
+      var successorCompletion = await EngagementWorkflowTaskService.CompleteAsync(
+        db, adminActor, refreshedSuccessor.Id, refreshedSuccessor.Revision);
+      Assert.True(successorCompletion.Succeeded, successorCompletion.Message);
 
       // A later schedule revision does not silently move promised task dates. An ambiguous retry still recovers
       // the original receipt before checking today's changed preview inputs.
@@ -142,11 +161,17 @@ public sealed class EngagementWorkflowPlanTests
       receipt.RequestDigest = new string('a', 64);
       await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
     }
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var dependency = await db.WorkflowTaskDependencies.SingleAsync(x => x.EngagementId == engagementId);
+      dependency.CreatedAt = dependency.CreatedAt.AddSeconds(1);
+      await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+    }
   }
 
-  private static WorkflowTemplateStepDraft Step(string key, int order, int dueOffset) =>
+  private static WorkflowTemplateStepDraft Step(string key, int order, int dueOffset, IReadOnlyList<string>? dependsOn = null) =>
     new(key, WorkflowTaskPhases.AuditPlanning, $"Prepare {key.ToLowerInvariant()} work", $"Complete the {key.ToLowerInvariant()} task.",
-      null, 60, dueOffset, null, true, order);
+      null, 60, dueOffset, null, true, order, dependsOn);
 
   private static async Task SeedAsync(DbContextOptions<AuditSphereDbContext> options, Guid firmId,
     Guid clientId, Guid engagementId, Guid secondEngagementId, AppUser admin, AppUser partner)

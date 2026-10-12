@@ -253,6 +253,23 @@ public static class PracticeTimeService
     if (task.Status == PracticeTimeStates.TaskCompleted) return CommandResult.Ok();
     if (task.Status == PracticeTimeStates.TaskCancelled)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "A cancelled task cannot be completed.");
+    if (workflowBinding is not null)
+    {
+      var hasIncompletePredecessor = await (from dependency in db.WorkflowTaskDependencies.AsNoTracking()
+        join predecessor in db.WorkflowTaskBindings.AsNoTracking()
+          on new { dependency.FirmId, dependency.ClientId, dependency.EngagementId, Id = dependency.PredecessorBindingId }
+          equals new { predecessor.FirmId, predecessor.ClientId, predecessor.EngagementId, predecessor.Id }
+        join predecessorTask in db.WorkTasks.AsNoTracking()
+          on new { predecessor.FirmId, WorkTaskId = predecessor.WorkTaskId }
+          equals new { predecessorTask.FirmId, WorkTaskId = predecessorTask.Id }
+        where dependency.FirmId == actor.FirmId && dependency.ClientId == task.ClientId &&
+          dependency.EngagementId == task.EngagementId && dependency.SuccessorBindingId == workflowBinding.Id &&
+          predecessorTask.Status != PracticeTimeStates.TaskCompleted
+        select dependency.Id).AnyAsync(ct);
+      if (hasIncompletePredecessor)
+        return CommandResult.Fail(ErrorCodes.GateBlocked,
+          "Complete the prerequisite workflow task before completing this task.");
+    }
     if (task.AssigneeUserId != actor.UserId &&
         !await IsElevatedAsync(db, actor, task.ClientId, task.EngagementId, ct))
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Only the assignee or an authorized manager can complete this task.");

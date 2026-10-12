@@ -50,6 +50,7 @@ public sealed class EngagementWorkflowTaskTests
     }
 
     Guid taskA;
+    Guid taskASecond;
     Guid taskB;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
@@ -61,11 +62,17 @@ public sealed class EngagementWorkflowTaskTests
       var createdB = await EngagementWorkflowTaskService.CreateAsync(db, managerActor, engagementB,
         new WorkflowTaskCreateRequest("Prepare planning memo", WorkflowTaskPhases.AuditPlanning, 1,
           IdempotencyKey: Guid.NewGuid()));
+      var createdASecond = await EngagementWorkflowTaskService.CreateAsync(db, managerActor, engagementA,
+        new WorkflowTaskCreateRequest("Review planning evidence", WorkflowTaskPhases.AuditPlanning, 2,
+          new DateOnly(2026, 10, 10), IdempotencyKey: Guid.NewGuid()));
       Assert.True(createdA.Succeeded, createdA.Message);
       Assert.True(createdB.Succeeded, createdB.Message);
+      Assert.True(createdASecond.Succeeded, createdASecond.Message);
       taskA = createdA.Value;
       taskB = createdB.Value;
+      taskASecond = createdASecond.Value;
       Assert.NotEqual(taskA, taskB);
+      Assert.NotEqual(taskA, taskASecond);
 
       var replay = await EngagementWorkflowTaskService.CreateAsync(db, managerActor, engagementA, requestA);
       Assert.True(replay.Succeeded, replay.Message);
@@ -74,7 +81,7 @@ public sealed class EngagementWorkflowTaskTests
         requestA with { Title = "Different content" });
       Assert.False(conflictingReplay.Succeeded);
       Assert.Equal(ErrorCodes.IdempotencyConflict, conflictingReplay.ErrorCode);
-      Assert.Equal(2, await db.WorkflowTaskBindings.CountAsync());
+      Assert.Equal(3, await db.WorkflowTaskBindings.CountAsync());
 
       var assignment = await EngagementWorkflowTaskService.AssignAsync(db, managerActor, taskA, staffA.Id, 1);
       Assert.True(assignment.Succeeded, assignment.Message);
@@ -95,11 +102,29 @@ public sealed class EngagementWorkflowTaskTests
     {
       var own = await EngagementWorkflowTaskService.GetAsync(db, staffAActor, engagementA);
       Assert.True(own.Succeeded, own.Message);
-      var task = Assert.Single(own.Value!.Tasks);
+      Assert.Equal(2, own.Value!.Tasks.Count);
+      var task = Assert.Single(own.Value.Tasks, x => x.Id == taskA);
       Assert.Equal(taskA, task.Id);
       Assert.Equal(2, task.Revision);
       Assert.Equal(staffA.Id, task.AssigneeUserId);
       Assert.Equal(StaffingLevels.AuditManager, task.AssignedRole);
+
+      var firstPage = await WorkflowTaskQueueQuery.GetAsync(db, staffAActor,
+        new WorkflowTaskQueueRequest("TEAM", PageSize: 1));
+      Assert.True(firstPage.Succeeded, firstPage.Message);
+      Assert.True(firstPage.Value!.HasMore);
+      Assert.Equal(taskASecond, Assert.Single(firstPage.Value.Tasks).TaskId);
+      Assert.Equal(engagementA, firstPage.Value.Tasks[0].EngagementId);
+      var cursor = Assert.IsType<WorkflowTaskQueueCursor>(firstPage.Value.NextCursor);
+      var secondPage = await WorkflowTaskQueueQuery.GetAsync(db, staffAActor,
+        new WorkflowTaskQueueRequest("TEAM", cursor.DueDate, cursor.TaskId, 1));
+      Assert.True(secondPage.Succeeded, secondPage.Message);
+      Assert.False(secondPage.Value!.HasMore);
+      Assert.Equal(taskA, Assert.Single(secondPage.Value.Tasks).TaskId);
+      var overdue = await WorkflowTaskQueueQuery.GetAsync(db, staffAActor,
+        new WorkflowTaskQueueRequest("OVERDUE"));
+      Assert.True(overdue.Succeeded, overdue.Message);
+      Assert.Equal(taskASecond, Assert.Single(overdue.Value!.Tasks).TaskId);
 
       var foreign = await EngagementWorkflowTaskService.GetAsync(db, staffAActor, engagementB);
       Assert.False(foreign.Succeeded);
@@ -113,6 +138,14 @@ public sealed class EngagementWorkflowTaskTests
       Assert.Equal(3, binding.Revision);
       Assert.Equal(staffA.Id, binding.AssigneeUserIdSnapshot);
       Assert.Equal(1, await db.TimeEntries.CountAsync(x => x.TaskId == taskA));
+
+      var staffGrant = await db.RoleGrants.SingleAsync(x => x.FirmId == firmId && x.UserId == staffA.Id);
+      staffGrant.RevokedAt = DateTimeOffset.UtcNow;
+      await db.SaveChangesAsync();
+      var afterRevocation = await WorkflowTaskQueueQuery.GetAsync(db, staffAActor,
+        new WorkflowTaskQueueRequest("TEAM"));
+      Assert.False(afterRevocation.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, afterRevocation.ErrorCode);
 
       var firstEngagement = await db.Engagements.SingleAsync(x => x.Id == engagementA);
       Assert.Equal(1, firstEngagement.Generation);

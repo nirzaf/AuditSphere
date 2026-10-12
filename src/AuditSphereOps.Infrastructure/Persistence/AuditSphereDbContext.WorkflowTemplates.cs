@@ -94,6 +94,8 @@ public sealed partial class AuditSphereDbContext
         "stable_key ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$' AND phase IN ('CLIENT_ONBOARDING','AUDIT_PLANNING','AUDIT_FIELDWORK','MANAGER_REVIEW','PARTNER_SIGNOFF','REPORT_DELIVERY','ARCHIVE_CLOSE') AND length(trim(title)) BETWEEN 1 AND 200 AND length(instructions) <= 4000 AND (suggested_staffing_level IS NULL OR suggested_staffing_level IN ('ENGAGEMENT_PARTNER','AUDIT_MANAGER','SENIOR_AUDITOR','STAFF_ASSOCIATE')) AND (estimated_effort_minutes IS NULL OR estimated_effort_minutes BETWEEN 1 AND 1000000) AND (due_date_offset_days IS NULL OR due_date_offset_days BETWEEN -3650 AND 3650) AND (pbc_request_reference IS NULL OR length(trim(pbc_request_reference)) BETWEEN 1 AND 120) AND sort_order BETWEEN 1 AND 100000");
     });
 
+    b.Entity<WorkflowTemplateDependency>().HasAlternateKey(x => new { x.FirmId, x.TemplateRevisionId, x.Id })
+      .HasName("AK_workflow_template_dependencies_revision_id");
     b.Entity<WorkflowTemplateDependency>().HasIndex(x => new { x.FirmId, x.TemplateRevisionId, x.PredecessorStepId, x.SuccessorStepId }).IsUnique();
     b.Entity<WorkflowTemplateDependency>().HasOne<WorkflowTemplateRevision>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.TemplateRevisionId })

@@ -9,6 +9,7 @@ export const NAVIGATION: NavGroup[] = [
     { label: 'Portfolio', path: '/app', exact: true },
     { label: 'Practice leads', path: '/app/practice/leads' },
     { label: 'Resources', path: '/app/practice/resources' },
+    { label: 'My work', path: '/app/work' },
     { label: 'Time', path: '/app/practice/time' },
     { label: 'Analytics', path: '/app/practice/analytics' },
   ] },

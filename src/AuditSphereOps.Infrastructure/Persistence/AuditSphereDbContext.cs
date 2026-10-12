@@ -140,6 +140,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
 
   public DbSet<WorkTask> WorkTasks => Set<WorkTask>();
   public DbSet<WorkflowTaskBinding> WorkflowTaskBindings => Set<WorkflowTaskBinding>();
+  public DbSet<WorkflowTaskDependency> WorkflowTaskDependencies => Set<WorkflowTaskDependency>();
   public DbSet<WorkflowTemplate> WorkflowTemplates => Set<WorkflowTemplate>();
   public DbSet<WorkflowTemplateRevision> WorkflowTemplateRevisions => Set<WorkflowTemplateRevision>();
   public DbSet<WorkflowTemplateStep> WorkflowTemplateSteps => Set<WorkflowTemplateStep>();

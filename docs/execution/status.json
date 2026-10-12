@@ -64,7 +64,7 @@
     {
       "item": "AS-WF-V22 — v2.2 workflow experience PRs D–I (WF-04 to WF-15) and production acceptance",
       "status": "PARTIAL",
-      "details": "PRs A–C remain as recorded. PRs D–E now add the WF-04 optional WorkTask binding and scoped task commands, WF-05 immutable reviewed/published template revisions, and WF-06 preview/execute/receipt plan instantiation. Plan receipts pin template revision, engagement generation, staffing and statutory schedule; concurrent duplicate execution creates one task set, retries recover the original receipt, and task-plan receipts are append-only. The focused PostgreSQL cohort passed 4/4, the API OpenAPI contract test passed 1/1, Release builds passed, EF drift/OpenAPI drift/docs gates passed. Four new additive migrations are created but not applied to any persistent database. WorkflowExperience remains false by default. No template/plan UI or signed-in browser journey exists yet. WF-07/08/12, WF-09/10, WF-11, WF-13/14, the lead-level journey and WF-15 production acceptance remain pending. No live tenant or professional acceptance is claimed."
+      "details": "PRs A–C and D–E remain as recorded. PR-F adds a grant-scoped My Tasks/Team/Overdue/Completed queue with stable paging, append-only dependency edges tied to exact pinned template steps, and server-side TASK_COMPLETED prerequisite gating. WF-07/08 are partial; WF-12 rework routing and the remaining queue states/views are open. Focused workflow PostgreSQL tests passed 3/3, API OpenAPI contract test passed 1/1, API Release build passed with two offline vulnerability-feed warnings, EF model drift and OpenAPI drift passed, and Angular dev server compilation passed. Browser check reached the staff sign-in guard only; no authenticated queue was exercised. Five additive migrations are created and not applied to persistent databases. WorkflowExperience stays disabled by default; no live, full-suite or professional acceptance is claimed."
     }
   ],
   "targetedVerification": {
@@ -545,6 +545,78 @@
         "No signed-in browser journey or live tenant acceptance was performed.",
         "WorkflowExperience remains disabled by default; enabling it requires an explicit deployment configuration decision.",
         "Full Domain/API/E2E suites were not run; only the focused workflow PostgreSQL cohort and API OpenAPI contract test ran."
+      ]
+    },
+    "workflowTaskQueuePrF": {
+      "recordedAtUtc": "2026-10-12T02:05:00Z",
+      "baseCommit": "919a08cf",
+      "sourceTree": "Uncommitted workflow queue slice on master based on 919a08cf; this evidence is committed with the slice.",
+      "database": "PostgreSQL test schemas created and dropped by PgTestSchema; no persistent development or VPS database was changed.",
+      "scope": "WF-07/08 partial: grant-scoped My Tasks, Team, Overdue and Completed queue views; keyset paging; exact-template task dependency persistence and server-side TASK_COMPLETED gating.",
+      "migrations": {
+        "created_not_applied": [
+          "20261012000128_WorkflowTaskBindings",
+          "20261012003440_WorkflowTemplateCatalog",
+          "20261012004124_WorkflowTemplateOpenRevision",
+          "20261012010500_WorkflowTaskPlanReceipts",
+          "20261012015133_WorkflowTaskDependencies"
+        ],
+        "persistent_database_changed": false,
+        "historical_work_tasks_or_time_entries_backfilled": false
+      },
+      "runs": [
+        {
+          "name": "API Release build",
+          "command": "dotnet build src/AuditSphereOps.Api/AuditSphereOps.Api.csproj --no-restore --configuration Release --maxcpucount:1 -p:UseSharedCompilation=false",
+          "result": "PASS",
+          "warnings": 2,
+          "errors": 0,
+          "note": "NU1900 vulnerability-feed lookup warnings because api.nuget.org was unreachable."
+        },
+        {
+          "name": "Focused workflow PostgreSQL cohort",
+          "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --no-restore --configuration Release --maxcpucount:1 --filter 'FullyQualifiedName~EngagementWorkflowTaskTests|FullyQualifiedName~EngagementWorkflowPlanTests'",
+          "result": "PASS",
+          "passed": 3,
+          "failed": 0,
+          "note": "Test host ran with loopback permission; PgTestSchema used disposable PostgreSQL databases. Covers grant scope, paging, revocation, persisted template dependency, completion refusal until predecessor completion, and append-only enforcement."
+        },
+        {
+          "name": "API-host OpenAPI contract test",
+          "command": "dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-build --no-restore --configuration Release --maxcpucount:1 --filter 'FullyQualifiedName~OpenApiContractTests.ContractIsGeneratedFromActualEndpointsAsOpenApi31'",
+          "result": "PASS",
+          "passed": 1,
+          "failed": 0
+        },
+        {
+          "name": "EF model drift",
+          "command": "dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Api --no-build --configuration Release",
+          "result": "PASS",
+          "note": "No changes have been made to the model since the last migration."
+        },
+        {
+          "name": "OpenAPI drift",
+          "command": "bash scripts/contracts/verify-openapi.sh",
+          "result": "PASS",
+          "note": "The generated API contract matches contracts/auditsphere-openapi.json."
+        },
+        {
+          "name": "Angular development server compilation",
+          "command": "npm exec -- ng serve --configuration development --host 127.0.0.1 --port 4300",
+          "result": "PASS",
+          "note": "Angular development bundle compiled and the local server started."
+        },
+        {
+          "name": "Built-in browser route smoke check",
+          "result": "PASS_LIMITED",
+          "note": "The local UI rendered Access unavailable and Sign in because the API/session endpoint was not running. No authenticated queue view or command was exercised."
+        }
+      ],
+      "limits": [
+        "WorkflowExperience remains disabled by default and the five additive migrations have not been applied to a persistent database.",
+        "Waiting-for-client, audit-review and rework queue filters; domain-evidence dependency evaluators; Kanban and calendar views; and task-plan authoring UI remain open.",
+        "No authenticated local browser session was used, and no live tenant, VPS or professional acceptance is claimed.",
+        "Only the focused workflow Domain tests and one API contract test ran; full Domain/API/E2E suites were not run for this slice."
       ]
     }
   },

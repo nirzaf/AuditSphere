@@ -147,6 +147,7 @@ public static class EngagementWorkflowPlanService
       return CommandResult<EngagementWorkflowPlanReceipt>.Fail(ErrorCodes.ProtectedState,
         "Template task rows exist without a plan receipt. Review the existing engagement tasks before retrying.");
 
+    var bindingsByTemplateStep = new Dictionary<Guid, WorkflowTaskBinding>();
     foreach (var step in preview.Value.Steps)
     {
       var stepRow = await db.WorkflowTemplateSteps.AsNoTracking().SingleAsync(x =>
@@ -172,6 +173,24 @@ public static class EngagementWorkflowPlanService
           AssigneeUserId: step.SelectedAssigneeUserId, DueDate: step.DueDate), binding, ct);
       if (!created.Succeeded)
         return CommandResult<EngagementWorkflowPlanReceipt>.Fail(created.ErrorCode!, created.Message!);
+      bindingsByTemplateStep.Add(step.TemplateStepId, binding);
+    }
+
+    var templateDependencies = await db.WorkflowTemplateDependencies.AsNoTracking().Where(x =>
+      x.FirmId == actor.FirmId && x.TemplateRevisionId == revision.Id).ToListAsync(ct);
+    foreach (var edge in templateDependencies)
+    {
+      if (!bindingsByTemplateStep.TryGetValue(edge.PredecessorStepId, out var predecessor) ||
+          !bindingsByTemplateStep.TryGetValue(edge.SuccessorStepId, out var successor))
+        return CommandResult<EngagementWorkflowPlanReceipt>.Fail(ErrorCodes.GateBlocked,
+          "The published template contains a dependency outside its task plan.");
+      db.WorkflowTaskDependencies.Add(new WorkflowTaskDependency
+      {
+        Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = engagement.PracticeClientId,
+        EngagementId = engagement.Id, TemplateRevisionId = revision.Id, TemplateDependencyId = edge.Id,
+        PredecessorBindingId = predecessor.Id, SuccessorBindingId = successor.Id,
+        DependencyType = edge.DependencyType, CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
+      });
     }
 
     var receipt = new WorkflowTaskPlanReceipt
@@ -247,6 +266,9 @@ public static class EngagementWorkflowPlanService
     var predecessorById = steps.ToDictionary(x => x.Id, x => x.StableKey);
     var edges = await db.WorkflowTemplateDependencies.AsNoTracking().Where(x =>
       x.FirmId == actor.FirmId && x.TemplateRevisionId == revision.Id).ToListAsync(ct);
+    if (HasDependencyCycle(steps.Select(x => x.Id), edges))
+      return CommandResult<EngagementWorkflowPlanPreview>.Fail(ErrorCodes.GateBlocked,
+        "The published template dependency graph is cyclic and cannot be instantiated.");
     var dependsByStep = edges.GroupBy(x => x.SuccessorStepId).ToDictionary(x => x.Key,
       x => (IReadOnlyList<string>)x.Select(edge => predecessorById[edge.PredecessorStepId]).Order(StringComparer.Ordinal).ToArray());
 
@@ -340,6 +362,30 @@ public static class EngagementWorkflowPlanService
     return new EngagementWorkflowPlanReceipt(receipt.Id,
       receipt.EngagementId, receipt.TemplateId, receipt.TemplateRevisionId, receipt.TemplateVersion,
       receipt.RequestDigest, receipt.TaskCount, replayed, receipt.CreatedAt, taskIds);
+  }
+
+  private static bool HasDependencyCycle(IEnumerable<Guid> stepIds, IReadOnlyCollection<WorkflowTemplateDependency> edges)
+  {
+    var successors = stepIds.ToDictionary(x => x, _ => new List<Guid>());
+    foreach (var edge in edges)
+    {
+      if (!successors.TryGetValue(edge.PredecessorStepId, out var next) ||
+          !successors.ContainsKey(edge.SuccessorStepId)) return true;
+      next.Add(edge.SuccessorStepId);
+    }
+    var visiting = new HashSet<Guid>();
+    var visited = new HashSet<Guid>();
+    bool Visit(Guid id)
+    {
+      if (visiting.Contains(id)) return true;
+      if (!visited.Add(id)) return false;
+      visiting.Add(id);
+      foreach (var next in successors[id])
+        if (Visit(next)) return true;
+      visiting.Remove(id);
+      return false;
+    }
+    return successors.Keys.Any(Visit);
   }
 
   private static async Task<CommandResult> AuthorizeAsync(IAuditSphereDbContext db, ActorContext actor,

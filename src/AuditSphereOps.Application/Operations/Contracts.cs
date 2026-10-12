@@ -142,6 +142,7 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<CorrespondenceDispatchRecord> CorrespondenceDispatchRecords { get; }
   DbSet<WorkTask> WorkTasks { get; }
   DbSet<WorkflowTaskBinding> WorkflowTaskBindings { get; }
+  DbSet<WorkflowTaskDependency> WorkflowTaskDependencies { get; }
   DbSet<WorkflowTemplate> WorkflowTemplates { get; }
   DbSet<WorkflowTemplateRevision> WorkflowTemplateRevisions { get; }
   DbSet<WorkflowTemplateStep> WorkflowTemplateSteps { get; }
