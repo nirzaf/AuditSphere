@@ -15,6 +15,16 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## v2.2 workflow experience, PRs D–E — 2026-10-12
+
+WF-04 keeps `WorkTask` as the one operational task/status record and binds optional workflow metadata one-to-one. Existing `TimeEntry` lineage remains attached to the same task. The default-off API exposes scoped task create/read/assign/reassign/complete; creation uses a stable idempotency key and immutable digest, and revisioned actions reject stale requests. Checklist completion does not advance the canonical audit lifecycle.
+
+WF-05 adds a firm-scoped template catalog with immutable revisions, dependency-cycle validation, independent review, publication/supersession and archive evidence. WF-06 adds a preview/execute/receipt path that pins the exact published revision, engagement generation, staffing snapshot and statutory schedule basis. Instantiation creates existing `WorkTask` records and bindings in one transaction. Concurrent same-request execution creates one plan; an ambiguous retry recovers its original receipt even after the schedule changes. A new published template version does not mutate a prior engagement plan. Plan receipts are append-only in PostgreSQL.
+
+Migrations `20261012000128_WorkflowTaskBindings`, `20261012003440_WorkflowTemplateCatalog`, `20261012004124_WorkflowTemplateOpenRevision` and `20261012010500_WorkflowTaskPlanReceipts` are additive and were not applied to any persistent database. The template/plan cohort passed 4/4 on isolated `auditsphere_tests`; the API-host OpenAPI contract test passed 1/1; Release solution and API builds passed (NU1900 vulnerability-feed warnings only); EF model drift, OpenAPI drift and documentation gates passed. Exact provenance is in `status.json` under `targetedVerification.workflowTaskFoundationPrD` and `targetedVerification.workflowTemplatePlanPrE`.
+
+This remains a backend/API slice with `WorkflowExperience:Enabled=false` by default. No template editor, plan preview screen or signed-in browser journey has been delivered. WF-07/08/12 queues, dependencies and rework routing; WF-09/10 automations and PBC follow-up; WF-11 annual recurrence; WF-13/14 completion/archive cards and analytics; the lead-level journey; and WF-15 production acceptance remain open. No live tenant or professional acceptance is claimed.
+
 ## v2.2 workflow experience, PRs A–C — 2026-10-11
 
 The engagement page now opens on a read-only seven-phase workflow projection and independently evaluated Dual-Key readiness cards, with the eleven-stage lifecycle kept as a technical panel. The projection derives from the existing canonical stage and persists nothing new; no stage is writable. Advance billing no longer opens on a Partner clearance alone: both keys must be current on the exact dispatched offer. The advance and activation cards read the same milestone state and engagement link that activation checks. The protected letter, fee-agreement and activation commands are unchanged.

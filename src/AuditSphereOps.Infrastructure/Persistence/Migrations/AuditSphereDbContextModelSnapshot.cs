@@ -24763,6 +24763,586 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.WorkflowTaskBinding", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AssignedRole")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("assigned_role");
+
+                    b.Property<Guid?>("AssigneeUserIdSnapshot")
+                        .HasColumnType("uuid")
+                        .HasColumnName("assignee_user_id_snapshot");
+
+                    b.Property<string>("AssignmentSource")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("assignment_source");
+
+                    b.Property<string>("CancellationReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("cancellation_reason");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("CreationRequestDigest")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("creation_request_digest");
+
+                    b.Property<string>("DueDatePolicy")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("due_date_policy");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<int>("Generation")
+                        .HasColumnType("integer")
+                        .HasColumnName("generation");
+
+                    b.Property<int>("Ordinal")
+                        .HasColumnType("integer")
+                        .HasColumnName("ordinal");
+
+                    b.Property<string>("Phase")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("phase");
+
+                    b.Property<int?>("PlannedEffortMinutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("planned_effort_minutes");
+
+                    b.Property<long>("Revision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("revision");
+
+                    b.Property<string>("SourceKey")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)")
+                        .HasColumnName("source_key");
+
+                    b.Property<DateTimeOffset?>("SupersededAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("superseded_at");
+
+                    b.Property<string>("SupersessionReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("supersession_reason");
+
+                    b.Property<Guid?>("TemplateRevisionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("template_revision_id");
+
+                    b.Property<Guid?>("TemplateStepId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("template_step_id");
+
+                    b.Property<Guid>("WorkTaskId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("work_task_id");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "Id")
+                        .HasName("AK_workflow_task_bindings_firm_id_id");
+
+                    b.HasIndex("FirmId", "CreatedByUserId");
+
+                    b.HasIndex("FirmId", "WorkTaskId")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "AssigneeUserIdSnapshot", "Phase");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId");
+
+                    b.HasIndex("FirmId", "TemplateRevisionId", "TemplateStepId");
+
+                    b.HasIndex("FirmId", "EngagementId", "Phase", "Ordinal");
+
+                    b.HasIndex("FirmId", "EngagementId", "SourceKey", "Generation")
+                        .IsUnique()
+                        .HasDatabaseName("UX_workflow_task_bindings_source_generation");
+
+                    b.ToTable("workflow_task_bindings", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_workflow_task_binding_phase", "phase IN ('CLIENT_ONBOARDING','AUDIT_PLANNING','AUDIT_FIELDWORK','MANAGER_REVIEW','PARTNER_SIGNOFF','REPORT_DELIVERY','ARCHIVE_CLOSE')");
+
+                            t.HasCheckConstraint("ck_workflow_task_binding_values", "ordinal BETWEEN 1 AND 100000 AND generation >= 1 AND revision >= 1 AND (planned_effort_minutes IS NULL OR planned_effort_minutes BETWEEN 1 AND 1000000) AND due_date_policy IN ('MANUAL','FIXED','TEMPLATE_OFFSET') AND assignment_source IN ('MANUAL','TEMPLATE','MANUAL_REASSIGNMENT','AUTOMATION') AND (assigned_role IS NULL OR assigned_role IN ('ENGAGEMENT_PARTNER','AUDIT_MANAGER','SENIOR_AUDITOR','STAFF_ASSOCIATE')) AND length(source_key) BETWEEN 1 AND 160 AND creation_request_digest ~ '^[0-9a-f]{64}$' AND ((template_revision_id IS NULL AND template_step_id IS NULL) OR (template_revision_id IS NOT NULL AND template_step_id IS NOT NULL)) AND (cancellation_reason IS NULL OR length(trim(cancellation_reason)) > 0) AND (superseded_at IS NULL OR (supersession_reason IS NOT NULL AND length(trim(supersession_reason)) > 0))");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.WorkflowTaskPlanReceipt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<long>("EngagementGeneration")
+                        .HasColumnType("bigint")
+                        .HasColumnName("engagement_generation");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<Guid>("IdempotencyKey")
+                        .HasColumnType("uuid")
+                        .HasColumnName("idempotency_key");
+
+                    b.Property<Guid?>("MilestonePlanId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("milestone_plan_id");
+
+                    b.Property<long?>("MilestonePlanRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("milestone_plan_revision");
+
+                    b.Property<string>("RequestDigest")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("request_digest");
+
+                    b.Property<DateOnly?>("ScheduleBasisDate")
+                        .HasColumnType("date")
+                        .HasColumnName("schedule_basis_date");
+
+                    b.Property<int>("TaskCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("task_count");
+
+                    b.Property<Guid>("TemplateId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("template_id");
+
+                    b.Property<Guid>("TemplateRevisionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("template_revision_id");
+
+                    b.Property<int>("TemplateVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("template_version");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "Id")
+                        .HasName("AK_workflow_task_plan_receipts_firm_id_id");
+
+                    b.HasIndex("FirmId", "CreatedByUserId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId");
+
+                    b.HasIndex("FirmId", "EngagementId", "IdempotencyKey")
+                        .IsUnique()
+                        .HasDatabaseName("UX_workflow_task_plan_receipts_idempotency");
+
+                    b.HasIndex("FirmId", "EngagementId", "TemplateRevisionId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_workflow_task_plan_receipts_engagement_revision");
+
+                    b.HasIndex("FirmId", "TemplateId", "TemplateRevisionId");
+
+                    b.ToTable("workflow_task_plan_receipts", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_workflow_task_plan_receipt_values", "template_version >= 1 AND engagement_generation >= 1 AND (milestone_plan_id IS NULL) = (milestone_plan_revision IS NULL) AND (milestone_plan_id IS NULL) = (schedule_basis_date IS NULL) AND (milestone_plan_revision IS NULL OR milestone_plan_revision >= 1) AND idempotency_key <> '00000000-0000-0000-0000-000000000000' AND request_digest ~ '^[0-9a-f]{64}$' AND task_count BETWEEN 1 AND 1000");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.WorkflowTemplate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("ArchivedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("archived_at");
+
+                    b.Property<Guid?>("ArchivedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("archived_by_user_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "Id")
+                        .HasName("AK_workflow_templates_firm_id_id");
+
+                    b.HasIndex("FirmId", "ArchivedByUserId");
+
+                    b.HasIndex("FirmId", "CreatedAt");
+
+                    b.HasIndex("FirmId", "CreatedByUserId");
+
+                    b.ToTable("workflow_templates", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_workflow_template_archive", "(archived_at IS NULL AND archived_by_user_id IS NULL) OR (archived_at IS NOT NULL AND archived_by_user_id IS NOT NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.WorkflowTemplateDecision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ActorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_user_id");
+
+                    b.Property<string>("ContentDigest")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("content_digest");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)")
+                        .HasColumnName("kind");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("occurred_at");
+
+                    b.Property<string>("Rationale")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("rationale");
+
+                    b.Property<Guid>("TemplateId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("template_id");
+
+                    b.Property<Guid?>("TemplateRevisionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("template_revision_id");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "Id")
+                        .HasName("AK_workflow_template_decisions_firm_id_id");
+
+                    b.HasIndex("FirmId", "ActorUserId");
+
+                    b.HasIndex("FirmId", "TemplateId", "OccurredAt");
+
+                    b.HasIndex("FirmId", "TemplateId", "TemplateRevisionId");
+
+                    b.ToTable("workflow_template_decisions", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_workflow_template_decision_values", "kind IN ('DRAFT_CREATED','DRAFT_EDITED','REVIEWED','PUBLISHED','SUPERSEDED','ARCHIVED') AND content_digest ~ '^[0-9a-f]{64}$' AND length(trim(rationale)) BETWEEN 1 AND 1000");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.WorkflowTemplateDependency", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("DependencyType")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("dependency_type");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<Guid>("PredecessorStepId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("predecessor_step_id");
+
+                    b.Property<Guid>("SuccessorStepId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("successor_step_id");
+
+                    b.Property<Guid>("TemplateRevisionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("template_revision_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FirmId", "TemplateRevisionId", "SuccessorStepId");
+
+                    b.HasIndex("FirmId", "TemplateRevisionId", "PredecessorStepId", "SuccessorStepId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_workflow_template_dependencies_firm_id_template_revision_i~1");
+
+                    b.ToTable("workflow_template_dependencies", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_workflow_template_dependency_values", "predecessor_step_id <> successor_step_id AND dependency_type = 'TASK_COMPLETED'");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.WorkflowTemplateRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ContentDigest")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("content_digest");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("IndustryKey")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("industry_key");
+
+                    b.Property<Guid>("LastEditedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("last_edited_by_user_id");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)")
+                        .HasColumnName("name");
+
+                    b.Property<DateTimeOffset?>("PublishedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("published_at");
+
+                    b.Property<Guid?>("PublishedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("published_by_user_id");
+
+                    b.Property<DateTimeOffset?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reviewed_at");
+
+                    b.Property<Guid?>("ReviewedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewed_by_user_id");
+
+                    b.Property<long>("Revision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("revision");
+
+                    b.Property<string>("ServiceRoute")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("service_route");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("TemplateId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("template_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "Id")
+                        .HasName("AK_workflow_template_revisions_firm_id_id");
+
+                    b.HasAlternateKey("FirmId", "TemplateId", "Id")
+                        .HasName("AK_workflow_template_revisions_scope_id");
+
+                    b.HasIndex("FirmId", "CreatedByUserId");
+
+                    b.HasIndex("FirmId", "LastEditedByUserId");
+
+                    b.HasIndex("FirmId", "PublishedByUserId");
+
+                    b.HasIndex("FirmId", "ReviewedByUserId");
+
+                    b.HasIndex("FirmId", "TemplateId", "Status");
+
+                    b.HasIndex("FirmId", "TemplateId", "Version")
+                        .IsUnique();
+
+                    b.HasIndex(new[] { "FirmId", "TemplateId" }, "UX_workflow_template_one_open_revision")
+                        .IsUnique()
+                        .HasFilter("status IN ('DRAFT','REVIEWED')");
+
+                    b.HasIndex(new[] { "FirmId", "TemplateId" }, "UX_workflow_template_one_published_revision")
+                        .IsUnique()
+                        .HasFilter("status = 'PUBLISHED'");
+
+                    b.ToTable("workflow_template_revisions", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_workflow_template_revision_values", "version >= 1 AND revision >= 1 AND status IN ('DRAFT','REVIEWED','PUBLISHED','SUPERSEDED') AND length(trim(name)) BETWEEN 2 AND 160 AND length(trim(service_route)) BETWEEN 1 AND 50 AND content_digest ~ '^[0-9a-f]{64}$' AND ((reviewed_by_user_id IS NULL AND reviewed_at IS NULL) OR (reviewed_by_user_id IS NOT NULL AND reviewed_at IS NOT NULL)) AND ((published_by_user_id IS NULL AND published_at IS NULL) OR (published_by_user_id IS NOT NULL AND published_at IS NOT NULL)) AND (status NOT IN ('REVIEWED','PUBLISHED','SUPERSEDED') OR (reviewed_at IS NOT NULL AND reviewed_by_user_id <> created_by_user_id AND reviewed_by_user_id <> last_edited_by_user_id)) AND (status NOT IN ('PUBLISHED','SUPERSEDED') OR published_at IS NOT NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.WorkflowTemplateStep", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int?>("DueDateOffsetDays")
+                        .HasColumnType("integer")
+                        .HasColumnName("due_date_offset_days");
+
+                    b.Property<int?>("EstimatedEffortMinutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("estimated_effort_minutes");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("Instructions")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("instructions");
+
+                    b.Property<string>("PbcRequestReference")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("pbc_request_reference");
+
+                    b.Property<string>("Phase")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("phase");
+
+                    b.Property<bool>("RequiredTask")
+                        .HasColumnType("boolean")
+                        .HasColumnName("required_task");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("sort_order");
+
+                    b.Property<string>("StableKey")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("stable_key");
+
+                    b.Property<string>("SuggestedStaffingLevel")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("suggested_staffing_level");
+
+                    b.Property<Guid>("TemplateRevisionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("template_revision_id");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("title");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "TemplateRevisionId", "Id")
+                        .HasName("AK_workflow_template_steps_revision_id");
+
+                    b.HasIndex("FirmId", "TemplateRevisionId", "SortOrder");
+
+                    b.HasIndex("FirmId", "TemplateRevisionId", "StableKey")
+                        .IsUnique();
+
+                    b.ToTable("workflow_template_steps", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_workflow_template_step_values", "stable_key ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$' AND phase IN ('CLIENT_ONBOARDING','AUDIT_PLANNING','AUDIT_FIELDWORK','MANAGER_REVIEW','PARTNER_SIGNOFF','REPORT_DELIVERY','ARCHIVE_CLOSE') AND length(trim(title)) BETWEEN 1 AND 200 AND length(instructions) <= 4000 AND (suggested_staffing_level IS NULL OR suggested_staffing_level IN ('ENGAGEMENT_PARTNER','AUDIT_MANAGER','SENIOR_AUDITOR','STAFF_ASSOCIATE')) AND (estimated_effort_minutes IS NULL OR estimated_effort_minutes BETWEEN 1 AND 1000000) AND (due_date_offset_days IS NULL OR due_date_offset_days BETWEEN -3650 AND 3650) AND (pbc_request_reference IS NULL OR length(trim(pbc_request_reference)) BETWEEN 1 AND 120) AND sort_order BETWEEN 1 AND 100000");
+                        });
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Records.ArchiveManifest", b =>
                 {
                     b.Property<Guid>("Id")
@@ -31465,6 +32045,176 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasForeignKey("FirmId", "ClientId", "EngagementId", "MappingVersionId")
                         .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.WorkflowTaskBinding", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "AssigneeUserIdSnapshot")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "CreatedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Practice.WorkTask", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "WorkTaskId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId")
+                        .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Practice.WorkflowTemplateStep", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "TemplateRevisionId", "TemplateStepId")
+                        .HasPrincipalKey("FirmId", "TemplateRevisionId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.WorkflowTaskPlanReceipt", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "CreatedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId")
+                        .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Practice.WorkflowTemplateRevision", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "TemplateId", "TemplateRevisionId")
+                        .HasPrincipalKey("FirmId", "TemplateId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.WorkflowTemplate", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ArchivedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "CreatedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.WorkflowTemplateDecision", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ActorUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Practice.WorkflowTemplate", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "TemplateId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Practice.WorkflowTemplateRevision", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "TemplateId", "TemplateRevisionId")
+                        .HasPrincipalKey("FirmId", "TemplateId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.WorkflowTemplateDependency", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Practice.WorkflowTemplateRevision", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "TemplateRevisionId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Practice.WorkflowTemplateStep", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "TemplateRevisionId", "PredecessorStepId")
+                        .HasPrincipalKey("FirmId", "TemplateRevisionId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Practice.WorkflowTemplateStep", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "TemplateRevisionId", "SuccessorStepId")
+                        .HasPrincipalKey("FirmId", "TemplateRevisionId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_workflow_template_dependencies_workflow_template_steps_fir~1");
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.WorkflowTemplateRevision", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "CreatedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "LastEditedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "PublishedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ReviewedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Practice.WorkflowTemplate", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "TemplateId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.WorkflowTemplateStep", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Practice.WorkflowTemplateRevision", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "TemplateRevisionId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Records.ArchiveManifest", b =>

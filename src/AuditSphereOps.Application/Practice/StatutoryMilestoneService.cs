@@ -146,10 +146,28 @@ public static class StatutoryMilestoneService
     SaveMilestonesRequest request,
     CancellationToken ct = default)
   {
-    var engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(e => e.Id == request.EngagementId && e.FirmId == actor.FirmId, ct);
-    if (engagement is null) return CommandResult<MilestonePlanView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var snapshot = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(e => e.Id == request.EngagementId && e.FirmId == actor.FirmId, ct);
+    if (snapshot is null) return CommandResult<MilestonePlanView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, snapshot.PracticeClientId, snapshot.Id, ConfigureRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded) return CommandResult<MilestonePlanView>.Fail(auth.ErrorCode!, auth.Message!);
+
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    if (await db.FirmSafetyStates.FromSqlInterpolated(
+          $"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR UPDATE")
+        .AsNoTracking().SingleOrDefaultAsync(ct) is null)
+      return CommandResult<MilestonePlanView>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+    if (await db.ClientSafetyStates.FromSqlInterpolated(
+          $"SELECT * FROM client_safety_states WHERE firm_id={actor.FirmId} AND id={snapshot.PracticeClientId} FOR UPDATE")
+        .AsNoTracking().SingleOrDefaultAsync(ct) is null)
+      return CommandResult<MilestonePlanView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var engagement = await db.Engagements.FromSqlInterpolated(
+        $"SELECT * FROM engagements WHERE firm_id={actor.FirmId} AND id={request.EngagementId} FOR UPDATE")
+      .SingleOrDefaultAsync(ct);
+    if (engagement is null || engagement.PracticeClientId != snapshot.PracticeClientId)
+      return CommandResult<MilestonePlanView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagement.Id, ConfigureRoles, InternalOnly: true), ct);
     if (!auth.Succeeded) return CommandResult<MilestonePlanView>.Fail(auth.ErrorCode!, auth.Message!);
 
@@ -221,6 +239,7 @@ public static class StatutoryMilestoneService
 
     db.EngagementMilestonePlans.Add(plan);
     await db.SaveChangesAsync(ct);
+    if (tx is not null) await tx.CommitAsync(ct);
 
     return CommandResult<MilestonePlanView>.Ok(new MilestonePlanView(
       plan.Id,

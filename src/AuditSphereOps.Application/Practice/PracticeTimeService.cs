@@ -76,8 +76,18 @@ public static class PracticeTimeService
   private static readonly string[] WorkRoles = ["Senior", "Staff", "Manager", "Partner", "Administrator"];
   internal static readonly string[] ApprovalRoles = ["Manager", "Partner", "Administrator"];
 
-  public static async Task<CommandResult<Guid>> CreateTaskAsync(
-    IAuditSphereDbContext db, ActorContext actor, CreateTaskRequest request, CancellationToken ct = default)
+  public static Task<CommandResult<Guid>> CreateTaskAsync(
+    IAuditSphereDbContext db, ActorContext actor, CreateTaskRequest request, CancellationToken ct = default) =>
+    CreateTaskCoreAsync(db, actor, request, null, ct);
+
+  internal static Task<CommandResult<Guid>> CreateWorkflowTaskAsync(
+    IAuditSphereDbContext db, ActorContext actor, CreateTaskRequest request,
+    WorkflowTaskBinding binding, CancellationToken ct = default) =>
+    CreateTaskCoreAsync(db, actor, request, binding, ct);
+
+  private static async Task<CommandResult<Guid>> CreateTaskCoreAsync(
+    IAuditSphereDbContext db, ActorContext actor, CreateTaskRequest request,
+    WorkflowTaskBinding? workflowBinding, CancellationToken ct)
   {
     if (string.IsNullOrWhiteSpace(request.Title))
       return CommandResult<Guid>.Fail("time.invalid", "Task title is required.");
@@ -91,6 +101,11 @@ public static class PracticeTimeService
       return CommandResult<Guid>.Fail("time.invalid", "An FSLI attribution requires an engagement, approved mapping version and destination code together.");
     if (request.ReportingPeriodId.HasValue && !request.ClientId.HasValue)
       return CommandResult<Guid>.Fail("time.invalid", "A reporting-period task requires its client scope.");
+    if (workflowBinding is not null && (!request.EngagementId.HasValue || !request.ClientId.HasValue ||
+        workflowBinding.Ordinal is < 1 or > 100000 || workflowBinding.Generation < 1 ||
+        workflowBinding.SourceKey.Length is < 1 or > 160 || workflowBinding.CreationRequestDigest.Length != 64 ||
+        !WorkflowTaskPhases.All.Contains(workflowBinding.Phase, StringComparer.Ordinal)))
+      return CommandResult<Guid>.Fail("workflow.task-invalid", "Workflow tasks require a valid engagement, phase, ordinal and source key.");
     var accountingDb = request.ReportingPeriodId.HasValue ? db as IClientAccountingDbContext : null;
     if (request.ReportingPeriodId.HasValue && accountingDb is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Accounting period data is unavailable.");
@@ -100,7 +115,7 @@ public static class PracticeTimeService
         InternalOnly: true, RequireFirmWide: request.ClientId is null && request.EngagementId is null), ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
 
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
     var engagement = request.EngagementId.HasValue
@@ -119,6 +134,21 @@ public static class PracticeTimeService
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var guard = await LockClientAsync(db, actor.FirmId, request.ClientId, ct);
     if (!guard.Succeeded) return CommandResult<Guid>.Fail(guard.ErrorCode!, guard.Message!);
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, request.ClientId, request.EngagementId, WorkRoles,
+        InternalOnly: true, RequireFirmWide: request.ClientId is null && request.EngagementId is null), ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    if (workflowBinding is not null)
+    {
+      var previous = await db.WorkflowTaskBindings.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.FirmId == actor.FirmId && x.EngagementId == request.EngagementId &&
+        x.SourceKey == workflowBinding.SourceKey && x.Generation == workflowBinding.Generation, ct);
+      if (previous is not null)
+        return string.Equals(previous.CreationRequestDigest, workflowBinding.CreationRequestDigest, StringComparison.Ordinal)
+          ? CommandResult<Guid>.Ok(previous.WorkTaskId)
+          : CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict,
+            "This task request key was already used for different content.");
+    }
     MappingVersion? approvedMapping = null;
     string? fsliCode = null;
     if (hasMappingVersion)
@@ -159,21 +189,51 @@ public static class PracticeTimeService
         ? PracticeTimeStates.TaskInProgress : PracticeTimeStates.TaskOpen
     };
     db.WorkTasks.Add(task);
+    if (workflowBinding is not null)
+    {
+      workflowBinding.Id = Guid.CreateVersion7();
+      workflowBinding.FirmId = actor.FirmId;
+      workflowBinding.ClientId = request.ClientId!.Value;
+      workflowBinding.EngagementId = request.EngagementId!.Value;
+      workflowBinding.WorkTaskId = task.Id;
+      workflowBinding.AssigneeUserIdSnapshot = task.AssigneeUserId;
+      workflowBinding.CreatedByUserId = actor.UserId;
+      workflowBinding.CreatedAt = task.CreatedAt;
+      db.WorkflowTaskBindings.Add(workflowBinding);
+    }
     await db.SaveChangesAsync(ct);
-    await tx.CommitAsync(ct);
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(task.Id);
   }
 
   public static Task<CommandResult> AssignTaskAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid taskId, Guid assigneeUserId,
-    CancellationToken ct = default) => SetAssigneeAsync(db, actor, taskId, assigneeUserId, false, ct);
+    CancellationToken ct = default) => SetAssigneeAsync(db, actor, taskId, assigneeUserId, false, null, ct);
+
+  internal static Task<CommandResult> AssignWorkflowTaskAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid taskId, Guid assigneeUserId,
+    long expectedRevision, CancellationToken ct = default) =>
+    SetAssigneeAsync(db, actor, taskId, assigneeUserId, false, expectedRevision, ct);
 
   public static Task<CommandResult> ReassignTaskAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid taskId, Guid assigneeUserId,
-    CancellationToken ct = default) => SetAssigneeAsync(db, actor, taskId, assigneeUserId, true, ct);
+    CancellationToken ct = default) => SetAssigneeAsync(db, actor, taskId, assigneeUserId, true, null, ct);
 
-  public static async Task<CommandResult> CompleteTaskAsync(
-    IAuditSphereDbContext db, ActorContext actor, Guid taskId, CancellationToken ct = default)
+  internal static Task<CommandResult> ReassignWorkflowTaskAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid taskId, Guid assigneeUserId,
+    long expectedRevision, CancellationToken ct = default) =>
+    SetAssigneeAsync(db, actor, taskId, assigneeUserId, true, expectedRevision, ct);
+
+  public static Task<CommandResult> CompleteTaskAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid taskId, CancellationToken ct = default) =>
+    CompleteTaskCoreAsync(db, actor, taskId, null, ct);
+
+  internal static Task<CommandResult> CompleteWorkflowTaskAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid taskId, long expectedRevision, CancellationToken ct = default) =>
+    CompleteTaskCoreAsync(db, actor, taskId, expectedRevision, ct);
+
+  private static async Task<CommandResult> CompleteTaskCoreAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid taskId, long? expectedRevision, CancellationToken ct)
   {
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     var firm = await LockFirmAsync(db, actor.FirmId, ct);
@@ -187,6 +247,9 @@ public static class PracticeTimeService
     if (task is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizeTaskAsync(db, actor, task, WorkRoles, ct);
     if (!auth.Succeeded) return auth;
+    var workflowBinding = await LockWorkflowBindingAsync(db, actor.FirmId, task.Id, ct);
+    if (expectedRevision.HasValue && (workflowBinding is null || workflowBinding.Revision != expectedRevision.Value))
+      return CommandResult.Fail(ErrorCodes.StaleRevision, "The workflow task changed. Refresh it and try again.");
     if (task.Status == PracticeTimeStates.TaskCompleted) return CommandResult.Ok();
     if (task.Status == PracticeTimeStates.TaskCancelled)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "A cancelled task cannot be completed.");
@@ -195,6 +258,12 @@ public static class PracticeTimeService
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Only the assignee or an authorized manager can complete this task.");
     task.Status = PracticeTimeStates.TaskCompleted;
     task.CompletedAt = DateTimeOffset.UtcNow;
+    if (workflowBinding is not null)
+    {
+      if (workflowBinding.Revision == long.MaxValue)
+        return CommandResult.Fail(ErrorCodes.ProtectedState, "The workflow task revision cannot advance further.");
+      workflowBinding.Revision++;
+    }
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
     return CommandResult.Ok();
@@ -547,7 +616,7 @@ public static class PracticeTimeService
 
   private static async Task<CommandResult> SetAssigneeAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid taskId, Guid assigneeUserId,
-    bool reassign, CancellationToken ct)
+    bool reassign, long? expectedRevision, CancellationToken ct)
   {
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
@@ -561,6 +630,9 @@ public static class PracticeTimeService
     if (task is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizeTaskAsync(db, actor, task, ApprovalRoles, ct);
     if (!auth.Succeeded) return auth;
+    var workflowBinding = await LockWorkflowBindingAsync(db, actor.FirmId, task.Id, ct);
+    if (expectedRevision.HasValue && (workflowBinding is null || workflowBinding.Revision != expectedRevision.Value))
+      return CommandResult.Fail(ErrorCodes.StaleRevision, "The workflow task changed. Refresh it and try again.");
     if (task.Status is PracticeTimeStates.TaskCompleted or PracticeTimeStates.TaskCancelled)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "A closed task cannot be assigned.");
     if (!reassign && task.AssigneeUserId.HasValue)
@@ -570,7 +642,16 @@ public static class PracticeTimeService
       task.ClientId, task.EngagementId, ct);
     if (assignee is not null) return assignee;
     task.AssigneeUserId = assigneeUserId;
-    if (task.Status == PracticeTimeStates.TaskOpen) task.Status = PracticeTimeStates.TaskInProgress;
+    if (task.Status == PracticeTimeStates.TaskOpen)
+      task.Status = PracticeTimeStates.TaskInProgress;
+    if (workflowBinding is not null)
+    {
+      if (workflowBinding.Revision == long.MaxValue)
+        return CommandResult.Fail(ErrorCodes.ProtectedState, "The workflow task revision cannot advance further.");
+      workflowBinding.AssigneeUserIdSnapshot = assigneeUserId;
+      workflowBinding.AssignmentSource = reassign ? "MANUAL_REASSIGNMENT" : "MANUAL";
+      workflowBinding.Revision++;
+    }
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
     return CommandResult.Ok();
@@ -655,6 +736,12 @@ public static class PracticeTimeService
     IAuditSphereDbContext db, Guid firmId, Guid taskId, CancellationToken ct) =>
     db.WorkTasks.FromSqlInterpolated(
       $"SELECT * FROM work_tasks WHERE id = {taskId} AND firm_id = {firmId} FOR UPDATE").SingleOrDefaultAsync(ct);
+
+  private static Task<WorkflowTaskBinding?> LockWorkflowBindingAsync(
+    IAuditSphereDbContext db, Guid firmId, Guid taskId, CancellationToken ct) =>
+    db.WorkflowTaskBindings.FromSqlInterpolated(
+      $"SELECT * FROM workflow_task_bindings WHERE work_task_id = {taskId} AND firm_id = {firmId} FOR UPDATE")
+      .SingleOrDefaultAsync(ct);
 
   private static Task<TimeEntry?> LoadTimeForUpdateAsync(
     IAuditSphereDbContext db, Guid firmId, Guid entryId, CancellationToken ct) =>

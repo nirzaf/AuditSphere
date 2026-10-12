@@ -41,6 +41,17 @@ public sealed class OpenApiContractTests
     var paths = contract.GetProperty("paths");
     Assert.True(paths.TryGetProperty("/api/ui/session", out _));
     Assert.True(paths.TryGetProperty("/api/ui/accounting/clients/{clientId}/open-item-control-reconciliation", out _));
+    Assert.True(paths.TryGetProperty("/api/ui/engagements/{engagementId}/workflow/tasks", out var workflowTasks));
+    Assert.True(workflowTasks.TryGetProperty("get", out _));
+    Assert.True(workflowTasks.TryGetProperty("post", out var createWorkflowTask));
+    var createSchemaName = createWorkflowTask.GetProperty("requestBody").GetProperty("content")
+      .GetProperty("application/json").GetProperty("schema").GetProperty("$ref").GetString()!.Split('/').Last();
+    var createProperties = contract.GetProperty("components").GetProperty("schemas")
+      .GetProperty(createSchemaName).GetProperty("properties");
+    Assert.True(createProperties.TryGetProperty("idempotencyKey", out _));
+    Assert.True(paths.TryGetProperty("/api/ui/engagements/{engagementId}/workflow/tasks/{taskId}/assign", out _));
+    Assert.True(paths.TryGetProperty("/api/ui/engagements/{engagementId}/workflow/tasks/{taskId}/reassign", out _));
+    Assert.True(paths.TryGetProperty("/api/ui/engagements/{engagementId}/workflow/tasks/{taskId}/complete", out _));
     Assert.True(paths.TryGetProperty("/api/ui/accounting/clients/{clientId}/operational-ledger", out var operationalLedger));
     var ledgerParameters = operationalLedger.GetProperty("get").GetProperty("parameters").EnumerateArray()
       .Select(parameter => parameter.GetProperty("name").GetString()).ToHashSet(StringComparer.Ordinal);

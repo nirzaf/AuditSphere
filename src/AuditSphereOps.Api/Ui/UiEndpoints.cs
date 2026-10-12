@@ -99,6 +99,8 @@ public static partial class UiEndpoints
     MapChartEndpoints(group);
     MapCurrencyConfigurationEndpoints(group);
     MapWorkbenchEndpoints(group);
+    MapWorkflowTaskEndpoints(group);
+    MapWorkflowTemplateEndpoints(group);
     group.MapGet("/clients/{id:guid}/acceptance", async (Guid id, HttpContext http, TrustedActorResolver resolver,
       IDbContextFactory<AuditSphereDbContext> factory) =>
     {

@@ -64,7 +64,7 @@
     {
       "item": "AS-WF-V22 — v2.2 workflow experience PRs D–I (WF-04 to WF-15) and production acceptance",
       "status": "PARTIAL",
-      "details": "PRs A–C implemented on master without schema change: read-only seven-phase projection (GET /api/ui/engagements/{id}/workflow), Dual-Key readiness cards (GET /api/ui/engagements/{id}/onboarding-readiness), advance-billing truthfulness correction in the lifecycle, Angular engagement workbench with the eleven-stage view kept as a technical panel. Not started: workflow task persistence and templates (WF-04 to WF-06), queues, dependencies and rework routing (WF-07, WF-08, WF-12), automations and PBC follow-up (WF-09, WF-10), annual recurrence (WF-11), completion and archive cards (WF-13), analytics (WF-14), production acceptance (WF-15). Lead-level pre-engagement journey (WF-01 scope LEAD) is not implemented. Open findings are in targetedVerification.workflowExperienceV22. No production acceptance is claimed; the independent pilot and owner approval remain outstanding."
+      "details": "PRs A–C remain as recorded. PRs D–E now add the WF-04 optional WorkTask binding and scoped task commands, WF-05 immutable reviewed/published template revisions, and WF-06 preview/execute/receipt plan instantiation. Plan receipts pin template revision, engagement generation, staffing and statutory schedule; concurrent duplicate execution creates one task set, retries recover the original receipt, and task-plan receipts are append-only. The focused PostgreSQL cohort passed 4/4, the API OpenAPI contract test passed 1/1, Release builds passed, EF drift/OpenAPI drift/docs gates passed. Four new additive migrations are created but not applied to any persistent database. WorkflowExperience remains false by default. No template/plan UI or signed-in browser journey exists yet. WF-07/08/12, WF-09/10, WF-11, WF-13/14, the lead-level journey and WF-15 production acceptance remain pending. No live tenant or professional acceptance is claimed."
     }
   ],
   "targetedVerification": {
@@ -414,7 +414,138 @@
           "The shared instant decoder accepts timestamps without an offset (pre-existing decoder).",
           "No automated test drives a fully paid advance through receipt allocation; the PAID branch relies on the same milestone predicate that ActivateAsync checks, verified by code reading."
         ]
+      },
+      "workflowTaskFoundationPrD": {
+        "recordedAtUtc": "2026-10-12T00:18:35Z",
+        "baseCommit": "f7753f72a9ca5be7ea276a109b03ed96071a93be",
+        "sourceTree": "Uncommitted PR-D changes on master based on the recorded base commit.",
+        "database": "Isolated loopback auditsphere_tests clones created and dropped by PgTestSchema.",
+        "scope": "WF-04 PR-D task persistence foundation: bind optional workflow metadata to existing WorkTask, scoped create/read/assign/reassign/complete, task/time-entry lineage, revision fencing, idempotent create recovery, default-off API configuration.",
+        "migration": {
+          "id": "20261012000128_WorkflowTaskBindings",
+          "status": "CREATED_NOT_APPLIED",
+          "rollback": "Not applicable; no database migration was applied.",
+          "historicalRows": "No backfill or update to existing WorkTask or TimeEntry rows."
+        },
+        "runs": [
+          {
+            "name": "Release solution build",
+            "command": "dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1",
+            "result": "PASS",
+            "warnings": 6,
+            "errors": 0,
+            "note": "NU1900 vulnerability-feed lookup warnings because api.nuget.org was unreachable."
+          },
+          {
+            "name": "Workflow task PostgreSQL tests",
+            "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --configuration Release --maxcpucount:1 --filter FullyQualifiedName~EngagementWorkflowTaskTests",
+            "result": "PASS",
+            "passed": 2,
+            "failed": 0
+          },
+          {
+            "name": "API-host OpenAPI contract test",
+            "command": "dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-build --configuration Release --maxcpucount:1 --filter FullyQualifiedName~OpenApiContractTests.ContractIsGeneratedFromActualEndpointsAsOpenApi31",
+            "result": "PASS",
+            "passed": 1,
+            "failed": 0
+          },
+          {
+            "name": "EF model drift",
+            "command": "dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Api --no-build --configuration Release",
+            "result": "PASS",
+            "note": "No pending model changes."
+          },
+          {
+            "name": "OpenAPI drift",
+            "command": "bash scripts/contracts/verify-openapi.sh",
+            "result": "PASS",
+            "note": "Committed contract matches the real API host."
+          },
+          {
+            "name": "Documentation gates",
+            "result": "PASS",
+            "note": "Markdown health, filenames, narrative metrics and UI source inventory all passed after the PR-D documentation update."
+          }
+        ],
+        "limits": [
+          "No Angular task editor or team queue is part of PR D.",
+          "No signed-in browser journey or live tenant acceptance was performed.",
+          "The new API remains disabled by default until WorkflowExperience:Enabled is explicitly enabled."
+        ]
       }
+    },
+    "workflowTemplatePlanPrE": {
+      "recordedAtUtc": "2026-10-12T01:27:00Z",
+      "baseCommit": "f7753f72a9ca5be7ea276a109b03ed96071a93be",
+      "sourceTree": "Master working tree based on the recorded base commit; the tested source changes are included with this evidence.",
+      "database": "PostgreSQL 18 isolated auditsphere_tests database on 127.0.0.1:5433; PgTestSchema creates and drops a disposable database for each test.",
+      "scope": "WF-04 to WF-06 backend/API foundation: task binding and time lineage, immutable template revisions, schedule/staffing-aware plan preview, transactional idempotent task creation and append-only receipt recovery.",
+      "migrations": {
+        "created_not_applied": [
+          "20261012000128_WorkflowTaskBindings",
+          "20261012003440_WorkflowTemplateCatalog",
+          "20261012004124_WorkflowTemplateOpenRevision",
+          "20261012010500_WorkflowTaskPlanReceipts"
+        ],
+        "persistent_database_changed": false,
+        "historical_work_tasks_or_time_entries_backfilled": false
+      },
+      "runs": [
+        {
+          "name": "Focused workflow PostgreSQL cohort",
+          "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --configuration Release --filter 'FullyQualifiedName~WorkflowTemplateTests|FullyQualifiedName~EngagementWorkflowTaskTests|FullyQualifiedName~EngagementWorkflowPlanTests' --maxcpucount:1",
+          "result": "PASS",
+          "passed": 4,
+          "failed": 0,
+          "note": "Includes template review/publication, task/time lineage and revision fencing, missing schedule refusal, simultaneous duplicate execute, schedule-change receipt recovery, stale preview refusal, version pinning across engagements, and append-only receipt enforcement."
+        },
+        {
+          "name": "Release solution build",
+          "command": "dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1",
+          "result": "PASS",
+          "warnings": 6,
+          "errors": 0,
+          "note": "NU1900 vulnerability-feed lookup warnings because api.nuget.org was unreachable. This build preceded the typed GET route parameter adjustment; the final API build below includes that adjustment."
+        },
+        {
+          "name": "Final API Release build",
+          "command": "dotnet build src/AuditSphereOps.Api/AuditSphereOps.Api.csproj --no-restore --configuration Release --maxcpucount:1",
+          "result": "PASS",
+          "warnings": 2,
+          "errors": 0
+        },
+        {
+          "name": "API-host OpenAPI contract test",
+          "command": "dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-restore --configuration Release --filter 'FullyQualifiedName~OpenApiContractTests.ContractIsGeneratedFromActualEndpointsAsOpenApi31' --maxcpucount:1",
+          "result": "PASS",
+          "passed": 1,
+          "failed": 0
+        },
+        {
+          "name": "EF model drift",
+          "command": "dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Api --no-build --configuration Release",
+          "result": "PASS",
+          "note": "No pending model changes."
+        },
+        {
+          "name": "OpenAPI drift",
+          "command": "bash scripts/contracts/verify-openapi.sh",
+          "result": "PASS",
+          "note": "Contract regenerated from the final API endpoints; typed GET route parameters are present."
+        },
+        {
+          "name": "Documentation gates",
+          "result": "PASS",
+          "note": "Markdown, filename, narrative-metrics and git diff checks passed after the workflow slice documentation update."
+        }
+      ],
+      "limits": [
+        "No Angular template editor or engagement task-plan preview/execute screen has been delivered.",
+        "No signed-in browser journey or live tenant acceptance was performed.",
+        "WorkflowExperience remains disabled by default; enabling it requires an explicit deployment configuration decision.",
+        "Full Domain/API/E2E suites were not run; only the focused workflow PostgreSQL cohort and API OpenAPI contract test ran."
+      ]
     }
   },
   "externalGates": [

@@ -139,6 +139,13 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<CorrespondenceDispatchRecord> CorrespondenceDispatchRecords => Set<CorrespondenceDispatchRecord>();
 
   public DbSet<WorkTask> WorkTasks => Set<WorkTask>();
+  public DbSet<WorkflowTaskBinding> WorkflowTaskBindings => Set<WorkflowTaskBinding>();
+  public DbSet<WorkflowTemplate> WorkflowTemplates => Set<WorkflowTemplate>();
+  public DbSet<WorkflowTemplateRevision> WorkflowTemplateRevisions => Set<WorkflowTemplateRevision>();
+  public DbSet<WorkflowTemplateStep> WorkflowTemplateSteps => Set<WorkflowTemplateStep>();
+  public DbSet<WorkflowTemplateDependency> WorkflowTemplateDependencies => Set<WorkflowTemplateDependency>();
+  public DbSet<WorkflowTemplateDecision> WorkflowTemplateDecisions => Set<WorkflowTemplateDecision>();
+  public DbSet<WorkflowTaskPlanReceipt> WorkflowTaskPlanReceipts => Set<WorkflowTaskPlanReceipt>();
 
   public DbSet<TimeEntry> TimeEntries => Set<TimeEntry>();
 
@@ -562,6 +569,9 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
     }
     ConfigureMoney(b);
     ConfigurePractice(b);
+    ConfigureWorkflowTasks(b);
+    ConfigureWorkflowTemplates(b);
+    ConfigureWorkflowTaskPlanReceipts(b);
     ConfigureClientContactCreations(b);
     ConfigureClientConversions(b);
     ConfigureAssessmentReceipts(b);
