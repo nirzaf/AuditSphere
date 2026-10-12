@@ -18155,13 +18155,17 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("FirmId", "AuthorUserId");
 
+                    b.HasIndex("FirmId", "DeliveredAt", "PbcRequestId")
+                        .HasDatabaseName("IX_pbc_communications_sent_delivery")
+                        .HasFilter("kind = 'EMAIL' AND delivery_state = 'SENT' AND delivered_at IS NOT NULL");
+
                     b.HasIndex("FirmId", "PbcRequestId", "CreatedAt");
 
                     b.HasIndex("FirmId", "ClientId", "EngagementId", "PbcRequestId");
 
                     b.ToTable("pbc_communications", null, t =>
                         {
-                            t.HasCheckConstraint("ck_pbc_communication_values", "kind IN ('REQUEST','STAFF_MESSAGE','CLIENT_MESSAGE','EMAIL') AND length(trim(body)) > 0 AND (delivery_state IS NULL OR delivery_state IN ('QUEUED','SENT','FAILED','UNCERTAIN')) AND ((kind = 'EMAIL' AND recipient_email IS NOT NULL AND subject IS NOT NULL AND portal_url IS NOT NULL AND delivery_state IS NOT NULL) OR (kind <> 'EMAIL' AND recipient_email IS NULL AND subject IS NULL AND portal_url IS NULL AND delivery_state IS NULL))");
+                            t.HasCheckConstraint("ck_pbc_communication_values", "kind IN ('REQUEST','STAFF_MESSAGE','CLIENT_MESSAGE','CLIENT_ACTION','EMAIL') AND length(trim(body)) > 0 AND (delivery_state IS NULL OR delivery_state IN ('QUEUED','SENT','FAILED','UNCERTAIN')) AND ((kind = 'EMAIL' AND recipient_email IS NOT NULL AND subject IS NOT NULL AND portal_url IS NOT NULL AND delivery_state IS NOT NULL) OR (kind <> 'EMAIL' AND recipient_email IS NULL AND subject IS NULL AND portal_url IS NULL AND delivery_state IS NULL))");
                         });
                 });
 

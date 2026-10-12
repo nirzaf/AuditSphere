@@ -15,6 +15,14 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## v2.2 workflow analytics — client wait — 2026-10-12
+
+Practice Analytics measures PBC wait from provider-accepted email to recorded client message, acknowledgement/resubmission or upload. Queued, failed, uncertain and reminder mail do not start/reset; provider acceptance is not inbox delivery. The period filters starts, responses are observed through query time, and terminal requests without response evidence are excluded.
+
+Caps are 5,000 sends, 2,000 requests and 20,000 events; exceeding them yields unavailable, never partial totals. Acknowledgement/resubmission appends `CLIENT_ACTION`; migration remains unapplied.
+
+Focused PostgreSQL 3/3 and Angular 5/5 passed; API/UI builds, EF and OpenAPI passed. Browser reached sign-in guard (local API unavailable). No full suite or live acceptance; WF-14 remains PARTIAL.
+
 ## v2.2 workflow activity — task event trace — 2026-10-12
 
 WF-14 now persists append-only `Operational Task` activity for workflow-task creation, initial assignment, assignment, reassignment and completion. Each event links the exact existing `WorkTask` and `WorkflowTaskBinding`, scope, actor, optional assigned staff member, task revision and timestamp. Events are written in the same transaction as the successful task command; idempotent replays and refused/no-op commands do not create duplicate events. PostgreSQL rejects event updates and deletes and rejects inserts whose work task does not match the referenced binding. The timeline query reauthorizes the current engagement grant, caps date filters at 90 UTC days, uses keyset pagination and returns no task title, free-form note, risk evidence or audit conclusion from the event table.

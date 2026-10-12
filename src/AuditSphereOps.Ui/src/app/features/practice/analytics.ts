@@ -16,6 +16,8 @@ export const decodeAnalytics = obj({ from: date, to: date, engagements: arr(row,
   workload: arr(obj({ assigneeKey: text, assigneeName: text, due: nat, completed: nat, open: nat, overdue: nat })),
   phaseWorkload: arr(obj({ phase: text, label: text, due: nat, completed: nat, open: nat, overdue: nat, completionPercent: nullable(dec) }), 8),
   reviewTurnaround: obj({ decisions: nat, reviewed: nat, changesRequired: nat, measured: nat, excluded: nat, averageHours: nullable(dec) }),
+  clientWait: obj({ intervals: nat, completed: nat, open: nat, excluded: nat, averageCompletedHours: nullable(dec),
+    averageOpenHours: nullable(dec), available: bool, unavailableReason: nullable(text) }),
   definitions: arr(text, 50) });
 
 export function hours(minutes: number, places = 1): string {
@@ -80,6 +82,19 @@ export function hours(minutes: number, places = 1): string {
         <p>Average elapsed time from result submission to each review decision created in this period. Includes reviewed and changes-required decisions; this is an operational duration, not review quality or audit clearance.</p>
         <p aria-label="Procedure review turnaround">{{ v.reviewTurnaround.averageHours === null ? 'n/a' : v.reviewTurnaround.averageHours + ' h' }} average across {{ v.reviewTurnaround.measured }} measured decisions ·
           {{ v.reviewTurnaround.reviewed }} reviewed · {{ v.reviewTurnaround.changesRequired }} changes required · {{ v.reviewTurnaround.excluded }} excluded chronology or revision records.</p>
+      </section>
+      <section class="panel" aria-labelledby="client-wait-heading">
+        <h2 id="client-wait-heading">Client response wait</h2>
+        @if (!v.clientWait.available) {
+          <p role="status">Unavailable: {{ v.clientWait.unavailableReason }}</p>
+        } @else {
+          <p>The selected period filters confirmed PBC email starts; later client actions are included through now. Reminder emails do not restart the clock, and provider acceptance does not prove inbox delivery.</p>
+          <p aria-label="Client response wait">
+            {{ v.clientWait.averageCompletedHours === null ? 'n/a' : v.clientWait.averageCompletedHours + ' h' }} average for {{ v.clientWait.completed }} completed intervals ·
+            {{ v.clientWait.open }} currently open{{ v.clientWait.averageOpenHours === null ? '' : ' (' + v.clientWait.averageOpenHours + ' h average)' }} ·
+            {{ v.clientWait.excluded }} excluded terminal requests without a recorded client response · {{ v.clientWait.intervals }} intervals started in this period.
+          </p>
+        }
       </section>
       <section class="panel" aria-labelledby="phase-workload-heading">
         <h2 id="phase-workload-heading">Task completion by workflow phase</h2>

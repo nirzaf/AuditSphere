@@ -77,7 +77,8 @@ public static class ClientPortalWorkspaceQuery
       uploads.Select(x => new PortalUploadItem(x.Id, x.FileName, x.ReceivedByteCount.ToString(CultureInfo.InvariantCulture), x.DeclaredByteCount.ToString(CultureInfo.InvariantCulture),
         x.State, x.TransferOperationId is { } op && states.TryGetValue(op, out var state) ? state : null, x.DeclaredSha256Hex, x.CreatedAt.ToUniversalTime().ToString("O"))).ToArray(),
       messages.Select(x => new PortalConversationItem(x.Id, x.CreatedAt.ToUniversalTime().ToString("O"),
-        x.Kind == PbcCommunicationKinds.ClientMessage ? "Client" : x.Kind == PbcCommunicationKinds.Email ? "Email notification" : "Audit team", x.Body)).ToArray(),
+        x.Kind is PbcCommunicationKinds.ClientMessage or PbcCommunicationKinds.ClientAction ? "Client"
+          : x.Kind == PbcCommunicationKinds.Email ? "Email notification" : "Audit team", x.Body)).ToArray(),
       request.ClarificationReason));
   }
   private static Task<bool> IsClientAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct) =>

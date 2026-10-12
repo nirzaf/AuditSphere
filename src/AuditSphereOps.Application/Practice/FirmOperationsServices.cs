@@ -3,6 +3,7 @@ using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Audit;
+using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
@@ -160,15 +161,17 @@ public sealed record MilestonePerformance(int Due, int Completed, int CompletedO
 public sealed record TaskWorkloadRow(string AssigneeKey, string AssigneeName, int Due, int Completed, int Open, int Overdue);
 public sealed record TaskPhasePerformance(string Phase, string Label, int Due, int Completed, int Open, int Overdue, decimal? CompletionPercent);
 public sealed record ReviewTurnaround(int Decisions, int Reviewed, int ChangesRequired, int Measured, int Excluded, decimal? AverageHours);
+public sealed record ClientWaitSummary(int Intervals, int Completed, int Open, int Excluded,
+  decimal? AverageCompletedHours, decimal? AverageOpenHours, bool Available, string? UnavailableReason);
 public sealed record PracticeAnalyticsView(DateOnly From, DateOnly To, IReadOnlyList<EngagementEconomicsRow> Engagements, IReadOnlyList<DepartmentUtilizationRow> Departments,
   MilestonePerformance Milestones, IReadOnlyList<TaskWorkloadRow> Workload, IReadOnlyList<TaskPhasePerformance> PhaseWorkload,
-  ReviewTurnaround ReviewTurnaround, IReadOnlyList<string> Definitions);
+  ReviewTurnaround ReviewTurnaround, ClientWaitSummary ClientWait, IReadOnlyList<string> Definitions);
 
 /// <summary>
-/// Defined, reconcilable practice measures from approved records only. Standard value is approved time at its captured
-/// charge-out rate; cost is approved time at the staff member's recorded internal cost rate (never the charge-out
-/// rate); billed is posted invoice lines traced to the engagement's time or fee milestones; collected is receipts
-/// allocated to those invoices. A measure without its inputs is reported as unavailable rather than zero.
+/// Defined practice measures from persisted evidence. Financial totals use approved time and posted billing records;
+/// client wait uses provider-accepted PBC sends and recorded client actions. Standard value is approved time at its
+/// captured charge-out rate; cost is the staff member's recorded internal cost rate, never the charge-out rate. Missing
+/// inputs are reported as unavailable rather than zero.
 /// </summary>
 public static class PracticeAnalyticsQuery
 {
@@ -185,7 +188,8 @@ public static class PracticeAnalyticsQuery
     "Utilization = approved billable minutes ÷ (weekly capacity × weeks − recorded unavailability). Task completion = due-date tasks completed ÷ non-cancelled tasks due in the selected period; tasks without a due date are not applicable. On-time = tasks completed by their due date ÷ tasks due in the period.",
     "Workload = non-cancelled tasks due in the selected period, grouped by assigned staff member. Open includes overdue tasks; overdue is also shown separately. Unassigned and unavailable staff assignments have separate buckets. This is a task count, not a capacity or effort measure.",
     "Phase task performance = non-cancelled tasks due in the selected period grouped by their current workflow phase binding. Tasks without a workflow binding appear separately as unassigned phase. Completion is task status plus persisted completion timestamp; these operational counts do not establish phase or audit-gate readiness.",
-    "Review turnaround = average elapsed hours from submission of the exact procedure-result revision to each append-only review decision created in the selected period. Both REVIEWED and CHANGES_REQUIRED decisions are included; result-revision mismatches and decisions before submission are excluded and counted. This is an operational duration, not a review-quality or audit-clearance measure."
+    "Review turnaround = average elapsed hours from submission of the exact procedure-result revision to each append-only review decision created in the selected period. Both REVIEWED and CHANGES_REQUIRED decisions are included; result-revision mismatches and decisions before submission are excluded and counted. This is an operational duration, not a review-quality or audit-clearance measure.",
+    "Client wait = intervals beginning with the first provider-accepted PBC email send while no prior client response is outstanding, and ending at the first recorded client message, acknowledgement/resubmission action, or client upload initiation. The selected period filters interval starts; later client actions are observed through query time. Queued, failed, uncertain and reminder emails do not start or reset a wait. Provider acceptance is not proof of inbox delivery. Open intervals are shown only for requests still in a client-waiting state; terminal requests without a recorded response are excluded. Large samples return unavailable and require a narrower period instead of a partial result."
   ];
 
   public static async Task<CommandResult<PracticeAnalyticsView>> GetAsync(IClientAccountingDbContext db, ActorContext actor, DateOnly from, DateOnly to, CancellationToken ct = default)
@@ -399,7 +403,8 @@ public static class PracticeAnalyticsQuery
       reviewRows.Count(x => x.Decision == AuditProcedureReviewDecisions.Reviewed),
       reviewRows.Count(x => x.Decision == AuditProcedureReviewDecisions.ChangesRequired), measurableReviews.Length,
       reviewRows.Count - measurableReviews.Length, averageReviewHours);
-    return CommandResult<PracticeAnalyticsView>.Ok(new(from, to, rows, departments, milestones, workload, phaseWorkload, reviewTurnaround, Definitions));
+    var clientWait = await PracticeClientWaitQuery.GetAsync(db, f, from, to, ct);
+    return CommandResult<PracticeAnalyticsView>.Ok(new(from, to, rows, departments, milestones, workload, phaseWorkload, reviewTurnaround, clientWait, Definitions));
   }
 
   public static async Task<CommandResult<Guid>> RecordCostRateAsync(IClientAccountingDbContext db, ActorContext actor, Guid userId, decimal hourlyCost, string currency, DateOnly effectiveFrom, CancellationToken ct = default)

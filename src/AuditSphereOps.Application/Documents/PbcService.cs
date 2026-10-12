@@ -434,6 +434,15 @@ public static class PbcService
     request.UpdatedAt = DateTimeOffset.UtcNow;
     request.ClarificationReason = input.State == PbcStates.ClarificationRequired
       ? input.ClarificationReason!.Trim() : request.ClarificationReason;
+    if (input.State is PbcStates.Acknowledged or PbcStates.Resubmitted)
+      db.PbcCommunications.Add(new PbcCommunication
+      {
+        Id = Guid.CreateVersion7(), FirmId = request.FirmId, ClientId = request.ClientId,
+        EngagementId = request.EngagementId, PbcRequestId = request.Id, AuthorUserId = actor.UserId,
+        Kind = PbcCommunicationKinds.ClientAction,
+        Body = input.State == PbcStates.Acknowledged ? "The client acknowledged this request." : "The client resubmitted this request.",
+        CreatedAt = request.UpdatedAt
+      });
     if (input.State == PbcStates.Accepted)
     {
       request.AcceptedByUserId = actor.UserId;

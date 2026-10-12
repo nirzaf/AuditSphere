@@ -63,7 +63,8 @@ public static class PbcInboxWorkspaceQuery
       var mine = intents.Where(i => i.PbcRequestId == r.Id).ToList();
       var timeline = communications.Where(c => c.PbcRequestId == r.Id).Select(c => new PbcTimelineItem(c.CreatedAt,
           c.Kind == PbcCommunicationKinds.Email ? EmailLabel(c, emailOperationStates) :
-          c.Kind == PbcCommunicationKinds.ClientMessage ? $"Client — {Name(c.AuthorUserId)}" : $"Staff — {Name(c.AuthorUserId)}", c.Body))
+          c.Kind is PbcCommunicationKinds.ClientMessage or PbcCommunicationKinds.ClientAction
+            ? $"Client — {Name(c.AuthorUserId)}" : $"Staff — {Name(c.AuthorUserId)}", c.Body))
         .Concat(mine.Select(i => new PbcTimelineItem(i.CreatedAt, $"Client uploaded {i.FileName}", $"{i.ReceivedByteCount} of {i.DeclaredByteCount} bytes — {i.State}")))
         .OrderBy(x => x.At).ToList();
       return new PbcRequestRow(r.Id, r.Area, r.Objective, r.DueDate, r.State, r.Revision,

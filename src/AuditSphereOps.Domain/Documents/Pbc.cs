@@ -34,6 +34,7 @@ public static class PbcCommunicationKinds
   public const string Request = "REQUEST";
   public const string StaffMessage = "STAFF_MESSAGE";
   public const string ClientMessage = "CLIENT_MESSAGE";
+  public const string ClientAction = "CLIENT_ACTION";
   public const string Email = "EMAIL";
 }
 

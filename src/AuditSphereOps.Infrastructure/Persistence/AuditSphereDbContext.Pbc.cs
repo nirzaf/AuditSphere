@@ -111,7 +111,10 @@ public sealed partial class AuditSphereDbContext
     communication.Property(x => x.ProviderCorrelationId).HasMaxLength(500);
     communication.HasIndex(x => new { x.FirmId, x.PbcRequestId, x.CreatedAt });
     communication.ToTable("pbc_communications", t => t.HasCheckConstraint("ck_pbc_communication_values",
-      "kind IN ('REQUEST','STAFF_MESSAGE','CLIENT_MESSAGE','EMAIL') AND length(trim(body)) > 0 AND (delivery_state IS NULL OR delivery_state IN ('QUEUED','SENT','FAILED','UNCERTAIN')) AND ((kind = 'EMAIL' AND recipient_email IS NOT NULL AND subject IS NOT NULL AND portal_url IS NOT NULL AND delivery_state IS NOT NULL) OR (kind <> 'EMAIL' AND recipient_email IS NULL AND subject IS NULL AND portal_url IS NULL AND delivery_state IS NULL))"));
+      "kind IN ('REQUEST','STAFF_MESSAGE','CLIENT_MESSAGE','CLIENT_ACTION','EMAIL') AND length(trim(body)) > 0 AND (delivery_state IS NULL OR delivery_state IN ('QUEUED','SENT','FAILED','UNCERTAIN')) AND ((kind = 'EMAIL' AND recipient_email IS NOT NULL AND subject IS NOT NULL AND portal_url IS NOT NULL AND delivery_state IS NOT NULL) OR (kind <> 'EMAIL' AND recipient_email IS NULL AND subject IS NULL AND portal_url IS NULL AND delivery_state IS NULL))"));
+    communication.HasIndex(x => new { x.FirmId, x.DeliveredAt, x.PbcRequestId })
+      .HasFilter("kind = 'EMAIL' AND delivery_state = 'SENT' AND delivered_at IS NOT NULL")
+      .HasDatabaseName("IX_pbc_communications_sent_delivery");
     communication.HasOne<PbcRequest>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.PbcRequestId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);

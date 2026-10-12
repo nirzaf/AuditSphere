@@ -64,7 +64,7 @@
     {
       "item": "AS-WF-V22 \u2014 v2.2 workflow experience PRs D\u2013I (WF-04 to WF-15) and production acceptance",
       "status": "PARTIAL",
-      "details": "WF-13 projects candidate, exact checkpoint and persisted Release evidence. WF-14 reports due-task completion/workload with phase rollups and average elapsed hours for append-only procedure-review decisions; it now also records append-only Operational Task creation, initial assignment, assignment/reassignment and completion events in the command transaction, with a grant-scoped 90-day keyset-paged timeline. Existing slices include pinned templates and plan receipts, grant-scoped queues, PBC follow-ups/reminders and manager-review rework linkage; see the current-slice handoff. Open: client wait, additional activity sources and event kinds, remaining queue states/filters, notification/escalation coverage, domain-evidence dependencies, Kanban/calendar, recurring creation, deadline automation, task-plan authoring UI, and analytics pagination/performance. No full suite, authenticated activity-browser journey, live-provider or professional acceptance is recorded; overall v2.2 remains PARTIAL."
+      "details": "WF-13 projects candidate, exact checkpoint and persisted Release evidence. WF-14 reports due-task completion/workload with phase rollups and average elapsed hours for append-only procedure-review decisions; Practice analytics also reports bounded PBC client-wait intervals from provider-accepted sends to recorded client actions; it excludes reminders and unconfirmed mail and never presents partial results. WF-14 also records append-only Operational Task creation, initial assignment, assignment/reassignment and completion events in the command transaction, with a grant-scoped 90-day keyset-paged timeline. Existing slices include pinned templates and plan receipts, grant-scoped queues, PBC follow-ups/reminders and manager-review rework linkage; see the current-slice handoff. Open: additional activity sources and event kinds, remaining queue states/filters, notification/escalation coverage, domain-evidence dependencies, Kanban/calendar, recurring creation, deadline automation, task-plan authoring UI, and analytics pagination/performance. No full suite, authenticated activity-browser journey, live-provider or professional acceptance is recorded; overall v2.2 remains PARTIAL."
     }
   ],
   "targetedVerification": {
@@ -993,6 +993,22 @@
         "docsMarkdown": "LIMITED: current-slice is 59158 bytes and documentation content checks pass; filename validator flags only the preserved staged user requirements file STE_Audit_Management_Requirements_v2.2.md"
       },
       "acceptance": "Focused working-tree evidence only; full suite not run; migrations unapplied to persistent databases; no authenticated browser journey or external/professional acceptance."
+    },
+    "workflowClientWait": {
+      "recordedAtUtc": "2026-10-12T07:01:17Z",
+      "baseCommit": "d4f013da",
+      "scope": "WF-14 PBC client-wait intervals and append-only client acknowledgement/resubmission evidence; migration 20261012064219_PbcClientWaitAnalytics is additive and unapplied to persistent databases.",
+      "runs": {
+        "apiReleaseBuild": "PASS: 0 errors, 2 offline NU1900 warnings",
+        "postgresClientWait": "PASS: 3/3 focused cases; provider-accepted sends, duplicate send, reminder suppression, queued/failed exclusion, client message/upload/action, terminal exclusion, cross-firm isolation and bounded no-partial behavior",
+        "angularAnalytics": "PASS: 5/5 focused contract tests",
+        "angularProductionBuild": "PASS with NG_BUILD_CACHE_STORE=sqlite and existing commercial/settings.scss budget warning; default cache backend aborted with exit 134 and no diagnostics",
+        "efModelDrift": "PASS: no pending model changes",
+        "openApiDrift": "PASS: current, unchanged",
+        "browser": "LIMITED: local Angular route redirected to staff sign-in guard; /api/ui/session was refused because no local API/session was running",
+        "docs": "LIMITED: Markdown health and filename gates flag only the preserved staged user file STE_Audit_Management_Requirements_v2.2.md; narrative metrics, UI inventory, JSON syntax and git diff checks pass"
+      },
+      "acceptance": "Focused local evidence only. No full suite, persistent migration, authenticated browser metric view, live mail/provider or professional acceptance; WF-14 and v2.2 remain PARTIAL."
     }
   },
   "externalGates": [
