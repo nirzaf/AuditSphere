@@ -1,6 +1,7 @@
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
+using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
@@ -16,7 +17,7 @@ public sealed record WorkflowTaskQueueRow(Guid TaskId, Guid ClientId, string Cli
   string TaskStatus, Guid? AssigneeUserId, string? AssigneeDisplayName, DateOnly? DueDate,
   Guid? MappingVersionId, string? FsliCode, int UnmetTaskDependencies, bool CanComplete,
   bool CanChangeDueDate, long Revision,
-  Guid? PbcRequestId, string? PbcState);
+  Guid? PbcRequestId, string? PbcState, string? ReviewState, string? ReviewComment);
 public sealed record WorkflowTaskQueue(string View, IReadOnlyList<WorkflowTaskQueueRow> Tasks,
   bool HasMore, WorkflowTaskQueueCursor? NextCursor);
 
@@ -34,6 +35,7 @@ public static class WorkflowTaskQueueQuery
   private const string Overdue = "OVERDUE";
   private const string Completed = "COMPLETED";
   private const string WaitingForClient = "WAITING_FOR_CLIENT";
+  private const string ChangesRequired = "CHANGES_REQUIRED";
   private static readonly string[] ClientWaitingPbcStates =
     [PbcStates.Sent, PbcStates.Acknowledged, PbcStates.PartiallyReceived, PbcStates.ClarificationRequired];
 
@@ -41,7 +43,7 @@ public static class WorkflowTaskQueueQuery
     IAuditSphereDbContext db, ActorContext actor, WorkflowTaskQueueRequest request, CancellationToken ct = default)
   {
     var view = request.View?.Trim().ToUpperInvariant();
-    if (view is not (MyTasks or Team or Overdue or Completed or WaitingForClient) || request.PageSize is < 1 or > 100 ||
+    if (view is not (MyTasks or Team or Overdue or Completed or WaitingForClient or ChangesRequired) || request.PageSize is < 1 or > 100 ||
         (request.AfterTaskId is null && request.AfterDueDate.HasValue))
       return CommandResult<WorkflowTaskQueue>.Fail("workflow.queue-invalid",
         "Choose a supported queue view, page size from 1 to 100, and a valid task cursor.");
@@ -84,6 +86,16 @@ public static class WorkflowTaskQueueQuery
         equals new { pbcRequest.FirmId, pbcRequest.ClientId, pbcRequest.EngagementId, Id = (Guid?)pbcRequest.Id }
         into pbcRequests
       from pbcRequest in pbcRequests.DefaultIfEmpty()
+      join reviewResult in db.AuditProcedureResults.AsNoTracking()
+        on new { binding.FirmId, binding.ClientId, binding.EngagementId, binding.ReviewProcedureResultId }
+        equals new { reviewResult.FirmId, reviewResult.ClientId, reviewResult.EngagementId, ReviewProcedureResultId = (Guid?)reviewResult.Id }
+        into reviewResults
+      from reviewResult in reviewResults.DefaultIfEmpty()
+      join reviewProcedure in db.AuditProcedures.AsNoTracking()
+        on new { reviewResult.FirmId, Id = reviewResult.AuditProcedureId }
+        equals new { reviewProcedure.FirmId, Id = reviewProcedure.Id }
+        into reviewProcedures
+      from reviewProcedure in reviewProcedures.DefaultIfEmpty()
       where binding.FirmId == actor.FirmId &&
         (firmWide || clientIds.Contains(binding.ClientId) || engagementIds.Contains(binding.EngagementId))
       select new
@@ -93,7 +105,11 @@ public static class WorkflowTaskQueueQuery
         EngagementServiceRoute = engagement.ServiceRoute,
         EngagementPeriod = engagement.PeriodStart + " – " + engagement.PeriodEnd,
         task.Title, task.Status, task.AssigneeUserId, task.DueDate, task.MappingVersionId, task.FsliCode,
-        PbcRequestId = binding.PbcRequestId, PbcState = pbcRequest == null ? null : pbcRequest.State
+        PbcRequestId = binding.PbcRequestId, PbcState = pbcRequest == null ? null : pbcRequest.State,
+        ReviewState = reviewResult != null && reviewProcedure != null &&
+          reviewProcedure.CurrentResultRevision == reviewResult.Revision ? reviewResult.Status : null,
+        ReviewComment = reviewResult != null && reviewProcedure != null &&
+          reviewProcedure.CurrentResultRevision == reviewResult.Revision ? reviewResult.ReviewComment : null
       };
 
     if (view == MyTasks)
@@ -105,6 +121,8 @@ public static class WorkflowTaskQueueQuery
     else if (view == WaitingForClient)
       query = query.Where(x => ActiveTaskStates.Contains(x.Status) && x.PbcRequestId.HasValue &&
         x.PbcState != null && ClientWaitingPbcStates.Contains(x.PbcState));
+    else if (view == ChangesRequired)
+      query = query.Where(x => x.ReviewState == AuditProcedureResultStatuses.ChangesRequired);
     else
       query = query.Where(x => x.Status == PracticeTimeStates.TaskCompleted);
 
@@ -155,7 +173,7 @@ public static class WorkflowTaskQueueQuery
         x.EngagementServiceRoute, x.EngagementPeriod, x.Title, x.Phase, x.Ordinal, x.Status,
         x.AssigneeUserId, x.AssigneeUserId is { } userId ? assignees.GetValueOrDefault(userId) : null,
         x.DueDate, x.MappingVersionId, x.FsliCode, unmetCount, canComplete, canChangeDueDate, x.Revision,
-        x.PbcRequestId, x.PbcState);
+        x.PbcRequestId, x.PbcState, x.ReviewState, x.ReviewComment);
     }).ToArray();
     var last = page[^1];
     return CommandResult<WorkflowTaskQueue>.Ok(new WorkflowTaskQueue(view!, rows, hasMore,

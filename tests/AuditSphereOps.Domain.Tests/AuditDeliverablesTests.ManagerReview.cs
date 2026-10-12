@@ -1,4 +1,5 @@
 using AuditSphereOps.Application.Audit;
+using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Infrastructure.Persistence;
@@ -34,8 +35,9 @@ public sealed partial class AuditDeliverablesTests
     await using var db = new AuditSphereDbContext(pg.Options);
     var reviewer = w.A("senior", "Senior");
 
+    const string reviewComment = "Reconcile the sample exception to source evidence.";
     var decision = await AuditProgramService.ReviewResultAsync(db, reviewer,
-      new ReviewProcedureResultRequest(w.ResultId, AuditProcedureReviewDecisions.ChangesRequired, "Reconcile the sample exception to source evidence."),
+      new ReviewProcedureResultRequest(w.ResultId, AuditProcedureReviewDecisions.ChangesRequired, reviewComment),
       createWorkflowReworkTask: true);
 
     Assert.True(decision.Succeeded, decision.Message);
@@ -46,6 +48,14 @@ public sealed partial class AuditDeliverablesTests
     Assert.Contains(w.ProcedureId.ToString("N"), binding.SourceKey, StringComparison.Ordinal);
     Assert.Equal(AuditProcedureReviewDecisions.ChangesRequired,
       await db.AuditProcedureReviews.Where(x => x.AuditProcedureResultId == w.ResultId).Select(x => x.Decision).SingleAsync());
+
+    var changesRequired = await WorkflowTaskQueueQuery.GetAsync(db, w.A("associate", "Staff"),
+      new WorkflowTaskQueueRequest("CHANGES_REQUIRED"));
+    Assert.True(changesRequired.Succeeded, changesRequired.Message);
+    var changeRow = Assert.Single(changesRequired.Value!.Tasks);
+    Assert.Equal(task.Id, changeRow.TaskId);
+    Assert.Equal(AuditProcedureResultStatuses.ChangesRequired, changeRow.ReviewState);
+    Assert.Equal(reviewComment, changeRow.ReviewComment);
 
     var summary = await ManagerReviewSummaryQuery.GetAsync(db, w.A("manager", "Manager"), w.EngagementId);
     Assert.True(summary.Succeeded, summary.Message);
@@ -59,5 +69,14 @@ public sealed partial class AuditDeliverablesTests
     Assert.Equal(AuditSphereOps.Domain.Shared.ErrorCodes.ProtectedState, replay.ErrorCode);
     Assert.Equal(1, await db.WorkTasks.CountAsync(x => x.FirmId == w.FirmId && x.EngagementId == w.EngagementId));
     Assert.Equal(1, await db.AuditProcedureReviews.CountAsync(x => x.AuditProcedureResultId == w.ResultId));
+
+    var resubmission = await AuditProgramService.SubmitResultAsync(db, w.A("associate", "Staff"),
+      new SubmitProcedureResultRequest(w.ProcedureId, 1, "Reworked the sample against source evidence.",
+        "{\"result\":\"PASS\"}", ["source:updated-sample"], "Updated evidence addresses the review comment."));
+    Assert.True(resubmission.Succeeded, resubmission.Message);
+    var clearedQueue = await WorkflowTaskQueueQuery.GetAsync(db, w.A("associate", "Staff"),
+      new WorkflowTaskQueueRequest("CHANGES_REQUIRED"));
+    Assert.True(clearedQueue.Succeeded, clearedQueue.Message);
+    Assert.Empty(clearedQueue.Value!.Tasks);
   }
 }

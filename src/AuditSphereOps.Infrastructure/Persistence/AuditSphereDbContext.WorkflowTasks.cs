@@ -1,4 +1,5 @@
 using AuditSphereOps.Domain.Practice;
+using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Security;
@@ -18,6 +19,9 @@ public sealed partial class AuditSphereDbContext
     b.Entity<WorkflowTaskBinding>().HasIndex(x => new { x.FirmId, x.PbcRequestId })
       .IsUnique().HasFilter("pbc_request_id IS NOT NULL")
       .HasDatabaseName("UX_workflow_task_bindings_pbc_request");
+    b.Entity<WorkflowTaskBinding>().HasIndex(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ReviewProcedureResultId })
+      .IsUnique().HasFilter("review_procedure_result_id IS NOT NULL")
+      .HasDatabaseName("UX_workflow_task_bindings_review_result");
     b.Entity<WorkflowTaskBinding>().HasIndex(x => new { x.FirmId, x.EngagementId, x.SourceKey, x.Generation })
       .IsUnique().HasDatabaseName("UX_workflow_task_bindings_source_generation");
     b.Entity<WorkflowTaskBinding>().HasIndex(x => new { x.FirmId, x.EngagementId, x.Phase, x.Ordinal });
@@ -35,7 +39,7 @@ public sealed partial class AuditSphereDbContext
       t.HasCheckConstraint("ck_workflow_task_binding_phase",
         "phase IN ('CLIENT_ONBOARDING','AUDIT_PLANNING','AUDIT_FIELDWORK','MANAGER_REVIEW','PARTNER_SIGNOFF','REPORT_DELIVERY','ARCHIVE_CLOSE')");
       t.HasCheckConstraint("ck_workflow_task_binding_values",
-        "ordinal BETWEEN 1 AND 100000 AND generation >= 1 AND revision >= 1 AND (planned_effort_minutes IS NULL OR planned_effort_minutes BETWEEN 1 AND 1000000) AND due_date_policy IN ('MANUAL','FIXED','TEMPLATE_OFFSET') AND assignment_source IN ('MANUAL','TEMPLATE','MANUAL_REASSIGNMENT','AUTOMATION') AND (assigned_role IS NULL OR assigned_role IN ('ENGAGEMENT_PARTNER','AUDIT_MANAGER','SENIOR_AUDITOR','STAFF_ASSOCIATE')) AND length(source_key) BETWEEN 1 AND 160 AND creation_request_digest ~ '^[0-9a-f]{64}$' AND ((template_revision_id IS NULL AND template_step_id IS NULL) OR (template_revision_id IS NOT NULL AND template_step_id IS NOT NULL)) AND (cancellation_reason IS NULL OR length(trim(cancellation_reason)) > 0) AND (superseded_at IS NULL OR (supersession_reason IS NOT NULL AND length(trim(supersession_reason)) > 0))");
+        "ordinal BETWEEN 1 AND 100000 AND generation >= 1 AND revision >= 1 AND (planned_effort_minutes IS NULL OR planned_effort_minutes BETWEEN 1 AND 1000000) AND due_date_policy IN ('MANUAL','FIXED','TEMPLATE_OFFSET') AND assignment_source IN ('MANUAL','TEMPLATE','MANUAL_REASSIGNMENT','AUTOMATION') AND (assigned_role IS NULL OR assigned_role IN ('ENGAGEMENT_PARTNER','AUDIT_MANAGER','SENIOR_AUDITOR','STAFF_ASSOCIATE')) AND length(source_key) BETWEEN 1 AND 160 AND creation_request_digest ~ '^[0-9a-f]{64}$' AND ((template_revision_id IS NULL AND template_step_id IS NULL) OR (template_revision_id IS NOT NULL AND template_step_id IS NOT NULL)) AND (review_procedure_result_id IS NULL OR source_key LIKE 'REVIEW-REWORK:%') AND (cancellation_reason IS NULL OR length(trim(cancellation_reason)) > 0) AND (superseded_at IS NULL OR (supersession_reason IS NOT NULL AND length(trim(supersession_reason)) > 0))");
     });
     b.Entity<WorkflowTaskBinding>().HasOne<WorkTask>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.WorkTaskId })
@@ -45,6 +49,9 @@ public sealed partial class AuditSphereDbContext
       .HasPrincipalKey(x => new { x.FirmId, x.PracticeClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     b.Entity<WorkflowTaskBinding>().HasOne<PbcRequest>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.PbcRequestId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<WorkflowTaskBinding>().HasOne<AuditProcedureResult>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ReviewProcedureResultId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     b.Entity<WorkflowTaskBinding>().HasOne<AppUser>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })

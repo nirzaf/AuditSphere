@@ -17,6 +17,7 @@ const queueTask = obj({
   mappingVersionId: nullable(guid), fsliCode: nullable(str(100)), unmetTaskDependencies: int,
   canComplete: bool, canChangeDueDate: bool, revision: int,
   pbcRequestId: nullable(guid), pbcState: nullable(str(32)),
+  reviewState: nullable(str(30)), reviewComment: nullable(str(20000)),
 });
 const decodeQueue = obj({
   view: str(30), tasks: arr(queueTask, 100), hasMore: bool,
@@ -33,11 +34,12 @@ export const decodeActivity = obj({
   hasMore: bool, nextCursor: nullable(obj({ occurredAt: instant, activityId: guid })),
 });
 
-type QueueView = 'MY_TASKS' | 'TEAM' | 'WAITING_FOR_CLIENT' | 'OVERDUE' | 'COMPLETED';
+type QueueView = 'MY_TASKS' | 'TEAM' | 'WAITING_FOR_CLIENT' | 'CHANGES_REQUIRED' | 'OVERDUE' | 'COMPLETED';
 const queueViews: { key: QueueView; label: string }[] = [
   { key: 'MY_TASKS', label: 'My tasks' },
   { key: 'TEAM', label: 'Team' },
   { key: 'WAITING_FOR_CLIENT', label: 'Waiting for client' },
+  { key: 'CHANGES_REQUIRED', label: 'Changes required' },
   { key: 'OVERDUE', label: 'Overdue' },
   { key: 'COMPLETED', label: 'Completed' },
 ];
@@ -76,6 +78,10 @@ const queueViews: { key: QueueView; label: string }[] = [
               <td><a [routerLink]="['/app/engagements', task.engagementId]">{{ task.clientName }}</a><small>{{ task.engagementServiceRoute }} · {{ task.engagementPeriod }}</small></td>
               <td>{{ task.title }}<small>{{ task.phase.replace('_', ' ') }} · #{{ task.ordinal }}@if (task.fsliCode) { · FSLI {{ task.fsliCode }} }@if (task.mappingVersionId) { · mapping {{ task.mappingVersionId.slice(0, 8) }} }</small>
                 @if (task.pbcRequestId) { <small><a [routerLink]="['/app/engagements', task.engagementId, 'pbc']">PBC request · {{ task.pbcState }}</a></small> }
+                @if (task.reviewState === 'CHANGES_REQUIRED') {
+                  <small><audit-status [value]="task.reviewState" /> · current audit result needs resubmission</small>
+                  @if (task.reviewComment) { <small>Reviewer: {{ task.reviewComment }}</small> }
+                }
               </td>
               <td>{{ task.assigneeDisplayName ?? 'Unassigned' }}</td>
               <td><audit-status [value]="task.taskStatus" /></td>
@@ -113,7 +119,7 @@ const queueViews: { key: QueueView; label: string }[] = [
           }
         </section>
       }
-      <p class="queue-note">Waiting for client is derived from the linked PBC request state. Audit review and changes-required remain in their authoritative review workspaces; a task status never replaces those decisions.</p>
+      <p class="queue-note">Waiting for client is derived from the linked PBC request state. Changes required is derived from the current procedure result and clears when a newer result is submitted. Task completion never changes audit review or approval state.</p>
       @if (result.hasMore && result.nextCursor) {
         <button matButton (click)="nextPage(result.nextCursor)">Next tasks</button>
       }

@@ -112,6 +112,7 @@ public static class PracticeTimeService
     var binding = new WorkflowTaskBinding
     {
       Phase = WorkflowTaskPhases.AuditFieldwork,
+      ReviewProcedureResultId = resultId,
       Ordinal = (await db.WorkflowTaskBindings.AsNoTracking().Where(x =>
         x.FirmId == actor.FirmId && x.EngagementId == engagementId && x.Phase == WorkflowTaskPhases.AuditFieldwork)
         .MaxAsync(x => (int?)x.Ordinal, ct) ?? 0) + 1,

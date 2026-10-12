@@ -24993,6 +24993,10 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("planned_effort_minutes");
 
+                    b.Property<Guid?>("ReviewProcedureResultId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("review_procedure_result_id");
+
                     b.Property<long>("Revision")
                         .HasColumnType("bigint")
                         .HasColumnName("revision");
@@ -25048,6 +25052,11 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("FirmId", "ClientId", "EngagementId", "PbcRequestId");
 
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "ReviewProcedureResultId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_workflow_task_bindings_review_result")
+                        .HasFilter("review_procedure_result_id IS NOT NULL");
+
                     b.HasIndex("FirmId", "EngagementId", "Phase", "Ordinal");
 
                     b.HasIndex("FirmId", "EngagementId", "SourceKey", "Generation")
@@ -25058,7 +25067,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("ck_workflow_task_binding_phase", "phase IN ('CLIENT_ONBOARDING','AUDIT_PLANNING','AUDIT_FIELDWORK','MANAGER_REVIEW','PARTNER_SIGNOFF','REPORT_DELIVERY','ARCHIVE_CLOSE')");
 
-                            t.HasCheckConstraint("ck_workflow_task_binding_values", "ordinal BETWEEN 1 AND 100000 AND generation >= 1 AND revision >= 1 AND (planned_effort_minutes IS NULL OR planned_effort_minutes BETWEEN 1 AND 1000000) AND due_date_policy IN ('MANUAL','FIXED','TEMPLATE_OFFSET') AND assignment_source IN ('MANUAL','TEMPLATE','MANUAL_REASSIGNMENT','AUTOMATION') AND (assigned_role IS NULL OR assigned_role IN ('ENGAGEMENT_PARTNER','AUDIT_MANAGER','SENIOR_AUDITOR','STAFF_ASSOCIATE')) AND length(source_key) BETWEEN 1 AND 160 AND creation_request_digest ~ '^[0-9a-f]{64}$' AND ((template_revision_id IS NULL AND template_step_id IS NULL) OR (template_revision_id IS NOT NULL AND template_step_id IS NOT NULL)) AND (cancellation_reason IS NULL OR length(trim(cancellation_reason)) > 0) AND (superseded_at IS NULL OR (supersession_reason IS NOT NULL AND length(trim(supersession_reason)) > 0))");
+                            t.HasCheckConstraint("ck_workflow_task_binding_values", "ordinal BETWEEN 1 AND 100000 AND generation >= 1 AND revision >= 1 AND (planned_effort_minutes IS NULL OR planned_effort_minutes BETWEEN 1 AND 1000000) AND due_date_policy IN ('MANUAL','FIXED','TEMPLATE_OFFSET') AND assignment_source IN ('MANUAL','TEMPLATE','MANUAL_REASSIGNMENT','AUTOMATION') AND (assigned_role IS NULL OR assigned_role IN ('ENGAGEMENT_PARTNER','AUDIT_MANAGER','SENIOR_AUDITOR','STAFF_ASSOCIATE')) AND length(source_key) BETWEEN 1 AND 160 AND creation_request_digest ~ '^[0-9a-f]{64}$' AND ((template_revision_id IS NULL AND template_step_id IS NULL) OR (template_revision_id IS NOT NULL AND template_step_id IS NOT NULL)) AND (review_procedure_result_id IS NULL OR source_key LIKE 'REVIEW-REWORK:%') AND (cancellation_reason IS NULL OR length(trim(cancellation_reason)) > 0) AND (superseded_at IS NULL OR (supersession_reason IS NOT NULL AND length(trim(supersession_reason)) > 0))");
                         });
                 });
 
@@ -32378,6 +32387,12 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasOne("AuditSphereOps.Domain.Documents.PbcRequest", null)
                         .WithMany()
                         .HasForeignKey("FirmId", "ClientId", "EngagementId", "PbcRequestId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.AuditProcedureResult", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "ReviewProcedureResultId")
                         .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
                 });

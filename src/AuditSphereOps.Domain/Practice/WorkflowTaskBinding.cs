@@ -31,6 +31,8 @@ public sealed class WorkflowTaskBinding
   public Guid WorkTaskId { get; set; }
   /// <summary>Optional exact-scope PBC request that governs this task's completion.</summary>
   public Guid? PbcRequestId { get; set; }
+  /// <summary>Exact audit procedure result that generated this operational rework task, when applicable.</summary>
+  public Guid? ReviewProcedureResultId { get; set; }
   public Guid? TemplateRevisionId { get; set; }
   public Guid? TemplateStepId { get; set; }
   public string Phase { get; set; } = WorkflowTaskPhases.ClientOnboarding;
