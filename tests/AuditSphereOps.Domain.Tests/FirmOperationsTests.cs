@@ -101,6 +101,7 @@ public sealed class FirmOperationsTests
     var capacityDays = Enumerable.Range(0, 5).Select(offset => periodStart.AddDays(offset))
       .Count(date => date.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday));
     Guid entryId;
+    Guid completedTaskId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var card = (await PracticeTimeService.ReviseRateCardAsync(db, manager, new("Staff", "AUDIT", "QAR", 600m))).Value;
@@ -108,6 +109,7 @@ public sealed class FirmOperationsTests
       var budget = (await PracticeTimeService.ReviseBudgetAsync(db, manager, new(w.EngagementId, "QAR", [new("Staff", "AUDIT", 600, BudgetPhases.Fieldwork)]))).Value;
       Assert.True((await PracticeTimeService.ApproveBudgetAsync(db, partner, budget)).Succeeded);
       var task = (await PracticeTimeService.CreateTaskAsync(db, manager, new("Bank reconciliation", w.ClientId, w.EngagementId, w.U["staff"].Id, DueDate: today))).Value;
+      completedTaskId = task;
       entryId = (await PracticeTimeService.SaveTimeDraftAsync(db, w.A("staff", "Staff"), new(task, workDate, 540, 300, "Staff", "AUDIT"))).Value;
       Assert.True((await PracticeTimeService.SubmitTimeAsync(db, w.A("staff", "Staff"), entryId)).Succeeded);
       Assert.True((await PracticeTimeService.ApproveTimeAsync(db, manager, entryId)).Succeeded);
@@ -125,6 +127,13 @@ public sealed class FirmOperationsTests
         new WorkTask { Id = Guid.NewGuid(), FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId,
           Title = "Cancelled task excluded", Status = PracticeTimeStates.TaskCancelled, DueDate = today, CreatedAt = DateTimeOffset.UtcNow });
       var reviewAnchor = DateTimeOffset.UtcNow;
+      db.WorkflowTaskBindings.Add(new WorkflowTaskBinding
+      {
+        Id = Guid.NewGuid(), FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId,
+        WorkTaskId = completedTaskId, Phase = WorkflowTaskPhases.AuditFieldwork, Ordinal = 1,
+        SourceKey = "analytics-phase-1", CreationRequestDigest = Hashing.Sha256Hex("analytics-phase-1"), Generation = 1,
+        CreatedAt = reviewAnchor, CreatedByUserId = w.U["manager"].Id
+      });
       var reviewSamples = new[]
       {
         (Decision: AuditProcedureReviewDecisions.Reviewed, SubmittedAt: reviewAnchor.AddHours(-10), CreatedAt: reviewAnchor, ResultRevision: 1L),
@@ -199,10 +208,16 @@ public sealed class FirmOperationsTests
       Assert.Equal((1, 0, 1, 1), (managerWorkload.Due, managerWorkload.Completed, managerWorkload.Open, managerWorkload.Overdue));
       var unassigned = view.Workload.Single(x => x.AssigneeKey == "unassigned");
       Assert.Equal((1, 0, 1, 0), (unassigned.Due, unassigned.Completed, unassigned.Open, unassigned.Overdue));
+      Assert.Equal(8, view.PhaseWorkload.Count);
+      var fieldwork = view.PhaseWorkload.Single(x => x.Phase == WorkflowTaskPhases.AuditFieldwork);
+      Assert.Equal((1, 1, 0, 0, 100.0m), (fieldwork.Due, fieldwork.Completed, fieldwork.Open, fieldwork.Overdue, fieldwork.CompletionPercent!.Value));
+      var unassignedPhase = view.PhaseWorkload.Single(x => x.Phase == "UNASSIGNED_PHASE");
+      Assert.Equal((2, 0, 2, 1, 0.0m), (unassignedPhase.Due, unassignedPhase.Completed, unassignedPhase.Open, unassignedPhase.Overdue, unassignedPhase.CompletionPercent!.Value));
       Assert.Equal((4, 3, 1, 2, 2, 7.5m), (view.ReviewTurnaround.Decisions, view.ReviewTurnaround.Reviewed,
         view.ReviewTurnaround.ChangesRequired, view.ReviewTurnaround.Measured, view.ReviewTurnaround.Excluded, view.ReviewTurnaround.AverageHours!.Value));
       Assert.Contains(view.Definitions, d => d.Contains("charge-out rates are not costs"));
       Assert.Contains(view.Definitions, d => d.Contains("task count, not a capacity or effort measure"));
+      Assert.Contains(view.Definitions, d => d.Contains("do not establish phase or audit-gate readiness"));
       Assert.Contains(view.Definitions, d => d.Contains("not a review-quality or audit-clearance measure"));
     }
   }

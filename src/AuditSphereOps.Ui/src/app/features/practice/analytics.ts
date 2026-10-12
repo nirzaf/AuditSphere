@@ -14,6 +14,7 @@ export const decodeAnalytics = obj({ from: date, to: date, engagements: arr(row,
   milestones: obj({ due: nat, completed: nat, completedOnTime: nat, completedLate: nat, overdue: nat,
     completionPercent: nullable(dec), onTimePercent: nullable(dec) }),
   workload: arr(obj({ assigneeKey: text, assigneeName: text, due: nat, completed: nat, open: nat, overdue: nat })),
+  phaseWorkload: arr(obj({ phase: text, label: text, due: nat, completed: nat, open: nat, overdue: nat, completionPercent: nullable(dec) }), 8),
   reviewTurnaround: obj({ decisions: nat, reviewed: nat, changesRequired: nat, measured: nat, excluded: nat, averageHours: nullable(dec) }),
   definitions: arr(text, 50) });
 
@@ -79,6 +80,17 @@ export function hours(minutes: number, places = 1): string {
         <p>Average elapsed time from result submission to each review decision created in this period. Includes reviewed and changes-required decisions; this is an operational duration, not review quality or audit clearance.</p>
         <p aria-label="Procedure review turnaround">{{ v.reviewTurnaround.averageHours === null ? 'n/a' : v.reviewTurnaround.averageHours + ' h' }} average across {{ v.reviewTurnaround.measured }} measured decisions ·
           {{ v.reviewTurnaround.reviewed }} reviewed · {{ v.reviewTurnaround.changesRequired }} changes required · {{ v.reviewTurnaround.excluded }} excluded chronology or revision records.</p>
+      </section>
+      <section class="panel" aria-labelledby="phase-workload-heading">
+        <h2 id="phase-workload-heading">Task completion by workflow phase</h2>
+        <p>Operational task counts from current workflow bindings. Unbound tasks are shown separately; task completion does not establish phase or audit-gate readiness.</p>
+        <div class="table-scroll"><table>
+          <caption>Due task completion by workflow phase {{ v.from }} to {{ v.to }}</caption>
+          <thead><tr><th scope="col">Phase</th><th class="number" scope="col">Due</th><th class="number" scope="col">Completed</th><th class="number" scope="col">Open</th><th class="number" scope="col">Overdue</th><th class="number" scope="col">Completion</th></tr></thead>
+          <tbody>@for (r of v.phaseWorkload; track r.phase) {
+            <tr><th scope="row">{{ r.label }}</th><td class="number">{{ r.due }}</td><td class="number">{{ r.completed }}</td><td class="number">{{ r.open }}</td><td class="number">{{ r.overdue }}</td><td class="number">{{ pct(r.completionPercent) }}</td></tr>
+          }</tbody>
+        </table></div>
       </section>
       <section class="panel" aria-labelledby="defs-heading">
         <h2 id="defs-heading">Definitions</h2>

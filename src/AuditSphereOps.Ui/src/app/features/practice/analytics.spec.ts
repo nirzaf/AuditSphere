@@ -19,6 +19,10 @@ const payload = {
     { assigneeKey: 'staff-1', assigneeName: 'Audit staff', due: 2, completed: 1, open: 1, overdue: 1 },
     { assigneeKey: 'unassigned', assigneeName: 'Unassigned', due: 1, completed: 0, open: 1, overdue: 0 },
   ],
+  phaseWorkload: [
+    { phase: 'AUDIT_FIELDWORK', label: 'Audit Fieldwork', due: 1, completed: 1, open: 0, overdue: 0, completionPercent: '100.0' },
+    { phase: 'UNASSIGNED_PHASE', label: 'Unassigned phase', due: 2, completed: 0, open: 2, overdue: 1, completionPercent: '0.0' },
+  ],
   reviewTurnaround: { decisions: 4, reviewed: 3, changesRequired: 1, measured: 2, excluded: 2, averageHours: '7.5' },
   definitions: [],
 };
@@ -33,6 +37,9 @@ describe('Practice analytics task completion contract', () => {
     expect(decoded.workload[1].assigneeKey).toBe('unassigned');
     expect(decoded.reviewTurnaround.averageHours).toBe('7.5');
     expect(decoded.reviewTurnaround.excluded).toBe(2);
+    expect(decoded.phaseWorkload).toHaveLength(2);
+    expect(decoded.phaseWorkload[0].completionPercent).toBe('100.0');
+    expect(decoded.phaseWorkload[1].phase).toBe('UNASSIGNED_PHASE');
   });
 
   it('represents an empty review sample without inventing a zero-hour duration', () => {

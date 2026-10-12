@@ -158,9 +158,11 @@ public sealed record DepartmentUtilizationRow(string Department, int CapacityMin
 public sealed record MilestonePerformance(int Due, int Completed, int CompletedOnTime, int CompletedLate, int Overdue,
   decimal? CompletionPercent, decimal? OnTimePercent);
 public sealed record TaskWorkloadRow(string AssigneeKey, string AssigneeName, int Due, int Completed, int Open, int Overdue);
+public sealed record TaskPhasePerformance(string Phase, string Label, int Due, int Completed, int Open, int Overdue, decimal? CompletionPercent);
 public sealed record ReviewTurnaround(int Decisions, int Reviewed, int ChangesRequired, int Measured, int Excluded, decimal? AverageHours);
 public sealed record PracticeAnalyticsView(DateOnly From, DateOnly To, IReadOnlyList<EngagementEconomicsRow> Engagements, IReadOnlyList<DepartmentUtilizationRow> Departments,
-  MilestonePerformance Milestones, IReadOnlyList<TaskWorkloadRow> Workload, ReviewTurnaround ReviewTurnaround, IReadOnlyList<string> Definitions);
+  MilestonePerformance Milestones, IReadOnlyList<TaskWorkloadRow> Workload, IReadOnlyList<TaskPhasePerformance> PhaseWorkload,
+  ReviewTurnaround ReviewTurnaround, IReadOnlyList<string> Definitions);
 
 /// <summary>
 /// Defined, reconcilable practice measures from approved records only. Standard value is approved time at its captured
@@ -182,6 +184,7 @@ public static class PracticeAnalyticsQuery
     "Actual cost and profit are unavailable when an effective staff cost rate is missing or uses a different currency from the approved time entry.",
     "Utilization = approved billable minutes ÷ (weekly capacity × weeks − recorded unavailability). Task completion = due-date tasks completed ÷ non-cancelled tasks due in the selected period; tasks without a due date are not applicable. On-time = tasks completed by their due date ÷ tasks due in the period.",
     "Workload = non-cancelled tasks due in the selected period, grouped by assigned staff member. Open includes overdue tasks; overdue is also shown separately. Unassigned and unavailable staff assignments have separate buckets. This is a task count, not a capacity or effort measure.",
+    "Phase task performance = non-cancelled tasks due in the selected period grouped by their current workflow phase binding. Tasks without a workflow binding appear separately as unassigned phase. Completion is task status plus persisted completion timestamp; these operational counts do not establish phase or audit-gate readiness.",
     "Review turnaround = average elapsed hours from submission of the exact procedure-result revision to each append-only review decision created in the selected period. Both REVIEWED and CHANGES_REQUIRED decisions are included; result-revision mismatches and decisions before submission are excluded and counted. This is an operational duration, not a review-quality or audit-clearance measure."
   ];
 
@@ -348,6 +351,31 @@ public static class PracticeAnalyticsQuery
       .OrderBy(x => x.AssigneeKey is "unassigned" or "unavailable" ? 1 : 0)
       .ThenBy(x => x.AssigneeName, StringComparer.OrdinalIgnoreCase).ToList();
 
+    var taskIds = tasks.Select(t => t.Id).ToArray();
+    var phaseByTask = taskIds.Length == 0 ? new Dictionary<Guid, string>() : await db.WorkflowTaskBindings.AsNoTracking()
+      .Where(x => x.FirmId == f && taskIds.Contains(x.WorkTaskId))
+      .Select(x => new { x.WorkTaskId, x.Phase }).ToDictionaryAsync(x => x.WorkTaskId, x => x.Phase, ct);
+    static string PhaseLabel(string phase) => phase switch
+    {
+      WorkflowTaskPhases.ClientOnboarding => "Client Onboarding",
+      WorkflowTaskPhases.AuditPlanning => "Audit Planning",
+      WorkflowTaskPhases.AuditFieldwork => "Audit Fieldwork",
+      WorkflowTaskPhases.ManagerReview => "Manager Review",
+      WorkflowTaskPhases.PartnerSignoff => "Partner Sign-off",
+      WorkflowTaskPhases.ReportDelivery => "Report Delivery",
+      WorkflowTaskPhases.ArchiveClose => "Archive and Close",
+      _ => "Unassigned phase"
+    };
+    var phaseWorkload = WorkflowTaskPhases.All.Append("UNASSIGNED_PHASE").Select(phase =>
+    {
+      var phaseTasks = tasks.Where(t => phaseByTask.GetValueOrDefault(t.Id, "UNASSIGNED_PHASE") == phase).ToArray();
+      var due = phaseTasks.Length;
+      var phaseCompleted = phaseTasks.Count(t => t.Status == PracticeTimeStates.TaskCompleted && t.CompletedAt is not null);
+      var phaseOverdue = phaseTasks.Count(t => t.CompletedAt is null && t.DueDate < today);
+      return new TaskPhasePerformance(phase, PhaseLabel(phase), due, phaseCompleted, due - phaseCompleted, phaseOverdue,
+        due > 0 ? Math.Round(phaseCompleted * 100m / due, 1) : null);
+    }).ToList();
+
     // Bound review decisions by the requested period and exact firm/result scope. The immutable review event
     // carries its own revision, so stale or impossible chronology is visible but cannot create a negative duration.
     var reviewStart = new DateTimeOffset(from.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
@@ -371,7 +399,7 @@ public static class PracticeAnalyticsQuery
       reviewRows.Count(x => x.Decision == AuditProcedureReviewDecisions.Reviewed),
       reviewRows.Count(x => x.Decision == AuditProcedureReviewDecisions.ChangesRequired), measurableReviews.Length,
       reviewRows.Count - measurableReviews.Length, averageReviewHours);
-    return CommandResult<PracticeAnalyticsView>.Ok(new(from, to, rows, departments, milestones, workload, reviewTurnaround, Definitions));
+    return CommandResult<PracticeAnalyticsView>.Ok(new(from, to, rows, departments, milestones, workload, phaseWorkload, reviewTurnaround, Definitions));
   }
 
   public static async Task<CommandResult<Guid>> RecordCostRateAsync(IClientAccountingDbContext db, ActorContext actor, Guid userId, decimal hourlyCost, string currency, DateOnly effectiveFrom, CancellationToken ct = default)
