@@ -16,7 +16,7 @@ const id = '11111111-1111-4111-8111-111111111111',
   engagement = '22222222-2222-4222-8222-222222222222';
 const workspace = {
   grid: {
-    firstWeek: '2026-10-05',
+    firstWeek: '2026-10-04',
     weeks: 1,
     rows: [
       {
@@ -30,7 +30,7 @@ const workspace = {
         hasProfile: true,
         weeks: [
           {
-            weekStart: '2026-10-05',
+            weekStart: '2026-10-04',
             capacityMinutes: 1200,
             unavailableMinutes: 0,
             plannedMinutes: 1800,
@@ -44,7 +44,7 @@ const workspace = {
           {
             engagementId: engagement,
             engagementLabel: 'Synthetic engagement',
-            weekStart: '2026-10-05',
+            weekStart: '2026-10-04',
             plannedMinutes: 1800,
           },
         ],
@@ -126,28 +126,28 @@ describe('Resource planning forms', () => {
     f.destroy();
   });
   it('keeps selected week columns and an aligned empty row when there are no active staff', () => {
-    expect(resourceWeekStarts('2026-10-05', 3)).toEqual([
-      '2026-10-05',
-      '2026-10-12',
-      '2026-10-19',
+    expect(resourceWeekStarts('2026-10-04', 3)).toEqual([
+      '2026-10-04',
+      '2026-10-11',
+      '2026-10-18',
     ]);
     const f = setup({
-      grid: { firstWeek: '2026-10-05', weeks: 3, rows: [] },
+      grid: { firstWeek: '2026-10-04', weeks: 3, rows: [] },
       engagements: [],
     });
     const table = f.nativeElement.querySelector('table[aria-label="Resource grid"]') as HTMLTableElement;
     const headers = [...table.querySelectorAll('thead th')].map((h) => h.textContent?.trim());
     expect(headers.slice(-3)).toEqual([
-      'Week of 2026-10-05',
-      'Week of 2026-10-12',
-      'Week of 2026-10-19',
+      'Week of 2026-10-04',
+      'Week of 2026-10-11',
+      'Week of 2026-10-18',
     ]);
     expect(table.querySelector('tbody td')?.getAttribute('colspan')).toBe('6');
     f.destroy();
   });
   it('rejects empty, oversized or row-misaligned resource ranges', () => {
-    expect(() => resourceWeekStarts('2026-10-05', 0)).toThrow();
-    expect(() => resourceWeekStarts('2026-10-05', 13)).toThrow();
+    expect(() => resourceWeekStarts('2026-10-04', 0)).toThrow();
+    expect(() => resourceWeekStarts('2026-10-04', 13)).toThrow();
     expect(() => decodeResources({ ...workspace, grid: { ...workspace.grid, weeks: 2 } })).toThrow();
   });
   it('populates selected profile from persisted state and rejects invalid percentage before POST', async () => {
@@ -229,7 +229,7 @@ describe('Resource planning forms', () => {
       a = editor(f, 'allocation'),
       c = editor(f, 'certification');
     c.model.update((m) => ({ ...m, user: id, name: 'Unsubmitted certificate' }));
-    a.model.update((m) => ({ ...m, user: id, engagement, hours: '30', week: '2026-10-05' }));
+    a.model.update((m) => ({ ...m, user: id, engagement, hours: '30', week: '2026-10-04' }));
     TestBed.tick();
     const p = await review(f, 'allocation');
     await f.componentInstance.confirmReviewed();
@@ -290,7 +290,7 @@ describe('Resource planning forms', () => {
   it('clears protected fields and ignores late preview after session loss', async () => {
     const f = setup(),
       a = editor(f, 'allocation');
-    a.model.update((m) => ({ ...m, user: id, engagement, week: '2026-10-05' }));
+    a.model.update((m) => ({ ...m, user: id, engagement, week: '2026-10-04' }));
     TestBed.tick();
     await submit(f, 'allocation');
     const req = http.expectOne('/api/ui/practice/resources/preview'),

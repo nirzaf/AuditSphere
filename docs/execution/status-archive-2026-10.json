@@ -2,7 +2,7 @@
   "schemaVersion": "1",
   "archiveOf": "docs/execution/status.json",
   "archivedOn": "2026-10-12",
-  "note": "Keys moved verbatim from status.json. Values are unchanged; only the JSON layout is normalised. No script reads these keys; query them with jq when needed. On 2026-10-12, the closed workflowChangesRequiredQueue evidence was moved verbatim from status.json to keep the live ledger below its 100 KB limit. On 2026-10-12, the closed workflowExperienceV22 evidence (seven-phase projection and Dual-Key readiness, commit f7753f72) was moved verbatim from status.json for the same reason.",
+  "note": "Keys moved verbatim from status.json. Values are unchanged; only the JSON layout is normalised. No script reads these keys; query them with jq when needed. On 2026-10-12, the closed workflowChangesRequiredQueue evidence was moved verbatim from status.json to keep the live ledger below its 100 KB limit. On 2026-10-12, the closed workflowExperienceV22 evidence (seven-phase projection and Dual-Key readiness, commit f7753f72) was moved verbatim from status.json for the same reason. On 2026-10-12, the closed steV22OwnerDecisions evidence (ADR-0017, commit 53a8f9af) was moved verbatim from status.json for the same reason; three of its four open items were closed by the later qatarSundayWeekStart record.",
   "keys": {
     "verification": {
       "firmExpenseCreationRecovery": {
@@ -13604,6 +13604,76 @@
             "The new API remains disabled by default until WorkflowExperience:Enabled is explicitly enabled."
           ]
         }
+      },
+      "steV22OwnerDecisions": {
+        "recordedAtUtc": "2026-10-12T10:08:13Z",
+        "baseCommit": "84dad35f",
+        "sourceTree": "Working tree on branch ste-v22-decisions at 84dad35f; the commit carrying this record is the source revision.",
+        "database": "auditsphere_tests on 127.0.0.1:5433",
+        "scope": "ADR-0017: STE v2.2 decisions delegated by the owner. Partner-only actions fail closed; two Track B continuance questions; proposal response channel; Sunday to Thursday working week; recorded critical-estimate flag. Migration SteV22OwnerDecisions.",
+        "runs": [
+          {
+            "name": "Full Domain PostgreSQL suite",
+            "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --configuration Release",
+            "total": 905,
+            "passed": 901,
+            "failed": 4,
+            "result": "FAIL_PRE_EXISTING",
+            "note": "The four failures are not caused by this change. CommercialWorkflowTests.OneClickDocuments_AreBrandedImmutableAndBoundToTheApprovedQuotation(revokeStandingAuthority: False), CommercialWorkflowTests.FeeAgreement_RefusesAcceptedProposalWithoutRecordedDispatch and MarkdownNamingGuardTests fail with the same messages on a clean checkout of 84dad35f. CashFlowContractTests.FxCashEffect_ReconcilesSeparatelyAndPersistsEvidence fails on 87e41328 and on every run since."
+          },
+          {
+            "name": "Migration data step",
+            "command": "SteV22OwnerDecisionTests (included in the Domain suite)",
+            "result": "PASS",
+            "note": "Applies the migration to a schema staged at 20261012080058_WorkflowChangesRequiredQueue, once with the continuance bank loaded and once without."
+          },
+          {
+            "name": "Focused API subset",
+            "command": "dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-build --configuration Release --filter 'UiContractTests|OpenApi|Engagement|Commercial|Contract|Canonical|AuditPlan|Assessment'",
+            "passed": 30,
+            "failed": 0,
+            "result": "PASS"
+          },
+          {
+            "name": "Angular full suite",
+            "command": "npx ng test --watch=false (npm run test:ci)",
+            "test_files": 120,
+            "passed": 674,
+            "failed": 0,
+            "result": "PASS"
+          },
+          {
+            "name": "Angular production build",
+            "command": "npx ng build (npm run build)",
+            "result": "PASS_WITH_WARNING",
+            "note": "Pre-existing budget warning for commercial/settings.scss."
+          },
+          {
+            "name": "Solution Release build",
+            "command": "dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1",
+            "result": "PASS (0 errors)"
+          },
+          {
+            "name": "OpenAPI drift",
+            "command": "bash scripts/contracts/verify-openapi.sh",
+            "result": "PASS: contract is current (adds the response channel and critical-estimate request fields)"
+          },
+          {
+            "name": "EF model drift",
+            "command": "dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Api --no-build --configuration Release",
+            "result": "PASS: no pending model changes"
+          }
+        ],
+        "notRun": [
+          "The full API test project and the E2E project.",
+          "The migration against the development or production database. It has run only against the PostgreSQL test database."
+        ],
+        "openItems": [
+          "Three Domain tests fail on master from commits outside this change, plus the earlier cash-flow failure. They are listed in the Domain run note.",
+          "STE_Audit_Management_Requirements_v2.2.md at the repository root breaks the markdown filename guard. Moving or renaming it is the owner's call.",
+          "No firm holiday table exists. Public holidays are recorded as unavailability.",
+          "Stored allocation weeks still start on Monday although the working week is Sunday to Thursday."
+        ]
       }
     },
     "localEvidence": [

@@ -15,14 +15,16 @@ public static class ResourceGridCalculator
 {
   /// <summary>
   /// The firm working week (ADR-0017): Sunday to Thursday, with Friday and Saturday as the weekend, which is the normal working
-  /// week in Qatar. Capacity and utilization both read this one definition. Public holidays are not modelled here; they are
+  /// week in Qatar. The week itself starts on Sunday, so the five working days are the first five days of one week bucket. Capacity
+  /// and utilization both read this one definition. Public holidays are not modelled here; they are
   /// recorded as unavailability.
   /// </summary>
   public static readonly DayOfWeek[] FirmWorkingWeek = [DayOfWeek.Sunday, DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday];
 
   public static bool IsWorkingDay(DateOnly date) => Array.IndexOf(FirmWorkingWeek, date.DayOfWeek) >= 0;
 
-  public static DateOnly WeekStart(DateOnly date) => date.AddDays(-(((int)date.DayOfWeek + 6) % 7));
+  /// <summary>The Sunday that opens the firm week containing the date. A week runs Sunday to Saturday.</summary>
+  public static DateOnly WeekStart(DateOnly date) => date.AddDays(-(int)date.DayOfWeek);
 
   public static IReadOnlyList<ResourceWeekCell> Build(
     int weeklyCapacityMinutes, IReadOnlyCollection<StaffAvailability> availability, IReadOnlyCollection<StaffAllocation> allocations,

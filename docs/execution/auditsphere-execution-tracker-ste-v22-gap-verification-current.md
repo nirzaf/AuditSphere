@@ -1,6 +1,6 @@
 # STE v2.2 — Requirement Verification Against Current Code
 
-**Status: CURRENT** as a requirement map for `STE_Audit_Management_Requirements_v2.2.md`. It is not a functional-testing claim. Each row was checked against source at the baseline commit `f7753f72`, and the verifying pass re-read every present claim against the cited code. Rows changed by the slice that introduced this register say so in their notes.
+**Status: CURRENT** as a requirement map for `docs/requirements/auditsphere-requirements-source-ste-audit-management-specification-v22.md` (the STE v2.2 source, previously at the repository root). It is not a functional-testing claim. Each row was checked against source at the baseline commit `f7753f72`, and the verifying pass re-read every present claim against the cited code. Rows changed by the slice that introduced this register say so in their notes.
 
 **Verdicts:** `PRESENT` code path exists and was read · `PARTIAL` some of the requirement is implemented, the note says what is missing · `GAP` no implementation found · `CONFLICT` contradicts an ADR, AGENTS.md or a recorded owner decision · `DEVIATION` intentional difference recorded in an ADR · `EXTERNAL` needs a live provider, tenant or store and stays `BLOCKED_EXTERNAL` · `OUT_OF_SCOPE` forbidden by AGENTS.md.
 

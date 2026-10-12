@@ -122,6 +122,8 @@ When two documents appear to conflict or contain differing detail, precedence is
 
 | [`docs/requirements/auditsphere-accounting-module-requirements-current.md`](requirements/auditsphere-accounting-module-requirements-current.md) | Current STE functional requirements (v2.2): commercial, onboarding, planning, fieldwork, completion, records and firm operations, plus the seven-phase workflow experience layer and enhanced Dual-Key Acceptance. | `CURRENT` |
 
+| [`docs/requirements/auditsphere-requirements-source-ste-audit-management-specification-v22.md`](requirements/auditsphere-requirements-source-ste-audit-management-specification-v22.md) | Upstream STE Audit Management requirements, version 2.2, as supplied by the owner. Source text: the requirements copy above is the implementation authority, and recorded deviations are in the ADR register. | `CURRENT` |
+
 | [`docs/requirements/auditsphere-requirements-specification-product-brief-current.md`](requirements/auditsphere-requirements-specification-product-brief-current.md) | Product brief: problem, personas, in-scope modules, non-goals and success measures. | `CURRENT` |
 | [`docs/requirements/auditsphere-requirements-catalog-domain-glossary-current.md`](requirements/auditsphere-requirements-catalog-domain-glossary-current.md) | Domain glossary: one meaning per term, with the code identifier to use in new code. | `CURRENT` |
 

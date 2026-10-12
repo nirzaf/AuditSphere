@@ -15,11 +15,19 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Sunday week start, corrected commercial tests and specification rename — 2026-10-12
+
+Allocation weeks now start on Sunday, at the owner's request, so the Sunday to Thursday working week sits in one week bucket. `ResourceGridCalculator.WeekStart` returns the Sunday, the `staff_allocations` check constraint requires one, and migration `QatarSundayWeekStart` moves each stored Monday week one day earlier, to the Sunday-start week that contains it. Planning receipts committed before the change keep the Monday they recorded. ADR-0017 is amended. Operators should expect the resource grid and every stored allocation to show a date one day earlier after the migration; the planned minutes do not change.
+
+Two `CommercialWorkflowTests` that failed on master were test defects and are corrected with no product change: one read a stale tracked proposal after raw updates, and one asserted the Partner-only activation flag for a Relationship Manager. The STE v2.2 source specification moved from the repository root to `docs/requirements/auditsphere-requirements-source-ste-audit-management-specification-v22.md`, and the filename validators no longer carry an exception for it.
+
+The full .NET suites were not run locally; the owner asked for test execution to be left to CI. Focused evidence and what was not run are in `status.json` under `targetedVerification.qatarSundayWeekStart`.
+
 ## STE v2.2 delegated owner decisions — 2026-10-12
 
 ADR-0017 records the STE v2.2 decisions the owner delegated. Three keep an earlier decision: WhatsApp stays a lead-channel label, client users sign in through Microsoft with no emailed password (ADR-0003), and the materiality benchmark is not normalised (ADR-0011). The rest set new behaviour: opinion, signing, clearance and bundle assembly need the staffed Engagement Partner and fail closed without one; the continuance bank gains a legal-notice question and a fees-settled confirmation, both with evidence; a client acceptance records the channel it arrived by; the firm working week is Sunday to Thursday; and a critical accounting estimate is a flag the assessor records, which bands the risk Red.
 
-Migration `SteV22OwnerDecisions` adds two columns, extends the band check constraint and adds the two questions where the continuance bank already exists. It has run only against the test database. Operators should expect three effects: an engagement with no staffed Engagement Partner cannot reach the opinion until one is staffed; a continuance checklist in progress needs the two new answers; and capacity figures change for ranges that include a Friday or a Sunday. Evidence and open items are in `status.json` under `targetedVerification.steV22OwnerDecisions`.
+Migration `SteV22OwnerDecisions` adds two columns, extends the band check constraint and adds the two questions where the continuance bank already exists. It has run only against the test database. Operators should expect three effects: an engagement with no staffed Engagement Partner cannot reach the opinion until one is staffed; a continuance checklist in progress needs the two new answers; and capacity figures change for ranges that include a Friday or a Sunday. Evidence and open items are in `status-archive-2026-10.json` under `keys.verification.steV22OwnerDecisions`.
 
 ## v2.2 unlinked procedure review inbox — 2026-10-12
 
@@ -110,12 +118,6 @@ PR-F partially advances WF-07/08. `WorkflowTaskQueueQuery` returns My Tasks, Tea
 Migrations `20261012000128_WorkflowTaskBindings`, `20261012003440_WorkflowTemplateCatalog`, `20261012004124_WorkflowTemplateOpenRevision`, `20261012010500_WorkflowTaskPlanReceipts` and `20261012015133_WorkflowTaskDependencies` are additive and were not applied to any persistent database. The focused queue/plan PostgreSQL cohort passed 3/3; the API-host OpenAPI contract test passed 1/1; the API Release build passed with two NU1900 vulnerability-feed warnings; EF model drift and OpenAPI drift passed. Angular development serving compiled successfully. The built-in browser loaded the app and showed Access unavailable / Sign in because no local API session was configured; no authenticated queue journey was run. Exact provenance is in `status.json` under `targetedVerification.workflowTaskQueuePrF`.
 
 `WorkflowExperience:Enabled` remains false by default; migrations are not applied to a persistent database. The queue route is present, but local browser access stopped at the staff sign-in guard, and no authenticated queue command was exercised. WF-07/08 and WF-12 remain partial. WF-09/10 automations and PBC follow-up, WF-11 annual recurrence, WF-13/14 completion/archive cards and analytics, the lead-level journey, and WF-15 production acceptance remain open. No live tenant or professional acceptance is claimed.
-
-## v2.2 workflow experience, PRs A–C — 2026-10-11
-
-The engagement page now opens on a read-only seven-phase workflow projection and independently evaluated Dual-Key readiness cards, with the eleven-stage lifecycle kept as a technical panel. The projection derives from the existing canonical stage and persists nothing new; no stage is writable. Advance billing no longer opens on a Partner clearance alone: both keys must be current on the exact dispatched offer. The advance and activation cards read the same milestone state and engagement link that activation checks. The protected letter, fee-agreement and activation commands are unchanged.
-
-Not yet delivered: workflow task persistence and templates (WF-04 to WF-06), queues, automation and recurrence (WF-07 to WF-11), completion and archive cards (WF-13), and the lead-level pre-engagement journey. One owner decision is open: the protected letter guard applies offer identity only when a dispatch record exists, while the read model requires it always. Evidence and the open review findings are recorded in `status-archive-2026-10.json` under `keys.verification.workflowExperienceV22`.
 
 ## Exact pinned financial statement drafts — 2026-10-12
 

@@ -50,7 +50,7 @@ public sealed partial class AuditSphereDbContext
       e.HasOne<Engagement>().WithMany().HasForeignKey(x => x.EngagementId).OnDelete(DeleteBehavior.Restrict);
       e.HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
       e.ToTable("staff_allocations", t => t.HasCheckConstraint("ck_staff_allocation_values",
-        "planned_minutes BETWEEN 1 AND 4800 AND extract(isodow from week_start) = 1"));
+        "planned_minutes BETWEEN 1 AND 4800 AND extract(dow from week_start) = 0"));
     });
     b.Entity<MaterialityCalculation>(e =>
     {

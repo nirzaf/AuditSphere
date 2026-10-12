@@ -419,7 +419,7 @@ public sealed partial class PlanningResourcesAndMaterialityTests
     var w = await SeedAsync(pg);
     var partner = w.Actor("partner", "Partner");
     var manager = w.Actor("manager", "Manager");
-    var week = new DateOnly(2026, 10, 5); // Monday
+    var week = new DateOnly(2026, 10, 4); // Sunday, the first day of the firm week
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       Assert.True((await ResourcePlanningService.SaveProfileAsync(db, manager, new(w.Users["senior"].Id, "Audit", "ifrs, sampling, IFRS", 2400, 80m))).Succeeded);

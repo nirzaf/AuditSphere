@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-CONVENTIONAL_EXCEPTIONS = {"README.md", "AGENTS.md", "CLAUDE.md", "STE_Audit_Management_Requirements_v2.2.md"}
+CONVENTIONAL_EXCEPTIONS = {"README.md", "AGENTS.md", "CLAUDE.md"}
 # A backticked token is a repository path only when it is a plain path under one of these roots (no wildcards or placeholders).
 REPO_PATH = re.compile(r"^(docs|src|scripts|tests|contracts|tools|\.github)/[A-Za-z0-9_.\-/]+$")
 PROHIBITED_GENERIC_BASENAMES = {

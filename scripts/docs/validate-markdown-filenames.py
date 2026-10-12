@@ -16,7 +16,7 @@ import sys
 import subprocess
 from pathlib import Path
 
-CONVENTIONAL_EXCEPTIONS = {"README.md", "AGENTS.md", "CLAUDE.md", "STE_Audit_Management_Requirements_v2.2.md"}
+CONVENTIONAL_EXCEPTIONS = {"README.md", "AGENTS.md", "CLAUDE.md"}
 PROHIBITED_GENERIC_BASENAMES = {
     "new.md", "final.md", "misc.md", "notes.md", "document.md", "file.md",
     "temp.md", "tmp.md", "test.md", "doc.md", "task.md", "spec.md"

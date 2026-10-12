@@ -10,11 +10,13 @@ namespace AuditSphereOps.Domain.Tests;
 
 /// <summary>
 /// ADR-0017: the STE v2.2 decisions the owner delegated. These cover the parts that do not sit in an existing fixture: the
-/// continuance-question data migration against a database that already holds the bank, the pure band rule, and the working week.
+/// continuance-question data migration against a database that already holds the bank, the pure band rule, the working week, and the
+/// move of stored allocation weeks from a Monday to a Sunday start.
 /// </summary>
 public sealed class SteV22OwnerDecisionTests
 {
   private const string MigrationBeforeDecisions = "20261012080058_WorkflowChangesRequiredQueue";
+  private const string MigrationBeforeSundayWeek = "20261012095835_SteV22OwnerDecisions";
 
   [Fact]
   [Trait("Profile", "Database")]
@@ -86,17 +88,71 @@ public sealed class SteV22OwnerDecisionTests
   }
 
   [Fact]
+  public void FirmWeekStartsOnSunday()
+  {
+    var sunday = new DateOnly(2026, 10, 11);
+    // Every day from Sunday to Saturday belongs to the week that opened on that Sunday; the next Sunday opens the next week.
+    for (var offset = 0; offset < 7; offset++)
+      Assert.Equal(sunday, ResourceGridCalculator.WeekStart(sunday.AddDays(offset)));
+    Assert.Equal(sunday.AddDays(7), ResourceGridCalculator.WeekStart(sunday.AddDays(7)));
+    Assert.Equal(sunday.AddDays(-7), ResourceGridCalculator.WeekStart(sunday.AddDays(-1)));
+  }
+
+  [Fact]
   public void CapacityDeductsLeaveOnASundayButNotOnTheWeekend()
   {
-    var monday = new DateOnly(2026, 10, 12);
-    var friday = monday.AddDays(4);
-    var sunday = monday.AddDays(6);
+    var sunday = new DateOnly(2026, 10, 11);
+    var friday = sunday.AddDays(5);
     static StaffAvailability Leave(DateOnly day) => new() { StartDate = day, EndDate = day, MinutesPerDay = 480, Kind = StaffAvailabilityKinds.Leave };
 
-    var weekendLeave = ResourceGridCalculator.Build(2400, [Leave(friday)], [], [], monday, 1).Single();
-    Assert.Equal((2400, 0), (weekendLeave.CapacityMinutes, weekendLeave.UnavailableMinutes));
+    var weekendLeave = ResourceGridCalculator.Build(2400, [Leave(friday)], [], [], sunday, 1).Single();
+    Assert.Equal((sunday, 2400, 0), (weekendLeave.WeekStart, weekendLeave.CapacityMinutes, weekendLeave.UnavailableMinutes));
 
-    var workingDayLeave = ResourceGridCalculator.Build(2400, [Leave(sunday)], [], [], monday, 1).Single();
+    var workingDayLeave = ResourceGridCalculator.Build(2400, [Leave(sunday)], [], [], sunday, 1).Single();
     Assert.Equal((1920, 480), (workingDayLeave.CapacityMinutes, workingDayLeave.UnavailableMinutes));
+
+    // The five working days share one bucket: leave across Sunday to Thursday removes the whole week, not parts of two weeks.
+    var wholeWeek = new StaffAvailability { StartDate = sunday, EndDate = sunday.AddDays(4), MinutesPerDay = 480, Kind = StaffAvailabilityKinds.Leave };
+    var cells = ResourceGridCalculator.Build(2400, [wholeWeek], [], [], sunday, 2);
+    Assert.Equal((0, 2400), (cells[0].CapacityMinutes, cells[0].UnavailableMinutes));
+    Assert.Equal((2400, 0), (cells[1].CapacityMinutes, cells[1].UnavailableMinutes));
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task SundayWeekMigration_MovesStoredMondayAllocationsIntoTheWeekThatContainsThem()
+  {
+    await using var pg = await PgTestSchema.CreateAsync(MigrationBeforeSundayWeek);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    // The migration changes only week_start and its check. Parent rows are irrelevant to it, so the foreign keys are dropped in
+    // this schema rather than seeding firms, engagements and users through a model newer than the staged schema.
+    await db.Database.ExecuteSqlRawAsync("""
+      DO $$ DECLARE c record; BEGIN
+        FOR c IN SELECT conname FROM pg_constraint WHERE conrelid = 'staff_allocations'::regclass AND contype = 'f' LOOP
+          EXECUTE format('ALTER TABLE staff_allocations DROP CONSTRAINT %I', c.conname);
+        END LOOP;
+      END $$;
+      """);
+    var firmId = Guid.NewGuid(); var engagementId = Guid.NewGuid(); var userId = Guid.NewGuid();
+    var first = Guid.NewGuid(); var second = Guid.NewGuid();
+    foreach (var (id, monday, minutes) in new[] { (first, new DateOnly(2026, 10, 5), 1200), (second, new DateOnly(2026, 10, 12), 600) })
+      await db.Database.ExecuteSqlInterpolatedAsync($"""
+        INSERT INTO staff_allocations (id, firm_id, client_id, engagement_id, user_id, week_start, planned_minutes, updated_at, updated_by_user_id)
+        VALUES ({id}, {firmId}, {Guid.NewGuid()}, {engagementId}, {userId}, {monday}, {minutes}, statement_timestamp(), {userId})
+        """);
+
+    await db.Database.MigrateAsync();
+
+    var stored = await db.StaffAllocations.AsNoTracking().OrderBy(x => x.WeekStart).ToListAsync();
+    // Each Monday-start bucket becomes the Sunday-start week that contains that Monday, with its identity and minutes intact.
+    Assert.Equal([(first, new DateOnly(2026, 10, 4), 1200), (second, new DateOnly(2026, 10, 11), 600)],
+      stored.Select(x => (x.Id, x.WeekStart, x.PlannedMinutes)));
+    Assert.All(stored, x => Assert.Equal(x.WeekStart, ResourceGridCalculator.WeekStart(x.WeekStart)));
+    // After the change the database refuses a week that does not start on Sunday.
+    var refused = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
+      INSERT INTO staff_allocations (id, firm_id, client_id, engagement_id, user_id, week_start, planned_minutes, updated_at, updated_by_user_id)
+      VALUES ({Guid.NewGuid()}, {firmId}, {Guid.NewGuid()}, {engagementId}, {userId}, {new DateOnly(2026, 10, 19)}, 60, statement_timestamp(), {userId})
+      """));
+    Assert.Equal("ck_staff_allocation_values", refused.ConstraintName);
   }
 }

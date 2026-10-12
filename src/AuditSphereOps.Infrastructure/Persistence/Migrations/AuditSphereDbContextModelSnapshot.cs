@@ -24189,7 +24189,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.ToTable("staff_allocations", null, t =>
                         {
-                            t.HasCheckConstraint("ck_staff_allocation_values", "planned_minutes BETWEEN 1 AND 4800 AND extract(isodow from week_start) = 1");
+                            t.HasCheckConstraint("ck_staff_allocation_values", "planned_minutes BETWEEN 1 AND 4800 AND extract(dow from week_start) = 0");
                         });
                 });
 

@@ -104,7 +104,7 @@ public sealed class StaffAvailability
   public Guid RecordedByUserId { get; set; }
 }
 
-/// <summary>Planned minutes for one person on one engagement in one week (Monday start).</summary>
+/// <summary>Planned minutes for one person on one engagement in one week (Sunday start).</summary>
 public sealed class StaffAllocation
 {
   public Guid Id { get; set; }

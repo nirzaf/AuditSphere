@@ -526,7 +526,14 @@ public sealed class CommercialWorkflowTests
       Assert.True(paidReadiness.Succeeded, paidReadiness.Message);
       Assert.Equal(OnboardingReadinessStatuses.Paid, paidReadiness.Value!.AdvancePayment.Status);
       Assert.Equal(OnboardingReadinessStatuses.ReadyForReview, paidReadiness.Value.Activation.Status);
-      Assert.True(paidReadiness.Value.CanActivate);
+      // Readiness is a fact every commercial role sees, but activation is the Partner's action: the Relationship Manager is
+      // not offered it, and the Partner who activates on the next line is.
+      Assert.False(paidReadiness.Value.CanActivate);
+      var partnerReadiness = await ClientOnboardingReadinessQuery.GetAsync(db, w.Partner, engagement.Value,
+        automaticDraftingEnabled: true);
+      Assert.True(partnerReadiness.Succeeded, partnerReadiness.Message);
+      Assert.Equal(OnboardingReadinessStatuses.ReadyForReview, partnerReadiness.Value!.Activation.Status);
+      Assert.True(partnerReadiness.Value.CanActivate);
       // The recorded advance now satisfies the activation gate.
       Assert.True((await EngagementLifecycleService.ActivateAsync(db, w.Partner, engagement.Value)).Succeeded);
       Assert.Equal(ErrorCodes.ScopeDenied, (await FeeAgreementService.RecordAdvancePaymentAsync(db, w.Prep, agreement.Id, 16500m, "PORTAL-TEST-ADVANCE")).ErrorCode);
@@ -961,6 +968,9 @@ public sealed class CommercialWorkflowTests
       .SetProperty(x => x.ResponseOfferSha256, offerHash));
     await db.Opportunities.Where(x => x.Id == opportunityId)
       .ExecuteUpdateAsync(s => s.SetProperty(x => x.Stage, CrmStates.OpportunityWon));
+    // The raw updates bypass the change tracker, which still holds the proposal as it was approved. Clear it so the
+    // commands below read the stored row rather than the stale tracked copy.
+    db.ChangeTracker.Clear();
     var client = await PracticeCrmService.ConvertToClientDraftAsync(db, w.Prep, new(proposalId, "Missing Dispatch Client"));
     Assert.True(client.Succeeded, client.Message);
 
