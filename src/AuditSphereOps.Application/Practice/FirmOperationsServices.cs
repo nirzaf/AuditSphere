@@ -156,8 +156,9 @@ public sealed record EngagementEconomicsRow(Guid EngagementId, string Label, str
 public sealed record DepartmentUtilizationRow(string Department, int CapacityMinutes, int ChargeableMinutes, decimal? UtilizationPercent, decimal? TargetPercent);
 public sealed record MilestonePerformance(int Due, int Completed, int CompletedOnTime, int CompletedLate, int Overdue,
   decimal? CompletionPercent, decimal? OnTimePercent);
+public sealed record TaskWorkloadRow(string AssigneeKey, string AssigneeName, int Due, int Completed, int Open, int Overdue);
 public sealed record PracticeAnalyticsView(DateOnly From, DateOnly To, IReadOnlyList<EngagementEconomicsRow> Engagements, IReadOnlyList<DepartmentUtilizationRow> Departments,
-  MilestonePerformance Milestones, IReadOnlyList<string> Definitions);
+  MilestonePerformance Milestones, IReadOnlyList<TaskWorkloadRow> Workload, IReadOnlyList<string> Definitions);
 
 /// <summary>
 /// Defined, reconcilable practice measures from approved records only. Standard value is approved time at its captured
@@ -177,7 +178,8 @@ public static class PracticeAnalyticsQuery
     "Realization = billed ÷ standard value; collection = collected ÷ billed; margin = (billed − actual cost) ÷ billed.",
     "Period financial totals are available only when approved time, the current approved budget and posted invoices use one known currency; no foreign-exchange conversion is implied.",
     "Actual cost and profit are unavailable when an effective staff cost rate is missing or uses a different currency from the approved time entry.",
-    "Utilization = approved billable minutes ÷ (weekly capacity × weeks − recorded unavailability). Task completion = due-date tasks completed ÷ non-cancelled tasks due in the selected period; tasks without a due date are not applicable. On-time = tasks completed by their due date ÷ tasks due in the period."
+    "Utilization = approved billable minutes ÷ (weekly capacity × weeks − recorded unavailability). Task completion = due-date tasks completed ÷ non-cancelled tasks due in the selected period; tasks without a due date are not applicable. On-time = tasks completed by their due date ÷ tasks due in the period.",
+    "Workload = non-cancelled tasks due in the selected period, grouped by assigned staff member. Open includes overdue tasks; overdue is also shown separately. Unassigned and unavailable staff assignments have separate buckets. This is a task count, not a capacity or effort measure."
   ];
 
   public static async Task<CommandResult<PracticeAnalyticsView>> GetAsync(IClientAccountingDbContext db, ActorContext actor, DateOnly from, DateOnly to, CancellationToken ct = default)
@@ -320,7 +322,29 @@ public static class PracticeAnalyticsQuery
     var milestones = new MilestonePerformance(tasks.Count, completed, onTime, late, overdue,
       tasks.Count > 0 ? Math.Round(completed * 100m / tasks.Count, 1) : null,
       tasks.Count > 0 ? Math.Round(onTime * 100m / tasks.Count, 1) : null);
-    return CommandResult<PracticeAnalyticsView>.Ok(new(from, to, rows, departments, milestones, Definitions));
+    var assigneeIds = tasks.Where(t => t.AssigneeUserId.HasValue).Select(t => t.AssigneeUserId!.Value).Distinct().ToArray();
+    var staffUsers = await db.Users.AsNoTracking().Where(u => u.FirmId == f && u.UserKind == "Staff" && assigneeIds.Contains(u.Id))
+      .Select(u => new { u.Id, u.DisplayName }).ToListAsync(ct);
+    var staffNames = staffUsers.ToDictionary(u => u.Id,
+      u => string.IsNullOrWhiteSpace(u.DisplayName) ? "Staff member" : u.DisplayName);
+    var workload = tasks.GroupBy(t =>
+      {
+        var validStaffAssignee = t.AssigneeUserId is { } id && staffNames.ContainsKey(id) ? id : (Guid?)null;
+        return (UserId: validStaffAssignee, Unavailable: t.AssigneeUserId.HasValue && validStaffAssignee is null);
+      })
+      .Select(g =>
+      {
+        var due = g.Count();
+        var workloadCompleted = g.Count(t => t.Status == PracticeTimeStates.TaskCompleted && t.CompletedAt is not null);
+        var workloadOverdue = g.Count(t => t.CompletedAt is null && t.DueDate < today);
+        var key = g.Key.Unavailable ? "unavailable" : g.Key.UserId?.ToString("N") ?? "unassigned";
+        var name = g.Key.Unavailable ? "Unavailable staff assignment"
+          : g.Key.UserId is { } userId ? staffNames.GetValueOrDefault(userId, "Staff member") : "Unassigned";
+        return new TaskWorkloadRow(key, name, due, workloadCompleted, due - workloadCompleted, workloadOverdue);
+      })
+      .OrderBy(x => x.AssigneeKey is "unassigned" or "unavailable" ? 1 : 0)
+      .ThenBy(x => x.AssigneeName, StringComparer.OrdinalIgnoreCase).ToList();
+    return CommandResult<PracticeAnalyticsView>.Ok(new(from, to, rows, departments, milestones, workload, Definitions));
   }
 
   public static async Task<CommandResult<Guid>> RecordCostRateAsync(IClientAccountingDbContext db, ActorContext actor, Guid userId, decimal hourlyCost, string currency, DateOnly effectiveFrom, CancellationToken ct = default)

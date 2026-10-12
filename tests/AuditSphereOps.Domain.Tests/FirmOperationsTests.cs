@@ -120,6 +120,8 @@ public sealed class FirmOperationsTests
         new WorkTask { Id = Guid.NewGuid(), FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId,
           Title = "Open task due in range", Status = PracticeTimeStates.TaskOpen, DueDate = today, CreatedAt = DateTimeOffset.UtcNow },
         new WorkTask { Id = Guid.NewGuid(), FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId,
+          Title = "Overdue assigned task", Status = PracticeTimeStates.TaskOpen, AssigneeUserId = w.U["manager"].Id, DueDate = today.AddDays(-1), CreatedAt = DateTimeOffset.UtcNow },
+        new WorkTask { Id = Guid.NewGuid(), FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId,
           Title = "Cancelled task excluded", Status = PracticeTimeStates.TaskCancelled, DueDate = today, CreatedAt = DateTimeOffset.UtcNow });
       await db.SaveChangesAsync();
     }
@@ -151,9 +153,16 @@ public sealed class FirmOperationsTests
       var audit = view.Departments.Single(x => x.Department == "Audit");
       Assert.Equal((capacityDays * 480, 300, Math.Round(300m * 100m / (capacityDays * 480), 1)),
         (audit.CapacityMinutes, audit.ChargeableMinutes, audit.UtilizationPercent!.Value));
-      Assert.Equal((2, 1, 1, 0, 50.0m, 50.0m), (view.Milestones.Due, view.Milestones.Completed, view.Milestones.CompletedOnTime,
-        view.Milestones.CompletedLate, view.Milestones.CompletionPercent!.Value, view.Milestones.OnTimePercent!.Value));
+      Assert.Equal((3, 1, 1, 0, 1, 33.3m, 33.3m), (view.Milestones.Due, view.Milestones.Completed, view.Milestones.CompletedOnTime,
+        view.Milestones.CompletedLate, view.Milestones.Overdue, view.Milestones.CompletionPercent!.Value, view.Milestones.OnTimePercent!.Value));
+      var assigned = view.Workload.Single(x => x.AssigneeKey == w.U["staff"].Id.ToString("N"));
+      Assert.Equal((1, 1, 0, 0), (assigned.Due, assigned.Completed, assigned.Open, assigned.Overdue));
+      var managerWorkload = view.Workload.Single(x => x.AssigneeKey == w.U["manager"].Id.ToString("N"));
+      Assert.Equal((1, 0, 1, 1), (managerWorkload.Due, managerWorkload.Completed, managerWorkload.Open, managerWorkload.Overdue));
+      var unassigned = view.Workload.Single(x => x.AssigneeKey == "unassigned");
+      Assert.Equal((1, 0, 1, 0), (unassigned.Due, unassigned.Completed, unassigned.Open, unassigned.Overdue));
       Assert.Contains(view.Definitions, d => d.Contains("charge-out rates are not costs"));
+      Assert.Contains(view.Definitions, d => d.Contains("task count, not a capacity or effort measure"));
     }
   }
 

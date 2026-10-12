@@ -15,13 +15,17 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
-## v2.2 workflow task-completion metric — 2026-10-12
+## v2.2 workflow analytics — task completion and workload — 2026-10-12
 
 The existing bounded Practice Analytics view now reports completed applicable tasks and a separate completion percentage beside on-time, late and overdue counts. The denominator is non-cancelled tasks whose due dates fall within the selected date range; completion requires both `COMPLETED` status and a persisted completion timestamp. Tasks without due dates are excluded, and an empty denominator reports `n/a`. This is operational progress only; it does not satisfy an audit gate, change lifecycle state or produce accounting values.
 
 Verification on the working tree based on `dee458d3`: Release solution build passed with 0 errors and six offline `NU1900` warnings; the targeted Angular analytics contract spec passed 2/2; the focused PostgreSQL analytics regression passed 1/1; OpenAPI drift passed with no contract change. No full suite or Angular production build was run for this slice. The run summary is in `status.json` under `targetedVerification.workflowExperiencePrH`.
 
-This advances only part of WF-14. Per-phase task rollups, review turnaround, client wait, workload distribution, append-only workflow event coverage and broader analytics pagination/performance evidence remain open. Overall WF-14 and v2.2 acceptance remain PARTIAL.
+The same firm-wide analytics query now groups non-cancelled tasks due in the selected period by staff assignee and shows due, completed, open and overdue counts. Unassigned tasks and assignments that do not resolve to a staff user have separate buckets. Staff names are returned only to the endpoint's existing firm-wide Partner, Administrator and FinanceManager audience. This measure is a task count, not capacity or effort; it does not change task state or audit readiness.
+
+Verification of the workload slice based on `0afdaf9a`: the focused PostgreSQL analytics regression passed 1/1 after an initial sandbox socket denial and elevated rerun; the Angular analytics contract spec passed 3/3; the OpenAPI-emitter Release build passed with 0 errors and two offline `NU1900` warnings; its generated contract matched the committed file. The built-in browser opened the local preview but reached the staff sign-in guard, so the analytics page was not authenticated or visually verified. No full suite or production Angular build was run for this slice.
+
+Per-phase task rollups, review turnaround, client wait, append-only workflow event coverage and broader analytics pagination/performance evidence remain open. Overall WF-14 and v2.2 acceptance remain PARTIAL.
 
 ## v2.2 final-release evidence projection — 2026-10-12
 

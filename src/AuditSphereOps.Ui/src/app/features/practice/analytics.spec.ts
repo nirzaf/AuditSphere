@@ -15,6 +15,10 @@ const payload = {
     completionPercent: '75.0',
     onTimePercent: '50.0',
   },
+  workload: [
+    { assigneeKey: 'staff-1', assigneeName: 'Audit staff', due: 2, completed: 1, open: 1, overdue: 1 },
+    { assigneeKey: 'unassigned', assigneeName: 'Unassigned', due: 1, completed: 0, open: 1, overdue: 0 },
+  ],
   definitions: [],
 };
 
@@ -24,9 +28,15 @@ describe('Practice analytics task completion contract', () => {
     expect(decoded.milestones.due).toBe(4);
     expect(decoded.milestones.completed).toBe(3);
     expect(decoded.milestones.completionPercent).toBe('75.0');
+    expect(decoded.workload[0]).toEqual(payload.workload[0]);
+    expect(decoded.workload[1].assigneeKey).toBe('unassigned');
   });
 
   it('rejects numeric percentages instead of accepting a rounded browser number', () => {
     expect(() => decodeAnalytics({ ...payload, milestones: { ...payload.milestones, completionPercent: 75 } }, 'analytics')).toThrow();
+  });
+
+  it('rejects workload rows without bounded integer counts', () => {
+    expect(() => decodeAnalytics({ ...payload, workload: [{ ...payload.workload[0], overdue: '1' }] }, 'analytics')).toThrow();
   });
 });

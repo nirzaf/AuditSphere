@@ -12,7 +12,9 @@ const row = obj({ engagementId: guid, label: text, currency: text, budgetMinutes
 export const decodeAnalytics = obj({ from: date, to: date, engagements: arr(row, 2000),
   departments: arr(obj({ department: text, capacityMinutes: nat, chargeableMinutes: nat, utilizationPercent: nullable(dec), targetPercent: nullable(dec) })),
   milestones: obj({ due: nat, completed: nat, completedOnTime: nat, completedLate: nat, overdue: nat,
-    completionPercent: nullable(dec), onTimePercent: nullable(dec) }), definitions: arr(text, 50) });
+    completionPercent: nullable(dec), onTimePercent: nullable(dec) }),
+  workload: arr(obj({ assigneeKey: text, assigneeName: text, due: nat, completed: nat, open: nat, overdue: nat })),
+  definitions: arr(text, 50) });
 
 export function hours(minutes: number, places = 1): string {
   return (minutes / 60).toLocaleString('en-US', { minimumFractionDigits: places, maximumFractionDigits: places });
@@ -59,6 +61,17 @@ export function hours(minutes: number, places = 1): string {
         <h2 id="milestone-heading">Task completion and milestone performance</h2>
         <p aria-label="Task completion and milestone performance">{{ v.milestones.completed }} / {{ v.milestones.due }} applicable tasks completed · completion {{ pct(v.milestones.completionPercent) }} ·
           {{ v.milestones.completedOnTime }} on time · {{ v.milestones.completedLate }} late · {{ v.milestones.overdue }} overdue · on-time {{ pct(v.milestones.onTimePercent) }}</p>
+      </section>
+      <section class="panel" aria-labelledby="workload-heading">
+        <h2 id="workload-heading">Task workload by assignee</h2>
+        <p>Counts include non-cancelled tasks due in the selected period. Open includes overdue tasks; no-due-date tasks are outside this measure.</p>
+        <div class="table-scroll"><table>
+          <caption>Due task workload by assignee {{ v.from }} to {{ v.to }}</caption>
+          <thead><tr><th scope="col">Assignee</th><th class="number" scope="col">Due</th><th class="number" scope="col">Completed</th><th class="number" scope="col">Open, includes overdue</th><th class="number" scope="col">Overdue</th></tr></thead>
+          <tbody>@for (r of v.workload; track r.assigneeKey) {
+            <tr><th scope="row">{{ r.assigneeName }}</th><td class="number">{{ r.due }}</td><td class="number">{{ r.completed }}</td><td class="number">{{ r.open }}</td><td class="number">{{ r.overdue }}</td></tr>
+          } @empty { <tr><td colspan="5">No due tasks in this period.</td></tr> }</tbody>
+        </table></div>
       </section>
       <section class="panel" aria-labelledby="defs-heading">
         <h2 id="defs-heading">Definitions</h2>
