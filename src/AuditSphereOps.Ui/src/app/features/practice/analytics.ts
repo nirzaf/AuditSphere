@@ -14,6 +14,7 @@ export const decodeAnalytics = obj({ from: date, to: date, engagements: arr(row,
   milestones: obj({ due: nat, completed: nat, completedOnTime: nat, completedLate: nat, overdue: nat,
     completionPercent: nullable(dec), onTimePercent: nullable(dec) }),
   workload: arr(obj({ assigneeKey: text, assigneeName: text, due: nat, completed: nat, open: nat, overdue: nat })),
+  reviewTurnaround: obj({ decisions: nat, reviewed: nat, changesRequired: nat, measured: nat, excluded: nat, averageHours: nullable(dec) }),
   definitions: arr(text, 50) });
 
 export function hours(minutes: number, places = 1): string {
@@ -72,6 +73,12 @@ export function hours(minutes: number, places = 1): string {
             <tr><th scope="row">{{ r.assigneeName }}</th><td class="number">{{ r.due }}</td><td class="number">{{ r.completed }}</td><td class="number">{{ r.open }}</td><td class="number">{{ r.overdue }}</td></tr>
           } @empty { <tr><td colspan="5">No due tasks in this period.</td></tr> }</tbody>
         </table></div>
+      </section>
+      <section class="panel" aria-labelledby="review-turnaround-heading">
+        <h2 id="review-turnaround-heading">Procedure review turnaround</h2>
+        <p>Average elapsed time from result submission to each review decision created in this period. Includes reviewed and changes-required decisions; this is an operational duration, not review quality or audit clearance.</p>
+        <p aria-label="Procedure review turnaround">{{ v.reviewTurnaround.averageHours === null ? 'n/a' : v.reviewTurnaround.averageHours + ' h' }} average across {{ v.reviewTurnaround.measured }} measured decisions ·
+          {{ v.reviewTurnaround.reviewed }} reviewed · {{ v.reviewTurnaround.changesRequired }} changes required · {{ v.reviewTurnaround.excluded }} excluded chronology or revision records.</p>
       </section>
       <section class="panel" aria-labelledby="defs-heading">
         <h2 id="defs-heading">Definitions</h2>

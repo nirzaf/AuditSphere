@@ -15,6 +15,14 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## v2.2 workflow analytics — procedure review turnaround — 2026-10-12
+
+Practice Analytics now shows average elapsed hours from submission of the exact procedure-result revision to each append-only review decision created in the selected date range. Both `REVIEWED` and `CHANGES_REQUIRED` decisions count. Revision mismatches and decisions timestamped before submission are excluded and counted; an empty valid sample is `n/a`. The query returns aggregate counts only and does not expose reviewer comments or names, change review state, or imply review quality or audit clearance. A `(FirmId, CreatedAt)` index supports the bounded review-period query; migration `20261012052354_WorkflowReviewAnalyticsIndex` is additive and has not been applied to a persistent database.
+
+Verification on the working tree based on `690e1c11`: API Release build passed with 0 errors and two offline `NU1900` warnings; the focused PostgreSQL analytics regression passed 1/1, including both review outcomes, date filtering, invalid chronology and revision mismatch; the Angular analytics contract spec passed 4/4; EF model drift reported no pending changes; OpenAPI drift passed unchanged; and the Angular development server compiled. The built-in browser redirected the analytics route to the staff sign-in guard, so no authenticated data rendering was observed. The Angular production build aborted with exit 134 and no diagnostics. No full suite, live-provider or professional acceptance was run. Exact evidence is in `status.json` under `targetedVerification.workflowReviewTurnaround`.
+
+WF-14 remains partial: per-phase task rollups, client wait, append-only workflow activity, analytics pagination/performance acceptance and the remaining workflow stories are open. No persistent database was migrated.
+
 ## v2.2 workflow analytics — task completion and workload — 2026-10-12
 
 The existing bounded Practice Analytics view now reports completed applicable tasks and a separate completion percentage beside on-time, late and overdue counts. The denominator is non-cancelled tasks whose due dates fall within the selected date range; completion requires both `COMPLETED` status and a persisted completion timestamp. Tasks without due dates are excluded, and an empty denominator reports `n/a`. This is operational progress only; it does not satisfy an audit gate, change lifecycle state or produce accounting values.
@@ -25,7 +33,7 @@ The same firm-wide analytics query now groups non-cancelled tasks due in the sel
 
 Verification of the workload slice based on `0afdaf9a`: the focused PostgreSQL analytics regression passed 1/1 after an initial sandbox socket denial and elevated rerun; the Angular analytics contract spec passed 3/3; the OpenAPI-emitter Release build passed with 0 errors and two offline `NU1900` warnings; its generated contract matched the committed file. The built-in browser opened the local preview but reached the staff sign-in guard, so the analytics page was not authenticated or visually verified. No full suite or production Angular build was run for this slice.
 
-Per-phase task rollups, review turnaround, client wait, append-only workflow event coverage and broader analytics pagination/performance evidence remain open. Overall WF-14 and v2.2 acceptance remain PARTIAL.
+Per-phase task rollups, client wait, append-only workflow event coverage and broader analytics pagination/performance evidence remain open. Overall WF-14 and v2.2 acceptance remain PARTIAL.
 
 ## v2.2 final-release evidence projection — 2026-10-12
 

@@ -19,6 +19,7 @@ const payload = {
     { assigneeKey: 'staff-1', assigneeName: 'Audit staff', due: 2, completed: 1, open: 1, overdue: 1 },
     { assigneeKey: 'unassigned', assigneeName: 'Unassigned', due: 1, completed: 0, open: 1, overdue: 0 },
   ],
+  reviewTurnaround: { decisions: 4, reviewed: 3, changesRequired: 1, measured: 2, excluded: 2, averageHours: '7.5' },
   definitions: [],
 };
 
@@ -30,6 +31,13 @@ describe('Practice analytics task completion contract', () => {
     expect(decoded.milestones.completionPercent).toBe('75.0');
     expect(decoded.workload[0]).toEqual(payload.workload[0]);
     expect(decoded.workload[1].assigneeKey).toBe('unassigned');
+    expect(decoded.reviewTurnaround.averageHours).toBe('7.5');
+    expect(decoded.reviewTurnaround.excluded).toBe(2);
+  });
+
+  it('represents an empty review sample without inventing a zero-hour duration', () => {
+    const decoded = decodeAnalytics({ ...payload, reviewTurnaround: { decisions: 0, reviewed: 0, changesRequired: 0, measured: 0, excluded: 0, averageHours: null } }, 'analytics');
+    expect(decoded.reviewTurnaround.averageHours).toBeNull();
   });
 
   it('rejects numeric percentages instead of accepting a rounded browser number', () => {

@@ -289,6 +289,8 @@ public sealed partial class AuditSphereDbContext
     procedureReview.Property(x => x.Comment).HasMaxLength(20000);
     procedureReview.HasIndex(x => new { x.FirmId, x.AuditProcedureResultId, x.CreatedAt })
       .HasDatabaseName("ix_audit_procedure_reviews_result_created");
+    procedureReview.HasIndex(x => new { x.FirmId, x.CreatedAt })
+      .HasDatabaseName("ix_audit_procedure_reviews_firm_created");
     procedureReview.ToTable("audit_procedure_reviews", t => t.HasCheckConstraint("ck_audit_procedure_review_values",
       "result_revision > 0 AND decision IN ('REVIEWED','CHANGES_REQUIRED')"));
     ScopeToEngagement(procedureReview, nameof(AuditProcedureReview.FirmId),

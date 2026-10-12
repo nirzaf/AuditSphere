@@ -2,6 +2,7 @@ using System.Globalization;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
+using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
@@ -157,8 +158,9 @@ public sealed record DepartmentUtilizationRow(string Department, int CapacityMin
 public sealed record MilestonePerformance(int Due, int Completed, int CompletedOnTime, int CompletedLate, int Overdue,
   decimal? CompletionPercent, decimal? OnTimePercent);
 public sealed record TaskWorkloadRow(string AssigneeKey, string AssigneeName, int Due, int Completed, int Open, int Overdue);
+public sealed record ReviewTurnaround(int Decisions, int Reviewed, int ChangesRequired, int Measured, int Excluded, decimal? AverageHours);
 public sealed record PracticeAnalyticsView(DateOnly From, DateOnly To, IReadOnlyList<EngagementEconomicsRow> Engagements, IReadOnlyList<DepartmentUtilizationRow> Departments,
-  MilestonePerformance Milestones, IReadOnlyList<TaskWorkloadRow> Workload, IReadOnlyList<string> Definitions);
+  MilestonePerformance Milestones, IReadOnlyList<TaskWorkloadRow> Workload, ReviewTurnaround ReviewTurnaround, IReadOnlyList<string> Definitions);
 
 /// <summary>
 /// Defined, reconcilable practice measures from approved records only. Standard value is approved time at its captured
@@ -179,7 +181,8 @@ public static class PracticeAnalyticsQuery
     "Period financial totals are available only when approved time, the current approved budget and posted invoices use one known currency; no foreign-exchange conversion is implied.",
     "Actual cost and profit are unavailable when an effective staff cost rate is missing or uses a different currency from the approved time entry.",
     "Utilization = approved billable minutes ÷ (weekly capacity × weeks − recorded unavailability). Task completion = due-date tasks completed ÷ non-cancelled tasks due in the selected period; tasks without a due date are not applicable. On-time = tasks completed by their due date ÷ tasks due in the period.",
-    "Workload = non-cancelled tasks due in the selected period, grouped by assigned staff member. Open includes overdue tasks; overdue is also shown separately. Unassigned and unavailable staff assignments have separate buckets. This is a task count, not a capacity or effort measure."
+    "Workload = non-cancelled tasks due in the selected period, grouped by assigned staff member. Open includes overdue tasks; overdue is also shown separately. Unassigned and unavailable staff assignments have separate buckets. This is a task count, not a capacity or effort measure.",
+    "Review turnaround = average elapsed hours from submission of the exact procedure-result revision to each append-only review decision created in the selected period. Both REVIEWED and CHANGES_REQUIRED decisions are included; result-revision mismatches and decisions before submission are excluded and counted. This is an operational duration, not a review-quality or audit-clearance measure."
   ];
 
   public static async Task<CommandResult<PracticeAnalyticsView>> GetAsync(IClientAccountingDbContext db, ActorContext actor, DateOnly from, DateOnly to, CancellationToken ct = default)
@@ -344,7 +347,31 @@ public static class PracticeAnalyticsQuery
       })
       .OrderBy(x => x.AssigneeKey is "unassigned" or "unavailable" ? 1 : 0)
       .ThenBy(x => x.AssigneeName, StringComparer.OrdinalIgnoreCase).ToList();
-    return CommandResult<PracticeAnalyticsView>.Ok(new(from, to, rows, departments, milestones, workload, Definitions));
+
+    // Bound review decisions by the requested period and exact firm/result scope. The immutable review event
+    // carries its own revision, so stale or impossible chronology is visible but cannot create a negative duration.
+    var reviewStart = new DateTimeOffset(from.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
+    var reviewSet = db.AuditProcedureReviews.AsNoTracking().Where(x => x.FirmId == f && x.CreatedAt >= reviewStart);
+    if (to < DateOnly.MaxValue)
+    {
+      var reviewEndExclusive = new DateTimeOffset(to.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
+      reviewSet = reviewSet.Where(x => x.CreatedAt < reviewEndExclusive);
+    }
+    var reviewRows = await (
+      from review in reviewSet
+      join result in db.AuditProcedureResults.AsNoTracking()
+        on new { review.FirmId, review.ClientId, review.EngagementId, ResultId = review.AuditProcedureResultId }
+        equals new { result.FirmId, result.ClientId, result.EngagementId, ResultId = result.Id }
+      select new { review.Decision, ReviewRevision = review.ResultRevision, ResultRevision = result.Revision, result.SubmittedAt, review.CreatedAt }
+    ).ToListAsync(ct);
+    var measurableReviews = reviewRows.Where(x => x.ReviewRevision == x.ResultRevision && x.CreatedAt >= x.SubmittedAt).ToArray();
+    var averageReviewHours = measurableReviews.Length == 0 ? (decimal?)null : Math.Round(
+      measurableReviews.Sum(x => (decimal)(x.CreatedAt - x.SubmittedAt).Ticks / TimeSpan.TicksPerHour) / measurableReviews.Length, 1);
+    var reviewTurnaround = new ReviewTurnaround(reviewRows.Count,
+      reviewRows.Count(x => x.Decision == AuditProcedureReviewDecisions.Reviewed),
+      reviewRows.Count(x => x.Decision == AuditProcedureReviewDecisions.ChangesRequired), measurableReviews.Length,
+      reviewRows.Count - measurableReviews.Length, averageReviewHours);
+    return CommandResult<PracticeAnalyticsView>.Ok(new(from, to, rows, departments, milestones, workload, reviewTurnaround, Definitions));
   }
 
   public static async Task<CommandResult<Guid>> RecordCostRateAsync(IClientAccountingDbContext db, ActorContext actor, Guid userId, decimal hourlyCost, string currency, DateOnly effectiveFrom, CancellationToken ct = default)

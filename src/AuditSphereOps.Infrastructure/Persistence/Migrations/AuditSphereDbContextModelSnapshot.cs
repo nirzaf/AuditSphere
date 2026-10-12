@@ -13276,6 +13276,9 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasAlternateKey("FirmId", "Id")
                         .HasName("AK_audit_procedure_reviews_firm_id_id");
 
+                    b.HasIndex("FirmId", "CreatedAt")
+                        .HasDatabaseName("ix_audit_procedure_reviews_firm_created");
+
                     b.HasIndex("FirmId", "ReviewerUserId");
 
                     b.HasIndex("FirmId", "AuditProcedureResultId", "CreatedAt")

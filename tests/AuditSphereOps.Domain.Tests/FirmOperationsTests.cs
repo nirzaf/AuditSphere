@@ -2,6 +2,7 @@ using System.Text;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Application.Search;
+using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
@@ -123,6 +124,43 @@ public sealed class FirmOperationsTests
           Title = "Overdue assigned task", Status = PracticeTimeStates.TaskOpen, AssigneeUserId = w.U["manager"].Id, DueDate = today.AddDays(-1), CreatedAt = DateTimeOffset.UtcNow },
         new WorkTask { Id = Guid.NewGuid(), FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId,
           Title = "Cancelled task excluded", Status = PracticeTimeStates.TaskCancelled, DueDate = today, CreatedAt = DateTimeOffset.UtcNow });
+      var reviewAnchor = DateTimeOffset.UtcNow;
+      var reviewSamples = new[]
+      {
+        (Decision: AuditProcedureReviewDecisions.Reviewed, SubmittedAt: reviewAnchor.AddHours(-10), CreatedAt: reviewAnchor, ResultRevision: 1L),
+        (Decision: AuditProcedureReviewDecisions.ChangesRequired, SubmittedAt: reviewAnchor.AddHours(-6), CreatedAt: reviewAnchor.AddHours(-1), ResultRevision: 1L),
+        (Decision: AuditProcedureReviewDecisions.Reviewed, SubmittedAt: reviewAnchor.AddHours(2), CreatedAt: reviewAnchor, ResultRevision: 1L),
+        (Decision: AuditProcedureReviewDecisions.Reviewed, SubmittedAt: reviewAnchor.AddHours(-2), CreatedAt: reviewAnchor, ResultRevision: 2L),
+        (Decision: AuditProcedureReviewDecisions.Reviewed, SubmittedAt: reviewAnchor.AddDays(-7), CreatedAt: reviewAnchor.AddDays(-6), ResultRevision: 1L)
+      };
+      for (var i = 0; i < reviewSamples.Length; i++)
+      {
+        var sample = reviewSamples[i];
+        var procedureId = Guid.NewGuid();
+        var resultId = Guid.NewGuid();
+        var procedureStatus = sample.Decision == AuditProcedureReviewDecisions.Reviewed ? AuditProcedureStatuses.Reviewed : AuditProcedureStatuses.ChangesRequired;
+        db.AuditProcedures.Add(new AuditProcedure
+        {
+          Id = procedureId, FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId,
+          SourceProcedureId = $"AN-{i + 1:D2}", Title = $"Analytics review sample {i + 1}", ApplicabilityStatus = AuditApplicabilityStatuses.Applicable,
+          Status = procedureStatus, CurrentResultRevision = 1, CreatedAt = reviewAnchor.AddDays(-10)
+        });
+        db.AuditProcedureResults.Add(new AuditProcedureResult
+        {
+          Id = resultId, FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId, AuditProcedureId = procedureId,
+          Revision = 1, InputGeneration = 1, WorkPerformed = "Reviewed synthetic analytics fixture.", StructuredResultJson = "{}",
+          Conclusion = "Synthetic fixture only.", Status = sample.Decision == AuditProcedureReviewDecisions.Reviewed
+            ? AuditProcedureResultStatuses.Reviewed : AuditProcedureResultStatuses.ChangesRequired,
+          PreparedByUserId = w.U["staff"].Id, ReviewedByUserId = w.U["manager"].Id, ReviewComment = "Synthetic review fixture.",
+          SubmittedAt = sample.SubmittedAt, ReviewedAt = sample.CreatedAt
+        });
+        db.AuditProcedureReviews.Add(new AuditProcedureReview
+        {
+          Id = Guid.NewGuid(), FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId,
+          AuditProcedureResultId = resultId, AuditProcedureId = procedureId, ResultRevision = sample.ResultRevision,
+          Decision = sample.Decision, ReviewerUserId = w.U["manager"].Id, CreatedAt = sample.CreatedAt
+        });
+      }
       await db.SaveChangesAsync();
     }
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -161,8 +199,11 @@ public sealed class FirmOperationsTests
       Assert.Equal((1, 0, 1, 1), (managerWorkload.Due, managerWorkload.Completed, managerWorkload.Open, managerWorkload.Overdue));
       var unassigned = view.Workload.Single(x => x.AssigneeKey == "unassigned");
       Assert.Equal((1, 0, 1, 0), (unassigned.Due, unassigned.Completed, unassigned.Open, unassigned.Overdue));
+      Assert.Equal((4, 3, 1, 2, 2, 7.5m), (view.ReviewTurnaround.Decisions, view.ReviewTurnaround.Reviewed,
+        view.ReviewTurnaround.ChangesRequired, view.ReviewTurnaround.Measured, view.ReviewTurnaround.Excluded, view.ReviewTurnaround.AverageHours!.Value));
       Assert.Contains(view.Definitions, d => d.Contains("charge-out rates are not costs"));
       Assert.Contains(view.Definitions, d => d.Contains("task count, not a capacity or effort measure"));
+      Assert.Contains(view.Definitions, d => d.Contains("not a review-quality or audit-clearance measure"));
     }
   }
 
