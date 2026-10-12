@@ -4,12 +4,12 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "445e1d99",
-  "verifiedCommit": "1a820666b1b20047021c384f141b218fe2ed83b0",
+  "headCommit": "acf6201959e015a63d5ec7ac436b310a97e795a1",
+  "verifiedCommit": "acf6201959e015a63d5ec7ac436b310a97e795a1",
   "remoteHeadVerified": true,
-  "verifiedCommitWasRemoteHead": false,
+  "verifiedCommitWasRemoteHead": true,
   "productionEnabled": false,
-  "verifiedAt": "2026-10-12T03:27:43Z",
+  "verifiedAt": "2026-10-12T08:17:17Z",
   "toolchain": {
     "sdk": ".NET 10",
     "efCore": "10.0.12",
@@ -64,7 +64,7 @@
     {
       "item": "AS-WF-V22 — v2.2 workflow experience PRs D–I (WF-04 to WF-15) and production acceptance",
       "status": "PARTIAL",
-      "details": "WF-13 projects candidate, exact checkpoint and persisted Release evidence. WF-14 reports due-task completion/workload with phase rollups and average elapsed hours for append-only procedure-review decisions; Practice analytics also reports bounded PBC client-wait intervals from provider-accepted sends to recorded client actions; it excludes reminders and unconfirmed mail and never presents partial results. WF-14 also records append-only Operational Task creation, initial assignment, assignment/reassignment and completion events in the command transaction, with a grant-scoped 90-day keyset-paged timeline. Existing slices include pinned templates and plan receipts, grant-scoped queues, PBC follow-ups/reminders and manager-review rework linkage; see the current-slice handoff. Open: additional activity sources and event kinds, remaining queue states/filters, notification/escalation coverage, domain-evidence dependencies, Kanban/calendar, recurring creation, deadline automation, task-plan authoring UI, and analytics pagination/performance. No full suite, authenticated activity-browser journey, live-provider or professional acceptance is recorded; overall v2.2 remains PARTIAL."
+      "details": "WF-13 projects candidate, exact checkpoint and persisted Release evidence. WF-14 reports due-task completion/workload with phase rollups and average elapsed hours for append-only procedure-review decisions; Practice analytics also reports bounded PBC client-wait intervals from provider-accepted sends to recorded client actions; it excludes reminders and unconfirmed mail and never presents partial results. WF-14 also records append-only Operational Task creation, initial assignment, assignment/reassignment and completion events in the command transaction, with a grant-scoped 90-day keyset-paged timeline. Existing slices include pinned templates and plan receipts, grant-scoped queues with Waiting for client and current Changes required views, PBC follow-ups/reminders, manager-review rework linkage, and template authoring; see the current-slice handoff. Open: additional activity sources and event kinds; review states without operational task links; notification/escalation coverage; domain-evidence dependencies; Kanban/calendar; recurring creation; deadline automation; dedicated task-plan editing; and analytics pagination/performance. No full suite, authenticated activity-browser journey, live-provider or professional acceptance is recorded; overall v2.2 remains PARTIAL."
     }
   ],
   "targetedVerification": {
@@ -1066,6 +1066,30 @@
         "githubActions": "Configured; result not yet observed."
       },
       "acceptance": "This adds focused CI evidence only. It does not run the full Domain/API/E2E suites or establish authenticated browser, external-provider, production or professional acceptance."
+    },
+    "workflowChangesRequiredQueue": {
+      "recordedAtUtc": "2026-10-12T08:15:38Z",
+      "baseCommit": "87cfd247",
+      "scope": "WF-07 Changes required filter linked to the exact audit procedure result; shows only the current result revision with CHANGES_REQUIRED status. New submissions clear the old row. No audit-review state is changed by task completion. WorkflowExperience:Enabled remains false by default.",
+      "migration": {
+        "id": "20261012080058_WorkflowChangesRequiredQueue",
+        "status": "CREATED_NOT_APPLIED",
+        "persistentDatabaseChanged": false,
+        "existingRowsBackfilled": false
+      },
+      "runs": {
+        "focusedPostgres": "PASS: 1/1 ChangesRequiredReviewCreatesOneLinkedOperationalReworkTaskWithoutChangingReviewAuthority; exact result appears and disappears after newer submission.",
+        "apiOpenApiEmitterBuild": "PASS: Release build, 0 errors, two NU1900 warnings because nuget.org vulnerability feed was unreachable; analyzers disabled for this focused build.",
+        "efModelDrift": "PASS: no pending model changes.",
+        "openApiDrift": "PASS: generated contract matches contracts/auditsphere-openapi.json.",
+        "angularDevelopmentCompile": "PASS: dev server built the Angular application and started on loopback.",
+        "angularProductionBuild": "ABORTED: exit 134 with no compiler diagnostics, including worker-limited and non-Rolldown attempts.",
+        "builtInBrowser": "LIMITED: /ui/app/work returned the staff sign-in guard; local API/session host was unavailable, so authenticated queue rendering was not tested.",
+        "docs": "LIMITED: narrative metrics, UI inventory and git diff --check pass; Markdown health and filename checks report only the separately staged, untouched user document STE_Audit_Management_Requirements_v2.2.md."
+      },
+      "acceptance": "Focused local evidence only. WorkflowExperience remains disabled by default. Full Domain/API/E2E suites were not run; migration was not applied to a persistent database; no live, production or professional acceptance is claimed. Workflow epic remains PARTIAL.",
+      "sourceCommit": "acf6201959e015a63d5ec7ac436b310a97e795a1",
+      "sourceTree": "Committed and pushed to origin/master; this record documents that code commit."
     }
   },
   "externalGates": [
