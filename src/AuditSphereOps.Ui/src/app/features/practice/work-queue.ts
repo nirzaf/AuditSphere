@@ -1,9 +1,11 @@
+import { NgTemplateOutlet } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { RouterLink } from '@angular/router';
 import { Api, CommandState } from '../../core/api';
 import { arr, bool, date, guid, instant, int, nullable, obj, oneOf, str, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
+import { QUEUE_DISPLAYS, QueueDisplay, boardColumns, queueCalendar } from './work-queue-views';
 
 const nonBlank = (max: number) => (value: unknown, path: string): string => {
   const decoded = str(max)(value, path);
@@ -52,7 +54,7 @@ const queueViews: { key: QueueView; label: string }[] = [
 
 @Component({
   selector: 'audit-work-queue',
-  imports: [MatButtonModule, RouterLink, ...SHARED],
+  imports: [MatButtonModule, RouterLink, NgTemplateOutlet, ...SHARED],
   template: `
     <audit-page-header title="My work" eyebrow="Engagement tasks"
       description="Operational tasks across your current client and engagement grants. Task completion never replaces audit review or engagement approval." />
@@ -91,8 +93,73 @@ const queueViews: { key: QueueView; label: string }[] = [
         <button matButton [attr.aria-pressed]="selectedView() === item.key" (click)="selectView(item.key)">{{ item.label }}</button>
       }
     </nav>
+    <nav class="queue-views" aria-label="Work queue display">
+      @for (item of displays; track item.key) {
+        <button matButton [attr.aria-pressed]="display() === item.key" (click)="display.set(item.key)">{{ item.label }}</button>
+      }
+    </nav>
+    <ng-template #card let-task>
+      <article class="task-card">
+        <strong>{{ task.title }}</strong>
+        <small><a [routerLink]="['/app/engagements', task.engagementId]">{{ task.clientName }}</a> · {{ task.engagementServiceRoute }} · {{ task.engagementPeriod }}</small>
+        <small>{{ task.phase.replaceAll('_', ' ') }} · {{ task.dueDate ? 'due ' + task.dueDate : 'no due date' }} · {{ task.assigneeDisplayName ?? 'Unassigned' }}</small>
+        <small><audit-status [value]="task.taskStatus" />@if (task.reviewState) { · <audit-status [value]="task.reviewState" /> }@if (task.pbcState) { · PBC {{ task.pbcState }} }</small>
+        @if (task.unmetTaskDependencies) { <small>{{ task.unmetTaskDependencies }} task prerequisite(s) incomplete</small> }
+        @if (task.canComplete) {
+          <button matButton="filled" (click)="complete(task.engagementId, task.taskId, task.revision)" [disabled]="command.busy()">Complete task</button>
+        }
+      </article>
+    </ng-template>
     @if (queue.data(); as result) {
       <p role="status">{{ result.tasks.length }} {{ result.view === 'MY_TASKS' ? 'assigned to you' : 'in this authorized view' }}. Client and engagement rows are limited to your current grants.</p>
+      @if (display() === 'BOARD') {
+        <p class="queue-note">The board groups this page of tasks by operational status. A task changes column only through its own action; cards cannot be dragged.</p>
+        <div class="board" role="group" [attr.aria-label]="labelFor(result.view) + ' board'">
+          @for (column of board(result.tasks); track column.key) {
+            <section class="board-column" [attr.aria-label]="column.label">
+              <h2>{{ column.label }} <small>({{ column.tasks.length }})</small></h2>
+              @for (task of column.tasks; track task.taskId) {
+                <ng-container *ngTemplateOutlet="card; context: { $implicit: task }" />
+              } @empty {
+                <p class="queue-note">No tasks.</p>
+              }
+            </section>
+          }
+        </div>
+      }
+      @if (display() === 'CALENDAR') {
+        @if (calendar(result.tasks); as cal) {
+          <p class="queue-note">The calendar places this page of tasks on their due dates. Weeks run Sunday to Saturday; Friday and Saturday are the weekend.</p>
+          @for (week of cal.weeks; track week.weekStart) {
+            <section class="calendar-week" [attr.aria-label]="'Week of ' + week.weekStart">
+              <h2>Week of {{ week.weekStart }}</h2>
+              <div class="calendar-days">
+                @for (day of week.days; track day.date) {
+                  <div class="calendar-day" [class.weekend]="!day.workingDay">
+                    <h3>{{ day.weekday }} <small>{{ day.date }}</small></h3>
+                    @for (task of day.tasks; track task.taskId) {
+                      <ng-container *ngTemplateOutlet="card; context: { $implicit: task }" />
+                    }
+                  </div>
+                }
+              </div>
+            </section>
+          } @empty {
+            <p>No task on this page has a due date.</p>
+          }
+          @if (cal.undated.length) {
+            <section class="calendar-week" aria-label="Tasks without a due date">
+              <h2>No due date <small>({{ cal.undated.length }})</small></h2>
+              <div class="calendar-days">
+                @for (task of cal.undated; track task.taskId) {
+                  <ng-container *ngTemplateOutlet="card; context: { $implicit: task }" />
+                }
+              </div>
+            </section>
+          }
+        }
+      }
+      @if (display() === 'LIST') {
       <div class="table-scroll"><table>
         <caption>{{ labelFor(result.view) }} — workflow tasks</caption>
         <thead><tr><th scope="col">Due</th><th scope="col">Client / engagement</th><th scope="col">Task</th><th scope="col">Owner</th><th scope="col">Operational status</th><th scope="col">Prerequisites</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
@@ -128,6 +195,7 @@ const queueViews: { key: QueueView; label: string }[] = [
           }
         </tbody>
       </table></div>
+      }
       @if (activityTask(); as selected) {
         <section class="activity-panel" aria-labelledby="task-activity-heading">
           <h2 id="task-activity-heading">Task activity</h2>
@@ -165,6 +233,11 @@ const queueViews: { key: QueueView; label: string }[] = [
 export class WorkflowWorkQueue {
   private readonly api = inject(Api);
   readonly views = queueViews;
+  readonly displays = QUEUE_DISPLAYS;
+  /** How the loaded page is arranged. It never changes which tasks are requested or shown. */
+  readonly display = signal<QueueDisplay>('LIST');
+  readonly board = boardColumns;
+  readonly calendar = queueCalendar;
   readonly selectedView = signal<QueueView>('MY_TASKS');
   readonly activityTask = signal<{ engagementId: string; taskId: string; title: string } | null>(null);
   private readonly cursor = signal<{ dueDate: string | null; taskId: string } | null>(null);

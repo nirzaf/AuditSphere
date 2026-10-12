@@ -10,3 +10,14 @@ td small { display: block; color: var(--muted, #52627a); margin-top: .2rem; }
 .activity-panel { margin-block: 1.25rem; padding: 1rem; border: 1px solid var(--line, #d7dfeb); border-radius: .5rem; }
 .activity-panel li { padding-block: .5rem; }
 .activity-panel small, .activity-panel time { display: block; color: var(--muted, #52627a); margin-top: .2rem; }
+.board { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1rem; align-items: start; }
+.board-column, .calendar-week { padding: .75rem; border: 1px solid var(--line, #d7dfeb); border-radius: .5rem; }
+.board-column h2, .calendar-week h2 { font-size: 1rem; margin: 0 0 .5rem; }
+.calendar-week { margin-block: 1rem; }
+.calendar-days { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: .5rem; align-items: start; }
+.calendar-day { padding: .5rem; border: 1px solid var(--line, #d7dfeb); border-radius: .4rem; min-height: 4rem; }
+.calendar-day.weekend { background: var(--surface-muted, #f3f6fa); }
+.calendar-day h3 { font-size: .9rem; margin: 0 0 .4rem; }
+.calendar-day h3 small { color: var(--muted, #52627a); font-weight: normal; }
+.task-card { display: grid; gap: .2rem; padding: .6rem; margin-block: .4rem; border: 1px solid var(--line, #d7dfeb); border-radius: .4rem; background: var(--surface, #fff); }
+.task-card small { color: var(--muted, #52627a); }

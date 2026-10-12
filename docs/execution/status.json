@@ -896,61 +896,6 @@
       },
       "acceptance": "Local focused evidence only. WorkflowExperience remains default-off; no full Domain/API/E2E suite, persistent database migration, live provider or professional acceptance is claimed. The v2.2 workflow epic remains PARTIAL."
     },
-    "practiceManagementBaselineSlice": {
-      "recordedAtUtc": "2026-10-12T12:06:54Z",
-      "baseCommit": "733ab239",
-      "sourceTree": "Working tree on branch pm-completion at 733ab239; the commit carrying this record is the source revision.",
-      "database": "auditsphere_tests on 127.0.0.1:5433",
-      "scope": "Practice management completion program, first slice: PM-00 crosswalk of PM-00 to PM-17 and the candidate-gap appendix; monthly firm profit and loss series with prior-year comparator (FIN-05); one alias-aware rate lookup for time, budgets and quotations (TIME-01); named staffed users and freeze countdown on the engagement dashboard (WF-02). No migration and no OpenAPI change.",
-      "runs": [
-        {
-          "name": "Focused Domain PostgreSQL tests",
-          "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --configuration Release --filter 'EngagementLifecycleQueryTests|EngagementWorkflowProjectionTests|FirmOperationsTests' and a second run with 'SteChargeOutRateBaselineTests|BudgetPreparationReviewTests|Quotation|BudgetApproval'",
-          "passed": 45,
-          "failed": 0,
-          "result": "PASS",
-          "note": "Two filtered runs, 10 and 35 tests."
-        },
-        {
-          "name": "Angular full suite",
-          "command": "npx ng test --watch=false (npm run test:ci)",
-          "test_files": 120,
-          "passed": 674,
-          "failed": 0,
-          "result": "PASS"
-        },
-        {
-          "name": "Angular production build",
-          "command": "npx ng build (npm run build)",
-          "result": "PASS"
-        },
-        {
-          "name": "Solution Release build",
-          "command": "dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1",
-          "result": "PASS (0 errors, 0 warnings)"
-        },
-        {
-          "name": "OpenAPI drift",
-          "command": "bash scripts/contracts/verify-openapi.sh",
-          "result": "PASS: contract is current (regenerated, no difference)"
-        },
-        {
-          "name": "Documentation gates",
-          "command": "validate-markdown-documentation.py, validate-markdown-filenames.py, validate-narrative-metrics.py, scripts/ui/inventory.py --check, build-task-board.py --check",
-          "result": "PASS"
-        }
-      ],
-      "notRun": [
-        "The full Domain, API and E2E suites, left to CI at the owner's instruction.",
-        "Any browser, keyboard or screen-reader journey for the changed screens.",
-        "The prior-year comparator with a stored prior-year period; the test covers only the absent-period case."
-      ],
-      "openItems": [
-        "Most open stories wait on decisions DEC-01 to DEC-11 or on live infrastructure; the crosswalk lists each.",
-        "Seven candidate gaps (TIME-07, ACC-01, ACC-02, ACC-04, ACC-08, ACC-12, ACC-13) and story PM-12 were not re-verified against code.",
-        "NR-01 to NR-12 are not yet mapped to named tests."
-      ]
-    },
     "practiceManagementReportingSlice": {
       "recordedAtUtc": "2026-10-12T12:21:12Z",
       "baseCommit": "fa89e248",
@@ -1005,6 +950,69 @@
         "CRM-04 brief quotation timeline is not built; it changes the offer identity and needs its own slice.",
         "NR-11 and NR-12 have no single named test.",
         "Receivables totals now include non-milestone invoices and are not comparable with earlier reports."
+      ]
+    },
+    "practiceManagementWorkflowViewsSlice": {
+      "recordedAtUtc": "2026-10-12T14:49:06Z",
+      "baseCommit": "7ee45fc6",
+      "sourceTree": "Covers commit 14664a17 (proposal timeline, recorded here because that commit carried no record) and the working tree on branch pm-slice4 at 14664a17; the commit carrying this record is the source revision for the workflow views.",
+      "database": "auditsphere_tests on 127.0.0.1:5433",
+      "scope": "Practice management program, third slice. Optional proposal timeline bound into the offer identity and rendered on the quotation and letter (migration ProposalTimeline). Work queue board and calendar arrangements. Per-phase checklists on the engagement dashboard. The workflow views are Angular only and add no endpoint.",
+      "runs": [
+        {
+          "name": "Focused Domain PostgreSQL tests, commit 14664a17",
+          "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --configuration Release --filter 'PracticeCrmTests|CommercialWorkflowTests'",
+          "passed": 31,
+          "failed": 0,
+          "result": "PASS"
+        },
+        {
+          "name": "Focused Domain PostgreSQL tests, this tree",
+          "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --configuration Release --filter 'CommercialWorkflowTests'",
+          "passed": 14,
+          "failed": 0,
+          "result": "PASS",
+          "note": "Adds the assertion that the timeline is rendered into the quotation and the engagement letter."
+        },
+        {
+          "name": "Angular full suite",
+          "command": "npx ng test --watch=false (npm run test:ci)",
+          "test_files": 123,
+          "passed": 685,
+          "failed": 0,
+          "result": "PASS"
+        },
+        {
+          "name": "Angular production build",
+          "command": "npx ng build (npm run build)",
+          "result": "PASS_WITH_WARNING",
+          "note": "Pre-existing budget warning for commercial/settings.scss."
+        },
+        {
+          "name": "Solution Release build",
+          "command": "dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1",
+          "result": "PASS (0 errors, 0 warnings)"
+        },
+        {
+          "name": "OpenAPI drift and EF model drift, commit 14664a17",
+          "command": "bash scripts/contracts/verify-openapi.sh; dotnet ef migrations has-pending-model-changes",
+          "result": "PASS"
+        },
+        {
+          "name": "Documentation gates",
+          "command": "validate-markdown-documentation.py, validate-markdown-filenames.py, validate-narrative-metrics.py, scripts/ui/inventory.py --check, build-task-board.py --check",
+          "result": "PASS"
+        }
+      ],
+      "notRun": [
+        "The full Domain, API and E2E suites, left to CI at the owner's instruction.",
+        "Any browser run. The board, calendar and checklists were exercised only through component and unit specs; the task experience is off by default.",
+        "The ProposalTimeline migration against the development or production database."
+      ],
+      "openItems": [
+        "The board and calendar arrange one loaded page of up to 50 tasks; they do not load further pages on their own.",
+        "The checklist read lists up to 500 tasks per engagement and shows no assignee names.",
+        "Decisions listed as not decided in ADR-0018 still gate the remaining stories."
       ]
     }
   },

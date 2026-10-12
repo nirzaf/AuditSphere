@@ -109,5 +109,53 @@
         </ul>
       </nav>
     </article>
+
+    @if (checklistError()) {
+      <p role="alert">{{ checklistError() }}</p>
+    }
+    @if (checklists(); as lists) {
+      <section class="phase-checklists" aria-labelledby="phase-checklists-heading">
+        <h4 id="phase-checklists-heading">Phase checklists</h4>
+        <p class="canonical-note">
+          Operational tasks by phase. Task progress and gate readiness are separate facts: finishing every task does not clear
+          a mandatory gate, and a task cannot record an approval, a payment or a signature.
+        </p>
+        @if (checklistsTruncated()) {
+          <p role="status">This engagement has more tasks than are listed here. Open My work for the full queue.</p>
+        }
+        @for (list of lists; track list.code) {
+          <details [open]="list.index === report.currentPhase.index">
+            <summary>
+              <span class="checklist-title">{{ list.index }}. {{ list.label }}</span>
+              <span class="checklist-progress">
+                @if (list.percent === null) {
+                  No tasks
+                } @else {
+                  Tasks: {{ list.completed }} of {{ list.eligible }} complete ({{ list.percent }}%)
+                }
+              </span>
+              <span class="status-badge" [attr.data-status]="phaseStatus(report, list.index)">Gate: {{ statusLabel(phaseStatus(report, list.index)) }}</span>
+            </summary>
+            @if (list.index === report.currentPhase.index && list.percent === 100 && report.blockers.length > 0) {
+              <p class="provider-warning" role="status">Every task is complete, but this phase is still blocked by a mandatory gate.</p>
+            }
+            @if (list.tasks.length) {
+              <ul class="checklist">
+                @for (task of list.tasks; track task.id) {
+                  <li [class.done]="task.status === 'COMPLETED'" [class.cancelled]="task.status === 'CANCELLED'">
+                    <span class="checklist-state">{{ taskStateLabel(task.status) }}</span>
+                    <span class="checklist-task">{{ task.title }}</span>
+                    <small>{{ task.dueDate ? 'Due ' + task.dueDate : 'No due date' }}@if (task.fsliCode) { · FSLI {{ task.fsliCode }} }</small>
+                  </li>
+                }
+              </ul>
+            } @else {
+              <p class="no-blockers">No operational task is recorded for this phase.</p>
+            }
+          </details>
+        }
+        <p><a matButton routerLink="/app/work">Open My work</a></p>
+      </section>
+    }
   }
 </section>

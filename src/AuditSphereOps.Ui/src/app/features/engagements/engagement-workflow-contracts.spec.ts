@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   WORKFLOW_PHASES,
   decodeEngagementWorkflowReport,
+  decodeEngagementWorkflowTasks,
   decodeOnboardingReadinessReport,
+  phaseChecklists,
   workbenchLinksFor,
 } from './engagement-workflow-contracts';
 
@@ -245,5 +247,43 @@ describe('Phase workbench links (STE v2.2 section 6.2)', () => {
 
   it('offers no workbench for a phase it does not recognise', () => {
     expect(workbenchLinksFor('UNKNOWN_PHASE', id, clientId)).toEqual([]);
+  });
+});
+
+describe('Phase checklists (STE v2.2 section 6.2)', () => {
+  const engagementId = '0d3b6a53-7d0a-4b47-9d53-3a2c5c1f4b11';
+  const task = (n: number, phase: string, status: string, ordinal = n) => ({
+    id: `5a1c1f6e-2f0b-4a0e-8a53-0000000000${String(n).padStart(2, '0')}`,
+    title: `Task ${n}`, phase, ordinal, status, dueDate: null, fsliCode: null,
+  });
+
+  it('builds one checklist per phase in phase order, with tasks in their ordinal order', () => {
+    const workspace = decodeEngagementWorkflowTasks({
+      engagementId, truncated: false,
+      tasks: [task(2, 'AUDIT_FIELDWORK', 'OPEN', 20), task(1, 'AUDIT_FIELDWORK', 'COMPLETED', 10), task(3, 'AUDIT_PLANNING', 'COMPLETED')],
+    });
+    const lists = phaseChecklists(workspace.tasks);
+    expect(lists.map((l) => l.code)).toEqual(WORKFLOW_PHASES.map((p) => p.code));
+    const fieldwork = lists[2];
+    expect(fieldwork.tasks.map((t) => t.title)).toEqual(['Task 1', 'Task 2']);
+    expect([fieldwork.completed, fieldwork.eligible, fieldwork.percent]).toEqual([1, 2, 50]);
+    expect(lists[1].percent).toBe(100);
+    expect(lists[0].percent).toBeNull();
+  });
+
+  it('leaves cancelled tasks out of progress and never rounds up to complete', () => {
+    const tasks = decodeEngagementWorkflowTasks({
+      engagementId, truncated: false,
+      tasks: [task(1, 'MANAGER_REVIEW', 'COMPLETED'), task(2, 'MANAGER_REVIEW', 'COMPLETED'), task(3, 'MANAGER_REVIEW', 'OPEN'),
+        task(4, 'MANAGER_REVIEW', 'CANCELLED')],
+    }).tasks;
+    const review = phaseChecklists(tasks)[3];
+    expect([review.completed, review.eligible, review.percent]).toEqual([2, 3, 66]);
+    expect(review.tasks).toHaveLength(4);
+  });
+
+  it('refuses a task in an unknown phase or status', () => {
+    expect(() => decodeEngagementWorkflowTasks({ engagementId, truncated: false, tasks: [task(1, 'SOME_PHASE', 'OPEN')] })).toThrow();
+    expect(() => decodeEngagementWorkflowTasks({ engagementId, truncated: false, tasks: [task(1, 'AUDIT_PLANNING', 'APPROVED')] })).toThrow();
   });
 });

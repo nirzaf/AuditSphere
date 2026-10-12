@@ -102,6 +102,51 @@ export function decodeEngagementWorkflowReport(value: unknown) {
 
 export type EngagementWorkflowReport = ReturnType<typeof decodeEngagementWorkflowReport>;
 
+const workflowTaskDecoder = obj({
+  id: guid,
+  title: str(300),
+  phase: oneOf(...WORKFLOW_PHASES.map((p) => p.code)),
+  ordinal: int,
+  status: oneOf('OPEN', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'),
+  dueDate: nullable(str(10)),
+  fsliCode: nullable(str(100)),
+});
+const workflowTasksDecoder = obj({ engagementId: guid, tasks: arr(workflowTaskDecoder, 500), truncated: bool });
+
+export function decodeEngagementWorkflowTasks(value: unknown) {
+  return decode(workflowTasksDecoder, value);
+}
+export type EngagementWorkflowTask = ReturnType<typeof decodeEngagementWorkflowTasks>['tasks'][number];
+
+export interface PhaseChecklist {
+  index: number;
+  code: string;
+  label: string;
+  tasks: EngagementWorkflowTask[];
+  /** Tasks that count toward progress: everything except cancelled tasks. */
+  eligible: number;
+  completed: number;
+  /** Whole percent of eligible tasks completed, or null when the phase has no eligible task. */
+  percent: number | null;
+}
+
+/**
+ * One operational checklist per visible phase (STE v2.2 section 6.2), built from the engagement's own tasks. Progress here is
+ * task progress only. It is a different fact from gate readiness, which the server reports on the phase itself: a phase with
+ * every task done can still be blocked.
+ */
+export function phaseChecklists(tasks: readonly EngagementWorkflowTask[]): PhaseChecklist[] {
+  return WORKFLOW_PHASES.map((phase) => {
+    const mine = tasks.filter((t) => t.phase === phase.code).sort((a, b) => a.ordinal - b.ordinal || a.id.localeCompare(b.id));
+    const eligible = mine.filter((t) => t.status !== 'CANCELLED').length;
+    const completed = mine.filter((t) => t.status === 'COMPLETED').length;
+    return {
+      index: phase.index, code: phase.code, label: phase.label, tasks: mine, eligible, completed,
+      percent: eligible === 0 ? null : Math.floor((completed * 100) / eligible),
+    };
+  });
+}
+
 const clientStatus = oneOf(
   'CURRENT',
   'AWAITING_CLIENT',

@@ -219,3 +219,47 @@
     list-style: none;
   }
 }
+
+// Checklists show task progress beside, never instead of, each phase's gate status.
+.phase-checklists {
+  margin-top: 1.25rem;
+
+  details {
+    border: 1px solid var(--mat-sys-outline-variant, #e0e0e0);
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    margin-block: 0.5rem;
+  }
+
+  summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    cursor: pointer;
+  }
+
+  .checklist-title {
+    font-weight: 600;
+  }
+
+  .checklist {
+    list-style: none;
+    margin: 0.5rem 0 0;
+    padding: 0;
+
+    li {
+      display: grid;
+      grid-template-columns: 6rem 1fr;
+      gap: 0 0.75rem;
+      padding-block: 0.35rem;
+    }
+
+    small {
+      grid-column: 2;
+    }
+
+    .cancelled .checklist-task {
+      text-decoration: line-through;
+    }
+  }
+}

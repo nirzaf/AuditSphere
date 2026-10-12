@@ -2,7 +2,7 @@
   "schemaVersion": "1",
   "archiveOf": "docs/execution/status.json",
   "archivedOn": "2026-10-12",
-  "note": "Keys moved verbatim from status.json. Values are unchanged; only the JSON layout is normalised. No script reads these keys; query them with jq when needed. On 2026-10-12, the closed workflowChangesRequiredQueue evidence was moved verbatim from status.json to keep the live ledger below its 100 KB limit. On 2026-10-12, the closed workflowExperienceV22 evidence (seven-phase projection and Dual-Key readiness, commit f7753f72) was moved verbatim from status.json for the same reason. On 2026-10-12, the closed steV22OwnerDecisions evidence (ADR-0017, commit 53a8f9af) was moved verbatim from status.json for the same reason; three of its four open items were closed by the later qatarSundayWeekStart record. On 2026-10-12, the closed qatarSundayWeekStart evidence (commit 733ab239) was moved verbatim from status.json for the same reason.",
+  "note": "Keys moved verbatim from status.json. Values are unchanged; only the JSON layout is normalised. No script reads these keys; query them with jq when needed. On 2026-10-12, the closed workflowChangesRequiredQueue evidence was moved verbatim from status.json to keep the live ledger below its 100 KB limit. On 2026-10-12, the closed workflowExperienceV22 evidence (seven-phase projection and Dual-Key readiness, commit f7753f72) was moved verbatim from status.json for the same reason. On 2026-10-12, the closed steV22OwnerDecisions evidence (ADR-0017, commit 53a8f9af) was moved verbatim from status.json for the same reason; three of its four open items were closed by the later qatarSundayWeekStart record. On 2026-10-12, the closed qatarSundayWeekStart evidence (commit 733ab239) was moved verbatim from status.json for the same reason. On 2026-10-12, the closed practiceManagementBaselineSlice evidence (commit fa89e248) was moved verbatim from status.json for the same reason.",
   "keys": {
     "verification": {
       "firmExpenseCreationRecovery": {
@@ -13736,6 +13736,61 @@
           "CashFlowContractTests.FxCashEffect_ReconcilesSeparatelyAndPersistsEvidence was failing on master before this change and is not addressed here.",
           "No firm holiday table exists. Public holidays are recorded as unavailability.",
           "Planning receipts committed before the migration keep the Monday week they recorded."
+        ]
+      },
+      "practiceManagementBaselineSlice": {
+        "recordedAtUtc": "2026-10-12T12:06:54Z",
+        "baseCommit": "733ab239",
+        "sourceTree": "Working tree on branch pm-completion at 733ab239; the commit carrying this record is the source revision.",
+        "database": "auditsphere_tests on 127.0.0.1:5433",
+        "scope": "Practice management completion program, first slice: PM-00 crosswalk of PM-00 to PM-17 and the candidate-gap appendix; monthly firm profit and loss series with prior-year comparator (FIN-05); one alias-aware rate lookup for time, budgets and quotations (TIME-01); named staffed users and freeze countdown on the engagement dashboard (WF-02). No migration and no OpenAPI change.",
+        "runs": [
+          {
+            "name": "Focused Domain PostgreSQL tests",
+            "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --configuration Release --filter 'EngagementLifecycleQueryTests|EngagementWorkflowProjectionTests|FirmOperationsTests' and a second run with 'SteChargeOutRateBaselineTests|BudgetPreparationReviewTests|Quotation|BudgetApproval'",
+            "passed": 45,
+            "failed": 0,
+            "result": "PASS",
+            "note": "Two filtered runs, 10 and 35 tests."
+          },
+          {
+            "name": "Angular full suite",
+            "command": "npx ng test --watch=false (npm run test:ci)",
+            "test_files": 120,
+            "passed": 674,
+            "failed": 0,
+            "result": "PASS"
+          },
+          {
+            "name": "Angular production build",
+            "command": "npx ng build (npm run build)",
+            "result": "PASS"
+          },
+          {
+            "name": "Solution Release build",
+            "command": "dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1",
+            "result": "PASS (0 errors, 0 warnings)"
+          },
+          {
+            "name": "OpenAPI drift",
+            "command": "bash scripts/contracts/verify-openapi.sh",
+            "result": "PASS: contract is current (regenerated, no difference)"
+          },
+          {
+            "name": "Documentation gates",
+            "command": "validate-markdown-documentation.py, validate-markdown-filenames.py, validate-narrative-metrics.py, scripts/ui/inventory.py --check, build-task-board.py --check",
+            "result": "PASS"
+          }
+        ],
+        "notRun": [
+          "The full Domain, API and E2E suites, left to CI at the owner's instruction.",
+          "Any browser, keyboard or screen-reader journey for the changed screens.",
+          "The prior-year comparator with a stored prior-year period; the test covers only the absent-period case."
+        ],
+        "openItems": [
+          "Most open stories wait on decisions DEC-01 to DEC-11 or on live infrastructure; the crosswalk lists each.",
+          "Seven candidate gaps (TIME-07, ACC-01, ACC-02, ACC-04, ACC-08, ACC-12, ACC-13) and story PM-12 were not re-verified against code.",
+          "NR-01 to NR-12 are not yet mapped to named tests."
         ]
       }
     },

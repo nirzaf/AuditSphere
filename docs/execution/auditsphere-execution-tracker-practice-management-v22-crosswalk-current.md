@@ -19,6 +19,12 @@
 - **TIME-02, TIME-03, FIN-03 (ADR-0018).** Non-billable time has no charge-out value; utilization uses one billable basis in both views; the receivables report ages every posted firm invoice.
 - **PM-07 first slice.** `GET /api/ui/engagements/{id}/communications` and an engagement panel list recorded outbound mail: PBC request emails, routed document dispatches and commercial notifications bound to the engagement. Engagement Partners, Managers and Administrators may read it. Message bodies are not projected, and provider acceptance is never worded as delivery.
 
+## What the third slice changed
+
+- **CRM-04.** A proposal can carry an optional timeline. It is part of the creation receipt and is rendered into the quotation and the engagement letter, so a changed timeline is a new revision that needs a fresh acceptance. Migration `ProposalTimeline` adds the column.
+- **WF-05.** The work queue can show a loaded page as a list, a board by operational status, or a calendar by due date in Sunday-start weeks. The arrangements regroup the same tasks and offer no drag between columns.
+- **WF-03.** The engagement dashboard shows an expandable checklist per phase. Task progress is stated beside the phase's gate status, and a phase with every task done and a blocked gate says so.
+
 No lifecycle rule, gate, stage mapping or module boundary changed. The eleven-stage projection and the seven-phase mapper were not edited.
 
 ## Stories
@@ -26,11 +32,11 @@ No lifecycle rule, gate, stage mapping or module boundary changed. The eleven-st
 | Story | Disposition | Note |
 | --- | --- | --- |
 | PM-00 | PARTIAL | This crosswalk, and the scenario map below. NR-11 and NR-12 have no single named test. |
-| PM-01 | PARTIAL | Named staff and countdown delivered here. Checklists, milestone dates and a role-computed action remain. |
-| PM-02 | PARTIAL | Workflow track. Kanban, calendar and editable groups remain. |
+| PM-01 | PARTIAL | Named staff, countdown and phase checklists are delivered. Per-phase milestone dates and a role-computed next action remain. |
+| PM-02 | PARTIAL | Board and calendar views are delivered. Editable task groups and dependency authoring outside a template remain. |
 | PM-03 | OWNER_DECISION | DEC-01 and DEC-03 gate the recurrence action. |
 | PM-04 | PARTIAL | Reminder rule administration and escalation remain. |
-| PM-05 | OWNER_DECISION | DEC-01, DEC-02 and DEC-09. The brief quotation timeline is the decision-free part. |
+| PM-05 | OWNER_DECISION | The quotation timeline is delivered. DEC-01, DEC-02 and DEC-09 gate the rest. |
 | PM-06 | PARTIAL | Local behaviour present; live journeys are BLOCKED_EXTERNAL. |
 | PM-07 | PARTIAL | The engagement communication timeline is built. Comments, mentions and a connected inbox are not. |
 | PM-08 | PARTIAL | Aliases, non-billable valuation and the utilization basis are closed. Staff-level views wait on DEC-05. |
@@ -51,7 +57,7 @@ No lifecycle rule, gate, stage mapping or module boundary changed. The eleven-st
 | CRM-01 | PARTIAL | R | Parent, subsidiary and affiliate kinds exist; no separate holding kind and tree depth is unverified. |
 | CRM-02 | OWNER_DECISION | R | DEC-09. Contact role is free text and routing precedence is undecided. |
 | CRM-03 | PARTIAL | N | Per-recipient delivery receipts exist for commercial notifications; routing to purpose contacts waits on DEC-09. |
-| CRM-04 | MISSING | C | Not a small change: a timeline is a new offer term, so it alters the offer identity that client acceptance binds. It needs its own slice. |
+| CRM-04 | ALREADY_COMPLETE | C | Closed: an optional proposal timeline, rendered on the quotation and the letter and bound into the offer identity. An approved one or two page layout is still DEC-02. |
 | CRM-05 | OWNER_DECISION | N | DEC-02. Proposal format and CV selection need an approved layout. |
 | CRM-06 | OWNER_DECISION | R | DEC-01. The Key 1 exact-revision rule when no brief quotation exists. |
 | CRM-07 | OWNER_DECISION | R | DEC-02. Letter clauses and deadline wording. |
@@ -62,9 +68,9 @@ No lifecycle rule, gate, stage mapping or module boundary changed. The eleven-st
 | CRM-12 | BLOCKED_EXTERNAL | R | Live invitation, revocation and site provisioning. |
 | WF-01 | PARTIAL | R | WorkflowExperience stays off until operationally accepted. |
 | WF-02 | PARTIAL | C | This slice adds the named staffed users and the countdown. A per-phase milestone date and a role-computed next action remain open. |
-| WF-03 | MISSING | R | No checklist model. Belongs to the workflow track. |
+| WF-03 | ALREADY_COMPLETE | C | Closed: expandable per-phase checklists on the engagement dashboard, from the engagement's operational tasks. |
 | WF-04 | PARTIAL | R | Template-derived dependencies exist; editable groups and ad hoc dependency authoring do not. |
-| WF-05 | MISSING | R | No Kanban or calendar view. Belongs to the workflow track. |
+| WF-05 | ALREADY_COMPLETE | C | Closed: board and calendar arrangements of the work queue, over the same loaded tasks as the list. |
 | WF-06 | PARTIAL | R | Queues and review inbox exist; procedure-level assignee waits on DEC-07. |
 | WF-07 | MISSING | R | No preview, approve, create recurrence action. |
 | WF-08 | OWNER_DECISION | R | DEC-01 and DEC-03. The annual offer-period guard is in place; acceptance expiry is undecided. |
@@ -158,8 +164,7 @@ Names are tests in `tests/AuditSphereOps.Domain.Tests`. A named test covers the 
 
 ## What can be built next without a decision
 
-- **CRM-04:** the brief quotation timeline, as its own slice because it changes the offer identity.
-- **WF-03 and WF-05:** phase checklists and Kanban or calendar views, inside the workflow track.
 - **NR-11 and NR-12:** a named cross-ledger negative test and a flag-off suite.
+- **PM-01 remainder:** a per-phase milestone date and a role-computed next action.
 
 Everything else that is open waits on a decision listed as not decided in ADR-0018, on live infrastructure, or on a scope choice. Those are not development defects.

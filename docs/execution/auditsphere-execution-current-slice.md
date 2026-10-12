@@ -15,6 +15,14 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Practice management program, third slice — 2026-10-12
+
+A proposal can carry an optional delivery timeline. It is part of the creation receipt and is rendered on the brief quotation and the engagement letter, so it sits inside the offer the client accepts: a changed timeline is a new revision and needs a fresh acceptance. Proposals created without one keep their identity. Migration `ProposalTimeline` adds the column and has run only against the test database.
+
+The work queue can show a loaded page as a list, a board by operational status, or a calendar by due date in Sunday-start weeks. The three arrangements regroup the same tasks, and a card offers only the task's own completion command. The engagement dashboard shows an expandable checklist per phase, with task progress beside the gate status and a plain statement when every task is done but the gate is blocked. Both sit behind `WorkflowExperience:Enabled`, which stays off by default, and neither was run in a browser.
+
+The owner-supplied program and its crosswalk are in `docs/execution`; the crosswalk lists what remains and why. The full .NET suites were left to CI; evidence is in `status.json` under `targetedVerification.practiceManagementWorkflowViewsSlice`.
+
 ## Practice management program, second slice — 2026-10-12
 
 ADR-0018 records the reporting decisions the owner delegated: approved non-billable and no-charge time carries hours and cost and no charge-out value; utilization is approved billable time over capacity in both the weekly grid and department analytics; and the receivables report ages every posted firm invoice, typed as advance, final, time or other. The ADR also lists the professional, legal and commercial decisions it does not make.
@@ -22,14 +30,6 @@ ADR-0018 records the reporting decisions the owner delegated: approved non-billa
 The engagement page has a communications panel backed by `GET /api/ui/engagements/{id}/communications`. It lists recorded outbound mail for the engagement, to engagement Partners, Managers and Administrators, without message bodies, and never words provider acceptance as delivery. The crosswalk now maps the twelve non-regression scenarios to named tests and states where none was found.
 
 Operators should expect realization and contribution to appear where non-billable time used to make them unavailable, lower grid utilization for staff with non-billable time, and higher receivables totals where non-milestone invoices are posted. The full .NET suites were left to CI; evidence is in `status.json` under `targetedVerification.practiceManagementReportingSlice`.
-
-## Practice management completion program, first slice — 2026-10-12
-
-The owner supplied a completion program (stories PM-00 to PM-17, with an appendix of candidate gaps). It is stored as `auditsphere-execution-user-stories-cloud-practice-management-v22-proposed.md` and reconciled against the code in `auditsphere-execution-tracker-practice-management-v22-crosswalk-current.md`. Most open rows wait on an owner or professional decision, on live infrastructure, or on a scope choice; the crosswalk names which.
-
-Three decision-free gaps are closed. The firm trial balance report returns one profit and loss row per accounting month with the same month a year earlier as comparator, and the months add up to the range totals. Time capture, budgets, budget previews and quotations share one rate lookup, so an STE alias such as Senior prices the same everywhere and an unknown role still fails closed. The engagement dashboard names the people staffed at the level that owns the current step and shows the days left to the scheduled freeze. No lifecycle rule, gate or stage mapping changed, and there is no migration.
-
-The full .NET suites were left to CI. Evidence, what was not run and open items are in `status.json` under `targetedVerification.practiceManagementBaselineSlice`.
 
 ## v2.2 unlinked procedure review inbox — 2026-10-12
 

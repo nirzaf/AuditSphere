@@ -79,7 +79,8 @@ public sealed class CommercialWorkflowTests
     Assert.True(opportunity.Succeeded, opportunity.Message);
     var proposal = await PracticeCrmService.ReviseProposalAsync(db, w.Prep, new ReviseProposalRequest(opportunity.Value, "AUDIT-2026",
       "Statutory audit of the 2026 financial statements", "Tax advisory", "Independent auditor's report and management letter",
-      "Client supplies the trial balance", 1m, "QAR", "2026-01-01", "2026-12-31"));
+      "Client supplies the trial balance", 1m, "QAR", "2026-01-01", "2026-12-31",
+      Timeline: "Fieldwork in March 2027; report by 30 April 2027"));
     Assert.True(proposal.Succeeded, proposal.Message);
     return (lead.Value, opportunity.Value, proposal.Value);
   }
@@ -456,6 +457,9 @@ public sealed class CommercialWorkflowTests
     Assert.Contains("16,500.00", quoteText);              // 50% advance stated in the payment terms
     Assert.Contains("Gulf Trading LLC (attention A. Owner)", quoteText);
     var letterText = DocxText(letter.Bytes);
+    // The offered timeline is rendered into both artifacts, so it is inside the identity the client accepts.
+    Assert.Contains("Fieldwork in March 2027; report by 30 April 2027", quoteText);
+    Assert.Contains("Fieldwork in March 2027; report by 30 April 2027", letterText);
     Assert.Contains("Acceptance", letterText);
     Assert.Contains("standard terms of business", letterText);
     Assert.DoesNotContain("Acceptance", quoteText);

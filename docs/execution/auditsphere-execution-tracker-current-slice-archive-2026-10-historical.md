@@ -6823,3 +6823,11 @@ Allocation weeks now start on Sunday, at the owner's request, so the Sunday to T
 Two `CommercialWorkflowTests` that failed on master were test defects and are corrected with no product change: one read a stale tracked proposal after raw updates, and one asserted the Partner-only activation flag for a Relationship Manager. The STE v2.2 source specification moved from the repository root to `docs/requirements/auditsphere-requirements-source-ste-audit-management-specification-v22.md`, and the filename validators no longer carry an exception for it.
 
 The full .NET suites were not run locally; the owner asked for test execution to be left to CI. Focused evidence and what was not run are in `status-archive-2026-10.json` under `keys.verification.qatarSundayWeekStart`.
+
+## Practice management completion program, first slice — 2026-10-12
+
+The owner supplied a completion program (stories PM-00 to PM-17, with an appendix of candidate gaps). It is stored as `auditsphere-execution-user-stories-cloud-practice-management-v22-proposed.md` and reconciled against the code in `auditsphere-execution-tracker-practice-management-v22-crosswalk-current.md`. Most open rows wait on an owner or professional decision, on live infrastructure, or on a scope choice; the crosswalk names which.
+
+Three decision-free gaps are closed. The firm trial balance report returns one profit and loss row per accounting month with the same month a year earlier as comparator, and the months add up to the range totals. Time capture, budgets, budget previews and quotations share one rate lookup, so an STE alias such as Senior prices the same everywhere and an unknown role still fails closed. The engagement dashboard names the people staffed at the level that owns the current step and shows the days left to the scheduled freeze. No lifecycle rule, gate or stage mapping changed, and there is no migration.
+
+The full .NET suites were left to CI. Evidence, what was not run and open items are in `status-archive-2026-10.json` under `keys.verification.practiceManagementBaselineSlice`.
