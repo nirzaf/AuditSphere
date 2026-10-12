@@ -1054,6 +1054,18 @@
           "diffCheck": "PASS: git diff --check"
         }
       }
+    },
+    "workflowCiRegressionGate": {
+      "recordedAtUtc": "2026-10-12T07:51:06Z",
+      "baseCommit": "bf429820",
+      "scope": "CI now runs focused PostgreSQL workflow-template, plan, due-date and Angular SPA route-contract regressions after the Release build.",
+      "runs": {
+        "actionlint": "PASS: .github/workflows/ci.yml",
+        "yamlSyntax": "PASS",
+        "localTests": "NOT_RUN: user requested tests not be run locally after each change; the targeted API contract rebuild in the prior follow-up was aborted before tests started.",
+        "githubActions": "Configured; result not yet observed."
+      },
+      "acceptance": "This adds focused CI evidence only. It does not run the full Domain/API/E2E suites or establish authenticated browser, external-provider, production or professional acceptance."
     }
   },
   "externalGates": [

@@ -66,15 +66,27 @@ jobs:
           printf 'Angular gate outcome: %s\nCommit: %s\nRun: %s / attempt %s\n' \
             "$RESULT" "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_STEP_SUMMARY"
 
-  # Mandatory gate: pinned-SDK locked restore, Release build, EF model drift,
-  # and standalone API + Angular publication verification.
-  # The .NET test projects are not run here, as before the removal: they need a PostgreSQL service
-  # this workflow does not provide. Run them locally with the command in AGENTS.md §3. The OpenAPI
+  # Mandatory gate: pinned-SDK locked restore, Release build, focused PostgreSQL-backed workflow
+  # regressions, EF model drift, and standalone API + Angular publication verification. The OpenAPI
   # drift check below runs the real API host through tools/AuditSphereOps.OpenApiEmitter.
   dotnet-build:
     name: Build · .NET Release
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:18.6
+        env:
+          POSTGRES_DB: auditsphere_tests
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d auditsphere_tests"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
     defaults:
       run:
         shell: bash
@@ -113,6 +125,18 @@ jobs:
           # (runtimeconfig.json and Roslyn satellite DLLs), causing intermittent MSB3026/MSB4018
           # "used by another process" failures.
           dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1
+
+      - name: Run focused workflow PostgreSQL and route regressions
+        env:
+          AUDITSPHERE_TEST_CONNECTION: Host=127.0.0.1;Port=5432;Database=auditsphere_tests;Username=postgres;Password=postgres;Pooling=false
+        run: |
+          set -euo pipefail
+          dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --no-restore \
+            --configuration Release --maxcpucount:1 \
+            --filter 'FullyQualifiedName~WorkflowTemplateTests|FullyQualifiedName~EngagementWorkflowPlanTests|FullyQualifiedName~DueDateRevisionIsManagerScopedAndRecordedWithExactBeforeAndAfterValues'
+          dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-build --no-restore \
+            --configuration Release --maxcpucount:1 \
+            --filter 'FullyQualifiedName~AngularRoutingContractTests.ApiDeepLinks_ExactlyMatchTheAngularRouteCatalogue'
 
       - name: Check EF model drift
         run: |
