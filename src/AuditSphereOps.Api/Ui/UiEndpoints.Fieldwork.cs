@@ -28,6 +28,8 @@ public static partial class UiEndpoints
 
   private static void MapFieldworkEndpoints(RouteGroupBuilder group)
   {
+    group.MapGet("/engagements/{id:guid}/manager-review", (Guid id, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => ManagerReviewSummaryQuery.GetAsync(db, actor, id, ct)));
     group.MapGet("/engagements/{id:guid}/fieldwork", (Guid id, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => AuditFieldworkWorkspaceQuery.GetAsync(db, actor, id, ct)));
     group.MapGet("/procedures/{id:guid}/review", (Guid id, HttpContext http) =>
@@ -39,7 +41,9 @@ public static partial class UiEndpoints
     group.MapPost("/procedures/{id:guid}/results", (Guid id, SubmitProcedureResultInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => AuditProgramService.SubmitResultAsync(db, actor, new SubmitProcedureResultRequest(id, i.ExpectedInputGeneration ?? 1, i.WorkPerformed ?? "", i.StructuredResultJson ?? "{}", i.EvidenceReferences ?? [], i.Conclusion ?? ""), ct)));
     group.MapPost("/procedure-results/{id:guid}/review", (Guid id, ReviewProcedureResultInput i, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => AuditProgramService.ReviewResultAsync(db, actor, new ReviewProcedureResultRequest(id, i.Decision ?? "", i.Comment), ct)));
+      CommandAsync(http, (db, actor, ct) => AuditProgramService.ReviewResultAsync(db, actor,
+        new ReviewProcedureResultRequest(id, i.Decision ?? "", i.Comment), ct,
+        http.RequestServices.GetRequiredService<IConfiguration>().GetValue<bool>("WorkflowExperience:Enabled"))));
     group.MapPost("/engagements/{id:guid}/fieldwork/program", (Guid id, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => AuditFieldworkWorkspaceQuery.PublishAndAdoptAsync(db, actor, id, AuditFieldworkWorkspaceQuery.DefaultProgramVersion, ct)));
     group.MapPost("/procedures/{id:guid}/applicability", (Guid id, ApplicabilityInput i, HttpContext http) =>

@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
+using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Practice;
@@ -568,7 +569,8 @@ public static class AuditProgramService
     IAuditSphereDbContext db,
     ActorContext actor,
     ReviewProcedureResultRequest request,
-    CancellationToken ct = default)
+    CancellationToken ct = default,
+    bool createWorkflowReworkTask = false)
   {
     ArgumentNullException.ThrowIfNull(db);
     ArgumentNullException.ThrowIfNull(request);
@@ -682,6 +684,13 @@ public static class AuditProgramService
     procedure.Status = decision == AuditProcedureReviewDecisions.Reviewed
       ? AuditProcedureStatuses.Reviewed : AuditProcedureStatuses.ChangesRequired;
     await db.SaveChangesAsync(ct);
+    if (decision == AuditProcedureReviewDecisions.ChangesRequired && createWorkflowReworkTask)
+    {
+      var rework = await PracticeTimeService.CreateReviewReworkTaskAsync(db, actor, scope.ClientId, result.EngagementId,
+        procedure.Id, result.Id, result.Revision, procedure.SourceProcedureId, result.PreparedByUserId, ct);
+      if (!rework.Succeeded)
+        return CommandResult<ProcedureReviewValue>.Fail(rework.ErrorCode!, rework.Message!);
+    }
     if (decision == AuditProcedureReviewDecisions.Reviewed)
       await AuditSphereOps.Application.Completion.AuditDeliverableService.CompileAfterFinalReviewAsync(db, actor, result.EngagementId, ct);
     await tx.CommitAsync(ct);

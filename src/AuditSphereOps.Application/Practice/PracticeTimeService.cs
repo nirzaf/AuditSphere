@@ -7,6 +7,8 @@ using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace AuditSphereOps.Application.Practice;
 
@@ -74,6 +76,7 @@ public sealed record BudgetActualSummary(
 public static class PracticeTimeService
 {
   private static readonly string[] WorkRoles = ["Senior", "Staff", "Manager", "Partner", "Administrator"];
+  private static readonly string[] ReviewReworkCreatorRoles = ["Reviewer", "Senior", "Manager", "Partner", "Administrator"];
   internal static readonly string[] ApprovalRoles = ["Manager", "Partner", "Administrator"];
 
   public static Task<CommandResult<Guid>> CreateTaskAsync(
@@ -85,9 +88,51 @@ public static class PracticeTimeService
     WorkflowTaskBinding binding, CancellationToken ct = default) =>
     CreateTaskCoreAsync(db, actor, request, binding, ct);
 
+  /// <summary>
+  /// Creates one operational rework task for an already-authorized ChangesRequired review.
+  /// The caller owns the review transaction; the task and review decision commit or roll back together.
+  /// An inactive or no-longer-authorized preparer is left unassigned for a manager to route.
+  /// </summary>
+  internal static async Task<CommandResult<Guid>> CreateReviewReworkTaskAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid clientId, Guid engagementId, Guid procedureId,
+    Guid resultId, long resultRevision, string sourceProcedureId, Guid preparerUserId, CancellationToken ct)
+  {
+    var sourceKey = $"REVIEW-REWORK:{procedureId:N}:{resultId:N}";
+    var digestBytes = SHA256.HashData(Encoding.UTF8.GetBytes($"{actor.FirmId:N}|{clientId:N}|{engagementId:N}|{procedureId:N}|{resultId:N}|{resultRevision}"));
+    var digest = Convert.ToHexString(digestBytes).ToLowerInvariant();
+    var existing = await db.WorkflowTaskBindings.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.EngagementId == engagementId && x.SourceKey == sourceKey && x.Generation == 1, ct);
+    if (existing is not null)
+      return string.Equals(existing.CreationRequestDigest, digest, StringComparison.Ordinal)
+        ? CommandResult<Guid>.Ok(existing.WorkTaskId)
+        : CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict, "This review rework task key was already used for different content.");
+
+    var binding = new WorkflowTaskBinding
+    {
+      Phase = WorkflowTaskPhases.AuditFieldwork,
+      Ordinal = (await db.WorkflowTaskBindings.AsNoTracking().Where(x =>
+        x.FirmId == actor.FirmId && x.EngagementId == engagementId && x.Phase == WorkflowTaskPhases.AuditFieldwork)
+        .MaxAsync(x => (int?)x.Ordinal, ct) ?? 0) + 1,
+      SourceKey = sourceKey,
+      CreationRequestDigest = digest,
+      Generation = 1,
+      DueDatePolicy = "MANUAL",
+      AssigneeUserIdSnapshot = preparerUserId,
+      AssignmentSource = "AUTOMATION"
+    };
+    if (binding.Ordinal > 100000)
+      return CommandResult<Guid>.Fail(ErrorCodes.ProtectedState, "The fieldwork task ordering limit has been reached.");
+
+    var title = $"Address review changes for {sourceProcedureId}";
+    return await CreateTaskCoreAsync(db, actor,
+      new CreateTaskRequest(title, clientId, engagementId, preparerUserId),
+      binding, ct, ReviewReworkCreatorRoles, allowUnassignedAssignee: true);
+  }
+
   private static async Task<CommandResult<Guid>> CreateTaskCoreAsync(
     IAuditSphereDbContext db, ActorContext actor, CreateTaskRequest request,
-    WorkflowTaskBinding? workflowBinding, CancellationToken ct)
+    WorkflowTaskBinding? workflowBinding, CancellationToken ct, string[]? authorizationRoles = null,
+    bool allowUnassignedAssignee = false)
   {
     if (string.IsNullOrWhiteSpace(request.Title))
       return CommandResult<Guid>.Fail("time.invalid", "Task title is required.");
@@ -110,8 +155,9 @@ public static class PracticeTimeService
     if (request.ReportingPeriodId.HasValue && accountingDb is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Accounting period data is unavailable.");
 
+    var requiredRoles = authorizationRoles ?? WorkRoles;
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, request.ClientId, request.EngagementId, WorkRoles,
+      new AuthorizationRequest(actor.FirmId, request.ClientId, request.EngagementId, requiredRoles,
         InternalOnly: true, RequireFirmWide: request.ClientId is null && request.EngagementId is null), ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
 
@@ -135,7 +181,7 @@ public static class PracticeTimeService
     var guard = await LockClientAsync(db, actor.FirmId, request.ClientId, ct);
     if (!guard.Succeeded) return CommandResult<Guid>.Fail(guard.ErrorCode!, guard.Message!);
     auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, request.ClientId, request.EngagementId, WorkRoles,
+      new AuthorizationRequest(actor.FirmId, request.ClientId, request.EngagementId, requiredRoles,
         InternalOnly: true, RequireFirmWide: request.ClientId is null && request.EngagementId is null), ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     if (workflowBinding is not null)
@@ -172,7 +218,12 @@ public static class PracticeTimeService
     {
       var assignee = await ValidateAssigneeAsync(db, actor.FirmId, request.AssigneeUserId,
         request.ClientId, request.EngagementId, ct);
-      if (assignee is not null) return CommandResult<Guid>.Fail(assignee.ErrorCode!, assignee.Message!);
+      if (assignee is not null)
+      {
+        if (!allowUnassignedAssignee) return CommandResult<Guid>.Fail(assignee.ErrorCode!, assignee.Message!);
+        request = request with { AssigneeUserId = null };
+        if (workflowBinding is not null) workflowBinding.AssigneeUserIdSnapshot = null;
+      }
     }
 
     var task = new WorkTask

@@ -9,6 +9,11 @@ import { SHARED } from '../../core/ui';
 
 const procedure = obj({ id: guid, sourceProcedureId: text, sourceSectionNumber: nullable(int), sourceSectionTitle: nullable(text), title: text,
   applicabilityStatus: text, status: text, riskId: nullable(guid), workpaperId: nullable(guid) });
+const decodeManagerReview = obj({ engagementId: guid, completionReady: bool, partnerHandoffReady: bool,
+  applicableProcedures: nat, proceduresNeedingReview: nat, itemTestsNeedingReview: nat, selectionsNeedingReview: nat,
+  unresolvedReviewThreads: nat, openConfirmations: nat, bankReconciliationsNeedingApproval: nat, unevaluatedDifferences: nat,
+  summaryReviewMemorandumState: text, summaryReviewMemorandumVersion: nullable(nat),
+  summaryReviewMemorandumGeneratedAt: nullable(instant), blockers: arr(obj({ code: text, label: text, count: nat }), 100) });
 export const decodeFieldwork = obj({ engagementId: guid, catalogProcedureCount: nat, catalogVersion: text,
   program: nullable(obj({ programCode: text, version: text, sourceHash: text })), procedures: arr(procedure, 5000),
   risks: arr(obj({ id: guid, area: text, significanceDecision: text, band: nullable(text), effectiveBand: nullable(text),
@@ -71,6 +76,37 @@ export function focusRisks<T extends { destinationCode: string | null }>(risks: 
     <audit-state [loading]="ws.loading()" [error]="ws.error()" label="fieldwork coverage" />
     @if (ws.data(); as w) {
       @if (w.program) { <p role="status">{{ w.procedures.length }} adopted procedures · {{ count(w, 'APPLICABLE') }} applicable · {{ reviewed(w) }} reviewed</p> }
+      @if (w.canReviewSelections) {
+        <section class="panel" aria-labelledby="manager-review-summary-heading">
+          <h2 id="manager-review-summary-heading">Manager review and handoff</h2>
+          <audit-state [loading]="managerReview.loading()" [error]="managerReview.error()" label="manager review summary" />
+          @if (managerReview.data(); as summary) {
+            <p role="status">{{ summary.partnerHandoffReady ? 'Ready for Partner handoff' : 'Partner handoff is blocked' }} ·
+              Summary Review Memorandum: {{ summary.summaryReviewMemorandumState.replace('_', ' ').toLowerCase() }}
+              @if (summary.summaryReviewMemorandumVersion !== null) { · version {{ summary.summaryReviewMemorandumVersion }} }
+              @if (summary.summaryReviewMemorandumGeneratedAt) { · generated {{ summary.summaryReviewMemorandumGeneratedAt.slice(0, 10) }} }
+            </p>
+            <div class="table-scroll"><table aria-label="Manager review evidence counts">
+              <thead><tr><th scope="col">Review evidence</th><th scope="col">Count</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">Applicable procedures</th><td>{{ summary.applicableProcedures }}</td></tr>
+                <tr><th scope="row">Procedures needing review</th><td>{{ summary.proceduresNeedingReview }}</td></tr>
+                <tr><th scope="row">Selected item tests needing review</th><td>{{ summary.itemTestsNeedingReview }}</td></tr>
+                <tr><th scope="row">Selections needing review</th><td>{{ summary.selectionsNeedingReview }}</td></tr>
+                <tr><th scope="row">Unresolved review threads</th><td>{{ summary.unresolvedReviewThreads }}</td></tr>
+                <tr><th scope="row">Open confirmations</th><td>{{ summary.openConfirmations }}</td></tr>
+                <tr><th scope="row">Bank reconciliations needing approval</th><td>{{ summary.bankReconciliationsNeedingApproval }}</td></tr>
+                <tr><th scope="row">Unevaluated differences</th><td>{{ summary.unevaluatedDifferences }}</td></tr>
+              </tbody>
+            </table></div>
+            @if (summary.blockers.length) {
+              <h3>Current blockers</h3>
+              <ul>@for (blocker of summary.blockers; track blocker.code) { <li>{{ blocker.label }} <span>({{ blocker.count }})</span></li> }</ul>
+            }
+            <a [routerLink]="['/app/engagements', id(), 'completion']">Open completion and Summary Review Memorandum</a>
+          }
+        </section>
+      }
       @if (w.canManageFieldwork || w.canViewReviewNotes) {
       <section class="panel" aria-labelledby="fieldwork-tools-heading">
         <h2 id="fieldwork-tools-heading">{{ w.canManageFieldwork ? 'Fieldwork tools' : 'Procedure review' }}</h2>
@@ -408,6 +444,9 @@ export class AuditFieldwork {
   readonly focusedRisks = computed(() => focusRisks(this.ws.data()?.risks ?? [], this.statementFocus.line));
   readonly ws = this.api.resource(() => (this.id() ? `/api/ui/engagements/${this.id()}/fieldwork` : null), decodeFieldwork,
     'Fieldwork unavailable: an authorized internal engagement scope is required.');
+  readonly managerReview = this.api.resource(() => this.id() && this.ws.data()?.canReviewSelections
+    ? `/api/ui/engagements/${this.id()}/manager-review` : null, decodeManagerReview,
+    'Manager review summary unavailable: an authorized reviewer scope is required.');
   readonly cmd = new CommandState(this.api);
   readonly section = signal<number | null>(null);
   readonly toolTab = signal(0);

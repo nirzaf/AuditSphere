@@ -1,0 +1,63 @@
+using AuditSphereOps.Application.Audit;
+using AuditSphereOps.Domain.Audit;
+using AuditSphereOps.Domain.Practice;
+using AuditSphereOps.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+
+namespace AuditSphereOps.Domain.Tests;
+
+public sealed partial class AuditDeliverablesTests
+{
+  [Fact]
+  public async Task ManagerReviewSummaryUsesCurrentCompletionFactsAndStableRedactedBlockers()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+
+    var result = await ManagerReviewSummaryQuery.GetAsync(db, w.A("manager", "Manager"), w.EngagementId);
+
+    Assert.True(result.Succeeded, result.Message);
+    Assert.Equal(1, result.Value!.ApplicableProcedures);
+    Assert.Equal(1, result.Value.ProceduresNeedingReview);
+    Assert.Equal("NOT_GENERATED", result.Value.SummaryReviewMemorandumState);
+    Assert.False(result.Value.PartnerHandoffReady);
+    Assert.Contains(result.Value.Blockers, x => x.Code == "procedure-review-required" && x.Count == 1);
+    Assert.DoesNotContain(result.Value.Blockers, x => x.Label.Contains(w.ProcedureId.ToString(), StringComparison.Ordinal));
+  }
+
+  [Fact]
+  public async Task ChangesRequiredReviewCreatesOneLinkedOperationalReworkTaskWithoutChangingReviewAuthority()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var reviewer = w.A("senior", "Senior");
+
+    var decision = await AuditProgramService.ReviewResultAsync(db, reviewer,
+      new ReviewProcedureResultRequest(w.ResultId, AuditProcedureReviewDecisions.ChangesRequired, "Reconcile the sample exception to source evidence."),
+      createWorkflowReworkTask: true);
+
+    Assert.True(decision.Succeeded, decision.Message);
+    var task = await db.WorkTasks.SingleAsync(x => x.FirmId == w.FirmId && x.EngagementId == w.EngagementId);
+    var binding = await db.WorkflowTaskBindings.SingleAsync(x => x.FirmId == w.FirmId && x.EngagementId == w.EngagementId);
+    Assert.Equal(w.U["associate"].Id, task.AssigneeUserId);
+    Assert.Equal(WorkflowTaskPhases.AuditFieldwork, binding.Phase);
+    Assert.Contains(w.ProcedureId.ToString("N"), binding.SourceKey, StringComparison.Ordinal);
+    Assert.Equal(AuditProcedureReviewDecisions.ChangesRequired,
+      await db.AuditProcedureReviews.Where(x => x.AuditProcedureResultId == w.ResultId).Select(x => x.Decision).SingleAsync());
+
+    var summary = await ManagerReviewSummaryQuery.GetAsync(db, w.A("manager", "Manager"), w.EngagementId);
+    Assert.True(summary.Succeeded, summary.Message);
+    Assert.False(summary.Value!.PartnerHandoffReady);
+    Assert.Equal(1, summary.Value.ProceduresNeedingReview);
+    Assert.Contains(summary.Value.Blockers, x => x.Code == "procedure-review-required");
+
+    var replay = await AuditProgramService.ReviewResultAsync(db, reviewer,
+      new ReviewProcedureResultRequest(w.ResultId, AuditProcedureReviewDecisions.ChangesRequired, "Reconcile the sample exception to source evidence."),
+      createWorkflowReworkTask: true);
+    Assert.Equal(AuditSphereOps.Domain.Shared.ErrorCodes.ProtectedState, replay.ErrorCode);
+    Assert.Equal(1, await db.WorkTasks.CountAsync(x => x.FirmId == w.FirmId && x.EngagementId == w.EngagementId));
+    Assert.Equal(1, await db.AuditProcedureReviews.CountAsync(x => x.AuditProcedureResultId == w.ResultId));
+  }
+}
