@@ -15,6 +15,12 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## v2.2 unlinked procedure review inbox — 2026-10-12
+
+The staff work queue now has a separate, read-only inbox for current submitted procedure results that have no operational task linked anywhere to that procedure. The query enforces current reviewer role grants, exact client/engagement scope, session freshness, reviewer independence and staffing hierarchy. Results already represented by a linked rework task stay in the task views instead, including after resubmission. The inbox links to the existing fieldwork workspace; that workspace and the review command remain authoritative for planning generation, risk basis, holds and final review eligibility. No task, review decision or migration is created by this query. `WorkflowExperience:Enabled` remains default-off.
+
+The focused PostgreSQL regression passed 1/1 and covers an unlinked result, preparer denial, an existing task link and a linked resubmission. API and OpenAPI emitter Release builds passed with offline NuGet vulnerability-feed warnings; fresh OpenAPI generation and drift verification passed. Angular's direct compiler/template check passed. The Angular production build aborts with exit 134 immediately after “Building…” and no diagnostic; authenticated browser rendering was not verified. No full suite, persistent database migration, live provider or professional acceptance is claimed. Evidence is in `status.json` under `targetedVerification.workflowReviewInbox`.
+
 ## Annual workflow — period-bound commercial acceptance — 2026-10-12
 
 The engagement lifecycle and Dual-Key readiness now resolve a proposal only when both its opportunity and proposal match the engagement's exact service route and financial period. An engagement-linked fee agreement remains authoritative, but its proposal must also match those exact facts. A prior-year accepted offer therefore cannot make a new-period engagement appear ready for advance billing. No schema change or migration was needed. The existing Partner risk-clearance model remains client-level and generation-bound; annual engagement creation and fresh year-specific continuance remain open work.
