@@ -17,7 +17,7 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Under Review queue and regression CI coverage — 2026-10-12
 
-WF-07 now derives the **Under review** queue state from a linked changes-required procedure result followed by the exact next submitted revision. An independent review decision clears the operational task from this view; completing the task does not alter audit-review authority. The focused PostgreSQL regression covers the full transition. The existing PostgreSQL CI filter now includes that regression; its remote run is pending because the code commit has not yet been pushed. `WorkflowExperience:Enabled` remains false by default, and no additional migration was introduced.
+WF-07 now derives the **Under review** queue state from a linked changes-required procedure result followed by the exact next submitted revision. An independent review decision clears the operational task from this view; completing the task does not alter audit-review authority. The focused PostgreSQL regression covers the full transition. The existing PostgreSQL CI filter now includes that regression. Commits are pushed to `master`; the GitHub run-list API could not be reached, so CI outcome is unobserved. `WorkflowExperience:Enabled` remains false by default, and no additional migration was introduced.
 
 ## v2.2 workflow analytics — client wait — 2026-10-12
 
