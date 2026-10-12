@@ -132,6 +132,8 @@ export const routes: Routes = [
     loadComponent: () => import('./features/practice/time').then(m => m.PracticeTime) },
   { path: 'app/work', canActivate: [staffGuard], title: 'My work · AuditSphere',
     loadComponent: () => import('./features/practice/work-queue').then(m => m.WorkflowWorkQueue) },
+  { path: 'app/practice/workflow-templates', canActivate: [staffGuard], canDeactivate: [unsavedChangesGuard], title: 'Workflow templates · AuditSphere',
+    loadComponent: () => import('./features/practice/workflow-templates').then(m => m.WorkflowTemplates) },
   { path: 'app/practice/rate-cards', canActivate: [staffGuard], title: 'Charge-out rates · AuditSphere',
     loadComponent: () => import('./features/practice/rate-cards').then(m => m.PracticeRateCards) },
   { path: 'app/engagements/:id/general-ledger/upload', canActivate: [staffGuard], canDeactivate: [unsavedChangesGuard], title: 'General ledger upload · AuditSphere',

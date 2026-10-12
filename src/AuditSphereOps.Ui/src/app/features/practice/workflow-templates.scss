@@ -1,0 +1,16 @@
+.template-layout { display: grid; grid-template-columns: minmax(16rem, 1fr) minmax(0, 2fr); gap: 1rem; align-items: start; }
+.panel { min-width: 0; padding: 1rem; border: 1px solid var(--line, #d7dfeb); border-radius: .5rem; background: var(--surface, #fff); }
+.template-list { display: grid; gap: .5rem; }
+.template-list button { width: 100%; justify-content: flex-start; text-align: left; }
+.template-list button[aria-current="true"] { border-inline-start: .25rem solid var(--accent, #1769aa); }
+.template-form, .step-form { display: grid; gap: .8rem; }
+.template-form label, .step-form label { display: grid; gap: .25rem; }
+.step-form { margin-block: 1rem; padding: 1rem; border: 1px solid var(--line, #d7dfeb); border-radius: .5rem; }
+.step-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
+.step-grid .wide { grid-column: 1 / -1; }
+.actions { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.muted { color: var(--muted, #52627a); }
+@media (max-width: 760px) {
+  .template-layout, .step-grid { grid-template-columns: minmax(0, 1fr); }
+  .step-grid .wide { grid-column: auto; }
+}

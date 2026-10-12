@@ -48,6 +48,7 @@ const queueViews: { key: QueueView; label: string }[] = [
   template: `
     <audit-page-header title="My work" eyebrow="Engagement tasks"
       description="Operational tasks across your current client and engagement grants. Task completion never replaces audit review or engagement approval." />
+    <p><a matButton routerLink="/app/practice/workflow-templates">Manage workflow templates</a></p>
     <audit-state [loading]="queue.loading()" [error]="queue.error()" label="work queue" />
     <nav class="queue-views" aria-label="Work queue views">
       @for (item of views; track item.key) {
