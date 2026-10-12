@@ -48,6 +48,9 @@ public static partial class EngagementLifecycleService
       if (tx is not null) await tx.CommitAsync(ct);
       return CommandResult<Guid>.Ok(existing.Id);
     }
+    if (await EngagementPeriodConflictQuery.HasOverlapAsync(db, actor.FirmId, request.PracticeClientId,
+      route, request.PeriodStart.Trim(), request.PeriodEnd.Trim(), ct))
+      return CommandResult<Guid>.Fail(EngagementPeriodConflictQuery.ErrorCode, EngagementPeriodConflictQuery.Message);
     var engagement = new Engagement
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, PracticeClientId = request.PracticeClientId, ServiceRoute = route,

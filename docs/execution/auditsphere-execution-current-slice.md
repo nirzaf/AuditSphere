@@ -15,19 +15,15 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Annual engagement period safety prerequisite — 2026-10-12
+
+Preview and serialized creation now reject overlapping periods for the same client and service. Exact retries retain their original shell; adjacent years and separate services remain allowed. Conflicts require explicit amendment review and do not alter existing evidence. The Angular form explains the conflict without offering creation. The reusable owned browser handoff supports short built-in-browser inspection of synthetic fixtures. Evidence is under `targetedVerification.workflowAnnualPeriodOverlap` in [status.json](status.json). The annual helper and fresh year-specific continuance remain unfinished.
+
 ## Agent capability tooling and bounded analytics — 2026-10-12
 
 The [capability runner](../testing/auditsphere-testing-guide-agent-capability-checks-current.md) connects three task packets to owning files, invariants, fixtures and focused checks. Socket denial is distinct from database outage; default preflight changes no configuration. Comparative productivity measurements remain pending.
 
 Engagement economics now pages before loading financial evidence, with Angular and legacy navigation. Period-wide task and utilization denominators stay unchanged. The owned synthetic API/browser fixture verified forward/reset navigation; focused PostgreSQL assertions also cover queue assignment narrowing. Evidence and limitations are in `targetedVerification.workflowAnalyticsPaging` and `agentCapabilityRunner` in [status.json](status.json). Overall workflow and release acceptance remain partial.
-
-## Practice management program, third slice — 2026-10-12
-
-A proposal can carry an optional delivery timeline. It is part of the creation receipt and is rendered on the brief quotation and the engagement letter, so it sits inside the offer the client accepts: a changed timeline is a new revision and needs a fresh acceptance. Proposals created without one keep their identity. Migration `ProposalTimeline` adds the column and has run only against the test database.
-
-The work queue can show a loaded page as a list, a board by operational status, or a calendar by due date in Sunday-start weeks. The three arrangements regroup the same tasks, and a card offers only the task's own completion command. The engagement dashboard shows an expandable checklist per phase, with task progress beside the gate status and a plain statement when every task is done but the gate is blocked. Both sit behind `WorkflowExperience:Enabled`, which stays off by default, and neither was run in a browser.
-
-The owner-supplied program and its crosswalk are in `docs/execution`; the crosswalk lists what remains and why. The full .NET suites were left to CI; evidence is in `status.json` under `targetedVerification.practiceManagementWorkflowViewsSlice`.
 
 ## Practice management program, second slice — 2026-10-12
 

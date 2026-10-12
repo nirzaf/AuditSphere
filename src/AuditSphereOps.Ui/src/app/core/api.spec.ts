@@ -32,6 +32,18 @@ describe('API session and unknown outcome fences', () => {
       message: 'That library code already exists. Choose another code or open the entry to prepare a new version.',
     });
   });
+  it('explains a period overlap without presenting it as a stale revision or exposing server detail', async () => {
+    const request = TestBed.inject(Api).command('/api/ui/clients/synthetic/engagement-creation/preview', {});
+    TestBed.inject(HttpTestingController).expectOne('/api/ui/clients/synthetic/engagement-creation/preview').flush(
+      { code: 'engagement.period-overlap', message: 'private server detail' }, { status: 409, statusText: 'Conflict' });
+    const result = await request;
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.message).toContain('overlaps the requested period');
+      expect(result.message).not.toContain('private server detail');
+      expect(result.message).not.toContain('record changed');
+    }
+  });
   it('does not save a file whose source metadata failed the caller context fence', async () => {
     const api = TestBed.inject(Api), http = TestBed.inject(HttpTestingController);
     const request = api.download('/api/ui/source/export', {revision:1}, () => false);

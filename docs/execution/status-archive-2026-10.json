@@ -15214,6 +15214,78 @@
           "WorkflowExperience remains default-off; no authenticated browser journey or live/professional acceptance was performed.",
           "Canonical lifecycle regression on rework, task notifications, general procedure assignment/resubmission restrictions and remaining queue views remain open."
         ]
+      },
+      "workflowTaskPbcFollowUp": {
+        "sourceCommit": "e9138600834b7bd874f1e20282a2384dcce81417",
+        "recordedAtUtc": "2026-10-12T03:03:27Z",
+        "featureFlag": "WorkflowExperience:Enabled",
+        "persistentDatabaseChanged": false,
+        "migrationApplied": false,
+        "runs": [
+          {
+            "name": "Focused PostgreSQL workflow cohort",
+            "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --no-restore --configuration Release --maxcpucount:1 --filter 'FullyQualifiedName~PbcWorkflowTaskTests'",
+            "result": "PASS",
+            "passed": 3,
+            "failed": 0,
+            "skipped": 0,
+            "duration": "32 s",
+            "note": "Local loopback permission was needed for the disposable PostgreSQL test fixtures."
+          },
+          {
+            "name": "API Release build",
+            "command": "dotnet build src/AuditSphereOps.Api/AuditSphereOps.Api.csproj --no-restore --configuration Release --maxcpucount:1 -p:NuGetAudit=false",
+            "result": "PASS_WITH_WARNING",
+            "warnings": 2,
+            "errors": 0,
+            "note": "NU1900 vulnerability-feed lookup warnings because api.nuget.org was unreachable."
+          },
+          {
+            "name": "EF model drift",
+            "command": "dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Api --no-build --configuration Release",
+            "result": "PASS",
+            "note": "No changes have been made to the model since the last migration."
+          },
+          {
+            "name": "Angular production build",
+            "command": "node_modules/.bin/ng build --verbose",
+            "result": "FAILED_TOOL_ABORT",
+            "exitCode": 134,
+            "note": "Build process aborted without compiler diagnostics."
+          },
+          {
+            "name": "OpenAPI drift",
+            "command": "bash scripts/contracts/verify-openapi.sh",
+            "result": "NOT_VERIFIED",
+            "note": "The local emitter build and generation attempt stalled; no contract pass is claimed."
+          },
+          {
+            "name": "Markdown health and filename checks",
+            "result": "BLOCKED_BY_PRESTAGED_USER_FILE",
+            "note": "Both validators reported only the pre-staged STE_Audit_Management_Requirements_v2.2.md filename; the user file was left untouched."
+          },
+          {
+            "name": "Narrative metrics",
+            "command": "python3 scripts/docs/validate-narrative-metrics.py",
+            "result": "PASS"
+          },
+          {
+            "name": "UI source inventory",
+            "command": "python3 scripts/ui/inventory.py --check",
+            "result": "PASS"
+          },
+          {
+            "name": "Authenticated built-in browser journey",
+            "result": "NOT_RUN",
+            "note": "The local UI/API session was unavailable; no authenticated queue view or command was exercised."
+          }
+        ],
+        "limits": [
+          "The feature remains configuration-controlled and disabled unless WorkflowExperience:Enabled is true.",
+          "The additive migration was generated but not applied to any persistent database.",
+          "No full Domain, API, or E2E suite was run.",
+          "No live tenant or professional acceptance is claimed."
+        ]
       }
     }
   }

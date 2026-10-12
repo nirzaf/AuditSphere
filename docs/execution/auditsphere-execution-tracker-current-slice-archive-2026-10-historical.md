@@ -6831,3 +6831,12 @@ The owner supplied a completion program (stories PM-00 to PM-17, with an appendi
 Three decision-free gaps are closed. The firm trial balance report returns one profit and loss row per accounting month with the same month a year earlier as comparator, and the months add up to the range totals. Time capture, budgets, budget previews and quotations share one rate lookup, so an STE alias such as Senior prices the same everywhere and an unknown role still fails closed. The engagement dashboard names the people staffed at the level that owns the current step and shows the days left to the scheduled freeze. No lifecycle rule, gate or stage mapping changed, and there is no migration.
 
 The full .NET suites were left to CI. Evidence, what was not run and open items are in `status-archive-2026-10.json` under `keys.verification.practiceManagementBaselineSlice`.
+
+
+## Practice management program, third slice — 2026-10-12
+
+A proposal can carry an optional delivery timeline. It is part of the creation receipt and is rendered on the brief quotation and the engagement letter, so it sits inside the offer the client accepts: a changed timeline is a new revision and needs a fresh acceptance. Proposals created without one keep their identity. Migration `ProposalTimeline` adds the column and has run only against the test database.
+
+The work queue can show a loaded page as a list, a board by operational status, or a calendar by due date in Sunday-start weeks. The three arrangements regroup the same tasks, and a card offers only the task's own completion command. The engagement dashboard shows an expandable checklist per phase, with task progress beside the gate status and a plain statement when every task is done but the gate is blocked. Both sit behind `WorkflowExperience:Enabled`, which stays off by default, and neither was run in a browser.
+
+The owner-supplied program and its crosswalk are in `docs/execution`; the crosswalk lists what remains and why. The full .NET suites were left to CI; evidence is in `status.json` under `targetedVerification.practiceManagementWorkflowViewsSlice`.

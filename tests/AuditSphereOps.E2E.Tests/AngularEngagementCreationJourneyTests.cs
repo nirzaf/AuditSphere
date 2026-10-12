@@ -56,6 +56,15 @@ public sealed class AngularEngagementCreationJourneyTests
     await Assertions.Expect(inspect).ToHaveAttributeAsync("href",new System.Text.RegularExpressions.Regex("/app/engagements/"));
     await Assertions.Expect(existing.GetByRole(AriaRole.Button,new(){Name="Confirm blocked creation",Exact=true})).ToHaveCountAsync(0);
     await page.GetByRole(AriaRole.Button,new(){Name="Discard engagement edits",Exact=true}).ClickAsync();
+    await page.GetByLabel("Service route",new(){Exact=true}).FillAsync("AccountingOnly");
+    await page.GetByLabel("Service profile",new(){Exact=true}).FillAsync("SYNTHETIC-REVIEWED-CREATION");
+    await page.GetByLabel("Period start",new(){Exact=true}).FillAsync("2027-06-01");
+    await page.GetByLabel("Period end",new(){Exact=true}).FillAsync("2028-05-31");
+    await page.GetByRole(AriaRole.Button,new(){Name="Review engagement",Exact=true}).ClickAsync();
+    await Assertions.Expect(page.GetByText("An engagement for this client and service overlaps the requested period.",new(){Exact=false})).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Button,new(){Name="Confirm blocked creation",Exact=true})).ToHaveCountAsync(0);
+    await page.GetByRole(AriaRole.Button,new(){Name="Discard engagement edits",Exact=true}).ClickAsync();
+    if (canonical) await OwnedBrowserFixtureHandoff.WaitAsync(origin, path);
     await page.SetViewportSizeAsync(390,844);Assert.True(await page.EvaluateAsync<bool>("()=>document.documentElement.scrollWidth<=innerWidth+1"));
     await using(var db=host.CreateDbContext()) {
       Assert.Equal(2,await db.Engagements.CountAsync());Assert.Single(await db.EngagementCreations.ToListAsync());

@@ -1,4 +1,3 @@
-using System.Text.Json;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Completion;
@@ -57,24 +56,6 @@ public sealed class AngularAnalyticsPagingJourneyTests
     await Assertions.Expect(economics.Locator("tbody tr")).ToHaveCountAsync(50);
     Assert.Empty(errors);
 
-    // Optional bounded handoff reuses this owned synthetic API/database for built-in-browser inspection.
-    // Basenames only; never overwrite an existing artifact or touch a persistent application database.
-    var readyName = Environment.GetEnvironmentVariable("AUDITSPHERE_BROWSER_FIXTURE_READY_FILE");
-    var releaseName = Environment.GetEnvironmentVariable("AUDITSPHERE_BROWSER_FIXTURE_RELEASE_FILE");
-    if (!string.IsNullOrEmpty(readyName) && !string.IsNullOrEmpty(releaseName))
-    {
-      if (Path.GetFileName(readyName) != readyName || Path.GetFileName(releaseName) != releaseName)
-        throw new InvalidOperationException("Fixture handoff names must be temporary-file basenames.");
-      var ready = Path.Combine(Path.GetTempPath(), readyName);
-      var release = Path.Combine(Path.GetTempPath(), releaseName);
-      if (File.Exists(ready) || File.Exists(release)) throw new InvalidOperationException("Fixture handoff already exists.");
-      var deadline = DateTimeOffset.UtcNow.AddSeconds(90);
-      try
-      {
-        await File.WriteAllTextAsync(ready, JsonSerializer.Serialize(new { origin, path, environment = "Owned synthetic test fixture", expiresAtUtc = deadline }));
-        while (!File.Exists(release) && DateTimeOffset.UtcNow < deadline) await Task.Delay(250);
-      }
-      finally { File.Delete(ready); }
-    }
+    await OwnedBrowserFixtureHandoff.WaitAsync(origin, path);
   }
 }

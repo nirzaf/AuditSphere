@@ -100,6 +100,8 @@ export class Api {
       const code = typeof e.error?.code === 'string' ? e.error.code : 'request.failed';
       const message = code === 'library.duplicate-code'
         ? 'That library code already exists. Choose another code or open the entry to prepare a new version.'
+        : code === 'engagement.period-overlap'
+          ? 'An engagement for this client and service overlaps the requested period. Inspect the existing engagement and resolve any amendment explicitly before creating another.'
         : status === 409
           ? 'This record changed since you loaded it. Refresh and review the current revision.'
           : Api.message(e, 'The request was not accepted.');

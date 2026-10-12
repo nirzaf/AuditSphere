@@ -58,6 +58,9 @@ public static class EngagementCreationWorkspace
       x.ServiceRoute==f.ServiceRoute&&x.PeriodStart==f.PeriodStart&&x.PeriodEnd==f.PeriodEnd)
       .Select(x=>(Guid?)x.Id).FirstOrDefaultAsync(ct);
     if(!(await Authorize(db,a,id,ct)).Succeeded)return Unavailable<EngagementCreationPreview>();
+    var overlap=existingId is null && await EngagementPeriodConflictQuery.HasOverlapAsync(db,a.FirmId,id,f.ServiceRoute,f.PeriodStart,f.PeriodEnd,ct);
+    if(!(await Authorize(db,a,id,ct)).Succeeded)return Unavailable<EngagementCreationPreview>();
+    if(overlap)return CommandResult<EngagementCreationPreview>.Fail(EngagementPeriodConflictQuery.ErrorCode,EngagementPeriodConflictQuery.Message);
     return CommandResult<EngagementCreationPreview>.Ok(new(id,r.RequestId,r.ReviewBasis,RequestHash(a,id,r,f),f,existingId));
   }
   public static async Task<CommandResult<EngagementCreationReceipt>> ExecuteAsync(IAuditSphereDbContext db,ActorContext a,Guid id,EngagementCreationRequest? r,CancellationToken ct=default)
