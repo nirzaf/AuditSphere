@@ -19,7 +19,7 @@ which the full suite was run; per-slice records carry their own evidence.
 
 The engagement lifecycle and Dual-Key readiness now resolve a proposal only when both its opportunity and proposal match the engagement's exact service route and financial period. An engagement-linked fee agreement remains authoritative, but its proposal must also match those exact facts. A prior-year accepted offer therefore cannot make a new-period engagement appear ready for advance billing. No schema change or migration was needed. The existing Partner risk-clearance model remains client-level and generation-bound; annual engagement creation and fresh year-specific continuance remain open work.
 
-The focused PostgreSQL regression passed 1/1 for a new-period engagement facing a fully accepted prior-period offer; it remains in Proposal Generation. The test build completed with offline NuGet vulnerability-feed warnings. The regression is included in the focused CI filter; GitHub CI is not yet observed for this code change. No UI was changed, no persistent database was migrated, and no full suite or live/professional acceptance is claimed.
+The focused PostgreSQL regression passed 1/1 for a new-period engagement facing a fully accepted prior-period offer; it remains in Proposal Generation. The test build completed with offline NuGet vulnerability-feed warnings. The regression is included in the focused CI filter, and commits are pushed to `master`; the GitHub run-list API was unreachable, so the CI outcome is unobserved. No UI was changed, no persistent database was migrated, and no full suite or live/professional acceptance is claimed.
 
 ## Under Review queue and regression CI coverage — 2026-10-12
 

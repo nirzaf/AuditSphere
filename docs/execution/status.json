@@ -1076,11 +1076,11 @@
         "build": "PASS: the focused test build compiled Domain, Application, Infrastructure, Worker and Domain.Tests; 4 NU1900 warnings because the NuGet vulnerability feed was unreachable.",
         "initialTestRunner": "ABORTED before test execution: sandbox denied the VSTest local socket. The same focused test passed on the approved local-socket retry.",
         "actionlint": "PASS: .github/workflows/ci.yml.",
-        "ci": "CONFIGURED_NOT_YET_PUSHED: the focused PostgreSQL CI filter includes this regression; no remote run is claimed."
+        "ci": "CONFIGURED_PUSHED_STATUS_UNOBSERVED: the focused PostgreSQL CI filter includes this regression; gh run list could not connect to api.github.com, so no remote result is claimed."
       },
       "acceptance": "Local regression evidence only. Prior-period commercial acceptance cannot advance a new-period engagement. Partner risk clearance remains client-level and generation-bound; annual engagement preparation and fresh year-specific continuance semantics remain open. No full Domain/API/E2E suite, persistent migration, live-provider or professional acceptance is claimed; v2.2 remains PARTIAL.",
       "sourceCommit": "7ea9696f5484b0b9d851a37beb0c343c05bdf1e7",
-      "sourceTree": "Committed locally on master; push pending."
+      "sourceTree": "Commit 91f6adb5, including code and status evidence, is pushed to origin/master. gh run list failed to connect to api.github.com; CI outcome is unobserved."
     }
   },
   "externalGates": [
