@@ -162,7 +162,7 @@ public static class ClientOnboardingReadinessQuery
       actions.Add(new("OPEN_PROPOSAL", "Review the dispatched offer and client response", proposalHref));
 
     // 2. The Partner's unconditional risk decision, evaluated on the engagement's service route (as activation is).
-    var latestRisk = await DualKeyEvidence.LatestRiskDecisionAsync(db, actor.FirmId, clientId, engagement.ServiceRoute, ct);
+    var latestRisk = await EngagementRiskEvidence.LatestAsync(db, actor.FirmId, engagement, ct);
     var inputGeneration = await DualKeyEvidence.InputGenerationAsync(db, actor.FirmId, clientId, ct);
     var riskBase = await PartnerRiskAsync(db, actor.FirmId, latestRisk, inputGeneration, engagement.ServiceRoute, blockers, ct);
     var riskCard = riskBase with { DisplayStatus = OnboardingDisplayStatus.ForPartner(riskBase.Status), EvidenceHref = assessmentHref };

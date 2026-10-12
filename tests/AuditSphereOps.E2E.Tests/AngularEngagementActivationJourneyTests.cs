@@ -4,6 +4,47 @@ using Microsoft.Playwright;
 namespace AuditSphereOps.E2E.Tests;
 public sealed class AngularEngagementActivationJourneyTests
 {
+  [Fact]
+  public async Task RecurringPeriodRequiresItsOwnDecisionBeforeOfferingActivationReview()
+  {
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-RECURRING-RISK"); var f = host.Fixture;
+    await using (var db = host.CreateDbContext())
+    {
+      await EngagementActivationReviewSeed.PopulateAsync(db, f);
+      db.Engagements.Add(new AuditSphereOps.Domain.Engagements.Engagement
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, PracticeClientId = f.ClientId, ServiceRoute = "FinancialStatementAudit",
+        PeriodStart = "2025-01-01", PeriodEnd = "2025-12-31", ServiceProfileId = "Synthetic prior period", CreatedAt = DateTimeOffset.UtcNow.AddYears(-1)
+      });
+      await db.SaveChangesAsync();
+    }
+    var origin = await host.StartApiForIdentityAsync(f.Staff, new Dictionary<string, string>
+      { ["AngularUi__Enabled"] = "true", ["AngularUi__CanonicalRoutes"] = "true" });
+    using var playwright = await Playwright.CreateAsync(); await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    var page = await browser.NewPageAsync(); var errors = new List<string>(); page.PageError += (_, error) => errors.Add(error);
+    var path = "/app/engagements/" + f.EngagementId + "/activation";
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(path));
+    await Assertions.Expect(page.GetByText("Record a Partner acceptance decision", new() { Exact = false })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Prepare activation review", Exact = true })).ToHaveCountAsync(0);
+    await OwnedBrowserFixtureHandoff.WaitAsync(origin, path);
+    await using (var db = host.CreateDbContext())
+    {
+      var generation = await db.ClientSafetyStates.Where(x => x.Id == f.ClientId).Select(x => x.InputGeneration).SingleAsync();
+      db.AcceptanceDecisions.Add(new()
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, PracticeClientId = f.ClientId, EngagementId = f.EngagementId,
+        ServiceRoute = "FinancialStatementAudit", Decision = "Accepted", Generation = generation,
+        Path = AuditSphereOps.Domain.Acceptance.AcceptancePaths.Continuance, Rationale = "Synthetic new-period risk fixture",
+        EvaluationTemplateVersion = "synthetic.v1", EvaluationSnapshotDigest = new string('c', 64),
+        DecidedByUserId = f.Staff.Id, DecidedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync(); Assert.Empty(await db.EngagementActivations.ToListAsync());
+    }
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh activation context", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Prepare activation review", Exact = true })).ToBeEnabledAsync();
+    Assert.Empty(errors);
+  }
+
   [Theory][InlineData(false)][InlineData(true)]
   public async Task ExactPartnerReviewLostResponseReceiptReloadAndRevocation(bool canonical)
   {

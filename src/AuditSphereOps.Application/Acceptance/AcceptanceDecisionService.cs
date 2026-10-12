@@ -63,7 +63,8 @@ public static class AcceptanceDecisionService
     {
       var engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x =>
         x.Id == request.EngagementId.Value && x.FirmId == actor.FirmId && x.PracticeClientId == client.Id, ct);
-      if (engagement is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+      if (engagement is null || engagement.ServiceRoute != request.ServiceRoute.Trim())
+        return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     }
 
     var serviceRoute = request.ServiceRoute.Trim();

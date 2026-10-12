@@ -229,8 +229,9 @@ public static class EngagementLifecycleQuery
     // fee-agreement guards use: the newest non-pending Partner decision must be an unconditional Accepted decision at the
     // current client generation, and client acceptance must cite the exact dispatched offer. A stale, conditional or
     // declined key never advances the stage.
-    var acceptance = await DualKeyEvidence.CurrentUnconditionalRiskClearanceAsync(
-      db, actor.FirmId, engagement.PracticeClientId, engagement.ServiceRoute, ct);
+    var acceptance = await EngagementRiskEvidence.LatestAsync(db, actor.FirmId, engagement, ct);
+    if (acceptance is not { Decision: "Accepted", DecidedByUserId: not null, DecidedAt: not null } ||
+      acceptance.Generation != await DualKeyEvidence.InputGenerationAsync(db, actor.FirmId, engagement.PracticeClientId, ct)) acceptance = null;
     var proposal = await DualKeyEvidence.ResolveEngagementProposalAsync(db, actor.FirmId, engagementId,
       engagement.PracticeClientId, engagement.ServiceRoute, engagement.PeriodStart, engagement.PeriodEnd, ct);
     var commercialAccepted = proposal is { SentAt: not null } &&

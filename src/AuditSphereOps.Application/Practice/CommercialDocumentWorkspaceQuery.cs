@@ -1,3 +1,4 @@
+using AuditSphereOps.Application.Acceptance;
 using System.Globalization;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
@@ -42,9 +43,8 @@ public static class CommercialDocumentWorkspaceQuery
     if (proposal.PracticeClientId is { } clientId)
     {
       var safety = await db.ClientSafetyStates.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == clientId, ct);
-      var decision = await db.AcceptanceDecisions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.PracticeClientId == clientId
-        && x.EngagementId == null && x.ServiceRoute == authorized.Value!.ServiceRoute && x.Decision != "Pending")
-        .OrderByDescending(x => x.Generation).ThenByDescending(x => x.DecidedAt).FirstOrDefaultAsync(ct);
+      var decision = await EngagementRiskEvidence.ForPeriodAsync(db, actor.FirmId, clientId,
+        authorized.Value!.ServiceRoute, proposal.PeriodStart, proposal.PeriodEnd, ct);
       if (safety is null || decision is null || decision.Decision != "Accepted" || decision.Generation != safety.InputGeneration
         || decision.DecidedByUserId is null || decision.DecidedAt is null)
         letter.Add("Complete the current acceptance checklist and record unconditional Partner risk clearance for this service.");

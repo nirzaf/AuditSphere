@@ -64,9 +64,7 @@ public static partial class EngagementLifecycleService
     if (engagement.Status != "Draft")
       return CommandResult<Guid>.Fail(ErrorCodes.ProtectedState, "Only a draft engagement can be activated.");
 
-    var decision = await db.AcceptanceDecisions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.PracticeClientId == engagement.PracticeClientId &&
-        x.Decision != "Pending" && x.ServiceRoute == engagement.ServiceRoute)
-      .OrderByDescending(x => x.Generation).ThenByDescending(x => x.DecidedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+    var decision = await EngagementRiskEvidence.LatestAsync(db, actor.FirmId, engagement, ct);
     if (decision is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "No Partner acceptance decision exists for this client and service route.");
     if (decision.Generation != guard.InputGeneration)
@@ -117,10 +115,8 @@ public static partial class EngagementLifecycleService
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     if (await db.EngagementHolds.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId && !x.Released, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "An unreleased hold blocks activation.");
-    var currentDecision = await db.AcceptanceDecisions.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
-      x.PracticeClientId == engagement.PracticeClientId && x.ServiceRoute == engagement.ServiceRoute && x.Decision != "Pending")
-      .OrderByDescending(x => x.Generation).ThenByDescending(x => x.DecidedAt).ThenByDescending(x => x.Id).Select(x => x.Id).FirstOrDefaultAsync(ct);
-    if (currentDecision != decision.Id) return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "Acceptance changed during activation.");
+    var currentDecision = await EngagementRiskEvidence.LatestAsync(db, actor.FirmId, engagement, ct);
+    if (currentDecision?.Id != decision.Id) return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "Acceptance changed during activation.");
     if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(activation.Id);
   }

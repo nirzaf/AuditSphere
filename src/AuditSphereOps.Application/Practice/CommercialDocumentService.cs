@@ -1,3 +1,4 @@
+using AuditSphereOps.Application.Acceptance;
 using System.Globalization;
 using System.Text.Json;
 using AuditSphereOps.Application.Completion;
@@ -137,9 +138,8 @@ public static partial class CommercialDocumentService
         return CommandResult<CommercialDocument>.Fail(ErrorCodes.GateBlocked, "Record client acceptance of the current quotation and open client acceptance before generating the engagement letter.");
       var guard = await db.ClientSafetyStates.FromSqlInterpolated(
         $"SELECT * FROM client_safety_states WHERE id = {clientId} AND firm_id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
-      riskDecision = await db.AcceptanceDecisions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.PracticeClientId == clientId &&
-          x.EngagementId == null && x.ServiceRoute == opportunity.ServiceRoute && x.Decision != "Pending")
-        .OrderByDescending(x => x.Generation).ThenByDescending(x => x.DecidedAt).FirstOrDefaultAsync(ct);
+      riskDecision = await EngagementRiskEvidence.ForPeriodAsync(db, actor.FirmId, clientId,
+        opportunity.ServiceRoute, proposal.PeriodStart, proposal.PeriodEnd, ct);
       if (guard is null || riskDecision is null || riskDecision.Decision != "Accepted" || riskDecision.DecidedByUserId is null || riskDecision.DecidedAt is null)
         return CommandResult<CommercialDocument>.Fail(ErrorCodes.GateBlocked, "A current unconditional Partner acceptance decision for this client and service is required.");
       if (riskDecision.Generation != guard.InputGeneration)

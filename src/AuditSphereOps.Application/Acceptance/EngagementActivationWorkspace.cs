@@ -48,9 +48,8 @@ public static class EngagementActivationWorkspace
     var name=await db.PracticeClients.AsNoTracking().Where(x=>x.FirmId==a.FirmId&&x.Id==e.PracticeClientId).Select(x=>x.LegalName).SingleOrDefaultAsync(ct);
     var generation=await db.ClientSafetyStates.AsNoTracking().Where(x=>x.FirmId==a.FirmId&&x.Id==e.PracticeClientId).Select(x=>(long?)x.InputGeneration).SingleOrDefaultAsync(ct);
     if(name is null || generation is null) return Unavailable<EngagementActivationState>();
-    var d=await db.AcceptanceDecisions.AsNoTracking().Where(x=>x.FirmId==a.FirmId&&x.PracticeClientId==e.PracticeClientId&&x.ServiceRoute==e.ServiceRoute&&x.Decision!="Pending")
-      .OrderByDescending(x=>x.Generation).ThenByDescending(x=>x.DecidedAt).ThenByDescending(x=>x.Id)
-      .Select(x=>new ActivationDecisionView(x.Id,x.Decision,x.Path,Exact(x.Generation),x.DecidedAt)).FirstOrDefaultAsync(ct);
+    var risk=await EngagementRiskEvidence.LatestAsync(db,a.FirmId,e,ct);
+    var d=risk is null ? null : new ActivationDecisionView(risk.Id,risk.Decision,risk.Path,Exact(risk.Generation),risk.DecidedAt);
     var holds=await db.EngagementHolds.AsNoTracking().CountAsync(x=>x.FirmId==a.FirmId&&x.EngagementId==id&&!x.Released,ct);
     var blockers=new List<ActivationBlocker>();
     if(e.Status!="Draft") blockers.Add(new("engagement.not-draft","Only a draft engagement can be activated. Inspect retained activation evidence if it is already active."));
