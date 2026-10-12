@@ -290,6 +290,48 @@ public static class PracticeTimeService
     IAuditSphereDbContext db, ActorContext actor, Guid taskId, long expectedRevision, CancellationToken ct = default) =>
     CompleteTaskCoreAsync(db, actor, taskId, expectedRevision, ct);
 
+  internal static Task<CommandResult> ChangeWorkflowTaskDueDateAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid taskId, DateOnly? dueDate,
+    long expectedRevision, CancellationToken ct = default) =>
+    ChangeWorkflowTaskDueDateCoreAsync(db, actor, taskId, dueDate, expectedRevision, ct);
+
+  private static async Task<CommandResult> ChangeWorkflowTaskDueDateCoreAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid taskId, DateOnly? dueDate,
+    long expectedRevision, CancellationToken ct)
+  {
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    if (await LockFirmAsync(db, actor.FirmId, ct) is null)
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+    var taskSnapshot = await db.WorkTasks.AsNoTracking().SingleOrDefaultAsync(
+      x => x.Id == taskId && x.FirmId == actor.FirmId, ct);
+    if (taskSnapshot is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var guard = await LockClientAsync(db, actor.FirmId, taskSnapshot.ClientId, ct);
+    if (!guard.Succeeded) return guard;
+    var task = await LoadTaskForUpdateAsync(db, actor.FirmId, taskId, ct);
+    if (task is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await AuthorizeTaskAsync(db, actor, task, ApprovalRoles, ct);
+    if (!auth.Succeeded) return auth;
+    var workflowBinding = await LockWorkflowBindingAsync(db, actor.FirmId, task.Id, ct);
+    if (workflowBinding is null)
+      return CommandResult.Fail(ErrorCodes.ProtectedState, "Only a bound workflow task has a revisioned due date.");
+    if (workflowBinding.Revision != expectedRevision)
+      return CommandResult.Fail(ErrorCodes.StaleRevision, "The workflow task changed. Refresh it and try again.");
+    if (task.Status is PracticeTimeStates.TaskCompleted or PracticeTimeStates.TaskCancelled)
+      return CommandResult.Fail(ErrorCodes.ProtectedState, "A closed task's due date cannot be changed.");
+    if (task.DueDate == dueDate) return CommandResult.Ok();
+    if (workflowBinding.Revision == long.MaxValue)
+      return CommandResult.Fail(ErrorCodes.ProtectedState, "The workflow task revision cannot advance further.");
+
+    var previousDueDate = task.DueDate;
+    task.DueDate = dueDate;
+    workflowBinding.Revision++;
+    AddWorkflowTaskActivity(db, actor, task, workflowBinding, WorkflowTaskActivityKinds.DueDateChanged,
+      null, workflowBinding.Revision, DateTimeOffset.UtcNow, previousDueDate, dueDate);
+    await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
+    return CommandResult.Ok();
+  }
+
   private static async Task<CommandResult> CompleteTaskCoreAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid taskId, long? expectedRevision, CancellationToken ct)
   {
@@ -760,7 +802,8 @@ public static class PracticeTimeService
 
   private static void AddWorkflowTaskActivity(
     IAuditSphereDbContext db, ActorContext actor, WorkTask task, WorkflowTaskBinding binding,
-    string kind, Guid? assigneeUserId, long revision, DateTimeOffset occurredAt)
+    string kind, Guid? assigneeUserId, long revision, DateTimeOffset occurredAt,
+    DateOnly? previousDueDate = null, DateOnly? newDueDate = null)
   {
     db.WorkflowTaskActivities.Add(new WorkflowTaskActivity
     {
@@ -774,6 +817,8 @@ public static class PracticeTimeService
       ActorUserId = actor.UserId,
       AssigneeUserId = assigneeUserId,
       TaskRevision = revision,
+      PreviousDueDate = previousDueDate,
+      NewDueDate = newDueDate,
       OccurredAt = occurredAt
     });
   }

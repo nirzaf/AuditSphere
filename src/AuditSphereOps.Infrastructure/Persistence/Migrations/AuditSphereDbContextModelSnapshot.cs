@@ -24865,9 +24865,17 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(32)")
                         .HasColumnName("kind");
 
+                    b.Property<DateOnly?>("NewDueDate")
+                        .HasColumnType("date")
+                        .HasColumnName("new_due_date");
+
                     b.Property<DateTimeOffset>("OccurredAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("occurred_at");
+
+                    b.Property<DateOnly?>("PreviousDueDate")
+                        .HasColumnType("date")
+                        .HasColumnName("previous_due_date");
 
                     b.Property<long>("TaskRevision")
                         .HasColumnType("bigint")
@@ -24900,7 +24908,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.ToTable("workflow_task_activities", null, t =>
                         {
-                            t.HasCheckConstraint("ck_workflow_task_activity_values", "kind IN ('TASK_CREATED','TASK_ASSIGNED','TASK_REASSIGNED','TASK_COMPLETED') AND task_revision >= 1 AND ((kind IN ('TASK_ASSIGNED','TASK_REASSIGNED')) = (assignee_user_id IS NOT NULL))");
+                            t.HasCheckConstraint("ck_workflow_task_activity_values", "kind IN ('TASK_CREATED','TASK_ASSIGNED','TASK_REASSIGNED','TASK_COMPLETED','TASK_DUE_DATE_CHANGED') AND task_revision >= 1 AND ((kind IN ('TASK_ASSIGNED','TASK_REASSIGNED')) = (assignee_user_id IS NOT NULL)) AND ((kind = 'TASK_DUE_DATE_CHANGED') = (previous_due_date IS DISTINCT FROM new_due_date))");
                         });
                 });
 

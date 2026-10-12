@@ -15,16 +15,18 @@ const queueTask = obj({
   engagementPeriod: str(80), title: str(300), phase: str(40), ordinal: int, taskStatus: str(40),
   assigneeUserId: nullable(guid), assigneeDisplayName: nullable(str(200)), dueDate: nullable(date),
   mappingVersionId: nullable(guid), fsliCode: nullable(str(100)), unmetTaskDependencies: int,
-  canComplete: bool, revision: int, pbcRequestId: nullable(guid), pbcState: nullable(str(32)),
+  canComplete: bool, canChangeDueDate: bool, revision: int,
+  pbcRequestId: nullable(guid), pbcState: nullable(str(32)),
 });
 const decodeQueue = obj({
   view: str(30), tasks: arr(queueTask, 100), hasMore: bool,
   nextCursor: nullable(obj({ dueDate: nullable(date), taskId: guid })),
 });
 const activityEvent = obj({
-  id: guid, kind: oneOf('TASK_CREATED', 'TASK_ASSIGNED', 'TASK_REASSIGNED', 'TASK_COMPLETED'),
+  id: guid, kind: oneOf('TASK_CREATED', 'TASK_ASSIGNED', 'TASK_REASSIGNED', 'TASK_COMPLETED', 'TASK_DUE_DATE_CHANGED'),
   sourceLabel: oneOf('Operational Task'), actorDisplayName: nonBlank(200),
-  assigneeDisplayName: nullable(str(200)), taskRevision: int, occurredAt: instant,
+  assigneeDisplayName: nullable(str(200)), taskRevision: int,
+  previousDueDate: nullable(date), newDueDate: nullable(date), occurredAt: instant,
 });
 export const decodeActivity = obj({
   engagementId: guid, taskId: guid, from: date, to: date, events: arr(activityEvent, 101),
@@ -60,7 +62,16 @@ const queueViews: { key: QueueView; label: string }[] = [
         <tbody>
           @for (task of result.tasks; track task.taskId) {
             <tr>
-              <td>{{ task.dueDate ?? 'No due date' }}</td>
+              <td>
+                {{ task.dueDate ?? 'No due date' }}
+                @if (task.canChangeDueDate) {
+                  <div class="due-date-editor">
+                    <label class="sr-only" [attr.for]="'due-date-' + task.taskId">Due date for {{ task.title }}</label>
+                    <input #dueDateInput [id]="'due-date-' + task.taskId" type="date" [value]="task.dueDate ?? ''" />
+                    <button matButton (click)="changeDueDate(task.engagementId, task.taskId, task.revision, dueDateInput.value)">Save date</button>
+                  </div>
+                }
+              </td>
               <td><a [routerLink]="['/app/engagements', task.engagementId]">{{ task.clientName }}</a><small>{{ task.engagementServiceRoute }} · {{ task.engagementPeriod }}</small></td>
               <td>{{ task.title }}<small>{{ task.phase.replace('_', ' ') }} · #{{ task.ordinal }}@if (task.fsliCode) { · FSLI {{ task.fsliCode }} }@if (task.mappingVersionId) { · mapping {{ task.mappingVersionId.slice(0, 8) }} }</small>
                 @if (task.pbcRequestId) { <small><a [routerLink]="['/app/engagements', task.engagementId, 'pbc']">PBC request · {{ task.pbcState }}</a></small> }
@@ -86,6 +97,9 @@ const queueViews: { key: QueueView; label: string }[] = [
               @for (event of page.events; track event.id) {
                 <li><strong>{{ eventLabel(event.kind) }}</strong> · {{ event.sourceLabel }}
                   <small>By {{ event.actorDisplayName }}@if (event.assigneeDisplayName) { · assigned to {{ event.assigneeDisplayName }}} · revision {{ event.taskRevision }}</small>
+                  @if (event.kind === 'TASK_DUE_DATE_CHANGED') {
+                    <small>{{ event.previousDueDate ?? 'No due date' }} → {{ event.newDueDate ?? 'No due date' }}</small>
+                  }
                   <time [attr.datetime]="event.occurredAt">{{ event.occurredAt }}</time>
                 </li>
               } @empty {
@@ -164,7 +178,16 @@ export class WorkflowWorkQueue {
 
   eventLabel(kind: string): string {
     return ({ TASK_CREATED: 'Task created', TASK_ASSIGNED: 'Task assigned',
-      TASK_REASSIGNED: 'Task reassigned', TASK_COMPLETED: 'Task completed' } as Record<string, string>)[kind] ?? 'Workflow event';
+      TASK_REASSIGNED: 'Task reassigned', TASK_COMPLETED: 'Task completed',
+      TASK_DUE_DATE_CHANGED: 'Due date changed' } as Record<string, string>)[kind] ?? 'Workflow event';
+  }
+
+  changeDueDate(engagementId: string, taskId: string, revision: number, dueDate: string): void {
+    this.command.run(`/api/ui/engagements/${engagementId}/workflow/tasks/${taskId}/due-date`,
+      { dueDate: dueDate || null, expectedRevision: revision }, 'Task due date updated.', () => {
+        this.queue.reload();
+        this.activity.reload();
+      }).finally(this.queue.reload);
   }
 
   complete(engagementId: string, taskId: string, revision: number): void {

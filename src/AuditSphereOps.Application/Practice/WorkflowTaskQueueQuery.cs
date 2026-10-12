@@ -14,7 +14,8 @@ public sealed record WorkflowTaskQueueCursor(DateOnly? DueDate, Guid TaskId);
 public sealed record WorkflowTaskQueueRow(Guid TaskId, Guid ClientId, string ClientName, Guid EngagementId,
   string EngagementServiceRoute, string EngagementPeriod, string Title, string Phase, int Ordinal,
   string TaskStatus, Guid? AssigneeUserId, string? AssigneeDisplayName, DateOnly? DueDate,
-  Guid? MappingVersionId, string? FsliCode, int UnmetTaskDependencies, bool CanComplete, long Revision,
+  Guid? MappingVersionId, string? FsliCode, int UnmetTaskDependencies, bool CanComplete,
+  bool CanChangeDueDate, long Revision,
   Guid? PbcRequestId, string? PbcState);
 public sealed record WorkflowTaskQueue(string View, IReadOnlyList<WorkflowTaskQueueRow> Tasks,
   bool HasMore, WorkflowTaskQueueCursor? NextCursor);
@@ -140,7 +141,7 @@ public static class WorkflowTaskQueueQuery
       await db.Users.AsNoTracking().Where(x => x.FirmId == actor.FirmId && assigneeIds.Contains(x.Id))
         .ToDictionaryAsync(x => x.Id, x => x.DisplayName, ct);
 
-    bool CanElevatedComplete(Guid clientId, Guid engagementId) => grants.Any(g =>
+    bool CanElevatedManage(Guid clientId, Guid engagementId) => grants.Any(g =>
       ElevatedRoles.Contains(g.Role) && ((g.ClientId is null && g.EngagementId is null) ||
         (g.ClientId == clientId && (g.EngagementId is null || g.EngagementId == engagementId))));
     var rows = page.Select(x =>
@@ -148,11 +149,12 @@ public static class WorkflowTaskQueueQuery
       var unmetCount = unmetByBinding.GetValueOrDefault(x.BindingId);
       var pbcComplete = !x.PbcRequestId.HasValue || x.PbcState is PbcStates.Accepted or PbcStates.Closed;
       var canComplete = ActiveTaskStates.Contains(x.Status) && unmetCount == 0 &&
-        pbcComplete && (x.AssigneeUserId == actor.UserId || CanElevatedComplete(x.ClientId, x.EngagementId));
+        pbcComplete && (x.AssigneeUserId == actor.UserId || CanElevatedManage(x.ClientId, x.EngagementId));
+      var canChangeDueDate = ActiveTaskStates.Contains(x.Status) && CanElevatedManage(x.ClientId, x.EngagementId);
       return new WorkflowTaskQueueRow(x.Id, x.ClientId, x.ClientName, x.EngagementId,
         x.EngagementServiceRoute, x.EngagementPeriod, x.Title, x.Phase, x.Ordinal, x.Status,
         x.AssigneeUserId, x.AssigneeUserId is { } userId ? assignees.GetValueOrDefault(userId) : null,
-        x.DueDate, x.MappingVersionId, x.FsliCode, unmetCount, canComplete, x.Revision,
+        x.DueDate, x.MappingVersionId, x.FsliCode, unmetCount, canComplete, canChangeDueDate, x.Revision,
         x.PbcRequestId, x.PbcState);
     }).ToArray();
     var last = page[^1];

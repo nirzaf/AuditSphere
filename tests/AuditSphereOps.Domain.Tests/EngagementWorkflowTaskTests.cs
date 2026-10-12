@@ -231,6 +231,83 @@ public sealed class EngagementWorkflowTaskTests
   }
 
   [Fact]
+  public async Task DueDateRevisionIsManagerScopedAndRecordedWithExactBeforeAndAfterValues()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var firmId = Guid.NewGuid();
+    var clientId = Guid.NewGuid();
+    var engagementId = Guid.NewGuid();
+    var manager = User(firmId, "Manager");
+    var staff = User(firmId, "Staff");
+    var managerActor = Actor(manager, "Manager");
+    var staffActor = Actor(staff, "Staff");
+    await using (var seed = new AuditSphereDbContext(pg.Options))
+    {
+      seed.FirmSafetyStates.Add(new FirmSafetyState { Id = firmId });
+      seed.ClientSafetyStates.Add(new ClientSafetyState { Id = clientId, FirmId = firmId });
+      seed.PracticeClients.Add(new PracticeClient
+        { Id = clientId, FirmId = firmId, LegalName = "Due Date Client", CreatedAt = DateTimeOffset.UtcNow });
+      seed.Engagements.Add(Engagement(engagementId, firmId, clientId));
+      seed.Users.AddRange(manager, staff);
+      await seed.SaveChangesAsync();
+      seed.RoleGrants.AddRange(Grant(firmId, manager, "Manager"),
+        Grant(firmId, staff, "Staff", clientId, engagementId));
+      await seed.SaveChangesAsync();
+    }
+
+    var originalDate = new DateOnly(2026, 10, 31);
+    var revisedDate = new DateOnly(2026, 11, 15);
+    Guid taskId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var created = await EngagementWorkflowTaskService.CreateAsync(db, managerActor, engagementId,
+        new WorkflowTaskCreateRequest("Review bank confirmation", WorkflowTaskPhases.AuditFieldwork, 1,
+          originalDate, IdempotencyKey: Guid.NewGuid()));
+      Assert.True(created.Succeeded, created.Message);
+      taskId = created.Value;
+
+      var managerQueue = await WorkflowTaskQueueQuery.GetAsync(db, managerActor,
+        new WorkflowTaskQueueRequest("TEAM"));
+      Assert.True(managerQueue.Succeeded, managerQueue.Message);
+      Assert.True(Assert.Single(managerQueue.Value!.Tasks).CanChangeDueDate);
+      var staffQueue = await WorkflowTaskQueueQuery.GetAsync(db, staffActor,
+        new WorkflowTaskQueueRequest("TEAM"));
+      Assert.True(staffQueue.Succeeded, staffQueue.Message);
+      Assert.False(Assert.Single(staffQueue.Value!.Tasks).CanChangeDueDate);
+
+      var staffDenied = await EngagementWorkflowTaskService.ChangeDueDateAsync(db, staffActor, taskId,
+        revisedDate, expectedRevision: 1);
+      Assert.False(staffDenied.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, staffDenied.ErrorCode);
+
+      var changed = await EngagementWorkflowTaskService.ChangeDueDateAsync(db, managerActor, taskId,
+        revisedDate, expectedRevision: 1);
+      Assert.True(changed.Succeeded, changed.Message);
+
+      var stale = await EngagementWorkflowTaskService.ChangeDueDateAsync(db, managerActor, taskId,
+        new DateOnly(2026, 11, 30), expectedRevision: 1);
+      Assert.False(stale.Succeeded);
+      Assert.Equal(ErrorCodes.StaleRevision, stale.ErrorCode);
+
+      var task = await db.WorkTasks.SingleAsync(x => x.Id == taskId);
+      var binding = await db.WorkflowTaskBindings.SingleAsync(x => x.WorkTaskId == taskId);
+      var change = await db.WorkflowTaskActivities.SingleAsync(x =>
+        x.WorkTaskId == taskId && x.Kind == WorkflowTaskActivityKinds.DueDateChanged);
+      Assert.Equal(revisedDate, task.DueDate);
+      Assert.Equal(2, binding.Revision);
+      Assert.Equal(2, change.TaskRevision);
+      Assert.Equal(originalDate, change.PreviousDueDate);
+      Assert.Equal(revisedDate, change.NewDueDate);
+
+      var page = await WorkflowTaskActivityQuery.GetAsync(db, managerActor, engagementId, taskId,
+        new WorkflowTaskActivityRequest());
+      Assert.True(page.Succeeded, page.Message);
+      Assert.Contains(page.Value!.Events, x => x.Kind == WorkflowTaskActivityKinds.DueDateChanged &&
+        x.PreviousDueDate == originalDate && x.NewDueDate == revisedDate);
+    }
+  }
+
+  [Fact]
   public async Task DatabaseRejectsWorkflowBindingWhoseScopeDiffersFromItsExistingWorkTask()
   {
     await using var pg = await PgTestSchema.CreateAsync();

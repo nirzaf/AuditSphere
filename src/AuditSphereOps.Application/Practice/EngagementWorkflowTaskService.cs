@@ -157,4 +157,9 @@ public static class EngagementWorkflowTaskService
   public static Task<CommandResult> CompleteAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid taskId, long expectedRevision, CancellationToken ct = default) =>
     PracticeTimeService.CompleteWorkflowTaskAsync(db, actor, taskId, expectedRevision, ct);
+
+  public static Task<CommandResult> ChangeDueDateAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid taskId, DateOnly? dueDate,
+    long expectedRevision, CancellationToken ct = default) =>
+    PracticeTimeService.ChangeWorkflowTaskDueDateAsync(db, actor, taskId, dueDate, expectedRevision, ct);
 }

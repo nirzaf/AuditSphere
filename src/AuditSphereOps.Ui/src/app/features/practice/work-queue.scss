@@ -4,6 +4,8 @@
 table { width: 100%; border-collapse: collapse; }
 th, td { padding: .7rem; border-bottom: 1px solid var(--line, #d7dfeb); text-align: left; vertical-align: top; }
 td small { display: block; color: var(--muted, #52627a); margin-top: .2rem; }
+.due-date-editor { display: grid; justify-items: start; gap: .25rem; margin-top: .4rem; }
+.due-date-editor input { max-width: 100%; }
 .queue-note { color: var(--muted, #52627a); margin-block: 1rem; }
 .activity-panel { margin-block: 1.25rem; padding: 1rem; border: 1px solid var(--line, #d7dfeb); border-radius: .5rem; }
 .activity-panel li { padding-block: .5rem; }

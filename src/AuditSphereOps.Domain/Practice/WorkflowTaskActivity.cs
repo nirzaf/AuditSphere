@@ -6,8 +6,9 @@ public static class WorkflowTaskActivityKinds
   public const string Assigned = "TASK_ASSIGNED";
   public const string Reassigned = "TASK_REASSIGNED";
   public const string Completed = "TASK_COMPLETED";
+  public const string DueDateChanged = "TASK_DUE_DATE_CHANGED";
 
-  public static readonly string[] All = [Created, Assigned, Reassigned, Completed];
+  public static readonly string[] All = [Created, Assigned, Reassigned, Completed, DueDateChanged];
 }
 
 /// <summary>
@@ -26,5 +27,7 @@ public sealed class WorkflowTaskActivity
   public Guid ActorUserId { get; set; }
   public Guid? AssigneeUserId { get; set; }
   public long TaskRevision { get; set; }
+  public DateOnly? PreviousDueDate { get; set; }
+  public DateOnly? NewDueDate { get; set; }
   public DateTimeOffset OccurredAt { get; set; }
 }

@@ -13,6 +13,8 @@ const activity = {
     actorDisplayName: 'Engagement manager',
     assigneeDisplayName: 'Audit staff',
     taskRevision: 4,
+    previousDueDate: null,
+    newDueDate: null,
     occurredAt: '2026-10-12T06:30:00Z',
   }],
   hasMore: true,
@@ -40,5 +42,13 @@ describe('workflow task activity contract', () => {
     expect(decoded.events).toEqual([]);
     expect(decoded.hasMore).toBe(false);
     expect(decoded.nextCursor).toBeNull();
+  });
+
+  it('decodes an exact due-date change with nullable before and after dates', () => {
+    const event = { ...activity.events[0], kind: 'TASK_DUE_DATE_CHANGED',
+      previousDueDate: '2026-10-31', newDueDate: null };
+    const decoded = decodeActivity({ ...activity, events: [event], hasMore: false, nextCursor: null }, 'activity');
+    expect(decoded.events[0].previousDueDate).toBe('2026-10-31');
+    expect(decoded.events[0].newDueDate).toBeNull();
   });
 });

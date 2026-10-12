@@ -20,6 +20,7 @@ public static partial class UiEndpoints
     Guid IdempotencyKey);
   public sealed record WorkflowTaskAssignmentInput(Guid AssigneeUserId, long ExpectedRevision);
   public sealed record WorkflowTaskCompletionInput(long ExpectedRevision);
+  public sealed record WorkflowTaskDueDateInput(string? DueDate, long ExpectedRevision);
   public sealed record WorkflowTemplateStepInput(
     string StableKey, string Phase, string Title, string Instructions, string? SuggestedStaffingLevel,
     int? EstimatedEffortMinutes, int? DueDateOffsetDays, string? PbcRequestReference, bool RequiredTask,
@@ -101,6 +102,25 @@ public static partial class UiEndpoints
         var result = await EngagementWorkflowTaskService.CompleteAsync(db, actor, taskId, input.ExpectedRevision, ct);
         return result.Succeeded ? CommandResult<bool>.Ok(true) : CommandResult<bool>.Fail(result.ErrorCode!, result.Message!);
       }));
+
+    tasks.MapPost("/{taskId:guid}/due-date", (
+      Guid engagementId, Guid taskId, WorkflowTaskDueDateInput input, HttpContext http) =>
+    {
+      DateOnly? dueDate = null;
+      if (!string.IsNullOrWhiteSpace(input.DueDate))
+      {
+        if (!TryDate(input.DueDate, out var parsed)) return Task.FromResult(Invalid("Enter the due date as a date."));
+        dueDate = parsed;
+      }
+      return CommandAsync(http, async (db, actor, ct) =>
+      {
+        var scoped = await EngagementWorkflowTaskService.EnsureTaskScopeAsync(db, actor, engagementId, taskId, ct);
+        if (!scoped.Succeeded) return CommandResult<bool>.Fail(scoped.ErrorCode!, scoped.Message!);
+        var result = await EngagementWorkflowTaskService.ChangeDueDateAsync(db, actor, taskId, dueDate,
+          input.ExpectedRevision, ct);
+        return result.Succeeded ? CommandResult<bool>.Ok(true) : CommandResult<bool>.Fail(result.ErrorCode!, result.Message!);
+      });
+    });
 
     var plans = group.MapGroup("/engagements/{engagementId:guid}/task-plan")
       .AddEndpointFilter(async (context, next) =>
