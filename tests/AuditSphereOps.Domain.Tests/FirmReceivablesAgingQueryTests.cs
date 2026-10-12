@@ -181,9 +181,13 @@ public sealed class FirmReceivablesAgingQueryTests
 
       var report = await FirmReceivablesAgingQuery.GetAsync(db, manager, asOf);
       Assert.True(report.Succeeded, report.ErrorCode);
-      var row = Assert.Single(report.Value!.Rows);
-      Assert.Equal(invoiceId, row.InvoiceId);
-      Assert.DoesNotContain(report.Value.Rows, x => x.InvoiceNumber == "SYN-AGING-UNLINKED");
+      // ADR-0018: every posted firm invoice is aged. The invoice with no fee milestone appears as OTHER, undated and unattributed.
+      Assert.Equal(2, report.Value!.Rows.Count);
+      var row = report.Value.Rows.Single(x => x.InvoiceId == invoiceId);
+      var other = report.Value.Rows.Single(x => x.InvoiceNumber == "SYN-AGING-UNLINKED");
+      Assert.Equal(("OTHER", 500m, 500m), (other.InvoiceType, other.OriginalAmount, other.Outstanding));
+      Assert.Null(other.EngagementId);
+      Assert.Null(other.DueDate);
       Assert.Equal("PBC TEST CLIENT", row.LegalClientName);
       Assert.Null(row.EngagementId);
       Assert.Equal(asOf.AddDays(-31), row.DueDate);
@@ -198,8 +202,8 @@ public sealed class FirmReceivablesAgingQueryTests
       Assert.Equal("APPROVED", row.PaymentTermsStatus);
       Assert.Contains("Synthetic Finance Contact <finance@example.test>", row.FinanceRecipients);
       Assert.Equal(5m, Assert.Single(report.Value.CurrencySubtotals).ReversedReceipts);
-      Assert.Equal(75m, Assert.Single(report.Value.CurrencySubtotals).Outstanding);
-      Assert.Equal(75m, Assert.Single(report.Value.ClientCurrencySubtotals).Outstanding);
+      Assert.Equal(575m, Assert.Single(report.Value.CurrencySubtotals).Outstanding);
+      Assert.Equal(575m, Assert.Single(report.Value.ClientCurrencySubtotals).Outstanding);
       var export = await FirmReceivablesAgingQuery.ExportAsync(db, manager, asOf);
       Assert.True(export.Succeeded, export.ErrorCode);
       Assert.Contains("firm-receivables-aging-", export.Value!.FileName);

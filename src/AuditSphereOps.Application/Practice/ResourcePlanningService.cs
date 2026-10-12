@@ -182,7 +182,7 @@ public static partial class ResourcePlanningService
       .Join(db.PracticeClients.AsNoTracking(), e => e.PracticeClientId, c => c.Id, (e, c) => new { e.Id, Label = (c.CommercialName ?? c.LegalName) + " · " + e.ServiceRoute + " " + e.PeriodEnd })
       .ToDictionaryAsync(x => x.Id, x => x.Label, ct);
     var time = await db.TimeEntries.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.Status == PracticeTimeStates.TimeApproved &&
-      x.WorkDate >= start && x.WorkDate <= end).Select(x => new { x.UserId, x.WorkDate, x.DurationMinutes }).ToListAsync(ct);
+      x.WorkDate >= start && x.WorkDate <= end).Select(x => new { x.UserId, x.WorkDate, x.DurationMinutes, x.BillableClassification }).ToListAsync(ct);
     var today = DateOnly.FromDateTime(DateTime.UtcNow);
     var rows = users.Select(u =>
     {
@@ -193,7 +193,9 @@ public static partial class ResourcePlanningService
         certifications.Where(c => c.UserId == u.Id).OrderBy(c => c.Name).Select(c => new ResourceCertificationView(c.Name, c.ExpiresOn, c.ExpiresOn is null || c.ExpiresOn >= today)).ToList(),
         profile?.WeeklyCapacityMinutes ?? 0, profile?.TargetUtilizationPercent ?? 0, profile is not null,
         ResourceGridCalculator.Build(profile?.WeeklyCapacityMinutes ?? 0, availability.Where(a => a.UserId == u.Id).ToList(), mine,
-          time.Where(t => t.UserId == u.Id).Select(t => (t.WorkDate, t.DurationMinutes)).ToList(), start, weeks),
+          time.Where(t => t.UserId == u.Id).Select(t => (t.WorkDate, t.DurationMinutes)).ToList(), start, weeks,
+          approvedBillableTime: time.Where(t => t.UserId == u.Id && t.BillableClassification == PracticeTimeStates.Billable)
+            .Select(t => (t.WorkDate, t.DurationMinutes)).ToList()),
         mine.OrderBy(x => x.WeekStart).Select(x => new ResourceAllocationView(x.EngagementId, labels.GetValueOrDefault(x.EngagementId, "Engagement"), x.WeekStart, x.PlannedMinutes)).ToList());
     }).ToList();
     return CommandResult<ResourceGridView>.Ok(new(start, weeks, rows));

@@ -8,7 +8,7 @@ import { SHARED } from '../../core/ui';
 const row = obj({ engagementId: guid, label: text, currency: text, budgetMinutes: nat, budgetValue: nullable(dec), actualMinutes: nat, standardValue: nullable(dec),
   actualCost: nullable(dec), billed: nullable(dec), collected: nullable(dec), realizationPercent: nullable(dec), collectionPercent: nullable(dec), profit: nullable(dec),
   marginPercent: nullable(dec), budgetVarianceMinutes: int, costComplete: bool, contractedFee: nullable(dec), contractCurrency: nullable(text),
-  lifetimeStandardValue: nullable(dec), contractedFeeLessStandardValue: nullable(dec) });
+  lifetimeStandardValue: nullable(dec), contractedFeeLessStandardValue: nullable(dec), nonChargeableMinutes: nat });
 export const decodeAnalytics = obj({ from: date, to: date, engagements: arr(row, 2000),
   departments: arr(obj({ department: text, capacityMinutes: nat, chargeableMinutes: nat, utilizationPercent: nullable(dec), targetPercent: nullable(dec) })),
   milestones: obj({ due: nat, completed: nat, completedOnTime: nat, completedLate: nat, overdue: nat,
@@ -45,7 +45,7 @@ export function hours(minutes: number, places = 1): string {
             <th class="number">Billed</th><th class="number">Collected</th><th class="number">Realization</th><th class="number">Collection</th><th class="number">Profit</th>
             <th class="number">Margin</th><th class="number">Contract fee</th><th class="number">Lifetime standard value</th><th class="number">Fee less standard value</th></tr></thead>
           <tbody>@for (r of v.engagements; track r.engagementId) {
-            <tr><th scope="row">{{ r.label }}</th><td>{{ currencyLabel(r.currency) }}</td><td class="number">{{ hrs(r.budgetMinutes) }}</td><td class="number">{{ hrs(r.actualMinutes) }}</td>
+            <tr><th scope="row">{{ r.label }}</th><td>{{ currencyLabel(r.currency) }}</td><td class="number">{{ hrs(r.budgetMinutes) }}</td><td class="number">{{ hrs(r.actualMinutes) }}@if (r.nonChargeableMinutes > 0) { <small>({{ hrs(r.nonChargeableMinutes) }} non-chargeable)</small> }</td>
               <td class="number">{{ r.standardValue | money }}</td><td class="number">{{ r.actualCost | money }}{{ r.costComplete || r.currency === 'MIXED' || r.currency === 'UNAVAILABLE' ? '' : ' (incomplete)' }}</td>
               <td class="number">{{ r.billed | money }}</td><td class="number">{{ r.collected | money }}</td>
               <td class="number">{{ pct(r.realizationPercent) }}</td><td class="number">{{ pct(r.collectionPercent) }}</td>

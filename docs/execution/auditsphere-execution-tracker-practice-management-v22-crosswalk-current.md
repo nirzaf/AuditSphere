@@ -8,11 +8,16 @@
 
 **Basis:** `C` the code was read or changed in this slice · `R` taken from the row-level evidence in [`auditsphere-execution-tracker-ste-v22-gap-verification-current.md`](auditsphere-execution-tracker-ste-v22-gap-verification-current.md) · `N` not re-read here, carried from the prior review and still a hypothesis · `-` a scope classification that needs no code evidence.
 
-## What this slice changed
+## What the first slice changed
 
 - **FIN-05, PM-10.** The firm trial balance report returns one profit and loss row per accounting month in the range, with the same month one year earlier as the comparator. The months come from the same posted lines as the range totals, so they add up to them. The comparator is absent, not zero, when the firm holds no period for that month. The export carries the rows as `PROFIT_LOSS_MONTH`.
 - **TIME-01, PM-08.** Time capture, budget revision, budget preview and quotation pricing read one rate lookup. An exact approved card wins; an STE alias (Senior, Supervisor, Junior, Associate) borrows the baseline card; any other role still fails closed.
 - **WF-02, PM-01.** The engagement dashboard names the people currently staffed at the level that owns the current step and says so when nobody is. It shows the days left to the scheduled freeze, and it does not describe a due but uncommitted freeze as archived.
+
+## What the second slice changed
+
+- **TIME-02, TIME-03, FIN-03 (ADR-0018).** Non-billable time has no charge-out value; utilization uses one billable basis in both views; the receivables report ages every posted firm invoice.
+- **PM-07 first slice.** `GET /api/ui/engagements/{id}/communications` and an engagement panel list recorded outbound mail: PBC request emails, routed document dispatches and commercial notifications bound to the engagement. Engagement Partners, Managers and Administrators may read it. Message bodies are not projected, and provider acceptance is never worded as delivery.
 
 No lifecycle rule, gate, stage mapping or module boundary changed. The eleven-stage projection and the seven-phase mapper were not edited.
 
@@ -20,17 +25,17 @@ No lifecycle rule, gate, stage mapping or module boundary changed. The eleven-st
 
 | Story | Disposition | Note |
 | --- | --- | --- |
-| PM-00 | PARTIAL | This crosswalk. A dedicated NR-01 to NR-12 regression set was not assembled; the cases are spread across existing suites and were not mapped one by one. |
+| PM-00 | PARTIAL | This crosswalk, and the scenario map below. NR-11 and NR-12 have no single named test. |
 | PM-01 | PARTIAL | Named staff and countdown delivered here. Checklists, milestone dates and a role-computed action remain. |
 | PM-02 | PARTIAL | Workflow track. Kanban, calendar and editable groups remain. |
 | PM-03 | OWNER_DECISION | DEC-01 and DEC-03 gate the recurrence action. |
 | PM-04 | PARTIAL | Reminder rule administration and escalation remain. |
 | PM-05 | OWNER_DECISION | DEC-01, DEC-02 and DEC-09. The brief quotation timeline is the decision-free part. |
 | PM-06 | PARTIAL | Local behaviour present; live journeys are BLOCKED_EXTERNAL. |
-| PM-07 | MISSING | The mandatory engagement communication timeline is not built. |
-| PM-08 | PARTIAL | Alias reconciliation closed here; the rest waits on DEC-05. |
+| PM-07 | PARTIAL | The engagement communication timeline is built. Comments, mentions and a connected inbox are not. |
+| PM-08 | PARTIAL | Aliases, non-billable valuation and the utilization basis are closed. Staff-level views wait on DEC-05. |
 | PM-09 | PARTIAL | 50/50 flow present; partial-payment receipts wait on DEC-06. |
-| PM-10 | PARTIAL | Monthly series closed here; receivables scope and contribution wait on decisions. |
+| PM-10 | PARTIAL | Monthly series and receivables scope are closed. Client, service and team splits wait on DEC-05. |
 | PM-11 | OWNER_DECISION | DEC-07 gates assignee, sampling and the estimates register. |
 | PM-12 | NOT_REVERIFIED | The R2R task cards were not reconciled in this slice. |
 | PM-13 | OWNER_DECISION | DEC-02 and DEC-08; provider acceptance is BLOCKED_EXTERNAL. |
@@ -46,7 +51,7 @@ No lifecycle rule, gate, stage mapping or module boundary changed. The eleven-st
 | CRM-01 | PARTIAL | R | Parent, subsidiary and affiliate kinds exist; no separate holding kind and tree depth is unverified. |
 | CRM-02 | OWNER_DECISION | R | DEC-09. Contact role is free text and routing precedence is undecided. |
 | CRM-03 | PARTIAL | N | Per-recipient delivery receipts exist for commercial notifications; routing to purpose contacts waits on DEC-09. |
-| CRM-04 | MISSING | R | The brief quotation carries no timeline. Decision-free; not started. |
+| CRM-04 | MISSING | C | Not a small change: a timeline is a new offer term, so it alters the offer identity that client acceptance binds. It needs its own slice. |
 | CRM-05 | OWNER_DECISION | N | DEC-02. Proposal format and CV selection need an approved layout. |
 | CRM-06 | OWNER_DECISION | R | DEC-01. The Key 1 exact-revision rule when no brief quotation exists. |
 | CRM-07 | OWNER_DECISION | R | DEC-02. Letter clauses and deadline wording. |
@@ -68,7 +73,7 @@ No lifecycle rule, gate, stage mapping or module boundary changed. The eleven-st
 | WF-11 | PARTIAL | R | Task event trace exists; one stream across requests, notes and mail does not. |
 | WF-12 | OPTIONAL | - | Needs a scope decision. |
 | WF-13 | PARTIAL | R | See the section 5 rows of the register; ADR-0004 governs. |
-| COM-01 | OPTIONAL | - | DEC-11. The mandatory first slice of PM-07 (engagement timeline of existing outbound mail) is MISSING. |
+| COM-01 | OPTIONAL | C | DEC-11 for a connected inbox. The mandatory first slice of PM-07 is built: an engagement timeline of recorded outbound mail. |
 | COM-02 | OPTIONAL | - | Needs a scope decision. |
 | COM-03 | PARTIAL | N | Rejection reasons exist on PBC review; per-request conversation was not re-read. |
 | COM-04 | BLOCKED_EXTERNAL | R | Live mail, invitation, holding letter and delivery. |
@@ -81,16 +86,16 @@ No lifecycle rule, gate, stage mapping or module boundary changed. The eleven-st
 | COM-11 | OPTIONAL | - | Needs a scope decision. |
 | COM-12 | OUT_OF_SCOPE | - | AGENTS.md excludes external eSignature providers. |
 | TIME-01 | ALREADY_COMPLETE | C | Closed in this slice: time capture, budgets, budget previews and quotations share one alias-aware rate lookup. |
-| TIME-02 | OWNER_DECISION | R | DEC-05. Treatment of non-billable and no-charge time. |
-| TIME-03 | PARTIAL | R | Two utilization bases remain; the single basis depends on DEC-05. |
+| TIME-02 | ALREADY_COMPLETE | C | Closed under ADR-0018: non-billable and no-charge time carries hours and cost and no charge-out value. |
+| TIME-03 | ALREADY_COMPLETE | C | Closed under ADR-0018: the weekly grid and department analytics both use approved billable time over capacity. |
 | TIME-04 | OWNER_DECISION | R | DEC-05. Measures and audience for staff-level views. |
 | TIME-05 | OPTIONAL | R | Leave and holidays already reduce capacity as recorded unavailability (ADR-0017); a holiday table is optional. |
 | TIME-06 | OPTIONAL | - | Needs a scope decision. |
 | TIME-07 | NOT_REVERIFIED | N | Carried from the prior review. |
 | FIN-01 | DEVIATION | R | ADR-0007: drafts only and off by default. Enabling it is an owner action. |
 | FIN-02 | OWNER_DECISION | N | DEC-06. |
-| FIN-03 | OWNER_DECISION | R | The receivables scope beyond fee milestones is an open register question. |
-| FIN-04 | OWNER_DECISION | R | DEC-05. |
+| FIN-03 | ALREADY_COMPLETE | C | Closed under ADR-0018: every posted firm invoice is aged, typed as advance, final, time or other. |
+| FIN-04 | PARTIAL | C | Value, realization and contribution no longer fail on non-billable time (ADR-0018). Per-client and per-team splits wait on DEC-05. |
 | FIN-05 | ALREADY_COMPLETE | C | Closed in this slice: month-by-month series with a same-month prior-year comparator, on screen and in the export. |
 | FIN-06 | OWNER_DECISION | R | DEC-05. |
 | FIN-07 | OPTIONAL | - | Needs a business decision. |
@@ -132,11 +137,29 @@ No lifecycle rule, gate, stage mapping or module boundary changed. The eleven-st
 | CLOUD-12 | OPTIONAL | - | DEC-11. |
 | CLOUD-13 | OPTIONAL | - | DEC-11. |
 
+## Non-regression scenarios mapped to existing tests
+
+Names are tests in `tests/AuditSphereOps.Domain.Tests`. A named test covers the core of the scenario; it was located by name and its body was not re-read for every clause, so treat a row as a pointer and not as proof of full coverage.
+
+| Scenario | Existing tests | Gap |
+| --- | --- | --- |
+| NR-01 no commercial gate bypass | `EngagementLifecycleQueryTests.AdvanceBillingNeverAdvancesOnStaleConditionalOrDeclinedEvidence`; `CommercialWorkflowTests.FeeAgreement_RefusesAcceptedProposalWithoutRecordedDispatch` | A workflow-automator actor is not exercised. |
+| NR-02 advance paid is distinct | `EngagementActivationAdvanceGateTests.LinkedAgreementMustHavePaidAdvanceBeforeActivation`, `.ActivationWithoutLinkedFeeAgreementIsBlocked` | None found. |
+| NR-03 effective fieldwork | `PlanningResourcesAndMaterialityTests.Materiality_IsCalculatedFromTheMappedTrialBalance_AndGoesStaleWhenTheSourceIsReplaced` | Task completion against a stale gate is not named. |
+| NR-04 reviewer independence | `PlanningResourcesAndMaterialityTests.AuditProcedure_ExecutionAndReviewStaffingRanks_EnforcesRiskBandRules`; `AuditDeliverablesTests.ChangesRequiredReviewCreatesOneLinkedOperationalReworkTaskWithoutChangingReviewAuthority` | None found. |
+| NR-05 confirmations and opinions | `AuditDeliverablesTests.CriticalUnreturnedConfirmationKeepsBlockingAfterAlternativeClosureAndCriticalityReassessment` | None found. |
+| NR-06 release bytes | `AuditDeliverablesTests.FivePartBundle_RequiresReviewedReleaseAndPostedBalance_IsIdempotent_AndClientScoped`; `ReleaseTests.ReleaseGate_RejectsMissingCheckpointAndWrongManifest_ThenIsIdempotent` | A live checkpoint is BLOCKED_EXTERNAL. |
+| NR-07 archive | `AuditDeliverablesTests.FileFreezesSixtyDaysAfterSigning_RefusesWrites_AmendsWithApproval_AndTracesActivity`, `.FrozenFileRefusesReviewNoteAttemptsAndRecordsTheRefusedWrite` | Provider protection is BLOCKED_EXTERNAL. |
+| NR-08 tenant and sibling isolation | `ClientProfileWorkspaceTests.ClientCommercialAuthorityDoesNotWidenEngagementRoleOrAggregateSiblingData`; `GlobalSearchQueryTests.ClientScopedUser_FindsOwnClientEngagementAndRequest_NeverTheSibling`; `EngagementCommunicationTimelineTests` | Whole-application coverage is CLOUD-09. |
+| NR-09 recurring year | `EngagementLifecycleQueryTests.PriorPeriodAcceptedOfferDoesNotAdvanceANewPeriodEngagement` | No recurrence action exists to test. |
+| NR-10 durable retries | `PbcTests.MailWorker_DeliversQueuedNotification_ExactlyOnce`; `EngagementActivationReviewTests.ExactReviewConcurrentRecoveryAndAppendOnlyEvidenceActivateOnce` | None found. |
+| NR-11 three books | No single named test was located. `FirmReceivablesAgingQueryTests` shows firm receivables read firm invoices only. | A named cross-ledger negative test is missing. |
+| NR-12 feature-off compatibility | `PbcWorkflowTaskTests.DisabledWorkflowDoesNotCreatePbcFollowUpTask` | One flag only; no general flag-off suite. |
+
 ## What can be built next without a decision
 
-- **CRM-04:** the brief quotation timeline.
-- **PM-07 first slice:** an engagement timeline over the outbound mail, PBC and confirmation records that already exist.
+- **CRM-04:** the brief quotation timeline, as its own slice because it changes the offer identity.
 - **WF-03 and WF-05:** phase checklists and Kanban or calendar views, inside the workflow track.
-- **PM-00 remainder:** map NR-01 to NR-12 to named existing tests and add the missing negatives.
+- **NR-11 and NR-12:** a named cross-ledger negative test and a flag-off suite.
 
-Everything else that is open waits on a decision in section 7 of the story document, on live infrastructure, or on a scope choice. Those are not development defects.
+Everything else that is open waits on a decision listed as not decided in ADR-0018, on live infrastructure, or on a scope choice. Those are not development defects.

@@ -35,6 +35,7 @@ const workspace = {
             unavailableMinutes: 0,
             plannedMinutes: 1800,
             approvedActualMinutes: 600,
+            approvedBillableMinutes: 480,
             plannedUtilizationPercent: '150',
             actualUtilizationPercent: '50',
             overAllocated: true,
@@ -114,7 +115,8 @@ describe('Resource planning forms', () => {
     const text = f.nativeElement.textContent;
     expect(text).toContain('Over-allocated');
     expect(text).toContain('approved actual 10 h');
-    expect(text).toContain('actual 50%');
+    // Utilization is stated on approved billable time, beside all approved hours.
+    expect(text).toContain('billable 8 h, 50% utilised');
     expect(text).toContain('Synthetic engagement');
     expect(text).toContain('30 hours');
     expect(text).toContain('does not assign an AuditSphere role');

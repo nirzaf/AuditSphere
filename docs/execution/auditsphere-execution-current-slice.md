@@ -15,6 +15,14 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Practice management program, second slice — 2026-10-12
+
+ADR-0018 records the reporting decisions the owner delegated: approved non-billable and no-charge time carries hours and cost and no charge-out value; utilization is approved billable time over capacity in both the weekly grid and department analytics; and the receivables report ages every posted firm invoice, typed as advance, final, time or other. The ADR also lists the professional, legal and commercial decisions it does not make.
+
+The engagement page has a communications panel backed by `GET /api/ui/engagements/{id}/communications`. It lists recorded outbound mail for the engagement, to engagement Partners, Managers and Administrators, without message bodies, and never words provider acceptance as delivery. The crosswalk now maps the twelve non-regression scenarios to named tests and states where none was found.
+
+Operators should expect realization and contribution to appear where non-billable time used to make them unavailable, lower grid utilization for staff with non-billable time, and higher receivables totals where non-milestone invoices are posted. The full .NET suites were left to CI; evidence is in `status.json` under `targetedVerification.practiceManagementReportingSlice`.
+
 ## Practice management completion program, first slice — 2026-10-12
 
 The owner supplied a completion program (stories PM-00 to PM-17, with an appendix of candidate gaps). It is stored as `auditsphere-execution-user-stories-cloud-practice-management-v22-proposed.md` and reconciled against the code in `auditsphere-execution-tracker-practice-management-v22-crosswalk-current.md`. Most open rows wait on an owner or professional decision, on live infrastructure, or on a scope choice; the crosswalk names which.
@@ -22,14 +30,6 @@ The owner supplied a completion program (stories PM-00 to PM-17, with an appendi
 Three decision-free gaps are closed. The firm trial balance report returns one profit and loss row per accounting month with the same month a year earlier as comparator, and the months add up to the range totals. Time capture, budgets, budget previews and quotations share one rate lookup, so an STE alias such as Senior prices the same everywhere and an unknown role still fails closed. The engagement dashboard names the people staffed at the level that owns the current step and shows the days left to the scheduled freeze. No lifecycle rule, gate or stage mapping changed, and there is no migration.
 
 The full .NET suites were left to CI. Evidence, what was not run and open items are in `status.json` under `targetedVerification.practiceManagementBaselineSlice`.
-
-## Sunday week start, corrected commercial tests and specification rename — 2026-10-12
-
-Allocation weeks now start on Sunday, at the owner's request, so the Sunday to Thursday working week sits in one week bucket. `ResourceGridCalculator.WeekStart` returns the Sunday, the `staff_allocations` check constraint requires one, and migration `QatarSundayWeekStart` moves each stored Monday week one day earlier, to the Sunday-start week that contains it. Planning receipts committed before the change keep the Monday they recorded. ADR-0017 is amended. Operators should expect the resource grid and every stored allocation to show a date one day earlier after the migration; the planned minutes do not change.
-
-Two `CommercialWorkflowTests` that failed on master were test defects and are corrected with no product change: one read a stale tracked proposal after raw updates, and one asserted the Partner-only activation flag for a Relationship Manager. The STE v2.2 source specification moved from the repository root to `docs/requirements/auditsphere-requirements-source-ste-audit-management-specification-v22.md`, and the filename validators no longer carry an exception for it.
-
-The full .NET suites were not run locally; the owner asked for test execution to be left to CI. Focused evidence and what was not run are in `status.json` under `targetedVerification.qatarSundayWeekStart`.
 
 ## v2.2 unlinked procedure review inbox — 2026-10-12
 

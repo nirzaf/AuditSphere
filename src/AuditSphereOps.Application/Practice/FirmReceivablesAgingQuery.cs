@@ -31,7 +31,8 @@ public sealed record FirmReceivablesAgingReport(
 public sealed record FirmReceivablesAgingExport(string FileName, string Csv);
 
 /// <summary>
-/// Firm-only fee receivables report. Historical balances use immutable posting, receipt-allocation and credit dates;
+/// Firm-only receivables report over every posted firm invoice: fee milestones, time and other firm billing. Client bookkeeping
+/// invoices live in the client accounting workspace and never appear here. Historical balances use immutable posting, receipt-allocation and credit dates;
 /// terms are selected from the last independently approved revision available on the requested UTC as-of date.
 /// </summary>
 public static class FirmReceivablesAgingQuery
@@ -56,13 +57,7 @@ public static class FirmReceivablesAgingQuery
         on new { account.FirmId, account.PracticeClientId } equals new { client.FirmId, PracticeClientId = client.Id }
       where invoice.FirmId == actor.FirmId && invoice.PostedAt != null && invoice.PostedAt < cutoff &&
         (invoice.Status == BillingStates.InvoicePosted || invoice.Status == BillingStates.InvoiceSent ||
-         (invoice.Status == BillingStates.InvoiceCancelled && invoice.CancelledAt >= cutoff)) &&
-        db.InvoiceLines.Any(line => line.FirmId == invoice.FirmId && line.InvoiceId == invoice.Id &&
-          line.SourceKind == FeeAgreementService.MilestoneSourceKind && line.SourceId.HasValue &&
-          db.FeeMilestones.Any(milestone => milestone.FirmId == line.FirmId && milestone.Id == line.SourceId &&
-            (milestone.Kind == FeeMilestoneKinds.Advance || milestone.Kind == FeeMilestoneKinds.Balance) &&
-            db.EngagementFeeAgreements.Any(agreement => agreement.FirmId == milestone.FirmId &&
-              agreement.Id == milestone.AgreementId && agreement.PracticeClientId == account.PracticeClientId)))
+         (invoice.Status == BillingStates.InvoiceCancelled && invoice.CancelledAt >= cutoff))
       orderby invoice.PostedAt, invoice.Id
       select new
       {
@@ -144,11 +139,23 @@ public static class FirmReceivablesAgingQuery
       select new { line.InvoiceId, milestone.Kind, agreement.EngagementId }
     ).ToListAsync(ct);
     var milestoneGroups = milestoneLinks.GroupBy(x => x.InvoiceId).ToArray();
-    if (milestoneGroups.Length != invoiceIds.Length || milestoneGroups.Any(g => g.Count() != 1))
+    // ADR-0018: every posted firm invoice is aged. An invoice with no fee milestone is a time or other firm invoice; an invoice
+    // bound to more than one milestone is still ambiguous and still refuses the report.
+    if (milestoneGroups.Any(g => g.Count() != 1))
       return CommandResult<FirmReceivablesAgingReport>.Fail("finance.fee-source-invalid",
         "A posted fee invoice has an ambiguous milestone binding. Contact a firm administrator.");
     var milestoneByInvoice = milestoneGroups.ToDictionary(g => g.Key, g => g.Single());
-    var engagementIds = milestoneLinks.Where(x => x.EngagementId.HasValue).Select(x => x.EngagementId!.Value).Distinct().ToArray();
+    var timeLinks = invoiceIds.Length == 0 ? [] : await (
+      from line in db.InvoiceLines.AsNoTracking()
+      join entry in db.TimeEntries.AsNoTracking()
+        on new { line.FirmId, EntryId = line.SourceId } equals new { entry.FirmId, EntryId = (Guid?)entry.Id }
+      where line.FirmId == actor.FirmId && invoiceIds.Contains(line.InvoiceId) && line.SourceKind == "TIME"
+      select new { line.InvoiceId, entry.EngagementId }).Distinct().ToListAsync(ct);
+    // A time invoice is attributed to an engagement only when all of its time belongs to that one engagement.
+    var timeEngagementByInvoice = timeLinks.GroupBy(x => x.InvoiceId).ToDictionary(g => g.Key,
+      g => g.Select(x => x.EngagementId).Distinct().Count() == 1 ? g.First().EngagementId : null);
+    var engagementIds = milestoneLinks.Where(x => x.EngagementId.HasValue).Select(x => x.EngagementId!.Value)
+      .Concat(timeEngagementByInvoice.Values.Where(x => x.HasValue).Select(x => x!.Value)).Distinct().ToArray();
     var engagementNames = engagementIds.Length == 0 ? new Dictionary<Guid, string>() : await db.Engagements.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && engagementIds.Contains(x.Id))
       .Select(x => new { x.Id, Name = x.ServiceRoute + " · " + x.PeriodStart + "–" + x.PeriodEnd })
@@ -178,10 +185,11 @@ public static class FirmReceivablesAgingQuery
       {
         FeeMilestoneKinds.Advance => "ADVANCE",
         FeeMilestoneKinds.Balance => "FINAL",
-        _ => "OTHER"
+        _ => timeEngagementByInvoice.ContainsKey(invoice.Id) ? "TIME" : "OTHER"
       };
+      var rowEngagementId = milestone is not null ? milestone.EngagementId : timeEngagementByInvoice.GetValueOrDefault(invoice.Id);
       return new FirmReceivableAgingRow(invoice.Id, invoice.PracticeClientId, invoice.ClientName,
-        milestone?.EngagementId, milestone?.EngagementId is { } engagementId ? engagementNames.GetValueOrDefault(engagementId) : null,
+        rowEngagementId, rowEngagementId is { } engagementId ? engagementNames.GetValueOrDefault(engagementId) : null,
         type, invoice.InvoiceNumber, dueDate, invoice.Total,
         receipts, reversals, credits, outstanding, dueDate is null ? null : daysOverdue,
         bucket, invoice.Currency, terms.Status ?? "NOT_CONFIGURED",

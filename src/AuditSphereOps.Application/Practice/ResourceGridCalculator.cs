@@ -4,7 +4,7 @@ namespace AuditSphereOps.Application.Practice;
 
 public sealed record ResourceWeekCell(
   DateOnly WeekStart, int CapacityMinutes, int UnavailableMinutes, int PlannedMinutes, int ApprovedActualMinutes,
-  decimal? PlannedUtilizationPercent, decimal? ActualUtilizationPercent, bool OverAllocated);
+  decimal? PlannedUtilizationPercent, decimal? ActualUtilizationPercent, bool OverAllocated, int ApprovedBillableMinutes);
 
 /// <summary>
 /// Pure week-by-week capacity arithmetic. Capacity is the profile's weekly minutes less recorded unavailability on
@@ -28,9 +28,13 @@ public static class ResourceGridCalculator
 
   public static IReadOnlyList<ResourceWeekCell> Build(
     int weeklyCapacityMinutes, IReadOnlyCollection<StaffAvailability> availability, IReadOnlyCollection<StaffAllocation> allocations,
-    IReadOnlyCollection<(DateOnly WorkDate, int Minutes)> approvedTime, DateOnly firstWeek, int weeks, IReadOnlyCollection<DayOfWeek>? workingDays = null)
+    IReadOnlyCollection<(DateOnly WorkDate, int Minutes)> approvedTime, DateOnly firstWeek, int weeks, IReadOnlyCollection<DayOfWeek>? workingDays = null,
+    IReadOnlyCollection<(DateOnly WorkDate, int Minutes)>? approvedBillableTime = null)
   {
     workingDays ??= FirmWorkingWeek;
+    // Utilization is approved billable time over capacity, the same basis as department analytics (ADR-0018). Approved actual
+    // minutes still show all approved time. A caller that does not separate the two is treated as all billable.
+    approvedBillableTime ??= approvedTime;
     var cells = new List<ResourceWeekCell>(weeks);
     var perDayCapacity = workingDays.Count == 0 ? 0 : weeklyCapacityMinutes / workingDays.Count;
     for (var w = 0; w < weeks; w++)
@@ -47,10 +51,11 @@ public static class ResourceGridCalculator
       var capacity = Math.Max(0, weeklyCapacityMinutes - unavailable);
       var planned = allocations.Where(a => a.WeekStart == start).Sum(a => a.PlannedMinutes);
       var actual = approvedTime.Where(t => t.WorkDate >= start && t.WorkDate <= end).Sum(t => t.Minutes);
+      var billable = approvedBillableTime.Where(t => t.WorkDate >= start && t.WorkDate <= end).Sum(t => t.Minutes);
       cells.Add(new ResourceWeekCell(start, capacity, unavailable, planned, actual,
         capacity > 0 ? Math.Round(planned * 100m / capacity, 1) : null,
-        capacity > 0 ? Math.Round(actual * 100m / capacity, 1) : null,
-        planned > capacity));
+        capacity > 0 ? Math.Round(billable * 100m / capacity, 1) : null,
+        planned > capacity, billable));
     }
     return cells;
   }

@@ -45,6 +45,7 @@ const cell = obj({
   plannedUtilizationPercent: nullable(dec),
   actualUtilizationPercent: nullable(dec),
   overAllocated: bool,
+  approvedBillableMinutes: nat,
 });
 const row = obj({
   userId: guid,

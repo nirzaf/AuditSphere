@@ -896,69 +896,6 @@
       },
       "acceptance": "Local focused evidence only. WorkflowExperience remains default-off; no full Domain/API/E2E suite, persistent database migration, live provider or professional acceptance is claimed. The v2.2 workflow epic remains PARTIAL."
     },
-    "qatarSundayWeekStart": {
-      "recordedAtUtc": "2026-10-12T11:22:02Z",
-      "baseCommit": "53a8f9af",
-      "sourceTree": "Working tree on branch qatar-week-and-fixes at 53a8f9af; the commit carrying this record is the source revision.",
-      "database": "auditsphere_tests on 127.0.0.1:5433",
-      "scope": "Allocation weeks start on Sunday (ADR-0017 amended): ResourceGridCalculator.WeekStart, the staff_allocations check constraint and migration QatarSundayWeekStart, which moves each stored Monday week one day earlier. Two CommercialWorkflowTests corrected (test defects, no product change). The STE v2.2 source specification moved to docs/requirements under a policy-conforming name.",
-      "runs": [
-        {
-          "name": "Focused Domain PostgreSQL tests",
-          "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --configuration Release --filter 'FullyQualifiedName~SteV22OwnerDecisionTests|FullyQualifiedName~PlanningResourcesAndMaterialityTests|FullyQualifiedName~CommercialWorkflowTests'",
-          "total": 48,
-          "passed": 48,
-          "failed": 0,
-          "result": "PASS",
-          "note": "Includes the migration applied to a schema staged at 20261012095835_SteV22OwnerDecisions holding two Monday allocations, and both previously failing CommercialWorkflowTests."
-        },
-        {
-          "name": "Angular full suite",
-          "command": "npx ng test --watch=false (npm run test:ci)",
-          "test_files": 120,
-          "passed": 674,
-          "failed": 0,
-          "result": "PASS"
-        },
-        {
-          "name": "Angular production build",
-          "command": "npx ng build (npm run build)",
-          "result": "PASS_WITH_WARNING",
-          "note": "Pre-existing budget warning for commercial/settings.scss."
-        },
-        {
-          "name": "Solution Release build",
-          "command": "dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1",
-          "result": "PASS (0 errors, 0 warnings)"
-        },
-        {
-          "name": "OpenAPI drift",
-          "command": "bash scripts/contracts/verify-openapi.sh",
-          "result": "PASS: contract is current (no contract change)"
-        },
-        {
-          "name": "EF model drift",
-          "command": "dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Api --no-build --configuration Release",
-          "result": "PASS: no pending model changes"
-        },
-        {
-          "name": "Documentation gates",
-          "command": "validate-markdown-documentation.py, validate-markdown-filenames.py, validate-narrative-metrics.py, scripts/ui/inventory.py --check, build-task-board.py --check",
-          "result": "PASS",
-          "note": "The filename validators pass without the former exception for the root specification file."
-        }
-      ],
-      "notRun": [
-        "The full Domain, API and E2E suites. A solution-wide run was started and stopped at the owner's instruction to leave test execution to CI; no result is recorded from it.",
-        "MarkdownNamingGuardTests in the Domain suite. The Python filename validators pass; the xunit guard was not run.",
-        "The Down step of the migration, and the migration against the development or production database."
-      ],
-      "openItems": [
-        "CashFlowContractTests.FxCashEffect_ReconcilesSeparatelyAndPersistsEvidence was failing on master before this change and is not addressed here.",
-        "No firm holiday table exists. Public holidays are recorded as unavailability.",
-        "Planning receipts committed before the migration keep the Monday week they recorded."
-      ]
-    },
     "practiceManagementBaselineSlice": {
       "recordedAtUtc": "2026-10-12T12:06:54Z",
       "baseCommit": "733ab239",
@@ -1012,6 +949,62 @@
         "Most open stories wait on decisions DEC-01 to DEC-11 or on live infrastructure; the crosswalk lists each.",
         "Seven candidate gaps (TIME-07, ACC-01, ACC-02, ACC-04, ACC-08, ACC-12, ACC-13) and story PM-12 were not re-verified against code.",
         "NR-01 to NR-12 are not yet mapped to named tests."
+      ]
+    },
+    "practiceManagementReportingSlice": {
+      "recordedAtUtc": "2026-10-12T12:21:12Z",
+      "baseCommit": "fa89e248",
+      "sourceTree": "Working tree on branch pm-slice2 at fa89e248; the commit carrying this record is the source revision.",
+      "database": "auditsphere_tests on 127.0.0.1:5433",
+      "scope": "Practice management program, second slice. ADR-0018: non-billable time has no charge-out value, one billable utilization basis, receivables age every posted firm invoice. Engagement communication timeline (query, GET /api/ui/engagements/{id}/communications, Angular panel). Non-regression scenarios mapped to named tests. No migration.",
+      "runs": [
+        {
+          "name": "Focused Domain PostgreSQL tests",
+          "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --configuration Release --filter 'FirmOperationsTests|PlanningResourcesAndMaterialityTests|SteV22OwnerDecisionTests|ContractContribution' and a second run with 'EngagementCommunicationTimelineTests|FirmReceivablesAgingQueryTests'",
+          "passed": 46,
+          "failed": 0,
+          "result": "PASS",
+          "note": "Two filtered runs, 44 and 2 tests. The first ran before the timeline query and endpoint were added; those additions do not touch the code it covers."
+        },
+        {
+          "name": "Angular full suite",
+          "command": "npx ng test --watch=false (npm run test:ci)",
+          "test_files": 121,
+          "passed": 677,
+          "failed": 0,
+          "result": "PASS"
+        },
+        {
+          "name": "Angular production build",
+          "command": "npx ng build (npm run build)",
+          "result": "PASS"
+        },
+        {
+          "name": "Solution Release build",
+          "command": "dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1",
+          "result": "PASS (0 errors, 0 warnings)"
+        },
+        {
+          "name": "OpenAPI drift",
+          "command": "bash scripts/contracts/verify-openapi.sh",
+          "result": "PASS: contract regenerated with the communications route"
+        },
+        {
+          "name": "Documentation gates",
+          "command": "validate-markdown-documentation.py, validate-markdown-filenames.py, validate-narrative-metrics.py, scripts/ui/inventory.py --check, build-task-board.py --check",
+          "result": "PASS"
+        }
+      ],
+      "notRun": [
+        "The full Domain, API and E2E suites, left to CI at the owner's instruction.",
+        "Any browser run of the communications panel, the resource grid or the receivables report.",
+        "The timeline with PBC emails and with commercial notifications bound through a fee agreement, milestone or deliverable; the test covers routed dispatches, exclusion of unrelated records and scope."
+      ],
+      "openItems": [
+        "Decisions listed as not decided in ADR-0018 still gate PM-03, PM-05, PM-09, PM-11 and PM-13.",
+        "CRM-04 brief quotation timeline is not built; it changes the offer identity and needs its own slice.",
+        "NR-11 and NR-12 have no single named test.",
+        "Receivables totals now include non-milestone invoices and are not comparable with earlier reports."
       ]
     }
   },

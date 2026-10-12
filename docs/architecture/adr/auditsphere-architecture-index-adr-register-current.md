@@ -24,6 +24,7 @@ ADR-0001 to ADR-0007, ADR-0009 to ADR-0011, and ADR-0013 to ADR-0015 are approve
 | [ADR-0015](auditsphere-architecture-adr-0015-reporting-context-identity-pins-approved.md) | Bind exact reporting contexts to existing scoped identities and approved revisions | APPROVED | Resolves T014's technical identity decision; implementation follows T013 and T007 |
 | [ADR-0016](auditsphere-architecture-adr-0016-certificate-signed-final-report-approved.md) | The final signed report is certificate-signed with a firm-held certificate; fails closed when required | APPROVED | Supersedes only the PKI-signing exclusion in ADR-0005; eSignature providers and Purview stay out of scope |
 | [ADR-0017](auditsphere-architecture-adr-0017-ste-v22-delegated-requirement-decisions-approved.md) | STE v2.2 delegated decisions: recorded deviations stand; Partner-only actions fail closed; Track B questions; response channel; Sunday to Thursday working week; recorded critical-estimate flag | APPROVED | Keeps ADR-0003 and ADR-0011 and the product-brief WhatsApp non-goal; decides open STE v2.2 rows |
+| [ADR-0018](auditsphere-architecture-adr-0018-practice-reporting-bases-approved.md) | Practice reporting bases: non-billable time has no charge-out value; one billable utilization basis; receivables age every posted firm invoice; monthly profit and loss series; rate aliases everywhere. | APPROVED | Decides only how firm reports are calculated. Professional, legal and commercial decisions DEC-01 to DEC-11 stay open where listed. |
 
 ## Earlier decision records (R2R)
 

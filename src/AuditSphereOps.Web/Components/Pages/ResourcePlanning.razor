@@ -50,7 +50,7 @@ else
             {
               <td class="@(cell.OverAllocated ? "resource-over" : null)" aria-label="@($"{row.Name} week of {cell.WeekStart:dd MMM}: planned {Hours(cell.PlannedMinutes)} of {Hours(cell.CapacityMinutes)} hours{(cell.OverAllocated ? ", over-allocated" : "")}")">
                 <strong>@Hours(cell.PlannedMinutes)</strong> / @Hours(cell.CapacityMinutes) h
-                <br /><span class="muted">@(cell.PlannedUtilizationPercent is { } p ? $"planned {p:0}%" : "no capacity")@(cell.ActualUtilizationPercent is { } a ? $" · actual {a:0}%" : "")</span>
+                <br /><span class="muted">@(cell.PlannedUtilizationPercent is { } p ? $"planned {p:0}%" : "no capacity")@(cell.ActualUtilizationPercent is { } a ? $" · billable {a:0}% utilised" : "")</span>
                 @if (cell.UnavailableMinutes > 0) { <br /><span class="muted">@Hours(cell.UnavailableMinutes) h unavailable</span> }
                 @if (cell.OverAllocated) { <br /><span class="error-text">Over-allocated</span> }
               </td>

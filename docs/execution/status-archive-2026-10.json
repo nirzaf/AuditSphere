@@ -2,7 +2,7 @@
   "schemaVersion": "1",
   "archiveOf": "docs/execution/status.json",
   "archivedOn": "2026-10-12",
-  "note": "Keys moved verbatim from status.json. Values are unchanged; only the JSON layout is normalised. No script reads these keys; query them with jq when needed. On 2026-10-12, the closed workflowChangesRequiredQueue evidence was moved verbatim from status.json to keep the live ledger below its 100 KB limit. On 2026-10-12, the closed workflowExperienceV22 evidence (seven-phase projection and Dual-Key readiness, commit f7753f72) was moved verbatim from status.json for the same reason. On 2026-10-12, the closed steV22OwnerDecisions evidence (ADR-0017, commit 53a8f9af) was moved verbatim from status.json for the same reason; three of its four open items were closed by the later qatarSundayWeekStart record.",
+  "note": "Keys moved verbatim from status.json. Values are unchanged; only the JSON layout is normalised. No script reads these keys; query them with jq when needed. On 2026-10-12, the closed workflowChangesRequiredQueue evidence was moved verbatim from status.json to keep the live ledger below its 100 KB limit. On 2026-10-12, the closed workflowExperienceV22 evidence (seven-phase projection and Dual-Key readiness, commit f7753f72) was moved verbatim from status.json for the same reason. On 2026-10-12, the closed steV22OwnerDecisions evidence (ADR-0017, commit 53a8f9af) was moved verbatim from status.json for the same reason; three of its four open items were closed by the later qatarSundayWeekStart record. On 2026-10-12, the closed qatarSundayWeekStart evidence (commit 733ab239) was moved verbatim from status.json for the same reason.",
   "keys": {
     "verification": {
       "firmExpenseCreationRecovery": {
@@ -13673,6 +13673,69 @@
           "STE_Audit_Management_Requirements_v2.2.md at the repository root breaks the markdown filename guard. Moving or renaming it is the owner's call.",
           "No firm holiday table exists. Public holidays are recorded as unavailability.",
           "Stored allocation weeks still start on Monday although the working week is Sunday to Thursday."
+        ]
+      },
+      "qatarSundayWeekStart": {
+        "recordedAtUtc": "2026-10-12T11:22:02Z",
+        "baseCommit": "53a8f9af",
+        "sourceTree": "Working tree on branch qatar-week-and-fixes at 53a8f9af; the commit carrying this record is the source revision.",
+        "database": "auditsphere_tests on 127.0.0.1:5433",
+        "scope": "Allocation weeks start on Sunday (ADR-0017 amended): ResourceGridCalculator.WeekStart, the staff_allocations check constraint and migration QatarSundayWeekStart, which moves each stored Monday week one day earlier. Two CommercialWorkflowTests corrected (test defects, no product change). The STE v2.2 source specification moved to docs/requirements under a policy-conforming name.",
+        "runs": [
+          {
+            "name": "Focused Domain PostgreSQL tests",
+            "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --configuration Release --filter 'FullyQualifiedName~SteV22OwnerDecisionTests|FullyQualifiedName~PlanningResourcesAndMaterialityTests|FullyQualifiedName~CommercialWorkflowTests'",
+            "total": 48,
+            "passed": 48,
+            "failed": 0,
+            "result": "PASS",
+            "note": "Includes the migration applied to a schema staged at 20261012095835_SteV22OwnerDecisions holding two Monday allocations, and both previously failing CommercialWorkflowTests."
+          },
+          {
+            "name": "Angular full suite",
+            "command": "npx ng test --watch=false (npm run test:ci)",
+            "test_files": 120,
+            "passed": 674,
+            "failed": 0,
+            "result": "PASS"
+          },
+          {
+            "name": "Angular production build",
+            "command": "npx ng build (npm run build)",
+            "result": "PASS_WITH_WARNING",
+            "note": "Pre-existing budget warning for commercial/settings.scss."
+          },
+          {
+            "name": "Solution Release build",
+            "command": "dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1",
+            "result": "PASS (0 errors, 0 warnings)"
+          },
+          {
+            "name": "OpenAPI drift",
+            "command": "bash scripts/contracts/verify-openapi.sh",
+            "result": "PASS: contract is current (no contract change)"
+          },
+          {
+            "name": "EF model drift",
+            "command": "dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Api --no-build --configuration Release",
+            "result": "PASS: no pending model changes"
+          },
+          {
+            "name": "Documentation gates",
+            "command": "validate-markdown-documentation.py, validate-markdown-filenames.py, validate-narrative-metrics.py, scripts/ui/inventory.py --check, build-task-board.py --check",
+            "result": "PASS",
+            "note": "The filename validators pass without the former exception for the root specification file."
+          }
+        ],
+        "notRun": [
+          "The full Domain, API and E2E suites. A solution-wide run was started and stopped at the owner's instruction to leave test execution to CI; no result is recorded from it.",
+          "MarkdownNamingGuardTests in the Domain suite. The Python filename validators pass; the xunit guard was not run.",
+          "The Down step of the migration, and the migration against the development or production database."
+        ],
+        "openItems": [
+          "CashFlowContractTests.FxCashEffect_ReconcilesSeparatelyAndPersistsEvidence was failing on master before this change and is not addressed here.",
+          "No firm holiday table exists. Public holidays are recorded as unavailability.",
+          "Planning receipts committed before the migration keep the Monday week they recorded."
         ]
       }
     },

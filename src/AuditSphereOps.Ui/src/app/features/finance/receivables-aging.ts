@@ -55,11 +55,11 @@ export const decodeReceivablesAging = obj({
         <div class="table-scroll"><table><caption class="sr-only">Outstanding firm receivables subtotal by currency</caption>
           <thead><tr><th scope="col">Currency</th><th scope="col" class="number">Invoices</th><th scope="col" class="number">Original</th><th scope="col" class="number">Applied receipts</th><th scope="col" class="number">Reversals</th><th scope="col" class="number">Applied credits</th><th scope="col" class="number">Outstanding</th></tr></thead>
           <tbody>@for (s of r.currencySubtotals; track s.currency) { <tr><th scope="row">{{ s.currency }}</th><td class="number">{{ s.invoiceCount }}</td><td class="number">{{ s.originalAmount | money }}</td><td class="number">{{ s.appliedReceipts | money }}</td><td class="number">{{ s.reversedReceipts | money }}</td><td class="number">{{ s.appliedCredits | money }}</td><td class="number"><strong>{{ s.outstanding | money }} {{ s.currency }}</strong></td></tr> }
-          @empty { <tr><td colspan="7">No posted fee invoices were due by this date.</td></tr> }</tbody></table></div>
+          @empty { <tr><td colspan="7">No posted firm invoices were due by this date.</td></tr> }</tbody></table></div>
       </section>
       <section class="panel" aria-labelledby="receivables-heading">
         <h2 id="receivables-heading">Invoice detail</h2>
-        <div class="table-scroll"><table><caption class="sr-only">Firm fee invoices and due-date ageing at the selected date</caption>
+        <div class="table-scroll"><table><caption class="sr-only">Posted firm invoices and due-date ageing at the selected date</caption>
           <thead><tr><th scope="col">Legal client</th><th scope="col">Engagement</th><th scope="col">Type / invoice</th><th scope="col">Due date</th><th scope="col" class="number">Original</th><th scope="col" class="number">Receipts</th><th scope="col" class="number">Reversals</th><th scope="col" class="number">Credits</th><th scope="col" class="number">Outstanding</th><th scope="col">Days overdue</th><th scope="col">Bucket</th><th scope="col">Finance follow-up</th></tr></thead>
           <tbody>@for (row of r.rows; track row.invoiceId) { <tr>
             <th scope="row">{{ row.legalClientName }}</th><td>@if (row.engagementId && row.engagementName) { <a [routerLink]="['/app/engagements', row.engagementId]">{{ row.engagementName }}</a> } @else { Not linked }</td>
@@ -69,7 +69,7 @@ export const decodeReceivablesAging = obj({
             <td class="number"><strong>{{ row.outstanding | money }} {{ row.currency }}</strong></td>
             <td>{{ row.daysOverdue ?? '—' }}</td><td><audit-status [value]="row.bucket" /><small>Terms: {{ row.paymentTermsStatus }}</small></td>
             <td>@for (recipient of row.financeRecipients; track recipient) { <div>{{ recipient }}</div> } @empty { <span>Finance contact not recorded</span> }</td>
-          </tr> } @empty { <tr><td colspan="12">No posted advance or final fee receivables exist for this report date.</td></tr> }</tbody>
+          </tr> } @empty { <tr><td colspan="12">No posted firm invoices exist for this report date.</td></tr> }</tbody>
         </table></div>
       </section>
       <section class="panel" aria-labelledby="client-subtotals-heading">
@@ -86,7 +86,7 @@ export const decodeReceivablesAging = obj({
           <tbody>@for (s of r.engagementCurrencySubtotals; track s.engagementId + ':' + s.currency) { <tr>
             <th scope="row">{{ s.legalClientName }}</th><td>{{ s.engagementName }}</td><td>{{ s.currency }}</td><td class="number">{{ s.invoiceCount }}</td>
             <td class="number">{{ s.originalAmount | money }}</td><td class="number">{{ s.appliedReceipts | money }}</td><td class="number">{{ s.reversedReceipts | money }}</td><td class="number">{{ s.appliedCredits | money }}</td><td class="number">{{ s.outstanding | money }} {{ s.currency }}</td>
-          </tr> } @empty { <tr><td colspan="9">No fee invoices are linked to an engagement.</td></tr> }</tbody></table></div>
+          </tr> } @empty { <tr><td colspan="9">No invoices are linked to an engagement.</td></tr> }</tbody></table></div>
       </section>
     }
   `,

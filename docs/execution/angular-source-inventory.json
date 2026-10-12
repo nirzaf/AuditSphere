@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "sourceCommit": "53a8f9aff21b64aa5a99a503e847a469e94ae7e8",
+  "sourceCommit": "f5ef3e3787ab3138eeceef17176fc51fa493fb9a",
   "coverage": "Source discovery only; dynamic actions, scope and parity tests require manual review.",
   "items": [
     {
@@ -3453,7 +3453,7 @@
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/ResourcePlanning.razor",
-      "sourceSha256": "1207ecb6ad02e0a2ad9adc837475fdef48c40a7ea296e12c031101624c4de560",
+      "sourceSha256": "79b09540c814cc6986f6b4b25c9e97b968aa5a78fac7c9377a574b3394a62a99",
       "routes": [
         "/app/practice/resources"
       ],

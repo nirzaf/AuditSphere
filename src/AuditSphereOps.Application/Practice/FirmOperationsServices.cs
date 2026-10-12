@@ -154,6 +154,8 @@ public sealed record EngagementEconomicsRow(Guid EngagementId, string Label, str
   public string? ContractCurrency { get; init; }
   public decimal? LifetimeStandardValue { get; init; }
   public decimal? ContractedFeeLessStandardValue { get; init; }
+  /// <summary>Approved non-billable and no-charge minutes in the period: counted in actual hours and cost, valued at zero.</summary>
+  public int NonChargeableMinutes { get; init; }
 }
 public sealed record DepartmentUtilizationRow(string Department, int CapacityMinutes, int ChargeableMinutes, decimal? UtilizationPercent, decimal? TargetPercent);
 public sealed record MilestonePerformance(int Due, int Completed, int CompletedOnTime, int CompletedLate, int Overdue,
@@ -178,14 +180,14 @@ public static class PracticeAnalyticsQuery
   public static readonly string[] Definitions =
   [
     "Contract contribution = agreed contract fee − lifetime approved-time standard value, in the contract currency. This is separate from period billed-minus-actual-cost profit; missing rates or mixed currencies make it unavailable.",
-    "Standard value = approved minutes × captured charge-out rate ÷ 60.",
+    "Standard value = approved billable minutes × captured charge-out rate ÷ 60. Approved non-billable and no-charge time counts in actual hours and actual cost and has no charge-out value; it is shown separately. Billable time without a captured rate still makes the value unavailable.",
     "Actual cost = approved minutes × staff cost rate effective on the work date ÷ 60 (charge-out rates are not costs).",
     "Billed = posted invoice lines sourced from the engagement's approved time or fee milestones (credit notes deducted).",
     "Collected = receipt allocations to those invoices, pro rata to the engagement's share of each invoice.",
     "Realization = billed ÷ standard value; collection = collected ÷ billed; margin = (billed − actual cost) ÷ billed.",
     "Period financial totals are available only when approved time, the current approved budget and posted invoices use one known currency; no foreign-exchange conversion is implied.",
     "Actual cost and profit are unavailable when an effective staff cost rate is missing or uses a different currency from the approved time entry.",
-    "Utilization = approved billable minutes ÷ (weekly capacity × weeks − recorded unavailability). Task completion = due-date tasks completed ÷ non-cancelled tasks due in the selected period; tasks without a due date are not applicable. On-time = tasks completed by their due date ÷ tasks due in the period.",
+    "Utilization = approved billable minutes ÷ (weekly capacity × weeks − recorded unavailability); the weekly resource grid uses the same basis. Task completion = due-date tasks completed ÷ non-cancelled tasks due in the selected period; tasks without a due date are not applicable. On-time = tasks completed by their due date ÷ tasks due in the period.",
     "Workload = non-cancelled tasks due in the selected period, grouped by assigned staff member. Open includes overdue tasks; overdue is also shown separately. Unassigned and unavailable staff assignments have separate buckets. This is a task count, not a capacity or effort measure.",
     "Phase task performance = non-cancelled tasks due in the selected period grouped by their current workflow phase binding. Tasks without a workflow binding appear separately as unassigned phase. Completion is task status plus persisted completion timestamp; these operational counts do not establish phase or audit-gate readiness.",
     "Review turnaround = average elapsed hours from submission of the exact procedure-result revision to each append-only review decision created in the selected period. Both REVIEWED and CHANGES_REQUIRED decisions are included; result-revision mismatches and decisions before submission are excluded and counted. This is an operational duration, not a review-quality or audit-clearance measure.",
@@ -227,7 +229,7 @@ public static class PracticeAnalyticsQuery
     var agreements = await db.EngagementFeeAgreements.AsNoTracking().Where(x => x.FirmId == f && x.EngagementId != null).ToListAsync(ct);
     engagementIds = engagementIds.Union(agreements.Select(x => x.EngagementId!.Value)).ToList();
     var lifetimeTime = await db.TimeEntries.AsNoTracking().Where(x => x.FirmId == f && x.Status == PracticeTimeStates.TimeApproved &&
-      x.EngagementId != null && engagementIds.Contains(x.EngagementId.Value)).Select(x => new { x.EngagementId, x.DurationMinutes, x.RatePerHour, x.Currency }).ToListAsync(ct);
+      x.EngagementId != null && engagementIds.Contains(x.EngagementId.Value)).Select(x => new { x.EngagementId, x.DurationMinutes, x.RatePerHour, x.Currency, x.BillableClassification }).ToListAsync(ct);
     var invoiceIds = billedLines.Select(x => x.i.Id).Distinct().ToArray();
     var billingAccountIds = billedLines.Select(x => x.i.BillingAccountId).Distinct().ToArray();
     var billingCurrencies = await db.BillingAccounts.AsNoTracking().Where(x => billingAccountIds.Contains(x.Id))
@@ -259,7 +261,10 @@ public static class PracticeAnalyticsQuery
       var bl = budget is null ? [] : budgetLines.Where(l => l.EngagementBudgetId == budget.Id).ToList();
       var currencyInputs = new List<string?>();
       if (budget is not null) currencyInputs.Add(NormalizeCurrency(budget.Currency));
-      currencyInputs.AddRange(mine.Select(t => NormalizeCurrency(t.Currency)));
+      // ADR-0018: approved non-billable and no-charge time carries hours and cost but no charge-out value, so it neither needs a
+      // rate nor decides the currency. Billable time with a missing rate or currency still makes the value unavailable.
+      var valued = mine.Where(t => t.BillableClassification == PracticeTimeStates.Billable).ToList();
+      currencyInputs.AddRange(valued.Select(t => NormalizeCurrency(t.Currency)));
       var engagementInvoices = billedLines.Where(x => x.Engagement == id).GroupBy(x => x.i.Id).Select(x => x.First().i).ToList();
       currencyInputs.AddRange(engagementInvoices.Select(i => NormalizeCurrency(i.Currency ?? billingCurrencies.GetValueOrDefault(i.BillingAccountId))));
       var knownCurrencies = currencyInputs.Where(x => x is not null).Distinct(StringComparer.Ordinal).ToArray();
@@ -275,8 +280,8 @@ public static class PracticeAnalyticsQuery
         billed += share - credits.GetValueOrDefault(invoice.Key) * ratio;
         collected += Math.Max(0m, allocations.GetValueOrDefault(invoice.Key) - reversedAllocations.GetValueOrDefault(invoice.Key)) * ratio;
       }
-      decimal? standard = currencyIsSafe && mine.All(t => t.RatePerHour.HasValue)
-        ? MoneyPolicy.Normalize(mine.Sum(t => t.RatePerHour.HasValue ? t.DurationMinutes * t.RatePerHour.Value / 60m : 0m)) : null;
+      decimal? standard = currencyIsSafe && valued.All(t => t.RatePerHour.HasValue)
+        ? MoneyPolicy.Normalize(valued.Sum(t => t.RatePerHour.HasValue ? t.DurationMinutes * t.RatePerHour.Value / 60m : 0m)) : null;
       var costComplete = currencyIsSafe && costs.All(c => c.HasValue);
       decimal? cost = costComplete ? MoneyPolicy.Normalize(costs.Sum(c => c!.Value)) : null;
       billed = MoneyPolicy.Normalize(billed); collected = MoneyPolicy.Normalize(collected);
@@ -287,7 +292,8 @@ public static class PracticeAnalyticsQuery
       var contracts = agreements.Where(x => x.EngagementId == id).ToArray();
       var contract = contracts.Length == 1 ? contracts[0] : null; // Ambiguous contract revisions are unavailable, never silently summed.
       var contribution = contract == null ? null : ContractContributionCalculator.Compute(contract.AgreedFee, contract.Currency,
-        lifetimeTime.Where(x => x.EngagementId == id).Select(x => new ContractTimeValue(x.DurationMinutes, x.RatePerHour, x.Currency)).ToArray());
+        lifetimeTime.Where(x => x.EngagementId == id && x.BillableClassification == PracticeTimeStates.Billable)
+          .Select(x => new ContractTimeValue(x.DurationMinutes, x.RatePerHour, x.Currency)).ToArray());
       return new EngagementEconomicsRow(id, labels.GetValueOrDefault(id, "Engagement"), currency,
         bl.Sum(x => x.ForecastMinutes), budgetValue, mine.Sum(t => t.DurationMinutes), standard, cost, safeBilled, safeCollected,
         standard is { } standardValue && standardValue > 0m && safeBilled is { } billedForRealization
@@ -298,7 +304,8 @@ public static class PracticeAnalyticsQuery
           ? Math.Round(profitValue / billedForMargin * 100m, 1) : null,
         bl.Sum(x => x.ForecastMinutes) - mine.Sum(t => t.DurationMinutes), costComplete)
       { ContractedFee = contract?.AgreedFee, ContractCurrency = contract?.Currency,
-        LifetimeStandardValue = contribution?.LifetimeStandardValue, ContractedFeeLessStandardValue = contribution?.FeeLessStandardValue };
+        LifetimeStandardValue = contribution?.LifetimeStandardValue, ContractedFeeLessStandardValue = contribution?.FeeLessStandardValue,
+        NonChargeableMinutes = mine.Sum(t => t.DurationMinutes) - valued.Sum(t => t.DurationMinutes) };
     }).OrderBy(x => x.Label).ToList();
 
     // Department utilization over the same period.

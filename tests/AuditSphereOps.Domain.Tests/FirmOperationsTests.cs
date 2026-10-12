@@ -219,6 +219,22 @@ public sealed class FirmOperationsTests
       Assert.Contains(view.Definitions, d => d.Contains("task count, not a capacity or effort measure"));
       Assert.Contains(view.Definitions, d => d.Contains("do not establish phase or audit-gate readiness"));
       Assert.Contains(view.Definitions, d => d.Contains("not a review-quality or audit-clearance measure"));
+      // ADR-0018: approved non-billable time adds hours and cost but no charge-out value, so value and realization stay available.
+      var internalTask = (await PracticeTimeService.CreateTaskAsync(db, manager, new("Internal file review", w.ClientId, w.EngagementId, w.U["staff"].Id))).Value;
+      var internalEntry = await PracticeTimeService.SaveTimeDraftAsync(db, w.A("staff", "Staff"),
+        new(internalTask, workDate, 900, 60, "Staff", "AUDIT", PracticeTimeStates.NonBillable, "Internal file review"));
+      Assert.True(internalEntry.Succeeded, internalEntry.Message);
+      Assert.True((await PracticeTimeService.SubmitTimeAsync(db, w.A("staff", "Staff"), internalEntry.Value)).Succeeded);
+      Assert.True((await PracticeTimeService.ApproveTimeAsync(db, manager, internalEntry.Value)).Succeeded);
+      var withInternal = (await PracticeAnalyticsQuery.GetAsync(db, partner, periodStart, today)).Value!.Engagements.Single(x => x.EngagementId == w.EngagementId);
+      Assert.Equal((360, 60), (withInternal.ActualMinutes, withInternal.NonChargeableMinutes));
+      Assert.Equal<decimal?>(3000m, withInternal.StandardValue);
+      Assert.Equal<decimal?>(100.0m, withInternal.RealizationPercent);
+      var utilizationWithInternal = (await PracticeAnalyticsQuery.GetAsync(db, partner, periodStart, today)).Value!.Departments.Single(x => x.Department == "Audit");
+      Assert.Equal(300, utilizationWithInternal.ChargeableMinutes);
+      // The weekly grid reads the same basis: all approved time as hours, billable time as utilization.
+      var gridCells = (await ResourcePlanningService.GetGridAsync(db, manager, workDate, 1)).Value!.Rows.Single(x => x.UserId == w.U["staff"].Id).Weeks;
+      Assert.Equal((360, 300), (gridCells[0].ApprovedActualMinutes, gridCells[0].ApprovedBillableMinutes));
     }
   }
 

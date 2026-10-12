@@ -112,7 +112,7 @@
                       ' · approved actual ' + hrs(c.approvedActualMinutes) + ' h'
                     }}{{
                       c.actualUtilizationPercent !== null
-                        ? ' · actual ' + whole(c.actualUtilizationPercent) + '%'
+                        ? ' · billable ' + hrs(c.approvedBillableMinutes) + ' h, ' + whole(c.actualUtilizationPercent) + '% utilised'
                         : ''
                     }}</small
                   >
