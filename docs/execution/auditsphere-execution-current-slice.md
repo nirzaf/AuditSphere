@@ -15,6 +15,12 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Annual workflow — period-bound commercial acceptance — 2026-10-12
+
+The engagement lifecycle and Dual-Key readiness now resolve a proposal only when both its opportunity and proposal match the engagement's exact service route and financial period. An engagement-linked fee agreement remains authoritative, but its proposal must also match those exact facts. A prior-year accepted offer therefore cannot make a new-period engagement appear ready for advance billing. No schema change or migration was needed. The existing Partner risk-clearance model remains client-level and generation-bound; annual engagement creation and fresh year-specific continuance remain open work.
+
+The focused PostgreSQL regression passed 1/1 for a new-period engagement facing a fully accepted prior-period offer; it remains in Proposal Generation. The test build completed with offline NuGet vulnerability-feed warnings. The regression is included in the focused CI filter; GitHub CI is not yet observed for this code change. No UI was changed, no persistent database was migrated, and no full suite or live/professional acceptance is claimed.
+
 ## Under Review queue and regression CI coverage — 2026-10-12
 
 WF-07 now derives the **Under review** queue state from a linked changes-required procedure result followed by the exact next submitted revision. An independent review decision clears the operational task from this view; completing the task does not alter audit-review authority. The focused PostgreSQL regression covers the full transition. The existing PostgreSQL CI filter now includes that regression. Commits are pushed to `master`; the GitHub run-list API could not be reached, so CI outcome is unobserved. `WorkflowExperience:Enabled` remains false by default, and no additional migration was introduced.

@@ -232,7 +232,7 @@ public static class EngagementLifecycleQuery
     var acceptance = await DualKeyEvidence.CurrentUnconditionalRiskClearanceAsync(
       db, actor.FirmId, engagement.PracticeClientId, engagement.ServiceRoute, ct);
     var proposal = await DualKeyEvidence.ResolveEngagementProposalAsync(db, actor.FirmId, engagementId,
-      engagement.PracticeClientId, engagement.ServiceRoute, ct);
+      engagement.PracticeClientId, engagement.ServiceRoute, engagement.PeriodStart, engagement.PeriodEnd, ct);
     var commercialAccepted = proposal is { SentAt: not null } &&
       await DualKeyEvidence.CommercialAcceptanceStandsAsync(db, actor.FirmId, proposal, ct);
 

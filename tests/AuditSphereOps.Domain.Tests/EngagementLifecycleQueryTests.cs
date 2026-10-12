@@ -454,4 +454,74 @@ public sealed class EngagementLifecycleQueryTests
       Assert.Contains("The client declined the dispatched proposal; revise and resend or close the opportunity.", report.Value.Summary.BlockedReasons);
     }
   }
+
+  [Fact]
+  public async Task PriorPeriodAcceptedOfferDoesNotAdvanceANewPeriodEngagement()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var seed = await PbcSeed.SeedAsync(pg);
+    var partner = PbcSeed.Actor(seed.Admin, "Partner");
+    var now = DateTimeOffset.UtcNow;
+    var engagementId = Guid.NewGuid();
+    var leadId = Guid.NewGuid();
+    var opportunityId = Guid.NewGuid();
+    var proposalId = Guid.NewGuid();
+    var quotationId = Guid.NewGuid();
+    var offerHash = new string('c', 64);
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, seed.Admin, "Partner"));
+      db.Engagements.Add(new Engagement
+      {
+        Id = engagementId, FirmId = seed.FirmId, PracticeClientId = seed.ClientId, ServiceRoute = "Audit",
+        PeriodStart = "2027-01-01", PeriodEnd = "2027-12-31", ServiceProfileId = "CommercialAudit",
+        Status = "Draft", ProfessionalWorkBlocked = true, CreatedAt = now
+      });
+      db.Leads.Add(new Lead
+      {
+        Id = leadId, FirmId = seed.FirmId, Name = "Synthetic annual workflow client", Source = "Referral", CreatedAt = now
+      });
+      db.Opportunities.Add(new Opportunity
+      {
+        Id = opportunityId, FirmId = seed.FirmId, LeadId = leadId, PracticeClientId = seed.ClientId,
+        ServiceRoute = "Audit", EntityScope = "TEST", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31",
+        Currency = "QAR", CreatedAt = now
+      });
+      db.Proposals.Add(new Proposal
+      {
+        Id = proposalId, FirmId = seed.FirmId, PracticeClientId = seed.ClientId, OpportunityId = opportunityId,
+        Status = CrmStates.ProposalAccepted, Fee = 50000m, Currency = "QAR", ServiceProfileId = "AUDIT-2026",
+        Scope = "Statutory Financial Audit", Deliverables = "Audit Report", PeriodStart = "2026-01-01",
+        PeriodEnd = "2026-12-31", SentAt = now, SentOfferSha256 = offerHash, ResponseAt = now,
+        ResponseOfferSha256 = offerHash
+      });
+      db.QuotationVersions.Add(new QuotationVersion
+      {
+        Id = quotationId, FirmId = seed.FirmId, ProposalId = proposalId, Revision = 1, Currency = "QAR",
+        BaseAmount = 50000m, Fee = 50000m, InputHash = new string('e', 64), Status = QuotationStates.Approved,
+        ApprovedAt = now
+      });
+      db.CommercialNotifications.Add(new CommercialNotification
+      {
+        Id = Guid.NewGuid(), FirmId = seed.FirmId, Kind = CommercialNotificationKinds.Proposal,
+        ProposalId = proposalId, PracticeClientId = seed.ClientId, QuotationVersionId = quotationId,
+        OfferSha256 = offerHash, Recipient = "owner@annual.example.test", Subject = "Prior-period synthetic offer",
+        Body = "Synthetic test evidence", CreatedAt = now
+      });
+      db.AcceptanceDecisions.Add(new AcceptanceDecision
+      {
+        Id = Guid.NewGuid(), FirmId = seed.FirmId, PracticeClientId = seed.ClientId, ServiceRoute = "Audit",
+        Decision = "Accepted", DecidedByUserId = seed.Admin.Id, DecidedAt = now, Path = AcceptancePaths.Continuance,
+        Generation = 1, Rationale = "Synthetic prior-period clearance", EvaluationTemplateVersion = "V2",
+        EvaluationSnapshotDigest = new string('a', 64)
+      });
+      await db.SaveChangesAsync();
+
+      var report = await EngagementLifecycleQuery.GetAsync(db, partner, engagementId);
+      Assert.True(report.Succeeded, report.Message);
+      Assert.Equal(CanonicalEngagementStages.ProposalGeneration, report.Value!.Summary.CanonicalStage);
+      Assert.Contains("Commercial proposal preparation and dispatch required", report.Value.Summary.BlockedReasons);
+    }
+  }
 }

@@ -23,10 +23,11 @@ internal static class DualKeyEvidence
 
   /// <summary>
   /// The proposal an engagement is bound to. The fee agreement linked to the engagement is authoritative, because activation reads
-  /// that link; without one, only a proposal for the engagement's own service route is considered.
+  /// that link; without one, only a proposal and opportunity for the engagement's exact service route and financial period are considered.
   /// </summary>
   public static async Task<Proposal?> ResolveEngagementProposalAsync(
-    IAuditSphereDbContext db, Guid firmId, Guid engagementId, Guid clientId, string serviceRoute, CancellationToken ct)
+    IAuditSphereDbContext db, Guid firmId, Guid engagementId, Guid clientId, string serviceRoute,
+    string periodStart, string periodEnd, CancellationToken ct)
   {
     var linked = await db.EngagementFeeAgreements.AsNoTracking()
       .Where(x => x.FirmId == firmId && x.EngagementId == engagementId)
@@ -34,13 +35,21 @@ internal static class DualKeyEvidence
     if (linked is not null)
     {
       if (linked.PracticeClientId != clientId) return null;
-      return await db.Proposals.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == firmId && x.Id == linked.ProposalId, ct);
+      var linkedProposal = await db.Proposals.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.FirmId == firmId && x.Id == linked.ProposalId && x.PracticeClientId == clientId &&
+        x.PeriodStart == periodStart && x.PeriodEnd == periodEnd, ct);
+      if (linkedProposal is null) return null;
+      return await db.Opportunities.AsNoTracking().AnyAsync(x => x.FirmId == firmId && x.Id == linkedProposal.OpportunityId &&
+        x.ServiceRoute == serviceRoute && x.PeriodStart == periodStart && x.PeriodEnd == periodEnd, ct)
+        ? linkedProposal : null;
     }
 
     return await (from proposal in db.Proposals.AsNoTracking()
       join opportunity in db.Opportunities.AsNoTracking()
         on new { proposal.FirmId, Id = proposal.OpportunityId } equals new { opportunity.FirmId, Id = opportunity.Id }
-      where proposal.FirmId == firmId && proposal.PracticeClientId == clientId && opportunity.ServiceRoute == serviceRoute
+      where proposal.FirmId == firmId && proposal.PracticeClientId == clientId && opportunity.ServiceRoute == serviceRoute &&
+        proposal.PeriodStart == periodStart && proposal.PeriodEnd == periodEnd &&
+        opportunity.PeriodStart == periodStart && opportunity.PeriodEnd == periodEnd
       orderby proposal.CreatedAt descending, proposal.Id descending
       select proposal).FirstOrDefaultAsync(ct);
   }

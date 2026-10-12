@@ -142,9 +142,9 @@ public static class ClientOnboardingReadinessQuery
     var blockers = new List<OnboardingReadinessBlocker>();
     var actions = new List<OnboardingReadinessAction>();
 
-    // The proposal this engagement is bound to: the linked fee agreement first, otherwise the newest proposal on this service route.
+    // The proposal this engagement is bound to: the linked fee agreement first, otherwise the newest exact-period proposal.
     var proposal = await DualKeyEvidence.ResolveEngagementProposalAsync(db, actor.FirmId, engagementId,
-      clientId, engagement.ServiceRoute, ct);
+      clientId, engagement.ServiceRoute, engagement.PeriodStart, engagement.PeriodEnd, ct);
     var quotation = proposal is null ? null : await db.QuotationVersions.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.ProposalId == proposal.Id)
       .OrderByDescending(x => x.Revision).FirstOrDefaultAsync(ct);
