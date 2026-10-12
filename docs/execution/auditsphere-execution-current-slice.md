@@ -15,6 +15,10 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Under Review queue and regression CI coverage — 2026-10-12
+
+WF-07 now derives the **Under review** queue state from a linked changes-required procedure result followed by the exact next submitted revision. An independent review decision clears the operational task from this view; completing the task does not alter audit-review authority. The focused PostgreSQL regression covers the full transition. The existing PostgreSQL CI filter now includes that regression; its remote run is pending because the code commit has not yet been pushed. `WorkflowExperience:Enabled` remains false by default, and no additional migration was introduced.
+
 ## v2.2 workflow analytics — client wait — 2026-10-12
 
 Practice Analytics measures PBC wait from provider-accepted email to recorded client message, acknowledgement/resubmission or upload. Queued, failed, uncertain and reminder mail do not start/reset; provider acceptance is not inbox delivery. The period filters starts, responses are observed through query time, and terminal requests without response evidence are excluded.

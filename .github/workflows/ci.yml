@@ -133,7 +133,7 @@ jobs:
           set -euo pipefail
           dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --no-restore \
             --configuration Release --maxcpucount:1 \
-            --filter 'FullyQualifiedName~WorkflowTemplateTests|FullyQualifiedName~EngagementWorkflowPlanTests|FullyQualifiedName~DueDateRevisionIsManagerScopedAndRecordedWithExactBeforeAndAfterValues'
+            --filter 'FullyQualifiedName~WorkflowTemplateTests|FullyQualifiedName~EngagementWorkflowPlanTests|FullyQualifiedName~DueDateRevisionIsManagerScopedAndRecordedWithExactBeforeAndAfterValues|FullyQualifiedName~ChangesRequiredReviewCreatesOneLinkedOperationalReworkTaskWithoutChangingReviewAuthority'
           dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-build --no-restore \
             --configuration Release --maxcpucount:1 \
             --filter 'FullyQualifiedName~AngularRoutingContractTests.ApiDeepLinks_ExactlyMatchTheAngularRouteCatalogue'
