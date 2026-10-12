@@ -374,7 +374,7 @@ sequenceDiagram
             Finance-->>Planning: Activation blocked with exact reasons
         end
     else Missing or invalid approval
-        Risk-->>CRM: Block document; show missing or stale key
+        Risk-->>CRM: Block document — show missing or stale key
     end
 ```
 
