@@ -370,3 +370,12 @@ Key architectural invariants verified:
 
 > **Archived handoff history:** superseded 2026-10-09 evidence and implementation notes are preserved in the [historical slice archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md#ste-v2-1-evidence-mapping-and-full-suite-runs--2026-10-09).
 
+
+
+## PBC follow-up task automation — 2026-10-12
+
+Commit `e9138600834b7bd874f1e20282a2384dcce81417` adds the WF-10 PBC follow-up slice. With `WorkflowExperience:Enabled` enabled, sending a PBC request creates one fieldwork task with a nullable exact-scope request link in the same database transaction as the sent state and queued client communication. A filtered unique index prevents duplicate task bindings; the composite foreign key prevents cross-firm, cross-client, or cross-engagement links. Existing tasks remain unlinked. The queue derives **Waiting for client** from the linked PBC state, and the command handler blocks completion until acceptance or closure. The feature remains controlled by the existing configuration flag; no worker behavior was changed.
+
+Verification on the committed tree: the focused PostgreSQL cohort passed 3/3; the API Release build passed with two NU1900 vulnerability-feed warnings; EF reports no pending model changes; narrative metrics and UI inventory pass. The model migration is source-only and was not applied to a persistent database. The local test runner needed loopback networking for its disposable PostgreSQL fixtures.
+
+Limits: Angular production build aborted with exit 134 and no compiler diagnostics; the local authenticated browser route was not verified. Markdown health and filename checks report only the separately staged user document `STE_Audit_Management_Requirements_v2.2.md`, which remains untouched. The local OpenAPI emitter did not finish, so contract drift is not claimed. Full suites, migration application, live tenant, and professional acceptance were not run. CI runs 38196223449 and 38196223492 were in progress at the time of observation.
