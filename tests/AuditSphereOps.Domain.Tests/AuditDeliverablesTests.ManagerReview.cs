@@ -35,6 +35,16 @@ public sealed partial class AuditDeliverablesTests
     await using var db = new AuditSphereDbContext(pg.Options);
     var reviewer = w.A("senior", "Senior");
 
+    var unlinkedInbox = await ProcedureReviewInboxQuery.GetAsync(db, reviewer, new ProcedureReviewInboxRequest());
+    Assert.True(unlinkedInbox.Succeeded, unlinkedInbox.Message);
+    var unlinkedReview = Assert.Single(unlinkedInbox.Value!.Reviews);
+    Assert.Equal(w.ResultId, unlinkedReview.ResultId);
+    Assert.Equal(w.ProcedureId, unlinkedReview.ProcedureId);
+
+    var preparerInbox = await ProcedureReviewInboxQuery.GetAsync(db, w.A("associate", "Staff"),
+      new ProcedureReviewInboxRequest());
+    Assert.False(preparerInbox.Succeeded);
+
     const string reviewComment = "Reconcile the sample exception to source evidence.";
     var decision = await AuditProgramService.ReviewResultAsync(db, reviewer,
       new ReviewProcedureResultRequest(w.ResultId, AuditProcedureReviewDecisions.ChangesRequired, reviewComment),
@@ -48,6 +58,10 @@ public sealed partial class AuditDeliverablesTests
     Assert.Contains(w.ProcedureId.ToString("N"), binding.SourceKey, StringComparison.Ordinal);
     Assert.Equal(AuditProcedureReviewDecisions.ChangesRequired,
       await db.AuditProcedureReviews.Where(x => x.AuditProcedureResultId == w.ResultId).Select(x => x.Decision).SingleAsync());
+
+    var linkedReviewInbox = await ProcedureReviewInboxQuery.GetAsync(db, reviewer, new ProcedureReviewInboxRequest());
+    Assert.True(linkedReviewInbox.Succeeded, linkedReviewInbox.Message);
+    Assert.Empty(linkedReviewInbox.Value!.Reviews);
 
     var changesRequired = await WorkflowTaskQueueQuery.GetAsync(db, w.A("associate", "Staff"),
       new WorkflowTaskQueueRequest("CHANGES_REQUIRED"));
@@ -86,6 +100,10 @@ public sealed partial class AuditDeliverablesTests
     Assert.Equal(task.Id, reviewRow.TaskId);
     Assert.Equal("UNDER_REVIEW", reviewRow.ReviewState);
     Assert.Equal(reviewComment, reviewRow.ReviewComment);
+
+    var resubmittedInbox = await ProcedureReviewInboxQuery.GetAsync(db, reviewer, new ProcedureReviewInboxRequest());
+    Assert.True(resubmittedInbox.Succeeded, resubmittedInbox.Message);
+    Assert.Empty(resubmittedInbox.Value!.Reviews);
 
     var independentReview = await AuditProgramService.ReviewResultAsync(db, reviewer,
       new ReviewProcedureResultRequest(resubmission.Value!.AuditProcedureResultId, AuditProcedureReviewDecisions.Reviewed, null));

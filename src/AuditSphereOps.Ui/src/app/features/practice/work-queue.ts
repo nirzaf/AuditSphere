@@ -23,6 +23,11 @@ const decodeQueue = obj({
   view: str(30), tasks: arr(queueTask, 100), hasMore: bool,
   nextCursor: nullable(obj({ dueDate: nullable(date), taskId: guid })),
 });
+const reviewItem = obj({ resultId: guid, procedureId: guid, engagementId: guid, clientName: text,
+  serviceRoute: str(100), engagementPeriod: str(80), sourceProcedureId: str(100), procedureTitle: text,
+  revision: int, preparedByDisplayName: str(200), submittedAt: instant });
+const decodeReviewInbox = obj({ reviews: arr(reviewItem, 100), hasMore: bool,
+  nextCursor: nullable(obj({ submittedAt: instant, resultId: guid })) });
 const activityEvent = obj({
   id: guid, kind: oneOf('TASK_CREATED', 'TASK_ASSIGNED', 'TASK_REASSIGNED', 'TASK_COMPLETED', 'TASK_DUE_DATE_CHANGED'),
   sourceLabel: oneOf('Operational Task'), actorDisplayName: nonBlank(200),
@@ -52,6 +57,34 @@ const queueViews: { key: QueueView; label: string }[] = [
     <audit-page-header title="My work" eyebrow="Engagement tasks"
       description="Operational tasks across your current client and engagement grants. Task completion never replaces audit review or engagement approval." />
     <p><a matButton routerLink="/app/practice/workflow-templates">Manage workflow templates</a></p>
+    <section aria-labelledby="review-inbox-heading">
+      <h2 id="review-inbox-heading">Submitted reviews without task links</h2>
+      <p>Current submitted procedure results with no operational task for their procedure. Opening fieldwork rechecks review eligibility and current evidence.</p>
+      <audit-state [loading]="reviews.loading()" [error]="reviews.error()" label="review inbox" />
+      @if (reviews.data(); as inbox) {
+        <p role="status">{{ inbox.reviews.length }} unlinked submitted review(s) in your reviewer and engagement scope.</p>
+        <div class="table-scroll"><table>
+          <caption>Procedure reviews awaiting attention without an operational task</caption>
+          <thead><tr><th scope="col">Submitted</th><th scope="col">Client / engagement</th><th scope="col">Procedure</th><th scope="col">Prepared by</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
+          <tbody>
+            @for (item of inbox.reviews; track item.resultId) {
+              <tr>
+                <td><time [attr.datetime]="item.submittedAt">{{ item.submittedAt }}</time><small>Revision {{ item.revision }}</small></td>
+                <td><a [routerLink]="['/app/engagements', item.engagementId, 'audit-fieldwork']">{{ item.clientName }}</a><small>{{ item.serviceRoute }} · {{ item.engagementPeriod }}</small></td>
+                <td>{{ item.procedureTitle }}<small>{{ item.sourceProcedureId }}</small></td>
+                <td>{{ item.preparedByDisplayName }}</td>
+                <td><a matButton [routerLink]="['/app/engagements', item.engagementId, 'audit-fieldwork']">Open fieldwork</a></td>
+              </tr>
+            } @empty {
+              <tr><td colspan="5">No unlinked submitted procedures await review in your authorized scope.</td></tr>
+            }
+          </tbody>
+        </table></div>
+        @if (inbox.hasMore && inbox.nextCursor) {
+          <button matButton (click)="nextReviewPage(inbox.nextCursor)">Next reviews</button>
+        }
+      }
+    </section>
     <audit-state [loading]="queue.loading()" [error]="queue.error()" label="work queue" />
     <nav class="queue-views" aria-label="Work queue views">
       @for (item of views; track item.key) {
@@ -135,6 +168,7 @@ export class WorkflowWorkQueue {
   readonly selectedView = signal<QueueView>('MY_TASKS');
   readonly activityTask = signal<{ engagementId: string; taskId: string; title: string } | null>(null);
   private readonly cursor = signal<{ dueDate: string | null; taskId: string } | null>(null);
+  private readonly reviewCursor = signal<{ submittedAt: string; resultId: string } | null>(null);
   private readonly activityCursor = signal<{ occurredAt: string; activityId: string } | null>(null);
   readonly queue = this.api.resource(() => {
     const params = new URLSearchParams({ view: this.selectedView(), pageSize: '50' });
@@ -145,6 +179,15 @@ export class WorkflowWorkQueue {
     }
     return `/api/ui/work/tasks?${params.toString()}`;
   }, decodeQueue, 'The work queue is unavailable in your current scope or is not enabled on this server.');
+  readonly reviews = this.api.resource(() => {
+    const params = new URLSearchParams({ pageSize: '50' });
+    const after = this.reviewCursor();
+    if (after) {
+      params.set('afterSubmittedAt', after.submittedAt);
+      params.set('afterResultId', after.resultId);
+    }
+    return `/api/ui/work/reviews?${params.toString()}`;
+  }, decodeReviewInbox, 'The procedure review inbox is unavailable in your current reviewer scope or is not enabled on this server.');
   readonly activity = this.api.resource(() => {
     const selected = this.activityTask();
     if (!selected) return null;
@@ -169,6 +212,10 @@ export class WorkflowWorkQueue {
 
   nextPage(cursor: { dueDate: string | null; taskId: string }): void {
     this.cursor.set(cursor);
+  }
+
+  nextReviewPage(cursor: { submittedAt: string; resultId: string }): void {
+    this.reviewCursor.set(cursor);
   }
 
   showActivity(engagementId: string, taskId: string, title: string): void {

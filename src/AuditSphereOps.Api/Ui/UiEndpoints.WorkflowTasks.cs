@@ -1,4 +1,5 @@
 using AuditSphereOps.Application.Practice;
+using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -37,6 +38,17 @@ public static partial class UiEndpoints
 
   private static void MapWorkflowTaskEndpoints(RouteGroupBuilder group)
   {
+    group.MapGet("/work/reviews", (DateTimeOffset? afterSubmittedAt, Guid? afterResultId, int? pageSize, HttpContext http) =>
+      ReadAsync(http, async (db, actor, ct) =>
+      {
+        var configuration = http.RequestServices.GetRequiredService<IConfiguration>();
+        if (!configuration.GetValue<bool>("WorkflowExperience:Enabled"))
+          return CommandResult<ProcedureReviewInbox>.Fail(ErrorCodes.ScopeDenied,
+            "Workflow task experience is not enabled on this server.");
+        return await ProcedureReviewInboxQuery.GetAsync(db, actor,
+          new ProcedureReviewInboxRequest(afterSubmittedAt, afterResultId, pageSize ?? 50), ct);
+      }));
+
     group.MapGet("/work/tasks", (string? view, DateOnly? afterDueDate, Guid? afterTaskId, int? pageSize, HttpContext http) =>
       WorkflowQueueAsync(http, view, afterDueDate, afterTaskId, pageSize));
 
