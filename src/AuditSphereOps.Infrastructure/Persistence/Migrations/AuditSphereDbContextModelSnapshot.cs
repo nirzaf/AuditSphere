@@ -24828,6 +24828,78 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.WorkflowTaskActivity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ActorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_user_id");
+
+                    b.Property<Guid?>("AssigneeUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("assignee_user_id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("kind");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("occurred_at");
+
+                    b.Property<long>("TaskRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("task_revision");
+
+                    b.Property<Guid>("WorkTaskId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("work_task_id");
+
+                    b.Property<Guid>("WorkflowTaskBindingId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("workflow_task_binding_id");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "Id")
+                        .HasName("AK_workflow_task_activities_firm_id_id");
+
+                    b.HasIndex("FirmId", "ActorUserId");
+
+                    b.HasIndex("FirmId", "AssigneeUserId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "WorkflowTaskBindingId");
+
+                    b.HasIndex("FirmId", "EngagementId", "OccurredAt", "Id")
+                        .HasDatabaseName("IX_workflow_task_activities_engagement_time");
+
+                    b.HasIndex("FirmId", "WorkTaskId", "OccurredAt", "Id")
+                        .HasDatabaseName("IX_workflow_task_activities_task_time");
+
+                    b.ToTable("workflow_task_activities", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_workflow_task_activity_values", "kind IN ('TASK_CREATED','TASK_ASSIGNED','TASK_REASSIGNED','TASK_COMPLETED') AND task_revision >= 1 AND ((kind IN ('TASK_ASSIGNED','TASK_REASSIGNED')) = (assignee_user_id IS NOT NULL))");
+                        });
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Practice.WorkflowTaskBinding", b =>
                 {
                     b.Property<Guid>("Id")
@@ -32217,6 +32289,43 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasForeignKey("FirmId", "ClientId", "EngagementId", "MappingVersionId")
                         .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.WorkflowTaskActivity", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ActorUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "AssigneeUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Practice.WorkTask", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "WorkTaskId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId")
+                        .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Practice.WorkflowTaskBinding", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "WorkflowTaskBindingId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Practice.WorkflowTaskBinding", b =>

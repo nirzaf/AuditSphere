@@ -56,6 +56,32 @@ public sealed partial class AuditSphereDbContext
       .HasForeignKey(x => new { x.FirmId, x.TemplateRevisionId, x.TemplateStepId })
       .HasPrincipalKey(x => new { x.FirmId, x.TemplateRevisionId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
+    var activity = b.Entity<WorkflowTaskActivity>();
+    activity.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_workflow_task_activities_firm_id_id");
+    activity.HasIndex(x => new { x.FirmId, x.EngagementId, x.OccurredAt, x.Id })
+      .HasDatabaseName("IX_workflow_task_activities_engagement_time");
+    activity.HasIndex(x => new { x.FirmId, x.WorkTaskId, x.OccurredAt, x.Id })
+      .HasDatabaseName("IX_workflow_task_activities_task_time");
+    activity.Property(x => x.Kind).HasMaxLength(32);
+    activity.HasOne<Engagement>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId })
+      .HasPrincipalKey(x => new { x.FirmId, x.PracticeClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    activity.HasOne<WorkTask>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.WorkTaskId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    activity.HasOne<WorkflowTaskBinding>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.WorkflowTaskBindingId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    activity.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ActorUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    activity.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.AssigneeUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    activity.ToTable("workflow_task_activities", t =>
+      t.HasCheckConstraint("ck_workflow_task_activity_values",
+        "kind IN ('TASK_CREATED','TASK_ASSIGNED','TASK_REASSIGNED','TASK_COMPLETED') AND task_revision >= 1 AND ((kind IN ('TASK_ASSIGNED','TASK_REASSIGNED')) = (assignee_user_id IS NOT NULL))"));
+
     var dependency = b.Entity<WorkflowTaskDependency>();
     dependency.HasAlternateKey(x => new { x.FirmId, x.Id })
       .HasName("AK_workflow_task_dependencies_firm_id_id");

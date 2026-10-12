@@ -15,13 +15,21 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## v2.2 workflow activity — task event trace — 2026-10-12
+
+WF-14 now persists append-only `Operational Task` activity for workflow-task creation, initial assignment, assignment, reassignment and completion. Each event links the exact existing `WorkTask` and `WorkflowTaskBinding`, scope, actor, optional assigned staff member, task revision and timestamp. Events are written in the same transaction as the successful task command; idempotent replays and refused/no-op commands do not create duplicate events. PostgreSQL rejects event updates and deletes and rejects inserts whose work task does not match the referenced binding. The timeline query reauthorizes the current engagement grant, caps date filters at 90 UTC days, uses keyset pagination and returns no task title, free-form note, risk evidence or audit conclusion from the event table.
+
+The staff work queue now has a per-task activity panel. This increment covers only operational task events and labels them `Operational Task`. Template publication already has its own append-only decision records; template/reminder/automation events are not yet projected into a unified timeline. Reopened/rejected tasks and due-date changes have no activity coverage here. Client-wait metrics, other source labels, broader analytics pagination/performance evidence, and remaining WF-14 stories remain open. Additive migrations `20261012060111_WorkflowTaskActivity` and `20261012061421_WorkflowTaskActivityBindingGuard` have not been applied to a persistent database.
+
+Verification on the working tree based on `445e1d99`: API Release build passed with 0 errors and two offline `NU1900` warnings; the focused PostgreSQL workflow-task activity regression passed 1/1, covering create/assign/reassign/complete, idempotent replay, timeline paging, foreign-scope and revoked-grant denials, database update/delete rejection, and mismatched task/binding insert rejection; the Angular activity contract spec passed 3/3; the development server compiled; EF model drift reported no pending changes; OpenAPI drift passed. The production Angular build aborted with exit 134 and no diagnostics. The built-in browser showed the staff sign-in guard because the local API/session was unavailable, so authenticated activity rendering was not observed. No full suite or persistent database migration was run. Exact evidence is in `status.json` under `targetedVerification.workflowTaskActivity`.
+
 ## v2.2 workflow analytics — phase task rollups — 2026-10-12
 
 Practice Analytics now groups non-cancelled tasks due in the selected period by their current workflow-phase binding, with a separate unassigned-phase row. It reports due, completed, open, overdue and completion percentage for all seven phases. Completion requires both the completed task status and its persisted completion timestamp. The UI and metric definition state that these operational counts do not establish phase or audit-gate readiness. No migration was needed.
 
 Verification on the working tree based on `5de433ff`: the Release solution build passed with 0 errors and six offline `NU1900` vulnerability-feed warnings; the focused PostgreSQL analytics regression passed 1/1, including bound and unbound task counts; the Angular analytics contract spec passed 4/4; EF model drift reported no pending changes; OpenAPI drift passed unchanged; and the Angular development server compiled. The built-in browser reached the staff sign-in guard because the local API/session was unavailable, so authenticated data rendering was not observed. The full test suite and production Angular build were not run. No persistent database migration, live-provider or professional acceptance was performed. Exact evidence is in `status.json` under `targetedVerification.workflowPhaseRollup`.
 
-WF-14 remains partial: client wait, append-only workflow activity, analytics pagination/performance acceptance and the remaining workflow stories are open. No persistent database was migrated.
+WF-14 remains partial: client wait, additional append-only activity sources, analytics pagination/performance acceptance and the remaining workflow stories are open. No persistent database was migrated.
 
 ## v2.2 workflow analytics — procedure review turnaround — 2026-10-12
 
@@ -29,7 +37,7 @@ Practice Analytics now shows average elapsed hours from submission of the exact 
 
 Verification on the working tree based on `690e1c11`: API Release build passed with 0 errors and two offline `NU1900` warnings; the focused PostgreSQL analytics regression passed 1/1, including both review outcomes, date filtering, invalid chronology and revision mismatch; the Angular analytics contract spec passed 4/4; EF model drift reported no pending changes; OpenAPI drift passed unchanged; and the Angular development server compiled. The built-in browser redirected the analytics route to the staff sign-in guard, so no authenticated data rendering was observed. The Angular production build aborted with exit 134 and no diagnostics. No full suite, live-provider or professional acceptance was run. Exact evidence is in `status.json` under `targetedVerification.workflowReviewTurnaround`.
 
-The phase task rollups are recorded in the newer section above. WF-14 remains partial: client wait, append-only workflow activity, analytics pagination/performance acceptance and the remaining workflow stories are open. No persistent database was migrated.
+The phase task rollups are recorded in the newer section above. WF-14 remains partial: client wait, additional append-only activity sources, analytics pagination/performance acceptance and the remaining workflow stories are open. No persistent database was migrated.
 
 ## v2.2 workflow analytics — task completion and workload — 2026-10-12
 
@@ -312,51 +320,7 @@ Committed at `cee546f9`. Pricing policy maker/checker, append-only approval revo
 
 Legal/FSLI implementation and current-tree STE journeys passed local verification. See the [STE verification tracker](auditsphere-execution-tracker-ste-v21-gap-verification-current.md) and `status.json`. T003 professional sign-off, T014 dependencies and live Microsoft/provider acceptance remain open.
 
-## Hostinger M365 portal follow-up and verified SharePoint target — 2026-10-10
-
-The user authorized the dedicated Graph permission plan and asked to use the existing SharePoint
-site intended for acceptance. The Entra browser showed the Directory Reader `User.Read.All` and
-Mail `Mail.Send` application permissions granted for the tenant. A dedicated Guest Invitation app
-was created with `User.Invite.All` as its only application role (plus delegated `User.Read`), and
-the portal confirmed tenant admin consent. These grants are not capability verification in
-AuditSphere.
-
-The separate Group Membership registration was prepared as single-tenant, but left at the Register
-screen because it states that proceeding agrees to Microsoft Platform Policies. The user must
-perform that legal assent. The old Administration app still has `User.Create`, `User.Invite.All`
-and `GroupMember.ReadWrite.All`; it remains disabled until the new Group Membership app has been
-registered, configured with only its approved application role, and consented. Remove the two
-extra roles only after that replacement is verified.
-
-SharePoint Admin Center and read-only site/library requests confirmed an existing synthetic
-development site and an empty workpapers library root. A separate same-tenant site can serve as the
-negative control and must not receive an app grant. No site-level grant, test upload, or new site
-creation occurred. The user authorized a write grant only to the selected site and one disposable
-file create/read/delete probe, including a denied request to the control site; execution is pending
-the missing server credential/configuration.
-
-The AuditSphere browser page was refreshed after these portal changes. It showed Consent Required,
-no consent attempt and directory `NOT_VERIFIED`; all mutation capabilities were Disabled. The
-selected-resource form was then saved with the existing site, empty workpapers library and App
-mediated profile. AuditSphere reported draft revision 4 in `VALIDATING` and a latest selected-site
-result of `BLOCKED_EXTERNAL` (`selected-resource-draft-edited`); this is not a verified site grant.
-Mail and Records drafts were Not Configured, and no client workspaces existed. The initial VPS check
-found no M365 configuration or certificate files. A later, explicitly authorized setup created a
-dedicated Selected Site certificate on the VPS, uploaded only its public certificate to the matching
-Entra app, and wrote that app ID and the unrelated control-site URL to the protected deployment
-`.env`. No values or certificate material are recorded here.
-
-The tenant page also rendered `BLOCKED_EXTERNAL: configure the separately approved consent identity
-and fixed callback`, with no Connect action. The nonce-bound consent handshake has not started. The
-consent app ID, certificate and enablement remain absent from the deployment configuration. The
-Selected Site flag remains off, and no M365 capability is enabled. A read-only inspection of the
-running API container found no `/run/auditsphere/m365` mount and no Selected Site app ID or
-certificate-path environment setting. The checked-in Compose file declares the expected mount and
-settings, but the running container is not using that configuration. Services were left untouched as
-instructed; a separately approved API-container recreation from the current Compose configuration
-is required before the certificate can be used.
-
-The statements above describe the earlier blocked state and are superseded by the observation below.
+The earlier 2026-10-10 M365 portal setup trace is preserved in the [historical current-slice archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md); the later exact-site verification below supersedes its setup status.
 
 ## Hostinger Selected Site exact-grant verification — 2026-10-11
 

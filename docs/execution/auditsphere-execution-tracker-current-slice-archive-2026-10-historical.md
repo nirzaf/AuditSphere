@@ -6747,3 +6747,51 @@ Client books now support immutable role proposals and independent approval/rejec
 Client locking and database checks fence overlapping approvals, self-review and control activation over posted generic activity. Generic native journals cannot create unexplained AR/AP activity: preparation, preview/submission/post validation and a specific database posting trigger refuse that path. Earlier drafted journals become ineligible after an applicable control role is approved. Angular offers bounded account search, paged retained history, explicit proposal assent and independent review; unconfirmed commands require fresh history before further preparation. Focused PostgreSQL, Angular, API contract and automated browser checks passed. Exact source and observed counts live in `verification.clientAccountRoles` in `status.json`.
 
 Two managed solution-build attempts were interrupted when a concurrent process merged the branches and removed their checkouts. The preserved test/contract commit passed the full solution build in an independent temporary verification checkout. Work continues in a new managed worktree, with user-authorized cleanup coordination requested. This role slice does not implement default/system invoice postings, AR/AP open items, approved-role replacement or end-date amendments. The full epic remains active; the final merge is pending completion. The calculator-baseline regression continues separately and must not be attributed to this newer model.
+
+---
+
+## Hostinger M365 portal follow-up and verified SharePoint target — 2026-10-10
+
+The user authorized the dedicated Graph permission plan and asked to use the existing SharePoint
+site intended for acceptance. The Entra browser showed the Directory Reader `User.Read.All` and
+Mail `Mail.Send` application permissions granted for the tenant. A dedicated Guest Invitation app
+was created with `User.Invite.All` as its only application role (plus delegated `User.Read`), and
+the portal confirmed tenant admin consent. These grants are not capability verification in
+AuditSphere.
+
+The separate Group Membership registration was prepared as single-tenant, but left at the Register
+screen because it states that proceeding agrees to Microsoft Platform Policies. The user must
+perform that legal assent. The old Administration app still has `User.Create`, `User.Invite.All`
+and `GroupMember.ReadWrite.All`; it remains disabled until the new Group Membership app has been
+registered, configured with only its approved application role, and consented. Remove the two
+extra roles only after that replacement is verified.
+
+SharePoint Admin Center and read-only site/library requests confirmed an existing synthetic
+development site and an empty workpapers library root. A separate same-tenant site can serve as the
+negative control and must not receive an app grant. No site-level grant, test upload, or new site
+creation occurred. The user authorized a write grant only to the selected site and one disposable
+file create/read/delete probe, including a denied request to the control site; execution is pending
+the missing server credential/configuration.
+
+The AuditSphere browser page was refreshed after these portal changes. It showed Consent Required,
+no consent attempt and directory `NOT_VERIFIED`; all mutation capabilities were Disabled. The
+selected-resource form was then saved with the existing site, empty workpapers library and App
+mediated profile. AuditSphere reported draft revision 4 in `VALIDATING` and a latest selected-site
+result of `BLOCKED_EXTERNAL` (`selected-resource-draft-edited`); this is not a verified site grant.
+Mail and Records drafts were Not Configured, and no client workspaces existed. The initial VPS check
+found no M365 configuration or certificate files. A later, explicitly authorized setup created a
+dedicated Selected Site certificate on the VPS, uploaded only its public certificate to the matching
+Entra app, and wrote that app ID and the unrelated control-site URL to the protected deployment
+`.env`. No values or certificate material are recorded here.
+
+The tenant page also rendered `BLOCKED_EXTERNAL: configure the separately approved consent identity
+and fixed callback`, with no Connect action. The nonce-bound consent handshake has not started. The
+consent app ID, certificate and enablement remain absent from the deployment configuration. The
+Selected Site flag remains off, and no M365 capability is enabled. A read-only inspection of the
+running API container found no `/run/auditsphere/m365` mount and no Selected Site app ID or
+certificate-path environment setting. The checked-in Compose file declares the expected mount and
+settings, but the running container is not using that configuration. Services were left untouched as
+instructed; a separately approved API-container recreation from the current Compose configuration
+is required before the certificate can be used.
+
+The statements above describe the earlier blocked state and are superseded by the observation below.

@@ -51,6 +51,13 @@ public static partial class UiEndpoints
     tasks.MapGet("", (Guid engagementId, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => EngagementWorkflowTaskService.GetAsync(db, actor, engagementId, ct)));
 
+    tasks.MapGet("/{taskId:guid}/activity", (
+      Guid engagementId, Guid taskId, DateOnly? from, DateOnly? to,
+      DateTimeOffset? afterOccurredAt, Guid? afterActivityId, int? pageSize, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => WorkflowTaskActivityQuery.GetAsync(db, actor,
+        engagementId, taskId, new WorkflowTaskActivityRequest(from, to, afterOccurredAt,
+          afterActivityId, pageSize ?? 50), ct)));
+
     tasks.MapPost("", (
       Guid engagementId, WorkflowTaskCreateInput input, HttpContext http) =>
     {

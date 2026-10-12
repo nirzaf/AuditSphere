@@ -2,9 +2,14 @@ import { Component, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { RouterLink } from '@angular/router';
 import { Api, CommandState } from '../../core/api';
-import { arr, bool, date, guid, int, nullable, obj, str, text } from '../../core/decode';
+import { arr, bool, date, guid, instant, int, nullable, obj, oneOf, str, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
 
+const nonBlank = (max: number) => (value: unknown, path: string): string => {
+  const decoded = str(max)(value, path);
+  if (!decoded.trim()) throw new Error(`${path}: expected non-empty text`);
+  return decoded;
+};
 const queueTask = obj({
   taskId: guid, clientId: guid, clientName: text, engagementId: guid, engagementServiceRoute: str(100),
   engagementPeriod: str(80), title: str(300), phase: str(40), ordinal: int, taskStatus: str(40),
@@ -15,6 +20,15 @@ const queueTask = obj({
 const decodeQueue = obj({
   view: str(30), tasks: arr(queueTask, 100), hasMore: bool,
   nextCursor: nullable(obj({ dueDate: nullable(date), taskId: guid })),
+});
+const activityEvent = obj({
+  id: guid, kind: oneOf('TASK_CREATED', 'TASK_ASSIGNED', 'TASK_REASSIGNED', 'TASK_COMPLETED'),
+  sourceLabel: oneOf('Operational Task'), actorDisplayName: nonBlank(200),
+  assigneeDisplayName: nullable(str(200)), taskRevision: int, occurredAt: instant,
+});
+export const decodeActivity = obj({
+  engagementId: guid, taskId: guid, from: date, to: date, events: arr(activityEvent, 101),
+  hasMore: bool, nextCursor: nullable(obj({ occurredAt: instant, activityId: guid })),
 });
 
 type QueueView = 'MY_TASKS' | 'TEAM' | 'WAITING_FOR_CLIENT' | 'OVERDUE' | 'COMPLETED';
@@ -42,7 +56,7 @@ const queueViews: { key: QueueView; label: string }[] = [
       <p role="status">{{ result.tasks.length }} {{ result.view === 'MY_TASKS' ? 'assigned to you' : 'in this authorized view' }}. Client and engagement rows are limited to your current grants.</p>
       <div class="table-scroll"><table>
         <caption>{{ labelFor(result.view) }} — workflow tasks</caption>
-        <thead><tr><th scope="col">Due</th><th scope="col">Client / engagement</th><th scope="col">Task</th><th scope="col">Owner</th><th scope="col">Operational status</th><th scope="col">Prerequisites</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
+        <thead><tr><th scope="col">Due</th><th scope="col">Client / engagement</th><th scope="col">Task</th><th scope="col">Owner</th><th scope="col">Operational status</th><th scope="col">Prerequisites</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
         <tbody>
           @for (task of result.tasks; track task.taskId) {
             <tr>
@@ -54,13 +68,36 @@ const queueViews: { key: QueueView; label: string }[] = [
               <td>{{ task.assigneeDisplayName ?? 'Unassigned' }}</td>
               <td><audit-status [value]="task.taskStatus" /></td>
               <td>{{ task.unmetTaskDependencies ? task.unmetTaskDependencies + ' task prerequisite(s) incomplete' : 'No task prerequisites pending' }}</td>
-              <td>@if (task.canComplete) { <button matButton="filled" (click)="complete(task.engagementId, task.taskId, task.revision)" [disabled]="command.busy()">Complete task</button> }</td>
+              <td><button matButton (click)="showActivity(task.engagementId, task.taskId, task.title)">{{ activityTask()?.taskId === task.taskId ? 'Hide activity' : 'View activity' }}</button>
+                @if (task.canComplete) { <button matButton="filled" (click)="complete(task.engagementId, task.taskId, task.revision)" [disabled]="command.busy()">Complete task</button> }</td>
             </tr>
           } @empty {
             <tr><td colspan="7">No tasks match this view in your current authorized scope.</td></tr>
           }
         </tbody>
       </table></div>
+      @if (activityTask(); as selected) {
+        <section class="activity-panel" aria-labelledby="task-activity-heading">
+          <h2 id="task-activity-heading">Task activity</h2>
+          <p>{{ selected.title }} · Operational Task · UTC date range {{ activity.data()?.from ?? 'loading' }} to {{ activity.data()?.to ?? 'loading' }}</p>
+          <audit-state [loading]="activity.loading()" [error]="activity.error()" label="task activity" />
+          @if (activity.data(); as page) {
+            <ol>
+              @for (event of page.events; track event.id) {
+                <li><strong>{{ eventLabel(event.kind) }}</strong> · {{ event.sourceLabel }}
+                  <small>By {{ event.actorDisplayName }}@if (event.assigneeDisplayName) { · assigned to {{ event.assigneeDisplayName }}} · revision {{ event.taskRevision }}</small>
+                  <time [attr.datetime]="event.occurredAt">{{ event.occurredAt }}</time>
+                </li>
+              } @empty {
+                <li>No task activity in this date range.</li>
+              }
+            </ol>
+            @if (page.hasMore && page.nextCursor) {
+              <button matButton (click)="nextActivityPage(page.nextCursor)">Older activity</button>
+            }
+          }
+        </section>
+      }
       <p class="queue-note">Waiting for client is derived from the linked PBC request state. Audit review and changes-required remain in their authoritative review workspaces; a task status never replaces those decisions.</p>
       @if (result.hasMore && result.nextCursor) {
         <button matButton (click)="nextPage(result.nextCursor)">Next tasks</button>
@@ -74,7 +111,9 @@ export class WorkflowWorkQueue {
   private readonly api = inject(Api);
   readonly views = queueViews;
   readonly selectedView = signal<QueueView>('MY_TASKS');
+  readonly activityTask = signal<{ engagementId: string; taskId: string; title: string } | null>(null);
   private readonly cursor = signal<{ dueDate: string | null; taskId: string } | null>(null);
+  private readonly activityCursor = signal<{ occurredAt: string; activityId: string } | null>(null);
   readonly queue = this.api.resource(() => {
     const params = new URLSearchParams({ view: this.selectedView(), pageSize: '50' });
     const after = this.cursor();
@@ -84,6 +123,17 @@ export class WorkflowWorkQueue {
     }
     return `/api/ui/work/tasks?${params.toString()}`;
   }, decodeQueue, 'The work queue is unavailable in your current scope or is not enabled on this server.');
+  readonly activity = this.api.resource(() => {
+    const selected = this.activityTask();
+    if (!selected) return null;
+    const params = new URLSearchParams({ pageSize: '50' });
+    const after = this.activityCursor();
+    if (after) {
+      params.set('afterOccurredAt', after.occurredAt);
+      params.set('afterActivityId', after.activityId);
+    }
+    return `/api/ui/engagements/${selected.engagementId}/workflow/tasks/${selected.taskId}/activity?${params.toString()}`;
+  }, decodeActivity, 'Task activity is unavailable in your current authorized scope.');
   readonly command = new CommandState(this.api);
 
   labelFor(value: string): string {
@@ -99,8 +149,29 @@ export class WorkflowWorkQueue {
     this.cursor.set(cursor);
   }
 
+  showActivity(engagementId: string, taskId: string, title: string): void {
+    if (this.activityTask()?.taskId === taskId) {
+      this.activityTask.set(null);
+      return;
+    }
+    this.activityCursor.set(null);
+    this.activityTask.set({ engagementId, taskId, title });
+  }
+
+  nextActivityPage(cursor: { occurredAt: string; activityId: string }): void {
+    this.activityCursor.set(cursor);
+  }
+
+  eventLabel(kind: string): string {
+    return ({ TASK_CREATED: 'Task created', TASK_ASSIGNED: 'Task assigned',
+      TASK_REASSIGNED: 'Task reassigned', TASK_COMPLETED: 'Task completed' } as Record<string, string>)[kind] ?? 'Workflow event';
+  }
+
   complete(engagementId: string, taskId: string, revision: number): void {
     this.command.run(`/api/ui/engagements/${engagementId}/workflow/tasks/${taskId}/complete`,
-      { expectedRevision: revision }, 'Task completed.', () => this.queue.reload()).finally(this.queue.reload);
+      { expectedRevision: revision }, 'Task completed.', () => {
+        this.queue.reload();
+        this.activity.reload();
+      }).finally(this.queue.reload);
   }
 }

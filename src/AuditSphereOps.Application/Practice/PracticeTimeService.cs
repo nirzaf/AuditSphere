@@ -253,6 +253,11 @@ public static class PracticeTimeService
       workflowBinding.CreatedByUserId = actor.UserId;
       workflowBinding.CreatedAt = task.CreatedAt;
       db.WorkflowTaskBindings.Add(workflowBinding);
+      AddWorkflowTaskActivity(db, actor, task, workflowBinding, WorkflowTaskActivityKinds.Created,
+        null, workflowBinding.Revision, task.CreatedAt);
+      if (task.AssigneeUserId.HasValue)
+        AddWorkflowTaskActivity(db, actor, task, workflowBinding, WorkflowTaskActivityKinds.Assigned,
+          task.AssigneeUserId, workflowBinding.Revision, task.CreatedAt.AddMilliseconds(1));
     }
     await db.SaveChangesAsync(ct);
     if (tx is not null) await tx.CommitAsync(ct);
@@ -345,6 +350,8 @@ public static class PracticeTimeService
       if (workflowBinding.Revision == long.MaxValue)
         return CommandResult.Fail(ErrorCodes.ProtectedState, "The workflow task revision cannot advance further.");
       workflowBinding.Revision++;
+      AddWorkflowTaskActivity(db, actor, task, workflowBinding, WorkflowTaskActivityKinds.Completed,
+        null, workflowBinding.Revision, task.CompletedAt.Value);
     }
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
@@ -733,6 +740,9 @@ public static class PracticeTimeService
       workflowBinding.AssigneeUserIdSnapshot = assigneeUserId;
       workflowBinding.AssignmentSource = reassign ? "MANUAL_REASSIGNMENT" : "MANUAL";
       workflowBinding.Revision++;
+      AddWorkflowTaskActivity(db, actor, task, workflowBinding,
+        reassign ? WorkflowTaskActivityKinds.Reassigned : WorkflowTaskActivityKinds.Assigned,
+        assigneeUserId, workflowBinding.Revision, DateTimeOffset.UtcNow);
     }
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
@@ -746,6 +756,26 @@ public static class PracticeTimeService
       new AuthorizationRequest(actor.FirmId, task.ClientId, task.EngagementId, roles, InternalOnly: true), ct);
     if (!auth.Succeeded) return auth;
     return CommandResult.Ok();
+  }
+
+  private static void AddWorkflowTaskActivity(
+    IAuditSphereDbContext db, ActorContext actor, WorkTask task, WorkflowTaskBinding binding,
+    string kind, Guid? assigneeUserId, long revision, DateTimeOffset occurredAt)
+  {
+    db.WorkflowTaskActivities.Add(new WorkflowTaskActivity
+    {
+      Id = Guid.CreateVersion7(),
+      FirmId = actor.FirmId,
+      ClientId = binding.ClientId,
+      EngagementId = binding.EngagementId,
+      WorkTaskId = task.Id,
+      WorkflowTaskBindingId = binding.Id,
+      Kind = kind,
+      ActorUserId = actor.UserId,
+      AssigneeUserId = assigneeUserId,
+      TaskRevision = revision,
+      OccurredAt = occurredAt
+    });
   }
 
   /// <summary>Read-only rate lookup used for capture: the exact approved card, else an explicit STE alias, else fail closed.</summary>

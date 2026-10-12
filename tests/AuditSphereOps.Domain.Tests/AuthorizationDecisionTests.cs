@@ -592,6 +592,7 @@ public sealed class AuthorizationDecisionTests
     public DbSet<AuditSphereOps.Domain.Practice.ResourcePlanningReceipt> ResourcePlanningReceipts => db.ResourcePlanningReceipts;
     public DbSet<WorkTask> WorkTasks => db.WorkTasks;
     public DbSet<WorkflowTaskBinding> WorkflowTaskBindings => db.WorkflowTaskBindings;
+    public DbSet<WorkflowTaskActivity> WorkflowTaskActivities => db.WorkflowTaskActivities;
     public DbSet<WorkflowTaskDependency> WorkflowTaskDependencies => db.WorkflowTaskDependencies;
     public DbSet<WorkflowTemplate> WorkflowTemplates => db.WorkflowTemplates;
     public DbSet<WorkflowTemplateRevision> WorkflowTemplateRevisions => db.WorkflowTemplateRevisions;

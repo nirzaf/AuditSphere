@@ -77,6 +77,7 @@ public sealed class EngagementWorkflowTaskTests
       var replay = await EngagementWorkflowTaskService.CreateAsync(db, managerActor, engagementA, requestA);
       Assert.True(replay.Succeeded, replay.Message);
       Assert.Equal(taskA, replay.Value);
+      Assert.Equal(3, await db.WorkflowTaskActivities.CountAsync(x => x.Kind == WorkflowTaskActivityKinds.Created));
       var conflictingReplay = await EngagementWorkflowTaskService.CreateAsync(db, managerActor, engagementA,
         requestA with { Title = "Different content" });
       Assert.False(conflictingReplay.Succeeded);
@@ -85,9 +86,25 @@ public sealed class EngagementWorkflowTaskTests
 
       var assignment = await EngagementWorkflowTaskService.AssignAsync(db, managerActor, taskA, staffA.Id, 1);
       Assert.True(assignment.Succeeded, assignment.Message);
+      var assignedActivity = await db.WorkflowTaskActivities.SingleAsync(x =>
+        x.WorkTaskId == taskA && x.Kind == WorkflowTaskActivityKinds.Assigned);
+      Assert.Equal(manager.Id, assignedActivity.ActorUserId);
+      Assert.Equal(staffA.Id, assignedActivity.AssigneeUserId);
+      Assert.Equal(2, assignedActivity.TaskRevision);
       var stale = await EngagementWorkflowTaskService.ReassignAsync(db, managerActor, taskA, staffB.Id, 1);
       Assert.False(stale.Succeeded);
       Assert.Equal(ErrorCodes.StaleRevision, stale.ErrorCode);
+      var sameAssignee = await EngagementWorkflowTaskService.ReassignAsync(db, managerActor, taskA, staffA.Id, 2);
+      Assert.True(sameAssignee.Succeeded, sameAssignee.Message);
+      Assert.Equal(2, await db.WorkflowTaskActivities.CountAsync(x => x.WorkTaskId == taskA));
+      var secondAssignment = await EngagementWorkflowTaskService.AssignAsync(db, managerActor, taskASecond, staffA.Id, 1);
+      Assert.True(secondAssignment.Succeeded, secondAssignment.Message);
+      var reassignment = await EngagementWorkflowTaskService.ReassignAsync(db, managerActor, taskASecond, manager.Id, 2);
+      Assert.True(reassignment.Succeeded, reassignment.Message);
+      var reassignActivity = await db.WorkflowTaskActivities.SingleAsync(x =>
+        x.WorkTaskId == taskASecond && x.Kind == WorkflowTaskActivityKinds.Reassigned);
+      Assert.Equal(manager.Id, reassignActivity.AssigneeUserId);
+      Assert.Equal(3, reassignActivity.TaskRevision);
 
       var draft = await PracticeTimeService.SaveTimeDraftAsync(db, staffAActor,
         new SaveTimeDraftRequest(taskA, new DateOnly(2026, 10, 12), 540, 45,
@@ -138,6 +155,32 @@ public sealed class EngagementWorkflowTaskTests
       Assert.Equal(3, binding.Revision);
       Assert.Equal(staffA.Id, binding.AssigneeUserIdSnapshot);
       Assert.Equal(1, await db.TimeEntries.CountAsync(x => x.TaskId == taskA));
+      Assert.Equal(3, await db.WorkflowTaskActivities.CountAsync(x => x.WorkTaskId == taskA));
+      var firstActivityPage = await WorkflowTaskActivityQuery.GetAsync(db, staffAActor, engagementA, taskA,
+        new WorkflowTaskActivityRequest(PageSize: 2));
+      Assert.True(firstActivityPage.Succeeded, firstActivityPage.Message);
+      Assert.True(firstActivityPage.Value!.HasMore);
+      Assert.Equal(engagementA, firstActivityPage.Value.EngagementId);
+      Assert.Equal(taskA, firstActivityPage.Value.TaskId);
+      Assert.Equal(WorkflowTaskActivityKinds.Completed, firstActivityPage.Value.Events[0].Kind);
+      Assert.Equal("Operational Task", firstActivityPage.Value.Events[0].SourceLabel);
+      Assert.Equal("StaffA", firstActivityPage.Value.Events[0].ActorDisplayName);
+      var nextActivity = await WorkflowTaskActivityQuery.GetAsync(db, staffAActor, engagementA, taskA,
+        new WorkflowTaskActivityRequest(AfterOccurredAt: firstActivityPage.Value.NextCursor!.OccurredAt,
+          AfterActivityId: firstActivityPage.Value.NextCursor.ActivityId, PageSize: 2));
+      Assert.True(nextActivity.Succeeded, nextActivity.Message);
+      Assert.False(nextActivity.Value!.HasMore);
+      Assert.Equal(WorkflowTaskActivityKinds.Created, Assert.Single(nextActivity.Value.Events).Kind);
+
+      var foreignActivity = await WorkflowTaskActivityQuery.GetAsync(db, staffAActor, engagementB, taskB,
+        new WorkflowTaskActivityRequest());
+      Assert.False(foreignActivity.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, foreignActivity.ErrorCode);
+
+      var invalidRange = await WorkflowTaskActivityQuery.GetAsync(db, staffAActor, engagementA, taskA,
+        new WorkflowTaskActivityRequest(new DateOnly(2026, 1, 1), new DateOnly(2026, 5, 1)));
+      Assert.False(invalidRange.Succeeded);
+      Assert.Equal("workflow.activity-invalid", invalidRange.ErrorCode);
 
       var staffGrant = await db.RoleGrants.SingleAsync(x => x.FirmId == firmId && x.UserId == staffA.Id);
       staffGrant.RevokedAt = DateTimeOffset.UtcNow;
@@ -146,11 +189,44 @@ public sealed class EngagementWorkflowTaskTests
         new WorkflowTaskQueueRequest("TEAM"));
       Assert.False(afterRevocation.Succeeded);
       Assert.Equal(ErrorCodes.ScopeDenied, afterRevocation.ErrorCode);
+      var activityAfterRevocation = await WorkflowTaskActivityQuery.GetAsync(db, staffAActor, engagementA, taskA,
+        new WorkflowTaskActivityRequest());
+      Assert.False(activityAfterRevocation.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, activityAfterRevocation.ErrorCode);
 
       var firstEngagement = await db.Engagements.SingleAsync(x => x.Id == engagementA);
       Assert.Equal(1, firstEngagement.Generation);
       Assert.Equal("Draft", firstEngagement.Status);
       Assert.Equal(engagementB, (await db.WorkflowTaskBindings.SingleAsync(x => x.WorkTaskId == taskB)).EngagementId);
+    }
+
+    await using (var tamper = new AuditSphereDbContext(pg.Options))
+    {
+      var activity = await tamper.WorkflowTaskActivities.SingleAsync(x =>
+        x.WorkTaskId == taskA && x.Kind == WorkflowTaskActivityKinds.Created);
+      activity.Kind = WorkflowTaskActivityKinds.Completed;
+      await Assert.ThrowsAsync<DbUpdateException>(() => tamper.SaveChangesAsync());
+    }
+
+    await using (var tamper = new AuditSphereDbContext(pg.Options))
+    {
+      var activity = await tamper.WorkflowTaskActivities.SingleAsync(x =>
+        x.WorkTaskId == taskA && x.Kind == WorkflowTaskActivityKinds.Created);
+      tamper.WorkflowTaskActivities.Remove(activity);
+      await Assert.ThrowsAsync<DbUpdateException>(() => tamper.SaveChangesAsync());
+    }
+
+    await using (var mismatch = new AuditSphereDbContext(pg.Options))
+    {
+      var otherBinding = await mismatch.WorkflowTaskBindings.SingleAsync(x => x.WorkTaskId == taskASecond);
+      mismatch.WorkflowTaskActivities.Add(new WorkflowTaskActivity
+      {
+        Id = Guid.NewGuid(), FirmId = firmId, ClientId = clientA, EngagementId = engagementA,
+        WorkTaskId = taskA, WorkflowTaskBindingId = otherBinding.Id,
+        Kind = WorkflowTaskActivityKinds.Created, ActorUserId = manager.Id,
+        TaskRevision = 1, OccurredAt = DateTimeOffset.UtcNow
+      });
+      await Assert.ThrowsAsync<DbUpdateException>(() => mismatch.SaveChangesAsync());
     }
   }
 

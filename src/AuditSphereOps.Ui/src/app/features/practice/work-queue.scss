@@ -5,3 +5,6 @@ table { width: 100%; border-collapse: collapse; }
 th, td { padding: .7rem; border-bottom: 1px solid var(--line, #d7dfeb); text-align: left; vertical-align: top; }
 td small { display: block; color: var(--muted, #52627a); margin-top: .2rem; }
 .queue-note { color: var(--muted, #52627a); margin-block: 1rem; }
+.activity-panel { margin-block: 1.25rem; padding: 1rem; border: 1px solid var(--line, #d7dfeb); border-radius: .5rem; }
+.activity-panel li { padding-block: .5rem; }
+.activity-panel small, .activity-panel time { display: block; color: var(--muted, #52627a); margin-top: .2rem; }
