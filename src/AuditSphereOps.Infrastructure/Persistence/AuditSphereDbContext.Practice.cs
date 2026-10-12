@@ -83,6 +83,7 @@ public sealed partial class AuditSphereDbContext
     b.Entity<Opportunity>().ToTable("opportunities", t => t.HasCheckConstraint("ck_opportunity_state",
       "stage IN ('DISCOVERY','PROPOSAL','NEGOTIATION','WON','LOST') AND length(service_route) > 0 AND length(entity_scope) > 0 AND length(period_start) = 10 AND length(period_end) = 10 AND period_start <= period_end AND expected_fee >= 0 AND (probability IS NULL OR probability BETWEEN 0 AND 100) AND currency ~ '^[A-Z]{3}$'"));
     b.Entity<Proposal>().Property(x => x.CreateRequestHash).HasMaxLength(64);
+    b.Entity<Proposal>().Property(x => x.Timeline).HasMaxLength(4000).HasDefaultValue(string.Empty);
     b.Entity<Proposal>().ToTable("proposals", t =>
     {
       t.HasCheckConstraint("ck_proposal_state",

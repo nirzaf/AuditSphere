@@ -18,6 +18,7 @@ const proposal = {
   exclusions: '',
   deliverables: 'Report',
   dependencies: '',
+  timeline: 'Fieldwork in March; report by 30 April',
   fee: '9007199254740993.01',
   currency: 'QAR',
   periodStart: '2026-01-01',

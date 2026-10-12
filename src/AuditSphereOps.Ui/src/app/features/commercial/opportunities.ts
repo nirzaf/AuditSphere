@@ -47,6 +47,7 @@ interface ProposalCreateIntent {
   exclusions: string;
   deliverables: string;
   dependencies: string;
+  timeline: string;
   fee: string;
   currency: string;
   periodStart: string;
@@ -238,6 +239,16 @@ export function decodeOpportunities(value: unknown): LeadWorkspace {
             ></textarea>
           </label>
           <label
+            >Timeline (optional)<textarea
+              name="timeline"
+              [(ngModel)]="timeline"
+              (ngModelChange)="proposalReviewed = false"
+              [disabled]="busy() || proposalCreatePending()"
+              maxlength="4000"
+            ></textarea>
+            <small>Offered to the client on the quotation. Changing it later needs a new proposal revision.</small>
+          </label>
+          <label
             ><input
               type="checkbox"
               name="proposalReviewed"
@@ -306,6 +317,7 @@ export class Opportunities {
   deliverables = '';
   exclusions = '';
   dependencies = '';
+  timeline = '';
   constructor() {
     const route = this.route.paramMap.subscribe((p) => {
       this.reset();
@@ -348,7 +360,7 @@ export class Opportunities {
     this.savedProposalIntent = null;
     this.commandStatus.set('');
     this.reviewed = this.proposalReviewed = false;
-    this.profile = this.deliverables = this.exclusions = this.dependencies = '';
+    this.profile = this.deliverables = this.exclusions = this.dependencies = this.timeline = '';
     this.draft = {
       serviceRoute: '',
       entityScope: '',
@@ -620,6 +632,8 @@ export class Opportunities {
     const exclusions = text('exclusions', 10000);
     const deliverables = text('deliverables', 10000);
     const dependencies = text('dependencies', 10000);
+    // An intent stored before the timeline existed has no such key; it was created without one.
+    const timeline = v['timeline'] === undefined ? '' : text('timeline', 4000);
     const fee = text('fee', 100);
     const currency = text('currency', 3);
     const periodStart = text('periodStart', 10);
@@ -630,7 +644,7 @@ export class Opportunities {
       !requestId || !guidPattern.test(requestId) ||
       !expectedRevision || !/^\d{1,19}$/.test(expectedRevision) ||
       !serviceProfile || scope === null || exclusions === null || !deliverables ||
-      dependencies === null || !fee || !exactDecimal(fee) ||
+      dependencies === null || timeline === null || !fee || !exactDecimal(fee) ||
       !currency || currency.length !== 3 ||
       !periodStart || periodStart.length !== 10 ||
       !periodEnd || periodEnd.length !== 10 ||
@@ -638,7 +652,7 @@ export class Opportunities {
     ) return null;
     return {
       leadId, opportunityId, requestId, expectedRevision, serviceProfile, scope,
-      exclusions, deliverables, dependencies, fee, currency, periodStart, periodEnd,
+      exclusions, deliverables, dependencies, timeline, fee, currency, periodStart, periodEnd,
       submissionPending: true,
     };
   }
@@ -656,6 +670,7 @@ export class Opportunities {
       exclusions: this.exclusions,
       deliverables: this.deliverables,
       dependencies: this.dependencies,
+      timeline: this.timeline,
       fee: opportunity.expectedFee,
       currency: opportunity.currency,
       periodStart: opportunity.periodStart,
@@ -673,6 +688,7 @@ export class Opportunities {
       a.exclusions === b.exclusions &&
       a.deliverables === b.deliverables &&
       a.dependencies === b.dependencies &&
+      a.timeline === b.timeline &&
       a.fee === b.fee &&
       a.currency === b.currency &&
       a.periodStart === b.periodStart &&
@@ -714,7 +730,7 @@ export class Opportunities {
     ) {
       this.clearProposalIntent();
       this.selected.set(null);
-      this.profile = this.exclusions = this.deliverables = this.dependencies = '';
+      this.profile = this.exclusions = this.deliverables = this.dependencies = this.timeline = '';
       this.uncertain.set(false);
       this.commandStatus.set(
         'The opportunity changed while the proposal request was unresolved. No retry was sent; review the current proposal state.',
@@ -726,6 +742,7 @@ export class Opportunities {
     this.exclusions = intent.exclusions;
     this.deliverables = intent.deliverables;
     this.dependencies = intent.dependencies;
+    this.timeline = intent.timeline;
     this.proposalCreatePending.set(true);
     this.recoverableProposalCreate.set(true);
     this.uncertain.set(true);
@@ -756,6 +773,7 @@ export class Opportunities {
         exclusions: intent.exclusions,
         deliverables: intent.deliverables,
         dependencies: intent.dependencies,
+        timeline: intent.timeline,
         fee: intent.fee,
         currency: intent.currency,
         periodStart: intent.periodStart,

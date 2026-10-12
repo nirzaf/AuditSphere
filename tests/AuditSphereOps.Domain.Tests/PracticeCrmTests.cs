@@ -164,6 +164,30 @@ public sealed class PracticeCrmTests
   }
 
   [Fact]
+  public async Task ProposalTimeline_IsStoredTrimmedAndOptional()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    async Task<Proposal> Create(string leadName, string timeline)
+    {
+      var lead = await PracticeCrmService.CreateLeadAsync(db, fixture.Actor, new(leadName, "Referral"));
+      Assert.True((await PracticeCrmService.QualifyLeadAsync(db, fixture.Actor, lead.Value)).Succeeded);
+      var opportunity = await PracticeCrmService.CreateOpportunityAsync(db, fixture.Actor, Opportunity(lead.Value));
+      Assert.True(opportunity.Succeeded, opportunity.Message);
+      var created = await PracticeCrmService.ReviseProposalAsync(db, fixture.Actor,
+        Proposal(opportunity.Value, expectedRevision: 0) with { RequestId = Guid.NewGuid(), Timeline = timeline });
+      Assert.True(created.Succeeded, created.Message);
+      return await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == created.Value);
+    }
+
+    var offered = await Create("Timeline lead", "  Fieldwork in March; report by 30 April  ");
+    Assert.Equal("Fieldwork in March; report by 30 April", offered.Timeline);
+    var withoutTimeline = await Create("No timeline lead", "");
+    Assert.Equal(string.Empty, withoutTimeline.Timeline);
+  }
+
+  [Fact]
   public async Task ProposalCreation_ReconcilesExactRetry_AndRejectsChangedRequestIdentity()
   {
     await using var pg = await PgTestSchema.CreateAsync();
@@ -216,6 +240,16 @@ public sealed class PracticeCrmTests
         request with { Deliverables = "Changed deliverables" });
       Assert.False(changedIntent.Succeeded);
       Assert.Equal(ErrorCodes.IdempotencyConflict, changedIntent.ErrorCode);
+
+      // The timeline is an offered term: the same request identity with a timeline added is a different offer.
+      var addedTimeline = await PracticeCrmService.ReviseProposalAsync(retryDb, fixture.Actor,
+        request with { Timeline = "Fieldwork in March; report by 30 April" });
+      Assert.Equal(ErrorCodes.IdempotencyConflict, addedTimeline.ErrorCode);
+      Assert.Equal(string.Empty, (await retryDb.Proposals.AsNoTracking().SingleAsync(x => x.Id == requestId)).Timeline);
+      var tooLong = await PracticeCrmService.ReviseProposalAsync(retryDb, fixture.Actor,
+        request with { RequestId = Guid.NewGuid(), ExpectedRevision = 1, Timeline = new string('x', PracticeCrmService.MaxProposalTimelineLength + 1) });
+      Assert.False(tooLong.Succeeded);
+      Assert.Equal(1, await retryDb.Proposals.CountAsync(x => x.OpportunityId == opportunityId));
 
       var changedFeeMatchingMutableProposal = await PracticeCrmService.ReviseProposalAsync(retryDb, fixture.Actor,
         request with { Fee = 13000m });

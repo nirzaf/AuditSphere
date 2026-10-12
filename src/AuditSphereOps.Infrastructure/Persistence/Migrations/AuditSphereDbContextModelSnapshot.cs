@@ -23584,6 +23584,14 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("supersedes_id");
 
+                    b.Property<string>("Timeline")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasDefaultValue("")
+                        .HasColumnName("timeline");
+
                     b.HasKey("Id");
 
                     b.HasIndex("FirmId", "ApprovedByUserId");

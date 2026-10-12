@@ -42914,6 +42914,12 @@
               "string"
             ],
             "format": "uuid"
+          },
+          "timeline": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

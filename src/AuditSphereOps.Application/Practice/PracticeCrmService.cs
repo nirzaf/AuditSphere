@@ -48,7 +48,8 @@ public sealed record ReviseProposalRequest(
   string PeriodStart,
   string PeriodEnd,
   long? ExpectedRevision = null,
-  Guid? RequestId = null);
+  Guid? RequestId = null,
+  string Timeline = "");
 
 public sealed record ProposalResponseRequest(string Decision, string? Reason = null,
   string? OfferSha256 = null, string? RespondentName = null, string? RespondentEmail = null, string? EvidenceReference = null,
@@ -269,6 +270,7 @@ public static partial class PracticeCrmService
       Status = CrmStates.ProposalDraft, ServiceProfileId = request.ServiceProfileId.Trim(),
       Scope = request.Scope.Trim(), Exclusions = request.Exclusions.Trim(),
       Deliverables = request.Deliverables.Trim(), Dependencies = request.Dependencies.Trim(),
+      Timeline = (request.Timeline ?? string.Empty).Trim(),
       Fee = request.Fee, Currency = request.Currency.Trim().ToUpperInvariant(),
       PeriodStart = request.PeriodStart.Trim(), PeriodEnd = request.PeriodEnd.Trim(),
       SupersedesId = previous?.Id, PreparedByUserId = actor.UserId,
@@ -729,9 +731,12 @@ public static partial class PracticeCrmService
       ?? Required(request.PeriodStart, "Period start")
       ?? Required(request.PeriodEnd, "Period end")
       ?? CurrencyError(request.Currency)
-      ?? ExactMoneyError(request.Fee, "Proposal fee");
+      ?? ExactMoneyError(request.Fee, "Proposal fee")
+      ?? ((request.Timeline ?? string.Empty).Trim().Length > MaxProposalTimelineLength ? $"Timeline must be at most {MaxProposalTimelineLength} characters." : null);
     return error ?? PeriodError(request.PeriodStart, request.PeriodEnd);
   }
+
+  public const int MaxProposalTimelineLength = 4000;
 
   private sealed record ProposalCreateRequestFingerprint(
     Guid FirmId,
@@ -747,7 +752,10 @@ public static partial class PracticeCrmService
     string Fee,
     string Currency,
     string PeriodStart,
-    string PeriodEnd);
+    string PeriodEnd,
+    // Written only when a timeline is offered, so the identity of every proposal created without one is unchanged.
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    string? Timeline = null);
 
   private static string ComputeProposalCreateRequestHash(ActorContext actor, ReviseProposalRequest request)
   {
@@ -757,7 +765,8 @@ public static partial class PracticeCrmService
       request.Exclusions.Trim(), request.Deliverables.Trim(), request.Dependencies.Trim(),
       request.Fee.ToString("G29", CultureInfo.InvariantCulture),
       request.Currency.Trim().ToUpperInvariant(), request.PeriodStart.Trim(),
-      request.PeriodEnd.Trim()));
+      request.PeriodEnd.Trim(),
+      string.IsNullOrWhiteSpace(request.Timeline) ? null : request.Timeline.Trim()));
     return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical))).ToLowerInvariant();
   }
 

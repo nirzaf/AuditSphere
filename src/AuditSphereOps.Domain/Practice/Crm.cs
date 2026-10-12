@@ -68,6 +68,8 @@ public sealed class Proposal
   public string Exclusions { get; set; } = string.Empty;
   public string Deliverables { get; set; } = string.Empty;
   public string Dependencies { get; set; } = string.Empty;
+  /// <summary>The proposed delivery timeline, as offered to the client. Optional; part of the offer the client accepts.</summary>
+  public string Timeline { get; set; } = string.Empty;
   public decimal Fee { get; set; }
   public string Currency { get; set; } = string.Empty;
   public string PeriodStart { get; set; } = string.Empty;

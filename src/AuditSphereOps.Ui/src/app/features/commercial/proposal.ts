@@ -38,6 +38,7 @@ interface Proposal {
   exclusions: string;
   deliverables: string;
   dependencies: string;
+  timeline: string;
   fee: string;
   currency: string;
   periodStart: string;
@@ -73,6 +74,7 @@ interface ProposalRevisionIntent {
   exclusions: string;
   deliverables: string;
   dependencies: string;
+  timeline: string;
   fee: string;
   currency: string;
   periodStart: string;
@@ -98,6 +100,7 @@ export function decodeProposal(value: unknown): Proposal {
       'exclusions',
       'deliverables',
       'dependencies',
+      'timeline',
       'currency',
       'periodStart',
       'periodEnd',
@@ -273,6 +276,8 @@ export function isResponseChannel(value: string): boolean {
         <dd>{{ proposal.deliverables }}</dd>
         <dt>Dependencies</dt>
         <dd>{{ proposal.dependencies }}</dd>
+        <dt>Timeline</dt>
+        <dd>{{ proposal.timeline || 'Not offered' }}</dd>
         <dt>Response note</dt>
         <dd>{{ proposal.responseReason ?? 'Not recorded' }}</dd>
       </dl>
@@ -494,6 +499,16 @@ export function isResponseChannel(value: string): boolean {
             ></textarea>
           </label>
           <label
+            >Timeline (optional)<textarea
+              name="timeline"
+              [(ngModel)]="draft.timeline"
+              (ngModelChange)="reviewed = false"
+              [disabled]="busy() || revisionCreatePending()"
+              maxlength="4000"
+            ></textarea>
+            <small>Offered to the client on the quotation. A changed timeline is a new revision and needs a fresh acceptance.</small>
+          </label>
+          <label
             >Fee<input
               name="fee"
               [(ngModel)]="draft.fee"
@@ -621,6 +636,7 @@ export class ProposalDetail {
         exclusions: 10000,
         deliverables: 10000,
         dependencies: 10000,
+        timeline: 4000,
         fee: 40,
         currency: 3,
         periodStart: 10,
@@ -708,6 +724,7 @@ export class ProposalDetail {
     exclusions: '',
     deliverables: '',
     dependencies: '',
+    timeline: '',
     fee: '',
     currency: '',
     periodStart: '',
@@ -784,6 +801,8 @@ export class ProposalDetail {
     const exclusions = text('exclusions', 10000);
     const deliverables = text('deliverables', 10000);
     const dependencies = text('dependencies', 10000);
+    // An intent stored before the timeline existed has no such key; it was created without one.
+    const timeline = v['timeline'] === undefined ? '' : text('timeline', 4000);
     const fee = text('fee', 40);
     const currency = text('currency', 3);
     const periodStart = text('periodStart', 10);
@@ -794,7 +813,7 @@ export class ProposalDetail {
       !requestId || !guidPattern.test(requestId) ||
       !expectedRevision || !/^\d{1,19}$/.test(expectedRevision) ||
       !serviceProfile || !serviceProfile.trim() || scope === null ||
-      exclusions === null || !deliverables || !deliverables.trim() || dependencies === null ||
+      exclusions === null || !deliverables || !deliverables.trim() || dependencies === null || timeline === null ||
       !fee || !exactDecimal(fee) || !currency || !/^[A-Za-z]{3}$/.test(currency) ||
       !periodStart || !/^\d{4}-\d{2}-\d{2}$/.test(periodStart) ||
       !periodEnd || !/^\d{4}-\d{2}-\d{2}$/.test(periodEnd) ||
@@ -802,7 +821,7 @@ export class ProposalDetail {
     ) return null;
     return {
       proposalId, opportunityId, requestId, expectedRevision, serviceProfile, scope,
-      exclusions, deliverables, dependencies, fee, currency, periodStart, periodEnd,
+      exclusions, deliverables, dependencies, timeline, fee, currency, periodStart, periodEnd,
       submissionPending: true,
     };
   }
@@ -814,7 +833,7 @@ export class ProposalDetail {
       a.requestId === b.requestId && a.expectedRevision === b.expectedRevision &&
       a.serviceProfile === b.serviceProfile && a.scope === b.scope &&
       a.exclusions === b.exclusions && a.deliverables === b.deliverables &&
-      a.dependencies === b.dependencies && a.fee === b.fee && a.currency === b.currency &&
+      a.dependencies === b.dependencies && a.timeline === b.timeline && a.fee === b.fee && a.currency === b.currency &&
       a.periodStart === b.periodStart && a.periodEnd === b.periodEnd &&
       a.submissionPending === b.submissionPending;
   }
@@ -872,7 +891,7 @@ export class ProposalDetail {
     if (latest.revision === intent.expectedRevision) {
       this.draft = {
         serviceProfile: intent.serviceProfile, scope: intent.scope, exclusions: intent.exclusions,
-        deliverables: intent.deliverables, dependencies: intent.dependencies, fee: intent.fee,
+        deliverables: intent.deliverables, dependencies: intent.dependencies, timeline: intent.timeline, fee: intent.fee,
         currency: intent.currency, periodStart: intent.periodStart, periodEnd: intent.periodEnd,
       };
       this.reviewed = false;
@@ -905,6 +924,7 @@ export class ProposalDetail {
         exclusions: intent.exclusions,
         deliverables: intent.deliverables,
         dependencies: intent.dependencies,
+        timeline: intent.timeline,
         fee: intent.fee,
         currency: intent.currency,
         periodStart: intent.periodStart,
@@ -1035,6 +1055,7 @@ export class ProposalDetail {
               exclusions: p.exclusions,
               deliverables: p.deliverables,
               dependencies: p.dependencies,
+              timeline: p.timeline,
               fee: p.fee,
               currency: p.currency,
               periodStart: p.periodStart,

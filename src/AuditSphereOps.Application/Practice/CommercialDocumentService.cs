@@ -208,6 +208,8 @@ public static partial class CommercialDocumentService
       $"Period: {proposal.PeriodStart} to {proposal.PeriodEnd}", $"Service profile: {proposal.ServiceProfileId}"]);
     var scope = new DocumentSection("Scope of work", [proposal.Scope]);
     var deliverables = new DocumentSection("Deliverables", [proposal.Deliverables]);
+    // The timeline is an offered term: it is rendered into the artifact, so it is part of the identity the client accepts.
+    var timeline = string.IsNullOrWhiteSpace(proposal.Timeline) ? null : new DocumentSection("Timeline", [proposal.Timeline]);
     var exclusions = string.IsNullOrWhiteSpace(proposal.Exclusions) ? null : new DocumentSection("Exclusions", [proposal.Exclusions]);
     var dependencies = string.IsNullOrWhiteSpace(proposal.Dependencies) ? null : new DocumentSection("Client responsibilities and dependencies", [proposal.Dependencies]);
     var terms = quotation.NonStandardTerms ? new DocumentSection("Non-standard terms", [quotation.NonStandardTermsNote ?? string.Empty]) : null;
@@ -227,11 +229,11 @@ public static partial class CommercialDocumentService
         [$"Total fee ({quotation.Currency})", "", "", "", quotation.Fee.ToString("N2", CultureInfo.InvariantCulture)],
       ]).ToList(), [2, 3, 4]);
 
-    var quoteSections = new List<DocumentSection?> { engagement, scope, deliverables, exclusions, dependencies,
+    var quoteSections = new List<DocumentSection?> { engagement, scope, deliverables, timeline, exclusions, dependencies,
       new("Fee", [], feeTable), terms, payment };
     var letterSections = new List<DocumentSection?> {
       new(letterTemplate?.Heading ?? "Engagement letter", [$"We are pleased to confirm the terms on which {profile.LegalName} will act for {clientName}."]),
-      engagement, scope, deliverables, exclusions, dependencies,
+      engagement, scope, deliverables, timeline, exclusions, dependencies,
       new("Firm contact", [profile.Address, profile.ContactEmail, profile.ContactPhone]),
       new("Reviewed engagement terms", [profile.ClosingText]),
       new("Fee", [$"Total agreed fee: {Money(quotation.Fee, quotation.Currency)}."], null), terms, payment };
