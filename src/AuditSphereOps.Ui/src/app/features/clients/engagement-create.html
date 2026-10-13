@@ -184,6 +184,8 @@
         @if (r.fields.annualSourceEngagementId) {
           <p>Next: an authorized Manager or Partner must select and review a published task template against the new engagement’s staffing and schedule. Prior-year task completion and deadlines are not copied.</p>
           <a [routerLink]="['/app/engagements', r.engagementId]" fragment="engagement-task-plan">Review current-year task plan</a>
+          <p>An authorized Manager or Partner must also review the current-year checklist. A previous-period acceptance cannot clear this engagement.</p>
+          <a [routerLink]="['/app/clients', r.clientId, 'assessment']" [queryParams]="{ engagementId: r.engagementId }">Review current-year continuance</a>
         }
       }
     </section>

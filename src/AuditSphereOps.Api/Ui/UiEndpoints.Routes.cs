@@ -6,7 +6,7 @@ public static partial class UiEndpoints
 {
   private static void MapRouteResolutionEndpoints(RouteGroupBuilder group)
   {
-    group.MapGet("/clients/{id:guid}/assessment", (Guid id, Guid? decisionId, HttpContext http) => ReadAsync(http, (db, actor, ct) => AssessmentWorkspaceQuery.GetAsync(db, actor, id, decisionId, ct)));
+    group.MapGet("/clients/{id:guid}/assessment", (Guid id, Guid? decisionId, Guid? engagementId, HttpContext http) => ReadAsync(http, (db, actor, ct) => AssessmentWorkspaceQuery.GetAsync(db, actor, id, decisionId, ct, engagementId)));
     group.MapGet("/assessments/{id:guid}", (Guid id, HttpContext http) => ReadAsync(http, (db, actor, ct) => AssessmentRouteQuery.ResolveAsync(db, actor, id, ct)));
     group.MapGet("/assessments/{id:guid}/decision", (Guid id, HttpContext http) => ReadAsync(http, (db, actor, ct) => AssessmentRouteQuery.ResolveDecisionAsync(db, actor, id, ct)));
   }

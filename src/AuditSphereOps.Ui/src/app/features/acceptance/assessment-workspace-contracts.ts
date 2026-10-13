@@ -1,6 +1,8 @@
 import {
   arr,
   bool,
+  date,
+  oneOf,
   decode,
   guid as decodeGuid,
   instant,
@@ -144,6 +146,8 @@ export function decodeChecklist(value: unknown): Checklist {
   return v as unknown as Checklist;
 }
 const decodeAssessmentMetadata = obj({
+  targetEngagement: nullable(obj({ id: decodeGuid, serviceRoute: str(50), periodStart: date, periodEnd: date,
+    state: oneOf('DECISION_RECORDED', 'FRESH_EVALUATION_REQUIRED', 'EVALUATION_OPEN', 'EVALUATION_CLOSED') })),
   client: obj({
     id: decodeGuid,
     legalName: str(300),
@@ -190,6 +194,11 @@ const decodeAssessmentMetadata = obj({
 export function decodeAssessment(value: unknown) {
   const metadata = decode(decodeAssessmentMetadata, value);
   const checklist = decodeChecklist((value as Record<string, unknown>)['checklist']);
+  if (metadata.targetEngagement && (metadata.targetEngagement.id === '00000000-0000-0000-0000-000000000000' ||
+    metadata.targetEngagement.periodStart > metadata.targetEngagement.periodEnd ||
+    (metadata.targetEngagement.state === 'EVALUATION_OPEN' && checklist.currentDecision !== null) ||
+    (metadata.targetEngagement.state === 'DECISION_RECORDED' && metadata.selectedDecision?.engagementId !== metadata.targetEngagement.id)))
+    throw new Error('Invalid target engagement');
   if (
     metadata.selectedDecision &&
     (!exactCounter(metadata.selectedDecision.generation, 1n) ||

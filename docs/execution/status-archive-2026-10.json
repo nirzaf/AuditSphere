@@ -15440,6 +15440,31 @@
           "Period-wide time/task/profile aggregates still load period inputs; no capacity benchmark or global analytics scalability claim.",
           "NuGet vulnerability metadata could not be fetched during builds."
         ]
+      },
+      "workflowScopedAssessmentAuthoring": {
+        "recordedAtUtc": "2026-10-12T19:38:00Z",
+        "baseCommit": "7b305efb",
+        "sourceTree": "Working tree committed with this evidence; not a full clean-commit release run.",
+        "scope": "Native reviewed decision supports optional exact engagement target. Server validates client/service ownership, previews period, binds request hash and receipt target, preserves null-target legacy serialization, and requires explicit receipt acknowledgement before opening the read-only decision.",
+        "migration": "20261012192532_EngagementScopedAssessmentReceipts: function-only receipt publication guard; no model change. Applied, downgraded and reapplied only in an isolated test database with receipt preserved.",
+        "checks": {
+          "domain": "PASS 32/32: AcceptanceChecklistTests and RecurringEngagementRiskTests; /private/tmp/auditsphere-scoped-assessment-final/_Mac_2026-10-12_22_30_56_net10.0.trx",
+          "angular": "PASS 21/21: assessment-command.spec.ts and assessment-workspace.spec.ts",
+          "browser": "PASS 3/3: AngularScopedAssessmentDecisionJourneyTests and AngularAssessmentParityJourneyTests; /private/tmp/auditsphere-scoped-assessment-browser-final/_Mac_2026-10-12_22_37_53_net10.0.trx",
+          "builtInBrowser": "PASS authenticated synthetic review: exact engagement, service and period shown; confirmation disabled without assent; no error/warn logs. Automated journey verifies receipt and read-only navigation.",
+          "builds": "PASS bounded Application, Infrastructure, API, Domain, E2E and emitter Release builds; Angular production build",
+          "modelContract": "PASS no pending model changes; regenerated OpenAPI drift passed"
+        },
+        "foundAndFixed": [
+          "Receipt guard initially required client-level result; migration now checks exact reviewed scope.",
+          "Navigation initially blocked by unacknowledged receipt; explicit acknowledgement-and-open action preserves recovery guard.",
+          "An older test fixture had a mismatched engagement/service; fixture corrected to valid exact scope."
+        ],
+        "limits": [
+          "Annual preparation helper and fresh year-specific checklist orchestration remain incomplete.",
+          "No full release suite, production migration/deployment or live/professional acceptance in this slice.",
+          "Existing NU1900 vulnerability-feed and stylesheet budget warnings remain."
+        ]
       }
     }
   }

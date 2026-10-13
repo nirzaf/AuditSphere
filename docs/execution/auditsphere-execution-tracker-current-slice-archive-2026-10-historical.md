@@ -6856,3 +6856,7 @@ Operators should expect realization and contribution to appear where non-billabl
 ## Annual task-plan references — 2026-10-13
 
 Annual preparation now lists up to three currently published revisions from prior task-plan template identities, plus up to three prior schedule bases. They are reference-only: fresh plan review remains required and no tasks or deadlines are copied. Build and focused query evidence are recorded under `targetedVerification.workflowAnnualTaskPlanReferences` in [status.json](status.json). Template selection/pinning orchestration remains open.
+
+## Annual preparation and scoped decisions — 2026-10-13
+
+Annual shell preparation now proposes a contiguous next period from an exact client-owned source, separates copied references from fresh work, and uses existing reviewed creation and receipt recovery. Source identity is retained; prior approvals and audit evidence are not copied. Native Partner decisions target exact engagements and retain their scoped receipts. Evidence is under `workflowAnnualPreparationCore`, `workflowScopedAssessmentAuthoring` and `workflowRecurringRiskScope` in [status.json](status.json). WF-11 remains partial: approved template selection, reference suggestions, fresh-checklist orchestration still need work.

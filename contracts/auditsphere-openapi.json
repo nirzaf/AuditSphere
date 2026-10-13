@@ -30551,6 +30551,14 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          {
+            "name": "engagementId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         ],
         "responses": {

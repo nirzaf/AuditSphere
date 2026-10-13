@@ -197,7 +197,7 @@ describe('Assessment Signal Forms and retained request recovery', () => {
     TestBed.tick();
     return fixture;
   }
-  function read(value = workspace) {
+  function read(value: Record<string, unknown> = workspace) {
     const rs = TestBed.inject(HttpTestingController)
       .match((r) => r.method === 'GET' && !r.url.includes('/receipts/'))
       .filter((r) => !r.cancelled);
@@ -218,6 +218,25 @@ describe('Assessment Signal Forms and retained request recovery', () => {
     return f.debugElement.queryAll(By.directive(AssessmentCommandEditor))[0]
       .componentInstance as AssessmentCommandEditor;
   }
+  it('binds a target-scoped decision, refuses a changed target and clears it on navigation', async () => {
+    queries.next(convertToParamMap({ engagementId: other }));
+    const f = open();
+    read({ ...workspace, targetEngagement: { id: other, serviceRoute: 'AccountingOnly',
+      periodStart: '2027-01-01', periodEnd: '2027-12-31', state: 'EVALUATION_OPEN' } });
+    f.detectChanges(); TestBed.tick();
+    const decision = f.debugElement.queryAll(By.directive(AssessmentCommandEditor))
+      .map(e => e.componentInstance as AssessmentCommandEditor).find(e => e.seed().kind === 'DECISION')!;
+    expect(decision.model().engagementId).toBe(other);
+    expect(decision.model().serviceRoute).toBe('AccountingOnly');
+    expect(decision.fixedDecisionScope()).toBe(true);
+    expect(f.nativeElement.textContent).toContain('2027-01-01 to 2027-12-31');
+    await f.componentInstance.prepare({ ...assessmentFields('DECISION', workspace.checklist.generation),
+      serviceRoute: 'AccountingOnly', engagementId: id, decision: 'Accepted', rationale: 'Changed target' });
+    TestBed.inject(HttpTestingController).expectNone(url + '/preview');
+    queries.next(convertToParamMap({ engagementId: 'invalid' })); TestBed.tick();
+    expect(f.componentInstance.assessment()).toBeNull();
+    expect(f.componentInstance.error()).toContain('target is invalid');
+  });
   it('validates evidence, bounds and conditional decisions before any review', () => {
     const f = open();
     read();

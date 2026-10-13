@@ -16,6 +16,7 @@ import {
   form,
   maxLength,
   required,
+  readonly,
   validate,
 } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
@@ -72,6 +73,7 @@ export class AssessmentCommandEditor {
   readonly label = input.required<string>();
   readonly editorKey = input.required<string>();
   readonly locked = input(false);
+  readonly fixedDecisionScope = input(false);
   readonly booleanAnswer = input(false);
   readonly requiresEvidence = input(false);
   readonly requested = output<AssessmentCommandFields>();
@@ -101,6 +103,8 @@ export class AssessmentCommandEditor {
     this.model,
     (p) => {
       disabled(p, () => this.locked());
+      readonly(p.serviceRoute, () => this.fixedDecisionScope());
+      readonly(p.engagementId, () => this.fixedDecisionScope());
       for (const [key, max] of Object.entries({
         answer: 2000,
         evidence: 500,
@@ -212,6 +216,7 @@ export class AssessmentCommandEditor {
           area: s.area ?? '',
           specialist: s.specialist ?? '',
           conditions: s.conditions ?? '',
+          serviceRoute: s.serviceRoute ?? empty().serviceRoute,
           engagementId: s.engagementId ?? '',
         };
         this.model.set(model);

@@ -9,6 +9,27 @@
 }
 <p role="status">{{ commandStatus() }}</p>
 @if (data(); as checklist) {
+  @if (assessment()?.targetEngagement; as target) {
+    <section aria-label="Current-period assessment target">
+      <h2>Current-period professional review</h2>
+      <p>{{ target.serviceRoute }} · {{ target.periodStart }} to {{ target.periodEnd }} · {{ target.id }}</p>
+      @switch (target.state) {
+        @case ('FRESH_EVALUATION_REQUIRED') {
+          <p>A prior professional decision closes this client evaluation. An authorized Manager or Partner must review opening the next evaluation below. Its current-period delta answers start empty; previous answers remain reference evidence.</p>
+        }
+        @case ('EVALUATION_OPEN') {
+          <p>Complete the current evaluation and required specialist reviews. The Partner decision is bound to this exact engagement and service. No previous-period approval or signature is copied.</p>
+        }
+        @case ('DECISION_RECORDED') {
+          <p>A professional decision is recorded for this engagement in the current evaluation. Activation and every other professional gate remain separate.</p>
+        }
+        @default {
+          <p>This evaluation is closed. Review the recorded outcome with the Engagement Partner before preparing further work.</p>
+        }
+      }
+      <p>Opening a continuance review advances the client evaluation generation. It does not create consent, accept the engagement or change historical decisions.</p>
+    </section>
+  }
   @if (uncertain()) {
     <section aria-label="Assessment request recovery">
       <h2>Assessment request requires verification</h2>
@@ -284,6 +305,7 @@
       </p>
       <audit-assessment-command-editor
         [seed]="seed('decision')"
+        [fixedDecisionScope]="!!assessment()?.targetEngagement"
         editorKey="decision"
         label="Review Partner decision"
         [locked]="locked()"

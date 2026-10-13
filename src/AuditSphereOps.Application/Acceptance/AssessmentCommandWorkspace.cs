@@ -95,8 +95,9 @@ public static class AssessmentCommandWorkspace
     if (Exact(generation) != f.Generation) return CommandResult<AssessmentCommandPreview>.Fail(ErrorCodes.GenerationStale, "Reload the current evaluation before review.");
     var client = await db.PracticeClients.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == a.FirmId && x.Id == id, ct);
     if (client is null) return Unavailable<AssessmentCommandPreview>();
-    var engagement = f.EngagementId is { } engagementId ? await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x =>
-      x.FirmId == a.FirmId && x.PracticeClientId == id && x.Id == engagementId && x.ServiceRoute == f.ServiceRoute, ct) : null;
+    var engagement = f.EngagementId is { } engagementId ? await db.Engagements.FromSqlInterpolated(
+      $"SELECT * FROM engagements WHERE firm_id={a.FirmId} AND practice_client_id={id} AND id={engagementId} AND service_route={f.ServiceRoute} FOR SHARE")
+      .AsNoTracking().SingleOrDefaultAsync(ct) : null;
     if (f.EngagementId.HasValue && engagement is null) return Unavailable<AssessmentCommandPreview>();
     var checklist = await AcceptanceChecklistService.LoadAsync(db, a.FirmId, id, f.EngagementId, generation, ct);
     if (f.Kind != "CONTINUANCE" && checklist.CurrentDecision is not null)
@@ -128,6 +129,7 @@ public static class AssessmentCommandWorkspace
     // Include every effective answer, question definition and clearance: same status with changed evidence is still a new basis.
     var basis = Hashing.Sha256Hex(JsonSerializer.Serialize(new { a.FirmId, a.UserId, a.SessionEpoch, id, Fields=f,
       client.LegalName, client.Status, checklist.Generation, checklist.Path, checklist.CurrentDecision, checklist.PriorDecision,
+      TargetEngagement = engagement is null ? null : new { engagement.Id, engagement.ServiceRoute, engagement.PeriodStart, engagement.PeriodEnd, engagement.Generation },
       Items=checklist.Items.OrderBy(x => x.Question.Code, StringComparer.Ordinal),
       Clearances=checklist.Clearances.OrderBy(x => x.Id), TargetReview=review, checklist.Blockers }));
     var before = new AssessmentCommandBefore(Exact(generation), checklist.Path, checklist.CurrentDecision?.Decision, checklist.Ready,

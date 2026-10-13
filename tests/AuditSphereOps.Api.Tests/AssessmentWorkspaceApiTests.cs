@@ -71,10 +71,13 @@ public sealed class AssessmentWorkspaceApiTests
     await using var pg = await OwnedPostgresDatabase.CreateAsync("API-ASSESSMENT-PARITY");
     var f = await PbcSeed.SeedAsync(pg);
     var foreign = await PbcSeed.SeedAsync(pg);
-    Guid decisionId;
+    Guid decisionId; Guid engagementId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       decisionId = await AssessmentParitySeed.PopulateAsync(db, f);
+      var engagement = await EngagementLifecycleService.CreateDraftAsync(db, PbcSeed.Actor(f.Admin, "Partner"),
+        new(f.ClientId, "AccountingOnly", "2027-01-01", "2027-12-31", "Synthetic annual review"));
+      Assert.True(engagement.Succeeded, engagement.Message); engagementId = engagement.Value;
     }
     using var factory = new StandaloneApiApplicationFactory(new Dictionary<string, string?> {
       ["ConnectionStrings:AuditSphere"] = pg.ConnectionString,
@@ -96,6 +99,19 @@ public sealed class AssessmentWorkspaceApiTests
     var route = (await client.GetFromJsonAsync<AssessmentRoute>("/api/ui/assessments/" + decisionId))!;
     Assert.Equal(decisionId, route.DecisionId);
     Assert.Equal(f.ClientId, route.ClientId);
+    var targetUrl = $"/api/ui/clients/{f.ClientId}/assessment?engagementId={engagementId}";
+    using var targetResponse = await client.GetAsync(targetUrl);
+    Assert.Equal(HttpStatusCode.OK, targetResponse.StatusCode);
+    Assert.True(targetResponse.Headers.CacheControl!.NoStore);
+    var target = (await targetResponse.Content.ReadFromJsonAsync<AssessmentWorkspace>())!.TargetEngagement!;
+    Assert.Equal((engagementId, "AccountingOnly", "2027-01-01", "2027-12-31"),
+      (target.Id, target.ServiceRoute, target.PeriodStart, target.PeriodEnd));
+    using var wrongTarget = await client.GetAsync($"/api/ui/clients/{f.ClientId}/assessment?engagementId={foreign.EngagementId}");
+    using var missingTarget = await client.GetAsync($"/api/ui/clients/{f.ClientId}/assessment?engagementId={Guid.NewGuid()}");
+    Assert.Equal(HttpStatusCode.Forbidden, wrongTarget.StatusCode);
+    Assert.Equal(wrongTarget.StatusCode, missingTarget.StatusCode);
+    Assert.Equal(await wrongTarget.Content.ReadAsStringAsync(), await missingTarget.Content.ReadAsStringAsync());
+    Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync(targetUrl + "&decisionId=" + decisionId)).StatusCode);
     using var denied = await client.GetAsync("/api/ui/clients/" + foreign.ClientId + "/assessment");
     using var missing = await client.GetAsync("/api/ui/clients/" + Guid.NewGuid() + "/assessment");
     Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
@@ -104,5 +120,6 @@ public sealed class AssessmentWorkspaceApiTests
     await using (var db = new AuditSphereDbContext(pg.Options))
       await db.Users.Where(u => u.Id == f.Admin.Id).ExecuteUpdateAsync(s => s.SetProperty(u => u.SessionEpoch, u => u.SessionEpoch + 1));
     Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync(url)).StatusCode);
+    Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync(targetUrl)).StatusCode);
   }
 }

@@ -22,6 +22,13 @@ public sealed partial class AcceptanceChecklistTests
     var request = await ReviewAsync(db, w.Partner, w.ClientId, fields);
     var preview = await AssessmentCommandWorkspace.PreviewAsync(db, w.Partner, w.ClientId, request);
     Assert.Contains("2027-01-01 to 2027-12-31", preview.Value!.Effect);
+    await db.Engagements.Where(x => x.Id == created.Value).ExecuteUpdateAsync(x => x.SetProperty(e => e.PeriodEnd, "2027-12-30"));
+    var stalePeriod = await AssessmentCommandWorkspace.ExecuteAsync(db, w.Partner, w.ClientId, request);
+    Assert.False(stalePeriod.Succeeded);
+    Assert.Equal(AuditSphereOps.Domain.Shared.ErrorCodes.StaleRevision, stalePeriod.ErrorCode);
+    Assert.Empty(await db.AcceptanceDecisions.ToListAsync());
+    await db.Engagements.Where(x => x.Id == created.Value).ExecuteUpdateAsync(x => x.SetProperty(e => e.PeriodEnd, "2027-12-31"));
+    request = await ReviewAsync(db, w.Partner, w.ClientId, fields);
     Assert.False((await AssessmentCommandWorkspace.ExecuteAsync(db, w.Partner, w.ClientId,
       request with { Fields = fields with { EngagementId = Guid.NewGuid() } })).Succeeded);
     var result = await AssessmentCommandWorkspace.ExecuteAsync(db, w.Partner, w.ClientId, request);

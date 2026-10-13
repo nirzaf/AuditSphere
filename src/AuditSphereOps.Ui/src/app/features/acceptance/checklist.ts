@@ -52,6 +52,7 @@ export class AcceptanceChecklist implements NavigationProtected {
   private readonly dialog = inject(MatDialog);
   private id = '';
   private decisionId: string | null = null;
+  private engagementId: string | null = null;
   private visit = 0;
   private editRevision = 0;
   private destroyed = false;
@@ -86,6 +87,7 @@ export class AcceptanceChecklist implements NavigationProtected {
         this.reset();
         this.id = p.get('id') ?? '';
         this.decisionId = q.get('decisionId');
+        this.engagementId = q.get('engagementId')?.toLowerCase() ?? null;
         this.load();
       },
     );
@@ -115,6 +117,7 @@ export class AcceptanceChecklist implements NavigationProtected {
           this.session.invalidation(),
           this.id,
           this.decisionId,
+          this.engagementId,
           this.visit,
         ])
       : '';
@@ -202,7 +205,8 @@ export class AcceptanceChecklist implements NavigationProtected {
           c.clearances.some((r) => r.id === f.reviewId && r.status === f.expectedStatus)
         );
       case 'DECISION':
-        return c.canDecide;
+        return c.canDecide && (!this.engagementId ||
+          (f.engagementId === this.engagementId && f.serviceRoute === this.assessment()?.targetEngagement?.serviceRoute));
       case 'CONTINUANCE':
         return c.canStartContinuance;
     }
@@ -432,12 +436,13 @@ export class AcceptanceChecklist implements NavigationProtected {
       e.returnValue = '';
     }
   }
-  private buildSeeds(c: Checklist) {
+  private buildSeeds(c: Checklist, target: Assessment['targetEngagement']) {
     const seeds: Record<string, AssessmentCommandFields> = {
       request: assessmentFields('REQUEST_REVIEW', c.generation),
       decision: assessmentFields('DECISION', c.generation),
       continuance: assessmentFields('CONTINUANCE', c.generation),
     };
+    if (target) seeds['decision'] = { ...seeds['decision'], engagementId: target.id, serviceRoute: target.serviceRoute };
     for (const q of c.questions)
       seeds['answer-' + q.code] = {
         ...assessmentFields('ANSWER', c.generation),
@@ -465,16 +470,23 @@ export class AcceptanceChecklist implements NavigationProtected {
     if (
       !guid.test(this.id) ||
       (this.decisionId !== null && !guid.test(this.decisionId)) ||
+      (this.engagementId !== null && (!guid.test(this.engagementId) || this.engagementId === '00000000-0000-0000-0000-000000000000')) ||
       !this.session.current()?.staff
-    )
+    ) {
+      if (this.session.current()?.staff) this.error.set('Assessment target is invalid. Return to the authorized client or engagement.');
       return;
+    }
     this.loading.set(true);
     const owner = this.owner(),
       id = this.id,
-      decisionId = this.decisionId;
+      decisionId = this.decisionId,
+      engagementId = this.engagementId;
+    const parameters = new URLSearchParams();
+    if (decisionId) parameters.set('decisionId', decisionId);
+    if (engagementId) parameters.set('engagementId', engagementId);
     this.request = this.http
       .get<unknown>(
-        this.base() + (decisionId ? '?decisionId=' + encodeURIComponent(decisionId) : ''),
+        this.base() + (parameters.size ? '?' + parameters.toString() : ''),
       )
       .pipe(timeout(15000))
       .subscribe({
@@ -483,9 +495,10 @@ export class AcceptanceChecklist implements NavigationProtected {
           try {
             const workspace = decodeAssessment(raw),
               c = workspace.checklist;
-            if (c.clientId !== id || (decisionId && workspace.selectedDecision?.id !== decisionId))
+            if (c.clientId !== id || (decisionId && workspace.selectedDecision?.id !== decisionId) ||
+              (workspace.targetEngagement?.id ?? null) !== engagementId)
               throw new Error('Wrong assessment');
-            this.buildSeeds(c);
+            this.buildSeeds(c, workspace.targetEngagement);
             this.assessment.set(workspace);
             this.data.set(c);
             const recovered = this.drafts.readPendingRequest(this.scope());

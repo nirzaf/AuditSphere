@@ -69,6 +69,8 @@ public sealed class AngularAnnualEngagementJourneyTests
       var created = await db.Engagements.AsNoTracking().SingleAsync(x => x.Id == receipt.EngagementId);
       Assert.Equal(("Draft", true, "2027-01-01", "2027-12-31"),
         (created.Status, created.ProfessionalWorkBlocked, created.PeriodStart, created.PeriodEnd));
+      await Assertions.Expect(page.GetByRole(AriaRole.Link, new() { Name = "Review current-year continuance", Exact = true }))
+        .ToHaveAttributeAsync("href", $"/app/clients/{f.ClientId}/assessment?engagementId={created.Id}");
       Assert.False(await db.AcceptanceDecisions.AnyAsync(x => x.EngagementId == created.Id));
       Assert.Empty(await db.EngagementActivations.ToListAsync());
       Assert.Equal("2026-12-31", (await db.Engagements.AsNoTracking().SingleAsync(x => x.Id == sourceId)).PeriodEnd);
