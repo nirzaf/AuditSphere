@@ -212,6 +212,14 @@ export class EngagementCreate implements NavigationProtected {
     this.preview.set(null); this.reviewed.set(false); this.request = null;
     this.model.set(suggestion.fields);
   }
+  chooseAnnualTemplate(revisionId: string) {
+    const suggestion = this.annual.data();
+    if (!suggestion || this.locked() || this.pending() || this.model().annualSourceEngagementId !== suggestion.sourceEngagementId ||
+      (revisionId && !suggestion.taskTemplateSuggestions.some(template => template.revisionId === revisionId))) return;
+    const { annualTemplateRevisionId: _prior, ...fields } = this.model();
+    this.model.set({ ...fields, ...(revisionId ? { annualTemplateRevisionId: revisionId } : {}) });
+    this.preview.set(null); this.reviewed.set(false); this.request = null;
+  }
   async prepare() {
     const s = this.state.data(),
       g = this.generation,
@@ -247,6 +255,7 @@ export class EngagementCreate implements NavigationProtected {
             periodStart: r.fields.periodStart.trim(),
             periodEnd: r.fields.periodEnd.trim(),
             ...(r.fields.annualSourceEngagementId ? { annualSourceEngagementId: r.fields.annualSourceEngagementId } : {}),
+            ...(r.fields.annualTemplateRevisionId ? { annualTemplateRevisionId: r.fields.annualTemplateRevisionId } : {}),
           }) ||
         (pending && p.requestHash !== pending.requestHash)
       )
@@ -461,5 +470,6 @@ export class EngagementCreate implements NavigationProtected {
     this.preview.set(null);
     this.reviewed.set(false);
     this.state.reload();
+    if (this.annualSourceId()) this.annual.reload();
   }
 }

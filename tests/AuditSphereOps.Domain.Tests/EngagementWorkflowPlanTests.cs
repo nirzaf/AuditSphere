@@ -184,6 +184,8 @@ public sealed class EngagementWorkflowPlanTests
       Assert.DoesNotContain(annual.Value.CopiedReferences, x => x.Contains(revisionId.ToString()));
       Assert.Contains(annual.Value.CopiedReferences, x => x.StartsWith("Prior task-plan schedule basis:"));
       Assert.Contains("Reviewed task template and current-period schedule", annual.Value.RequiresFreshWork);
+      Assert.Equal(nextDraft.Value, Assert.Single(annual.Value.TaskTemplateSuggestions).RevisionId);
+      Assert.Equal(nextDraft.Value, annual.Value.Fields.AnnualTemplateRevisionId);
       await db.RoleGrants.Where(x => x.UserId == staff.Id).ExecuteUpdateAsync(x => x.SetProperty(g => g.RevokedAt, DateTimeOffset.UtcNow));
       var scopedGrant = Grant(firmId, staff, "Manager");
       scopedGrant.ClientId = clientId; scopedGrant.EngagementId = engagementId;
@@ -199,6 +201,20 @@ public sealed class EngagementWorkflowPlanTests
       await db.RoleGrants.Where(x => x.Id == scopedGrant.Id).ExecuteUpdateAsync(x => x.SetProperty(g => g.RevokedAt, DateTimeOffset.UtcNow));
       Assert.False((await EngagementWorkflowPlanService.TemplatesAsync(db, scopedActor, engagementId)).Succeeded);
       Assert.Equal(2, await db.WorkflowTaskBindings.CountAsync(x => x.EngagementId == engagementId));
+      var creation = (await EngagementCreationWorkspace.StateAsync(db, partnerActor, clientId)).Value!;
+      var annualRequest = new EngagementCreationRequest(Guid.NewGuid(), creation.ReviewBasis, annual.Value.Fields);
+      Assert.False((await AnnualEngagementPreparationWorkspace.PreviewAsync(db, partnerActor, clientId,
+        annualRequest with { Fields = annualRequest.Fields with { AnnualTemplateRevisionId = revisionId } })).Succeeded);
+      var annualPreview = await AnnualEngagementPreparationWorkspace.PreviewAsync(db, partnerActor, clientId, annualRequest);
+      Assert.True(annualPreview.Succeeded, annualPreview.Message);
+      annualRequest = annualRequest with { Reviewed = true, ExpectedRequestHash = annualPreview.Value!.RequestHash };
+      var archived = await WorkflowTemplateService.ArchiveAsync(db, adminActor, templateId, "Synthetic archive after annual preview.");
+      Assert.True(archived.Succeeded, archived.Message);
+      var staleAnnual = await AnnualEngagementPreparationWorkspace.ExecuteAsync(db, partnerActor, clientId, annualRequest);
+      Assert.False(staleAnnual.Succeeded);
+      Assert.Equal(ErrorCodes.GenerationStale, staleAnnual.ErrorCode);
+      Assert.Empty(await db.EngagementCreations.ToListAsync());
+      Assert.Equal(1, (await db.WorkflowTaskPlanReceipts.SingleAsync(x => x.EngagementId == engagementId)).TemplateVersion);
     }
 
     await using (var db = new AuditSphereDbContext(pg.Options))

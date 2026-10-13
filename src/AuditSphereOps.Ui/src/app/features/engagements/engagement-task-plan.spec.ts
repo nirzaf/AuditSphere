@@ -46,16 +46,28 @@ describe('Engagement task plan preview and receipt recovery', () => {
     sessionStorage.clear();
   });
 
-  function open() {
+  function open(suggestedRevisionId: string | null = null) {
     const fixture = TestBed.createComponent(EngagementTaskPlan);
     fixture.componentRef.setInput('engagementId', engagementId);
     fixture.componentRef.setInput('serviceRoute', 'FinancialStatementAudit');
+    fixture.componentRef.setInput('suggestedRevisionId', suggestedRevisionId);
     fixture.detectChanges();
     TestBed.tick();
     TestBed.inject(HttpTestingController).expectOne(`/api/ui/engagements/${engagementId}/task-plan/templates`).flush(catalog);
     TestBed.tick();
     return fixture;
   }
+
+  it('preselects only a current published annual reference without preview or assent', () => {
+    const fixture = open(revisionId), component = fixture.componentInstance;
+    expect(component.selectedRevisionId()).toBe(revisionId);
+    expect(component.plan()).toBeNull(); expect(component.reviewed()).toBe(false);
+    expect(component.canExecute()).toBe(false);
+    TestBed.inject(HttpTestingController).expectNone(r => r.method === 'POST');
+    fixture.componentRef.setInput('suggestedRevisionId', templateId); TestBed.tick();
+    expect(component.selectedRevisionId()).toBe(''); expect(component.referenceUnavailable()).toBe(true);
+    expect(component.canPreview()).toBe(false);
+  });
 
   it('persists one idempotency key before execute and recovers the matching receipt after an unknown response', async () => {
     const fixture = open();

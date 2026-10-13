@@ -15465,6 +15465,41 @@
           "No full release suite, production migration/deployment or live/professional acceptance in this slice.",
           "Existing NU1900 vulnerability-feed and stylesheet budget warnings remain."
         ]
+      },
+      "workflowAnnualPreparationCore": {
+        "recordedAtUtc": "2026-10-13T09:16:00Z",
+        "baseCommit": "5dd39ba5",
+        "scope": "WF-11 annual shell preparation: exact client-owned source, contiguous calendar period suggestion, explicit selection/review, retained source in immutable existing creation receipt, serialized validation and idempotent replay. No approvals, audit evidence or task plan copied.",
+        "checks": {
+          "domain": "PASS 21/21: AnnualEngagementPreparationTests, EngagementCreationSafetyTests, EngagementCreationReviewTests, EngagementPeriodOverlapTests; /private/tmp/auditsphere-annual-verified/_Mac_2026-10-13_12_13_02_net10.0.trx",
+          "angular": "PASS 12/12: engagement-create.spec.ts",
+          "browser": "PASS 1/1: AngularAnnualEngagementJourneyTests; repeated owned handoff also passed",
+          "builtInBrowser": "PASS: copied references vs fresh work, 2027 annual suggestion, source identity retained in review, no confirmation without assent, no error/warn logs",
+          "builds": "PASS bounded Application/API/Domain/E2E/emitter Release builds and Angular production build",
+          "modelContract": "PASS no pending model changes; regenerated OpenAPI and drift check"
+        },
+        "environment": "Initial database cohort could not connect; pg_ctl confirmed server stopped. Existing local cluster was started without reset or development migration. One synthetic prior-decision fixture omitted required digest metadata; corrected before final 21-test pass.",
+        "limits": [
+          "WF-11 remains PARTIAL: approved task-template choice/pinning, contact/schedule/mapping suggestions, fresh-checklist orchestration and RelationshipManager authorization remain open.",
+          "Calendar suggestion supports 365/366-day source periods; nonstandard fiscal calendars require manual reviewed preparation.",
+          "No full release suite, production deployment, tenant permission change or professional acceptance.",
+          "Existing NU1900 feed and stylesheet budget warnings remain."
+        ],
+        "priorCi": "5dd39ba5: runs 38369504119 and 38369504180 completed successfully; current annual slice CI not yet observed."
+      },
+      "workflowAnnualTaskPlanReferences": {
+        "sourceCommit": "292c2102 + working tree",
+        "status": "FOCUSED_VERIFIED",
+        "checks": [
+          "Application and Domain Release builds passed; NU1900 feed warnings",
+          "Domain annual preparation and workflow-plan tests: 6 passed, 0 failed"
+        ],
+        "evidence": "/private/tmp/auditsphere-annual-references/_Mac_2026-10-13_13_08_56_net10.0.trx",
+        "remaining": [
+          "Browser display of populated references",
+          "Annual template selection and new-plan pinning orchestration",
+          "Full release and external acceptance"
+        ]
       }
     }
   }

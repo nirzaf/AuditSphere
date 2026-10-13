@@ -6860,3 +6860,7 @@ Annual preparation now lists up to three currently published revisions from prio
 ## Annual preparation and scoped decisions — 2026-10-13
 
 Annual shell preparation now proposes a contiguous next period from an exact client-owned source, separates copied references from fresh work, and uses existing reviewed creation and receipt recovery. Source identity is retained; prior approvals and audit evidence are not copied. Native Partner decisions target exact engagements and retain their scoped receipts. Evidence is under `workflowAnnualPreparationCore`, `workflowScopedAssessmentAuthoring` and `workflowRecurringRiskScope` in [status.json](status.json). WF-11 remains partial: approved template selection, reference suggestions, fresh-checklist orchestration still need work.
+
+## Annual task-plan handoff — 2026-10-13
+
+Confirmed annual creation receipts now lead to the new engagement’s reviewed operational plan. The explicit fragment loads the deferred panel; ordinary visits still use viewport loading. Published template choices are read through exact engagement scope rather than firm-wide template administration. Plan execution retains independent authorization, review assent, staffing/schedule fencing and immutable revision receipts. Focused evidence is under `targetedVerification.workflowAnnualPlanHandoff` in [status.json](status.json); annual contact/mapping suggestions, fresh-checklist orchestration and broader acceptance remain open.

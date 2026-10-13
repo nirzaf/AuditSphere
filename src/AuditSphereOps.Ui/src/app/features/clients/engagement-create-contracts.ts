@@ -1,4 +1,4 @@
-import { arr, bool, date, guid, instant, nullable, obj, sha256, str } from '../../core/decode';
+import { arr, bool, date, guid, instant, nat, nullable, obj, sha256, str } from '../../core/decode';
 const identity = (v: unknown, p: string) => {
   const id = guid(v, p);
   if (id === '00000000-0000-0000-0000-000000000000') throw new Error('Unsupported identity');
@@ -10,6 +10,7 @@ export interface EngagementFields {
   periodStart: string;
   periodEnd: string;
   annualSourceEngagementId?: string;
+  annualTemplateRevisionId?: string;
 }
 export const emptyEngagement = (): EngagementFields => ({
   serviceRoute: '',
@@ -26,11 +27,14 @@ const fields = obj({
 export function engagementFields(raw: unknown): EngagementFields | null {
   try {
     if (!raw || typeof raw !== 'object' || Object.keys(raw).some((k) =>
-      !['serviceRoute', 'serviceProfile', 'periodStart', 'periodEnd', 'annualSourceEngagementId'].includes(k))) return null;
+      !['serviceRoute', 'serviceProfile', 'periodStart', 'periodEnd', 'annualSourceEngagementId', 'annualTemplateRevisionId'].includes(k))) return null;
     const f = fields(raw, 'fields');
     if (Object.values(f).some((s) => /[\u0000-\u001f\u007f]/.test(s))) return null;
     const source = (raw as { annualSourceEngagementId?: unknown }).annualSourceEngagementId;
-    return source == null ? f : { ...f, annualSourceEngagementId: identity(source, 'annualSourceEngagementId') };
+    const template = (raw as { annualTemplateRevisionId?: unknown }).annualTemplateRevisionId;
+    if (template != null && source == null) return null;
+    return { ...f, ...(source == null ? {} : { annualSourceEngagementId: identity(source, 'annualSourceEngagementId') }),
+      ...(template == null ? {} : { annualTemplateRevisionId: identity(template, 'annualTemplateRevisionId') }) };
   } catch {
     return null;
   }
@@ -84,13 +88,17 @@ const annualPreparation = obj({
     return value;
   },
   historicalMappings: arr(obj({ id: identity, version: generation, taxonomyVersion: str(100), periodStart: date, periodEnd: date }), 5),
+  taskTemplateSuggestions: arr(obj({ templateId: identity, revisionId: identity, version: nat, name: str(160), contentDigest: sha256 }), 3),
 });
 export const decodeAnnualPreparation = (value: unknown, path = '') => {
   const annual = annualPreparation(value, path);
   if ((annual.historicalMappingState === 'RESTRICTED' && annual.historicalMappings.length !== 0) ||
     annual.historicalMappings.some(mapping => mapping.periodStart !== annual.sourcePeriodStart || mapping.periodEnd !== annual.sourcePeriodEnd) ||
     new Set(annual.historicalMappings.map(mapping => mapping.id)).size !== annual.historicalMappings.length ||
-    new Set(annual.contactSuggestions.map(contact => contact.id)).size !== annual.contactSuggestions.length)
+    new Set(annual.contactSuggestions.map(contact => contact.id)).size !== annual.contactSuggestions.length ||
+    new Set(annual.taskTemplateSuggestions.map(template => template.revisionId)).size !== annual.taskTemplateSuggestions.length ||
+    annual.taskTemplateSuggestions.some(template => template.version < 1) ||
+    (annual.fields.annualTemplateRevisionId && !annual.taskTemplateSuggestions.some(template => template.revisionId === annual.fields.annualTemplateRevisionId)))
     throw new Error('Invalid annual reference context');
   return annual;
 };

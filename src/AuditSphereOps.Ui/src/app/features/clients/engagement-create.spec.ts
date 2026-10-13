@@ -37,13 +37,14 @@ describe('Reviewed client engagement creation contracts', () => {
     const annual = { clientId: id, sourceEngagementId: other, sourcePeriodStart: fields.periodStart,
       sourcePeriodEnd: fields.periodEnd, fields: { ...fields, annualSourceEngagementId: other },
       copiedReferences: [], requiresFreshWork: [], contactSuggestions: [], historicalMappingState: 'AVAILABLE',
-      historicalMappings: [reference] };
+      historicalMappings: [reference], taskTemplateSuggestions: [] };
     expect(decodeAnnualPreparation(annual).historicalMappings[0].version).toBe('9007199254740993');
     expect(() => decodeAnnualPreparation({ ...annual, historicalMappingState: 'RESTRICTED' })).toThrow();
     expect(() => decodeAnnualPreparation({ ...annual, historicalMappings: [reference, reference] })).toThrow();
     expect(() => decodeAnnualPreparation({ ...annual, historicalMappings: [{ ...reference, periodEnd: '2025-12-31' }] })).toThrow();
   });
   it('allowlists bounded fields and exact generations without retaining assent', () => {
+    expect(engagementFields({ ...fields, annualTemplateRevisionId: other })).toBeNull();
     expect(engagementFields({ ...fields, reviewed: true })).toBeNull();
     expect(engagementFields({ ...fields, serviceProfile: 'x'.repeat(101) })).toBeNull();
     expect(engagementFields({ ...fields, serviceProfile: 'Finance\n' })).toBeNull();
@@ -151,16 +152,21 @@ describe('Native engagement creation review, tab recovery and ownership', () => 
   it('copies a bounded annual reference only after explicit selection and keeps approvals separate', async () => {
     queries.next(convertToParamMap({ annualSourceEngagementId: other }));
     const f = open(); read(); const c = f.componentInstance;
-    const proposed = { ...fields, periodStart: '2027-01-01', periodEnd: '2027-12-31', annualSourceEngagementId: other };
+    const proposed = { ...fields, periodStart: '2027-01-01', periodEnd: '2027-12-31', annualSourceEngagementId: other, annualTemplateRevisionId: id };
     TestBed.inject(HttpTestingController).expectOne('/api/ui/clients/' + id + '/annual-engagement/' + other).flush({
       clientId: id, sourceEngagementId: other, sourcePeriodStart: '2026-01-01', sourcePeriodEnd: '2026-12-31',
       fields: proposed, copiedReferences: ['Service route', 'Prior period reference'], requiresFreshWork: ['Partner continuance', 'Materiality'],
       contactSuggestions: [{ id: other, name: 'Synthetic annual liaison', role: 'Liaison', primary: true }],
       historicalMappingState: 'RESTRICTED', historicalMappings: [],
+      taskTemplateSuggestions: [{ templateId: other, revisionId: id, version: 1, name: 'Synthetic annual plan', contentDigest: hash }],
     });
     TestBed.tick(); expect(c.model().annualSourceEngagementId).toBeUndefined();
     c.useAnnualSuggestion(); f.detectChanges(); TestBed.tick();
     expect(c.model()).toEqual(proposed); expect(c.valid()).toBe(true);
+    c.chooseAnnualTemplate('unavailable'); expect(c.model()).toEqual(proposed);
+    c.chooseAnnualTemplate(''); expect(c.model().annualTemplateRevisionId).toBeUndefined();
+    c.chooseAnnualTemplate(id); expect(c.model()).toEqual(proposed);
+    f.detectChanges(); TestBed.tick();
     expect(f.nativeElement.textContent).toContain('Requires fresh current-period work');
     expect(f.nativeElement.textContent).toContain('Synthetic annual liaison');
     expect(f.nativeElement.textContent).toContain('Mapping references require accounting read access');

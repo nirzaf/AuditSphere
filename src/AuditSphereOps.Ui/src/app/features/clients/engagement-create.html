@@ -38,6 +38,16 @@
         <p>Copied reference: {{ suggestion.sourcePeriodStart }} to {{ suggestion.sourcePeriodEnd }} · {{ suggestion.sourceEngagementId }}</p>
         <h3>Copied references only</h3>
         <ul>@for (item of suggestion.copiedReferences; track item) { <li>{{ item }}</li> }</ul>
+        <label for="annual-template-choice">Published task template reference</label>
+        <select id="annual-template-choice" [value]="model().annualTemplateRevisionId ?? ''"
+          [disabled]="locked() || !!pending() || model().annualSourceEngagementId !== suggestion.sourceEngagementId"
+          (change)="chooseAnnualTemplate($any($event.target).value)">
+          <option value="">Choose during current-year task planning</option>
+          @for (template of suggestion.taskTemplateSuggestions; track template.revisionId) {
+            <option [value]="template.revisionId">{{ template.name }} · v{{ template.version }}</option>
+          }
+        </select>
+        <p>A single current published revision from a prior plan is suggested when you use the annual reference. Creation records this choice only; current staffing, schedule and task creation need a separate reviewed plan.</p>
         <h3>Contact suggestions</h3>
         <p>Active client contacts valid at the proposed period start. Confirm their current authority and routing separately; these suggestions grant no access or consent.</p>
         <ul>@for (contact of suggestion.contactSuggestions; track contact.id) {
@@ -117,6 +127,7 @@
           <dt>Period</dt>
           <dd>{{ p.fields.periodStart }} to {{ p.fields.periodEnd }}</dd>
           @if (p.fields.annualSourceEngagementId) { <dt>Copied annual reference</dt><dd>{{ p.fields.annualSourceEngagementId }} · approvals require fresh work</dd> }
+          @if (p.fields.annualTemplateRevisionId) { <dt>Reviewed task template reference</dt><dd>{{ p.fields.annualTemplateRevisionId }} · task-plan approval remains separate</dd> }
         </dl>
         <a [routerLink]="['/app/engagements', p.existingEngagementId]"
           >Inspect existing engagement</a
@@ -133,6 +144,7 @@
           <dt>Period</dt>
           <dd>{{ p.fields.periodStart }} to {{ p.fields.periodEnd }}</dd>
           @if (p.fields.annualSourceEngagementId) { <dt>Copied annual reference</dt><dd>{{ p.fields.annualSourceEngagementId }} · approvals require fresh work</dd> }
+          @if (p.fields.annualTemplateRevisionId) { <dt>Reviewed task template reference</dt><dd>{{ p.fields.annualTemplateRevisionId }} · task-plan approval remains separate</dd> }
           <dt>Initial state</dt>
           <dd>Draft · professional work blocked</dd>
         </dl>
@@ -169,6 +181,7 @@
         <dt>Period</dt>
         <dd>{{ r.fields.periodStart }} to {{ r.fields.periodEnd }}</dd>
         @if (r.fields.annualSourceEngagementId) { <dt>Copied annual reference</dt><dd>{{ r.fields.annualSourceEngagementId }}</dd> }
+        @if (r.fields.annualTemplateRevisionId) { <dt>Reviewed task template reference</dt><dd>{{ r.fields.annualTemplateRevisionId }}</dd> }
         <dt>Initial revision</dt>
         <dd>{{ r.engagementGeneration }}</dd>
         <dt>Recorded</dt>
@@ -183,7 +196,7 @@
         <a [routerLink]="['/app/engagements', r.engagementId]">Inspect engagement</a>
         @if (r.fields.annualSourceEngagementId) {
           <p>Next: an authorized Manager or Partner must select and review a published task template against the new engagement’s staffing and schedule. Prior-year task completion and deadlines are not copied.</p>
-          <a [routerLink]="['/app/engagements', r.engagementId]" fragment="engagement-task-plan">Review current-year task plan</a>
+          <a [routerLink]="['/app/engagements', r.engagementId]" [queryParams]="{ templateRevisionId: r.fields.annualTemplateRevisionId }" fragment="engagement-task-plan">Review current-year task plan</a>
           <p>An authorized Manager or Partner must also review the current-year checklist. A previous-period acceptance cannot clear this engagement.</p>
           <a [routerLink]="['/app/clients', r.clientId, 'assessment']" [queryParams]="{ engagementId: r.engagementId }">Review current-year continuance</a>
         }

@@ -20,6 +20,7 @@ public sealed class AnnualEngagementPreparationTests
     Assert.Equal((nextStart, nextEnd, source.Id), (fields.PeriodStart, fields.PeriodEnd, fields.AnnualSourceEngagementId));
     Assert.Null(AnnualEngagementPreparationWorkspace.Suggest(new Engagement { PeriodStart = "2026-01-01", PeriodEnd = "2026-02-28" }));
     Assert.DoesNotContain("AnnualSourceEngagementId", JsonSerializer.Serialize(new EngagementCreationFields("AccountingOnly", "SYNTHETIC", start, end)));
+    Assert.DoesNotContain("AnnualTemplateRevisionId", JsonSerializer.Serialize(new EngagementCreationFields("AccountingOnly", "SYNTHETIC", start, end)));
   }
 
   [Fact]

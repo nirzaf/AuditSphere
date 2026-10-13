@@ -100,7 +100,7 @@
     }
     <div id="engagement-task-plan">
       @defer (on viewport; when taskPlanRequested()) {
-        <audit-engagement-task-plan [engagementId]="engagement.id" [serviceRoute]="engagement.serviceRoute" />
+        <audit-engagement-task-plan [engagementId]="engagement.id" [serviceRoute]="engagement.serviceRoute" [suggestedRevisionId]="taskTemplateReference()" />
       } @placeholder {
         <p>Operational task plan</p>
       }

@@ -81,6 +81,7 @@ export class EngagementDetail {
   readonly loading = signal(false);
   readonly error = signal('');
   readonly taskPlanRequested = signal(false);
+  readonly taskTemplateReference = signal<string | null>(null);
   constructor() {
     this.taskPlanRequested.set(this.route.snapshot.fragment === 'engagement-task-plan');
     const fragmentSubscription = this.route.fragment?.subscribe(fragment =>
@@ -94,6 +95,7 @@ export class EngagementDetail {
     });
     const querySubscription = this.route.queryParamMap.subscribe((p) => {
       this.location.set(engagementLocation((k) => p.get(k)));
+      this.taskTemplateReference.set(p.get('templateRevisionId')?.toLowerCase() ?? null);
       this.load();
     });
     effect(() => {

@@ -13,11 +13,12 @@ namespace AuditSphereOps.Application.Acceptance;
 
 public sealed record AnnualContactReference(Guid Id, string Name, string Role, bool Primary);
 public sealed record AnnualMappingReference(Guid Id, string Version, string TaxonomyVersion, string PeriodStart, string PeriodEnd);
+public sealed record AnnualTemplateReference(Guid TemplateId, Guid RevisionId, int Version, string Name, string ContentDigest);
 public sealed record AnnualEngagementPreparationState(Guid ClientId, Guid SourceEngagementId,
   string SourcePeriodStart, string SourcePeriodEnd, EngagementCreationFields Fields,
   IReadOnlyList<string> CopiedReferences, IReadOnlyList<string> RequiresFreshWork,
   IReadOnlyList<AnnualContactReference> ContactSuggestions, string HistoricalMappingState,
-  IReadOnlyList<AnnualMappingReference> HistoricalMappings);
+  IReadOnlyList<AnnualMappingReference> HistoricalMappings, IReadOnlyList<AnnualTemplateReference> TaskTemplateSuggestions);
 
 /// <summary>Harmless next-period preparation over reviewed blocked-shell creation; no approval or audit evidence is copied.</summary>
 public static class AnnualEngagementPreparationWorkspace
@@ -60,15 +61,12 @@ public static class AnnualEngagementPreparationWorkspace
       "This source is not a supported 365- or 366-day engagement with a service profile. Prepare and review the period manually.");
     var references = new List<string> { "Client identity", "Service route", "Service profile", "Prior period calendar reference" };
     // These are discovery references only. The current plan command must independently review and pin a new plan.
-    var templates = await (from receipt in db.WorkflowTaskPlanReceipts.AsNoTracking()
-      join template in db.WorkflowTemplates.AsNoTracking() on receipt.TemplateId equals template.Id
-      join revision in db.WorkflowTemplateRevisions.AsNoTracking() on template.Id equals revision.TemplateId
-      where receipt.FirmId == actor.FirmId && receipt.ClientId == clientId && receipt.EngagementId == sourceId &&
-        template.FirmId == actor.FirmId && template.ArchivedAt == null && revision.FirmId == actor.FirmId &&
-        revision.Status == WorkflowTemplateStates.Published && revision.ServiceRoute == source.ServiceRoute
-      select new { revision.Id, revision.Version }).Distinct().OrderBy(x => x.Id).Take(3).ToListAsync(ct);
+    var templates = await CurrentTemplates(db, actor.FirmId, clientId, sourceId, source.ServiceRoute)
+      .OrderBy(x => x.Id).Take(3).Select(x => new AnnualTemplateReference(x.TemplateId, x.Id,
+        x.Version, x.Name, x.ContentDigest)).ToListAsync(ct);
+    if (templates.Count == 1) fields = fields with { AnnualTemplateRevisionId = templates[0].RevisionId };
     foreach (var template in templates)
-      references.Add($"Published task template reference: revision {template.Id}, version {template.Version}; review again before use");
+      references.Add($"Published task template reference: revision {template.RevisionId}, version {template.Version}; review again before use");
     var schedules = await db.WorkflowTaskPlanReceipts.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
       x.ClientId == clientId && x.EngagementId == sourceId && x.ScheduleBasisDate != null)
       .Select(x => x.ScheduleBasisDate).Distinct().OrderByDescending(x => x).Take(3).ToListAsync(ct);
@@ -101,7 +99,7 @@ public static class AnnualEngagementPreparationWorkspace
     return CommandResult<AnnualEngagementPreparationState>.Ok(new(clientId, sourceId, source.PeriodStart, source.PeriodEnd, fields,
       references,
       ["Reviewed task template and current-period schedule", "Current-period mapping review", "Client commercial consent", "Partner continuance", "Materiality", "Fieldwork", "Independent review", "Opinion", "Signature", "Fee agreement and advance"],
-      contacts, canReadMappings ? "AVAILABLE" : "RESTRICTED", mappings));
+      contacts, canReadMappings ? "AVAILABLE" : "RESTRICTED", mappings, templates));
   }
 
   internal static async Task<CommandResult> ValidateAsync(IAuditSphereDbContext db, ActorContext actor, Guid clientId,
@@ -113,7 +111,27 @@ public static class AnnualEngagementPreparationWorkspace
       : db.Engagements.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.PracticeClientId == clientId && x.Id == sourceId);
     var source = await query.SingleOrDefaultAsync(ct);
     if (source is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Annual preparation unavailable.");
-    return Suggest(source) == fields ? CommandResult.Ok() : CommandResult.Fail(ErrorCodes.GenerationStale,
+    if (Suggest(source) != (fields with { AnnualTemplateRevisionId = null })) return CommandResult.Fail(ErrorCodes.GenerationStale,
       "The annual reference or suggested fields changed. Refresh the source and review again.");
+    if (fields.AnnualTemplateRevisionId is { } revisionId)
+    {
+      // Publication and archive commands lock the template root; keep the reviewed choice stable through creation.
+      if (lockSource && await db.WorkflowTemplates.FromSqlInterpolated(
+        $"SELECT * FROM workflow_templates WHERE firm_id={actor.FirmId} AND id=(SELECT template_id FROM workflow_template_revisions WHERE firm_id={actor.FirmId} AND id={revisionId}) FOR SHARE")
+        .AsNoTracking().SingleOrDefaultAsync(ct) is null)
+        return CommandResult.Fail(ErrorCodes.GenerationStale, "The selected annual template changed. Refresh and review again.");
+      if (!await CurrentTemplates(db, actor.FirmId, clientId, sourceId, source.ServiceRoute).AnyAsync(x => x.Id == revisionId, ct))
+        return CommandResult.Fail(ErrorCodes.GenerationStale, "The selected annual template is no longer a current published reference. Refresh and review again.");
+    }
+    return CommandResult.Ok();
   }
+
+  private static IQueryable<WorkflowTemplateRevision> CurrentTemplates(IAuditSphereDbContext db, Guid firmId,
+    Guid clientId, Guid sourceId, string route) => (from receipt in db.WorkflowTaskPlanReceipts.AsNoTracking()
+      join template in db.WorkflowTemplates.AsNoTracking() on receipt.TemplateId equals template.Id
+      join revision in db.WorkflowTemplateRevisions.AsNoTracking() on template.Id equals revision.TemplateId
+      where receipt.FirmId == firmId && receipt.ClientId == clientId && receipt.EngagementId == sourceId &&
+        template.FirmId == firmId && template.ArchivedAt == null && revision.FirmId == firmId &&
+        revision.Status == WorkflowTemplateStates.Published && revision.ServiceRoute == route
+      select revision).Distinct();
 }

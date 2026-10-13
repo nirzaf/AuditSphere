@@ -41326,6 +41326,13 @@
               "string"
             ],
             "format": "uuid"
+          },
+          "annualTemplateRevisionId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },

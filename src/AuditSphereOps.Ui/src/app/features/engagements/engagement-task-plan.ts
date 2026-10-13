@@ -57,6 +57,12 @@ function isPendingPlan(value: unknown): value is PendingPlan {
     <section class="task-plan" aria-labelledby="task-plan-heading">
       <h2 id="task-plan-heading">Operational task plan</h2>
       <p>Preview a published firm template against this engagement’s staffing and schedule. Created tasks organize work; they do not satisfy audit, review, approval, reporting, or archive gates.</p>
+      @if (suggestedRevisionId()) {
+        <p>The annual preparation selected revision {{ suggestedRevisionId() }} as a reference. Review the current staffing, dates and exact template before creating tasks.</p>
+        @if (!catalog.loading() && !catalog.error() && referenceUnavailable()) {
+          <p role="alert">The referenced revision is unavailable or is no longer current. Choose and review a current published template; no replacement has been selected automatically.</p>
+        }
+      }
       <audit-state [loading]="catalog.loading()" [error]="catalog.error()" label="published workflow templates" />
       @if (catalog.data(); as items) {
         <fieldset [disabled]="busy() || pending() !== null || corruptPending()">
@@ -158,6 +164,7 @@ function isPendingPlan(value: unknown): value is PendingPlan {
 export class EngagementTaskPlan {
   readonly engagementId = input.required<string>();
   readonly serviceRoute = input.required<string>();
+  readonly suggestedRevisionId = input<string | null>(null);
   private readonly api = inject(Api);
   private readonly session = inject(SessionService);
   readonly catalog = this.api.resource(() => `/api/ui/engagements/${this.engagementId()}/task-plan/templates`, templateCatalog,
@@ -166,6 +173,8 @@ export class EngagementTaskPlan {
     .filter((item) => !item.archived && item.currentPublishedRevision?.serviceRoute === this.serviceRoute())
     .map((item) => ({ templateId: item.templateId, revision: item.currentPublishedRevision! })));
   readonly selectedRevisionId = signal('');
+  readonly referenceUnavailable = computed(() => !!this.suggestedRevisionId() &&
+    !this.publishedTemplates().some(item => item.revision.revisionId === this.suggestedRevisionId()));
   readonly plan = signal<PlanPreview | null>(null);
   readonly receipt = signal<PlanReceipt | null>(null);
   readonly pending = signal<PendingPlan | null>(null);
@@ -187,6 +196,8 @@ export class EngagementTaskPlan {
   constructor() {
     effect(() => {
       const engagementId = this.engagementId();
+      this.serviceRoute();
+      this.suggestedRevisionId();
       const session = this.session.current();
       this.session.invalidation();
       untracked(() => {
@@ -198,6 +209,15 @@ export class EngagementTaskPlan {
         this.uncertain.set(false);
         this.message.set('');
         this.restorePending(engagementId, session);
+      });
+    });
+    effect(() => {
+      const choices = this.publishedTemplates();
+      const suggested = this.suggestedRevisionId();
+      untracked(() => {
+        if (suggested && choices.some(item => item.revision.revisionId === suggested) &&
+          !this.selectedRevisionId() && !this.pending() && !this.corruptPending() && !this.busy() && !this.plan() && !this.receipt())
+          this.selectTemplate(suggested);
       });
     });
   }

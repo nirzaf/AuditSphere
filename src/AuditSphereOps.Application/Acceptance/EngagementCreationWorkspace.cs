@@ -10,7 +10,8 @@ using Microsoft.EntityFrameworkCore;
 namespace AuditSphereOps.Application.Acceptance;
 
 public sealed record EngagementCreationFields(string ServiceRoute,string ServiceProfile,string PeriodStart,string PeriodEnd,
-  [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? AnnualSourceEngagementId = null);
+  [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? AnnualSourceEngagementId = null,
+  [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? AnnualTemplateRevisionId = null);
 public sealed record EngagementCreationRequest(Guid RequestId,string ReviewBasis,EngagementCreationFields Fields,bool Reviewed=false,string? ExpectedRequestHash=null);
 public sealed record EngagementCreationState(Guid ClientId,string ClientName,string ClientGeneration,string ReviewBasis);
 public sealed record EngagementCreationPreview(Guid ClientId,Guid RequestId,string ReviewBasis,string RequestHash,EngagementCreationFields Fields,
@@ -35,8 +36,9 @@ public static class EngagementCreationWorkspace
     if(route is null||route.Length is <2 or >50||profile is null||profile.Length is <1 or >100||route.Any(char.IsControl)||profile.Any(char.IsControl)||
       !DateOnly.TryParseExact(start,"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var first)||
       !DateOnly.TryParseExact(end,"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var last)||first>last)return null;
-    if(f.AnnualSourceEngagementId==Guid.Empty)return null;
-    return new(route,profile,start!,end!,f.AnnualSourceEngagementId);
+    if(f.AnnualSourceEngagementId==Guid.Empty||f.AnnualTemplateRevisionId==Guid.Empty||
+      (f.AnnualTemplateRevisionId.HasValue&&!f.AnnualSourceEngagementId.HasValue))return null;
+    return new(route,profile,start!,end!,f.AnnualSourceEngagementId,f.AnnualTemplateRevisionId);
   }
   private static string RequestHash(ActorContext a,Guid id,EngagementCreationRequest r,EngagementCreationFields f)=>
     Hashing.Sha256Hex(JsonSerializer.Serialize(new{a.FirmId,a.UserId,a.SessionEpoch,id,r.RequestId,Action="BLOCKED_ENGAGEMENT_CREATION",Fields=f}));

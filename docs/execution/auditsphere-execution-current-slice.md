@@ -15,6 +15,10 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Reviewed annual template reference — 2026-10-13
+
+Annual preparation suggests the current published revision of a prior plan’s template. The optional choice is retained in the exact creation preview and immutable receipt, then preselected in the new engagement’s task-plan screen only while current. An archived/superseded reference blocks new creation; the plan still requires separate staffing/schedule review and assent. Prior plans are unchanged. A CI-discovered assessment receipt timestamp mismatch is corrected by returning the persisted row on first publication. Evidence is under `targetedVerification.workflowAnnualTemplateReference` in [status.json](status.json). Nonstandard calendars, populated-mapping browser acceptance and wider workflow/release gates remain open.
+
 ## Annual checklist handoff — 2026-10-13
 
 Annual receipts now open the exact new engagement in the existing client assessment. The query confirms client ownership, shows whether a fresh evaluation is needed, and retains parent-client authorization. Opening a continuance review still requires reviewed assent; delta answers start empty and the Partner decision editor fixes the exact engagement and service. Period/revision changes invalidate scoped decision previews under a shared engagement lock. Prior decisions and answers remain history; activation stays separate. Evidence is under `targetedVerification.workflowAnnualChecklistHandoff` in [status.json](status.json). Template preselection, populated-mapping browser acceptance, nonstandard calendars and broader acceptance remain open.
@@ -22,10 +26,6 @@ Annual receipts now open the exact new engagement in the existing client assessm
 ## Annual reference metadata — 2026-10-13
 
 Annual preparation suggests active client contacts valid at the next-period start and approved mappings from the exact prior engagement and period. Accounting metadata requires source-engagement accounting read authority; RelationshipManagers receive a restricted state. References are bounded and never copy allocations, routing, access, consent or approvals. Evidence is under `targetedVerification.workflowAnnualReferenceMetadata` in [status.json](status.json). Fresh-checklist orchestration and broader acceptance remain open.
-
-## Annual task-plan handoff — 2026-10-13
-
-Confirmed annual creation receipts now lead to the new engagement’s reviewed operational plan. The explicit fragment loads the deferred panel; ordinary visits still use viewport loading. Published template choices are read through exact engagement scope rather than firm-wide template administration. Plan execution retains independent authorization, review assent, staffing/schedule fencing and immutable revision receipts. Focused evidence is under `targetedVerification.workflowAnnualPlanHandoff` in [status.json](status.json); annual contact/mapping suggestions, fresh-checklist orchestration and broader acceptance remain open.
 
 ## Agent capability tooling and bounded analytics — 2026-10-12
 
