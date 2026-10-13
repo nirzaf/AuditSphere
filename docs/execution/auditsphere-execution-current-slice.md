@@ -17,9 +17,9 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Release bundle signing replay guards — 2026-10-13
 
-`REL-01` source review found that an existing bundle could be returned before current signing policy checks. Assembly now checks the current policy and the matching report/certification certificate before new creation or replay. An image-only bundle cannot bypass a later certificate-required policy; missing or different credentials refuse assembly while stored downloads remain separate scope-checked reads. No global signing policy was changed.
+`REL-01` source review found that an existing bundle could be returned before current signing policy checks. Assembly now checks the current policy and the matching report/certification certificate before new creation or replay. An image-only bundle cannot bypass a later certificate-required policy; missing or different credentials refuse assembly while stored downloads remain separate scope-checked reads. Stored artifact hashes, including the representation template, are checked before assembly. No global signing policy was changed.
 
-The Web panel forwards host signing policy; focused Domain/reference-browser checks passed. Correspondence reads are bounded and rechecked; extracted lineage, concurrent replay, row-limit and stale-source checks passed. Evidence: `targetedVerification.releaseBundleSigningReplay` and `releaseBundleCorrespondence` in [status.json](status.json). Canonical Angular, further adverse cases, full release and operator rotation review remain open. No persistent database changed.
+The Web panel forwards host signing policy. Focused checks cover certificate/ZIP integrity, lineage, stale sources and message/comment bounds with a deterministic append race. The Angular release journey and built-in replay refusal passed. Evidence: `targetedVerification.releaseBundleSigningReplay`, `releaseBundleCorrespondence` and `releaseBundleRaceAndAngular` in [status.json](status.json). Further adverse cases, full release and operator rotation review remain open. No persistent database changed.
 
 ## Reviewed task dependency amendments — 2026-10-13
 

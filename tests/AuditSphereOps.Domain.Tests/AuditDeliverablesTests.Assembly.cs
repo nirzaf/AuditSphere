@@ -174,7 +174,12 @@ public sealed partial class AuditDeliverablesTests
       Assert.Equal(Hashing.Sha256Hex(row.Content), row.ContentSha256);
       Assert.Equal(Hashing.Sha256Hex(row.ManifestJson), row.ManifestSha256);
       using var archive = new ZipArchive(new MemoryStream(row.Content), ZipArchiveMode.Read);
-      Assert.Equal(8, archive.Entries.Count);
+      Assert.Equal(new[] {
+        "01_Report_and_statements/Certified_financial_statements.pdf", "01_Report_and_statements/Independent_auditors_report.pdf",
+        "02_Management_letter/Management_letter.docx", "03_Representation_letter/Management_signed_letter.pdf",
+        "03_Representation_letter/Representation_letter.docx", "04_Management_correspondence/Audit_trail.json",
+        "05_Final_balance/Balance_fee_note.pdf", "manifest.json"
+      }, archive.Entries.Select(x => x.FullName).OrderBy(x => x, StringComparer.Ordinal).ToArray());
       Assert.Equal(5, archive.Entries.Where(x => x.FullName != "manifest.json").Select(x => x.FullName.Split('/')[0]).Distinct().Count());
       Assert.Contains(archive.Entries, x => x.FullName.EndsWith("Management_signed_letter.pdf"));
       // STE J40: the management correspondence trail is one of the five parts, with its confirmations and communications.
@@ -184,12 +189,25 @@ public sealed partial class AuditDeliverablesTests
         Assert.True(trail.RootElement.TryGetProperty("Confirmations", out _));
         Assert.True(trail.RootElement.TryGetProperty("Communications", out _));
       }
+      using (var embeddedManifest = new StreamReader(archive.GetEntry("manifest.json")!.Open()))
+        Assert.Equal(row.ManifestJson, await embeddedManifest.ReadToEndAsync());
       using var manifest = System.Text.Json.JsonDocument.Parse(row.ManifestJson);
+      Assert.Equal(row.SignedReportId, manifest.RootElement.GetProperty("SignedReport").GetGuid());
+      Assert.Equal(row.FinancialPackageReleaseId, manifest.RootElement.GetProperty("FinancialPackageRelease").GetGuid());
+      Assert.Equal(row.FinancialPackageArtifactId, manifest.RootElement.GetProperty("FinancialPackageArtifact").GetGuid());
+      Assert.Equal(row.BalanceInvoiceId, manifest.RootElement.GetProperty("BalanceInvoice").GetGuid());
       foreach (var item in manifest.RootElement.GetProperty("Parts").EnumerateArray())
       {
         var entry = archive.GetEntry(item.GetProperty("Path").GetString()!)!;
         using var bytes = new MemoryStream(); using var stream = entry.Open(); await stream.CopyToAsync(bytes);
         Assert.Equal(item.GetProperty("Sha256").GetString(), Hashing.Sha256Hex(bytes.ToArray()));
+        Assert.Equal(item.GetProperty("Bytes").GetInt64(), bytes.Length);
+        if (entry.FullName.EndsWith(".docx", StringComparison.Ordinal))
+        {
+          using var document = DocumentFormat.OpenXml.Packaging.WordprocessingDocument.Open(new MemoryStream(bytes.ToArray()), false);
+          var body = document.MainDocumentPart?.Document?.Body;
+          Assert.NotNull(body); Assert.False(string.IsNullOrWhiteSpace(body.InnerText));
+        }
       }
       using var certified = new MemoryStream();
       using (var stream = archive.GetEntry("01_Report_and_statements/Certified_financial_statements.pdf")!.Open()) await stream.CopyToAsync(certified);

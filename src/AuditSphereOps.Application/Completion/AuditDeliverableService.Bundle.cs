@@ -226,6 +226,7 @@ public static partial class AuditDeliverableService
     if (invoice is null) blockers.Add("Finance must issue, review and post the final balance invoice for the linked 50/50 agreement; the advance must be paid.");
     if (await db.EngagementFileFreezes.AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId && x.State == "FROZEN", ct)) blockers.Add("The engagement is frozen; an approved amendment is required.");
     if (report is not null && Hashing.Sha256Hex(report.Content) != report.ContentSha256 || management is not null && Hashing.Sha256Hex(management.Content) != management.ContentSha256 ||
+        letter is not null && Hashing.Sha256Hex(letter.Content) != letter.ContentSha256 ||
         scan is not null && Hashing.Sha256Hex(scan.Content) != scan.ContentSha256 || artifact is not null && Hashing.Sha256Hex(artifact.ArtifactBytes) != artifact.ArtifactSha256Hex)
       blockers.Add("Stored artifact integrity verification failed.");
     return new(blockers, report, management, scan, release, artifact, invoice);

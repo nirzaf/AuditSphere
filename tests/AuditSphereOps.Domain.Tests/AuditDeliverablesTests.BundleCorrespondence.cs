@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.IO.Compression;
 using System.Text.Json;
 using AuditSphereOps.Application.Completion;
@@ -6,13 +7,16 @@ using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace AuditSphereOps.Domain.Tests;
 
 public sealed partial class AuditDeliverablesTests
 {
-  [Fact]
-  public async Task FivePartBundle_CorrespondenceChangesCreateNewDigest_AndRowLimitFailsClosed()
+  [Theory]
+  [InlineData(false)]
+  [InlineData(true)]
+  public async Task FivePartBundle_CorrespondenceChangesCreateNewDigest_AndRowLimitFailsClosed(bool resolvedComments)
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var w = await SeedAsync(pg);
@@ -41,33 +45,54 @@ public sealed partial class AuditDeliverablesTests
     PbcCommunication Message(int number) => new() { Id = Guid.NewGuid(), FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId,
       PbcRequestId = requestId, AuthorUserId = manager.UserId, Kind = PbcCommunicationKinds.StaffMessage,
       Body = $"Synthetic reviewed correspondence {number}", CreatedAt = now.AddTicks(number) };
-    scope.PbcCommunications.Add(Message(1)); await scope.SaveChangesAsync();
+    var reviewId = await scope.ClientDeliverableReviews.Where(x => x.EngagementId == w.EngagementId).Select(x => x.Id).SingleAsync();
+    void AddRows(AuditSphereDbContext db, int start, int count)
+    {
+      if (!resolvedComments) db.PbcCommunications.AddRange(Enumerable.Range(start, count).Select(Message));
+      else db.ClientDeliverableComments.AddRange(Enumerable.Range(start, count).Select(number => new ClientDeliverableComment {
+        Id = Guid.NewGuid(), FirmId = w.FirmId, ReviewId = reviewId, AuthorUserId = w.U["client"].Id, FromClient = true,
+        Body = $"Synthetic reviewed comment {number}", CreatedAt = now.AddTicks(number), ResolvedAt = now.AddMinutes(1),
+        ResolvedByUserId = manager.UserId, Resolution = "Reviewed and resolved in synthetic fixture"
+      }));
+    }
+    AddRows(scope, 1, 1); await scope.SaveChangesAsync();
     var changed = await AuditDeliverableService.AssembleBundleAsync(scope, partner, w.EngagementId, true);
     Assert.True(changed.Succeeded, changed.Message); Assert.NotEqual(first.Value, changed.Value);
     var current = await scope.CommercialDeliverableBundles.AsNoTracking().SingleAsync(x => x.Id == changed.Value);
     Assert.NotEqual(original.SourceDigest, current.SourceDigest);
-    static async Task<int> CommunicationCountAsync(byte[] bytes)
+    async Task<int> CorrespondenceCountAsync(byte[] bytes)
     {
       using var zip = new ZipArchive(new MemoryStream(bytes), ZipArchiveMode.Read);
       using var stream = zip.GetEntry("04_Management_correspondence/Audit_trail.json")!.Open();
       using var trail = await JsonDocument.ParseAsync(stream);
       Assert.True(trail.RootElement.TryGetProperty("ClearedQueries", out _));
-      return trail.RootElement.GetProperty("Communications").GetArrayLength();
+      return trail.RootElement.GetProperty(resolvedComments ? "ClearedQueries" : "Communications").GetArrayLength();
     }
-    Assert.Equal(0, await CommunicationCountAsync(original.Content));
-    Assert.Equal(1, await CommunicationCountAsync(current.Content));
+    Assert.Equal(0, await CorrespondenceCountAsync(original.Content));
+    Assert.Equal(1, await CorrespondenceCountAsync(current.Content));
     var retries = await Task.WhenAll(Enumerable.Range(0, 2).Select(async _ => {
       await using var retryDb = new AuditSphereDbContext(pg.Options);
       return await AuditDeliverableService.AssembleBundleAsync(retryDb, partner, w.EngagementId, true);
     }));
     Assert.All(retries, x => { Assert.True(x.Succeeded, x.Message); Assert.Equal(changed.Value, x.Value); });
     // The inclusive boundary is accepted, while the first row beyond it never creates a bundle.
-    scope.PbcCommunications.AddRange(Enumerable.Range(2, 9999).Select(Message)); await scope.SaveChangesAsync();
+    AddRows(scope, 2, 9999); await scope.SaveChangesAsync();
     var atLimit = await AuditDeliverableService.AssembleBundleAsync(scope, partner, w.EngagementId, true);
     Assert.True(atLimit.Succeeded, atLimit.Message);
     var bounded = await scope.CommercialDeliverableBundles.AsNoTracking().SingleAsync(x => x.Id == atLimit.Value);
-    Assert.Equal(10000, await CommunicationCountAsync(bounded.Content));
-    scope.PbcCommunications.Add(Message(10001)); await scope.SaveChangesAsync();
+    Assert.Equal(10000, await CorrespondenceCountAsync(bounded.Content));
+    // A separate real transaction appends after the count statement has already executed.
+    // The materialized read must still refuse overflow; no sleeps or timing assumptions.
+    var hook = new AppendAfterCorrespondenceCount(resolvedComments ? "client_deliverable_comments" : "pbc_communications", async () => {
+      await using var concurrent = new AuditSphereDbContext(pg.Options);
+      AddRows(concurrent, 10001, 1); await concurrent.SaveChangesAsync();
+    });
+    await using (var raceDb = new AuditSphereDbContext(new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(hook).Options))
+    {
+      var raced = await AuditDeliverableService.AssembleBundleAsync(raceDb, partner, w.EngagementId, true);
+      Assert.True(hook.Fired); Assert.Equal(ErrorCodes.GateBlocked, raced.ErrorCode);
+      Assert.Contains("bounded assembly limit", raced.Message);
+    }
     var overflow = await AuditDeliverableService.AssembleBundleAsync(scope, partner, w.EngagementId, true);
     Assert.Equal(ErrorCodes.GateBlocked, overflow.ErrorCode); Assert.Contains("bounded assembly limit", overflow.Message);
     Assert.Equal(3, await scope.CommercialDeliverableBundles.CountAsync());
@@ -81,5 +106,17 @@ public sealed partial class AuditDeliverablesTests
     Assert.Equal(ErrorCodes.GateBlocked, stale.ErrorCode); Assert.Contains("current auditor's report", stale.Message);
     Assert.DoesNotContain("bounded assembly limit", stale.Message);
     Assert.Equal(3, await scope.CommercialDeliverableBundles.CountAsync());
+  }
+  private sealed class AppendAfterCorrespondenceCount(string table, Func<Task> append) : DbCommandInterceptor
+  {
+    public bool Fired { get; private set; }
+    public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData,
+      DbDataReader result, CancellationToken cancellationToken = default)
+    {
+      if (!Fired && command.CommandText.Contains("count(*)", StringComparison.OrdinalIgnoreCase) &&
+          command.CommandText.Contains(table, StringComparison.Ordinal))
+      { Fired = true; await append(); }
+      return result;
+    }
   }
 }

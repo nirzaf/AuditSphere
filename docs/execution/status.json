@@ -801,26 +801,8 @@
       "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.workflowAnnualTaskPlanReferences"
     },
     "workflowAnnualPlanHandoff": {
-      "sourceCommit": "8946aad2 + working tree",
-      "status": "FOCUSED_VERIFIED",
-      "checks": {
-        "domain": "7 passed, 0 failed: annual, plan pinning, exact engagement catalog, revocation",
-        "angular": "21 passed, 0 failed: annual creation, task plan, engagement workspace",
-        "e2e": "2 passed, 0 failed: Manager task-plan handoff and RelationshipManager annual creation",
-        "builtInBrowser": "Owned Manager fixture: explicit deep link, published template, exact preview digests, execution disabled without assent; no warn/error logs",
-        "builds": "Application/API/Domain/E2E/emitter Release and Angular passed; NU1900 feed and existing stylesheet-budget warnings",
-        "contract": "OpenAPI regenerated; drift passed"
-      },
-      "evidence": [
-        "/private/tmp/auditsphere-annual-plan-domain/_Mac_2026-10-13_13_22_55_net10.0.trx",
-        "/private/tmp/auditsphere-annual-plan-browser-verified/_Mac_2026-10-13_13_32_15_net10.0.trx"
-      ],
-      "diagnostics": "Initial E2E found deferred anchor bug; fixed explicit panel load. Next assertion used an incomplete numbered heading; corrected. Final cohort passed.",
-      "remaining": [
-        "Contact/mapping suggestions and fresh-checklist orchestration",
-        "Populated prior-reference browser check",
-        "Full release, professional and external acceptance"
-      ]
+      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
+      "jsonPath": "keys.targetedVerification.workflowAnnualPlanHandoff"
     },
     "workflowAnnualReferenceMetadata": {
       "sourceCommit": "04124839 + working tree",
@@ -848,31 +830,8 @@
       "jsonPath": "keys.targetedVerification.workflowAnnualChecklistHandoff"
     },
     "workflowAnnualTemplateReference": {
-      "baseCommit": "3a6de263",
-      "workingTreeChangesIncluded": true,
-      "recordedAtUtc": "2026-10-13T14:08:21.482398+00:00",
-      "scope": "Reviewed published annual template choice retained in creation intent/receipt, safe current-only task-plan preselection, canonical persisted assessment receipt response",
-      "checks": {
-        "domain": "PASS 45/45: annual, creation, pinned-plan and acceptance checklist cohorts",
-        "api": "PASS 4/4: exact first/replayed receipt and PostgreSQL timestamp precision, assessment scope and route contract",
-        "angular": "PASS 23/23: creation choice/contract, task-plan preselection, engagement routing",
-        "e2e": "PASS 4/4 final annual creation, fresh continuance and scoped decision cohort",
-        "builtInBrowser": "PASS owned Manager fixture: exact revision checked, preview enabled, no warn/error logs; task creation remains reviewed",
-        "builds": "PASS bounded Release and Angular builds; NU1900 feed and existing stylesheet warning",
-        "drift": "PASS EF unchanged, OpenAPI regenerated/drift current, documentation gates"
-      },
-      "evidence": [
-        "/private/tmp/auditsphere-annual-template-domain-final/_Mac_2026-10-13_17_04_39_net10.0.trx",
-        "/private/tmp/auditsphere-annual-template-api/_Mac_2026-10-13_17_06_14_net10.0.trx",
-        "/private/tmp/auditsphere-annual-template-browser-final/_Mac_2026-10-13_17_07_09_net10.0.trx"
-      ],
-      "priorCi": "3a6de263 CI 38407652019 failed on first/replay timestamp precision; persisted-row response fixes it locally. Images 38407651776 succeeded; new CI not yet observed.",
-      "remaining": [
-        "Nonstandard annual calendars and populated-mapping browser acceptance",
-        "Other workflow dependency, automation and scale work",
-        "Full release, live-provider and independent professional acceptance"
-      ],
-      "migration": "No schema change or persistent database migration"
+      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
+      "jsonPath": "keys.targetedVerification.workflowAnnualTemplateReference"
     },
     "workflowDomainEvidencePrerequisites": {
       "baseCommit": "4862237b2adaae48b74603e812a67cf0b37075bc",
@@ -1035,6 +994,40 @@
         "Canonical Angular completion and full release suites",
         "Complete adverse-artifact acceptance; live provider and professional decisions remain separate"
       ]
+    },
+    "releaseBundleRaceAndAngular": {
+      "baseCommit": "4a813f36e8db04b990182972415c3fc926db715d",
+      "recordedAtUtc": "2026-10-13T18:22:14.599487+00:00",
+      "workingTreeChangesIncluded": true,
+      "changedSourceSha256": "26fcbfe3d1ba1e89bfe0190d1cd64566638db77c98edbdfa6781afb31b77f33a",
+      "scope": "REL-01 comment/message bounds with deterministic append after count; canonical Angular release journey and shared reference journey fixture; representation-template hash checked before assembly",
+      "checks": {
+        "domain": "PASS 12/12 final bundle/certificate cohort, including message/comment bounds and deterministic append-after-count overflow",
+        "build": "PASS Application/API/Web/Domain-test/E2E/emitter Release builds; NU1900 feed warnings",
+        "angularJourney": "PASS 1/1 canonical Angular clearance/opinion, exact LOR acknowledgement/upload/verification, signing, bundle assembly and staff/client downloads; Required=true replay refused with one retained bundle",
+        "builtInBrowser": "PASS same owned Angular fixture: required certificate policy visible, reviewed assembly refused image-only report; no captured warning/error logs; observed before final representation-template integrity guard",
+        "bothPresentations": "PASS 2/2 final Angular and retained Web completion/release/client-download journeys after representation-template integrity guard",
+        "integrity": "PASS exact ZIP paths, embedded manifest, source identities/byte counts, readable DOCX and five corrupt artifact reads refused; intact stored evidence still assembles",
+        "drift": "PASS OpenAPI current; EF model unchanged; documentation health/naming/metrics, board and source inventory"
+      },
+      "artifacts": [
+        "/private/tmp/auditsphere-rel01-race-tests/_Mac_2026-10-13_21_08_56_net10.0.trx",
+        "/private/tmp/auditsphere-rel01-angular-browser/_Mac_2026-10-13_21_12_55_net10.0.trx",
+        "/private/tmp/auditsphere-rel01-angular-browser.png",
+        "/private/tmp/auditsphere-rel01-final-presentations/_Mac_2026-10-13_21_14_29_net10.0.trx",
+        "/private/tmp/auditsphere-rel01-final-integrity/_Mac_2026-10-13_21_19_35_net10.0.trx",
+        "/private/tmp/auditsphere-rel01-final-hosts/_Mac_2026-10-13_21_20_44_net10.0.trx"
+      ],
+      "filters": [
+        "AuditDeliverablesTests.FivePartBundle_ | AuditDeliverablesTests.CertificateSignedReport_IsReleased | ReportCertificateSigningTests",
+        "CompletionDeliverablesJourneyTests"
+      ],
+      "disposition": "Supersedes comment-bound, race-injection and canonical Angular omissions in prior REL-01 slice records; REL-01 still partial",
+      "remaining": [
+        "Full designated regression suites and remaining release-identity adverse matrix",
+        "Live provider release acceptance, signer trust, recipient and professional decisions remain separately governed"
+      ],
+      "migration": "No schema change or persistent database migration"
     }
   },
   "externalGates": [

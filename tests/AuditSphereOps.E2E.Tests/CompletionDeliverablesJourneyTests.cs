@@ -23,9 +23,26 @@ public sealed class CompletionDeliverablesJourneyTests
 {
   [Fact]
   [Trait("CaseId", "AS-STE-COMPLETION-01")]
-  public async Task PartnerClearsDecidesAndIssues_ClientReviewsInThePortal()
+  public Task PartnerClearsDecidesAndIssues_ClientReviewsInThePortal() => RunReleaseJourneyAsync(canonicalAngular: false);
+
+  [Fact]
+  [Trait("CaseId", "AS-STE-COMPLETION-ANGULAR")]
+  public Task AngularPartnerReleasesBundle_ClientDownloads_AndRequiredSigningRejectsReplay() => RunReleaseJourneyAsync(canonicalAngular: true);
+
+  private static async Task RunReleaseJourneyAsync(bool canonicalAngular)
   {
-    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "AS-STE-COMPLETION-01");
+    await using var host = await OwnedHost.StartAsync(startWorker: false,
+      caseId: canonicalAngular ? "AS-STE-COMPLETION-ANGULAR" : "AS-STE-COMPLETION-01");
+    Task<string> StartIdentityAsync(AuditSphereOps.Domain.Security.AppUser user, bool required = false)
+    {
+      var settings = new Dictionary<string, string> {
+        ["AngularUi__Enabled"] = canonicalAngular ? "true" : "false",
+        ["AngularUi__CanonicalRoutes"] = canonicalAngular ? "true" : "false",
+        ["ReportSigning__Required"] = required ? "true" : "false",
+        ["ReportSigning__CertificatePath"] = "", ["ReportSigning__PrivateKeyPath"] = ""
+      };
+      return canonicalAngular ? host.StartApiForIdentityAsync(user, settings) : host.StartRollbackForIdentityAsync(user, settings);
+    }
     var f = host.Fixture;
     var partner = PbcSeed.User(f.FirmId, "Staff"); partner.DisplayName = "Pat Partner";
     var manager = PbcSeed.User(f.FirmId, "Staff"); manager.DisplayName = "Mona Manager";
@@ -71,7 +88,7 @@ public sealed class CompletionDeliverablesJourneyTests
         PbcSeed.Actor(manager, "Manager"), PbcSeed.Actor(partner, "Partner"),
         accounts: [("1000", "Cash", 100m, "CASH", "ASSETS"), ("4000", "Revenue", -100m, "REVENUE", "INCOME")]);
 
-    var origin = await host.StartRollbackForIdentityAsync(partner);
+    var origin = await StartIdentityAsync(partner);
     using var playwright = await Playwright.CreateAsync();
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     var page = await (await browser.NewContextAsync()).NewPageAsync();
@@ -107,9 +124,9 @@ public sealed class CompletionDeliverablesJourneyTests
     await Assertions.Expect(result).ToContainTextAsync("Partner clearance recorded.");
 
     // Conditional fields: focus and basis appear only for a qualified opinion.
-    var opinionFocus = page.Locator("#op-focus");
+    var opinionFocus = page.Locator(canonicalAngular ? "select[name='focus']" : "#op-focus");
     await Assertions.Expect(opinionFocus).ToHaveCountAsync(0);
-    await page.Locator("#op-type").SelectOptionAsync(AuditOpinionTypes.Qualified);
+    await page.Locator(canonicalAngular ? "select[name='op']" : "#op-type").SelectOptionAsync(AuditOpinionTypes.Qualified);
     await opinionFocus.SelectOptionAsync(new SelectOptionValue { Label = "INV — Inventory" });
     var opinionBasis = page.GetByLabel("Basis for Qualified Opinion");
     await opinionBasis.FillAsync("We were unable to observe the inventory count at 31 December 2026.");
@@ -120,7 +137,7 @@ public sealed class CompletionDeliverablesJourneyTests
 
     foreach (var title in new[] { "Independent Auditor's Report", "Management Representation Letter" })
     {
-      await page.GetByRole(AriaRole.Button, new() { Name = $"Generate {title}" }).ClickAsync();
+      await page.GetByRole(AriaRole.Button, new() { Name = $"Generate {(canonicalAngular && title == "Management Representation Letter" ? "Representation Letter" : title)}" }).ClickAsync();
       await Assertions.Expect(result).ToContainTextAsync($"{title} generated.");
     }
     var table = page.Locator("[aria-label='Generated deliverables']");
@@ -133,17 +150,23 @@ public sealed class CompletionDeliverablesJourneyTests
     await Assertions.Expect(result).ToContainTextAsync("Shared with client management.");
 
     // Client management reviews in the portal.
-    var clientOrigin = await host.StartRollbackForIdentityAsync(f.Client);
+    var clientOrigin = await StartIdentityAsync(f.Client);
     var clientPage = await (await browser.NewContextAsync()).NewPageAsync();
     clientPage.PageError += (_, error) => diagnostics.Add($"page-error: {error}");
     await clientPage.GotoAsync($"{clientOrigin}/auth/sign-in?returnUrl={Uri.EscapeDataString("/portal")}");
     await clientPage.GetByRole(AriaRole.Heading, new() { Name = "Documents for your review" }).WaitForAsync(new() { Timeout = 20000 });
     await clientPage.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 15000 });
     await clientPage.WaitForTimeoutAsync(500);
-    var letter = clientPage.Locator(".client-review-item").Filter(new() { HasText = "Management Representation Letter v1" });
+    var letter = clientPage.Locator(canonicalAngular ? "article.document" : ".client-review-item").Filter(new() { HasText = "Management Representation Letter v1" });
     await Assertions.Expect(letter).ToBeVisibleAsync();
-    await letter.GetByRole(AriaRole.Button, new() { Name = "Acknowledge Management Representation Letter", Exact = true }).ClickAsync();
-    await Assertions.Expect(clientPage.GetByText("Acknowledged. The exact version you reviewed is recorded.", new() { Exact = true })).ToBeVisibleAsync();
+    if (canonicalAngular)
+    {
+      await letter.GetByRole(AriaRole.Button, new() { Name = "Review this version", Exact = true }).ClickAsync();
+      await letter.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed this exact document version and hash.", Exact = true }).CheckAsync();
+    }
+    await letter.GetByRole(AriaRole.Button, new() { Name = canonicalAngular ? "Acknowledge this version" : "Acknowledge Management Representation Letter", Exact = true }).ClickAsync();
+    await Assertions.Expect(clientPage.GetByText(canonicalAngular ? "Acknowledged. The exact version reviewed is recorded." : "Acknowledged. The exact version you reviewed is recorded.", new() { Exact = true })).ToBeVisibleAsync();
+    if (canonicalAngular) await letter.GetByRole(AriaRole.Button, new() { Name = "Upload signed letter", Exact = true }).ClickAsync();
     await using (var db = host.CreateDbContext())
     {
       var ack = await db.ClientDeliverableReviews.AsNoTracking().SingleAsync(x => x.EngagementId == f.EngagementId);
@@ -153,8 +176,9 @@ public sealed class CompletionDeliverablesJourneyTests
 
     await clientPage.GetByLabel("Management signatory", new() { Exact = true }).FillAsync("Authorized Executive Management");
     await clientPage.GetByLabel("Management signatory", new() { Exact = true }).PressAsync("Tab");
-    await clientPage.GetByLabel("Upload management-signed representation letter", new() { Exact = true }).SetInputFilesAsync(new FilePayload { Name = "signed-representation.pdf", MimeType = "application/pdf", Buffer = CompletionTestFixtures.SignedPdf() });
-    await Assertions.Expect(clientPage.GetByText("Signed PDF uploaded for this exact letter version. Engagement Partner verification is pending.", new() { Exact = true })).ToBeVisibleAsync();
+    await clientPage.GetByLabel(canonicalAngular ? "Management-signed PDF" : "Upload management-signed representation letter", new() { Exact = true }).SetInputFilesAsync(new FilePayload { Name = "signed-representation.pdf", MimeType = "application/pdf", Buffer = CompletionTestFixtures.SignedPdf() });
+    if (canonicalAngular) await letter.GetByRole(AriaRole.Button, new() { Name = "Upload signed PDF", Exact = true }).ClickAsync();
+    await Assertions.Expect(clientPage.GetByText(canonicalAngular ? "Signed PDF uploaded. Engagement Partner verification is pending." : "Signed PDF uploaded for this exact letter version. Engagement Partner verification is pending.", new() { Exact = true })).ToBeVisibleAsync();
 
     // Back on the Partner's page: register a PNG signature, sign, and the 60-day freeze is scheduled and traced.
     await page.GotoAsync($"{origin}/app/engagements/{f.EngagementId:D}/completion");
@@ -204,9 +228,7 @@ public sealed class CompletionDeliverablesJourneyTests
     var clientDownload = await clientPage.RunAndWaitForDownloadAsync(() => clientPage.GetByRole(AriaRole.Link, new() { Name = "Download five-part final bundle" }).ClickAsync());
     Assert.EndsWith(".zip", clientDownload.SuggestedFilename);
     // Rollback/reference presentation must pass the same host policy, even when a prior image-only bundle exists.
-    var requiredOrigin = await host.StartRollbackForIdentityAsync(partner, new Dictionary<string, string> {
-      ["ReportSigning__Required"] = "true", ["ReportSigning__CertificatePath"] = "", ["ReportSigning__PrivateKeyPath"] = ""
-    });
+    var requiredOrigin = await StartIdentityAsync(partner, required: true);
     var completionPath = $"/app/engagements/{f.EngagementId:D}/completion";
     await page.GotoAsync(requiredOrigin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(completionPath));
     await page.GetByRole(AriaRole.Heading, new() { Name = "Review, opinion and deliverables", Exact = true }).WaitForAsync();
