@@ -120,6 +120,18 @@ public sealed class EngagementWorkflowPlanTests
         db, adminActor, refreshedSuccessor.Id, refreshedSuccessor.Revision);
       Assert.True(successorCompletion.Succeeded, successorCompletion.Message);
 
+      // A completed operational checklist is not professional acceptance, planning approval, an opinion or release.
+      // Those gates must survive both template publication and completion of every instantiated task.
+      var activation = await EngagementLifecycleService.ActivateAsync(db, partnerActor, engagementId);
+      Assert.Equal(ErrorCodes.GateBlocked, activation.ErrorCode);
+      Assert.Contains("No Partner acceptance decision exists", activation.Message);
+      Assert.Equal("Draft", (await db.Engagements.AsNoTracking().SingleAsync(x => x.Id == engagementId)).Status);
+      Assert.Empty(await db.EngagementActivations.Where(x => x.EngagementId == engagementId).ToListAsync());
+      Assert.Empty(await db.MaterialityApprovals.Where(x => x.EngagementId == engagementId).ToListAsync());
+      Assert.Empty(await db.AuditOpinionDecisions.Where(x => x.EngagementId == engagementId).ToListAsync());
+      Assert.Empty(await db.Releases.Where(x => x.EngagementId == engagementId).ToListAsync());
+      Assert.Empty(await db.EngagementFileFreezes.Where(x => x.EngagementId == engagementId).ToListAsync());
+
       // A later schedule revision does not silently move promised task dates. An ambiguous retry still recovers
       // the original receipt before checking today's changed preview inputs.
       var revisedSchedule = await StatutoryMilestoneService.SaveMilestonesAsync(db, adminActor,

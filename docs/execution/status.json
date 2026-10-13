@@ -805,25 +805,8 @@
       "jsonPath": "keys.targetedVerification.workflowAnnualPlanHandoff"
     },
     "workflowAnnualReferenceMetadata": {
-      "sourceCommit": "04124839 + working tree",
-      "status": "FOCUSED_VERIFIED",
-      "checks": {
-        "domain": "8 passed: contacts valid at next-period start, approved exact-period mapping, draft exclusion, RelationshipManager restriction, annual and plan regressions",
-        "angular": "13 passed: bounded typed metadata, duplicate/wrong-period/restricted mapping refusal, creation recovery",
-        "e2e": "2 passed: Manager and RelationshipManager populated references with existing annual creation and plan flows",
-        "builtInBrowser": "Owned Manager fixture: contact suggestion, no-approved-mapping state, fresh-work list; no warn/error logs",
-        "builds": "Application/API/Domain/E2E/emitter Release and Angular passed; NU1900 and existing stylesheet warnings",
-        "contract": "Emitted current contract unchanged"
-      },
-      "evidence": [
-        "/private/tmp/auditsphere-annual-metadata-domain-final/_Mac_2026-10-13_13_44_59_net10.0.trx",
-        "/private/tmp/auditsphere-annual-metadata-browser-final/_Mac_2026-10-13_16_22_32_net10.0.trx"
-      ],
-      "remaining": [
-        "Fresh-checklist orchestration",
-        "Populated historic-mapping browser check",
-        "Full release and live/professional acceptance"
-      ]
+      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
+      "jsonPath": "keys.targetedVerification.workflowAnnualReferenceMetadata"
     },
     "workflowAnnualChecklistHandoff": {
       "archivedEvidence": "docs/execution/status-archive-2026-10.json",
@@ -1028,6 +1011,19 @@
         "Live provider release acceptance, signer trust, recipient and professional decisions remain separately governed"
       ],
       "migration": "No schema change or persistent database migration"
+    },
+    "workflowTemplateProfessionalBoundary": {
+      "baseCommit": "8779ce2c168e2d47e172fe7ca2b53d8ba9b31e59",
+      "recordedAtUtc": "2026-10-13T18:27:57.632822+00:00",
+      "workingTreeChangesIncluded": true,
+      "sourceSha256": "1acbb5de3dc5dbe3edcfd24e22528ceeb7754ee9a026cfbca3c8b353661dda97",
+      "scope": "Completing every task from a published pinned plan does not satisfy professional or lifecycle gates",
+      "checks": "PASS 2/2 WorkflowTemplateTests and EngagementWorkflowPlanTests; Release build passed with existing NU1900 warnings",
+      "proof": "All operational tasks completed; activation denied for missing Partner acceptance; engagement remains Draft; no activation/materiality approval/opinion/release/freeze rows created",
+      "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --no-restore --configuration Release --maxcpucount:1 --filter 'FullyQualifiedName~WorkflowTemplateTests|FullyQualifiedName~EngagementWorkflowPlanTests'",
+      "artifact": "/private/tmp/auditsphere-template-boundary-tests/_Mac_2026-10-13_21_26_23_net10.0.trx",
+      "remaining": "TASK-01 still partial: template-declared prerequisites, publication rules, phase guidance, automation and broader acceptance. RequiredTask is operational; no professional gate waiver introduced.",
+      "migration": "No schema/configuration/UI change or persistent database migration"
     }
   },
   "externalGates": [

@@ -15,11 +15,13 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
-## Release bundle signing replay guards — 2026-10-13
+## Task/professional boundary — 2026-10-13
 
-`REL-01` source review found that an existing bundle could be returned before current signing policy checks. Assembly now checks the current policy and the matching report/certification certificate before new creation or replay. An image-only bundle cannot bypass a later certificate-required policy; missing or different credentials refuse assembly while stored downloads remain separate scope-checked reads. Stored artifact hashes, including the representation template, are checked before assembly. No global signing policy was changed.
+Completing every task in a published pinned plan still refuses activation without Partner acceptance and creates no professional approval, opinion, release or freeze evidence. Template/plan checks passed; see `targetedVerification.workflowTemplateProfessionalBoundary` in [status.json](status.json). TASK-01 remains partial. Operational `RequiredTask` is not a professional gate.
 
-The Web panel forwards host signing policy. Focused checks cover certificate/ZIP integrity, lineage, stale sources and message/comment bounds with a deterministic append race. The Angular release journey and built-in replay refusal passed. Evidence: `targetedVerification.releaseBundleSigningReplay`, `releaseBundleCorrespondence` and `releaseBundleRaceAndAngular` in [status.json](status.json). Further adverse cases, full release and operator rotation review remain open. No persistent database changed.
+## Release bundle integrity — 2026-10-13
+
+Assembly rechecks signing policy and matching certificate on new creation/replay, including later certificate-required policy. All stored artifact hashes, including the representation template, are checked. Web forwards host policy; downloads remain scope checked. Focused Domain, Angular/reference journeys and built-in browser checks passed: ZIP/certificate integrity, lineage, stale sources and bounded correspondence with injected appends. Evidence: `targetedVerification.releaseBundleSigningReplay`, `releaseBundleCorrespondence` and `releaseBundleRaceAndAngular` in [status.json](status.json). Further adverse cases, full release and operator rotation review remain open. No global policy or persistent database changed.
 
 ## Reviewed task dependency amendments — 2026-10-13
 

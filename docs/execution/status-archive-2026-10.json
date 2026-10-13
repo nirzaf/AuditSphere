@@ -15898,6 +15898,27 @@
           "Populated prior-reference browser check",
           "Full release, professional and external acceptance"
         ]
+      },
+      "workflowAnnualReferenceMetadata": {
+        "sourceCommit": "04124839 + working tree",
+        "status": "FOCUSED_VERIFIED",
+        "checks": {
+          "domain": "8 passed: contacts valid at next-period start, approved exact-period mapping, draft exclusion, RelationshipManager restriction, annual and plan regressions",
+          "angular": "13 passed: bounded typed metadata, duplicate/wrong-period/restricted mapping refusal, creation recovery",
+          "e2e": "2 passed: Manager and RelationshipManager populated references with existing annual creation and plan flows",
+          "builtInBrowser": "Owned Manager fixture: contact suggestion, no-approved-mapping state, fresh-work list; no warn/error logs",
+          "builds": "Application/API/Domain/E2E/emitter Release and Angular passed; NU1900 and existing stylesheet warnings",
+          "contract": "Emitted current contract unchanged"
+        },
+        "evidence": [
+          "/private/tmp/auditsphere-annual-metadata-domain-final/_Mac_2026-10-13_13_44_59_net10.0.trx",
+          "/private/tmp/auditsphere-annual-metadata-browser-final/_Mac_2026-10-13_16_22_32_net10.0.trx"
+        ],
+        "remaining": [
+          "Fresh-checklist orchestration",
+          "Populated historic-mapping browser check",
+          "Full release and live/professional acceptance"
+        ]
       }
     }
   }
