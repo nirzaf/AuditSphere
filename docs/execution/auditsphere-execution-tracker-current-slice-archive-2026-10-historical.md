@@ -6840,3 +6840,7 @@ A proposal can carry an optional delivery timeline. It is part of the creation r
 The work queue can show a loaded page as a list, a board by operational status, or a calendar by due date in Sunday-start weeks. The three arrangements regroup the same tasks, and a card offers only the task's own completion command. The engagement dashboard shows an expandable checklist per phase, with task progress beside the gate status and a plain statement when every task is done but the gate is blocked. Both sit behind `WorkflowExperience:Enabled`, which stays off by default, and neither was run in a browser.
 
 The owner-supplied program and its crosswalk are in `docs/execution`; the crosswalk lists what remains and why. The full .NET suites were left to CI; evidence is in `status.json` under `targetedVerification.practiceManagementWorkflowViewsSlice`.
+
+## RelationshipManager preparation — 2026-10-13
+
+Existing client/firm grants now permit RelationshipManager blocked-shell preparation and client business summaries. Engagement-only scope cannot widen to the parent, and professional reads, decisions and activation remain separately restricted. The receipt publication guard enforces the same role policy. Evidence and isolated rollback are under `targetedVerification.workflowRelationshipManagerPreparation` in [status.json](status.json).

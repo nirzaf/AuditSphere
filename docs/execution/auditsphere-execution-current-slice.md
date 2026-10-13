@@ -15,9 +15,9 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
-## RelationshipManager preparation — 2026-10-13
+## Annual task-plan references — 2026-10-13
 
-Existing client/firm grants now permit RelationshipManager blocked-shell preparation and client business summaries. Engagement-only scope cannot widen to the parent, and professional reads, decisions and activation remain separately restricted. The receipt publication guard enforces the same role policy. Evidence and isolated rollback are under `targetedVerification.workflowRelationshipManagerPreparation` in [status.json](status.json).
+Annual preparation now lists up to three currently published revisions from prior task-plan template identities, plus up to three prior schedule bases. They are reference-only: fresh plan review remains required and no tasks or deadlines are copied. Build and focused query evidence are recorded under `targetedVerification.workflowAnnualTaskPlanReferences` in [status.json](status.json). Template selection/pinning orchestration remains open.
 
 ## Annual preparation and scoped decisions — 2026-10-13
 

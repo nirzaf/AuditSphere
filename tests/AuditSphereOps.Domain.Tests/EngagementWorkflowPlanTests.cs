@@ -1,4 +1,5 @@
 using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Acceptance;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Completion;
@@ -176,6 +177,13 @@ public sealed class EngagementWorkflowPlanTests
       Assert.Equal(2, (await db.WorkflowTaskPlanReceipts.SingleAsync(x => x.EngagementId == secondEngagementId)).TemplateVersion);
       Assert.Equal(2, await db.WorkflowTaskBindings.CountAsync(x => x.EngagementId == engagementId));
       Assert.Equal(3, await db.WorkflowTaskBindings.CountAsync(x => x.EngagementId == secondEngagementId));
+      var annual = await AnnualEngagementPreparationWorkspace.StateAsync(db, partnerActor, clientId, engagementId);
+      Assert.True(annual.Succeeded, annual.Message);
+      Assert.Contains(annual.Value!.CopiedReferences, x => x.Contains(nextDraft.Value.ToString()) && x.Contains("version 2"));
+      Assert.DoesNotContain(annual.Value.CopiedReferences, x => x.Contains(revisionId.ToString()));
+      Assert.Contains(annual.Value.CopiedReferences, x => x.StartsWith("Prior task-plan schedule basis:"));
+      Assert.Contains("Reviewed task template and current-period schedule", annual.Value.RequiresFreshWork);
+      Assert.Equal(2, await db.WorkflowTaskBindings.CountAsync(x => x.EngagementId == engagementId));
     }
 
     await using (var db = new AuditSphereDbContext(pg.Options))

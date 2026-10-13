@@ -1026,6 +1026,20 @@
         "WF-11 still needs approved template choice/pinning, contact/schedule/mapping suggestions and fresh-checklist orchestration.",
         "No tenant grants, professional acceptance, full release suite or production deployment."
       ]
+    },
+    "workflowAnnualTaskPlanReferences": {
+      "sourceCommit": "292c2102 + working tree",
+      "status": "FOCUSED_VERIFIED",
+      "checks": [
+        "Application and Domain Release builds passed; NU1900 feed warnings",
+        "Domain annual preparation and workflow-plan tests: 6 passed, 0 failed"
+      ],
+      "evidence": "/private/tmp/auditsphere-annual-references/_Mac_2026-10-13_13_08_56_net10.0.trx",
+      "remaining": [
+        "Browser display of populated references",
+        "Annual template selection and new-plan pinning orchestration",
+        "Full release and external acceptance"
+      ]
     }
   },
   "externalGates": [

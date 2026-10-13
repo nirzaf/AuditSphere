@@ -2,6 +2,7 @@ using System.Globalization;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Engagements;
+using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 
@@ -49,12 +50,28 @@ public static class AnnualEngagementPreparationWorkspace
     if (source is null) return CommandResult<AnnualEngagementPreparationState>.Fail(ErrorCodes.ScopeDenied, "Annual preparation unavailable.");
     var fields = Suggest(source);
     if (fields is null) return CommandResult<AnnualEngagementPreparationState>.Fail("annual.period-unsupported",
-      "This source is not a supported calendar-year engagement with a service profile. Prepare and review the period manually.");
+      "This source is not a supported 365- or 366-day engagement with a service profile. Prepare and review the period manually.");
+    var references = new List<string> { "Client identity", "Service route", "Service profile", "Prior period calendar reference" };
+    // These are discovery references only. The current plan command must independently review and pin a new plan.
+    var templates = await (from receipt in db.WorkflowTaskPlanReceipts.AsNoTracking()
+      join template in db.WorkflowTemplates.AsNoTracking() on receipt.TemplateId equals template.Id
+      join revision in db.WorkflowTemplateRevisions.AsNoTracking() on template.Id equals revision.TemplateId
+      where receipt.FirmId == actor.FirmId && receipt.ClientId == clientId && receipt.EngagementId == sourceId &&
+        template.FirmId == actor.FirmId && template.ArchivedAt == null && revision.FirmId == actor.FirmId &&
+        revision.Status == WorkflowTemplateStates.Published && revision.ServiceRoute == source.ServiceRoute
+      select new { revision.Id, revision.Version }).Distinct().OrderBy(x => x.Id).Take(3).ToListAsync(ct);
+    foreach (var template in templates)
+      references.Add($"Published task template reference: revision {template.Id}, version {template.Version}; review again before use");
+    var schedules = await db.WorkflowTaskPlanReceipts.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+      x.ClientId == clientId && x.EngagementId == sourceId && x.ScheduleBasisDate != null)
+      .Select(x => x.ScheduleBasisDate).Distinct().OrderByDescending(x => x).Take(3).ToListAsync(ct);
+    foreach (var schedule in schedules)
+      references.Add($"Prior task-plan schedule basis: {schedule:yyyy-MM-dd}; do not reuse as a current deadline");
     authorized = await EngagementCreationWorkspace.StateAsync(db, actor, clientId, ct);
     if (!authorized.Succeeded) return CommandResult<AnnualEngagementPreparationState>.Fail(authorized.ErrorCode!, authorized.Message!);
     return CommandResult<AnnualEngagementPreparationState>.Ok(new(clientId, sourceId, source.PeriodStart, source.PeriodEnd, fields,
-      ["Client identity", "Service route", "Service profile", "Prior period calendar reference"],
-      ["Client commercial consent", "Partner continuance", "Materiality", "Fieldwork", "Independent review", "Opinion", "Signature", "Fee agreement and advance"]));
+      references,
+      ["Reviewed task template and current-period schedule", "Client commercial consent", "Partner continuance", "Materiality", "Fieldwork", "Independent review", "Opinion", "Signature", "Fee agreement and advance"]));
   }
 
   internal static async Task<CommandResult> ValidateAsync(IAuditSphereDbContext db, ActorContext actor, Guid clientId,
