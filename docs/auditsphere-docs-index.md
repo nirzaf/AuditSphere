@@ -134,11 +134,9 @@ When two documents appear to conflict or contain differing detail, precedence is
 These documents describe planned features, prototype gap closures, or onboarding designs that are **not yet accepted or implemented capability**:
 
 | Document | Purpose | Authority |
-
 |---|---|---|
-
+| [`docs/execution/auditsphere-execution-user-stories-ste-v22-implementation-backlog-proposed.md`](execution/auditsphere-execution-user-stories-ste-v22-implementation-backlog-proposed.md) | Supplied v2.2 baseline backlog with decision/external gates and current integration notes; story IDs are local to that document. | `PROPOSED` |
 | [`docs/requirements/auditsphere-m365-onboarding-user-stories.md`](requirements/auditsphere-m365-onboarding-user-stories.md) | Proposed tenant administrator onboarding, invitation flows, and role assignment designs (AS-M365-SSO-001). | `PROPOSED` |
-
 | [`docs/execution/auditsphere-execution-workflow-roadmap-ste-closure-proposed.md`](execution/auditsphere-execution-workflow-roadmap-ste-closure-proposed.md) | STE closure roadmap: milestones M0 to M4 that order the existing and new backlog. | `PROPOSED` |
 | [`docs/execution/auditsphere-execution-user-stories-ste-v21-remaining-proposed.md`](execution/auditsphere-execution-user-stories-ste-v21-remaining-proposed.md) | Remaining STE v2.1 stories STE-NXT-001 to STE-NXT-013 with acceptance criteria. | `PROPOSED` |
 | [`docs/execution/auditsphere-execution-user-stories-cloud-practice-management-v22-proposed.md`](execution/auditsphere-execution-user-stories-cloud-practice-management-v22-proposed.md) | Owner-supplied practice management completion program: stories PM-00 to PM-17 and the candidate-gap appendix. A plan, not implementation authority. | `PROPOSED` |
