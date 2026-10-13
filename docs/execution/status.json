@@ -1044,6 +1044,13 @@
         "Other workflow automation, annual-policy and scale gaps",
         "Full release suites, live Microsoft and professional acceptance; full verifiedCommit unchanged"
       ]
+    },
+    "workflowTrackerReconciliation": {
+      "baseCommit": "52c9f91b94b843f5c0f3c6825cd4d03e006055bd",
+      "scope": "Source-read reconciliation of stale v2.2 rows 5.5, AC-4, AC-10, list browser caveat and supporting capabilities; no runtime behavior changed",
+      "evidence": "CommercialDocumentService.cs exact dispatch/quotation/hash/generation checks; AnnualEngagementPreparationWorkspace.cs reference-only fields; existing annual tests and recorded scoped run provenance",
+      "verification": "Documentation health, naming, narrative metrics and diff checks; no additional test run for documentation-only change",
+      "remaining": "Full workflow/release and external/professional acceptance unchanged"
     }
   },
   "externalGates": [
