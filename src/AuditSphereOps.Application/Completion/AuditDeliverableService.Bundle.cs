@@ -55,7 +55,6 @@ public static partial class AuditDeliverableService
       Lines = lines.Select(x => new { x.Id, x.Description, x.Quantity, x.UnitPrice, x.LineTotal }), Correspondence = correspondenceJson,
       Profile = firm?.Id, CertifiedBy = actor.UserId });
     var prior = await db.CommercialDeliverableBundles.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId && x.SourceDigest == sourceDigest, ct);
-    if (prior is not null) return CommandResult<Guid>.Ok(prior.Id);
     if ((long)report.Content.Length + management.Content.Length + scan.Content.Length + statements.ArtifactBytes.Length + Encoding.UTF8.GetByteCount(correspondenceJson) > 100 * 1024 * 1024)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The bundle exceeds the 100 MB assembly limit; request an approved delivery arrangement.");
     if (!ValidPdf(report.Content) || !ValidPdf(statements.ArtifactBytes))
@@ -88,6 +87,12 @@ public static partial class AuditDeliverableService
           "The report is certificate-signed, but no report-signing certificate is available to certify the financial statements.");
     }
     using var certificateScope = certificate;
+    if (certificate is not null && !string.Equals(ReportCertificateSigning.ThumbprintSha256(certificate),
+        signatureApplication.CertificateThumbprintSha256, StringComparison.OrdinalIgnoreCase))
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+        "The certification credential does not match the certificate on the signed report. Restore the approved matching credential or review and sign a new report version.");
+    // Replay is an assembly action too: a stored bundle must not bypass the current signing policy or credential checks.
+    if (prior is not null) return CommandResult<Guid>.Ok(prior.Id);
     var specimen = await db.SignatureSpecimens.AsNoTracking().SingleAsync(x => x.FirmId == actor.FirmId && x.Id == signatureApplication.SpecimenId, ct);
     using var summary = JsonDocument.Parse(report.InputSummaryJson);
     var sealId = summary.RootElement.GetProperty("Seal").GetGuid();

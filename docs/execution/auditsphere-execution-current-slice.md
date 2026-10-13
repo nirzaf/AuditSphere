@@ -15,6 +15,12 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Release bundle signing replay guards — 2026-10-13
+
+`REL-01` source review found that an existing bundle could be returned before current signing policy checks. Assembly now checks the current policy and the matching report/certification certificate before new creation or replay. An image-only bundle cannot bypass a later certificate-required policy; missing or different credentials refuse assembly while stored downloads remain separate scope-checked reads. No global signing policy was changed.
+
+The retained Web completion panel now forwards the host signing credential and policy. Focused Domain and reference-browser journeys passed, including actual ZIP hashes, certificate validation and built-in-browser replay refusal; results and omitted checks are in `targetedVerification.releaseBundleSigningReplay` in [status.json](status.json). Complete adverse-source/bounds acceptance and operator rotation guidance remain open. No schema or persistent database changed.
+
 ## Reviewed task dependency amendments — 2026-10-13
 
 WF-08 now supports manager-reviewed required/withdrawn task edges as append-only amendments over the original pinned template graph. Both task revisions, exact engagement scope and a reason are bound to the actor-owned idempotency receipt. The complete effective graph is serialized and checked for cycles, including opposite-edge races; PostgreSQL also rejects raw cyclic inserts and history mutation. Queue readiness and both completion routes use the same effective graph. No professional approval or pinned template row changes.

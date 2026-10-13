@@ -10,7 +10,7 @@
 
 ## Supplemental STE v2.2 implementation backlog
 
-The [supplied implementation backlog](auditsphere-execution-user-stories-ste-v22-implementation-backlog-proposed.md) adds local story/decision IDs and an acceptance matrix. Read its integration notes and existing ADRs before selecting a card. `TASK-01` dependency amendments have focused evidence in [status.json](status.json); the broader card remains partial. Next inspect `REL-01` against the existing bundle implementation and tests. Baseline claims are not current completion evidence.
+The [supplied implementation backlog](auditsphere-execution-user-stories-ste-v22-implementation-backlog-proposed.md) adds local story/decision IDs and an acceptance matrix. Read its integration notes and existing ADRs before selecting a card. `TASK-01` dependency amendments have focused evidence in [status.json](status.json); the broader card remains partial. `REL-01` has focused signature-policy replay and retained Web journey evidence; remaining adverse-source, correspondence-bound, canonical Angular and release acceptance checks stay open. Baseline claims are not current completion evidence.
 
 ## 1. Summary
 

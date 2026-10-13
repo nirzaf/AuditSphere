@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "sourceCommit": "6025343470ac8bfa5bb10201cfdf94c32f4820c5",
+  "sourceCommit": "460b5b02a3d75d8cae168fda297169812f6ba98f",
   "coverage": "Source discovery only; dynamic actions, scope and parity tests require manual review.",
   "items": [
     {
@@ -702,7 +702,7 @@
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Completion/CompletionDeliverablesPanel.razor",
-      "sourceSha256": "484ef2b7744ffb93bb0491dd930a8336c94647d6901dd2e3cf0e78b56a10a1ec",
+      "sourceSha256": "3223e820a04b019a60214d50e8520762813a70f0882a9d9b7916288a6f4bc534",
       "routes": [],
       "actions": [
         "@(() => GenerateAsync(kind))",
@@ -724,6 +724,10 @@
         [
           "IDbContextFactory<AuditSphereDbContext>",
           "DbFactory"
+        ],
+        [
+          "IReportSigningCredentialSource",
+          "ReportSigning"
         ]
       ],
       "links": [

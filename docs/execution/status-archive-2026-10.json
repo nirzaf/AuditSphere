@@ -15786,6 +15786,35 @@
           "documentationValidators": "Markdown health and filename validators are blocked only by the separately staged, untouched user file STE_Audit_Management_Requirements_v2.2.md; narrative metrics and Angular source inventory passed."
         },
         "acceptance": "Local focused evidence only. WorkflowExperience remains default-off; no full Domain/API/E2E suite, persistent database migration, live provider or professional acceptance is claimed. The v2.2 workflow epic remains PARTIAL."
+      },
+      "workflowAnnualChecklistHandoff": {
+        "baseCommit": "7feb79bd",
+        "workingTreeChangesIncluded": true,
+        "recordedAtUtc": "2026-10-13T13:45:20.687326+00:00",
+        "scope": "Exact annual assessment context, reviewed fresh evaluation, fixed-scope decision editor, period/revision preview fencing and existing annual receipt handoff",
+        "checks": {
+          "domain": "PASS 36/36: AcceptanceChecklistTests, annual preparation and RelationshipManager cohorts",
+          "api": "PASS 3/3: AssessmentWorkspaceApiTests and AssessmentCommandReceiptApiTests",
+          "angular": "PASS 43/43: assessment command/workspace/checklist and annual creation cohorts",
+          "e2e": "PASS 4/4 final cohort: annual continuance, scoped decision, Manager and RelationshipManager annual creation",
+          "builtInBrowser": "PASS owned synthetic fixtures: exact target, empty 0/32 current-generation delta answers, fixed engagement/service fields, no warn/error logs",
+          "builds": "PASS bounded Application/API/Domain/API-tests/E2E/emitter Release and Angular production builds; NU1900 feed and existing stylesheet budget warnings",
+          "drift": "PASS EF model unchanged; OpenAPI updated and drift passed",
+          "priorCi": "7feb79bd CI 38404679254 and images 38404679439 succeeded"
+        },
+        "evidence": [
+          "/private/tmp/auditsphere-annual-checklist-domain/_Mac_2026-10-13_16_34_59_net10.0.trx",
+          "/private/tmp/auditsphere-annual-checklist-api/_Mac_2026-10-13_16_36_51_net10.0.trx",
+          "/private/tmp/auditsphere-annual-checklist-browser-final/_Mac_2026-10-13_16_44_10_net10.0.trx"
+        ],
+        "diagnostics": "The first UI test exposed ignored service-route seeding; corrected. A combined manual-inspection E2E run collided on its shared temporary handoff name; unique single-fixture inspection and the final unpaused cohort passed.",
+        "remaining": [
+          "Annual template preselection and nonstandard calendar rules",
+          "Populated historic-mapping browser acceptance",
+          "Other v2.2 dependency, automation, activity, scale and full-release work",
+          "Live provider and independent professional acceptance remain separate"
+        ],
+        "migration": "No schema change or persistent-database migration"
       }
     }
   }

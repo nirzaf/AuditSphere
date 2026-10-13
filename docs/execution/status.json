@@ -874,33 +874,8 @@
       ]
     },
     "workflowAnnualChecklistHandoff": {
-      "baseCommit": "7feb79bd",
-      "workingTreeChangesIncluded": true,
-      "recordedAtUtc": "2026-10-13T13:45:20.687326+00:00",
-      "scope": "Exact annual assessment context, reviewed fresh evaluation, fixed-scope decision editor, period/revision preview fencing and existing annual receipt handoff",
-      "checks": {
-        "domain": "PASS 36/36: AcceptanceChecklistTests, annual preparation and RelationshipManager cohorts",
-        "api": "PASS 3/3: AssessmentWorkspaceApiTests and AssessmentCommandReceiptApiTests",
-        "angular": "PASS 43/43: assessment command/workspace/checklist and annual creation cohorts",
-        "e2e": "PASS 4/4 final cohort: annual continuance, scoped decision, Manager and RelationshipManager annual creation",
-        "builtInBrowser": "PASS owned synthetic fixtures: exact target, empty 0/32 current-generation delta answers, fixed engagement/service fields, no warn/error logs",
-        "builds": "PASS bounded Application/API/Domain/API-tests/E2E/emitter Release and Angular production builds; NU1900 feed and existing stylesheet budget warnings",
-        "drift": "PASS EF model unchanged; OpenAPI updated and drift passed",
-        "priorCi": "7feb79bd CI 38404679254 and images 38404679439 succeeded"
-      },
-      "evidence": [
-        "/private/tmp/auditsphere-annual-checklist-domain/_Mac_2026-10-13_16_34_59_net10.0.trx",
-        "/private/tmp/auditsphere-annual-checklist-api/_Mac_2026-10-13_16_36_51_net10.0.trx",
-        "/private/tmp/auditsphere-annual-checklist-browser-final/_Mac_2026-10-13_16_44_10_net10.0.trx"
-      ],
-      "diagnostics": "The first UI test exposed ignored service-route seeding; corrected. A combined manual-inspection E2E run collided on its shared temporary handoff name; unique single-fixture inspection and the final unpaused cohort passed.",
-      "remaining": [
-        "Annual template preselection and nonstandard calendar rules",
-        "Populated historic-mapping browser acceptance",
-        "Other v2.2 dependency, automation, activity, scale and full-release work",
-        "Live provider and independent professional acceptance remain separate"
-      ],
-      "migration": "No schema change or persistent-database migration"
+      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
+      "jsonPath": "keys.targetedVerification.workflowAnnualChecklistHandoff"
     },
     "workflowAnnualTemplateReference": {
       "baseCommit": "3a6de263",
@@ -1038,6 +1013,35 @@
       "disposition": "Proposed baseline preserved; TASK-01 remains partial after verified dependency amendments. Existing ADR decisions preserved; document-local IDs do not replace other DEC/AUD cards.",
       "nextAction": "Inspect REL-01 release-bundle artifact and existing tests; lifecycle, professional methodology/assignment, signing and external gates remain separately governed.",
       "verification": "Documentation-only intake; documentation health/naming/narrative metrics and diff checks. No additional application test run or live provider change."
+    },
+    "releaseBundleSigningReplay": {
+      "recordedAtUtc": "2026-10-13T18:01:15.429499+00:00",
+      "baseCommit": "460b5b02a3d75d8cae168fda297169812f6ba98f",
+      "workingTreeChangesIncluded": true,
+      "changedSourceSha256": "1cce0ef9f59cb293e4f0e611e82e188c230ec6233990ad988df39be11b87c4d7",
+      "scope": "REL-01 current signing policy and matching certificate on assembly/replay; shared credential source forwarded by retained Web host; accessible specimen/seal inputs",
+      "checks": {
+        "domain": "PASS 5/5 focused report certificate and five-part bundle cohort",
+        "build": "PASS Application, Domain tests, API, OpenAPI emitter, Web and E2E Release builds; existing NU1900 vulnerability-feed warnings",
+        "artifact": "Existing test extracts actual ZIP entries, checks per-part and manifest hashes and validates both certificate-signed PDFs against the exact original certificate",
+        "regressions": "Missing/different certificate denied before first assembly and after saved replay; enabling Required cannot reuse an image-only bundle; exact valid replay retains one bundle",
+        "documentation": "PASS Markdown health/naming/narrative metrics, board freshness, source inventory and diff checks",
+        "host": "PASS OpenAPI drift and EF pending-model checks; no schema/contract change",
+        "referenceJourney": "PASS 1/1 retained Web staff/client journey: exact LOR acknowledgement/upload/verification, image-only signing, gated assembly and both downloads; Required=true replay denied with one existing bundle",
+        "builtInBrowser": "PASS owned synthetic Required=true host: reviewed statements, assembly refused image-only report; current host policy and upload labels visible; no warning/error console entries"
+      },
+      "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --no-restore --configuration Release --maxcpucount:1 --filter 'FullyQualifiedName~FivePartBundle_RequiresReviewedReleaseAndPostedBalance|FullyQualifiedName~CertificateSignedReport_IsReleased|FullyQualifiedName~ReportCertificateSigningTests'",
+      "artifact": "/private/tmp/auditsphere-rel01-signing-tests/_Mac_2026-10-13_20_38_56_net10.0.trx",
+      "remaining": [
+        "REL-01 complete adverse-source/correspondence-bound acceptance",
+        "Full release suites and canonical Angular completion journey not run for this slice",
+        "Operator certificate retention/rotation guidance; live trust and professional acceptance remain separate"
+      ],
+      "migration": "No schema change or persistent migration",
+      "browserArtifact": "/private/tmp/auditsphere-rel01-reference-browser.png",
+      "referenceArtifact": "/private/tmp/auditsphere-rel01-reference-browser-final/_Mac_2026-10-13_21_00_43_net10.0.trx",
+      "referenceCommand": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-build --no-restore --configuration Release --maxcpucount:1 --filter 'FullyQualifiedName~CompletionDeliverablesJourneyTests.PartnerClearsDecidesAndIssues_ClientReviewsInThePortal'",
+      "fixtureCorrections": "Mixed API/Blazor host and portal locators corrected; synthetic cash/revenue planning basis aligned to release fixture; production cross-cast guard retained"
     }
   },
   "externalGates": [

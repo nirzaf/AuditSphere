@@ -101,8 +101,22 @@ public sealed partial class AuditDeliverablesTests
         new ReportCertificateSigningTests.FixedSource(null, required: true))).ErrorCode);
       Assert.Empty(await db.CommercialDeliverableBundles.ToListAsync());
 
+      using var otherCertificate = ReportCertificateSigningTests.TestCertificate();
+      var otherPfx = otherCertificate.Export(System.Security.Cryptography.X509Certificates.X509ContentType.Pkcs12);
+      var mismatched = new ReportCertificateSigningTests.FixedSource(
+        () => System.Security.Cryptography.X509Certificates.X509CertificateLoader.LoadPkcs12(otherPfx, null), required: true);
+      var refusedNew = await AuditDeliverableService.AssembleBundleAsync(db, partner, w.EngagementId, true, default, mismatched);
+      Assert.Equal(ErrorCodes.GateBlocked, refusedNew.ErrorCode); Assert.Contains("does not match", refusedNew.Message);
+      Assert.Empty(await db.CommercialDeliverableBundles.ToListAsync());
       var assembled = await AuditDeliverableService.AssembleBundleAsync(db, partner, w.EngagementId, true, default, source);
       Assert.True(assembled.Succeeded, assembled.Message);
+      Assert.Equal(assembled.Value, (await AuditDeliverableService.AssembleBundleAsync(db, partner, w.EngagementId, true, default, source)).Value);
+      // A saved receipt cannot skip credential validation on a later assembly action.
+      Assert.Equal(ErrorCodes.GateBlocked, (await AuditDeliverableService.AssembleBundleAsync(db, partner, w.EngagementId, true)).ErrorCode);
+      var wrongCertificate = await AuditDeliverableService.AssembleBundleAsync(db, partner, w.EngagementId, true, default, mismatched);
+      Assert.Equal(ErrorCodes.GateBlocked, wrongCertificate.ErrorCode);
+      Assert.Contains("does not match", wrongCertificate.Message);
+      Assert.Single(await db.CommercialDeliverableBundles.ToListAsync());
       var row = await db.CommercialDeliverableBundles.AsNoTracking().SingleAsync(x => x.Id == assembled.Value);
       using var archive = new ZipArchive(new MemoryStream(row.Content), ZipArchiveMode.Read);
       foreach (var path in new[] { "01_Report_and_statements/Independent_auditors_report.pdf", "01_Report_and_statements/Certified_financial_statements.pdf" })
@@ -149,6 +163,11 @@ public sealed partial class AuditDeliverablesTests
       Assert.True(assembled.Succeeded, assembled.Message);
       var again = await AuditDeliverableService.AssembleBundleAsync(db, partner, w.EngagementId, true);
       Assert.Equal(assembled.Value, again.Value);
+      var policyChanged = await AuditDeliverableService.AssembleBundleAsync(db, partner, w.EngagementId, true, default,
+        new ReportCertificateSigningTests.FixedSource(null, required: true));
+      Assert.Equal(ErrorCodes.GateBlocked, policyChanged.ErrorCode);
+      Assert.Contains("signature image only", policyChanged.Message);
+      Assert.Single(await db.CommercialDeliverableBundles.ToListAsync());
       var row = (await AuditDeliverableService.GetBundleAsync(db, client, assembled.Value)).Value!;
       Assert.Equal(signedId, row.SignedReportId);
       Assert.Equal(releaseId, row.FinancialPackageReleaseId);

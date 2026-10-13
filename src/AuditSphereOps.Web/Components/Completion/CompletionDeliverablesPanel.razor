@@ -6,6 +6,7 @@
 @using Microsoft.AspNetCore.Components.Forms
 @inject CurrentActorResolver ActorResolver
 @inject IDbContextFactory<AuditSphereDbContext> DbFactory
+@inject IReportSigningCredentialSource ReportSigning
 
 <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" role="region" aria-labelledby="deliverables-heading">
   <h2 id="deliverables-heading">Review, opinion and deliverables</h2>
@@ -129,10 +130,12 @@
   <label><input type="checkbox" @bind="_statementsReviewed" /> I reviewed the exact released financial statements for certification with this report.</label>
   <MudButton Variant="Variant.Filled" OnClick="AssembleAsync" Disabled="@(_busy || !_statementsReviewed || _bundleState is null || _bundleState.Blockers.Count != 0)">Assemble five-part bundle (Partner)</MudButton>
   <h4 class="mt-3">Partner signature specimen</h4>
-  <p class="muted">A PNG image placed into the signed report. It is not a cryptographic signature; the signed document's hash is the evidence.</p>
+  <p class="muted">The PNG is the visible signature specimen. Certificate signing follows the host policy; an image alone is not a cryptographic signature. @(ReportSigning.Required ? "This host requires certificate signing." : "This host does not require certificate signing.")</p>
+  <label for="signature-file">Signature PNG</label>
   <InputFile id="signature-file" OnChange="RegisterSignatureAsync" accept=".png" />
   <h4 class="mt-3">Official firm seal</h4>
   <p class="muted">A firm-wide Partner or Administrator registers the approved seal. Each report retains the exact seal version used.</p>
+  <label for="firm-seal-file">Seal PNG</label>
   <InputFile id="firm-seal-file" OnChange="RegisterSealAsync" accept=".png" />
   @if (_message is not null) { <p class="command-result @(_error ? "error-text" : "success-text")" role="status">@_message</p> }
 </MudPaper>
@@ -206,7 +209,7 @@
   private Task VerifyScanAsync(SignedLetterView scan) => !_scanReviewed ? Task.CompletedTask : RunAsync(async (db, actor) =>
     R(await AuditDeliverableService.VerifySignedRepresentationAsync(db, actor, scan.Id, scan.ContentSha256, _scanReason), "Signed representation verified for its exact version."));
   private Task AssembleAsync() => RunAsync(async (db, actor) =>
-    R(await AuditDeliverableService.AssembleBundleAsync(db, actor, EngagementId, _statementsReviewed), "Five-part final bundle assembled and available to the assigned client."));
+    R(await AuditDeliverableService.AssembleBundleAsync(db, actor, EngagementId, _statementsReviewed, signing: ReportSigning), "Five-part final bundle assembled and available to the assigned client."));
   private async Task RegisterSealAsync(InputFileChangeEventArgs args)
   {
     if (args.File.Size > AuditDeliverableService.MaxSignatureBytes) { _error = true; _message = "Seal PNG must be at most 512 KB."; return; }
@@ -226,7 +229,7 @@
 
   private Task ShareAsync(Guid id) => RunAsync(async (db, a) => R(await AuditDeliverableService.ShareWithClientAsync(db, a, id), "Shared with client management."));
   private Task ResolveAsync(Guid id) => RunAsync(async (db, a) => R(await AuditDeliverableService.ResolveCommentAsync(db, a, id, _resolution), "Comment resolved."));
-  private Task SignAsync(Guid id) => RunAsync(async (db, a) => R(await AuditDeliverableService.SignIndependentReportAsync(db, a, id), "Report signed; the signed version and its hash are recorded."));
+  private Task SignAsync(Guid id) => RunAsync(async (db, a) => R(await AuditDeliverableService.SignIndependentReportAsync(db, a, id, signing: ReportSigning), "Report signed; the signed version and its hash are recorded."));
 
   private async Task RegisterSignatureAsync(InputFileChangeEventArgs e)
   {

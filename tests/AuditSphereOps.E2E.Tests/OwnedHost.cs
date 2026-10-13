@@ -106,6 +106,10 @@ internal sealed class OwnedHost : IAsyncDisposable
     IReadOnlyDictionary<string, string>? extraSettings = null, int? loopbackPort = null) =>
     StartApiAsync(FindRepositoryRoot(), identity, enableSetup: false, extraSettings: extraSettings, loopbackPort: loopbackPort);
 
+  public Task<string> StartRollbackForIdentityAsync(AuditSphereOps.Domain.Security.AppUser identity,
+    IReadOnlyDictionary<string, string>? extraSettings = null) =>
+    StartApiAsync(FindRepositoryRoot(), identity, enableSetup: false, extraSettings: extraSettings, rollbackHost: true);
+
   public async Task WaitForReceivedAsync(Guid uploadId)
   {
     using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
@@ -145,13 +149,16 @@ internal sealed class OwnedHost : IAsyncDisposable
   }
 
   private async Task<string> StartApiAsync(string repo, AuditSphereOps.Domain.Security.AppUser identity, bool enableSetup,
-    bool requireProtectionAttestation = false, IReadOnlyDictionary<string, string>? extraSettings = null, int? loopbackPort = null)
+    bool requireProtectionAttestation = false, IReadOnlyDictionary<string, string>? extraSettings = null, int? loopbackPort = null,
+    bool rollbackHost = false)
   {
     // A named loopback-only port permits built-in browser inspection of this same
     // disposable fixture. Automated runs continue to reserve an ephemeral port.
     if (loopbackPort is < 1024 or > 65535) throw new ArgumentOutOfRangeException(nameof(loopbackPort));
     var url = $"http://127.0.0.1:{loopbackPort ?? ReserveLoopbackPort()}";
-    var logPath = Path.Combine(runRoot, $"api-{identity.UserKind}-{identity.Id:N}.log");
+    var logPath = Path.Combine(runRoot, rollbackHost
+      ? $"rollback-{identity.UserKind}-{identity.Id:N}-{Guid.NewGuid():N}.log"
+      : $"api-{identity.UserKind}-{identity.Id:N}.log");
     var settings = new List<string>
     {
       "DOTNET_ENVIRONMENT", "Test",
@@ -172,6 +179,8 @@ internal sealed class OwnedHost : IAsyncDisposable
     };
     if (requireProtectionAttestation)
       settings.AddRange(["ReleaseSafety__RequireProtectionAttestation", "true"]);
+    if (rollbackHost)
+      settings.AddRange(["AngularUi__Enabled", "false", "AngularUi__CanonicalRoutes", "false"]);
     if (enableSetup)
     {
       settings.AddRange([
@@ -181,10 +190,10 @@ internal sealed class OwnedHost : IAsyncDisposable
     }
     foreach (var (key, value) in extraSettings ?? new Dictionary<string, string>())
       settings.AddRange([key, value]);
-    var process = StartDotnet(repo, "src/AuditSphereOps.Api/AuditSphereOps.Api.csproj", logPath,
+    var process = StartDotnet(repo, rollbackHost ? "src/AuditSphereOps.Web/AuditSphereOps.Web.csproj" : "src/AuditSphereOps.Api/AuditSphereOps.Api.csproj", logPath,
       [.. settings]);
     processes.Add(process);
-    await pg.RecordProcessAsync($"api-{identity.UserKind}", process);
+    await pg.RecordProcessAsync(rollbackHost ? $"rollback-{identity.UserKind}-{process.Id}" : $"api-{identity.UserKind}", process);
     await WaitForReadyAsync(process, url, logPath);
     return url;
   }
