@@ -7,9 +7,10 @@ public static class WorkflowTaskActivityKinds
   public const string Reassigned = "TASK_REASSIGNED";
   public const string Completed = "TASK_COMPLETED";
   public const string DueDateChanged = "TASK_DUE_DATE_CHANGED";
+  public const string DependencyChanged = "TASK_DEPENDENCIES_CHANGED";
   public const string EvidenceChanged = "TASK_EVIDENCE_RULE_CHANGED";
 
-  public static readonly string[] All = [Created, Assigned, Reassigned, Completed, DueDateChanged, EvidenceChanged];
+  public static readonly string[] All = [Created, Assigned, Reassigned, Completed, DueDateChanged, EvidenceChanged, DependencyChanged];
 }
 
 /// <summary>

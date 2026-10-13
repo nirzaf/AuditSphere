@@ -58,8 +58,9 @@ describe('work queue display modes', () => {
     expect(root.textContent).toContain('cards cannot be dragged');
     // The only action a card offers is the task's own completion command, and only where the server allows it.
     const actions = [...root.querySelectorAll('.task-card button')].map((b) => b.textContent?.trim());
-    expect(actions.filter(x => x !== 'Review prerequisites')).toEqual(['Complete task']);
+    expect(actions.filter(x => x !== 'Review prerequisites' && x !== 'Review task ordering')).toEqual(['Complete task']);
     expect(actions.filter(x => x === 'Review prerequisites')).toHaveLength(3);
+    expect(actions.filter(x => x === 'Review task ordering')).toHaveLength(3);
 
     fixture.componentInstance.display.set('CALENDAR');
     fixture.detectChanges();

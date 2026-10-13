@@ -15,6 +15,12 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Reviewed task dependency amendments — 2026-10-13
+
+WF-08 now supports manager-reviewed required/withdrawn task edges as append-only amendments over the original pinned template graph. Both task revisions, exact engagement scope and a reason are bound to the actor-owned idempotency receipt. The complete effective graph is serialized and checked for cycles, including opposite-edge races; PostgreSQL also rejects raw cyclic inserts and history mutation. Queue readiness and both completion routes use the same effective graph. No professional approval or pinned template row changes.
+
+The Angular ordering panel provides exact review and assent, receipt-only recovery for lost replies, explicit dropdown labels and session/scope clearing. The focused Domain/API/Angular/browser batch passed after correcting analyzer assertions and a label lookup issue. Built-in-browser inspection confirmed a reviewed withdrawal appends history and restores only the operational action. Exact counts, source hash, artifacts and limitations are under `targetedVerification.workflowTaskDependencyAmendments` in [status.json](status.json). No persistent database was migrated. Template-declared domain rules, other workflow gaps and full release/external/professional acceptance remain open.
+
 ## Live domain evidence prerequisites — 2026-10-13
 
 WF-08 task prerequisites now reference current independently approved materiality, an exact accepted/closed PBC request or a current independently reviewed procedure. Satisfaction is evaluated live; no editable satisfaction flag exists. Scoped managers review revision-fenced changes with reasons and recover uncertain replies by reading their actor-owned receipt. Append-only policy history and exact source foreign keys are database-enforced; both workflow and legacy task completion honor required evidence. PBC waits feed the client-wait queue; stale procedure generations and open review notes remain blockers. Expired role grants no longer elevate task completion.
@@ -394,24 +400,3 @@ reverify its bounded read before relying on current directory data. Records rema
 `NOT_CONFIGURED`. This evidence verifies the exact selected-site boundary and a file operation only;
 the broader M365, PBC, client workflow and production acceptance gates remain open. Do not place IDs,
 account names, secrets or certificate material in repository docs.
-
-## Dedicated client SharePoint sites enabled by default — 2026-10-11
-
-On owner approval, dedicated client SharePoint site provisioning is now enabled by default (`ClientSites:Enabled=true`) in API, worker, and Compose configuration, while preserving explicit administrator disablement (`ClientSites:Enabled=false`).
-
-Key architectural invariants verified:
-1. **Rollout safety & explicit boundary**: An explicit UTC rollout boundary (`ClientSites:ClientsCreatedAfter`) is required and persisted to firm configuration. An unspecified boundary fails closed with `client-site-rollout-boundary-required` and never defaults to beginning-of-time (`DateTimeOffset.MinValue`). Existing clients created before the boundary are never automatically migrated or provisioned.
-2. **Fail-closed shared-site fallback prohibition**: When the dedicated-site policy applies, PBC provisioning and workspace administration refuse fallback to the shared site (`client-site-required-pending`).
-3. **Dedicated isolated worker & heartbeat**: An isolated `client-sites` worker group with a dedicated certificate mount manages site creation and staff membership. `ClientSiteWorkerHeartbeatService` persists periodic worker heartbeats (`ClientSiteWorkerHeartbeat` in `AuditSphereDbContext.ClientSharePointSites.cs` via migration `20261011201129_ClientSiteWorkerHeartbeats`).
-4. **Administration & Monitoring**: `/api/ui/administration/microsoft365/client-sites` returns comprehensive `ClientSiteAdministrationView` including policy status, rollout boundary, worker readiness, heartbeat age, and per-client site and membership reconciliation details.
-5. **Local verification**: Targeted suites pass cleanly:
-   - `WorkspaceProvisioningApiTests`: 4/4 passed
-   - `ClientSharePointSitesTests`: 18/18 passed
-   - `EngagementWorkspaceProvisioningTests`: 6/6 passed
-   - `SharePointClientSiteProviderTests`: 11/11 passed
-   - Angular CI specs: 634/634 passed across 115 files
-   - Angular production build: passed
-   - OpenAPI contract verification: 0 drift
-   - Documentation, filename, and narrative-metric checks: passed
-
-> **Archived handoff history:** superseded 2026-10-09 evidence and implementation notes are preserved in the [historical slice archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md#ste-v2-1-evidence-mapping-and-full-suite-runs--2026-10-09).

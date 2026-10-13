@@ -24927,7 +24927,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.ToTable("workflow_task_activities", null, t =>
                         {
-                            t.HasCheckConstraint("ck_workflow_task_activity_values", "kind IN ('TASK_CREATED','TASK_ASSIGNED','TASK_REASSIGNED','TASK_COMPLETED','TASK_DUE_DATE_CHANGED','TASK_EVIDENCE_RULE_CHANGED') AND task_revision >= 1 AND ((kind IN ('TASK_ASSIGNED','TASK_REASSIGNED')) = (assignee_user_id IS NOT NULL)) AND ((kind = 'TASK_DUE_DATE_CHANGED') = (previous_due_date IS DISTINCT FROM new_due_date))");
+                            t.HasCheckConstraint("ck_workflow_task_activity_values", "kind IN ('TASK_CREATED','TASK_ASSIGNED','TASK_REASSIGNED','TASK_COMPLETED','TASK_DUE_DATE_CHANGED','TASK_EVIDENCE_RULE_CHANGED','TASK_DEPENDENCIES_CHANGED') AND task_revision >= 1 AND ((kind IN ('TASK_ASSIGNED','TASK_REASSIGNED')) = (assignee_user_id IS NOT NULL)) AND ((kind = 'TASK_DUE_DATE_CHANGED') = (previous_due_date IS DISTINCT FROM new_due_date))");
                         });
                 });
 
@@ -25162,6 +25162,96 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.ToTable("workflow_task_dependencies", null, t =>
                         {
                             t.HasCheckConstraint("ck_workflow_task_dependency_values", "predecessor_binding_id <> successor_binding_id AND dependency_type = 'TASK_COMPLETED'");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.WorkflowTaskDependencyRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ActorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_user_id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<Guid>("IdempotencyKey")
+                        .HasColumnType("uuid")
+                        .HasColumnName("idempotency_key");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("occurred_at");
+
+                    b.Property<Guid>("PredecessorBindingId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("predecessor_binding_id");
+
+                    b.Property<long>("PredecessorRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("predecessor_revision");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("RequestDigest")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("request_digest");
+
+                    b.Property<bool>("Required")
+                        .HasColumnType("boolean")
+                        .HasColumnName("required");
+
+                    b.Property<Guid>("SuccessorBindingId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("successor_binding_id");
+
+                    b.Property<long>("TaskRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("task_revision");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FirmId", "ActorUserId", "IdempotencyKey")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "SuccessorBindingId", "TaskRevision")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "PredecessorBindingId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "SuccessorBindingId")
+                        .HasDatabaseName("IX_workflow_task_dependency_revisions_firm_id_client_id_engag~1");
+
+                    b.HasIndex("FirmId", "SuccessorBindingId", "PredecessorBindingId", "Version")
+                        .IsUnique()
+                        .HasDatabaseName("IX_workflow_task_dependency_revisions_firm_id_successor_bindi~1");
+
+                    b.ToTable("workflow_task_dependency_revisions", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_workflow_dependency_revision_values", "predecessor_binding_id <> successor_binding_id AND version >= 1 AND task_revision >= 2 AND predecessor_revision >= 1 AND length(trim(reason)) BETWEEN 1 AND 1000 AND request_digest ~ '^[0-9a-f]{64}$' AND idempotency_key <> '00000000-0000-0000-0000-000000000000'::uuid");
                         });
                 });
 
@@ -32565,6 +32655,31 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("FK_workflow_task_dependencies_workflow_task_bindings_firm_id_~1");
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.WorkflowTaskDependencyRevision", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ActorUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Practice.WorkflowTaskBinding", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "PredecessorBindingId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Practice.WorkflowTaskBinding", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "SuccessorBindingId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_workflow_task_dependency_revisions_workflow_task_bindings_~1");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Practice.WorkflowTaskEvidenceRule", b =>

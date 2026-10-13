@@ -6872,3 +6872,24 @@ WF-07 now has **Changes required** and **Under review** views derived from the e
 Earlier current slices include WF-10 PBC task creation and optional reminders, WF-14 due-date history, and the workflow-template authoring screen. Their configuration, verification results and limitations are in `status.json` under `workflowTaskPbcFollowUp`, `workflowPbcReminders`, `workflowTaskDueDateHistory` and `workflowTemplateAuthoringUi`.
 
 Verification: the focused PostgreSQL regression passed 1/1 across changes-required visibility, resubmission into Under review, and removal after independent review. API/OpenAPI emitter Release build passed with two offline `NU1900` warnings. The Angular development server compiled; the built-in browser showed the staff sign-in guard because the local API/session host was unavailable, so authenticated queue rendering was not exercised. Angular production build previously aborted with exit 134 and no compiler diagnostics. Narrative metrics, UI inventory and diff checks passed; Markdown health and filename checks flag only the separately staged, untouched user file `STE_Audit_Management_Requirements_v2.2.md`. The migration was not applied, full Domain/API/E2E suites were not run, and no live, production or professional acceptance is claimed. The v2.2 workflow epic remains PARTIAL.
+
+## Dedicated client SharePoint sites enabled by default — 2026-10-11
+
+On owner approval, dedicated client SharePoint site provisioning is now enabled by default (`ClientSites:Enabled=true`) in API, worker, and Compose configuration, while preserving explicit administrator disablement (`ClientSites:Enabled=false`).
+
+Key architectural invariants verified:
+1. **Rollout safety & explicit boundary**: An explicit UTC rollout boundary (`ClientSites:ClientsCreatedAfter`) is required and persisted to firm configuration. An unspecified boundary fails closed with `client-site-rollout-boundary-required` and never defaults to beginning-of-time (`DateTimeOffset.MinValue`). Existing clients created before the boundary are never automatically migrated or provisioned.
+2. **Fail-closed shared-site fallback prohibition**: When the dedicated-site policy applies, PBC provisioning and workspace administration refuse fallback to the shared site (`client-site-required-pending`).
+3. **Dedicated isolated worker & heartbeat**: An isolated `client-sites` worker group with a dedicated certificate mount manages site creation and staff membership. `ClientSiteWorkerHeartbeatService` persists periodic worker heartbeats (`ClientSiteWorkerHeartbeat` in `AuditSphereDbContext.ClientSharePointSites.cs` via migration `20261011201129_ClientSiteWorkerHeartbeats`).
+4. **Administration & Monitoring**: `/api/ui/administration/microsoft365/client-sites` returns comprehensive `ClientSiteAdministrationView` including policy status, rollout boundary, worker readiness, heartbeat age, and per-client site and membership reconciliation details.
+5. **Local verification**: Targeted suites pass cleanly:
+   - `WorkspaceProvisioningApiTests`: 4/4 passed
+   - `ClientSharePointSitesTests`: 18/18 passed
+   - `EngagementWorkspaceProvisioningTests`: 6/6 passed
+   - `SharePointClientSiteProviderTests`: 11/11 passed
+   - Angular CI specs: 634/634 passed across 115 files
+   - Angular production build: passed
+   - OpenAPI contract verification: 0 drift
+   - Documentation, filename, and narrative-metric checks: passed
+
+> **Archived handoff history:** superseded 2026-10-09 evidence and implementation notes are preserved in the [historical slice archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md#ste-v2-1-evidence-mapping-and-full-suite-runs--2026-10-09).

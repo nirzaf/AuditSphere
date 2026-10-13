@@ -376,7 +376,7 @@ public static partial class PracticeTimeService
         x.State == WorkflowEvidenceRuleStates.Required && !x.Satisfied);
       if (evidenceBlocker is not null)
         return CommandResult.Fail(ErrorCodes.GateBlocked, evidenceBlocker.Message);
-      var hasIncompletePredecessor = await (from dependency in db.WorkflowTaskDependencies.AsNoTracking()
+      var hasIncompletePredecessor = await (from dependency in WorkflowTaskDependencyQuery.Effective(db, actor.FirmId)
         join predecessor in db.WorkflowTaskBindings.AsNoTracking()
           on new { dependency.FirmId, dependency.ClientId, dependency.EngagementId, Id = dependency.PredecessorBindingId }
           equals new { predecessor.FirmId, predecessor.ClientId, predecessor.EngagementId, predecessor.Id }
@@ -386,7 +386,7 @@ public static partial class PracticeTimeService
         where dependency.FirmId == actor.FirmId && dependency.ClientId == task.ClientId &&
           dependency.EngagementId == task.EngagementId && dependency.SuccessorBindingId == workflowBinding.Id &&
           predecessorTask.Status != PracticeTimeStates.TaskCompleted
-        select dependency.Id).AnyAsync(ct);
+        select dependency.SuccessorBindingId).AnyAsync(ct);
       if (hasIncompletePredecessor)
         return CommandResult.Fail(ErrorCodes.GateBlocked,
           "Complete the prerequisite workflow task before completing this task.");

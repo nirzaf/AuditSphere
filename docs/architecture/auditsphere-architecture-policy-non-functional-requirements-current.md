@@ -45,6 +45,7 @@ Source: `src/AuditSphereOps.Api/HttpBoundary/ApiRateLimiter.cs`. Rejections retu
 | Firm expense evidence | 5 MB | `FirmOperationsServices.MaxEvidenceBytes` |
 | Portfolio CSV export | 1,000 clients (more is refused with typed `400`) | `PortfolioQuery.Workspace.cs` `ExportClientLimit` |
 | Workflow task evidence references | Eight distinct source references per task, including withdrawn references; changes append history | `WorkflowTaskEvidenceQuery.MaximumRules`, `WorkflowEvidenceRuleGuardSql` |
+| Workflow ordering amendment graph | At most 500 workflow tasks and 4,000 effective edges per engagement; evaluate the complete graph or refuse the change | `WorkflowTaskDependencyQuery.MaximumTasks` / `MaximumEdges`, `WorkflowDependencyRevisionGuardSql` |
 | JSON command body | `HttpBoundary:BodyLimits:MaxJsonBodyBytes` → `413` | `HttpBoundary` |
 
 These are request or aggregate bounds. None limits how many clients, engagements or working papers the firm may hold (specification §1.1).

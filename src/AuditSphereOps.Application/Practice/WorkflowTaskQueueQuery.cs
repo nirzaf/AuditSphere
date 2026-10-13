@@ -175,7 +175,7 @@ public static class WorkflowTaskQueueQuery
       return CommandResult<WorkflowTaskQueue>.Ok(new WorkflowTaskQueue(view!, [], false, null));
 
     var bindingIds = page.Select(x => x.BindingId).ToArray();
-    var unmet = await (from dependency in db.WorkflowTaskDependencies.AsNoTracking()
+    var unmet = await (from dependency in WorkflowTaskDependencyQuery.Effective(db, actor.FirmId)
       join predecessor in db.WorkflowTaskBindings.AsNoTracking()
         on new { dependency.FirmId, dependency.ClientId, dependency.EngagementId, Id = dependency.PredecessorBindingId }
         equals new { predecessor.FirmId, predecessor.ClientId, predecessor.EngagementId, predecessor.Id }

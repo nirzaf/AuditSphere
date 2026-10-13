@@ -22,6 +22,8 @@ public static partial class UiEndpoints
   public sealed record WorkflowTaskAssignmentInput(Guid AssigneeUserId, long ExpectedRevision);
   public sealed record WorkflowTaskCompletionInput(long ExpectedRevision);
   public sealed record WorkflowTaskDueDateInput(string? DueDate, long ExpectedRevision);
+  public sealed record WorkflowDependencyChangeInput(Guid PredecessorTaskId, bool Required, long ExpectedRevision,
+    long ExpectedPredecessorRevision, string Reason, Guid IdempotencyKey);
   public sealed record WorkflowEvidenceChangeInput(string Kind, Guid? SourceId, bool Required,
     string Reason, long ExpectedRevision, Guid IdempotencyKey);
   public sealed record WorkflowTemplateStepInput(
@@ -66,6 +68,14 @@ public static partial class UiEndpoints
 
     tasks.MapGet("", (Guid engagementId, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => EngagementWorkflowTaskService.GetAsync(db, actor, engagementId, ct)));
+
+    tasks.MapGet("/{taskId:guid}/dependencies", (Guid engagementId, Guid taskId, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => WorkflowTaskDependencyQuery.GetAsync(db, actor, engagementId, taskId, ct)));
+    tasks.MapGet("/{taskId:guid}/dependencies/receipts/{key:guid}", (Guid engagementId, Guid taskId, Guid key, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => WorkflowTaskDependencyQuery.ReceiptAsync(db, actor, engagementId, taskId, key, ct)));
+    tasks.MapPost("/{taskId:guid}/dependencies", (Guid engagementId, Guid taskId, WorkflowDependencyChangeInput input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => PracticeTimeService.ChangeWorkflowDependencyAsync(db, actor, engagementId, taskId,
+        new(input.PredecessorTaskId, input.Required, input.ExpectedRevision, input.ExpectedPredecessorRevision, input.Reason, input.IdempotencyKey), ct)));
 
     tasks.MapGet("/{taskId:guid}/evidence", (Guid engagementId, Guid taskId, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => WorkflowTaskEvidenceQuery.GetAsync(db, actor, engagementId, taskId, ct)));
