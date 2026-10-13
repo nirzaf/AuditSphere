@@ -37,7 +37,9 @@
           <td>{{ engagement.periodStart }} to {{ engagement.periodEnd }}</td>
           <td><audit-status [value]="engagement.status" /></td>
           <td>{{ engagement.professionalWorkBlocked ? 'Blocked' : 'Clear' }}</td>
-          <td><a [routerLink]="['/app/engagements', engagement.id]">Open engagement</a></td>
+          <td><a [routerLink]="['/app/engagements', engagement.id]">Open engagement</a>
+            @if (client.canCreateEngagement) { <a [routerLink]="['/app/clients', client.id, 'engagements', 'new']" [queryParams]="{ annualSourceEngagementId: engagement.id }">Prepare next annual period</a> }
+          </td>
         </tr> }</tbody>
       </table></div>
     }

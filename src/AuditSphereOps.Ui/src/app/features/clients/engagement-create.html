@@ -15,6 +15,7 @@
     <p>{{ state.error() }}</p>
     <button matButton (click)="refresh()">Retry</button>
   </section>
+
 }
 @if (state.data(); as context) {
   <section aria-label="Engagement client context">
@@ -26,6 +27,24 @@
     </p>
     <button matButton [disabled]="busy()" (click)="refresh()">Refresh creation context</button>
   </section>
+  @if (annualRequested()) {
+    <section aria-label="Annual engagement preparation">
+      <h2>Prepare next annual period</h2>
+      <audit-state [loading]="annual.loading()" label="annual preparation" />
+      @if (annual.error() || !annualSourceId()) {
+        <p role="alert">Annual source unavailable. Return to the client profile to review manual creation.</p>
+      }
+      @if (annual.data(); as suggestion) {
+        <p>Copied reference: {{ suggestion.sourcePeriodStart }} to {{ suggestion.sourcePeriodEnd }} · {{ suggestion.sourceEngagementId }}</p>
+        <h3>Copied references only</h3>
+        <ul>@for (item of suggestion.copiedReferences; track item) { <li>{{ item }}</li> }</ul>
+        <h3>Requires fresh current-period work</h3>
+        <ul>@for (item of suggestion.requiresFreshWork; track item) { <li>{{ item }}</li> }</ul>
+        <p>Suggested period: {{ suggestion.fields.periodStart }} to {{ suggestion.fields.periodEnd }}. No professional approval is copied.</p>
+        <button matButton [disabled]="locked() || dirty() || !!pending()" (click)="useAnnualSuggestion()">Use annual suggestion</button>
+      }
+    </section>
+  }
   @if (uncertain()) {
     <section role="alert">
       <h2>Creation outcome unconfirmed</h2>
@@ -83,6 +102,7 @@
           <dd>{{ p.fields.serviceRoute }}</dd>
           <dt>Period</dt>
           <dd>{{ p.fields.periodStart }} to {{ p.fields.periodEnd }}</dd>
+          @if (p.fields.annualSourceEngagementId) { <dt>Copied annual reference</dt><dd>{{ p.fields.annualSourceEngagementId }} · approvals require fresh work</dd> }
         </dl>
         <a [routerLink]="['/app/engagements', p.existingEngagementId]"
           >Inspect existing engagement</a
@@ -98,6 +118,7 @@
           <dd>{{ p.fields.serviceProfile }}</dd>
           <dt>Period</dt>
           <dd>{{ p.fields.periodStart }} to {{ p.fields.periodEnd }}</dd>
+          @if (p.fields.annualSourceEngagementId) { <dt>Copied annual reference</dt><dd>{{ p.fields.annualSourceEngagementId }} · approvals require fresh work</dd> }
           <dt>Initial state</dt>
           <dd>Draft · professional work blocked</dd>
         </dl>
@@ -133,6 +154,7 @@
         <dd>{{ r.fields.serviceProfile }}</dd>
         <dt>Period</dt>
         <dd>{{ r.fields.periodStart }} to {{ r.fields.periodEnd }}</dd>
+        @if (r.fields.annualSourceEngagementId) { <dt>Copied annual reference</dt><dd>{{ r.fields.annualSourceEngagementId }}</dd> }
         <dt>Initial revision</dt>
         <dd>{{ r.engagementGeneration }}</dd>
         <dt>Recorded</dt>

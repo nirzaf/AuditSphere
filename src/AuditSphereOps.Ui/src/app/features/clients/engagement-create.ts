@@ -9,10 +9,11 @@ import {
   untracked,
 } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { disabled, form, FormField, maxLength, readonly, required } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, of } from 'rxjs';
 import { Api, routeGuid, UNKNOWN_OUTCOME } from '../../core/api';
 import { SessionService } from '../../core/session';
 import { PendingRequestReference, pendingRequestReference, TabDrafts } from '../../core/tab-drafts';
@@ -25,6 +26,7 @@ import {
   decodeEngagementCreationPreview,
   decodeEngagementCreationReceipt,
   decodeEngagementCreationState,
+  decodeAnnualPreparation,
   emptyEngagement,
   validEngagement,
 } from './engagement-create-contracts';
@@ -53,6 +55,22 @@ export class EngagementCreate implements NavigationProtected {
   readonly utcTime = clientUtcTime;
   readonly portfolioNavigation = inject(PortfolioNavigation);
   private readonly route = inject(ActivatedRoute);
+  private readonly query = toSignal(this.route.queryParamMap ?? of(this.route.snapshot.queryParamMap),
+    { initialValue: this.route.snapshot.queryParamMap });
+  readonly annualSourceId = computed(() => {
+    const id = this.query().get('annualSourceEngagementId');
+    return id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) &&
+      id !== '00000000-0000-0000-0000-000000000000' ? id.toLowerCase() : null;
+  });
+  readonly annualRequested = computed(() => this.query().has('annualSourceEngagementId'));
+  readonly annual = this.api.resource(() => this.annualSourceId()
+    ? `/api/ui/clients/${this.id()}/annual-engagement/${this.annualSourceId()}` : null,
+    (raw, path) => {
+      const value = decodeAnnualPreparation(raw, path);
+      if (value.clientId !== this.id() || value.sourceEngagementId !== this.annualSourceId() ||
+        value.fields.annualSourceEngagementId !== value.sourceEngagementId) throw new Error('Wrong annual source');
+      return value;
+    });
   readonly returnParams =
     clientLocation((k) => this.route.snapshot?.queryParamMap?.get(k) ?? null) ??
     defaultClientLocation;
@@ -64,10 +82,10 @@ export class EngagementCreate implements NavigationProtected {
     maxLength(p.serviceProfile, 100);
     required(p.periodStart);
     required(p.periodEnd);
-    readonly(p.serviceRoute, () => this.locked());
-    readonly(p.serviceProfile, () => this.locked());
-    readonly(p.periodStart, () => this.locked());
-    readonly(p.periodEnd, () => this.locked());
+    readonly(p.serviceRoute, () => this.locked() || !!this.model().annualSourceEngagementId);
+    readonly(p.serviceProfile, () => this.locked() || !!this.model().annualSourceEngagementId);
+    readonly(p.periodStart, () => this.locked() || !!this.model().annualSourceEngagementId);
+    readonly(p.periodEnd, () => this.locked() || !!this.model().annualSourceEngagementId);
   });
   readonly state = this.api.resource(
     () => this.base(),
@@ -86,7 +104,8 @@ export class EngagementCreate implements NavigationProtected {
   readonly absent = signal(false);
   readonly message = signal('');
   readonly draftAvailable = signal(false);
-  readonly valid = computed(() => this.fields().valid() && validEngagement(this.model()));
+  readonly valid = computed(() => this.fields().valid() && validEngagement(this.model()) &&
+    (!this.annualRequested() || (!!this.annualSourceId() && this.model().annualSourceEngagementId === this.annualSourceId())));
   readonly locked = computed(() => this.busy() || (this.uncertain() && !this.absent()));
   private readonly baseline = signal(JSON.stringify(emptyEngagement()));
   readonly dirty = computed(() => JSON.stringify(this.model()) !== this.baseline());
@@ -187,6 +206,12 @@ export class EngagementCreate implements NavigationProtected {
       r.requestHash === p.requestHash
     );
   }
+  useAnnualSuggestion() {
+    const suggestion = this.annual.data();
+    if (!suggestion || this.locked() || this.dirty() || this.pending()) return;
+    this.preview.set(null); this.reviewed.set(false); this.request = null;
+    this.model.set(suggestion.fields);
+  }
   async prepare() {
     const s = this.state.data(),
       g = this.generation,
@@ -221,6 +246,7 @@ export class EngagementCreate implements NavigationProtected {
             serviceProfile: r.fields.serviceProfile.trim(),
             periodStart: r.fields.periodStart.trim(),
             periodEnd: r.fields.periodEnd.trim(),
+            ...(r.fields.annualSourceEngagementId ? { annualSourceEngagementId: r.fields.annualSourceEngagementId } : {}),
           }) ||
         (pending && p.requestHash !== pending.requestHash)
       )

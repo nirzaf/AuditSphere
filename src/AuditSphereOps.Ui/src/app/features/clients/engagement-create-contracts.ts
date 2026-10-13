@@ -1,4 +1,4 @@
-import { bool, date, guid, instant, nullable, obj, sha256, str } from '../../core/decode';
+import { arr, bool, date, guid, instant, nullable, obj, sha256, str } from '../../core/decode';
 const identity = (v: unknown, p: string) => {
   const id = guid(v, p);
   if (id === '00000000-0000-0000-0000-000000000000') throw new Error('Unsupported identity');
@@ -9,6 +9,7 @@ export interface EngagementFields {
   serviceProfile: string;
   periodStart: string;
   periodEnd: string;
+  annualSourceEngagementId?: string;
 }
 export const emptyEngagement = (): EngagementFields => ({
   serviceRoute: '',
@@ -24,9 +25,12 @@ const fields = obj({
 });
 export function engagementFields(raw: unknown): EngagementFields | null {
   try {
-    if (!raw || typeof raw !== 'object' || Object.keys(raw).length !== 4) return null;
+    if (!raw || typeof raw !== 'object' || Object.keys(raw).some((k) =>
+      !['serviceRoute', 'serviceProfile', 'periodStart', 'periodEnd', 'annualSourceEngagementId'].includes(k))) return null;
     const f = fields(raw, 'fields');
-    return Object.values(f).some((s) => /[\u0000-\u001f\u007f]/.test(s)) ? null : f;
+    if (Object.values(f).some((s) => /[\u0000-\u001f\u007f]/.test(s))) return null;
+    const source = (raw as { annualSourceEngagementId?: unknown }).annualSourceEngagementId;
+    return source == null ? f : { ...f, annualSourceEngagementId: identity(source, 'annualSourceEngagementId') };
   } catch {
     return null;
   }
@@ -47,7 +51,8 @@ export function validEngagement(f: EngagementFields): boolean {
   );
 }
 const canonical = (v: unknown, path = '') => {
-  const f = fields(v, path);
+  const f = engagementFields(v);
+  if (!f) throw new Error('Unsupported engagement fields');
   if (!validEngagement(f) || Object.values(f).some((s) => s !== s.trim()))
     throw new Error('Unsupported engagement intent');
   date(f.periodStart, path);
@@ -69,6 +74,10 @@ export const decodeEngagementCreationState = obj({
   clientName: str(500),
   clientGeneration: generation,
   reviewBasis: sha256,
+});
+export const decodeAnnualPreparation = obj({
+  clientId: identity, sourceEngagementId: identity, sourcePeriodStart: date, sourcePeriodEnd: date,
+  fields: canonical, copiedReferences: arr(str(200), 10), requiresFreshWork: arr(str(200), 10),
 });
 export const decodeEngagementCreationPreview = obj({
   clientId: identity,

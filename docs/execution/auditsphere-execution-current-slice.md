@@ -15,13 +15,9 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
-## Native scoped assessment decisions — 2026-10-12
+## Annual preparation and scoped decisions — 2026-10-13
 
-Partner review can target an exact client-owned engagement and service. Preview shows its period; receipt recovery retains that scope and explicit acknowledgement precedes read-only navigation. A function-only migration extends exact-result checks without changing historical receipts. Evidence and test-only rollback are in `targetedVerification.workflowScopedAssessmentAuthoring` in [status.json](status.json). Annual preparation and fresh-checklist orchestration remain open.
-
-## Annual engagement safety prerequisites — 2026-10-12
-
-Creation rejects overlapping client/service periods while retaining exact retries and adjacent years. Recurring risk selection now requires an exact engagement-scoped decision across readiness, lifecycle, activation and letter paths. Prior-year and sibling approvals cannot clear the new period; later applicable client declines remain blocking. The browser verified missing-decision blocking and scoped-evidence recovery. Evidence is in `targetedVerification.workflowAnnualPeriodOverlap` and `workflowRecurringRiskScope` in [status.json](status.json). Annual preparation and fresh checklist orchestration remain open.
+Annual shell preparation now proposes a contiguous next period from an exact client-owned source, separates copied references from fresh work, and uses existing reviewed creation and receipt recovery. Source identity is retained; prior approvals and audit evidence are not copied. Native Partner decisions target exact engagements and retain their scoped receipts. Evidence is under `workflowAnnualPreparationCore`, `workflowScopedAssessmentAuthoring` and `workflowRecurringRiskScope` in [status.json](status.json). WF-11 remains partial: approved template selection, reference suggestions, fresh-checklist orchestration and RelationshipManager access still need work.
 
 ## Agent capability tooling and bounded analytics — 2026-10-12
 

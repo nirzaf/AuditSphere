@@ -64,7 +64,7 @@
     {
       "item": "AS-WF-V22 \u2014 v2.2 workflow experience PRs D\u2013I (WF-04 to WF-15) and production acceptance",
       "status": "PARTIAL",
-      "details": "WF-01/WF-03 now require an exact proposal/opportunity service-period match before commercial acceptance can advance an engagement; prior-period accepted offers do not carry forward. WF-13 projects candidate, exact checkpoint and persisted Release evidence. WF-14 reports due-task completion/workload with phase rollups and average elapsed hours for append-only procedure-review decisions; Practice analytics also reports bounded PBC client-wait intervals from provider-accepted sends to recorded client actions; it excludes reminders and unconfirmed mail and never presents partial results. WF-14 also records append-only Operational Task creation, initial assignment, assignment/reassignment and completion events in the command transaction, with a grant-scoped 90-day keyset-paged timeline. Existing slices include pinned templates and plan receipts, grant-scoped queues with Waiting for client, Changes required, and Under review views derived from the linked current procedure result, PBC follow-ups/reminders, manager-review rework linkage, and template authoring; see the current-slice handoff. Open: annual engagement preview/creation and fresh year-specific continuance semantics (shared risk selection now requires an exact engagement-scoped decision for recurring periods; native scoped decision authoring is available; annual fresh-checklist orchestration remains open); additional activity sources and event kinds; review states without operational task links; notification/escalation coverage; domain-evidence dependencies; recurring creation; deadline automation; dedicated task-plan editing; and remaining aggregate-query scaling and performance acceptance. No full suite, authenticated activity-browser journey, live-provider or professional acceptance is recorded; overall v2.2 remains PARTIAL. WF-07 additionally has grant-scoped assignment narrowing for named owners and unassigned tasks, with an Angular all/me/unassigned selector and cursor reset; focused UI and PostgreSQL assertions passed. Engagement economics paging and authenticated navigation are verified in workflowAnalyticsPaging. WF-11 now refuses same-client/service overlapping periods in preview and serialized creation while preserving exact retries; annual preparation and fresh year-specific continuance remain open."
+      "details": "WF-01/WF-03 now require an exact proposal/opportunity service-period match before commercial acceptance can advance an engagement; prior-period accepted offers do not carry forward. WF-13 projects candidate, exact checkpoint and persisted Release evidence. WF-14 reports due-task completion/workload with phase rollups and average elapsed hours for append-only procedure-review decisions; Practice analytics also reports bounded PBC client-wait intervals from provider-accepted sends to recorded client actions; it excludes reminders and unconfirmed mail and never presents partial results. WF-14 also records append-only Operational Task creation, initial assignment, assignment/reassignment and completion events in the command transaction, with a grant-scoped 90-day keyset-paged timeline. Existing slices include pinned templates and plan receipts, grant-scoped queues with Waiting for client, Changes required, and Under review views derived from the linked current procedure result, PBC follow-ups/reminders, manager-review rework linkage, and template authoring; see the current-slice handoff. Open: remaining annual template/reference orchestration and fresh year-specific continuance semantics (shared risk selection now requires an exact engagement-scoped decision for recurring periods; native scoped decision authoring is available; annual fresh-checklist orchestration remains open); additional activity sources and event kinds; review states without operational task links; notification/escalation coverage; domain-evidence dependencies; recurring creation; deadline automation; dedicated task-plan editing; and remaining aggregate-query scaling and performance acceptance. No full suite, authenticated activity-browser journey, live-provider or professional acceptance is recorded; overall v2.2 remains PARTIAL. WF-07 additionally has grant-scoped assignment narrowing for named owners and unassigned tasks, with an Angular all/me/unassigned selector and cursor reset; focused UI and PostgreSQL assertions passed. Engagement economics paging and authenticated navigation are verified in workflowAnalyticsPaging. WF-11 now refuses same-client/service overlapping periods in preview and serialized creation while preserving exact retries; annual preparation and fresh year-specific continuance remain open. Annual shell preparation now retains exact source references and creates one reviewed blocked next period; remaining WF-11 work is template selection/pinning, contact/schedule/mapping suggestions, fresh-checklist orchestration and RelationshipManager authorization."
     }
   ],
   "targetedVerification": {
@@ -877,77 +877,8 @@
       }
     },
     "workflowQueueAssignmentFilter": {
-      "recordedAtUtc": "2026-10-12T16:01:59.578724+00:00",
-      "baseCommit": "b7a930d5",
-      "scope": "WF-07: optional assigneeUserId/unassignedOnly filters narrow the existing authorized task queue before keyset pagination. Contradictory filters and My Tasks widening are rejected. Angular all/me/unassigned selector resets cursors and applies to the same list/board/calendar rows.",
-      "migrations": [],
-      "runs": [
-        {
-          "name": "Angular focused queue specs",
-          "command": "NG_BUILD_CACHE_STORE=sqlite npm --prefix src/AuditSphereOps.Ui run test:ci -- --include src/app/features/practice/work-queue.spec.ts",
-          "result": "PASS",
-          "passed": 5,
-          "failed": 0,
-          "note": "Initial test compile failed because the added spec used the wrong existing component export; corrected to WorkflowWorkQueue before the passing rerun."
-        },
-        {
-          "name": "Angular production build",
-          "command": "NG_BUILD_CACHE_STORE=sqlite npm --prefix src/AuditSphereOps.Ui run build",
-          "result": "PASS",
-          "note": "Existing commercial/settings.scss size warning remains."
-        },
-        {
-          "name": "Application Release build",
-          "command": "dotnet build src/AuditSphereOps.Application/AuditSphereOps.Application.csproj --no-restore --configuration Release --maxcpucount:1",
-          "result": "PASS",
-          "warnings": 1,
-          "errors": 0
-        },
-        {
-          "name": "API bounded Release build",
-          "command": "dotnet build src/AuditSphereOps.Api/AuditSphereOps.Api.csproj --no-restore --configuration Release --maxcpucount:1 -p:BuildProjectReferences=false",
-          "result": "PASS",
-          "warnings": 2,
-          "errors": 0,
-          "note": "Uses previously built references after the current Application build; not a full solution regression. NU1900 vulnerability-feed warnings."
-        },
-        {
-          "name": "Built-in browser",
-          "result": "LIMITED",
-          "note": "Local Angular preview compiled; browser reached Access unavailable and staff sign-in guard. Captured warn/error console list was empty. No authenticated filter interaction was exercised. The Angular proxy later reported /api/ui/session ECONNREFUSED because no local API was listening."
-        },
-        {
-          "name": "PostgreSQL scope regression",
-          "result": "NOT_RUN",
-          "note": "Added own-owner and sibling-owner assertions plus contradictory and My Tasks widening refusals in EngagementWorkflowTaskTests. Local PostgreSQL preflight was unavailable. Included the class in the focused CI filter; CI outcome is not yet observed."
-        },
-        {
-          "name": "OpenAPI emitter bounded build and generation",
-          "result": "PASS",
-          "note": "Emitter built using current API references; generated diff adds only assigneeUserId and unassignedOnly query parameters."
-        },
-        {
-          "name": "Domain test assembly bounded build",
-          "command": "dotnet build tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore --configuration Release --maxcpucount:1 -p:BuildProjectReferences=false",
-          "result": "PASS",
-          "warnings": 4,
-          "errors": 0,
-          "note": "New scope assertions compiled; they were not executed locally."
-        },
-        {
-          "name": "OpenAPI drift and documentation gates",
-          "result": "PASS",
-          "commands": [
-            "bash scripts/contracts/verify-openapi.sh",
-            "python3 scripts/docs/validate-markdown-documentation.py",
-            "python3 scripts/docs/validate-markdown-filenames.py",
-            "python3 scripts/docs/validate-narrative-metrics.py",
-            "python3 scripts/ui/inventory.py --check",
-            "git diff --check"
-          ]
-        }
-      ],
-      "acceptance": "WF-07 and overall v2.2 remain PARTIAL; no full regression, persistent database change, authenticated browser acceptance or live-provider acceptance."
+      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
+      "jsonPath": "keys.targetedVerification.workflowQueueAssignmentFilter"
     },
     "workflowAnalyticsPaging": {
       "recordedAtUtc": "2026-10-12T18:50:00Z",
@@ -1055,6 +986,27 @@
         "No full release suite, production migration/deployment or live/professional acceptance in this slice.",
         "Existing NU1900 vulnerability-feed and stylesheet budget warnings remain."
       ]
+    },
+    "workflowAnnualPreparationCore": {
+      "recordedAtUtc": "2026-10-13T09:16:00Z",
+      "baseCommit": "5dd39ba5",
+      "scope": "WF-11 annual shell preparation: exact client-owned source, contiguous calendar period suggestion, explicit selection/review, retained source in immutable existing creation receipt, serialized validation and idempotent replay. No approvals, audit evidence or task plan copied.",
+      "checks": {
+        "domain": "PASS 21/21: AnnualEngagementPreparationTests, EngagementCreationSafetyTests, EngagementCreationReviewTests, EngagementPeriodOverlapTests; /private/tmp/auditsphere-annual-verified/_Mac_2026-10-13_12_13_02_net10.0.trx",
+        "angular": "PASS 12/12: engagement-create.spec.ts",
+        "browser": "PASS 1/1: AngularAnnualEngagementJourneyTests; repeated owned handoff also passed",
+        "builtInBrowser": "PASS: copied references vs fresh work, 2027 annual suggestion, source identity retained in review, no confirmation without assent, no error/warn logs",
+        "builds": "PASS bounded Application/API/Domain/E2E/emitter Release builds and Angular production build",
+        "modelContract": "PASS no pending model changes; regenerated OpenAPI and drift check"
+      },
+      "environment": "Initial database cohort could not connect; pg_ctl confirmed server stopped. Existing local cluster was started without reset or development migration. One synthetic prior-decision fixture omitted required digest metadata; corrected before final 21-test pass.",
+      "limits": [
+        "WF-11 remains PARTIAL: approved task-template choice/pinning, contact/schedule/mapping suggestions, fresh-checklist orchestration and RelationshipManager authorization remain open.",
+        "Calendar suggestion supports 365/366-day source periods; nonstandard fiscal calendars require manual reviewed preparation.",
+        "No full release suite, production deployment, tenant permission change or professional acceptance.",
+        "Existing NU1900 feed and stylesheet budget warnings remain."
+      ],
+      "priorCi": "5dd39ba5: runs 38369504119 and 38369504180 completed successfully; current annual slice CI not yet observed."
     }
   },
   "externalGates": [

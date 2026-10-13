@@ -51,9 +51,11 @@ describe('Reviewed client engagement creation contracts', () => {
 });
 describe('Native engagement creation review, tab recovery and ownership', () => {
   let ids: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
+  let queries: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
   beforeEach(() => {
     sessionStorage.clear();
     ids = new BehaviorSubject(convertToParamMap({ id }));
+    queries = new BehaviorSubject(convertToParamMap({ contactPage: '2', contactPageSize: '25' }));
     TestBed.configureTestingModule({
       imports: [EngagementCreate],
       providers: [
@@ -64,9 +66,10 @@ describe('Native engagement creation review, tab recovery and ownership', () => 
           provide: ActivatedRoute,
           useValue: {
             paramMap: ids,
+            queryParamMap: queries,
             snapshot: {
               paramMap: ids.value,
-              queryParamMap: convertToParamMap({ contactPage: '2', contactPageSize: '25' }),
+              queryParamMap: queries.value,
             },
           },
         },
@@ -92,7 +95,7 @@ describe('Native engagement creation review, tab recovery and ownership', () => 
   }
   function read(value = state) {
     const requests = TestBed.inject(HttpTestingController)
-      .match((r) => r.method === 'GET' && !r.url.includes('/receipts/'))
+      .match((r) => r.method === 'GET' && !r.url.includes('/receipts/') && !r.url.includes('/annual-engagement/'))
       .filter((r) => !r.cancelled);
     expect(requests).toHaveLength(1);
     requests[0].flush(value);
@@ -133,6 +136,31 @@ describe('Native engagement creation review, tab recovery and ownership', () => 
       createdAt: '2026-10-03T12:30:00Z',
     };
   }
+  it('copies a bounded annual reference only after explicit selection and keeps approvals separate', async () => {
+    queries.next(convertToParamMap({ annualSourceEngagementId: other }));
+    const f = open(); read(); const c = f.componentInstance;
+    const proposed = { ...fields, periodStart: '2027-01-01', periodEnd: '2027-12-31', annualSourceEngagementId: other };
+    TestBed.inject(HttpTestingController).expectOne('/api/ui/clients/' + id + '/annual-engagement/' + other).flush({
+      clientId: id, sourceEngagementId: other, sourcePeriodStart: '2026-01-01', sourcePeriodEnd: '2026-12-31',
+      fields: proposed, copiedReferences: ['Service route', 'Prior period reference'], requiresFreshWork: ['Partner continuance', 'Materiality'],
+    });
+    TestBed.tick(); expect(c.model().annualSourceEngagementId).toBeUndefined();
+    c.useAnnualSuggestion(); f.detectChanges(); TestBed.tick();
+    expect(c.model()).toEqual(proposed); expect(c.valid()).toBe(true);
+    expect(f.nativeElement.textContent).toContain('Requires fresh current-period work');
+    const pending = c.prepare(); const request = TestBed.inject(HttpTestingController).expectOne(url + '/preview');
+    expect(request.request.body.fields.annualSourceEngagementId).toBe(other);
+    request.flush({ value: { clientId: id, requestId: request.request.body.requestId, reviewBasis: basis,
+      requestHash: hash, fields: proposed, existingEngagementId: null } });
+    await pending; TestBed.tick(); expect(c.preview()?.fields.annualSourceEngagementId).toBe(other);
+    expect(c.reviewed()).toBe(false);
+  });
+  it('does not silently turn a malformed annual source into manual creation', () => {
+    queries.next(convertToParamMap({ annualSourceEngagementId: 'invalid' }));
+    const f = open(); read(); const c = f.componentInstance; c.model.set({ ...fields }); TestBed.tick();
+    expect(c.valid()).toBe(false);
+    TestBed.inject(HttpTestingController).expectNone((r) => r.url.includes('/annual-engagement/'));
+  });
   it('shows exact blocked-shell intent, requires assent and invalidates review on edit', async () => {
     const f = open();
     read();
