@@ -19,7 +19,7 @@ which the full suite was run; per-slice records carry their own evidence.
 
 `REL-01` source review found that an existing bundle could be returned before current signing policy checks. Assembly now checks the current policy and the matching report/certification certificate before new creation or replay. An image-only bundle cannot bypass a later certificate-required policy; missing or different credentials refuse assembly while stored downloads remain separate scope-checked reads. No global signing policy was changed.
 
-The retained Web completion panel now forwards the host signing credential and policy. Focused Domain and reference-browser journeys passed, including actual ZIP hashes, certificate validation and built-in-browser replay refusal; results and omitted checks are in `targetedVerification.releaseBundleSigningReplay` in [status.json](status.json). Complete adverse-source/bounds acceptance and operator rotation guidance remain open. No schema or persistent database changed.
+The Web panel forwards host signing policy; focused Domain/reference-browser checks passed. Correspondence reads are bounded and rechecked; extracted lineage, concurrent replay, row-limit and stale-source checks passed. Evidence: `targetedVerification.releaseBundleSigningReplay` and `releaseBundleCorrespondence` in [status.json](status.json). Canonical Angular, further adverse cases, full release and operator rotation review remain open. No persistent database changed.
 
 ## Reviewed task dependency amendments — 2026-10-13
 

@@ -15815,6 +15815,40 @@
           "Live provider and independent professional acceptance remain separate"
         ],
         "migration": "No schema change or persistent-database migration"
+      },
+      "workflowAnnualPeriodOverlap": {
+        "recordedAtUtc": "2026-10-12T19:03:00Z",
+        "baseCommit": "0347f3e8",
+        "sourceTree": "Working tree committed with this record, not a full clean-commit release run.",
+        "scope": "WF-11 prerequisite: same-client/service inclusive period-overlap refusal in authorized preview and serialized creation; exact retries, adjacent periods and separate services retained. No migration or professional decision copied.",
+        "runs": [
+          {
+            "command": "dotnet test Domain.Tests --no-build --no-restore --configuration Release --maxcpucount:1 --filter EngagementPeriodOverlapTests|EngagementCreationSafetyTests|EngagementCreationReviewTests",
+            "result": "PASS",
+            "passed": 16,
+            "trx": "/private/tmp/auditsphere-period-results/_Mac_2026-10-12_21_57_36_net10.0.trx"
+          },
+          {
+            "command": "npm test:ci --include=src/app/core/api.spec.ts --include=src/app/features/clients/engagement-create.spec.ts",
+            "result": "PASS",
+            "passed": 20
+          },
+          {
+            "command": "dotnet test E2E.Tests --no-build --no-restore --configuration Release --maxcpucount:1 --filter AngularEngagementCreationJourneyTests|AngularAnalyticsPagingJourneyTests",
+            "result": "PASS",
+            "passed": 3,
+            "trx": "/private/tmp/auditsphere-period-browser-final/_Mac_2026-10-12_22_02_18_net10.0.trx"
+          }
+        ],
+        "builtInBrowser": "PASS: authenticated owned synthetic creation fixture rendered overlap refusal, no confirm button, no error/warn logs.",
+        "builds": "PASS bounded Application/API/Domain/E2E/emitter Release builds and Angular production build.",
+        "modelAndContract": "PASS EF no pending model changes; OpenAPI current.",
+        "environment": "Restricted-shell Angular build aborted; permitted shell with NG_BUILD_MAX_WORKERS=2 passed. NU1900 vulnerability metadata and existing stylesheet budget warnings remain.",
+        "limits": [
+          "Annual preview/execute/receipt helper and fresh year-specific continuance remain unfinished.",
+          "No full solution regression, live tenant acceptance, production deployment or historical-record migration performed.",
+          "Overlapping amendments are refused for explicit resolution; no amendment workflow is fabricated."
+        ]
       }
     }
   }

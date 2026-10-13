@@ -44,10 +44,15 @@ public static partial class AuditDeliverableService
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The correspondence exceeds the bounded assembly limit; request an approved delivery arrangement.");
     var confirmationRows = await ConfirmationRowsAsync(db, actor.FirmId, engagementId, ct);
     var communications = await db.PbcCommunications.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == client.Id && x.EngagementId == engagementId)
-      .OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).Select(x => new { x.Id, x.PbcRequestId, x.Kind, x.Body, x.AuthorUserId, x.CreatedAt }).ToListAsync(ct);
+      .OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).Take(maxCorrespondenceRows + 1)
+      .Select(x => new { x.Id, x.PbcRequestId, x.Kind, x.Body, x.AuthorUserId, x.CreatedAt }).ToListAsync(ct);
     var reviewIds = db.ClientDeliverableReviews.Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId).Select(x => x.Id);
     var comments = await db.ClientDeliverableComments.AsNoTracking().Where(x => x.FirmId == actor.FirmId && reviewIds.Contains(x.ReviewId))
-      .OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).Select(x => new { x.Id, x.ReviewId, x.Body, x.CreatedAt, x.Resolution, x.ResolvedAt }).ToListAsync(ct);
+      .OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).Take(maxCorrespondenceRows + 1)
+      .Select(x => new { x.Id, x.ReviewId, x.Body, x.CreatedAt, x.Resolution, x.ResolvedAt }).ToListAsync(ct);
+    // Recheck the bounded reads: correspondence can be appended after the early count queries.
+    if (communications.Count > maxCorrespondenceRows || comments.Count > maxCorrespondenceRows)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The correspondence exceeds the bounded assembly limit; request an approved delivery arrangement.");
     var correspondenceJson = JsonSerializer.Serialize(new { Confirmations = confirmationRows, Communications = communications, ClearedQueries = comments });
     var lines = await db.InvoiceLines.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.InvoiceId == invoice.Id).OrderBy(x => x.Id).ToListAsync(ct);
     var sourceDigest = Digest(new { Report = report.Id, Management = management.Id, Scan = scan.Id, Release = release.Id, Artifact = statements.Id,
