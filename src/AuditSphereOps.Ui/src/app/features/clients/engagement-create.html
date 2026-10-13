@@ -38,6 +38,20 @@
         <p>Copied reference: {{ suggestion.sourcePeriodStart }} to {{ suggestion.sourcePeriodEnd }} · {{ suggestion.sourceEngagementId }}</p>
         <h3>Copied references only</h3>
         <ul>@for (item of suggestion.copiedReferences; track item) { <li>{{ item }}</li> }</ul>
+        <h3>Contact suggestions</h3>
+        <p>Active client contacts valid at the proposed period start. Confirm their current authority and routing separately; these suggestions grant no access or consent.</p>
+        <ul>@for (contact of suggestion.contactSuggestions; track contact.id) {
+          <li>{{ contact.name }} · {{ contact.role }} @if (contact.primary) { · Primary contact }</li>
+        } @empty { <li>No eligible contact suggestion is available.</li> }</ul>
+        <h3>Historic mapping references</h3>
+        <p>Approved mappings from the exact source period are references only. New-period source data, allocations and mapping approval require fresh work.</p>
+        @if (suggestion.historicalMappingState === 'RESTRICTED') {
+          <p>Mapping references require accounting read access to the source engagement.</p>
+        } @else {
+          <ul>@for (mapping of suggestion.historicalMappings; track mapping.id) {
+            <li>Version {{ mapping.version }} · {{ mapping.taxonomyVersion }} · {{ mapping.periodStart }} to {{ mapping.periodEnd }} · {{ mapping.id }}</li>
+          } @empty { <li>No approved mapping exists for the source period.</li> }</ul>
+        }
         <h3>Requires fresh current-period work</h3>
         <ul>@for (item of suggestion.requiresFreshWork; track item) { <li>{{ item }}</li> }</ul>
         <p>Suggested period: {{ suggestion.fields.periodStart }} to {{ suggestion.fields.periodEnd }}. No professional approval is copied.</p>

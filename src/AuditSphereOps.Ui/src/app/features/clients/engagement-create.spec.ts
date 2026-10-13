@@ -11,6 +11,7 @@ import {
   decodeEngagementCreationPreview,
   decodeEngagementCreationState,
   validEngagement,
+  decodeAnnualPreparation,
 } from './engagement-create-contracts';
 
 const id = '11111111-1111-4111-8111-111111111111',
@@ -31,6 +32,17 @@ const fields = {
   periodEnd: '2026-12-31',
 };
 describe('Reviewed client engagement creation contracts', () => {
+  it('refuses restricted, duplicated or wrong-period annual mapping references', () => {
+    const reference = { id: other, version: '9007199254740993', taxonomyVersion: 'synthetic', periodStart: fields.periodStart, periodEnd: fields.periodEnd };
+    const annual = { clientId: id, sourceEngagementId: other, sourcePeriodStart: fields.periodStart,
+      sourcePeriodEnd: fields.periodEnd, fields: { ...fields, annualSourceEngagementId: other },
+      copiedReferences: [], requiresFreshWork: [], contactSuggestions: [], historicalMappingState: 'AVAILABLE',
+      historicalMappings: [reference] };
+    expect(decodeAnnualPreparation(annual).historicalMappings[0].version).toBe('9007199254740993');
+    expect(() => decodeAnnualPreparation({ ...annual, historicalMappingState: 'RESTRICTED' })).toThrow();
+    expect(() => decodeAnnualPreparation({ ...annual, historicalMappings: [reference, reference] })).toThrow();
+    expect(() => decodeAnnualPreparation({ ...annual, historicalMappings: [{ ...reference, periodEnd: '2025-12-31' }] })).toThrow();
+  });
   it('allowlists bounded fields and exact generations without retaining assent', () => {
     expect(engagementFields({ ...fields, reviewed: true })).toBeNull();
     expect(engagementFields({ ...fields, serviceProfile: 'x'.repeat(101) })).toBeNull();
@@ -143,11 +155,15 @@ describe('Native engagement creation review, tab recovery and ownership', () => 
     TestBed.inject(HttpTestingController).expectOne('/api/ui/clients/' + id + '/annual-engagement/' + other).flush({
       clientId: id, sourceEngagementId: other, sourcePeriodStart: '2026-01-01', sourcePeriodEnd: '2026-12-31',
       fields: proposed, copiedReferences: ['Service route', 'Prior period reference'], requiresFreshWork: ['Partner continuance', 'Materiality'],
+      contactSuggestions: [{ id: other, name: 'Synthetic annual liaison', role: 'Liaison', primary: true }],
+      historicalMappingState: 'RESTRICTED', historicalMappings: [],
     });
     TestBed.tick(); expect(c.model().annualSourceEngagementId).toBeUndefined();
     c.useAnnualSuggestion(); f.detectChanges(); TestBed.tick();
     expect(c.model()).toEqual(proposed); expect(c.valid()).toBe(true);
     expect(f.nativeElement.textContent).toContain('Requires fresh current-period work');
+    expect(f.nativeElement.textContent).toContain('Synthetic annual liaison');
+    expect(f.nativeElement.textContent).toContain('Mapping references require accounting read access');
     const pending = c.prepare(); const request = TestBed.inject(HttpTestingController).expectOne(url + '/preview');
     expect(request.request.body.fields.annualSourceEngagementId).toBe(other);
     request.flush({ value: { clientId: id, requestId: request.request.body.requestId, reviewBasis: basis,

@@ -15,13 +15,13 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Annual reference metadata — 2026-10-13
+
+Annual preparation suggests active client contacts valid at the next-period start and approved mappings from the exact prior engagement and period. Accounting metadata requires source-engagement accounting read authority; RelationshipManagers receive a restricted state. References are bounded and never copy allocations, routing, access, consent or approvals. Evidence is under `targetedVerification.workflowAnnualReferenceMetadata` in [status.json](status.json). Fresh-checklist orchestration and broader acceptance remain open.
+
 ## Annual task-plan handoff — 2026-10-13
 
 Confirmed annual creation receipts now lead to the new engagement’s reviewed operational plan. The explicit fragment loads the deferred panel; ordinary visits still use viewport loading. Published template choices are read through exact engagement scope rather than firm-wide template administration. Plan execution retains independent authorization, review assent, staffing/schedule fencing and immutable revision receipts. Focused evidence is under `targetedVerification.workflowAnnualPlanHandoff` in [status.json](status.json); annual contact/mapping suggestions, fresh-checklist orchestration and broader acceptance remain open.
-
-## Annual task-plan references — 2026-10-13
-
-Annual preparation now lists up to three currently published revisions from prior task-plan template identities, plus up to three prior schedule bases. They are reference-only: fresh plan review remains required and no tasks or deadlines are copied. Build and focused query evidence are recorded under `targetedVerification.workflowAnnualTaskPlanReferences` in [status.json](status.json). Template selection/pinning orchestration remains open.
 
 ## Annual preparation and scoped decisions — 2026-10-13
 

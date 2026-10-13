@@ -25,7 +25,7 @@ public sealed record MappingWorkbench(Guid Id, string Status, Guid DatasetId, st
 /// </summary>
 public static class MappingWorkbenchQuery
 {
-  private static readonly string[] Roles = ["Administrator", "Partner", "Manager", "AccountingPreparer", "AccountingReviewer"];
+  internal static readonly string[] Roles = ["Administrator", "Partner", "Manager", "AccountingPreparer", "AccountingReviewer"];
 
   public static async Task<CommandResult<MappingWorkbench>> GetAsync(IClientAccountingDbContext db, ActorContext actor, Guid mappingId, CancellationToken ct = default)
   {

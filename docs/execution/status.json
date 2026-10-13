@@ -862,25 +862,8 @@
       "jsonPath": "keys.targetedVerification.workflowQueueAssignmentFilter"
     },
     "workflowAnalyticsPaging": {
-      "recordedAtUtc": "2026-10-12T18:50:00Z",
-      "baseCommit": "6025343470ac8bfa5bb10201cfdf94c32f4820c5",
-      "sourceTree": "Working tree committed with this record; not a clean-commit full release run.",
-      "scope": "Keyset-page firm engagement economics before loading financial evidence; preserve full-period summary denominators and original Application overload; Angular and legacy pager. No migration.",
-      "checks": {
-        "domain": "PASS 6/6: FirmOperationsTests.Analytics_ and EngagementWorkflowTaskTests; PostgreSQL isolated fixtures",
-        "angular": "PASS 7/7: analytics.spec.ts",
-        "e2e": "PASS 1/1: AngularAnalyticsPagingJourneyTests; real owned API, PostgreSQL and Chromium",
-        "builtInBrowser": "PASS authenticated synthetic fixture: 50 \u2192 1 \u2192 50 rows; task denominator 51 unchanged; no error/warn logs",
-        "builds": "PASS bounded Application/API/Web/Domain/E2E/emitter Release builds and Angular production build",
-        "openApi": "PASS regenerated contract and drift check",
-        "priorCi": "3af2b11d: runs 38274994578 and 38274994930 succeeded"
-      },
-      "initialFailure": "E2E output had stale model dependencies and triggered PendingModelChangesWarning. Full dependency rebuild resolved it; guard was not suppressed.",
-      "limitations": [
-        "No full release suite or live tenant acceptance in this slice.",
-        "Period-wide time/task/profile aggregates still load period inputs; no capacity benchmark or global analytics scalability claim.",
-        "NuGet vulnerability metadata could not be fetched during builds."
-      ]
+      "status": "ARCHIVED_FOCUSED_EVIDENCE",
+      "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.workflowAnalyticsPaging"
     },
     "workflowAnnualPeriodOverlap": {
       "recordedAtUtc": "2026-10-12T19:03:00Z",
@@ -1042,6 +1025,27 @@
         "Contact/mapping suggestions and fresh-checklist orchestration",
         "Populated prior-reference browser check",
         "Full release, professional and external acceptance"
+      ]
+    },
+    "workflowAnnualReferenceMetadata": {
+      "sourceCommit": "04124839 + working tree",
+      "status": "FOCUSED_VERIFIED",
+      "checks": {
+        "domain": "8 passed: contacts valid at next-period start, approved exact-period mapping, draft exclusion, RelationshipManager restriction, annual and plan regressions",
+        "angular": "13 passed: bounded typed metadata, duplicate/wrong-period/restricted mapping refusal, creation recovery",
+        "e2e": "2 passed: Manager and RelationshipManager populated references with existing annual creation and plan flows",
+        "builtInBrowser": "Owned Manager fixture: contact suggestion, no-approved-mapping state, fresh-work list; no warn/error logs",
+        "builds": "Application/API/Domain/E2E/emitter Release and Angular passed; NU1900 and existing stylesheet warnings",
+        "contract": "Emitted current contract unchanged"
+      },
+      "evidence": [
+        "/private/tmp/auditsphere-annual-metadata-domain-final/_Mac_2026-10-13_13_44_59_net10.0.trx",
+        "/private/tmp/auditsphere-annual-metadata-browser-final/_Mac_2026-10-13_16_22_32_net10.0.trx"
+      ],
+      "remaining": [
+        "Fresh-checklist orchestration",
+        "Populated historic-mapping browser check",
+        "Full release and live/professional acceptance"
       ]
     }
   },

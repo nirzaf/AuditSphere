@@ -1,6 +1,7 @@
 using System.Text.Json;
 using AuditSphereOps.Application.Acceptance;
 using AuditSphereOps.Domain.Engagements;
+using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -29,6 +30,15 @@ public sealed class AnnualEngagementPreparationTests
     var actor = PbcSeed.Actor(f.Staff, "Manager");
     var source = await EngagementLifecycleService.CreateDraftAsync(db, actor, new(f.ClientId, "AccountingOnly", "2026-01-01", "2026-12-31", "SYNTHETIC"));
     Assert.True(source.Succeeded, source.Message);
+    db.ClientContacts.AddRange(
+      new ClientContact { Id = Guid.NewGuid(), FirmId = f.FirmId, PracticeClientId = f.ClientId,
+        FullName = "Synthetic valid liaison", Role = "Liaison", Email = "liaison@example.test", Primary = true,
+        ValidFrom = new DateTimeOffset(2027, 1, 1, 0, 0, 0, TimeSpan.Zero) },
+      new ClientContact { Id = Guid.NewGuid(), FirmId = f.FirmId, PracticeClientId = f.ClientId,
+        FullName = "Expired liaison", Role = "Liaison", Email = "old@example.test",
+        ValidTo = new DateTimeOffset(2026, 12, 31, 0, 0, 0, TimeSpan.Zero) },
+      new ClientContact { Id = Guid.NewGuid(), FirmId = f.FirmId, PracticeClientId = f.ClientId,
+        FullName = "Inactive liaison", Role = "Liaison", Email = "inactive@example.test", IsActive = false });
     db.AcceptanceDecisions.Add(new() { Id = Guid.NewGuid(), FirmId = f.FirmId, PracticeClientId = f.ClientId,
       EngagementId = source.Value, ServiceRoute = "AccountingOnly", Decision = "Accepted", Generation = 1,
       Rationale = "Synthetic previous-period evidence", EvaluationTemplateVersion = "synthetic.v1", EvaluationSnapshotDigest = new string('a', 64),
@@ -36,6 +46,9 @@ public sealed class AnnualEngagementPreparationTests
     await db.SaveChangesAsync();
     var state = await AnnualEngagementPreparationWorkspace.StateAsync(db, actor, f.ClientId, source.Value);
     Assert.True(state.Succeeded, state.Message); Assert.Contains("Partner continuance", state.Value!.RequiresFreshWork);
+    Assert.Equal("Synthetic valid liaison", Assert.Single(state.Value.ContactSuggestions).Name);
+    Assert.Equal("AVAILABLE", state.Value.HistoricalMappingState);
+    Assert.Empty(state.Value.HistoricalMappings);
     var client = (await EngagementCreationWorkspace.StateAsync(db, actor, f.ClientId)).Value!;
     var request = new EngagementCreationRequest(Guid.NewGuid(), client.ReviewBasis, state.Value.Fields);
     var preview = await AnnualEngagementPreparationWorkspace.PreviewAsync(db, actor, f.ClientId, request);

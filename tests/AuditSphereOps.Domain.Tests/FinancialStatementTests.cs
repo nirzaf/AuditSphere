@@ -153,10 +153,36 @@ public sealed class FinancialStatementTests
       var selfApproval = await FinancialStatementService.ApproveMappingAsync(db, preparer, mappingId, 1);
       Assert.False(selfApproval.Succeeded);
       Assert.Equal(ErrorCodes.Accounting.MappingInvalid, selfApproval.ErrorCode);
+      await db.Engagements.Where(x => x.Id == fixture.EngagementId).ExecuteUpdateAsync(x => x
+        .SetProperty(e => e.PeriodStart, "2026-01-01").SetProperty(e => e.PeriodEnd, "2026-12-31")
+        .SetProperty(e => e.ServiceRoute, "FinancialStatementAudit")
+        .SetProperty(e => e.ServiceProfileId, "Synthetic annual reference"));
+      db.RoleGrants.Add(Grant(fixture.FirmId, fixture.Reviewer, "Manager")); await db.SaveChangesAsync();
+      var draftReference = await AuditSphereOps.Application.Acceptance.AnnualEngagementPreparationWorkspace.StateAsync(db,
+        Actor(fixture.Reviewer, "Manager"), fixture.ClientId, fixture.EngagementId);
+      Assert.True(draftReference.Succeeded, draftReference.Message);
+      Assert.Empty(draftReference.Value!.HistoricalMappings);
     }
 
     await using (var db = new AuditSphereDbContext(pg.Options))
       Assert.True((await FinancialStatementService.ApproveMappingAsync(db, reviewer, mappingId, 1)).Succeeded);
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var annual = await AuditSphereOps.Application.Acceptance.AnnualEngagementPreparationWorkspace.StateAsync(db,
+        Actor(fixture.Reviewer, "Manager"), fixture.ClientId, fixture.EngagementId);
+      Assert.True(annual.Succeeded, annual.Message);
+      Assert.Equal(mappingId, Assert.Single(annual.Value!.HistoricalMappings).Id);
+      Assert.Equal("tax-v1", annual.Value.HistoricalMappings[0].TaxonomyVersion);
+      Assert.Single(await db.MappingVersions.ToListAsync());
+      var relationshipManager = User(fixture.FirmId); db.Users.Add(relationshipManager);
+      db.RoleGrants.Add(Grant(fixture.FirmId, relationshipManager, "RelationshipManager")); await db.SaveChangesAsync();
+      var restricted = await AuditSphereOps.Application.Acceptance.AnnualEngagementPreparationWorkspace.StateAsync(db,
+        Actor(relationshipManager, "RelationshipManager"), fixture.ClientId, fixture.EngagementId);
+      Assert.True(restricted.Succeeded, restricted.Message);
+      Assert.Equal("RESTRICTED", restricted.Value!.HistoricalMappingState);
+      Assert.Empty(restricted.Value.HistoricalMappings);
+    }
 
     Guid planId;
     await using (var db = new AuditSphereDbContext(pg.Options))

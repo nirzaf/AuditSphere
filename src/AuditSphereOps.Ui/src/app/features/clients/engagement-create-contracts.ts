@@ -75,10 +75,25 @@ export const decodeEngagementCreationState = obj({
   clientGeneration: generation,
   reviewBasis: sha256,
 });
-export const decodeAnnualPreparation = obj({
+const annualPreparation = obj({
   clientId: identity, sourceEngagementId: identity, sourcePeriodStart: date, sourcePeriodEnd: date,
   fields: canonical, copiedReferences: arr(str(200), 10), requiresFreshWork: arr(str(200), 10),
+  contactSuggestions: arr(obj({ id: identity, name: str(2000), role: str(200), primary: bool }), 10),
+  historicalMappingState: (value: unknown, path: string) => {
+    if (value !== 'AVAILABLE' && value !== 'RESTRICTED') throw new Error(`Unsupported mapping reference state at ${path}`);
+    return value;
+  },
+  historicalMappings: arr(obj({ id: identity, version: generation, taxonomyVersion: str(100), periodStart: date, periodEnd: date }), 5),
 });
+export const decodeAnnualPreparation = (value: unknown, path = '') => {
+  const annual = annualPreparation(value, path);
+  if ((annual.historicalMappingState === 'RESTRICTED' && annual.historicalMappings.length !== 0) ||
+    annual.historicalMappings.some(mapping => mapping.periodStart !== annual.sourcePeriodStart || mapping.periodEnd !== annual.sourcePeriodEnd) ||
+    new Set(annual.historicalMappings.map(mapping => mapping.id)).size !== annual.historicalMappings.length ||
+    new Set(annual.contactSuggestions.map(contact => contact.id)).size !== annual.contactSuggestions.length)
+    throw new Error('Invalid annual reference context');
+  return annual;
+};
 export const decodeEngagementCreationPreview = obj({
   clientId: identity,
   requestId: identity,

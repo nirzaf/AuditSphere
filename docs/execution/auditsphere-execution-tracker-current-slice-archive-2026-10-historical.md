@@ -6852,3 +6852,7 @@ ADR-0018 records the reporting decisions the owner delegated: approved non-billa
 The engagement page has a communications panel backed by `GET /api/ui/engagements/{id}/communications`. It lists recorded outbound mail for the engagement, to engagement Partners, Managers and Administrators, without message bodies, and never words provider acceptance as delivery. The crosswalk now maps the twelve non-regression scenarios to named tests and states where none was found.
 
 Operators should expect realization and contribution to appear where non-billable time used to make them unavailable, lower grid utilization for staff with non-billable time, and higher receivables totals where non-milestone invoices are posted. The full .NET suites were left to CI; evidence is in `status.json` under `targetedVerification.practiceManagementReportingSlice`.
+
+## Annual task-plan references — 2026-10-13
+
+Annual preparation now lists up to three currently published revisions from prior task-plan template identities, plus up to three prior schedule bases. They are reference-only: fresh plan review remains required and no tasks or deadlines are copied. Build and focused query evidence are recorded under `targetedVerification.workflowAnnualTaskPlanReferences` in [status.json](status.json). Template selection/pinning orchestration remains open.

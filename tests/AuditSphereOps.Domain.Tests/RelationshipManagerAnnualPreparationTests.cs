@@ -29,6 +29,8 @@ public sealed class RelationshipManagerAnnualPreparationTests
     Assert.Contains(profile.Value.Engagements, x => x.Id == source.Value);
     var annual = await AnnualEngagementPreparationWorkspace.StateAsync(db, actor, f.ClientId, source.Value);
     Assert.True(annual.Succeeded, annual.Message);
+    Assert.Equal("RESTRICTED", annual.Value!.HistoricalMappingState);
+    Assert.Empty(annual.Value.HistoricalMappings);
     var state = (await EngagementCreationWorkspace.StateAsync(db, actor, f.ClientId)).Value!;
     var request = new EngagementCreationRequest(Guid.NewGuid(), state.ReviewBasis, annual.Value!.Fields);
     var preview = await AnnualEngagementPreparationWorkspace.PreviewAsync(db, actor, f.ClientId, request);

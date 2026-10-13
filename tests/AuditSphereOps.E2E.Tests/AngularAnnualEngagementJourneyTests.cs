@@ -22,6 +22,8 @@ public sealed class AngularAnnualEngagementJourneyTests
       var source = await EngagementLifecycleService.CreateDraftAsync(db, PbcSeed.Actor(f.Staff, role),
         new(f.ClientId, "AccountingOnly", "2026-01-01", "2026-12-31", "Synthetic annual reference"));
       Assert.True(source.Succeeded, source.Message); sourceId = source.Value;
+      db.ClientContacts.Add(new ClientContact { Id = Guid.NewGuid(), FirmId = f.FirmId, PracticeClientId = f.ClientId,
+        FullName = "Synthetic annual liaison", Email = "annual@example.test", Role = "Liaison", Primary = true });
       db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Reviewer, "Partner")); await db.SaveChangesAsync();
       var draft = await WorkflowTemplateService.CreateDraftAsync(db, PbcSeed.Actor(f.Admin, "Administrator"),
         new(null, "Synthetic annual tasks", "AccountingOnly", null,
@@ -47,6 +49,10 @@ public sealed class AngularAnnualEngagementJourneyTests
     var annual = page.GetByRole(AriaRole.Region, new() { Name = "Annual engagement preparation", Exact = true });
     await Assertions.Expect(annual).ToContainTextAsync("Partner continuance");
     await Assertions.Expect(annual).ToContainTextAsync("2027-01-01 to 2027-12-31");
+    await Assertions.Expect(annual).ToContainTextAsync("Synthetic annual liaison");
+    await Assertions.Expect(annual).ToContainTextAsync(role == "Manager"
+      ? "No approved mapping exists for the source period."
+      : "Mapping references require accounting read access to the source engagement.");
     await annual.GetByRole(AriaRole.Button, new() { Name = "Use annual suggestion", Exact = true }).ClickAsync();
     await Assertions.Expect(page.GetByLabel("Period start", new() { Exact = true })).ToHaveValueAsync("2027-01-01");
     await page.GetByRole(AriaRole.Button, new() { Name = "Review engagement", Exact = true }).ClickAsync();
@@ -75,7 +81,7 @@ public sealed class AngularAnnualEngagementJourneyTests
       await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "1. Prepare fresh annual work", Exact = true })).ToBeVisibleAsync();
       var createTasks = page.GetByRole(AriaRole.Button, new() { Name = "Create operational tasks", Exact = true });
       await Assertions.Expect(createTasks).ToBeDisabledAsync();
-      await OwnedBrowserFixtureHandoff.WaitAsync(origin, new Uri(page.Url).PathAndQuery + new Uri(page.Url).Fragment);
+      await OwnedBrowserFixtureHandoff.WaitAsync(origin, path);
       await page.GetByLabel("I reviewed this exact plan, staffing, dates, and template revision.", new() { Exact = true }).CheckAsync();
       await createTasks.ClickAsync();
       await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Plan receipt confirmed", Exact = true })).ToBeVisibleAsync();
