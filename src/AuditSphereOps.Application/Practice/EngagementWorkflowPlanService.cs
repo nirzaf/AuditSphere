@@ -40,6 +40,34 @@ public static class EngagementWorkflowPlanService
   private static readonly string[] ConfigureRoles = ["Administrator", "Partner", "Manager"];
   private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
+  /// <summary>Published choices for one authorized engagement; never exposes drafts or grants template administration.</summary>
+  public static async Task<CommandResult<IReadOnlyList<WorkflowTemplateCatalogItem>>> TemplatesAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)
+  {
+    var engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.Id == engagementId, ct);
+    if (engagement is null)
+      return CommandResult<IReadOnlyList<WorkflowTemplateCatalogItem>>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await AuthorizeAsync(db, actor, engagement, ReadRoles, ct);
+    if (!auth.Succeeded)
+      return CommandResult<IReadOnlyList<WorkflowTemplateCatalogItem>>.Fail(auth.ErrorCode!, auth.Message!);
+    var choices = await (from template in db.WorkflowTemplates.AsNoTracking()
+      join revision in db.WorkflowTemplateRevisions.AsNoTracking() on template.Id equals revision.TemplateId
+      where template.FirmId == actor.FirmId && revision.FirmId == actor.FirmId && template.ArchivedAt == null &&
+        revision.Status == WorkflowTemplateStates.Published && revision.ServiceRoute == engagement.ServiceRoute
+      orderby revision.Name, template.Id
+      select new { Template = template, Revision = revision }).Take(100).ToListAsync(ct);
+    auth = await AuthorizeAsync(db, actor, engagement, ReadRoles, ct);
+    if (!auth.Succeeded)
+      return CommandResult<IReadOnlyList<WorkflowTemplateCatalogItem>>.Fail(auth.ErrorCode!, auth.Message!);
+    IReadOnlyList<WorkflowTemplateCatalogItem> result = choices.Select(x => new WorkflowTemplateCatalogItem(
+      x.Template.Id, x.Revision.Id, x.Revision.Version, x.Revision.Name, x.Revision.ServiceRoute,
+      x.Revision.IndustryKey, x.Revision.Status, false, x.Template.CreatedAt,
+      new WorkflowTemplatePublishedRevision(x.Revision.Id, x.Revision.Version, x.Revision.Name,
+        x.Revision.ServiceRoute, x.Revision.IndustryKey, x.Revision.ContentDigest))).ToArray();
+    return CommandResult<IReadOnlyList<WorkflowTemplateCatalogItem>>.Ok(result);
+  }
+
   public static async Task<CommandResult<EngagementWorkflowPlanPreview>> PreviewAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid engagementId,
     PreviewEngagementWorkflowPlanRequest request, CancellationToken ct = default)

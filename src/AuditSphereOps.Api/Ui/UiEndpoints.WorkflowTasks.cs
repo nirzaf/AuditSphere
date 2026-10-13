@@ -143,6 +143,8 @@ public static partial class UiEndpoints
           ? await next(context)
           : Results.NotFound();
       });
+    plans.MapGet("/templates", (Guid engagementId, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => EngagementWorkflowPlanService.TemplatesAsync(db, actor, engagementId, ct)));
     plans.MapPost("/preview", (Guid engagementId, WorkflowPlanPreviewInput input, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => EngagementWorkflowPlanService.PreviewAsync(db, actor, engagementId,
         new PreviewEngagementWorkflowPlanRequest(input.TemplateRevisionId,

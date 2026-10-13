@@ -52,7 +52,7 @@ describe('Engagement task plan preview and receipt recovery', () => {
     fixture.componentRef.setInput('serviceRoute', 'FinancialStatementAudit');
     fixture.detectChanges();
     TestBed.tick();
-    TestBed.inject(HttpTestingController).expectOne('/api/ui/practice/workflow-templates').flush(catalog);
+    TestBed.inject(HttpTestingController).expectOne(`/api/ui/engagements/${engagementId}/task-plan/templates`).flush(catalog);
     TestBed.tick();
     return fixture;
   }

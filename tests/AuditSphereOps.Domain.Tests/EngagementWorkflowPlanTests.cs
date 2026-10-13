@@ -98,6 +98,7 @@ public sealed class EngagementWorkflowPlanTests
       Assert.False(executed.Value!.Replayed);
       Assert.Equal(2, executed.Value.TaskCount);
       Assert.Equal(2, await db.WorkflowTaskBindings.CountAsync(x => x.EngagementId == engagementId));
+
       Assert.Equal(2, await db.WorkTasks.CountAsync(x => x.EngagementId == engagementId));
       Assert.Single(await db.WorkflowTaskDependencies.Where(x => x.EngagementId == engagementId).ToListAsync());
       var plannedTasks = await EngagementWorkflowTaskService.GetAsync(db, adminActor, engagementId);
@@ -183,6 +184,20 @@ public sealed class EngagementWorkflowPlanTests
       Assert.DoesNotContain(annual.Value.CopiedReferences, x => x.Contains(revisionId.ToString()));
       Assert.Contains(annual.Value.CopiedReferences, x => x.StartsWith("Prior task-plan schedule basis:"));
       Assert.Contains("Reviewed task template and current-period schedule", annual.Value.RequiresFreshWork);
+      await db.RoleGrants.Where(x => x.UserId == staff.Id).ExecuteUpdateAsync(x => x.SetProperty(g => g.RevokedAt, DateTimeOffset.UtcNow));
+      var scopedGrant = Grant(firmId, staff, "Manager");
+      scopedGrant.ClientId = clientId; scopedGrant.EngagementId = engagementId;
+      db.RoleGrants.Add(scopedGrant); await db.SaveChangesAsync();
+      var scopedActor = Actor(staff, "Manager");
+      Assert.False((await WorkflowTemplateService.ListAsync(db, scopedActor)).Succeeded);
+      var scopedChoices = await EngagementWorkflowPlanService.TemplatesAsync(db, scopedActor, engagementId);
+      Assert.True(scopedChoices.Succeeded, scopedChoices.Message);
+      var choice = Assert.Single(scopedChoices.Value!);
+      Assert.Equal(nextDraft.Value, choice.CurrentPublishedRevision!.RevisionId);
+      Assert.Equal(WorkflowTemplateStates.Published, choice.RevisionStatus);
+      Assert.False((await EngagementWorkflowPlanService.TemplatesAsync(db, scopedActor, secondEngagementId)).Succeeded);
+      await db.RoleGrants.Where(x => x.Id == scopedGrant.Id).ExecuteUpdateAsync(x => x.SetProperty(g => g.RevokedAt, DateTimeOffset.UtcNow));
+      Assert.False((await EngagementWorkflowPlanService.TemplatesAsync(db, scopedActor, engagementId)).Succeeded);
       Assert.Equal(2, await db.WorkflowTaskBindings.CountAsync(x => x.EngagementId == engagementId));
     }
 

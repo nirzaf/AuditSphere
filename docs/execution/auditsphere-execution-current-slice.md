@@ -15,6 +15,10 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Annual task-plan handoff — 2026-10-13
+
+Confirmed annual creation receipts now lead to the new engagement’s reviewed operational plan. The explicit fragment loads the deferred panel; ordinary visits still use viewport loading. Published template choices are read through exact engagement scope rather than firm-wide template administration. Plan execution retains independent authorization, review assent, staffing/schedule fencing and immutable revision receipts. Focused evidence is under `targetedVerification.workflowAnnualPlanHandoff` in [status.json](status.json); annual contact/mapping suggestions, fresh-checklist orchestration and broader acceptance remain open.
+
 ## Annual task-plan references — 2026-10-13
 
 Annual preparation now lists up to three currently published revisions from prior task-plan template identities, plus up to three prior schedule bases. They are reference-only: fresh plan review remains required and no tasks or deadlines are copied. Build and focused query evidence are recorded under `targetedVerification.workflowAnnualTaskPlanReferences` in [status.json](status.json). Template selection/pinning orchestration remains open.
@@ -28,14 +32,6 @@ Annual shell preparation now proposes a contiguous next period from an exact cli
 The [capability runner](../testing/auditsphere-testing-guide-agent-capability-checks-current.md) connects three task packets to owning files, invariants, fixtures and focused checks. Socket denial is distinct from database outage; default preflight changes no configuration. Comparative productivity measurements remain pending.
 
 Engagement economics now pages before loading financial evidence, with Angular and legacy navigation. Period-wide task and utilization denominators stay unchanged. The owned synthetic API/browser fixture verified forward/reset navigation; focused PostgreSQL assertions also cover queue assignment narrowing. Evidence and limitations are in `targetedVerification.workflowAnalyticsPaging` and `agentCapabilityRunner` in [status.json](status.json). Overall workflow and release acceptance remain partial.
-
-## Practice management program, second slice — 2026-10-12
-
-ADR-0018 records the reporting decisions the owner delegated: approved non-billable and no-charge time carries hours and cost and no charge-out value; utilization is approved billable time over capacity in both the weekly grid and department analytics; and the receivables report ages every posted firm invoice, typed as advance, final, time or other. The ADR also lists the professional, legal and commercial decisions it does not make.
-
-The engagement page has a communications panel backed by `GET /api/ui/engagements/{id}/communications`. It lists recorded outbound mail for the engagement, to engagement Partners, Managers and Administrators, without message bodies, and never words provider acceptance as delivery. The crosswalk now maps the twelve non-regression scenarios to named tests and states where none was found.
-
-Operators should expect realization and contribution to appear where non-billable time used to make them unavailable, lower grid utilization for staff with non-billable time, and higher receivables totals where non-milestone invoices are posted. The full .NET suites were left to CI; evidence is in `status.json` under `targetedVerification.practiceManagementReportingSlice`.
 
 ## v2.2 unlinked procedure review inbox — 2026-10-12
 

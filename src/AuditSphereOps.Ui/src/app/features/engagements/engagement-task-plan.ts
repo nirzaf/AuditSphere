@@ -160,7 +160,7 @@ export class EngagementTaskPlan {
   readonly serviceRoute = input.required<string>();
   private readonly api = inject(Api);
   private readonly session = inject(SessionService);
-  readonly catalog = this.api.resource(() => '/api/ui/practice/workflow-templates', templateCatalog,
+  readonly catalog = this.api.resource(() => `/api/ui/engagements/${this.engagementId()}/task-plan/templates`, templateCatalog,
     'Workflow task planning is unavailable or is not enabled on this server.');
   readonly publishedTemplates = computed<SelectableTemplate[]>(() => (this.catalog.data() ?? [])
     .filter((item) => !item.archived && item.currentPublishedRevision?.serviceRoute === this.serviceRoute())

@@ -80,7 +80,11 @@ export class EngagementDetail {
   readonly data = signal<Engagement | null>(null);
   readonly loading = signal(false);
   readonly error = signal('');
+  readonly taskPlanRequested = signal(false);
   constructor() {
+    this.taskPlanRequested.set(this.route.snapshot.fragment === 'engagement-task-plan');
+    const fragmentSubscription = this.route.fragment?.subscribe(fragment =>
+      this.taskPlanRequested.set(fragment === 'engagement-task-plan'));
     this.location.set(engagementLocation((k) => this.route.snapshot.queryParamMap.get(k)));
     const routeSubscription = this.route.paramMap.subscribe((p) => {
       this.routeRevision++;
@@ -108,6 +112,7 @@ export class EngagementDetail {
       this.viewRevision++;
       routeSubscription.unsubscribe();
       querySubscription.unsubscribe();
+      fragmentSubscription?.unsubscribe();
       this.request?.unsubscribe();
       this.clear();
     });

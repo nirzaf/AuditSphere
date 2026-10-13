@@ -6844,3 +6844,11 @@ The owner-supplied program and its crosswalk are in `docs/execution`; the crossw
 ## RelationshipManager preparation — 2026-10-13
 
 Existing client/firm grants now permit RelationshipManager blocked-shell preparation and client business summaries. Engagement-only scope cannot widen to the parent, and professional reads, decisions and activation remain separately restricted. The receipt publication guard enforces the same role policy. Evidence and isolated rollback are under `targetedVerification.workflowRelationshipManagerPreparation` in [status.json](status.json).
+
+## Practice management program, second slice — 2026-10-12
+
+ADR-0018 records the reporting decisions the owner delegated: approved non-billable and no-charge time carries hours and cost and no charge-out value; utilization is approved billable time over capacity in both the weekly grid and department analytics; and the receivables report ages every posted firm invoice, typed as advance, final, time or other. The ADR also lists the professional, legal and commercial decisions it does not make.
+
+The engagement page has a communications panel backed by `GET /api/ui/engagements/{id}/communications`. It lists recorded outbound mail for the engagement, to engagement Partners, Managers and Administrators, without message bodies, and never words provider acceptance as delivery. The crosswalk now maps the twelve non-regression scenarios to named tests and states where none was found.
+
+Operators should expect realization and contribution to appear where non-billable time used to make them unavailable, lower grid utilization for staff with non-billable time, and higher receivables totals where non-milestone invoices are posted. The full .NET suites were left to CI; evidence is in `status.json` under `targetedVerification.practiceManagementReportingSlice`.

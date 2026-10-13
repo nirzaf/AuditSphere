@@ -98,11 +98,13 @@
     } @placeholder {
       <p>Team and budget</p>
     }
-    @defer (on viewport) {
-      <audit-engagement-task-plan [engagementId]="engagement.id" [serviceRoute]="engagement.serviceRoute" />
-    } @placeholder {
-      <p>Operational task plan</p>
-    }
+    <div id="engagement-task-plan">
+      @defer (on viewport; when taskPlanRequested()) {
+        <audit-engagement-task-plan [engagementId]="engagement.id" [serviceRoute]="engagement.serviceRoute" />
+      } @placeholder {
+        <p>Operational task plan</p>
+      }
+    </div>
     @defer (on viewport) {
       <audit-engagement-communications [engagementId]="engagement.id" />
     } @placeholder {
