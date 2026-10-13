@@ -188,9 +188,12 @@ public static class AssessmentCommandWorkspace
       ResourceId=result.Value.Id, CreatedAt=DateTimeOffset.UtcNow };
     db.AssessmentCommandReceipts.Add(receipt);
     await db.SaveChangesAsync(ct);
+    // PostgreSQL stores microseconds; return its exact persisted timestamp on the first response as on recovery.
+    var persisted = await db.AssessmentCommandReceipts.AsNoTracking().SingleAsync(x =>
+      x.FirmId == a.FirmId && x.ActorId == a.UserId && x.Id == receipt.Id, ct);
     if (!(await Authorize(db, a, id, f.Kind, ct)).Succeeded) return Unavailable<AssessmentReceiptView>();
     await tx.CommitAsync(ct);
-    return CommandResult<AssessmentReceiptView>.Ok(Receipt(receipt));
+    return CommandResult<AssessmentReceiptView>.Ok(Receipt(persisted));
   }
 
   private sealed record Result(Guid Id, long Generation);

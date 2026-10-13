@@ -48,6 +48,9 @@ public sealed class AssessmentCommandReceiptApiTests
     using var first = await Post(c, csrf, url + "/commands", request);
     Assert.Equal(HttpStatusCode.OK, first.StatusCode);
     Assert.True(first.Headers.CacheControl!.NoStore);
+    var storedReceipt = JsonDocument.Parse(await first.Content.ReadAsStringAsync()).RootElement.GetProperty("value")
+      .Deserialize<AssessmentReceiptView>(new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+    Assert.Equal(0, storedReceipt.CreatedAt.Ticks % 10);
     using var replay = await Post(c, csrf, url + "/commands", request);
     Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
     Assert.Equal(await first.Content.ReadAsStringAsync(), await replay.Content.ReadAsStringAsync());
