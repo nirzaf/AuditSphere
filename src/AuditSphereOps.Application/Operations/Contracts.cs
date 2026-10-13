@@ -145,6 +145,7 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<WorkflowTaskBinding> WorkflowTaskBindings { get; }
   DbSet<WorkflowTaskActivity> WorkflowTaskActivities { get; }
   DbSet<WorkflowTaskDependency> WorkflowTaskDependencies { get; }
+  DbSet<WorkflowTaskEvidenceRule> WorkflowTaskEvidenceRules { get; }
   DbSet<WorkflowTemplate> WorkflowTemplates { get; }
   DbSet<WorkflowTemplateRevision> WorkflowTemplateRevisions { get; }
   DbSet<WorkflowTemplateStep> WorkflowTemplateSteps { get; }

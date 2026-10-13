@@ -12,7 +12,7 @@ const task = (n: number, taskStatus: string, dueDate: string | null, canComplete
   clientId: user, clientName: 'Synthetic client', engagementId: engagement, engagementServiceRoute: 'Audit',
   engagementPeriod: '2026', title: `Queue task ${n}`, phase: 'AUDIT_FIELDWORK', ordinal: n, taskStatus,
   assigneeUserId: null, assigneeDisplayName: null, dueDate, mappingVersionId: null, fsliCode: null,
-  unmetTaskDependencies: 0, canComplete, canChangeDueDate: false, revision: 1,
+  unmetTaskDependencies: 0, unmetEvidencePrerequisites: 0, canComplete, canChangeDueDate: false, revision: 1,
   pbcRequestId: null, pbcState: null, reviewState: null, reviewComment: null,
 });
 const queue = {
@@ -57,7 +57,9 @@ describe('work queue display modes', () => {
     expect(titles(root, '.task-card')).toHaveLength(3);
     expect(root.textContent).toContain('cards cannot be dragged');
     // The only action a card offers is the task's own completion command, and only where the server allows it.
-    expect([...root.querySelectorAll('.task-card button')].map((b) => b.textContent?.trim())).toEqual(['Complete task']);
+    const actions = [...root.querySelectorAll('.task-card button')].map((b) => b.textContent?.trim());
+    expect(actions.filter(x => x !== 'Review prerequisites')).toEqual(['Complete task']);
+    expect(actions.filter(x => x === 'Review prerequisites')).toHaveLength(3);
 
     fixture.componentInstance.display.set('CALENDAR');
     fixture.detectChanges();

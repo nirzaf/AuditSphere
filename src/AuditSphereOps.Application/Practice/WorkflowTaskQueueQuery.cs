@@ -17,7 +17,8 @@ public sealed record WorkflowTaskQueueRow(Guid TaskId, Guid ClientId, string Cli
   string TaskStatus, Guid? AssigneeUserId, string? AssigneeDisplayName, DateOnly? DueDate,
   Guid? MappingVersionId, string? FsliCode, int UnmetTaskDependencies, bool CanComplete,
   bool CanChangeDueDate, long Revision,
-  Guid? PbcRequestId, string? PbcState, string? ReviewState, string? ReviewComment);
+  Guid? PbcRequestId, string? PbcState, string? ReviewState, string? ReviewComment,
+  int UnmetEvidencePrerequisites = 0);
 public sealed record WorkflowTaskQueue(string View, IReadOnlyList<WorkflowTaskQueueRow> Tasks,
   bool HasMore, WorkflowTaskQueueCursor? NextCursor);
 
@@ -130,6 +131,8 @@ public static class WorkflowTaskQueueQuery
           ? reviewResult.ReviewComment : null
       };
 
+    var waitingEvidenceRules = WorkflowTaskEvidenceQuery.Heads(db, actor.FirmId).Where(x =>
+      x.State == WorkflowEvidenceRuleStates.Required && x.Kind == WorkflowEvidenceKinds.AcceptedPbc);
     if (view == MyTasks)
       query = query.Where(x => x.AssigneeUserId == actor.UserId && ActiveTaskStates.Contains(x.Status));
     else if (view == Team)
@@ -137,8 +140,11 @@ public static class WorkflowTaskQueueQuery
     else if (view == Overdue)
       query = query.Where(x => x.DueDate < DateOnly.FromDateTime(DateTime.UtcNow) && ActiveTaskStates.Contains(x.Status));
     else if (view == WaitingForClient)
-      query = query.Where(x => ActiveTaskStates.Contains(x.Status) && x.PbcRequestId.HasValue &&
-        x.PbcState != null && ClientWaitingPbcStates.Contains(x.PbcState));
+      query = query.Where(x => ActiveTaskStates.Contains(x.Status) &&
+        ((x.PbcRequestId.HasValue && x.PbcState != null && ClientWaitingPbcStates.Contains(x.PbcState)) ||
+         waitingEvidenceRules.Any(rule => rule.WorkflowTaskBindingId == x.BindingId &&
+           db.PbcRequests.Any(pbc => pbc.FirmId == rule.FirmId && pbc.ClientId == rule.ClientId &&
+             pbc.EngagementId == rule.EngagementId && pbc.Id == rule.PbcRequestId && ClientWaitingPbcStates.Contains(pbc.State)))));
     else if (view == ChangesRequired)
       query = query.Where(x => x.ReviewState == AuditProcedureResultStatuses.ChangesRequired);
     else if (view == UnderReview)
@@ -180,6 +186,9 @@ public static class WorkflowTaskQueueQuery
         predecessorTask.Status != PracticeTimeStates.TaskCompleted
       select dependency.SuccessorBindingId).ToListAsync(ct);
     var unmetByBinding = unmet.GroupBy(x => x).ToDictionary(x => x.Key, x => x.Count());
+    var evidenceBindings = await db.WorkflowTaskBindings.AsNoTracking().Where(x =>
+      x.FirmId == actor.FirmId && bindingIds.Contains(x.Id)).ToListAsync(ct);
+    var evidence = await WorkflowTaskEvidenceQuery.EvaluateManyAsync(db, actor.FirmId, evidenceBindings, ct);
     var assigneeIds = page.Where(x => x.AssigneeUserId.HasValue).Select(x => x.AssigneeUserId!.Value).Distinct().ToArray();
     var assignees = assigneeIds.Length == 0 ? new Dictionary<Guid, string>() :
       await db.Users.AsNoTracking().Where(x => x.FirmId == actor.FirmId && assigneeIds.Contains(x.Id))
@@ -191,15 +200,17 @@ public static class WorkflowTaskQueueQuery
     var rows = page.Select(x =>
     {
       var unmetCount = unmetByBinding.GetValueOrDefault(x.BindingId);
+      var unmetEvidence = evidence.GetValueOrDefault(x.BindingId)?.Count(r =>
+        r.State == WorkflowEvidenceRuleStates.Required && !r.Satisfied) ?? 0;
       var pbcComplete = !x.PbcRequestId.HasValue || x.PbcState is PbcStates.Accepted or PbcStates.Closed;
       var canComplete = ActiveTaskStates.Contains(x.Status) && unmetCount == 0 &&
-        pbcComplete && (x.AssigneeUserId == actor.UserId || CanElevatedManage(x.ClientId, x.EngagementId));
+        pbcComplete && unmetEvidence == 0 && (x.AssigneeUserId == actor.UserId || CanElevatedManage(x.ClientId, x.EngagementId));
       var canChangeDueDate = ActiveTaskStates.Contains(x.Status) && CanElevatedManage(x.ClientId, x.EngagementId);
       return new WorkflowTaskQueueRow(x.Id, x.ClientId, x.ClientName, x.EngagementId,
         x.EngagementServiceRoute, x.EngagementPeriod, x.Title, x.Phase, x.Ordinal, x.Status,
         x.AssigneeUserId, x.AssigneeUserId is { } userId ? assignees.GetValueOrDefault(userId) : null,
         x.DueDate, x.MappingVersionId, x.FsliCode, unmetCount, canComplete, canChangeDueDate, x.Revision,
-        x.PbcRequestId, x.PbcState, x.ReviewState, x.ReviewComment);
+        x.PbcRequestId, x.PbcState, x.ReviewState, x.ReviewComment, unmetEvidence);
     }).ToArray();
     var last = page[^1];
     return CommandResult<WorkflowTaskQueue>.Ok(new WorkflowTaskQueue(view!, rows, hasMore,

@@ -21,6 +21,7 @@ public static class WorkflowTemplateDecisionKinds
 public static class WorkflowDependencyTypes
 {
   public const string TaskCompleted = "TASK_COMPLETED";
+  public const string DomainEvidenceSatisfied = "DOMAIN_EVIDENCE_SATISFIED";
 }
 
 /// <summary>Stable firm-owned catalog identity. Revisions carry all selectable content.</summary>

@@ -11,6 +11,7 @@ public sealed partial class AuditSphereDbContext
 {
   private static void ConfigureWorkflowTasks(ModelBuilder b)
   {
+    ConfigureWorkflowTaskEvidence(b);
     b.Entity<WorkflowTaskBinding>().HasAlternateKey(x => new { x.FirmId, x.Id })
       .HasName("AK_workflow_task_bindings_firm_id_id");
     b.Entity<WorkflowTaskBinding>().HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
@@ -87,7 +88,7 @@ public sealed partial class AuditSphereDbContext
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     activity.ToTable("workflow_task_activities", t =>
       t.HasCheckConstraint("ck_workflow_task_activity_values",
-        "kind IN ('TASK_CREATED','TASK_ASSIGNED','TASK_REASSIGNED','TASK_COMPLETED','TASK_DUE_DATE_CHANGED') AND task_revision >= 1 AND ((kind IN ('TASK_ASSIGNED','TASK_REASSIGNED')) = (assignee_user_id IS NOT NULL)) AND ((kind = 'TASK_DUE_DATE_CHANGED') = (previous_due_date IS DISTINCT FROM new_due_date))"));
+        "kind IN ('TASK_CREATED','TASK_ASSIGNED','TASK_REASSIGNED','TASK_COMPLETED','TASK_DUE_DATE_CHANGED','TASK_EVIDENCE_RULE_CHANGED') AND task_revision >= 1 AND ((kind IN ('TASK_ASSIGNED','TASK_REASSIGNED')) = (assignee_user_id IS NOT NULL)) AND ((kind = 'TASK_DUE_DATE_CHANGED') = (previous_due_date IS DISTINCT FROM new_due_date))"));
 
     var dependency = b.Entity<WorkflowTaskDependency>();
     dependency.HasAlternateKey(x => new { x.FirmId, x.Id })

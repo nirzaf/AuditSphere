@@ -44,9 +44,10 @@ Source: `src/AuditSphereOps.Api/HttpBoundary/ApiRateLimiter.cs`. Rejections retu
 | Five-part bundle | 100 MB total | `AuditDeliverableService.Bundle.cs` |
 | Firm expense evidence | 5 MB | `FirmOperationsServices.MaxEvidenceBytes` |
 | Portfolio CSV export | 1,000 clients (more is refused with typed `400`) | `PortfolioQuery.Workspace.cs` `ExportClientLimit` |
+| Workflow task evidence references | Eight distinct source references per task, including withdrawn references; changes append history | `WorkflowTaskEvidenceQuery.MaximumRules`, `WorkflowEvidenceRuleGuardSql` |
 | JSON command body | `HttpBoundary:BodyLimits:MaxJsonBodyBytes` → `413` | `HttpBoundary` |
 
-These are per-request bounds. None limits how many clients, engagements or working papers the firm may hold (specification §1.1).
+These are request or aggregate bounds. None limits how many clients, engagements or working papers the firm may hold (specification §1.1).
 
 ## 4. Data integrity and correctness
 

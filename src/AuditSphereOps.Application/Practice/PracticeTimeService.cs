@@ -74,7 +74,7 @@ public sealed record BudgetActualSummary(
 /// Guarded native practice time and budget commands. Approved facts are never edited:
 /// a correction supersedes the old row and starts a new reviewable revision.
 /// </summary>
-public static class PracticeTimeService
+public static partial class PracticeTimeService
 {
   private static readonly string[] WorkRoles = ["Senior", "Staff", "Manager", "Partner", "Administrator"];
   private static readonly string[] ReviewReworkCreatorRoles = ["Reviewer", "Senior", "Manager", "Partner", "Administrator"];
@@ -342,6 +342,9 @@ public static class PracticeTimeService
     var taskSnapshot = await db.WorkTasks.AsNoTracking().SingleOrDefaultAsync(
       x => x.Id == taskId && x.FirmId == actor.FirmId, ct);
     if (taskSnapshot is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (taskSnapshot.EngagementId is { } evidenceEngagement)
+      await db.Engagements.FromSqlInterpolated($"SELECT * FROM engagements WHERE id = {evidenceEngagement} AND firm_id = {actor.FirmId} FOR UPDATE")
+        .AsNoTracking().SingleOrDefaultAsync(ct);
     var guard = await LockClientAsync(db, actor.FirmId, taskSnapshot.ClientId, ct);
     if (!guard.Succeeded) return guard;
     var task = await LoadTaskForUpdateAsync(db, actor.FirmId, taskId, ct);
@@ -368,6 +371,11 @@ public static class PracticeTimeService
     }
     if (workflowBinding is not null)
     {
+      var evidence = await WorkflowTaskEvidenceQuery.EvaluateManyAsync(db, actor.FirmId, [workflowBinding], ct);
+      var evidenceBlocker = evidence.GetValueOrDefault(workflowBinding.Id)?.FirstOrDefault(x =>
+        x.State == WorkflowEvidenceRuleStates.Required && !x.Satisfied);
+      if (evidenceBlocker is not null)
+        return CommandResult.Fail(ErrorCodes.GateBlocked, evidenceBlocker.Message);
       var hasIncompletePredecessor = await (from dependency in db.WorkflowTaskDependencies.AsNoTracking()
         join predecessor in db.WorkflowTaskBindings.AsNoTracking()
           on new { dependency.FirmId, dependency.ClientId, dependency.EngagementId, Id = dependency.PredecessorBindingId }
@@ -383,6 +391,8 @@ public static class PracticeTimeService
         return CommandResult.Fail(ErrorCodes.GateBlocked,
           "Complete the prerequisite workflow task before completing this task.");
     }
+    auth = await AuthorizeTaskAsync(db, actor, task, WorkRoles, ct);
+    if (!auth.Succeeded) return auth;
     if (task.AssigneeUserId != actor.UserId &&
         !await IsElevatedAsync(db, actor, task.ClientId, task.EngagementId, ct))
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Only the assignee or an authorized manager can complete this task.");
@@ -886,12 +896,9 @@ public static class PracticeTimeService
 
   private static async Task<bool> IsElevatedAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid? clientId, Guid? engagementId, CancellationToken ct) =>
-    await db.RoleGrants.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId &&
-      x.RevokedAt == null && ApprovalRoles.Contains(x.Role) &&
-      ((engagementId.HasValue && (x.EngagementId == engagementId ||
-        (x.EngagementId == null && (x.ClientId == null || x.ClientId == clientId)))) ||
-       (!engagementId.HasValue && clientId.HasValue && (x.ClientId == null || x.ClientId == clientId)) ||
-       (!engagementId.HasValue && !clientId.HasValue && x.ClientId == null && x.EngagementId == null)), ct);
+    (await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new(actor.FirmId, clientId, engagementId, ApprovalRoles, InternalOnly: true,
+        RequireFirmWide: clientId is null && engagementId is null), ct)).Succeeded;
 
   private static Task<FirmSafetyState?> LockFirmAsync(
     IAuditSphereDbContext db, Guid firmId, CancellationToken ct) =>

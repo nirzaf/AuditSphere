@@ -1,5 +1,5 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { Component, inject, signal } from '@angular/core';
+import { Component, effect, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { RouterLink } from '@angular/router';
 import { Api, CommandState } from '../../core/api';
@@ -7,6 +7,7 @@ import { arr, bool, date, guid, instant, int, nullable, obj, oneOf, str, text } 
 import { SHARED } from '../../core/ui';
 import { SessionService } from '../../core/session';
 import { QUEUE_DISPLAYS, QueueDisplay, boardColumns, queueCalendar } from './work-queue-views';
+import { WorkflowTaskEvidencePanel } from './workflow-task-evidence';
 
 const nonBlank = (max: number) => (value: unknown, path: string): string => {
   const decoded = str(max)(value, path);
@@ -17,7 +18,7 @@ const queueTask = obj({
   taskId: guid, clientId: guid, clientName: text, engagementId: guid, engagementServiceRoute: str(100),
   engagementPeriod: str(80), title: str(300), phase: str(40), ordinal: int, taskStatus: str(40),
   assigneeUserId: nullable(guid), assigneeDisplayName: nullable(str(200)), dueDate: nullable(date),
-  mappingVersionId: nullable(guid), fsliCode: nullable(str(100)), unmetTaskDependencies: int,
+  mappingVersionId: nullable(guid), fsliCode: nullable(str(100)), unmetTaskDependencies: int, unmetEvidencePrerequisites: int,
   canComplete: bool, canChangeDueDate: bool, revision: int,
   pbcRequestId: nullable(guid), pbcState: nullable(str(32)),
   reviewState: nullable(str(30)), reviewComment: nullable(str(20000)),
@@ -32,7 +33,7 @@ const reviewItem = obj({ resultId: guid, procedureId: guid, engagementId: guid, 
 const decodeReviewInbox = obj({ reviews: arr(reviewItem, 100), hasMore: bool,
   nextCursor: nullable(obj({ submittedAt: instant, resultId: guid })) });
 const activityEvent = obj({
-  id: guid, kind: oneOf('TASK_CREATED', 'TASK_ASSIGNED', 'TASK_REASSIGNED', 'TASK_COMPLETED', 'TASK_DUE_DATE_CHANGED'),
+  id: guid, kind: oneOf('TASK_CREATED', 'TASK_ASSIGNED', 'TASK_REASSIGNED', 'TASK_COMPLETED', 'TASK_DUE_DATE_CHANGED', 'TASK_EVIDENCE_RULE_CHANGED'),
   sourceLabel: oneOf('Operational Task'), actorDisplayName: nonBlank(200),
   assigneeDisplayName: nullable(str(200)), taskRevision: int,
   previousDueDate: nullable(date), newDueDate: nullable(date), occurredAt: instant,
@@ -55,7 +56,7 @@ const queueViews: { key: QueueView; label: string }[] = [
 
 @Component({
   selector: 'audit-work-queue',
-  imports: [MatButtonModule, RouterLink, NgTemplateOutlet, ...SHARED],
+  imports: [MatButtonModule, RouterLink, NgTemplateOutlet, WorkflowTaskEvidencePanel, ...SHARED],
   template: `
     <audit-page-header title="My work" eyebrow="Engagement tasks"
       description="Operational tasks across your current client and engagement grants. Task completion never replaces audit review or engagement approval." />
@@ -115,6 +116,8 @@ const queueViews: { key: QueueView; label: string }[] = [
         <small>{{ task.phase.replaceAll('_', ' ') }} · {{ task.dueDate ? 'due ' + task.dueDate : 'no due date' }} · {{ task.assigneeDisplayName ?? 'Unassigned' }}</small>
         <small><audit-status [value]="task.taskStatus" />@if (task.reviewState) { · <audit-status [value]="task.reviewState" /> }@if (task.pbcState) { · PBC {{ task.pbcState }} }</small>
         @if (task.unmetTaskDependencies) { <small>{{ task.unmetTaskDependencies }} task prerequisite(s) incomplete</small> }
+        @if (task.unmetEvidencePrerequisites) { <small>{{ task.unmetEvidencePrerequisites }} evidence prerequisite(s) pending</small> }
+        <button matButton (click)="evidenceTask.set(task)">Review prerequisites</button>
         @if (task.canComplete) {
           <button matButton="filled" (click)="complete(task.engagementId, task.taskId, task.revision)" [disabled]="command.busy()">Complete task</button>
         }
@@ -196,7 +199,9 @@ const queueViews: { key: QueueView; label: string }[] = [
               </td>
               <td>{{ task.assigneeDisplayName ?? 'Unassigned' }}</td>
               <td><audit-status [value]="task.taskStatus" /></td>
-              <td>{{ task.unmetTaskDependencies ? task.unmetTaskDependencies + ' task prerequisite(s) incomplete' : 'No task prerequisites pending' }}</td>
+              <td>{{ task.unmetTaskDependencies ? task.unmetTaskDependencies + ' task prerequisite(s) incomplete' : 'No task prerequisites pending' }}
+                @if (task.unmetEvidencePrerequisites) { <small>{{ task.unmetEvidencePrerequisites }} evidence prerequisite(s) pending</small> }
+                <button matButton (click)="evidenceTask.set(task)">Review prerequisites</button></td>
               <td><button matButton (click)="showActivity(task.engagementId, task.taskId, task.title)">{{ activityTask()?.taskId === task.taskId ? 'Hide activity' : 'View activity' }}</button>
                 @if (task.canComplete) { <button matButton="filled" (click)="complete(task.engagementId, task.taskId, task.revision)" [disabled]="command.busy()">Complete task</button> }</td>
             </tr>
@@ -205,6 +210,11 @@ const queueViews: { key: QueueView; label: string }[] = [
           }
         </tbody>
       </table></div>
+      }
+      @if (evidenceTask(); as selected) {
+        <audit-workflow-task-evidence [engagementId]="selected.engagementId" [taskId]="selected.taskId" [title]="selected.title"
+          (changed)="queue.reload(); activity.reload()" />
+        <button matButton (click)="evidenceTask.set(null)">Close prerequisites</button>
       }
       @if (activityTask(); as selected) {
         <section class="activity-panel" aria-labelledby="task-activity-heading">
@@ -252,6 +262,7 @@ export class WorkflowWorkQueue {
   readonly calendar = queueCalendar;
   readonly selectedView = signal<QueueView>('MY_TASKS');
   readonly activityTask = signal<{ engagementId: string; taskId: string; title: string } | null>(null);
+  readonly evidenceTask = signal<{ engagementId: string; taskId: string; title: string } | null>(null);
   private readonly cursor = signal<{ dueDate: string | null; taskId: string } | null>(null);
   private readonly reviewCursor = signal<{ submittedAt: string; resultId: string } | null>(null);
   private readonly activityCursor = signal<{ occurredAt: string; activityId: string } | null>(null);
@@ -293,23 +304,38 @@ export class WorkflowWorkQueue {
   }, decodeActivity, 'Task activity is unavailable in your current authorized scope.');
   readonly command = new CommandState(this.api);
 
+  constructor() {
+    effect(() => {
+      this.session.invalidation(); this.session.current();
+      this.evidenceTask.set(null); this.activityTask.set(null);
+    });
+    effect(() => {
+      const selected = this.evidenceTask(); const page = this.queue.data();
+      if (selected && !page?.tasks.some(x => x.taskId === selected.taskId && x.engagementId === selected.engagementId))
+        this.evidenceTask.set(null);
+    });
+  }
+
   labelFor(value: string): string {
     return this.views.find(x => x.key === value)?.label ?? 'Work';
   }
 
   selectView(value: QueueView): void {
+    this.evidenceTask.set(null);
     this.cursor.set(null);
     this.ownerFilter.set('ALL');
     this.selectedView.set(value);
   }
 
   selectOwnerFilter(value: string): void {
+    this.evidenceTask.set(null);
     if (this.selectedView() === 'MY_TASKS' || !['ALL', 'ME', 'UNASSIGNED'].includes(value)) return;
     this.cursor.set(null);
     this.ownerFilter.set(value as 'ALL' | 'ME' | 'UNASSIGNED');
   }
 
   nextPage(cursor: { dueDate: string | null; taskId: string }): void {
+    this.evidenceTask.set(null);
     this.cursor.set(cursor);
   }
 
@@ -333,7 +359,7 @@ export class WorkflowWorkQueue {
   eventLabel(kind: string): string {
     return ({ TASK_CREATED: 'Task created', TASK_ASSIGNED: 'Task assigned',
       TASK_REASSIGNED: 'Task reassigned', TASK_COMPLETED: 'Task completed',
-      TASK_DUE_DATE_CHANGED: 'Due date changed' } as Record<string, string>)[kind] ?? 'Workflow event';
+      TASK_DUE_DATE_CHANGED: 'Due date changed', TASK_EVIDENCE_RULE_CHANGED: 'Evidence prerequisite changed' } as Record<string, string>)[kind] ?? 'Workflow event';
   }
 
   changeDueDate(engagementId: string, taskId: string, revision: number, dueDate: string): void {

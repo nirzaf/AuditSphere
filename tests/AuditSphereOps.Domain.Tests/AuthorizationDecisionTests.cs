@@ -594,6 +594,7 @@ public sealed class AuthorizationDecisionTests
     public DbSet<WorkflowTaskBinding> WorkflowTaskBindings => db.WorkflowTaskBindings;
     public DbSet<WorkflowTaskActivity> WorkflowTaskActivities => db.WorkflowTaskActivities;
     public DbSet<WorkflowTaskDependency> WorkflowTaskDependencies => db.WorkflowTaskDependencies;
+    public DbSet<WorkflowTaskEvidenceRule> WorkflowTaskEvidenceRules => db.WorkflowTaskEvidenceRules;
     public DbSet<WorkflowTemplate> WorkflowTemplates => db.WorkflowTemplates;
     public DbSet<WorkflowTemplateRevision> WorkflowTemplateRevisions => db.WorkflowTemplateRevisions;
     public DbSet<WorkflowTemplateStep> WorkflowTemplateSteps => db.WorkflowTemplateSteps;

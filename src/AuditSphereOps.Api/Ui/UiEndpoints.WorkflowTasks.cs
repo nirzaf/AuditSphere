@@ -22,6 +22,8 @@ public static partial class UiEndpoints
   public sealed record WorkflowTaskAssignmentInput(Guid AssigneeUserId, long ExpectedRevision);
   public sealed record WorkflowTaskCompletionInput(long ExpectedRevision);
   public sealed record WorkflowTaskDueDateInput(string? DueDate, long ExpectedRevision);
+  public sealed record WorkflowEvidenceChangeInput(string Kind, Guid? SourceId, bool Required,
+    string Reason, long ExpectedRevision, Guid IdempotencyKey);
   public sealed record WorkflowTemplateStepInput(
     string StableKey, string Phase, string Title, string Instructions, string? SuggestedStaffingLevel,
     int? EstimatedEffortMinutes, int? DueDateOffsetDays, string? PbcRequestReference, bool RequiredTask,
@@ -64,6 +66,16 @@ public static partial class UiEndpoints
 
     tasks.MapGet("", (Guid engagementId, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => EngagementWorkflowTaskService.GetAsync(db, actor, engagementId, ct)));
+
+    tasks.MapGet("/{taskId:guid}/evidence", (Guid engagementId, Guid taskId, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => WorkflowTaskEvidenceQuery.GetAsync(db, actor, engagementId, taskId, ct)));
+    tasks.MapGet("/{taskId:guid}/evidence/receipts/{key:guid}", (Guid engagementId, Guid taskId, Guid key, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => WorkflowTaskEvidenceQuery.ReceiptAsync(db, actor, engagementId, taskId, key, ct)));
+    tasks.MapPost("/{taskId:guid}/evidence", (
+      Guid engagementId, Guid taskId, WorkflowEvidenceChangeInput input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => PracticeTimeService.ChangeWorkflowEvidenceAsync(db, actor,
+        engagementId, taskId, new(input.Kind, input.SourceId, input.Required, input.Reason,
+          input.ExpectedRevision, input.IdempotencyKey), ct)));
 
     tasks.MapGet("/{taskId:guid}/activity", (
       Guid engagementId, Guid taskId, DateOnly? from, DateOnly? to,
