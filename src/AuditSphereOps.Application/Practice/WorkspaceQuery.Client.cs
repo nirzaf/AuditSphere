@@ -1,4 +1,5 @@
 using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Acceptance;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
@@ -26,15 +27,17 @@ public static partial class WorkspaceQuery
     if (client is null) return UnavailableClient();
 
     // Capture contributing scope requests once. Reauthorization later refuses a mixed old/new view.
+    // Business summaries support annual preparation; this does not grant the professional engagement workspace.
+    string[] summaryRoles = [.. EngagementRoles, "RelationshipManager"];
     var grants = await db.RoleGrants.AsNoTracking().Where(g => g.FirmId == actor.FirmId && g.UserId == actor.UserId &&
-      g.RevokedAt == null && EngagementRoles.Contains(g.Role) && (g.ClientId == null || g.ClientId == id))
+      g.RevokedAt == null && summaryRoles.Contains(g.Role) && (g.ClientId == null || g.ClientId == id))
       .Select(g => new { g.ClientId, g.EngagementId }).Distinct().ToListAsync(ct);
     var requests = new List<AuthorizationRequest> { request };
     var engagementIds = new List<Guid>();
     var allEngagements = false;
     foreach (var grant in grants)
     {
-      var scope = new AuthorizationRequest(actor.FirmId, grant.ClientId, grant.EngagementId, EngagementRoles,
+      var scope = new AuthorizationRequest(actor.FirmId, grant.ClientId, grant.EngagementId, summaryRoles,
         InternalOnly: true, RequireFirmWide: grant.ClientId is null && grant.EngagementId is null);
       if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, scope, ct)).Succeeded) continue;
       requests.Add(scope);
@@ -60,7 +63,7 @@ public static partial class WorkspaceQuery
       RequiredRoles: ["Administrator", "Partner", "Manager", "RelationshipManager"], InternalOnly: true);
     var canManage = safetyGeneration.HasValue && (await AuthorizationDecision.AuthorizeAsync(db, actor, manage, ct)).Succeeded;
     if (canManage) requests.Add(manage);
-    var create = new AuthorizationRequest(actor.FirmId, ClientId: id, RequiredRoles: ["Partner", "Manager"], InternalOnly: true);
+    var create = new AuthorizationRequest(actor.FirmId, ClientId: id, RequiredRoles: EngagementCreationWorkspace.DraftRoles, InternalOnly: true);
     var canCreate = (await AuthorizationDecision.AuthorizeAsync(db, actor, create, ct)).Succeeded;
     if (canCreate) requests.Add(create);
     foreach (var scope in requests)

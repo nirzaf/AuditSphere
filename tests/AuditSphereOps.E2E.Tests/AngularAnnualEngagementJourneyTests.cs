@@ -7,15 +7,17 @@ namespace AuditSphereOps.E2E.Tests;
 
 public sealed class AngularAnnualEngagementJourneyTests
 {
-  [Fact]
-  public async Task PriorPeriodReferenceCreatesOneReviewedBlockedAnnualShellWithoutCopyingApprovals()
+  [Theory]
+  [InlineData("Manager")]
+  [InlineData("RelationshipManager")]
+  public async Task PriorPeriodReferenceCreatesOneReviewedBlockedAnnualShellWithoutCopyingApprovals(string role)
   {
     await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-ANNUAL-ENGAGEMENT"); var f = host.Fixture;
     Guid sourceId;
     await using (var db = host.CreateDbContext())
     {
-      await EngagementCreationReviewSeed.PopulateAsync(db, f);
-      var source = await EngagementLifecycleService.CreateDraftAsync(db, PbcSeed.Actor(f.Staff, "Manager"),
+      db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Staff, role, f.ClientId)); await db.SaveChangesAsync();
+      var source = await EngagementLifecycleService.CreateDraftAsync(db, PbcSeed.Actor(f.Staff, role),
         new(f.ClientId, "AccountingOnly", "2026-01-01", "2026-12-31", "Synthetic annual reference"));
       Assert.True(source.Succeeded, source.Message); sourceId = source.Value;
     }
@@ -37,7 +39,7 @@ public sealed class AngularAnnualEngagementJourneyTests
     await Assertions.Expect(review).ToContainTextAsync(sourceId.ToString());
     var confirm = review.GetByRole(AriaRole.Button, new() { Name = "Confirm blocked creation", Exact = true });
     await Assertions.Expect(confirm).ToBeDisabledAsync();
-    await OwnedBrowserFixtureHandoff.WaitAsync(origin, path);
+    if (role == "RelationshipManager") await OwnedBrowserFixtureHandoff.WaitAsync(origin, path);
     await page.GetByLabel("I reviewed this exact client, service, profile and period.", new() { Exact = true }).CheckAsync();
     await confirm.ClickAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "Engagement creation receipt", Exact = true })).ToContainTextAsync(sourceId.ToString());
@@ -51,6 +53,10 @@ public sealed class AngularAnnualEngagementJourneyTests
       Assert.Empty(await db.EngagementActivations.ToListAsync());
       Assert.Equal("2026-12-31", (await db.Engagements.AsNoTracking().SingleAsync(x => x.Id == sourceId)).PeriodEnd);
     }
+    await page.GetByRole(AriaRole.Link, new() { Name = "Client profile", Exact = true }).ClickAsync();
+    var table = page.GetByRole(AriaRole.Table, new() { Name = "Authorized client engagements", Exact = true });
+    await Assertions.Expect(table).ToBeVisibleAsync();
+    await Assertions.Expect(table.GetByRole(AriaRole.Cell, new() { Name = "2027-01-01 to 2027-12-31", Exact = true })).ToBeVisibleAsync();
     Assert.Empty(errors);
   }
 }

@@ -34,8 +34,8 @@ public sealed partial class AcceptanceChecklistTests
     Assert.Empty(await db.EngagementActivations.ToListAsync());
     Assert.True((await db.Engagements.AsNoTracking().SingleAsync(x => x.Id == created.Value)).ProfessionalWorkBlocked);
     var migrations = (await db.Database.GetAppliedMigrationsAsync()).ToArray();
-    Assert.EndsWith("EngagementScopedAssessmentReceipts", migrations[^1]);
-    await db.GetService<IMigrator>().MigrateAsync(migrations[^2]);
+    var scopedMigration = Assert.Single(migrations, x => x.EndsWith("EngagementScopedAssessmentReceipts", StringComparison.Ordinal));
+    await db.GetService<IMigrator>().MigrateAsync(migrations[Array.IndexOf(migrations, scopedMigration) - 1]);
     Assert.True(await db.AssessmentCommandReceipts.AnyAsync(x => x.Id == result.Value.Id));
     await db.GetService<IMigrator>().MigrateAsync();
     Assert.Equal(created.Value, (await AssessmentCommandWorkspace.LookupAsync(db, w.Partner, w.ClientId,

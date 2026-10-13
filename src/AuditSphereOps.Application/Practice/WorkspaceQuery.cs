@@ -29,7 +29,7 @@ public sealed record EngagementWorkspace(Guid Id, Guid ClientId, string ClientNa
 /// <summary>Explicitly authorized projections; engagement scope never grants a client-wide profile.</summary>
 public static partial class WorkspaceQuery
 {
-  private static readonly string[] ClientRoles = ["Administrator", "Partner", "Manager", "Senior", "Staff", "CommercialManager", "EngagementLeader"];
+  private static readonly string[] ClientRoles = ["Administrator", "Partner", "Manager", "Senior", "Staff", "CommercialManager", "EngagementLeader", "RelationshipManager"];
   private static readonly string[] EngagementRoles = ["Administrator", "Partner", "Manager", "Senior", "Staff", "EngagementLeader", "Auditor"];
 
 }

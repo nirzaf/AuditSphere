@@ -9,7 +9,7 @@ namespace AuditSphereOps.Application.Acceptance;
 
 public static partial class EngagementLifecycleService
 {
-  private static readonly string[] DraftRoles = ["Partner", "Manager"];
+  private static readonly string[] DraftRoles = EngagementCreationWorkspace.DraftRoles;
   private static Task<CommandResult> AuthorizeDraftAsync(IAuditSphereDbContext db, ActorContext actor, Guid clientId, CancellationToken ct) =>
     AuthorizationDecision.AuthorizeAsync(db, actor, new(actor.FirmId, clientId, RequiredRoles: DraftRoles, InternalOnly: true), ct);
 

@@ -22,8 +22,9 @@ public sealed record EngagementCreationLookup(bool Found,EngagementCreationRecei
 /// <summary>Reviewed blocked-shell creation, exact client scope and actor-owned immutable request recovery.</summary>
 public static class EngagementCreationWorkspace
 {
+  internal static readonly string[] DraftRoles = ["Partner", "Manager", "RelationshipManager"];
   private static Task<CommandResult> Authorize(IAuditSphereDbContext db,ActorContext a,Guid id,CancellationToken ct)=>
-    AuthorizationDecision.AuthorizeAsync(db,a,new(a.FirmId,ClientId:id,RequiredRoles:["Partner","Manager"],InternalOnly:true),ct);
+    AuthorizationDecision.AuthorizeAsync(db,a,new(a.FirmId,ClientId:id,RequiredRoles:DraftRoles,InternalOnly:true),ct);
   private static CommandResult<T> Unavailable<T>()=>CommandResult<T>.Fail(ErrorCodes.ScopeDenied,"This engagement creation workspace is unavailable.");
   private static bool HashValid(string? s)=>s is {Length:64}&&s.All(c=>c is >= 'a' and <= 'f' or >= '0' and <= '9');
   private static string Exact(long n)=>n.ToString(CultureInfo.InvariantCulture);

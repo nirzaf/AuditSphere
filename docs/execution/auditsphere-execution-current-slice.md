@@ -15,9 +15,13 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## RelationshipManager preparation — 2026-10-13
+
+Existing client/firm grants now permit RelationshipManager blocked-shell preparation and client business summaries. Engagement-only scope cannot widen to the parent, and professional reads, decisions and activation remain separately restricted. The receipt publication guard enforces the same role policy. Evidence and isolated rollback are under `targetedVerification.workflowRelationshipManagerPreparation` in [status.json](status.json).
+
 ## Annual preparation and scoped decisions — 2026-10-13
 
-Annual shell preparation now proposes a contiguous next period from an exact client-owned source, separates copied references from fresh work, and uses existing reviewed creation and receipt recovery. Source identity is retained; prior approvals and audit evidence are not copied. Native Partner decisions target exact engagements and retain their scoped receipts. Evidence is under `workflowAnnualPreparationCore`, `workflowScopedAssessmentAuthoring` and `workflowRecurringRiskScope` in [status.json](status.json). WF-11 remains partial: approved template selection, reference suggestions, fresh-checklist orchestration and RelationshipManager access still need work.
+Annual shell preparation now proposes a contiguous next period from an exact client-owned source, separates copied references from fresh work, and uses existing reviewed creation and receipt recovery. Source identity is retained; prior approvals and audit evidence are not copied. Native Partner decisions target exact engagements and retain their scoped receipts. Evidence is under `workflowAnnualPreparationCore`, `workflowScopedAssessmentAuthoring` and `workflowRecurringRiskScope` in [status.json](status.json). WF-11 remains partial: approved template selection, reference suggestions, fresh-checklist orchestration still need work.
 
 ## Agent capability tooling and bounded analytics — 2026-10-12
 
