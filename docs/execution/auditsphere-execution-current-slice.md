@@ -15,9 +15,13 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Native scoped assessment decisions — 2026-10-12
+
+Partner review can target an exact client-owned engagement and service. Preview shows its period; receipt recovery retains that scope and explicit acknowledgement precedes read-only navigation. A function-only migration extends exact-result checks without changing historical receipts. Evidence and test-only rollback are in `targetedVerification.workflowScopedAssessmentAuthoring` in [status.json](status.json). Annual preparation and fresh-checklist orchestration remain open.
+
 ## Annual engagement safety prerequisites — 2026-10-12
 
-Creation rejects overlapping client/service periods while retaining exact retries and adjacent years. Recurring risk selection now requires an exact engagement-scoped decision across readiness, lifecycle, activation and letter paths. Prior-year and sibling approvals cannot clear the new period; later applicable client declines remain blocking. The browser verified missing-decision blocking and scoped-evidence recovery. Evidence is in `targetedVerification.workflowAnnualPeriodOverlap` and `workflowRecurringRiskScope` in [status.json](status.json). Annual preparation, native scoped assessment authoring and fresh checklist semantics remain open.
+Creation rejects overlapping client/service periods while retaining exact retries and adjacent years. Recurring risk selection now requires an exact engagement-scoped decision across readiness, lifecycle, activation and letter paths. Prior-year and sibling approvals cannot clear the new period; later applicable client declines remain blocking. The browser verified missing-decision blocking and scoped-evidence recovery. Evidence is in `targetedVerification.workflowAnnualPeriodOverlap` and `workflowRecurringRiskScope` in [status.json](status.json). Annual preparation and fresh checklist orchestration remain open.
 
 ## Agent capability tooling and bounded analytics — 2026-10-12
 

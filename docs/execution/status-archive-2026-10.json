@@ -15286,6 +15286,43 @@
           "No full Domain, API, or E2E suite was run.",
           "No live tenant or professional acceptance is claimed."
         ]
+      },
+      "workflowAnnualPeriodBinding": {
+        "recordedAtUtc": "2026-10-12T08:35:00Z",
+        "baseCommit": "96d7941f",
+        "scope": "WF-01/WF-03: resolve a commercial proposal for an engagement only when the proposal and its opportunity match the engagement client, service route and exact financial period; apply the same rule to linked fee-agreement proposals and onboarding readiness. No schema change or migration.",
+        "runs": {
+          "focusedPostgres": "PASS: 1/1 PriorPeriodAcceptedOfferDoesNotAdvanceANewPeriodEngagement. An exact prior-period accepted offer and current client risk decision leave a new-period engagement in Proposal Generation.",
+          "build": "PASS: the focused test build compiled Domain, Application, Infrastructure, Worker and Domain.Tests; 4 NU1900 warnings because the NuGet vulnerability feed was unreachable.",
+          "initialTestRunner": "ABORTED before test execution: sandbox denied the VSTest local socket. The same focused test passed on the approved local-socket retry.",
+          "actionlint": "PASS: .github/workflows/ci.yml.",
+          "ci": "CONFIGURED_PUSHED_STATUS_UNOBSERVED: the focused PostgreSQL CI filter includes this regression; gh run list could not connect to api.github.com, so no remote result is claimed."
+        },
+        "acceptance": "Local regression evidence only. Prior-period commercial acceptance cannot advance a new-period engagement. Partner risk clearance remains client-level and generation-bound; annual engagement preparation and fresh year-specific continuance semantics remain open. No full Domain/API/E2E suite, persistent migration, live-provider or professional acceptance is claimed; v2.2 remains PARTIAL.",
+        "sourceCommit": "7ea9696f5484b0b9d851a37beb0c343c05bdf1e7",
+        "sourceTree": "Commit 91f6adb5, including code and status evidence, is pushed to origin/master. gh run list failed to connect to api.github.com; CI outcome is unobserved."
+      },
+      "workflowTaskDueDateHistory": {
+        "recordedAtUtc": "2026-10-12T07:30:46Z",
+        "baseCommit": "a014861cf43e5025a02ba5a78d26d13a0986709a",
+        "scope": "WF-14 manager-scoped, revision-fenced workflow task due-date updates with append-only before/after activity.",
+        "migration": {
+          "id": "20261012071918_WorkflowTaskDueDateActivity",
+          "status": "CREATED_NOT_APPLIED",
+          "historicalRows": "No backfill or updates to existing task/activity rows; the migration adds nullable date evidence columns and expands the event constraint."
+        },
+        "runs": {
+          "apiReleaseBuild": "PASS: 0 errors, 2 offline NU1900 vulnerability-feed warnings",
+          "focusedPostgres": "PASS: 1/1 DueDateRevisionIsManagerScopedAndRecordedWithExactBeforeAndAfterValues",
+          "angularTargeted": "PASS: 4/4 work-queue contract specs",
+          "angularProductionBuild": "PASS with the existing commercial/settings.scss budget warning",
+          "efModelDrift": "PASS: no pending model changes",
+          "openApiDrift": "PASS: regenerated contract matches the real API host, including the due-date endpoint and request schema",
+          "browser": "LIMITED: local Angular app shell rendered, then showed Access unavailable and a sign-in link; no local staff session was available, so authenticated task editing/activity was not exercised.",
+          "docs": "LIMITED: narrative metrics and UI inventory pass; Markdown health and filename validators report only the separately staged user file STE_Audit_Management_Requirements_v2.2.md, which remains untouched.",
+          "diffCheck": "PASS: git diff --check"
+        },
+        "acceptance": "Focused working-tree evidence only. Full .NET and E2E suites were not rerun; migration was not applied to a persistent database; no authenticated browser, live-provider, production, or professional acceptance is claimed."
       }
     }
   }

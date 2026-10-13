@@ -219,6 +219,7 @@ public sealed partial class AcceptanceChecklistTests
     Assert.Equal(w.ClientId, route.Value.ClientId);
     Assert.Null((await AssessmentRouteQuery.ResolveAsync(db, w.Staff, w.ClientId)).Value!.DecisionId);
     var engagementId = await db.Engagements.Where(e => e.PracticeClientId == w.ClientId).Select(e => e.Id).SingleAsync();
+    await db.Engagements.Where(e => e.Id == engagementId).ExecuteUpdateAsync(x => x.SetProperty(e => e.ServiceRoute, "AccountingOnly"));
     var engagementDecision = await AcceptanceDecisionService.RecordAsync(db, w.Partner,
       new(w.ClientId, engagementId, "AccountingOnly", "Declined", "Engagement-specific decision", null, 1));
     Assert.True(engagementDecision.Succeeded, engagementDecision.Message);

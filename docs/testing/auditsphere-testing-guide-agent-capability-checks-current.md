@@ -63,7 +63,7 @@ console/network errors and screenshots. Live tenant acceptance remains separate.
 
 ## Inspecting an owned browser fixture
 
-The analytics paging and reviewed engagement-creation journeys support an optional
+The analytics paging, reviewed engagement-creation and scoped assessment journeys support an optional
 built-in-browser handoff through `OwnedBrowserFixtureHandoff`. Supply unique
 basenames in `AUDITSPHERE_BROWSER_FIXTURE_READY_FILE` and
 `AUDITSPHERE_BROWSER_FIXTURE_RELEASE_FILE` when running one journey. The ready JSON

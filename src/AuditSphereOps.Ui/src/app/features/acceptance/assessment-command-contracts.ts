@@ -18,6 +18,7 @@ export interface AssessmentCommandFields {
   serviceRoute: string | null;
   decision: string | null;
   rationale: string | null;
+  engagementId: string | null;
 }
 export const assessmentFields = (
   kind: AssessmentCommandKind,
@@ -38,6 +39,7 @@ export const assessmentFields = (
   serviceRoute: null,
   decision: null,
   rationale: null,
+  engagementId: null,
 });
 const maximum = 9223372036854775807n;
 const counter = (v: string, min = 1n) =>
@@ -62,10 +64,13 @@ const fieldDecoder = obj({
   serviceRoute: nullable(str(100)),
   decision: nullable(str(40)),
   rationale: nullable(str(2000)),
+  engagementId: nullable(guid),
 });
 /** Canonical, bounded action shape. Irrelevant fields cannot silently change the reviewed action. */
 export function decodeAssessmentFields(raw: unknown): AssessmentCommandFields {
-  const f = decode(fieldDecoder, raw);
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Invalid assessment fields');
+  const f = decode(fieldDecoder, { ...raw, engagementId: (raw as { engagementId?: unknown }).engagementId ?? null });
+  if (f.engagementId === '00000000-0000-0000-0000-000000000000') throw new Error('Invalid engagement target');
   if (!counter(f.generation) || Object.values(f).some((v) => !text(v)))
     throw new Error('Invalid assessment fields');
   const shaped = assessmentFields(f.kind as AssessmentCommandKind, f.generation);
@@ -125,6 +130,7 @@ export function decodeAssessmentFields(raw: unknown): AssessmentCommandFields {
         decision: f.decision,
         rationale: f.rationale,
         conditions: f.conditions,
+        engagementId: f.engagementId,
       });
       break;
     case 'CONTINUANCE':

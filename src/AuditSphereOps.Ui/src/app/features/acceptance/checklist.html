@@ -65,6 +65,8 @@
           <dd>{{ r.preview.fields.status }}</dd>
         }
         @if (r.preview.fields.decision) {
+          <dt>Decision scope</dt>
+          <dd>{{ r.preview.fields.engagementId ?? 'Client-level acceptance' }}</dd>
           <dt>Partner decision</dt>
           <dd>{{ r.preview.fields.serviceRoute }} · {{ r.preview.fields.decision }}</dd>
           <dt>Rationale</dt>
@@ -79,6 +81,9 @@
           <dd>{{ r.preview.fields.conditions }}</dd>
         }
       </dl>
+      @if (r.kind === 'DECISION') {
+        <button matButton [disabled]="busy()" (click)="acknowledgeAndOpenDecision()">Acknowledge receipt and open recorded decision</button>
+      }
       <button matButton [disabled]="busy()" (click)="acknowledge()">
         Acknowledge assessment receipt
       </button>
@@ -332,6 +337,8 @@
             <dd>{{ p.fields.status }}</dd>
           }
           @if (p.fields.decision) {
+            <dt>Decision scope</dt>
+            <dd>{{ p.fields.engagementId ?? 'Client-level acceptance' }}</dd>
             <dt>Service route</dt>
             <dd>{{ p.fields.serviceRoute }}</dd>
             <dt>Partner decision</dt>

@@ -9,7 +9,7 @@ import {
   untracked,
 } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormField, disabled, form, validate } from '@angular/forms/signals';
 import { MatDialog } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -46,6 +46,7 @@ export class AcceptanceChecklist implements NavigationProtected {
   private readonly http = inject(HttpClient);
   private readonly api = inject(Api);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly session = inject(SessionService);
   private readonly drafts = inject(TabDrafts);
   private readonly dialog = inject(MatDialog);
@@ -362,6 +363,14 @@ export class AcceptanceChecklist implements NavigationProtected {
   acknowledge() {
     if (this.receipt() && !this.busy())
       this.closeReference('Assessment receipt acknowledged. Loading current evaluation.');
+  }
+  async acknowledgeAndOpenDecision() {
+    const receipt = this.receipt();
+    if (!receipt || receipt.kind !== 'DECISION' || this.busy()) return;
+    this.acknowledge();
+    if (this.pending() || this.receipt() || this.uncertain()) return;
+    await this.router.navigate(['/app/clients', receipt.clientId, 'assessment'],
+      { queryParams: { decisionId: receipt.resourceId } });
   }
   acknowledgeAbsent() {
     if (this.absent() && !this.busy())

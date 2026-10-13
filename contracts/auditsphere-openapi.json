@@ -34888,6 +34888,13 @@
               "null",
               "string"
             ]
+          },
+          "engagementId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },

@@ -1,10 +1,11 @@
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { BehaviorSubject } from 'rxjs';
 import { By } from '@angular/platform-browser';
 import { SessionService } from '../../core/session';
+import { TabDrafts } from '../../core/tab-drafts';
 import { AcceptanceChecklist } from './checklist';
 import { AssessmentCommandEditor } from './assessment-command-editor';
 import {
@@ -112,6 +113,16 @@ function receipt(p: ReturnType<typeof preview>) {
   };
 }
 describe('Assessment reviewed command contracts', () => {
+  it('accepts optional exact engagement decisions and preserves historical receipts without that field', () => {
+    const decision = { ...assessmentFields('DECISION', '1'), serviceRoute: 'FinancialStatementAudit',
+      decision: 'Accepted', rationale: 'Human review', engagementId: other };
+    expect(decodeAssessmentFields(decision).engagementId).toBe(other);
+    const historical = { ...decision } as Partial<typeof decision>;
+    delete historical.engagementId;
+    expect(decodeAssessmentFields(historical).engagementId).toBeNull();
+    expect(() => decodeAssessmentFields({ ...decision, engagementId: '00000000-0000-0000-0000-000000000000' })).toThrow();
+    expect(() => decodeAssessmentFields({ ...fields, engagementId: other })).toThrow();
+  });
   it('preserves exact counters and refuses mixed action shapes', () => {
     expect(decodeAssessmentFields(fields).generation).toBe('9007199254740993');
     for (const f of [
@@ -234,6 +245,13 @@ describe('Assessment Signal Forms and retained request recovery', () => {
     decision.model.update((m) => ({ ...m, decision: 'AcceptedWithConditions' }));
     TestBed.tick();
     expect(decision.valid()).toBe(true);
+    decision.model.update((m) => ({ ...m, engagementId: 'invalid' }));
+    TestBed.tick();
+    expect(decision.valid()).toBe(false);
+    decision.model.update((m) => ({ ...m, engagementId: other }));
+    TestBed.tick();
+    expect(decision.valid()).toBe(true);
+    expect(decision.intent().engagementId).toBe(other);
     TestBed.inject(HttpTestingController).expectNone((r) => r.method === 'POST');
   });
   it('renders exact review, requires fresh assent and invalidates it on model changes', async () => {
@@ -284,6 +302,19 @@ describe('Assessment Signal Forms and retained request recovery', () => {
     expect(c.pending()).toBeNull();
     expect(sessionStorage.length).toBe(0);
     expect(c.uncertain()).toBe(false);
+  });
+  it('does not navigate to a recorded decision when its retained reference cannot be acknowledged', async () => {
+    const f = open(); read(); const c = f.componentInstance;
+    const p = preview(other);
+    const scoped = { ...assessmentFields('DECISION', fields.generation), serviceRoute: 'FinancialStatementAudit',
+      decision: 'Accepted', rationale: 'Reviewed human decision', engagementId: other };
+    c.receipt.set(decodeAssessmentReceipt({ ...receipt(p), kind: 'DECISION',
+      preview: { ...p, fields: scoped, before: { ...p.before, ready: true } } }));
+    c.pending.set({ requestId: other, requestHash: hash }); c.uncertain.set(true);
+    vi.spyOn(TestBed.inject(TabDrafts), 'clear').mockReturnValue(false);
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    await c.acknowledgeAndOpenDecision();
+    expect(navigate).not.toHaveBeenCalled(); expect(c.pending()).not.toBeNull(); expect(c.receipt()).not.toBeNull();
   });
   it('recovers a pending reference after reload and does not restore professional content or assent', async () => {
     let f = open();

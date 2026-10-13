@@ -60,6 +60,10 @@
       </select>
     }
     @if (seed().kind === 'DECISION') {
+      <label [for]="fieldId('engagementId')">Engagement ID (optional for first-period client acceptance)</label>
+      <input [id]="fieldId('engagementId')" [formField]="fields.engagementId" autocomplete="off"
+        [attr.aria-describedby]="fieldId('engagementId-error')" />
+      <p>For a recurring period, enter its exact engagement ID. Review the server-confirmed period before saving. This does not activate the engagement.</p>
       <label [for]="fieldId('serviceRoute')">Service route</label
       ><input
         [id]="fieldId('serviceRoute')"

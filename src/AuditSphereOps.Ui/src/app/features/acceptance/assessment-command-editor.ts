@@ -35,6 +35,7 @@ type Model = {
   serviceRoute: string;
   decision: string;
   rationale: string;
+  engagementId: string;
 };
 const empty = (): Model => ({
   answer: '',
@@ -46,6 +47,7 @@ const empty = (): Model => ({
   serviceRoute: 'FinancialStatementAudit',
   decision: 'Accepted',
   rationale: '',
+  engagementId: '',
 });
 const labels: Record<keyof Model, string> = {
   answer: 'Answer',
@@ -57,6 +59,7 @@ const labels: Record<keyof Model, string> = {
   serviceRoute: 'Service route',
   decision: 'Decision',
   rationale: 'Rationale',
+  engagementId: 'Engagement ID',
 };
 @Component({
   selector: 'audit-assessment-command-editor',
@@ -89,7 +92,7 @@ export class AssessmentCommandEditor {
       case 'RECORD_REVIEW':
         return ['status', 'evidence', 'conditions'];
       case 'DECISION':
-        return ['serviceRoute', 'decision', 'rationale', 'conditions'];
+        return ['serviceRoute', 'engagementId', 'decision', 'rationale', 'conditions'];
       default:
         return [];
     }
@@ -108,6 +111,7 @@ export class AssessmentCommandEditor {
         serviceRoute: 100,
         decision: 40,
         rationale: 2000,
+        engagementId: 36,
       }) as [keyof Model, number][]) {
         maxLength(p[key], max);
         validate(p[key], ({ value }) =>
@@ -157,6 +161,12 @@ export class AssessmentCommandEditor {
           ? { kind: 'decisionRequired' }
           : undefined,
       );
+      validate(p.engagementId, ({ value }) => {
+        const id = value().trim();
+        return this.seed().kind === 'DECISION' && id &&
+          (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ||
+            id === '00000000-0000-0000-0000-000000000000') ? { kind: 'engagementTarget' } : undefined;
+      });
       validate(p.conditions, ({ value }) =>
         this.seed().kind === 'DECISION' && this.model().decision === 'Accepted' && !!value().trim()
           ? { kind: 'unconditional' }
@@ -202,6 +212,7 @@ export class AssessmentCommandEditor {
           area: s.area ?? '',
           specialist: s.specialist ?? '',
           conditions: s.conditions ?? '',
+          engagementId: s.engagementId ?? '',
         };
         this.model.set(model);
         this.baseline.set(JSON.stringify(model));
@@ -246,6 +257,7 @@ export class AssessmentCommandEditor {
           decision: m.decision,
           rationale: opt(m.rationale),
           conditions: opt(m.conditions),
+          engagementId: opt(m.engagementId)?.toLowerCase() ?? null,
         });
         break;
     }

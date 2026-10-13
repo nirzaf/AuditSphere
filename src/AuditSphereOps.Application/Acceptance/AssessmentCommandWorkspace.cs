@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
@@ -12,7 +13,8 @@ namespace AuditSphereOps.Application.Acceptance;
 public sealed record AssessmentCommandFields(string Kind, string Generation, string? Revision = null,
   string? QuestionCode = null, string? Answer = null, string? Evidence = null, string? Area = null,
   string? Specialist = null, Guid? ReviewId = null, string? Status = null, string? ExpectedStatus = null,
-  string? Conditions = null, string? ServiceRoute = null, string? Decision = null, string? Rationale = null);
+  string? Conditions = null, string? ServiceRoute = null, string? Decision = null, string? Rationale = null,
+  [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? EngagementId = null);
 public sealed record AssessmentCommandRequest(Guid RequestId, AssessmentCommandFields Fields,
   string? ReviewBasis = null, string? RequestHash = null, bool Reviewed = false);
 public sealed record AssessmentCommandBefore(string Generation, string Path, string? Decision, bool Ready,
@@ -63,8 +65,8 @@ public static class AssessmentCommandWorkspace
         new(n.Kind, n.Generation, Evidence:n.Evidence, ReviewId:n.ReviewId, Status:n.Status, ExpectedStatus:n.ExpectedStatus, Conditions:n.Conditions),
       "DECISION" when n.ServiceRoute is not null && n.Rationale is not null &&
         n.Decision is "Accepted" or "AcceptedWithConditions" or "Declined" or "Deferred" &&
-        (n.Decision != "AcceptedWithConditions" || n.Conditions is not null) && (n.Decision != "Accepted" || n.Conditions is null) =>
-        new(n.Kind, n.Generation, Conditions:n.Conditions, ServiceRoute:n.ServiceRoute, Decision:n.Decision, Rationale:n.Rationale),
+        n.EngagementId != Guid.Empty && (n.Decision != "AcceptedWithConditions" || n.Conditions is not null) && (n.Decision != "Accepted" || n.Conditions is null) =>
+        new(n.Kind, n.Generation, Conditions:n.Conditions, ServiceRoute:n.ServiceRoute, Decision:n.Decision, Rationale:n.Rationale, EngagementId:n.EngagementId),
       "CONTINUANCE" => new(n.Kind, n.Generation), _ => null };
     return shaped == n ? shaped : null;
   }
@@ -93,7 +95,10 @@ public static class AssessmentCommandWorkspace
     if (Exact(generation) != f.Generation) return CommandResult<AssessmentCommandPreview>.Fail(ErrorCodes.GenerationStale, "Reload the current evaluation before review.");
     var client = await db.PracticeClients.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == a.FirmId && x.Id == id, ct);
     if (client is null) return Unavailable<AssessmentCommandPreview>();
-    var checklist = await AcceptanceChecklistService.LoadAsync(db, a.FirmId, id, null, generation, ct);
+    var engagement = f.EngagementId is { } engagementId ? await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == a.FirmId && x.PracticeClientId == id && x.Id == engagementId && x.ServiceRoute == f.ServiceRoute, ct) : null;
+    if (f.EngagementId.HasValue && engagement is null) return Unavailable<AssessmentCommandPreview>();
+    var checklist = await AcceptanceChecklistService.LoadAsync(db, a.FirmId, id, f.EngagementId, generation, ct);
     if (f.Kind != "CONTINUANCE" && checklist.CurrentDecision is not null)
       return CommandResult<AssessmentCommandPreview>.Fail(ErrorCodes.ProtectedState, "This evaluation has a professional decision and is immutable.");
     var question = f.Kind == "ANSWER" ? checklist.Items.SingleOrDefault(x => x.Question.Code.Equals(f.QuestionCode, StringComparison.OrdinalIgnoreCase)) : null;
@@ -133,6 +138,8 @@ public static class AssessmentCommandWorkspace
       "RECORD_REVIEW" => "Records this specialist result and evidence. A cleared review is final; it does not accept the client.",
       "DECISION" => "Records the Partner's exact professional decision. Unconditional acceptance may record repository intent; no engagement is activated.",
       _ => "Starts the next evaluation generation and pending decision. Prior decisions remain evidence, not current approval." };
+    if (engagement is not null)
+      effect = $"Engagement {engagement.Id}: {engagement.PeriodStart} to {engagement.PeriodEnd}, {engagement.ServiceRoute}. " + effect;
     return CommandResult<AssessmentCommandPreview>.Ok(new(id, requestId, RequestHash(a, id, requestId, f), basis, f, before, effect));
   }
 
@@ -207,7 +214,7 @@ public static class AssessmentCommandWorkspace
         return r.Succeeded ? CommandResult<Result>.Ok(new(f.ReviewId.Value, generation)) : CommandResult<Result>.Fail(r.ErrorCode!, r.Message!);
       }
       case "DECISION": {
-        var r = await AcceptanceDecisionService.RecordAsync(db, a, new(id, null, f.ServiceRoute!, f.Decision!, f.Rationale!, f.Conditions, generation), ct);
+        var r = await AcceptanceDecisionService.RecordAsync(db, a, new(id, f.EngagementId, f.ServiceRoute!, f.Decision!, f.Rationale!, f.Conditions, generation), ct);
         return r.Succeeded ? CommandResult<Result>.Ok(new(r.Value, generation)) : CommandResult<Result>.Fail(r.ErrorCode!, r.Message!);
       }
       default: {
