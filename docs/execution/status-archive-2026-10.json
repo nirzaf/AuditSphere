@@ -15500,6 +15500,157 @@
           "Annual template selection and new-plan pinning orchestration",
           "Full release and external acceptance"
         ]
+      },
+      "agentCapabilityRunner": {
+        "recordedAtUtc": "2026-10-12T15:36:47.341055+00:00",
+        "baseCommit": "75f8f9453e611ff372964ae81c424176a3ccb895",
+        "scope": "Three capability packets connect existing owning files, invariants, acceptance, scoped fixtures and exact test selectors. Default preflight is read-only; --run opts into existing focused test commands. No deployment or application configuration change.",
+        "sourceTree": "Tooling working tree based on the recorded commit. UI pilot is evidence for that source plus the recorded uncommitted runner; it is not a clean-commit or release pass.",
+        "runs": [
+          {
+            "name": "Runner safety guards",
+            "command": "python3 -m unittest discover -s scripts/agent -p 'test_*.py'",
+            "result": "PASS",
+            "passed": 3,
+            "coverage": [
+              "zero matching .NET tests fail",
+              "common sensitive values are redacted",
+              "external database override blocks preflight"
+            ]
+          },
+          {
+            "name": "Capability catalog reference validation",
+            "command": "./scripts/agent-check --validate-catalog",
+            "result": "PASS",
+            "packets": 3
+          },
+          {
+            "name": "UI focused pilot",
+            "command": "./scripts/agent-check engagement-ui --run --timeout 90 --report artifacts/agent-check/engagement-ui.json",
+            "result": "FOCUSED_CHECKS_PASSED",
+            "passed": 7,
+            "metrics": {
+              "preflightSeconds": 0.037,
+              "testWaitSeconds": 2.743,
+              "environmentFailures": 0,
+              "discoverySeconds": null,
+              "editingSeconds": null,
+              "reworkCount": null
+            },
+            "sourceUnchangedDuringRun": true
+          },
+          {
+            "name": "Authorization preflight",
+            "result": "BLOCKED_PREREQUISITES",
+            "metrics": {
+              "preflightSeconds": 0.409,
+              "testWaitSeconds": 0,
+              "environmentFailures": 1,
+              "discoverySeconds": null,
+              "editingSeconds": null,
+              "reworkCount": null
+            },
+            "blockedPrerequisites": [
+              {
+                "name": "PostgreSQL 18.6 test database",
+                "status": "BLOCKED",
+                "action": "Make the existing PostgreSQL 18.6 auditsphere_tests database reachable on port 5433. No database is created, reset or migrated by preflight.",
+                "observedVersionNumber": "unavailable"
+              }
+            ],
+            "testsRun": false
+          },
+          {
+            "name": "Accounting preflight",
+            "result": "BLOCKED_PREREQUISITES",
+            "metrics": {
+              "preflightSeconds": 0.246,
+              "testWaitSeconds": 0,
+              "environmentFailures": 1,
+              "discoverySeconds": null,
+              "editingSeconds": null,
+              "reworkCount": null
+            },
+            "blockedPrerequisites": [
+              {
+                "name": "PostgreSQL 18.6 test database",
+                "status": "BLOCKED",
+                "action": "Make the existing PostgreSQL 18.6 auditsphere_tests database reachable on port 5433. No database is created, reset or migrated by preflight.",
+                "observedVersionNumber": "unavailable"
+              }
+            ],
+            "testsRun": false
+          }
+        ],
+        "limits": [
+          "No .NET or browser cohort ran; PostgreSQL preflight could not reach the test target.",
+          "Focused UI results do not establish review-permission or accounting completion.",
+          "No baseline discovery/editing/rework measurements or independent acceptance comparison exist, so no speedup or regression reduction is claimed.",
+          "Full release gate and live/professional acceptance remain separate."
+        ],
+        "followUp": {
+          "sourceCommit": "60253434",
+          "catalogValidation": "PASS: three packets validated",
+          "runnerSafetyTests": "PASS: four tests",
+          "databaseDiagnosis": "PostgreSQL 18.6 was reachable outside the restricted shell; prior socket-denial results did not establish a database outage. Runner now distinguishes SOCKET_ACCESS_DENIED.",
+          "pilotMeasurements": "No comparative discovery/editing/rework measurements; no productivity improvement claimed."
+        }
+      },
+      "practiceManagementReportingSlice": {
+        "recordedAtUtc": "2026-10-12T12:21:12Z",
+        "baseCommit": "fa89e248",
+        "sourceTree": "Working tree on branch pm-slice2 at fa89e248; the commit carrying this record is the source revision.",
+        "database": "auditsphere_tests on 127.0.0.1:5433",
+        "scope": "Practice management program, second slice. ADR-0018: non-billable time has no charge-out value, one billable utilization basis, receivables age every posted firm invoice. Engagement communication timeline (query, GET /api/ui/engagements/{id}/communications, Angular panel). Non-regression scenarios mapped to named tests. No migration.",
+        "runs": [
+          {
+            "name": "Focused Domain PostgreSQL tests",
+            "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --configuration Release --filter 'FirmOperationsTests|PlanningResourcesAndMaterialityTests|SteV22OwnerDecisionTests|ContractContribution' and a second run with 'EngagementCommunicationTimelineTests|FirmReceivablesAgingQueryTests'",
+            "passed": 46,
+            "failed": 0,
+            "result": "PASS",
+            "note": "Two filtered runs, 44 and 2 tests. The first ran before the timeline query and endpoint were added; those additions do not touch the code it covers."
+          },
+          {
+            "name": "Angular full suite",
+            "command": "npx ng test --watch=false (npm run test:ci)",
+            "test_files": 121,
+            "passed": 677,
+            "failed": 0,
+            "result": "PASS"
+          },
+          {
+            "name": "Angular production build",
+            "command": "npx ng build (npm run build)",
+            "result": "PASS"
+          },
+          {
+            "name": "Solution Release build",
+            "command": "dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1",
+            "result": "PASS (0 errors, 0 warnings)"
+          },
+          {
+            "name": "OpenAPI drift",
+            "command": "bash scripts/contracts/verify-openapi.sh",
+            "result": "PASS: contract regenerated with the communications route"
+          },
+          {
+            "name": "Documentation gates",
+            "command": "validate-markdown-documentation.py, validate-markdown-filenames.py, validate-narrative-metrics.py, scripts/ui/inventory.py --check, build-task-board.py --check",
+            "result": "PASS"
+          }
+        ],
+        "notRun": [
+          "The full Domain, API and E2E suites, left to CI at the owner's instruction.",
+          "Any browser run of the communications panel, the resource grid or the receivables report.",
+          "The timeline with PBC emails and with commercial notifications bound through a fee agreement, milestone or deliverable; the test covers routed dispatches, exclusion of unrelated records and scope."
+        ],
+        "openItems": [
+          "Decisions listed as not decided in ADR-0018 still gate PM-03, PM-05, PM-09, PM-11 and PM-13.",
+          "CRM-04 brief quotation timeline is not built; it changes the offer identity and needs its own slice.",
+          "NR-11 and NR-12 have no single named test.",
+          "Receivables totals now include non-milestone invoices and are not comparable with earlier reports."
+        ]
       }
     }
   }

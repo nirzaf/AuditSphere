@@ -15,6 +15,10 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Agent capability evidence and pilot comparison — 2026-10-13
+
+The existing [capability runner](../testing/auditsphere-testing-guide-agent-capability-checks-current.md) maps acceptance to named checks, exposes synthetic actors/states and omitted evidence, parses sanitized assertion/request-ID context, and detects HTML/SCSS/new-file changes. Explicit browser execution builds the current UI first; reports cannot overwrite source or prior evidence. Matching-cohort comparisons retain missing measurements instead of inventing gains. Focused UI/browser, authorization/API and calculator pilots passed; source hashes, the resolved socket-denial attempt and limitations are under `targetedVerification.agentCapabilityRunner` in [status.json](status.json). Comparative productivity measurements, broader release checks and external/professional acceptance remain open.
+
 ## Reviewed annual template reference — 2026-10-13
 
 Annual preparation suggests the current published revision of a prior plan’s template. The optional choice is retained in the exact creation preview and immutable receipt, then preselected in the new engagement’s task-plan screen only while current. An archived/superseded reference blocks new creation; the plan still requires separate staffing/schedule review and assent. Prior plans are unchanged. A CI-discovered assessment receipt timestamp mismatch is corrected by returning the persisted row on first publication. Evidence is under `targetedVerification.workflowAnnualTemplateReference` in [status.json](status.json). Nonstandard calendars, populated-mapping browser acceptance and wider workflow/release gates remain open.
@@ -405,13 +409,3 @@ Key architectural invariants verified:
    - Documentation, filename, and narrative-metric checks: passed
 
 > **Archived handoff history:** superseded 2026-10-09 evidence and implementation notes are preserved in the [historical slice archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md#ste-v2-1-evidence-mapping-and-full-suite-runs--2026-10-09).
-
-
-
-## Workflow task queue and review rework visibility — 2026-10-12
-
-WF-07 now has **Changes required** and **Under review** views derived from the exact linked audit procedure result. A newer submitted revision moves the linked task into Under review; an independent review decision removes it from that view. Task completion remains operational and never changes audit review. The exact-scope composite foreign key, unique result index and check constraint prevent cross-scope links and duplicate rework bindings. Migration `20261012080058_WorkflowChangesRequiredQueue` is source-only and has not been applied to a persistent database. `WorkflowExperience:Enabled` remains false by default.
-
-Earlier current slices include WF-10 PBC task creation and optional reminders, WF-14 due-date history, and the workflow-template authoring screen. Their configuration, verification results and limitations are in `status.json` under `workflowTaskPbcFollowUp`, `workflowPbcReminders`, `workflowTaskDueDateHistory` and `workflowTemplateAuthoringUi`.
-
-Verification: the focused PostgreSQL regression passed 1/1 across changes-required visibility, resubmission into Under review, and removal after independent review. API/OpenAPI emitter Release build passed with two offline `NU1900` warnings. The Angular development server compiled; the built-in browser showed the staff sign-in guard because the local API/session host was unavailable, so authenticated queue rendering was not exercised. Angular production build previously aborted with exit 134 and no compiler diagnostics. Narrative metrics, UI inventory and diff checks passed; Markdown health and filename checks flag only the separately staged, untouched user file `STE_Audit_Management_Requirements_v2.2.md`. The migration was not applied, full Domain/API/E2E suites were not run, and no live, production or professional acceptance is claimed. The v2.2 workflow epic remains PARTIAL.

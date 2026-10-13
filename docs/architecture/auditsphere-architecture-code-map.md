@@ -537,6 +537,17 @@ For the complete documentation index, authority hierarchy, current requirements,
 - API: `Ui/UiEndpoints.ClientConversion.cs`; Angular: `features/commercial/client-conversion.*`, native proposal link and guarded route.
 - Tests: `ClientConversionReviewTests`, `ClientConversionReviewApiTests`, `AngularClientConversionJourneyTests`, shared `ClientConversionReviewSeed`; observed results belong to the execution ledger.
 
+## Agent capability checks
+
+`scripts/agent-check` routes to `scripts/agent/agent-check.py`; the existing catalog
+`docs/testing/agent-check-capabilities.json` connects the UI, authorization and
+calculator pilots to owning files, invariants, acceptance mappings and synthetic
+fixture states. `scripts/agent/agent_check_evidence.py` parses bounded sanitized
+failures and compares measured matching cohorts. Default preflight is read-only;
+execution is opt-in, and browser execution rebuilds the current UI first. These
+tools never write task completion, reset a persistent database or replace release
+and external acceptance. See the [capability guide](../testing/auditsphere-testing-guide-agent-capability-checks-current.md).
+
 ## Hardened HTTP boundary and OpenAPI contract
 
 - Boundary policies: `Api/HttpBoundary/HttpPolicies.cs` (authenticated-session policy), `Api/HttpBoundary/ApiRateClass.cs` (cost classes with endpoint markers), `Api/HttpBoundary/ApiRateLimiter.cs` (chained global limiter, per-identity partitions, configurable budgets), `Api/HttpBoundary/SecurityHeaderOptions.cs` + `SecurityHeadersMiddleware.cs` (build-derived strict script CSP and global headers), `Api/HttpBoundary/RequestBodyLimitMiddleware.cs` (Kestrel ceiling plus JSON command 413 guard), `Api/HttpBoundary/ApiError.cs` (stable boundary error body).

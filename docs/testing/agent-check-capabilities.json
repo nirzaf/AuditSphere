@@ -1,12 +1,14 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "capabilities": {
     "engagement-ui": {
       "purpose": "Engagement detail presentation, bounded paging and session clearing",
       "owningFiles": [
         "src/AuditSphereOps.Ui/src/app/features/engagements/engagement.ts",
         "src/AuditSphereOps.Ui/src/app/features/engagements/engagement.html",
-        "src/AuditSphereOps.Ui/src/app/features/engagements/engagement-contracts.ts"
+        "src/AuditSphereOps.Ui/src/app/features/engagements/engagement-contracts.ts",
+        "src/AuditSphereOps.Application/Practice/WorkspaceQuery.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.cs"
       ],
       "documents": [
         "AGENTS.md",
@@ -27,7 +29,17 @@
         {
           "source": "tests/AuditSphereOps.E2E.Tests/AngularEngagementProfileJourneyTests.cs",
           "lifecycle": "OwnedHost creates synthetic data and disposes its isolated test database; no persistent reset.",
-          "manualBrowser": "Use the existing acceptance account only with approved synthetic records; automated owned hosts are transient, not a persistent login environment."
+          "manualBrowser": "Use the existing acceptance account only with approved synthetic records; automated owned hosts are transient, not a persistent login environment.",
+          "actors": [
+            "Synthetic staff restricted to the seeded engagement",
+            "Synthetic Administrator with an exact Manager preparation grant"
+          ],
+          "states": [
+            "Current engagement profile with paged active and released holds",
+            "Professional-work hold; editable planning draft",
+            "Revoked grants with protected content clearing"
+          ],
+          "entrypoint": "Run the mapped journey to recreate its isolated state. It owns all identities and requires no real Microsoft sign-in."
         }
       ],
       "checks": [
@@ -48,12 +60,39 @@
           "browser": true,
           "layer": "browser"
         }
+      ],
+      "verificationCoverage": [
+        {
+          "criterion": "Valid engagement projections render with bounded counts and pages.",
+          "checks": [
+            "Engagement UI contracts and lifetime"
+          ]
+        },
+        {
+          "criterion": "Invalid projections and ended sessions cannot retain protected content.",
+          "checks": [
+            "Engagement UI contracts and lifetime",
+            "Synthetic engagement profile browser journey"
+          ]
+        },
+        {
+          "criterion": "Responsive engagement-profile journey has no page errors.",
+          "checks": [
+            "Synthetic engagement profile browser journey"
+          ]
+        }
+      ],
+      "outOfScope": [
+        "Full release verification under AGENTS.md section 3",
+        "Live tenant and independent professional acceptance",
+        "Other commands or screens not named by this packet"
       ]
     },
     "review-permissions": {
       "purpose": "Scope checks and revoked-session boundaries used by review workflows",
       "owningFiles": [
         "src/AuditSphereOps.Application/Security/AuthorizationDecision.cs",
+        "src/AuditSphereOps.Application/Audit/ReviewNotesService.cs",
         "src/AuditSphereOps.Api/Ui/UiEndpoints.Fieldwork.cs",
         "src/AuditSphereOps.Ui/src/app/features/audit/fieldwork.ts"
       ],
@@ -77,7 +116,32 @@
         {
           "source": "tests/AuditSphereOps.E2E.Tests/AngularClientScopeEngagementParityJourneyTests.cs",
           "lifecycle": "Existing synthetic client-scoped users and unrelated clients are created per OwnedHost; disposal replaces manual resets.",
-          "manualBrowser": "Use two separately scoped synthetic clients and a revoked identity; never copy real tenant users or data into fixtures."
+          "manualBrowser": "Use two separately scoped synthetic clients and a revoked identity; never copy real tenant users or data into fixtures.",
+          "actors": [
+            "Synthetic Partner granted only the exact client",
+            "Synthetic Manager granted an unrelated client",
+            "Synthetic staff with one engagement grant"
+          ],
+          "states": [
+            "Permitted target engagement",
+            "Sibling engagement and unrelated client denied",
+            "Revoked write denied with no private risk/hold content"
+          ],
+          "entrypoint": "Run the mapped exact-client journey. Never use an acceptance administrator as evidence for a scoped user."
+        },
+        {
+          "source": "tests/AuditSphereOps.Domain.Tests/AuditReviewNoteIsolationTests.cs",
+          "lifecycle": "Fresh PgTestSchema and PlanningSeed per run, disposed after the test.",
+          "actors": [
+            "Exact-engagement Senior reviewer and Staff preparer",
+            "Sibling-client Partner"
+          ],
+          "states": [
+            "Submitted procedure result",
+            "Created, responded, resolved and reopened review-note thread",
+            "Sibling and guessed IDs denied"
+          ],
+          "entrypoint": "Run the mapped review-note command check; this is service evidence, not browser or professional acceptance."
         }
       ],
       "checks": [
@@ -87,6 +151,16 @@
           "project": "tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj",
           "filter": "FullyQualifiedName~AuthorizationDecisionTests",
           "testFile": "tests/AuditSphereOps.Domain.Tests/AuthorizationDecisionTests.cs",
+          "database": true,
+          "browser": false,
+          "layer": "unit"
+        },
+        {
+          "name": "Exact-scope review-note commands",
+          "kind": "dotnet",
+          "project": "tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj",
+          "filter": "FullyQualifiedName~AuditReviewNoteIsolationTests",
+          "testFile": "tests/AuditSphereOps.Domain.Tests/AuditReviewNoteIsolationTests.cs",
           "database": true,
           "browser": false,
           "layer": "unit"
@@ -111,6 +185,32 @@
           "browser": true,
           "layer": "browser"
         }
+      ],
+      "verificationCoverage": [
+        {
+          "criterion": "Permitted actors receive only their scope; unrelated, disabled and stale actors are denied.",
+          "checks": [
+            "Domain scope and stale-authority baseline",
+            "Exact-scope review-note commands",
+            "Synthetic exact-client scope browser journey"
+          ]
+        },
+        {
+          "criterion": "Revocation invalidates cookie-session access.",
+          "checks": [
+            "API cookie and revoked identity checks"
+          ]
+        },
+        {
+          "criterion": "Review-command-specific stale revision and separation-of-duties cases must be selected from the task card when those commands change; this pilot is the shared authorization baseline.",
+          "checks": [],
+          "limitation": "This packet checks shared authority and review-note isolation. Result-review independence and command-specific stale revision cases must be added for the actual changed command; the baseline cannot satisfy them."
+        }
+      ],
+      "outOfScope": [
+        "Full release verification under AGENTS.md section 3",
+        "Live tenant and independent professional acceptance",
+        "Other commands or screens not named by this packet"
       ]
     },
     "accounting-calculation": {
@@ -118,7 +218,9 @@
       "owningFiles": [
         "src/AuditSphereOps.Application/Accounting/TrialBalanceCalculator.cs",
         "src/AuditSphereOps.Application/Accounting/TrialBalanceImportService.cs",
-        "src/AuditSphereOps.Api/Ui/UiEndpoints.Intake.cs"
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Intake.cs",
+        "src/AuditSphereOps.Application/Accounting/Intake/TrialBalanceSourceWorkspace.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.AccountingRecords.cs"
       ],
       "documents": [
         "AGENTS.md",
@@ -139,11 +241,29 @@
       "fixtures": [
         {
           "source": "tests/AuditSphereOps.Domain.Tests/TrialBalanceCalculatorTests.cs",
-          "lifecycle": "Pure in-memory synthetic Appendix D balances; no database needed for the calculator check."
+          "lifecycle": "Pure in-memory synthetic Appendix D balances; no database needed for the calculator check.",
+          "actors": [
+            "Pure calculator: no actor, provider or database"
+          ],
+          "states": [
+            "Balanced Appendix D source",
+            "Single application and duplicate application of the same journal",
+            "Unbalanced journal rejected"
+          ],
+          "entrypoint": "Use --layer unit for a database-free calculator check."
         },
         {
           "source": "tests/AuditSphereOps.E2E.Tests/AngularTrialBalanceUploadJourneyTests.cs",
-          "lifecycle": "OwnedHost provides synthetic upload state in a disposable test database."
+          "lifecycle": "OwnedHost provides synthetic upload state in a disposable test database.",
+          "actors": [
+            "Synthetic Administrator in the isolated upload fixture"
+          ],
+          "states": [
+            "Two current reporting periods",
+            "Reviewed period/file upload",
+            "Lost reply recovered from persisted receipts"
+          ],
+          "entrypoint": "Run the mapped browser journey; it recreates source CSV and period state without a persistent reset."
         }
       ],
       "checks": [
@@ -177,6 +297,31 @@
           "browser": true,
           "layer": "browser"
         }
+      ],
+      "verificationCoverage": [
+        {
+          "criterion": "Balanced fixture totals and adjusted profit cross-cast exactly.",
+          "checks": [
+            "Pure exact trial-balance calculator"
+          ]
+        },
+        {
+          "criterion": "Repeated journal application cannot double count.",
+          "checks": [
+            "Pure exact trial-balance calculator"
+          ]
+        },
+        {
+          "criterion": "Source API refuses unauthorized and stale source access.",
+          "checks": [
+            "Trial-balance source API"
+          ]
+        }
+      ],
+      "outOfScope": [
+        "Full release verification under AGENTS.md section 3",
+        "Live tenant and independent professional acceptance",
+        "Other commands or screens not named by this packet"
       ]
     }
   }
