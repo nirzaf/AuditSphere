@@ -15,15 +15,13 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
-## Production-readiness story: source-review fence, cash lineage and merged gates — 2026-10-15
+## Production-readiness story: cash lineage, decision fence and release pin — 2026-10-15
 
-The attached production-readiness story (`Audit_and_Gap_Closure.md`, outside the repository) was worked on master. Its verdict is unchanged: substantial implementation, incomplete functional acceptance, not production ready. The ledger entry is `targetedVerification.productionReadinessStoryCp11` in `status.json`.
+The attached production-readiness story (`Audit_and_Gap_Closure.md`, now tracked since `66f5075d`) is still PARTIAL. Its verdict is unchanged: substantial implementation, incomplete functional acceptance, not production ready. The ledger entry is `targetedVerification.productionReadinessStoryCp11` in `status.json`.
 
-- **Merged to master:** source-review intent fence and cash projection (`8ab0b751`), build-screen schedule editors and blockers (`2bf7c337`), release verification and CI precondition (`296b87d2`), E2E build fix (`7e926eaf`), and the review fixes (`39c2555b`). The sub-worktrees and their branches were removed after the merge.
-- **Closed in code:** F-01 projection, F-02 intent fence (migration `CashFlowSourceReviewIntent`), F-03 per-period accepted ledger, F-04 editors and blockers in the build screen, F-09 Partner stage, and the repo-buildable parts of F-11 and F-12.
-- **Open blockers from the independent review:** an omitted cash journal can be covered by a user-entered FX row (F-01, the most serious); "latest" decisions use an application-clock timestamp (needs a sequence); and the declared cash population is not checked against the mapping. These are recorded in `openBlockers`. F-01 is not complete until the first is fixed.
-- **Not started:** F-08 exact composition, F-05 to F-07 (professional policy), F-10 (owner decision), and external gates (branch protection, live identity and provider evidence).
-- **Verified locally:** focused Domain classes (119 passed), two Angular specs (28 passed), `tsc`, the EF model check, and the OpenAPI contract. **Not run:** the full suites, the E2E journeys, and the hosted release workflow.
+- **Closed on master this session:** the cash-event rule that an unexplained period cash event fails lineage (an FX row can no longer cover it); the declared cash population checked against the approved mapping; decisions ordered by a database identity sequence; share locks that fence acceptance and grant revocation; scoped Partner-stage tests; and a financial-package release that pins the reviewed PDF, which the bundle then uses alone (F-08, release side).
+- **Still open:** F-08 composition selection and draft-to-candidate successors (CP-18, CP-19); F-05 to F-07 (professional policy); F-10 and the owner decisions (Administrator's accounting-review rights, CP-02, CP-03, CP-05, CP-22); and the external gates (branch protection, live identity and provider evidence, recovery, capacity).
+- **Verified locally:** 245 focused Domain tests, a clean solution build, no EF model drift, and a current OpenAPI contract. **Not run:** the full suites, the E2E journeys and the hosted release workflow.
 
 ## Source-linked package build from the product (CP-11 accepted-source cash-flow subpath) — 2026-10-14
 

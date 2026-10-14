@@ -69,7 +69,7 @@
     {
       "item": "Production-readiness story (Audit_and_Gap_Closure.md) — PARTIAL",
       "status": "PARTIAL",
-      "details": "Closed in code on master: F-01 projection (with open population blocker), F-02 intent fence, F-03 per-period source, F-04 build-screen editors and blockers, F-09 Partner stage, F-11 and F-12 repo-buildable parts. Not production ready: see targetedVerification.productionReadinessStoryCp11.openBlockers and storyItemsNotStarted. External and professional gates remain BLOCKED_EXTERNAL or BLOCKED_PROFESSIONAL."
+      "details": "Closed in code on master through 0eb44ece: F-01 (projection, cash events, declared population), F-02 (intent fence, sequence, locks), F-03, F-04, F-08 release pin, F-09, F-11 and F-12 repo-buildable parts. Not production ready: see targetedVerification.productionReadinessStoryCp11 for open blockers and items not started. Professional, owner and external gates remain open."
     }
   ],
   "targetedVerification": {
@@ -911,58 +911,59 @@
       }
     },
     "productionReadinessStoryCp11": {
-      "recordedAtUtc": "2026-10-15T00:20:00Z",
-      "source": "Audit_and_Gap_Closure.md (production-readiness story, F-01..F-12, CP-00..CP-25). Read-only story file; not committed to the repository.",
+      "recordedAtUtc": "2026-10-14T21:42:36Z",
+      "source": "Audit_and_Gap_Closure.md (production-readiness story, F-01..F-12, CP-00..CP-25). Tracked in the repository since 66f5075d.",
       "masterCommits": {
         "sourceFence": "8ab0b751",
         "buildScreenEditors": "2bf7c337",
         "releaseVerification": "296b87d2",
         "e2eBuildFix": "7e926eaf",
-        "reviewFixes": "39c2555b"
+        "reviewFixes": "4075d2b2",
+        "openCashFlowFindings": "f62cd9d6",
+        "releaseArtifactPin": "0eb44ece"
       },
       "closedInCode": [
-        "F-01 projection: ledger sign kept as provenance; cash movement effect projected from its cash event; noncash movements keep ledger sign",
-        "F-02 intent fence: request identity, link digest and previous decision checked under the package lock; replay actor-bound; migration CashFlowSourceReviewIntent",
+        "F-01 projection: ledger sign kept as provenance; a cash movement's effect is derived from its cash event",
+        "F-01 cash events: every cash event in the accepted period ledger must be explained; an unexplained one fails lineage even when no movement draws on it, so an FX row cannot cover an omitted receipt",
+        "F-01 declared cash population: an account the approved mapping places in the cash line must be declared, or the build is refused",
+        "F-02 intent fence: request identity, link digest and previous decision checked under the package lock; replay is actor-bound; migration CashFlowSourceReviewIntent",
+        "F-02 ordering: latest decision by a database identity sequence (migration CashFlowSourceReviewSequence), not the application clock",
+        "F-02 locks and errors: share locks on the client safety row and the reviewer's grants before the authority re-check; only the request-identity uniqueness maps to a conflict",
         "F-03 per-period accepted ledger for cash-flow lineage, approval and the GL picker",
-        "F-04 build screen: equity, numeric note and FX editors; entered schedules never sent as null; blockers listed",
-        "F-09 Administrator removed from the Partner stage; legacy Partner rows must be recorded by a current Partner",
+        "F-04 build screen: equity, numeric note and FX editors; entered schedules never sent as null; unsupplied schedules listed as blockers",
+        "F-09 Partner stage: Administrator removed; a Partner decision counts only when its recorder holds a current Partner grant on the engagement",
+        "F-08 part (CP-20.AC-04 release side): a financial-package release pins the reviewed PDF's identifier, version and digest; issuance is refused without it; the bundle resolves only the pinned artifact (migration ReleaseArtifactPin)",
         "F-11 repo-buildable part: release-verification.yml runs the full unfiltered suite on one commit (not yet observed hosted)",
-        "F-12 release precondition subset: release.yml refuses release without a successful ci.yml run for the exact SHA (not yet observed hosted)"
+        "F-12 release precondition subset: release.yml refuses release without a successful ci.yml run for the exact SHA (not yet observed hosted)",
+        "Tests: concurrent approve and return commits exactly one decision; raw SQL refuses a duplicate request identity and a partial intent; scoped Partner tests (other engagement, revoked, multi-role)"
       ],
       "verified": {
-        "domainFocusedClasses": "119 passed (CashFlowContractTests, FinancialPackageGateTests, FinancialStatementTests, CompletionBundle*, AccountingRecordsApprovalTests, SourceAcceptanceAndComparativesTests, PackageSealTests, FinancialPackage*) at master after 39c2555b",
-        "angularSpecs": "28 passed (package.spec.ts, financial-package-build.spec.ts)",
-        "typeCheck": "tsc -p tsconfig.app.json --noEmit exit 0",
+        "domainFocusedClasses": "245 passed at 0eb44ece (CashFlowContract, FinancialPackageGate, FinancialStatement, CompletionBundle, AccountingRecordsApproval, SourceAcceptanceAndComparatives, PackageSeal, FinancialPackage, ReleaseTests, ReleaseEvidence, AuditDeliverables, ClientAccountingTests)",
+        "solutionBuild": "dotnet build AuditSphereOps.slnx Release --no-restore: 0 errors",
         "efModel": "has-pending-model-changes: no changes",
-        "openApi": "scripts/contracts/verify-openapi.sh: current",
-        "solutionBuild": "dotnet build AuditSphereOps.slnx Release --no-restore: 0 errors (before the last Application edit; the focused test build compiled it)",
-        "independentReview": "two read-only reviewers (correctness; authority and tests) ran against the uncommitted slice; their majors on replay, actor binding, legacy Partner rows, revocation-race test and lineage misreporting were fixed; see openBlockers"
+        "openApi": "verify-openapi.sh: current",
+        "earlierSlices": "Angular specs 28 passed and tsc clean at 4075d2b2 (package and build screens); not rerun after 0eb44ece, which changed no Angular file"
       },
       "notRun": [
         "full unfiltered Domain suite",
         "AuditSphereOps.Api.Tests",
-        "AuditSphereOps.E2E.Tests (browser journeys changed: AngularCashFlowPackageJourneyTests selectors)",
+        "AuditSphereOps.E2E.Tests (browser journeys; AngularCashFlowPackageJourneyTests selectors changed earlier)",
         "full Angular test:ci",
-        "ng build production bundle",
-        "release-verification.yml and release.yml gate (no hosted run observed)",
-        "markdown validators on this record (run after this record was written)"
+        "release-verification.yml and release.yml (no hosted run observed)"
       ],
       "openBlockers": [
-        "F-01 blocker: a cash journal the package never links is not detected. The build checks only journals a movement draws on; an omitted GL cash event can be covered by a user-entered FX row that the bridge accepts. Fix: enumerate every declared-cash journal in the period batch and require it explained, which needs test fixture changes across the cash seeds.",
-        "F-02 major: 'latest' decision uses application-clock ReviewedAt, not commit order. Fix: database-assigned monotonic sequence (migration).",
-        "F-01 major: cash population is the preparer's declared CashAccountCodes; a bank account left out is not detected. Fix: derive the population from the approved mapping.",
-        "F-02 minor: DbUpdateException catch maps every database error to IdempotencyConflict; revocation of a grant is not fenced against the decision commit (no lock on the revocation path); accepted-ledger rows are read unlocked.",
-        "F-09 minor: Partner-stage authority is a role-grant check; assignment-aware deciding-Partner rule and multi-role, unassigned and revoked-Partner tests are not yet written. Administrator still holds accounting-review and source-review rights (owner policy decision).",
-        "CP-11 minor: only two projection roles exist; working-capital adjustments need a third role (CP-12).",
-        "Test gaps: concurrent approve versus return; raw-SQL checks of the partial unique index and intent constraint."
+        "F-02 minor: a revocation that commits after the decision's share locks and re-check would wait; residual window closed by the grant share lock, but not covered by a test of the timing",
+        "F-09: assignment-aware deciding-Partner rule beyond grant scope is not modelled; Administrator keeps accounting-review and source-review rights (owner policy decision)",
+        "F-01/CP-12: only two projection roles; working-capital adjustments need a third role under an approved method (professional)",
+        "F-08: composition selection for the final report (CP-18) and presentation pinning from draft to candidate are not implemented; the release pins the released PDF only"
       ],
       "storyItemsNotStarted": [
         "F-05 indirect cash-flow methodology (BLOCKED_PROFESSIONAL)",
         "F-06 equity and note source approval (BLOCKED_PROFESSIONAL)",
         "F-07 final profile membership (BLOCKED_PROFESSIONAL)",
-        "F-08 exact composition and approved-artifact pinning (buildable, XL; release does not pin an artifact yet)",
+        "F-08 composition selection and draft-to-candidate successor (CP-18, CP-19)",
         "F-10 offer identity and routing (owner decision DEC-05)",
-        "CP-02 CP-03 CP-05 CP-22 owner decisions; CP-04 CP-06 CP-07 CP-08 CP-15 CP-16 CP-19 CP-20 CP-21 CP-23 CP-24 partially open",
+        "CP-02, CP-03, CP-05, CP-22 owner decisions; CP-04, CP-06 to CP-08, CP-15, CP-16, CP-20 to CP-21, CP-23, CP-24 partially open",
         "F-12 branch protection and required checks (external, owner)",
         "CP-25 live identity, mail, selected-site, recovery and capacity gates (BLOCKED_EXTERNAL)"
       ]
