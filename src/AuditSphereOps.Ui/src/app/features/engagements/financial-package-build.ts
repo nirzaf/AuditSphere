@@ -40,22 +40,66 @@ export interface MovementForm {
   sourceReferences: string; rationale: string; allocations: AllocationForm[];
 }
 export interface DisclosureForm { code: string; response: string; notApplicable: boolean; rationale: string }
+/** One equity rollforward row. Its field names are the server's EquityLineInput names, so the request is not renamed. */
+export interface EquityLineForm {
+  lineCode: string; description: string; openingAmount: string; profitOrLossAmount: string; ociAmount: string;
+  capitalMovementAmount: string; dividendsAmount: string; closingAmount: string; evidenceReference: string;
+}
+/** One numeric note line. The server calls the statement destination `faceDestinationCode`. */
+export interface NoteLineForm { noteCode: string; faceDestinationCode: string; amount: string; evidenceReference: string }
+/** One foreign-exchange effect on cash, with its evidence. */
+export interface FxCashEffectForm { currencyPair: string; amount: string; evidenceReference: string }
 export interface BuildForm {
   mappingVersionId: string; adjustmentPlanId: string; periodId: string; framework: string; templateVersion: string;
   periodStart: string; periodEnd: string; cashBeginning: string; cashEnding: string; cashAccountCodes: string;
   openingEvidence: string; closingEvidence: string; comparativePackageId: string; comparativeBasis: string; comparativeEvidence: string;
   movements: MovementForm[]; disclosures: DisclosureForm[];
+  equityLines: EquityLineForm[]; noteLines: NoteLineForm[]; fxCashEffects: FxCashEffectForm[];
 }
 
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const AMOUNT = /^-?\d{1,13}(\.\d{1,6})?$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const list = (value: string): string[] => value.split(',').map((x) => x.trim()).filter((x) => x.length > 0);
+const EQUITY_AMOUNT_FIELDS: ReadonlyArray<readonly [keyof EquityLineForm, string]> = [
+  ['openingAmount', 'the opening balance'],
+  ['profitOrLossAmount', 'profit or loss'],
+  ['ociAmount', 'other comprehensive income'],
+  ['capitalMovementAmount', 'capital movements'],
+  ['dividendsAmount', 'dividends'],
+  ['closingAmount', 'the closing balance'],
+];
+
+/**
+ * Exact six-decimal units of an amount that already passed AMOUNT. BigInt keeps the sums off floating point,
+ * so a contribution that equals its movement compares equal however many digits it carries.
+ */
+function toMicro(amount: string): bigint {
+  const negative = amount.startsWith('-');
+  const [whole, fraction = ''] = (negative ? amount.slice(1) : amount).split('.');
+  const units = BigInt(whole) * 1_000_000n + BigInt(fraction.padEnd(6, '0'));
+  return negative ? -units : units;
+}
+
+const absMicro = (value: bigint): bigint => (value < 0n ? -value : value);
+
+function sumContributions(allocations: readonly AllocationForm[]): bigint {
+  return allocations.reduce((sum, a) => sum + toMicro(a.signedAmount), 0n);
+}
+
+/** The server's shape rule: contributions may not exceed the movement amount or run against its sign. Inputs must already be valid. */
+function contributionsOverdrawn(allocations: readonly AllocationForm[], amount: string): boolean {
+  const total = sumContributions(allocations);
+  if (total === 0n) return false;
+  const target = toMicro(amount);
+  return absMicro(total) > absMicro(target) || (total < 0n) !== (target < 0n);
+}
 
 export function emptyBuildForm(): BuildForm {
   return { mappingVersionId: '', adjustmentPlanId: '', periodId: '', framework: 'IFRS', templateVersion: '', periodStart: '', periodEnd: '',
     cashBeginning: '0', cashEnding: '0', cashAccountCodes: '', openingEvidence: '', closingEvidence: '',
-    comparativePackageId: '', comparativeBasis: '', comparativeEvidence: '', movements: [], disclosures: [] };
+    comparativePackageId: '', comparativeBasis: '', comparativeEvidence: '', movements: [], disclosures: [],
+    equityLines: [], noteLines: [], fxCashEffects: [] };
 }
 
 export function emptyMovement(): MovementForm {
@@ -63,9 +107,26 @@ export function emptyMovement(): MovementForm {
     rationale: '', allocations: [] };
 }
 
+export function emptyEquityLine(): EquityLineForm {
+  return { lineCode: '', description: '', openingAmount: '', profitOrLossAmount: '', ociAmount: '', capitalMovementAmount: '',
+    dividendsAmount: '', closingAmount: '', evidenceReference: '' };
+}
+
+export function emptyNoteLine(): NoteLineForm {
+  return { noteCode: '', faceDestinationCode: '', amount: '', evidenceReference: '' };
+}
+
+export function emptyFxCashEffect(): FxCashEffectForm {
+  return { currencyPair: '', amount: '', evidenceReference: '' };
+}
+
 /**
  * The request the staff build screen sends. It refuses anything the server would reject for form reasons, so a plain typo never
  * reaches the worker. The server still decides every accounting rule, including whether a source line belongs to the period.
+ *
+ * A schedule with no rows is sent as null: the request DTO's default for an absent schedule, so the server treats it as not supplied.
+ * Sending an empty array instead would reach the server's typed-accounting guard. A schedule with rows is always an array, so an
+ * entered schedule is never silently dropped.
  */
 export function toBuildRequest(form: BuildForm): { body: unknown } | { error: string } {
   if (!GUID.test(form.mappingVersionId) || !GUID.test(form.adjustmentPlanId)) return { error: 'Choose an approved mapping and a finalized adjustment plan.' };
@@ -89,19 +150,56 @@ export function toBuildRequest(form: BuildForm): { body: unknown } | { error: st
       if (!GUID.test(a.generalLedgerLineId)) return { error: `${at}: a source line is not valid.` };
       if (!AMOUNT.test(a.signedAmount) || Number(a.signedAmount) === 0) return { error: `${at}: a source contribution needs a non-zero amount.` };
     }
+    if (new Set(m.allocations.map((a) => a.generalLedgerLineId.toLowerCase())).size !== m.allocations.length)
+      return { error: `${at}: a source line can contribute to a movement only once.` };
+    if (m.allocations.length && contributionsOverdrawn(m.allocations, m.amount))
+      return { error: `${at}: source contributions exceed the movement amount or run against its sign.` };
   }
   for (const d of form.disclosures) {
     if (!d.code.trim() || d.code.length > 100) return { error: 'Each disclosure needs a code.' };
     if (d.notApplicable ? !d.rationale.trim() : !d.response.trim()) return { error: `Disclosure ${d.code}: give a response, or a rationale when not applicable.` };
+  }
+  if (form.disclosures.length === 0) return { error: 'Add at least one disclosure.' };
+  const equityCodes = new Set<string>();
+  for (const [index, row] of form.equityLines.entries()) {
+    const at = `Equity line ${index + 1}`;
+    const code = row.lineCode.trim().toUpperCase();
+    if (!code || code.length > 100) return { error: `${at}: enter a line code of up to 100 characters.` };
+    if (equityCodes.has(code)) return { error: `${at}: each equity line code can appear only once.` };
+    equityCodes.add(code);
+    if (!row.description.trim() || row.description.trim().length > 2000) return { error: `${at}: enter a description.` };
+    for (const [field, label] of EQUITY_AMOUNT_FIELDS) {
+      if (!AMOUNT.test(row[field])) return { error: `${at}: enter ${label} with at most six decimals.` };
+    }
+    if (!row.evidenceReference.trim() || row.evidenceReference.trim().length > 2000) return { error: `${at}: enter an evidence reference.` };
+  }
+  const noteIdentities = new Set<string>();
+  for (const [index, row] of form.noteLines.entries()) {
+    const at = `Note line ${index + 1}`;
+    const noteCode = row.noteCode.trim().toUpperCase();
+    const face = row.faceDestinationCode.trim().toUpperCase();
+    if (!noteCode || noteCode.length > 100) return { error: `${at}: enter a note code of up to 100 characters.` };
+    if (!face || face.length > 100) return { error: `${at}: enter a face destination code of up to 100 characters.` };
+    const identity = `${noteCode}\u001f${face}`;
+    if (noteIdentities.has(identity)) return { error: `${at}: each note code and face destination pair can appear only once.` };
+    noteIdentities.add(identity);
+    if (!AMOUNT.test(row.amount)) return { error: `${at}: enter an amount with at most six decimals.` };
+    if (!row.evidenceReference.trim() || row.evidenceReference.trim().length > 2000) return { error: `${at}: enter an evidence reference.` };
+  }
+  for (const [index, row] of form.fxCashEffects.entries()) {
+    const at = `FX cash effect ${index + 1}`;
+    if (!row.currencyPair.trim() || row.currencyPair.trim().length > 20) return { error: `${at}: enter a currency pair of up to 20 characters.` };
+    if (!AMOUNT.test(row.amount)) return { error: `${at}: enter an amount with at most six decimals.` };
+    if (!row.evidenceReference.trim() || row.evidenceReference.trim().length > 2000) return { error: `${at}: enter an evidence reference.` };
   }
   return {
     body: {
       adjustmentPlanId: form.adjustmentPlanId, mappingVersionId: form.mappingVersionId, framework: form.framework.trim(),
       periodStart: form.periodStart, periodEnd: form.periodEnd, templateVersion: form.templateVersion.trim(),
       supplementaryInformation: {
-      // Keep accounting values as decimal strings through JSON serialization. Converting to JS
-      // Number here can round values before the API's exact decimal converter sees them.
-      cashBeginning: form.cashBeginning, cashEnding: form.cashEnding,
+        // Keep accounting values as decimal strings through JSON serialization. Converting to JS
+        // Number here can round values before the API's exact decimal converter sees them.
+        cashBeginning: form.cashBeginning, cashEnding: form.cashEnding,
         comparative: comparativeId ? { packageId: comparativeId, basis: form.comparativeBasis.trim(), evidenceReference: form.comparativeEvidence.trim() } : null,
         cashFlowLines: form.movements.map((m) => ({
           section: m.section, description: m.description.trim(), amount: m.amount, isNonCash: m.isNonCash,
@@ -113,12 +211,56 @@ export function toBuildRequest(form: BuildForm): { body: unknown } | { error: st
         })),
         disclosures: form.disclosures.map((d) => ({ code: d.code.trim(), response: d.notApplicable ? '' : d.response.trim(),
           notApplicable: d.notApplicable, rationale: d.notApplicable ? d.rationale.trim() : null })),
-        equityLines: null, noteLines: null, fxCashEffects: null,
+        equityLines: form.equityLines.length ? form.equityLines.map((row) => ({
+          lineCode: row.lineCode.trim(), description: row.description.trim(), openingAmount: row.openingAmount,
+          profitOrLossAmount: row.profitOrLossAmount, ociAmount: row.ociAmount, capitalMovementAmount: row.capitalMovementAmount,
+          dividendsAmount: row.dividendsAmount, closingAmount: row.closingAmount, evidenceReference: row.evidenceReference.trim(),
+        })) : null,
+        noteLines: form.noteLines.length ? form.noteLines.map((row) => ({
+          noteCode: row.noteCode.trim(), faceDestinationCode: row.faceDestinationCode.trim(), amount: row.amount,
+          evidenceReference: row.evidenceReference.trim(),
+        })) : null,
+        fxCashEffects: form.fxCashEffects.length ? form.fxCashEffects.map((row) => ({
+          currencyPair: row.currencyPair.trim(), amount: row.amount, evidenceReference: row.evidenceReference.trim(),
+        })) : null,
         cashAccountCodes: list(form.cashAccountCodes), openingCashEvidenceReferences: list(form.openingEvidence),
         closingCashEvidenceReferences: list(form.closingEvidence),
       },
     },
   };
+}
+
+/**
+ * Schedules this screen has not yet supplied, plus the source-lineage gaps it can see. Guidance only: the server validates every
+ * schedule when the build runs and remains the authority. An empty list is not a reviewability claim.
+ */
+export function scheduleBlockers(form: BuildForm): string[] {
+  const open: string[] = [];
+  if (form.equityLines.length === 0)
+    open.push('Equity rollforward: no rows entered. Each equity line must reconcile opening balance, profit or loss, OCI, capital movements, dividends and closing balance, with evidence.');
+  if (form.noteLines.length === 0)
+    open.push('Numeric note lines: none entered. Each note amount must cross-cast to its statement face destination.');
+  if (form.fxCashEffects.length === 0)
+    open.push('FX cash effect: none entered. The cash bridge must reconcile including FX effects, and this screen cannot yet record an assessed no-FX zero.');
+  if (form.movements.length === 0) open.push('Cash-flow movements: none entered. Add at least one movement.');
+  for (const [index, m] of form.movements.entries()) {
+    const at = `Cash-flow source lineage: movement ${index + 1}`;
+    if (m.allocations.length === 0) {
+      open.push(`${at} is not linked to accepted general-ledger lines, so it stays a draft without lineage.`);
+    } else if (!AMOUNT.test(m.amount) || m.allocations.some((a) => !GUID.test(a.generalLedgerLineId) || !AMOUNT.test(a.signedAmount))) {
+      open.push(`${at} has a link or amount that is not a valid value yet.`);
+    } else if (sumContributions(m.allocations) !== toMicro(m.amount)) {
+      open.push(`${at} has linked lines that do not total the movement amount, so it is not source-resolved.`);
+    }
+  }
+  if (form.disclosures.length === 0)
+    open.push('Disclosures: none entered. Add at least one disclosure response, or a rationale when not applicable.');
+  return open;
+}
+
+/** The submit control must not read as a complete, reviewable build while any schedule is still open. */
+export function queueButtonLabel(openBlockers: readonly string[]): string {
+  return openBlockers.length ? 'Queue draft build with open blockers' : 'Queue package build';
 }
 
 @Component({
@@ -127,7 +269,7 @@ export function toBuildRequest(form: BuildForm): { body: unknown } | { error: st
   template: `
     <nav aria-label="Breadcrumb"><a routerLink="/app">Portfolio</a> / <a [routerLink]="['/app/engagements', id()]">Engagement</a> / <span>Build financial package</span></nav>
     <audit-page-header title="Build financial package" eyebrow="Financial reporting"
-      description="Queue a reviewed build of a financial-statement package. Cash-flow movements can be linked to accepted general-ledger lines. The worker builds the package; review and approval happen afterwards." />
+      description="Queue a draft build of a financial-statement package. Cash-flow movements can be linked to accepted general-ledger lines. The worker builds the draft; it becomes reviewable only after every schedule validates and independent review." />
     <audit-state [loading]="inputs.loading()" [error]="inputs.error()" label="the build inputs" />
     @if (inputs.data(); as data) {
       <form class="panel" aria-label="Financial package build" (submit)="$event.preventDefault(); submit()">
@@ -219,6 +361,52 @@ export function toBuildRequest(form: BuildForm): { body: unknown } | { error: st
           </section>
         }
 
+        <h2>Equity rollforward</h2>
+        <p><small>One row per equity line. Dividends are deducted from the balance. The server requires each row to reconcile: opening, profit or loss, OCI, capital movements and dividends give the closing balance.</small></p>
+        @for (row of form.equityLines; track $index; let i = $index) {
+          <fieldset class="movement">
+            <legend>Equity line {{ i + 1 }}</legend>
+            <label>Equity line code <input [name]="'eqCode' + i" [(ngModel)]="row.lineCode" maxlength="100" /></label>
+            <label>Equity line description <input [name]="'eqDesc' + i" [(ngModel)]="row.description" maxlength="2000" /></label>
+            <label>Equity opening balance <input [name]="'eqOpen' + i" [(ngModel)]="row.openingAmount" inputmode="decimal" /></label>
+            <label>Equity profit or loss <input [name]="'eqPl' + i" [(ngModel)]="row.profitOrLossAmount" inputmode="decimal" /></label>
+            <label>Equity other comprehensive income <input [name]="'eqOci' + i" [(ngModel)]="row.ociAmount" inputmode="decimal" /></label>
+            <label>Equity capital movements <input [name]="'eqCap' + i" [(ngModel)]="row.capitalMovementAmount" inputmode="decimal" /></label>
+            <label>Equity dividends <input [name]="'eqDiv' + i" [(ngModel)]="row.dividendsAmount" inputmode="decimal" /></label>
+            <label>Equity closing balance <input [name]="'eqClose' + i" [(ngModel)]="row.closingAmount" inputmode="decimal" /></label>
+            <label>Equity evidence reference <input [name]="'eqEvidence' + i" [(ngModel)]="row.evidenceReference" maxlength="2000" /></label>
+            <button matButton type="button" (click)="form.equityLines.splice(i, 1)">Remove equity line {{ i + 1 }}</button>
+          </fieldset>
+        }
+        <button matButton="outlined" type="button" (click)="form.equityLines.push(newEquityLine())">Add equity line</button>
+
+        <h2>Numeric note lines</h2>
+        <p><small>Each note amount must cross-cast to the statement face destination it feeds. Enter the face destination code exactly as the approved mapping defines it.</small></p>
+        @for (row of form.noteLines; track $index; let i = $index) {
+          <fieldset class="movement">
+            <legend>Note line {{ i + 1 }}</legend>
+            <label>Note code <input [name]="'nlCode' + i" [(ngModel)]="row.noteCode" maxlength="100" /></label>
+            <label>Face destination code <input [name]="'nlFace' + i" [(ngModel)]="row.faceDestinationCode" maxlength="100" /></label>
+            <label>Note amount <input [name]="'nlAmount' + i" [(ngModel)]="row.amount" inputmode="decimal" /></label>
+            <label>Note evidence reference <input [name]="'nlEvidence' + i" [(ngModel)]="row.evidenceReference" maxlength="2000" /></label>
+            <button matButton type="button" (click)="form.noteLines.splice(i, 1)">Remove note line {{ i + 1 }}</button>
+          </fieldset>
+        }
+        <button matButton="outlined" type="button" (click)="form.noteLines.push(newNoteLine())">Add note line</button>
+
+        <h2>FX cash effects</h2>
+        <p><small>Foreign-exchange effects on cash, each with its evidence. The cash bridge must reconcile including these effects.</small></p>
+        @for (row of form.fxCashEffects; track $index; let i = $index) {
+          <fieldset class="movement">
+            <legend>FX cash effect {{ i + 1 }}</legend>
+            <label>FX currency pair <input [name]="'fxPair' + i" [(ngModel)]="row.currencyPair" maxlength="20" /></label>
+            <label>FX amount <input [name]="'fxAmount' + i" [(ngModel)]="row.amount" inputmode="decimal" /></label>
+            <label>FX evidence reference <input [name]="'fxEvidence' + i" [(ngModel)]="row.evidenceReference" maxlength="2000" /></label>
+            <button matButton type="button" (click)="form.fxCashEffects.splice(i, 1)">Remove FX cash effect {{ i + 1 }}</button>
+          </fieldset>
+        }
+        <button matButton="outlined" type="button" (click)="form.fxCashEffects.push(newFxCashEffect())">Add FX cash effect</button>
+
         <h2>Disclosures</h2>
         @for (d of form.disclosures; track $index; let k = $index) {
           <fieldset class="movement">
@@ -235,15 +423,26 @@ export function toBuildRequest(form: BuildForm): { body: unknown } | { error: st
         }
         <button matButton="outlined" type="button" (click)="form.disclosures.push(newDisclosure())">Add disclosure</button>
 
-        <p class="actions"><button matButton="filled" type="submit" [disabled]="cmd.busy()">{{ cmd.busy() ? 'Queuing…' : 'Queue package build' }}</button></p>
+        @let openBlockers = blockers();
+        <section class="panel" aria-labelledby="schedule-blockers-heading">
+          <h2 id="schedule-blockers-heading">Schedules still needed</h2>
+          @if (openBlockers.length) {
+            <p>Queuing now produces a draft. The schedules below must be supplied before the build can be reviewed. This list is guidance; the server validates every schedule when the build runs.</p>
+            <ul>@for (b of openBlockers; track $index) { <li>{{ b }}</li> }</ul>
+          } @else {
+            <p>This screen lists no open schedules. The server still validates every schedule, and the package stays a draft until it passes review.</p>
+          }
+        </section>
+        <p><small>A queued build is a draft. It is not reviewable until every schedule validates and an independent reviewer records a decision.</small></p>
+        <p class="actions"><button matButton="filled" type="submit" [disabled]="cmd.busy()">{{ cmd.busy() ? 'Queuing…' : labelFor(openBlockers) }}</button></p>
       </form>
       @if (formError()) { <p role="alert">{{ formError() }}</p> }
       @if (queued(); as id) {
         <section class="panel" role="status">
           @if (buildStatus.data(); as state) {
             @if (state.status === 'COMPLETED' && state.packageId) {
-              <h2>Build completed</h2>
-              <p>Operation <code>{{ id }}</code> completed.</p>
+              <h2>Build finished</h2>
+              <p>Operation <code>{{ id }}</code> finished. The package is a draft: open it to see its status. A draft is not reviewable until every schedule validates and an independent reviewer records a decision.</p>
               <a [routerLink]="['/app/accounting/packages', state.packageId]">Open built package</a>
             } @else if (isTerminalBuildState(state.status)) {
               <h2>Build stopped</h2>
@@ -288,6 +487,7 @@ export class FinancialPackageBuild {
   /** The period the source picker reads. A signal, so changing the period reloads the lines. */
   readonly chosenPeriod = signal('');
   readonly isTerminalBuildState = isTerminalBuildStatus;
+  readonly labelFor = queueButtonLabel;
 
   constructor() {
     effect(() => {
@@ -317,6 +517,12 @@ export class FinancialPackageBuild {
 
   newMovement(): MovementForm { return emptyMovement(); }
   newDisclosure(): DisclosureForm { return { code: '', response: '', notApplicable: false, rationale: '' }; }
+  newEquityLine(): EquityLineForm { return emptyEquityLine(); }
+  newNoteLine(): NoteLineForm { return emptyNoteLine(); }
+  newFxCashEffect(): FxCashEffectForm { return emptyFxCashEffect(); }
+
+  /** The open schedules and lineage gaps for the current form. Recomputed on each check, so it follows every edit. */
+  blockers(): string[] { return scheduleBlockers(this.form); }
 
   /** Only plans finalized on the chosen mapping's dataset can build that mapping, so the list follows the mapping. */
   plansFor(data: BuildInputs) {
