@@ -566,7 +566,27 @@ public sealed class FinancialPackageCashFlowAllocation
   public string SourceLineHash { get; set; } = string.Empty;
   public decimal SignedAmount { get; set; }
   public string Currency { get; set; } = string.Empty;
+  /// <summary>The preparer who resolved this contribution. An independent reviewer can never be this user.</summary>
+  public Guid CreatedByUserId { get; set; }
   public DateTimeOffset CreatedAt { get; set; }
+}
+
+/// <summary>
+/// An independent decision on the source-resolved cash-flow movements of one package. Append-only; the newest decision governs,
+/// and an approval is valid only while the accepted general ledger it cites is still the current one.
+/// </summary>
+public sealed class FinancialPackageCashFlowSourceReview
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid FinancialPackageId { get; set; }
+  public string Decision { get; set; } = string.Empty;
+  public string Reason { get; set; } = string.Empty;
+  public Guid SourceImportBatchId { get; set; }
+  public Guid ReviewedByUserId { get; set; }
+  public DateTimeOffset ReviewedAt { get; set; }
 }
 
 /// <summary>Exchange-rate effect on cash for one package; reconciles cash movements

@@ -958,6 +958,137 @@ public sealed class FinancialStatementTests
     }
   }
 
+  [Fact]
+  public async Task StatementPresentation_CashFlowSourceLineageNeedsCurrentIndependentApproval()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    var preparer = Actor(fixture.Preparer, "AccountingPreparer");
+    var reviewer = Actor(fixture.Reviewer, "AccountingReviewer");
+    // The accepted ledger is seeded before the mapping and plan, because a later source change moves the input generation.
+    var source = await CashFlowSourceSeed.SeedAcceptedGeneralLedgerAsync(pg, fixture.FirmId, fixture.ClientId, fixture.EngagementId,
+      fixture.PeriodId, fixture.BookId, fixture.Preparer.Id, reviewer, "presentation");
+
+    Guid mappingId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var created = await FinancialStatementService.CreateMappingVersionAsync(db, preparer,
+        new CreateMappingVersionRequest(
+          fixture.DatasetId, "tax-v1", "2026-01-01", "2026-12-31",
+          [new("1000", "CASH", "ASSETS", 1m, "Cash mapping"),
+           new("4000", "REVENUE", "INCOME", 1m, "Revenue mapping")]));
+      mappingId = created.Value;
+      Assert.True((await FinancialStatementService.ApproveMappingAsync(db, reviewer, mappingId, 1)).Succeeded);
+    }
+
+    Guid planId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var journal = (await AdjustmentJournalService.CreateDraftAsync(db, preparer, fixture.DatasetId,
+        "AJ-001", [("1000", 100m, 0m), ("4000", 0m, 100m)])).Value;
+      Assert.True((await AdjustmentJournalService.PostAsync(db, reviewer, journal)).Succeeded);
+      Assert.True((await SourceReconciliationService.ResolveAsync(db, reviewer, fixture.DatasetId,
+        "AJ-001", 1, ReflectionStates.NotApplicable, string.Empty)).Succeeded);
+      planId = (await AdjustmentPlanService.CreatePlanAsync(db, preparer, fixture.DatasetId,
+        [new PlanLineInput("AJ-001", 1)])).Value;
+      Assert.True((await AdjustmentPlanService.FinalizeAsync(db, preparer, planId)).Succeeded);
+    }
+
+    Guid packageId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var built = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, new BuildFinancialPackageRequest(
+        planId, mappingId, "IFRS", "2026-01-01", "2026-12-31", "template-v1",
+        new FinancialSupplementaryInformation(
+          0m, 100m,
+          [new CashFlowLineInput("OPERATING", "Cash collections", 100m, MovementDate: new DateOnly(2026, 6, 30),
+            ActivityCode: "CASH_COLLECTIONS", SourceReferences: ["bank-ledger-layout-test"], ClassificationRationale: "Synthetic collections agreed to source.")],
+          [new DisclosureInput("NOTE_1", "Summary of significant accounting policies.")],
+          CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-cash-layout-test"], ClosingCashEvidenceReferences: ["closing-cash-layout-test"])));
+      Assert.True(built.Succeeded, built.Message);
+      packageId = built.Value!.PackageId;
+    }
+
+    // Create a second package with source-derived supplementary values so the seal assertion exercises
+    // the permitted path through the package's real cash and equity validation gates.
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var sourceLines = await db.FinancialPackageLines.AsNoTracking()
+        .Where(x => x.FinancialPackageId == packageId).ToListAsync();
+      var signedProfitOrLoss = sourceLines.Where(x => x.StatementSection is "INCOME" or "REVENUE" or "EXPENSE" or "EXPENSES" or "P&L" or "P_AND_L" or "PROFIT_LOSS")
+        .Sum(x => x.Amount);
+      var closingCash = sourceLines.Where(x => x.DestinationCode == "CASH").Sum(x => x.Amount);
+      var completed = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer,
+        new BuildFinancialPackageRequest(planId, mappingId, "IFRS", "2026-01-01", "2026-12-31", "presentation-seal-v2",
+          new FinancialSupplementaryInformation(0m, closingCash,
+            [new CashFlowLineInput("OPERATING", "Cash movement", closingCash, MovementDate: new DateOnly(2026, 6, 30),
+              ActivityCode: "CASH_MOVEMENT", SourceReferences: ["synthetic-cash-movement"], ClassificationRationale: "Synthetic test input derived from the package cash balance.", SourceAllocations: [new CashFlowSourceAllocationInput(source.Receivable, closingCash)])],
+            [new DisclosureInput("NOTE_1", "Synthetic policy disclosure for the test.")],
+            [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, -signedProfitOrLoss, 0m, 0m, 0m,
+              -signedProfitOrLoss, "synthetic-equity-movement")],
+            CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["synthetic-opening-cash"],
+            ClosingCashEvidenceReferences: ["synthetic-closing-cash"],
+            NoteLines: [new NoteLineInput("NOTE_1", "CASH", closingCash, "synthetic-note-source")] )));
+      Assert.True(completed.Succeeded, completed.Message);
+      packageId = completed.Value!.PackageId;
+    }
+
+    static StatementLineDefinition Heading(string code, string label, string section, int order) =>
+      new(code, label, StatementLayoutLineKinds.Heading, section, order);
+    static StatementLineDefinition Mapped(string code, string label, string section, int order, string node, string sign) =>
+      new(code, label, StatementLayoutLineKinds.MappedTaxonomyBalance, section, order, sign, TaxonomyNodeCode: node);
+    static StatementLineDefinition Sum(string code, string label, string section, int order, string sign, params string[] children) =>
+      new(code, label, StatementLayoutLineKinds.SumChildLines, section, order, sign, ChildLineCodes: children, IsSubtotal: true);
+    IReadOnlyList<StatementLineDefinition> Lines() =>
+    [
+      Heading("H_FP", "Assets", StatementLayoutSections.FinancialPosition, 1),
+      Mapped("CASH", "Cash", StatementLayoutSections.FinancialPosition, 2, "CASH", StatementLayoutDisplaySigns.Signed),
+      Sum("TA", "Total assets", StatementLayoutSections.FinancialPosition, 3, StatementLayoutDisplaySigns.Signed, "CASH"),
+      Heading("H_PL", "Revenue", StatementLayoutSections.ProfitOrLoss, 1),
+      Mapped("REV", "Revenue", StatementLayoutSections.ProfitOrLoss, 2, "REVENUE", StatementLayoutDisplaySigns.Inverted),
+    ];
+
+    Guid layoutId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      // Without a published layout the presentation is refused rather than guessed from unpublished work.
+      var before = await FinancialStatementService.BuildPresentationAsync(db, reviewer, packageId);
+      Assert.Equal(ErrorCodes.Accounting.MappingIncomplete, before.ErrorCode);
+
+      var draft = await StatementLayoutService.SaveLayoutDraftAsync(db, preparer,
+        new StatementLayoutDraftRequest(fixture.ClientId, "IFRS", "Presentation test layout", Lines()));
+      Assert.True(draft.Succeeded, draft.Message);
+      layoutId = draft.Value!.LayoutVersionId;
+      Assert.True((await StatementLayoutService.ValidateLayoutAsync(db, preparer, layoutId)).Value!.IsValid);
+
+      // An explicitly named draft is never presented, and a preparer without publishing authority cannot publish it.
+      Assert.Equal(ErrorCodes.Accounting.MappingIncomplete,
+        (await FinancialStatementService.BuildPresentationAsync(db, reviewer, packageId, layoutId)).ErrorCode);
+      Assert.False((await StatementLayoutService.PublishLayoutAsync(db, preparer, layoutId, "Self publish")).Succeeded);
+      Assert.True((await StatementLayoutService.PublishLayoutAsync(db, reviewer, layoutId, "Reviewed for the presentation test")).Succeeded);
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      // Resolved links are not enough: the presentation reads them as source-approved only after an independent approval.
+      Assert.True((await FinancialStatementService.RecordCashFlowSourceReviewAsync(db, reviewer, packageId, "APPROVED", null)).Succeeded);
+      var presented = await FinancialStatementService.BuildPresentationAsync(db, reviewer, packageId);
+      Assert.True(presented.Succeeded, presented.Message);
+      Assert.Contains(presented.Value!.Checks, x => x.Code == "CASH_FLOW_SOURCE_LINEAGE" && x.Passed);
+    }
+
+    // Replacing the accepted ledger stales that approval, so the presentation stops reading the links as approved.
+    await CashFlowSourceSeed.SeedAcceptedGeneralLedgerAsync(pg, fixture.FirmId, fixture.ClientId, fixture.EngagementId,
+      fixture.PeriodId, fixture.BookId, fixture.Preparer.Id, reviewer, "presentation-replacement");
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var presented = await FinancialStatementService.BuildPresentationAsync(db, reviewer, packageId);
+      Assert.True(presented.Succeeded, presented.Message);
+      Assert.Contains(presented.Value!.Checks, x => x.Code == "CASH_FLOW_SOURCE_LINEAGE" && !x.Passed);
+      Assert.Contains(presented.Value.Warnings, x => x.Code == "CASH_FLOW_LINEAGE_PENDING");
+    }
+  }
+
   private static async Task<Fixture> SeedAsync(PgTestSchema pg)
   {
     var firmId = Guid.NewGuid();

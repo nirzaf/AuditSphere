@@ -80,4 +80,22 @@ public sealed class FinancialStatementSourceManifestTests
     Assert.Equal(before, FinancialStatementService.ComputePresentationSourceManifestHash(
       packages.Reverse().ToArray(), cash.Reverse().ToArray(), [], [], allocations, "notes"));
   }
+
+  [Fact]
+  public void IndependentCashFlowReview_EntersTheManifestOnlyWhenPresent()
+  {
+    var package = new FinancialPackage { Id = Guid.NewGuid() };
+    var cash = new[] { new FinancialPackageCashFlowLine { Id = Guid.NewGuid(), FinancialPackageId = package.Id } };
+    var baseHash = FinancialStatementService.ComputePresentationSourceManifestHash([package], cash, [], [], [], "notes");
+    // No review: the identity is exactly the one it had before reviews were sealed.
+    Assert.Equal(baseHash, FinancialStatementService.ComputePresentationSourceManifestHash([package], cash, [], [], [], "notes", []));
+    var approval = new FinancialPackageCashFlowSourceReview { Id = Guid.NewGuid(), FinancialPackageId = package.Id, Decision = "APPROVED",
+      SourceImportBatchId = Guid.NewGuid(), ReviewedByUserId = Guid.NewGuid(), ReviewedAt = DateTimeOffset.UtcNow };
+    var approved = FinancialStatementService.ComputePresentationSourceManifestHash([package], cash, [], [], [], "notes", [approval]);
+    Assert.NotEqual(baseHash, approved);
+    var returned = new FinancialPackageCashFlowSourceReview { Id = approval.Id, FinancialPackageId = package.Id, Decision = "RETURNED",
+      Reason = "Re-check the support.", SourceImportBatchId = approval.SourceImportBatchId, ReviewedByUserId = approval.ReviewedByUserId,
+      ReviewedAt = approval.ReviewedAt };
+    Assert.NotEqual(approved, FinancialStatementService.ComputePresentationSourceManifestHash([package], cash, [], [], [], "notes", [returned]));
+  }
 }

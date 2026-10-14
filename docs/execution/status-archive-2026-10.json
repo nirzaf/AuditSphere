@@ -2,7 +2,7 @@
   "schemaVersion": "1",
   "archiveOf": "docs/execution/status.json",
   "archivedOn": "2026-10-12",
-  "note": "Keys moved verbatim from status.json. Values are unchanged; only the JSON layout is normalised. No script reads these keys; query them with jq when needed. On 2026-10-12, the closed workflowChangesRequiredQueue evidence was moved verbatim from status.json to keep the live ledger below its 100 KB limit. On 2026-10-12, the closed workflowExperienceV22 evidence (seven-phase projection and Dual-Key readiness, commit f7753f72) was moved verbatim from status.json for the same reason. On 2026-10-12, the closed steV22OwnerDecisions evidence (ADR-0017, commit 53a8f9af) was moved verbatim from status.json for the same reason; three of its four open items were closed by the later qatarSundayWeekStart record. On 2026-10-12, the closed qatarSundayWeekStart evidence (commit 733ab239) was moved verbatim from status.json for the same reason. On 2026-10-12, the closed practiceManagementBaselineSlice evidence (commit fa89e248) was moved verbatim from status.json for the same reason. On 2026-10-14, the closed practiceManagementWorkflowViewsSlice evidence (commit 75f8f945) was moved verbatim from status.json for the same reason. On 2026-10-14, the closed practiceManagementReportingSlice evidence (commit 7ee45fc6) was moved verbatim from status.json for the same reason.",
+  "note": "Keys moved verbatim from status.json. Values are unchanged; only the JSON layout is normalised. No script reads these keys; query them with jq when needed. On 2026-10-12, the closed workflowChangesRequiredQueue evidence was moved verbatim from status.json to keep the live ledger below its 100 KB limit. On 2026-10-12, the closed workflowExperienceV22 evidence (seven-phase projection and Dual-Key readiness, commit f7753f72) was moved verbatim from status.json for the same reason. On 2026-10-12, the closed steV22OwnerDecisions evidence (ADR-0017, commit 53a8f9af) was moved verbatim from status.json for the same reason; three of its four open items were closed by the later qatarSundayWeekStart record. On 2026-10-12, the closed qatarSundayWeekStart evidence (commit 733ab239) was moved verbatim from status.json for the same reason. On 2026-10-12, the closed practiceManagementBaselineSlice evidence (commit fa89e248) was moved verbatim from status.json for the same reason. On 2026-10-14, the closed practiceManagementWorkflowViewsSlice evidence (commit 75f8f945) was moved verbatim from status.json for the same reason. On 2026-10-14, the closed practiceManagementReportingSlice evidence (commit 7ee45fc6) was moved verbatim from status.json for the same reason. On 2026-10-14, the superseded cp11CashFlowSourceAllocations evidence (commit 0b8f7b2d) was moved verbatim from status.json for the same reason.",
   "keys": {
     "verification": {
       "firmExpenseCreationRecovery": {
@@ -13859,6 +13859,56 @@
       "practiceManagementReportingSlice": {
         "archivedEvidence": "docs/execution/status-archive-2026-10.json",
         "jsonPath": "keys.targetedVerification.practiceManagementReportingSlice"
+      },
+      "cp11CashFlowSourceAllocations": {
+        "recordedAtUtc": "2026-10-14T12:50:09Z",
+        "baseCommit": "9c44bdcb",
+        "sourceTree": "Working tree on branch cp11-cash-source-allocations at 9c44bdcb; the commit carrying this record is the source revision.",
+        "database": "auditsphere_tests on 127.0.0.1:5433",
+        "scope": "Reporting CP-11 remainder, first slice: cash-flow movements can be fully allocated to accepted general-ledger lines (migration CashFlowSourceAllocations, append-only trigger). The build refuses over-allocated, sign-reversed, repeated or foreign lines. Lineage is read from persisted contributions, never preparer text. No API or Angular change.",
+        "runs": [
+          {
+            "name": "Focused Domain PostgreSQL tests, this tree",
+            "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --configuration Release --filter 'FinancialPackage|FinancialStatement|CashFlow|FinancialSchedule|CompletionBundle|AuthorizationDecisionTests'",
+            "total": 100,
+            "passed": 95,
+            "failed": 5,
+            "result": "FAIL_PRE_EXISTING",
+            "note": "Four ClientAccounting package-review tests and CashFlowContractTests.FxCashEffect_ReconcilesSeparatelyAndPersistsEvidence fail identically on base 9c44bdcb in a clean detached worktree. The new SourceLinkedMovements and CashFlowSourceLineage tests pass."
+          },
+          {
+            "name": "Solution Release build",
+            "command": "dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1",
+            "result": "PASS (0 errors, 0 warnings)"
+          },
+          {
+            "name": "EF model drift",
+            "command": "dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Api --no-build --configuration Release",
+            "result": "PASS: no pending model changes"
+          },
+          {
+            "name": "OpenAPI drift",
+            "command": "bash scripts/contracts/verify-openapi.sh",
+            "result": "PASS: contract is current (no HTTP contract change)"
+          },
+          {
+            "name": "Documentation gates",
+            "command": "validate-markdown-documentation.py, validate-markdown-filenames.py, validate-narrative-metrics.py, scripts/ui/inventory.py --check, build-task-board.py --check",
+            "result": "PASS"
+          }
+        ],
+        "notRun": [
+          "The full Domain, API and E2E suites, left to CI at the owner's instruction.",
+          "Angular suite and build: no Angular file changed.",
+          "The migration against the development or production database; the template-based test schema applied it."
+        ],
+        "openItems": [
+          "No endpoint or screen accepts the supplementary cash-flow input, so CP-11.AC-06 is not met.",
+          "No independent review of cash-flow allocations exists yet.",
+          "CASH_FLOW_SOURCE_LINEAGE is not a required blocking code, so unlinked packages validate as before.",
+          "The presentation source-manifest hash does not include contributions yet.",
+          "CP-12 is not started: indirect decomposition, payment roles and reviewed assessed-zero FX remain."
+        ]
       }
     },
     "localEvidence": [

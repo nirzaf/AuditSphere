@@ -357,7 +357,7 @@ public static partial class FinancialStatementService
           CashFlowLineId = movements[link.MovementIndex].Id, GeneralLedgerLineId = link.GeneralLedgerLineId,
           GeneralLedgerTransactionId = link.GeneralLedgerTransactionId, SourceImportBatchId = link.SourceImportBatchId,
           SourceLineHash = link.SourceLineHash, SignedAmount = link.SignedAmount, Currency = link.Currency,
-          CreatedAt = package.CreatedAt
+          CreatedByUserId = actor.UserId, CreatedAt = package.CreatedAt
         });
       // Lineage is recorded only when the request supplies any source link, so unlinked drafts keep their existing validations.
       if (request.SupplementaryInformation.CashFlowLines.Any(x => x.SourceAllocations is { Count: > 0 }))

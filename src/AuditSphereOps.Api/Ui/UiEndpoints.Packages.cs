@@ -13,6 +13,7 @@ public static partial class UiEndpoints
 {
   public sealed record PackageReviewInput(string Stage, string Decision, string EvidenceMode, string EvidenceReference, string? Comment);
   public sealed record PackageArtifactInput(string ArtifactVersion);
+  public sealed record CashFlowSourceReviewInput(string Decision, string? Reason);
   public sealed record StatementPresentationExportInput(string? Format, Guid? LayoutVersionId);
   public sealed record StatementPresentationPinInput(Guid LayoutVersionId);
   public sealed record StatementPresentationPinnedArtifactInput(string? Format);
@@ -24,6 +25,10 @@ public static partial class UiEndpoints
     group.MapPost("/accounting/packages/{id:guid}/reviews", (Guid id, PackageReviewInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => FinancialPackageReviewService.RecordAsync(db, actor,
         new FinancialPackageReviewRequest(id, i.Stage, i.Decision, i.EvidenceMode, i.EvidenceReference ?? "", i.Comment ?? ""), ct)));
+    group.MapGet("/accounting/packages/{id:guid}/cash-flow-source-review", (Guid id, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => FinancialStatementService.GetCashFlowSourceReviewAsync(db, actor, id, ct)));
+    group.MapPost("/accounting/packages/{id:guid}/cash-flow-source-review", (Guid id, CashFlowSourceReviewInput i, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => FinancialStatementService.RecordCashFlowSourceReviewAsync(db, actor, id, i.Decision, i.Reason, ct)));
     // Artifact downloads are version-bound; downloading never releases or delivers the package.
     group.MapPost("/accounting/packages/{id:guid}/artifact", async (Guid id, PackageArtifactInput i, HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf,
       IDbContextFactory<AuditSphereDbContext> factory) =>

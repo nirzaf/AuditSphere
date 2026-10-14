@@ -89,6 +89,10 @@ public static partial class FinancialStatementService
       return CommandResult<IReadOnlyList<ResolvedCashFlowSourceLink>>.Fail(ErrorCodes.GateBlocked,
         "A cash-flow source line is not in the accepted general ledger for this period, client and engagement.");
     var byId = sources.ToDictionary(x => x.Id);
+    // A line on one of the package's own cash accounts is a cash transfer, not a cash-flow movement, so it can never be a source.
+    if (requested.Any(x => package.CashAccountCodes.Contains(byId[x.GeneralLedgerLineId].AccountCode, StringComparer.Ordinal)))
+      return CommandResult<IReadOnlyList<ResolvedCashFlowSourceLink>>.Fail(ErrorCodes.Accounting.PackageInvalid,
+        "A cash-account line is a cash transfer, not a cash-flow movement. Link the movement to its non-cash counterpart line.");
 
     // Across the whole package a source line may feed several movements, but its contributions must keep its sign and total no
     // more than its own amount. Exceeding that is over-allocation, which refuses the build.

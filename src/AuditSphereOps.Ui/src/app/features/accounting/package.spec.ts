@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodePackage } from './package';
+import { decodeCashFlowSourceReview, decodePackage } from './package';
 import { decodeReviewQueue } from './reviews';
 
 const id1 = '11111111-1111-4111-8111-111111111111';
@@ -96,5 +96,24 @@ describe('Financial Package and Review Queue Contracts', () => {
     expect(() => decodePackage(null, 'package')).toThrow();
     expect(() => decodePackage({}, 'package')).toThrow();
     expect(() => decodePackage({ id: 'bad-guid' }, 'package')).toThrow();
+  });
+});
+
+describe('Cash-flow source review contract (CP-11)', () => {
+  const review = {
+    financialPackageId: id1, movements: 2, resolvedMovements: 2, sourceLinks: 2, currentSourceImportBatchId: id2, approved: true,
+    reviews: [{ id: id1, decision: 'APPROVED', reason: '', reviewedByUserId: id2, reviewedAt: '2026-10-14T10:00:00Z', sourceImportBatchId: id2 }],
+  };
+
+  it('decodes the approval state and its decision history', () => {
+    const decoded = decodeCashFlowSourceReview(review, 'review');
+    expect(decoded.approved).toBe(true);
+    expect(decoded.resolvedMovements).toBe(decoded.movements);
+    expect(decoded.reviews[0].decision).toBe('APPROVED');
+  });
+
+  it('refuses an unknown decision and a malformed reviewer identity', () => {
+    expect(() => decodeCashFlowSourceReview({ ...review, reviews: [{ ...review.reviews[0], decision: 'PENDING' }] }, 'review')).toThrow();
+    expect(() => decodeCashFlowSourceReview({ ...review, reviews: [{ ...review.reviews[0], reviewedByUserId: 'me' }] }, 'review')).toThrow();
   });
 });

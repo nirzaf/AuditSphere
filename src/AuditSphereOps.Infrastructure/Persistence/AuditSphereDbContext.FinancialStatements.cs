@@ -398,6 +398,16 @@ public sealed partial class AuditSphereDbContext
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
+    var cashReview = b.Entity<FinancialPackageCashFlowSourceReview>();
+    cashReview.Property(x => x.Decision).HasMaxLength(20);
+    cashReview.Property(x => x.Reason).HasMaxLength(2000);
+    cashReview.ToTable("financial_package_cash_flow_source_reviews", t => t.HasCheckConstraint("ck_financial_package_cash_source_review_values",
+      "decision IN ('APPROVED','RETURNED') AND (decision = 'APPROVED' OR length(trim(reason)) > 0)"));
+    cashReview.HasIndex(x => new { x.FirmId, x.FinancialPackageId, x.ReviewedAt });
+    cashReview.HasOne<FinancialPackage>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
     var packageSeal = b.Entity<FinancialPackageSeal>();
     packageSeal.Property(x => x.PackageHash).HasMaxLength(64).IsFixedLength();
     packageSeal.Property(x => x.ContentManifestDigest).HasMaxLength(64).IsFixedLength();
