@@ -16036,6 +16036,59 @@
           }
         ],
         "externalAcceptance": "NOT_VERIFIED: professional approval, signed-in package workflow, live tenant/provider acceptance, production migration and release remain open."
+      },
+      "trialBalanceReportSignedEquity": {
+        "baseCommit": "316a04c914272b9e6cfbc81813c8e41f13830bc8",
+        "recordedAtUtc": "2026-10-14T10:45:51.762861+00:00",
+        "workingTreeChangesIncluded": true,
+        "attachmentSha256": "cd02e762cc3b6786d0ff6b59abfd2ab3e7c3634ece57954a157021ac4f9bed77",
+        "reportDeltaSha256": "9b352012ab126fa8f8454258c3fcb9dd3a01ac121bab9a250020889f82600e9e",
+        "scope": "AS-FR-CLOSE-001 intake; WP-05 signed current/comparative equity cross-cast correction within existing canonical convention",
+        "checks": "PASS 36/36 focused Domain cohort: presentation incl four sign cases plus ten pending AUD-04/isolation/planning/freeze regressions; Release build passed with NU1900 warnings",
+        "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --no-restore --configuration Release --maxcpucount:1 --filter 'FullyQualifiedName~FinancialStatementPresentationTests|FullyQualifiedName~AuditProcedureSubmissionConcurrencyTests|FullyQualifiedName~AuditProgramWorkflowTests|FullyQualifiedName~AuditProgramCommandIsolationTests|FullyQualifiedName~PlanningGateTests|FullyQualifiedName~FileFreezesSixtyDaysAfterSigning'",
+        "artifact": "/private/tmp/auditsphere-report-signs-tests/_Mac_2026-10-14_13_41_58_net10.0.trx",
+        "limits": "No full suite/browser/ABC final-report journey or professional acceptance. Pending AUD-04 changes retained separately. T003 remains blocked; draft/source-lineage flags retained.",
+        "migration": "No schema change, persistent migration or live provider change",
+        "review": "docs/execution/auditsphere-execution-tracker-trial-balance-report-current.md",
+        "hostChecks": "PASS API/emitter Release builds, OpenAPI drift and EF no pending model changes; docs gates and source inventory"
+      },
+      "reportingScheduleSourceManifest": {
+        "baseCommit": "362563817087be003dcdd60fe5aea7235e217da9",
+        "recordedDate": "2026-10-14",
+        "status": "PARTIAL",
+        "filesSha256": {
+          "src/AuditSphereOps.Application/Accounting/FinancialStatementPresentation.cs": "b82f2f8862d38b45f124f8084d4f2ca93f8e413e2c11eb304cff638ae683f335",
+          "src/AuditSphereOps.Application/Accounting/FinancialStatements/FinancialStatementService.Presentation.cs": "bb383a7491a27e1f4c6a92aa45996d26c71a0aa46d79f771a6dba406262a54a3",
+          "src/AuditSphereOps.Application/Accounting/FinancialStatements/FinancialStatementService.PresentationPins.cs": "420a4c969ca5945f5bb55a7bad7e1b1b35e253b76e92cfda5b00fa4f158b1660",
+          "tests/AuditSphereOps.Domain.Tests/FinancialStatementSourceManifestTests.cs": "7d9b32291bf4905829f7b2cea0493e94ded2a2f18a76bf3cf037718a0f669154"
+        },
+        "build": "Release Domain test project passed; NU1900 vulnerability-feed warnings",
+        "focusedTests": {
+          "passed": 43,
+          "failed": 0,
+          "skipped": 0,
+          "filter": "FinancialStatementSourceManifestTests | FinancialStatementPresentationTests | StatementPresentation_RequiresAPublishedLayout_AndIsScopedAndRepeatable",
+          "trx": "/private/tmp/auditsphere-schedule-manifest-final-tests/_Mac_2026-10-14_13_56_57_net10.0.trx"
+        },
+        "checks": [
+          "documentation health",
+          "Markdown filenames",
+          "narrative metrics",
+          "archive value/content preservation",
+          "git diff --check"
+        ],
+        "omitted": [
+          "full regression suites",
+          "browser validation: no UI change",
+          "live deployment",
+          "accepted-source resolver and allocation review"
+        ],
+        "compatibility": "Existing stored artifacts preserved; legacy v1 draft pins require explicit repinning for strengthened source-current check. Legacy NoteSourceManifestHash field now carries source manifest v2.",
+        "previousCi": {
+          "runId": 38552025649,
+          "result": "FAIL: NuGet Pkcs 8.0.1 security advisories during restore; not a test result"
+        },
+        "separatePendingWork": "AUD04 uncommitted concurrency files excluded"
       }
     }
   }

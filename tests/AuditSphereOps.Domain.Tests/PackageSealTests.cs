@@ -95,6 +95,35 @@ public sealed class PackageSealTests
     }
   }
 
+  [Fact]
+  public async Task MissingMandatoryValidation_BlocksSealStatusSealAndManagementDecision()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg, "ACCOUNTING_EQUATION");
+    var preparer = Actor(fixture.Preparer, "AccountingPreparer");
+    await using var db = new AuditSphereDbContext(pg.Options);
+    AddArtifact(db, fixture, FinancialPackageArtifactVersions.Workbook, "xlsx");
+    AddArtifact(db, fixture, FinancialPackageArtifactVersions.Word, "docx");
+    AddArtifact(db, fixture, FinancialPackageArtifactVersions.Pdf, "pdf");
+    await db.SaveChangesAsync();
+    Assert.False(await db.FinancialPackageValidations.AnyAsync(x => x.FinancialPackageId == fixture.PackageId && !x.Passed));
+    var status = await PackageSealService.GetSealStatusAsync(db, preparer, fixture.PackageId);
+    Assert.True(status.Succeeded, status.Message);
+    Assert.Empty(status.Value!.MissingRequiredFormats);
+    Assert.False(status.Value.CanSeal);
+    var seal = await PackageSealService.SealPackageAsync(db, preparer, fixture.PackageId);
+    Assert.Equal(ErrorCodes.GateBlocked, seal.ErrorCode);
+    Assert.Contains("ACCOUNTING_EQUATION", seal.Message!);
+    var review = await FinancialPackageReviewService.RecordAsync(db, preparer,
+      new FinancialPackageReviewRequest(fixture.PackageId, FinancialPackageReviewStages.ManagementApproval,
+        FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.Offline,
+        "synthetic-management-evidence", "Attempt with missing mandatory result"));
+    Assert.Equal(ErrorCodes.GateBlocked, review.ErrorCode);
+    Assert.Contains("ACCOUNTING_EQUATION", review.Message!);
+    Assert.False(await db.FinancialPackageSeals.AnyAsync());
+    Assert.False(await db.FinancialPackageReviewDecisions.AnyAsync());
+  }
+
   private static void AddArtifact(AuditSphereDbContext db, Fixture fixture, string version, string suffix)
   {
     var bytes = System.Text.Encoding.UTF8.GetBytes($"package-artifact|{version}|{suffix}|{fixture.PackageHash}");
@@ -116,7 +145,7 @@ public sealed class PackageSealTests
     AuditSphereOps.Domain.Security.AppUser user, string role) =>
     new(user.Id, user.FirmId, user.SessionEpoch, [role]);
 
-  private static async Task<Fixture> SeedAsync(PgTestSchema pg)
+  private static async Task<Fixture> SeedAsync(PgTestSchema pg, string? omittedValidation = null)
   {
     var firmId = Guid.NewGuid();
     var clientId = Guid.NewGuid();
@@ -189,11 +218,12 @@ public sealed class PackageSealTests
       CalculationHash = packageHash, Currency = "QAR", Revision = 1, Generation = 1,
       Status = AccountingPackageStates.PackageValidated, CreatedAt = now
     });
-    db.FinancialPackageValidations.Add(new FinancialPackageValidation
-    {
-      Id = Guid.CreateVersion7(), FirmId = firmId, FinancialPackageId = packageId,
-      Code = "ACCOUNTING_EQUATION", Passed = true, Detail = "Seal fixture.", CreatedAt = DateTimeOffset.UtcNow
-    });
+    foreach (var code in FinancialPackageValidationReadiness.RequiredCodes.Where(x => x != omittedValidation))
+      db.FinancialPackageValidations.Add(new FinancialPackageValidation
+      {
+        Id = Guid.CreateVersion7(), FirmId = firmId, FinancialPackageId = packageId,
+        Code = code, Passed = true, Detail = "Synthetic seal test only; not professional acceptance.", CreatedAt = now
+      });
     var textBytes = System.Text.Encoding.UTF8.GetBytes($"package-artifact|{FinancialPackageArtifactVersions.Text}|{packageHash}");
     db.FinancialPackageArtifacts.Add(new FinancialPackageArtifact
     {

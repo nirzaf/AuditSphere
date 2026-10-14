@@ -6926,3 +6926,11 @@ account names, secrets or certificate material in repository docs.
 Legal/FSLI implementation and current-tree STE journeys passed local verification. See the [STE verification tracker](auditsphere-execution-tracker-ste-v21-gap-verification-current.md) and `status.json`. T003 professional sign-off, T014 dependencies and live Microsoft/provider acceptance remain open.
 
 The earlier 2026-10-10 M365 portal setup trace is preserved in the [historical current-slice archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md); the later exact-site verification below supersedes its setup status.
+
+## AS-PAR-009 commercial pricing, revocation and delivery receipts — 2026-10-10
+
+Committed at `cee546f9`. Pricing policy maker/checker, append-only approval revocation, quotation validity, signatory-bound acceptance and durable mail receipt states are implemented with migration `20261010185946_CommercialPricingPolicyAndDeliveryReceipts`. Observed: Release build, EF drift check, OpenAPI check, the targeted commercial Domain subset and the Angular build and specs passed. The full Domain, API and E2E suites were not run on this tree. Exact counts and open items are in `status.json` under AS-PAR-009.
+
+## STE-NXT-014 end-of-service provision accrual and report certificate signature evidence — 2026-10-10
+
+Working-tree slice on `cee546f9`. The ADR-0010 recording mechanism is implemented: a recorded and Partner-confirmed accounting treatment, manual accrual journals with an entered basis through the journal maker and checker, and a posting gate in Application and in the database. Report certificate signature evidence is added with migration `20261010203413_ReportCertificateSignatureEvidence`, PEM signing credential source, deliverable signature verification endpoint and Angular verification. Observed: Release build, EF drift check, OpenAPI regeneration and Angular build passed. Per user instruction, automated tests were not run locally. No treatment has been confirmed, so end-of-service posting stays blocked. Details are in `status.json` under STE-NXT-014.

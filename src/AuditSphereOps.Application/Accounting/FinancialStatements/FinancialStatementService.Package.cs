@@ -362,8 +362,8 @@ public static partial class FinancialStatementService
 
     // Fail closed: a package whose blocking validations failed must never carry the
     // VALIDATED state, so review, management view and release all refuse it.
-    var blockingValidationFailed = db.FinancialPackageValidations.Local
-      .Any(v => !v.Passed && FinancialPackageReviewService.BlockingValidationCodes.Contains(v.Code));
+    var blockingValidationFailed = !FinancialPackageValidationReadiness.Evaluate(
+      package.FirmId, package.Id, db.FinancialPackageValidations.Local).Ready;
     if (blockingValidationFailed && package.Status == AccountingPackageStates.PackageValidated)
       package.Status = AccountingPackageStates.PackageReviewRequired;
 

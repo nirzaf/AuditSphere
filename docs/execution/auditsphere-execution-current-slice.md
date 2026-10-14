@@ -15,6 +15,14 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Consolidated practice/reporting intake and mandatory-rule readiness — 2026-10-14
+
+The supplied completion story extends the reporting handoff using consolidation aliases over the existing board; it does not approve methodology or create another lifecycle. Its inherited reporting criteria were compared with the preceding source without changes. Current HEAD already contains the Qatar working-week analytics fixture and audit-submission fence corrections; neither was overwritten.
+
+The existing canonical package rule population now has one shared completeness evaluator. Build, review, management presentation, staff queue, current-release checks and seal status/action refuse absent, failed or ambiguous mandatory results. Scope is exact and review diagnostics follow authorization. Draft rendering and stored historical evidence remain available. Focused tests include all mandatory omissions/failures and a complete-format package with no failed row but a missing result; CI includes these tests.
+
+CP-17 remains partial: a versioned final profile, actual cash/equity source resolution, reviewed disclosures, exact formatted composition decisions and the full browser journey remain pending. No professional or external gate was approved and no persistent database or deployment changed. Exact candidate fingerprints, checks and omissions are in `status.json`.
+
 ## Supplementary schedule provenance in pinned reporting — 2026-10-14
 
 The presentation source manifest now binds the persisted current/comparative cash-flow, FX and equity rows, signed amounts, scope/currency/date/classification fields, cash populations and opening/closing evidence. Pin creation, read and freshness checks use the same versioned computation; the legacy contract field name remains unchanged. Old pins need explicit repinning to satisfy the strengthened freshness check; stored historical artifacts remain available.
@@ -379,11 +387,3 @@ Working-tree slice on `78979390`, from the NAQAHA implementation stories (FSR-00
 ## ADR-0016 certificate signing of the final report — 2026-10-10
 
 Working-tree slice on `cee546f9`. On the owner's instruction the final report PDF is certificate-signed when the firm's certificate is configured (`ReportSigning:*`), the bundle's certified statements are signed with it, and `ReportSigning:Required` fails closed. With no certificate the image-only behaviour is unchanged and labelled. Observed for this slice: Release build, EF drift check, OpenAPI check, the Domain test classes `ReportCertificateSigningTests` and `AuditDeliverablesTests`, and the `completion.spec.ts` screen specs passed, using a throwaway self-signed certificate. The full suites were not run. The firm's real certificate, its legal acceptance and the Wiki deployment note remain open; details are in `status.json` under ADR-0016.
-
-## STE-NXT-014 end-of-service provision accrual and report certificate signature evidence — 2026-10-10
-
-Working-tree slice on `cee546f9`. The ADR-0010 recording mechanism is implemented: a recorded and Partner-confirmed accounting treatment, manual accrual journals with an entered basis through the journal maker and checker, and a posting gate in Application and in the database. Report certificate signature evidence is added with migration `20261010203413_ReportCertificateSignatureEvidence`, PEM signing credential source, deliverable signature verification endpoint and Angular verification. Observed: Release build, EF drift check, OpenAPI regeneration and Angular build passed. Per user instruction, automated tests were not run locally. No treatment has been confirmed, so end-of-service posting stays blocked. Details are in `status.json` under STE-NXT-014.
-
-## AS-PAR-009 commercial pricing, revocation and delivery receipts — 2026-10-10
-
-Committed at `cee546f9`. Pricing policy maker/checker, append-only approval revocation, quotation validity, signatory-bound acceptance and durable mail receipt states are implemented with migration `20261010185946_CommercialPricingPolicyAndDeliveryReceipts`. Observed: Release build, EF drift check, OpenAPI check, the targeted commercial Domain subset and the Angular build and specs passed. The full Domain, API and E2E suites were not run on this tree. Exact counts and open items are in `status.json` under AS-PAR-009.

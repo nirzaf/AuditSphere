@@ -46,3 +46,15 @@ The existing presentation-source manifest now includes persisted cash-flow, FX a
 The existing `NoteSourceManifestHash` contract/storage field retains its name for compatibility but now carries `auditsphere.statement-source-manifest.v2`. Previously pinned drafts require an explicit new pin to meet this stronger source-current check; their stored artifacts remain historical evidence. No approved package or stored artifact is rewritten.
 
 This closes a supplementary identity omission only. It does not resolve a text reference to an immutable accepted source, validate allocations, establish independent review or make `CASH_FLOW_SOURCE_LINEAGE`/`EQUITY_SOURCE_LINEAGE` pass. WP-03 remains partial. Actual checks and omissions are recorded in `status.json`.
+
+## Consolidated practice/reporting handoff
+
+The supplied `AS-PRACTICE-FR-COMPLETE-001` expands the execution scope through CP-00–CP-25 and preserves the earlier reporting criteria. These are consolidation aliases over the existing task board, not replacement authority. Source fingerprint and the labelled-criterion inventory are recorded in `status.json`. The document is proposed; its business fixtures and methodology are not silently professionally approved by implementation.
+
+The immediate CP-00 baseline inspection found the analytics Qatar-week fixture correction and audit procedure submission fence already committed after the supplied baseline. Preserve them and assess current evidence rather than repeating either change.
+
+### CP-17 / WP-07: mandatory canonical validation population
+
+`FinancialPackageValidationReadiness` now evaluates the existing canonical package rule population consistently. Each mandatory code needs exactly one passing result in the exact firm/package scope. Missing, failed and ambiguous results refuse readiness. Build demotion, review, client management view, staff queue, current-release review checks and seal status/action consume it. Authorization precedes review diagnostics. Draft rendering and historical artifacts are unchanged.
+
+This is a partial CP-17 increment, not complete final-accounting readiness: versioned reporting profiles, resolved source-lineage and reviewed notes, exact composition decisions, transaction-time authority rechecks and the integrated browser journey remain open. No mandatory criterion is marked complete merely because the canonical-rule guard passes. Existing source-lineage/note warnings remain in place.

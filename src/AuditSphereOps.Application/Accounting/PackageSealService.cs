@@ -76,10 +76,11 @@ public static class PackageSealService
     var present = artifacts.Select(x => x.ArtifactVersion).ToList();
     var missing = RequiredFormats.Where(required => !present.Contains(required, StringComparer.Ordinal)).ToList();
 
+    var readiness = await FinancialPackageValidationReadiness.GetAsync(db, package.FirmId, package.Id, ct);
     return CommandResult<PackageSealStatusView>.Ok(new PackageSealStatusView(
       package.Id, package.Revision, package.Generation,
       seal is not null, seal?.Id, seal?.ContentManifestDigest, seal?.ArtifactManifestDigest,
-      present, missing, CanSeal: missing.Count == 0));
+      present, missing, CanSeal: missing.Count == 0 && readiness.Ready));
   }
 
   /// <summary>Atomically seals the current package revision. Every required format must
@@ -111,13 +112,9 @@ public static class PackageSealService
     if (manifest.Any(x => x.ByteLength == 0))
       return CommandResult<PackageSealValue>.Fail(ErrorCodes.GateBlocked,
         "An artifact with no persisted bytes cannot be sealed.");
-    var failedBlocking = await db.FinancialPackageValidations.AsNoTracking()
-      .Where(x => x.FinancialPackageId == package.Id && !x.Passed &&
-        FinancialPackageReviewService.BlockingValidationCodes.Contains(x.Code))
-      .Select(x => x.Code).ToListAsync(ct);
-    if (failedBlocking.Count > 0)
-      return CommandResult<PackageSealValue>.Fail(ErrorCodes.GateBlocked,
-        $"The package has failed blocking validations: {string.Join(", ", failedBlocking.OrderBy(x => x, StringComparer.Ordinal))}.");
+    var readiness = await FinancialPackageValidationReadiness.GetAsync(db, package.FirmId, package.Id, ct);
+    if (!readiness.Ready)
+      return CommandResult<PackageSealValue>.Fail(ErrorCodes.GateBlocked, readiness.Message);
 
     // The artifact digest covers ordered identities and their byte hashes only, so it is a
     // function of the persisted bytes rather than of this record.
