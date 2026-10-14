@@ -21,6 +21,27 @@
         <dt>Revision superseded</dt><dd>{{s.currentScheduleId??'First schedule for this area'}}</dd></dl>
       @if(s.blockers.length){<h3>Preparation blocked</h3><ul>@for(b of s.blockers;track b){<li>{{b}}</li>}</ul>}
     </section>
+    <section class="panel"><h2>Accepted general-ledger source lines</h2>
+      <p>Inspect immutable source identities and signed functional-currency amounts. Viewing a line does not allocate it to this schedule or independently approve its classification.</p>
+      <button matButton="outlined" type="button" (click)="sourceOpen.set(!sourceOpen())">{{sourceOpen()?'Hide':'Inspect'}} accepted sources</button>
+      @if(sourceOpen()){
+        <audit-state [loading]="sources.loading()" [error]="sources.error()" label="accepted general-ledger sources" />
+        @if(sources.data();as source){
+          @if(source.periodId===periodId() && source.inputGeneration===s.inputGeneration){
+            <p>Accepted batch {{source.batchId}} · generation {{source.inputGeneration}} · {{source.currency}}</p>
+            <p>Source identity: {{source.sourceHash}}</p>
+            <div class="table-scroll"><table><caption>Accepted GL source lines, page {{source.page}}</caption>
+              <thead><tr><th scope="col">Date / journal</th><th scope="col">Account</th><th scope="col">Signed amount</th><th scope="col">Exact line identity</th></tr></thead>
+              <tbody>@for(line of source.lines;track line.lineId){<tr><td>{{line.postingDate}} · {{line.journal}}</td><td>{{line.accountCode}}</td>
+                <td>{{line.signedAmount}} {{line.currency}}</td><td>{{line.lineId}}<br />{{line.lineHash}}</td></tr>}</tbody>
+            </table></div>
+            @if(!source.lines.length){<p>No eligible source lines on this page.</p>}
+            <button matButton="outlined" type="button" [disabled]="sources.loading()||sourcePage()<=1" (click)="sourcePage.set(sourcePage()-1)">Previous source page</button>
+            <button matButton="outlined" type="button" [disabled]="sources.loading()||!source.hasMore" (click)="sourcePage.set(sourcePage()+1)">Next source page</button>
+          }@else{<p role="alert">Source context changed. Refresh the period and accepted source before using its identities.</p>}
+        }
+      }
+    </section>
     @if(uncertain()){<section class="panel" role="alert"><h2>Schedule outcome needs reconciliation</h2><p>Request {{pending()?.requestId}} · {{pending()?.requestHash}}</p>
       <button matButton="outlined" (click)="reconcile()" [disabled]="busy()">Check retained receipt</button>
       @if(receipt()){<button matButton="filled" (click)="acknowledge()">Acknowledge retained receipt</button>}

@@ -1,3 +1,4 @@
+import { obj, guid, nullable, sha256, nat, bool, arr, str, dec, date } from '../../core/decode';
 import { Component, HostListener, computed, effect, inject, signal, untracked } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -10,6 +11,11 @@ import { NavigationProtected, UnsavedChangesDialog } from '../../core/unsaved-ch
 import { SHARED } from '../../core/ui';
 import { decodeSpecialistContext, decodeSpecialistLookup, decodeSpecialistPreview, decodeSpecialistReceipt,
   decodeSpecialistState } from './analysis-preparation-contracts';
+
+export const decodeScheduleSources = obj({periodId:guid,bookId:nullable(guid),batchId:guid,acceptanceId:guid,
+ sourceHash:sha256,inputGeneration:nat,currency:str(10),page:nat,hasMore:bool,
+ lines:arr(obj({lineId:guid,transactionId:guid,journal:str(2000),accountCode:str(200),postingDate:date,
+ signedAmount:dec,currency:str(10),lineHash:sha256}),25)});
 
 const commonAmounts=['openingAmount','additionsAmount','disposalsAmount','depreciationAmount','impairmentAmount','interestAmount','currentPortion','nonCurrentPortion','capitalMovement','dividends','taxPaid','managementAmount'] as const;
 const optionalAmounts=['payrollGrossAmount','payrollDeductionsAmount','payrollNetAmount','loanRepaymentAmount','equityProfitOrLossAmount','equityOciAmount','taxBaseAmount','taxRate','forecastCashInputAmount','forecastDebtInputAmount'] as const;
@@ -37,6 +43,9 @@ export class SpecialistPreparation implements NavigationProtected{
  private readonly api=inject(Api);private readonly session=inject(SessionService);private readonly drafts=inject(TabDrafts);private readonly dialog=inject(MatDialog);private readonly route=inject(ActivatedRoute);private readonly router=inject(Router);
  readonly id=routeGuid();readonly context=this.api.resource(()=>this.id()?`/api/ui/engagements/${this.id()}/specialist-preparation`:null,decodeSpecialistContext);
  readonly periodId=signal('');readonly area=signal('ASSETS');readonly model=signal(empty());
+ readonly sourceOpen=signal(false);readonly sourcePage=signal(1);
+ readonly sources=this.api.resource(()=>this.sourceOpen()&&this.id()&&this.periodId()?
+  `/api/ui/engagements/${this.id()}/specialist-preparation/source-lines?periodId=${this.periodId()}&page=${this.sourcePage()}`:null,decodeScheduleSources);
  readonly state=this.api.resource(()=>this.id()&&this.periodId()&&this.area()?`/api/ui/engagements/${this.id()}/specialist-preparation/state?periodId=${this.periodId()}&area=${this.area()}`:null,decodeSpecialistState);
  readonly valid=computed(()=>{const m=this.model(),area=this.area(),s=this.state.data();const amount=(x:string)=>/^-?\d{1,13}(?:\.\d{1,6})?$/.test(x);
   return!!s?.canPrepare&&/^[a-f0-9]{64}$/i.test(m.assumptionsHash)&&!!m.methodologyVersion.trim()&&m.methodologyVersion.length<=100&&!!m.evidenceReference.trim()&&
@@ -53,14 +62,14 @@ export class SpecialistPreparation implements NavigationProtected{
  private request:Intent|null=null;private generation=0;private baseline=signal(JSON.stringify(empty()));readonly dirty=computed(()=>JSON.stringify(this.model())!==this.baseline());
  readonly areas=areaOptions;readonly commonAmounts=commonAmounts;
  setField(key:keyof Model,value:string){this.model.update(m=>({...m,[key]:value}));}
- constructor(){effect(()=>{this.id();this.session.invalidation();untracked(()=>{this.generation++;this.periodId.set('');this.area.set('ASSETS');this.model.set(empty());this.baseline.set(JSON.stringify(this.model()));
+ constructor(){effect(()=>{this.id();this.session.invalidation();untracked(()=>{this.generation++;this.sourceOpen.set(false);this.sourcePage.set(1);this.periodId.set('');this.area.set('ASSETS');this.model.set(empty());this.baseline.set(JSON.stringify(this.model()));
   this.preview.set(null);this.receipt.set(null);this.pending.set(null);this.request=null;this.busy.set(false);this.reviewed.set(false);this.uncertain.set(false);this.absent.set(false);this.message.set('');this.draftAvailable.set(false);});});
   effect(()=>{const c=this.context.data();if(!c)return;untracked(()=>{if(!this.periodId()){const query=this.route.snapshot.queryParamMap.get('periodId');this.periodId.set(c.periods.some(x=>x.id===query)?query!:c.periods[0]?.id??'');const area=this.route.snapshot.queryParamMap.get('area');if(areaOptions.includes(area??''))this.area.set(area!);}});});
   effect(()=>{const s=this.state.data();if(!s)return;untracked(()=>{this.preview.set(null);this.reviewed.set(false);this.draftAvailable.set(this.drafts.read(this.scope(),specialistEditableFields).state==='ready');
    const p=this.drafts.readPendingRequest(this.scope(true));if(p.state==='ready'){this.pending.set(p.draft.value);this.uncertain.set(true);this.message.set(UNKNOWN_OUTCOME);}});});
   effect(()=>{this.model();this.periodId();this.area();untracked(()=>{this.preview.set(null);this.reviewed.set(false);});});}
  private updateUrl(){this.router.navigate([],{relativeTo:this.route,queryParams:{periodId:this.periodId(),area:this.area()},queryParamsHandling:'merge',replaceUrl:true});}
- changePeriod(id:string){if(this.busy()||this.uncertain())return;this.periodId.set(id);this.model.set(empty());this.updateUrl();}
+ changePeriod(id:string){if(this.busy()||this.uncertain())return;this.sourceOpen.set(false);this.sourcePage.set(1);this.periodId.set(id);this.model.set(empty());this.updateUrl();}
  changeArea(area:string){if(this.busy()||this.uncertain()||!areaOptions.includes(area))return;this.area.set(area);this.model.set(empty());this.updateUrl();}
  private scope(pending=false){return{entity:`${pending?'specialist-request':'specialist-fields'}/${this.id()}/${this.periodId()}/${this.area()}`,baseRevision:this.state.data()?.reviewBasis??''};}
  private makeRequest(retained=this.pending()):Intent|null{const s=this.state.data();return s?{requestId:retained?.requestId??crypto.randomUUID(),reviewBasis:s.reviewBasis,supersedesScheduleId:s.currentScheduleId,model:{...this.model()},periodId:this.periodId(),area:this.area()}:null;}

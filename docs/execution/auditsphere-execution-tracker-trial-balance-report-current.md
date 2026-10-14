@@ -58,3 +58,9 @@ The immediate CP-00 baseline inspection found the analytics Qatar-week fixture c
 `FinancialPackageValidationReadiness` now evaluates the existing canonical package rule population consistently. Each mandatory code needs exactly one passing result in the exact firm/package scope. Missing, failed and ambiguous results refuse readiness. Build demotion, review, client management view, staff queue, current-release review checks and seal status/action consume it. Authorization precedes review diagnostics. Draft rendering and historical artifacts are unchanged.
 
 This is a partial CP-17 increment, not complete final-accounting readiness: versioned reporting profiles, resolved source-lineage and reviewed notes, exact composition decisions, transaction-time authority rechecks and the integrated browser journey remain open. No mandatory criterion is marked complete merely because the canonical-rule guard passes. Existing source-lineage/note warnings remain in place.
+
+### CP-11 / WP-03: inspect accepted general-ledger source lines
+
+`FinancialScheduleSourceQuery` and the specialist-preparation source panel expose the exact selected accepted GL batch, decision, generation, period/book and source/line identities. Reads are scope checked before bounded paging and reauthorized afterward; missing acceptance, another reporting period, inconsistent source identity and changed selections fail closed. Signed amounts retain source precision.
+
+Discovery does not create a source binding, consume an allocation, approve a schedule or release a report. Source-backed schedule persistence/review and the indirect cash-flow implementation remain partial; the existing final-lineage failures remain intact. Verification evidence and omissions are recorded in `status.json`.

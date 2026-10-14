@@ -15,6 +15,12 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Accepted GL discovery for schedule preparation — 2026-10-14
+
+The specialist preparation workspace now exposes a bounded view of the selected independently accepted GL for its exact reporting period. Application authorization precedes source discovery; period/currency/sealed identity are checked, source selection and generation are checked again after reading, and signed functional amounts remain exact decimal strings. Source and line identities are visible with paging. Period changes hide prior source content; a mismatched period is refused.
+
+This is CP-11 source discovery, not persisted monetary allocation or independent schedule review. It does not satisfy final cash/equity source-lineage readiness. Indirect cash-flow roles, assessed-zero review and source-backed schedule bindings remain outstanding. The isolated synthetic built-in-browser fixture exercised paging, signed amounts and period clearing/refusal; no live tenant or development database was changed. Exact checks and omissions are in `status.json`.
+
 ## Consolidated practice/reporting intake and mandatory-rule readiness — 2026-10-14
 
 The supplied completion story extends the reporting handoff using consolidation aliases over the existing board; it does not approve methodology or create another lifecycle. Its inherited reporting criteria were compared with the preceding source without changes. Current HEAD already contains the Qatar working-week analytics fixture and audit-submission fence corrections; neither was overwritten.
@@ -383,7 +389,3 @@ See the M365 permission matrix and Hostinger deployment guide.
 ## FSR first slice — typed statement presentation (unapproved draft) — 2026-10-11
 
 Working-tree slice on `78979390`, from the NAQAHA implementation stories (FSR-002, FSR-010, FSR-011 first slice). The statement of financial position and of profit or loss are presented from persisted package lines through the published statement layout, in PDF, Word and Excel, with blocking checks for balance, mapping, sign, note cross-cast and display footing. Observed: Release build, EF drift check, OpenAPI regeneration, Domain presentation and statement tests, API UI contract test, Angular presentation and package specs and the production build passed. The fixture is synthetic. Approval (FSR-001), composition, sealing, signing and release remain open; details are in `status.json`.
-
-## ADR-0016 certificate signing of the final report — 2026-10-10
-
-Working-tree slice on `cee546f9`. On the owner's instruction the final report PDF is certificate-signed when the firm's certificate is configured (`ReportSigning:*`), the bundle's certified statements are signed with it, and `ReportSigning:Required` fails closed. With no certificate the image-only behaviour is unchanged and labelled. Observed for this slice: Release build, EF drift check, OpenAPI check, the Domain test classes `ReportCertificateSigningTests` and `AuditDeliverablesTests`, and the `completion.spec.ts` screen specs passed, using a throwaway self-signed certificate. The full suites were not run. The firm's real certificate, its legal acceptance and the Wiki deployment note remain open; details are in `status.json` under ADR-0016.
