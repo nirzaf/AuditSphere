@@ -47,11 +47,11 @@ public sealed class CompletionDeliverablesJourneyTests
     var f = host.Fixture;
     var partner = PbcSeed.User(f.FirmId, "Staff"); partner.DisplayName = "Pat Partner";
     var manager = PbcSeed.User(f.FirmId, "Staff"); manager.DisplayName = "Mona Manager";
+    var accountingReviewer = PbcSeed.User(f.FirmId, "Staff");
+    var financeReviewer = PbcSeed.User(f.FirmId, "Staff");
     var now = DateTimeOffset.UtcNow;
     await using (var db = host.CreateDbContext())
     {
-      var accountingReviewer = PbcSeed.User(f.FirmId, "Staff");
-      var financeReviewer = PbcSeed.User(f.FirmId, "Staff");
       db.Users.AddRange(partner, manager, accountingReviewer, financeReviewer);
       db.RoleGrants.AddRange(PbcSeed.Grant(f.FirmId, partner, "Partner"), PbcSeed.Grant(f.FirmId, manager, "Manager"));
       await db.Engagements.Where(x => x.Id == f.EngagementId).ExecuteUpdateAsync(s => s.SetProperty(x => x.ServiceRoute, "FinancialStatementAudit").SetProperty(x => x.PeriodEnd, "2026-12-31"));
