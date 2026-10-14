@@ -202,11 +202,14 @@ public static partial class AuditDeliverableService
         var reviewed = await FinancialPackageReviewService.RequireCurrentAsync(accounting, actor, package.Id, true, ct);
         if (!reviewed.Succeeded) blockers.Add("The released financial package's management, accounting and Partner reviews are no longer current.");
       }
-      if (package is not null && package.Revision == release.PackageRevision)
-        artifact = await db.FinancialPackageArtifacts.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.FinancialPackageId == package.Id &&
-          x.EngagementId == engagementId && x.ClientId == package.ClientId && x.PackageRevision == package.Revision && x.PackageGeneration == package.Generation &&
-          x.PackageHash == package.CalculationHash && x.ArtifactVersion == FinancialPackageArtifactVersions.Pdf, ct);
-      if (artifact is null) blockers.Add("Render the exact released financial package as PDF; mismatched revisions cannot be assembled.");
+      // The bundle uses only the artifact the release pinned. A legacy release with no pin, or a pinned artifact that is missing or changed,
+      // blocks assembly rather than falling back to a PDF looked up by revision.
+      if (release.PinnedArtifactId is Guid pinnedArtifactId && package is not null && package.Revision == release.PackageRevision)
+        artifact = await db.FinancialPackageArtifacts.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == pinnedArtifactId &&
+          x.FinancialPackageId == package.Id && x.EngagementId == engagementId && x.ClientId == package.ClientId &&
+          x.PackageRevision == package.Revision && x.PackageGeneration == package.Generation && x.PackageHash == package.CalculationHash &&
+          x.ArtifactVersion == release.PinnedArtifactVersion && x.ArtifactSha256Hex == release.PinnedArtifactSha256Hex, ct);
+      if (artifact is null) blockers.Add("The release does not pin an available PDF of the released financial package; release it again after rendering the reviewed package.");
     }
     var agreements = await db.EngagementFeeAgreements.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId).Take(2).ToListAsync(ct);
     Invoice? invoice = null;

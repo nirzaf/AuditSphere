@@ -265,12 +265,36 @@ public static class ReleaseService
     if (checkpoint is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Release checkpoint is required for release issuance.");
 
+    // A financial-package release pins the exact PDF of the reviewed revision. The audit bundle later uses this pinned artifact and never
+    // looks up a PDF afresh, so a different or re-rendered artifact cannot be substituted under an existing release.
+    Guid? pinnedArtifactId = null;
+    string? pinnedArtifactVersion = null;
+    string? pinnedArtifactSha256 = null;
+    if (current.Kind == ReleaseTargetKinds.FinancialPackage)
+    {
+      if (db is not IClientAccountingDbContext pinningDb)
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Client accounting review persistence is unavailable.");
+      var releasedPackage = await pinningDb.FinancialPackages.AsNoTracking()
+        .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == current.Id, ct);
+      var pdf = releasedPackage is null ? null : await pinningDb.FinancialPackageArtifacts.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.FirmId == actor.FirmId && x.FinancialPackageId == releasedPackage.Id && x.PackageRevision == releasedPackage.Revision &&
+        x.PackageGeneration == releasedPackage.Generation && x.PackageHash == releasedPackage.CalculationHash &&
+        x.ArtifactVersion == FinancialPackageArtifactVersions.Pdf, ct);
+      if (pdf is null || pdf.ArtifactBytes.Length == 0)
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+          "Render the exact reviewed financial package as PDF before release, so the release can pin it.");
+      pinnedArtifactId = pdf.Id;
+      pinnedArtifactVersion = pdf.ArtifactVersion;
+      pinnedArtifactSha256 = pdf.ArtifactSha256Hex;
+    }
+
     var release = new Release
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = candidate.ClientId,
       EngagementId = candidate.EngagementId, ReleaseCandidateId = candidate.Id,
       PackageId = candidate.TargetId, PackageRevision = candidate.TargetRevision,
       ManifestDigest = candidate.ManifestDigest, AuthorizedReleaseKey = releaseKey,
+      PinnedArtifactId = pinnedArtifactId, PinnedArtifactVersion = pinnedArtifactVersion, PinnedArtifactSha256Hex = pinnedArtifactSha256,
       CheckpointId = checkpoint.Id, ReleasedAt = DateTimeOffset.UtcNow, ReleasedByUserId = actor.UserId
     };
     var payload = JsonSerializer.Serialize(new

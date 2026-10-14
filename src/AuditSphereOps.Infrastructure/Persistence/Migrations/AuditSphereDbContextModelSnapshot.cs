@@ -17289,6 +17289,18 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("package_revision");
 
+                    b.Property<Guid?>("PinnedArtifactId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("pinned_artifact_id");
+
+                    b.Property<string>("PinnedArtifactSha256Hex")
+                        .HasColumnType("text")
+                        .HasColumnName("pinned_artifact_sha256_hex");
+
+                    b.Property<string>("PinnedArtifactVersion")
+                        .HasColumnType("text")
+                        .HasColumnName("pinned_artifact_version");
+
                     b.Property<Guid>("ReleaseCandidateId")
                         .HasColumnType("uuid")
                         .HasColumnName("release_candidate_id");

@@ -42,6 +42,10 @@ public sealed class Release
   public long PackageRevision { get; set; }
   public string ManifestDigest { get; set; } = string.Empty;
   public string AuthorizedReleaseKey { get; set; } = string.Empty;
+  /// <summary>The exact PDF artifact a financial-package release pins. Null for other targets and for releases made before pinning.</summary>
+  public Guid? PinnedArtifactId { get; set; }
+  public string? PinnedArtifactVersion { get; set; }
+  public string? PinnedArtifactSha256Hex { get; set; }
   public Guid CheckpointId { get; set; }
   public DateTimeOffset ReleasedAt { get; set; }
   public Guid ReleasedByUserId { get; set; }

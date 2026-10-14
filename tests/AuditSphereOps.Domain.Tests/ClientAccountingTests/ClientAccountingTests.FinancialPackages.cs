@@ -176,10 +176,38 @@ public sealed partial class ClientAccountingTests
         new RecordReleaseCheckpointRequest(candidateId, 1, "financial-package-release-001", manifest, manifestBytes));
       Assert.True(checkpoint.Succeeded, checkpoint.Message);
 
+
+      // Without a rendered PDF the release cannot pin an artifact, so issuance is refused.
+      var unpinned = await ReleaseService.IssueAsync(db, partner,
+        new IssueReleaseRequest(candidateId, 1, manifest, "financial-package-release-001"));
+      Assert.Equal(ErrorCodes.GateBlocked, unpinned.ErrorCode);
+      Assert.Contains("Render the exact reviewed financial package as PDF", unpinned.Message!, StringComparison.Ordinal);
+
+      // The reviewed revision has a PDF before release, so the release can pin it. This package carries a synthetic text artifact, so the
+      // PDF is recorded at the same revision and hash rather than rendered from the export; the bundle tests cover the real render.
+      var releasedPackage = await db.FinancialPackages.AsNoTracking().SingleAsync(x => x.Id == packageId);
+      var pdfBytes = System.Text.Encoding.UTF8.GetBytes($"package-pdf|{packageId:D}|{releasedPackage.CalculationHash}");
+      db.FinancialPackageArtifacts.Add(new FinancialPackageArtifact
+      {
+        Id = Guid.CreateVersion7(), FirmId = releasedPackage.FirmId, ClientId = releasedPackage.ClientId,
+        EngagementId = releasedPackage.EngagementId, FinancialPackageId = packageId, PackageRevision = releasedPackage.Revision,
+        PackageGeneration = releasedPackage.Generation, PackageHash = releasedPackage.CalculationHash,
+        ArtifactVersion = FinancialPackageArtifactVersions.Pdf, FrameworkVersion = releasedPackage.Framework,
+        TemplateVersion = releasedPackage.TemplateVersion, ArtifactSha256Hex = AuditSphereOps.Domain.Shared.Hashing.Sha256Hex(pdfBytes),
+        ArtifactBytes = pdfBytes, CreatedByUserId = partner.UserId, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+
       var issued = await ReleaseService.IssueAsync(db, partner,
         new IssueReleaseRequest(candidateId, 1, manifest, "financial-package-release-001"));
       Assert.True(issued.Succeeded, $"{issued.ErrorCode}: {issued.Message}");
       Assert.Equal(packageId, await db.Releases.Where(x => x.Id == issued.Value).Select(x => x.PackageId).SingleAsync());
+      // The release pins the PDF it was approved for, and the pin is the artifact that was rendered for this revision.
+      var pinned = await db.Releases.AsNoTracking().SingleAsync(x => x.Id == issued.Value);
+      var rendered = await db.FinancialPackageArtifacts.AsNoTracking().SingleAsync(x => x.FinancialPackageId == packageId &&
+        x.ArtifactVersion == FinancialPackageArtifactVersions.Pdf);
+      Assert.Equal(rendered.Id, pinned.PinnedArtifactId);
+      Assert.Equal(rendered.ArtifactSha256Hex, pinned.PinnedArtifactSha256Hex);
     }
 
     await using var verify = new AuditSphereDbContext(pg.Options);
