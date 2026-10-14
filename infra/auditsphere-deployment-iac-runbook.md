@@ -66,8 +66,13 @@ publish → non-root runtime with the Angular asset set), `src/AuditSphereOps.Wo
 
 ## Release process (also encoded in `.github/workflows/release.yml`)
 
-1. **Build immutable artifacts** tagged with the Git commit SHA; production runs a known
-   artifact, never a rebuild. Test suites run before release in the main CI gate.
+0. **Precondition.** The `verify-ci-passed` job refuses the release unless a successful `ci.yml`
+   run exists for the exact commit SHA, before any environment approval is requested. It does not
+   yet check `release-verification.yml`; the complete-suite result for the commit must be checked
+   separately until the owner makes that workflow a required check.
+1. **Build immutable artifacts** tagged with the Git commit SHA, from the commit that passed the
+   precondition; production runs a known artifact, never a rebuild. The fast `ci.yml` gate covers
+   the focused checks; the complete suite runs in `release-verification.yml`.
 2. **Run the migration job.** If it fails or hangs, the new revision never receives traffic.
    Migrations are forward-only; application rollback is never coupled to a database rollback.
 3. **Deploy** API + worker revisions via `infra/environments/<env>/main.bicep`, passing the

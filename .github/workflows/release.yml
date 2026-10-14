@@ -9,8 +9,13 @@
 #     created in the environment Key Vault through the approved secret process.
 # Until that plumbing exists, every live step remains BLOCKED_EXTERNAL and is not faked here.
 #
+# Release precondition: the verify-ci-passed job refuses to start the protected release unless a
+# successful ci.yml run exists for the exact commit SHA. The release job then checks out that same
+# SHA, so the verified commit is the one that is built and deployed.
+#
 # Deployment order per the architecture contract:
-#   build immutable SHA-tagged artifacts
+#   verify the commit passed CI (read-only, before any environment approval)
+#     -> build immutable SHA-tagged artifacts
 #     -> run the migration job (failure blocks the release)
 #     -> deploy API + worker revisions
 #     -> canary: split 10% of API traffic to the new revision
@@ -61,7 +66,50 @@ env:
   DOTNET_NOLOGO: 'true'
 
 jobs:
+  # Read-only precondition. It needs only actions:read on this repository, no Azure credentials and
+  # no protected environment, so a commit without a successful CI run is refused before any approval.
+  # The query is pinned to the exact SHA this dispatch is releasing (github.sha).
+  verify-ci-passed:
+    name: Precondition · CI passed for this commit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_SHA: ${{ github.sha }}
+      REPOSITORY: ${{ github.repository }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Require a successful ci.yml run for the exact commit
+        run: |
+          set -euo pipefail
+          runs="$(gh api --paginate \
+            "repos/${REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${RELEASE_SHA}&per_page=100" \
+            --jq '.workflow_runs[] | select(.head_sha == env.RELEASE_SHA and .conclusion == "success") | .html_url')"
+          if [ -z "$runs" ]; then
+            {
+              echo "## Release refused"
+              echo
+              echo "No successful \`ci.yml\` run exists for commit \`${RELEASE_SHA}\`."
+              echo "Wait for CI on this commit to pass, or release a commit that has passed CI."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::No successful ci.yml run exists for ${RELEASE_SHA}; release refused." >&2
+            exit 1
+          fi
+          {
+            echo "## Release precondition passed"
+            echo
+            echo "- Commit: \`${RELEASE_SHA}\`"
+            echo "- Successful ci.yml run(s):"
+            printf '%s\n' "$runs" | sed 's/^/  - /'
+          } >> "$GITHUB_STEP_SUMMARY"
+
   release:
+    needs: verify-ci-passed
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment: ${{ inputs.environment }}
@@ -69,8 +117,10 @@ jobs:
       run:
         shell: bash
     steps:
+      # Check out the exact commit the precondition verified, not the branch tip at checkout time.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: ${{ github.sha }}
           persist-credentials: false
 
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4

@@ -1,0 +1,216 @@
+name: AuditSphere release verification
+
+# Full release contract on one commit. The fast gate in ci.yml keeps its own triggers and its
+# filtered, focused jobs; this workflow is separate and never runs on push or pull_request. On the
+# exact commit it checks out, it runs the complete unfiltered solution suite (Domain, API host and
+# Playwright E2E projects), the Angular specs, EF model drift, OpenAPI drift, the standalone
+# publication check and the documentation validators.
+#
+# Every command runs through scripts/release/run-verification-step.sh, which records the commit, the
+# command and its exact exit status in the job summary and keeps the full log. Logs and TRX results
+# are uploaded as artifacts. No step uses continue-on-error: a failing command fails the job.
+#
+# The release workflow requires a successful ci.yml run for the released SHA. It does not yet require
+# this workflow; making it a required check is an owner decision (branch protection and release gates).
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch, tag or full commit SHA to verify. Leave empty to verify the default branch.
+        required: false
+        default: ''
+        type: string
+  schedule:
+    # Nightly at 02:17 UTC, on the default branch.
+    - cron: '17 2 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auditsphere-release-verification-${{ inputs.ref || github.ref }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+  DOTNET_NOLOGO: 'true'
+  DOTNET_ENVIRONMENT: Test
+  ASPNETCORE_ENVIRONMENT: Test
+  ExternalEffects__Enabled: 'false'
+  Application__AllowSimulationAdapters: 'true'
+  DevelopmentIdentity__Enabled: 'false'
+  E2E_BROWSER: chromium
+  AUDITSPHERE_TEST_CONNECTION: Host=127.0.0.1;Port=5432;Database=auditsphere_tests;Username=postgres;Password=postgres;Pooling=false
+
+jobs:
+  full-verification:
+    name: Verify · Full release contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    services:
+      # Same PostgreSQL service and test database as the .NET gate in ci.yml.
+      postgres:
+        image: postgres:18.6
+        env:
+          POSTGRES_DB: auditsphere_tests
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d auditsphere_tests"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out the requested ref
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.ref || github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Prepare evidence directories and job summary
+        env:
+          REQUESTED_REF: ${{ inputs.ref || github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/release-verification"
+          mkdir -p "$evidence/logs" "$evidence/trx"
+          echo "VERIFICATION_LOG_DIR=$evidence/logs" >> "$GITHUB_ENV"
+          echo "VERIFICATION_TRX_DIR=$evidence/trx" >> "$GITHUB_ENV"
+          {
+            echo "## Release verification"
+            echo
+            echo "- Commit: \`$(git rev-parse HEAD)\`"
+            echo "- Requested ref: \`$REQUESTED_REF\`"
+            echo "- Trigger: \`$GITHUB_EVENT_NAME\`"
+            echo "- Run: \`$GITHUB_RUN_ID\` / attempt \`$GITHUB_RUN_ATTEMPT\`"
+            echo
+            echo "| Step | Command | Exit status | Result |"
+            echo "| --- | --- | ---: | --- |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Set up the pinned .NET SDK
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+
+      - name: Verify the pinned .NET SDK
+        run: |
+          set -euo pipefail
+          bash scripts/release/run-verification-step.sh "Pinned .NET SDK disables roll-forward" \
+            jq -e '.sdk.rollForward == "disable"' global.json
+          bash scripts/release/run-verification-step.sh "Selected .NET SDK matches global.json" \
+            bash -c 'test "$(dotnet --version)" = "$(jq -r .sdk.version global.json)"'
+
+      - name: Set up Node from the Angular .nvmrc
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: src/AuditSphereOps.Ui/.nvmrc
+          cache: npm
+          cache-dependency-path: src/AuditSphereOps.Ui/package-lock.json
+
+      - name: Restore tools and packages, then build Release
+        run: |
+          set -euo pipefail
+          bash scripts/release/run-verification-step.sh "dotnet tool restore" dotnet tool restore
+          bash scripts/release/run-verification-step.sh "dotnet restore (locked mode)" \
+            dotnet restore AuditSphereOps.slnx --locked-mode
+          # One MSBuild node: the test projects and Web reference the Api, and parallel builds race
+          # on its outputs (see the matching comment in ci.yml).
+          bash scripts/release/run-verification-step.sh "dotnet build (Release, one MSBuild node)" \
+            dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1
+
+      # The Angular browser bundle is a runtime input to the full .NET suite: the API host tests and
+      # the Playwright journeys serve it from src/AuditSphereOps.Ui/dist. It is therefore built before
+      # the .NET test run rather than after it.
+      - name: Angular install, production build and full specs
+        run: |
+          set -euo pipefail
+          bash scripts/release/run-verification-step.sh "npm ci (Angular)" \
+            npm --prefix src/AuditSphereOps.Ui ci
+          bash scripts/release/run-verification-step.sh "Angular production build" \
+            npm --prefix src/AuditSphereOps.Ui run build
+          bash scripts/release/run-verification-step.sh "Angular full specs (test:ci)" \
+            npm --prefix src/AuditSphereOps.Ui run test:ci
+
+      - name: Install Playwright Chromium for the E2E project
+        run: |
+          set -euo pipefail
+          bash scripts/release/run-verification-step.sh "Playwright Chromium install" \
+            pwsh tests/AuditSphereOps.E2E.Tests/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
+
+      - name: Full solution test suite (no filter)
+        run: |
+          set -euo pipefail
+          bash scripts/release/run-verification-step.sh "Full solution test suite (no --filter)" \
+            dotnet test AuditSphereOps.slnx --no-build --no-restore --configuration Release --maxcpucount:1 \
+            --logger trx --results-directory "$VERIFICATION_TRX_DIR"
+
+      - name: EF model drift and OpenAPI contract drift
+        run: |
+          set -euo pipefail
+          bash scripts/release/run-verification-step.sh "EF model drift check" \
+            dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure \
+            --startup-project src/AuditSphereOps.Api --no-build --configuration Release
+          bash scripts/release/run-verification-step.sh "OpenAPI contract drift" \
+            bash scripts/contracts/verify-openapi.sh
+
+      - name: Standalone API and Angular publication
+        run: |
+          set -euo pipefail
+          publish="$RUNNER_TEMP/auditsphere-api"
+          bash scripts/release/run-verification-step.sh "dotnet publish Api (no build)" \
+            dotnet publish src/AuditSphereOps.Api --no-build --no-restore --configuration Release --output "$publish"
+          bash scripts/release/run-verification-step.sh "Published host has Api, Angular shell and no Web host" \
+            bash -c 'set -e; test -f "$1/AuditSphereOps.Api.dll"; test -f "$1/ui/index.html"; test ! -f "$1/AuditSphereOps.Web.dll"; test ! -f "$1/MudBlazor.dll"' _ "$publish"
+
+      - name: Documentation, agent catalog and UI inventory validators
+        run: |
+          set -euo pipefail
+          bash scripts/release/run-verification-step.sh "Markdown documentation health" \
+            python3 scripts/docs/validate-markdown-documentation.py
+          bash scripts/release/run-verification-step.sh "Markdown filenames" \
+            python3 scripts/docs/validate-markdown-filenames.py
+          bash scripts/release/run-verification-step.sh "Narrative volatile metrics" \
+            python3 scripts/docs/validate-narrative-metrics.py
+          bash scripts/release/run-verification-step.sh "Agent capability catalog" \
+            python3 scripts/agent/agent-check.py --validate-catalog
+          bash scripts/release/run-verification-step.sh "Agent runner safety unit tests" \
+            python3 -m unittest discover -s scripts/agent -p 'test_*.py'
+          bash scripts/release/run-verification-step.sh "UI source discovery drift" \
+            python3 scripts/ui/inventory.py --check
+
+      - name: Upload command logs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-verification-logs
+          path: ${{ runner.temp }}/release-verification/logs
+          retention-days: 30
+
+      - name: Upload TRX test results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-verification-trx
+          path: ${{ runner.temp }}/release-verification/trx
+          retention-days: 30
+
+      - name: Record the job outcome
+        if: ${{ always() }}
+        env:
+          RESULT: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          {
+            echo
+            echo "Release verification outcome: \`$RESULT\`"
+            echo "Commit: \`$(git rev-parse HEAD)\`"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -5,7 +5,7 @@
 ## 1. Where things stand (2026-10-08)
 
 - Automated test suites are **restored** (STE-NXT-001; ADR-0008 is `SUPERSEDED`): the Domain, API-host and Playwright projects and the Angular specs are back in the tree.
-- CI (`.github/workflows/ci.yml`) runs the Angular build and its Vitest specs, the pinned-SDK locked restore, the Release build, EF model drift, standalone publication, the OpenAPI drift gate and the docs gates. The .NET test projects run **locally** against the PostgreSQL test database `auditsphere_tests` on port 5433, as they did before the removal; they are not part of the hosted workflow.
+- CI (`.github/workflows/ci.yml`) runs the Angular build and its Vitest specs, the pinned-SDK locked restore, the Release build, EF model drift, standalone publication, the OpenAPI drift gate and the docs gates. The .NET test projects run **locally** against the PostgreSQL test database `auditsphere_tests` on port 5433, as they did before the removal; they are not part of the fast hosted gate. The separate `.github/workflows/release-verification.yml` workflow runs the complete unfiltered solution suite on one commit when dispatched and nightly; its first hosted result is not yet observed.
 - A `dotnet test` result counts only when it ran against that test database. A discovery-only run, or a run that found no tests, proves nothing and must not be reported as a pass.
 
 ## 2. Definition of Done
@@ -31,7 +31,7 @@ git checkout 47ca0b05^ -- $(git diff --name-only --diff-filter=D 47ca0b05^ 47ca0
 
 This brought back only the files the removal deleted (Domain, API-host and E2E tests, Angular specs and the browser-journey scripts). Do **not** run it again: it would overwrite later edits to those files. Failures found after the restore were fixed in the code or in the test, and each fix states which one changed, in the commit message. The commit message of `2713b58`, the last commit before removal, reports the Domain suite passing, so failures after the restore came from changes merged after the removal.
 
-The `npm run test:ci` step is back in the `ui-build` job of `ci.yml`. The .NET test projects are not added to the hosted workflow; doing so needs a PostgreSQL service and a run-time budget, which is an owner decision.
+The `npm run test:ci` step is back in the `ui-build` job of `ci.yml`. The .NET test projects are not added to the fast `ci.yml` gate, which stays short; the full suite runs in the separate `release-verification.yml` workflow, which has its own PostgreSQL service and run-time budget. Making that workflow a required check is an owner decision.
 
 ## 4. Test layers and rules
 
