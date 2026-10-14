@@ -966,7 +966,7 @@
     "currentCashFlowPackageJourney": {
       "recordedAtUtc": "2026-10-14T16:27:23Z",
       "baseCommit": "3aeed43d806b0ebe1921edcad86ec4eb00b32a62",
-      "headCommit": "PENDING_COMMIT",
+      "headCommit": "7f42968d",
       "status": "PARTIAL",
       "alias": "CP-11 accepted-source cash-flow build subpath / CP-12 policy-blocked",
       "scope": "Engagement-scoped preparer screen, strict request and response decoders, accepted-GL source picker, durable package build, originator-only status polling, and independent source-link review. This is not full CP-11 or story completion.",
