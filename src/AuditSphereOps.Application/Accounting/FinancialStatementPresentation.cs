@@ -11,7 +11,7 @@ namespace AuditSphereOps.Application.Accounting;
 /// </summary>
 public static class FinancialStatementPresentationPolicy
 {
-  public const string BuilderVersion = "auditsphere.statement-presentation.v6";
+  public const string BuilderVersion = "auditsphere.statement-presentation.v7";
   public const string RendererVersion = "auditsphere.statement-renderer.v3";
   public const string DisplayPolicy = "whole units; half-even rounding of displayed amounts; negatives in brackets; zero shown as a dash";
   public const string DraftStatus = "UNAPPROVED_DRAFT";

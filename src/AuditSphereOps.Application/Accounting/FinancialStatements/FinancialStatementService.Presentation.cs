@@ -103,7 +103,7 @@ public static partial class FinancialStatementService
       package.Id, package.CalculationHash, layout.Id, layout.LayoutHash,
       comparative?.Id, comparative?.CalculationHash,
       FinancialStatementPresentationPolicy.BuilderVersion, FinancialStatementPresentationPolicy.DisplayPolicy,
-      ComputeNoteSourceManifestHash(packageIds, noteLines, disclosures), package.PeriodId, package.BookId,
+      await ComputePresentationSourceManifestHashAsync(db, actor.FirmId, packageIds, noteLines, disclosures, ct), package.PeriodId, package.BookId,
       package.Basis, package.Framework, package.TaxonomyVersion, package.TemplateVersion,
       package.CalculationEngineVersion, package.Currency, package.PeriodStart, package.PeriodEnd,
       package.ComparativeBasis, package.ComparativeEvidenceReference);
@@ -145,6 +145,61 @@ public static partial class FinancialStatementService
       equityLines.Select(x => new PresentationEquityMovement(x.LineCode, x.Description, x.OpeningAmount, x.ProfitOrLossAmount,
         x.OciAmount, x.CapitalMovementAmount, x.DividendsAmount, x.ClosingAmount)).ToList(),
       packageValidations.Select(x => new PresentationPackageValidation(x.Code, x.Passed, x.Detail)).ToList());
+
+  // The public/DB field retains its legacy NoteSourceManifestHash name. Version 2 also seals
+  // supplementary schedule provenance. A hash proves identity, never source acceptance or review.
+  private static async Task<string> ComputePresentationSourceManifestHashAsync(
+    IClientAccountingDbContext db, Guid firmId, Guid[] packageIds,
+    IReadOnlyList<FinancialPackageNoteLine> noteLines,
+    IReadOnlyList<FinancialPackageDisclosure> disclosures, CancellationToken ct)
+  {
+    var packages = await db.FinancialPackages.AsNoTracking()
+      .Where(x => x.FirmId == firmId && packageIds.Contains(x.Id)).ToListAsync(ct);
+    var cash = await db.FinancialPackageCashFlowLines.AsNoTracking()
+      .Where(x => x.FirmId == firmId && packageIds.Contains(x.FinancialPackageId)).ToListAsync(ct);
+    var fx = await db.FinancialPackageFxEffects.AsNoTracking()
+      .Where(x => x.FirmId == firmId && packageIds.Contains(x.FinancialPackageId)).ToListAsync(ct);
+    var equity = await db.FinancialPackageEquityLines.AsNoTracking()
+      .Where(x => x.FirmId == firmId && packageIds.Contains(x.FinancialPackageId)).ToListAsync(ct);
+    return ComputePresentationSourceManifestHash(packages, cash, fx, equity,
+      ComputeNoteSourceManifestHash(packageIds, noteLines, disclosures));
+  }
+
+  internal static string ComputePresentationSourceManifestHash(
+    IReadOnlyList<FinancialPackage> packages,
+    IReadOnlyList<FinancialPackageCashFlowLine> cash,
+    IReadOnlyList<FinancialPackageFxEffect> fx,
+    IReadOnlyList<FinancialPackageEquityLine> equity, string noteHash) =>
+    Hashing.Sha256Hex(JsonSerializer.SerializeToUtf8Bytes(new
+    {
+      Version = "auditsphere.statement-source-manifest.v2",
+      NoteHash = noteHash,
+      Packages = packages.OrderBy(x => x.Id).Select(x => new
+      {
+        x.Id, x.ClientId, x.EngagementId, x.PeriodId, x.BookId, x.Currency, x.PeriodStart, x.PeriodEnd,
+        x.SupplementaryHash, x.CashBeginning, x.CashEnding,
+        CashAccountCodes = x.CashAccountCodes.OrderBy(v => v, StringComparer.Ordinal).ToArray(),
+        OpeningEvidence = x.OpeningCashEvidenceReferences.OrderBy(v => v, StringComparer.Ordinal).ToArray(),
+        ClosingEvidence = x.ClosingCashEvidenceReferences.OrderBy(v => v, StringComparer.Ordinal).ToArray()
+      }).ToArray(),
+      Cash = cash.OrderBy(x => x.FinancialPackageId).ThenBy(x => x.Id).Select(x => new
+      {
+        x.Id, x.FinancialPackageId, x.ClientId, x.EngagementId, x.Currency, x.Section, x.Description,
+        x.Amount, x.IsNonCash, x.MovementDate, x.ActivityCode, x.ClassificationRationale,
+        Sources = x.SourceReferences.OrderBy(v => v, StringComparer.Ordinal).ToArray()
+      }).ToArray(),
+      Fx = fx.OrderBy(x => x.FinancialPackageId).ThenBy(x => x.Id).Select(x => new
+      {
+        x.Id, x.FinancialPackageId, x.ClientId, x.EngagementId, x.Currency,
+        x.CurrencyPair, x.Amount, x.EvidenceReference
+      }).ToArray(),
+      Equity = equity.OrderBy(x => x.FinancialPackageId).ThenBy(x => x.Id).Select(x => new
+      {
+        x.Id, x.FinancialPackageId, x.ClientId, x.EngagementId, x.Currency, x.LineCode, x.Description,
+        x.OpeningAmount, x.ProfitOrLossAmount, x.OciAmount, x.CapitalMovementAmount,
+        x.DividendsAmount, x.ClosingAmount, x.EvidenceReference
+      }).ToArray()
+    }));
 
   private static string ComputeNoteSourceManifestHash(
     IReadOnlyCollection<Guid> packageIds,

@@ -15946,6 +15946,96 @@
           "Scoped acceptance tests use synthetic immutable evidence; no professional or live tenant sign-off claimed.",
           "No full solution regression, new Angular change or production deployment in this slice."
         ]
+      },
+      "workflowExperiencePrH": {
+        "recordedAtUtc": "2026-10-12T05:02:00Z",
+        "baseCommit": "0afdaf9a",
+        "scope": "WF-14 task-completion and assignee-workload analytics; no schema change.",
+        "runs": [
+          {
+            "name": "PostgreSQL analytics regression",
+            "result": "PASS",
+            "passed": 1,
+            "note": "Elevated rerun after sandbox socket denial."
+          },
+          {
+            "name": "Angular analytics contract",
+            "result": "PASS",
+            "passed": 3
+          },
+          {
+            "name": "API/OpenAPI emitter build",
+            "result": "PASS",
+            "errors": 0,
+            "warnings": 2
+          },
+          {
+            "name": "OpenAPI drift",
+            "result": "PASS",
+            "changed": false
+          },
+          {
+            "name": "Built-in browser",
+            "result": "LIMITED",
+            "reason": "Local preview requires staff sign-in."
+          }
+        ],
+        "acceptance": "No full suite or live/professional acceptance; WF-14 and v2.2 remain PARTIAL."
+      },
+      "financialStatementPresentationPins": {
+        "recordedAtUtc": "2026-10-11T22:31:54Z",
+        "baseCommit": "00376915402b68cc3340eac3a3730a75bcf05779",
+        "sourceTree": "Uncommitted working tree; baseCommit is not the tested source revision.",
+        "database": "auditsphere_tests on 127.0.0.1:5433",
+        "runs": [
+          {
+            "name": "Focused PostgreSQL Domain financial statement regressions",
+            "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore --configuration Release --maxcpucount:1 --filter 'FullyQualifiedName~FinancialStatementTests|FullyQualifiedName~FinancialStatementPresentationTests'",
+            "passed": 30,
+            "failed": 0,
+            "result": "PASS"
+          },
+          {
+            "name": "Angular statement presentation spec",
+            "command": "npm run test:ci -- --include=app/features/accounting/presentation.spec.ts",
+            "environment": "Node 24; NG_BUILD_CACHE_STORE=sqlite",
+            "passed": 4,
+            "failed": 0,
+            "result": "PASS"
+          },
+          {
+            "name": "API Release build",
+            "result": "PASS"
+          },
+          {
+            "name": "OpenAPI emitter Release build",
+            "result": "PASS"
+          },
+          {
+            "name": "EF model drift",
+            "result": "PASS: no pending model changes"
+          },
+          {
+            "name": "OpenAPI drift",
+            "result": "PASS: contract is current"
+          },
+          {
+            "name": "Angular production build",
+            "result": "PASS_WITH_WARNING",
+            "warning": "Existing src/app/features/commercial/settings.scss component stylesheet exceeds the configured 4 KB budget by 3.53 KB; SQLite cache backend used."
+          },
+          {
+            "name": "Documentation, filename, narrative metric, Angular inventory and diff gates",
+            "result": "PASS",
+            "markdownFiles": 198,
+            "relativeLinks": 2665
+          },
+          {
+            "name": "Authenticated browser workflow",
+            "result": "NOT_RUN: no authenticated local API/package session was available."
+          }
+        ],
+        "externalAcceptance": "NOT_VERIFIED: professional approval, signed-in package workflow, live tenant/provider acceptance, production migration and release remain open."
       }
     }
   }

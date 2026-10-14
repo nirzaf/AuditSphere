@@ -246,7 +246,7 @@ public static partial class FinancialStatementService
       .Where(x => x.FirmId == actor.FirmId && packageIds.Contains(x.FinancialPackageId)).ToListAsync(ct);
     var disclosures = await db.FinancialPackageDisclosures.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && packageIds.Contains(x.FinancialPackageId)).ToListAsync(ct);
-    var currentNoteSourceManifestHash = ComputeNoteSourceManifestHash(packageIds, noteLines, disclosures);
+    var currentNoteSourceManifestHash = await ComputePresentationSourceManifestHashAsync(db, actor.FirmId, packageIds, noteLines, disclosures, ct);
     if (Hashing.Sha256Hex(revision.SnapshotJson) != revision.SnapshotSha256Hex ||
         currentNoteSourceManifestHash != revision.NoteSourceManifestHash ||
         PresentationRevisionHash(package, layout, comparative, revision.NoteSourceManifestHash,
@@ -463,7 +463,7 @@ public static partial class FinancialStatementService
       .Where(x => x.FirmId == revision.FirmId && packageIds.Contains(x.FinancialPackageId)).ToListAsync(ct);
     var disclosures = await db.FinancialPackageDisclosures.AsNoTracking()
       .Where(x => x.FirmId == revision.FirmId && packageIds.Contains(x.FinancialPackageId)).ToListAsync(ct);
-    return ComputeNoteSourceManifestHash(packageIds, noteLines, disclosures) == revision.NoteSourceManifestHash &&
+    return await ComputePresentationSourceManifestHashAsync(db, revision.FirmId, packageIds, noteLines, disclosures, ct) == revision.NoteSourceManifestHash &&
       Hashing.Sha256Hex(revision.SnapshotJson) == revision.SnapshotSha256Hex &&
       PresentationRevisionHash(package, layout, comparative, revision.NoteSourceManifestHash,
         revision.SnapshotSha256Hex, revision.BuilderVersion, revision.RendererVersion, revision.DisplayPolicy) == revision.RevisionHash;

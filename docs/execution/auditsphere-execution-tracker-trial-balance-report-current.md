@@ -38,3 +38,11 @@ Read the existing T024–T034 contracts before extending source bindings, schedu
 The next substantive reporting increment is the WP-03 source-binding/review foundation plus the smallest approved WP-04 indirect cash-flow path. Final-grade behavior requires the supported profile, source/method/classification decisions and independent methodology acceptance demanded by T003. Draft-only negative tests and technical discovery remain eligible while that evidence is pending.
 
 The full attachment remains open: source-to-report lineage, reviewed cash/equity/disclosures, annual comparative scope, exact formatted-report decisions, final artifact selection and issuance, guided browser acceptance and external/professional sign-off. Synthetic arithmetic or a green draft renderer cannot close those requirements.
+
+### Supplementary schedule identity in pinned reporting
+
+The existing presentation-source manifest now includes persisted cash-flow, FX and equity rows, cash populations, opening/closing evidence references and the supplementary-input digest for both periods. Pin creation, pinned reads and source-current status use the same versioned computation. Signed amounts, movement dates, classification rationale, scope and currency participate in identity; query/reference ordering does not.
+
+The existing `NoteSourceManifestHash` contract/storage field retains its name for compatibility but now carries `auditsphere.statement-source-manifest.v2`. Previously pinned drafts require an explicit new pin to meet this stronger source-current check; their stored artifacts remain historical evidence. No approved package or stored artifact is rewritten.
+
+This closes a supplementary identity omission only. It does not resolve a text reference to an immutable accepted source, validate allocations, establish independent review or make `CASH_FLOW_SOURCE_LINEAGE`/`EQUITY_SOURCE_LINEAGE` pass. WP-03 remains partial. Actual checks and omissions are recorded in `status.json`.

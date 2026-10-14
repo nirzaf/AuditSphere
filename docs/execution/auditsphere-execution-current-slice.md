@@ -15,6 +15,12 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Supplementary schedule provenance in pinned reporting — 2026-10-14
+
+The presentation source manifest now binds the persisted current/comparative cash-flow, FX and equity rows, signed amounts, scope/currency/date/classification fields, cash populations and opening/closing evidence. Pin creation, read and freshness checks use the same versioned computation; the legacy contract field name remains unchanged. Old pins need explicit repinning to satisfy the strengthened freshness check; stored historical artifacts remain available.
+
+This is identity protection, not accepted-source resolution, allocation validation or independent professional review. The source-backed schedule editor and full reporting journey remain incomplete; professional gates remain closed. No migration, deployment or UI changes were made. Focused evidence and omissions live in `status.json`. Uncommitted audit-procedure concurrency work remains separate.
+
 ## Trial balance-to-report intake and signed equity — 2026-10-14
 
 The attached AS-FR-CLOSE-001 story is mapped in [the delta review](auditsphere-execution-tracker-trial-balance-report-current.md), using existing task and methodology authorities. Current/comparative equity checks now preserve signs rather than accepting opposite amounts by magnitude. Focused presentation and retained AUD-04 regression checks passed; exact evidence is `targetedVerification.trialBalanceReportSignedEquity` in [status.json](status.json).
@@ -381,9 +387,3 @@ Working-tree slice on `cee546f9`. The ADR-0010 recording mechanism is implemente
 ## AS-PAR-009 commercial pricing, revocation and delivery receipts — 2026-10-10
 
 Committed at `cee546f9`. Pricing policy maker/checker, append-only approval revocation, quotation validity, signatory-bound acceptance and durable mail receipt states are implemented with migration `20261010185946_CommercialPricingPolicyAndDeliveryReceipts`. Observed: Release build, EF drift check, OpenAPI check, the targeted commercial Domain subset and the Angular build and specs passed. The full Domain, API and E2E suites were not run on this tree. Exact counts and open items are in `status.json` under AS-PAR-009.
-
-## Current verification handoff — 2026-10-10
-
-Legal/FSLI implementation and current-tree STE journeys passed local verification. See the [STE verification tracker](auditsphere-execution-tracker-ste-v21-gap-verification-current.md) and `status.json`. T003 professional sign-off, T014 dependencies and live Microsoft/provider acceptance remain open.
-
-The earlier 2026-10-10 M365 portal setup trace is preserved in the [historical current-slice archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md); the later exact-site verification below supersedes its setup status.

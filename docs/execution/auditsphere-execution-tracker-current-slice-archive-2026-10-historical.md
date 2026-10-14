@@ -6920,3 +6920,9 @@ reverify its bounded read before relying on current directory data. Records rema
 `NOT_CONFIGURED`. This evidence verifies the exact selected-site boundary and a file operation only;
 the broader M365, PBC, client workflow and production acceptance gates remain open. Do not place IDs,
 account names, secrets or certificate material in repository docs.
+
+## Current verification handoff — 2026-10-10
+
+Legal/FSLI implementation and current-tree STE journeys passed local verification. See the [STE verification tracker](auditsphere-execution-tracker-ste-v21-gap-verification-current.md) and `status.json`. T003 professional sign-off, T014 dependencies and live Microsoft/provider acceptance remain open.
+
+The earlier 2026-10-10 M365 portal setup trace is preserved in the [historical current-slice archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md); the later exact-site verification below supersedes its setup status.
