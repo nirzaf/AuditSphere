@@ -80,12 +80,12 @@ internal static class FinancialPackageFixture
         new TrialBalanceRow
         {
           Id = Guid.NewGuid(), DatasetId = datasetId, AccountCode = "1000", AccountName = "Cash",
-          Amount = 180_000.000001m, Currency = "QAR", Entity = "SYNTHETIC"
+          Amount = 180_000m, Currency = "QAR", Entity = "SYNTHETIC"
         },
         new TrialBalanceRow
         {
           Id = Guid.NewGuid(), DatasetId = datasetId, AccountCode = "4000", AccountName = "Revenue",
-          Amount = -180_000.000001m, Currency = "QAR", Entity = "SYNTHETIC"
+          Amount = -180_000m, Currency = "QAR", Entity = "SYNTHETIC"
         });
       db.SourceImportBatches.Add(new SourceImportBatch
       {
@@ -93,7 +93,7 @@ internal static class FinancialPackageFixture
         PeriodId = periodId, BookId = bookId, SourceKind = AccountingSourceKinds.GeneralLedger,
         ProfileVersion = "cash-flow-e2e-v1", ParserVersion = "synthetic-e2e-v1", RawFileSha256Hex = sourceHash,
         NormalizedDatasetDigest = sourceHash, LegalEntityKey = "SYNTHETIC-CASH-FLOW", Currency = "QAR",
-        RowCount = 3, Status = "LOADING", ReceiptReference = "Synthetic accepted cash-flow ledger",
+        RowCount = 1, Status = "LOADING", ReceiptReference = "Synthetic accepted cash-flow ledger",
         CreatedByUserId = host.Fixture.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
       });
       db.GeneralLedgerTransactions.Add(new GeneralLedgerTransaction
@@ -104,24 +104,11 @@ internal static class FinancialPackageFixture
       });
       db.GeneralLedgerLines.Add(new GeneralLedgerLine
       {
-        Id = Guid.NewGuid(), FirmId = firmId, ClientId = clientId, EngagementId = engagementId,
-        ImportBatchId = sourceBatchId, TransactionId = sourceTransactionId, StableLineId = "SYN-CF-CASH-E2E",
-        AccountCode = "1000", Debit = 175_000m, Credit = 0m, FunctionalAmount = 175_000m,
-        OriginalCurrency = "QAR", OriginalAmount = 175_000m, CreatedAt = DateTimeOffset.UtcNow
-      });
-      db.GeneralLedgerLines.Add(new GeneralLedgerLine
-      {
         Id = sourceLineId, FirmId = firmId, ClientId = clientId, EngagementId = engagementId,
-        ImportBatchId = sourceBatchId, TransactionId = sourceTransactionId, StableLineId = "SYN-CF-RECEIVABLE-E2E",
-        AccountCode = "1100", Debit = 175_000m, Credit = 0m, FunctionalAmount = 175_000m,
+        ImportBatchId = sourceBatchId, TransactionId = sourceTransactionId, StableLineId = "SYN-CF-L-E2E",
+        // Cash-flow movements must link to the non-cash side of the journal, not the package's cash account.
+        AccountCode = "4000", Debit = 175_000m, Credit = 0m, FunctionalAmount = 175_000m,
         OriginalCurrency = "QAR", OriginalAmount = 175_000m, CreatedAt = DateTimeOffset.UtcNow
-      });
-      db.GeneralLedgerLines.Add(new GeneralLedgerLine
-      {
-        Id = Guid.NewGuid(), FirmId = firmId, ClientId = clientId, EngagementId = engagementId,
-        ImportBatchId = sourceBatchId, TransactionId = sourceTransactionId, StableLineId = "SYN-CF-REVENUE-E2E",
-        AccountCode = "4000", Debit = 0m, Credit = 350_000m, FunctionalAmount = -350_000m,
-        OriginalCurrency = "QAR", OriginalAmount = 350_000m, CreatedAt = DateTimeOffset.UtcNow
       });
       await db.SaveChangesAsync();
     }
@@ -171,14 +158,14 @@ internal static class FinancialPackageFixture
     }
 
     var request = new BuildFinancialPackageRequest(planId, mappingId, "IFRS", "2026-01-01", "2026-12-31", "e2e-template-v1",
-      new FinancialSupplementaryInformation(0.000001m, 175_000.000001m,
+      new FinancialSupplementaryInformation(0m, 175_000m,
         [new CashFlowLineInput("OPERATING", "Synthetic cash collections", 175_000m, MovementDate: new DateOnly(2026, 6, 30),
           ActivityCode: "CASH_COLLECTIONS", SourceReferences: ["synthetic-ledger-e2e"], ClassificationRationale: "Synthetic collections agreed to source.",
           SourceAllocations: [new CashFlowSourceAllocationInput(sourceLineId, 175_000m)])],
         [new DisclosureInput("E2E_POLICY", "Synthetic test policy note."),
          new DisclosureInput("E2E_OTHER", string.Empty, NotApplicable: true, Rationale: "No other synthetic items.")],
-        [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 175_000.000001m, 0m, 0m, 0m, 175_000.000001m, "e2e-equity")],
-        NoteLines: [new NoteLineInput("E2E_NOTE", "CASH", 175_000.000001m, "e2e-note")],
+        [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 175_000m, 0m, 0m, 0m, 175_000m, "e2e-equity")],
+        NoteLines: [new NoteLineInput("E2E_NOTE", "CASH", 175_000m, "e2e-note")],
         CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["synthetic-opening-cash-e2e"], ClosingCashEvidenceReferences: ["synthetic-closing-cash-e2e"]));
     Guid packageId;
     var expected = new Dictionary<string, (byte[] Bytes, string Sha256)>(StringComparer.Ordinal);
