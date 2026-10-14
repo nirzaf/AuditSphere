@@ -15,7 +15,7 @@ public sealed record PackageCashFlowView(
 public sealed record PackageDisclosureView(string Code, string Response, bool NotApplicable, string? Rationale);
 public sealed record PackageReviewView(string Stage, string Decision, string EvidenceMode, string EvidenceReference, string PackageHash, DateTimeOffset DecidedAt);
 public sealed record PackageArtifactView(string ArtifactSha256Hex, int ByteCount, string RenderedText);
-public sealed record FinancialPackageWorkspace(Guid Id, Guid EngagementId, string Status, string Framework, string PeriodStart, string PeriodEnd, string Currency,
+public sealed record FinancialPackageWorkspace(Guid Id, Guid EngagementId, Guid? ComparativePackageId, string Status, string Framework, string PeriodStart, string PeriodEnd, string Currency,
   string TemplateVersion, string CalculationHash, string? SupplementaryHash, long Revision, decimal? CashBeginning, decimal? CashEnding,
   IReadOnlyList<string> CashAccountCodes, IReadOnlyList<string> OpeningCashEvidenceReferences, IReadOnlyList<string> ClosingCashEvidenceReferences,
   IReadOnlyList<PackageValidationView> Validations, IReadOnlyList<PackageSectionTotal> StatementTotals, IReadOnlyList<PackageCashFlowView> CashFlow,
@@ -53,7 +53,7 @@ public static class FinancialPackageWorkspaceQuery
       x.PackageHash == p.CalculationHash && x.ArtifactVersion == FinancialPackageArtifactVersions.Text, ct);
     var reviews = await FinancialPackageReviewService.GetAsync(db, actor, p.Id, ct);
     var partner = actor.Roles.Any(x => x is "Partner" or "Administrator");
-    return CommandResult<FinancialPackageWorkspace>.Ok(new(p.Id, p.EngagementId, p.Status, p.Framework, p.PeriodStart, p.PeriodEnd, p.Currency, p.TemplateVersion,
+    return CommandResult<FinancialPackageWorkspace>.Ok(new(p.Id, p.EngagementId, p.ComparativePackageId, p.Status, p.Framework, p.PeriodStart, p.PeriodEnd, p.Currency, p.TemplateVersion,
       p.CalculationHash, p.SupplementaryHash, p.Revision, p.CashBeginning, p.CashEnding,
       p.CashAccountCodes, p.OpeningCashEvidenceReferences, p.ClosingCashEvidenceReferences, validations, totals, cash, disclosures,
       reviews.Succeeded ? reviews.Value!.Select(r => new PackageReviewView(r.Stage, r.Decision, r.EvidenceMode, r.EvidenceReference, r.PackageHash, r.DecidedAt)).ToList() : [],

@@ -452,25 +452,6 @@
       "status": "ARCHIVED_FOCUSED_EVIDENCE",
       "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.workflowAnnualPreparationCore"
     },
-    "workflowRelationshipManagerPreparation": {
-      "recordedAtUtc": "2026-10-13T10:02:00Z",
-      "baseCommit": "bdeccddb",
-      "scope": "RelationshipManager honors existing client/firm grants for blocked draft preparation and client business summaries; engagement-only scope cannot widen to the client. Professional engagement reads, risk decisions and activation keep separate roles.",
-      "migration": "20261013094323_RelationshipManagerEngagementCreationReceipts: exact-publication function role allowlist only; isolated test down/up preserves receipts. No development or production migration.",
-      "checks": {
-        "domain": "PASS 18/18: RelationshipManagerAnnualPreparationTests, ClientProfileWorkspaceTests, AnnualEngagementPreparationTests, creation safety/review and prior scoped receipt round trip; /private/tmp/auditsphere-relationship-results/_Mac_2026-10-13_12_51_18_net10.0.trx",
-        "browser": "PASS 2/2: AngularAnnualEngagementJourneyTests for Manager and RelationshipManager; /private/tmp/auditsphere-relationship-browser-verified/_Mac_2026-10-13_13_01_15_net10.0.trx",
-        "builtInBrowser": "PASS authenticated synthetic RelationshipManager annual review; source and period shown; confirmation disabled without assent; no warn/error logs",
-        "builds": "PASS bounded Application/Infrastructure/API/Domain/E2E/emitter Release builds; NU1900 feed warnings",
-        "modelContract": "PASS no pending model changes and unchanged OpenAPI drift check"
-      },
-      "initialBrowserFailures": "Test expected an acknowledgement button reserved for unknown outcomes, then used an ambiguous text locator before navigation completed. Corrected test to follow the normal confirmed-result path and wait for the exact client table cell.",
-      "priorCi": "bdeccddb: runs 38375635805 and 38375635821 succeeded.",
-      "limits": [
-        "WF-11 still needs approved template choice/pinning, contact/schedule/mapping suggestions and fresh-checklist orchestration.",
-        "No tenant grants, professional acceptance, full release suite or production deployment."
-      ]
-    },
     "workflowAnnualTaskPlanReferences": {
       "status": "ARCHIVED_FOCUSED_EVIDENCE",
       "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.workflowAnnualTaskPlanReferences"
@@ -829,75 +810,6 @@
         "live provider/deployment acceptance"
       ]
     },
-    "cp11PackageBuildJourney": {
-      "recordedAtUtc": "2026-10-14T14:06:32Z",
-      "baseCommit": "2bf0e81b",
-      "sourceTree": "Working tree on branch cp11-package-build at 2bf0e81b; the commit carrying this record is the source revision.",
-      "database": "auditsphere_tests on 127.0.0.1:5433",
-      "scope": "CP-11.AC-06 accepted-source path, built end to end: GET engagement financial-package-inputs, POST accounting packages builds (durable BuildFinancialPackage.v1), an Angular build screen at app/engagements/:id/financial-package with a paged accepted-ledger source picker, and client-side refusal of form mistakes. The manual-evidenced path is not built.",
-      "runs": [
-        {
-          "name": "Focused Domain PostgreSQL tests",
-          "command": "dotnet test ... --filter 'SourceLinkedBuild|CashFlowSourceLineage|IndependentReview'",
-          "total": 7,
-          "passed": 7,
-          "failed": 0,
-          "result": "PASS",
-          "note": "Includes the durable enqueue and worker run that restores the allocation and the preparer identity."
-        },
-        {
-          "name": "Engagement Angular specs and build",
-          "command": "npx ng test --watch=false --include 'src/app/features/engagements/**/*.spec.ts'; npx ng build",
-          "test_files": 17,
-          "passed": 128,
-          "failed": 0,
-          "result": "PASS"
-        },
-        {
-          "name": "Solution Release build",
-          "command": "dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1",
-          "result": "PASS (0 errors)"
-        },
-        {
-          "name": "OpenAPI drift and EF model drift",
-          "command": "bash scripts/contracts/verify-openapi.sh; dotnet ef migrations has-pending-model-changes",
-          "result": "PASS: contract regenerated with the build and inputs routes; no model change"
-        }
-      ],
-      "notRun": [
-        "The full Domain, API and E2E suites, left to CI.",
-        "A browser run of the build screen. No E2E journey was added in this slice."
-      ],
-      "openItems": [
-        "CP-11.AC-06 manual-evidenced path (MANUAL_EVIDENCED schedules with verified uploads) is not built.",
-        "The build screen has no progress polling; a queued build appears in package reviews when the worker completes.",
-        "CP-12 remains blocked on the approved indirect classification policy.",
-        "CASH_FLOW_SOURCE_LINEAGE is not a required blocking code; that is an owner decision."
-      ]
-    },
-    "domainPackageTestRepair": {
-      "recordedAtUtc": "2026-10-14T14:11:26Z",
-      "baseCommit": "e0563671",
-      "sourceTree": "Working tree on branch fix-pending-package-tests at e0563671; the commit carrying this record is the source revision.",
-      "database": "auditsphere_tests on 127.0.0.1:5433",
-      "scope": "Repairs five Domain tests that failed on master and that CI does not run. Test-only: review fixtures seed the canonical validation population; the FX test uses numbers that cross-cast to the adjusted cash population.",
-      "runs": [
-        {
-          "name": "Repaired tests and neighbouring classes",
-          "command": "dotnet test ... --filter 'ClientAccountingTests|CashFlow|FinancialPackage'",
-          "total": 126,
-          "passed": 126,
-          "failed": 0,
-          "result": "PASS"
-        }
-      ],
-      "notRun": [
-        "The full Domain suite; CI runs a focused filter only."
-      ],
-      "openItems": [
-        "CI does not run the full Domain suite, so the five failures went unseen. Change the CI filter or run the full suite locally."
-      ]
-    },
     "clientSitesDefaultRollout": {
       "sourceCommit": "74a21cf7961b39a9fdfc4684848639b0da11d1b5",
       "recordedAtUtc": "2026-10-11T21:00:44Z",
@@ -1049,6 +961,74 @@
         "buildWarnings": "NU1900 vulnerability-feed warnings because api.nuget.org was unavailable.",
         "fullDomainApiE2eSuitesOnThisSource": "NOT_RUN",
         "externalAcceptance": "NOT_VERIFIED: no live Microsoft client-site provisioning or staff-membership reconciliation; no VPS deployment performed."
+      }
+    },
+    "currentCashFlowPackageJourney": {
+      "recordedAtUtc": "2026-10-14T15:13:37Z",
+      "baseCommit": "9c40280e",
+      "status": "PARTIAL",
+      "alias": "CP-11 accepted-source cash-flow build subpath / CP-12 policy-blocked",
+      "scope": "Engagement-scoped Angular form, authorized build-input query, accepted GL line picker, durable package build request, validated comparative-package choices, and API-hosted browser journey source. This is not full CP-11 or story completion.",
+      "runs": [
+        {
+          "name": "Angular CI",
+          "command": "npm run test:ci",
+          "test_files": 127,
+          "passed": 717,
+          "failed": 0,
+          "result": "PASS"
+        },
+        {
+          "name": "Pinned SDK focused API/E2E build",
+          "command": "/tmp/auditsphere-dotnet-10.0.300/dotnet build tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --verbosity minimal",
+          "result": "BLOCKED: no output or terminal result after several minutes; exact latest-query tree not verified"
+        },
+        {
+          "name": "OpenAPI generation",
+          "result": "BLOCKED: the emitter did not produce output and appeared to hang; contract drift is not verified for this exact source tree"
+        }
+      ],
+      "priorEvidence": [
+        "Focused Debug E2E/API build passed before the final comparative-option query edit; it is not evidence for this final source tree.",
+        "Release OpenAPI emitter build passed before the final comparative-option query edit; it does not verify successful OpenAPI generation.",
+        "Documentation/link/status/UI gates were previously green before the latest handoff edits; rerun final checks before merge."
+      ],
+      "notRun": [
+        "Changed API-hosted browser journey; local PostgreSQL at 127.0.0.1:5433 was unavailable.",
+        "Full Domain, API and E2E suites, left to CI by the handoff instruction.",
+        "Angular production build; the current environment previously exited 134 without diagnostics."
+      ],
+      "openItems": [
+        "CP-11 is only partially covered: manual-evidenced schedules, progress polling, equity and note source paths, remaining independent source review and broader acceptance are not claimed complete.",
+        "CP-12 requires the user-supplied approved indirect cash-flow policy and professional interpretation of reviewed assessed-zero FX states.",
+        "The attached story includes many further decision-dependent and unimplemented criteria beyond CP-11/CP-12.",
+        "Exact-head GitHub Actions evidence is not yet available; update PR body and monitor CI after pushing the final commit."
+      ],
+      "headCommit": "a8a05c9738b63fb6b73ba86570bf32a206084d0b",
+      "exactHeadCi": {
+        "runId": "38584818620",
+        "result": "FAIL",
+        "angular": "PASS",
+        "docsHealth": "PASS",
+        "releaseBuild": "PASS",
+        "focusedDomainAndApiStep": "FAIL: 12 failed, 129 passed, 0 skipped, 141 total; two domain/API test commands are in the step, but the Domain project failed first",
+        "diagnosis": "All 12 surfaced Domain failures are package fixtures expecting VALIDATED or no additional blocking validation while cash-flow movements have only preparer text and no accepted-source allocation. New fail-closed CASH_FLOW_SOURCE_LINEAGE evidence correctly leaves those packages REVIEW_REQUIRED. Fixtures are being corrected to seed and allocate accepted GL lines; this correction has not yet been verified.",
+        "skippedAfterFailure": [
+          "EF model drift",
+          "API-hosted browser E2E",
+          "standalone publication",
+          "OpenAPI contract drift"
+        ]
+      },
+      "latestCorrectionCommit": "525eb76fba6a7c9e9ef554eebe32c37117593c81",
+      "latestCorrectionCi": {
+        "runId": "38586536148",
+        "result": "FAIL",
+        "angular": "PASS",
+        "docsHealth": "PASS",
+        "releaseBuild": "FAIL: CompletionBundleFixture.cs referenced CashFlowSourceSeed, but that shared source file was not linked into the E2E project",
+        "focusedTests": "NOT RUN",
+        "fix": "Added CashFlowSourceSeed.cs to the E2E test project compile links. This correction awaits a new exact-head CI run."
       }
     }
   },

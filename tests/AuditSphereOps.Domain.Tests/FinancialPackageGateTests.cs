@@ -28,6 +28,8 @@ public sealed class FinancialPackageGateTests
     var fixture = await SeedAsync(pg);
     var preparer = Actor(fixture.Preparer, "AccountingPreparer");
     var reviewer = Actor(fixture.Reviewer, "AccountingReviewer");
+    var source = await CashFlowSourceSeed.SeedAcceptedGeneralLedgerAsync(pg, fixture.FirmId, fixture.ClientId,
+      fixture.EngagementId, fixture.PeriodId, fixture.BookId, fixture.Preparer.Id, reviewer, "blocked-equity");
     var (mappingId, planId) = await CreateApprovedMappingAndPlanAsync(pg, fixture, preparer, reviewer);
 
     // Equity profit/OCI amounts deliberately disagree with the mapped income totals,
@@ -37,7 +39,8 @@ public sealed class FinancialPackageGateTests
       SupplementaryInformation = new FinancialSupplementaryInformation(
         0m, 100m,
         [new CashFlowLineInput("OPERATING", "Cash receipts", 100m, MovementDate: new DateOnly(2026, 6, 30),
-          ActivityCode: "CASH_RECEIPTS", SourceReferences: ["bank-ledger-gate"], ClassificationRationale: "Synthetic receipts agreed to source.")],
+          ActivityCode: "CASH_RECEIPTS", SourceReferences: ["bank-ledger-gate"], ClassificationRationale: "Synthetic receipts agreed to source.",
+          SourceAllocations: [new CashFlowSourceAllocationInput(source.Receivable, 100m)])],
         [new DisclosureInput("CASH_POLICY", "Cash is presented at face value."),
          new DisclosureInput("COMMITMENTS", string.Empty, NotApplicable: true, Rationale: "None identified.")],
         [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 60m, 0m, 0m, 0m, 60m, "equity-gate-1")],
@@ -120,6 +123,8 @@ public sealed class FinancialPackageGateTests
     var preparer = Actor(fixture.Preparer, "AccountingPreparer");
     var reviewer = Actor(fixture.Reviewer, "AccountingReviewer");
     var partner = Actor(fixture.Partner, "Partner");
+    var source = await CashFlowSourceSeed.SeedAcceptedGeneralLedgerAsync(pg, fixture.FirmId, fixture.ClientId,
+      fixture.EngagementId, fixture.PeriodId, fixture.BookId, fixture.Preparer.Id, reviewer, "stage-order");
     var (mappingId, planId) = await CreateApprovedMappingAndPlanAsync(pg, fixture, preparer, reviewer);
 
     var request = new BuildFinancialPackageRequest(planId, mappingId, "IFRS", "2026-01-01", "2026-12-31", "stage-v1")
@@ -127,7 +132,8 @@ public sealed class FinancialPackageGateTests
       SupplementaryInformation = new FinancialSupplementaryInformation(
         0m, 100m,
         [new CashFlowLineInput("OPERATING", "Cash receipts", 100m, MovementDate: new DateOnly(2026, 6, 30),
-          ActivityCode: "CASH_RECEIPTS", SourceReferences: ["bank-ledger-stage"], ClassificationRationale: "Synthetic receipts agreed to source.")],
+          ActivityCode: "CASH_RECEIPTS", SourceReferences: ["bank-ledger-stage"], ClassificationRationale: "Synthetic receipts agreed to source.",
+          SourceAllocations: [new CashFlowSourceAllocationInput(source.Receivable, 100m)])],
         [new DisclosureInput("CASH_POLICY", "Cash is presented at face value."),
          new DisclosureInput("COMMITMENTS", string.Empty, NotApplicable: true, Rationale: "None identified.")],
         [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 100m, "equity-stage-1")],

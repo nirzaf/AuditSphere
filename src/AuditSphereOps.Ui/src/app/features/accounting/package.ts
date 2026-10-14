@@ -7,7 +7,7 @@ import { arr, bool, dec, guid, instant, nat, nullable, obj, oneOf, text } from '
 import { SHARED } from '../../core/ui';
 import { StatementPresentation } from './presentation';
 
-export const decodePackage = obj({ id: guid, engagementId: guid, status: text, framework: text, periodStart: text, periodEnd: text, currency: text, templateVersion: text,
+export const decodePackage = obj({ id: guid, engagementId: guid, comparativePackageId: nullable(guid), status: text, framework: text, periodStart: text, periodEnd: text, currency: text, templateVersion: text,
   calculationHash: text, supplementaryHash: nullable(text), revision: nat, cashBeginning: nullable(dec), cashEnding: nullable(dec),
   cashAccountCodes: arr(text, 100), openingCashEvidenceReferences: arr(text, 50), closingCashEvidenceReferences: arr(text, 50),
   validations: arr(obj({ code: text, passed: bool, detail: text }), 500), statementTotals: arr(obj({ section: text, amount: dec }), 500),
@@ -19,7 +19,7 @@ export const decodePackage = obj({ id: guid, engagementId: guid, status: text, f
 /** Independent review of cash-flow source links (CP-11). The server decides every rule; these fields only render the result. */
 export const decodeCashFlowSourceReview = obj({
   financialPackageId: guid, movements: nat, resolvedMovements: nat, sourceLinks: nat,
-  currentSourceImportBatchId: nullable(guid), approved: bool,
+  currentSourceImportBatchId: nullable(guid), approved: bool, canReview: bool,
   reviews: arr(obj({ id: guid, decision: oneOf('APPROVED', 'RETURNED'), reason: text, reviewedByUserId: guid, reviewedAt: instant,
     sourceImportBatchId: guid }), 50),
 });
@@ -35,7 +35,9 @@ const ARTIFACTS: [string, string][] = [['financial-package-xlsx.v1', 'Download w
     <button matButton="outlined" (click)="pkg.reload()">Refresh package</button>
     <audit-state [loading]="pkg.loading()" [error]="pkg.error()" label="the scoped package" />
     @if (pkg.data(); as p) {
-      <p class="actions" aria-label="Package navigation"><audit-status [value]="p.status" /><a [routerLink]="['/app/engagements', p.engagementId]">Engagement</a><a routerLink="/app/accounting/reviews">Package reviews</a></p>
+      <p class="actions" aria-label="Package navigation"><audit-status [value]="p.status" /><a [routerLink]="['/app/engagements', p.engagementId]">Engagement</a>
+        <a [routerLink]="['/app/engagements', p.engagementId, 'financial-package']">Build another package</a><a routerLink="/app/accounting/reviews">Package reviews</a>
+        @if (p.comparativePackageId) { <a [routerLink]="['/app/accounting/packages', p.comparativePackageId]">Review comparative package and its cash-flow sources</a> }</p>
       <p role="status">{{ passed(p) }} validations passed · {{ p.validations.length - passed(p) }} failed · {{ p.reviews.length }} review decisions · {{ p.statementTotals.length }} statement lines</p>
       <section class="panel" aria-labelledby="package-heading">
         <h2 id="package-heading"><code>{{ p.id }}</code></h2>
@@ -98,7 +100,7 @@ const ARTIFACTS: [string, string][] = [['financial-package-xlsx.v1', 'Download w
               <thead><tr><th scope="col">Decision</th><th scope="col">Reason</th><th scope="col">Reviewed at</th></tr></thead>
               <tbody>@for (x of review.reviews; track x.id) { <tr><td><audit-status [value]="x.decision" /></td><td>{{ x.reason || 'No reason recorded' }}</td><td><time [attr.datetime]="x.reviewedAt">{{ x.reviewedAt }}</time></td></tr> }
               @empty { <tr><td colspan="3">No source review has been recorded for this package.</td></tr> }</tbody></table></div>
-            @if (p.canReview) {
+            @if (review.canReview) {
               <form class="inline-form" (submit)="$event.preventDefault(); reviewSources(p.id)">
                 <label>Decision <select name="sourceDecision" [(ngModel)]="sourceDecision"><option value="APPROVED">APPROVED</option><option value="RETURNED">RETURNED</option></select></label>
                 <label>Reason <textarea name="sourceReason" [(ngModel)]="sourceReason" maxlength="2000" rows="2"></textarea></label>

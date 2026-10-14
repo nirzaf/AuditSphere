@@ -11,6 +11,7 @@ describe('Financial Package and Review Queue Contracts', () => {
     const raw = {
       id: id1,
       engagementId: id2,
+      comparativePackageId: null,
       status: 'VALIDATED',
       framework: 'IFRS',
       periodStart: '2026-01-01',
@@ -101,7 +102,7 @@ describe('Financial Package and Review Queue Contracts', () => {
 
 describe('Cash-flow source review contract (CP-11)', () => {
   const review = {
-    financialPackageId: id1, movements: 2, resolvedMovements: 2, sourceLinks: 2, currentSourceImportBatchId: id2, approved: true,
+    financialPackageId: id1, movements: 2, resolvedMovements: 2, sourceLinks: 2, currentSourceImportBatchId: id2, approved: true, canReview: false,
     reviews: [{ id: id1, decision: 'APPROVED', reason: '', reviewedByUserId: id2, reviewedAt: '2026-10-14T10:00:00Z', sourceImportBatchId: id2 }],
   };
 

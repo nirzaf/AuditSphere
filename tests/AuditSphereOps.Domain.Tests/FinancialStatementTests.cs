@@ -118,6 +118,8 @@ public sealed class FinancialStatementTests
     var fixture = await SeedAsync(pg);
     var preparer = Actor(fixture.Preparer, "AccountingPreparer");
     var reviewer = Actor(fixture.Reviewer, "AccountingReviewer");
+    var source = await CashFlowSourceSeed.SeedAcceptedGeneralLedgerAsync(pg, fixture.FirmId, fixture.ClientId,
+      fixture.EngagementId, fixture.PeriodId, fixture.BookId, fixture.Preparer.Id, reviewer, "package-complete");
 
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
@@ -303,7 +305,8 @@ public sealed class FinancialStatementTests
       SupplementaryInformation = new FinancialSupplementaryInformation(
         0m, 100m,
         [new CashFlowLineInput("OPERATING", "Cash receipts", 100m, MovementDate: new DateOnly(2026, 6, 30),
-          ActivityCode: "CASH_RECEIPTS", SourceReferences: ["bank-ledger-template-v2"], ClassificationRationale: "Synthetic receipts agreed to source.")],
+          ActivityCode: "CASH_RECEIPTS", SourceReferences: ["bank-ledger-template-v2"], ClassificationRationale: "Synthetic receipts agreed to source.",
+          SourceAllocations: [new CashFlowSourceAllocationInput(source.Receivable, 100m)])],
         [new DisclosureInput("CASH_POLICY", "Cash and cash equivalents are presented at face value."),
          new DisclosureInput("COMMITMENTS", string.Empty, NotApplicable: true, Rationale: "No commitments were identified in the supplied management information.")],
         [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 100m, "equity-schedule-1")],

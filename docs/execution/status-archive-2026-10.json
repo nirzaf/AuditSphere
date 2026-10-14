@@ -16277,6 +16277,94 @@
         "artifact": "/private/tmp/auditsphere-template-boundary-tests/_Mac_2026-10-13_21_26_23_net10.0.trx",
         "remaining": "TASK-01 still partial: template-declared prerequisites, publication rules, phase guidance, automation and broader acceptance. RequiredTask is operational; no professional gate waiver introduced.",
         "migration": "No schema/configuration/UI change or persistent database migration"
+      },
+      "cp11PackageBuildJourney": {
+        "recordedAtUtc": "2026-10-14T14:06:32Z",
+        "baseCommit": "2bf0e81b",
+        "sourceTree": "Working tree on branch cp11-package-build at 2bf0e81b; the commit carrying this record is the source revision.",
+        "database": "auditsphere_tests on 127.0.0.1:5433",
+        "scope": "CP-11.AC-06 accepted-source path, built end to end: GET engagement financial-package-inputs, POST accounting packages builds (durable BuildFinancialPackage.v1), an Angular build screen at app/engagements/:id/financial-package with a paged accepted-ledger source picker, and client-side refusal of form mistakes. The manual-evidenced path is not built.",
+        "runs": [
+          {
+            "name": "Focused Domain PostgreSQL tests",
+            "command": "dotnet test ... --filter 'SourceLinkedBuild|CashFlowSourceLineage|IndependentReview'",
+            "total": 7,
+            "passed": 7,
+            "failed": 0,
+            "result": "PASS",
+            "note": "Includes the durable enqueue and worker run that restores the allocation and the preparer identity."
+          },
+          {
+            "name": "Engagement Angular specs and build",
+            "command": "npx ng test --watch=false --include 'src/app/features/engagements/**/*.spec.ts'; npx ng build",
+            "test_files": 17,
+            "passed": 128,
+            "failed": 0,
+            "result": "PASS"
+          },
+          {
+            "name": "Solution Release build",
+            "command": "dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1",
+            "result": "PASS (0 errors)"
+          },
+          {
+            "name": "OpenAPI drift and EF model drift",
+            "command": "bash scripts/contracts/verify-openapi.sh; dotnet ef migrations has-pending-model-changes",
+            "result": "PASS: contract regenerated with the build and inputs routes; no model change"
+          }
+        ],
+        "notRun": [
+          "The full Domain, API and E2E suites, left to CI.",
+          "A browser run of the build screen. No E2E journey was added in this slice."
+        ],
+        "openItems": [
+          "CP-11.AC-06 manual-evidenced path (MANUAL_EVIDENCED schedules with verified uploads) is not built.",
+          "The build screen has no progress polling; a queued build appears in package reviews when the worker completes.",
+          "CP-12 remains blocked on the approved indirect classification policy.",
+          "CASH_FLOW_SOURCE_LINEAGE is not a required blocking code; that is an owner decision."
+        ]
+      },
+      "domainPackageTestRepair": {
+        "recordedAtUtc": "2026-10-14T14:11:26Z",
+        "baseCommit": "e0563671",
+        "sourceTree": "Working tree on branch fix-pending-package-tests at e0563671; the commit carrying this record is the source revision.",
+        "database": "auditsphere_tests on 127.0.0.1:5433",
+        "scope": "Repairs five Domain tests that failed on master and that CI does not run. Test-only: review fixtures seed the canonical validation population; the FX test uses numbers that cross-cast to the adjusted cash population.",
+        "runs": [
+          {
+            "name": "Repaired tests and neighbouring classes",
+            "command": "dotnet test ... --filter 'ClientAccountingTests|CashFlow|FinancialPackage'",
+            "total": 126,
+            "passed": 126,
+            "failed": 0,
+            "result": "PASS"
+          }
+        ],
+        "notRun": [
+          "The full Domain suite; CI runs a focused filter only."
+        ],
+        "openItems": [
+          "CI does not run the full Domain suite, so the five failures went unseen. Change the CI filter or run the full suite locally."
+        ]
+      },
+      "workflowRelationshipManagerPreparation": {
+        "recordedAtUtc": "2026-10-13T10:02:00Z",
+        "baseCommit": "bdeccddb",
+        "scope": "RelationshipManager honors existing client/firm grants for blocked draft preparation and client business summaries; engagement-only scope cannot widen to the client. Professional engagement reads, risk decisions and activation keep separate roles.",
+        "migration": "20261013094323_RelationshipManagerEngagementCreationReceipts: exact-publication function role allowlist only; isolated test down/up preserves receipts. No development or production migration.",
+        "checks": {
+          "domain": "PASS 18/18: RelationshipManagerAnnualPreparationTests, ClientProfileWorkspaceTests, AnnualEngagementPreparationTests, creation safety/review and prior scoped receipt round trip; /private/tmp/auditsphere-relationship-results/_Mac_2026-10-13_12_51_18_net10.0.trx",
+          "browser": "PASS 2/2: AngularAnnualEngagementJourneyTests for Manager and RelationshipManager; /private/tmp/auditsphere-relationship-browser-verified/_Mac_2026-10-13_13_01_15_net10.0.trx",
+          "builtInBrowser": "PASS authenticated synthetic RelationshipManager annual review; source and period shown; confirmation disabled without assent; no warn/error logs",
+          "builds": "PASS bounded Application/Infrastructure/API/Domain/E2E/emitter Release builds; NU1900 feed warnings",
+          "modelContract": "PASS no pending model changes and unchanged OpenAPI drift check"
+        },
+        "initialBrowserFailures": "Test expected an acknowledgement button reserved for unknown outcomes, then used an ambiguous text locator before navigation completed. Corrected test to follow the normal confirmed-result path and wait for the exact client table cell.",
+        "priorCi": "bdeccddb: runs 38375635805 and 38375635821 succeeded.",
+        "limits": [
+          "WF-11 still needs approved template choice/pinning, contact/schedule/mapping suggestions and fresh-checklist orchestration.",
+          "No tenant grants, professional acceptance, full release suite or production deployment."
+        ]
       }
     }
   }

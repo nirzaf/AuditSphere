@@ -16,7 +16,7 @@ public static class FinancialPackageValidationReadiness
   [
     "TB_BALANCED", "MAPPING_COMPLETE", "ADJUSTMENTS_REPRODUCIBLE", "PACKAGE_BALANCED",
     "STATEMENT_CROSS_CAST", "ACCOUNTING_EQUATION", "EQUITY_ROLLFORWARD", "EQUITY_PROFIT",
-    "COMPARATIVE_CONSISTENCY", "NOTE_TO_FACE_TOTALS"
+    "COMPARATIVE_CONSISTENCY", "NOTE_TO_FACE_TOTALS", "CASH_FLOW_SOURCE_LINEAGE"
   ];
 
   public sealed record Result(IReadOnlyList<string> Missing, IReadOnlyList<string> Failed,

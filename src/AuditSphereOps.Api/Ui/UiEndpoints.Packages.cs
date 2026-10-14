@@ -1,10 +1,13 @@
 using System.Text;
+using System.Text.Json;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Api.Authentication;
 using AuditSphereOps.Api.HttpBoundary;
 using AuditSphereOps.Domain.Accounting;
+using AuditSphereOps.Domain.Completion;
+using AuditSphereOps.Domain.Shared;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.EntityFrameworkCore;
 
@@ -21,19 +24,37 @@ public static partial class UiEndpoints
 
   private static void MapPackageEndpoints(RouteGroupBuilder group)
   {
+    // Preserve exact decimal strings from the browser while queueing the reviewed build durably.
+    group.MapUiPost("/accounting/packages/builds", http => CommandAsync(http, async (db, actor, ct) =>
+    {
+      BuildFinancialPackageRequest? input;
+      try
+      {
+        input = await JsonSerializer.DeserializeAsync<BuildFinancialPackageRequest>(http.Request.Body, UiJson, ct);
+      }
+      catch (Exception ex) when (ex is JsonException or FormatException or OverflowException)
+      {
+        return CommandResult<Guid>.Fail(ErrorCodes.Accounting.PackageInvalid, "The financial-package input is invalid.");
+      }
+      if (input is null)
+        return CommandResult<Guid>.Fail(ErrorCodes.Accounting.PackageInvalid, "A financial-package input is required.");
+      return await FinancialStatementService.EnqueueFinancialPackageBuildAsync(db, actor, input,
+        http.RequestServices.GetRequiredService<IOperationStore>(),
+        http.RequestServices.GetRequiredService<FinancialPackageBuildHandler>(), ct);
+    })).Accepts<BuildFinancialPackageRequest>("application/json");
+
     group.MapUiGet("/accounting/reviews", http => ReadAsync(http, (db, actor, ct) => FinancialPackageReviewService.GetStaffQueueAsync(db, actor, ct)));
     group.MapGet("/accounting/packages/{id:guid}", (Guid id, HttpContext http) => ReadAsync(http, (db, actor, ct) => FinancialPackageWorkspaceQuery.GetAsync(db, actor, id, ct)));
+    group.MapPost("/accounting/packages/{id:guid}/render", (Guid id, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => FinancialStatementService.EnqueueFinancialPackageRenderAsync(db, actor, id,
+        http.RequestServices.GetRequiredService<IOperationStore>(),
+        http.RequestServices.GetRequiredService<FinancialPackageRenderHandler>(), ct)));
     group.MapPost("/accounting/packages/{id:guid}/reviews", (Guid id, PackageReviewInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => FinancialPackageReviewService.RecordAsync(db, actor,
         new FinancialPackageReviewRequest(id, i.Stage, i.Decision, i.EvidenceMode, i.EvidenceReference ?? "", i.Comment ?? ""), ct)));
     // Build inputs: the approved mappings, finalized plans and reporting periods a preparer can choose from.
     group.MapGet("/engagements/{id:guid}/financial-package-inputs", (Guid id, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => FinancialPackageBuildInputsQuery.GetAsync(db, actor, id, ct)));
-    // Enqueues the exact build as a durable operation. The worker builds the package; the result is never claimed here.
-    group.MapPost("/accounting/packages/builds", (BuildFinancialPackageRequest input, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => FinancialStatementService.EnqueueFinancialPackageBuildAsync(db, actor, input,
-        http.RequestServices.GetRequiredService<IOperationStore>(),
-        http.RequestServices.GetRequiredService<FinancialPackageBuildHandler>(), ct)));
     group.MapGet("/accounting/packages/{id:guid}/cash-flow-source-review", (Guid id, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => FinancialStatementService.GetCashFlowSourceReviewAsync(db, actor, id, ct)));
     group.MapPost("/accounting/packages/{id:guid}/cash-flow-source-review", (Guid id, CashFlowSourceReviewInput i, HttpContext http) =>

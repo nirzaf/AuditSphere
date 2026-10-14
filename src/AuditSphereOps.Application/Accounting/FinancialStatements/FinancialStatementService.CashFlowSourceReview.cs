@@ -15,7 +15,7 @@ public sealed record CashFlowSourceReviewEntry(Guid Id, string Decision, string 
 /// the newest decision is an independent approval, and the accepted general ledger it cites is still the current one.
 /// </summary>
 public sealed record CashFlowSourceReviewState(Guid FinancialPackageId, int Movements, int ResolvedMovements, int SourceLinks,
-  Guid? CurrentSourceImportBatchId, bool Approved, IReadOnlyList<CashFlowSourceReviewEntry> Reviews);
+  Guid? CurrentSourceImportBatchId, bool Approved, bool CanReview, IReadOnlyList<CashFlowSourceReviewEntry> Reviews);
 
 /// <summary>Independent review of cash-flow source links (CP-11). The preparer who resolved a link can never review it.</summary>
 public static partial class FinancialStatementService
@@ -95,17 +95,43 @@ public static partial class FinancialStatementService
     var latest = reviews.FirstOrDefault();
     var approved = current.AllResolved && current.CurrentBatchId is Guid batch && latest is { Decision: "APPROVED" } &&
       latest.SourceImportBatchId == batch && current.Allocations.All(x => x.SourceImportBatchId == batch);
+    var canReview = actor.Roles.Any(CashFlowSourceReviewRoles.Contains) && current.Allocations.Count > 0 &&
+      current.Allocations.All(x => x.CreatedByUserId != Guid.Empty && x.CreatedByUserId != actor.UserId);
     return CommandResult<CashFlowSourceReviewState>.Ok(new CashFlowSourceReviewState(package.Id, current.Movements,
-      current.Resolved.Count(x => x), current.Allocations.Count, current.CurrentBatchId, approved,
+      current.Resolved.Count(x => x), current.Allocations.Count, current.CurrentBatchId, approved, canReview,
       reviews.Select(x => new CashFlowSourceReviewEntry(x.Id, x.Decision, x.Reason, x.ReviewedByUserId, x.ReviewedAt, x.SourceImportBatchId)).ToArray()));
   }
 
   /// <summary>Presentation read: true only for a current independent approval. Any failure reads as not approved.</summary>
-  internal static async Task<bool> CashFlowSourceApprovedAsync(IClientAccountingDbContext db, ActorContext actor, FinancialPackage package,
-    CancellationToken ct)
+  internal static async Task<bool> CashFlowSourceApprovedAsync(IClientAccountingDbContext db, FinancialPackage package, CancellationToken ct)
   {
-    var state = await GetCashFlowSourceReviewAsync(db, actor, package.Id, ct);
-    return state.Succeeded && state.Value!.Approved;
+    var movements = await db.FinancialPackageCashFlowLines.AsNoTracking().Where(x =>
+      x.FirmId == package.FirmId && x.ClientId == package.ClientId && x.EngagementId == package.EngagementId &&
+      x.FinancialPackageId == package.Id).OrderBy(x => x.Id).ToListAsync(ct);
+    if (movements.Count == 0) return true;
+    var allocations = await db.FinancialPackageCashFlowAllocations.AsNoTracking().Where(x =>
+      x.FirmId == package.FirmId && x.ClientId == package.ClientId && x.EngagementId == package.EngagementId &&
+      x.FinancialPackageId == package.Id).ToListAsync(ct);
+    if (allocations.Count == 0 || allocations.Any(x => x.CreatedByUserId == Guid.Empty || x.Currency != package.Currency)) return false;
+    var movementIndexes = movements.Select((line, index) => (line.Id, index)).ToDictionary(x => x.Id, x => x.index);
+    if (allocations.Any(x => !movementIndexes.ContainsKey(x.CashFlowLineId)) ||
+        !ResolvedCashFlowMovements(movements.Select(x => x.Amount).ToArray(),
+          allocations.Select(x => (movementIndexes[x.CashFlowLineId], x.SignedAmount))).All(x => x)) return false;
+
+    var accepted = await db.SourceAcceptanceDecisions.AsNoTracking().Where(x =>
+        x.FirmId == package.FirmId && x.ClientId == package.ClientId && x.EngagementId == package.EngagementId &&
+        x.SourceKind == AccountingSourceKinds.GeneralLedger && x.Decision == "ACCEPTED")
+      .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+    if (accepted is null || allocations.Any(x => x.SourceImportBatchId != accepted.ImportBatchId) ||
+        !await db.SourceImportBatches.AsNoTracking().AnyAsync(x => x.FirmId == package.FirmId && x.ClientId == package.ClientId &&
+          x.EngagementId == package.EngagementId && x.Id == accepted.ImportBatchId && x.SourceKind == AccountingSourceKinds.GeneralLedger &&
+          x.Status == "SEALED" && x.NormalizedDatasetDigest == accepted.SourceIdentityHash, ct)) return false;
+    var latest = await db.FinancialPackageCashFlowSourceReviews.AsNoTracking().Where(x =>
+        x.FirmId == package.FirmId && x.ClientId == package.ClientId && x.EngagementId == package.EngagementId &&
+        x.FinancialPackageId == package.Id)
+      .OrderByDescending(x => x.ReviewedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+    return latest is { Decision: "APPROVED" } && latest.SourceImportBatchId == accepted.ImportBatchId &&
+      allocations.All(x => x.CreatedByUserId != latest.ReviewedByUserId);
   }
 
   private static async Task<CommandResult<CashFlowLineage>> LoadCashFlowLineageAsync(IClientAccountingDbContext db, ActorContext actor,

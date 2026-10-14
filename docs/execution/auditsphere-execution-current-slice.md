@@ -15,13 +15,13 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
-## Source-linked package build from the product (CP-11.AC-06, accepted-source path) — 2026-10-14
+## Source-linked package build from the product (CP-11 accepted-source cash-flow subpath) — 2026-10-14
 
-A staff preparer can now queue a financial-package build from the engagement page. The screen lists the approved mappings, finalized plans and reporting periods, lets the preparer link cash-flow movements to accepted general-ledger lines through a paged picker, and refuses form mistakes before the request is sent. The request goes to the durable `BuildFinancialPackage.v1` operation, so the worker builds the package, and the package then appears in package reviews. The routes are `GET /api/ui/engagements/{id}/financial-package-inputs` and `POST /api/ui/accounting/packages/builds`.
+The engagement-scoped preparer screen lists approved mappings, finalized adjustment plans, reporting periods and validated comparative packages. It supports a paged accepted-ledger line picker and submits exact decimal strings to the durable `BuildFinancialPackage.v1` operation. Input discovery is scope-authorized and the server still validates the selected current/comparative package. The routes are `GET /api/ui/engagements/{id}/financial-package-inputs` and `POST /api/ui/accounting/packages/builds`.
 
-Not done: the manual-evidenced path (MANUAL_EVIDENCED schedules with verified uploads), progress polling on the screen, and a browser run.
+This is one CP-11 cash-flow build subpath, not completion of CP-11 or the attached story. The changed browser journey has not been executed. The manual-evidenced path, progress polling, equity and notes source lineage, any other required source/review paths, and remaining CP-11 acceptance are still open. CP-12 is blocked on the actual approved indirect cash-flow policy reference and professional interpretation of reviewed assessed-zero FX states; no accounting treatment is inferred here. The local PostgreSQL service was unavailable at `127.0.0.1:5433`. Current verification and prior-build limits are recorded in `status.json` under `targetedVerification.currentCashFlowPackageJourney`.
 
-Repaired in the same handoff: five Domain tests that failed on master (four package-review fixtures that now seed the canonical validation population, and the cash-flow FX test whose numbers did not cross-cast to the adjusted cash population). CI runs only a focused filter, so those failures were not visible in CI; the repair is recorded under `targetedVerification.domainPackageTestRepair`. CP-12 remains blocked on the approved indirect classification policy. Evidence is in `status.json` under `targetedVerification.cp11PackageBuildJourney`.
+The branch also includes the upstream repair for five Domain tests that failed on master (four package-review fixtures now seed the canonical validation population, and the FX test numbers cross-cast to adjusted cash). The recorded focused run predates this follow-up and is retained in [`status-archive-2026-10.json`](status-archive-2026-10.json); it is not final-head evidence.
 
 ## Accepted GL discovery for schedule preparation — 2026-10-14
 
