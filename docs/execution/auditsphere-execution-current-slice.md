@@ -15,11 +15,11 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
-## Cash-flow source review and presentation approval (CP-11 completion) — 2026-10-14
+## Source-linked package build from the product (CP-11.AC-06, accepted-source path) — 2026-10-14
 
-Cash-flow source links now need an independent decision before the presentation treats them as lineage. A reviewer with an accounting or management role records `APPROVED` or `RETURNED` (with a reason) against the package. Decisions are append-only (`financial_package_cash_flow_source_reviews`). The preparer who resolved a link can never review it, and a link with no recorded preparer is refused. An approval is valid only while the accepted general ledger it cites is still the current one; replacing the ledger stales it, and the presentation stops reading the links as approved. Lineage also refuses a cash-account line as a movement source, because that is a transfer. The source manifest seals a review only when one exists, so existing identities do not move. The API exposes `GET` and `POST /api/ui/accounting/packages/{id}/cash-flow-source-review`, and the package page has a review panel.
+A staff preparer can now queue a financial-package build from the engagement page. The screen lists the approved mappings, finalized plans and reporting periods, lets the preparer link cash-flow movements to accepted general-ledger lines through a paged picker, and refuses form mistakes before the request is sent. The request goes to the durable `BuildFinancialPackage.v1` operation, so the worker builds the package, and the package then appears in package reviews. The routes are `GET /api/ui/engagements/{id}/financial-package-inputs` and `POST /api/ui/accounting/packages/builds`.
 
-Not done: the supplementary cash-flow input still has no endpoint or screen (CP-11.AC-06 is open), so a source-linked package cannot yet be built through the product. CP-12 (indirect decomposition, payment roles and the reviewed assessed-zero FX decision) is blocked on the approved indirect classification policy. Evidence is in `status.json` under `targetedVerification.cp11SourceReviewAndPresentation`.
+Not done: the manual-evidenced path (MANUAL_EVIDENCED schedules with verified uploads), progress polling on the screen, and a browser run. CP-12 remains blocked on the approved indirect classification policy. Evidence is in `status.json` under `targetedVerification.cp11PackageBuildJourney`.
 
 ## Accepted GL discovery for schedule preparation — 2026-10-14
 

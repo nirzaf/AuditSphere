@@ -25357,6 +25357,111 @@
         ]
       }
     },
+    "/api/ui/engagements/{id}/financial-package-inputs": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/packages/builds": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BuildFinancialPackageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
     "/api/ui/accounting/packages/{id}/cash-flow-source-review": {
       "get": {
         "tags": [
@@ -35849,6 +35954,49 @@
           }
         }
       },
+      "BuildFinancialPackageRequest": {
+        "required": [
+          "adjustmentPlanId",
+          "mappingVersionId",
+          "framework",
+          "periodStart",
+          "periodEnd",
+          "templateVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "adjustmentPlanId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "mappingVersionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "framework": {
+            "type": "string"
+          },
+          "periodStart": {
+            "type": "string"
+          },
+          "periodEnd": {
+            "type": "string"
+          },
+          "templateVersion": {
+            "type": "string"
+          },
+          "supplementaryInformation": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FinancialSupplementaryInformation"
+              }
+            ]
+          }
+        }
+      },
       "BundleInput": {
         "required": [
           "statementsReviewed"
@@ -35857,6 +36005,92 @@
         "properties": {
           "statementsReviewed": {
             "type": "boolean"
+          }
+        }
+      },
+      "CashFlowLineInput": {
+        "required": [
+          "section",
+          "description",
+          "amount"
+        ],
+        "type": "object",
+        "properties": {
+          "section": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "isNonCash": {
+            "type": "boolean",
+            "default": false
+          },
+          "movementDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "activityCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sourceReferences": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "classificationRationale": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sourceAllocations": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/CashFlowSourceAllocationInput"
+            }
+          }
+        }
+      },
+      "CashFlowSourceAllocationInput": {
+        "required": [
+          "generalLedgerLineId",
+          "signedAmount"
+        ],
+        "type": "object",
+        "properties": {
+          "generalLedgerLineId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "signedAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
           }
         }
       },
@@ -41773,6 +42007,31 @@
           }
         }
       },
+      "DisclosureInput": {
+        "required": [
+          "code",
+          "response"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "response": {
+            "type": "string"
+          },
+          "notApplicable": {
+            "type": "boolean",
+            "default": false
+          },
+          "rationale": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "DispositionInput": {
         "required": [
           "cleared"
@@ -41986,6 +42245,79 @@
           }
         }
       },
+      "EquityLineInput": {
+        "required": [
+          "lineCode",
+          "description",
+          "openingAmount",
+          "profitOrLossAmount",
+          "ociAmount",
+          "capitalMovementAmount",
+          "dividendsAmount",
+          "closingAmount",
+          "evidenceReference"
+        ],
+        "type": "object",
+        "properties": {
+          "lineCode": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "openingAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "profitOrLossAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "ociAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "capitalMovementAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "dividendsAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "closingAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "evidenceReference": {
+            "type": "string"
+          }
+        }
+      },
       "EvidenceActionRequest": {
         "required": [
           "requestId",
@@ -42099,6 +42431,129 @@
         "properties": {
           "reviewed": {
             "type": "boolean"
+          }
+        }
+      },
+      "FinancialComparativeInput": {
+        "required": [
+          "packageId",
+          "basis",
+          "evidenceReference"
+        ],
+        "type": "object",
+        "properties": {
+          "packageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "basis": {
+            "type": "string"
+          },
+          "evidenceReference": {
+            "type": "string"
+          }
+        }
+      },
+      "FinancialSupplementaryInformation": {
+        "required": [
+          "cashBeginning",
+          "cashEnding",
+          "cashFlowLines",
+          "disclosures"
+        ],
+        "type": "object",
+        "properties": {
+          "cashBeginning": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "cashEnding": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "cashFlowLines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashFlowLineInput"
+            }
+          },
+          "disclosures": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DisclosureInput"
+            }
+          },
+          "equityLines": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/EquityLineInput"
+            }
+          },
+          "comparative": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FinancialComparativeInput"
+              }
+            ]
+          },
+          "noteLines": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/NoteLineInput"
+            }
+          },
+          "fxCashEffects": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/FxCashEffectInput"
+            }
+          },
+          "cashAccountCodes": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "openingCashEvidenceReferences": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "closingCashEvidenceReferences": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -42228,6 +42683,30 @@
         "type": "object",
         "properties": {
           "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "FxCashEffectInput": {
+        "required": [
+          "currencyPair",
+          "amount",
+          "evidenceReference"
+        ],
+        "type": "object",
+        "properties": {
+          "currencyPair": {
+            "type": "string"
+          },
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "evidenceReference": {
             "type": "string"
           }
         }
@@ -42845,6 +43324,34 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "NoteLineInput": {
+        "required": [
+          "noteCode",
+          "faceDestinationCode",
+          "amount",
+          "evidenceReference"
+        ],
+        "type": "object",
+        "properties": {
+          "noteCode": {
+            "type": "string"
+          },
+          "faceDestinationCode": {
+            "type": "string"
+          },
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "evidenceReference": {
+            "type": "string"
           }
         }
       },

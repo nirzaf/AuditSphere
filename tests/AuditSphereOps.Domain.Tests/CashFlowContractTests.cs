@@ -1,10 +1,15 @@
 using AuditSphereOps.Application.Accounting;
+using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Domain.Accounting;
+using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
+using WorkerHost = AuditSphereOps.Worker.Worker;
 
 namespace AuditSphereOps.Domain.Tests;
 
@@ -325,6 +330,54 @@ public sealed class CashFlowContractTests
       Assert.False(stale.Approved);
       Assert.Equal(replacement.BatchId, stale.CurrentSourceImportBatchId);
       Assert.Equal(ErrorCodes.StaleRevision, (await FinancialStatementService.RecordCashFlowSourceReviewAsync(db, reviewer, packageId, "APPROVED", null)).ErrorCode);
+    }
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task SourceLinkedBuild_EnqueuesDurablyAndRestoresItsAllocationsOnTheWorker()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    var preparer = Actor(fixture.Preparer, "AccountingPreparer");
+    var reviewer = Actor(fixture.Reviewer, "AccountingReviewer");
+    var source = await SeedAcceptedGeneralLedgerAsync(pg, fixture, reviewer);
+    var (mappingId, planId) = await CreateApprovedMappingAndPlanAsync(pg, fixture, preparer, reviewer);
+    var request = new BuildFinancialPackageRequest(planId, mappingId, "IFRS", "2026-01-01", "2026-12-31", "durable-source-linked-v1")
+    {
+      SupplementaryInformation = new FinancialSupplementaryInformation(0m, 100m,
+        [new CashFlowLineInput("OPERATING", "Cash receipts from customers", 100m, IsNonCash: false, MovementDate: new DateOnly(2026, 6, 30),
+           ActivityCode: "CASH_RECEIPTS", SourceReferences: ["gl-source-durable"], ClassificationRationale: "Linked to accepted general-ledger lines.",
+           SourceAllocations: [new CashFlowSourceAllocationInput(source.Receivable, 100m)])],
+        [new DisclosureInput("CASH_POLICY", "Cash is presented at face value."),
+         new DisclosureInput("COMMITMENTS", string.Empty, NotApplicable: true, Rationale: "None identified.")],
+        [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 100m, "equity-cash-durable")],
+        CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-bank-statement-1"], ClosingCashEvidenceReferences: ["closing-bank-statement-1"])
+    };
+    var store = new PostgresOperationStore(new OperationContextFactory(new PbcSeed.OptionsDbContextFactory(pg.Options)));
+    var handler = new FinancialPackageBuildHandler();
+    Guid operationId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var queued = await FinancialStatementService.EnqueueFinancialPackageBuildAsync(db, preparer, request, store, handler);
+      Assert.True(queued.Succeeded, queued.Message);
+      operationId = queued.Value;
+    }
+    var workerOptions = new WorkerOptions(fixture.FirmId, "Test");
+    var worker = new WorkerHost(new OperationDispatcher(store, new DurableOperationRegistry([handler], workerOptions), workerOptions),
+      Array.Empty<IPendingOperationDiscovery>(), NullLogger<WorkerHost>.Instance);
+    Assert.True(await worker.ProcessNextAsync());
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var operation = await db.DurableOperations.SingleAsync(x => x.Id == operationId);
+      Assert.Equal(OperationState.COMPLETED, operation.Status);
+      var package = await db.FinancialPackages.SingleAsync(x => x.TemplateVersion == "durable-source-linked-v1");
+      Assert.Equal(package.Id.ToString("D"), operation.ResultIdentity);
+      // The payload carried the contribution, so the worker stored it under the movement and recorded the preparer.
+      var allocation = await db.FinancialPackageCashFlowAllocations.AsNoTracking().SingleAsync(x => x.FinancialPackageId == package.Id);
+      Assert.Equal((source.Receivable, 100m, fixture.Preparer.Id), (allocation.GeneralLedgerLineId, allocation.SignedAmount, allocation.CreatedByUserId));
+      Assert.True(await db.FinancialPackageValidations.AnyAsync(x => x.FinancialPackageId == package.Id &&
+        x.Code == "CASH_FLOW_SOURCE_LINEAGE" && x.Passed));
     }
   }
 

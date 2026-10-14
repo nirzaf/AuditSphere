@@ -1,5 +1,6 @@
 using System.Text;
 using AuditSphereOps.Application.Accounting;
+using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Api.Authentication;
 using AuditSphereOps.Api.HttpBoundary;
@@ -25,6 +26,14 @@ public static partial class UiEndpoints
     group.MapPost("/accounting/packages/{id:guid}/reviews", (Guid id, PackageReviewInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => FinancialPackageReviewService.RecordAsync(db, actor,
         new FinancialPackageReviewRequest(id, i.Stage, i.Decision, i.EvidenceMode, i.EvidenceReference ?? "", i.Comment ?? ""), ct)));
+    // Build inputs: the approved mappings, finalized plans and reporting periods a preparer can choose from.
+    group.MapGet("/engagements/{id:guid}/financial-package-inputs", (Guid id, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => FinancialPackageBuildInputsQuery.GetAsync(db, actor, id, ct)));
+    // Enqueues the exact build as a durable operation. The worker builds the package; the result is never claimed here.
+    group.MapPost("/accounting/packages/builds", (BuildFinancialPackageRequest input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => FinancialStatementService.EnqueueFinancialPackageBuildAsync(db, actor, input,
+        http.RequestServices.GetRequiredService<IOperationStore>(),
+        http.RequestServices.GetRequiredService<FinancialPackageBuildHandler>(), ct)));
     group.MapGet("/accounting/packages/{id:guid}/cash-flow-source-review", (Guid id, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => FinancialStatementService.GetCashFlowSourceReviewAsync(db, actor, id, ct)));
     group.MapPost("/accounting/packages/{id:guid}/cash-flow-source-review", (Guid id, CashFlowSourceReviewInput i, HttpContext http) =>
