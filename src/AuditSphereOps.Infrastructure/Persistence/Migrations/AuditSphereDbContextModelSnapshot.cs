@@ -7573,6 +7573,10 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
                     b.Property<string>("Currency")
                         .IsRequired()
                         .HasMaxLength(3)
@@ -7586,10 +7590,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("FinancialPackageId")
                         .HasColumnType("uuid")
                         .HasColumnName("financial_package_id");
-
-                    b.Property<Guid?>("PreparedByUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("prepared_by_user_id");
 
                     b.Property<Guid>("FirmId")
                         .HasColumnType("uuid")
@@ -7624,9 +7624,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("FirmId", "GeneralLedgerLineId");
 
-                    b.HasIndex("FirmId", "PreparedByUserId")
-                        .HasDatabaseName("ix_fin_package_cash_alloc_preparer");
-
                     b.HasIndex("FirmId", "ClientId", "EngagementId", "FinancialPackageId");
 
                     b.HasIndex("FirmId", "FinancialPackageId", "CashFlowLineId", "GeneralLedgerLineId")
@@ -7636,98 +7633,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.ToTable("financial_package_cash_flow_allocations", null, t =>
                         {
                             t.HasCheckConstraint("ck_financial_package_cash_allocation_values", "signed_amount <> 0 AND currency ~ '^[A-Z]{3}$' AND source_line_hash ~ '^[a-f0-9]{64}$'");
-                        });
-                });
-
-            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.FinancialPackageCashFlowAllocationReview", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<string>("Comment")
-                        .IsRequired()
-                        .HasMaxLength(4000)
-                        .HasColumnType("character varying(4000)")
-                        .HasColumnName("comment");
-
-                    b.Property<Guid>("ClientId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("client_id");
-
-                    b.Property<DateTimeOffset>("DecidedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("decided_at");
-
-                    b.Property<Guid>("DecidedByUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("decided_by_user_id");
-
-                    b.Property<string>("Decision")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)")
-                        .HasColumnName("decision");
-
-                    b.Property<string>("EvidenceReference")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
-                        .HasColumnName("evidence_reference");
-
-                    b.Property<long>("PackageGeneration")
-                        .HasColumnType("bigint")
-                        .HasColumnName("package_generation");
-
-                    b.Property<long>("PackageRevision")
-                        .HasColumnType("bigint")
-                        .HasColumnName("package_revision");
-
-                    b.Property<string>("PackageCalculationHash")
-                        .IsRequired()
-                        .IsFixedLength()
-                        .HasMaxLength(64)
-                        .HasColumnType("character(64)")
-                        .HasColumnName("package_calculation_hash");
-
-                    b.Property<Guid>("EngagementId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("engagement_id");
-
-                    b.Property<Guid>("FinancialPackageId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("financial_package_id");
-
-                    b.Property<Guid>("FirmId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("firm_id");
-
-                    b.Property<string>("SourceManifestHash")
-                        .IsRequired()
-                        .IsFixedLength()
-                        .HasMaxLength(64)
-                        .HasColumnType("character(64)")
-                        .HasColumnName("source_manifest_hash");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("FirmId", "DecidedByUserId")
-                        .HasDatabaseName("ix_fin_package_cash_alloc_review_reviewer");
-
-                    b.HasIndex("FirmId", "ClientId", "EngagementId", "FinancialPackageId")
-                        .HasDatabaseName("ix_fin_package_cash_alloc_review_package");
-
-                    b.HasIndex("FirmId", "FinancialPackageId", "DecidedAt")
-                        .HasDatabaseName("ix_financial_package_cash_allocation_review_history");
-
-                    b.HasIndex("FirmId", "FinancialPackageId", "PackageRevision", "SourceManifestHash", "DecidedByUserId")
-                        .IsUnique()
-                        .HasDatabaseName("ux_financial_package_cash_allocation_review_identity");
-
-                    b.ToTable("financial_package_cash_flow_allocation_reviews", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_financial_package_cash_allocation_review_values", "package_revision >= 1 AND package_generation >= 1 AND package_calculation_hash ~ '^[a-f0-9]{64}$' AND source_manifest_hash ~ '^[a-f0-9]{64}$' AND decision IN ('APPROVED','CHANGES_REQUIRED','REJECTED') AND length(trim(evidence_reference)) BETWEEN 1 AND 2000 AND length(trim(comment)) <= 4000");
                         });
                 });
 
@@ -7816,6 +7721,65 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.ToTable("financial_package_cash_flow_lines", null, t =>
                         {
                             t.HasCheckConstraint("ck_financial_package_cash_flow_values", "section IN ('OPERATING','INVESTING','FINANCING') AND length(trim(description)) > 0 AND currency ~ '^[A-Z]{3}$' AND ((movement_date IS NULL AND activity_code IS NULL AND classification_rationale IS NULL AND cardinality(source_references) = 0) OR (movement_date IS NOT NULL AND length(trim(activity_code)) > 0 AND cardinality(source_references) > 0 AND length(trim(classification_rationale)) > 0))");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.FinancialPackageCashFlowSourceReview", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<string>("Decision")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("decision");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FinancialPackageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("financial_package_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("reason");
+
+                    b.Property<DateTimeOffset>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reviewed_at");
+
+                    b.Property<Guid>("ReviewedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewed_by_user_id");
+
+                    b.Property<Guid>("SourceImportBatchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_import_batch_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FirmId", "FinancialPackageId", "ReviewedAt");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "FinancialPackageId");
+
+                    b.ToTable("financial_package_cash_flow_source_reviews", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_financial_package_cash_source_review_values", "decision IN ('APPROVED','RETURNED') AND (decision = 'APPROVED' OR length(trim(reason)) > 0)");
                         });
                 });
 
@@ -29249,35 +29213,19 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "PreparedByUserId")
-                        .HasPrincipalKey("FirmId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .HasConstraintName("FK_fin_package_cash_alloc_users_preparer");
                 });
 
-            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.FinancialPackageCashFlowAllocationReview", b =>
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.FinancialPackageCashFlowLine", b =>
                 {
-                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "DecidedByUserId")
-                        .HasPrincipalKey("FirmId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .HasConstraintName("FK_fin_package_cash_alloc_reviews_users_reviewer")
-                        .IsRequired();
-
                     b.HasOne("AuditSphereOps.Domain.Accounting.FinancialPackage", null)
                         .WithMany()
                         .HasForeignKey("FirmId", "ClientId", "EngagementId", "FinancialPackageId")
                         .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .HasConstraintName("FK_fin_package_cash_alloc_reviews_package")
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.FinancialPackageCashFlowLine", b =>
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.FinancialPackageCashFlowSourceReview", b =>
                 {
                     b.HasOne("AuditSphereOps.Domain.Accounting.FinancialPackage", null)
                         .WithMany()

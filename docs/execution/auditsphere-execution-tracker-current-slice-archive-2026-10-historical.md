@@ -6967,3 +6967,11 @@ See the M365 permission matrix and Hostinger deployment guide.
 ## FSR first slice — typed statement presentation (unapproved draft) — 2026-10-11
 
 Working-tree slice on `78979390`, from the NAQAHA implementation stories (FSR-002, FSR-010, FSR-011 first slice). The statement of financial position and of profit or loss are presented from persisted package lines through the published statement layout, in PDF, Word and Excel, with blocking checks for balance, mapping, sign, note cross-cast and display footing. Observed: Release build, EF drift check, OpenAPI regeneration, Domain presentation and statement tests, API UI contract test, Angular presentation and package specs and the production build passed. The fixture is synthetic. Approval (FSR-001), composition, sealing, signing and release remain open; details are in `status.json`.
+
+## Cash-flow source allocations (CP-11, first slice) — 2026-10-14
+
+A cash-flow movement in a financial package can now be fully allocated to accepted general-ledger lines. Each contribution is a persisted row (`financial_package_cash_flow_allocations`, migration `CashFlowSourceAllocations`) carrying the exact source line, its transaction and batch, a digest of that line, and a signed amount. The rows are immutable with the package, enforced by a trigger. Package build resolves every contribution against the engagement's accepted general ledger, the package period, currency and sealed identity. It refuses over-allocated, sign-reversed, repeated or foreign lines and stores nothing for a refused build.
+
+The presentation lineage check reads those contributions. It passes only when every movement, current and comparative, totals its amount exactly; the old hard-coded failure is gone. Preparer text is never lineage. A build records the check only when it receives links, so unlinked drafts behave as before. A partly linked package is review-required.
+
+Not done: no endpoint or screen accepts the supplementary cash-flow input, so the Angular journey (CP-11.AC-06) is not met. Independent review of allocations, the indirect-method decomposition and the assessed-zero FX decision (CP-12) remain. Evidence is in `status.json` under `targetedVerification.cp11CashFlowSourceAllocations`.

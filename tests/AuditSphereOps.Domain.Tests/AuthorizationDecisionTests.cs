@@ -443,6 +443,7 @@ public sealed class AuthorizationDecisionTests
     public DbSet<AuditSphereOps.Domain.Accounting.FinancialPackageValidation> FinancialPackageValidations => db.FinancialPackageValidations;
     public DbSet<AuditSphereOps.Domain.Accounting.FinancialPackageCashFlowLine> FinancialPackageCashFlowLines => db.FinancialPackageCashFlowLines;
     public DbSet<AuditSphereOps.Domain.Accounting.FinancialPackageCashFlowAllocation> FinancialPackageCashFlowAllocations => db.FinancialPackageCashFlowAllocations;
+    public DbSet<AuditSphereOps.Domain.Accounting.FinancialPackageCashFlowSourceReview> FinancialPackageCashFlowSourceReviews => db.FinancialPackageCashFlowSourceReviews;
     public DbSet<AuditSphereOps.Domain.Accounting.FinancialPackageFxEffect> FinancialPackageFxEffects => db.FinancialPackageFxEffects;
     public DbSet<AuditSphereOps.Domain.Accounting.FinancialPackageSeal> FinancialPackageSeals => db.FinancialPackageSeals;
     public DbSet<AuditSphereOps.Domain.Accounting.FinancialPackageDisclosure> FinancialPackageDisclosures => db.FinancialPackageDisclosures;

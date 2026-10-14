@@ -112,12 +112,14 @@ public static partial class FinancialStatementService
       .Where(x => x.FirmId == actor.FirmId && packageIds.Contains(x.FinancialPackageId)).ToListAsync(ct);
     var currentSupplementary = ToPresentationSchedules(package, currentCashLines, currentFxEffects, currentEquityLines,
       packageValidations.Where(x => x.FinancialPackageId == package.Id).ToArray(),
-      cashAllocations.Where(x => x.FinancialPackageId == package.Id).ToArray());
+      cashAllocations.Where(x => x.FinancialPackageId == package.Id).ToArray(),
+      typedAccounting is not null && await CashFlowSourceApprovedAsync(typedAccounting, actor, package, ct));
     var priorSupplementary = comparative is null
       ? null
       : ToPresentationSchedules(comparative, priorCashLines, priorFxEffects, priorEquityLines,
         packageValidations.Where(x => x.FinancialPackageId == comparative.Id).ToArray(),
-        cashAllocations.Where(x => x.FinancialPackageId == comparative.Id).ToArray());
+        cashAllocations.Where(x => x.FinancialPackageId == comparative.Id).ToArray(),
+        typedAccounting is not null && await CashFlowSourceApprovedAsync(typedAccounting, actor, comparative, ct));
     var built = FinancialStatementPresentationBuilder.Build(
       layoutLines,
       currentLines.Select(x => new PresentationBalance(x.DestinationCode, x.StatementSection, x.Amount)).ToList(),
@@ -142,15 +144,16 @@ public static partial class FinancialStatementService
     IReadOnlyList<FinancialPackageFxEffect> fxEffects,
     IReadOnlyList<FinancialPackageEquityLine> equityLines,
     IReadOnlyList<FinancialPackageValidation> packageValidations,
-    IReadOnlyList<FinancialPackageCashFlowAllocation> cashAllocations) => new(
+    IReadOnlyList<FinancialPackageCashFlowAllocation> cashAllocations,
+    bool cashFlowSourceApproved) => new(
       package.CashBeginning,
       package.CashEnding,
       CashMovementsWithLineage(cashLines, cashAllocations),
-
       fxEffects.Select(x => new PresentationFxCashEffect(x.CurrencyPair, x.Amount)).ToList(),
       equityLines.Select(x => new PresentationEquityMovement(x.LineCode, x.Description, x.OpeningAmount, x.ProfitOrLossAmount,
         x.OciAmount, x.CapitalMovementAmount, x.DividendsAmount, x.ClosingAmount)).ToList(),
-      packageValidations.Select(x => new PresentationPackageValidation(x.Code, x.Passed, x.Detail)).ToList());
+      packageValidations.Select(x => new PresentationPackageValidation(x.Code, x.Passed, x.Detail)).ToList(),
+      cashFlowSourceApproved);
 
   private static IReadOnlyList<PresentationCashFlowMovement> CashMovementsWithLineage(
     IReadOnlyList<FinancialPackageCashFlowLine> cashLines, IReadOnlyList<FinancialPackageCashFlowAllocation> cashAllocations)
@@ -162,9 +165,9 @@ public static partial class FinancialStatementService
       x.ActivityCode, resolved[index])).ToList();
   }
 
-  // The public/DB field retains its legacy NoteSourceManifestHash name. Version 4 also seals
+  // The public/DB field retains its legacy NoteSourceManifestHash name. Version 3 also seals
   // persisted cash-flow source allocations. A hash proves identity, never source acceptance or review.
-  internal static async Task<string> ComputePresentationSourceManifestHashAsync(
+  private static async Task<string> ComputePresentationSourceManifestHashAsync(
     IClientAccountingDbContext db, Guid firmId, Guid[] packageIds,
     IReadOnlyList<FinancialPackageNoteLine> noteLines,
     IReadOnlyList<FinancialPackageDisclosure> disclosures, CancellationToken ct)
@@ -179,11 +182,40 @@ public static partial class FinancialStatementService
       .Where(x => x.FirmId == firmId && packageIds.Contains(x.FinancialPackageId)).ToListAsync(ct);
     var cashAllocations = await db.FinancialPackageCashFlowAllocations.AsNoTracking()
       .Where(x => x.FirmId == firmId && packageIds.Contains(x.FinancialPackageId)).ToListAsync(ct);
+    var cashSourceReviews = await db.FinancialPackageCashFlowSourceReviews.AsNoTracking()
+      .Where(x => x.FirmId == firmId && packageIds.Contains(x.FinancialPackageId)).ToListAsync(ct);
     return ComputePresentationSourceManifestHash(packages, cash, fx, equity, cashAllocations,
-      ComputeNoteSourceManifestHash(packageIds, noteLines, disclosures));
+      ComputeNoteSourceManifestHash(packageIds, noteLines, disclosures), cashSourceReviews);
   }
 
+  /// <summary>
+  /// The canonical source identity of a presentation. Independent cash-flow source reviews are a conditional segment: a
+  /// package with no review keeps exactly the base hash it had before reviews existed, so no pinned identity moves.
+  /// </summary>
   internal static string ComputePresentationSourceManifestHash(
+    IReadOnlyList<FinancialPackage> packages,
+    IReadOnlyList<FinancialPackageCashFlowLine> cash,
+    IReadOnlyList<FinancialPackageFxEffect> fx,
+    IReadOnlyList<FinancialPackageEquityLine> equity,
+    IReadOnlyList<FinancialPackageCashFlowAllocation> cashAllocations, string noteHash,
+    IReadOnlyList<FinancialPackageCashFlowSourceReview>? cashSourceReviews = null)
+  {
+    var baseHash = ComputeBasePresentationSourceManifestHash(packages, cash, fx, equity, cashAllocations, noteHash);
+    if (cashSourceReviews is not { Count: > 0 } reviews)
+      return baseHash;
+    return Hashing.Sha256Hex(JsonSerializer.SerializeToUtf8Bytes(new
+    {
+      Version = "auditsphere.statement-source-manifest.v3.reviewed",
+      Base = baseHash,
+      CashSourceReviews = reviews.OrderBy(x => x.FinancialPackageId).ThenBy(x => x.ReviewedAt).ThenBy(x => x.Id).Select(x => new
+      {
+        x.Id, x.FinancialPackageId, x.ClientId, x.EngagementId, x.Decision, x.Reason, x.SourceImportBatchId,
+        x.ReviewedByUserId, x.ReviewedAt
+      }).ToArray(),
+    }));
+  }
+
+  private static string ComputeBasePresentationSourceManifestHash(
     IReadOnlyList<FinancialPackage> packages,
     IReadOnlyList<FinancialPackageCashFlowLine> cash,
     IReadOnlyList<FinancialPackageFxEffect> fx,
@@ -191,7 +223,7 @@ public static partial class FinancialStatementService
     IReadOnlyList<FinancialPackageCashFlowAllocation> cashAllocations, string noteHash) =>
     Hashing.Sha256Hex(JsonSerializer.SerializeToUtf8Bytes(new
     {
-      Version = "auditsphere.statement-source-manifest.v4",
+      Version = "auditsphere.statement-source-manifest.v3",
       NoteHash = noteHash,
       Packages = packages.OrderBy(x => x.Id).Select(x => new
       {
@@ -212,7 +244,7 @@ public static partial class FinancialStatementService
         {
           x.Id, x.FinancialPackageId, x.ClientId, x.EngagementId, x.CashFlowLineId,
           x.GeneralLedgerLineId, x.GeneralLedgerTransactionId, x.SourceImportBatchId,
-          x.SourceLineHash, x.SignedAmount, x.Currency, x.PreparedByUserId
+          x.SourceLineHash, x.SignedAmount, x.Currency
         }).ToArray(),
       Fx = fx.OrderBy(x => x.FinancialPackageId).ThenBy(x => x.Id).Select(x => new
       {

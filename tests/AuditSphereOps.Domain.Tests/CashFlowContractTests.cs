@@ -25,7 +25,6 @@ public sealed class CashFlowContractTests
     var fixture = await SeedAsync(pg);
     var preparer = Actor(fixture.Preparer, "AccountingPreparer");
     var reviewer = Actor(fixture.Reviewer, "AccountingReviewer");
-    var source = await SeedAcceptedGeneralLedgerAsync(pg, fixture, reviewer);
     var (mappingId, planId) = await CreateApprovedMappingAndPlanAsync(pg, fixture, preparer, reviewer);
 
     var request = new BuildFinancialPackageRequest(planId, mappingId, "IFRS", "2026-01-01", "2026-12-31", "cash-v1")
@@ -33,14 +32,11 @@ public sealed class CashFlowContractTests
       SupplementaryInformation = new FinancialSupplementaryInformation(
         0m, 100m,
         [new CashFlowLineInput("OPERATING", "Cash receipts", 100m, MovementDate: new DateOnly(2026, 6, 30),
-           ActivityCode: "CASH_RECEIPTS", SourceReferences: ["bank-ledger-cash-1"], ClassificationRationale: "Receipt agreed to the synthetic bank ledger.",
-           SourceAllocations: [new(source.Receivable, 100m)]),
+           ActivityCode: "CASH_RECEIPTS", SourceReferences: ["bank-ledger-cash-1"], ClassificationRationale: "Receipt agreed to the synthetic bank ledger."),
          new CashFlowLineInput("OPERATING", "Depreciation adjustment", 25m, IsNonCash: true, MovementDate: new DateOnly(2026, 6, 30),
-           ActivityCode: "NON_CASH_ADJUSTMENT", SourceReferences: ["fixed-asset-register-1"], ClassificationRationale: "Noncash depreciation is an indirect-method adjustment.",
-           SourceAllocations: [new(source.Depreciation, 25m)]),
+           ActivityCode: "NON_CASH_ADJUSTMENT", SourceReferences: ["fixed-asset-register-1"], ClassificationRationale: "Noncash depreciation is an indirect-method adjustment."),
          new CashFlowLineInput("INVESTING", "Equipment acquired under finance lease", 500m, IsNonCash: true, MovementDate: new DateOnly(2026, 6, 30),
-           ActivityCode: "NON_CASH_ACQUISITION", SourceReferences: ["lease-contract-1"], ClassificationRationale: "Lease acquisition did not consume cash in the period.",
-           SourceAllocations: [new(source.Equipment, 500m)])],
+           ActivityCode: "NON_CASH_ACQUISITION", SourceReferences: ["lease-contract-1"], ClassificationRationale: "Lease acquisition did not consume cash in the period.")],
         [new DisclosureInput("CASH_POLICY", "Cash is presented at face value."),
          new DisclosureInput("COMMITMENTS", string.Empty, NotApplicable: true, Rationale: "None identified.")],
         [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 100m, "equity-cash-1")],
@@ -109,7 +105,6 @@ public sealed class CashFlowContractTests
     var fixture = await SeedAsync(pg);
     var preparer = Actor(fixture.Preparer, "AccountingPreparer");
     var reviewer = Actor(fixture.Reviewer, "AccountingReviewer");
-    var source = await SeedAcceptedGeneralLedgerAsync(pg, fixture, reviewer);
     var (mappingId, planId) = await CreateApprovedMappingAndPlanAsync(pg, fixture, preparer, reviewer);
 
     var request = new BuildFinancialPackageRequest(planId, mappingId, "IFRS", "2026-01-01", "2026-12-31", "fx-v1")
@@ -117,8 +112,7 @@ public sealed class CashFlowContractTests
       SupplementaryInformation = new FinancialSupplementaryInformation(
         0m, 110m,
         [new CashFlowLineInput("OPERATING", "Cash receipts", 100m, MovementDate: new DateOnly(2026, 6, 30),
-          ActivityCode: "CASH_RECEIPTS", SourceReferences: ["bank-ledger-cash-2"], ClassificationRationale: "Agreed to synthetic bank activity.",
-          SourceAllocations: [new(source.Receivable, 100m)])],
+          ActivityCode: "CASH_RECEIPTS", SourceReferences: ["bank-ledger-cash-2"], ClassificationRationale: "Agreed to synthetic bank activity.")],
         [new DisclosureInput("CASH_POLICY", "Cash is presented at face value."),
          new DisclosureInput("COMMITMENTS", string.Empty, NotApplicable: true, Rationale: "None identified.")],
         [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 100m, "equity-fx-1")],
@@ -236,7 +230,7 @@ public sealed class CashFlowContractTests
 
   [Fact]
   [Trait("Profile", "Database")]
-  public async Task CashFlowAllocationApproval_IsIndependentAndBoundToTheExactPersistedManifest()
+  public async Task IndependentReview_ApprovesOnlyCurrentFullyResolvedLinks_AndNeverByTheirBuilder()
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var fixture = await SeedAsync(pg);
@@ -244,49 +238,93 @@ public sealed class CashFlowContractTests
     var reviewer = Actor(fixture.Reviewer, "AccountingReviewer");
     var source = await SeedAcceptedGeneralLedgerAsync(pg, fixture, reviewer);
     var (mappingId, planId) = await CreateApprovedMappingAndPlanAsync(pg, fixture, preparer, reviewer);
-    var request = new BuildFinancialPackageRequest(planId, mappingId, "IFRS", "2026-01-01", "2026-12-31", "cash-review-v1")
+
+    BuildFinancialPackageRequest Request(string template, params CashFlowLineInput[] lines) => new(planId, mappingId, "IFRS", "2026-01-01", "2026-12-31", template)
     {
-      SupplementaryInformation = new FinancialSupplementaryInformation(0m, 100m,
-        [new CashFlowLineInput("OPERATING", "Cash receipts", 100m, MovementDate: new DateOnly(2026, 6, 30),
-          ActivityCode: "CASH_RECEIPTS", SourceReferences: ["accepted-ledger-1"],
-          ClassificationRationale: "Linked to the accepted cash receipt.",
-          SourceAllocations: [new(source.Receivable, 100m)])],
+      SupplementaryInformation = new FinancialSupplementaryInformation(0m, 100m, lines,
         [new DisclosureInput("CASH_POLICY", "Cash is presented at face value."),
          new DisclosureInput("COMMITMENTS", string.Empty, NotApplicable: true, Rationale: "None identified.")],
-        [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 100m, "equity-review-1")],
-        CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-bank-statement-1"],
-        ClosingCashEvidenceReferences: ["closing-bank-statement-1"])
+        [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 100m, "equity-cash-1")],
+        CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-bank-statement-1"], ClosingCashEvidenceReferences: ["closing-bank-statement-1"])
     };
+    static CashFlowLineInput Movement(string section, string description, decimal amount, bool nonCash, string activity,
+      params CashFlowSourceAllocationInput[] allocations) => new(section, description, amount, IsNonCash: nonCash,
+        MovementDate: new DateOnly(2026, 6, 30), ActivityCode: activity, SourceReferences: ["gl-source-review"],
+        ClassificationRationale: "Linked to accepted general-ledger lines.",
+        SourceAllocations: allocations.Length == 0 ? null : allocations);
+    var complete = Request("review-complete-v1",
+      Movement("OPERATING", "Cash receipts from customers", 100m, false, "CASH_RECEIPTS", new CashFlowSourceAllocationInput(source.Receivable, 100m)),
+      Movement("OPERATING", "Depreciation adjustment", 25m, true, "NON_CASH_ADJUSTMENT", new CashFlowSourceAllocationInput(source.Depreciation, 25m)));
+
     Guid packageId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      var build = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, request);
-      Assert.True(build.Succeeded, build.Message);
-      Assert.Equal(AccountingPackageStates.PackageValidated, build.Value!.Status);
-      packageId = build.Value.PackageId;
+      var built = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, complete);
+      Assert.True(built.Succeeded, built.Message);
+      packageId = built.Value!.PackageId;
     }
 
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      var package = await db.FinancialPackages.AsNoTracking().SingleAsync(x => x.Id == packageId);
-      Assert.False(await CashFlowAllocationReviewService.HasCurrentApprovalAsync(db, package));
-      var view = await CashFlowAllocationReviewService.GetAsync(db, reviewer, packageId);
-      Assert.True(view.Succeeded, view.Message);
-      Assert.True(view.Value!.Complete);
-      Assert.True(view.Value.CanReview);
-      Assert.Equal(fixture.Preparer.Id, Assert.Single(Assert.Single(view.Value.Movements).Contributions).PreparedByUserId);
+      // The preparer who resolved the links cannot approve them, and nothing is recorded.
+      Assert.False((await FinancialStatementService.RecordCashFlowSourceReviewAsync(db, preparer, packageId, "APPROVED", null)).Succeeded);
+      Assert.False((await FinancialStatementService.GetCashFlowSourceReviewAsync(db, preparer, packageId)).Value?.Approved ?? false);
 
-      var selfReview = await CashFlowAllocationReviewService.DecideAsync(db, preparer, packageId,
-        new(view.Value.SourceManifestHash, FinancialPackageReviewDecisions.Approved, "self-review-is-forbidden", null));
-      Assert.Equal(ErrorCodes.GateBlocked, selfReview.ErrorCode);
+      var approved = await FinancialStatementService.RecordCashFlowSourceReviewAsync(db, reviewer, packageId, "APPROVED", null);
+      Assert.True(approved.Succeeded, approved.Message);
+      var state = (await FinancialStatementService.GetCashFlowSourceReviewAsync(db, reviewer, packageId)).Value!;
+      Assert.True(state.Approved);
+      Assert.Equal((2, 2, 2), (state.Movements, state.ResolvedMovements, state.SourceLinks));
+      Assert.Equal(source.BatchId, state.CurrentSourceImportBatchId);
+      Assert.Equal("APPROVED", Assert.Single(state.Reviews).Decision);
+    }
 
-      var decision = await CashFlowAllocationReviewService.DecideAsync(db, reviewer, packageId,
-        new(view.Value.SourceManifestHash, FinancialPackageReviewDecisions.Approved, "independent-review-evidence-1", "Exact source schedule reviewed."));
-      Assert.True(decision.Succeeded, decision.Message);
-      Assert.True(await CashFlowAllocationReviewService.HasCurrentApprovalAsync(db, package));
-      var persisted = await db.FinancialPackageCashFlowAllocationReviews.AsNoTracking().SingleAsync(x => x.Id == decision.Value);
-      Assert.Equal(view.Value.SourceManifestHash, persisted.SourceManifestHash);
-      Assert.Equal(fixture.Reviewer.Id, persisted.DecidedByUserId);
+    // A reviewer who also built the package cannot review it either.
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var selfBuilt = await FinancialStatementService.BuildFinancialPackageAsync(db, reviewer, Request("review-self-v1",
+        Movement("OPERATING", "Cash receipts from customers", 100m, false, "CASH_RECEIPTS", new CashFlowSourceAllocationInput(source.Receivable, 100m)),
+        Movement("OPERATING", "Depreciation adjustment", 25m, true, "NON_CASH_ADJUSTMENT", new CashFlowSourceAllocationInput(source.Depreciation, 25m))));
+      Assert.True(selfBuilt.Succeeded, selfBuilt.Message);
+      var selfApproval = await FinancialStatementService.RecordCashFlowSourceReviewAsync(db, reviewer, selfBuilt.Value!.PackageId, "APPROVED", null);
+      Assert.Equal(ErrorCodes.GateBlocked, selfApproval.ErrorCode);
+    }
+
+    // A partly resolved package cannot be approved, though it can be returned with a reason.
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      // A cash-account line is a transfer, not a movement, so it cannot be the source of one.
+      var cashSourced = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, Request("review-cash-account-v1",
+        Movement("OPERATING", "Cash receipts from customers", 100m, false, "CASH_RECEIPTS", new CashFlowSourceAllocationInput(source.Receivable, 100m)),
+        Movement("OPERATING", "Cash transfer", 5m, true, "CASH_TRANSFER", new CashFlowSourceAllocationInput(source.CashAccount, 5m))));
+      Assert.Equal(ErrorCodes.Accounting.PackageInvalid, cashSourced.ErrorCode);
+      var partialBuilt = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, Request("review-partial-v1",
+        Movement("OPERATING", "Cash receipts from customers", 100m, false, "CASH_RECEIPTS", new CashFlowSourceAllocationInput(source.Receivable, 60m))));
+      Assert.True(partialBuilt.Succeeded, partialBuilt.Message);
+      Assert.Equal(ErrorCodes.GateBlocked, (await FinancialStatementService.RecordCashFlowSourceReviewAsync(db, reviewer, partialBuilt.Value!.PackageId, "APPROVED", null)).ErrorCode);
+      Assert.Equal(ErrorCodes.Accounting.PackageInvalid, (await FinancialStatementService.RecordCashFlowSourceReviewAsync(db, reviewer, partialBuilt.Value.PackageId, "RETURNED", "")).ErrorCode);
+      Assert.True((await FinancialStatementService.RecordCashFlowSourceReviewAsync(db, reviewer, partialBuilt.Value.PackageId, "RETURNED", "Receivable is only 60 supported.")).Succeeded);
+    }
+
+    // A return withdraws the approval; the next approval restores it for the same current ledger.
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.True((await FinancialStatementService.RecordCashFlowSourceReviewAsync(db, reviewer, packageId, "RETURNED", "Re-check the depreciation support.")).Succeeded);
+      Assert.False((await FinancialStatementService.GetCashFlowSourceReviewAsync(db, reviewer, packageId)).Value!.Approved);
+      Assert.True((await FinancialStatementService.RecordCashFlowSourceReviewAsync(db, reviewer, packageId, "APPROVED", null)).Succeeded);
+      Assert.True((await FinancialStatementService.GetCashFlowSourceReviewAsync(db, reviewer, packageId)).Value!.Approved);
+    }
+
+    // Replacing the accepted ledger makes the approval stale: it no longer counts, and it cannot be renewed on the old source.
+    var replacement = await CashFlowSourceSeed.SeedAcceptedGeneralLedgerAsync(pg, fixture.FirmId, fixture.ClientId, fixture.EngagementId,
+      fixture.PeriodId, fixture.BookId, fixture.Preparer.Id, reviewer, "contract-replacement");
+    Assert.NotEqual(source.BatchId, replacement.BatchId);
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var stale = (await FinancialStatementService.GetCashFlowSourceReviewAsync(db, reviewer, packageId)).Value!;
+      Assert.False(stale.Approved);
+      Assert.Equal(replacement.BatchId, stale.CurrentSourceImportBatchId);
+      Assert.Equal(ErrorCodes.StaleRevision, (await FinancialStatementService.RecordCashFlowSourceReviewAsync(db, reviewer, packageId, "APPROVED", null)).ErrorCode);
     }
   }
 
@@ -296,35 +334,8 @@ public sealed class CashFlowContractTests
     return await db.FinancialPackageCashFlowAllocations.CountAsync();
   }
 
-  /// <summary>An accepted, sealed general ledger for the fixture's period and book, with two synthetic lines.</summary>
-  private static async Task<(Guid BatchId, Guid Receivable, Guid Depreciation, Guid Equipment)> SeedAcceptedGeneralLedgerAsync(
-    PgTestSchema pg, Fixture f, ActorContext reviewer)
-  {
-    var batch = Guid.NewGuid();
-    var journal = Guid.NewGuid();
-    var receivable = Guid.NewGuid();
-    var depreciation = Guid.NewGuid();
-    var equipment = Guid.NewGuid();
-    var batchHash = batch.ToString("N") + batch.ToString("N");
-    await using (var db = new AuditSphereDbContext(pg.Options))
-    {
-      db.SourceImportBatches.Add(new(){Id=batch,FirmId=f.FirmId,ClientId=f.ClientId,EngagementId=f.EngagementId,PeriodId=f.PeriodId,BookId=f.BookId,SourceKind="GL",ProfileVersion="cash-flow-source-v1",ParserVersion="synthetic-parser-v1",RawFileSha256Hex=batchHash,NormalizedDatasetDigest=batchHash,LegalEntityKey="SYNTHETIC-CASH-FLOW",Currency="QAR",RowCount=3,Status="LOADING",ReceiptReference="Synthetic cash-flow source",CreatedByUserId=f.Preparer.Id,CreatedAt=DateTimeOffset.UtcNow});
-      db.GeneralLedgerTransactions.Add(new(){Id=journal,FirmId=f.FirmId,ClientId=f.ClientId,EngagementId=f.EngagementId,ImportBatchId=batch,StableJournalId="SYN-CF-J-1",DocumentNumber="SYN-CF-DOC",PostingDate=new(2026,6,30),Currency="QAR",CreatedAt=DateTimeOffset.UtcNow});
-      db.GeneralLedgerLines.Add(new(){Id=receivable,FirmId=f.FirmId,ClientId=f.ClientId,EngagementId=f.EngagementId,ImportBatchId=batch,TransactionId=journal,StableLineId="SYN-CF-L-1",AccountCode="1100",Debit=100m,Credit=0m,FunctionalAmount=100m,OriginalCurrency="QAR",OriginalAmount=100m,CreatedAt=DateTimeOffset.UtcNow});
-      db.GeneralLedgerLines.Add(new(){Id=depreciation,FirmId=f.FirmId,ClientId=f.ClientId,EngagementId=f.EngagementId,ImportBatchId=batch,TransactionId=journal,StableLineId="SYN-CF-L-2",AccountCode="1600",Debit=25m,Credit=0m,FunctionalAmount=25m,OriginalCurrency="QAR",OriginalAmount=25m,CreatedAt=DateTimeOffset.UtcNow});
-      db.GeneralLedgerLines.Add(new(){Id=equipment,FirmId=f.FirmId,ClientId=f.ClientId,EngagementId=f.EngagementId,ImportBatchId=batch,TransactionId=journal,StableLineId="SYN-CF-L-3",AccountCode="1700",Debit=500m,Credit=0m,FunctionalAmount=500m,OriginalCurrency="QAR",OriginalAmount=500m,CreatedAt=DateTimeOffset.UtcNow});
-      await db.SaveChangesAsync();
-    }
-    await using (var db = new AuditSphereDbContext(pg.Options))
-      await db.SourceImportBatches.Where(x => x.Id == batch).ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, "SEALED"));
-    await using (var db = new AuditSphereDbContext(pg.Options))
-    {
-      var accepted = await AccountingSourceAcceptanceService.AcceptSourceRevisionAsync(db, reviewer,
-        new(f.ClientId, f.EngagementId, AccountingSourceKinds.GeneralLedger, null, batch, "Synthetic cash-flow source review"));
-      Assert.True(accepted.Succeeded, accepted.Message);
-    }
-    return (batch, receivable, depreciation, equipment);
-  }
+  private static Task<CashFlowSourceSeed.Source> SeedAcceptedGeneralLedgerAsync(PgTestSchema pg, Fixture f, ActorContext reviewer) =>
+    CashFlowSourceSeed.SeedAcceptedGeneralLedgerAsync(pg, f.FirmId, f.ClientId, f.EngagementId, f.PeriodId, f.BookId, f.Preparer.Id, reviewer, "contract");
 
   private static async Task<(Guid MappingId, Guid PlanId)> CreateApprovedMappingAndPlanAsync(
     PgTestSchema pg, Fixture fixture, ActorContext preparer, ActorContext reviewer)

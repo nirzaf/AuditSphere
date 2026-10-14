@@ -3,10 +3,9 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { Api, CommandState, routeGuid } from '../../core/api';
-import { arr, bool, dec, guid, instant, nat, nullable, obj, text } from '../../core/decode';
+import { arr, bool, dec, guid, instant, nat, nullable, obj, oneOf, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
 import { StatementPresentation } from './presentation';
-import { CashFlowAllocationReview } from './cash-flow-allocation-review';
 
 export const decodePackage = obj({ id: guid, engagementId: guid, status: text, framework: text, periodStart: text, periodEnd: text, currency: text, templateVersion: text,
   calculationHash: text, supplementaryHash: nullable(text), revision: nat, cashBeginning: nullable(dec), cashEnding: nullable(dec),
@@ -17,12 +16,19 @@ export const decodePackage = obj({ id: guid, engagementId: guid, status: text, f
   disclosures: arr(obj({ code: text, response: text, notApplicable: bool, rationale: nullable(text) }), 2000),
   reviews: arr(obj({ stage: text, decision: text, evidenceMode: text, evidenceReference: text, packageHash: text, decidedAt: instant }), 500),
   artifact: nullable(obj({ artifactSha256Hex: text, byteCount: nat, renderedText: text })), canReview: bool, reviewStages: arr(text, 10), reviewDecisions: arr(text, 10) });
+/** Independent review of cash-flow source links (CP-11). The server decides every rule; these fields only render the result. */
+export const decodeCashFlowSourceReview = obj({
+  financialPackageId: guid, movements: nat, resolvedMovements: nat, sourceLinks: nat,
+  currentSourceImportBatchId: nullable(guid), approved: bool,
+  reviews: arr(obj({ id: guid, decision: oneOf('APPROVED', 'RETURNED'), reason: text, reviewedByUserId: guid, reviewedAt: instant,
+    sourceImportBatchId: guid }), 50),
+});
 const ARTIFACTS: [string, string][] = [['financial-package-xlsx.v1', 'Download workbook'], ['financial-package-xlsx-controlled.v1', 'Download controlled workbook'],
   ['financial-package-docx.v1', 'Download Word document'], ['financial-package-pdf.v1', 'Download PDF']];
 
 @Component({
   selector: 'audit-financial-package',
-  imports: [FormsModule, RouterLink, MatButtonModule, ...SHARED, StatementPresentation, CashFlowAllocationReview],
+  imports: [FormsModule, RouterLink, MatButtonModule, ...SHARED, StatementPresentation],
   template: `
     <nav aria-label="Breadcrumb"><a routerLink="/app">Portfolio</a> / <a routerLink="/app/accounting">Client accounting</a> / <a routerLink="/app/accounting/reviews">Package reviews</a> / <span>Package</span></nav>
     <audit-page-header title="Financial statement package" eyebrow="Client accounting" description="Deterministic package calculations, validation status, immutable review decisions, and artifact outputs." />
@@ -82,6 +88,27 @@ const ARTIFACTS: [string, string][] = [['financial-package-xlsx.v1', 'Download w
             <tbody>@for (c of p.cashFlow; track c.id) { <tr><td><code>{{ c.id }}</code>{{ c.isNonCash ? ' · Noncash' : '' }}</td><td>{{ c.movementDate ?? 'Legacy date unavailable' }}</td><td>{{ c.section }} / {{ c.activityCode ?? 'Legacy activity unavailable' }}</td><td>{{ c.description }}<br />{{ c.classificationRationale ?? 'Legacy rationale unavailable' }}</td><td>{{ c.sourceReferences.join(', ') || 'Legacy evidence unavailable' }}</td><td class="number">{{ c.amount | money }} {{ p.currency }}</td></tr> }</tbody></table></div>
         </section>
       }
+      @if (p.cashFlow.length) {
+        <section class="panel" aria-labelledby="source-review-heading">
+          <h2 id="source-review-heading">Cash-flow source review</h2>
+          @if (sourceReview.data(); as review) {
+            <p role="status">{{ review.resolvedMovements }} of {{ review.movements }} movements fully allocated to {{ review.sourceLinks }} source contribution(s).
+              {{ review.approved ? 'Approved by an independent reviewer against the current accepted general ledger.' : 'Not approved for the current accepted general ledger.' }}</p>
+            <div class="table-scroll"><table><caption class="sr-only">Immutable cash-flow source review decisions</caption>
+              <thead><tr><th scope="col">Decision</th><th scope="col">Reason</th><th scope="col">Reviewed at</th></tr></thead>
+              <tbody>@for (x of review.reviews; track x.id) { <tr><td><audit-status [value]="x.decision" /></td><td>{{ x.reason || 'No reason recorded' }}</td><td><time [attr.datetime]="x.reviewedAt">{{ x.reviewedAt }}</time></td></tr> }
+              @empty { <tr><td colspan="3">No source review has been recorded for this package.</td></tr> }</tbody></table></div>
+            @if (p.canReview) {
+              <form class="inline-form" (submit)="$event.preventDefault(); reviewSources(p.id)">
+                <label>Decision <select name="sourceDecision" [(ngModel)]="sourceDecision"><option value="APPROVED">APPROVED</option><option value="RETURNED">RETURNED</option></select></label>
+                <label>Reason <textarea name="sourceReason" [(ngModel)]="sourceReason" maxlength="2000" rows="2"></textarea></label>
+                <button matButton="filled" type="submit" [disabled]="cmd.busy()">{{ cmd.busy() ? 'Recording…' : 'Record source decision' }}</button>
+              </form>
+              <p><small>The preparer who resolved the links cannot record this decision. A decision made against an earlier general ledger is refused.</small></p>
+            }
+          } @else { <p>Source review is loading.</p> }
+        </section>
+      }
       @if (p.disclosures.length) {
         <section class="panel" aria-labelledby="disclosure-heading">
           <h2 id="disclosure-heading">Disclosure responses</h2>
@@ -89,7 +116,6 @@ const ARTIFACTS: [string, string][] = [['financial-package-xlsx.v1', 'Download w
             <tbody>@for (d of p.disclosures; track d.code) { <tr><td>{{ d.code }}</td><td>{{ d.notApplicable ? d.rationale : d.response }}</td><td>{{ d.notApplicable ? 'Not applicable' : 'Answered' }}</td></tr> }</tbody></table></div>
         </section>
       }
-      <audit-cash-flow-allocation-review [packageId]="p.id" />
       <audit-statement-presentation [packageId]="p.id" />
       @if (p.artifact; as a) {
         <section class="panel" aria-labelledby="artifact-heading">
@@ -104,14 +130,6 @@ const ARTIFACTS: [string, string][] = [['financial-package-xlsx.v1', 'Download w
           <details><summary>View canonical artifact text</summary><pre style="white-space: pre-wrap; overflow-wrap: anywhere"><code>{{ a.renderedText }}</code></pre></details>
         </section>
       }
-      @else {
-        <section class="panel" aria-labelledby="render-heading">
-          <h2 id="render-heading">Canonical package artifact</h2>
-          <p>Rendering persists exact package bytes for review. It does not approve, release or deliver the package.</p>
-          <button matButton="outlined" type="button" (click)="render(p.id)" [disabled]="rendering()">{{ rendering() ? 'Queueing render…' : 'Queue canonical render' }}</button>
-          @if (renderStatus()) { <p role="status">{{ renderStatus() }} Check <a routerLink="/app/operations">durable operations</a>, then refresh this package.</p> }
-        </section>
-      }
     }
     <audit-command-message [message]="cmd.message()" [failed]="cmd.failed()" />
   `,
@@ -122,13 +140,20 @@ export class FinancialPackage {
   readonly pkg = this.api.resource(() => (this.id() ? `/api/ui/accounting/packages/${this.id()}` : null), decodePackage,
     'The package is not available in the current firm scope.');
   readonly cmd = new CommandState(this.api);
+  readonly sourceReview = this.api.resource(() => (this.id() ? `/api/ui/accounting/packages/${this.id()}/cash-flow-source-review` : null),
+    decodeCashFlowSourceReview, 'The cash-flow source review is not available in the current firm scope.');
+  sourceDecision = 'APPROVED';
+  sourceReason = '';
   readonly downloading = signal(false);
   readonly artifactStatus = signal('');
-  readonly rendering = signal(false);
-  readonly renderStatus = signal('');
   readonly artifacts = ARTIFACTS;
   r = { stage: 'ACCOUNTING_REVIEW', decision: 'APPROVED', mode: 'SIGNED_IN', reference: '', comment: '' };
   passed(p: ReturnType<typeof decodePackage>): number { return p.validations.filter((v) => v.passed).length; }
+  reviewSources(id: string): void {
+    void this.cmd.run(`/api/ui/accounting/packages/${id}/cash-flow-source-review`, { decision: this.sourceDecision,
+      reason: this.sourceReason || null }, 'Source decision recorded against the current accepted ledger.',
+      () => (this.sourceReason = '')).finally(() => { this.sourceReview.reload(); this.pkg.reload(); });
+  }
   review(id: string): void {
     void this.cmd.run(`/api/ui/accounting/packages/${id}/reviews`, { stage: this.r.stage, decision: this.r.decision, evidenceMode: this.r.mode,
       evidenceReference: this.r.reference, comment: this.r.comment || null }, 'Decision recorded against the current package version.',
@@ -141,15 +166,5 @@ export class FinancialPackage {
       const r = await this.api.download(`/api/ui/accounting/packages/${id}/artifact`, { artifactVersion: version });
       this.artifactStatus.set(r.ok ? 'Artifact download started. Release and delivery remain separate controls.' : r.message);
     } finally { this.downloading.set(false); }
-  }
-  async render(id: string): Promise<void> {
-    if (this.rendering()) return;
-    this.rendering.set(true); this.renderStatus.set('');
-    try {
-      const result = await this.api.command<string>(`/api/ui/accounting/packages/${id}/render`, {});
-      this.renderStatus.set(result.ok
-        ? `Canonical render operation ${result.value} queued.`
-        : result.message);
-    } finally { this.rendering.set(false); }
   }
 }

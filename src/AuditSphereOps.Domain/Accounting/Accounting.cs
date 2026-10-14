@@ -562,32 +562,31 @@ public sealed class FinancialPackageCashFlowAllocation
   public Guid GeneralLedgerLineId { get; set; }
   public Guid GeneralLedgerTransactionId { get; set; }
   public Guid SourceImportBatchId { get; set; }
-  /// <summary>Preparer identity for separation-of-duties checks; null only on legacy allocations.</summary>
-  public Guid? PreparedByUserId { get; set; }
   /// <summary>Digest of the exact accepted source line this contribution was resolved against.</summary>
   public string SourceLineHash { get; set; } = string.Empty;
   public decimal SignedAmount { get; set; }
   public string Currency { get; set; } = string.Empty;
+  /// <summary>The preparer who resolved this contribution. An independent reviewer can never be this user.</summary>
+  public Guid CreatedByUserId { get; set; }
   public DateTimeOffset CreatedAt { get; set; }
 }
 
-/// <summary>Append-only independent decision over the exact current cash-flow allocation manifest.</summary>
-public sealed class FinancialPackageCashFlowAllocationReview
+/// <summary>
+/// An independent decision on the source-resolved cash-flow movements of one package. Append-only; the newest decision governs,
+/// and an approval is valid only while the accepted general ledger it cites is still the current one.
+/// </summary>
+public sealed class FinancialPackageCashFlowSourceReview
 {
   public Guid Id { get; set; }
   public Guid FirmId { get; set; }
   public Guid ClientId { get; set; }
   public Guid EngagementId { get; set; }
   public Guid FinancialPackageId { get; set; }
-  public long PackageRevision { get; set; }
-  public long PackageGeneration { get; set; }
-  public string PackageCalculationHash { get; set; } = string.Empty;
-  public string SourceManifestHash { get; set; } = string.Empty;
   public string Decision { get; set; } = string.Empty;
-  public string EvidenceReference { get; set; } = string.Empty;
-  public string Comment { get; set; } = string.Empty;
-  public Guid DecidedByUserId { get; set; }
-  public DateTimeOffset DecidedAt { get; set; }
+  public string Reason { get; set; } = string.Empty;
+  public Guid SourceImportBatchId { get; set; }
+  public Guid ReviewedByUserId { get; set; }
+  public DateTimeOffset ReviewedAt { get; set; }
 }
 
 /// <summary>Exchange-rate effect on cash for one package; reconciles cash movements

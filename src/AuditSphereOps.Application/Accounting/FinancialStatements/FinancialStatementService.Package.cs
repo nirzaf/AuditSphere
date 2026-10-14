@@ -357,8 +357,7 @@ public static partial class FinancialStatementService
           CashFlowLineId = movements[link.MovementIndex].Id, GeneralLedgerLineId = link.GeneralLedgerLineId,
           GeneralLedgerTransactionId = link.GeneralLedgerTransactionId, SourceImportBatchId = link.SourceImportBatchId,
           SourceLineHash = link.SourceLineHash, SignedAmount = link.SignedAmount, Currency = link.Currency,
-          PreparedByUserId = actor.UserId,
-          CreatedAt = package.CreatedAt
+          CreatedByUserId = actor.UserId, CreatedAt = package.CreatedAt
         });
       // A new schedule always receives an explicit lineage result. Missing links remain
       // a persisted draft; historical packages are not backfilled or reclassified.

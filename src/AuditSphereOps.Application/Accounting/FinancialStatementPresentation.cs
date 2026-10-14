@@ -90,7 +90,9 @@ public sealed record PresentationSupplementarySchedules(
   IReadOnlyList<PresentationCashFlowMovement> CashFlowLines,
   IReadOnlyList<PresentationFxCashEffect> FxCashEffects,
   IReadOnlyList<PresentationEquityMovement> EquityLines,
-  IReadOnlyList<PresentationPackageValidation>? PackageValidations = null);
+  IReadOnlyList<PresentationPackageValidation>? PackageValidations = null,
+  // True only when an independent reviewer approved this package's source links against the current accepted ledger.
+  bool CashFlowSourceApproved = false);
 
 public sealed record PresentationHeader(
   string Entity, string Framework, string Currency, string CurrentPeriodEnd, string? PriorPeriodEnd, string Reference);
@@ -799,11 +801,15 @@ public static class FinancialStatementPresentationBuilder
     {
       // Preparer text is never lineage: the check passes only when every movement is fully allocated to accepted source lines.
       var unresolved = currentLines.Count(x => !x.SourceResolved) + priorLines.Count(x => !x.SourceResolved);
-      var lineageResolved = currentLines.Count > 0 && unresolved == 0;
+      var unreviewed = (currentLines.Count > 0 && current?.CashFlowSourceApproved != true) ||
+        (priorLines.Count > 0 && prior?.CashFlowSourceApproved != true);
+      var lineageResolved = currentLines.Count > 0 && unresolved == 0 && !unreviewed;
       checks.Add(new PresentationCheck("CASH_FLOW_SOURCE_LINEAGE", lineageResolved,
         lineageResolved
-          ? "Every cash-flow movement is fully allocated to accepted general-ledger lines."
-          : $"{unresolved} cash-flow movement(s) are not fully allocated to accepted general-ledger lines."));
+          ? "Every cash-flow movement is fully allocated to accepted general-ledger lines and independently approved."
+          : unresolved > 0
+            ? $"{unresolved} cash-flow movement(s) are not fully allocated to accepted general-ledger lines."
+            : "The cash-flow source links have no current independent approval."));
       if (!lineageResolved)
         warnings.Add(new PresentationWarning("CASH_FLOW_LINEAGE_PENDING",
           "Cash-flow movements are a draft schedule; evidence references and classifications are not source-verified."));

@@ -390,8 +390,6 @@ public sealed partial class AuditSphereDbContext
     cashAllocation.HasIndex(x => new { x.FirmId, x.FinancialPackageId, x.CashFlowLineId, x.GeneralLedgerLineId }).IsUnique()
       .HasDatabaseName("ux_financial_package_cash_allocation_movement_source");
     cashAllocation.HasIndex(x => new { x.FirmId, x.GeneralLedgerLineId });
-    cashAllocation.HasIndex(x => new { x.FirmId, x.PreparedByUserId })
-      .HasDatabaseName("ix_fin_package_cash_alloc_preparer");
     cashAllocation.ToTable("financial_package_cash_flow_allocations", t => t.HasCheckConstraint("ck_financial_package_cash_allocation_values",
       "signed_amount <> 0 AND currency ~ '^[A-Z]{3}$' AND source_line_hash ~ '^[a-f0-9]{64}$'"));
     cashAllocation.HasOne<FinancialPackageCashFlowLine>().WithMany()
@@ -399,39 +397,16 @@ public sealed partial class AuditSphereDbContext
     cashAllocation.HasOne<FinancialPackage>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
-    cashAllocation.HasOne<AppUser>().WithMany()
-      .HasForeignKey(x => new { x.FirmId, x.PreparedByUserId })
-      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict)
-      .HasConstraintName("FK_fin_package_cash_alloc_users_preparer");
 
-    var cashAllocationReview = b.Entity<FinancialPackageCashFlowAllocationReview>();
-    cashAllocationReview.Property(x => x.PackageCalculationHash).HasMaxLength(64).IsFixedLength();
-    cashAllocationReview.Property(x => x.SourceManifestHash).HasMaxLength(64).IsFixedLength();
-    cashAllocationReview.Property(x => x.Decision).HasMaxLength(30);
-    cashAllocationReview.Property(x => x.EvidenceReference).HasMaxLength(2000);
-    cashAllocationReview.Property(x => x.Comment).HasMaxLength(4000);
-    cashAllocationReview.HasIndex(x => new { x.FirmId, x.FinancialPackageId, x.PackageRevision, x.SourceManifestHash, x.DecidedByUserId })
-      .IsUnique().HasDatabaseName("ux_financial_package_cash_allocation_review_identity");
-    cashAllocationReview.HasIndex(x => new { x.FirmId, x.FinancialPackageId, x.DecidedAt })
-      .HasDatabaseName("ix_financial_package_cash_allocation_review_history");
-    cashAllocationReview.HasIndex(x => new { x.FirmId, x.DecidedByUserId })
-      .HasDatabaseName("ix_fin_package_cash_alloc_review_reviewer");
-    cashAllocationReview.HasIndex(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
-      .HasDatabaseName("ix_fin_package_cash_alloc_review_package");
-    cashAllocationReview.ToTable("financial_package_cash_flow_allocation_reviews", t => t.HasCheckConstraint(
-      "ck_financial_package_cash_allocation_review_values",
-      "package_revision >= 1 AND package_generation >= 1 " +
-      "AND package_calculation_hash ~ '^[a-f0-9]{64}$' AND source_manifest_hash ~ '^[a-f0-9]{64}$' " +
-      "AND decision IN ('APPROVED','CHANGES_REQUIRED','REJECTED') " +
-      "AND length(trim(evidence_reference)) BETWEEN 1 AND 2000 AND length(trim(comment)) <= 4000"));
-    cashAllocationReview.HasOne<FinancialPackage>().WithMany()
+    var cashReview = b.Entity<FinancialPackageCashFlowSourceReview>();
+    cashReview.Property(x => x.Decision).HasMaxLength(20);
+    cashReview.Property(x => x.Reason).HasMaxLength(2000);
+    cashReview.ToTable("financial_package_cash_flow_source_reviews", t => t.HasCheckConstraint("ck_financial_package_cash_source_review_values",
+      "decision IN ('APPROVED','RETURNED') AND (decision = 'APPROVED' OR length(trim(reason)) > 0)"));
+    cashReview.HasIndex(x => new { x.FirmId, x.FinancialPackageId, x.ReviewedAt });
+    cashReview.HasOne<FinancialPackage>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
-      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict)
-      .HasConstraintName("FK_fin_package_cash_alloc_reviews_package");
-    cashAllocationReview.HasOne<AppUser>().WithMany()
-      .HasForeignKey(x => new { x.FirmId, x.DecidedByUserId })
-      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict)
-      .HasConstraintName("FK_fin_package_cash_alloc_reviews_users_reviewer");
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
     var packageSeal = b.Entity<FinancialPackageSeal>();
     packageSeal.Property(x => x.PackageHash).HasMaxLength(64).IsFixedLength();

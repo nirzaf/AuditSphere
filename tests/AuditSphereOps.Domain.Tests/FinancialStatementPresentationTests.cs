@@ -282,7 +282,7 @@ public sealed class FinancialStatementPresentationTests
   [Fact]
   public void CashFlowSourceLineage_PassesOnlyWhenEveryMovementIsResolvedFromSource()
   {
-    PresentationSupplementarySchedules Schedules(bool secondResolved) => new(
+    PresentationSupplementarySchedules Schedules(bool secondResolved, bool approved = true) => new(
       58372m, 1090993m,
       [
         new("OPERATING", "Operating receipts and payments", 1200000m, false, "OPERATING_NET", SourceResolved: true),
@@ -290,7 +290,8 @@ public sealed class FinancialStatementPresentationTests
       ],
       [new("USD/QAR", 0m)],
       [new("RETAINED_EARNINGS", "Retained earnings", 979299m, 3818172m, 0m, 0m, 0m, 4797471m)],
-      [new("CASH_FLOW_RECONCILED", true, "Cash bridge and selected closing-cash population reconcile to the package build.")]);
+      [new("CASH_FLOW_RECONCILED", true, "Cash bridge and selected closing-cash population reconcile to the package build.")],
+      CashFlowSourceApproved: approved);
 
     var resolved = FinancialStatementPresentationBuilder.Build(Layout(), Current(), Prior(), Notes(), Header(withPrior: true), Manifest(withPrior: true),
       currentSupplementary: Schedules(secondResolved: true), priorSupplementary: null);
@@ -303,6 +304,13 @@ public sealed class FinancialStatementPresentationTests
     Assert.True(partial.Succeeded, partial.Message);
     Assert.Contains(partial.Value!.Checks, x => x.Code == "CASH_FLOW_SOURCE_LINEAGE" && !x.Passed && x.Detail.Contains("1 cash-flow movement", StringComparison.Ordinal));
     Assert.Contains(partial.Value.Warnings, x => x.Code == "CASH_FLOW_LINEAGE_PENDING");
+
+    // Fully resolved links still read as unapproved until an independent reviewer approves them against the current ledger.
+    var unapproved = FinancialStatementPresentationBuilder.Build(Layout(), Current(), Prior(), Notes(), Header(withPrior: true), Manifest(withPrior: true),
+      currentSupplementary: Schedules(secondResolved: true, approved: false), priorSupplementary: null);
+    Assert.True(unapproved.Succeeded, unapproved.Message);
+    Assert.Contains(unapproved.Value!.Checks, x => x.Code == "CASH_FLOW_SOURCE_LINEAGE" && !x.Passed);
+    Assert.Contains(unapproved.Value.Warnings, x => x.Code == "CASH_FLOW_LINEAGE_PENDING");
   }
 
   [Fact]

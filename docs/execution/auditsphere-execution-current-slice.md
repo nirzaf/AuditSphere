@@ -15,13 +15,11 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
-## Cash-flow source allocations (CP-11, first slice) — 2026-10-14
+## Cash-flow source review and presentation approval (CP-11 completion) — 2026-10-14
 
-A cash-flow movement in a financial package can now be fully allocated to accepted general-ledger lines. Each contribution is a persisted row (`financial_package_cash_flow_allocations`, migration `CashFlowSourceAllocations`) carrying the exact source line, its transaction and batch, a digest of that line, and a signed amount. The rows are immutable with the package, enforced by a trigger. Package build resolves every contribution against the engagement's accepted general ledger, the package period, currency and sealed identity. It refuses over-allocated, sign-reversed, repeated or foreign lines and stores nothing for a refused build.
+Cash-flow source links now need an independent decision before the presentation treats them as lineage. A reviewer with an accounting or management role records `APPROVED` or `RETURNED` (with a reason) against the package. Decisions are append-only (`financial_package_cash_flow_source_reviews`). The preparer who resolved a link can never review it, and a link with no recorded preparer is refused. An approval is valid only while the accepted general ledger it cites is still the current one; replacing the ledger stales it, and the presentation stops reading the links as approved. Lineage also refuses a cash-account line as a movement source, because that is a transfer. The source manifest seals a review only when one exists, so existing identities do not move. The API exposes `GET` and `POST /api/ui/accounting/packages/{id}/cash-flow-source-review`, and the package page has a review panel.
 
-The presentation lineage check reads those contributions. It passes only when every movement, current and comparative, totals its amount exactly; the old hard-coded failure is gone. Preparer text is never lineage. A build records the check only when it receives links, so unlinked drafts behave as before. A partly linked package is review-required.
-
-Not done: no endpoint or screen accepts the supplementary cash-flow input, so the Angular journey (CP-11.AC-06) is not met. Independent review of allocations, the indirect-method decomposition and the assessed-zero FX decision (CP-12) remain. Evidence is in `status.json` under `targetedVerification.cp11CashFlowSourceAllocations`.
+Not done: the supplementary cash-flow input still has no endpoint or screen (CP-11.AC-06 is open), so a source-linked package cannot yet be built through the product. CP-12 (indirect decomposition, payment roles and the reviewed assessed-zero FX decision) is blocked on the approved indirect classification policy. Evidence is in `status.json` under `targetedVerification.cp11SourceReviewAndPresentation`.
 
 ## Accepted GL discovery for schedule preparation — 2026-10-14
 

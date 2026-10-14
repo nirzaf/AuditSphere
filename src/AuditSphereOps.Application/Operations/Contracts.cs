@@ -51,6 +51,7 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<FinancialPackageValidation> FinancialPackageValidations { get; }
   DbSet<FinancialPackageCashFlowLine> FinancialPackageCashFlowLines { get; }
   DbSet<FinancialPackageCashFlowAllocation> FinancialPackageCashFlowAllocations { get; }
+  DbSet<FinancialPackageCashFlowSourceReview> FinancialPackageCashFlowSourceReviews { get; }
   DbSet<FinancialPackageFxEffect> FinancialPackageFxEffects { get; }
   DbSet<FinancialPackageSeal> FinancialPackageSeals { get; }
   DbSet<FinancialPackageDisclosure> FinancialPackageDisclosures { get; }
@@ -349,7 +350,6 @@ public interface IClientAccountingDbContext : IAuditSphereDbContext
   DbSet<FinancialPackageEquityLine> FinancialPackageEquityLines { get; }
   DbSet<FinancialPackageNoteLine> FinancialPackageNoteLines { get; }
   DbSet<FinancialPackageReviewDecision> FinancialPackageReviewDecisions { get; }
-  DbSet<FinancialPackageCashFlowAllocationReview> FinancialPackageCashFlowAllocationReviews { get; }
 }
 
 public interface IAdjustmentJournalDbContext : IAuditSphereDbContext
