@@ -49,10 +49,12 @@ public sealed class AngularCashFlowPackageJourneyTests
     var acceptedLine = preparerPage.GetByRole(AriaRole.Row).Filter(new() { HasText = "4000" });
     await Assertions.Expect(acceptedLine).ToContainTextAsync("175000");
     await acceptedLine.GetByRole(AriaRole.Button, new() { Name = "Add to movement 1", Exact = true }).ClickAsync();
-    await Assertions.Expect(preparerPage.Locator("input[name='alloc0-0']")).ToHaveValueAsync("175000");
+    await Assertions.Expect(preparerPage.GetByLabel("Contribution amount", new() { Exact = true })).ToHaveValueAsync("175000");
 
-    await preparerPage.GetByLabel("Opening cash", new() { Exact = true }).FillAsync("0.000001");
-    await preparerPage.GetByLabel("Closing cash", new() { Exact = true }).FillAsync("175000.000001");
+    // The finalized adjustment plan closes the selected cash account at QAR 175,000.
+    // Keep the browser inputs aligned to that adjusted population and its cash-flow bridge.
+    await preparerPage.GetByLabel("Opening cash", new() { Exact = true }).FillAsync("0");
+    await preparerPage.GetByLabel("Closing cash", new() { Exact = true }).FillAsync("175000");
     await preparerPage.GetByLabel("Cash account codes (comma separated)", new() { Exact = true }).FillAsync("1000");
     await preparerPage.GetByLabel("Opening cash evidence (comma separated)", new() { Exact = true }).FillAsync("synthetic opening bank statement");
     await preparerPage.GetByLabel("Closing cash evidence (comma separated)", new() { Exact = true }).FillAsync("synthetic closing bank statement");
@@ -62,11 +64,13 @@ public sealed class AngularCashFlowPackageJourneyTests
     await preparerPage.GetByLabel("Activity code", new() { Exact = true }).FillAsync("CASH_RECEIPTS");
     await preparerPage.GetByLabel("Evidence references (comma separated)", new() { Exact = true }).FillAsync("accepted GL batch");
     await preparerPage.GetByLabel("Classification rationale", new() { Exact = true }).FillAsync("Synthetic receipt classified for the browser journey.");
-    await preparerPage.Locator("input[name='dcode0']").FillAsync("CASH_POLICY");
-    await preparerPage.Locator("textarea[name='dresp0']").FillAsync("Synthetic cash policy disclosure.");
+    await preparerPage.GetByRole(AriaRole.Button, new() { Name = "Add disclosure", Exact = true }).ClickAsync();
+    await preparerPage.GetByLabel("Code", new() { Exact = true }).FillAsync("CASH_POLICY");
+    await preparerPage.GetByLabel("Response", new() { Exact = true }).FillAsync("Synthetic cash policy disclosure.");
     await preparerPage.GetByRole(AriaRole.Button, new() { Name = "Queue package build", Exact = true }).ClickAsync();
-    await Assertions.Expect(preparerPage.GetByRole(AriaRole.Heading, new() { Name = "Package build progress", Exact = true })).ToBeVisibleAsync();
-    var openPackage = preparerPage.GetByRole(AriaRole.Link, new() { Name = "Open the package", Exact = true });
+    await Assertions.Expect(preparerPage.GetByRole(AriaRole.Heading, new() { Name = "Build completed", Exact = true }))
+      .ToBeVisibleAsync(new() { Timeout = 30_000 });
+    var openPackage = preparerPage.GetByRole(AriaRole.Link, new() { Name = "Open built package", Exact = true });
     await Assertions.Expect(openPackage).ToBeVisibleAsync(new() { Timeout = 30_000 });
     var href = await openPackage.GetAttributeAsync("href");
     Assert.NotNull(href);
@@ -92,8 +96,8 @@ public sealed class AngularCashFlowPackageJourneyTests
     {
       var allocation = await db.FinancialPackageCashFlowAllocations.AsNoTracking().SingleAsync(x => x.FinancialPackageId == packageId);
       var package = await db.FinancialPackages.AsNoTracking().SingleAsync(x => x.Id == packageId);
-      Assert.Equal(0.000001m, package.CashBeginning);
-      Assert.Equal(175_000.000001m, package.CashEnding);
+      Assert.Equal(0m, package.CashBeginning);
+      Assert.Equal(175_000m, package.CashEnding);
       Assert.Equal(seed.SourceLineId, allocation.GeneralLedgerLineId);
       Assert.True(await db.FinancialPackageCashFlowLines.AsNoTracking().AnyAsync(x =>
         x.Id == allocation.CashFlowLineId && x.FinancialPackageId == packageId && x.Amount == 175_000m));

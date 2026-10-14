@@ -68,6 +68,9 @@ public sealed class AngularEngagementActivationJourneyTests
     await Assertions.Expect(receipt).ToContainTextAsync("9007199254740994");await Assertions.Expect(receipt).ToContainTextAsync("NEW_CLIENT");
     await page.GetByRole(AriaRole.Button,new(){Name="Acknowledge activation result",Exact=true}).ClickAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Heading,new(){Name="Activation outcome unconfirmed",Exact=true})).ToHaveCountAsync(0);
+    // Acknowledging triggers a fresh context read. Wait for that response before revoking the
+    // Partner grant, otherwise the in-flight read can observe revocation and remove this control.
+    await Assertions.Expect(page.GetByRole(AriaRole.Button,new(){Name="Refresh activation context",Exact=true})).ToBeVisibleAsync();
     await page.SetViewportSizeAsync(390,844);Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth+1"));
     await using(var db=host.CreateDbContext()){Assert.Single(await db.EngagementActivations.ToListAsync());await db.RoleGrants.Where(g=>g.UserId==f.Staff.Id&&g.Role=="Partner").ExecuteUpdateAsync(x=>x.SetProperty(g=>g.RevokedAt,DateTimeOffset.UtcNow));}
     await page.GetByRole(AriaRole.Button,new(){Name="Refresh activation context",Exact=true}).ClickAsync();await Assertions.Expect(page.GetByRole(AriaRole.Heading,new(){Name="Activation unavailable",Exact=true})).ToBeVisibleAsync();

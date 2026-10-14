@@ -96,6 +96,12 @@ public sealed class CompletionDeliverablesJourneyTests
     var financialScope = new CompletionBundleScope(f.FirmId, f.ClientId, f.EngagementId, new()
     { ["associate"] = f.Staff, ["senior"] = accountingReviewer, ["partner"] = partner, ["partner2"] = financeReviewer, ["manager"] = manager });
     await CompletionBundleFixture.ReleasedFinancialPackageAsync(host.DbOptions, financialScope);
+    // The released package fixture adds a newer accepted client trial balance for this engagement.
+    // Re-approve materiality against that final source so the completion journey tests the clearance flow,
+    // while production continues to reject genuinely stale planning inputs.
+    await using (var db = host.CreateDbContext())
+      await PlanningBasisSeed.ApproveMaterialityAsync(db, f.FirmId, f.ClientId, f.EngagementId,
+        PbcSeed.Actor(manager, "Manager"), PbcSeed.Actor(partner, "Partner"));
     await CompletionBundleFixture.SeedPostedFeeAsync(host.DbOptions, financialScope);
 
     var origin = await StartIdentityAsync(partner);

@@ -133,19 +133,19 @@ export function toBuildRequest(form: BuildForm): { body: unknown } | { error: st
       <form class="panel" aria-label="Financial package build" (submit)="$event.preventDefault(); submit()">
         <h2>Basis</h2>
         <label>Approved mapping
-          <select name="mapping" [(ngModel)]="form.mappingVersionId" (ngModelChange)="form.adjustmentPlanId = ''">
+          <select name="mapping" aria-label="Approved mapping" [(ngModel)]="form.mappingVersionId" (ngModelChange)="form.adjustmentPlanId = ''">
             <option value="">Choose a mapping</option>
             @for (m of data.mappings; track m.id) { <option [value]="m.id">Version {{ m.version }} · {{ m.id }}</option> }
           </select>
         </label>
         <label>Finalized adjustment plan
-          <select name="plan" [(ngModel)]="form.adjustmentPlanId">
+          <select name="plan" aria-label="Finalized adjustment plan" [(ngModel)]="form.adjustmentPlanId">
             <option value="">Choose a plan</option>
             @for (p of plansFor(data); track p.id) { <option [value]="p.id">{{ p.id }}</option> }
           </select>
         </label>
         <label>Reporting period
-          <select name="period" [(ngModel)]="form.periodId" (ngModelChange)="choosePeriod(data)">
+          <select name="period" aria-label="Reporting period" [(ngModel)]="form.periodId" (ngModelChange)="choosePeriod(data)">
             <option value="">Choose a period</option>
             @for (p of data.periods; track p.id) { <option [value]="p.id">{{ p.periodCode }} · {{ p.startDate }} to {{ p.endDate }} · {{ p.currency }} · {{ p.basis }}</option> }
           </select>
