@@ -59,7 +59,7 @@ public static class CompletionBundleFixture
         Currency = "QAR", Status = AccountingWorkflowStates.Active, CreatedByUserId = w.U["associate"].Id, CreatedAt = now });
       db.TrialBalanceDatasets.Add(new TrialBalanceDataset { Id = targetDataset, FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId, PeriodId = periodId, BookId = bookId, Basis = "STATUTORY",
         SourceKind = "Raw", Currency = "QAR", Balanced = true, ValidationStatus = "Accepted", ImportState = TrialBalanceImportStates.Loading,
-        ImportedAt = now, ImportedByUserId = w.U["associate"].Id });
+        NormalizedDatasetDigest = Hashing.Sha256Hex(targetDataset.ToString()), ImportedAt = now, ImportedByUserId = w.U["associate"].Id });
       db.TrialBalanceRows.AddRange(new TrialBalanceRow { Id = Guid.NewGuid(), DatasetId = targetDataset, AccountCode = "1000", AccountName = "Cash", Amount = cashAmount, Currency = "QAR", Entity = "TEST" },
         new TrialBalanceRow { Id = Guid.NewGuid(), DatasetId = targetDataset, AccountCode = "4000", AccountName = "Revenue", Amount = -netIncome, Currency = "QAR", Entity = "TEST" });
       await db.SaveChangesAsync();
@@ -92,6 +92,9 @@ public static class CompletionBundleFixture
       Assert.True(built.Succeeded, built.Message);
       Assert.Equal(AccountingPackageStates.PackageValidated, built.Value!.Status);
       packageId = built.Value.PackageId;
+      var sourceReview = await FinancialStatementService.RecordCashFlowSourceReviewAsync(
+        db, reviewer, packageId, "APPROVED", null);
+      Assert.True(sourceReview.Succeeded, sourceReview.Message);
       Assert.True((await FinancialStatementService.RenderPackageArtifactAsync(db, preparer, packageId)).Succeeded);
       foreach (var (actor, stage, mode) in new[] { (preparer, FinancialPackageReviewStages.ManagementApproval, FinancialPackageReviewEvidenceModes.Offline),
         (reviewer, FinancialPackageReviewStages.AccountingReview, FinancialPackageReviewEvidenceModes.SignedIn), (partner, FinancialPackageReviewStages.PartnerApproval, FinancialPackageReviewEvidenceModes.SignedIn) })

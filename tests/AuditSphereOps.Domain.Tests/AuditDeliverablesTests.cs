@@ -811,7 +811,25 @@ public sealed partial class AuditDeliverablesTests
     var partner = w.A("partner", "Partner");
     var manager = w.A("manager", "Manager");
     await using var db = new AuditSphereDbContext(pg.Options);
-    Assert.True((await AuditProgramService.ReviewResultAsync(db, w.A("senior", "Senior"), new(w.ResultId, "REVIEWED", null))).Succeeded);
+    var result = await db.AuditProcedureResults.AsNoTracking().SingleAsync(x => x.Id == w.ResultId);
+    var inputGeneration = await db.ClientSafetyStates.AsNoTracking().Where(x => x.FirmId == w.FirmId && x.Id == w.ClientId)
+      .Select(x => x.InputGeneration).SingleAsync();
+    var resultId = w.ResultId;
+    if (result.InputGeneration != inputGeneration)
+    {
+      var calculation = await MaterialityEngineService.CalculateAsync(db, w.A("partner2", "Partner"),
+        new(w.EngagementId, MaterialityBenchmarks.Revenue, null, 1m, 75m, 5m, "Revenue-driven trading entity"));
+      Assert.True(calculation.Succeeded, $"CalculateAsync failed: {calculation.ErrorCode} - {calculation.Message}");
+      var approval = await AuditPlanningService.ApproveMaterialityAssessmentAsync(db, partner, calculation.Value!.AssessmentId);
+      Assert.True(approval.Succeeded, $"ApproveMaterialityAssessmentAsync failed: {approval.ErrorCode} - {approval.Message}");
+      var resubmitted = await AuditProgramService.SubmitResultAsync(db, w.A("associate", "Staff"),
+        new(w.ProcedureId, inputGeneration, "Selected 25 invoices around year end and agreed them to dispatch notes after the current accounting inputs were finalized.",
+          "{}", ["synthetic-current-period-vouching"], "Revenue is recorded in the correct period."));
+      Assert.True(resubmitted.Succeeded, $"SubmitResultAsync failed: {resubmitted.ErrorCode} - {resubmitted.Message}");
+      resultId = resubmitted.Value!.AuditProcedureResultId;
+    }
+    var reviewed = await AuditProgramService.ReviewResultAsync(db, w.A("senior", "Senior"), new(resultId, "REVIEWED", null));
+    Assert.True(reviewed.Succeeded, $"ReviewResultAsync failed: {reviewed.ErrorCode} - {reviewed.Message}");
     var srm = (await AuditDeliverableService.GenerateSummaryReviewMemorandumAsync(db, manager, w.EngagementId, "Ready.")).Value;
     var clearResult = await AuditDeliverableService.PartnerClearAsync(db, partner, srm, "Risks reviewed.", "Notes reviewed.");
     Assert.True(clearResult.Succeeded, $"PartnerClearAsync failed: {clearResult.ErrorCode} - {clearResult.Message}");
