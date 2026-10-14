@@ -110,16 +110,22 @@ public static partial class FinancialStatementService
 
     var cashAllocations = await db.FinancialPackageCashFlowAllocations.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && packageIds.Contains(x.FinancialPackageId)).ToListAsync(ct);
+    // The build's lineage result is read per package. The reconciliation validations above stay unchanged, so presented hashes do not move.
+    var lineagePassedIds = (await db.FinancialPackageValidations.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && packageIds.Contains(x.FinancialPackageId) && x.Code == "CASH_FLOW_SOURCE_LINEAGE" && x.Passed)
+      .Select(x => x.FinancialPackageId).ToListAsync(ct)).ToHashSet();
     var currentSupplementary = ToPresentationSchedules(package, currentCashLines, currentFxEffects, currentEquityLines,
       packageValidations.Where(x => x.FinancialPackageId == package.Id).ToArray(),
       cashAllocations.Where(x => x.FinancialPackageId == package.Id).ToArray(),
-      typedAccounting is not null && await CashFlowSourceApprovedAsync(typedAccounting, package, ct));
+      typedAccounting is not null && await CashFlowSourceApprovedAsync(typedAccounting, package, ct),
+      lineagePassedIds.Contains(package.Id));
     var priorSupplementary = comparative is null
       ? null
       : ToPresentationSchedules(comparative, priorCashLines, priorFxEffects, priorEquityLines,
         packageValidations.Where(x => x.FinancialPackageId == comparative.Id).ToArray(),
         cashAllocations.Where(x => x.FinancialPackageId == comparative.Id).ToArray(),
-        typedAccounting is not null && await CashFlowSourceApprovedAsync(typedAccounting, comparative, ct));
+        typedAccounting is not null && await CashFlowSourceApprovedAsync(typedAccounting, comparative, ct),
+        lineagePassedIds.Contains(comparative.Id));
     var built = FinancialStatementPresentationBuilder.Build(
       layoutLines,
       currentLines.Select(x => new PresentationBalance(x.DestinationCode, x.StatementSection, x.Amount)).ToList(),
@@ -145,10 +151,10 @@ public static partial class FinancialStatementService
     IReadOnlyList<FinancialPackageEquityLine> equityLines,
     IReadOnlyList<FinancialPackageValidation> packageValidations,
     IReadOnlyList<FinancialPackageCashFlowAllocation> cashAllocations,
-    bool cashFlowSourceApproved) => new(
+    bool cashFlowSourceApproved, bool cashFlowLineagePassed) => new(
       package.CashBeginning,
       package.CashEnding,
-      CashMovementsWithLineage(cashLines, cashAllocations),
+      CashMovementsWithLineage(cashLines, cashAllocations, cashFlowLineagePassed),
       fxEffects.Select(x => new PresentationFxCashEffect(x.CurrencyPair, x.Amount)).ToList(),
       equityLines.Select(x => new PresentationEquityMovement(x.LineCode, x.Description, x.OpeningAmount, x.ProfitOrLossAmount,
         x.OciAmount, x.CapitalMovementAmount, x.DividendsAmount, x.ClosingAmount)).ToList(),
@@ -156,14 +162,15 @@ public static partial class FinancialStatementService
       cashFlowSourceApproved);
 
   private static IReadOnlyList<PresentationCashFlowMovement> CashMovementsWithLineage(
-    IReadOnlyList<FinancialPackageCashFlowLine> cashLines, IReadOnlyList<FinancialPackageCashFlowAllocation> cashAllocations)
+    IReadOnlyList<FinancialPackageCashFlowLine> cashLines, IReadOnlyList<FinancialPackageCashFlowAllocation> cashAllocations, bool lineagePassed)
   {
-    // Persisted links were proven explained when the package was built (CASH_FLOW_SOURCE_LINEAGE), so the presentation reads them as explained.
+    // A movement is source-resolved in the presentation only when the build's lineage check passed for the package. The persisted links alone
+    // are not enough, because an unexplained cash event leaves them looking complete.
     var resolved = ResolvedCashFlowMovements(cashLines.Select(x => (x.Amount, x.IsNonCash)).ToArray(),
       cashLines.Select((line, index) => (line, index)).SelectMany(x => cashAllocations
         .Where(a => a.CashFlowLineId == x.line.Id).Select(a => (MovementIndex: x.index, LedgerSignedAmount: a.SignedAmount, PopulationComplete: true))));
     return cashLines.Select((x, index) => new PresentationCashFlowMovement(x.Section, x.Description, x.Amount, x.IsNonCash,
-      x.ActivityCode, resolved[index])).ToList();
+      x.ActivityCode, resolved[index] && lineagePassed)).ToList();
   }
 
   // The public/DB field retains its legacy NoteSourceManifestHash name. Version 3 also seals

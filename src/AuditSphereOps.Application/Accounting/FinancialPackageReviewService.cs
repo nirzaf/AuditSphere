@@ -348,7 +348,27 @@ public static class FinancialPackageReviewService
           current.PackageGeneration != package.Generation)
         return CommandResult.Fail(ErrorCodes.GateBlocked, $"The current {stage} decision is required before release.");
     }
+    // Rows recorded before Administrator left the Partner stage remain in the table. A Partner decision counts only when its recorder
+    // still holds a current Partner grant covering this engagement.
+    if (requirePartner)
+    {
+      var partner = reviews.Where(x => x.Stage == FinancialPackageReviewStages.PartnerApproval).OrderByDescending(x => x.DecidedAt).First();
+      if (!await PartnerDecisionHeldByPartnerAsync(db, package, partner.DecidedByUserId, ct))
+        return CommandResult.Fail(ErrorCodes.GateBlocked,
+          "The current PartnerApproval decision was not recorded by a current Partner for this engagement.");
+    }
     return CommandResult.Ok();
+  }
+
+  private static async Task<bool> PartnerDecisionHeldByPartnerAsync(IClientAccountingDbContext db, FinancialPackage package,
+    Guid? decidedByUserId, CancellationToken ct)
+  {
+    if (decidedByUserId is not Guid decider) return false;
+    var now = DateTimeOffset.UtcNow;
+    return await db.RoleGrants.AsNoTracking().AnyAsync(g => g.FirmId == package.FirmId && g.UserId == decider && g.Role == "Partner" &&
+      g.RevokedAt == null && (g.ExpiresAt == null || g.ExpiresAt > now) &&
+      ((g.ClientId == null && g.EngagementId == null) ||
+       (g.ClientId == package.ClientId && (g.EngagementId == null || g.EngagementId == package.EngagementId))), ct);
   }
 
   private static async Task<bool> CashFlowSourcesIndependentlyApprovedAsync(

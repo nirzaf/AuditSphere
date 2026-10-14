@@ -1082,7 +1082,8 @@ public sealed class FinancialStatementTests
       Assert.True((await CashFlowSourceReviewCall.RecordAsync(db, reviewer, packageId, "APPROVED", null)).Succeeded);
       var presented = await FinancialStatementService.BuildPresentationAsync(db, reviewer, packageId);
       Assert.True(presented.Succeeded, presented.Message);
-      Assert.Contains(presented.Value!.Checks, x => x.Code == "CASH_FLOW_SOURCE_LINEAGE" && x.Passed);
+      var lineage = presented.Value!.Checks.Single(x => x.Code == "CASH_FLOW_SOURCE_LINEAGE");
+      Assert.True(lineage.Passed, lineage.Detail);
     }
 
     // Replacing the accepted ledger stales that approval, so the presentation stops reading the links as approved.

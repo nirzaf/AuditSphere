@@ -52,7 +52,7 @@ public static class FinancialPackageWorkspaceQuery
       x.EngagementId == p.EngagementId && x.FinancialPackageId == p.Id && x.PackageRevision == p.Revision && x.PackageGeneration == p.Generation &&
       x.PackageHash == p.CalculationHash && x.ArtifactVersion == FinancialPackageArtifactVersions.Text, ct);
     var reviews = await FinancialPackageReviewService.GetAsync(db, actor, p.Id, ct);
-    var partner = actor.Roles.Any(x => x is "Partner" or "Administrator");
+    var partner = actor.Roles.Contains("Partner", StringComparer.Ordinal);
     return CommandResult<FinancialPackageWorkspace>.Ok(new(p.Id, p.EngagementId, p.ComparativePackageId, p.Status, p.Framework, p.PeriodStart, p.PeriodEnd, p.Currency, p.TemplateVersion,
       p.CalculationHash, p.SupplementaryHash, p.Revision, p.CashBeginning, p.CashEnding,
       p.CashAccountCodes, p.OpeningCashEvidenceReferences, p.ClosingCashEvidenceReferences, validations, totals, cash, disclosures,

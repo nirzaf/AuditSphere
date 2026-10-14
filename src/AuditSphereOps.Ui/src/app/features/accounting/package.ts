@@ -16,6 +16,37 @@ export const decodePackage = obj({ id: guid, engagementId: guid, comparativePack
   disclosures: arr(obj({ code: text, response: text, notApplicable: bool, rationale: nullable(text) }), 2000),
   reviews: arr(obj({ stage: text, decision: text, evidenceMode: text, evidenceReference: text, packageHash: text, decidedAt: instant }), 500),
   artifact: nullable(obj({ artifactSha256Hex: text, byteCount: nat, renderedText: text })), canReview: bool, reviewStages: arr(text, 10), reviewDecisions: arr(text, 10) });
+/** The original intent of a source decision, kept until the server answers. */
+export interface PendingSourceIntent { requestId: string; decision: string; reason: string | null; }
+
+/** A retry keeps the pending identity while the decision and reason are unchanged; a different decision gets a new identity. */
+export function sourceIntentFor(pending: PendingSourceIntent | null, decision: string, reason: string | null, newRequestId: string): PendingSourceIntent {
+  return pending && pending.decision === decision && pending.reason === reason ? pending : { requestId: newRequestId, decision, reason };
+}
+
+const pendingSourceIntentKey = (packageId: string): string => `auditsphere.cash-flow-source-intent.${packageId}`;
+
+/** Browser storage is per-viewer convenience only. The server remains the authority; when storage is unavailable the intent is kept in memory. */
+export function readPendingSourceIntent(packageId: string): PendingSourceIntent | null {
+  try {
+    const raw = globalThis.sessionStorage?.getItem(pendingSourceIntentKey(packageId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<PendingSourceIntent>;
+    return typeof parsed.requestId === 'string' && typeof parsed.decision === 'string' ? parsed as PendingSourceIntent : null;
+  } catch {
+    return null;
+  }
+}
+
+export function writePendingSourceIntent(packageId: string, intent: PendingSourceIntent | null): void {
+  try {
+    if (intent) globalThis.sessionStorage?.setItem(pendingSourceIntentKey(packageId), JSON.stringify(intent));
+    else globalThis.sessionStorage?.removeItem(pendingSourceIntentKey(packageId));
+  } catch {
+    // Storage is unavailable (private window or blocked site data); the in-flight request still carries its identity.
+  }
+}
+
 /** Independent review of cash-flow source links (CP-11). The server decides every rule; these fields only render the result. */
 export const decodeCashFlowSourceReview = obj({
   financialPackageId: guid, movements: nat, resolvedMovements: nat, sourceLinks: nat,
@@ -148,8 +179,6 @@ export class FinancialPackage {
     decodeCashFlowSourceReview, 'The cash-flow source review is not available in the current firm scope.');
   sourceDecision = 'APPROVED';
   sourceReason = '';
-  // One original intent per decision: a lost reply retried with the same identity recovers the stored decision.
-  sourceRequestId = crypto.randomUUID();
   readonly downloading = signal(false);
   readonly artifactStatus = signal('');
   readonly artifacts = ARTIFACTS;
@@ -158,10 +187,14 @@ export class FinancialPackage {
   reviewSources(id: string): void {
     const state = this.sourceReview.data();
     if (!state) return;
+    // The original intent is kept until the server answers, so a lost reply followed by a reload retries the same decision.
+    const reason = this.sourceReason || null;
+    const intent = sourceIntentFor(readPendingSourceIntent(id), this.sourceDecision, reason, crypto.randomUUID());
+    writePendingSourceIntent(id, intent);
     void this.cmd.run(`/api/ui/accounting/packages/${id}/cash-flow-source-review`, { decision: this.sourceDecision,
-      reason: this.sourceReason || null, requestId: this.sourceRequestId, expectedLinkDigest: state.linkDigest,
-      expectedPreviousReviewId: state.latestReviewId }, 'Source decision recorded against the current accepted ledger.',
-      () => { this.sourceReason = ''; this.sourceRequestId = crypto.randomUUID(); })
+      reason, requestId: intent.requestId, expectedLinkDigest: state.linkDigest, expectedPreviousReviewId: state.latestReviewId },
+      'Source decision recorded against the current accepted ledger.',
+      () => { this.sourceReason = ''; writePendingSourceIntent(id, null); })
       .finally(() => { this.sourceReview.reload(); this.pkg.reload(); });
   }
   review(id: string): void {

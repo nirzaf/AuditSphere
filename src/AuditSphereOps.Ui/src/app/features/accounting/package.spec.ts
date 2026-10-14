@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeCashFlowSourceReview, decodePackage } from './package';
+import { decodeCashFlowSourceReview, decodePackage, sourceIntentFor } from './package';
 import { decodeReviewQueue } from './reviews';
 
 const id1 = '11111111-1111-4111-8111-111111111111';
@@ -101,6 +101,12 @@ describe('Financial Package and Review Queue Contracts', () => {
 });
 
 describe('Cash-flow source review contract (CP-11)', () => {
+  it('keeps the original intent for a retry and gives a changed decision a new identity', () => {
+    const first = sourceIntentFor(null, 'APPROVED', null, id1);
+    expect(sourceIntentFor(first, 'APPROVED', null, id2).requestId).toBe(id1);
+    expect(sourceIntentFor(first, 'RETURNED', 'Re-check support.', id2).requestId).toBe(id2);
+  });
+
   const review = {
     financialPackageId: id1, movements: 2, resolvedMovements: 2, sourceLinks: 2, currentSourceImportBatchId: id2, approved: true, canReview: false,
     reviews: [{ id: id1, decision: 'APPROVED', reason: '', reviewedByUserId: id2, reviewedAt: '2026-10-14T10:00:00Z', sourceImportBatchId: id2 }],

@@ -71,13 +71,18 @@ public static partial class FinancialStatementService
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
 
     // The same original intent recovers the stored decision. The same identity with a different payload is a conflict, never an overwrite.
-    var intentHash = ReviewIntentHash(normalized, text, digest, expectedPreviousReviewId);
+    var intentHash = ReviewIntentHash(normalized, text, digest);
     var recorded = await db.FinancialPackageCashFlowSourceReviews.AsNoTracking().SingleOrDefaultAsync(x =>
       x.FirmId == actor.FirmId && x.FinancialPackageId == packageId && x.RequestId == requestId, ct);
     if (recorded is not null)
+    {
+      // A request identity belongs to the reviewer who recorded it. Another reviewer presenting it is refused, not given that decision.
+      if (recorded.ReviewedByUserId != actor.UserId)
+        return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict, "This request was already used by another reviewer.");
       return recorded.RequestHash == intentHash
         ? CommandResult<Guid>.Ok(recorded.Id)
         : CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict, "This request was already used for a different source decision.");
+    }
 
     var lineage = await LoadCashFlowLineageAsync(db, actor, locked, ct);
     if (!lineage.Succeeded)
@@ -89,6 +94,8 @@ public static partial class FinancialStatementService
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "A source link has no recorded preparer. Rebuild the package before review.");
     if (current.Allocations.Any(x => x.CreatedByUserId == actor.UserId))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The preparer cannot review the source links they resolved.");
+    if (current.Allocations.Any(x => current.Lines.All(line => line.Id != x.CashFlowLineId)))
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "A source link points at a movement that is no longer on this package. Rebuild the package before review.");
 
     // The reviewer decides on the latest decision and the links they saw. Anything else is stale.
     var latest = await LatestCashFlowSourceReviewAsync(db, actor.FirmId, packageId, ct);
@@ -104,7 +111,7 @@ public static partial class FinancialStatementService
     {
       if (!current.AllResolved)
         return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Every cash-flow movement must be fully allocated before approval.");
-      if (!await LineageValidatedAsync(db, locked.Id, ct))
+      if (!await LineageValidatedAsync(db, locked.FirmId, locked.Id, ct))
         return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
           "Every cash event must be fully explained by its movements before approval. Rebuild the package.");
       if (current.CurrentBatchId is not Guid currentBatch || current.Allocations.Any(x => x.SourceImportBatchId != currentBatch))
@@ -149,7 +156,9 @@ public static partial class FinancialStatementService
       .Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == package.Id)
       .OrderByDescending(x => x.ReviewedAt).ThenByDescending(x => x.Id).Take(MaxCashFlowSourceReviewEntries).ToListAsync(ct);
     var latest = reviews.FirstOrDefault();
-    var approved = current.AllResolved && current.CurrentBatchId is Guid batch && latest is { Decision: "APPROVED" } &&
+    // Approval also requires the persisted lineage result: the build recorded every cash event as explained. A resolved-looking link alone is not enough.
+    var lineagePassed = await LineageValidatedAsync(db, package.FirmId, package.Id, ct);
+    var approved = lineagePassed && current.AllResolved && current.CurrentBatchId is Guid batch && latest is { Decision: "APPROVED" } &&
       latest.SourceImportBatchId == batch && current.Allocations.All(x => x.SourceImportBatchId == batch);
     var canReview = actor.Roles.Any(CashFlowSourceReviewRoles.Contains) && current.Allocations.Count > 0 &&
       current.Allocations.All(x => x.CreatedByUserId != Guid.Empty && x.CreatedByUserId != actor.UserId);
@@ -170,7 +179,7 @@ public static partial class FinancialStatementService
       x.FirmId == package.FirmId && x.ClientId == package.ClientId && x.EngagementId == package.EngagementId &&
       x.FinancialPackageId == package.Id).ToListAsync(ct);
     if (allocations.Count == 0 || allocations.Any(x => x.CreatedByUserId == Guid.Empty || x.Currency != package.Currency)) return false;
-    if (!await LineageValidatedAsync(db, package.Id, ct)) return false;
+    if (!await LineageValidatedAsync(db, package.FirmId, package.Id, ct)) return false;
     var movementIndexes = movements.Select((line, index) => (line.Id, index)).ToDictionary(x => x.Id, x => x.index);
     if (allocations.Any(x => !movementIndexes.ContainsKey(x.CashFlowLineId)) ||
         !ResolvedCashFlowMovements(movements.Select(x => (x.Amount, x.IsNonCash)).ToArray(),
@@ -201,6 +210,11 @@ public static partial class FinancialStatementService
     IReadOnlyList<FinancialPackageCashFlowAllocation> allocations)
   {
     var position = movements.Select((line, index) => (line.Id, index)).ToDictionary(x => x.Id, x => x.index);
+    // The movement facts are part of what the reviewer decides on: a changed amount, section or classification changes the digest.
+    var movementFacts = movements.Select(m => new
+    {
+      m.Section, m.Description, Amount = MoneyPolicy.Normalize(m.Amount), m.IsNonCash, m.ActivityCode,
+    }).ToArray();
     var links = allocations.OrderBy(x => position.GetValueOrDefault(x.CashFlowLineId, -1)).ThenBy(x => x.GeneralLedgerLineId)
       .Select(x => new
       {
@@ -209,14 +223,15 @@ public static partial class FinancialStatementService
       }).ToArray();
     return Hashing.Sha256Hex(JsonSerializer.SerializeToUtf8Bytes(new
     {
-      Version = "cash-flow-link-digest.v1", PackageId = package.Id, package.CalculationHash, package.Revision, package.Generation, Links = links,
+      Version = "cash-flow-link-digest.v2", PackageId = package.Id, package.CalculationHash, package.Revision, package.Generation,
+      Movements = movementFacts, Links = links,
     }));
   }
 
-  private static string ReviewIntentHash(string decision, string reason, string linkDigest, Guid? previousReviewId) =>
+  private static string ReviewIntentHash(string decision, string reason, string linkDigest) =>
     Hashing.Sha256Hex(JsonSerializer.SerializeToUtf8Bytes(new
     {
-      Version = "cash-flow-source-review-intent.v1", Decision = decision, Reason = reason, LinkDigest = linkDigest, PreviousReviewId = previousReviewId,
+      Version = "cash-flow-source-review-intent.v1", Decision = decision, Reason = reason, LinkDigest = linkDigest,
     }));
 
   private static Task<FinancialPackageCashFlowSourceReview?> LatestCashFlowSourceReviewAsync(IClientAccountingDbContext db, Guid firmId,
@@ -226,8 +241,8 @@ public static partial class FinancialStatementService
       .OrderByDescending(x => x.ReviewedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
 
   /// <summary>True only when the build recorded CASH_FLOW_SOURCE_LINEAGE as passed: every movement resolved and every cash event explained.</summary>
-  private static Task<bool> LineageValidatedAsync(IClientAccountingDbContext db, Guid packageId, CancellationToken ct) =>
-    db.FinancialPackageValidations.AsNoTracking().AnyAsync(x => x.FinancialPackageId == packageId &&
+  private static Task<bool> LineageValidatedAsync(IClientAccountingDbContext db, Guid firmId, Guid packageId, CancellationToken ct) =>
+    db.FinancialPackageValidations.AsNoTracking().AnyAsync(x => x.FirmId == firmId && x.FinancialPackageId == packageId &&
       x.Code == "CASH_FLOW_SOURCE_LINEAGE" && x.Passed, ct);
 
   private static async Task<CommandResult<CashFlowLineage>> LoadCashFlowLineageAsync(IClientAccountingDbContext db, ActorContext actor,

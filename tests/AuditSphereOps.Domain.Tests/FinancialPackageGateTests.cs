@@ -210,6 +210,77 @@ public sealed class FinancialPackageGateTests
     }
   }
 
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task LegacyPartnerRowRecordedByAdministrator_DoesNotSatisfyReleaseGate()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    var preparer = Actor(fixture.Preparer, "AccountingPreparer");
+    var reviewer = Actor(fixture.Reviewer, "AccountingReviewer");
+    var source = await CashFlowSourceSeed.SeedAcceptedGeneralLedgerAsync(pg, fixture.FirmId, fixture.ClientId,
+      fixture.EngagementId, fixture.PeriodId, fixture.BookId, fixture.Preparer.Id, reviewer, "legacy-partner");
+    var (mappingId, planId) = await CreateApprovedMappingAndPlanAsync(pg, fixture, preparer, reviewer);
+    var request = new BuildFinancialPackageRequest(planId, mappingId, "IFRS", "2026-01-01", "2026-12-31", "legacy-partner-v1")
+    {
+      SupplementaryInformation = new FinancialSupplementaryInformation(
+        0m, 100m,
+        [new CashFlowLineInput("OPERATING", "Cash receipts", 100m, MovementDate: new DateOnly(2026, 6, 30),
+          ActivityCode: "CASH_RECEIPTS", SourceReferences: ["bank-ledger-legacy"], ClassificationRationale: "Synthetic receipts agreed to source.",
+          SourceAllocations: [new CashFlowSourceAllocationInput(source.Receivable, -100m)])],
+        [new DisclosureInput("CASH_POLICY", "Cash is presented at face value."),
+         new DisclosureInput("COMMITMENTS", string.Empty, NotApplicable: true, Rationale: "None identified.")],
+        [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 100m, "equity-legacy-1")],
+        CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-cash-legacy"], ClosingCashEvidenceReferences: ["closing-cash-legacy"])
+    };
+    Guid packageId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var built = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, request);
+      Assert.True(built.Succeeded, built.Message);
+      packageId = built.Value!.PackageId;
+      Assert.True((await CashFlowSourceReviewCall.RecordAsync(db, reviewer, packageId, "APPROVED", null)).Succeeded);
+      Assert.True((await FinancialStatementService.RenderPackageArtifactAsync(db, preparer, packageId)).Succeeded);
+      Assert.True((await FinancialPackageReviewService.RecordAsync(db, preparer,
+        new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.ManagementApproval,
+          FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.Offline,
+          "legacy-management", "Management approved the exact package."))).Succeeded);
+      Assert.True((await FinancialPackageReviewService.RecordAsync(db, reviewer,
+        new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.AccountingReview,
+          FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn,
+          "legacy-accounting", "Accounting reviewed the exact package."))).Succeeded);
+    }
+
+    // A Partner row written before Administrator left the stage: an administrator recorded it, and no Partner grant backs it.
+    var administrator = User(fixture.FirmId, "legacy-administrator");
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.Users.Add(administrator);
+      db.RoleGrants.Add(Grant(fixture.FirmId, administrator, "Administrator"));
+      var accounting = await db.FinancialPackageReviewDecisions.AsNoTracking()
+        .SingleAsync(x => x.FinancialPackageId == packageId && x.Stage == FinancialPackageReviewStages.AccountingReview);
+      db.FinancialPackageReviewDecisions.Add(new FinancialPackageReviewDecision
+      {
+        Id = Guid.CreateVersion7(), FirmId = accounting.FirmId, ClientId = accounting.ClientId, EngagementId = accounting.EngagementId,
+        FinancialPackageId = accounting.FinancialPackageId, PackageRevision = accounting.PackageRevision,
+        PackageGeneration = accounting.PackageGeneration, PackageHash = accounting.PackageHash,
+        Stage = FinancialPackageReviewStages.PartnerApproval, Decision = FinancialPackageReviewDecisions.Approved,
+        FinancialPackageArtifactId = accounting.FinancialPackageArtifactId, ArtifactVersion = accounting.ArtifactVersion,
+        ArtifactSha256Hex = accounting.ArtifactSha256Hex, EvidenceMode = FinancialPackageReviewEvidenceModes.SignedIn,
+        EvidenceReference = "legacy-partner", Comment = "Recorded before the stage changed.",
+        DecidedByUserId = administrator.Id, DecidedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var gate = await FinancialPackageReviewService.RequireCurrentAsync(db, reviewer, packageId, requirePartner: true);
+      Assert.Equal(ErrorCodes.GateBlocked, gate.ErrorCode);
+      Assert.Contains("current Partner", gate.Message!, StringComparison.Ordinal);
+    }
+  }
+
   private static async Task<(Guid MappingId, Guid PlanId)> CreateApprovedMappingAndPlanAsync(
     PgTestSchema pg, Fixture fixture, ActorContext preparer, ActorContext reviewer)
   {

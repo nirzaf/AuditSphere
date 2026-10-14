@@ -656,6 +656,22 @@ public sealed class CashFlowContractTests
     Assert.Equal(first.Value, replay.Value);
     Assert.Equal(1, await db.FinancialPackageCashFlowSourceReviews.CountAsync(x => x.FinancialPackageId == packageId));
 
+    // A retry after a reload, which now sees this approval as the latest decision, still returns the stored decision.
+    var reloaded = (await FinancialStatementService.GetCashFlowSourceReviewAsync(db, reviewer, packageId)).Value!;
+    Assert.Equal(first.Value, reloaded.LatestReviewId);
+    var afterReload = await FinancialStatementService.RecordCashFlowSourceReviewAsync(db, reviewer, packageId, "APPROVED", null,
+      intent, reloaded.LinkDigest, reloaded.LatestReviewId);
+    Assert.Equal(first.Value, afterReload.Value);
+
+    // Another reviewer presenting this identity is refused and gets none of the stored decision.
+    var otherReviewer = User(fixture.FirmId, "second-reviewer");
+    db.Users.Add(otherReviewer);
+    db.RoleGrants.Add(Grant(fixture.FirmId, otherReviewer, "AccountingReviewer"));
+    await db.SaveChangesAsync();
+    var intruder = await FinancialStatementService.RecordCashFlowSourceReviewAsync(db, Actor(otherReviewer, "AccountingReviewer"), packageId,
+      "APPROVED", null, intent, reloaded.LinkDigest, reloaded.LatestReviewId);
+    Assert.Equal(ErrorCodes.IdempotencyConflict, intruder.ErrorCode);
+
     // The same identity with a different payload is a conflict, never an overwrite of the approval.
     var changed = await FinancialStatementService.RecordCashFlowSourceReviewAsync(db, reviewer, packageId, "RETURNED", "Changed my mind.",
       intent, before.LinkDigest, before.LatestReviewId);
@@ -729,6 +745,11 @@ public sealed class CashFlowContractTests
     await locker.FinancialPackages.FromSqlInterpolated($"SELECT * FROM financial_packages WHERE id = {packageId} FOR UPDATE")
       .AsNoTracking().ToListAsync();
     var intent = Guid.NewGuid();
+    await using (var grants = new AuditSphereDbContext(pg.Options))
+    {
+      grants.RoleGrants.Add(Grant(fixture.FirmId, fixture.Reviewer, "AccountingPreparer"));
+      await grants.SaveChangesAsync();
+    }
     await using var pendingDb = new AuditSphereDbContext(pg.Options);
     var pending = FinancialStatementService.RecordCashFlowSourceReviewAsync(pendingDb, reviewer, packageId, "APPROVED", null,
       intent, opened.LinkDigest, opened.LatestReviewId);
@@ -744,6 +765,7 @@ public sealed class CashFlowContractTests
       $"SELECT COALESCE(string_agg(COALESCE(wait_event_type,'-') || ':' || COALESCE(wait_event,'-') || ':' || LEFT(query, 70), ' | '), '') AS \"Value\" FROM pg_stat_activity WHERE datname = current_database()").SingleAsync();
     Assert.True(waiting > 0, $"The decision never reached the package lock. Pending: {(pending.IsCompleted ? DescribeOutcome(pending) : "still running")}. Sessions: {sessions}");
     var grant = await locker.RoleGrants.SingleAsync(x => x.UserId == fixture.Reviewer.Id && x.Role == "AccountingReviewer" && x.RevokedAt == null);
+    // The revocation removes only the review role; the reviewer keeps a scoped preparer grant that a scope-only check would accept.
     grant.RevokedAt = DateTimeOffset.UtcNow;
     await locker.SaveChangesAsync();
     await lockTx.CommitAsync();
