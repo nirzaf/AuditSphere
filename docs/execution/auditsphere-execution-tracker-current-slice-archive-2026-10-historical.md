@@ -6893,3 +6893,30 @@ Key architectural invariants verified:
    - Documentation, filename, and narrative-metric checks: passed
 
 > **Archived handoff history:** superseded 2026-10-09 evidence and implementation notes are preserved in the [historical slice archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md#ste-v2-1-evidence-mapping-and-full-suite-runs--2026-10-09).
+
+## Hostinger Selected Site exact-grant verification — 2026-10-11
+
+The owner approved a write grant to the existing synthetic `AuditSphere Development` site and one
+disposable create/read/delete probe. A temporary single-tenant grantor with delegated
+`Sites.FullControl.All` created only that grant; its Entra registration, service principal and
+delegated consent were then removed. The runtime app retained only `Sites.Selected`, and the
+unrelated same-tenant control site received no grant.
+
+The protected VPS `.env` now has the runtime app configured privately and its credential reference
+aligned with the persisted AuditSphere connection (`configuration:SelectedSite`, file mode `0600`).
+Only the API container was recreated. `/health/ready` returned HTTP 200; the live database and
+worker containers were unchanged and no migration ran. The certificate matched the registration,
+and token inspection showed only the `Sites.Selected` application role.
+
+AuditSphere persisted the selected resource as `VERIFIED`, revision 7, diagnostic
+`exact-resource-and-control-denial` (observed `2026-10-11T17:36:47.672211Z`). Graph allowed the
+approved site, `Internal Workpapers` drive and configured root (HTTP 200), and denied the unrelated
+control site (HTTP 403). The disposable file uploaded with HTTP 201, read back byte-for-byte,
+deleted with HTTP 204 and then returned HTTP 404. The SharePoint library was empty after the probe.
+No workspace was activated and the PBC worker remains stopped.
+
+At the latest tenant-page observation, Directory Reader freshness showed `STALE`; refresh and
+reverify its bounded read before relying on current directory data. Records remains
+`NOT_CONFIGURED`. This evidence verifies the exact selected-site boundary and a file operation only;
+the broader M365, PBC, client workflow and production acceptance gates remain open. Do not place IDs,
+account names, secrets or certificate material in repository docs.

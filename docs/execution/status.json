@@ -743,31 +743,8 @@
       "jsonPath": "keys.targetedVerification.workflowAnnualPeriodOverlap"
     },
     "workflowRecurringRiskScope": {
-      "recordedAtUtc": "2026-10-12T19:16:00Z",
-      "baseCommit": "85a1ef21",
-      "scope": "WF-11 risk binding: recurring periods require an exact engagement-scoped decision. Readiness, lifecycle, activation preview/execute and commercial letter preview/generation use shared EngagementRiskEvidence. First-period client acceptance compatibility remains; sibling clearance is excluded and later applicable client decline still blocks. No schema change.",
-      "runs": [
-        {
-          "command": "dotnet test Domain.Tests --no-build --no-restore --configuration Release --maxcpucount:1 --filter RecurringEngagementRiskTests|EngagementActivationReviewTests|EngagementActivationAdvanceGateTests|EngagementLifecycleQueryTests|CommercialWorkflowTests",
-          "result": "PASS",
-          "passed": 26,
-          "trx": "/private/tmp/auditsphere-recurring-risk-results/_Mac_2026-10-12_22_11_03_net10.0.trx"
-        },
-        {
-          "command": "dotnet test E2E.Tests --no-build --no-restore --configuration Release --maxcpucount:1 --filter RecurringPeriodRequiresItsOwnDecisionBeforeOfferingActivationReview",
-          "result": "PASS",
-          "passed": 1,
-          "trx": "/private/tmp/auditsphere-recurring-browser-results/_Mac_2026-10-12_22_15_16_net10.0.trx"
-        }
-      ],
-      "builtInBrowser": "PASS authenticated owned fixture: prior client decision leaves activation blocked with zero review buttons; no error/warn logs. Automated journey additionally verifies scoped evidence restores review availability without activation.",
-      "builds": "PASS bounded Application, API, Domain, E2E and emitter Release builds; NU1900 feed warnings.",
-      "openApi": "PASS unchanged current contract.",
-      "limits": [
-        "Annual preview/execute/receipt helper, native engagement-scoped assessment authoring, fresh year-specific checklist semantics and template carry-forward remain incomplete.",
-        "Scoped acceptance tests use synthetic immutable evidence; no professional or live tenant sign-off claimed.",
-        "No full solution regression, new Angular change or production deployment in this slice."
-      ]
+      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
+      "jsonPath": "keys.targetedVerification.workflowRecurringRiskScope"
     },
     "workflowScopedAssessmentAuthoring": {
       "status": "ARCHIVED_FOCUSED_EVIDENCE",
@@ -1024,6 +1001,21 @@
       "artifact": "/private/tmp/auditsphere-template-boundary-tests/_Mac_2026-10-13_21_26_23_net10.0.trx",
       "remaining": "TASK-01 still partial: template-declared prerequisites, publication rules, phase guidance, automation and broader acceptance. RequiredTask is operational; no professional gate waiver introduced.",
       "migration": "No schema/configuration/UI change or persistent database migration"
+    },
+    "trialBalanceReportSignedEquity": {
+      "baseCommit": "316a04c914272b9e6cfbc81813c8e41f13830bc8",
+      "recordedAtUtc": "2026-10-14T10:45:51.762861+00:00",
+      "workingTreeChangesIncluded": true,
+      "attachmentSha256": "cd02e762cc3b6786d0ff6b59abfd2ab3e7c3634ece57954a157021ac4f9bed77",
+      "reportDeltaSha256": "9b352012ab126fa8f8454258c3fcb9dd3a01ac121bab9a250020889f82600e9e",
+      "scope": "AS-FR-CLOSE-001 intake; WP-05 signed current/comparative equity cross-cast correction within existing canonical convention",
+      "checks": "PASS 36/36 focused Domain cohort: presentation incl four sign cases plus ten pending AUD-04/isolation/planning/freeze regressions; Release build passed with NU1900 warnings",
+      "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --no-restore --configuration Release --maxcpucount:1 --filter 'FullyQualifiedName~FinancialStatementPresentationTests|FullyQualifiedName~AuditProcedureSubmissionConcurrencyTests|FullyQualifiedName~AuditProgramWorkflowTests|FullyQualifiedName~AuditProgramCommandIsolationTests|FullyQualifiedName~PlanningGateTests|FullyQualifiedName~FileFreezesSixtyDaysAfterSigning'",
+      "artifact": "/private/tmp/auditsphere-report-signs-tests/_Mac_2026-10-14_13_41_58_net10.0.trx",
+      "limits": "No full suite/browser/ABC final-report journey or professional acceptance. Pending AUD-04 changes retained separately. T003 remains blocked; draft/source-lineage flags retained.",
+      "migration": "No schema change, persistent migration or live provider change",
+      "review": "docs/execution/auditsphere-execution-tracker-trial-balance-report-current.md",
+      "hostChecks": "PASS API/emitter Release builds, OpenAPI drift and EF no pending model changes; docs gates and source inventory"
     }
   },
   "externalGates": [

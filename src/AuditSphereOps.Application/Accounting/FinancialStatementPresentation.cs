@@ -612,12 +612,12 @@ public static class FinancialStatementPresentationBuilder
           : "Equity OCI movements do not cross-cast to a complete mapped OCI balance."));
       var scheduledClosingEquity = MoneyPolicy.Normalize(currentLines.Sum(x => x.ClosingAmount));
       var sfpCrossCast = currentControl.ClosingEquity is { } expectedClosingEquity &&
-        Math.Abs(scheduledClosingEquity) == Math.Abs(expectedClosingEquity);
+        MoneyPolicy.Normalize(scheduledClosingEquity + expectedClosingEquity) == 0m;
       checks.Add(new PresentationCheck("EQUITY_SFP_CROSS_CAST", sfpCrossCast,
         sfpCrossCast ? "Equity schedule closing components cross-cast to mapped SFP equity plus current-period profit and OCI."
           : currentControl.ClosingEquity is null
             ? "Mapped SFP equity and current-period profit/OCI are incomplete; the equity schedule cannot be cross-cast."
-            : $"Equity schedule closing components {Math.Abs(scheduledClosingEquity):0.######} do not equal mapped SFP equity plus current-period profit and OCI {Math.Abs(currentControl.ClosingEquity.Value):0.######}."));
+            : $"Equity schedule closing components {scheduledClosingEquity:0.######} do not offset signed mapped SFP equity plus current-period profit and OCI {currentControl.ClosingEquity.Value:0.######}."));
 
       if (comparativeBound)
       {
@@ -640,7 +640,7 @@ public static class FinancialStatementPresentationBuilder
             : "Comparative equity OCI movements do not cross-cast to a complete mapped comparative OCI balance."));
         var priorClosing = MoneyPolicy.Normalize(priorLines.Sum(x => x.ClosingAmount));
         var priorSfpCrossCast = priorControl.ClosingEquity is { } expectedPriorClosing && priorLines.Count > 0 &&
-          Math.Abs(priorClosing) == Math.Abs(expectedPriorClosing);
+          MoneyPolicy.Normalize(priorClosing + expectedPriorClosing) == 0m;
         checks.Add(new PresentationCheck("EQUITY_COMPARATIVE_SFP_CROSS_CAST", priorSfpCrossCast,
           priorSfpCrossCast ? "Comparative equity schedule closing components cross-cast to mapped comparative SFP equity, profit and OCI."
             : "The comparative equity schedule does not cross-cast to a complete mapped comparative SFP equity, profit and OCI balance."));

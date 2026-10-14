@@ -15919,6 +15919,33 @@
           "Populated historic-mapping browser check",
           "Full release and live/professional acceptance"
         ]
+      },
+      "workflowRecurringRiskScope": {
+        "recordedAtUtc": "2026-10-12T19:16:00Z",
+        "baseCommit": "85a1ef21",
+        "scope": "WF-11 risk binding: recurring periods require an exact engagement-scoped decision. Readiness, lifecycle, activation preview/execute and commercial letter preview/generation use shared EngagementRiskEvidence. First-period client acceptance compatibility remains; sibling clearance is excluded and later applicable client decline still blocks. No schema change.",
+        "runs": [
+          {
+            "command": "dotnet test Domain.Tests --no-build --no-restore --configuration Release --maxcpucount:1 --filter RecurringEngagementRiskTests|EngagementActivationReviewTests|EngagementActivationAdvanceGateTests|EngagementLifecycleQueryTests|CommercialWorkflowTests",
+            "result": "PASS",
+            "passed": 26,
+            "trx": "/private/tmp/auditsphere-recurring-risk-results/_Mac_2026-10-12_22_11_03_net10.0.trx"
+          },
+          {
+            "command": "dotnet test E2E.Tests --no-build --no-restore --configuration Release --maxcpucount:1 --filter RecurringPeriodRequiresItsOwnDecisionBeforeOfferingActivationReview",
+            "result": "PASS",
+            "passed": 1,
+            "trx": "/private/tmp/auditsphere-recurring-browser-results/_Mac_2026-10-12_22_15_16_net10.0.trx"
+          }
+        ],
+        "builtInBrowser": "PASS authenticated owned fixture: prior client decision leaves activation blocked with zero review buttons; no error/warn logs. Automated journey additionally verifies scoped evidence restores review availability without activation.",
+        "builds": "PASS bounded Application, API, Domain, E2E and emitter Release builds; NU1900 feed warnings.",
+        "openApi": "PASS unchanged current contract.",
+        "limits": [
+          "Annual preview/execute/receipt helper, native engagement-scoped assessment authoring, fresh year-specific checklist semantics and template carry-forward remain incomplete.",
+          "Scoped acceptance tests use synthetic immutable evidence; no professional or live tenant sign-off claimed.",
+          "No full solution regression, new Angular change or production deployment in this slice."
+        ]
       }
     }
   }

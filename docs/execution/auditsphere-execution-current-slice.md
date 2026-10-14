@@ -15,6 +15,12 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Trial balance-to-report intake and signed equity — 2026-10-14
+
+The attached AS-FR-CLOSE-001 story is mapped in [the delta review](auditsphere-execution-tracker-trial-balance-report-current.md), using existing task and methodology authorities. Current/comparative equity checks now preserve signs rather than accepting opposite amounts by magnitude. Focused presentation and retained AUD-04 regression checks passed; exact evidence is `targetedVerification.trialBalanceReportSignedEquity` in [status.json](status.json).
+
+This is not full reporting completion. T003's qualified methodology/independent-review evidence is absent; draft/source-lineage warnings and existing review order remain. Source bindings, indirect cash flow, reviewed notes, exact final composition/decisions and full browser/live acceptance remain open. Pending procedure submission-lock changes from the interrupted workflow task are retained separately and are not part of this reporting delta.
+
 ## Task/professional boundary — 2026-10-13
 
 Completing every task in a published pinned plan still refuses activation without Partner acceptance and creates no professional approval, opinion, release or freeze evidence. Template/plan checks passed; see `targetedVerification.workflowTemplateProfessionalBoundary` in [status.json](status.json). TASK-01 remains partial. Operational `RequiredTask` is not a professional gate.
@@ -381,30 +387,3 @@ Committed at `cee546f9`. Pricing policy maker/checker, append-only approval revo
 Legal/FSLI implementation and current-tree STE journeys passed local verification. See the [STE verification tracker](auditsphere-execution-tracker-ste-v21-gap-verification-current.md) and `status.json`. T003 professional sign-off, T014 dependencies and live Microsoft/provider acceptance remain open.
 
 The earlier 2026-10-10 M365 portal setup trace is preserved in the [historical current-slice archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md); the later exact-site verification below supersedes its setup status.
-
-## Hostinger Selected Site exact-grant verification — 2026-10-11
-
-The owner approved a write grant to the existing synthetic `AuditSphere Development` site and one
-disposable create/read/delete probe. A temporary single-tenant grantor with delegated
-`Sites.FullControl.All` created only that grant; its Entra registration, service principal and
-delegated consent were then removed. The runtime app retained only `Sites.Selected`, and the
-unrelated same-tenant control site received no grant.
-
-The protected VPS `.env` now has the runtime app configured privately and its credential reference
-aligned with the persisted AuditSphere connection (`configuration:SelectedSite`, file mode `0600`).
-Only the API container was recreated. `/health/ready` returned HTTP 200; the live database and
-worker containers were unchanged and no migration ran. The certificate matched the registration,
-and token inspection showed only the `Sites.Selected` application role.
-
-AuditSphere persisted the selected resource as `VERIFIED`, revision 7, diagnostic
-`exact-resource-and-control-denial` (observed `2026-10-11T17:36:47.672211Z`). Graph allowed the
-approved site, `Internal Workpapers` drive and configured root (HTTP 200), and denied the unrelated
-control site (HTTP 403). The disposable file uploaded with HTTP 201, read back byte-for-byte,
-deleted with HTTP 204 and then returned HTTP 404. The SharePoint library was empty after the probe.
-No workspace was activated and the PBC worker remains stopped.
-
-At the latest tenant-page observation, Directory Reader freshness showed `STALE`; refresh and
-reverify its bounded read before relying on current directory data. Records remains
-`NOT_CONFIGURED`. This evidence verifies the exact selected-site boundary and a file operation only;
-the broader M365, PBC, client workflow and production acceptance gates remain open. Do not place IDs,
-account names, secrets or certificate material in repository docs.

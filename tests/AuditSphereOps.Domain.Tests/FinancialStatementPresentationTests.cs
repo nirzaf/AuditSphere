@@ -366,6 +366,35 @@ public sealed class FinancialStatementPresentationTests
     Assert.Equal(2687078m, presentation.Statements.Single(x => x.Code == "CHANGES_IN_EQUITY").Rows.Single(x => x.Label == "Closing balance").Prior);
   }
 
+  [Theory]
+  [InlineData(false, false)]
+  [InlineData(false, true)]
+  [InlineData(true, false)]
+  [InlineData(true, true)]
+  public void EquityCrossCast_PreservesSignsForPositiveEquityAndDeficits(bool deficit, bool reversedSchedule)
+  {
+    var sign = deficit ? -1m : 1m;
+    var currentClosing = 4797471m * sign * (reversedSchedule ? -1m : 1m);
+    var priorClosing = 2687078m * sign * (reversedSchedule ? -1m : 1m);
+    var currentProfit = 3818172m * sign; var priorProfit = 2695325m * sign;
+    var current = new PresentationSupplementarySchedules(null, null, [], [],
+      [new("EQUITY", "Total equity", currentClosing - currentProfit, currentProfit, 0m, 0m, 0m, currentClosing)], []);
+    var prior = new PresentationSupplementarySchedules(null, null, [], [],
+      [new("EQUITY", "Total equity", priorClosing - priorProfit, priorProfit, 0m, 0m, 0m, priorClosing)], []);
+    var currentBalances = Current().Select(x => x with { Amount = x.Amount * sign }).ToArray();
+    var priorBalances = Prior().Select(x => x with { Amount = x.Amount * sign }).ToArray();
+    var result = FinancialStatementPresentationBuilder.Build(Layout(), currentBalances, priorBalances, Notes(),
+      Header(withPrior: true), Manifest(withPrior: true), currentSupplementary: current, priorSupplementary: prior);
+    Assert.True(result.Succeeded, result.Message);
+    var checks = result.Value!.Checks;
+    Assert.True(checks.Single(x => x.Code == "EQUITY_ROLLFORWARD").Passed);
+    Assert.True(checks.Single(x => x.Code == "EQUITY_COMPARATIVE_ROLLFORWARD").Passed);
+    Assert.Equal(!reversedSchedule, checks.Single(x => x.Code == "EQUITY_SFP_CROSS_CAST").Passed);
+    Assert.Equal(!reversedSchedule, checks.Single(x => x.Code == "EQUITY_COMPARATIVE_SFP_CROSS_CAST").Passed);
+    // Passing arithmetic must not promote this draft to professional acceptance or prove source lineage.
+    Assert.Contains(checks, x => x.Code == "EQUITY_SOURCE_LINEAGE" && !x.Passed);
+  }
+
   [Fact]
   public void WithoutAComparative_PriorAmountsAreNotAvailable_NeverZero()
   {
