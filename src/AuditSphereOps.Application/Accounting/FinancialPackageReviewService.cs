@@ -36,7 +36,7 @@ public static class FinancialPackageReviewService
   private static readonly string[] OfflineManagementRoles = ["AccountingPreparer", "AccountingReviewer", "Manager", "Partner", "Administrator"];
 
   /// <summary>Compatibility alias for the canonical required validation population.</summary>
-  public static readonly string[] BlockingValidationCodes = FinancialPackageValidationReadiness.RequiredCodes;
+  public static readonly string[] BlockingValidationCodes = [.. FinancialPackageValidationReadiness.RequiredCodes, "CASH_FLOW_SOURCE_LINEAGE"];
 
   public static async Task<CommandResult<Guid>> RecordAsync(
     IClientAccountingDbContext db, ActorContext actor, FinancialPackageReviewRequest request,
@@ -78,6 +78,9 @@ public static class FinancialPackageReviewService
     var readiness = await FinancialPackageValidationReadiness.GetAsync(db, package.FirmId, package.Id, ct);
     if (!readiness.Ready)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, readiness.Message);
+    if (!await CashFlowAllocationReviewService.HasCurrentApprovalAsync(db, package, ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+        "A current independent cash-flow allocation review is required before package approval.");
 
     if (package.Status != AccountingPackageStates.PackageValidated)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The financial package must be validated before review.");
@@ -198,6 +201,9 @@ public static class FinancialPackageReviewService
     if (!readiness.Ready)
       return CommandResult<ClientFinancialPackageView>.Fail(ErrorCodes.GateBlocked,
         "The financial package is not available for management approval.");
+    if (!await CashFlowAllocationReviewService.HasCurrentApprovalAsync(db, package, ct))
+      return CommandResult<ClientFinancialPackageView>.Fail(ErrorCodes.GateBlocked,
+        "The financial package is not available for management approval.");
 
     var statementLines = await db.FinancialPackageLines.AsNoTracking()
       .Where(x => x.FirmId == package.FirmId && x.ClientId == package.ClientId &&
@@ -264,7 +270,7 @@ public static class FinancialPackageReviewService
       .ToListAsync(ct);
     var validations = await db.FinancialPackageValidations.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && packageIds.Contains(x.FinancialPackageId) &&
-        FinancialPackageValidationReadiness.RequiredCodes.Contains(x.Code)).ToListAsync(ct);
+        BlockingValidationCodes.Contains(x.Code)).ToListAsync(ct);
     var canPartnerReview = actor.Roles.Any(x => x is "Partner" or "Administrator");
     var queue = new List<FinancialPackageReviewQueueItem>();
 
@@ -277,6 +283,7 @@ public static class FinancialPackageReviewService
         continue;
 
       if (!FinancialPackageValidationReadiness.Evaluate(package.FirmId, package.Id, validations).Ready) continue;
+      if (!await CashFlowAllocationReviewService.HasCurrentApprovalAsync(db, package, ct)) continue;
 
       var current = decisions.Where(x => x.FinancialPackageId == package.Id &&
           x.PackageHash == package.CalculationHash && x.PackageRevision == package.Revision &&
@@ -321,6 +328,9 @@ public static class FinancialPackageReviewService
     var readiness = await FinancialPackageValidationReadiness.GetAsync(db, package.FirmId, package.Id, ct);
     if (!readiness.Ready)
       return CommandResult.Fail(ErrorCodes.GateBlocked, readiness.Message);
+    if (!await CashFlowAllocationReviewService.HasCurrentApprovalAsync(db, package, ct))
+      return CommandResult.Fail(ErrorCodes.GateBlocked,
+        "A current independent cash-flow allocation review is required before package release.");
 
     var requiredStages = requirePartner
       ? new[] { FinancialPackageReviewStages.ManagementApproval, FinancialPackageReviewStages.AccountingReview, FinancialPackageReviewStages.PartnerApproval }

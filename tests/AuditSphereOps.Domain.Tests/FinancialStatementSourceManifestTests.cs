@@ -13,7 +13,9 @@ public sealed class FinancialStatementSourceManifestTests
   [InlineData("cash-currency")]
   [InlineData("cash-allocation-source")]
   [InlineData("cash-allocation-amount")]
-  [InlineData("cash-allocation-scope")]
+  [InlineData("cash-allocation-client")]
+  [InlineData("cash-allocation-engagement")]
+  [InlineData("cash-allocation-preparer")]
   [InlineData("fx-source")]
   [InlineData("fx-sign")]
   [InlineData("equity-source")]
@@ -38,9 +40,15 @@ public sealed class FinancialStatementSourceManifestTests
       ClosingAmount = -100m, EvidenceReference = "equity-source" };
     var allocation = new FinancialPackageCashFlowAllocation { Id = Guid.NewGuid(), FinancialPackageId = package.Id,
       CashFlowLineId = cash.Id, GeneralLedgerLineId = Guid.NewGuid(), GeneralLedgerTransactionId = Guid.NewGuid(),
-      SourceImportBatchId = Guid.NewGuid(), SourceLineHash = "source-line-hash", SignedAmount = -25m, Currency = "QAR" };
+      SourceImportBatchId = Guid.NewGuid(), SourceLineHash = "source-line-hash", SignedAmount = -25m, Currency = "QAR",
+      ClientId = Guid.NewGuid(), EngagementId = Guid.NewGuid(), PreparedByUserId = Guid.NewGuid() };
+    var allocations = new[] { allocation, new FinancialPackageCashFlowAllocation { Id = Guid.NewGuid(),
+      FinancialPackageId = package.Id, CashFlowLineId = cash.Id, GeneralLedgerLineId = Guid.NewGuid(),
+      GeneralLedgerTransactionId = Guid.NewGuid(), SourceImportBatchId = Guid.NewGuid(),
+      SourceLineHash = "second-source-line-hash", SignedAmount = -5m, Currency = "QAR",
+      ClientId = allocation.ClientId, EngagementId = allocation.EngagementId, PreparedByUserId = allocation.PreparedByUserId } };
     var notes = "notes";
-    string Hash() => FinancialStatementService.ComputePresentationSourceManifestHash([package], [cash], [fx], [equity], [allocation], notes);
+    string Hash() => FinancialStatementService.ComputePresentationSourceManifestHash([package], [cash], [fx], [equity], allocations, notes);
     var before = Hash();
     switch (change)
     {
@@ -51,7 +59,9 @@ public sealed class FinancialStatementSourceManifestTests
       case "cash-currency": cash.Currency = "USD"; break;
       case "cash-allocation-source": allocation.SourceLineHash = "replacement"; break;
       case "cash-allocation-amount": allocation.SignedAmount = 24m; break;
-      case "cash-allocation-scope": allocation.GeneralLedgerLineId = Guid.NewGuid(); break;
+      case "cash-allocation-client": allocation.ClientId = Guid.NewGuid(); break;
+      case "cash-allocation-engagement": allocation.EngagementId = Guid.NewGuid(); break;
+      case "cash-allocation-preparer": allocation.PreparedByUserId = Guid.NewGuid(); break;
       case "fx-source": fx.EvidenceReference = "replacement"; break;
       case "fx-sign": fx.Amount = -2m; break;
       case "equity-source": equity.EvidenceReference = "replacement"; break;
@@ -73,11 +83,14 @@ public sealed class FinancialStatementSourceManifestTests
     var cash = new[] {
       new FinancialPackageCashFlowLine { Id = Guid.NewGuid(), FinancialPackageId = packages[0].Id, SourceReferences = ["b", "a"] },
       new FinancialPackageCashFlowLine { Id = Guid.NewGuid(), FinancialPackageId = packages[1].Id } };
-    var allocations = new[] { new FinancialPackageCashFlowAllocation { Id = Guid.NewGuid(), FinancialPackageId = packages[0].Id,
-      CashFlowLineId = cash[0].Id, GeneralLedgerLineId = Guid.NewGuid(), SignedAmount = -1m } };
+    var allocations = new[] {
+      new FinancialPackageCashFlowAllocation { Id = Guid.NewGuid(), FinancialPackageId = packages[0].Id,
+        CashFlowLineId = cash[0].Id, GeneralLedgerLineId = Guid.NewGuid(), SignedAmount = -1m },
+      new FinancialPackageCashFlowAllocation { Id = Guid.NewGuid(), FinancialPackageId = packages[0].Id,
+        CashFlowLineId = cash[0].Id, GeneralLedgerLineId = Guid.NewGuid(), SignedAmount = -2m } };
     var before = FinancialStatementService.ComputePresentationSourceManifestHash(packages, cash, [], [], allocations, "notes");
     cash[0].SourceReferences = ["a", "b"];
     Assert.Equal(before, FinancialStatementService.ComputePresentationSourceManifestHash(
-      packages.Reverse().ToArray(), cash.Reverse().ToArray(), [], [], allocations, "notes"));
+      packages.Reverse().ToArray(), cash.Reverse().ToArray(), [], [], allocations.Reverse().ToArray(), "notes"));
   }
 }

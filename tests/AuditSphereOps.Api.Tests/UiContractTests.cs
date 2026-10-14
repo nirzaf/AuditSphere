@@ -104,6 +104,15 @@ public sealed class UiContractTests
     Assert.Equal(HttpStatusCode.Forbidden, revocationWithoutProof.StatusCode);
     Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/ui/deliverables/" + Guid.NewGuid() + "/signature")).StatusCode);
     Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/ui/accounting/packages/" + Guid.NewGuid() + "/presentation")).StatusCode);
+    using var packageBuildWithoutProof = await client.PostAsJsonAsync("/api/ui/accounting/packages/build", new { });
+    Assert.Equal(HttpStatusCode.Forbidden, packageBuildWithoutProof.StatusCode);
+    Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/ui/accounting/package-builds/" + Guid.NewGuid())).StatusCode);
+    Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/ui/accounting/packages/" + Guid.NewGuid() + "/cash-flow-allocation-review")).StatusCode);
+    using var allocationReviewWithoutProof = await client.PostAsJsonAsync(
+      "/api/ui/accounting/packages/" + Guid.NewGuid() + "/cash-flow-allocation-review", new { });
+    Assert.Equal(HttpStatusCode.Forbidden, allocationReviewWithoutProof.StatusCode);
+    using var packageRenderWithoutProof = await client.PostAsJsonAsync("/api/ui/accounting/packages/" + Guid.NewGuid() + "/render", new { });
+    Assert.Equal(HttpStatusCode.Forbidden, packageRenderWithoutProof.StatusCode);
     using var presentationExportWithoutProof = await client.PostAsJsonAsync("/api/ui/accounting/packages/" + Guid.NewGuid() + "/presentation/export", new { format = "pdf" });
     Assert.Equal(HttpStatusCode.Forbidden, presentationExportWithoutProof.StatusCode);
     Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/ui/finance/end-of-service")).StatusCode);
