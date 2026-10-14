@@ -547,6 +547,28 @@ public sealed class FinancialPackageCashFlowLine
   public DateTimeOffset CreatedAt { get; set; }
 }
 
+/// <summary>
+/// An accepted general-ledger line that contributes part of its signed amount to one cash-flow movement of a sealed package.
+/// Several movements may draw on one line, but their contributions may never exceed it. Append-only with the package.
+/// </summary>
+public sealed class FinancialPackageCashFlowAllocation
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid FinancialPackageId { get; set; }
+  public Guid CashFlowLineId { get; set; }
+  public Guid GeneralLedgerLineId { get; set; }
+  public Guid GeneralLedgerTransactionId { get; set; }
+  public Guid SourceImportBatchId { get; set; }
+  /// <summary>Digest of the exact accepted source line this contribution was resolved against.</summary>
+  public string SourceLineHash { get; set; } = string.Empty;
+  public decimal SignedAmount { get; set; }
+  public string Currency { get; set; } = string.Empty;
+  public DateTimeOffset CreatedAt { get; set; }
+}
+
 /// <summary>Exchange-rate effect on cash for one package; reconciles cash movements
 /// to the opening/closing cash bridge without being folded into an activity section.</summary>
 public sealed class FinancialPackageFxEffect

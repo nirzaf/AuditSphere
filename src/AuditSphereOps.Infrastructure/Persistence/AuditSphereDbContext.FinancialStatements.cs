@@ -383,6 +383,21 @@ public sealed partial class AuditSphereDbContext
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
+    var cashAllocation = b.Entity<FinancialPackageCashFlowAllocation>();
+    cashAllocation.Property(x => x.SourceLineHash).HasMaxLength(64).IsFixedLength();
+    cashAllocation.Property(x => x.Currency).HasMaxLength(3);
+    // One source line may feed several movements, but never the same movement twice.
+    cashAllocation.HasIndex(x => new { x.FirmId, x.FinancialPackageId, x.CashFlowLineId, x.GeneralLedgerLineId }).IsUnique()
+      .HasDatabaseName("ux_financial_package_cash_allocation_movement_source");
+    cashAllocation.HasIndex(x => new { x.FirmId, x.GeneralLedgerLineId });
+    cashAllocation.ToTable("financial_package_cash_flow_allocations", t => t.HasCheckConstraint("ck_financial_package_cash_allocation_values",
+      "signed_amount <> 0 AND currency ~ '^[A-Z]{3}$' AND source_line_hash ~ '^[a-f0-9]{64}$'"));
+    cashAllocation.HasOne<FinancialPackageCashFlowLine>().WithMany()
+      .HasForeignKey(x => x.CashFlowLineId).OnDelete(DeleteBehavior.Restrict);
+    cashAllocation.HasOne<FinancialPackage>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
     var packageSeal = b.Entity<FinancialPackageSeal>();
     packageSeal.Property(x => x.PackageHash).HasMaxLength(64).IsFixedLength();
     packageSeal.Property(x => x.ContentManifestDigest).HasMaxLength(64).IsFixedLength();

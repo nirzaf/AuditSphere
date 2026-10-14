@@ -327,8 +327,14 @@ public static partial class FinancialStatementService
         "No structured note lines were supplied; note-to-face cross-casts are not applicable.");
     if (request.SupplementaryInformation is not null)
     {
+      var sourceLinks = await ResolveCashFlowSourceLinksAsync(typedAccounting, actor, package, dataset.PeriodId,
+        request.SupplementaryInformation.CashFlowLines, ct);
+      if (!sourceLinks.Succeeded)
+        return CommandResult<FinancialPackageBuildResult>.Fail(sourceLinks.ErrorCode!, sourceLinks.Message!);
+      var movements = new List<FinancialPackageCashFlowLine>();
       foreach (var line in request.SupplementaryInformation.CashFlowLines)
-        db.FinancialPackageCashFlowLines.Add(new FinancialPackageCashFlowLine
+      {
+        var movement = new FinancialPackageCashFlowLine
         {
           Id = Guid.CreateVersion7(), FirmId = package.FirmId, ClientId = package.ClientId,
           EngagementId = package.EngagementId, FinancialPackageId = package.Id,
@@ -339,7 +345,31 @@ public static partial class FinancialStatementService
           SourceReferences = NormalizeReferences(line.SourceReferences),
           ClassificationRationale = line.ClassificationRationale!.Trim(),
           Currency = package.Currency, CreatedAt = package.CreatedAt
+        };
+        movements.Add(movement);
+        db.FinancialPackageCashFlowLines.Add(movement);
+      }
+      foreach (var link in sourceLinks.Value!)
+        db.FinancialPackageCashFlowAllocations.Add(new FinancialPackageCashFlowAllocation
+        {
+          Id = Guid.CreateVersion7(), FirmId = package.FirmId, ClientId = package.ClientId,
+          EngagementId = package.EngagementId, FinancialPackageId = package.Id,
+          CashFlowLineId = movements[link.MovementIndex].Id, GeneralLedgerLineId = link.GeneralLedgerLineId,
+          GeneralLedgerTransactionId = link.GeneralLedgerTransactionId, SourceImportBatchId = link.SourceImportBatchId,
+          SourceLineHash = link.SourceLineHash, SignedAmount = link.SignedAmount, Currency = link.Currency,
+          CreatedAt = package.CreatedAt
         });
+      // Lineage is recorded only when the request supplies any source link, so unlinked drafts keep their existing validations.
+      if (request.SupplementaryInformation.CashFlowLines.Any(x => x.SourceAllocations is { Count: > 0 }))
+      {
+        var resolvedMovements = ResolvedCashFlowMovements(request.SupplementaryInformation.CashFlowLines.Select(x => MoneyPolicy.Normalize(x.Amount)).ToArray(),
+          sourceLinks.Value!.Select(x => (x.MovementIndex, x.SignedAmount)));
+        var unresolved = resolvedMovements.Count(x => !x);
+        AddValidation(db, package, "CASH_FLOW_SOURCE_LINEAGE", unresolved == 0,
+          unresolved == 0
+            ? "Every cash-flow movement is fully allocated to accepted general-ledger lines."
+            : $"{unresolved} cash-flow movement(s) are not fully allocated to accepted general-ledger lines.");
+      }
       foreach (var fxEffect in request.SupplementaryInformation.FxCashEffects ?? [])
         db.FinancialPackageFxEffects.Add(new FinancialPackageFxEffect
         {
@@ -362,7 +392,10 @@ public static partial class FinancialStatementService
 
     // Fail closed: a package whose blocking validations failed must never carry the
     // VALIDATED state, so review, management view and release all refuse it.
-    var blockingValidationFailed = !FinancialPackageValidationReadiness.Evaluate(
+    // A partly source-linked cash-flow schedule is a draft too: its lineage validation is recorded only when links were supplied.
+    var lineageFailed = db.FinancialPackageValidations.Local.Any(x => x.FinancialPackageId == package.Id &&
+      x.Code == "CASH_FLOW_SOURCE_LINEAGE" && !x.Passed);
+    var blockingValidationFailed = lineageFailed || !FinancialPackageValidationReadiness.Evaluate(
       package.FirmId, package.Id, db.FinancialPackageValidations.Local).Ready;
     if (blockingValidationFailed && package.Status == AccountingPackageStates.PackageValidated)
       package.Status = AccountingPackageStates.PackageReviewRequired;
@@ -525,6 +558,8 @@ public static partial class FinancialStatementService
       return "Cash-flow lines and disclosure responses are both required.";
     if (input.CashFlowLines.Any(x => !ValidCashFlowMovement(x, start, end)))
       return "Each cash-flow movement needs a date within the reporting period, activity code, evidence reference and classification rationale.";
+    if (ValidateCashFlowSourceAllocationShape(input.CashFlowLines) is { } sourceShapeError)
+      return sourceShapeError;
     if (input.CashAccountCodes is not { Count: > 0 and <= 100 } ||
         input.CashAccountCodes.Any(x => string.IsNullOrWhiteSpace(x) || x.Trim().Length > 100) ||
         input.CashAccountCodes.Select(x => x.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).Count() != input.CashAccountCodes.Count)

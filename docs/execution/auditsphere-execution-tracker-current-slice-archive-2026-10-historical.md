@@ -6938,3 +6938,32 @@ Working-tree slice on `cee546f9`. The ADR-0010 recording mechanism is implemente
 ## ADR-0016 certificate signing of the final report — 2026-10-10
 
 Working-tree slice on `cee546f9`. On the owner's instruction the final report PDF is certificate-signed when the firm's certificate is configured (`ReportSigning:*`), the bundle's certified statements are signed with it, and `ReportSigning:Required` fails closed. With no certificate the image-only behaviour is unchanged and labelled. Observed for this slice: Release build, EF drift check, OpenAPI check, the Domain test classes `ReportCertificateSigningTests` and `AuditDeliverablesTests`, and the `completion.spec.ts` screen specs passed, using a throwaway self-signed certificate. The full suites were not run. The firm's real certificate, its legal acceptance and the Wiki deployment note remain open; details are in `status.json` under ADR-0016.
+
+## Hostinger Entra mutation-app permission split — 2026-10-11
+
+The user authorized three dedicated, single-role registrations and admin consent, plus removal of
+the duplicate roles from the former combined app. The Entra portal now shows `User.Create` only on
+`AuditSphereOps Development Administration`, `User.Invite.All` only (plus delegated `User.Read`)
+on `AuditSphereOps Acceptance Guest Invitation`, and `GroupMember.ReadWrite.All` only (plus
+delegated `User.Read`) on `AuditSphereOps Acceptance Group Membership`; each application role shows
+tenant consent granted. The former combined app's extra configured roles and their leftover tenant
+grants were removed.
+
+The dedicated `AuditSphere Acceptance - Directory Reader` registration shows application
+`User.Read.All` and delegated `User.Read`, both with tenant consent granted in the Entra portal on
+2026-10-11. The separate Mail registration shows `Mail.Send` consent granted. AuditSphere's
+Directory Reader and Mail runtime switches remain disabled; no Graph capability verification or
+Graph mutation was performed.
+
+This is Entra registration evidence. The live AuditSphere tenant-connection page still reports no
+consent attempt, directory `NOT_VERIFIED`, and the three mutation capabilities Disabled. No
+role-specific VPS credentials were configured, no Graph mutation was run, and no capability was
+enabled. Selected SharePoint remains `BLOCKED_EXTERNAL`; the exact site grant and positive/negative
+resource probe are still pending. The previously owner-approved API-only Compose recreation
+returned `/health/ready` HTTP 200; the database and workers were not recreated and no migration ran.
+`SELECTED_SITE_CLIENT_ID` remains blank in the protected VPS environment until the exact-site grant.
+See the M365 permission matrix and Hostinger deployment guide.
+
+## FSR first slice — typed statement presentation (unapproved draft) — 2026-10-11
+
+Working-tree slice on `78979390`, from the NAQAHA implementation stories (FSR-002, FSR-010, FSR-011 first slice). The statement of financial position and of profit or loss are presented from persisted package lines through the published statement layout, in PDF, Word and Excel, with blocking checks for balance, mapping, sign, note cross-cast and display footing. Observed: Release build, EF drift check, OpenAPI regeneration, Domain presentation and statement tests, API UI contract test, Angular presentation and package specs and the production build passed. The fixture is synthetic. Approval (FSR-001), composition, sealing, signing and release remain open; details are in `status.json`.

@@ -144,6 +144,124 @@ public sealed class CashFlowContractTests
     }
   }
 
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task SourceLinkedMovements_ResolveLineageOnlyWhenFullyAllocatedToAcceptedGeneralLedger()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    var preparer = Actor(fixture.Preparer, "AccountingPreparer");
+    var reviewer = Actor(fixture.Reviewer, "AccountingReviewer");
+    // The ledger is accepted before the mapping and plan are fixed: accepting a source later changes the input generation.
+    var source = await SeedAcceptedGeneralLedgerAsync(pg, fixture, reviewer);
+    var (mappingId, planId) = await CreateApprovedMappingAndPlanAsync(pg, fixture, preparer, reviewer);
+
+    BuildFinancialPackageRequest Request(string template, params CashFlowLineInput[] lines) => new(planId, mappingId, "IFRS", "2026-01-01", "2026-12-31", template)
+    {
+      SupplementaryInformation = new FinancialSupplementaryInformation(0m, 100m, lines,
+        [new DisclosureInput("CASH_POLICY", "Cash is presented at face value."),
+         new DisclosureInput("COMMITMENTS", string.Empty, NotApplicable: true, Rationale: "None identified.")],
+        [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 100m, "equity-cash-1")],
+        CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-bank-statement-1"], ClosingCashEvidenceReferences: ["closing-bank-statement-1"])
+    };
+    static CashFlowLineInput Movement(string section, string description, decimal amount, bool nonCash, string activity,
+      params CashFlowSourceAllocationInput[] allocations) => new(section, description, amount, IsNonCash: nonCash,
+        MovementDate: new DateOnly(2026, 6, 30), ActivityCode: activity, SourceReferences: ["gl-source-linked"],
+        ClassificationRationale: "Linked to accepted general-ledger lines.",
+        SourceAllocations: allocations.Length == 0 ? null : allocations);
+
+    // Fully allocated: the receipt and the noncash depreciation each total their own amounts from accepted lines.
+    var complete = Request("source-linked-v1",
+      Movement("OPERATING", "Cash receipts from customers", 100m, false, "CASH_RECEIPTS", new CashFlowSourceAllocationInput(source.Receivable, 100m)),
+      Movement("OPERATING", "Depreciation adjustment", 25m, true, "NON_CASH_ADJUSTMENT", new CashFlowSourceAllocationInput(source.Depreciation, 25m)));
+    Guid completePackageId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var built = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, complete);
+      Assert.True(built.Succeeded, built.Message);
+      completePackageId = built.Value!.PackageId;
+      Assert.Equal(AccountingPackageStates.PackageValidated, built.Value.Status);
+      var lineage = await db.FinancialPackageValidations.AsNoTracking()
+        .SingleAsync(x => x.FinancialPackageId == completePackageId && x.Code == "CASH_FLOW_SOURCE_LINEAGE");
+      Assert.True(lineage.Passed, lineage.Detail);
+      var allocations = await db.FinancialPackageCashFlowAllocations.AsNoTracking()
+        .Where(x => x.FinancialPackageId == completePackageId).ToListAsync();
+      Assert.Equal(2, allocations.Count);
+      Assert.All(allocations, x => Assert.Matches("^[a-f0-9]{64}$", x.SourceLineHash));
+      Assert.Equal(source.BatchId, allocations[0].SourceImportBatchId);
+    }
+
+    // Partial: the receipt has only 60 of its 100 resolved. The build still records a draft, but the lineage check fails and nothing is validated.
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var partial = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, Request("source-partial-v1",
+        Movement("OPERATING", "Cash receipts from customers", 100m, false, "CASH_RECEIPTS", new CashFlowSourceAllocationInput(source.Receivable, 60m))));
+      Assert.True(partial.Succeeded, partial.Message);
+      Assert.NotEqual(AccountingPackageStates.PackageValidated, partial.Value!.Status);
+      Assert.False((await db.FinancialPackageValidations.AsNoTracking().SingleAsync(x => x.FinancialPackageId == partial.Value.PackageId &&
+        x.Code == "CASH_FLOW_SOURCE_LINEAGE")).Passed);
+    }
+
+    // Refusals: over-allocation across movements, a repeated source line in one movement, a sign reversal, and a line that is not
+    // in the accepted ledger. None of them stores a contribution.
+    var storedBefore = await CountAllocationsAsync(pg);
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var over = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, Request("source-over-v1",
+        Movement("OPERATING", "Cash receipts from customers", 100m, false, "CASH_RECEIPTS", new CashFlowSourceAllocationInput(source.Receivable, 100m)),
+        Movement("OPERATING", "Second noncash adjustment", 25m, true, "NON_CASH_ADJUSTMENT", new CashFlowSourceAllocationInput(source.Receivable, 25m))));
+      Assert.Equal(ErrorCodes.Accounting.PackageInvalid, over.ErrorCode);
+
+      var repeated = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, Request("source-repeat-v1",
+        Movement("OPERATING", "Cash receipts from customers", 100m, false, "CASH_RECEIPTS",
+          new CashFlowSourceAllocationInput(source.Receivable, 50m), new CashFlowSourceAllocationInput(source.Receivable, 50m))));
+      Assert.Equal(ErrorCodes.Accounting.PackageSupplementaryInvalid, repeated.ErrorCode);
+
+      var reversed = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, Request("source-sign-v1",
+        Movement("OPERATING", "Cash receipts from customers", 100m, false, "CASH_RECEIPTS", new CashFlowSourceAllocationInput(source.Receivable, -100m))));
+      Assert.Equal(ErrorCodes.Accounting.PackageSupplementaryInvalid, reversed.ErrorCode);
+
+      var foreign = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, Request("source-foreign-v1",
+        Movement("OPERATING", "Cash receipts from customers", 100m, false, "CASH_RECEIPTS", new CashFlowSourceAllocationInput(Guid.NewGuid(), 100m))));
+      Assert.Equal(ErrorCodes.GateBlocked, foreign.ErrorCode);
+    }
+    Assert.Equal(storedBefore, await CountAllocationsAsync(pg));
+  }
+
+  private static async Task<int> CountAllocationsAsync(PgTestSchema pg)
+  {
+    await using var db = new AuditSphereDbContext(pg.Options);
+    return await db.FinancialPackageCashFlowAllocations.CountAsync();
+  }
+
+  /// <summary>An accepted, sealed general ledger for the fixture's period and book, with two synthetic lines.</summary>
+  private static async Task<(Guid BatchId, Guid Receivable, Guid Depreciation)> SeedAcceptedGeneralLedgerAsync(
+    PgTestSchema pg, Fixture f, ActorContext reviewer)
+  {
+    var batch = Guid.NewGuid();
+    var journal = Guid.NewGuid();
+    var receivable = Guid.NewGuid();
+    var depreciation = Guid.NewGuid();
+    var batchHash = batch.ToString("N") + batch.ToString("N");
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.SourceImportBatches.Add(new(){Id=batch,FirmId=f.FirmId,ClientId=f.ClientId,EngagementId=f.EngagementId,PeriodId=f.PeriodId,BookId=f.BookId,SourceKind="GL",ProfileVersion="cash-flow-source-v1",ParserVersion="synthetic-parser-v1",RawFileSha256Hex=batchHash,NormalizedDatasetDigest=batchHash,LegalEntityKey="SYNTHETIC-CASH-FLOW",Currency="QAR",RowCount=2,Status="LOADING",ReceiptReference="Synthetic cash-flow source",CreatedByUserId=f.Preparer.Id,CreatedAt=DateTimeOffset.UtcNow});
+      db.GeneralLedgerTransactions.Add(new(){Id=journal,FirmId=f.FirmId,ClientId=f.ClientId,EngagementId=f.EngagementId,ImportBatchId=batch,StableJournalId="SYN-CF-J-1",DocumentNumber="SYN-CF-DOC",PostingDate=new(2026,6,30),Currency="QAR",CreatedAt=DateTimeOffset.UtcNow});
+      db.GeneralLedgerLines.Add(new(){Id=receivable,FirmId=f.FirmId,ClientId=f.ClientId,EngagementId=f.EngagementId,ImportBatchId=batch,TransactionId=journal,StableLineId="SYN-CF-L-1",AccountCode="1100",Debit=100m,Credit=0m,FunctionalAmount=100m,OriginalCurrency="QAR",OriginalAmount=100m,CreatedAt=DateTimeOffset.UtcNow});
+      db.GeneralLedgerLines.Add(new(){Id=depreciation,FirmId=f.FirmId,ClientId=f.ClientId,EngagementId=f.EngagementId,ImportBatchId=batch,TransactionId=journal,StableLineId="SYN-CF-L-2",AccountCode="1600",Debit=25m,Credit=0m,FunctionalAmount=25m,OriginalCurrency="QAR",OriginalAmount=25m,CreatedAt=DateTimeOffset.UtcNow});
+      await db.SaveChangesAsync();
+    }
+    await using (var db = new AuditSphereDbContext(pg.Options))
+      await db.SourceImportBatches.Where(x => x.Id == batch).ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, "SEALED"));
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var accepted = await AccountingSourceAcceptanceService.AcceptSourceRevisionAsync(db, reviewer,
+        new(f.ClientId, f.EngagementId, AccountingSourceKinds.GeneralLedger, null, batch, "Synthetic cash-flow source review"));
+      Assert.True(accepted.Succeeded, accepted.Message);
+    }
+    return (batch, receivable, depreciation);
+  }
+
   private static async Task<(Guid MappingId, Guid PlanId)> CreateApprovedMappingAndPlanAsync(
     PgTestSchema pg, Fixture fixture, ActorContext preparer, ActorContext reviewer)
   {

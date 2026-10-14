@@ -280,6 +280,32 @@ public sealed class FinancialStatementPresentationTests
   }
 
   [Fact]
+  public void CashFlowSourceLineage_PassesOnlyWhenEveryMovementIsResolvedFromSource()
+  {
+    PresentationSupplementarySchedules Schedules(bool secondResolved) => new(
+      58372m, 1090993m,
+      [
+        new("OPERATING", "Operating receipts and payments", 1200000m, false, "OPERATING_NET", SourceResolved: true),
+        new("FINANCING", "New borrowing", 32621m, false, "BORROWING", SourceResolved: secondResolved)
+      ],
+      [new("USD/QAR", 0m)],
+      [new("RETAINED_EARNINGS", "Retained earnings", 979299m, 3818172m, 0m, 0m, 0m, 4797471m)],
+      [new("CASH_FLOW_RECONCILED", true, "Cash bridge and selected closing-cash population reconcile to the package build.")]);
+
+    var resolved = FinancialStatementPresentationBuilder.Build(Layout(), Current(), Prior(), Notes(), Header(withPrior: true), Manifest(withPrior: true),
+      currentSupplementary: Schedules(secondResolved: true), priorSupplementary: null);
+    Assert.True(resolved.Succeeded, resolved.Message);
+    Assert.Contains(resolved.Value!.Checks, x => x.Code == "CASH_FLOW_SOURCE_LINEAGE" && x.Passed);
+    Assert.DoesNotContain(resolved.Value.Warnings, x => x.Code == "CASH_FLOW_LINEAGE_PENDING");
+
+    var partial = FinancialStatementPresentationBuilder.Build(Layout(), Current(), Prior(), Notes(), Header(withPrior: true), Manifest(withPrior: true),
+      currentSupplementary: Schedules(secondResolved: false), priorSupplementary: null);
+    Assert.True(partial.Succeeded, partial.Message);
+    Assert.Contains(partial.Value!.Checks, x => x.Code == "CASH_FLOW_SOURCE_LINEAGE" && !x.Passed && x.Detail.Contains("1 cash-flow movement", StringComparison.Ordinal));
+    Assert.Contains(partial.Value.Warnings, x => x.Code == "CASH_FLOW_LINEAGE_PENDING");
+  }
+
+  [Fact]
   public void SupplementaryStatements_ShowPersistedSchedules_ExcludeNoncashFromBridge_AndExposeUnverifiedGates()
   {
     var schedules = new PresentationSupplementarySchedules(

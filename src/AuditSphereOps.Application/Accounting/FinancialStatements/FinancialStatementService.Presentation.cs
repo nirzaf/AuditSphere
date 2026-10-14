@@ -108,12 +108,16 @@ public static partial class FinancialStatementService
       package.CalculationEngineVersion, package.Currency, package.PeriodStart, package.PeriodEnd,
       package.ComparativeBasis, package.ComparativeEvidenceReference);
 
+    var cashAllocations = await db.FinancialPackageCashFlowAllocations.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && packageIds.Contains(x.FinancialPackageId)).ToListAsync(ct);
     var currentSupplementary = ToPresentationSchedules(package, currentCashLines, currentFxEffects, currentEquityLines,
-      packageValidations.Where(x => x.FinancialPackageId == package.Id).ToArray());
+      packageValidations.Where(x => x.FinancialPackageId == package.Id).ToArray(),
+      cashAllocations.Where(x => x.FinancialPackageId == package.Id).ToArray());
     var priorSupplementary = comparative is null
       ? null
       : ToPresentationSchedules(comparative, priorCashLines, priorFxEffects, priorEquityLines,
-        packageValidations.Where(x => x.FinancialPackageId == comparative.Id).ToArray());
+        packageValidations.Where(x => x.FinancialPackageId == comparative.Id).ToArray(),
+        cashAllocations.Where(x => x.FinancialPackageId == comparative.Id).ToArray());
     var built = FinancialStatementPresentationBuilder.Build(
       layoutLines,
       currentLines.Select(x => new PresentationBalance(x.DestinationCode, x.StatementSection, x.Amount)).ToList(),
@@ -137,14 +141,26 @@ public static partial class FinancialStatementService
     IReadOnlyList<FinancialPackageCashFlowLine> cashLines,
     IReadOnlyList<FinancialPackageFxEffect> fxEffects,
     IReadOnlyList<FinancialPackageEquityLine> equityLines,
-    IReadOnlyList<FinancialPackageValidation> packageValidations) => new(
+    IReadOnlyList<FinancialPackageValidation> packageValidations,
+    IReadOnlyList<FinancialPackageCashFlowAllocation> cashAllocations) => new(
       package.CashBeginning,
       package.CashEnding,
-      cashLines.Select(x => new PresentationCashFlowMovement(x.Section, x.Description, x.Amount, x.IsNonCash, x.ActivityCode)).ToList(),
+      CashMovementsWithLineage(cashLines, cashAllocations),
+
       fxEffects.Select(x => new PresentationFxCashEffect(x.CurrencyPair, x.Amount)).ToList(),
       equityLines.Select(x => new PresentationEquityMovement(x.LineCode, x.Description, x.OpeningAmount, x.ProfitOrLossAmount,
         x.OciAmount, x.CapitalMovementAmount, x.DividendsAmount, x.ClosingAmount)).ToList(),
       packageValidations.Select(x => new PresentationPackageValidation(x.Code, x.Passed, x.Detail)).ToList());
+
+  private static IReadOnlyList<PresentationCashFlowMovement> CashMovementsWithLineage(
+    IReadOnlyList<FinancialPackageCashFlowLine> cashLines, IReadOnlyList<FinancialPackageCashFlowAllocation> cashAllocations)
+  {
+    var resolved = ResolvedCashFlowMovements(cashLines.Select(x => x.Amount).ToArray(),
+      cashLines.Select((line, index) => (line, index)).SelectMany(x => cashAllocations
+        .Where(a => a.CashFlowLineId == x.line.Id).Select(a => (MovementIndex: x.index, a.SignedAmount))));
+    return cashLines.Select((x, index) => new PresentationCashFlowMovement(x.Section, x.Description, x.Amount, x.IsNonCash,
+      x.ActivityCode, resolved[index])).ToList();
+  }
 
   // The public/DB field retains its legacy NoteSourceManifestHash name. Version 2 also seals
   // supplementary schedule provenance. A hash proves identity, never source acceptance or review.

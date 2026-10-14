@@ -15,6 +15,14 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Cash-flow source allocations (CP-11, first slice) — 2026-10-14
+
+A cash-flow movement in a financial package can now be fully allocated to accepted general-ledger lines. Each contribution is a persisted row (`financial_package_cash_flow_allocations`, migration `CashFlowSourceAllocations`) carrying the exact source line, its transaction and batch, a digest of that line, and a signed amount. The rows are immutable with the package, enforced by a trigger. Package build resolves every contribution against the engagement's accepted general ledger, the package period, currency and sealed identity. It refuses over-allocated, sign-reversed, repeated or foreign lines and stores nothing for a refused build.
+
+The presentation lineage check reads those contributions. It passes only when every movement, current and comparative, totals its amount exactly; the old hard-coded failure is gone. Preparer text is never lineage. A build records the check only when it receives links, so unlinked drafts behave as before. A partly linked package is review-required.
+
+Not done: no endpoint or screen accepts the supplementary cash-flow input, so the Angular journey (CP-11.AC-06) is not met. Independent review of allocations, the indirect-method decomposition and the assessed-zero FX decision (CP-12) remain. Evidence is in `status.json` under `targetedVerification.cp11CashFlowSourceAllocations`.
+
 ## Accepted GL discovery for schedule preparation — 2026-10-14
 
 The specialist preparation workspace now exposes a bounded view of the selected independently accepted GL for its exact reporting period. Application authorization precedes source discovery; period/currency/sealed identity are checked, source selection and generation are checked again after reading, and signed functional amounts remain exact decimal strings. Source and line identities are visible with paging. Period changes hide prior source content; a mismatched period is refused.
@@ -360,32 +368,3 @@ runtime switch remains disabled. The selected SharePoint target fields remain an
 browser-tab draft; the user will grant the exact site. Runtime Graph capabilities remain disabled,
 and the selected-resource probe and workspace activation remain blocked on that grant and credential
 setup. Do not mark those external states complete from local or Entra-registration evidence.
-
-## Hostinger Entra mutation-app permission split — 2026-10-11
-
-The user authorized three dedicated, single-role registrations and admin consent, plus removal of
-the duplicate roles from the former combined app. The Entra portal now shows `User.Create` only on
-`AuditSphereOps Development Administration`, `User.Invite.All` only (plus delegated `User.Read`)
-on `AuditSphereOps Acceptance Guest Invitation`, and `GroupMember.ReadWrite.All` only (plus
-delegated `User.Read`) on `AuditSphereOps Acceptance Group Membership`; each application role shows
-tenant consent granted. The former combined app's extra configured roles and their leftover tenant
-grants were removed.
-
-The dedicated `AuditSphere Acceptance - Directory Reader` registration shows application
-`User.Read.All` and delegated `User.Read`, both with tenant consent granted in the Entra portal on
-2026-10-11. The separate Mail registration shows `Mail.Send` consent granted. AuditSphere's
-Directory Reader and Mail runtime switches remain disabled; no Graph capability verification or
-Graph mutation was performed.
-
-This is Entra registration evidence. The live AuditSphere tenant-connection page still reports no
-consent attempt, directory `NOT_VERIFIED`, and the three mutation capabilities Disabled. No
-role-specific VPS credentials were configured, no Graph mutation was run, and no capability was
-enabled. Selected SharePoint remains `BLOCKED_EXTERNAL`; the exact site grant and positive/negative
-resource probe are still pending. The previously owner-approved API-only Compose recreation
-returned `/health/ready` HTTP 200; the database and workers were not recreated and no migration ran.
-`SELECTED_SITE_CLIENT_ID` remains blank in the protected VPS environment until the exact-site grant.
-See the M365 permission matrix and Hostinger deployment guide.
-
-## FSR first slice — typed statement presentation (unapproved draft) — 2026-10-11
-
-Working-tree slice on `78979390`, from the NAQAHA implementation stories (FSR-002, FSR-010, FSR-011 first slice). The statement of financial position and of profit or loss are presented from persisted package lines through the published statement layout, in PDF, Word and Excel, with blocking checks for balance, mapping, sign, note cross-cast and display footing. Observed: Release build, EF drift check, OpenAPI regeneration, Domain presentation and statement tests, API UI contract test, Angular presentation and package specs and the production build passed. The fixture is synthetic. Approval (FSR-001), composition, sealing, signing and release remain open; details are in `status.json`.

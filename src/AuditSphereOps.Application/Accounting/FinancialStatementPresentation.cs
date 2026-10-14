@@ -72,7 +72,9 @@ public sealed record PresentationNote(
   int Number, string Code, PresentationDisclosurePeriod Current, PresentationDisclosurePeriod Comparative,
   IReadOnlyList<PresentationNoteAmount> Amounts);
 
-public sealed record PresentationCashFlowMovement(string Section, string Description, decimal Amount, bool IsNonCash, string? ActivityCode);
+/// <summary>SourceResolved is true only when persisted contributions from accepted general-ledger lines total this movement exactly.</summary>
+public sealed record PresentationCashFlowMovement(string Section, string Description, decimal Amount, bool IsNonCash, string? ActivityCode,
+  bool SourceResolved = false);
 
 public sealed record PresentationFxCashEffect(string CurrencyPair, decimal Amount);
 
@@ -795,10 +797,16 @@ public static class FinancialStatementPresentationBuilder
     }
     if (currentLines.Count > 0 || priorLines.Count > 0)
     {
-      checks.Add(new PresentationCheck("CASH_FLOW_SOURCE_LINEAGE", false,
-        "Movement references are preparer-entered text and are not resolved to accepted source records."));
-      warnings.Add(new PresentationWarning("CASH_FLOW_LINEAGE_PENDING",
-        "Cash-flow movements are a draft schedule; evidence references and classifications are not source-verified."));
+      // Preparer text is never lineage: the check passes only when every movement is fully allocated to accepted source lines.
+      var unresolved = currentLines.Count(x => !x.SourceResolved) + priorLines.Count(x => !x.SourceResolved);
+      var lineageResolved = currentLines.Count > 0 && unresolved == 0;
+      checks.Add(new PresentationCheck("CASH_FLOW_SOURCE_LINEAGE", lineageResolved,
+        lineageResolved
+          ? "Every cash-flow movement is fully allocated to accepted general-ledger lines."
+          : $"{unresolved} cash-flow movement(s) are not fully allocated to accepted general-ledger lines."));
+      if (!lineageResolved)
+        warnings.Add(new PresentationWarning("CASH_FLOW_LINEAGE_PENDING",
+          "Cash-flow movements are a draft schedule; evidence references and classifications are not source-verified."));
     }
     if (comparativeBound && priorLines.Count == 0)
       checks.Add(new PresentationCheck("CASH_FLOW_COMPARATIVE", false, "The comparative package has no cash-flow schedule; comparative amounts are shown as unavailable."));

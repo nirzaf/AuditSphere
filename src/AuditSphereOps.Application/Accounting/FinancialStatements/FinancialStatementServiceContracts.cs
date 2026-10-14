@@ -60,7 +60,16 @@ public sealed record CashFlowLineInput(
   DateOnly? MovementDate = null,
   string? ActivityCode = null,
   IReadOnlyList<string>? SourceReferences = null,
-  string? ClassificationRationale = null);
+  string? ClassificationRationale = null,
+  // Accepted general-ledger lines that make up this movement. Null or empty keeps the movement a draft without lineage.
+  IReadOnlyList<CashFlowSourceAllocationInput>? SourceAllocations = null);
+
+/// <summary>The part of one accepted general-ledger line that contributes to a cash-flow movement. The sign follows the line.</summary>
+public sealed record CashFlowSourceAllocationInput(Guid GeneralLedgerLineId, decimal SignedAmount);
+
+/// <summary>A resolved contribution: the movement's position in the request, the exact accepted source line and its identity.</summary>
+internal sealed record ResolvedCashFlowSourceLink(int MovementIndex, Guid GeneralLedgerLineId, Guid GeneralLedgerTransactionId,
+  Guid SourceImportBatchId, string SourceLineHash, decimal SignedAmount, string Currency);
 
 public sealed record FxCashEffectInput(string CurrencyPair, decimal Amount, string EvidenceReference);
 
