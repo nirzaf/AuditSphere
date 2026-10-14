@@ -19,7 +19,9 @@ which the full suite was run; per-slice records carry their own evidence.
 
 A staff preparer can now queue a financial-package build from the engagement page. The screen lists the approved mappings, finalized plans and reporting periods, lets the preparer link cash-flow movements to accepted general-ledger lines through a paged picker, and refuses form mistakes before the request is sent. The request goes to the durable `BuildFinancialPackage.v1` operation, so the worker builds the package, and the package then appears in package reviews. The routes are `GET /api/ui/engagements/{id}/financial-package-inputs` and `POST /api/ui/accounting/packages/builds`.
 
-Not done: the manual-evidenced path (MANUAL_EVIDENCED schedules with verified uploads), progress polling on the screen, and a browser run. CP-12 remains blocked on the approved indirect classification policy. Evidence is in `status.json` under `targetedVerification.cp11PackageBuildJourney`.
+Not done: the manual-evidenced path (MANUAL_EVIDENCED schedules with verified uploads), progress polling on the screen, and a browser run.
+
+Repaired in the same handoff: five Domain tests that failed on master (four package-review fixtures that now seed the canonical validation population, and the cash-flow FX test whose numbers did not cross-cast to the adjusted cash population). CI runs only a focused filter, so those failures were not visible in CI; the repair is recorded under `targetedVerification.domainPackageTestRepair`. CP-12 remains blocked on the approved indirect classification policy. Evidence is in `status.json` under `targetedVerification.cp11PackageBuildJourney`.
 
 ## Accepted GL discovery for schedule preparation — 2026-10-14
 
