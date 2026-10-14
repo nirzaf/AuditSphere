@@ -48,7 +48,8 @@ describe('Statement presentation contract', () => {
 
   it('rejects numeric money, unknown statuses and missing manifests', () => {
     expect(() => decodePresentation({ ...payload, statements: [{ code: 'X', title: 'X', rows: [row({ current: 1090993 })] }] }, 'p')).toThrow();
-    expect(() => decodePresentation({ ...payload, status: 'APPROVED' }, 'p')).toThrow();
+    expect(() => decodePresentation({ ...payload, status: 'INVALID_STATUS' }, 'p')).toThrow();
+    expect(decodePresentation({ ...payload, status: 'CANDIDATE' }, 'p').status).toBe('CANDIDATE');
     expect(() => decodePresentation({ ...payload, manifest: undefined }, 'p')).toThrow();
     expect(() => decodePresentation({ ...payload, notes: [{ ...payload.notes[0], amounts: [{ ...payload.notes[0].amounts[0], current: 1090993 }] }] }, 'p')).toThrow();
   });
@@ -102,7 +103,7 @@ describe('Statement presentation screen', () => {
       noteSourceManifestHash: hash64,
       builderVersion: 'auditsphere.statement-presentation.v6', rendererVersion: 'auditsphere.statement-renderer.v3',
       displayPolicy: 'whole units', status: 'UNAPPROVED_DRAFT', revisionHash: hash64, snapshotSha256Hex: hash64,
-      createdAt: '2026-10-12T00:00:00Z', sourceIsCurrent: true, artifactFormats: [],
+      createdAt: '2026-10-12T00:00:00Z', sourceIsCurrent: true, artifactFormats: [], predecessorRevisionId: null,
     };
     const download = fixture.componentInstance.download('xlsx');
     const pinsUrl = `/api/ui/accounting/packages/${id}/presentation/pins`;

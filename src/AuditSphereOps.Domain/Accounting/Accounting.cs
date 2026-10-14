@@ -406,6 +406,7 @@ public sealed class FinancialStatementPresentationRevision
   public string RendererVersion { get; set; } = string.Empty;
   public string DisplayPolicy { get; set; } = string.Empty;
   public string Status { get; set; } = FinancialStatementPresentationRevisionStatuses.UnapprovedDraft;
+  public Guid? PredecessorRevisionId { get; set; }
   public string RevisionHash { get; set; } = string.Empty;
   public string SnapshotSha256Hex { get; set; } = string.Empty;
   public byte[] SnapshotJson { get; set; } = [];
@@ -416,6 +417,14 @@ public sealed class FinancialStatementPresentationRevision
 public static class FinancialStatementPresentationRevisionStatuses
 {
   public const string UnapprovedDraft = "UNAPPROVED_DRAFT";
+  public const string Candidate = "CANDIDATE";
+  public const string Approved = "APPROVED";
+  public const string Superseded = "SUPERSEDED";
+
+  public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal)
+  {
+    UnapprovedDraft, Candidate, Approved, Superseded
+  };
 }
 
 /// <summary>Immutable presentation metadata linked to the exact-byte financial-package artifact covered by the package seal.</summary>
@@ -488,6 +497,7 @@ public sealed class FinancialPackageReviewDecision
   public Guid FinancialPackageArtifactId { get; set; }
   public string ArtifactVersion { get; set; } = string.Empty;
   public string ArtifactSha256Hex { get; set; } = string.Empty;
+  public Guid? PresentationRevisionId { get; set; }
   public string Stage { get; set; } = string.Empty;
   public string Decision { get; set; } = string.Empty;
   public string EvidenceMode { get; set; } = string.Empty;

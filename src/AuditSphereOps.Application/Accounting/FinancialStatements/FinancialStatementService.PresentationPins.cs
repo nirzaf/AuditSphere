@@ -15,7 +15,8 @@ public sealed record FinancialStatementPresentationPin(
   string? ComparativeEvidenceReference, string NoteSourceManifestHash,
   string BuilderVersion, string RendererVersion,
   string DisplayPolicy, string Status, string RevisionHash, string SnapshotSha256Hex,
-  DateTimeOffset CreatedAt, bool SourceIsCurrent, IReadOnlyList<string> ArtifactFormats);
+  DateTimeOffset CreatedAt, bool SourceIsCurrent, IReadOnlyList<string> ArtifactFormats,
+  Guid? PredecessorRevisionId = null);
 
 public sealed record FinancialStatementPresentationPinnedArtifact(
   Guid RevisionId, Guid ArtifactId, string Format, string FileName, string ContentType,
@@ -166,6 +167,228 @@ public static partial class FinancialStatementService
     return await PinViewAsync(db, revision, ct);
   }
 
+  /// <summary>
+  /// Promotes an eligible, unapproved draft presentation to an immutable signing candidate successor.
+  /// The draft itself remains unapproved and immutable; the candidate has distinct bytes, candidate banner
+  /// and predecessor linkage for formal review decisions (CP-18 / CP-19).
+  /// </summary>
+  public static async Task<CommandResult<FinancialStatementPresentationPin>> PromotePresentationToCandidateAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid packageId, Guid draftRevisionId,
+    CancellationToken ct = default)
+  {
+    if (packageId == Guid.Empty || draftRevisionId == Guid.Empty)
+      return CommandResult<FinancialStatementPresentationPin>.Fail(ErrorCodes.Accounting.PackageInvalid,
+        "Select the package and unapproved draft presentation revision to promote.");
+
+    var packageClientId = await db.FinancialPackages.AsNoTracking().Where(x =>
+      x.Id == packageId && x.FirmId == actor.FirmId).Select(x => (Guid?)x.ClientId).SingleOrDefaultAsync(ct);
+    if (packageClientId is null)
+      return CommandResult<FinancialStatementPresentationPin>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+    await using var transaction = await db.Database.BeginTransactionAsync(ct);
+    if (await LockFirmAsync(db, actor.FirmId, ct) is null)
+      return CommandResult<FinancialStatementPresentationPin>.Fail(ErrorCodes.GateBlocked,
+        "Firm safety state is unavailable.");
+    var lockedSafety = await LockClientAsync(db, actor.FirmId, packageClientId.Value, ct);
+    if (lockedSafety is null)
+      return CommandResult<FinancialStatementPresentationPin>.Fail(ErrorCodes.GateBlocked,
+        "Client safety state is unavailable.");
+
+    var package = await db.FinancialPackages.FromSqlInterpolated(
+      $"SELECT * FROM financial_packages WHERE id = {packageId} AND firm_id = {actor.FirmId} FOR UPDATE")
+      .AsNoTracking().SingleOrDefaultAsync(ct);
+    if (package is null || package.ClientId != packageClientId.Value)
+      return CommandResult<FinancialStatementPresentationPin>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+    if (lockedSafety.InputGeneration != package.Generation)
+      return CommandResult<FinancialStatementPresentationPin>.Fail(ErrorCodes.GenerationStale,
+        "The source package is stale against current client inputs and cannot be promoted to a candidate.");
+
+    var auth = await AuthorizeAsync(db, actor, package.FirmId, package.ClientId, package.EngagementId, PreparerRoles, ct);
+    if (!auth.Succeeded)
+      return CommandResult<FinancialStatementPresentationPin>.Fail(auth.ErrorCode!, auth.Message!);
+
+    if (package.Status != AccountingPackageStates.PackageValidated)
+      return CommandResult<FinancialStatementPresentationPin>.Fail(ErrorCodes.GateBlocked,
+        "The financial package must be validated before promoting to candidate.");
+
+    var readiness = await FinancialPackageValidationReadiness.GetAsync(db, package.FirmId, package.Id, ct);
+    if (!readiness.Ready)
+      return CommandResult<FinancialStatementPresentationPin>.Fail(ErrorCodes.GateBlocked, readiness.Message);
+
+    if (!await CashFlowSourceApprovedAsync(db, package, ct))
+      return CommandResult<FinancialStatementPresentationPin>.Fail(ErrorCodes.GateBlocked,
+        "Current cash-flow source links need independent approval before promoting to candidate.");
+
+    FinancialPackage? comparative = null;
+    if (package.ComparativePackageId is Guid compId)
+    {
+      comparative = await db.FinancialPackages.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.Id == compId && x.FirmId == package.FirmId, ct);
+      if (comparative is null)
+        return CommandResult<FinancialStatementPresentationPin>.Fail(ErrorCodes.StaleRevision,
+          "The comparative package is no longer available.");
+      if (!await CashFlowSourceApprovedAsync(db, comparative, ct))
+        return CommandResult<FinancialStatementPresentationPin>.Fail(ErrorCodes.GateBlocked,
+          "Comparative cash-flow source links need independent approval before promoting to candidate.");
+    }
+
+    var draft = await db.FinancialStatementPresentationRevisions.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == draftRevisionId && x.FirmId == actor.FirmId && x.FinancialPackageId == packageId, ct);
+    if (draft is null)
+      return CommandResult<FinancialStatementPresentationPin>.Fail(ErrorCodes.Accounting.PackageInvalid,
+        "The draft presentation revision does not exist.");
+    if (draft.Status != FinancialStatementPresentationRevisionStatuses.UnapprovedDraft)
+      return CommandResult<FinancialStatementPresentationPin>.Fail(ErrorCodes.Accounting.PackageInvalid,
+        "Only an unapproved draft can be promoted to a signing candidate.");
+
+    if (!await PresentationSourceIsCurrentAsync(db, draft, ct))
+      return CommandResult<FinancialStatementPresentationPin>.Fail(ErrorCodes.StaleRevision,
+        "The draft presentation source is no longer current.");
+
+    var draftPdf = await db.FinancialStatementPresentationArtifacts.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.PresentationRevisionId == draft.Id && x.Format == FinancialStatementPresentationRenderer.PdfFormat, ct);
+    if (draftPdf is null)
+      return CommandResult<FinancialStatementPresentationPin>.Fail(ErrorCodes.GateBlocked,
+        "Render the draft statement presentation PDF before promoting to a candidate.");
+
+    var existingCandidate = await db.FinancialStatementPresentationRevisions.AsNoTracking().FirstOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.FinancialPackageId == package.Id &&
+      x.PredecessorRevisionId == draft.Id && x.Status == FinancialStatementPresentationRevisionStatuses.Candidate, ct);
+    if (existingCandidate is not null)
+    {
+      await transaction.RollbackAsync(ct);
+      return await PinViewAsync(db, existingCandidate, ct);
+    }
+
+    FinancialStatementPresentation? draftPresentation;
+    try { draftPresentation = JsonSerializer.Deserialize<FinancialStatementPresentation>(draft.SnapshotJson, PresentationSnapshotJson); }
+    catch (JsonException)
+    {
+      return CommandResult<FinancialStatementPresentationPin>.Fail(ErrorCodes.Accounting.PackageInvalid,
+        "The draft snapshot could not be decoded safely.");
+    }
+    if (draftPresentation is null)
+      return CommandResult<FinancialStatementPresentationPin>.Fail(ErrorCodes.Accounting.PackageInvalid,
+        "The draft snapshot could not be decoded safely.");
+
+    var layout = await db.StatementLayoutVersions.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == draft.LayoutVersionId && x.FirmId == actor.FirmId && x.ClientId == package.ClientId, ct);
+    if (layout is null || layout.Status != StatementLayoutStatuses.Published || layout.LayoutHash != draft.LayoutHash)
+      return CommandResult<FinancialStatementPresentationPin>.Fail(ErrorCodes.StaleRevision,
+        "The published layout no longer matches this draft.");
+
+    var candidatePresentation = draftPresentation with { Status = FinancialStatementPresentationRevisionStatuses.Candidate };
+    var candidateSnapshot = JsonSerializer.SerializeToUtf8Bytes(candidatePresentation, PresentationSnapshotJson);
+    var candidateSnapshotHash = Hashing.Sha256Hex(candidateSnapshot);
+    var candidateRevisionHash = PresentationRevisionHash(package, layout, comparative, draft.NoteSourceManifestHash,
+      candidateSnapshotHash, draft.BuilderVersion, draft.RendererVersion, draft.DisplayPolicy);
+
+    var candidateRevisionId = Guid.CreateVersion7();
+    var candidateRevision = new FinancialStatementPresentationRevision
+    {
+      Id = candidateRevisionId,
+      FirmId = draft.FirmId,
+      ClientId = draft.ClientId,
+      EngagementId = draft.EngagementId,
+      FinancialPackageId = draft.FinancialPackageId,
+      PackageRevision = draft.PackageRevision,
+      PackageGeneration = draft.PackageGeneration,
+      PeriodId = draft.PeriodId,
+      BookId = draft.BookId,
+      Basis = draft.Basis,
+      Framework = draft.Framework,
+      TaxonomyVersion = draft.TaxonomyVersion,
+      TemplateVersion = draft.TemplateVersion,
+      CalculationEngineVersion = draft.CalculationEngineVersion,
+      Currency = draft.Currency,
+      PeriodStart = draft.PeriodStart,
+      PeriodEnd = draft.PeriodEnd,
+      PackageCalculationHash = draft.PackageCalculationHash,
+      LayoutVersionId = draft.LayoutVersionId,
+      LayoutHash = draft.LayoutHash,
+      ComparativePackageId = draft.ComparativePackageId,
+      ComparativePackageRevision = draft.ComparativePackageRevision,
+      ComparativePackageGeneration = draft.ComparativePackageGeneration,
+      ComparativeCalculationHash = draft.ComparativeCalculationHash,
+      ComparativeBasis = draft.ComparativeBasis,
+      ComparativeEvidenceReference = draft.ComparativeEvidenceReference,
+      NoteSourceManifestHash = draft.NoteSourceManifestHash,
+      BuilderVersion = draft.BuilderVersion,
+      RendererVersion = draft.RendererVersion,
+      DisplayPolicy = draft.DisplayPolicy,
+      Status = FinancialStatementPresentationRevisionStatuses.Candidate,
+      PredecessorRevisionId = draft.Id,
+      SnapshotJson = candidateSnapshot,
+      SnapshotSha256Hex = candidateSnapshotHash,
+      RevisionHash = candidateRevisionHash,
+      CreatedByUserId = actor.UserId,
+      CreatedAt = DateTimeOffset.UtcNow
+    };
+
+    var candidatePdfBytes = FinancialStatementPresentationRenderer.Render(candidatePresentation, FinancialStatementPresentationRenderer.PdfFormat);
+    if (candidatePdfBytes.Length is 0 or > 32 * 1024 * 1024)
+      return CommandResult<FinancialStatementPresentationPin>.Fail(ErrorCodes.Accounting.PackageInvalid,
+        "The rendered candidate presentation exceeds the bounded artifact size.");
+
+    var candidatePdfArtifactId = Guid.CreateVersion7();
+    var candidatePdfFileName = $"auditsphere-statement-presentation-{candidateRevision.FinancialPackageId:D}-{candidateRevision.Id:N}.pdf";
+    var candidatePackageArtifact = new FinancialPackageArtifact
+    {
+      Id = candidatePdfArtifactId,
+      FirmId = candidateRevision.FirmId,
+      ClientId = candidateRevision.ClientId,
+      EngagementId = candidateRevision.EngagementId,
+      FinancialPackageId = candidateRevision.FinancialPackageId,
+      PackageRevision = candidateRevision.PackageRevision,
+      PackageGeneration = candidateRevision.PackageGeneration,
+      PackageHash = candidateRevision.PackageCalculationHash,
+      ArtifactVersion = FinancialPackageArtifactVersions.StatementPresentation(candidateRevision.Id, FinancialStatementPresentationRenderer.PdfFormat),
+      FrameworkVersion = candidateRevision.Framework,
+      TemplateVersion = $"statement-layout:{candidateRevision.LayoutVersionId:D}",
+      ArtifactSha256Hex = Hashing.Sha256Hex(candidatePdfBytes),
+      ArtifactBytes = candidatePdfBytes,
+      CreatedByUserId = actor.UserId,
+      CreatedAt = DateTimeOffset.UtcNow
+    };
+    var candidateArtifactMetadata = new FinancialStatementPresentationArtifact
+    {
+      Id = candidatePdfArtifactId,
+      FirmId = candidateRevision.FirmId,
+      ClientId = candidateRevision.ClientId,
+      EngagementId = candidateRevision.EngagementId,
+      PresentationRevisionId = candidateRevision.Id,
+      Format = FinancialStatementPresentationRenderer.PdfFormat,
+      FileName = candidatePdfFileName,
+      ContentType = FinancialStatementPresentationRenderer.PdfContentType,
+      RendererVersion = candidateRevision.RendererVersion
+    };
+
+    db.FinancialStatementPresentationRevisions.Add(candidateRevision);
+    db.FinancialPackageArtifacts.Add(candidatePackageArtifact);
+    db.FinancialStatementPresentationArtifacts.Add(candidateArtifactMetadata);
+
+    try
+    {
+      await db.SaveChangesAsync(ct);
+    }
+    catch (DbUpdateException)
+    {
+      await transaction.RollbackAsync(ct);
+      var raced = await db.FinancialStatementPresentationRevisions.AsNoTracking().FirstOrDefaultAsync(x =>
+        x.FirmId == actor.FirmId && x.FinancialPackageId == package.Id &&
+        x.PredecessorRevisionId == draft.Id && x.Status == FinancialStatementPresentationRevisionStatuses.Candidate, ct);
+      if (raced is not null)
+        return await PinViewAsync(db, raced, ct);
+      return CommandResult<FinancialStatementPresentationPin>.Fail(ErrorCodes.IdempotencyConflict,
+        "The candidate presentation was created concurrently; reload its state before retrying.");
+    }
+
+    await transaction.CommitAsync(ct);
+    return await PinViewAsync(db, candidateRevision, ct);
+  }
+
+
   public static async Task<CommandResult<IReadOnlyList<FinancialStatementPresentationPin>>> ListPresentationPinsAsync(
     IClientAccountingDbContext db, ActorContext actor, Guid packageId, CancellationToken ct = default)
   {
@@ -261,7 +484,12 @@ public static partial class FinancialStatementService
       return CommandResult<FinancialStatementPresentation>.Fail(ErrorCodes.Accounting.PackageInvalid,
         "The pinned draft snapshot could not be decoded safely.");
     }
-    if (presentation is null || presentation.Status != FinancialStatementPresentationRevisionStatuses.UnapprovedDraft ||
+    var validStatus = presentation is not null &&
+      FinancialStatementPresentationRevisionStatuses.All.Contains(presentation.Status) &&
+      (presentation.Status == revision.Status ||
+       (revision.Status == FinancialStatementPresentationRevisionStatuses.Approved && presentation.Status == FinancialStatementPresentationRevisionStatuses.Candidate) ||
+       (revision.Status == FinancialStatementPresentationRevisionStatuses.Superseded && presentation.Status == FinancialStatementPresentationRevisionStatuses.Candidate));
+    if (!validStatus || presentation is null ||
         presentation.Manifest.PackageId != revision.FinancialPackageId ||
         presentation.Manifest.CalculationHash != revision.PackageCalculationHash ||
         presentation.Manifest.LayoutVersionId != revision.LayoutVersionId || presentation.Manifest.LayoutHash != revision.LayoutHash ||
@@ -404,7 +632,8 @@ public static partial class FinancialStatementService
       revision.ComparativeCalculationHash, revision.ComparativeBasis, revision.ComparativeEvidenceReference,
       revision.NoteSourceManifestHash,
       revision.BuilderVersion, revision.RendererVersion, revision.DisplayPolicy, revision.Status,
-      revision.RevisionHash, revision.SnapshotSha256Hex, revision.CreatedAt, sourceIsCurrent, formats));
+      revision.RevisionHash, revision.SnapshotSha256Hex, revision.CreatedAt, sourceIsCurrent, formats,
+      revision.PredecessorRevisionId));
   }
 
   private static async Task<CommandResult<FinancialPackage>> AuthorizePinnedPackageAsync(
@@ -421,7 +650,7 @@ public static partial class FinancialStatementService
       : CommandResult<FinancialPackage>.Fail(auth.ErrorCode!, auth.Message!);
   }
 
-  private static async Task<bool> PresentationSourceIsCurrentAsync(
+  internal static async Task<bool> PresentationSourceIsCurrentAsync(
     IClientAccountingDbContext db, FinancialStatementPresentationRevision revision, CancellationToken ct)
   {
     var package = await db.FinancialPackages.AsNoTracking().SingleOrDefaultAsync(x =>

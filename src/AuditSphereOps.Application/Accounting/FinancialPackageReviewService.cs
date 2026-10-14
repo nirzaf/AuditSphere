@@ -9,12 +9,14 @@ namespace AuditSphereOps.Application.Accounting;
 
 public sealed record FinancialPackageReviewRequest(
   Guid FinancialPackageId, string Stage, string Decision, string EvidenceMode,
-  string EvidenceReference, string Comment);
+  string EvidenceReference, string Comment,
+  Guid? PresentationRevisionId = null, string? TargetArtifactVersion = null);
 
 public sealed record FinancialPackageReviewSummary(
   Guid Id, string Stage, string Decision, string EvidenceMode, string PackageHash,
   Guid ArtifactId, string ArtifactVersion, string ArtifactSha256Hex,
-  string EvidenceReference, string Comment, Guid? DecidedByUserId, DateTimeOffset DecidedAt);
+  string EvidenceReference, string Comment, Guid? DecidedByUserId, DateTimeOffset DecidedAt,
+  Guid? PresentationRevisionId = null);
 
 public sealed record ClientFinancialPackageLineSummary(string StatementSection, decimal Amount);
 
@@ -86,30 +88,76 @@ public static class FinancialPackageReviewService
     if (package.Status != AccountingPackageStates.PackageValidated)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The financial package must be validated before review.");
 
-    if (stage is FinancialPackageReviewStages.AccountingReview or FinancialPackageReviewStages.PartnerApproval)
+    FinancialStatementPresentationRevision? candidate = null;
+    FinancialPackageArtifact? artifact = null;
+    if (request.PresentationRevisionId is Guid candidateRevisionId)
     {
-      var predecessorStage = stage == FinancialPackageReviewStages.AccountingReview
-        ? FinancialPackageReviewStages.ManagementApproval
-        : FinancialPackageReviewStages.AccountingReview;
-      var predecessorApproved = await db.FinancialPackageReviewDecisions.AsNoTracking().AnyAsync(x =>
-        x.FirmId == package.FirmId && x.FinancialPackageId == package.Id &&
-        x.PackageHash == package.CalculationHash && x.PackageRevision == package.Revision &&
-        x.PackageGeneration == package.Generation && x.Stage == predecessorStage &&
-        x.Decision == FinancialPackageReviewDecisions.Approved, ct);
-      if (!predecessorApproved)
-        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
-          $"A current approved {predecessorStage} decision is required before {stage}.");
-    }
+      candidate = await db.FinancialStatementPresentationRevisions.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.Id == candidateRevisionId && x.FirmId == package.FirmId && x.FinancialPackageId == package.Id, ct);
+      if (candidate is null)
+        return CommandResult<Guid>.Fail(ErrorCodes.Accounting.PackageInvalid, "The specified candidate presentation does not exist.");
+      if (candidate.Status is not (FinancialStatementPresentationRevisionStatuses.Candidate or FinancialStatementPresentationRevisionStatuses.Approved))
+        return CommandResult<Guid>.Fail(ErrorCodes.Accounting.PackageInvalid,
+          "Formal review decisions can only be recorded against an active signing candidate.");
+      if (!await FinancialStatementService.PresentationSourceIsCurrentAsync(db, candidate, ct))
+        return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision,
+          "The candidate presentation source is no longer current; generate a new signing candidate before deciding.");
 
-    var artifact = await db.FinancialPackageArtifacts.AsNoTracking().SingleOrDefaultAsync(x =>
-      x.FirmId == package.FirmId && x.ClientId == package.ClientId && x.EngagementId == package.EngagementId &&
-      x.FinancialPackageId == package.Id && x.PackageRevision == package.Revision &&
-      x.PackageGeneration == package.Generation && x.PackageHash == package.CalculationHash &&
-      x.ArtifactVersion == FinancialPackageArtifactVersions.Text, ct);
-    if (artifact is null || artifact.ArtifactBytes.Length == 0 ||
-        artifact.FrameworkVersion != package.Framework || artifact.TemplateVersion != package.TemplateVersion)
-      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
-        "A deterministic rendered artifact for the exact package framework/template version is required before review.");
+      var targetArtifactVersion = !string.IsNullOrWhiteSpace(request.TargetArtifactVersion)
+        ? request.TargetArtifactVersion.Trim()
+        : FinancialPackageArtifactVersions.StatementPresentation(candidate.Id, FinancialStatementPresentationRenderer.PdfFormat);
+      artifact = await db.FinancialPackageArtifacts.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.FirmId == package.FirmId && x.ClientId == package.ClientId && x.EngagementId == package.EngagementId &&
+        x.FinancialPackageId == package.Id && x.PackageRevision == package.Revision &&
+        x.PackageGeneration == package.Generation && x.PackageHash == package.CalculationHash &&
+        x.ArtifactVersion == targetArtifactVersion, ct);
+      if (artifact is null || artifact.ArtifactBytes.Length == 0)
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+          "The reviewed candidate presentation artifact (PDF) has not been rendered yet.");
+
+      if (stage is FinancialPackageReviewStages.AccountingReview or FinancialPackageReviewStages.PartnerApproval)
+      {
+        var predecessorStage = stage == FinancialPackageReviewStages.AccountingReview
+          ? FinancialPackageReviewStages.ManagementApproval
+          : FinancialPackageReviewStages.AccountingReview;
+        var predecessorApproved = await db.FinancialPackageReviewDecisions.AsNoTracking().AnyAsync(x =>
+          x.FirmId == package.FirmId && x.FinancialPackageId == package.Id &&
+          x.PackageHash == package.CalculationHash && x.PackageRevision == package.Revision &&
+          x.PackageGeneration == package.Generation && x.Stage == predecessorStage &&
+          x.Decision == FinancialPackageReviewDecisions.Approved &&
+          x.PresentationRevisionId == candidate.Id, ct);
+        if (!predecessorApproved)
+          return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+            $"A current approved {predecessorStage} decision for this signing candidate is required before {stage}.");
+      }
+    }
+    else
+    {
+      if (stage is FinancialPackageReviewStages.AccountingReview or FinancialPackageReviewStages.PartnerApproval)
+      {
+        var predecessorStage = stage == FinancialPackageReviewStages.AccountingReview
+          ? FinancialPackageReviewStages.ManagementApproval
+          : FinancialPackageReviewStages.AccountingReview;
+        var predecessorApproved = await db.FinancialPackageReviewDecisions.AsNoTracking().AnyAsync(x =>
+          x.FirmId == package.FirmId && x.FinancialPackageId == package.Id &&
+          x.PackageHash == package.CalculationHash && x.PackageRevision == package.Revision &&
+          x.PackageGeneration == package.Generation && x.Stage == predecessorStage &&
+          x.Decision == FinancialPackageReviewDecisions.Approved, ct);
+        if (!predecessorApproved)
+          return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+            $"A current approved {predecessorStage} decision is required before {stage}.");
+      }
+
+      artifact = await db.FinancialPackageArtifacts.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.FirmId == package.FirmId && x.ClientId == package.ClientId && x.EngagementId == package.EngagementId &&
+        x.FinancialPackageId == package.Id && x.PackageRevision == package.Revision &&
+        x.PackageGeneration == package.Generation && x.PackageHash == package.CalculationHash &&
+        x.ArtifactVersion == FinancialPackageArtifactVersions.Text, ct);
+      if (artifact is null || artifact.ArtifactBytes.Length == 0 ||
+          artifact.FrameworkVersion != package.Framework || artifact.TemplateVersion != package.TemplateVersion)
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+          "A deterministic rendered artifact for the exact package framework/template version is required before review.");
+    }
 
     if (evidenceMode == FinancialPackageReviewEvidenceModes.SignedIn)
     {
@@ -127,7 +175,8 @@ public static class FinancialPackageReviewService
         x.FirmId == package.FirmId && x.ClientId == package.ClientId && x.EngagementId == package.EngagementId &&
         x.FinancialPackageId == package.Id && x.PackageHash == package.CalculationHash &&
         x.PackageRevision == package.Revision && x.PackageGeneration == package.Generation &&
-        x.Stage == stage && x.Decision == decision, ct))
+        x.Stage == stage && x.Decision == decision &&
+        x.PresentationRevisionId == (candidate != null ? candidate.Id : null), ct))
       return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict, "This package decision already exists for the current package version.");
 
     var review = new FinancialPackageReviewDecision
@@ -136,6 +185,7 @@ public static class FinancialPackageReviewService
       EngagementId = package.EngagementId, FinancialPackageId = package.Id,
       PackageRevision = package.Revision, PackageGeneration = package.Generation,
       PackageHash = package.CalculationHash, Stage = stage, Decision = decision,
+      PresentationRevisionId = candidate?.Id,
       FinancialPackageArtifactId = artifact.Id, ArtifactVersion = artifact.ArtifactVersion,
       ArtifactSha256Hex = artifact.ArtifactSha256Hex,
       EvidenceMode = evidenceMode, EvidenceReference = evidenceReference, Comment = comment,
@@ -166,7 +216,7 @@ public static class FinancialPackageReviewService
       .OrderBy(x => x.DecidedAt)
       .Select(x => new FinancialPackageReviewSummary(x.Id, x.Stage, x.Decision, x.EvidenceMode,
         x.PackageHash, x.FinancialPackageArtifactId, x.ArtifactVersion, x.ArtifactSha256Hex,
-        x.EvidenceReference, x.Comment, x.DecidedByUserId, x.DecidedAt))
+        x.EvidenceReference, x.Comment, x.DecidedByUserId, x.DecidedAt, x.PresentationRevisionId))
       .ToListAsync(ct);
     return CommandResult<IReadOnlyList<FinancialPackageReviewSummary>>.Ok(reviews);
   }
@@ -340,6 +390,7 @@ public static class FinancialPackageReviewService
       .Where(x => x.FirmId == package.FirmId && x.ClientId == package.ClientId && x.EngagementId == package.EngagementId &&
         x.FinancialPackageId == package.Id)
       .ToListAsync(ct);
+    Guid? expectedPresentationRevisionId = null;
     foreach (var stage in requiredStages)
     {
       var current = reviews.Where(x => x.Stage == stage).OrderByDescending(x => x.DecidedAt).FirstOrDefault();
@@ -347,6 +398,12 @@ public static class FinancialPackageReviewService
           current.PackageHash != package.CalculationHash || current.PackageRevision != package.Revision ||
           current.PackageGeneration != package.Generation)
         return CommandResult.Fail(ErrorCodes.GateBlocked, $"The current {stage} decision is required before release.");
+
+      if (expectedPresentationRevisionId is null && current.PresentationRevisionId is not null)
+        expectedPresentationRevisionId = current.PresentationRevisionId;
+      else if (expectedPresentationRevisionId is not null && current.PresentationRevisionId != expectedPresentationRevisionId)
+        return CommandResult.Fail(ErrorCodes.GateBlocked,
+          "The management, accounting and Partner decisions must approve the same candidate presentation.");
     }
     // Rows recorded before Administrator left the Partner stage remain in the table. A Partner decision counts only when its recorder
     // still holds a current Partner grant covering this engagement.

@@ -276,10 +276,30 @@ public static class ReleaseService
         return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Client accounting review persistence is unavailable.");
       var releasedPackage = await pinningDb.FinancialPackages.AsNoTracking()
         .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == current.Id, ct);
-      var pdf = releasedPackage is null ? null : await pinningDb.FinancialPackageArtifacts.AsNoTracking().SingleOrDefaultAsync(x =>
-        x.FirmId == actor.FirmId && x.FinancialPackageId == releasedPackage.Id && x.PackageRevision == releasedPackage.Revision &&
-        x.PackageGeneration == releasedPackage.Generation && x.PackageHash == releasedPackage.CalculationHash &&
-        x.ArtifactVersion == FinancialPackageArtifactVersions.Pdf, ct);
+      FinancialPackageArtifact? pdf = null;
+      if (releasedPackage is not null)
+      {
+        var partnerApproval = await pinningDb.FinancialPackageReviewDecisions.AsNoTracking().SingleOrDefaultAsync(x =>
+          x.FirmId == actor.FirmId && x.FinancialPackageId == releasedPackage.Id &&
+          x.PackageRevision == releasedPackage.Revision && x.PackageGeneration == releasedPackage.Generation &&
+          x.PackageHash == releasedPackage.CalculationHash &&
+          x.Stage == FinancialPackageReviewStages.PartnerApproval &&
+          x.Decision == FinancialPackageReviewDecisions.Approved, ct);
+        if (partnerApproval?.PresentationRevisionId is Guid candidateRevisionId)
+        {
+          var candidateArtifactVersion = FinancialPackageArtifactVersions.StatementPresentation(candidateRevisionId, FinancialStatementPresentationRenderer.PdfFormat);
+          pdf = await pinningDb.FinancialPackageArtifacts.AsNoTracking().SingleOrDefaultAsync(x =>
+            x.FirmId == actor.FirmId && x.FinancialPackageId == releasedPackage.Id &&
+            x.PackageRevision == releasedPackage.Revision && x.PackageGeneration == releasedPackage.Generation &&
+            x.PackageHash == releasedPackage.CalculationHash &&
+            x.ArtifactVersion == candidateArtifactVersion, ct);
+        }
+        pdf ??= await pinningDb.FinancialPackageArtifacts.AsNoTracking().SingleOrDefaultAsync(x =>
+          x.FirmId == actor.FirmId && x.FinancialPackageId == releasedPackage.Id &&
+          x.PackageRevision == releasedPackage.Revision && x.PackageGeneration == releasedPackage.Generation &&
+          x.PackageHash == releasedPackage.CalculationHash &&
+          x.ArtifactVersion == FinancialPackageArtifactVersions.Pdf, ct);
+      }
       if (pdf is null || pdf.ArtifactBytes.Length == 0)
         return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
           "Render the exact reviewed financial package as PDF before release, so the release can pin it.");

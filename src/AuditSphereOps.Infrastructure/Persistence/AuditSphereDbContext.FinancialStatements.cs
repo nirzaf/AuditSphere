@@ -290,7 +290,7 @@ public sealed partial class AuditSphereDbContext
       "AND layout_hash ~ '^[0-9a-f]{64}$' AND note_source_manifest_hash ~ '^[0-9a-f]{64}$' AND revision_hash ~ '^[0-9a-f]{64}$' " +
       "AND snapshot_sha256_hex ~ '^[0-9a-f]{64}$' AND octet_length(snapshot_json) BETWEEN 1 AND 8388608 " +
       "AND length(trim(builder_version)) > 0 AND length(trim(renderer_version)) > 0 " +
-      "AND length(trim(display_policy)) > 0 AND status = 'UNAPPROVED_DRAFT' " +
+      "AND length(trim(display_policy)) > 0 AND status IN ('UNAPPROVED_DRAFT','CANDIDATE','APPROVED','SUPERSEDED') " +
       "AND ((comparative_package_id IS NULL AND comparative_package_revision IS NULL AND comparative_package_generation IS NULL " +
       "AND comparative_calculation_hash IS NULL AND comparative_basis IS NULL AND comparative_evidence_reference IS NULL) " +
       "OR (comparative_package_id IS NOT NULL AND comparative_package_revision IS NOT NULL AND comparative_package_revision >= 1 " +
@@ -298,6 +298,9 @@ public sealed partial class AuditSphereDbContext
       "AND comparative_calculation_hash IS NOT NULL AND comparative_calculation_hash ~ '^[0-9a-f]{64}$' " +
       "AND comparative_basis IS NOT NULL AND length(trim(comparative_basis)) > 0 " +
       "AND comparative_evidence_reference IS NOT NULL AND length(trim(comparative_evidence_reference)) > 0))"));
+    presentationRevision.HasOne<FinancialStatementPresentationRevision>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.PredecessorRevisionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     presentationRevision.HasOne<FinancialPackage>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
@@ -512,6 +515,9 @@ public sealed partial class AuditSphereDbContext
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     packageReview.HasOne<FinancialPackageArtifact>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageArtifactId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    packageReview.HasOne<FinancialStatementPresentationRevision>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.PresentationRevisionId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     packageReview.HasOne<AppUser>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.DecidedByUserId })

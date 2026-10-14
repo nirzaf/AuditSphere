@@ -8268,6 +8268,10 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("package_revision");
 
+                    b.Property<Guid?>("PresentationRevisionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("presentation_revision_id");
+
                     b.Property<string>("Stage")
                         .IsRequired()
                         .HasMaxLength(40)
@@ -8282,6 +8286,9 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasIndex("FirmId", "DecidedByUserId");
 
                     b.HasIndex("FirmId", "ClientId", "EngagementId", "FinancialPackageArtifactId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "PresentationRevisionId")
+                        .HasDatabaseName("IX_financial_package_review_decisions_firm_id_client_id_engag~1");
 
                     b.HasIndex("FirmId", "ClientId", "EngagementId", "FinancialPackageId", "Stage", "DecidedAt")
                         .HasDatabaseName("ix_financial_package_review_stage");
@@ -8639,6 +8646,10 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(10)")
                         .HasColumnName("period_start");
 
+                    b.Property<Guid?>("PredecessorRevisionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("predecessor_revision_id");
+
                     b.Property<string>("RendererVersion")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -8707,9 +8718,12 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasIndex("FirmId", "ClientId", "EngagementId", "FinancialPackageId")
                         .HasDatabaseName("IX_financial_statement_presentation_revisions_firm_id_client_~3");
 
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "PredecessorRevisionId")
+                        .HasDatabaseName("IX_financial_statement_presentation_revisions_firm_id_client_~4");
+
                     b.ToTable("financial_statement_presentation_revisions", null, t =>
                         {
-                            t.HasCheckConstraint("ck_financial_statement_presentation_revision_values", "package_revision >= 1 AND package_generation >= 1 AND package_calculation_hash ~ '^[0-9a-f]{64}$' AND length(trim(framework)) > 0 AND length(trim(taxonomy_version)) > 0 AND length(trim(template_version)) > 0 AND length(trim(calculation_engine_version)) > 0 AND currency ~ '^[A-Z]{3}$' AND period_start ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' AND period_end ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' AND layout_hash ~ '^[0-9a-f]{64}$' AND note_source_manifest_hash ~ '^[0-9a-f]{64}$' AND revision_hash ~ '^[0-9a-f]{64}$' AND snapshot_sha256_hex ~ '^[0-9a-f]{64}$' AND octet_length(snapshot_json) BETWEEN 1 AND 8388608 AND length(trim(builder_version)) > 0 AND length(trim(renderer_version)) > 0 AND length(trim(display_policy)) > 0 AND status = 'UNAPPROVED_DRAFT' AND ((comparative_package_id IS NULL AND comparative_package_revision IS NULL AND comparative_package_generation IS NULL AND comparative_calculation_hash IS NULL AND comparative_basis IS NULL AND comparative_evidence_reference IS NULL) OR (comparative_package_id IS NOT NULL AND comparative_package_revision IS NOT NULL AND comparative_package_revision >= 1 AND comparative_package_generation IS NOT NULL AND comparative_package_generation >= 1 AND comparative_calculation_hash IS NOT NULL AND comparative_calculation_hash ~ '^[0-9a-f]{64}$' AND comparative_basis IS NOT NULL AND length(trim(comparative_basis)) > 0 AND comparative_evidence_reference IS NOT NULL AND length(trim(comparative_evidence_reference)) > 0))");
+                            t.HasCheckConstraint("ck_financial_statement_presentation_revision_values", "package_revision >= 1 AND package_generation >= 1 AND package_calculation_hash ~ '^[0-9a-f]{64}$' AND length(trim(framework)) > 0 AND length(trim(taxonomy_version)) > 0 AND length(trim(template_version)) > 0 AND length(trim(calculation_engine_version)) > 0 AND currency ~ '^[A-Z]{3}$' AND period_start ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' AND period_end ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' AND layout_hash ~ '^[0-9a-f]{64}$' AND note_source_manifest_hash ~ '^[0-9a-f]{64}$' AND revision_hash ~ '^[0-9a-f]{64}$' AND snapshot_sha256_hex ~ '^[0-9a-f]{64}$' AND octet_length(snapshot_json) BETWEEN 1 AND 8388608 AND length(trim(builder_version)) > 0 AND length(trim(renderer_version)) > 0 AND length(trim(display_policy)) > 0 AND status IN ('UNAPPROVED_DRAFT','CANDIDATE','APPROVED','SUPERSEDED') AND ((comparative_package_id IS NULL AND comparative_package_revision IS NULL AND comparative_package_generation IS NULL AND comparative_calculation_hash IS NULL AND comparative_basis IS NULL AND comparative_evidence_reference IS NULL) OR (comparative_package_id IS NOT NULL AND comparative_package_revision IS NOT NULL AND comparative_package_revision >= 1 AND comparative_package_generation IS NOT NULL AND comparative_package_generation >= 1 AND comparative_calculation_hash IS NOT NULL AND comparative_calculation_hash ~ '^[0-9a-f]{64}$' AND comparative_basis IS NOT NULL AND length(trim(comparative_basis)) > 0 AND comparative_evidence_reference IS NOT NULL AND length(trim(comparative_evidence_reference)) > 0))");
                         });
                 });
 
@@ -29366,6 +29380,12 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.FinancialStatementPresentationRevision", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "PresentationRevisionId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.FinancialPackageSeal", b =>
@@ -29447,6 +29467,12 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("FK_financial_statement_presentation_revisions_financial_packa~1");
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.FinancialStatementPresentationRevision", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "PredecessorRevisionId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.GeneralLedgerCompletenessBridge", b =>

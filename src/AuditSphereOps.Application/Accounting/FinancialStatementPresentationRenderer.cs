@@ -24,7 +24,24 @@ public static class FinancialStatementPresentationRenderer
   public const string PdfContentType = "application/pdf";
   public const string WordContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
   public const string ExcelContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-  public const string Banner = "UNAPPROVED PRESENTATION DRAFT — not reviewed, not sealed, not for issue";
+  public const string DraftBanner = "UNAPPROVED PRESENTATION DRAFT — not reviewed, not sealed, not for issue";
+  public const string CandidateBanner = "SIGNING CANDIDATE — reviewed composition, candidate for formal decision";
+  public const string ApprovedBanner = "APPROVED FINANCIAL STATEMENTS — formally reviewed and approved";
+  public const string Banner = DraftBanner;
+
+  public static string BannerFor(string status) => status switch
+  {
+    AuditSphereOps.Domain.Accounting.FinancialStatementPresentationRevisionStatuses.Candidate => CandidateBanner,
+    AuditSphereOps.Domain.Accounting.FinancialStatementPresentationRevisionStatuses.Approved => ApprovedBanner,
+    _ => DraftBanner
+  };
+
+  public static string TitleFor(string status) => status switch
+  {
+    AuditSphereOps.Domain.Accounting.FinancialStatementPresentationRevisionStatuses.Candidate => "Statement presentation (signing candidate)",
+    AuditSphereOps.Domain.Accounting.FinancialStatementPresentationRevisionStatuses.Approved => "Statement presentation (approved)",
+    _ => "Statement presentation (unapproved draft)"
+  };
 
   public static string? ContentTypeFor(string format) => format switch
   {
@@ -98,7 +115,7 @@ public static class FinancialStatementPresentationRenderer
     var m = p.Manifest;
     var lines = new List<string>
     {
-      $"Status: {p.Status} — {Banner}",
+      $"Status: {p.Status} — {BannerFor(p.Status)}",
       $"Package: {m.PackageId:D} · calculation hash {m.CalculationHash}",
       $"Statement layout: {m.LayoutVersionId:D} · layout hash {m.LayoutHash}",
       m.ComparativePackageId is { } comparative
@@ -153,7 +170,7 @@ public static class FinancialStatementPresentationRenderer
   {
     FinancialPackageOfficeRenderer.EnsurePdfFonts();
     var document = new MigraDoc.DocumentObjectModel.Document();
-    document.Info.Title = "Statement presentation (unapproved draft)";
+    document.Info.Title = TitleFor(p.Status);
     document.Info.Author = "AuditSphereOps";
     document.Info.Subject = p.Header.Reference;
     var normal = document.Styles[StyleNames.Normal]!;
@@ -172,7 +189,7 @@ public static class FinancialStatementPresentationRenderer
     section.PageSetup.LeftMargin = leftMargin;
     section.PageSetup.RightMargin = rightMargin;
 
-    var header = section.Headers.Primary.AddParagraph(Banner);
+    var header = section.Headers.Primary.AddParagraph(BannerFor(p.Status));
     header.Format.Font.Bold = true;
     header.Format.Font.Size = 8;
     header.Format.Alignment = ParagraphAlignment.Center;
@@ -371,7 +388,7 @@ public static class FinancialStatementPresentationRenderer
       var main = document.AddMainDocumentPart();
       var body = new W.Body();
       body.Append(WordParagraph(p.Header.Entity, bold: true, size: 26, spaceAfter: 40));
-      body.Append(WordParagraph(Banner, bold: true, size: 16, spaceAfter: 120));
+      body.Append(WordParagraph(BannerFor(p.Status), bold: true, size: 16, spaceAfter: 120));
       body.Append(WordParagraph($"Framework {p.Header.Framework} · amounts in {p.Header.Currency} · presented in {(p.DisplayDecimals == 0 ? "whole units" : $"{p.DisplayDecimals} decimal places")}", size: 18));
       foreach (var statement in p.Statements)
       {

@@ -15,6 +15,15 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Statement presentation signing candidate and formal review artifact pin (CP-18 / CP-19) — 2026-10-15
+
+Implements the governed presentation successor workflow and formal review decision artifact binding under CP-18 and CP-19:
+- **Governed draft-to-candidate successor promotion:** Added `PromotePresentationToCandidateAsync` to `FinancialStatementService.PresentationPins.cs` and exposed `POST /accounting/packages/{id}/presentation/pins/{revisionId}/candidate`. Unapproved draft history and bytes remain immutable; candidate promotion validates package validation readiness, independent cash-flow source review, and current source lineage before producing an immutable candidate successor with `PredecessorRevisionId`, candidate banner, and rendered candidate PDF artifact. Repeated promotion of the same draft is idempotent.
+- **Formal review decision binding:** `FinancialPackageReviewRequest` and `FinancialPackageReviewDecision` now support `PresentationRevisionId` and target artifact selection. Management, Accounting, and Partner review decisions bind to the exact candidate presentation PDF artifact rather than generic text, verifying that all review stages approve the same candidate presentation and that the candidate's source remains current.
+- **Release and deliverable bundle integration:** `ReleaseService` verifies Partner approval and pins the exact reviewed candidate presentation PDF artifact for package release, which `AuditDeliverableService` incorporates directly into the five-part client deliverable bundle.
+- **Decoders and contracts:** Angular presentation decoders accept `UNAPPROVED_DRAFT`, `CANDIDATE`, `APPROVED`, and `SUPERSEDED` statuses and decode `predecessorRevisionId`. OpenAPI 3.1 specification regenerated and verified without drift.
+- **Verification:** Solution build 0 errors / 0 warnings; EF Core migrations verified with zero model drift; OpenAPI contract verified current; Angular tests passed (127 files, 733 tests); Angular production build passed; 194 focused .NET Domain tests passed; documentation, filename, narrative metrics, and UI inventory validators passed.
+
 ## Production-readiness story: cash lineage, decision fence and release pin — 2026-10-15
 
 The attached production-readiness story (`Audit_and_Gap_Closure.md`, now tracked since `66f5075d`) is still PARTIAL. Its verdict is unchanged: substantial implementation, incomplete functional acceptance, not production ready. The ledger entry is `targetedVerification.productionReadinessStoryCp11` in `status.json`.

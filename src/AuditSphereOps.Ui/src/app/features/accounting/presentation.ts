@@ -7,7 +7,7 @@ import { SHARED } from '../../core/ui';
 
 /** Read-only statement presentation (unapproved draft). Every amount is a display string produced by the server. */
 export const decodePresentation = obj({
-  status: oneOf('UNAPPROVED_DRAFT'),
+  status: oneOf('UNAPPROVED_DRAFT', 'CANDIDATE', 'APPROVED', 'SUPERSEDED'),
   canPin: bool,
   displayDecimals: nat,
   header: obj({ entity: text, framework: text, currency: text, currentPeriodEnd: text, priorPeriodEnd: nullable(text), reference: text }),
@@ -42,8 +42,9 @@ const decodePresentationPin = obj({
   currency: text, periodStart: text, periodEnd: text, layoutVersionId: guid, layoutHash: text,
   comparativePackageId: nullable(guid), comparativeCalculationHash: nullable(text), comparativeBasis: nullable(text),
   comparativeEvidenceReference: nullable(text), noteSourceManifestHash: text, builderVersion: text,
-  rendererVersion: text, displayPolicy: text, status: oneOf('UNAPPROVED_DRAFT'), revisionHash: text,
+  rendererVersion: text, displayPolicy: text, status: oneOf('UNAPPROVED_DRAFT', 'CANDIDATE', 'APPROVED', 'SUPERSEDED'), revisionHash: text,
   snapshotSha256Hex: text, createdAt: text, sourceIsCurrent: bool, artifactFormats: arr(oneOf('pdf', 'docx', 'xlsx'), 3),
+  predecessorRevisionId: nullable(guid),
 });
 
 const decodePresentationPins = arr(decodePresentationPin, 50);
