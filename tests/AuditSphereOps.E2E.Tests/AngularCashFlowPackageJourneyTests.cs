@@ -29,6 +29,16 @@ public sealed class AngularCashFlowPackageJourneyTests
       Uri.EscapeDataString($"/ui/app/engagements/{host.Fixture.EngagementId:D}/financial-package"));
     await Assertions.Expect(preparerPage.GetByRole(AriaRole.Heading,
       new() { Name = "Build financial package", Exact = true })).ToBeVisibleAsync();
+    try
+    {
+      await preparerPage.Locator("form[aria-label='Financial package build']")
+        .WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 30000 });
+    }
+    catch (TimeoutException)
+    {
+      throw new InvalidOperationException("Financial package inputs did not render. Page text: " +
+        await preparerPage.Locator("body").InnerTextAsync() + " JavaScript errors: " + string.Join(" | ", errors));
+    }
 
     await preparerPage.GetByLabel("Approved mapping", new() { Exact = true }).SelectOptionAsync(seed.MappingId.ToString("D"));
     await preparerPage.GetByLabel("Finalized adjustment plan", new() { Exact = true }).SelectOptionAsync(seed.PlanId.ToString("D"));
@@ -36,7 +46,7 @@ public sealed class AngularCashFlowPackageJourneyTests
     await preparerPage.GetByLabel("Template version", new() { Exact = true }).FillAsync("e2e-cash-flow-v2");
     await preparerPage.GetByRole(AriaRole.Button, new() { Name = "Add movement", Exact = true }).ClickAsync();
     await preparerPage.GetByRole(AriaRole.Button, new() { Name = "Choose source lines", Exact = true }).ClickAsync();
-    var acceptedLine = preparerPage.GetByRole(AriaRole.Row).Filter(new() { HasText = "1000" });
+    var acceptedLine = preparerPage.GetByRole(AriaRole.Row).Filter(new() { HasText = "4000" });
     await Assertions.Expect(acceptedLine).ToContainTextAsync("175000");
     await acceptedLine.GetByRole(AriaRole.Button, new() { Name = "Add to movement 1", Exact = true }).ClickAsync();
     await Assertions.Expect(preparerPage.Locator("input[name='alloc0-0']")).ToHaveValueAsync("175000");
