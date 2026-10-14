@@ -11,6 +11,9 @@ public sealed class FinancialStatementSourceManifestTests
   [InlineData("cash-date")]
   [InlineData("cash-classification")]
   [InlineData("cash-currency")]
+  [InlineData("cash-allocation-source")]
+  [InlineData("cash-allocation-amount")]
+  [InlineData("cash-allocation-scope")]
   [InlineData("fx-source")]
   [InlineData("fx-sign")]
   [InlineData("equity-source")]
@@ -33,8 +36,11 @@ public sealed class FinancialStatementSourceManifestTests
       Amount = 2m, EvidenceReference = "fx-source" };
     var equity = new FinancialPackageEquityLine { Id = Guid.NewGuid(), FinancialPackageId = package.Id,
       ClosingAmount = -100m, EvidenceReference = "equity-source" };
+    var allocation = new FinancialPackageCashFlowAllocation { Id = Guid.NewGuid(), FinancialPackageId = package.Id,
+      CashFlowLineId = cash.Id, GeneralLedgerLineId = Guid.NewGuid(), GeneralLedgerTransactionId = Guid.NewGuid(),
+      SourceImportBatchId = Guid.NewGuid(), SourceLineHash = "source-line-hash", SignedAmount = -25m, Currency = "QAR" };
     var notes = "notes";
-    string Hash() => FinancialStatementService.ComputePresentationSourceManifestHash([package], [cash], [fx], [equity], notes);
+    string Hash() => FinancialStatementService.ComputePresentationSourceManifestHash([package], [cash], [fx], [equity], [allocation], notes);
     var before = Hash();
     switch (change)
     {
@@ -43,6 +49,9 @@ public sealed class FinancialStatementSourceManifestTests
       case "cash-date": cash.MovementDate = cash.MovementDate!.Value.AddDays(-1); break;
       case "cash-classification": cash.ClassificationRationale = "Changed classification"; break;
       case "cash-currency": cash.Currency = "USD"; break;
+      case "cash-allocation-source": allocation.SourceLineHash = "replacement"; break;
+      case "cash-allocation-amount": allocation.SignedAmount = 24m; break;
+      case "cash-allocation-scope": allocation.GeneralLedgerLineId = Guid.NewGuid(); break;
       case "fx-source": fx.EvidenceReference = "replacement"; break;
       case "fx-sign": fx.Amount = -2m; break;
       case "equity-source": equity.EvidenceReference = "replacement"; break;
@@ -64,9 +73,11 @@ public sealed class FinancialStatementSourceManifestTests
     var cash = new[] {
       new FinancialPackageCashFlowLine { Id = Guid.NewGuid(), FinancialPackageId = packages[0].Id, SourceReferences = ["b", "a"] },
       new FinancialPackageCashFlowLine { Id = Guid.NewGuid(), FinancialPackageId = packages[1].Id } };
-    var before = FinancialStatementService.ComputePresentationSourceManifestHash(packages, cash, [], [], "notes");
+    var allocations = new[] { new FinancialPackageCashFlowAllocation { Id = Guid.NewGuid(), FinancialPackageId = packages[0].Id,
+      CashFlowLineId = cash[0].Id, GeneralLedgerLineId = Guid.NewGuid(), SignedAmount = -1m } };
+    var before = FinancialStatementService.ComputePresentationSourceManifestHash(packages, cash, [], [], allocations, "notes");
     cash[0].SourceReferences = ["a", "b"];
     Assert.Equal(before, FinancialStatementService.ComputePresentationSourceManifestHash(
-      packages.Reverse().ToArray(), cash.Reverse().ToArray(), [], [], "notes"));
+      packages.Reverse().ToArray(), cash.Reverse().ToArray(), [], [], allocations, "notes"));
   }
 }
