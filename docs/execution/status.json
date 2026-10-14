@@ -964,71 +964,74 @@
       }
     },
     "currentCashFlowPackageJourney": {
-      "recordedAtUtc": "2026-10-14T15:13:37Z",
-      "baseCommit": "9c40280e",
+      "recordedAtUtc": "2026-10-14T16:27:23Z",
+      "baseCommit": "3aeed43d806b0ebe1921edcad86ec4eb00b32a62",
+      "headCommit": "PENDING_COMMIT",
       "status": "PARTIAL",
       "alias": "CP-11 accepted-source cash-flow build subpath / CP-12 policy-blocked",
-      "scope": "Engagement-scoped Angular form, authorized build-input query, accepted GL line picker, durable package build request, validated comparative-package choices, and API-hosted browser journey source. This is not full CP-11 or story completion.",
+      "scope": "Engagement-scoped preparer screen, strict request and response decoders, accepted-GL source picker, durable package build, originator-only status polling, and independent source-link review. This is not full CP-11 or story completion.",
       "runs": [
         {
-          "name": "Angular CI",
-          "command": "npm run test:ci",
-          "test_files": 127,
-          "passed": 717,
+          "name": "Angular production build",
+          "command": "npm --prefix src/AuditSphereOps.Ui run build",
+          "result": "PASS_WITH_WARNING",
+          "warning": "Existing src/app/features/commercial/settings.scss component stylesheet exceeds the 4 KB budget by 3.53 KB."
+        },
+        {
+          "name": "Angular CI specs, first attempt",
+          "command": "npm --prefix src/AuditSphereOps.Ui run test:ci",
+          "testFiles": 127,
+          "passed": 721,
+          "failed": 1,
+          "result": "FLAKY_FAILURE",
+          "failure": "Unrelated gl-upload.spec.ts unknown-import reload recovery assertion; the same complete suite passed on immediate rerun."
+        },
+        {
+          "name": "Angular CI specs, rerun",
+          "command": "npm --prefix src/AuditSphereOps.Ui run test:ci",
+          "testFiles": 127,
+          "passed": 722,
           "failed": 0,
           "result": "PASS"
         },
         {
-          "name": "Pinned SDK focused API/E2E build",
-          "command": "/tmp/auditsphere-dotnet-10.0.300/dotnet build tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --verbosity minimal",
-          "result": "BLOCKED: no output or terminal result after several minutes; exact latest-query tree not verified"
+          "name": "Release solution build",
+          "command": "dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1",
+          "warnings": 0,
+          "errors": 0,
+          "result": "PASS"
         },
         {
-          "name": "OpenAPI generation",
-          "result": "BLOCKED: the emitter did not produce output and appeared to hang; contract drift is not verified for this exact source tree"
+          "name": "Worker-backed browser journey",
+          "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release --maxcpucount:1 --filter 'FullyQualifiedName~AngularCashFlowPackageJourneyTests.PreparerBuildsFromAcceptedGlAndIndependentReviewerApprovesPersistedLinks' --logger 'console;verbosity=minimal'",
+          "passed": 1,
+          "failed": 0,
+          "result": "PASS",
+          "evidence": "Playwright completed the durable build, confirmed the package link, denied another reviewer access to the originator-only operation receipt, denied preparer source review, and accepted independent reviewer approval of persisted source links."
+        },
+        {
+          "name": "OpenAPI contract drift",
+          "command": "bash scripts/contracts/verify-openapi.sh",
+          "result": "PASS"
         }
       ],
-      "priorEvidence": [
-        "Focused Debug E2E/API build passed before the final comparative-option query edit; it is not evidence for this final source tree.",
-        "Release OpenAPI emitter build passed before the final comparative-option query edit; it does not verify successful OpenAPI generation.",
-        "Documentation/link/status/UI gates were previously green before the latest handoff edits; rerun final checks before merge."
+      "corrections": [
+        "The browser fixture selected a cash-account GL line; it now links the cash movement to the non-cash counterpart line.",
+        "The synthetic reporting-period trial balance, adjusted cash, equity rollforward and note now agree at six-decimal precision.",
+        "Playwright uses accessible form roles and stable selectors for the repeated Angular controls."
       ],
       "notRun": [
-        "Changed API-hosted browser journey; local PostgreSQL at 127.0.0.1:5433 was unavailable.",
-        "Full Domain, API and E2E suites, left to CI by the handoff instruction.",
-        "Angular production build; the current environment previously exited 134 without diagnostics."
+        "Full Domain, API and E2E suites on this change set; exact-head CI is pending after push.",
+        "Full attached-story acceptance, live provider verification and professional approval."
       ],
       "openItems": [
-        "CP-11 is only partially covered: manual-evidenced schedules, progress polling, equity and note source paths, remaining independent source review and broader acceptance are not claimed complete.",
-        "CP-12 requires the user-supplied approved indirect cash-flow policy and professional interpretation of reviewed assessed-zero FX states.",
-        "The attached story includes many further decision-dependent and unimplemented criteria beyond CP-11/CP-12.",
-        "Exact-head GitHub Actions evidence is not yet available; update PR body and monitor CI after pushing the final commit."
+        "CP-11 manual-evidenced build path, equity/note source lineage, remaining required source/review paths and broader acceptance are incomplete.",
+        "CP-12 requires an approved indirect cash-flow classification policy and qualified interpretation of reviewed assessed-zero FX states.",
+        "The wider attached story has additional implementation and acceptance criteria beyond this slice.",
+        "Exact-head CI result is pending; update this record after CI completes."
       ],
-      "headCommit": "a8a05c9738b63fb6b73ba86570bf32a206084d0b",
       "exactHeadCi": {
-        "runId": "38584818620",
-        "result": "FAIL",
-        "angular": "PASS",
-        "docsHealth": "PASS",
-        "releaseBuild": "PASS",
-        "focusedDomainAndApiStep": "FAIL: 12 failed, 129 passed, 0 skipped, 141 total; two domain/API test commands are in the step, but the Domain project failed first",
-        "diagnosis": "All 12 surfaced Domain failures are package fixtures expecting VALIDATED or no additional blocking validation while cash-flow movements have only preparer text and no accepted-source allocation. New fail-closed CASH_FLOW_SOURCE_LINEAGE evidence correctly leaves those packages REVIEW_REQUIRED. Fixtures are being corrected to seed and allocate accepted GL lines; this correction has not yet been verified.",
-        "skippedAfterFailure": [
-          "EF model drift",
-          "API-hosted browser E2E",
-          "standalone publication",
-          "OpenAPI contract drift"
-        ]
-      },
-      "latestCorrectionCommit": "525eb76fba6a7c9e9ef554eebe32c37117593c81",
-      "latestCorrectionCi": {
-        "runId": "38586536148",
-        "result": "FAIL",
-        "angular": "PASS",
-        "docsHealth": "PASS",
-        "releaseBuild": "FAIL: CompletionBundleFixture.cs referenced CashFlowSourceSeed, but that shared source file was not linked into the E2E project",
-        "focusedTests": "NOT RUN",
-        "fix": "Added CashFlowSourceSeed.cs to the E2E test project compile links. This correction awaits a new exact-head CI run."
+        "status": "PENDING_PUSH"
       }
     }
   },

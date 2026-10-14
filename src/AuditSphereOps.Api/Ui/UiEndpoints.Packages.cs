@@ -55,6 +55,10 @@ public static partial class UiEndpoints
     // Build inputs: the approved mappings, finalized plans and reporting periods a preparer can choose from.
     group.MapGet("/engagements/{id:guid}/financial-package-inputs", (Guid id, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => FinancialPackageBuildInputsQuery.GetAsync(db, actor, id, ct)));
+    group.MapUiGet("/engagements/{id:guid}/financial-package-builds/{operationId:guid}", http => ReadAsync(http,
+      (db, actor, ct) => FinancialPackageBuildStatusQuery.GetAsync(db, actor,
+        Guid.Parse(http.Request.RouteValues["id"]!.ToString()!),
+        Guid.Parse(http.Request.RouteValues["operationId"]!.ToString()!), ct)));
     group.MapGet("/accounting/packages/{id:guid}/cash-flow-source-review", (Guid id, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => FinancialStatementService.GetCashFlowSourceReviewAsync(db, actor, id, ct)));
     group.MapPost("/accounting/packages/{id:guid}/cash-flow-source-review", (Guid id, CashFlowSourceReviewInput i, HttpContext http) =>
