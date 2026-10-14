@@ -162,8 +162,8 @@ public static partial class FinancialStatementService
       x.ActivityCode, resolved[index])).ToList();
   }
 
-  // The public/DB field retains its legacy NoteSourceManifestHash name. Version 2 also seals
-  // supplementary schedule provenance. A hash proves identity, never source acceptance or review.
+  // The public/DB field retains its legacy NoteSourceManifestHash name. Version 3 also seals
+  // persisted cash-flow source allocations. A hash proves identity, never source acceptance or review.
   private static async Task<string> ComputePresentationSourceManifestHashAsync(
     IClientAccountingDbContext db, Guid firmId, Guid[] packageIds,
     IReadOnlyList<FinancialPackageNoteLine> noteLines,
@@ -177,7 +177,9 @@ public static partial class FinancialStatementService
       .Where(x => x.FirmId == firmId && packageIds.Contains(x.FinancialPackageId)).ToListAsync(ct);
     var equity = await db.FinancialPackageEquityLines.AsNoTracking()
       .Where(x => x.FirmId == firmId && packageIds.Contains(x.FinancialPackageId)).ToListAsync(ct);
-    return ComputePresentationSourceManifestHash(packages, cash, fx, equity,
+    var cashAllocations = await db.FinancialPackageCashFlowAllocations.AsNoTracking()
+      .Where(x => x.FirmId == firmId && packageIds.Contains(x.FinancialPackageId)).ToListAsync(ct);
+    return ComputePresentationSourceManifestHash(packages, cash, fx, equity, cashAllocations,
       ComputeNoteSourceManifestHash(packageIds, noteLines, disclosures));
   }
 
@@ -185,10 +187,11 @@ public static partial class FinancialStatementService
     IReadOnlyList<FinancialPackage> packages,
     IReadOnlyList<FinancialPackageCashFlowLine> cash,
     IReadOnlyList<FinancialPackageFxEffect> fx,
-    IReadOnlyList<FinancialPackageEquityLine> equity, string noteHash) =>
+    IReadOnlyList<FinancialPackageEquityLine> equity,
+    IReadOnlyList<FinancialPackageCashFlowAllocation> cashAllocations, string noteHash) =>
     Hashing.Sha256Hex(JsonSerializer.SerializeToUtf8Bytes(new
     {
-      Version = "auditsphere.statement-source-manifest.v2",
+      Version = "auditsphere.statement-source-manifest.v3",
       NoteHash = noteHash,
       Packages = packages.OrderBy(x => x.Id).Select(x => new
       {
@@ -204,6 +207,13 @@ public static partial class FinancialStatementService
         x.Amount, x.IsNonCash, x.MovementDate, x.ActivityCode, x.ClassificationRationale,
         Sources = x.SourceReferences.OrderBy(v => v, StringComparer.Ordinal).ToArray()
       }).ToArray(),
+      CashAllocations = cashAllocations.OrderBy(x => x.FinancialPackageId).ThenBy(x => x.CashFlowLineId)
+        .ThenBy(x => x.GeneralLedgerLineId).ThenBy(x => x.Id).Select(x => new
+        {
+          x.Id, x.FinancialPackageId, x.ClientId, x.EngagementId, x.CashFlowLineId,
+          x.GeneralLedgerLineId, x.GeneralLedgerTransactionId, x.SourceImportBatchId,
+          x.SourceLineHash, x.SignedAmount, x.Currency
+        }).ToArray(),
       Fx = fx.OrderBy(x => x.FinancialPackageId).ThenBy(x => x.Id).Select(x => new
       {
         x.Id, x.FinancialPackageId, x.ClientId, x.EngagementId, x.Currency,
