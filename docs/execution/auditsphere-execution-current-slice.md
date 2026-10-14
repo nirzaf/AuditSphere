@@ -15,6 +15,16 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Production-readiness story: source-review fence, cash lineage and merged gates — 2026-10-15
+
+The attached production-readiness story (`Audit_and_Gap_Closure.md`, outside the repository) was worked on master. Its verdict is unchanged: substantial implementation, incomplete functional acceptance, not production ready. The ledger entry is `targetedVerification.productionReadinessStoryCp11` in `status.json`.
+
+- **Merged to master:** source-review intent fence and cash projection (`8ab0b751`), build-screen schedule editors and blockers (`2bf7c337`), release verification and CI precondition (`296b87d2`), E2E build fix (`7e926eaf`), and the review fixes (`39c2555b`). The sub-worktrees and their branches were removed after the merge.
+- **Closed in code:** F-01 projection, F-02 intent fence (migration `CashFlowSourceReviewIntent`), F-03 per-period accepted ledger, F-04 editors and blockers in the build screen, F-09 Partner stage, and the repo-buildable parts of F-11 and F-12.
+- **Open blockers from the independent review:** an omitted cash journal can be covered by a user-entered FX row (F-01, the most serious); "latest" decisions use an application-clock timestamp (needs a sequence); and the declared cash population is not checked against the mapping. These are recorded in `openBlockers`. F-01 is not complete until the first is fixed.
+- **Not started:** F-08 exact composition, F-05 to F-07 (professional policy), F-10 (owner decision), and external gates (branch protection, live identity and provider evidence).
+- **Verified locally:** focused Domain classes (119 passed), two Angular specs (28 passed), `tsc`, the EF model check, and the OpenAPI contract. **Not run:** the full suites, the E2E journeys, and the hosted release workflow.
+
 ## Source-linked package build from the product (CP-11 accepted-source cash-flow subpath) — 2026-10-14
 
 The engagement-scoped preparer screen lists approved mappings, finalized adjustment plans, reporting periods and validated comparative packages. It supports a paged accepted-ledger line picker and submits exact decimal strings to the durable `BuildFinancialPackage.v1` operation. Input discovery is scope-authorized and the server still validates the selected current/comparative package. The routes are `GET /api/ui/engagements/{id}/financial-package-inputs` and `POST /api/ui/accounting/packages/builds`.
@@ -280,95 +290,3 @@ verification, not full mutation-journey acceptance. Exact observations are in [`
 SharePoint remains separately blocked by the approved-target denial. The site's inspected General panel
 confirmed the reviewed site identity; no grant or permission scope was changed. Further duplicate target probes remain paused pending exact grant
 investigation, and the runtime Selected Site app ID stays unset.
-
-## Restricted outbound mail verified and delivered — 2026-10-11
-
-The local interactive authentication alternative failed because the Exchange authentication
-library rejects this Mac's OS version. A temporary official Linux PowerShell container on the VPS
-provided an active supported Exchange connection. The initial access checks allowed both the
-approved sender and unrelated synthetic mailbox, proving a sender restriction was needed.
-
-A mail-enabled security scope group containing only the approved sender and an exact-app
-`RestrictAccess` policy were created. Exchange then allowed the sender and denied the unrelated
-fixture. A structurally valid Graph authorization probe with no recipients also denied the
-unrelated mailbox. The dedicated token contained only `Mail.Send`; the existing certificate was
-reused and no new application credential was added.
-
-The approved self-addressed synthetic message was accepted by Graph and Exchange's filtered
-message trace confirmed delivery. The API-only recreation enabled the mail capability; readiness
-passed, existing workers were unchanged, and fresh AuditSphere capability verification passed.
-The reviewed local Mail metadata was saved and its immutable receipt reconciled; Records remains
-unconfigured. The live mail worker was not started, so this is transport and configuration evidence,
-not durable commercial/PBC mail workflow acceptance. Temporary verification containers and files
-were removed. Exact timestamps, status and correlation evidence are in [`status.json`](status.json).
-
-The prior authentication blocker is resolved by the supported Linux path. SharePoint's exact-site
-denial and the disabled mutation capabilities remain separate blockers.
-
-## Live VPS upgrade and directory consent verified — 2026-10-11
-
-After exact owner approval, a fresh catalog-checked database backup was retained, the approved
-migrations were applied to the synthetic acceptance database, and only the API was recreated.
-Public readiness passed. Existing worker containers and the local development database were
-unchanged. Exact image, migration, backup and observation evidence is in [`status.json`](status.json).
-
-The dedicated Directory Reader now has both fixed Web callbacks and its own certificate. Only
-its public certificate was uploaded to Entra; the private key remains on the VPS. Directory Reader
-and Tenant Consent were enabled. The reviewed Microsoft consent and identity flow completed,
-and AuditSphere persisted verified consent and a fresh successful bounded directory read.
-Mail and directory mutations remain disabled. Consent verification does not promote the separate
-resource revision or activate a workspace.
-
-The deployed time screen renders FSLI attribution. End-of-service access correctly refuses an
-administrator without a Finance or Partner grant. The commercial settings screen also renders the pricing
-policy form and reports that no actual pricing policy has been configured. These are live screen observations, not a
-record-specific business acceptance run. Selected SharePoint remains blocked by the missing
-exact-site grant; neither the unrelated control nor the approved target allowed access.
-
-## VPS upgrade rehearsal and selected-site access check — 2026-10-11
-
-The previously authorized SSH access worked despite the expired Hostinger browser terminal.
-The clean VPS checkout was fast-forwarded, the published API and migration images were pulled,
-and a private custom-format PostgreSQL backup was catalog-checked and restored to a disposable
-database. The pending migrations applied there, and the new API returned readiness HTTP 200
-against that copy. The rehearsal container, database and temporary environment files were removed.
-The live database and existing services were unchanged. Its upgrade awaits the specific migration
-approval because the earlier deployment scope allowed API recreation without database migration.
-Exact image, migration and backup evidence is in [`status.json`](status.json).
-
-The installed Selected Site certificate matches the public certificate on the approved Entra app.
-A live token contained exactly `Sites.Selected` for the configured tenant. Read-only Graph checks
-returned HTTP 403 with `accessDenied` for both the approved synthetic site and its unrelated
-control. The positive grant is missing; no disposable file write was attempted and no site grant
-was changed. The server-side Selected Site app ID remains unset pending the user's exact-site grant.
-
-Automatic approval review rejected selecting the Web callback platform on the separate Directory
-Reader app because the earlier callback authorization named the Development app. Exact approval
-for the Directory Reader callbacks, certificate and read-only capability enablement has been
-requested. Its registration and runtime remain unchanged pending that response.
-
-## Current-tree acceptance verification — 2026-10-11
-
-The complete .NET and Angular suites, Release build, OpenAPI drift check, EF model-drift check,
-documentation validators and source inventory now have current-tree evidence. Exact commands,
-counts, durations, migration head and the verified code commit are recorded in [`status.json`](status.json).
-The PostgreSQL-backed tests used only the isolated `auditsphere_tests` database. The previous
-four failing browser journeys were diagnosed and fixed; the pricing-policy maker/checker and
-end-of-service professional-gate journeys are now included in browser coverage.
-
-The end-of-service page correctly blocks accrual preparation until a qualified accountant names
-the treatment and a Partner confirms it. No firm treatment or chart accounts were supplied, so no
-real accrual was prepared or posted. Certificate signing remains implemented and locally verified;
-the firm certificate and legal-sufficiency decision are still outstanding. The GitHub Wiki's
-Production Environment Settings page already documents the `ReportSigning` configuration, so no
-Wiki edit was needed.
-
-The Entra portal now confirms admin consent for `User.Read.All` on the dedicated Directory Reader
-registration, alongside its delegated `User.Read` sign-in permission. This is registration-level
-consent only: AuditSphere's tenant-connection page still shows no nonce-bound consent attempt, and
-its consent action remains unavailable until the deployment-owned consent identity and fixed
-callback are configured. Directory verification remains `NOT_VERIFIED` and the Directory Reader
-runtime switch remains disabled. The selected SharePoint target fields remain an unsubmitted
-browser-tab draft; the user will grant the exact site. Runtime Graph capabilities remain disabled,
-and the selected-resource probe and workspace activation remain blocked on that grant and credential
-setup. Do not mark those external states complete from local or Entra-registration evidence.

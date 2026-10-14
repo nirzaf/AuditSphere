@@ -65,6 +65,11 @@
       "item": "AS-WF-V22 — v2.2 workflow experience PRs D–I (WF-04 to WF-15) and production acceptance",
       "status": "PARTIAL",
       "details": "WF-01/WF-03 now require an exact proposal/opportunity service-period match before commercial acceptance can advance an engagement; prior-period accepted offers do not carry forward. WF-13 projects candidate, exact checkpoint and persisted Release evidence. WF-14 reports due-task completion/workload with phase rollups and average elapsed hours for append-only procedure-review decisions; Practice analytics also reports bounded PBC client-wait intervals from provider-accepted sends to recorded client actions; it excludes reminders and unconfirmed mail and never presents partial results. WF-14 also records append-only Operational Task creation, initial assignment, assignment/reassignment and completion events in the command transaction, with a grant-scoped 90-day keyset-paged timeline. Existing slices include pinned templates and plan receipts, grant-scoped queues with Waiting for client, Changes required, and Under review views derived from the linked current procedure result, PBC follow-ups/reminders, manager-review rework linkage, and template authoring; see the current-slice handoff. Open: complete annual acceptance; additional activity sources and event kinds; review states without operational task links; notification/escalation coverage; domain-evidence dependencies; broader recurring automation; deadline automation; dedicated task-plan editing; and remaining aggregate-query scaling and performance acceptance. No full suite, authenticated activity-browser journey, live-provider or professional acceptance is recorded; overall v2.2 remains PARTIAL. WF-07 additionally has grant-scoped assignment narrowing for named owners and unassigned tasks, with an Angular all/me/unassigned selector and cursor reset; focused UI and PostgreSQL assertions passed. Engagement economics paging and authenticated navigation are verified in workflowAnalyticsPaging. WF-11 refuses overlapping client/service periods, prepares one reviewed blocked next period with an exact source receipt, suggests current published task-template identities and prior schedules, and provides active contacts and role-guarded historic mapping references. The annual receipt hands off to separately reviewed current-year task-plan pinning and exact-engagement continuance. A reviewed new client evaluation starts with empty delta answers and records a fresh scoped Partner decision; old decisions and answers remain immutable history. Annual creation now retains the reviewed current published template reference in its preview and receipt; the new task-plan panel preselects it only if still current and never substitutes a replacement automatically. Remaining annual work: populated-mapping browser acceptance, nonstandard-calendar rules and full acceptance."
+    },
+    {
+      "item": "Production-readiness story (Audit_and_Gap_Closure.md) — PARTIAL",
+      "status": "PARTIAL",
+      "details": "Closed in code on master: F-01 projection (with open population blocker), F-02 intent fence, F-03 per-period source, F-04 build-screen editors and blockers, F-09 Partner stage, F-11 and F-12 repo-buildable parts. Not production ready: see targetedVerification.productionReadinessStoryCp11.openBlockers and storyItemsNotStarted. External and professional gates remain BLOCKED_EXTERNAL or BLOCKED_PROFESSIONAL."
     }
   ],
   "targetedVerification": {
@@ -708,64 +713,6 @@
         "GHSA-2fmv-rv2c-59x7"
       ]
     },
-    "canonicalPackageRequiredPopulation": {
-      "baseCommit": "252717530893c543b23de7894dd34ce529018cac",
-      "date": "2026-10-14",
-      "status": "PARTIAL",
-      "aliases": [
-        "CP-00",
-        "CP-17",
-        "AS-FR-CLOSE-001/WP-07"
-      ],
-      "story": {
-        "name": "AuditSphere_Practice_Management_and_Financial_Reporting_Completion_Story.md",
-        "sha256": "20bd27dfceb7951402f0a4a2579be0d023fc7e749ce57140d1ac7a2c467dde8f",
-        "uniqueCriteria": 225,
-        "practiceIntegrationCriteria": 156,
-        "inheritedCriteria": 69,
-        "inheritedTextMatchesPreviousStory": true
-      },
-      "filesSha256": {
-        "src/AuditSphereOps.Application/Accounting/FinancialPackageValidationReadiness.cs": "b67475446c64b06e4a14a77d6efecf50c1fecc7accac5f8760c8a8575144a593",
-        "src/AuditSphereOps.Application/Accounting/FinancialPackageReviewService.cs": "3056d516ff96586f60105b63287db7f67440002a954ddc62c1ea9d8c0fd576ea",
-        "src/AuditSphereOps.Application/Accounting/PackageSealService.cs": "33704abe83392e0c3945974fa6fe50c58a24ce76f1d8fe266a60d00325cd0816",
-        "src/AuditSphereOps.Application/Accounting/FinancialStatements/FinancialStatementService.Package.cs": "a33d4dbf6717d09c4d4f152c4014c5d87649f82d0f16c7e70184357c54a047b5",
-        "tests/AuditSphereOps.Domain.Tests/FinancialPackageValidationReadinessTests.cs": "f8ed3828962726e4fb04e3592033cee3ae2df48e01f629d67f2c4a6ec42ab192",
-        "tests/AuditSphereOps.Domain.Tests/PackageSealTests.cs": "8b1061f690a9161e2d98988bf46161c42b7055a8c5f42c15fc60b514e8c5c5da",
-        ".github/workflows/ci.yml": "6bd5be10bb0707b123930eb6d33c623e0e349f3c6af489696702f3c0fe6e0bc1"
-      },
-      "checks": [
-        "Release Domain build PASS, 0 warnings/errors",
-        "API/emitter build PASS, 0 warnings/errors",
-        "OpenAPI drift PASS",
-        "EF model drift PASS",
-        "Markdown documentation/filename/metrics gates PASS",
-        "git diff --check PASS"
-      ],
-      "cohorts": [
-        {
-          "passed": 38,
-          "failed": 0,
-          "skipped": 0,
-          "scope": "canonical readiness, package gate/seal, statements, analytics",
-          "trx": "/private/tmp/auditsphere-package-readiness-tests/_Mac_2026-10-14_14_57_58_net10.0.trx"
-        },
-        {
-          "passed": 54,
-          "failed": 0,
-          "skipped": 0,
-          "scope": "delivery, certificate signing, canonical readiness, package gate/seal; overlaps prior cohort",
-          "trx": "/private/tmp/auditsphere-readiness-release-tests/_Mac_2026-10-14_14_58_35_net10.0.trx"
-        }
-      ],
-      "omitted": [
-        "full regression suites",
-        "built-in browser acceptance",
-        "live provider or deployment acceptance",
-        "full final-report profile/source-lineage/notes/composition readiness"
-      ],
-      "remaining": "CP-17 partial; existing mandatory canonical rules only. Versioned final reporting profile, source resolution/review and transactional authority rechecks remain outstanding."
-    },
     "scheduleAcceptedGlDiscovery": {
       "baseCommit": "765ffea1536dfa3a4599ab569001fe47af56bff2",
       "date": "2026-10-14",
@@ -963,106 +910,62 @@
         "externalAcceptance": "NOT_VERIFIED: no live Microsoft client-site provisioning or staff-membership reconciliation; no VPS deployment performed."
       }
     },
-    "currentCashFlowPackageJourney": {
-      "recordedAtUtc": "2026-10-14T17:45:29Z",
-      "baseCommit": "6cfc49c8cef42abfd85f203befba2dad55c274fe",
-      "headCommit": "83d3472da7ff3e1dae7bd2b8a752d13955a1ea1d",
-      "status": "PARTIAL",
-      "alias": "CP-11 accepted-source cash-flow build subpath / CP-12 policy-blocked",
-      "scope": "Engagement-scoped preparer screen, strict request and response decoders, accepted-GL source picker, durable package build, originator-only status polling, and independent source-link review. This is not full CP-11 or story completion.",
-      "runs": [
-        {
-          "name": "Angular production build",
-          "command": "npm --prefix src/AuditSphereOps.Ui run build",
-          "result": "PASS_WITH_WARNING",
-          "warning": "Existing src/app/features/commercial/settings.scss component stylesheet exceeds the 4 KB budget by 3.53 KB."
-        },
-        {
-          "name": "Angular CI specs, first attempt",
-          "command": "npm --prefix src/AuditSphereOps.Ui run test:ci",
-          "testFiles": 127,
-          "passed": 721,
-          "failed": 1,
-          "result": "FLAKY_FAILURE",
-          "failure": "Unrelated gl-upload.spec.ts unknown-import reload recovery assertion; the same complete suite passed on immediate rerun."
-        },
-        {
-          "name": "Angular CI specs, rerun",
-          "command": "npm --prefix src/AuditSphereOps.Ui run test:ci",
-          "testFiles": 127,
-          "passed": 722,
-          "failed": 0,
-          "result": "PASS"
-        },
-        {
-          "name": "Release solution build",
-          "command": "dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1",
-          "warnings": 0,
-          "errors": 0,
-          "result": "PASS"
-        },
-        {
-          "name": "Worker-backed browser journey",
-          "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release --maxcpucount:1 --filter 'FullyQualifiedName~AngularCashFlowPackageJourneyTests.PreparerBuildsFromAcceptedGlAndIndependentReviewerApprovesPersistedLinks' --logger 'console;verbosity=minimal'",
-          "passed": 1,
-          "failed": 0,
-          "result": "PASS",
-          "evidence": "Playwright completed the durable build, confirmed the package link, denied another reviewer access to the originator-only operation receipt, denied preparer source review, and accepted independent reviewer approval of persisted source links."
-        },
-        {
-          "name": "OpenAPI contract drift",
-          "command": "bash scripts/contracts/verify-openapi.sh",
-          "result": "PASS"
-        }
-      ],
-      "corrections": [
-        "The browser fixture selected a cash-account GL line; it now links the cash movement to the non-cash counterpart line.",
-        "The synthetic reporting-period trial balance, adjusted cash, equity rollforward and note now agree at six-decimal precision.",
-        "Playwright uses accessible form roles and stable selectors for the repeated Angular controls."
-      ],
-      "notRun": [
-        "Full Domain, API and E2E suites were not run locally. Exact-head CI ran the focused Domain (141), API (8), and browser cohorts successfully; this is not full-suite evidence.",
-        "Full attached-story acceptance, live provider verification and professional approval."
-      ],
-      "openItems": [
-        "CP-11 manual-evidenced build path, equity/note source lineage, remaining required source/review paths and broader acceptance are incomplete.",
-        "CP-12 requires an approved indirect cash-flow classification policy and qualified interpretation of reviewed assessed-zero FX states.",
-        "The wider attached story has additional implementation and acceptance criteria beyond this slice."
-      ],
-      "exactHeadCi": {
-        "runId": "38607048224",
-        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/38607048224",
-        "headSha": "83d3472da7ff3e1dae7bd2b8a752d13955a1ea1d",
-        "result": "PASS",
-        "docsHealth": "PASS",
-        "angular": "PASS: 127 files, 722 passed",
-        "releaseBuild": "PASS",
-        "domainFocused": "PASS: 141 passed, 0 failed",
-        "apiFocused": "PASS: 8 passed, 0 failed",
-        "efModelDrift": "PASS",
-        "browserCohort": "PASS: CI API/browser workflow verification step",
-        "standaloneApiPublication": "PASS",
-        "openApiDrift": "PASS",
-        "acceptanceImages": {
-          "runId": "38607048220",
-          "url": "https://github.com/nirzaf/AuditSphere/actions/runs/38607048220",
-          "result": "PASS: private API, worker and migration images built and published from this commit"
-        },
-        "cashFlowPackageJourney": "PASS: local worker-backed Playwright journey 1/1; CI browser cohort passed"
+    "productionReadinessStoryCp11": {
+      "recordedAtUtc": "2026-10-15T00:20:00Z",
+      "source": "Audit_and_Gap_Closure.md (production-readiness story, F-01..F-12, CP-00..CP-25). Read-only story file; not committed to the repository.",
+      "masterCommits": {
+        "sourceFence": "8ab0b751",
+        "buildScreenEditors": "2bf7c337",
+        "releaseVerification": "296b87d2",
+        "e2eBuildFix": "7e926eaf",
+        "reviewFixes": "39c2555b"
       },
-      "previousFailedHeadCi": {
-        "runId": "38602425958",
-        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/38602425958",
-        "headSha": "6cfc49c8cef42abfd85f203befba2dad55c274fe",
-        "result": "FAIL: browser cohort 11 passed, 4 failed",
-        "resolvedBy": "83d3472da7ff3e1dae7bd2b8a752d13955a1ea1d",
-        "failures": [
-          "CompletionDeliverablesJourneyTests.PartnerClearsDecidesAndIssues_ClientReviewsInThePortal",
-          "CompletionDeliverablesJourneyTests.AngularPartnerReleasesBundle_ClientDownloads_AndRequiredSigningRejectsReplay",
-          "AngularEngagementActivationJourneyTests.ExactPartnerReviewLostResponseReceiptReloadAndRevocation(canonical: false)",
-          "AngularCashFlowPackageJourneyTests.PreparerBuildsFromAcceptedGlAndIndependentReviewerApprovesPersistedLinks"
-        ]
-      }
+      "closedInCode": [
+        "F-01 projection: ledger sign kept as provenance; cash movement effect projected from its cash event; noncash movements keep ledger sign",
+        "F-02 intent fence: request identity, link digest and previous decision checked under the package lock; replay actor-bound; migration CashFlowSourceReviewIntent",
+        "F-03 per-period accepted ledger for cash-flow lineage, approval and the GL picker",
+        "F-04 build screen: equity, numeric note and FX editors; entered schedules never sent as null; blockers listed",
+        "F-09 Administrator removed from the Partner stage; legacy Partner rows must be recorded by a current Partner",
+        "F-11 repo-buildable part: release-verification.yml runs the full unfiltered suite on one commit (not yet observed hosted)",
+        "F-12 release precondition subset: release.yml refuses release without a successful ci.yml run for the exact SHA (not yet observed hosted)"
+      ],
+      "verified": {
+        "domainFocusedClasses": "119 passed (CashFlowContractTests, FinancialPackageGateTests, FinancialStatementTests, CompletionBundle*, AccountingRecordsApprovalTests, SourceAcceptanceAndComparativesTests, PackageSealTests, FinancialPackage*) at master after 39c2555b",
+        "angularSpecs": "28 passed (package.spec.ts, financial-package-build.spec.ts)",
+        "typeCheck": "tsc -p tsconfig.app.json --noEmit exit 0",
+        "efModel": "has-pending-model-changes: no changes",
+        "openApi": "scripts/contracts/verify-openapi.sh: current",
+        "solutionBuild": "dotnet build AuditSphereOps.slnx Release --no-restore: 0 errors (before the last Application edit; the focused test build compiled it)",
+        "independentReview": "two read-only reviewers (correctness; authority and tests) ran against the uncommitted slice; their majors on replay, actor binding, legacy Partner rows, revocation-race test and lineage misreporting were fixed; see openBlockers"
+      },
+      "notRun": [
+        "full unfiltered Domain suite",
+        "AuditSphereOps.Api.Tests",
+        "AuditSphereOps.E2E.Tests (browser journeys changed: AngularCashFlowPackageJourneyTests selectors)",
+        "full Angular test:ci",
+        "ng build production bundle",
+        "release-verification.yml and release.yml gate (no hosted run observed)",
+        "markdown validators on this record (run after this record was written)"
+      ],
+      "openBlockers": [
+        "F-01 blocker: a cash journal the package never links is not detected. The build checks only journals a movement draws on; an omitted GL cash event can be covered by a user-entered FX row that the bridge accepts. Fix: enumerate every declared-cash journal in the period batch and require it explained, which needs test fixture changes across the cash seeds.",
+        "F-02 major: 'latest' decision uses application-clock ReviewedAt, not commit order. Fix: database-assigned monotonic sequence (migration).",
+        "F-01 major: cash population is the preparer's declared CashAccountCodes; a bank account left out is not detected. Fix: derive the population from the approved mapping.",
+        "F-02 minor: DbUpdateException catch maps every database error to IdempotencyConflict; revocation of a grant is not fenced against the decision commit (no lock on the revocation path); accepted-ledger rows are read unlocked.",
+        "F-09 minor: Partner-stage authority is a role-grant check; assignment-aware deciding-Partner rule and multi-role, unassigned and revoked-Partner tests are not yet written. Administrator still holds accounting-review and source-review rights (owner policy decision).",
+        "CP-11 minor: only two projection roles exist; working-capital adjustments need a third role (CP-12).",
+        "Test gaps: concurrent approve versus return; raw-SQL checks of the partial unique index and intent constraint."
+      ],
+      "storyItemsNotStarted": [
+        "F-05 indirect cash-flow methodology (BLOCKED_PROFESSIONAL)",
+        "F-06 equity and note source approval (BLOCKED_PROFESSIONAL)",
+        "F-07 final profile membership (BLOCKED_PROFESSIONAL)",
+        "F-08 exact composition and approved-artifact pinning (buildable, XL; release does not pin an artifact yet)",
+        "F-10 offer identity and routing (owner decision DEC-05)",
+        "CP-02 CP-03 CP-05 CP-22 owner decisions; CP-04 CP-06 CP-07 CP-08 CP-15 CP-16 CP-19 CP-20 CP-21 CP-23 CP-24 partially open",
+        "F-12 branch protection and required checks (external, owner)",
+        "CP-25 live identity, mail, selected-site, recovery and capacity gates (BLOCKED_EXTERNAL)"
+      ]
     }
   },
   "externalGates": [
@@ -1139,7 +1042,8 @@
     "keys": [
       "verification",
       "localEvidence",
-      "documentationWork"
+      "documentationWork",
+      "targetedVerification"
     ],
     "archivedOn": "2026-10-08"
   },

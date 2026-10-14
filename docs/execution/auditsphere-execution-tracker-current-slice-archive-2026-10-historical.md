@@ -6981,3 +6981,97 @@ Not done: no endpoint or screen accepts the supplementary cash-flow input, so th
 Cash-flow source links now need an independent decision before the presentation treats them as lineage. A reviewer with an accounting or management role records `APPROVED` or `RETURNED` (with a reason) against the package. Decisions are append-only (`financial_package_cash_flow_source_reviews`). The preparer who resolved a link can never review it, and a link with no recorded preparer is refused. An approval is valid only while the accepted general ledger it cites is still the current one; replacing the ledger stales it, and the presentation stops reading the links as approved. Lineage also refuses a cash-account line as a movement source, because that is a transfer. The source manifest seals a review only when one exists, so existing identities do not move. The API exposes `GET` and `POST /api/ui/accounting/packages/{id}/cash-flow-source-review`, and the package page has a review panel.
 
 Not done: the supplementary cash-flow input still has no endpoint or screen (CP-11.AC-06 is open), so a source-linked package cannot yet be built through the product. CP-12 (indirect decomposition, payment roles and the reviewed assessed-zero FX decision) is blocked on the approved indirect classification policy. Evidence is in `status.json` under `targetedVerification.cp11SourceReviewAndPresentation`.
+
+<!-- Moved verbatim from the current slice on 2026-10-15 to keep it under its 60 KB limit. -->
+
+## Restricted outbound mail verified and delivered — 2026-10-11
+
+The local interactive authentication alternative failed because the Exchange authentication
+library rejects this Mac's OS version. A temporary official Linux PowerShell container on the VPS
+provided an active supported Exchange connection. The initial access checks allowed both the
+approved sender and unrelated synthetic mailbox, proving a sender restriction was needed.
+
+A mail-enabled security scope group containing only the approved sender and an exact-app
+`RestrictAccess` policy were created. Exchange then allowed the sender and denied the unrelated
+fixture. A structurally valid Graph authorization probe with no recipients also denied the
+unrelated mailbox. The dedicated token contained only `Mail.Send`; the existing certificate was
+reused and no new application credential was added.
+
+The approved self-addressed synthetic message was accepted by Graph and Exchange's filtered
+message trace confirmed delivery. The API-only recreation enabled the mail capability; readiness
+passed, existing workers were unchanged, and fresh AuditSphere capability verification passed.
+The reviewed local Mail metadata was saved and its immutable receipt reconciled; Records remains
+unconfigured. The live mail worker was not started, so this is transport and configuration evidence,
+not durable commercial/PBC mail workflow acceptance. Temporary verification containers and files
+were removed. Exact timestamps, status and correlation evidence are in [`status.json`](status.json).
+
+The prior authentication blocker is resolved by the supported Linux path. SharePoint's exact-site
+denial and the disabled mutation capabilities remain separate blockers.
+
+## Live VPS upgrade and directory consent verified — 2026-10-11
+
+After exact owner approval, a fresh catalog-checked database backup was retained, the approved
+migrations were applied to the synthetic acceptance database, and only the API was recreated.
+Public readiness passed. Existing worker containers and the local development database were
+unchanged. Exact image, migration, backup and observation evidence is in [`status.json`](status.json).
+
+The dedicated Directory Reader now has both fixed Web callbacks and its own certificate. Only
+its public certificate was uploaded to Entra; the private key remains on the VPS. Directory Reader
+and Tenant Consent were enabled. The reviewed Microsoft consent and identity flow completed,
+and AuditSphere persisted verified consent and a fresh successful bounded directory read.
+Mail and directory mutations remain disabled. Consent verification does not promote the separate
+resource revision or activate a workspace.
+
+The deployed time screen renders FSLI attribution. End-of-service access correctly refuses an
+administrator without a Finance or Partner grant. The commercial settings screen also renders the pricing
+policy form and reports that no actual pricing policy has been configured. These are live screen observations, not a
+record-specific business acceptance run. Selected SharePoint remains blocked by the missing
+exact-site grant; neither the unrelated control nor the approved target allowed access.
+
+## VPS upgrade rehearsal and selected-site access check — 2026-10-11
+
+The previously authorized SSH access worked despite the expired Hostinger browser terminal.
+The clean VPS checkout was fast-forwarded, the published API and migration images were pulled,
+and a private custom-format PostgreSQL backup was catalog-checked and restored to a disposable
+database. The pending migrations applied there, and the new API returned readiness HTTP 200
+against that copy. The rehearsal container, database and temporary environment files were removed.
+The live database and existing services were unchanged. Its upgrade awaits the specific migration
+approval because the earlier deployment scope allowed API recreation without database migration.
+Exact image, migration and backup evidence is in [`status.json`](status.json).
+
+The installed Selected Site certificate matches the public certificate on the approved Entra app.
+A live token contained exactly `Sites.Selected` for the configured tenant. Read-only Graph checks
+returned HTTP 403 with `accessDenied` for both the approved synthetic site and its unrelated
+control. The positive grant is missing; no disposable file write was attempted and no site grant
+was changed. The server-side Selected Site app ID remains unset pending the user's exact-site grant.
+
+Automatic approval review rejected selecting the Web callback platform on the separate Directory
+Reader app because the earlier callback authorization named the Development app. Exact approval
+for the Directory Reader callbacks, certificate and read-only capability enablement has been
+requested. Its registration and runtime remain unchanged pending that response.
+
+## Current-tree acceptance verification — 2026-10-11
+
+The complete .NET and Angular suites, Release build, OpenAPI drift check, EF model-drift check,
+documentation validators and source inventory now have current-tree evidence. Exact commands,
+counts, durations, migration head and the verified code commit are recorded in [`status.json`](status.json).
+The PostgreSQL-backed tests used only the isolated `auditsphere_tests` database. The previous
+four failing browser journeys were diagnosed and fixed; the pricing-policy maker/checker and
+end-of-service professional-gate journeys are now included in browser coverage.
+
+The end-of-service page correctly blocks accrual preparation until a qualified accountant names
+the treatment and a Partner confirms it. No firm treatment or chart accounts were supplied, so no
+real accrual was prepared or posted. Certificate signing remains implemented and locally verified;
+the firm certificate and legal-sufficiency decision are still outstanding. The GitHub Wiki's
+Production Environment Settings page already documents the `ReportSigning` configuration, so no
+Wiki edit was needed.
+
+The Entra portal now confirms admin consent for `User.Read.All` on the dedicated Directory Reader
+registration, alongside its delegated `User.Read` sign-in permission. This is registration-level
+consent only: AuditSphere's tenant-connection page still shows no nonce-bound consent attempt, and
+its consent action remains unavailable until the deployment-owned consent identity and fixed
+callback are configured. Directory verification remains `NOT_VERIFIED` and the Directory Reader
+runtime switch remains disabled. The selected SharePoint target fields remain an unsubmitted
+browser-tab draft; the user will grant the exact site. Runtime Graph capabilities remain disabled,
+and the selected-resource probe and workspace activation remain blocked on that grant and credential
+setup. Do not mark those external states complete from local or Entra-registration evidence.
