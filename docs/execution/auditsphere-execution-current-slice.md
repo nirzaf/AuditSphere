@@ -19,7 +19,7 @@ which the full suite was run; per-slice records carry their own evidence.
 
 The presentation source manifest now binds the persisted current/comparative cash-flow, FX and equity rows, signed amounts, scope/currency/date/classification fields, cash populations and opening/closing evidence. Pin creation, read and freshness checks use the same versioned computation; the legacy contract field name remains unchanged. Old pins need explicit repinning to satisfy the strengthened freshness check; stored historical artifacts remain available.
 
-This is identity protection, not accepted-source resolution, allocation validation or independent professional review. The source-backed schedule editor and full reporting journey remain incomplete; professional gates remain closed. No migration, deployment or UI changes were made. Focused evidence and omissions live in `status.json`. Uncommitted audit-procedure concurrency work remains separate.
+This is identity protection, not accepted-source resolution, allocation validation or independent professional review. The source-backed schedule editor and full reporting journey remain incomplete; professional gates remain closed. No migration, deployment or UI changes were made. The subsequent dependency correction pins the already-used PKCS library to its patched version; NuGet audit enforcement is retained. Build/check evidence is tracked separately. Focused evidence and omissions live in `status.json`. Uncommitted audit-procedure concurrency work remains separate.
 
 ## Trial balance-to-report intake and signed equity — 2026-10-14
 
