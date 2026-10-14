@@ -15,6 +15,13 @@ namespace AuditSphereOps.Domain.Tests;
 internal static class CashFlowSourceSeed
 {
   /// <summary>
+  /// Optional cash events. The default ledger holds only events that the common package tests explain in full. A test that uses a
+  /// payment journal opts in, and then must explain every cash event it includes, because an unexplained one fails lineage.
+  /// </summary>
+  [Flags]
+  internal enum OptionalCashEvents { None = 0, Equipment = 1, Compound = 2 }
+
+  /// <summary>
   /// Named lines. Receivable is the credit side of a customer receipt (negative), Depreciation a debit with no cash leg,
   /// CashAccount a cash-to-cash transfer leg, Equipment a debit paid in cash, NoncashEquipment a debit bought on credit, and
   /// CompoundEquipment and CompoundFee the two debits of a compound payment whose single cash credit is in the same journal.
@@ -28,35 +35,41 @@ internal static class CashFlowSourceSeed
 
   internal static async Task<Source> SeedAcceptedGeneralLedgerAsync(DbContextOptions<AuditSphereDbContext> options,
     Guid firmId, Guid clientId, Guid engagementId, Guid periodId, Guid bookId, Guid preparerId, ActorContext reviewer,
-    string tag, decimal amount = 100m, DateOnly? postingDate = null)
+    string tag, decimal amount = 100m, DateOnly? postingDate = null, OptionalCashEvents optional = OptionalCashEvents.None)
   {
     var batch = Guid.NewGuid();
     var batchHash = batch.ToString("N") + batch.ToString("N");
     var now = DateTimeOffset.UtcNow;
     var source = new Source(batch, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
       Guid.NewGuid(), Guid.NewGuid());
-    // Journal J1 cash receipt, J2 noncash depreciation, J3 internal cash transfer, J4 cash equipment, J5 noncash equipment on
-    // credit, J6 compound payment with a fee. Account 1000 is the package cash account; each journal balances to zero.
-    var journals = Enumerable.Range(1, 6).ToDictionary(i => i, _ => Guid.NewGuid());
-    var lines = new (int Journal, Guid Id, string Account, string Stable, decimal Amount)[]
+    // Default journals: J1 cash receipt, J2 noncash depreciation, J3 a transfer between two declared cash lines that nets to zero, and
+    // J5 noncash equipment bought on credit. Account 1000 is the cash account. Optional journals: J4 cash equipment, J6 compound payment with a fee.
+    var lines = new List<(int Journal, Guid Id, string Account, string Stable, decimal Amount)>
     {
       (1, Guid.NewGuid(), "1000", "L1-cash", amount),
       (1, source.Receivable, "1100", "L1-receivable", -amount),
       (2, source.Depreciation, "1600", "L2-depreciation", 25m),
       (2, Guid.NewGuid(), "1650", "L2-accumulated-depreciation", -25m),
-      (3, Guid.NewGuid(), "1010", "L3-cash-2", 5m),
-      (3, source.CashAccount, "1000", "L3-cash", -5m),
-      (4, source.Equipment, "1500", "L4-equipment", 25m),
-      (4, Guid.NewGuid(), "1000", "L4-cash", -25m),
+      (3, Guid.NewGuid(), "1000", "L3-cash-in", 5m),
+      (3, source.CashAccount, "1000", "L3-cash-out", -5m),
       (5, source.NoncashEquipment, "1500", "L5-equipment-on-credit", 500m),
       (5, Guid.NewGuid(), "2000", "L5-payables", -500m),
-      (6, source.CompoundEquipment, "1500", "L6-equipment", 20m),
-      (6, source.CompoundFee, "6000", "L6-fee", 5m),
-      (6, Guid.NewGuid(), "1000", "L6-cash", -25m),
     };
+    if (optional.HasFlag(OptionalCashEvents.Equipment))
+    {
+      lines.Add((4, source.Equipment, "1500", "L4-equipment", 25m));
+      lines.Add((4, Guid.NewGuid(), "1000", "L4-cash", -25m));
+    }
+    if (optional.HasFlag(OptionalCashEvents.Compound))
+    {
+      lines.Add((6, source.CompoundEquipment, "1500", "L6-equipment", 20m));
+      lines.Add((6, source.CompoundFee, "6000", "L6-fee", 5m));
+      lines.Add((6, Guid.NewGuid(), "1000", "L6-cash", -25m));
+    }
+    var journals = lines.Select(x => x.Journal).Distinct().ToDictionary(i => i, _ => Guid.NewGuid());
     await using (var db = new AuditSphereDbContext(options))
     {
-      db.SourceImportBatches.Add(new(){Id=batch,FirmId=firmId,ClientId=clientId,EngagementId=engagementId,PeriodId=periodId,BookId=bookId,SourceKind="GL",ProfileVersion="cash-flow-source-v1",ParserVersion="synthetic-parser-v1",RawFileSha256Hex=batchHash,NormalizedDatasetDigest=batchHash,LegalEntityKey="SYNTHETIC-CASH-FLOW",Currency="QAR",RowCount=lines.Length,Status="LOADING",ReceiptReference="Synthetic cash-flow source "+tag,CreatedByUserId=preparerId,CreatedAt=now});
+      db.SourceImportBatches.Add(new(){Id=batch,FirmId=firmId,ClientId=clientId,EngagementId=engagementId,PeriodId=periodId,BookId=bookId,SourceKind="GL",ProfileVersion="cash-flow-source-v1",ParserVersion="synthetic-parser-v1",RawFileSha256Hex=batchHash,NormalizedDatasetDigest=batchHash,LegalEntityKey="SYNTHETIC-CASH-FLOW",Currency="QAR",RowCount=lines.Count,Status="LOADING",ReceiptReference="Synthetic cash-flow source "+tag,CreatedByUserId=preparerId,CreatedAt=now});
       foreach (var (journal, id) in journals)
         db.GeneralLedgerTransactions.Add(new(){Id=id,FirmId=firmId,ClientId=clientId,EngagementId=engagementId,ImportBatchId=batch,StableJournalId="SYN-CF-J"+journal+"-"+tag,DocumentNumber="SYN-CF-DOC"+journal+"-"+tag,PostingDate=postingDate ?? new(2026,6,30),Currency="QAR",CreatedAt=now});
       foreach (var line in lines)

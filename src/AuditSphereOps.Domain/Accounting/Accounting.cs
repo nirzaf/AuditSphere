@@ -595,6 +595,8 @@ public sealed class FinancialPackageCashFlowSourceReview
   public string? LinkDigest { get; set; }
   /// <summary>The latest decision the reviewer saw when deciding. Null when this was the first decision.</summary>
   public Guid? PreviousReviewId { get; set; }
+  /// <summary>Database-assigned order of commit. "Latest" decisions are ordered by this value, never by the application clock.</summary>
+  public long Sequence { get; set; }
 }
 
 /// <summary>Exchange-rate effect on cash for one package; reconciles cash movements

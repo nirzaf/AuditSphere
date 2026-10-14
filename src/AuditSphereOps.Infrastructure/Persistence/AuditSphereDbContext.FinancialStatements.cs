@@ -403,6 +403,7 @@ public sealed partial class AuditSphereDbContext
     cashReview.Property(x => x.Reason).HasMaxLength(2000);
     cashReview.Property(x => x.RequestHash).HasMaxLength(64).IsFixedLength();
     cashReview.Property(x => x.LinkDigest).HasMaxLength(64).IsFixedLength();
+    cashReview.Property(x => x.Sequence).ValueGeneratedOnAdd().UseIdentityByDefaultColumn();
     cashReview.ToTable("financial_package_cash_flow_source_reviews", t =>
     {
       t.HasCheckConstraint("ck_financial_package_cash_source_review_values",

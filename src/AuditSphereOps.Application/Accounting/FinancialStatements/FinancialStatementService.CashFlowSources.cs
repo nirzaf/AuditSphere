@@ -9,6 +9,12 @@ using Microsoft.EntityFrameworkCore;
 namespace AuditSphereOps.Application.Accounting;
 
 /// <summary>
+/// The resolved links of a package and the number of cash events in its accepted period ledger that no movement explains in full.
+/// A package can record CASH_FLOW_SOURCE_LINEAGE as passed only when every movement resolves and no cash event is unexplained.
+/// </summary>
+internal sealed record ResolvedCashFlowSources(IReadOnlyList<ResolvedCashFlowSourceLink> Links, int UnexplainedCashEvents);
+
+/// <summary>
 /// Cash-flow source lineage for a package build (CP-11). Each contribution keeps its accepted general-ledger line's debit-positive
 /// ledger amount as provenance. Its statement effect is a separate projection chosen by the movement's role. A cash movement is the
 /// counterpart projection of a cash event, so the ledger amount reverses onto the cash flow. A noncash movement keeps the ledger sign.
@@ -57,7 +63,7 @@ public static partial class FinancialStatementService
   /// stay unresolved and the package remains a draft. A package with no requested contribution resolves to an empty list without
   /// touching the accounting workspace.
   /// </summary>
-  internal static async Task<CommandResult<IReadOnlyList<ResolvedCashFlowSourceLink>>> ResolveCashFlowSourceLinksAsync(
+  internal static async Task<CommandResult<ResolvedCashFlowSources>> ResolveCashFlowSourceLinksAsync(
     IClientAccountingDbContext? typed, ActorContext actor, FinancialPackage package,
     Guid? periodId, IReadOnlyList<CashFlowLineInput> lines, CancellationToken ct)
   {
@@ -66,18 +72,18 @@ public static partial class FinancialStatementService
       .SelectMany(x => x.line.SourceAllocations!.Select(a => new { Movement = x.index, x.line.IsNonCash, a.GeneralLedgerLineId, a.SignedAmount }))
       .ToArray();
     if (requested.Length == 0)
-      return CommandResult<IReadOnlyList<ResolvedCashFlowSourceLink>>.Ok([]);
+      return CommandResult<ResolvedCashFlowSources>.Ok(new ResolvedCashFlowSources([], 0));
     if (typed is null || periodId is null)
-      return CommandResult<IReadOnlyList<ResolvedCashFlowSourceLink>>.Fail(ErrorCodes.GateBlocked,
+      return CommandResult<ResolvedCashFlowSources>.Fail(ErrorCodes.GateBlocked,
         "Cash-flow source lines need the accounting workspace and a reporting period.");
 
     // The ledger is selected for this package's period, so another period's acceptance can neither stand in for it nor block it (CP-10).
     var selected = await AccountingSourceAcceptanceService.GetSelectedGeneralLedgerForPeriodAsync(typed, actor, package.ClientId,
       package.EngagementId, periodId.Value, ct);
     if (!selected.Succeeded)
-      return CommandResult<IReadOnlyList<ResolvedCashFlowSourceLink>>.Fail(selected.ErrorCode!, selected.Message!);
+      return CommandResult<ResolvedCashFlowSources>.Fail(selected.ErrorCode!, selected.Message!);
     if (selected.Value?.ImportBatchId is not Guid batchId)
-      return CommandResult<IReadOnlyList<ResolvedCashFlowSourceLink>>.Fail(ErrorCodes.GateBlocked,
+      return CommandResult<ResolvedCashFlowSources>.Fail(ErrorCodes.GateBlocked,
         "Accept the general ledger for this engagement before linking cash-flow movements to source lines.");
     var period = await typed.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == package.FirmId &&
       x.ClientId == package.ClientId && x.Id == periodId, ct);
@@ -86,7 +92,7 @@ public static partial class FinancialStatementService
       x.SourceKind == AccountingSourceKinds.GeneralLedger && x.Status == "SEALED", ct);
     if (period is null || batch is null || batch.Currency != package.Currency ||
         !string.Equals(batch.NormalizedDatasetDigest, selected.Value.SourceIdentityHash, StringComparison.OrdinalIgnoreCase))
-      return CommandResult<IReadOnlyList<ResolvedCashFlowSourceLink>>.Fail(ErrorCodes.GateBlocked,
+      return CommandResult<ResolvedCashFlowSources>.Fail(ErrorCodes.GateBlocked,
         "The accepted general ledger must match this package's period, currency and sealed source identity.");
 
     var ids = requested.Select(x => x.GeneralLedgerLineId).Distinct().ToArray();
@@ -99,33 +105,35 @@ public static partial class FinancialStatementService
       select new { line.Id, line.TransactionId, line.AccountCode, line.FunctionalAmount, transaction.StableJournalId, transaction.PostingDate })
       .ToListAsync(ct);
     if (sources.Count != ids.Length)
-      return CommandResult<IReadOnlyList<ResolvedCashFlowSourceLink>>.Fail(ErrorCodes.GateBlocked,
+      return CommandResult<ResolvedCashFlowSources>.Fail(ErrorCodes.GateBlocked,
         "A cash-flow source line is not in the accepted general ledger for this period, client and engagement.");
     var byId = sources.ToDictionary(x => x.Id);
     // A line on one of the package's own cash accounts is a cash transfer leg, not a source for a movement, so it can never be a source.
     if (requested.Any(x => package.CashAccountCodes.Contains(byId[x.GeneralLedgerLineId].AccountCode, StringComparer.Ordinal)))
-      return CommandResult<IReadOnlyList<ResolvedCashFlowSourceLink>>.Fail(ErrorCodes.Accounting.PackageInvalid,
+      return CommandResult<ResolvedCashFlowSources>.Fail(ErrorCodes.Accounting.PackageInvalid,
         "A cash-account line is a cash transfer, not a cash-flow movement. Link the movement to its non-cash counterpart line.");
 
-    // Cash-event membership. A journal moves package cash when one of its lines sits on a package cash account, and its cash effect
-    // is the sum of those legs. A cash movement may draw only on such a journal; a noncash movement only on a journal without cash.
-    var transactionIds = sources.Select(x => x.TransactionId).Distinct().ToArray();
-    var journalLines = await typed.GeneralLedgerLines.AsNoTracking()
-      .Where(x => x.FirmId == package.FirmId && x.ClientId == package.ClientId && x.EngagementId == package.EngagementId &&
-        x.ImportBatchId == batchId && transactionIds.Contains(x.TransactionId))
-      .Select(x => new { x.TransactionId, x.AccountCode, x.FunctionalAmount })
+    // Cash events of the period. Every journal in the accepted batch with a leg on a package cash account is a cash event, and its cash
+    // effect is the sum of those legs. A journal whose cash legs net to zero is a transfer between declared accounts and has no effect.
+    // Enumerating the whole ledger, not only the journals a movement draws on, is what detects a cash event the package never explains.
+    var cashCodes = package.CashAccountCodes;
+    var cashEvents = await (from line in typed.GeneralLedgerLines.AsNoTracking()
+        join transaction in typed.GeneralLedgerTransactions.AsNoTracking() on line.TransactionId equals transaction.Id
+        where line.FirmId == package.FirmId && line.ClientId == package.ClientId && line.EngagementId == package.EngagementId &&
+          line.ImportBatchId == batchId && transaction.FirmId == package.FirmId && transaction.ImportBatchId == batchId &&
+          transaction.PostingDate >= period.StartDate && transaction.PostingDate <= period.EndDate && cashCodes.Contains(line.AccountCode)
+        group line.FunctionalAmount by line.TransactionId into effect
+        select new { TransactionId = effect.Key, Amount = effect.Sum() })
       .ToListAsync(ct);
-    var cashEffect = journalLines.Where(x => package.CashAccountCodes.Contains(x.AccountCode, StringComparer.Ordinal))
-      .GroupBy(x => x.TransactionId)
-      .ToDictionary(g => g.Key, g => MoneyPolicy.Normalize(g.Sum(x => x.FunctionalAmount)));
+    var cashEffect = cashEvents.ToDictionary(x => x.TransactionId, x => MoneyPolicy.Normalize(x.Amount));
     foreach (var x in requested)
     {
       var movesCash = cashEffect.ContainsKey(byId[x.GeneralLedgerLineId].TransactionId);
       if (x.IsNonCash && movesCash)
-        return CommandResult<IReadOnlyList<ResolvedCashFlowSourceLink>>.Fail(ErrorCodes.Accounting.PackageInvalid,
+        return CommandResult<ResolvedCashFlowSources>.Fail(ErrorCodes.Accounting.PackageInvalid,
           "A noncash movement cannot draw on a journal that moves package cash. Link the cash movement to that journal instead.");
       if (!x.IsNonCash && !movesCash)
-        return CommandResult<IReadOnlyList<ResolvedCashFlowSourceLink>>.Fail(ErrorCodes.Accounting.PackageInvalid,
+        return CommandResult<ResolvedCashFlowSources>.Fail(ErrorCodes.Accounting.PackageInvalid,
           "A cash-flow movement must draw on a journal that moves package cash. A journal without a cash leg is a noncash adjustment or disclosure.");
     }
 
@@ -137,7 +145,7 @@ public static partial class FinancialStatementService
       var total = MoneyPolicy.Normalize(group.Sum(x => x.SignedAmount));
       if (source.FunctionalAmount == 0m || group.Any(x => Math.Sign(x.SignedAmount) != Math.Sign(source.FunctionalAmount)) ||
           Math.Abs(total) > Math.Abs(source.FunctionalAmount))
-        return CommandResult<IReadOnlyList<ResolvedCashFlowSourceLink>>.Fail(ErrorCodes.Accounting.PackageInvalid,
+        return CommandResult<ResolvedCashFlowSources>.Fail(ErrorCodes.Accounting.PackageInvalid,
           "A source line is over-allocated across the cash-flow movements or contributes against its own sign.");
     }
 
@@ -148,6 +156,7 @@ public static partial class FinancialStatementService
       .ToDictionary(g => g.Key, g => MoneyPolicy.Normalize(g.Sum(x => ProjectCashFlowContribution(false, x.SignedAmount))));
     bool JournalExplained(Guid transactionId) =>
       projectedByJournal.TryGetValue(transactionId, out var projected) && cashEffect.TryGetValue(transactionId, out var effect) && projected == effect;
+    var unexplainedCashEvents = cashEffect.Count(x => x.Value != 0m && projectedByJournal.GetValueOrDefault(x.Key) != x.Value);
 
     var resolved = requested.Select(x =>
     {
@@ -168,7 +177,7 @@ public static partial class FinancialStatementService
       return new ResolvedCashFlowSourceLink(x.Movement, source.Id, source.TransactionId, batchId, hash,
         MoneyPolicy.Normalize(x.SignedAmount), batch.Currency, x.IsNonCash || JournalExplained(source.TransactionId));
     }).ToArray();
-    return CommandResult<IReadOnlyList<ResolvedCashFlowSourceLink>>.Ok(resolved);
+    return CommandResult<ResolvedCashFlowSources>.Ok(new ResolvedCashFlowSources(resolved, unexplainedCashEvents));
   }
 
   /// <summary>

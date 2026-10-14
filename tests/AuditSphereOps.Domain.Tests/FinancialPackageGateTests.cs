@@ -210,28 +210,27 @@ public sealed class FinancialPackageGateTests
     }
   }
 
-  [Fact]
-  [Trait("Profile", "Database")]
-  public async Task LegacyPartnerRowRecordedByAdministrator_DoesNotSatisfyReleaseGate()
+  /// <summary>A validated package with source review, a rendered artifact, and management and accounting approvals, waiting for the Partner stage.</summary>
+  private static async Task<(Fixture Fixture, Guid PackageId, ActorContext Preparer, ActorContext Reviewer)> PackageAwaitingPartnerAsync(
+    PgTestSchema pg, string tag)
   {
-    await using var pg = await PgTestSchema.CreateAsync();
     var fixture = await SeedAsync(pg);
     var preparer = Actor(fixture.Preparer, "AccountingPreparer");
     var reviewer = Actor(fixture.Reviewer, "AccountingReviewer");
     var source = await CashFlowSourceSeed.SeedAcceptedGeneralLedgerAsync(pg, fixture.FirmId, fixture.ClientId,
-      fixture.EngagementId, fixture.PeriodId, fixture.BookId, fixture.Preparer.Id, reviewer, "legacy-partner");
+      fixture.EngagementId, fixture.PeriodId, fixture.BookId, fixture.Preparer.Id, reviewer, tag);
     var (mappingId, planId) = await CreateApprovedMappingAndPlanAsync(pg, fixture, preparer, reviewer);
-    var request = new BuildFinancialPackageRequest(planId, mappingId, "IFRS", "2026-01-01", "2026-12-31", "legacy-partner-v1")
+    var request = new BuildFinancialPackageRequest(planId, mappingId, "IFRS", "2026-01-01", "2026-12-31", tag + "-v1")
     {
       SupplementaryInformation = new FinancialSupplementaryInformation(
         0m, 100m,
         [new CashFlowLineInput("OPERATING", "Cash receipts", 100m, MovementDate: new DateOnly(2026, 6, 30),
-          ActivityCode: "CASH_RECEIPTS", SourceReferences: ["bank-ledger-legacy"], ClassificationRationale: "Synthetic receipts agreed to source.",
+          ActivityCode: "CASH_RECEIPTS", SourceReferences: ["bank-ledger-" + tag], ClassificationRationale: "Synthetic receipts agreed to source.",
           SourceAllocations: [new CashFlowSourceAllocationInput(source.Receivable, -100m)])],
         [new DisclosureInput("CASH_POLICY", "Cash is presented at face value."),
          new DisclosureInput("COMMITMENTS", string.Empty, NotApplicable: true, Rationale: "None identified.")],
-        [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 100m, "equity-legacy-1")],
-        CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-cash-legacy"], ClosingCashEvidenceReferences: ["closing-cash-legacy"])
+        [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 100m, "equity-" + tag)],
+        CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-cash-" + tag], ClosingCashEvidenceReferences: ["closing-cash-" + tag])
     };
     Guid packageId;
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -244,12 +243,33 @@ public sealed class FinancialPackageGateTests
       Assert.True((await FinancialPackageReviewService.RecordAsync(db, preparer,
         new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.ManagementApproval,
           FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.Offline,
-          "legacy-management", "Management approved the exact package."))).Succeeded);
+          tag + "-management", "Management approved the exact package."))).Succeeded);
       Assert.True((await FinancialPackageReviewService.RecordAsync(db, reviewer,
         new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.AccountingReview,
           FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn,
-          "legacy-accounting", "Accounting reviewed the exact package."))).Succeeded);
+          tag + "-accounting", "Accounting reviewed the exact package."))).Succeeded);
     }
+    return (fixture, packageId, preparer, reviewer);
+  }
+
+  private static async Task<AppUser> AddUserWithGrantAsync(PgTestSchema pg, Guid firmId, string name, RoleGrant grant)
+  {
+    var user = User(firmId, name);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    db.Users.Add(user);
+    grant.UserId = user.Id;
+    grant.FirmId = firmId;
+    db.RoleGrants.Add(grant);
+    await db.SaveChangesAsync();
+    return user;
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task LegacyPartnerRowRecordedByAdministrator_DoesNotSatisfyReleaseGate()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var (fixture, packageId, _, reviewer) = await PackageAwaitingPartnerAsync(pg, "legacy-partner");
 
     // A Partner row written before Administrator left the stage: an administrator recorded it, and no Partner grant backs it.
     var administrator = User(fixture.FirmId, "legacy-administrator");
@@ -278,6 +298,59 @@ public sealed class FinancialPackageGateTests
       var gate = await FinancialPackageReviewService.RequireCurrentAsync(db, reviewer, packageId, requirePartner: true);
       Assert.Equal(ErrorCodes.GateBlocked, gate.ErrorCode);
       Assert.Contains("current Partner", gate.Message!, StringComparison.Ordinal);
+    }
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task PartnerStage_RequiresACurrentPartnerGrantOnThisEngagement()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var (fixture, packageId, _, _) = await PackageAwaitingPartnerAsync(pg, "partner-scope");
+    var now = DateTimeOffset.UtcNow;
+    RoleGrant PartnerGrant(Guid? engagementId, DateTimeOffset? revokedAt = null) => new()
+    {
+      Id = Guid.NewGuid(), Role = "Partner", ClientId = fixture.ClientId, EngagementId = engagementId,
+      GrantedAt = now, GrantedByUserId = fixture.Partner.Id, RevokedAt = revokedAt,
+    };
+    // A Partner on another engagement of the same client, and a Partner whose grant was revoked, cannot decide this package.
+    var otherEngagementId = Guid.NewGuid();
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.Engagements.Add(new Engagement { Id = otherEngagementId, FirmId = fixture.FirmId, PracticeClientId = fixture.ClientId,
+        ProfessionalWorkBlocked = false, CreatedAt = now });
+      await db.SaveChangesAsync();
+    }
+    var elsewhere = await AddUserWithGrantAsync(pg, fixture.FirmId, "partner-elsewhere", PartnerGrant(otherEngagementId));
+    var revoked = await AddUserWithGrantAsync(pg, fixture.FirmId, "partner-revoked", PartnerGrant(fixture.EngagementId, now.AddDays(-1)));
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.Equal(ErrorCodes.ScopeDenied, (await FinancialPackageReviewService.RecordAsync(db, Actor(elsewhere, "Partner"),
+        new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.PartnerApproval,
+          FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn, "partner-elsewhere", "Wrong engagement."))).ErrorCode);
+      Assert.Equal(ErrorCodes.ScopeDenied, (await FinancialPackageReviewService.RecordAsync(db, Actor(revoked, "Partner"),
+        new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.PartnerApproval,
+          FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn, "partner-revoked", "Revoked grant."))).ErrorCode);
+    }
+
+    // An administrator who also holds a current Partner grant on this engagement is a Partner for this decision, and the gate accepts it.
+    var both = await AddUserWithGrantAsync(pg, fixture.FirmId, "administrator-partner",
+      new RoleGrant { Id = Guid.NewGuid(), Role = "Administrator", GrantedAt = now, GrantedByUserId = fixture.Partner.Id });
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var partnerForBoth = PartnerGrant(fixture.EngagementId);
+      partnerForBoth.UserId = both.Id;
+      partnerForBoth.FirmId = fixture.FirmId;
+      db.RoleGrants.Add(partnerForBoth);
+      await db.SaveChangesAsync();
+    }
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var decided = await FinancialPackageReviewService.RecordAsync(db, Actor(both, "Partner"),
+        new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.PartnerApproval,
+          FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn, "partner-current", "Partner decision."));
+      Assert.True(decided.Succeeded, decided.Message);
+      Assert.True((await FinancialPackageReviewService.RequireCurrentAsync(db, Actor(both, "Partner"), packageId, requirePartner: true)).Succeeded);
     }
   }
 

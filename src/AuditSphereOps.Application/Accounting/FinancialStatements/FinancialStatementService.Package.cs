@@ -37,6 +37,19 @@ public static partial class FinancialStatementService
     var auth = await AuthorizeAsync(db, actor, mapping.FirmId, mapping.ClientId, mapping.EngagementId, PreparerRoles.ToArray(), ct);
     if (!auth.Succeeded)
       return CommandResult<FinancialPackageBuildResult>.Fail(auth.ErrorCode!, auth.Message!);
+    // The cash population cannot omit an account the approved mapping places in the cash statement line. A declared list that leaves one out
+    // would let that account's cash events escape the cash bridge and the lineage check.
+    if (request.SupplementaryInformation?.CashAccountCodes is { } declaredCashAccounts)
+    {
+      var mappedCash = await db.MappingAllocations.AsNoTracking()
+        .Where(x => x.FirmId == mapping.FirmId && x.MappingVersionId == mapping.Id && x.DestinationCode == "CASH")
+        .Select(x => x.SourceAccountCode).ToListAsync(ct);
+      var undeclared = mappedCash.Where(code => !declaredCashAccounts.Contains(code, StringComparer.Ordinal))
+        .Distinct(StringComparer.Ordinal).OrderBy(x => x, StringComparer.Ordinal).ToList();
+      if (undeclared.Count > 0)
+        return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.Accounting.PackageSupplementaryInvalid,
+          $"Account {undeclared[0]} is mapped to cash but is not a declared cash account.");
+    }
 
     var calculated = await CalculateAdjustedBalancesAsync(db, plan, ct);
     if (!calculated.Succeeded)
@@ -349,7 +362,7 @@ public static partial class FinancialStatementService
         movements.Add(movement);
         db.FinancialPackageCashFlowLines.Add(movement);
       }
-      foreach (var link in sourceLinks.Value!)
+      foreach (var link in sourceLinks.Value!.Links)
         db.FinancialPackageCashFlowAllocations.Add(new FinancialPackageCashFlowAllocation
         {
           Id = Guid.CreateVersion7(), FirmId = package.FirmId, ClientId = package.ClientId,
@@ -365,12 +378,16 @@ public static partial class FinancialStatementService
       {
         var resolvedMovements = ResolvedCashFlowMovements(
           request.SupplementaryInformation.CashFlowLines.Select(x => (MoneyPolicy.Normalize(x.Amount), x.IsNonCash)).ToArray(),
-          sourceLinks.Value!.Select(x => (x.MovementIndex, x.SignedAmount, x.PopulationComplete)));
+          sourceLinks.Value!.Links.Select(x => (x.MovementIndex, x.SignedAmount, x.PopulationComplete)));
         var unresolved = resolvedMovements.Count(x => !x);
-        AddValidation(db, package, "CASH_FLOW_SOURCE_LINEAGE", unresolved == 0,
-          unresolved == 0
-            ? "Every cash-flow movement is fully allocated to accepted general-ledger lines."
-            : $"{unresolved} cash-flow movement(s) are not fully allocated to accepted general-ledger lines.");
+        // Lineage also fails when a cash event in the accepted period ledger is not explained by any movement, linked or not.
+        var unexplained = sourceLinks.Value!.UnexplainedCashEvents;
+        AddValidation(db, package, "CASH_FLOW_SOURCE_LINEAGE", unresolved == 0 && unexplained == 0,
+          unresolved == 0 && unexplained == 0
+            ? "Every cash-flow movement is fully allocated, and every cash event in the accepted general ledger is explained."
+            : unexplained > 0
+              ? $"{unexplained} cash event(s) in the accepted general ledger are not explained by any cash-flow movement."
+              : $"{unresolved} cash-flow movement(s) are not fully allocated to accepted general-ledger lines.");
       }
       foreach (var fxEffect in request.SupplementaryInformation.FxCashEffects ?? [])
         db.FinancialPackageFxEffects.Add(new FinancialPackageFxEffect

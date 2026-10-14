@@ -399,11 +399,13 @@ public sealed class CashFlowContractTests
     var fixture = await SeedAsync(pg);
     var preparer = Actor(fixture.Preparer, "AccountingPreparer");
     var reviewer = Actor(fixture.Reviewer, "AccountingReviewer");
-    var source = await SeedAcceptedGeneralLedgerAsync(pg, fixture, reviewer);
+    var source = await SeedAcceptedGeneralLedgerAsync(pg, fixture, reviewer, optional: CashFlowSourceSeed.OptionalCashEvents.Equipment);
     var (mappingId, planId) = await CreateApprovedMappingAndPlanAsync(pg, fixture, preparer, reviewer);
 
-    // The equipment debit is +25 in the ledger. Its cash effect is an outflow of -25, which the bridge takes from 50 to 25.
-    var payment = SourceRequest(planId, mappingId, "equipment-paid-v1", 125m, 100m,
+    // The equipment debit is +25 in the ledger, and its cash effect is an outflow of -25. The receipt journal is explained too, so every
+    // cash event in the period is accounted for: the bridge runs from 25 through +100 and -25 to the closing cash of 100.
+    var payment = SourceRequest(planId, mappingId, "equipment-paid-v1", 25m, 100m,
+      CashMovement("OPERATING", "Cash receipts from customers", 100m, false, "CASH_RECEIPTS", new CashFlowSourceAllocationInput(source.Receivable, -100m)),
       CashMovement("INVESTING", "Equipment paid in cash", -25m, false, "CAPEX_PAID", new CashFlowSourceAllocationInput(source.Equipment, 25m)));
     Guid packageId;
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -412,10 +414,11 @@ public sealed class CashFlowContractTests
       Assert.True(built.Succeeded, built.Message);
       Assert.Equal(AccountingPackageStates.PackageValidated, built.Value!.Status);
       packageId = built.Value.PackageId;
-      var movement = await db.FinancialPackageCashFlowLines.AsNoTracking().SingleAsync(x => x.FinancialPackageId == packageId);
+      var movement = await db.FinancialPackageCashFlowLines.AsNoTracking().SingleAsync(x => x.FinancialPackageId == packageId && x.ActivityCode == "CAPEX_PAID");
       Assert.Equal(-25m, movement.Amount);
       // The stored contribution keeps the debit sign of the ledger line; the projection is derived, never written back.
-      Assert.Equal(25m, (await db.FinancialPackageCashFlowAllocations.AsNoTracking().SingleAsync(x => x.FinancialPackageId == packageId)).SignedAmount);
+      Assert.Equal(25m, (await db.FinancialPackageCashFlowAllocations.AsNoTracking()
+        .SingleAsync(x => x.FinancialPackageId == packageId && x.GeneralLedgerLineId == source.Equipment)).SignedAmount);
     }
 
     // Matching the ledger sign to the outflow is a sign reversal: its projection would be +25 against a -25 movement.
@@ -484,11 +487,13 @@ public sealed class CashFlowContractTests
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var disclosed = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, SourceRequest(planId, mappingId,
-        "noncash-disclosure-v1", 100m, 100m,
+        "noncash-disclosure-v1", 0m, 100m,
+        CashMovement("OPERATING", "Cash receipts from customers", 100m, false, "CASH_RECEIPTS", new CashFlowSourceAllocationInput(source.Receivable, -100m)),
         CashMovement("INVESTING", "Equipment acquired on credit", 500m, true, "NON_CASH_ACQUISITION", new CashFlowSourceAllocationInput(source.NoncashEquipment, 500m))));
       Assert.True(disclosed.Succeeded, disclosed.Message);
       Assert.Equal(AccountingPackageStates.PackageValidated, disclosed.Value!.Status);
-      Assert.True((await db.FinancialPackageCashFlowLines.AsNoTracking().SingleAsync(x => x.FinancialPackageId == disclosed.Value.PackageId)).IsNonCash);
+      Assert.True((await db.FinancialPackageCashFlowLines.AsNoTracking()
+        .SingleAsync(x => x.FinancialPackageId == disclosed.Value.PackageId && x.ActivityCode == "NON_CASH_ACQUISITION")).IsNonCash);
     }
   }
 
@@ -500,19 +505,20 @@ public sealed class CashFlowContractTests
     var fixture = await SeedAsync(pg);
     var preparer = Actor(fixture.Preparer, "AccountingPreparer");
     var reviewer = Actor(fixture.Reviewer, "AccountingReviewer");
-    var source = await SeedAcceptedGeneralLedgerAsync(pg, fixture, reviewer);
+    var source = await SeedAcceptedGeneralLedgerAsync(pg, fixture, reviewer, optional: CashFlowSourceSeed.OptionalCashEvents.Compound);
     var (mappingId, planId) = await CreateApprovedMappingAndPlanAsync(pg, fixture, preparer, reviewer);
 
-    // The journal debits equipment 20 and fees 5 and credits cash 25. Both debits explain the single cash leg.
+    // The journal debits equipment 20 and fees 5 and credits cash 25. Both debits explain the single cash leg, and the receipt is explained too.
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var complete = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, SourceRequest(planId, mappingId,
-        "compound-v1", 125m, 100m,
+        "compound-v1", 25m, 100m,
+        CashMovement("OPERATING", "Cash receipts from customers", 100m, false, "CASH_RECEIPTS", new CashFlowSourceAllocationInput(source.Receivable, -100m)),
         CashMovement("INVESTING", "Equipment part of compound payment", -20m, false, "CAPEX_PAID", new CashFlowSourceAllocationInput(source.CompoundEquipment, 20m)),
         CashMovement("OPERATING", "Bank fee part of compound payment", -5m, false, "BANK_CHARGES", new CashFlowSourceAllocationInput(source.CompoundFee, 5m))));
       Assert.True(complete.Succeeded, complete.Message);
       Assert.Equal(AccountingPackageStates.PackageValidated, complete.Value!.Status);
-      Assert.Equal(2, await db.FinancialPackageCashFlowAllocations.CountAsync(x => x.FinancialPackageId == complete.Value.PackageId));
+      Assert.Equal(3, await db.FinancialPackageCashFlowAllocations.CountAsync(x => x.FinancialPackageId == complete.Value.PackageId));
     }
 
     // Only the equipment part is linked. Its own movement totals, but the journal's cash leg is not fully explained, so the package stays a draft.
@@ -554,6 +560,56 @@ public sealed class CashFlowContractTests
       "transfer-v1", 95m, 100m,
       CashMovement("OPERATING", "Transfer between bank accounts", 5m, false, "CASH_TRANSFER", new CashFlowSourceAllocationInput(source.CashAccount, -5m))));
     Assert.Equal(ErrorCodes.Accounting.PackageInvalid, transfer.ErrorCode);
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task OmittedCashEvent_IsNotHiddenByAnFxRow()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    var preparer = Actor(fixture.Preparer, "AccountingPreparer");
+    var reviewer = Actor(fixture.Reviewer, "AccountingReviewer");
+    // The period has two cash events: the receipt of +100 and the equipment payment of -25. The package explains only the payment.
+    var source = await SeedAcceptedGeneralLedgerAsync(pg, fixture, reviewer, optional: CashFlowSourceSeed.OptionalCashEvents.Equipment);
+    var (mappingId, planId) = await CreateApprovedMappingAndPlanAsync(pg, fixture, preparer, reviewer);
+
+    // An FX row of +100 would make the bridge reconcile (25 - 25 + 100 = 100), so the omitted receipt must be caught by lineage, not by the bridge.
+    var request = SourceRequest(planId, mappingId, "omitted-cash-event-v1", 25m, 100m,
+      CashMovement("INVESTING", "Equipment paid in cash", -25m, false, "CAPEX_PAID", new CashFlowSourceAllocationInput(source.Equipment, 25m)));
+    request = request with { SupplementaryInformation = request.SupplementaryInformation! with
+    {
+      FxCashEffects = [new FxCashEffectInput("USD/QAR", 100m, "fx-omitted-cash-event")],
+    } };
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var built = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, request);
+    Assert.True(built.Succeeded, built.Message);
+    Assert.NotEqual(AccountingPackageStates.PackageValidated, built.Value!.Status);
+    var lineage = await db.FinancialPackageValidations.AsNoTracking()
+      .SingleAsync(x => x.FinancialPackageId == built.Value.PackageId && x.Code == "CASH_FLOW_SOURCE_LINEAGE");
+    Assert.False(lineage.Passed);
+    Assert.Contains("not explained by any cash-flow movement", lineage.Detail, StringComparison.Ordinal);
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task MappedCashAccountMustBeDeclaredInTheCashPopulation()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    var preparer = Actor(fixture.Preparer, "AccountingPreparer");
+    var reviewer = Actor(fixture.Reviewer, "AccountingReviewer");
+    var source = await SeedAcceptedGeneralLedgerAsync(pg, fixture, reviewer);
+    var (mappingId, planId) = await CreateApprovedMappingAndPlanAsync(pg, fixture, preparer, reviewer);
+
+    // The approved mapping places account 1000 in the cash line. A declared population that leaves it out is refused before any cash is read.
+    var request = SourceRequest(planId, mappingId, "undeclared-cash-v1", 0m, 100m,
+      CashMovement("OPERATING", "Cash receipts from customers", 100m, false, "CASH_RECEIPTS", new CashFlowSourceAllocationInput(source.Receivable, -100m)));
+    request = request with { SupplementaryInformation = request.SupplementaryInformation! with { CashAccountCodes = ["9999"] } };
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var refused = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, request);
+    Assert.Equal(ErrorCodes.Accounting.PackageSupplementaryInvalid, refused.ErrorCode);
+    Assert.Contains("1000", refused.Message!, StringComparison.Ordinal);
   }
 
   private static CashFlowLineInput CashMovement(string section, string description, decimal amount, bool nonCash, string activity,
@@ -780,6 +836,73 @@ public sealed class CashFlowContractTests
     task.IsFaulted ? "exception " + task.Exception!.GetBaseException().Message
       : task.Result.Succeeded ? "succeeded" : $"refused {task.Result.ErrorCode}: {task.Result.Message}";
 
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task SourceReview_ConcurrentApprovalAndReturnCommitExactlyOneDecision()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    var preparer = Actor(fixture.Preparer, "AccountingPreparer");
+    var reviewer = Actor(fixture.Reviewer, "AccountingReviewer");
+    var source = await SeedAcceptedGeneralLedgerAsync(pg, fixture, reviewer);
+    var (mappingId, planId) = await CreateApprovedMappingAndPlanAsync(pg, fixture, preparer, reviewer);
+    var packageId = await BuildCompletePackageAsync(pg, planId, mappingId, preparer, source, "concurrent-decisions-v1");
+
+    CashFlowSourceReviewState opened;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+      opened = (await FinancialStatementService.GetCashFlowSourceReviewAsync(db, reviewer, packageId)).Value!;
+
+    // Two reviewers decide from the same view: one approves, one returns. The package lock serializes them, so one commits and the other
+    // sees a newer latest decision and is refused as stale. Neither wins by wall-clock order.
+    await using var first = new AuditSphereDbContext(pg.Options);
+    await using var second = new AuditSphereDbContext(pg.Options);
+    var approve = FinancialStatementService.RecordCashFlowSourceReviewAsync(first, reviewer, packageId, "APPROVED", null,
+      Guid.NewGuid(), opened.LinkDigest, opened.LatestReviewId);
+    var returned = FinancialStatementService.RecordCashFlowSourceReviewAsync(second, reviewer, packageId, "RETURNED", "Re-check the support.",
+      Guid.NewGuid(), opened.LinkDigest, opened.LatestReviewId);
+    var results = await Task.WhenAll(approve, returned);
+    Assert.Equal(1, results.Count(x => x.Succeeded));
+    Assert.Equal(ErrorCodes.StaleRevision, results.Single(x => !x.Succeeded).ErrorCode);
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    Assert.Equal(1, await verify.FinancialPackageCashFlowSourceReviews.CountAsync(x => x.FinancialPackageId == packageId));
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task SourceReview_DatabaseRefusesADuplicateIntentAndAPartialIntent()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    var preparer = Actor(fixture.Preparer, "AccountingPreparer");
+    var reviewer = Actor(fixture.Reviewer, "AccountingReviewer");
+    var source = await SeedAcceptedGeneralLedgerAsync(pg, fixture, reviewer);
+    var (mappingId, planId) = await CreateApprovedMappingAndPlanAsync(pg, fixture, preparer, reviewer);
+    var packageId = await BuildCompletePackageAsync(pg, planId, mappingId, preparer, source, "raw-constraints-v1");
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var recorded = await CashFlowSourceReviewCall.RecordAsync(db, reviewer, packageId, "APPROVED", null);
+    Assert.True(recorded.Succeeded, recorded.Message);
+    var reviewId = recorded.Value;
+
+    // Copy the stored decision with a new row identity but the same request identity: the partial unique index refuses it.
+    var duplicate = Assert.ThrowsAnyAsync<Exception>(() => db.Database.ExecuteSqlInterpolatedAsync($@"
+      INSERT INTO financial_package_cash_flow_source_reviews (id, firm_id, client_id, engagement_id, financial_package_id, decision, reason,
+        source_import_batch_id, reviewed_by_user_id, reviewed_at, request_id, request_hash, link_digest, previous_review_id)
+      SELECT gen_random_uuid(), firm_id, client_id, engagement_id, financial_package_id, decision, reason, source_import_batch_id,
+        reviewed_by_user_id, now(), request_id, request_hash, link_digest, previous_review_id
+      FROM financial_package_cash_flow_source_reviews WHERE id = {reviewId}"));
+    Assert.Contains("ux_financial_package_cash_source_review_request", (await duplicate).ToString(), StringComparison.Ordinal);
+
+    // A row with a request identity but no hash, or no identity but a hash, is refused by the intent check constraint.
+    var partial = Assert.ThrowsAnyAsync<Exception>(() => db.Database.ExecuteSqlInterpolatedAsync($@"
+      INSERT INTO financial_package_cash_flow_source_reviews (id, firm_id, client_id, engagement_id, financial_package_id, decision, reason,
+        source_import_batch_id, reviewed_by_user_id, reviewed_at, request_id, request_hash, link_digest, previous_review_id)
+      SELECT gen_random_uuid(), firm_id, client_id, engagement_id, financial_package_id, decision, reason, source_import_batch_id,
+        reviewed_by_user_id, now(), NULL, request_hash, link_digest, previous_review_id
+      FROM financial_package_cash_flow_source_reviews WHERE id = {reviewId}"));
+    Assert.Contains("ck_financial_package_cash_source_review_intent", (await partial).ToString(), StringComparison.Ordinal);
+  }
+
   private static async Task<Guid> BuildCompletePackageAsync(PgTestSchema pg, Guid planId, Guid mappingId, ActorContext preparer,
     CashFlowSourceSeed.Source source, string template)
   {
@@ -798,8 +921,10 @@ public sealed class CashFlowContractTests
     return await db.FinancialPackageCashFlowAllocations.CountAsync();
   }
 
-  private static Task<CashFlowSourceSeed.Source> SeedAcceptedGeneralLedgerAsync(PgTestSchema pg, Fixture f, ActorContext reviewer, decimal amount = 100m) =>
-    CashFlowSourceSeed.SeedAcceptedGeneralLedgerAsync(pg.Options, f.FirmId, f.ClientId, f.EngagementId, f.PeriodId, f.BookId, f.Preparer.Id, reviewer, "contract", amount);
+  private static Task<CashFlowSourceSeed.Source> SeedAcceptedGeneralLedgerAsync(PgTestSchema pg, Fixture f, ActorContext reviewer, decimal amount = 100m,
+    CashFlowSourceSeed.OptionalCashEvents optional = CashFlowSourceSeed.OptionalCashEvents.None) =>
+    CashFlowSourceSeed.SeedAcceptedGeneralLedgerAsync(pg.Options, f.FirmId, f.ClientId, f.EngagementId, f.PeriodId, f.BookId, f.Preparer.Id, reviewer,
+      "contract", amount, null, optional);
 
   private static async Task<(Guid MappingId, Guid PlanId)> CreateApprovedMappingAndPlanAsync(
     PgTestSchema pg, Fixture fixture, ActorContext preparer, ActorContext reviewer)

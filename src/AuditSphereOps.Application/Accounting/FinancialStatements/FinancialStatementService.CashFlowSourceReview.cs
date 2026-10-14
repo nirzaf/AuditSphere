@@ -65,6 +65,15 @@ public static partial class FinancialStatementService
       .AsNoTracking().SingleOrDefaultAsync(ct);
     if (locked is null)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    // Share locks fence what the decision depends on. Source acceptance holds the client safety row for update, so an acceptance cannot land
+    // between this check and the commit. The reviewer's grant rows are held too, so a revocation waits for this decision to finish.
+    await db.ClientSafetyStates.FromSqlInterpolated(
+        $"SELECT * FROM client_safety_states WHERE firm_id = {actor.FirmId} AND id = {locked.ClientId} FOR SHARE")
+      .AsNoTracking().ToListAsync(ct);
+    await db.RoleGrants.FromSqlInterpolated(
+        $"SELECT * FROM role_grants WHERE firm_id = {actor.FirmId} AND user_id = {actor.UserId} AND revoked_at IS NULL FOR SHARE")
+      .AsNoTracking().ToListAsync(ct);
+    // Authority is checked again only after the locks are held, so a grant revoked while this command waited is refused.
     auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, locked.ClientId, locked.EngagementId, CashFlowSourceReviewRoles, InternalOnly: true), ct);
     if (!auth.Succeeded)
@@ -130,8 +139,9 @@ public static partial class FinancialStatementService
     {
       await db.SaveChangesAsync(ct);
     }
-    catch (DbUpdateException)
+    catch (DbUpdateException ex) when (ex.InnerException?.Message.Contains("ux_financial_package_cash_source_review_request", StringComparison.Ordinal) == true)
     {
+      // Only the request-identity uniqueness maps to a conflict. Any other database failure is a fault and propagates.
       return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict, "This source decision was recorded concurrently. Reload the review.");
     }
     if (tx is not null) await tx.CommitAsync(ct);
@@ -154,7 +164,7 @@ public static partial class FinancialStatementService
     var current = lineage.Value!;
     var reviews = await db.FinancialPackageCashFlowSourceReviews.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == package.Id)
-      .OrderByDescending(x => x.ReviewedAt).ThenByDescending(x => x.Id).Take(MaxCashFlowSourceReviewEntries).ToListAsync(ct);
+      .OrderByDescending(x => x.Sequence).Take(MaxCashFlowSourceReviewEntries).ToListAsync(ct);
     var latest = reviews.FirstOrDefault();
     // Approval also requires the persisted lineage result: the build recorded every cash event as explained. A resolved-looking link alone is not enough.
     var lineagePassed = await LineageValidatedAsync(db, package.FirmId, package.Id, ct);
@@ -238,7 +248,7 @@ public static partial class FinancialStatementService
     Guid packageId, CancellationToken ct) =>
     db.FinancialPackageCashFlowSourceReviews.AsNoTracking()
       .Where(x => x.FirmId == firmId && x.FinancialPackageId == packageId)
-      .OrderByDescending(x => x.ReviewedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+      .OrderByDescending(x => x.Sequence).FirstOrDefaultAsync(ct);
 
   /// <summary>True only when the build recorded CASH_FLOW_SOURCE_LINEAGE as passed: every movement resolved and every cash event explained.</summary>
   private static Task<bool> LineageValidatedAsync(IClientAccountingDbContext db, Guid firmId, Guid packageId, CancellationToken ct) =>
