@@ -235,7 +235,10 @@ export function toBuildRequest(form: BuildForm): { body: unknown } | { error: st
             <p role="alert">The operation was cancelled. No package was reported as complete.</p>
           } @else if (buildStatus.data()?.status === 'COMPLETED') {
             <p role="alert">The operation completed without a scoped package result. Refresh or contact a firm administrator; this page cannot confirm the package.</p>
-          } @else if (buildStatus.error()) { <p role="alert">{{ buildStatus.error() }}</p> }
+          } @else if (buildStatus.error()) {
+            <p role="alert">{{ buildStatus.error() }}</p>
+            <button mat-button type="button" (click)="buildStatus.reload()">Retry status</button>
+          }
           @else { <p>The durable worker result is not complete yet; this page will refresh the saved status.</p> }
         </section>
       }
