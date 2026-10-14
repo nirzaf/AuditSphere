@@ -437,7 +437,7 @@ public static class AuditProgramService
       .SingleOrDefaultAsync(x => x.Id == request.AuditProcedureId && x.FirmId == actor.FirmId, ct);
     if (snapshot is null)
       return CommandResult<ProcedureResultValue>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var scope = await ResolveEngagementAsync(db, actor, snapshot.EngagementId, ct, snapshot.ClientId);
+    var scope = await ResolveEngagementAsync(db, actor, snapshot.EngagementId, ct, snapshot.ClientId, sharedEngagement: true);
     if (scope.Denied is not null)
       return CommandResult<ProcedureResultValue>.Fail(scope.Denied, scope.Message);
 
@@ -460,9 +460,10 @@ public static class AuditProgramService
       return CommandResult<ProcedureResultValue>.Fail(frozen.ErrorCode!, frozen.Message!);
     }
 
-    // Keep the existing broad client-source fence. Risk and materiality revisions are bound below
+    // Share the client-source fence for independent submissions; generation writers still wait.
+    // Risk and materiality revisions are bound below
     // as a narrower immutable basis and must not invalidate unrelated accounting mappings.
-    var currentGeneration = await AuditPlanningInputGeneration.LockAndReadAsync(db, scope.FirmId, scope.ClientId, ct);
+    var currentGeneration = await AuditPlanningInputGeneration.ReadSharedAsync(db, scope.FirmId, scope.ClientId, ct);
     if (currentGeneration is null)
       return CommandResult<ProcedureResultValue>.Fail(ErrorCodes.GateBlocked,
         "The current client planning revision is unavailable; the procedure result was not submitted.");
@@ -705,11 +706,15 @@ public static class AuditProgramService
     Guid engagementId,
     CancellationToken ct,
     Guid? expectedClientId = null,
-    IReadOnlyList<string>? roles = null)
+    IReadOnlyList<string>? roles = null,
+    bool sharedEngagement = false)
   {
-    var engagement = await db.Engagements.FromSqlInterpolated($"""
+    var engagementQuery = sharedEngagement
+      ? db.Engagements.FromSqlInterpolated($"SELECT * FROM engagements WHERE id = {engagementId} AND firm_id = {actor.FirmId} FOR SHARE")
+      : db.Engagements.FromSqlInterpolated($"""
       SELECT * FROM engagements WHERE id = {engagementId} AND firm_id = {actor.FirmId} FOR UPDATE
-      """).AsNoTracking().SingleOrDefaultAsync(ct);
+      """);
+    var engagement = await engagementQuery.AsNoTracking().SingleOrDefaultAsync(ct);
     if (engagement is null || (expectedClientId is not null && engagement.PracticeClientId != expectedClientId))
       return new(Guid.Empty, Guid.Empty, ErrorCodes.ScopeDenied);
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,

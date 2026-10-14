@@ -23,4 +23,13 @@ internal static class AuditPlanningInputGeneration
       """).AsNoTracking().SingleOrDefaultAsync(ct);
     return state?.InputGeneration;
   }
+  /// <summary>Submissions share this fence; input-generation writers still serialize against it.</summary>
+  public static async Task<long?> ReadSharedAsync(IAuditSphereDbContext db, Guid firmId, Guid clientId, CancellationToken ct)
+  {
+    var state = await db.ClientSafetyStates.FromSqlInterpolated($"""
+      SELECT * FROM client_safety_states WHERE firm_id = {firmId} AND id = {clientId} FOR SHARE
+      """).AsNoTracking().SingleOrDefaultAsync(ct);
+    return state?.InputGeneration;
+  }
+
 }
