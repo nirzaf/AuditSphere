@@ -93,7 +93,7 @@ internal static class FinancialPackageFixture
         PeriodId = periodId, BookId = bookId, SourceKind = AccountingSourceKinds.GeneralLedger,
         ProfileVersion = "cash-flow-e2e-v1", ParserVersion = "synthetic-e2e-v1", RawFileSha256Hex = sourceHash,
         NormalizedDatasetDigest = sourceHash, LegalEntityKey = "SYNTHETIC-CASH-FLOW", Currency = "QAR",
-        RowCount = 1, Status = "LOADING", ReceiptReference = "Synthetic accepted cash-flow ledger",
+        RowCount = 2, Status = "LOADING", ReceiptReference = "Synthetic accepted cash-flow ledger",
         CreatedByUserId = host.Fixture.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
       });
       db.GeneralLedgerTransactions.Add(new GeneralLedgerTransaction
@@ -102,13 +102,21 @@ internal static class FinancialPackageFixture
         ImportBatchId = sourceBatchId, StableJournalId = "SYN-CF-J-E2E", DocumentNumber = "SYN-CF-DOC-E2E",
         PostingDate = new DateOnly(2026, 6, 30), Currency = "QAR", CreatedAt = DateTimeOffset.UtcNow
       });
+      // A balanced cash sale: the cash leg is debited, and the credited revenue line is the noncash counterpart a movement draws on.
+      db.GeneralLedgerLines.Add(new GeneralLedgerLine
+      {
+        Id = Guid.NewGuid(), FirmId = firmId, ClientId = clientId, EngagementId = engagementId,
+        ImportBatchId = sourceBatchId, TransactionId = sourceTransactionId, StableLineId = "SYN-CF-L-E2E-CASH",
+        AccountCode = "1000", Debit = 175_000m, Credit = 0m, FunctionalAmount = 175_000m,
+        OriginalCurrency = "QAR", OriginalAmount = 175_000m, CreatedAt = DateTimeOffset.UtcNow
+      });
       db.GeneralLedgerLines.Add(new GeneralLedgerLine
       {
         Id = sourceLineId, FirmId = firmId, ClientId = clientId, EngagementId = engagementId,
         ImportBatchId = sourceBatchId, TransactionId = sourceTransactionId, StableLineId = "SYN-CF-L-E2E",
-        // Cash-flow movements must link to the non-cash side of the journal, not the package's cash account.
-        AccountCode = "4000", Debit = 175_000m, Credit = 0m, FunctionalAmount = 175_000m,
-        OriginalCurrency = "QAR", OriginalAmount = 175_000m, CreatedAt = DateTimeOffset.UtcNow
+        // Ledger sign is debit-positive, so the credited revenue carries -175,000. The movement projects it as +175,000 of cash.
+        AccountCode = "4000", Debit = 0m, Credit = 175_000m, FunctionalAmount = -175_000m,
+        OriginalCurrency = "QAR", OriginalAmount = -175_000m, CreatedAt = DateTimeOffset.UtcNow
       });
       await db.SaveChangesAsync();
     }
@@ -161,7 +169,7 @@ internal static class FinancialPackageFixture
       new FinancialSupplementaryInformation(0m, 175_000m,
         [new CashFlowLineInput("OPERATING", "Synthetic cash collections", 175_000m, MovementDate: new DateOnly(2026, 6, 30),
           ActivityCode: "CASH_COLLECTIONS", SourceReferences: ["synthetic-ledger-e2e"], ClassificationRationale: "Synthetic collections agreed to source.",
-          SourceAllocations: [new CashFlowSourceAllocationInput(sourceLineId, 175_000m)])],
+          SourceAllocations: [new CashFlowSourceAllocationInput(sourceLineId, -175_000m)])],
         [new DisclosureInput("E2E_POLICY", "Synthetic test policy note."),
          new DisclosureInput("E2E_OTHER", string.Empty, NotApplicable: true, Rationale: "No other synthetic items.")],
         [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 175_000m, 0m, 0m, 0m, 175_000m, "e2e-equity")],
@@ -175,8 +183,11 @@ internal static class FinancialPackageFixture
       Assert.True(built.Succeeded, built.Message);
       Assert.Equal(AccountingPackageStates.PackageValidated, built.Value!.Status);
       packageId = built.Value.PackageId;
-      var sourceReview = await FinancialStatementService.RecordCashFlowSourceReviewAsync(db,
-        PbcSeed.Actor(host.Fixture.Reviewer, "AccountingReviewer"), packageId, "APPROVED", "Synthetic independent cash-flow source review.");
+      var reviewer = PbcSeed.Actor(host.Fixture.Reviewer, "AccountingReviewer");
+      var reviewState = await FinancialStatementService.GetCashFlowSourceReviewAsync(db, reviewer, packageId);
+      Assert.True(reviewState.Succeeded, reviewState.Message);
+      var sourceReview = await FinancialStatementService.RecordCashFlowSourceReviewAsync(db, reviewer, packageId, "APPROVED",
+        "Synthetic independent cash-flow source review.", Guid.NewGuid(), reviewState.Value!.LinkDigest, reviewState.Value.LatestReviewId);
       Assert.True(sourceReview.Succeeded, sourceReview.Message);
       var canonical = await FinancialStatementService.RenderPackageArtifactAsync(db, preparer, packageId);
       Assert.True(canonical.Succeeded, canonical.Message);

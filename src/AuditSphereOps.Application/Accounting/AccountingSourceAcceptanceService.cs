@@ -190,4 +190,34 @@ public static class AccountingSourceAcceptanceService
       decision.Id, decision.SourceKind, decision.TrialBalanceDatasetId, decision.ImportBatchId,
       decision.SourceIdentityHash, decision.AcceptedByUserId, decision.CreatedAt, generation.Value));
   }
+
+  /// <summary>
+  /// The selected accepted general ledger for one reporting period of an engagement: the latest ACCEPTED decision whose sealed batch
+  /// belongs to that period. Accepting another period neither selects nor invalidates it, so current and comparative periods coexist (CP-10).
+  /// Returns Ok with a null payload when the period has no accepted ledger.
+  /// </summary>
+  public static async Task<CommandResult<SelectedSourceDto?>> GetSelectedGeneralLedgerForPeriodAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid clientId, Guid engagementId, Guid periodId, CancellationToken ct = default)
+  {
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, clientId, engagementId, InternalOnly: true), ct);
+    if (!auth.Succeeded)
+      return CommandResult<SelectedSourceDto?>.Fail(auth.ErrorCode!, auth.Message!);
+    var decision = await (from d in db.SourceAcceptanceDecisions.AsNoTracking()
+        join b in db.SourceImportBatches.AsNoTracking() on d.ImportBatchId equals b.Id
+        where d.FirmId == actor.FirmId && d.ClientId == clientId && d.EngagementId == engagementId &&
+          d.SourceKind == AccountingSourceKinds.GeneralLedger && d.Decision == "ACCEPTED" &&
+          b.FirmId == actor.FirmId && b.PeriodId == periodId
+        orderby d.CreatedAt descending, d.Id descending
+        select d).FirstOrDefaultAsync(ct);
+    if (decision is null)
+      return CommandResult<SelectedSourceDto?>.Ok(null);
+    var generation = await db.ClientSafetyStates.AsNoTracking()
+      .Where(x => x.Id == clientId && x.FirmId == actor.FirmId)
+      .Select(x => (long?)x.InputGeneration).SingleOrDefaultAsync(ct);
+    if (generation is null)
+      return CommandResult<SelectedSourceDto?>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    return CommandResult<SelectedSourceDto?>.Ok(new SelectedSourceDto(decision.Id, decision.SourceKind, decision.TrialBalanceDatasetId,
+      decision.ImportBatchId, decision.SourceIdentityHash, decision.AcceptedByUserId, decision.CreatedAt, generation.Value));
+  }
 }

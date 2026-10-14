@@ -84,7 +84,7 @@ public static class CompletionBundleFixture
       var built = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, new(plan.Value, mapping.Value, "IFRS", "2026-01-01", "2026-12-31", "bundle-test-v1",
         new FinancialSupplementaryInformation(0m, netIncome, [new CashFlowLineInput("OPERATING", "Cash receipts", netIncome,
             MovementDate: new DateOnly(2026, 6, 30), ActivityCode: "CASH_RECEIPTS", SourceReferences: ["bank-ledger-bundle"],
-            ClassificationRationale: "Synthetic receipt agreed to source.", SourceAllocations: [new CashFlowSourceAllocationInput(source.Receivable, netIncome)])],
+            ClassificationRationale: "Synthetic receipt agreed to source.", SourceAllocations: [new CashFlowSourceAllocationInput(source.Receivable, -netIncome)])],
           [new DisclosureInput("CASH_POLICY", "Cash is presented at face value."), new DisclosureInput("COMMITMENTS", "", true, "No commitments in the synthetic management information.")],
           [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, netIncome, 0m, 0m, 0m, netIncome, "equity-test")],
           NoteLines: [new NoteLineInput("CASH_NOTE", "CASH", cashAmount, "note-test")],
@@ -92,7 +92,7 @@ public static class CompletionBundleFixture
       Assert.True(built.Succeeded, built.Message);
       Assert.Equal(AccountingPackageStates.PackageValidated, built.Value!.Status);
       packageId = built.Value.PackageId;
-      var sourceReview = await FinancialStatementService.RecordCashFlowSourceReviewAsync(
+      var sourceReview = await CashFlowSourceReviewCall.RecordAsync(
         db, reviewer, packageId, "APPROVED", null);
       Assert.True(sourceReview.Succeeded, sourceReview.Message);
       Assert.True((await FinancialStatementService.RenderPackageArtifactAsync(db, preparer, packageId)).Succeeded);

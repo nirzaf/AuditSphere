@@ -22,6 +22,8 @@ export const decodeCashFlowSourceReview = obj({
   currentSourceImportBatchId: nullable(guid), approved: bool, canReview: bool,
   reviews: arr(obj({ id: guid, decision: oneOf('APPROVED', 'RETURNED'), reason: text, reviewedByUserId: guid, reviewedAt: instant,
     sourceImportBatchId: guid }), 50),
+  // The digest of the exact links and the latest decision are sent back so the server decides only on what was reviewed.
+  linkDigest: text, latestReviewId: nullable(guid),
 });
 const ARTIFACTS: [string, string][] = [['financial-package-xlsx.v1', 'Download workbook'], ['financial-package-xlsx-controlled.v1', 'Download controlled workbook'],
   ['financial-package-docx.v1', 'Download Word document'], ['financial-package-pdf.v1', 'Download PDF']];
@@ -146,15 +148,21 @@ export class FinancialPackage {
     decodeCashFlowSourceReview, 'The cash-flow source review is not available in the current firm scope.');
   sourceDecision = 'APPROVED';
   sourceReason = '';
+  // One original intent per decision: a lost reply retried with the same identity recovers the stored decision.
+  sourceRequestId = crypto.randomUUID();
   readonly downloading = signal(false);
   readonly artifactStatus = signal('');
   readonly artifacts = ARTIFACTS;
   r = { stage: 'ACCOUNTING_REVIEW', decision: 'APPROVED', mode: 'SIGNED_IN', reference: '', comment: '' };
   passed(p: ReturnType<typeof decodePackage>): number { return p.validations.filter((v) => v.passed).length; }
   reviewSources(id: string): void {
+    const state = this.sourceReview.data();
+    if (!state) return;
     void this.cmd.run(`/api/ui/accounting/packages/${id}/cash-flow-source-review`, { decision: this.sourceDecision,
-      reason: this.sourceReason || null }, 'Source decision recorded against the current accepted ledger.',
-      () => (this.sourceReason = '')).finally(() => { this.sourceReview.reload(); this.pkg.reload(); });
+      reason: this.sourceReason || null, requestId: this.sourceRequestId, expectedLinkDigest: state.linkDigest,
+      expectedPreviousReviewId: state.latestReviewId }, 'Source decision recorded against the current accepted ledger.',
+      () => { this.sourceReason = ''; this.sourceRequestId = crypto.randomUUID(); })
+      .finally(() => { this.sourceReview.reload(); this.pkg.reload(); });
   }
   review(id: string): void {
     void this.cmd.run(`/api/ui/accounting/packages/${id}/reviews`, { stage: this.r.stage, decision: this.r.decision, evidenceMode: this.r.mode,

@@ -40,7 +40,7 @@ public sealed class FinancialPackageGateTests
         0m, 100m,
         [new CashFlowLineInput("OPERATING", "Cash receipts", 100m, MovementDate: new DateOnly(2026, 6, 30),
           ActivityCode: "CASH_RECEIPTS", SourceReferences: ["bank-ledger-gate"], ClassificationRationale: "Synthetic receipts agreed to source.",
-          SourceAllocations: [new CashFlowSourceAllocationInput(source.Receivable, 100m)])],
+          SourceAllocations: [new CashFlowSourceAllocationInput(source.Receivable, -100m)])],
         [new DisclosureInput("CASH_POLICY", "Cash is presented at face value."),
          new DisclosureInput("COMMITMENTS", string.Empty, NotApplicable: true, Rationale: "None identified.")],
         [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 60m, 0m, 0m, 0m, 60m, "equity-gate-1")],
@@ -133,7 +133,7 @@ public sealed class FinancialPackageGateTests
         0m, 100m,
         [new CashFlowLineInput("OPERATING", "Cash receipts", 100m, MovementDate: new DateOnly(2026, 6, 30),
           ActivityCode: "CASH_RECEIPTS", SourceReferences: ["bank-ledger-stage"], ClassificationRationale: "Synthetic receipts agreed to source.",
-          SourceAllocations: [new CashFlowSourceAllocationInput(source.Receivable, 100m)])],
+          SourceAllocations: [new CashFlowSourceAllocationInput(source.Receivable, -100m)])],
         [new DisclosureInput("CASH_POLICY", "Cash is presented at face value."),
          new DisclosureInput("COMMITMENTS", string.Empty, NotApplicable: true, Rationale: "None identified.")],
         [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 100m, "equity-stage-1")],
@@ -146,11 +146,20 @@ public sealed class FinancialPackageGateTests
       Assert.True(built.Succeeded, built.Message);
       packageId = built.Value!.PackageId;
       Assert.Equal(AccountingPackageStates.PackageValidated, built.Value.Status);
-      var sourceReview = await FinancialStatementService.RecordCashFlowSourceReviewAsync(
+      var sourceReview = await CashFlowSourceReviewCall.RecordAsync(
         db, reviewer, packageId, "APPROVED", null);
       Assert.True(sourceReview.Succeeded, sourceReview.Message);
       var rendered = await FinancialStatementService.RenderPackageArtifactAsync(db, preparer, packageId);
       Assert.True(rendered.Succeeded, rendered.Message);
+    }
+
+    // An administrator with no Partner grant is a different person with different authority: administration is not professional Partner work.
+    var administrator = User(fixture.FirmId, "administrator");
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.Users.Add(administrator);
+      db.RoleGrants.Add(Grant(fixture.FirmId, administrator, "Administrator"));
+      await db.SaveChangesAsync();
     }
 
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -182,6 +191,13 @@ public sealed class FinancialPackageGateTests
       Assert.False(selfPartner.Succeeded);
       Assert.Equal(ErrorCodes.GateBlocked, selfPartner.ErrorCode);
       Assert.Contains("two different stages", selfPartner.Message!, StringComparison.Ordinal);
+
+      var administratorPartner = await FinancialPackageReviewService.RecordAsync(db, Actor(administrator, "Administrator"),
+        new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.PartnerApproval,
+          FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn,
+          "stage-admin-partner", "Administrator attempting the professional Partner decision."));
+      Assert.False(administratorPartner.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, administratorPartner.ErrorCode);
 
       var partnerApproval = await FinancialPackageReviewService.RecordAsync(db, partner,
         new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.PartnerApproval,

@@ -49,7 +49,7 @@ public sealed class AngularCashFlowPackageJourneyTests
     var acceptedLine = preparerPage.GetByRole(AriaRole.Row).Filter(new() { HasText = "4000" });
     await Assertions.Expect(acceptedLine).ToContainTextAsync("175000");
     await acceptedLine.GetByRole(AriaRole.Button, new() { Name = "Add to movement 1", Exact = true }).ClickAsync();
-    await Assertions.Expect(preparerPage.GetByLabel("Contribution amount", new() { Exact = true })).ToHaveValueAsync("175000");
+    await Assertions.Expect(preparerPage.GetByLabel("Contribution amount", new() { Exact = true })).ToHaveValueAsync("-175000");
 
     // The finalized adjustment plan closes the selected cash account at QAR 175,000.
     // Keep the browser inputs aligned to that adjusted population and its cash-flow bridge.
@@ -102,7 +102,7 @@ public sealed class AngularCashFlowPackageJourneyTests
       Assert.True(await db.FinancialPackageCashFlowLines.AsNoTracking().AnyAsync(x =>
         x.Id == allocation.CashFlowLineId && x.FinancialPackageId == packageId && x.Amount == 175_000m));
       Assert.Equal(host.Fixture.Staff.Id, allocation.CreatedByUserId);
-      Assert.Equal("175000.00", allocation.SignedAmount.ToString("0.00"));
+      Assert.Equal("-175000.00", allocation.SignedAmount.ToString("0.00"));
       var review = await db.FinancialPackageCashFlowSourceReviews.AsNoTracking().SingleAsync(x => x.FinancialPackageId == packageId);
       Assert.Equal("APPROVED", review.Decision);
       Assert.Equal(host.Fixture.Reviewer.Id, review.ReviewedByUserId);

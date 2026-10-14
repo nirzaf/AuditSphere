@@ -32,7 +32,8 @@ public sealed record FinancialPackageReviewQueueItem(
 public static class FinancialPackageReviewService
 {
   private static readonly string[] AccountingRoles = ["AccountingReviewer", "Manager", "Partner", "Administrator"];
-  private static readonly string[] PartnerRoles = ["Partner", "Administrator"];
+  // Professional Partner authority is never derived from administration. Matches AcceptanceDecisionService.PartnerRoles.
+  private static readonly string[] PartnerRoles = ["Partner"];
   private static readonly string[] OfflineManagementRoles = ["AccountingPreparer", "AccountingReviewer", "Manager", "Partner", "Administrator"];
 
   /// <summary>Compatibility alias for the canonical required validation population.</summary>
@@ -271,7 +272,7 @@ public static class FinancialPackageReviewService
     var validations = await db.FinancialPackageValidations.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && packageIds.Contains(x.FinancialPackageId) &&
         FinancialPackageValidationReadiness.RequiredCodes.Contains(x.Code)).ToListAsync(ct);
-    var canPartnerReview = actor.Roles.Any(x => x is "Partner" or "Administrator");
+    var canPartnerReview = actor.Roles.Contains("Partner", StringComparer.Ordinal);
     var queue = new List<FinancialPackageReviewQueueItem>();
 
     foreach (var package in packages)

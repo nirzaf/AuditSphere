@@ -306,7 +306,7 @@ public sealed class FinancialStatementTests
         0m, 100m,
         [new CashFlowLineInput("OPERATING", "Cash receipts", 100m, MovementDate: new DateOnly(2026, 6, 30),
           ActivityCode: "CASH_RECEIPTS", SourceReferences: ["bank-ledger-template-v2"], ClassificationRationale: "Synthetic receipts agreed to source.",
-          SourceAllocations: [new CashFlowSourceAllocationInput(source.Receivable, 100m)])],
+          SourceAllocations: [new CashFlowSourceAllocationInput(source.Receivable, -100m)])],
         [new DisclosureInput("CASH_POLICY", "Cash and cash equivalents are presented at face value."),
          new DisclosureInput("COMMITMENTS", string.Empty, NotApplicable: true, Rationale: "No commitments were identified in the supplied management information.")],
         [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 100m, "equity-schedule-1")],
@@ -683,6 +683,9 @@ public sealed class FinancialStatementTests
     var fixture = await SeedAsync(pg);
     var preparer = Actor(fixture.Preparer, "AccountingPreparer");
     var reviewer = Actor(fixture.Reviewer, "AccountingReviewer");
+    // The cash receipt is linked to an accepted ledger line, so the package validates and the presentation can be checked.
+    var source = await CashFlowSourceSeed.SeedAcceptedGeneralLedgerAsync(pg, fixture.FirmId, fixture.ClientId, fixture.EngagementId,
+      fixture.PeriodId, fixture.BookId, fixture.Preparer.Id, reviewer, "layout");
 
     Guid mappingId;
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -717,7 +720,8 @@ public sealed class FinancialStatementTests
         new FinancialSupplementaryInformation(
           0m, 100m,
           [new CashFlowLineInput("OPERATING", "Cash collections", 100m, MovementDate: new DateOnly(2026, 6, 30),
-            ActivityCode: "CASH_COLLECTIONS", SourceReferences: ["bank-ledger-layout-test"], ClassificationRationale: "Synthetic collections agreed to source.")],
+            ActivityCode: "CASH_COLLECTIONS", SourceReferences: ["bank-ledger-layout-test"], ClassificationRationale: "Synthetic collections agreed to source.",
+            SourceAllocations: [new CashFlowSourceAllocationInput(source.Receivable, -100m)])],
           [new DisclosureInput("NOTE_1", "Summary of significant accounting policies.")],
           CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-cash-layout-test"], ClosingCashEvidenceReferences: ["closing-cash-layout-test"])));
       Assert.True(built.Succeeded, built.Message);
@@ -737,7 +741,8 @@ public sealed class FinancialStatementTests
         new BuildFinancialPackageRequest(planId, mappingId, "IFRS", "2026-01-01", "2026-12-31", "presentation-seal-v2",
           new FinancialSupplementaryInformation(0m, closingCash,
             [new CashFlowLineInput("OPERATING", "Cash movement", closingCash, MovementDate: new DateOnly(2026, 6, 30),
-              ActivityCode: "CASH_MOVEMENT", SourceReferences: ["synthetic-cash-movement"], ClassificationRationale: "Synthetic test input derived from the package cash balance.")],
+              ActivityCode: "CASH_MOVEMENT", SourceReferences: ["synthetic-cash-movement"], ClassificationRationale: "Synthetic test input derived from the package cash balance.",
+              SourceAllocations: [new CashFlowSourceAllocationInput(source.Receivable, -closingCash)])],
             [new DisclosureInput("NOTE_1", "Synthetic policy disclosure for the test.")],
             [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, -signedProfitOrLoss, 0m, 0m, 0m,
               -signedProfitOrLoss, "synthetic-equity-movement")],
@@ -1025,7 +1030,7 @@ public sealed class FinancialStatementTests
         new BuildFinancialPackageRequest(planId, mappingId, "IFRS", "2026-01-01", "2026-12-31", "presentation-seal-v2",
           new FinancialSupplementaryInformation(0m, closingCash,
             [new CashFlowLineInput("OPERATING", "Cash movement", closingCash, MovementDate: new DateOnly(2026, 6, 30),
-              ActivityCode: "CASH_MOVEMENT", SourceReferences: ["synthetic-cash-movement"], ClassificationRationale: "Synthetic test input derived from the package cash balance.", SourceAllocations: [new CashFlowSourceAllocationInput(source.Receivable, closingCash)])],
+              ActivityCode: "CASH_MOVEMENT", SourceReferences: ["synthetic-cash-movement"], ClassificationRationale: "Synthetic test input derived from the package cash balance.", SourceAllocations: [new CashFlowSourceAllocationInput(source.Receivable, -closingCash)])],
             [new DisclosureInput("NOTE_1", "Synthetic policy disclosure for the test.")],
             [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, -signedProfitOrLoss, 0m, 0m, 0m,
               -signedProfitOrLoss, "synthetic-equity-movement")],
@@ -1074,7 +1079,7 @@ public sealed class FinancialStatementTests
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       // Resolved links are not enough: the presentation reads them as source-approved only after an independent approval.
-      Assert.True((await FinancialStatementService.RecordCashFlowSourceReviewAsync(db, reviewer, packageId, "APPROVED", null)).Succeeded);
+      Assert.True((await CashFlowSourceReviewCall.RecordAsync(db, reviewer, packageId, "APPROVED", null)).Succeeded);
       var presented = await FinancialStatementService.BuildPresentationAsync(db, reviewer, packageId);
       Assert.True(presented.Succeeded, presented.Message);
       Assert.Contains(presented.Value!.Checks, x => x.Code == "CASH_FLOW_SOURCE_LINEAGE" && x.Passed);

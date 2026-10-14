@@ -401,9 +401,20 @@ public sealed partial class AuditSphereDbContext
     var cashReview = b.Entity<FinancialPackageCashFlowSourceReview>();
     cashReview.Property(x => x.Decision).HasMaxLength(20);
     cashReview.Property(x => x.Reason).HasMaxLength(2000);
-    cashReview.ToTable("financial_package_cash_flow_source_reviews", t => t.HasCheckConstraint("ck_financial_package_cash_source_review_values",
-      "decision IN ('APPROVED','RETURNED') AND (decision = 'APPROVED' OR length(trim(reason)) > 0)"));
+    cashReview.Property(x => x.RequestHash).HasMaxLength(64).IsFixedLength();
+    cashReview.Property(x => x.LinkDigest).HasMaxLength(64).IsFixedLength();
+    cashReview.ToTable("financial_package_cash_flow_source_reviews", t =>
+    {
+      t.HasCheckConstraint("ck_financial_package_cash_source_review_values",
+        "decision IN ('APPROVED','RETURNED') AND (decision = 'APPROVED' OR length(trim(reason)) > 0)");
+      // A row written with an intent carries its payload and link digests. Legacy rows carry neither and cannot replay.
+      t.HasCheckConstraint("ck_financial_package_cash_source_review_intent",
+        "(request_id IS NULL AND request_hash IS NULL AND link_digest IS NULL) OR (request_id IS NOT NULL AND request_hash IS NOT NULL AND link_digest IS NOT NULL)");
+    });
     cashReview.HasIndex(x => new { x.FirmId, x.FinancialPackageId, x.ReviewedAt });
+    // One decision per original intent: a retry of the same request resolves to the stored row.
+    cashReview.HasIndex(x => new { x.FirmId, x.FinancialPackageId, x.RequestId }).IsUnique()
+      .HasFilter("request_id IS NOT NULL").HasDatabaseName("ux_financial_package_cash_source_review_request");
     cashReview.HasOne<FinancialPackage>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
