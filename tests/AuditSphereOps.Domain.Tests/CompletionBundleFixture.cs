@@ -92,6 +92,8 @@ public static class CompletionBundleFixture
       Assert.True(built.Succeeded, built.Message);
       Assert.Equal(AccountingPackageStates.PackageValidated, built.Value!.Status);
       packageId = built.Value.PackageId;
+      var cashFlowReview = await FinancialStatementService.RecordCashFlowSourceReviewAsync(db, reviewer, packageId, "APPROVED", null);
+      Assert.True(cashFlowReview.Succeeded, $"Approve synthetic cash-flow source links failed: {cashFlowReview.ErrorCode} - {cashFlowReview.Message}");
       Assert.True((await FinancialStatementService.RenderPackageArtifactAsync(db, preparer, packageId)).Succeeded);
       foreach (var (actor, stage, mode) in new[] { (preparer, FinancialPackageReviewStages.ManagementApproval, FinancialPackageReviewEvidenceModes.Offline),
         (reviewer, FinancialPackageReviewStages.AccountingReview, FinancialPackageReviewEvidenceModes.SignedIn), (partner, FinancialPackageReviewStages.PartnerApproval, FinancialPackageReviewEvidenceModes.SignedIn) })

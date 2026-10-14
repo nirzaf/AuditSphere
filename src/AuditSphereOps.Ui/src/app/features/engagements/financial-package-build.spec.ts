@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeBuildInputs, emptyBuildForm, emptyMovement, toBuildRequest, BuildForm } from './financial-package-build';
+import { decodeBuildInputs, decodeBuildStatus, emptyBuildForm, emptyMovement, toBuildRequest, BuildForm } from './financial-package-build';
 
 const mapping = '11111111-1111-4111-8111-111111111111';
 const plan = '22222222-2222-4222-8222-222222222222';
@@ -97,5 +97,14 @@ describe('financial package build inputs contract', () => {
       engagementId: '55555555-5555-4555-8555-555555555555', mappings: [], plans: [], comparatives: [],
       periods: [{ id: '44444444-4444-4444-8444-444444444444', periodCode: 'FY2026', startDate: 'January', endDate: '2026-12-31', currency: 'QAR', basis: 'IFRS' }],
     }, 'inputs')).toThrow();
+  });
+});
+
+describe('financial package build progress contract', () => {
+  it('accepts only a scoped durable status and optional completed package identity', () => {
+    const operationId = '55555555-5555-4555-8555-555555555555';
+    expect(decodeBuildStatus({ operationId, status: 'PENDING', errorCode: null, packageId: null }, 'status').packageId).toBeNull();
+    expect(decodeBuildStatus({ operationId, status: 'COMPLETED', errorCode: null, packageId: mapping }, 'status').packageId).toBe(mapping);
+    expect(() => decodeBuildStatus({ operationId, status: 'COMPLETED', errorCode: null, packageId: 'not-a-guid' }, 'status')).toThrow();
   });
 });

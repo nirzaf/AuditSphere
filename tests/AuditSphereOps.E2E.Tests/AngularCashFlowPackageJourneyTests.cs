@@ -55,18 +55,12 @@ public sealed class AngularCashFlowPackageJourneyTests
     await preparerPage.Locator("input[name='dcode0']").FillAsync("CASH_POLICY");
     await preparerPage.Locator("textarea[name='dresp0']").FillAsync("Synthetic cash policy disclosure.");
     await preparerPage.GetByRole(AriaRole.Button, new() { Name = "Queue package build", Exact = true }).ClickAsync();
-    await Assertions.Expect(preparerPage.GetByRole(AriaRole.Heading, new() { Name = "Build queued", Exact = true })).ToBeVisibleAsync();
-    Guid? builtPackageId = null;
-    for (var attempt = 0; attempt < 60 && builtPackageId is null; attempt++)
-    {
-      await using var db = host.CreateDbContext();
-      builtPackageId = await db.FinancialPackages.AsNoTracking().Where(x => x.EngagementId == host.Fixture.EngagementId &&
-          x.TemplateVersion == "e2e-cash-flow-v2").OrderByDescending(x => x.CreatedAt).Select(x => (Guid?)x.Id).FirstOrDefaultAsync();
-      if (builtPackageId is not null) break;
-      await preparerPage.WaitForTimeoutAsync(500);
-    }
-    Assert.NotNull(builtPackageId);
-    var packageId = builtPackageId!.Value;
+    await Assertions.Expect(preparerPage.GetByRole(AriaRole.Heading, new() { Name = "Package build progress", Exact = true })).ToBeVisibleAsync();
+    var openPackage = preparerPage.GetByRole(AriaRole.Link, new() { Name = "Open the package", Exact = true });
+    await Assertions.Expect(openPackage).ToBeVisibleAsync(new() { Timeout = 30_000 });
+    var href = await openPackage.GetAttributeAsync("href");
+    Assert.NotNull(href);
+    var packageId = Guid.Parse(href!.Split('/', StringSplitOptions.RemoveEmptyEntries)[^1]);
     var packageRoute = $"/ui/app/accounting/packages/{packageId:D}";
     await preparerPage.GotoAsync(preparerOrigin + packageRoute);
     await Assertions.Expect(preparerPage.GetByRole(AriaRole.Heading,
