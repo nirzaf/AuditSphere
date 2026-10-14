@@ -158,9 +158,10 @@ public static partial class FinancialStatementService
   private static IReadOnlyList<PresentationCashFlowMovement> CashMovementsWithLineage(
     IReadOnlyList<FinancialPackageCashFlowLine> cashLines, IReadOnlyList<FinancialPackageCashFlowAllocation> cashAllocations)
   {
-    var resolved = ResolvedCashFlowMovements(cashLines.Select(x => x.Amount).ToArray(),
+    // Persisted links were proven explained when the package was built (CASH_FLOW_SOURCE_LINEAGE), so the presentation reads them as explained.
+    var resolved = ResolvedCashFlowMovements(cashLines.Select(x => (x.Amount, x.IsNonCash)).ToArray(),
       cashLines.Select((line, index) => (line, index)).SelectMany(x => cashAllocations
-        .Where(a => a.CashFlowLineId == x.line.Id).Select(a => (MovementIndex: x.index, a.SignedAmount))));
+        .Where(a => a.CashFlowLineId == x.line.Id).Select(a => (MovementIndex: x.index, LedgerSignedAmount: a.SignedAmount, PopulationComplete: true))));
     return cashLines.Select((x, index) => new PresentationCashFlowMovement(x.Section, x.Description, x.Amount, x.IsNonCash,
       x.ActivityCode, resolved[index])).ToList();
   }

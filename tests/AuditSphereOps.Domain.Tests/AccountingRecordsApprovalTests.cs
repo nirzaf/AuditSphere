@@ -385,6 +385,17 @@ public sealed class AccountingRecordsApprovalTests
     return (periodId, bookId);
   }
 
+  // Every canonical rule must have exactly one passing result for a package to be ready; the fixture supplies them all.
+  private static void AddCanonicalValidationsFor(AuditSphereDbContext db, Guid firmId, Guid packageId)
+  {
+    foreach (var code in FinancialPackageValidationReadiness.RequiredCodes)
+      db.FinancialPackageValidations.Add(new FinancialPackageValidation
+      {
+        Id = Guid.CreateVersion7(), FirmId = firmId, FinancialPackageId = packageId, Code = code, Passed = true,
+        Detail = "Seeded canonical validation for a validated package.", CreatedAt = DateTimeOffset.UtcNow
+      });
+  }
+
   private static Guid AddValidatedPackage(
     AuditSphereDbContext db, Fixture fixture, decimal amount, string destination, string suffix)
   {
@@ -448,6 +459,7 @@ public sealed class AccountingRecordsApprovalTests
       ArtifactSha256Hex = Hashing.Sha256Hex(artifactBytes), ArtifactBytes = artifactBytes,
       CreatedByUserId = fixture.Preparer.Id, CreatedAt = now
     });
+    AddCanonicalValidationsFor(db, fixture.FirmId, packageId);
     return packageId;
   }
 }

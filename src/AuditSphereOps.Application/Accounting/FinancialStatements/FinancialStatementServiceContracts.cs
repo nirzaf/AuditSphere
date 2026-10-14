@@ -64,12 +64,15 @@ public sealed record CashFlowLineInput(
   // Accepted general-ledger lines that make up this movement. Null or empty keeps the movement a draft without lineage.
   IReadOnlyList<CashFlowSourceAllocationInput>? SourceAllocations = null);
 
-/// <summary>The part of one accepted general-ledger line that contributes to a cash-flow movement. The sign follows the line.</summary>
+/// <summary>The part of one accepted general-ledger line that contributes to a cash-flow movement. The sign follows the ledger line (debit-positive); the statement effect is projected separately.</summary>
 public sealed record CashFlowSourceAllocationInput(Guid GeneralLedgerLineId, decimal SignedAmount);
 
-/// <summary>A resolved contribution: the movement's position in the request, the exact accepted source line and its identity.</summary>
+/// <summary>
+/// A resolved contribution: the movement's position in the request, the exact accepted source line and its identity. SignedAmount keeps
+/// the ledger sign. PopulationComplete is true when the cash event this contribution draws on is fully explained, or it is a noncash link.
+/// </summary>
 internal sealed record ResolvedCashFlowSourceLink(int MovementIndex, Guid GeneralLedgerLineId, Guid GeneralLedgerTransactionId,
-  Guid SourceImportBatchId, string SourceLineHash, decimal SignedAmount, string Currency);
+  Guid SourceImportBatchId, string SourceLineHash, decimal SignedAmount, string Currency, bool PopulationComplete);
 
 public sealed record FxCashEffectInput(string CurrencyPair, decimal Amount, string EvidenceReference);
 

@@ -363,8 +363,9 @@ public static partial class FinancialStatementService
       // a persisted draft; historical packages are not backfilled or reclassified.
       if (request.SupplementaryInformation.CashFlowLines.Count > 0)
       {
-        var resolvedMovements = ResolvedCashFlowMovements(request.SupplementaryInformation.CashFlowLines.Select(x => MoneyPolicy.Normalize(x.Amount)).ToArray(),
-          sourceLinks.Value!.Select(x => (x.MovementIndex, x.SignedAmount)));
+        var resolvedMovements = ResolvedCashFlowMovements(
+          request.SupplementaryInformation.CashFlowLines.Select(x => (MoneyPolicy.Normalize(x.Amount), x.IsNonCash)).ToArray(),
+          sourceLinks.Value!.Select(x => (x.MovementIndex, x.SignedAmount, x.PopulationComplete)));
         var unresolved = resolvedMovements.Count(x => !x);
         AddValidation(db, package, "CASH_FLOW_SOURCE_LINEAGE", unresolved == 0,
           unresolved == 0

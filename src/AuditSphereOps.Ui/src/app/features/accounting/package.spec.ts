@@ -104,6 +104,7 @@ describe('Cash-flow source review contract (CP-11)', () => {
   const review = {
     financialPackageId: id1, movements: 2, resolvedMovements: 2, sourceLinks: 2, currentSourceImportBatchId: id2, approved: true, canReview: false,
     reviews: [{ id: id1, decision: 'APPROVED', reason: '', reviewedByUserId: id2, reviewedAt: '2026-10-14T10:00:00Z', sourceImportBatchId: id2 }],
+    linkDigest: 'a'.repeat(64), latestReviewId: id1,
   };
 
   it('decodes the approval state and its decision history', () => {

@@ -36182,7 +36182,10 @@
       "CashFlowSourceReviewInput": {
         "required": [
           "decision",
-          "reason"
+          "reason",
+          "requestId",
+          "expectedLinkDigest",
+          "expectedPreviousReviewId"
         ],
         "type": "object",
         "properties": {
@@ -36194,6 +36197,23 @@
               "null",
               "string"
             ]
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedLinkDigest": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "expectedPreviousReviewId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },

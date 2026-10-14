@@ -7753,11 +7753,31 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("firm_id");
 
+                    b.Property<string>("LinkDigest")
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("link_digest")
+                        .IsFixedLength();
+
+                    b.Property<Guid?>("PreviousReviewId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("previous_review_id");
+
                     b.Property<string>("Reason")
                         .IsRequired()
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)")
                         .HasColumnName("reason");
+
+                    b.Property<string>("RequestHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("request_hash")
+                        .IsFixedLength();
+
+                    b.Property<Guid?>("RequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("request_id");
 
                     b.Property<DateTimeOffset>("ReviewedAt")
                         .HasColumnType("timestamp with time zone")
@@ -7773,12 +7793,19 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("FirmId", "FinancialPackageId", "RequestId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_financial_package_cash_source_review_request")
+                        .HasFilter("request_id IS NOT NULL");
+
                     b.HasIndex("FirmId", "FinancialPackageId", "ReviewedAt");
 
                     b.HasIndex("FirmId", "ClientId", "EngagementId", "FinancialPackageId");
 
                     b.ToTable("financial_package_cash_flow_source_reviews", null, t =>
                         {
+                            t.HasCheckConstraint("ck_financial_package_cash_source_review_intent", "(request_id IS NULL AND request_hash IS NULL AND link_digest IS NULL) OR (request_id IS NOT NULL AND request_hash IS NOT NULL AND link_digest IS NOT NULL)");
+
                             t.HasCheckConstraint("ck_financial_package_cash_source_review_values", "decision IN ('APPROVED','RETURNED') AND (decision = 'APPROVED' OR length(trim(reason)) > 0)");
                         });
                 });

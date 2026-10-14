@@ -587,6 +587,14 @@ public sealed class FinancialPackageCashFlowSourceReview
   public Guid SourceImportBatchId { get; set; }
   public Guid ReviewedByUserId { get; set; }
   public DateTimeOffset ReviewedAt { get; set; }
+  /// <summary>The caller's original intent. Null only on rows written before intents were recorded; those rows never replay.</summary>
+  public Guid? RequestId { get; set; }
+  /// <summary>Digest of the decision payload, so the same intent with a different payload is refused.</summary>
+  public string? RequestHash { get; set; }
+  /// <summary>Digest of the exact resolved links the reviewer decided on.</summary>
+  public string? LinkDigest { get; set; }
+  /// <summary>The latest decision the reviewer saw when deciding. Null when this was the first decision.</summary>
+  public Guid? PreviousReviewId { get; set; }
 }
 
 /// <summary>Exchange-rate effect on cash for one package; reconciles cash movements

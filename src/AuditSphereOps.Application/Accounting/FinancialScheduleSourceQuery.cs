@@ -32,7 +32,8 @@ public static class FinancialScheduleSourceQuery
     var period = await db.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
       x.ClientId == engagement.PracticeClientId && x.Id == periodId, ct);
     if (period is null) return Denied();
-    var selected = await AccountingSourceAcceptanceService.GetSelectedSourceAsync(db, actor, engagement.PracticeClientId, engagementId, AccountingSourceKinds.GeneralLedger, ct);
+    var selected = await AccountingSourceAcceptanceService.GetSelectedGeneralLedgerForPeriodAsync(db, actor, engagement.PracticeClientId,
+      engagementId, periodId, ct);
     if (!selected.Succeeded) return CommandResult<FinancialScheduleSources>.Fail(selected.ErrorCode!, selected.Message!);
     if (selected.Value?.ImportBatchId is not Guid batchId)
       return Blocked("Independently accept the general ledger for this engagement before inspecting schedule sources.");
@@ -49,7 +50,7 @@ public static class FinancialScheduleSourceQuery
         transaction.Currency == batch.Currency && transaction.PostingDate >= period.StartDate && transaction.PostingDate <= period.EndDate
       orderby transaction.PostingDate, transaction.Id, line.Id
       select new { Line = line, Transaction = transaction }).Skip((page - 1) * PageSize).Take(PageSize + 1).ToListAsync(ct);
-    var current = await AccountingSourceAcceptanceService.GetSelectedSourceAsync(db, actor, engagement.PracticeClientId, engagementId, AccountingSourceKinds.GeneralLedger, ct);
+    var current = await AccountingSourceAcceptanceService.GetSelectedGeneralLedgerForPeriodAsync(db, actor, engagement.PracticeClientId, engagementId, periodId, ct);
     if (!current.Succeeded) return CommandResult<FinancialScheduleSources>.Fail(current.ErrorCode!, current.Message!);
     if (current.Value != selected.Value)
       return CommandResult<FinancialScheduleSources>.Fail(ErrorCodes.StaleRevision, "The accepted source changed during source inspection. Refresh before preparing a schedule.");
