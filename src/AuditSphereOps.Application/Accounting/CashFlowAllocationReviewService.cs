@@ -170,7 +170,7 @@ public static class CashFlowAllocationReviewService
         x.SourceManifestHash == sourceManifest)
       .OrderByDescending(x => x.DecidedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
     return CommandResult<CashFlowAllocationReviewView>.Ok(new CashFlowAllocationReviewView(package.Id,
-      sourceManifest, lines.Length > 0, complete, false, decision?.Decision ?? "PENDING",
+      sourceManifest, lines.Count > 0, complete, false, decision?.Decision ?? "PENDING",
       decision?.EvidenceReference, decision?.Comment, decision?.DecidedByUserId, decision?.DecidedAt, movements));
   }
 }
