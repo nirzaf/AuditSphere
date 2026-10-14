@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Text;
 using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Completion;
@@ -49,7 +50,9 @@ public sealed class CompletionDeliverablesJourneyTests
     var now = DateTimeOffset.UtcNow;
     await using (var db = host.CreateDbContext())
     {
-      db.Users.AddRange(partner, manager);
+      var accountingReviewer = PbcSeed.User(f.FirmId, "Staff");
+      var financeReviewer = PbcSeed.User(f.FirmId, "Staff");
+      db.Users.AddRange(partner, manager, accountingReviewer, financeReviewer);
       db.RoleGrants.AddRange(PbcSeed.Grant(f.FirmId, partner, "Partner"), PbcSeed.Grant(f.FirmId, manager, "Manager"));
       await db.Engagements.Where(x => x.Id == f.EngagementId).ExecuteUpdateAsync(s => s.SetProperty(x => x.ServiceRoute, "FinancialStatementAudit").SetProperty(x => x.PeriodEnd, "2026-12-31"));
       db.GoingConcernAssessments.Add(new GoingConcernAssessment { Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId, AssessmentDate = new DateOnly(2027, 2, 1),
@@ -87,6 +90,13 @@ public sealed class CompletionDeliverablesJourneyTests
       await PlanningBasisSeed.EstablishAsync(db, f.FirmId, f.ClientId, f.EngagementId,
         PbcSeed.Actor(manager, "Manager"), PbcSeed.Actor(partner, "Partner"),
         accounts: [("1000", "Cash", 100m, "CASH", "ASSETS"), ("4000", "Revenue", -100m, "REVENUE", "INCOME")]);
+
+    // Seed the released financial package before generating/signing deliverables so every final document
+    // is current against the same completed-engagement facts.
+    var financialScope = new CompletionBundleScope(f.FirmId, f.ClientId, f.EngagementId, new()
+    { ["associate"] = f.Staff, ["senior"] = accountingReviewer, ["partner"] = partner, ["partner2"] = financeReviewer, ["manager"] = manager });
+    await CompletionBundleFixture.ReleasedFinancialPackageAsync(host.DbOptions, financialScope);
+    await CompletionBundleFixture.SeedPostedFeeAsync(host.DbOptions, financialScope);
 
     var origin = await StartIdentityAsync(partner);
     using var playwright = await Playwright.CreateAsync();
@@ -207,14 +217,13 @@ public sealed class CompletionDeliverablesJourneyTests
     await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Assemble five-part bundle (Partner)" })).ToBeDisabledAsync();
     await page.GetByRole(AriaRole.Button, new() { Name = "Generate Management Letter", Exact = true }).ClickAsync();
     await Assertions.Expect(result).ToContainTextAsync("Management Letter generated.");
-    var accountingReviewer = PbcSeed.User(f.FirmId, "Staff");
-    var financeReviewer = PbcSeed.User(f.FirmId, "Staff");
     await using (var db = host.CreateDbContext())
-    { db.Users.AddRange(accountingReviewer, financeReviewer); await db.SaveChangesAsync(); }
-    var financialScope = new CompletionBundleScope(f.FirmId, f.ClientId, f.EngagementId, new()
-    { ["associate"] = f.Staff, ["senior"] = accountingReviewer, ["partner"] = partner, ["partner2"] = financeReviewer, ["manager"] = manager });
-    await CompletionBundleFixture.ReleasedFinancialPackageAsync(host.DbOptions, financialScope);
-    await CompletionBundleFixture.SeedPostedFeeAsync(host.DbOptions, financialScope);
+    {
+      var bundleState = await AuditDeliverableService.BundleStateAsync(db, PbcSeed.Actor(partner, "Partner"), f.EngagementId);
+      Assert.True(bundleState.Succeeded, bundleState.Message);
+      Assert.True(bundleState.Value!.Blockers.Count == 0,
+        "The synthetic released package and posted-fee evidence should unblock the bundle: " + string.Join(" | ", bundleState.Value.Blockers));
+    }
     await page.GotoAsync($"{origin}/app/engagements/{f.EngagementId:D}/completion");
     await page.GetByRole(AriaRole.Heading, new() { Name = "File freeze and activity trail" }).WaitForAsync(new() { Timeout = 20000 });
     await SettleAsync();
