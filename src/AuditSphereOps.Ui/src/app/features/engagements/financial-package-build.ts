@@ -1,9 +1,9 @@
-import { Component, effect, inject, signal } from '@angular/core';
+import { Component, DestroyRef, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { Api, CommandState, routeGuid } from '../../core/api';
-import { arr, date, guid, nat, nullable, obj, text } from '../../core/decode';
+import { arr, date, guid, instant, nat, nullable, obj, oneOf, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
 import { decodeScheduleSources } from '../accounting/specialist-preparation';
 
@@ -14,8 +14,25 @@ export const decodeBuildInputs = obj({
   periods: arr(obj({ id: guid, periodCode: text, startDate: date, endDate: date, currency: text, basis: text }), 100),
   comparatives: arr(obj({ id: guid, framework: text, periodStart: text, periodEnd: text, currency: text, status: text }), 100),
 });
+export const decodeBuildStatus = obj({
+  operationId: guid,
+  status: oneOf('PENDING', 'CLAIMED', 'REMOTE_STARTED', 'VERIFYING', 'COMPLETED', 'RETRY_WAIT',
+    'AUTHORIZATION_BLOCKED', 'PROVIDER_BLOCKED', 'RESULT_UNCERTAIN', 'DEAD_LETTER', 'CANCEL_REQUESTED', 'CANCELLED_WITH_DISPOSITION'),
+  attemptCount: nat,
+  createdAt: instant,
+  completedAt: nullable(instant),
+  packageId: nullable(guid),
+});
 export type BuildInputs = ReturnType<typeof decodeBuildInputs>;
-export const decodeBuildStatus = obj({ operationId: guid, status: text, errorCode: nullable(text), packageId: nullable(guid) });
+type BuildStatus = ReturnType<typeof decodeBuildStatus>;
+
+const TERMINAL_BUILD_STATES = new Set<BuildStatus['status']>([
+  'COMPLETED', 'AUTHORIZATION_BLOCKED', 'PROVIDER_BLOCKED', 'RESULT_UNCERTAIN', 'DEAD_LETTER', 'CANCELLED_WITH_DISPOSITION',
+]);
+
+export function isTerminalBuildStatus(status: BuildStatus['status']): boolean {
+  return TERMINAL_BUILD_STATES.has(status);
+}
 
 export interface AllocationForm { generalLedgerLineId: string; signedAmount: string }
 export interface MovementForm {
@@ -223,23 +240,25 @@ export function toBuildRequest(form: BuildForm): { body: unknown } | { error: st
       @if (formError()) { <p role="alert">{{ formError() }}</p> }
       @if (queued(); as id) {
         <section class="panel" role="status">
-          <h2>Package build progress</h2>
-          <p>Operation <code>{{ id }}</code> · {{ buildStatus.data()?.status ?? 'Checking saved status…' }}</p>
-          @if (buildStatus.data()?.packageId; as packageId) {
-            <p>The package was built. <a [routerLink]="['/app/accounting/packages', packageId]">Open the package</a> to inspect its validations and review evidence.</p>
-          } @else if (buildStatus.data()?.status === 'AUTHORIZATION_BLOCKED' || buildStatus.data()?.status === 'PROVIDER_BLOCKED' || buildStatus.data()?.status === 'DEAD_LETTER') {
-            <p role="alert">The build stopped ({{ buildStatus.data()?.errorCode ?? 'see operation recovery' }}). No package was reported as complete.</p>
-          } @else if (buildStatus.data()?.status === 'RESULT_UNCERTAIN') {
-            <p role="alert">The worker result is uncertain. Check the saved operation state before retrying; this page has not confirmed a package.</p>
-          } @else if (buildStatus.data()?.status === 'CANCELLED_WITH_DISPOSITION') {
-            <p role="alert">The operation was cancelled. No package was reported as complete.</p>
-          } @else if (buildStatus.data()?.status === 'COMPLETED') {
-            <p role="alert">The operation completed without a scoped package result. Refresh or contact a firm administrator; this page cannot confirm the package.</p>
-          } @else if (buildStatus.error()) {
-            <p role="alert">{{ buildStatus.error() }}</p>
-            <button mat-button type="button" (click)="buildStatus.reload()">Retry status</button>
+          @if (buildStatus.data(); as state) {
+            @if (state.status === 'COMPLETED' && state.packageId) {
+              <h2>Build completed</h2>
+              <p>Operation <code>{{ id }}</code> completed.</p>
+              <a [routerLink]="['/app/accounting/packages', state.packageId]">Open built package</a>
+            } @else if (isTerminalBuildState(state.status)) {
+              <h2>Build stopped</h2>
+              <p>Operation <code>{{ id }}</code> ended in {{ state.status }}. No successful package result was confirmed. Refresh the inputs or ask a firm administrator to review the operation.</p>
+            } @else {
+              <h2>Build in progress</h2>
+              <p>Operation <code>{{ id }}</code> is {{ state.status }} (attempt {{ state.attemptCount }}). The worker is processing it; this is not yet a built package.</p>
+            }
+            <button matButton="outlined" type="button" (click)="buildStatus.reload()">Refresh build status</button>
+          } @else {
+            <h2>Build queued</h2>
+            <p>Operation <code>{{ id }}</code> is queued. The worker builds the package; a queued operation is not a built package.</p>
+            @if (buildStatus.error()) { <p role="alert">Build status could not be refreshed. You can retry the status read.</p> }
+            <button matButton="outlined" type="button" (click)="buildStatus.reload()">Refresh build status</button>
           }
-          @else { <p>The durable worker result is not complete yet; this page will refresh the saved status.</p> }
         </section>
       }
     }
@@ -248,37 +267,53 @@ export function toBuildRequest(form: BuildForm): { body: unknown } | { error: st
 })
 export class FinancialPackageBuild {
   private readonly api = inject(Api);
+  private readonly destroyRef = inject(DestroyRef);
+  private pollTimer: ReturnType<typeof setInterval> | null = null;
   readonly id = routeGuid();
   readonly inputs = this.api.resource(() => (this.id() ? `/api/ui/engagements/${this.id()}/financial-package-inputs` : null),
     decodeBuildInputs, 'The build inputs are not available in your current scope.');
   readonly cmd = new CommandState(this.api);
   readonly form: BuildForm = emptyBuildForm();
-  readonly buildStatus = this.api.resource(() => this.queued() ? `/api/ui/accounting/package-builds/${this.queued()}` : null,
-    decodeBuildStatus, 'This build is not available in your current engagement scope.');
   readonly formError = signal('');
   readonly queued = signal<string | null>(null);
+  readonly buildStatus = this.api.resource(() => {
+    const operationId = this.queued();
+    const engagementId = this.id();
+    return operationId && engagementId
+      ? `/api/ui/engagements/${engagementId}/financial-package-builds/${operationId}`
+      : null;
+  }, decodeBuildStatus, 'The build status is unavailable in your current scope.');
   readonly pickerFor = signal<number | null>(null);
   readonly sourcePage = signal(1);
   /** The period the source picker reads. A signal, so changing the period reloads the lines. */
   readonly chosenPeriod = signal('');
+  readonly isTerminalBuildState = isTerminalBuildStatus;
+
+  constructor() {
+    effect(() => {
+      const status = this.buildStatus.data()?.status;
+      if (!this.queued() || status && TERMINAL_BUILD_STATES.has(status)) this.stopPolling();
+      else this.startPolling();
+    });
+    this.destroyRef.onDestroy(() => this.stopPolling());
+  }
+
+  private startPolling(): void {
+    if (this.pollTimer !== null) return;
+    this.pollTimer = setInterval(() => this.buildStatus.reload(), 3000);
+  }
+
+  private stopPolling(): void {
+    if (this.pollTimer === null) return;
+    clearInterval(this.pollTimer);
+    this.pollTimer = null;
+  }
   readonly sources = this.api.resource(() => {
     const periodId = this.chosenPeriod();
     return this.id() && periodId && this.pickerFor() !== null
       ? `/api/ui/engagements/${this.id()}/specialist-preparation/source-lines?periodId=${periodId}&page=${this.sourcePage()}`
       : null;
   }, decodeScheduleSources, 'The accepted general-ledger lines are unavailable in your current scope.');
-
-  constructor() {
-    effect((onCleanup) => {
-      const operationId = this.queued();
-      const loading = this.buildStatus.loading();
-      const error = this.buildStatus.error();
-      const status = this.buildStatus.data()?.status;
-      if (!operationId || loading || error || !status || ['COMPLETED', 'AUTHORIZATION_BLOCKED', 'PROVIDER_BLOCKED', 'RESULT_UNCERTAIN', 'DEAD_LETTER', 'CANCELLED_WITH_DISPOSITION'].includes(status)) return;
-      const timer = setTimeout(() => this.buildStatus.reload(), 1500);
-      onCleanup(() => clearTimeout(timer));
-    });
-  }
 
   newMovement(): MovementForm { return emptyMovement(); }
   newDisclosure(): DisclosureForm { return { code: '', response: '', notApplicable: false, rationale: '' }; }
@@ -319,8 +354,6 @@ export class FinancialPackageBuild {
     this.formError.set('');
     const built = toBuildRequest(this.form);
     if ('error' in built) { this.formError.set(built.error); return; }
-    void this.cmd.run<string>('/api/ui/accounting/packages/builds', built.body, 'Package build queued.', (operation) => {
-      this.queued.set(operation);
-    });
+    void this.cmd.run<string>('/api/ui/accounting/packages/builds', built.body, 'Package build queued.', (operation) => this.queued.set(operation));
   }
 }
