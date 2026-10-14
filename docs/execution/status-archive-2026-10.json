@@ -16346,6 +16346,25 @@
         "openItems": [
           "CI does not run the full Domain suite, so the five failures went unseen. Change the CI filter or run the full suite locally."
         ]
+      },
+      "workflowRelationshipManagerPreparation": {
+        "recordedAtUtc": "2026-10-13T10:02:00Z",
+        "baseCommit": "bdeccddb",
+        "scope": "RelationshipManager honors existing client/firm grants for blocked draft preparation and client business summaries; engagement-only scope cannot widen to the client. Professional engagement reads, risk decisions and activation keep separate roles.",
+        "migration": "20261013094323_RelationshipManagerEngagementCreationReceipts: exact-publication function role allowlist only; isolated test down/up preserves receipts. No development or production migration.",
+        "checks": {
+          "domain": "PASS 18/18: RelationshipManagerAnnualPreparationTests, ClientProfileWorkspaceTests, AnnualEngagementPreparationTests, creation safety/review and prior scoped receipt round trip; /private/tmp/auditsphere-relationship-results/_Mac_2026-10-13_12_51_18_net10.0.trx",
+          "browser": "PASS 2/2: AngularAnnualEngagementJourneyTests for Manager and RelationshipManager; /private/tmp/auditsphere-relationship-browser-verified/_Mac_2026-10-13_13_01_15_net10.0.trx",
+          "builtInBrowser": "PASS authenticated synthetic RelationshipManager annual review; source and period shown; confirmation disabled without assent; no warn/error logs",
+          "builds": "PASS bounded Application/Infrastructure/API/Domain/E2E/emitter Release builds; NU1900 feed warnings",
+          "modelContract": "PASS no pending model changes and unchanged OpenAPI drift check"
+        },
+        "initialBrowserFailures": "Test expected an acknowledgement button reserved for unknown outcomes, then used an ambiguous text locator before navigation completed. Corrected test to follow the normal confirmed-result path and wait for the exact client table cell.",
+        "priorCi": "bdeccddb: runs 38375635805 and 38375635821 succeeded.",
+        "limits": [
+          "WF-11 still needs approved template choice/pinning, contact/schedule/mapping suggestions and fresh-checklist orchestration.",
+          "No tenant grants, professional acceptance, full release suite or production deployment."
+        ]
       }
     }
   }
