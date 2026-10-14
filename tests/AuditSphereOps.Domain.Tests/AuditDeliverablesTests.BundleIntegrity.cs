@@ -20,12 +20,12 @@ public sealed partial class AuditDeliverablesTests
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var w = await SeedAsync(pg);
-    await SignedReportAsync(pg, w);
     var partner = w.A("partner", "Partner");
-    await using (var db = new AuditSphereDbContext(pg.Options))
-      Assert.True((await AuditDeliverableService.GenerateReportAsync(db, w.A("manager", "Manager"), w.EngagementId, DeliverableKinds.ManagementLetter)).Succeeded);
     await CompletionBundleFixture.ReleasedFinancialPackageAsync(pg.Options, new(w.FirmId, w.ClientId, w.EngagementId, w.U));
     await CompletionBundleFixture.SeedPostedFeeAsync(pg.Options, new(w.FirmId, w.ClientId, w.EngagementId, w.U), automateBalance: true);
+    await SignedReportAsync(pg, w);
+    await using (var db = new AuditSphereDbContext(pg.Options))
+      Assert.True((await AuditDeliverableService.GenerateReportAsync(db, w.A("manager", "Manager"), w.EngagementId, DeliverableKinds.ManagementLetter)).Succeeded);
     // Model a corrupt storage read after EF materialization. No trigger is disabled and no stored artifact is edited.
     var corruption = new CorruptBundleSourceRead(component);
     await using (var db = new AuditSphereDbContext(new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(corruption).Options))

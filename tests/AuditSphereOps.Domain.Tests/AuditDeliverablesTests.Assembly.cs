@@ -79,8 +79,10 @@ public sealed partial class AuditDeliverablesTests
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var w = await SeedAsync(pg);
-    var iar = await ReportReadyForSigningAsync(pg, w);
     var partner = w.A("partner", "Partner"); var manager = w.A("manager", "Manager");
+    await CompletionBundleFixture.ReleasedFinancialPackageAsync(pg.Options, new(w.FirmId, w.ClientId, w.EngagementId, w.U));
+    await CompletionBundleFixture.SeedPostedFeeAsync(pg.Options, new(w.FirmId, w.ClientId, w.EngagementId, w.U), automateBalance: true);
+    var iar = await ReportReadyForSigningAsync(pg, w);
     using var firmCertificate = ReportCertificateSigningTests.TestCertificate();
     var pfx = firmCertificate.Export(System.Security.Cryptography.X509Certificates.X509ContentType.Pkcs12);
     var source = new ReportCertificateSigningTests.FixedSource(
@@ -91,8 +93,6 @@ public sealed partial class AuditDeliverablesTests
       Assert.True((await AuditDeliverableService.SignIndependentReportAsync(db, partner, iar, default, source)).Succeeded);
       Assert.True((await AuditDeliverableService.GenerateReportAsync(db, manager, w.EngagementId, DeliverableKinds.ManagementLetter)).Succeeded);
     }
-    await CompletionBundleFixture.ReleasedFinancialPackageAsync(pg.Options, new(w.FirmId, w.ClientId, w.EngagementId, w.U));
-    await CompletionBundleFixture.SeedPostedFeeAsync(pg.Options, new(w.FirmId, w.ClientId, w.EngagementId, w.U), automateBalance: true);
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       // The certificate must be available again to certify the statements: without it nothing is assembled.
@@ -137,11 +137,9 @@ public sealed partial class AuditDeliverablesTests
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var w = await SeedAsync(pg);
-    var signedId = await SignedReportAsync(pg, w);
     var partner = w.A("partner", "Partner"); var manager = w.A("manager", "Manager"); var client = w.A("client", "ClientUser");
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      Assert.True((await AuditDeliverableService.GenerateReportAsync(db, manager, w.EngagementId, DeliverableKinds.ManagementLetter)).Succeeded);
       var blocked = await AuditDeliverableService.AssembleBundleAsync(db, partner, w.EngagementId, true);
       Assert.Equal(ErrorCodes.GateBlocked, blocked.ErrorCode);
       Assert.Contains("financial package", blocked.Message);
@@ -150,6 +148,9 @@ public sealed partial class AuditDeliverablesTests
     }
     var (packageId, releaseId) = await CompletionBundleFixture.ReleasedFinancialPackageAsync(pg.Options, new(w.FirmId, w.ClientId, w.EngagementId, w.U));
     await CompletionBundleFixture.SeedPostedFeeAsync(pg.Options, new(w.FirmId, w.ClientId, w.EngagementId, w.U), automateBalance: true);
+    var signedId = await SignedReportAsync(pg, w);
+    await using (var db = new AuditSphereDbContext(pg.Options))
+      Assert.True((await AuditDeliverableService.GenerateReportAsync(db, manager, w.EngagementId, DeliverableKinds.ManagementLetter)).Succeeded);
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       Assert.Equal(ErrorCodes.ScopeDenied, (await AuditDeliverableService.AssembleBundleAsync(db, manager, w.EngagementId, true)).ErrorCode);

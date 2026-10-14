@@ -146,6 +146,9 @@ public sealed class FinancialPackageGateTests
       Assert.True(built.Succeeded, built.Message);
       packageId = built.Value!.PackageId;
       Assert.Equal(AccountingPackageStates.PackageValidated, built.Value.Status);
+      var sourceReview = await FinancialStatementService.RecordCashFlowSourceReviewAsync(
+        db, reviewer, packageId, "APPROVED", null);
+      Assert.True(sourceReview.Succeeded, sourceReview.Message);
       var rendered = await FinancialStatementService.RenderPackageArtifactAsync(db, preparer, packageId);
       Assert.True(rendered.Succeeded, rendered.Message);
     }

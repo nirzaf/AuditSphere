@@ -31,9 +31,9 @@ public sealed partial class AuditDeliverablesTests
         State = PbcStates.Accepted, AcceptedByUserId = manager.UserId, AcceptedAt = now, CreatedByUserId = manager.UserId, CreatedAt = now, UpdatedAt = now });
       await db.SaveChangesAsync();
     }
-    await SignedReportAsync(pg, w);
     await CompletionBundleFixture.ReleasedFinancialPackageAsync(pg.Options, new(w.FirmId, w.ClientId, w.EngagementId, w.U));
     await CompletionBundleFixture.SeedPostedFeeAsync(pg.Options, new(w.FirmId, w.ClientId, w.EngagementId, w.U), automateBalance: true);
+    await SignedReportAsync(pg, w);
     await using var scope = new AuditSphereDbContext(pg.Options);
     var missing = await AuditDeliverableService.AssembleBundleAsync(scope, partner, w.EngagementId, true);
     Assert.Equal(ErrorCodes.GateBlocked, missing.ErrorCode); Assert.Contains("management letter", missing.Message);
