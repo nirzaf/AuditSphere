@@ -25,8 +25,13 @@ public sealed class AngularCashFlowPackageJourneyTests
     var preparerPage = await preparerContext.NewPageAsync();
     var errors = new List<string>();
     preparerPage.PageError += (_, error) => errors.Add(error);
-    var inputsResponseTask = preparerPage.WaitForResponseAsync(response =>
-      response.Url.Contains("/financial-package-inputs", StringComparison.Ordinal));
+    var inputsResponseTask = new TaskCompletionSource<(int Status, string Body)>(TaskCreationOptions.RunContinuationsAsynchronously);
+    preparerPage.Response += async (_, response) =>
+    {
+      if (!response.Url.Contains("/financial-package-inputs", StringComparison.Ordinal)) return;
+      try { inputsResponseTask.TrySetResult((response.Status, await response.TextAsync())); }
+      catch (Exception error) { inputsResponseTask.TrySetException(error); }
+    };
     await preparerPage.GotoAsync(preparerOrigin + "/auth/sign-in?returnUrl=" +
       Uri.EscapeDataString($"/ui/app/engagements/{host.Fixture.EngagementId:D}/financial-package"));
     await Assertions.Expect(preparerPage.GetByRole(AriaRole.Heading,
@@ -42,20 +47,19 @@ public sealed class AngularCashFlowPackageJourneyTests
         await preparerPage.Locator("body").InnerTextAsync() + " JavaScript errors: " + string.Join(" | ", errors));
     }
 
-    var inputsResponse = await inputsResponseTask;
-    var inputsBody = await inputsResponse.TextAsync();
-    if (!inputsResponse.Ok || !inputsBody.Contains(seed.MappingId.ToString("D"), StringComparison.OrdinalIgnoreCase))
-      throw new InvalidOperationException($"The build-input API did not return the seeded mapping. HTTP {inputsResponse.Status}: {inputsBody}. Page: {await preparerPage.Locator("body").InnerTextAsync()}");
+    var inputsResponse = await inputsResponseTask.Task.WaitAsync(TimeSpan.FromSeconds(10));
+    if (inputsResponse.Status != 200 || !inputsResponse.Body.Contains(seed.MappingId.ToString("D"), StringComparison.OrdinalIgnoreCase))
+      throw new InvalidOperationException($"The build-input API did not return the seeded mapping. HTTP {inputsResponse.Status}: {inputsResponse.Body}. Page: {await preparerPage.Locator("body").InnerTextAsync()}");
 
     try
     {
       await preparerPage.GetByLabel("Approved mapping", new() { Exact = true })
         .SelectOptionAsync(seed.MappingId.ToString("D"), new() { Timeout = 10000 });
     }
-    catch (TimeoutException)
+    catch (PlaywrightException error)
     {
-      throw new InvalidOperationException($"Approved mapping selector did not render the seeded mapping. HTTP {inputsResponse.Status}: {inputsBody}. " +
-        $"Page: {await preparerPage.Locator("body").InnerTextAsync()}. JavaScript errors: {string.Join(" | ", errors)}");
+      throw new InvalidOperationException($"Approved mapping selector did not render the seeded mapping. HTTP {inputsResponse.Status}: {inputsResponse.Body}. " +
+        $"Page: {await preparerPage.Locator("body").InnerTextAsync()}. JavaScript errors: {string.Join(" | ", errors)}", error);
     }
     await preparerPage.GetByLabel("Finalized adjustment plan", new() { Exact = true }).SelectOptionAsync(seed.PlanId.ToString("D"));
     await preparerPage.GetByLabel("Reporting period", new() { Exact = true }).SelectOptionAsync(seed.PeriodId.ToString("D"));
