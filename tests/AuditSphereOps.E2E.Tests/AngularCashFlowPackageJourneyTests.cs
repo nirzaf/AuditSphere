@@ -67,8 +67,9 @@ public sealed class AngularCashFlowPackageJourneyTests
     await preparerPage.GetByRole(AriaRole.Button, new() { Name = "Add disclosure", Exact = true }).ClickAsync();
     await preparerPage.GetByLabel("Code", new() { Exact = true }).FillAsync("CASH_POLICY");
     await preparerPage.GetByLabel("Response", new() { Exact = true }).FillAsync("Synthetic cash policy disclosure.");
-    await preparerPage.GetByRole(AriaRole.Button, new() { Name = "Queue package build", Exact = true }).ClickAsync();
-    await Assertions.Expect(preparerPage.GetByRole(AriaRole.Heading, new() { Name = "Build completed", Exact = true }))
+    // The journey supplies no equity, note or FX schedule, so the submit control reads as a draft with open blockers.
+    await preparerPage.GetByRole(AriaRole.Button, new() { Name = "Queue draft build with open blockers", Exact = true }).ClickAsync();
+    await Assertions.Expect(preparerPage.GetByRole(AriaRole.Heading, new() { Name = "Build finished", Exact = true }))
       .ToBeVisibleAsync(new() { Timeout = 30_000 });
     var openPackage = preparerPage.GetByRole(AriaRole.Link, new() { Name = "Open built package", Exact = true });
     await Assertions.Expect(openPackage).ToBeVisibleAsync(new() { Timeout = 30_000 });
