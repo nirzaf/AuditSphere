@@ -146,6 +146,8 @@ export const routes: Routes = [
     loadComponent: () => import('./features/engagements/tb-intake').then(m => m.TrialBalanceIntake) },
   { path: 'app/practice/resources', canActivate: [staffGuard], canDeactivate: [unsavedChangesGuard], title: 'Resource planning · AuditSphere',
     loadComponent: () => import('./features/practice/resources').then(m => m.ResourcePlanning) },
+  { path: 'app/engagements/:id/financial-package', canActivate: [staffGuard], title: 'Build financial package · AuditSphere',
+    loadComponent: () => import('./features/engagements/financial-package-build').then(m => m.FinancialPackageBuild) },
   { path: 'app/engagements/:id/statements', canActivate: [staffGuard], title: 'Financial statements · AuditSphere',
     loadComponent: () => import('./features/engagements/statements').then(m => m.StatementDrillDown) },
   { path: 'app/practice/analytics', canActivate: [staffGuard], title: 'Practice analytics · AuditSphere',

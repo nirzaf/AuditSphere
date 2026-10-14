@@ -2,7 +2,6 @@ using System.Text;
 using System.Text.Json;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Operations;
-using AuditSphereOps.Application.Security;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Api.Authentication;
 using AuditSphereOps.Api.HttpBoundary;
@@ -25,9 +24,8 @@ public static partial class UiEndpoints
 
   private static void MapPackageEndpoints(RouteGroupBuilder group)
   {
-    // The calculation is queued as a durable, idempotent operation. The shared command
-    // boundary validates the browser antiforgery token before deserializing or enqueuing it.
-    group.MapUiPost("/accounting/packages/build", http => CommandAsync(http, async (db, actor, ct) =>
+    // Preserve exact decimal strings from the browser while queueing the reviewed build durably.
+    group.MapUiPost("/accounting/packages/builds", http => CommandAsync(http, async (db, actor, ct) =>
     {
       BuildFinancialPackageRequest? input;
       try
@@ -45,23 +43,6 @@ public static partial class UiEndpoints
         http.RequestServices.GetRequiredService<FinancialPackageBuildHandler>(), ct);
     })).Accepts<BuildFinancialPackageRequest>("application/json");
 
-    group.MapUiGet("/accounting/package-builds/{operationId:guid}", http => ReadAsync(http, async (db, actor, ct) =>
-    {
-      if (!Guid.TryParse(http.Request.RouteValues["operationId"]?.ToString(), out var operationId) || operationId == Guid.Empty)
-        return CommandResult<object>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-      var operation = await db.DurableOperations.AsNoTracking().SingleOrDefaultAsync(x => x.Id == operationId &&
-        x.FirmId == actor.FirmId && x.OriginatorId == actor.UserId && x.OperationKind == FinancialPackageBuildHandler.Kind, ct);
-      if (operation is null || operation.ClientId is not { } clientId || operation.EngagementId is not { } engagementId)
-        return CommandResult<object>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-      var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
-        new AuthorizationRequest(operation.FirmId, clientId, engagementId,
-          ["AccountingPreparer", "AccountingReviewer", "Manager", "Partner", "Administrator"], InternalOnly: true), ct);
-      if (!auth.Succeeded) return CommandResult<object>.Fail(auth.ErrorCode!, auth.Message!);
-      Guid? packageId = null;
-      if (operation.Status == OperationState.COMPLETED && Guid.TryParse(operation.ResultIdentity, out var parsed)) packageId = parsed;
-      return CommandResult<object>.Ok(new { operation.Id, Status = operation.Status.ToString(), PackageId = packageId, operation.ErrorCode });
-    }));
-
     group.MapUiGet("/accounting/reviews", http => ReadAsync(http, (db, actor, ct) => FinancialPackageReviewService.GetStaffQueueAsync(db, actor, ct)));
     group.MapGet("/accounting/packages/{id:guid}", (Guid id, HttpContext http) => ReadAsync(http, (db, actor, ct) => FinancialPackageWorkspaceQuery.GetAsync(db, actor, id, ct)));
     group.MapPost("/accounting/packages/{id:guid}/render", (Guid id, HttpContext http) =>
@@ -71,6 +52,9 @@ public static partial class UiEndpoints
     group.MapPost("/accounting/packages/{id:guid}/reviews", (Guid id, PackageReviewInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => FinancialPackageReviewService.RecordAsync(db, actor,
         new FinancialPackageReviewRequest(id, i.Stage, i.Decision, i.EvidenceMode, i.EvidenceReference ?? "", i.Comment ?? ""), ct)));
+    // Build inputs: the approved mappings, finalized plans and reporting periods a preparer can choose from.
+    group.MapGet("/engagements/{id:guid}/financial-package-inputs", (Guid id, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => FinancialPackageBuildInputsQuery.GetAsync(db, actor, id, ct)));
     group.MapGet("/accounting/packages/{id:guid}/cash-flow-source-review", (Guid id, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => FinancialStatementService.GetCashFlowSourceReviewAsync(db, actor, id, ct)));
     group.MapPost("/accounting/packages/{id:guid}/cash-flow-source-review", (Guid id, CashFlowSourceReviewInput i, HttpContext http) =>

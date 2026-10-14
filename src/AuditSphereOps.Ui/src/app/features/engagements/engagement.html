@@ -68,6 +68,9 @@
           <a matButton [routerLink]="workflowLink(engagement.id, workflow.path)">{{ workflow.label }}</a>
         }
       }
+      @if (engagement.canPrepareAccounting) {
+        <a matButton [routerLink]="['/app/engagements', engagement.id, 'financial-package']">Build financial package</a>
+      }
     </nav>
     @if (workBlocked(engagement)) {
       <section role="status">

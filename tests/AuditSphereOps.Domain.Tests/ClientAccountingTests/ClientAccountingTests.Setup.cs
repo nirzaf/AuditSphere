@@ -142,7 +142,19 @@ public sealed partial class ClientAccountingTests
       ArtifactSha256Hex = Hashing.Sha256Hex(artifactBytes), ArtifactBytes = artifactBytes,
       CreatedByUserId = scope.Preparer.Id, CreatedAt = now
     });
+    AddCanonicalValidations(db, scope, packageId);
     return packageId;
+  }
+
+  /// <summary>A validated package carries every mandatory validation the build records; readiness requires the full population.</summary>
+  private static void AddCanonicalValidations(AuditSphereDbContext db, Scope scope, Guid packageId)
+  {
+    foreach (var code in FinancialPackageValidationReadiness.RequiredCodes)
+      db.FinancialPackageValidations.Add(new FinancialPackageValidation
+      {
+        Id = Guid.CreateVersion7(), FirmId = scope.FirmId, FinancialPackageId = packageId, Code = code, Passed = true,
+        Detail = "Seeded canonical validation for a validated package.", CreatedAt = DateTimeOffset.UtcNow
+      });
   }
 
   private static async Task<Guid> AddMultiLinePackageAsync(AuditSphereDbContext db, Scope scope, Guid clientId, Guid engagementId,
@@ -206,6 +218,7 @@ public sealed partial class ClientAccountingTests
       ArtifactSha256Hex = Hashing.Sha256Hex(artifactBytes), ArtifactBytes = artifactBytes,
       CreatedByUserId = scope.Preparer.Id, CreatedAt = now
     });
+    AddCanonicalValidations(db, scope, packageId);
     return packageId;
   }
 
