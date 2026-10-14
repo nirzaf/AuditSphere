@@ -983,7 +983,7 @@
       }
     },
     "currentCashFlowPackageJourney": {
-      "recordedAtUtc": "2026-10-14T14:54:15Z",
+      "recordedAtUtc": "2026-10-14T15:06:39Z",
       "baseCommit": "9c40280e",
       "status": "PARTIAL",
       "alias": "CP-11 accepted-source cash-flow build subpath / CP-12 policy-blocked",
@@ -1022,7 +1022,23 @@
         "CP-12 requires the user-supplied approved indirect cash-flow policy and professional interpretation of reviewed assessed-zero FX states.",
         "The attached story includes many further decision-dependent and unimplemented criteria beyond CP-11/CP-12.",
         "Exact-head GitHub Actions evidence is not yet available; update PR body and monitor CI after pushing the final commit."
-      ]
+      ],
+      "headCommit": "a8a05c9738b63fb6b73ba86570bf32a206084d0b",
+      "exactHeadCi": {
+        "runId": "38584818620",
+        "result": "FAIL",
+        "angular": "PASS",
+        "docsHealth": "PASS",
+        "releaseBuild": "PASS",
+        "focusedDomainAndApiStep": "FAIL: 12 failed, 129 passed, 0 skipped, 141 total; two domain/API test commands are in the step, but the Domain project failed first",
+        "diagnosis": "All 12 surfaced Domain failures are package fixtures expecting VALIDATED or no additional blocking validation while cash-flow movements have only preparer text and no accepted-source allocation. New fail-closed CASH_FLOW_SOURCE_LINEAGE evidence correctly leaves those packages REVIEW_REQUIRED. Fixtures are being corrected to seed and allocate accepted GL lines; this correction has not yet been verified.",
+        "skippedAfterFailure": [
+          "EF model drift",
+          "API-hosted browser E2E",
+          "standalone publication",
+          "OpenAPI contract drift"
+        ]
+      }
     }
   },
   "externalGates": [
