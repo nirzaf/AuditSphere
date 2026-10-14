@@ -183,10 +183,10 @@ internal static class FinancialPackageFixture
       Assert.True(built.Succeeded, built.Message);
       Assert.Equal(AccountingPackageStates.PackageValidated, built.Value!.Status);
       packageId = built.Value.PackageId;
-      var reviewer = PbcSeed.Actor(host.Fixture.Reviewer, "AccountingReviewer");
-      var reviewState = await FinancialStatementService.GetCashFlowSourceReviewAsync(db, reviewer, packageId);
+      var sourceReviewer = PbcSeed.Actor(host.Fixture.Reviewer, "AccountingReviewer");
+      var reviewState = await FinancialStatementService.GetCashFlowSourceReviewAsync(db, sourceReviewer, packageId);
       Assert.True(reviewState.Succeeded, reviewState.Message);
-      var sourceReview = await FinancialStatementService.RecordCashFlowSourceReviewAsync(db, reviewer, packageId, "APPROVED",
+      var sourceReview = await FinancialStatementService.RecordCashFlowSourceReviewAsync(db, sourceReviewer, packageId, "APPROVED",
         "Synthetic independent cash-flow source review.", Guid.NewGuid(), reviewState.Value!.LinkDigest, reviewState.Value.LatestReviewId);
       Assert.True(sourceReview.Succeeded, sourceReview.Message);
       var canonical = await FinancialStatementService.RenderPackageArtifactAsync(db, preparer, packageId);
