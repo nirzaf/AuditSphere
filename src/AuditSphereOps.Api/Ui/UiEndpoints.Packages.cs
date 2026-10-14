@@ -1,9 +1,14 @@
 using System.Text;
+using System.Text.Json;
 using AuditSphereOps.Application.Accounting;
+using AuditSphereOps.Application.Operations;
+using AuditSphereOps.Application.Security;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Api.Authentication;
 using AuditSphereOps.Api.HttpBoundary;
 using AuditSphereOps.Domain.Accounting;
+using AuditSphereOps.Domain.Completion;
+using AuditSphereOps.Domain.Shared;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,14 +18,62 @@ public static partial class UiEndpoints
 {
   public sealed record PackageReviewInput(string Stage, string Decision, string EvidenceMode, string EvidenceReference, string? Comment);
   public sealed record PackageArtifactInput(string ArtifactVersion);
+  public sealed record CashFlowAllocationReviewInput(string ExpectedSourceManifestHash, string Decision, string EvidenceReference, string? Comment);
   public sealed record StatementPresentationExportInput(string? Format, Guid? LayoutVersionId);
   public sealed record StatementPresentationPinInput(Guid LayoutVersionId);
   public sealed record StatementPresentationPinnedArtifactInput(string? Format);
 
   private static void MapPackageEndpoints(RouteGroupBuilder group)
   {
+    // The calculation is queued as a durable, idempotent operation. The shared command
+    // boundary validates the browser antiforgery token before deserializing or enqueuing it.
+    group.MapUiPost("/accounting/packages/build", http => CommandAsync(http, async (db, actor, ct) =>
+    {
+      BuildFinancialPackageRequest? input;
+      try
+      {
+        input = await JsonSerializer.DeserializeAsync<BuildFinancialPackageRequest>(http.Request.Body, UiJson, ct);
+      }
+      catch (JsonException)
+      {
+        return CommandResult<Guid>.Fail(ErrorCodes.Accounting.PackageInvalid, "The financial-package input is invalid.");
+      }
+      if (input is null)
+        return CommandResult<Guid>.Fail(ErrorCodes.Accounting.PackageInvalid, "A financial-package input is required.");
+      return await FinancialStatementService.EnqueueFinancialPackageBuildAsync(db, actor, input,
+        http.RequestServices.GetRequiredService<IOperationStore>(),
+        http.RequestServices.GetRequiredService<FinancialPackageBuildHandler>(), ct);
+    })).Accepts<BuildFinancialPackageRequest>("application/json");
+
+    group.MapUiGet("/accounting/package-builds/{operationId:guid}", http => ReadAsync(http, async (db, actor, ct) =>
+    {
+      if (!Guid.TryParse(http.Request.RouteValues["operationId"]?.ToString(), out var operationId) || operationId == Guid.Empty)
+        return CommandResult<object>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+      var operation = await db.DurableOperations.AsNoTracking().SingleOrDefaultAsync(x => x.Id == operationId &&
+        x.FirmId == actor.FirmId && x.OriginatorId == actor.UserId && x.OperationKind == FinancialPackageBuildHandler.Kind, ct);
+      if (operation is null || operation.ClientId is not { } clientId || operation.EngagementId is not { } engagementId)
+        return CommandResult<object>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+      var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+        new AuthorizationRequest(operation.FirmId, clientId, engagementId,
+          ["AccountingPreparer", "AccountingReviewer", "Manager", "Partner", "Administrator"], InternalOnly: true), ct);
+      if (!auth.Succeeded) return CommandResult<object>.Fail(auth.ErrorCode!, auth.Message!);
+      Guid? packageId = null;
+      if (operation.Status == OperationState.COMPLETED && Guid.TryParse(operation.ResultIdentity, out var parsed)) packageId = parsed;
+      return CommandResult<object>.Ok(new { operation.Id, Status = operation.Status.ToString(), PackageId = packageId, operation.ErrorCode });
+    }));
+
     group.MapUiGet("/accounting/reviews", http => ReadAsync(http, (db, actor, ct) => FinancialPackageReviewService.GetStaffQueueAsync(db, actor, ct)));
     group.MapGet("/accounting/packages/{id:guid}", (Guid id, HttpContext http) => ReadAsync(http, (db, actor, ct) => FinancialPackageWorkspaceQuery.GetAsync(db, actor, id, ct)));
+    group.MapUiGet("/accounting/packages/{id:guid}/cash-flow-allocation-review", http => ReadAsync(http, (db, actor, ct) =>
+      CashFlowAllocationReviewService.GetAsync((IClientAccountingDbContext)db, actor,
+        Guid.Parse(http.Request.RouteValues["id"]!.ToString()!), ct)));
+    group.MapPost("/accounting/packages/{id:guid}/cash-flow-allocation-review", (Guid id, CashFlowAllocationReviewInput input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => CashFlowAllocationReviewService.DecideAsync((IClientAccountingDbContext)db, actor, id,
+        new CashFlowAllocationReviewRequest(input.ExpectedSourceManifestHash, input.Decision, input.EvidenceReference, input.Comment), ct)));
+    group.MapPost("/accounting/packages/{id:guid}/render", (Guid id, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => FinancialStatementService.EnqueueFinancialPackageRenderAsync(db, actor, id,
+        http.RequestServices.GetRequiredService<IOperationStore>(),
+        http.RequestServices.GetRequiredService<FinancialPackageRenderHandler>(), ct)));
     group.MapPost("/accounting/packages/{id:guid}/reviews", (Guid id, PackageReviewInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => FinancialPackageReviewService.RecordAsync(db, actor,
         new FinancialPackageReviewRequest(id, i.Stage, i.Decision, i.EvidenceMode, i.EvidenceReference ?? "", i.Comment ?? ""), ct)));

@@ -357,10 +357,12 @@ public static partial class FinancialStatementService
           CashFlowLineId = movements[link.MovementIndex].Id, GeneralLedgerLineId = link.GeneralLedgerLineId,
           GeneralLedgerTransactionId = link.GeneralLedgerTransactionId, SourceImportBatchId = link.SourceImportBatchId,
           SourceLineHash = link.SourceLineHash, SignedAmount = link.SignedAmount, Currency = link.Currency,
+          PreparedByUserId = actor.UserId,
           CreatedAt = package.CreatedAt
         });
-      // Lineage is recorded only when the request supplies any source link, so unlinked drafts keep their existing validations.
-      if (request.SupplementaryInformation.CashFlowLines.Any(x => x.SourceAllocations is { Count: > 0 }))
+      // A new schedule always receives an explicit lineage result. Missing links remain
+      // a persisted draft; historical packages are not backfilled or reclassified.
+      if (request.SupplementaryInformation.CashFlowLines.Count > 0)
       {
         var resolvedMovements = ResolvedCashFlowMovements(request.SupplementaryInformation.CashFlowLines.Select(x => MoneyPolicy.Normalize(x.Amount)).ToArray(),
           sourceLinks.Value!.Select(x => (x.MovementIndex, x.SignedAmount)));
@@ -392,7 +394,7 @@ public static partial class FinancialStatementService
 
     // Fail closed: a package whose blocking validations failed must never carry the
     // VALIDATED state, so review, management view and release all refuse it.
-    // A partly source-linked cash-flow schedule is a draft too: its lineage validation is recorded only when links were supplied.
+    // Any new cash-flow schedule without complete source links is a draft.
     var lineageFailed = db.FinancialPackageValidations.Local.Any(x => x.FinancialPackageId == package.Id &&
       x.Code == "CASH_FLOW_SOURCE_LINEAGE" && !x.Passed);
     var blockingValidationFailed = lineageFailed || !FinancialPackageValidationReadiness.Evaluate(

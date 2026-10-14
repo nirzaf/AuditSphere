@@ -162,9 +162,9 @@ public static partial class FinancialStatementService
       x.ActivityCode, resolved[index])).ToList();
   }
 
-  // The public/DB field retains its legacy NoteSourceManifestHash name. Version 3 also seals
+  // The public/DB field retains its legacy NoteSourceManifestHash name. Version 4 also seals
   // persisted cash-flow source allocations. A hash proves identity, never source acceptance or review.
-  private static async Task<string> ComputePresentationSourceManifestHashAsync(
+  internal static async Task<string> ComputePresentationSourceManifestHashAsync(
     IClientAccountingDbContext db, Guid firmId, Guid[] packageIds,
     IReadOnlyList<FinancialPackageNoteLine> noteLines,
     IReadOnlyList<FinancialPackageDisclosure> disclosures, CancellationToken ct)
@@ -191,7 +191,7 @@ public static partial class FinancialStatementService
     IReadOnlyList<FinancialPackageCashFlowAllocation> cashAllocations, string noteHash) =>
     Hashing.Sha256Hex(JsonSerializer.SerializeToUtf8Bytes(new
     {
-      Version = "auditsphere.statement-source-manifest.v3",
+      Version = "auditsphere.statement-source-manifest.v4",
       NoteHash = noteHash,
       Packages = packages.OrderBy(x => x.Id).Select(x => new
       {
@@ -212,7 +212,7 @@ public static partial class FinancialStatementService
         {
           x.Id, x.FinancialPackageId, x.ClientId, x.EngagementId, x.CashFlowLineId,
           x.GeneralLedgerLineId, x.GeneralLedgerTransactionId, x.SourceImportBatchId,
-          x.SourceLineHash, x.SignedAmount, x.Currency
+          x.SourceLineHash, x.SignedAmount, x.Currency, x.PreparedByUserId
         }).ToArray(),
       Fx = fx.OrderBy(x => x.FinancialPackageId).ThenBy(x => x.Id).Select(x => new
       {

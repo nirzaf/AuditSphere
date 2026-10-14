@@ -349,6 +349,7 @@ public interface IClientAccountingDbContext : IAuditSphereDbContext
   DbSet<FinancialPackageEquityLine> FinancialPackageEquityLines { get; }
   DbSet<FinancialPackageNoteLine> FinancialPackageNoteLines { get; }
   DbSet<FinancialPackageReviewDecision> FinancialPackageReviewDecisions { get; }
+  DbSet<FinancialPackageCashFlowAllocationReview> FinancialPackageCashFlowAllocationReviews { get; }
 }
 
 public interface IAdjustmentJournalDbContext : IAuditSphereDbContext

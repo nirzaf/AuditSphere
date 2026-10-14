@@ -6,6 +6,7 @@ import { Api, CommandState, routeGuid } from '../../core/api';
 import { arr, bool, dec, guid, instant, nat, nullable, obj, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
 import { StatementPresentation } from './presentation';
+import { CashFlowAllocationReview } from './cash-flow-allocation-review';
 
 export const decodePackage = obj({ id: guid, engagementId: guid, status: text, framework: text, periodStart: text, periodEnd: text, currency: text, templateVersion: text,
   calculationHash: text, supplementaryHash: nullable(text), revision: nat, cashBeginning: nullable(dec), cashEnding: nullable(dec),
@@ -21,7 +22,7 @@ const ARTIFACTS: [string, string][] = [['financial-package-xlsx.v1', 'Download w
 
 @Component({
   selector: 'audit-financial-package',
-  imports: [FormsModule, RouterLink, MatButtonModule, ...SHARED, StatementPresentation],
+  imports: [FormsModule, RouterLink, MatButtonModule, ...SHARED, StatementPresentation, CashFlowAllocationReview],
   template: `
     <nav aria-label="Breadcrumb"><a routerLink="/app">Portfolio</a> / <a routerLink="/app/accounting">Client accounting</a> / <a routerLink="/app/accounting/reviews">Package reviews</a> / <span>Package</span></nav>
     <audit-page-header title="Financial statement package" eyebrow="Client accounting" description="Deterministic package calculations, validation status, immutable review decisions, and artifact outputs." />
@@ -88,6 +89,7 @@ const ARTIFACTS: [string, string][] = [['financial-package-xlsx.v1', 'Download w
             <tbody>@for (d of p.disclosures; track d.code) { <tr><td>{{ d.code }}</td><td>{{ d.notApplicable ? d.rationale : d.response }}</td><td>{{ d.notApplicable ? 'Not applicable' : 'Answered' }}</td></tr> }</tbody></table></div>
         </section>
       }
+      <audit-cash-flow-allocation-review [packageId]="p.id" />
       <audit-statement-presentation [packageId]="p.id" />
       @if (p.artifact; as a) {
         <section class="panel" aria-labelledby="artifact-heading">
@@ -102,6 +104,14 @@ const ARTIFACTS: [string, string][] = [['financial-package-xlsx.v1', 'Download w
           <details><summary>View canonical artifact text</summary><pre style="white-space: pre-wrap; overflow-wrap: anywhere"><code>{{ a.renderedText }}</code></pre></details>
         </section>
       }
+      @else {
+        <section class="panel" aria-labelledby="render-heading">
+          <h2 id="render-heading">Canonical package artifact</h2>
+          <p>Rendering persists exact package bytes for review. It does not approve, release or deliver the package.</p>
+          <button matButton="outlined" type="button" (click)="render(p.id)" [disabled]="rendering()">{{ rendering() ? 'Queueing render…' : 'Queue canonical render' }}</button>
+          @if (renderStatus()) { <p role="status">{{ renderStatus() }} Check <a routerLink="/app/operations">durable operations</a>, then refresh this package.</p> }
+        </section>
+      }
     }
     <audit-command-message [message]="cmd.message()" [failed]="cmd.failed()" />
   `,
@@ -114,6 +124,8 @@ export class FinancialPackage {
   readonly cmd = new CommandState(this.api);
   readonly downloading = signal(false);
   readonly artifactStatus = signal('');
+  readonly rendering = signal(false);
+  readonly renderStatus = signal('');
   readonly artifacts = ARTIFACTS;
   r = { stage: 'ACCOUNTING_REVIEW', decision: 'APPROVED', mode: 'SIGNED_IN', reference: '', comment: '' };
   passed(p: ReturnType<typeof decodePackage>): number { return p.validations.filter((v) => v.passed).length; }
@@ -129,5 +141,15 @@ export class FinancialPackage {
       const r = await this.api.download(`/api/ui/accounting/packages/${id}/artifact`, { artifactVersion: version });
       this.artifactStatus.set(r.ok ? 'Artifact download started. Release and delivery remain separate controls.' : r.message);
     } finally { this.downloading.set(false); }
+  }
+  async render(id: string): Promise<void> {
+    if (this.rendering()) return;
+    this.rendering.set(true); this.renderStatus.set('');
+    try {
+      const result = await this.api.command<string>(`/api/ui/accounting/packages/${id}/render`, {});
+      this.renderStatus.set(result.ok
+        ? `Canonical render operation ${result.value} queued.`
+        : result.message);
+    } finally { this.rendering.set(false); }
   }
 }
