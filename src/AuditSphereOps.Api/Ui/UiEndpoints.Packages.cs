@@ -32,7 +32,7 @@ public static partial class UiEndpoints
       {
         input = await JsonSerializer.DeserializeAsync<BuildFinancialPackageRequest>(http.Request.Body, UiJson, ct);
       }
-      catch (JsonException)
+      catch (Exception ex) when (ex is JsonException or FormatException or OverflowException)
       {
         return CommandResult<Guid>.Fail(ErrorCodes.Accounting.PackageInvalid, "The financial-package input is invalid.");
       }

@@ -10,13 +10,15 @@ namespace AuditSphereOps.Application.Accounting;
 public sealed record FinancialPackageMappingOption(Guid Id, long Version, Guid DatasetId);
 public sealed record FinancialPackagePlanOption(Guid Id, Guid BaseDatasetId, string ResultHash);
 public sealed record FinancialPackagePeriodOption(Guid Id, string PeriodCode, DateOnly StartDate, DateOnly EndDate, string Currency, string Basis);
+public sealed record FinancialPackageComparativeOption(Guid Id, string Framework, string PeriodStart, string PeriodEnd, string Currency, string Status);
 
 /// <summary>
 /// The choices a preparer can make for a financial-package build: the approved mappings, the finalized adjustment plans and the
 /// client's reporting periods. It reads only; the build itself is still checked by the durable operation and its build service.
 /// </summary>
 public sealed record FinancialPackageBuildInputs(Guid EngagementId, IReadOnlyList<FinancialPackageMappingOption> Mappings,
-  IReadOnlyList<FinancialPackagePlanOption> Plans, IReadOnlyList<FinancialPackagePeriodOption> Periods);
+  IReadOnlyList<FinancialPackagePlanOption> Plans, IReadOnlyList<FinancialPackagePeriodOption> Periods,
+  IReadOnlyList<FinancialPackageComparativeOption> Comparatives);
 
 public static class FinancialPackageBuildInputsQuery
 {
@@ -45,10 +47,16 @@ public static class FinancialPackageBuildInputsQuery
       .Where(x => x.FirmId == actor.FirmId && x.ClientId == engagement.PracticeClientId)
       .OrderByDescending(x => x.EndDate).ThenBy(x => x.Id).Take(MaxOptions)
       .Select(x => new FinancialPackagePeriodOption(x.Id, x.PeriodCode, x.StartDate, x.EndDate, x.Currency, x.Basis)).ToListAsync(ct);
+    var comparatives = await db.FinancialPackages.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.ClientId == engagement.PracticeClientId &&
+        x.EngagementId == engagement.Id && x.Status == AccountingPackageStates.PackageValidated)
+      .OrderByDescending(x => x.PeriodEnd).ThenBy(x => x.Id).Take(MaxOptions)
+      .Select(x => new FinancialPackageComparativeOption(x.Id, x.Framework, x.PeriodStart, x.PeriodEnd, x.Currency, x.Status))
+      .ToListAsync(ct);
     var final = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagement.Id, Roles, InternalOnly: true), ct);
     return final.Succeeded
-      ? CommandResult<FinancialPackageBuildInputs>.Ok(new(engagement.Id, mappings, plans, periods))
+      ? CommandResult<FinancialPackageBuildInputs>.Ok(new(engagement.Id, mappings, plans, periods, comparatives))
       : CommandResult<FinancialPackageBuildInputs>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
   }
 }

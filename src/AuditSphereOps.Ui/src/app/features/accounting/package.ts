@@ -32,11 +32,11 @@ const ARTIFACTS: [string, string][] = [['financial-package-xlsx.v1', 'Download w
   template: `
     <nav aria-label="Breadcrumb"><a routerLink="/app">Portfolio</a> / <a routerLink="/app/accounting">Client accounting</a> / <a routerLink="/app/accounting/reviews">Package reviews</a> / <span>Package</span></nav>
     <audit-page-header title="Financial statement package" eyebrow="Client accounting" description="Deterministic package calculations, validation status, immutable review decisions, and artifact outputs." />
-    <p class="actions"><a matButton="outlined" routerLink="/app/accounting/packages/new">Prepare financial package</a></p>
     <button matButton="outlined" (click)="pkg.reload()">Refresh package</button>
     <audit-state [loading]="pkg.loading()" [error]="pkg.error()" label="the scoped package" />
     @if (pkg.data(); as p) {
-      <p class="actions" aria-label="Package navigation"><audit-status [value]="p.status" /><a [routerLink]="['/app/engagements', p.engagementId]">Engagement</a><a routerLink="/app/accounting/reviews">Package reviews</a>
+      <p class="actions" aria-label="Package navigation"><audit-status [value]="p.status" /><a [routerLink]="['/app/engagements', p.engagementId]">Engagement</a>
+        <a [routerLink]="['/app/engagements', p.engagementId, 'financial-package']">Build another package</a><a routerLink="/app/accounting/reviews">Package reviews</a>
         @if (p.comparativePackageId) { <a [routerLink]="['/app/accounting/packages', p.comparativePackageId]">Review comparative package and its cash-flow sources</a> }</p>
       <p role="status">{{ passed(p) }} validations passed · {{ p.validations.length - passed(p) }} failed · {{ p.reviews.length }} review decisions · {{ p.statementTotals.length }} statement lines</p>
       <section class="panel" aria-labelledby="package-heading">

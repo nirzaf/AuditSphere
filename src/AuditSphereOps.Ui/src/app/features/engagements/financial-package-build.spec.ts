@@ -24,7 +24,10 @@ describe('financial package build request', () => {
     expect(body.mappingVersionId).toBe(mapping);
     expect(body.adjustmentPlanId).toBe(plan);
     expect(body.supplementaryInformation.cashAccountCodes).toEqual(['1000']);
-    expect(body.supplementaryInformation.cashFlowLines[0].sourceAllocations).toEqual([{ generalLedgerLineId: line, signedAmount: 100 }]);
+    expect(body.supplementaryInformation.cashFlowLines[0].sourceAllocations).toEqual([{ generalLedgerLineId: line, signedAmount: '100' }]);
+    expect(body.supplementaryInformation.cashFlowLines[0].amount).toBe('100');
+    expect(body.supplementaryInformation.cashBeginning).toBe('0');
+    expect(body.supplementaryInformation.comparative).toBeNull();
     expect(body.supplementaryInformation.cashFlowLines[0].sourceReferences).toEqual(['gl-1', 'gl-2']);
     expect(body.supplementaryInformation.equityLines).toBeNull();
   });
@@ -34,6 +37,19 @@ describe('financial package build request', () => {
     form.movements[0].allocations = [];
     const body = (toBuildRequest(form) as { body: any }).body;
     expect(body.supplementaryInformation.cashFlowLines[0].sourceAllocations).toBeNull();
+  });
+
+  it('preserves comparative package identity and requires its basis and evidence', () => {
+    const form = completeForm();
+    form.comparativePackageId = '77777777-7777-4777-8777-777777777777';
+    form.comparativeBasis = 'Prior audited year';
+    form.comparativeEvidence = 'prior signed statement';
+    const body = (toBuildRequest(form) as { body: any }).body;
+    expect(body.supplementaryInformation.comparative).toEqual({
+      packageId: form.comparativePackageId, basis: form.comparativeBasis, evidenceReference: form.comparativeEvidence,
+    });
+    form.comparativeEvidence = '';
+    expect(toBuildRequest(form)).toEqual({ error: 'A comparative package needs a valid package ID, basis, and evidence reference.' });
   });
 
   it('refuses form mistakes before they reach the worker', () => {
@@ -70,6 +86,7 @@ describe('financial package build inputs contract', () => {
       mappings: [{ id: mapping, version: 2, datasetId: '66666666-6666-4666-8666-666666666666' }],
       plans: [{ id: plan, baseDatasetId: '66666666-6666-4666-8666-666666666666', resultHash: 'a'.repeat(64) }],
       periods: [{ id: '44444444-4444-4444-8444-444444444444', periodCode: 'FY2026', startDate: '2026-01-01', endDate: '2026-12-31', currency: 'QAR', basis: 'IFRS' }],
+      comparatives: [{ id: '77777777-7777-4777-8777-777777777777', framework: 'IFRS', periodStart: '2025-01-01', periodEnd: '2025-12-31', currency: 'QAR', status: 'VALIDATED' }],
     }, 'inputs');
     expect(decoded.mappings[0].version).toBe(2);
     expect(decoded.periods[0].currency).toBe('QAR');
@@ -77,7 +94,7 @@ describe('financial package build inputs contract', () => {
 
   it('refuses a malformed period date', () => {
     expect(() => decodeBuildInputs({
-      engagementId: '55555555-5555-4555-8555-555555555555', mappings: [], plans: [],
+      engagementId: '55555555-5555-4555-8555-555555555555', mappings: [], plans: [], comparatives: [],
       periods: [{ id: '44444444-4444-4444-8444-444444444444', periodCode: 'FY2026', startDate: 'January', endDate: '2026-12-31', currency: 'QAR', basis: 'IFRS' }],
     }, 'inputs')).toThrow();
   });

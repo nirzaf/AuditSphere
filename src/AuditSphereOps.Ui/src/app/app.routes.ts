@@ -84,8 +84,6 @@ export const routes: Routes = [
     loadComponent: () => import('./features/accounting/rollforward').then(m => m.PeriodRollforward) },
   { path: 'app/accounting/restatements', canActivate: [staffGuard], title: 'Period restatements · AuditSphere',
     loadComponent: () => import('./features/accounting/restatements').then(m => m.PeriodRestatements) },
-  { path: 'app/accounting/packages/new', canActivate: [staffGuard], canDeactivate: [unsavedChangesGuard], title: 'Prepare financial package · AuditSphere',
-    loadComponent: () => import('./features/accounting/package-build').then(m => m.FinancialPackageBuild) },
   { path: 'app/accounting/packages/:id', canActivate: [staffGuard], title: 'Financial statement package · AuditSphere',
     loadComponent: () => import('./features/accounting/package').then(m => m.FinancialPackage) },
   { path: 'app/accounting/reviews', canActivate: [staffGuard], title: 'Package reviews · AuditSphere',

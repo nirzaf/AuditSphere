@@ -12,6 +12,7 @@ export const decodeBuildInputs = obj({
   mappings: arr(obj({ id: guid, version: nat, datasetId: guid }), 100),
   plans: arr(obj({ id: guid, baseDatasetId: guid, resultHash: text }), 100),
   periods: arr(obj({ id: guid, periodCode: text, startDate: date, endDate: date, currency: text, basis: text }), 100),
+  comparatives: arr(obj({ id: guid, framework: text, periodStart: text, periodEnd: text, currency: text, status: text }), 100),
 });
 export type BuildInputs = ReturnType<typeof decodeBuildInputs>;
 
@@ -24,7 +25,8 @@ export interface DisclosureForm { code: string; response: string; notApplicable:
 export interface BuildForm {
   mappingVersionId: string; adjustmentPlanId: string; periodId: string; framework: string; templateVersion: string;
   periodStart: string; periodEnd: string; cashBeginning: string; cashEnding: string; cashAccountCodes: string;
-  openingEvidence: string; closingEvidence: string; movements: MovementForm[]; disclosures: DisclosureForm[];
+  openingEvidence: string; closingEvidence: string; comparativePackageId: string; comparativeBasis: string; comparativeEvidence: string;
+  movements: MovementForm[]; disclosures: DisclosureForm[];
 }
 
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -34,7 +36,8 @@ const list = (value: string): string[] => value.split(',').map((x) => x.trim()).
 
 export function emptyBuildForm(): BuildForm {
   return { mappingVersionId: '', adjustmentPlanId: '', periodId: '', framework: 'IFRS', templateVersion: '', periodStart: '', periodEnd: '',
-    cashBeginning: '0', cashEnding: '0', cashAccountCodes: '', openingEvidence: '', closingEvidence: '', movements: [], disclosures: [] };
+    cashBeginning: '0', cashEnding: '0', cashAccountCodes: '', openingEvidence: '', closingEvidence: '',
+    comparativePackageId: '', comparativeBasis: '', comparativeEvidence: '', movements: [], disclosures: [] };
 }
 
 export function emptyMovement(): MovementForm {
@@ -51,6 +54,9 @@ export function toBuildRequest(form: BuildForm): { body: unknown } | { error: st
   if (!DATE.test(form.periodStart) || !DATE.test(form.periodEnd)) return { error: 'Choose a reporting period.' };
   if (!form.templateVersion.trim() || form.templateVersion.length > 200) return { error: 'Enter a template version of up to 200 characters.' };
   if (!AMOUNT.test(form.cashBeginning) || !AMOUNT.test(form.cashEnding)) return { error: 'Opening and closing cash must be amounts with at most six decimals.' };
+  const comparativeId = form.comparativePackageId.trim();
+  if (comparativeId && (!GUID.test(comparativeId) || !form.comparativeBasis.trim() || !form.comparativeEvidence.trim()))
+    return { error: 'A comparative package needs a valid package ID, basis, and evidence reference.' };
   if (form.movements.length === 0) return { error: 'Add at least one cash-flow movement.' };
   for (const [index, m] of form.movements.entries()) {
     const at = `Movement ${index + 1}`;
@@ -75,18 +81,21 @@ export function toBuildRequest(form: BuildForm): { body: unknown } | { error: st
       adjustmentPlanId: form.adjustmentPlanId, mappingVersionId: form.mappingVersionId, framework: form.framework.trim(),
       periodStart: form.periodStart, periodEnd: form.periodEnd, templateVersion: form.templateVersion.trim(),
       supplementaryInformation: {
-        cashBeginning: Number(form.cashBeginning), cashEnding: Number(form.cashEnding),
+      // Keep accounting values as decimal strings through JSON serialization. Converting to JS
+      // Number here can round values before the API's exact decimal converter sees them.
+      cashBeginning: form.cashBeginning, cashEnding: form.cashEnding,
+        comparative: comparativeId ? { packageId: comparativeId, basis: form.comparativeBasis.trim(), evidenceReference: form.comparativeEvidence.trim() } : null,
         cashFlowLines: form.movements.map((m) => ({
-          section: m.section, description: m.description.trim(), amount: Number(m.amount), isNonCash: m.isNonCash,
+          section: m.section, description: m.description.trim(), amount: m.amount, isNonCash: m.isNonCash,
           movementDate: m.movementDate, activityCode: m.activityCode.trim(), sourceReferences: list(m.sourceReferences),
           classificationRationale: m.rationale.trim(),
           sourceAllocations: m.allocations.length
-            ? m.allocations.map((a) => ({ generalLedgerLineId: a.generalLedgerLineId, signedAmount: Number(a.signedAmount) }))
+            ? m.allocations.map((a) => ({ generalLedgerLineId: a.generalLedgerLineId, signedAmount: a.signedAmount }))
             : null,
         })),
         disclosures: form.disclosures.map((d) => ({ code: d.code.trim(), response: d.notApplicable ? '' : d.response.trim(),
           notApplicable: d.notApplicable, rationale: d.notApplicable ? d.rationale.trim() : null })),
-        equityLines: null, comparative: null, noteLines: null, fxCashEffects: null,
+        equityLines: null, noteLines: null, fxCashEffects: null,
         cashAccountCodes: list(form.cashAccountCodes), openingCashEvidenceReferences: list(form.openingEvidence),
         closingCashEvidenceReferences: list(form.closingEvidence),
       },
@@ -123,8 +132,19 @@ export function toBuildRequest(form: BuildForm): { body: unknown } | { error: st
             @for (p of data.periods; track p.id) { <option [value]="p.id">{{ p.periodCode }} · {{ p.startDate }} to {{ p.endDate }} · {{ p.currency }} · {{ p.basis }}</option> }
           </select>
         </label>
-        <label>Framework <input name="framework" [(ngModel)]="form.framework" maxlength="50" /></label>
+        <label>Framework <input name="framework" [(ngModel)]="form.framework" (ngModelChange)="clearComparative(data)" maxlength="50" /></label>
         <label>Template version <input name="template" [(ngModel)]="form.templateVersion" maxlength="200" required /></label>
+        <h2>Comparative package</h2>
+        <label>Comparative package (optional)
+          <select name="comparativePackage" [(ngModel)]="form.comparativePackageId">
+            <option value="">No comparative package</option>
+            @for (p of comparativesFor(data); track p.id) { <option [value]="p.id">{{ p.periodStart }} to {{ p.periodEnd }} · {{ p.framework }} · {{ p.currency }} · {{ p.id }}</option> }
+          </select>
+        </label>
+        @if (form.comparativePackageId.trim()) {
+          <label>Comparative basis <input name="comparativeBasis" [(ngModel)]="form.comparativeBasis" maxlength="100" required /></label>
+          <label>Comparative evidence reference <input name="comparativeEvidence" [(ngModel)]="form.comparativeEvidence" maxlength="2000" required /></label>
+        }
 
         <h2>Cash</h2>
         <label>Opening cash <input name="cashBeginning" [(ngModel)]="form.cashBeginning" inputmode="decimal" /></label>
@@ -239,12 +259,24 @@ export class FinancialPackageBuild {
     return mapping ? data.plans.filter((p) => p.baseDatasetId === mapping.datasetId) : [];
   }
 
+  comparativesFor(data: BuildInputs) {
+    const period = data.periods.find((p) => p.id === this.form.periodId);
+    return period ? data.comparatives.filter((p) => p.status === 'VALIDATED' && p.framework === this.form.framework.trim() &&
+      p.currency === period.currency && p.periodEnd < period.startDate) : [];
+  }
+
   choosePeriod(data: BuildInputs): void {
     const period = data.periods.find((p) => p.id === this.form.periodId);
     this.form.periodStart = period?.startDate ?? '';
     this.form.periodEnd = period?.endDate ?? '';
+    this.clearComparative(data);
     this.chosenPeriod.set(this.form.periodId);
     this.sourcePage.set(1);
+  }
+
+  clearComparative(data: BuildInputs): void {
+    if (this.form.comparativePackageId && !this.comparativesFor(data).some((x) => x.id === this.form.comparativePackageId))
+      this.form.comparativePackageId = '';
   }
 
   addSource(movement: number, lineId: string, signedAmount: string): void {

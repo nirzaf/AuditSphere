@@ -26,59 +26,49 @@ public sealed class AngularCashFlowPackageJourneyTests
     var errors = new List<string>();
     preparerPage.PageError += (_, error) => errors.Add(error);
     await preparerPage.GotoAsync(preparerOrigin + "/auth/sign-in?returnUrl=" +
-      Uri.EscapeDataString("/ui/app/accounting/packages/new"));
+      Uri.EscapeDataString($"/ui/app/engagements/{host.Fixture.EngagementId:D}/financial-package"));
     await Assertions.Expect(preparerPage.GetByRole(AriaRole.Heading,
-      new() { Name = "Prepare financial-package inputs", Exact = true })).ToBeVisibleAsync();
+      new() { Name = "Build financial package", Exact = true })).ToBeVisibleAsync();
 
-    await preparerPage.GetByLabel("Adjustment plan ID", new() { Exact = true }).FillAsync(seed.PlanId.ToString("D"));
-    await preparerPage.GetByLabel("Approved mapping ID", new() { Exact = true }).FillAsync(seed.MappingId.ToString("D"));
-    await preparerPage.GetByLabel("Period start", new() { Exact = true }).FillAsync("2026-01-01");
-    await preparerPage.GetByLabel("Period end", new() { Exact = true }).FillAsync("2026-12-31");
+    await preparerPage.GetByLabel("Approved mapping", new() { Exact = true }).SelectOptionAsync(seed.MappingId.ToString("D"));
+    await preparerPage.GetByLabel("Finalized adjustment plan", new() { Exact = true }).SelectOptionAsync(seed.PlanId.ToString("D"));
+    await preparerPage.GetByLabel("Reporting period", new() { Exact = true }).SelectOptionAsync(seed.PeriodId.ToString("D"));
     await preparerPage.GetByLabel("Template version", new() { Exact = true }).FillAsync("e2e-cash-flow-v2");
-    await preparerPage.GetByLabel("Engagement ID", new() { Exact = true }).FillAsync(host.Fixture.EngagementId.ToString("D"));
-    await preparerPage.GetByLabel("Reporting period ID", new() { Exact = true }).FillAsync(seed.PeriodId.ToString("D"));
-    await preparerPage.GetByRole(AriaRole.Button, new() { Name = "Load accepted lines", Exact = true }).ClickAsync();
+    await preparerPage.GetByRole(AriaRole.Button, new() { Name = "Add movement", Exact = true }).ClickAsync();
+    await preparerPage.GetByRole(AriaRole.Button, new() { Name = "Choose source lines", Exact = true }).ClickAsync();
     var acceptedLine = preparerPage.GetByRole(AriaRole.Row).Filter(new() { HasText = "1000" });
     await Assertions.Expect(acceptedLine).ToContainTextAsync("175000");
-    await acceptedLine.GetByRole(AriaRole.Button, new() { Name = "Add contribution", Exact = true }).ClickAsync();
-    await Assertions.Expect(preparerPage.Locator("input[name='line-0-0']")).ToHaveValueAsync(seed.SourceLineId.ToString("D"));
-    await Assertions.Expect(preparerPage.Locator("input[name='contribution-0-0']")).ToHaveValueAsync("175000");
+    await acceptedLine.GetByRole(AriaRole.Button, new() { Name = "Add to movement 1", Exact = true }).ClickAsync();
+    await Assertions.Expect(preparerPage.Locator("input[name='alloc0-0']")).ToHaveValueAsync("175000");
 
-    await preparerPage.GetByLabel("Opening cash", new() { Exact = true }).FillAsync("0.00");
-    await preparerPage.GetByLabel("Closing cash", new() { Exact = true }).FillAsync("175000.00");
-    await preparerPage.GetByLabel("Cash account codes, comma separated", new() { Exact = true }).FillAsync("1000");
-    await preparerPage.GetByLabel("Opening evidence references", new() { Exact = true }).FillAsync("synthetic opening bank statement");
-    await preparerPage.GetByLabel("Closing evidence references", new() { Exact = true }).FillAsync("synthetic closing bank statement");
+    await preparerPage.GetByLabel("Opening cash", new() { Exact = true }).FillAsync("0.000001");
+    await preparerPage.GetByLabel("Closing cash", new() { Exact = true }).FillAsync("175000.000001");
+    await preparerPage.GetByLabel("Cash account codes (comma separated)", new() { Exact = true }).FillAsync("1000");
+    await preparerPage.GetByLabel("Opening cash evidence (comma separated)", new() { Exact = true }).FillAsync("synthetic opening bank statement");
+    await preparerPage.GetByLabel("Closing cash evidence (comma separated)", new() { Exact = true }).FillAsync("synthetic closing bank statement");
     await preparerPage.GetByLabel("Description", new() { Exact = true }).FillAsync("Synthetic customer cash receipt");
-    await preparerPage.GetByLabel("Signed amount", new() { Exact = true }).FillAsync("175000.00");
+    await preparerPage.GetByLabel("Amount", new() { Exact = true }).FillAsync("175000.00");
     await preparerPage.GetByLabel("Movement date", new() { Exact = true }).FillAsync("2026-06-30");
     await preparerPage.GetByLabel("Activity code", new() { Exact = true }).FillAsync("CASH_RECEIPTS");
-    await preparerPage.GetByLabel("Evidence references", new() { Exact = true }).FillAsync("accepted GL batch");
+    await preparerPage.GetByLabel("Evidence references (comma separated)", new() { Exact = true }).FillAsync("accepted GL batch");
     await preparerPage.GetByLabel("Classification rationale", new() { Exact = true }).FillAsync("Synthetic receipt classified for the browser journey.");
-    await preparerPage.Locator("input[name='disclosure-code-0']").FillAsync("CASH_POLICY");
-    await preparerPage.Locator("textarea[name='disclosure-response-0']").FillAsync("Synthetic cash policy disclosure.");
-    await preparerPage.GetByRole(AriaRole.Button, new() { Name = "Add equity line", Exact = true }).ClickAsync();
-    await preparerPage.Locator("input[name='equity-code-0']").FillAsync("RETAINED_EARNINGS");
-    await preparerPage.Locator("input[name='equity-description-0']").FillAsync("Retained earnings");
-    await preparerPage.Locator("input[name='equity-profit-0']").FillAsync("175000.00");
-    await preparerPage.Locator("input[name='equity-close-0']").FillAsync("175000.00");
-    await preparerPage.Locator("input[name='equity-evidence-0']").FillAsync("synthetic equity schedule");
+    await preparerPage.Locator("input[name='dcode0']").FillAsync("CASH_POLICY");
+    await preparerPage.Locator("textarea[name='dresp0']").FillAsync("Synthetic cash policy disclosure.");
     await preparerPage.GetByRole(AriaRole.Button, new() { Name = "Queue package build", Exact = true }).ClickAsync();
-    var operation = preparerPage.Locator("section[aria-labelledby='submit-heading'] p[role='status']");
-    await Assertions.Expect(operation).ToContainTextAsync("Build operation:");
-    var openPackage = preparerPage.GetByRole(AriaRole.Link, new() { Name = "Open resulting package", Exact = true });
-    for (var attempt = 0; attempt < 60; attempt++)
+    await Assertions.Expect(preparerPage.GetByRole(AriaRole.Heading, new() { Name = "Build queued", Exact = true })).ToBeVisibleAsync();
+    Guid? builtPackageId = null;
+    for (var attempt = 0; attempt < 60 && builtPackageId is null; attempt++)
     {
-      if (await openPackage.CountAsync() > 0) break;
-      if (await preparerPage.GetByRole(AriaRole.Button, new() { Name = "Refresh operation", Exact = true }).CountAsync() > 0)
-        await preparerPage.GetByRole(AriaRole.Button, new() { Name = "Refresh operation", Exact = true }).ClickAsync();
+      await using var db = host.CreateDbContext();
+      builtPackageId = await db.FinancialPackages.AsNoTracking().Where(x => x.EngagementId == host.Fixture.EngagementId &&
+          x.TemplateVersion == "e2e-cash-flow-v2").OrderByDescending(x => x.CreatedAt).Select(x => (Guid?)x.Id).FirstOrDefaultAsync();
+      if (builtPackageId is not null) break;
       await preparerPage.WaitForTimeoutAsync(500);
     }
-    await Assertions.Expect(openPackage).ToBeVisibleAsync();
-    var packageRoute = await openPackage.GetAttributeAsync("href");
-    Assert.NotNull(packageRoute);
-    var packageId = Guid.Parse(packageRoute!.Split('/').Last());
-    await openPackage.ClickAsync();
+    Assert.NotNull(builtPackageId);
+    var packageId = builtPackageId!.Value;
+    var packageRoute = $"/ui/app/accounting/packages/{packageId:D}";
+    await preparerPage.GotoAsync(preparerOrigin + packageRoute);
     await Assertions.Expect(preparerPage.GetByRole(AriaRole.Heading,
       new() { Name = "Cash-flow source review", Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(preparerPage.GetByRole(AriaRole.Status).Filter(new() { HasText = "Not approved" })).ToBeVisibleAsync();
@@ -97,6 +87,9 @@ public sealed class AngularCashFlowPackageJourneyTests
     await using (var db = host.CreateDbContext())
     {
       var allocation = await db.FinancialPackageCashFlowAllocations.AsNoTracking().SingleAsync(x => x.FinancialPackageId == packageId);
+      var package = await db.FinancialPackages.AsNoTracking().SingleAsync(x => x.Id == packageId);
+      Assert.Equal(0.000001m, package.CashBeginning);
+      Assert.Equal(175_000.000001m, package.CashEnding);
       Assert.Equal(seed.SourceLineId, allocation.GeneralLedgerLineId);
       Assert.True(await db.FinancialPackageCashFlowLines.AsNoTracking().AnyAsync(x =>
         x.Id == allocation.CashFlowLineId && x.FinancialPackageId == packageId && x.Amount == 175_000m));

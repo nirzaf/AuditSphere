@@ -20,7 +20,6 @@ export const NAVIGATION: NavGroup[] = [
     { label: 'Differences', path: '/app/accounting/differences' },
     { label: 'Evidence', path: '/app/accounting/evidence' },
     { label: 'Package reviews', path: '/app/accounting/reviews' },
-    { label: 'Prepare financial package', path: '/app/accounting/packages/new' },
     { label: 'Roll-forward', path: '/app/accounting/rollforward' },
     { label: 'Restatements', path: '/app/accounting/restatements' },
     { label: 'FX rates & policies', path: '/app/accounting/currency-configuration' },
