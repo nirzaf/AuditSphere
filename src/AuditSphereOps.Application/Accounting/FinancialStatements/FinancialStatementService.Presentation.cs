@@ -113,13 +113,13 @@ public static partial class FinancialStatementService
     var currentSupplementary = ToPresentationSchedules(package, currentCashLines, currentFxEffects, currentEquityLines,
       packageValidations.Where(x => x.FinancialPackageId == package.Id).ToArray(),
       cashAllocations.Where(x => x.FinancialPackageId == package.Id).ToArray(),
-      typedAccounting is not null && await CashFlowSourceApprovedAsync(typedAccounting, actor, package, ct));
+      typedAccounting is not null && await CashFlowSourceApprovedAsync(typedAccounting, package, ct));
     var priorSupplementary = comparative is null
       ? null
       : ToPresentationSchedules(comparative, priorCashLines, priorFxEffects, priorEquityLines,
         packageValidations.Where(x => x.FinancialPackageId == comparative.Id).ToArray(),
         cashAllocations.Where(x => x.FinancialPackageId == comparative.Id).ToArray(),
-        typedAccounting is not null && await CashFlowSourceApprovedAsync(typedAccounting, actor, comparative, ct));
+        typedAccounting is not null && await CashFlowSourceApprovedAsync(typedAccounting, comparative, ct));
     var built = FinancialStatementPresentationBuilder.Build(
       layoutLines,
       currentLines.Select(x => new PresentationBalance(x.DestinationCode, x.StatementSection, x.Amount)).ToList(),
@@ -244,7 +244,7 @@ public static partial class FinancialStatementService
         {
           x.Id, x.FinancialPackageId, x.ClientId, x.EngagementId, x.CashFlowLineId,
           x.GeneralLedgerLineId, x.GeneralLedgerTransactionId, x.SourceImportBatchId,
-          x.SourceLineHash, x.SignedAmount, x.Currency
+          x.SourceLineHash, x.SignedAmount, x.Currency, x.CreatedByUserId, x.CreatedAt
         }).ToArray(),
       Fx = fx.OrderBy(x => x.FinancialPackageId).ThenBy(x => x.Id).Select(x => new
       {

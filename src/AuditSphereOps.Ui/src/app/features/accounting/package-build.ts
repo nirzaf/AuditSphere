@@ -4,7 +4,7 @@ import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { Api } from '../../core/api';
 import { exactDecimal, guidPattern } from '../../core/contracts';
-import { guid, nullable, obj, text } from '../../core/decode';
+import { arr, bool, dec, guid, nat, nullable, obj, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
 
 interface AllocationDraft { lineId: string; amount: string; }
@@ -18,6 +18,10 @@ interface EquityDraft {
   capital: string; dividends: string; closing: string; evidence: string;
 }
 const decodeBuildOperation = obj({ id: guid, status: text, packageId: nullable(guid), errorCode: nullable(text) });
+const decodeSourceLines = obj({ periodId: guid, bookId: nullable(guid), batchId: guid, acceptanceId: guid, sourceHash: text,
+  inputGeneration: nat, currency: text, page: nat, hasMore: bool,
+  lines: arr(obj({ lineId: guid, transactionId: guid, journal: text, accountCode: text, postingDate: text,
+    signedAmount: dec, currency: text, lineHash: text }), 25) });
 
 @Component({
   selector: 'audit-financial-package-build',
@@ -35,7 +39,36 @@ const decodeBuildOperation = obj({ id: guid, status: text, packageId: nullable(g
         <label>Period start <input name="periodStart" [(ngModel)]="periodStart" type="date" required /></label>
         <label>Period end <input name="periodEnd" [(ngModel)]="periodEnd" type="date" required /></label>
         <label>Template version <input name="template" [(ngModel)]="templateVersion" maxlength="100" required /></label>
+        <label>Comparative package ID (optional) <input name="comparativePackage" [(ngModel)]="comparativePackageId" [pattern]="guidPattern" autocomplete="off" /></label>
+        @if (comparativePackageId.trim()) {
+          <label>Comparative basis <input name="comparativeBasis" [(ngModel)]="comparativeBasis" maxlength="100" required /></label>
+          <label>Comparative evidence reference <input name="comparativeEvidence" [(ngModel)]="comparativeEvidence" maxlength="2000" required /></label>
+        }
       </div>
+    </section>
+
+    <section class="panel" aria-labelledby="source-lines-heading">
+      <h2 id="source-lines-heading">Accepted general-ledger lines</h2>
+      <p>Inspect the current accepted, sealed GL for the exact engagement and reporting period. The API rechecks authorization and freshness at build time.</p>
+      <div class="inline-form">
+        <label>Engagement ID <input name="sourceEngagement" [(ngModel)]="sourceEngagementId" [pattern]="guidPattern" required autocomplete="off" /></label>
+        <label>Reporting period ID <input name="sourcePeriod" [(ngModel)]="sourcePeriodId" [pattern]="guidPattern" required autocomplete="off" /></label>
+        <button matButton="outlined" type="button" (click)="loadSourceLines()">Load accepted lines</button>
+        <label>Movement receiving a contribution <select name="sourceMovement" [(ngModel)]="sourceMovementIndex">
+          @for (line of movements; track $index; let i = $index) { <option [ngValue]="i">Movement {{ i + 1 }} · {{ line.description || line.section }}</option> }
+        </select></label>
+      </div>
+      @if (sources.loading()) { <p role="status">Loading accepted lines…</p> }
+      @if (sources.error()) { <p role="status">{{ sources.error() }}</p> }
+      @if (sources.data(); as page) {
+        <p role="status">Page {{ page.page }} · accepted batch <code>{{ page.batchId }}</code> · {{ page.currency }}</p>
+        <div class="table-scroll"><table><thead><tr><th>Posting date</th><th>Journal</th><th>Account</th><th>Signed amount</th><th>Action</th></tr></thead>
+          <tbody>@for (source of page.lines; track source.lineId) { <tr><td>{{ source.postingDate }}</td><td>{{ source.journal }}</td><td>{{ source.accountCode }}</td>
+            <td>{{ source.signedAmount }} {{ source.currency }}</td><td><button matButton="outlined" type="button" (click)="addAcceptedSource(source.lineId, source.signedAmount)">Add contribution</button></td></tr> }
+          @empty { <tr><td colspan="5">No accepted GL lines are available for this period.</td></tr> }</tbody>
+        </table></div>
+        @if (page.hasMore) { <button matButton="outlined" type="button" (click)="loadSourceLines(page.page + 1)">Next source page</button> }
+      }
     </section>
 
     <section class="panel" aria-labelledby="cash-heading">
@@ -139,8 +172,19 @@ export class FinancialPackageBuild {
   readonly operationId = signal('');
   readonly operation = this.api.resource(() => this.operationId() ? `/api/ui/accounting/package-builds/${this.operationId()}` : null,
     decodeBuildOperation, 'This package-build operation is not available in the current firm scope.');
+  readonly sourceQuery = signal<{ engagementId: string; periodId: string; page: number } | null>(null);
+  readonly sources = this.api.resource(() => {
+    const query = this.sourceQuery();
+    return query ? `/api/ui/engagements/${query.engagementId}/specialist-preparation/source-lines?periodId=${query.periodId}&page=${query.page}` : null;
+  }, decodeSourceLines, 'Accepted general-ledger lines are not available in this scope.');
   planId = '';
   mappingId = '';
+  comparativePackageId = '';
+  comparativeBasis = '';
+  comparativeEvidence = '';
+  sourceEngagementId = '';
+  sourcePeriodId = '';
+  sourceMovementIndex = 0;
   framework = 'IFRS';
   periodStart = '';
   periodEnd = '';
@@ -160,13 +204,33 @@ export class FinancialPackageBuild {
   removeAllocation(i: number, j: number): void { this.movements[i].allocations = this.movements[i].allocations.filter((_, index) => index !== j); }
   addDisclosure(): void { this.disclosures = [...this.disclosures, { code: '', response: '', notApplicable: false, rationale: '' }]; }
   addEquityLine(): void { this.equityLines = [...this.equityLines, this.newEquityLine()]; }
+  loadSourceLines(page = 1): void {
+    if (!guidPattern.test(this.sourceEngagementId) || !guidPattern.test(this.sourcePeriodId) || page < 1) {
+      this.message.set('Enter the authorized engagement and reporting-period IDs before loading accepted source lines.'); return;
+    }
+    this.sourceQuery.set({ engagementId: this.sourceEngagementId, periodId: this.sourcePeriodId, page });
+  }
+  addAcceptedSource(lineId: string, signedAmount: string): void {
+    const movement = this.movements[this.sourceMovementIndex];
+    if (!movement) return;
+    if (movement.allocations.some(x => x.lineId.toLowerCase() === lineId.toLowerCase())) {
+      this.message.set('This source line is already allocated to the selected movement.'); return;
+    }
+    const emptySlot = movement.allocations.findIndex(x => !x.lineId.trim() && !x.amount.trim());
+    movement.allocations = emptySlot < 0
+      ? [...movement.allocations, { lineId, amount: signedAmount }]
+      : movement.allocations.map((x, i) => i === emptySlot ? { lineId, amount: signedAmount } : x);
+    this.message.set('Accepted GL contribution added to the selected movement.');
+  }
 
   async submit(): Promise<void> {
     this.message.set(''); this.operationId.set('');
     const ids = [this.planId, this.mappingId, ...this.movements.flatMap((x) => x.allocations.map((a) => a.lineId))];
     const amounts = [this.cashBeginning, this.cashEnding, ...this.movements.flatMap((x) => [x.amount, ...x.allocations.map((a) => a.amount)]),
       ...this.equityLines.flatMap((x) => [x.opening, x.profitOrLoss, x.oci, x.capital, x.dividends, x.closing])];
-    if (ids.some((x) => !guidPattern.test(x)) || !this.framework.trim() || !this.periodStart || !this.periodEnd || !this.templateVersion.trim() ||
+    if (ids.some((x) => !guidPattern.test(x)) || (this.comparativePackageId.trim() && !guidPattern.test(this.comparativePackageId)) ||
+        (this.comparativePackageId.trim() && (!this.comparativeBasis.trim() || !this.comparativeEvidence.trim())) ||
+        !this.framework.trim() || !this.periodStart || !this.periodEnd || !this.templateVersion.trim() ||
         !this.cashAccountCodes.trim() || !this.openingEvidence.trim() || !this.closingEvidence.trim() ||
         !this.movements.length || this.movements.some((x) => !x.description.trim() || !x.activityCode.trim() || !x.rationale.trim() ||
           !x.movementDate || !x.sourceReferences.trim() || !x.allocations.length) ||
@@ -183,6 +247,9 @@ export class FinancialPackageBuild {
         cashAccountCodes: this.split(this.cashAccountCodes),
         openingCashEvidenceReferences: this.split(this.openingEvidence),
         closingCashEvidenceReferences: this.split(this.closingEvidence),
+        comparative: this.comparativePackageId.trim() ? {
+          packageId: this.comparativePackageId, basis: this.comparativeBasis, evidenceReference: this.comparativeEvidence,
+        } : null,
         cashFlowLines: this.movements.map((x) => ({
           section: x.section, description: x.description, amount: x.amount, isNonCash: x.isNonCash,
           movementDate: x.movementDate, activityCode: x.activityCode,

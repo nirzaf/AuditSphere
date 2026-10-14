@@ -14,6 +14,7 @@ public sealed class FinancialStatementSourceManifestTests
   [InlineData("cash-allocation-source")]
   [InlineData("cash-allocation-amount")]
   [InlineData("cash-allocation-scope")]
+  [InlineData("cash-allocation-preparer")]
   [InlineData("fx-source")]
   [InlineData("fx-sign")]
   [InlineData("equity-source")]
@@ -52,6 +53,7 @@ public sealed class FinancialStatementSourceManifestTests
       case "cash-allocation-source": allocation.SourceLineHash = "replacement"; break;
       case "cash-allocation-amount": allocation.SignedAmount = 24m; break;
       case "cash-allocation-scope": allocation.GeneralLedgerLineId = Guid.NewGuid(); break;
+      case "cash-allocation-preparer": allocation.CreatedByUserId = Guid.NewGuid(); break;
       case "fx-source": fx.EvidenceReference = "replacement"; break;
       case "fx-sign": fx.Amount = -2m; break;
       case "equity-source": equity.EvidenceReference = "replacement"; break;

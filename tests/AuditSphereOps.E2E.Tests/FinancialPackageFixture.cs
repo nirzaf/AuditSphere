@@ -8,7 +8,14 @@ namespace AuditSphereOps.E2E.Tests;
 
 internal static class FinancialPackageFixture
 {
-  internal static async Task<(Guid PackageId, Dictionary<string, (byte[] Bytes, string Sha256)> Expected)> CreatePackageAsync(
+  internal sealed record PackageSeed(Guid PackageId, Dictionary<string, (byte[] Bytes, string Sha256)> Expected,
+    Guid MappingId, Guid PlanId, Guid PeriodId, Guid SourceLineId)
+  {
+    public void Deconstruct(out Guid packageId, out Dictionary<string, (byte[] Bytes, string Sha256)> expected)
+    { packageId = PackageId; expected = Expected; }
+  }
+
+  internal static async Task<PackageSeed> CreatePackageAsync(
     OwnedHost host)
   {
     var firmId = host.Fixture.FirmId;
@@ -20,6 +27,10 @@ internal static class FinancialPackageFixture
     var bookId = Guid.NewGuid();
     var datasetId = Guid.NewGuid();
     var taxonomyId = Guid.NewGuid();
+    var sourceBatchId = Guid.NewGuid();
+    var sourceTransactionId = Guid.NewGuid();
+    var sourceLineId = Guid.NewGuid();
+    var sourceHash = sourceBatchId.ToString("N") + sourceBatchId.ToString("N");
     await using (var db = host.CreateDbContext())
     {
       db.RoleGrants.AddRange(
@@ -76,7 +87,40 @@ internal static class FinancialPackageFixture
           Id = Guid.NewGuid(), DatasetId = datasetId, AccountCode = "4000", AccountName = "Revenue",
           Amount = -180_000m, Currency = "QAR", Entity = "SYNTHETIC"
         });
+      db.SourceImportBatches.Add(new SourceImportBatch
+      {
+        Id = sourceBatchId, FirmId = firmId, ClientId = clientId, EngagementId = engagementId,
+        PeriodId = periodId, BookId = bookId, SourceKind = AccountingSourceKinds.GeneralLedger,
+        ProfileVersion = "cash-flow-e2e-v1", ParserVersion = "synthetic-e2e-v1", RawFileSha256Hex = sourceHash,
+        NormalizedDatasetDigest = sourceHash, LegalEntityKey = "SYNTHETIC-CASH-FLOW", Currency = "QAR",
+        RowCount = 1, Status = "LOADING", ReceiptReference = "Synthetic accepted cash-flow ledger",
+        CreatedByUserId = host.Fixture.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.GeneralLedgerTransactions.Add(new GeneralLedgerTransaction
+      {
+        Id = sourceTransactionId, FirmId = firmId, ClientId = clientId, EngagementId = engagementId,
+        ImportBatchId = sourceBatchId, StableJournalId = "SYN-CF-J-E2E", DocumentNumber = "SYN-CF-DOC-E2E",
+        PostingDate = new DateOnly(2026, 6, 30), Currency = "QAR", CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.GeneralLedgerLines.Add(new GeneralLedgerLine
+      {
+        Id = sourceLineId, FirmId = firmId, ClientId = clientId, EngagementId = engagementId,
+        ImportBatchId = sourceBatchId, TransactionId = sourceTransactionId, StableLineId = "SYN-CF-L-E2E",
+        AccountCode = "1000", Debit = 175_000m, Credit = 0m, FunctionalAmount = 175_000m,
+        OriginalCurrency = "QAR", OriginalAmount = 175_000m, CreatedAt = DateTimeOffset.UtcNow
+      });
       await db.SaveChangesAsync();
+    }
+
+    await using (var db = host.CreateDbContext())
+    {
+      await db.SourceImportBatches.Where(x => x.Id == sourceBatchId)
+        .ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, "SEALED"));
+      var accepted = await AccountingSourceAcceptanceService.AcceptSourceRevisionAsync(db,
+        PbcSeed.Actor(host.Fixture.Reviewer, "AccountingReviewer"),
+        new(clientId, engagementId, AccountingSourceKinds.GeneralLedger, null, sourceBatchId,
+          "Synthetic independent cash-flow source acceptance"));
+      Assert.True(accepted.Succeeded, accepted.Message);
     }
 
     Guid mappingId;
@@ -115,7 +159,8 @@ internal static class FinancialPackageFixture
     var request = new BuildFinancialPackageRequest(planId, mappingId, "IFRS", "2026-01-01", "2026-12-31", "e2e-template-v1",
       new FinancialSupplementaryInformation(0m, 175_000m,
         [new CashFlowLineInput("OPERATING", "Synthetic cash collections", 175_000m, MovementDate: new DateOnly(2026, 6, 30),
-          ActivityCode: "CASH_COLLECTIONS", SourceReferences: ["synthetic-ledger-e2e"], ClassificationRationale: "Synthetic collections agreed to source.")],
+          ActivityCode: "CASH_COLLECTIONS", SourceReferences: ["synthetic-ledger-e2e"], ClassificationRationale: "Synthetic collections agreed to source.",
+          SourceAllocations: [new CashFlowSourceAllocationInput(sourceLineId, 175_000m)])],
         [new DisclosureInput("E2E_POLICY", "Synthetic test policy note."),
          new DisclosureInput("E2E_OTHER", string.Empty, NotApplicable: true, Rationale: "No other synthetic items.")],
         [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 175_000m, 0m, 0m, 0m, 175_000m, "e2e-equity")],
@@ -129,6 +174,9 @@ internal static class FinancialPackageFixture
       Assert.True(built.Succeeded, built.Message);
       Assert.Equal(AccountingPackageStates.PackageValidated, built.Value!.Status);
       packageId = built.Value.PackageId;
+      var sourceReview = await FinancialStatementService.RecordCashFlowSourceReviewAsync(db,
+        PbcSeed.Actor(host.Fixture.Reviewer, "AccountingReviewer"), packageId, "APPROVED", "Synthetic independent cash-flow source review.");
+      Assert.True(sourceReview.Succeeded, sourceReview.Message);
       var canonical = await FinancialStatementService.RenderPackageArtifactAsync(db, preparer, packageId);
       Assert.True(canonical.Succeeded, canonical.Message);
       foreach (var version in new[]
@@ -143,6 +191,6 @@ internal static class FinancialPackageFixture
         expected.Add(version, (rendered.Value!.ArtifactBytes, rendered.Value.ArtifactSha256Hex));
       }
     }
-    return (packageId, expected);
+    return new PackageSeed(packageId, expected, mappingId, planId, periodId, sourceLineId);
   }
 }

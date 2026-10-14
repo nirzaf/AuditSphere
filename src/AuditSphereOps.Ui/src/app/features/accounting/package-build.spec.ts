@@ -26,6 +26,13 @@ describe('financial package build intake', () => {
     http.expectNone('/api/ui/accounting/packages/build');
   });
 
+  it('uses the blank allocation row when a preparer selects an accepted source line', () => {
+    const fixture = TestBed.createComponent(FinancialPackageBuild);
+    const page = fixture.componentInstance;
+    page.addAcceptedSource(id(5), '100');
+    expect(page.movements[0].allocations).toEqual([{ lineId: id(5), amount: '100' }]);
+  });
+
   it('queues exact source-linked supplementary amounts and displays the durable operation', async () => {
     const fixture = TestBed.createComponent(FinancialPackageBuild);
     const page = fixture.componentInstance;

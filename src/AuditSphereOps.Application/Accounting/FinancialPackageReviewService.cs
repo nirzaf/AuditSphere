@@ -78,6 +78,9 @@ public static class FinancialPackageReviewService
     var readiness = await FinancialPackageValidationReadiness.GetAsync(db, package.FirmId, package.Id, ct);
     if (!readiness.Ready)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, readiness.Message);
+    if (!await CashFlowSourcesIndependentlyApprovedAsync(db, actor, package, ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+        "Current and comparative cash-flow source links need independent approval against the accepted general ledger.");
 
     if (package.Status != AccountingPackageStates.PackageValidated)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The financial package must be validated before review.");
@@ -198,6 +201,9 @@ public static class FinancialPackageReviewService
     if (!readiness.Ready)
       return CommandResult<ClientFinancialPackageView>.Fail(ErrorCodes.GateBlocked,
         "The financial package is not available for management approval.");
+    if (!await CashFlowSourcesIndependentlyApprovedAsync(db, actor, package, ct))
+      return CommandResult<ClientFinancialPackageView>.Fail(ErrorCodes.GateBlocked,
+        "The financial package is not available for management approval.");
 
     var statementLines = await db.FinancialPackageLines.AsNoTracking()
       .Where(x => x.FirmId == package.FirmId && x.ClientId == package.ClientId &&
@@ -277,6 +283,7 @@ public static class FinancialPackageReviewService
         continue;
 
       if (!FinancialPackageValidationReadiness.Evaluate(package.FirmId, package.Id, validations).Ready) continue;
+      if (!await CashFlowSourcesIndependentlyApprovedAsync(db, actor, package, ct)) continue;
 
       var current = decisions.Where(x => x.FinancialPackageId == package.Id &&
           x.PackageHash == package.CalculationHash && x.PackageRevision == package.Revision &&
@@ -321,6 +328,9 @@ public static class FinancialPackageReviewService
     var readiness = await FinancialPackageValidationReadiness.GetAsync(db, package.FirmId, package.Id, ct);
     if (!readiness.Ready)
       return CommandResult.Fail(ErrorCodes.GateBlocked, readiness.Message);
+    if (!await CashFlowSourcesIndependentlyApprovedAsync(db, actor, package, ct))
+      return CommandResult.Fail(ErrorCodes.GateBlocked,
+        "Current and comparative cash-flow source links need independent approval against the accepted general ledger.");
 
     var requiredStages = requirePartner
       ? new[] { FinancialPackageReviewStages.ManagementApproval, FinancialPackageReviewStages.AccountingReview, FinancialPackageReviewStages.PartnerApproval }
@@ -338,5 +348,27 @@ public static class FinancialPackageReviewService
         return CommandResult.Fail(ErrorCodes.GateBlocked, $"The current {stage} decision is required before release.");
     }
     return CommandResult.Ok();
+  }
+
+  private static async Task<bool> CashFlowSourcesIndependentlyApprovedAsync(
+    IClientAccountingDbContext db, ActorContext actor, FinancialPackage package, CancellationToken ct)
+  {
+    var packages = new List<FinancialPackage> { package };
+    if (package.ComparativePackageId is Guid comparativeId)
+    {
+      var comparative = await db.FinancialPackages.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.FirmId == package.FirmId && x.ClientId == package.ClientId && x.Id == comparativeId, ct);
+      if (comparative is null) return false;
+      packages.Add(comparative);
+    }
+    foreach (var candidate in packages)
+    {
+      var hasMovements = await db.FinancialPackageCashFlowLines.AsNoTracking().AnyAsync(x =>
+        x.FirmId == candidate.FirmId && x.ClientId == candidate.ClientId &&
+        x.EngagementId == candidate.EngagementId && x.FinancialPackageId == candidate.Id, ct);
+      if (hasMovements && !await FinancialStatementService.CashFlowSourceApprovedAsync(db, candidate, ct))
+        return false;
+    }
+    return true;
   }
 }
