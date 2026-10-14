@@ -964,7 +964,7 @@
       }
     },
     "currentCashFlowPackageJourney": {
-      "recordedAtUtc": "2026-10-14T16:27:23Z",
+      "recordedAtUtc": "2026-10-14T16:46:08Z",
       "baseCommit": "3aeed43d806b0ebe1921edcad86ec4eb00b32a62",
       "headCommit": "7f42968d",
       "status": "PARTIAL",
@@ -1021,17 +1021,33 @@
         "Playwright uses accessible form roles and stable selectors for the repeated Angular controls."
       ],
       "notRun": [
-        "Full Domain, API and E2E suites on this change set; exact-head CI is pending after push.",
+        "Full Domain, API and E2E suites were not run locally; CI ran focused Domain/API and browser cohorts only, with three browser failures recorded below.",
         "Full attached-story acceptance, live provider verification and professional approval."
       ],
       "openItems": [
         "CP-11 manual-evidenced build path, equity/note source lineage, remaining required source/review paths and broader acceptance are incomplete.",
         "CP-12 requires an approved indirect cash-flow classification policy and qualified interpretation of reviewed assessed-zero FX states.",
         "The wider attached story has additional implementation and acceptance criteria beyond this slice.",
-        "Exact-head CI result is pending; update this record after CI completes."
+        "Exact-head CI is not green: two completion bundle journeys repeat failures from baseline run 38592122928; the legacy activation test's canonical:false case failed only on the current run and needs separate triage."
       ],
       "exactHeadCi": {
-        "status": "PENDING_PUSH"
+        "runId": "38598712675",
+        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/38598712675",
+        "headSha": "f8aca4c136af39d606855e160031f1a8c4b282b6",
+        "result": "FAIL",
+        "docsHealth": "PASS",
+        "angular": "PASS",
+        "domainFocused": "PASS: 141 passed, 0 failed",
+        "apiFocused": "PASS: 8 passed, 0 failed",
+        "efModelDrift": "PASS",
+        "browserCohort": "FAIL: 12 passed, 3 failed",
+        "cashFlowPackageJourney": "PASS",
+        "failures": [
+          "CompletionDeliverablesJourneyTests.PartnerClearsDecidesAndIssues_ClientReviewsInThePortal: disabled Assemble five-part bundle button; same failure on baseline CI run 38592122928 at commit 3aeed43d.",
+          "CompletionDeliverablesJourneyTests.AngularPartnerReleasesBundle_ClientDownloads_AndRequiredSigningRejectsReplay: disabled Assemble five-part bundle button; same failure on baseline CI run 38592122928 at commit 3aeed43d.",
+          "AngularEngagementActivationJourneyTests.ExactPartnerReviewLostResponseReceiptReloadAndRevocation(canonical: false): timed out waiting for Refresh activation context; outside files changed in this slice and not observed in the baseline run."
+        ],
+        "acceptanceImages": "PASS: Hostinger acceptance image workflow 38598712738"
       }
     }
   },
