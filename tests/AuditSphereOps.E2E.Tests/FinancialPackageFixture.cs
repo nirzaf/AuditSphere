@@ -106,7 +106,8 @@ internal static class FinancialPackageFixture
       {
         Id = sourceLineId, FirmId = firmId, ClientId = clientId, EngagementId = engagementId,
         ImportBatchId = sourceBatchId, TransactionId = sourceTransactionId, StableLineId = "SYN-CF-L-E2E",
-        AccountCode = "1000", Debit = 175_000m, Credit = 0m, FunctionalAmount = 175_000m,
+        // Cash-flow movements must link to the non-cash side of the journal, not the package's cash account.
+        AccountCode = "4000", Debit = 175_000m, Credit = 0m, FunctionalAmount = 175_000m,
         OriginalCurrency = "QAR", OriginalAmount = 175_000m, CreatedAt = DateTimeOffset.UtcNow
       });
       await db.SaveChangesAsync();
