@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Text;
 using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Completion;
@@ -215,6 +216,13 @@ public sealed class CompletionDeliverablesJourneyTests
     { ["associate"] = f.Staff, ["senior"] = accountingReviewer, ["partner"] = partner, ["partner2"] = financeReviewer, ["manager"] = manager });
     await CompletionBundleFixture.ReleasedFinancialPackageAsync(host.DbOptions, financialScope);
     await CompletionBundleFixture.SeedPostedFeeAsync(host.DbOptions, financialScope);
+    await using (var db = host.CreateDbContext())
+    {
+      var bundleState = await AuditDeliverableService.BundleStateAsync(db, PbcSeed.Actor(partner, "Partner"), f.EngagementId);
+      Assert.True(bundleState.Succeeded, bundleState.Message);
+      Assert.True(bundleState.Value!.Blockers.Count == 0,
+        "The synthetic released package and posted-fee evidence should unblock the bundle: " + string.Join(" | ", bundleState.Value.Blockers));
+    }
     await page.GotoAsync($"{origin}/app/engagements/{f.EngagementId:D}/completion");
     await page.GetByRole(AriaRole.Heading, new() { Name = "File freeze and activity trail" }).WaitForAsync(new() { Timeout = 20000 });
     await SettleAsync();
