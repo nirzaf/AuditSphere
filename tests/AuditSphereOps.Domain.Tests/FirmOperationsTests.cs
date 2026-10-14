@@ -99,7 +99,7 @@ public sealed partial class FirmOperationsTests
     var periodStart = today.AddDays(-4);
     var workDate = today.AddDays(-1);
     var capacityDays = Enumerable.Range(0, 5).Select(offset => periodStart.AddDays(offset))
-      .Count(date => date.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday));
+      .Count(ResourceGridCalculator.IsWorkingDay);
     Guid entryId;
     Guid completedTaskId;
     await using (var db = new AuditSphereDbContext(pg.Options))
