@@ -20,7 +20,7 @@ namespace AuditSphereOps.Domain.Tests;
 [Trait("Profile", "Database")]
 public sealed class StatementCandidatePromotionTests
 {
-  private sealed record Seeded(Guid FirmId, Guid ClientId, Guid EngagementId, Guid PackageId, Guid LayoutId,
+  internal sealed record Seeded(Guid FirmId, Guid ClientId, Guid EngagementId, Guid PackageId, Guid LayoutId,
     AppUser Preparer, AppUser Reviewer, AppUser Partner);
 
   [Fact]
@@ -121,7 +121,7 @@ public sealed class StatementCandidatePromotionTests
     }
   }
 
-  private static async Task<Seeded> SeedPresentableAsync(PgTestSchema pg)
+  internal static async Task<Seeded> SeedPresentableAsync(PgTestSchema pg)
   {
     var firmId = Guid.NewGuid();
     var clientId = Guid.NewGuid();

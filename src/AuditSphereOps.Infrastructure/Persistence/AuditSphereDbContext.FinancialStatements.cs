@@ -320,6 +320,18 @@ public sealed partial class AuditSphereDbContext
       .HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
+    // A composition seals one candidate's formats. One composition per candidate, append-only, and every digest is a full SHA-256.
+    var composition = b.Entity<FinancialStatementComposition>();
+    composition.Property(x => x.PackageCalculationHash).HasMaxLength(64).IsFixedLength();
+    composition.Property(x => x.ManifestDigest).HasMaxLength(64).IsFixedLength();
+    composition.Property(x => x.PdfSha256Hex).HasMaxLength(64).IsFixedLength();
+    composition.Property(x => x.WordSha256Hex).HasMaxLength(64).IsFixedLength();
+    composition.Property(x => x.ExcelSha256Hex).HasMaxLength(64).IsFixedLength();
+    composition.HasIndex(x => new { x.FirmId, x.PresentationRevisionId }).IsUnique()
+      .HasDatabaseName("ux_financial_statement_compositions_revision");
+    composition.ToTable("financial_statement_compositions", t => t.HasCheckConstraint(
+      "ck_financial_statement_composition_values",
+      "length(manifest_digest) = 64 AND length(pdf_sha256_hex) = 64 AND length(word_sha256_hex) = 64 AND length(excel_sha256_hex) = 64"));
     var presentationArtifact = b.Entity<FinancialStatementPresentationArtifact>();
     presentationArtifact.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
       .HasName("AK_financial_statement_presentation_artifacts_scope_id");

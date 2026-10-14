@@ -8440,6 +8440,100 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.FinancialStatementComposition", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("ExcelArtifactId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("excel_artifact_id");
+
+                    b.Property<string>("ExcelSha256Hex")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("excel_sha256_hex")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("FinancialPackageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("financial_package_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("ManifestDigest")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("manifest_digest")
+                        .IsFixedLength();
+
+                    b.Property<string>("PackageCalculationHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("package_calculation_hash")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("PdfArtifactId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("pdf_artifact_id");
+
+                    b.Property<string>("PdfSha256Hex")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("pdf_sha256_hex")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("PresentationRevisionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("presentation_revision_id");
+
+                    b.Property<DateTimeOffset>("SelectedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("selected_at");
+
+                    b.Property<Guid>("SelectedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("selected_by_user_id");
+
+                    b.Property<Guid>("WordArtifactId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("word_artifact_id");
+
+                    b.Property<string>("WordSha256Hex")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("word_sha256_hex")
+                        .IsFixedLength();
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FirmId", "PresentationRevisionId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_financial_statement_compositions_revision");
+
+                    b.ToTable("financial_statement_compositions", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_financial_statement_composition_values", "length(manifest_digest) = 64 AND length(pdf_sha256_hex) = 64 AND length(word_sha256_hex) = 64 AND length(excel_sha256_hex) = 64");
+                        });
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.FinancialStatementPresentationArtifact", b =>
                 {
                     b.Property<Guid>("Id")
