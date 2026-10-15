@@ -209,55 +209,6 @@
       "archivedEvidence": "docs/execution/status-archive-2026-10.json",
       "jsonPath": "keys.targetedVerification.workflowCommercialAcceptance"
     },
-    "workflowReviewTurnaround": {
-      "recordedAtUtc": "2026-10-12T05:31:20Z",
-      "baseCommit": "690e1c11",
-      "scope": "WF-14 exact-revision procedure review turnaround; additive date index; no persistent migration.",
-      "runs": [
-        {
-          "name": "API Release build",
-          "result": "PASS",
-          "errors": 0,
-          "warnings": 2
-        },
-        {
-          "name": "PostgreSQL analytics regression",
-          "result": "PASS",
-          "passed": 1
-        },
-        {
-          "name": "Angular analytics contract",
-          "result": "PASS",
-          "passed": 4
-        },
-        {
-          "name": "EF model drift",
-          "result": "PASS",
-          "pending": false
-        },
-        {
-          "name": "OpenAPI drift",
-          "result": "PASS",
-          "changed": false
-        },
-        {
-          "name": "Angular development compilation",
-          "result": "PASS"
-        },
-        {
-          "name": "Angular production build",
-          "result": "ABORTED",
-          "exitCode": 134,
-          "diagnostic": "No diagnostics; local development compilation succeeded."
-        },
-        {
-          "name": "Built-in browser",
-          "result": "LIMITED",
-          "reason": "Analytics route redirected to staff sign-in; no authenticated view."
-        }
-      ],
-      "acceptance": "Focused local evidence only. No full suite, persistent database migration, live-provider or professional acceptance; WF-14 and v2.2 remain PARTIAL."
-    },
     "workflowPhaseRollup": {
       "recordedAtUtc": "2026-10-12T05:47:51Z",
       "baseCommit": "5de433ff",
@@ -288,18 +239,6 @@
     "workflowTemplateAuthoringUi": {
       "status": "ARCHIVED_FOCUSED_EVIDENCE",
       "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.workflowTemplateAuthoringUi"
-    },
-    "workflowCiRegressionGate": {
-      "recordedAtUtc": "2026-10-12T07:51:06Z",
-      "baseCommit": "bf429820",
-      "scope": "CI now runs focused PostgreSQL workflow-template, plan, due-date and Angular SPA route-contract regressions after the Release build.",
-      "runs": {
-        "actionlint": "PASS: .github/workflows/ci.yml",
-        "yamlSyntax": "PASS",
-        "localTests": "NOT_RUN: user requested tests not be run locally after each change; the targeted API contract rebuild in the prior follow-up was aborted before tests started.",
-        "githubActions": "Configured; result not yet observed."
-      },
-      "acceptance": "This adds focused CI evidence only. It does not run the full Domain/API/E2E suites or establish authenticated browser, external-provider, production or professional acceptance."
     },
     "workflowAnnualPeriodBinding": {
       "archivedEvidence": "docs/execution/status-archive-2026-10.json",
@@ -1029,6 +968,59 @@
       "status": "PARTIAL",
       "verified": "d991 build; D42/API1/E2E1/Ng752. 9a build; D148/API8; CI38724299753 green incl. 15 E2E/Angular/EF/OpenAPI/Docs; image build green.",
       "open": "Full workflow 38726773300 pending; story PARTIAL: output/profile and professional/owner/provider/live gates; no deployment."
+    },
+    "workflowReviewTurnaround": {
+      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
+      "jsonPath": "keys.targetedVerification.workflowReviewTurnaround"
+    },
+    "workflowCiRegressionGate": {
+      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
+      "jsonPath": "keys.targetedVerification.workflowCiRegressionGate"
+    },
+    "figmaAngularShell": {
+      "story": "AS-UX-001",
+      "baseCommit": "fe9c949e5a085477710b6bce86d3acb42ccbbb28",
+      "result": "PARTIAL",
+      "scope": "Angular shell, staff global-search placement and server-derived phase ribbon; no backend, route, schema, dependency, permission or provider changes.",
+      "angularSpecs": {
+        "command": "npm run test:ci",
+        "files": 131,
+        "passed": 759,
+        "failed": 0,
+        "result": "PASS"
+      },
+      "angularBuild": {
+        "command": "npm run build",
+        "result": "PASS_WITH_WARNING",
+        "warning": "Existing src/app/features/commercial/settings.scss exceeds the 4 KB component stylesheet budget by 3.53 KB; the changed engagement-workflow.scss is within budget."
+      },
+      "browser": {
+        "result": "PASS_UNAUTHENTICATED_SHELL_ONLY",
+        "url": "http://127.0.0.1:4300/ui/",
+        "viewportsCssPx": {
+          "1440x900": {
+            "documentWidth": 1425,
+            "horizontalOverflow": false
+          },
+          "768x1024": {
+            "documentWidth": 753,
+            "horizontalOverflow": false
+          },
+          "390x844": {
+            "documentWidth": 375,
+            "horizontalOverflow": false
+          },
+          "320x844": {
+            "documentWidth": 305,
+            "horizontalOverflow": false
+          }
+        },
+        "consoleWarningsOrErrors": 0,
+        "staffSession": "NOT_AVAILABLE",
+        "authenticatedSearchRibbonAndNavigation": "NOT_VERIFIED"
+      },
+      "remaining": "Route inventory, authenticated screenshots and staff interaction, engagement context selector, feature workspaces UX-06–12, zoom/screen-reader/forced-colors review and UX-15 visual sign-off.",
+      "recordedAtUtc": "2026-10-15T12:39:26Z"
     }
   },
   "externalGates": [

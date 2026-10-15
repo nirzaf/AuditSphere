@@ -8,20 +8,15 @@
   display: flex;
   min-height: 64px;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0.5rem;
   box-sizing: border-box;
   padding: 0.75rem 1.25rem;
-  background: linear-gradient(
-    135deg,
-    var(--mat-sys-primary),
-    color-mix(in srgb, var(--mat-sys-primary) 76%, #001a33)
-  );
-  background-color: var(--mat-sys-primary);
-  color: var(--mat-sys-on-primary);
-  box-shadow: var(--as-shadow-2, 0 2px 8px rgb(16 42 67 / 18%));
+  background: var(--as-shell-dark, #0f172a);
+  color: var(--as-shell-text, #f8fafc);
+  border-bottom: 1px solid var(--as-shell-border, #475569);
 }
-// Focus rings on the blue header must be light: the page-level ring is dark blue.
+// Focus rings on the dark header must be light: the page-level ring is dark blue.
 .app-header :focus-visible {
   outline-color: #fff;
 }
@@ -33,29 +28,27 @@
   font-weight: 650;
   letter-spacing: 0.01em;
 }
-// Decorative "sphere" brand mark; carries no information, so it is not exposed to assistive tech.
-.app-header > strong::before {
-  content: '';
-  width: 1.5rem;
-  height: 1.5rem;
+.brand-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
   flex: none;
-  border: 1.5px solid rgb(255 255 255 / 85%);
-  border-radius: 50%;
-  background: radial-gradient(
-    circle at 32% 30%,
-    #fff 0,
-    rgb(255 255 255 / 70%) 28%,
-    rgb(255 255 255 / 12%) 100%
-  );
-  box-shadow: 0 1px 4px rgb(0 0 0 / 25%);
+  border: 1px solid #60a5fa;
+  border-radius: 0.625rem;
+  background: #1d4ed8;
+  color: white;
+  font-size: 0.875rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
 }
-.app-header > span:not(.spacer) {
+.workspace-label {
   padding: 0.125rem 0.65rem;
-  border: 1px solid rgb(255 255 255 / 45%);
-  border-radius: 999px;
+  border-inline-start: 1px solid var(--as-shell-border, #475569);
+  color: var(--as-shell-muted, #cbd5e1);
   font-size: 0.75rem;
   font-weight: 500;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.02em;
 }
 .shell-button {
   display: inline-flex;
@@ -63,8 +56,8 @@
   align-items: center;
   justify-content: center;
   padding: 0.55rem 0.9rem;
-  border: 1px solid color-mix(in srgb, currentColor 60%, transparent);
-  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, currentColor 54%, transparent);
+  border-radius: 0.5rem;
   background: transparent;
   color: inherit;
   font: inherit;
@@ -98,23 +91,30 @@
 }
 .workspace {
   display: grid;
-  grid-template-columns: 15.5rem minmax(0, 1fr);
-  min-height: calc(100vh - 64px);
+  grid-template-columns: var(--as-sidebar-expanded-width, 16rem) minmax(0, 1fr);
+  min-height: calc(100vh - var(--as-shell-header-height, 4rem));
+  background: var(--as-canvas, #f1f5f9);
+  transition: grid-template-columns 0.15s var(--as-ease, ease);
 }
+.workspace.nav-compact {
+  grid-template-columns: var(--as-sidebar-compact-width, 5rem) minmax(0, 1fr);
+}
+.workspace.full-width { grid-template-columns: minmax(0, 1fr); }
 // The navigation stays in view while long pages scroll, and scrolls on its own when it is taller
 // than the viewport.
 aside {
   position: sticky;
-  top: 64px;
+  top: var(--as-shell-header-height, 4rem);
   align-self: start;
   box-sizing: border-box;
-  height: calc(100vh - 64px);
+  height: calc(100vh - var(--as-shell-header-height, 4rem));
   overflow-y: auto;
   padding: 1rem 0.75rem 1.5rem;
-  background: var(--as-surface-nav, #edf3f8);
-  border-right: 1px solid var(--as-line, #d8e1eb);
+  background: var(--as-shell-dark, #0f172a);
+  border-right: 1px solid var(--as-shell-border, #475569);
 }
 .navigation-toggle { display: none; }
+.desktop-navigation-toggle { display: inline-flex; }
 main {
   min-width: 0;
   padding: clamp(1rem, 4vw, 3rem);
@@ -145,7 +145,25 @@ main {
     display: none;
   }
   .app-header {
+    flex-wrap: wrap;
     padding: 0.5rem 0.75rem;
   }
+  audit-global-search,
+  .search-launcher { order: 5; flex: 1 0 100%; max-width: none; }
+  .workspace-label,
+  .desktop-navigation-toggle { display: none; }
   .navigation-toggle { display: inline-flex; min-height: 44px; }
+}
+
+@media (max-width: 380px) {
+  .app-header { gap: 0.35rem; padding-inline: 0.5rem; }
+  .app-header > .brand-wordmark { gap: 0.4rem; font-size: 1rem; }
+  .brand-mark { width: 2rem; height: 2rem; }
+  .shell-button { padding-inline: 0.55rem; font-size: 0.8125rem; }
+}
+
+@media (forced-colors: active) {
+  .app-header,
+  aside { border: 1px solid CanvasText; }
+  .workspace-navigation a.active { outline: 1px solid Highlight; }
 }

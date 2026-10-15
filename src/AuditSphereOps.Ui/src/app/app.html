@@ -1,6 +1,29 @@
 <a class="skip-link" href="#main" (click)="skipToMain($event)">Skip to main content</a>
 <header class="app-header">
-  <strong>AuditSphere</strong><span class="spacer"></span><span>Workspace preview</span>
+  <strong class="brand-wordmark"><span class="brand-mark" aria-hidden="true">AS</span><span>AuditSphere</span></strong>
+  <span class="spacer"></span>
+  @if (session.current()?.staff && !publicSetup()) {
+    @defer (on interaction; on idle) {
+      <audit-global-search />
+    } @placeholder {
+      <button class="shell-button search-launcher" aria-label="Search workspace">Search workspace</button>
+    }
+  }
+  <span class="workspace-label">
+    @if (publicSetup()) { Secure setup }
+    @else if (session.current()?.staff) { Firm workspace }
+    @else if (session.current()) { Client portal }
+    @else if (!session.checked()) { Verifying session }
+    @else { Workspace }
+  </span>
+  @if (session.current() && !publicSetup() && !compact()) {
+    <button class="shell-button desktop-navigation-toggle"
+      [attr.aria-pressed]="navigationCompact()"
+      [attr.aria-label]="navigationCompact() ? 'Expand sidebar navigation' : 'Compact sidebar navigation'"
+      aria-controls="workspace-navigation" (click)="toggleNavigationCompact()">
+      {{ navigationCompact() ? 'Expand navigation' : 'Compact navigation' }}
+    </button>
+  }
   @if (session.current() && !publicSetup()) {
     <button class="shell-button navigation-toggle" aria-haspopup="dialog"
       [attr.aria-expanded]="navigationOpen()" [attr.aria-busy]="navigationLoading()"
@@ -13,8 +36,13 @@
   }
 </header>
 <audit-pending-outcomes />
-<div class="workspace">
-  <aside><audit-workspace-navigation /></aside>
+<div class="workspace" [class.nav-compact]="navigationCompact()"
+  [class.full-width]="!session.current() || publicSetup()">
+  @if (session.current() && !publicSetup()) {
+    <aside id="workspace-navigation">
+      <audit-workspace-navigation [compactNavigation]="navigationCompact()" />
+    </aside>
+  }
   <main id="main" tabindex="-1">
     @if (navigationFailure() && compact()) {
       <section role="alert"><p>{{ navigationFailure() }}</p>
@@ -31,11 +59,6 @@
     } @else if (!session.checked()) {
       <p role="status">Verifying your session…</p>
     } @else if (session.current()?.staff) {
-      @defer (on interaction; on idle) {
-        <audit-global-search />
-      } @placeholder {
-        <button class="shell-button">Search workspace</button>
-      }
       <router-outlet />
     } @else if (session.current()) {
       <router-outlet />

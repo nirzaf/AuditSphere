@@ -28,6 +28,18 @@ html {
 // Contrast notes (WCAG 2.2): ink on surface >= 7:1, muted on surface >= 7:1, link on surface
 // >= 6:1, control border on surface >= 3:1 (1.4.11 non-text contrast).
 :root {
+  // Figma-style shell palette. Workspace surfaces remain light; semantic audit states continue
+  // to use their existing component contracts rather than shell colors.
+  --as-shell-dark: #0f172a;
+  --as-shell-raised: #1e293b;
+  --as-shell-border: #64748b;
+  --as-shell-text: #f8fafc;
+  --as-shell-muted: #cbd5e1;
+  --as-shell-active: #1d4ed8;
+  --as-canvas: #f1f5f9;
+  --as-sidebar-expanded-width: 16rem;
+  --as-sidebar-compact-width: 5rem;
+  --as-shell-header-height: 4rem;
   --as-ink: #12385d;
   --as-ink-soft: #315476;
   --as-text-muted: #455468;
@@ -60,7 +72,7 @@ body {
   // Set a default background, font and text colors for the application using
   // Angular Material's system-level CSS variables. Learn more about these
   // variables at https://material.angular.dev/guide/system-variables
-  background-color: var(--mat-sys-surface);
+  background-color: var(--as-canvas);
   color: var(--mat-sys-on-surface);
   font: var(--mat-sys-body-medium);
   line-height: 1.5;
@@ -70,6 +82,10 @@ body {
   // Reset the user agent margin.
   margin: 0;
   height: 100%;
+}
+app-root {
+  display: block;
+  min-height: 100%;
 }
 /* You can add global styles to this file, and also import other style files */
 
@@ -383,6 +399,11 @@ main > :not(router-outlet, audit-global-search, button) {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+@media (forced-colors: active) {
+  .phase-step { border: 1px solid CanvasText; }
+  .phase-step.current { outline: 2px solid Highlight; }
 }
 
 // Printed pages (evidence, schedules, packages) carry content only: no shell chrome or shadows.

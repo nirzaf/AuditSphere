@@ -3,11 +3,11 @@
 }
 
 .workflow-panel {
-  padding: 1.25rem;
-  border: 1px solid var(--mat-sys-outline-variant, #e0e0e0);
-  border-radius: 0.75rem;
-  background: var(--mat-sys-surface-container-low, #fcfcfc);
-  margin-block: 1.5rem;
+  padding: 1rem;
+  border: 1px solid var(--as-line, #d8e1eb);
+  border-radius: var(--as-radius-md, 10px);
+  background: var(--as-surface-raised, #fff);
+  margin-block: 1.25rem;
 }
 
 .workflow-header {
@@ -25,11 +25,12 @@
   }
 }
 
-// Desktop shows all seven phases in one row; narrow screens wrap them and the position line names the current phase.
+// The seven visible phases remain a read-only projection of the server's eleven-stage lifecycle.
+// Grid layout keeps every label/status visible without the prototype's fixed-width ribbon overflow.
 .phase-stepper {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.4rem;
   margin: 0 0 0.75rem;
   padding: 0;
   list-style: none;
@@ -38,32 +39,33 @@
 .phase-step {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  min-height: 2.75rem;
-  padding: 0.35rem 0.75rem;
-  border-radius: 2rem;
-  font-size: 0.85rem;
-  font-weight: 500;
-  background: var(--mat-sys-surface-container, #eeeeee);
-  color: var(--mat-sys-on-surface-variant, #555555);
-  border: 1px solid transparent;
+  gap: 0.45rem;
+  min-width: 0;
+  min-height: 3rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: #f8fafc;
+  color: var(--as-ink, #12385d);
+  border: 1px solid var(--as-line, #d8e1eb);
 
   &.completed {
-    background: var(--mat-sys-primary-container, #e3f2fd);
-    color: var(--mat-sys-on-primary-container, #0d47a1);
+    background: #f0fdf4;
+    border-color: #86efac;
+    color: #166534;
   }
 
   &.current {
-    background: var(--mat-sys-primary, #1976d2);
-    color: var(--mat-sys-on-primary, #ffffff);
-    font-weight: 600;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+    background: #eff6ff;
+    border: 2px solid #2563eb;
+    color: #1e3a8a;
   }
 
   &.current.blocked {
-    border-color: #bc852e;
-    background: #fff3dc;
-    color: #754d13;
+    border-color: #b45309;
+    background: #fffbeb;
+    color: #78350f;
   }
 
   // Status is written out as text, so colour is never the only signal.
@@ -76,18 +78,20 @@
   .phase-status {
     font-size: 0.7rem;
     font-weight: 500;
-    opacity: 0.9;
+    line-height: 1.25;
   }
 
   .phase-number {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 1.35rem;
-    height: 1.35rem;
+    width: 1.5rem;
+    height: 1.5rem;
+    flex: 0 0 1.5rem;
+    border: 1px solid currentColor;
     border-radius: 50%;
     font-size: 0.75rem;
-    background: rgba(0, 0, 0, 0.1);
+    background: white;
   }
 }
 
@@ -98,9 +102,9 @@
 
 .phase-card {
   padding: 1rem;
-  border-radius: 0.5rem;
+  border-radius: var(--as-radius-sm, 6px);
   background: var(--mat-sys-surface, #ffffff);
-  border: 1px solid var(--mat-sys-outline-variant, #e0e0e0);
+  border: 1px solid var(--as-line, #d8e1eb);
 }
 
 .phase-meta {
@@ -196,10 +200,14 @@
 }
 
 @media (max-width: 600px) {
+  .phase-stepper { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .phase-step {
-    flex: 1 1 calc(50% - 0.5rem);
     font-size: 0.8rem;
   }
+}
+
+@media (min-width: 601px) and (max-width: 1199px) {
+  .phase-stepper { grid-template-columns: repeat(auto-fit, minmax(min(9rem, 100%), 1fr)); }
 }
 
 .workbench-links {

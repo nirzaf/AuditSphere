@@ -7143,3 +7143,11 @@ runtime switch remains disabled. The selected SharePoint target fields remain an
 browser-tab draft; the user will grant the exact site. Runtime Graph capabilities remain disabled,
 and the selected-resource probe and workspace activation remain blocked on that grant and credential
 setup. Do not mark those external states complete from local or Entra-registration evidence.
+
+## v2.2 workflow analytics — procedure review turnaround — 2026-10-12
+
+Practice Analytics now shows average elapsed hours from submission of the exact procedure-result revision to each append-only review decision created in the selected date range. Both `REVIEWED` and `CHANGES_REQUIRED` decisions count. Revision mismatches and decisions timestamped before submission are excluded and counted; an empty valid sample is `n/a`. The query returns aggregate counts only and does not expose reviewer comments or names, change review state, or imply review quality or audit clearance. A `(FirmId, CreatedAt)` index supports the bounded review-period query; migration `20261012052354_WorkflowReviewAnalyticsIndex` is additive and has not been applied to a persistent database.
+
+Verification on the working tree based on `690e1c11`: API Release build passed with 0 errors and two offline `NU1900` warnings; the focused PostgreSQL analytics regression passed 1/1, including both review outcomes, date filtering, invalid chronology and revision mismatch; the Angular analytics contract spec passed 4/4; EF model drift reported no pending changes; OpenAPI drift passed unchanged; and the Angular development server compiled. The built-in browser redirected the analytics route to the staff sign-in guard, so no authenticated data rendering was observed. The Angular production build aborted with exit 134 and no diagnostics. No full suite, live-provider or professional acceptance was run. Exact evidence is in `status.json` under `targetedVerification.workflowReviewTurnaround`.
+
+The phase task rollups are recorded in the newer section above. WF-14 remains partial: client wait, additional append-only activity sources, analytics pagination/performance acceptance and the remaining workflow stories are open. No persistent database was migrated.

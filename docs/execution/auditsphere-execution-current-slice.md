@@ -13,7 +13,15 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
-> **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
+> **Archive:** earlier slice sections, moved verbatim on 2026-10-08 and 2026-10-15, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
+
+## AS-UX-001 Angular visual adoption — shell foundation — 2026-10-15
+
+The existing Angular shell now uses the approved dark navigation/light workspace visual direction. The staff-only global search remains backed by its existing authorized API; its results are presented in a bounded header panel. Existing route groups and session/sign-out behavior remain. The seven visible workflow phases remain a read-only server projection of the canonical lifecycle.
+
+The first slice centralizes shell tokens, adds compact desktop navigation, restyles the responsive seven-phase grid, and ensures the root host fills narrow viewports. No API, domain, route, database, dependency, permission or provider behavior changed.
+
+The local browser preview is unauthenticated. Shell widths were checked without horizontal overflow, but staff navigation, global-search results, engagement context, authenticated ribbon states and feature-screen parity were not observed. AS-UX-001 remains PARTIAL; detailed counts and browser measurements belong in `status.json`.
 
 ## STE v2.2 proposal response provenance increment — 2026-10-15
 
@@ -207,14 +215,6 @@ Practice Analytics now groups non-cancelled tasks due in the selected period by 
 Verification on the working tree based on `5de433ff`: the Release solution build passed with 0 errors and six offline `NU1900` vulnerability-feed warnings; the focused PostgreSQL analytics regression passed 1/1, including bound and unbound task counts; the Angular analytics contract spec passed 4/4; EF model drift reported no pending changes; OpenAPI drift passed unchanged; and the Angular development server compiled. The built-in browser reached the staff sign-in guard because the local API/session was unavailable, so authenticated data rendering was not observed. The full test suite and production Angular build were not run. No persistent database migration, live-provider or professional acceptance was performed. Exact evidence is in `status.json` under `targetedVerification.workflowPhaseRollup`.
 
 WF-14 remains partial: client wait, additional append-only activity sources, analytics pagination/performance acceptance and the remaining workflow stories are open. No persistent database was migrated.
-
-## v2.2 workflow analytics — procedure review turnaround — 2026-10-12
-
-Practice Analytics now shows average elapsed hours from submission of the exact procedure-result revision to each append-only review decision created in the selected date range. Both `REVIEWED` and `CHANGES_REQUIRED` decisions count. Revision mismatches and decisions timestamped before submission are excluded and counted; an empty valid sample is `n/a`. The query returns aggregate counts only and does not expose reviewer comments or names, change review state, or imply review quality or audit clearance. A `(FirmId, CreatedAt)` index supports the bounded review-period query; migration `20261012052354_WorkflowReviewAnalyticsIndex` is additive and has not been applied to a persistent database.
-
-Verification on the working tree based on `690e1c11`: API Release build passed with 0 errors and two offline `NU1900` warnings; the focused PostgreSQL analytics regression passed 1/1, including both review outcomes, date filtering, invalid chronology and revision mismatch; the Angular analytics contract spec passed 4/4; EF model drift reported no pending changes; OpenAPI drift passed unchanged; and the Angular development server compiled. The built-in browser redirected the analytics route to the staff sign-in guard, so no authenticated data rendering was observed. The Angular production build aborted with exit 134 and no diagnostics. No full suite, live-provider or professional acceptance was run. Exact evidence is in `status.json` under `targetedVerification.workflowReviewTurnaround`.
-
-The phase task rollups are recorded in the newer section above. WF-14 remains partial: client wait, additional append-only activity sources, analytics pagination/performance acceptance and the remaining workflow stories are open. No persistent database was migrated.
 
 ## v2.2 workflow analytics — task completion and workload — 2026-10-12
 

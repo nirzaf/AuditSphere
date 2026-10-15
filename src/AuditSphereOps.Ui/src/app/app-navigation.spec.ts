@@ -66,6 +66,22 @@ describe('responsive workspace navigation', () => {
     expect(s.ref.close).toHaveBeenCalledWith('layout'); s.closed.next('layout');
     await s.app.openNavigation(); expect(s.open).toHaveBeenCalledOnce(); s.fixture.destroy();
   });
+  it('lets staff compact the desktop sidebar without losing accessible route names', async () => {
+    const s = await setup();
+    s.layout.next({ matches: false, breakpoints: {} });
+    await s.fixture.whenStable();
+    const toggle = s.fixture.nativeElement.querySelector('.desktop-navigation-toggle') as HTMLButtonElement;
+    expect(toggle).toBeTruthy();
+    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+    toggle.click();
+    await s.fixture.whenStable();
+    expect(s.app.navigationCompact()).toBe(true);
+    expect(s.fixture.nativeElement.querySelector('.workspace').classList.contains('nav-compact')).toBe(true);
+    expect(s.fixture.nativeElement.querySelector('.workspace-navigation.compact-navigation')).toBeTruthy();
+    expect(s.fixture.nativeElement.querySelector('a[aria-label="Portfolio"]')).toBeTruthy();
+    expect(s.fixture.nativeElement.querySelector('a[title="Portfolio"]')).toBeTruthy();
+    s.fixture.destroy();
+  });
   it('reports a safe load failure and allows retry', async () => {
     const s = await setup(); s.open.mockImplementationOnce(() => {throw new Error('private diagnostics');});
     await s.app.openNavigation(); await s.fixture.whenStable();

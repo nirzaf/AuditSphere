@@ -30,10 +30,15 @@ export class App {
   private readonly tabDrafts = inject(TabDrafts);
   private readonly navigationDialog = signal<MatDialogRef<WorkspaceNavigationDialog> | null>(null);
   readonly navigationOpen = computed(() => this.navigationDialog() !== null);
+  /** Cosmetic density preference; it is intentionally in-memory and carries no user or business state. */
+  readonly navigationCompact = signal(false);
   readonly navigationLoading = signal(false);
   readonly navigationFailure = signal('');
   private navigationOwner = '';
   private destroyed = false;
+  toggleNavigationCompact(): void {
+    this.navigationCompact.update(value => !value);
+  }
   readonly signInHref = workspaceSignInHref(location.pathname, location.search, presentationBase());
   readonly signOutFailure = signal('');
   private owner(): string {

@@ -85,38 +85,63 @@ export function decodeSearch(value: unknown): SearchResult {
           <mat-option [value]="hit.href" [disabled]="!route(hit.href)">{{ hit.title }} · {{ hit.kind }}</mat-option>
         }
       </mat-autocomplete>
-      <p id="search-help">
+      <p id="search-help" class="sr-only">
         Press slash outside fields and dialogs to focus search. Search authorized clients,
         engagements, PBC requests, leads, invoices, library and pages. Documents and emails are not
         searched.
       </p>
-      @if (loading()) {
-        <mat-progress-bar mode="indeterminate" aria-label="Searching workspace" />
-      }
-      @if (error()) {
-        <p role="alert">{{ error() }}</p>
-      }
-      @if (data(); as result) {
-        <p role="status">
-          {{ result.hits.length }} results{{
-            result.truncated ? ' · Refine your search for more specific results' : ''
-          }}
-        </p>
-        <ul>
-          @for (hit of result.hits; track $index) {
-            <li>
-              @if (route(hit.href); as destination) {
-                <a [routerLink]="destination">{{ hit.title }}</a>
-              } @else {
-                <span>{{ hit.title }}</span><small>This page is not available in this workspace.</small>
-              }
-              <p>{{ hit.kind }} · {{ hit.detail }}</p>
-            </li>
+      @if (loading() || error() || data()) {
+        <div class="search-panel" role="region" aria-label="Search results">
+          @if (loading()) {
+            <mat-progress-bar mode="indeterminate" aria-label="Searching workspace" />
           }
-        </ul>
-        <button matButton (click)="dismiss()">Close search results</button>
+          @if (error()) {
+            <p role="alert">{{ error() }}</p>
+          }
+          @if (data(); as result) {
+            <p role="status">
+              {{ result.hits.length }} results{{
+                result.truncated ? ' · Refine your search for more specific results' : ''
+              }}
+            </p>
+            <ul>
+              @for (hit of result.hits; track $index) {
+                <li>
+                  @if (route(hit.href); as destination) {
+                    <a [routerLink]="destination">{{ hit.title }}</a>
+                  } @else {
+                    <span>{{ hit.title }}</span><small>This page is not available in this workspace.</small>
+                  }
+                  <p>{{ hit.kind }} · {{ hit.detail }}</p>
+                </li>
+              }
+            </ul>
+            <button matButton (click)="dismiss()">Close search results</button>
+          }
+        </div>
       }
     </section>
+  `,
+  styles: `
+    :host { display: block; position: relative; flex: 0 1 26rem; min-width: 12rem; max-width: 34rem; }
+    section { position: relative; }
+    form { display: flex; align-items: center; gap: .5rem; margin: 0; }
+    mat-form-field { flex: 1 1 auto; min-width: 0; margin-block-end: -1.25rem; }
+    form > button { min-height: 44px; color: var(--as-shell-text, #f8fafc); }
+    .search-panel { position: absolute; inset-block-start: calc(100% + .375rem); inset-inline-end: 0;
+      z-index: 100; box-sizing: border-box; width: min(42rem, calc(100vw - 2rem));
+      max-height: min(65vh, 34rem); overflow: auto; padding: .75rem 1rem;
+      border: 1px solid var(--as-line, #d8e1eb); border-radius: .625rem;
+      background: white; color: var(--as-ink, #12385d); box-shadow: var(--as-shadow-2, 0 2px 4px rgb(16 42 67 / 8%)); }
+    .search-panel ul { margin: .5rem 0; padding-inline-start: 1.25rem; }
+    .search-panel li { padding-block: .375rem; border-block-end: 1px solid var(--as-line, #d8e1eb); }
+    .search-panel li p { margin: .2rem 0 0; color: var(--as-text-muted, #455468); font-size: .875rem; }
+    .search-panel a { color: var(--as-link, #0b5cab); font-weight: 600; }
+    .search-panel a:focus-visible, .search-panel button:focus-visible { outline: 3px solid var(--as-focus, #075a9c); outline-offset: 2px; }
+    @media (max-width: 700px) {
+      :host { flex: 1 0 100%; max-width: none; min-width: 0; }
+      .search-panel { inset-inline-start: 0; inset-inline-end: auto; width: min(42rem, calc(100vw - 1rem)); }
+    }
   `,
 })
 export class GlobalSearch {
