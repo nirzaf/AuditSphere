@@ -1,3 +1,5 @@
+using System.Data;
+using System.Globalization;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
@@ -10,7 +12,8 @@ using Microsoft.EntityFrameworkCore;
 namespace AuditSphereOps.Application.Practice;
 
 public sealed record WorkflowTaskQueueRequest(string View = "MY_TASKS", DateOnly? AfterDueDate = null,
-  Guid? AfterTaskId = null, int PageSize = 50, Guid? AssigneeUserId = null, bool UnassignedOnly = false);
+  Guid? AfterTaskId = null, int PageSize = 50, Guid? AssigneeUserId = null, bool UnassignedOnly = false,
+  bool IncludeSummary = false);
 public sealed record WorkflowTaskQueueCursor(DateOnly? DueDate, Guid TaskId);
 public sealed record WorkflowTaskQueueRow(Guid TaskId, Guid ClientId, string ClientName, Guid EngagementId,
   string EngagementServiceRoute, string EngagementPeriod, string Title, string Phase, int Ordinal,
@@ -20,11 +23,16 @@ public sealed record WorkflowTaskQueueRow(Guid TaskId, Guid ClientId, string Cli
   Guid? PbcRequestId, string? PbcState, string? ReviewState, string? ReviewComment,
   int UnmetEvidencePrerequisites = 0);
 public sealed record WorkflowTaskQueue(string View, IReadOnlyList<WorkflowTaskQueueRow> Tasks,
-  bool HasMore, WorkflowTaskQueueCursor? NextCursor);
+  bool HasMore, WorkflowTaskQueueCursor? NextCursor, WorkflowTaskQueueSummary? Summary = null);
+public sealed record WorkflowTaskQueueCount(string View, string Count);
+public sealed record WorkflowTaskQueueSummary(
+  DateOnly AsOfDateUtc, IReadOnlyList<WorkflowTaskQueueCount> Counts);
 
 /// <summary>
 /// Grant-scoped queue over existing workflow bindings and WorkTask records. Queue views are filters over operational
-/// state; audit review decisions remain in their authoritative review services.
+/// state; audit review decisions remain in their authoritative review services. The optional summary counts the
+/// complete authorized population of each default view as of the UTC calendar date; it is read-only and never
+/// persisted.
 /// </summary>
 public static class WorkflowTaskQueueQuery
 {
@@ -33,6 +41,8 @@ public static class WorkflowTaskQueueQuery
   private static readonly string[] ActiveTaskStates = [PracticeTimeStates.TaskOpen, PracticeTimeStates.TaskInProgress];
   private const string MyTasks = "MY_TASKS";
   private const string Team = "TEAM";
+  private const string DueToday = "DUE_TODAY";
+  private const string Upcoming = "UPCOMING";
   private const string Overdue = "OVERDUE";
   private const string Completed = "COMPLETED";
   private const string WaitingForClient = "WAITING_FOR_CLIENT";
@@ -45,7 +55,7 @@ public static class WorkflowTaskQueueQuery
     IAuditSphereDbContext db, ActorContext actor, WorkflowTaskQueueRequest request, CancellationToken ct = default)
   {
     var view = request.View?.Trim().ToUpperInvariant();
-    if (view is not (MyTasks or Team or Overdue or Completed or WaitingForClient or ChangesRequired or UnderReview) || request.PageSize is < 1 or > 100 ||
+    if (view is not (MyTasks or Team or DueToday or Upcoming or Overdue or Completed or WaitingForClient or ChangesRequired or UnderReview) || request.PageSize is < 1 or > 100 ||
         (request.AfterTaskId is null && request.AfterDueDate.HasValue) || request.AssigneeUserId == Guid.Empty ||
         (request.UnassignedOnly && request.AssigneeUserId.HasValue) ||
         (view == MyTasks && (request.UnassignedOnly ||
@@ -58,11 +68,15 @@ public static class WorkflowTaskQueueQuery
     if (!auth.Succeeded)
       return CommandResult<WorkflowTaskQueue>.Fail(auth.ErrorCode!, auth.Message!);
 
+    // One UTC instant per call: the existing UTC calendar-date meaning of OVERDUE is preserved, never browser time.
     var now = DateTimeOffset.UtcNow;
-    var grants = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+    var today = DateOnly.FromDateTime(now.UtcDateTime);
+    var upcomingEnd = today.DayNumber > DateOnly.MaxValue.DayNumber - 7 ? DateOnly.MaxValue : today.AddDays(7);
+    var effectiveGrants = db.RoleGrants.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
         x.UserId == actor.UserId && x.RevokedAt == null && (x.ExpiresAt == null || x.ExpiresAt > now) &&
         ReadRoles.Contains(x.Role))
-      .Select(x => new { x.Role, x.ClientId, x.EngagementId }).ToListAsync(ct);
+      .Select(x => new { x.Role, x.ClientId, x.EngagementId });
+    var grants = await effectiveGrants.ToListAsync(ct);
     var firmWide = grants.Any(x => x.ClientId is null && x.EngagementId is null);
     var clientIds = grants.Where(x => x.ClientId.HasValue && x.EngagementId is null)
       .Select(x => x.ClientId!.Value).Distinct().ToArray();
@@ -133,46 +147,75 @@ public static class WorkflowTaskQueueQuery
 
     var waitingEvidenceRules = WorkflowTaskEvidenceQuery.Heads(db, actor.FirmId).Where(x =>
       x.State == WorkflowEvidenceRuleStates.Required && x.Kind == WorkflowEvidenceKinds.AcceptedPbc);
-    if (view == MyTasks)
-      query = query.Where(x => x.AssigneeUserId == actor.UserId && ActiveTaskStates.Contains(x.Status));
-    else if (view == Team)
-      query = query.Where(x => ActiveTaskStates.Contains(x.Status));
-    else if (view == Overdue)
-      query = query.Where(x => x.DueDate < DateOnly.FromDateTime(DateTime.UtcNow) && ActiveTaskStates.Contains(x.Status));
-    else if (view == WaitingForClient)
-      query = query.Where(x => ActiveTaskStates.Contains(x.Status) &&
-        ((x.PbcRequestId.HasValue && x.PbcState != null && ClientWaitingPbcStates.Contains(x.PbcState)) ||
-         waitingEvidenceRules.Any(rule => rule.WorkflowTaskBindingId == x.BindingId &&
-           db.PbcRequests.Any(pbc => pbc.FirmId == rule.FirmId && pbc.ClientId == rule.ClientId &&
-             pbc.EngagementId == rule.EngagementId && pbc.Id == rule.PbcRequestId && ClientWaitingPbcStates.Contains(pbc.State)))));
-    else if (view == ChangesRequired)
-      query = query.Where(x => x.ReviewState == AuditProcedureResultStatuses.ChangesRequired);
-    else if (view == UnderReview)
-      query = query.Where(x => x.ReviewState == UnderReview);
-    else
-      query = query.Where(x => x.Status == PracticeTimeStates.TaskCompleted);
+    // Every view is a filter over the same grant-scoped population; null due dates never match a date view.
+    var myTasks = query.Where(x => x.AssigneeUserId == actor.UserId && ActiveTaskStates.Contains(x.Status));
+    var team = query.Where(x => ActiveTaskStates.Contains(x.Status));
+    var dueToday = team.Where(x => x.DueDate == today);
+    var upcoming = team.Where(x => x.DueDate > today && x.DueDate <= upcomingEnd);
+    var overdue = team.Where(x => x.DueDate < today);
+    var waitingForClient = query.Where(x => ActiveTaskStates.Contains(x.Status) &&
+      ((x.PbcRequestId.HasValue && x.PbcState != null && ClientWaitingPbcStates.Contains(x.PbcState)) ||
+       waitingEvidenceRules.Any(rule => rule.WorkflowTaskBindingId == x.BindingId &&
+         db.PbcRequests.Any(pbc => pbc.FirmId == rule.FirmId && pbc.ClientId == rule.ClientId &&
+           pbc.EngagementId == rule.EngagementId && pbc.Id == rule.PbcRequestId && ClientWaitingPbcStates.Contains(pbc.State)))));
+    var changesRequired = query.Where(x => x.ReviewState == AuditProcedureResultStatuses.ChangesRequired);
+    var underReview = query.Where(x => x.ReviewState == UnderReview);
+    var completed = query.Where(x => x.Status == PracticeTimeStates.TaskCompleted);
+    var rowsQuery = view switch
+    {
+      MyTasks => myTasks,
+      Team => team,
+      DueToday => dueToday,
+      Upcoming => upcoming,
+      Overdue => overdue,
+      WaitingForClient => waitingForClient,
+      ChangesRequired => changesRequired,
+      UnderReview => underReview,
+      _ => completed
+    };
 
     // Assignee selection only narrows the already grant-scoped query. It is never an authority source.
     if (request.AssigneeUserId.HasValue)
-      query = query.Where(x => x.AssigneeUserId == request.AssigneeUserId);
+      rowsQuery = rowsQuery.Where(x => x.AssigneeUserId == request.AssigneeUserId);
     else if (request.UnassignedOnly)
-      query = query.Where(x => x.AssigneeUserId == null);
+      rowsQuery = rowsQuery.Where(x => x.AssigneeUserId == null);
 
     if (request.AfterTaskId.HasValue)
     {
       if (request.AfterDueDate.HasValue)
-        query = query.Where(x => x.DueDate == null || x.DueDate > request.AfterDueDate ||
+        rowsQuery = rowsQuery.Where(x => x.DueDate == null || x.DueDate > request.AfterDueDate ||
           (x.DueDate == request.AfterDueDate && x.Id.CompareTo(request.AfterTaskId.Value) > 0));
       else
-        query = query.Where(x => x.DueDate == null && x.Id.CompareTo(request.AfterTaskId.Value) > 0);
+        rowsQuery = rowsQuery.Where(x => x.DueDate == null && x.Id.CompareTo(request.AfterTaskId.Value) > 0);
     }
 
-    var page = await query.OrderBy(x => x.DueDate == null).ThenBy(x => x.DueDate).ThenBy(x => x.Id)
+    // Summary, page and page-detail reads share one snapshot; a caller-owned transaction is used as-is.
+    await using var ownedRead = db.Database.CurrentTransaction is null
+      ? await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct)
+      : null;
+    WorkflowTaskQueueSummary? summary = null;
+    if (request.IncludeSummary)
+    {
+      // Summary counts ignore the selected view, cursor and assignee narrowing; they never widen the scope.
+      var counts = new List<WorkflowTaskQueueCount>(7);
+      foreach (var (countView, countQuery) in new[]
+        {
+          (MyTasks, myTasks), (DueToday, dueToday), (Overdue, overdue), (WaitingForClient, waitingForClient),
+          (UnderReview, underReview), (ChangesRequired, changesRequired), (Upcoming, upcoming)
+        })
+        counts.Add(new WorkflowTaskQueueCount(countView,
+          (await countQuery.LongCountAsync(ct)).ToString(CultureInfo.InvariantCulture)));
+      summary = new WorkflowTaskQueueSummary(today, counts);
+    }
+
+    var page = await rowsQuery.OrderBy(x => x.DueDate == null).ThenBy(x => x.DueDate).ThenBy(x => x.Id)
       .Take(request.PageSize + 1).ToListAsync(ct);
     var hasMore = page.Count > request.PageSize;
     if (hasMore) page.RemoveAt(page.Count - 1);
     if (page.Count == 0)
-      return CommandResult<WorkflowTaskQueue>.Ok(new WorkflowTaskQueue(view!, [], false, null));
+      return await ScopeUnchangedAsync()
+        ? CommandResult<WorkflowTaskQueue>.Ok(new WorkflowTaskQueue(view!, [], false, null, summary))
+        : CommandResult<WorkflowTaskQueue>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
     var bindingIds = page.Select(x => x.BindingId).ToArray();
     var unmet = await (from dependency in WorkflowTaskDependencyQuery.Effective(db, actor.FirmId)
@@ -193,6 +236,8 @@ public static class WorkflowTaskQueueQuery
     var assignees = assigneeIds.Length == 0 ? new Dictionary<Guid, string>() :
       await db.Users.AsNoTracking().Where(x => x.FirmId == actor.FirmId && assigneeIds.Contains(x.Id))
         .ToDictionaryAsync(x => x.Id, x => x.DisplayName, ct);
+    if (!await ScopeUnchangedAsync())
+      return CommandResult<WorkflowTaskQueue>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
     bool CanElevatedManage(Guid clientId, Guid engagementId) => grants.Any(g =>
       ElevatedRoles.Contains(g.Role) && ((g.ClientId is null && g.EngagementId is null) ||
@@ -214,6 +259,25 @@ public static class WorkflowTaskQueueQuery
     }).ToArray();
     var last = page[^1];
     return CommandResult<WorkflowTaskQueue>.Ok(new WorkflowTaskQueue(view!, rows, hasMore,
-      hasMore ? new WorkflowTaskQueueCursor(last.DueDate, last.Id) : null));
+      hasMore ? new WorkflowTaskQueueCursor(last.DueDate, last.Id) : null, summary));
+
+    // Releases the owned snapshot, then confirms the effective grant population and authority still hold before
+    // any row or count leaves this query. A lost or changed scope releases nothing.
+    async Task<bool> ScopeUnchangedAsync()
+    {
+      if (ownedRead is not null)
+      {
+        await ownedRead.CommitAsync(ct);
+        await ownedRead.DisposeAsync();
+      }
+      var current = await effectiveGrants.ToListAsync(ct);
+      var captured = grants.OrderBy(x => x.Role, StringComparer.Ordinal)
+        .ThenBy(x => x.ClientId).ThenBy(x => x.EngagementId);
+      if (!current.OrderBy(x => x.Role, StringComparer.Ordinal).ThenBy(x => x.ClientId)
+            .ThenBy(x => x.EngagementId).SequenceEqual(captured))
+        return false;
+      return (await AuthorizationDecision.AuthorizeAsync(db, actor,
+        new AuthorizationRequest(actor.FirmId, RequiredRoles: ReadRoles, InternalOnly: true), ct)).Succeeded;
+    }
   }
 }
