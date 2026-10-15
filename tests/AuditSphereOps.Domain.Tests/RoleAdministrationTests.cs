@@ -1,8 +1,11 @@
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Security;
+using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using System.Data.Common;
 
 namespace AuditSphereOps.Domain.Tests;
 
@@ -138,5 +141,83 @@ public sealed class RoleAdministrationTests
 
     await using var verify = new AuditSphereDbContext(pg.Options);
     Assert.Equal(1, await verify.RoleGrants.CountAsync(x => x.FirmId == firmId && x.Role == "Administrator" && x.RevokedAt == null));
+  }
+
+  [Fact]
+  public async Task RoleRevocationRefusesAdministratorRevokedWhileWaitingForFirmLock()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var (firmId, _, _) = await pg.SeedScopeAsync();
+    var actor = new AppUser
+    {
+      Id = Guid.NewGuid(), FirmId = firmId, Subject = "admin-" + Guid.NewGuid().ToString("N"),
+      TenantId = "tenant", Email = "admin@example.test", DisplayName = "Administrator", CreatedAt = DateTimeOffset.UtcNow
+    };
+    var target = new AppUser
+    {
+      Id = Guid.NewGuid(), FirmId = firmId, Subject = "target-" + Guid.NewGuid().ToString("N"),
+      TenantId = "tenant", Email = "target@example.test", DisplayName = "Target", CreatedAt = DateTimeOffset.UtcNow
+    };
+    var actorGrantId = Guid.NewGuid();
+    var targetGrantId = Guid.NewGuid();
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      setup.Users.AddRange(actor, target);
+      setup.RoleGrants.AddRange(
+        new RoleGrant
+        {
+          Id = actorGrantId, FirmId = firmId, UserId = actor.Id, Role = "Administrator",
+          GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = actor.Id
+        },
+        new RoleGrant
+        {
+          Id = targetGrantId, FirmId = firmId, UserId = target.Id, Role = "Staff",
+          GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = actor.Id
+        });
+      await setup.SaveChangesAsync();
+    }
+
+    var actorContext = new ActorContext(actor.Id, firmId, actor.SessionEpoch, ["Administrator"]);
+    await using var blocker = new AuditSphereDbContext(pg.Options);
+    await using var blockerTransaction = await blocker.Database.BeginTransactionAsync();
+    await blocker.FirmSafetyStates.FromSqlInterpolated(
+      $"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR UPDATE").SingleAsync();
+
+    var signal = new ObserveFirmAdministrationLock();
+    var options = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(signal).Options;
+    await using var writer = new AuditSphereDbContext(options);
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+    var attempt = RoleAdministrationService.RevokeRoleGrantAsync(
+      writer, actorContext, new RevokeRoleGrantRequest(targetGrantId), timeout.Token);
+    await signal.Reached.Task.WaitAsync(timeout.Token);
+
+    await blocker.RoleGrants.Where(x => x.Id == actorGrantId)
+      .ExecuteUpdateAsync(update => update.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow), timeout.Token);
+    await blocker.Users.Where(x => x.Id == actor.Id)
+      .ExecuteUpdateAsync(update => update.SetProperty(x => x.SessionEpoch, x => x.SessionEpoch + 1), timeout.Token);
+    await blockerTransaction.CommitAsync(timeout.Token);
+
+    var result = await attempt.WaitAsync(timeout.Token);
+    Assert.False(result.Succeeded);
+    Assert.Equal(ErrorCodes.GenerationStale, result.ErrorCode);
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    Assert.Null((await verify.RoleGrants.SingleAsync(x => x.Id == targetGrantId)).RevokedAt);
+    Assert.False(await verify.RoleGrantChangeEvidences.AnyAsync(x =>
+      x.RoleGrantId == targetGrantId && x.Action == "REVOKED"));
+  }
+
+  private sealed class ObserveFirmAdministrationLock : DbCommandInterceptor
+  {
+    public TaskCompletionSource Reached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+      DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+      CancellationToken cancellationToken = default)
+    {
+      if (command.CommandText.Contains("firm_safety_states", StringComparison.Ordinal) &&
+          command.CommandText.Contains("FOR UPDATE", StringComparison.Ordinal))
+        Reached.TrySetResult();
+      return ValueTask.FromResult(result);
+    }
   }
 }

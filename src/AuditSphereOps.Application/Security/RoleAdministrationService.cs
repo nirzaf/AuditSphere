@@ -77,6 +77,8 @@ public static class RoleAdministrationService
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var lockedAuth = await LockFirmAndReauthorizeAsync(db, actor, ct);
+    if (!lockedAuth.Succeeded) return CommandResult<Guid>.Fail(lockedAuth.ErrorCode!, lockedAuth.Message!);
     var existing = await db.Users.SingleOrDefaultAsync(x =>
       x.FirmId == actor.FirmId && x.TenantId == request.TenantId.Trim() && x.Subject == request.Subject.Trim(), ct);
     var emailConflict = await db.Users.AsNoTracking().AnyAsync(x =>
@@ -134,6 +136,8 @@ public static class RoleAdministrationService
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var lockedAuth = await LockFirmAndReauthorizeAsync(db, actor, ct);
+    if (!lockedAuth.Succeeded) return CommandResult<Guid>.Fail(lockedAuth.ErrorCode!, lockedAuth.Message!);
     var target = await db.Users.SingleOrDefaultAsync(x => x.Id == request.UserId && x.FirmId == actor.FirmId && x.UserKind == "Staff", ct);
     if (target is null || target.Disabled) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The target identity is unavailable.");
     if (!await RecentGraphObservationAsync(db, target, ct))
@@ -190,6 +194,8 @@ public static class RoleAdministrationService
     if (!auth.Succeeded) return CommandResult<UserAccessAssignmentResult>.Fail(auth.ErrorCode!, auth.Message!);
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var lockedAuth = await LockFirmAndReauthorizeAsync(db, actor, ct);
+    if (!lockedAuth.Succeeded) return CommandResult<UserAccessAssignmentResult>.Fail(lockedAuth.ErrorCode!, lockedAuth.Message!);
     var target = await db.Users.SingleOrDefaultAsync(x => x.Id == request.UserId && x.FirmId == actor.FirmId, ct);
     if (target is null || target.Disabled)
       return CommandResult<UserAccessAssignmentResult>.Fail(ErrorCodes.ScopeDenied, "The target identity is unavailable.");
@@ -262,10 +268,8 @@ public static class RoleAdministrationService
     var auth = await FirmAdministratorAsync(db, actor, ct);
     if (!auth.Succeeded) return auth;
     await using var tx = await db.Database.BeginTransactionAsync(ct);
-    var firmGuard = await db.FirmSafetyStates.FromSqlInterpolated(
-      $"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE")
-      .SingleOrDefaultAsync(ct);
-    if (firmGuard is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "The firm safety state is unavailable.");
+    var lockedAuth = await LockFirmAndReauthorizeAsync(db, actor, ct);
+    if (!lockedAuth.Succeeded) return lockedAuth;
     var grant = await db.RoleGrants.SingleOrDefaultAsync(x => x.Id == request.GrantId && x.FirmId == actor.FirmId, ct);
     if (grant is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "The role grant is unavailable.");
     if (grant.RevokedAt is not null) return CommandResult.Ok();
@@ -311,6 +315,8 @@ public static class RoleAdministrationService
     var auth = await FirmAdministratorAsync(db, actor, ct);
     if (!auth.Succeeded) return auth;
     await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var lockedAuth = await LockFirmAndReauthorizeAsync(db, actor, ct);
+    if (!lockedAuth.Succeeded) return lockedAuth;
     var invitation = await db.UserAccessInvitations.SingleOrDefaultAsync(x =>
       x.Id == invitationId && x.FirmId == actor.FirmId, ct);
     if (invitation is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "The invitation is unavailable.");
@@ -335,6 +341,20 @@ public static class RoleAdministrationService
   internal static Task<CommandResult> FirmAdministratorAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct) =>
     AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, RequiredRoles: ["Administrator"], InternalOnly: true, RequireFirmWide: true), ct);
+
+  private static async Task<CommandResult> LockFirmAndReauthorizeAsync(
+    IAuditSphereDbContext db, ActorContext actor, CancellationToken ct)
+  {
+    var firmGuard = await db.FirmSafetyStates.FromSqlInterpolated(
+      $"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE")
+      .SingleOrDefaultAsync(ct);
+    if (firmGuard is null)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "The firm safety state is unavailable.");
+
+    // Role changes serialize on the firm row. Re-read the actor only after that
+    // lock so a revocation committed while this command waited takes effect.
+    return await FirmAdministratorAsync(db, actor, ct);
+  }
 
   internal static bool EmailLike(string value)
   {
