@@ -103,11 +103,22 @@ public sealed class AngularRouteAndShellMigrationSweepTests
 
     foreach (var (route, heading) in ParameterlessRoutes)
     {
-      await staffPage.GotoAsync(origin + route);
+      var response = await staffPage.GotoAsync(origin + route);
       await Assertions.Expect(staffPage.Locator("main h1"))
         .ToHaveTextAsync(heading, new() { Timeout = 15000 });
       Assert.Equal(1, await staffPage.Locator("main h1").CountAsync());
       Assert.True(await staffPage.Locator("main h1").IsVisibleAsync(), $"{route} did not show its page heading.");
+      if (route == "/auth/access-not-assigned")
+      {
+        Assert.NotNull(response);
+        Assert.Equal(403, response.Status);
+        Assert.Equal("no-store", response.Headers["cache-control"]);
+        await Assertions.Expect(staffPage.GetByText(
+          "Your Microsoft identity has no current AuditSphere access. Contact an authorized AuditSphere administrator to be granted a role and scope.",
+          new() { Exact = true })).ToBeVisibleAsync();
+        await Assertions.Expect(staffPage.GetByRole(AriaRole.Link,
+          new() { Name = "Sign out", Exact = true })).ToHaveAttributeAsync("href", "/auth/sign-out");
+      }
       var currentLinks = staffPage.Locator("audit-workspace-navigation nav a[aria-current='page']");
       Assert.True(await currentLinks.CountAsync() <= 1, $"{route} marked more than one workspace destination current.");
       await AssertCurrentNavigationSectionAsync(staffPage, route);
