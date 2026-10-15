@@ -1,6 +1,7 @@
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Security;
+using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Domain.Tests;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
@@ -23,6 +24,10 @@ public sealed class AngularProposalWorkflowJourneyTests
     var proposalId = Guid.NewGuid();
     await using (var db = host.CreateDbContext())
     {
+      var engagement = await db.Engagements.SingleAsync(x => x.Id == fixture.EngagementId);
+      engagement.ServiceRoute = "FinancialStatementAudit";
+      engagement.PeriodStart = "2026-01-01";
+      engagement.PeriodEnd = "2026-12-31";
       db.RoleGrants.Add(new RoleGrant
       {
         Id = Guid.NewGuid(), FirmId = fixture.FirmId, UserId = partner.Id,
@@ -48,6 +53,36 @@ public sealed class AngularProposalWorkflowJourneyTests
         Scope = "Synthetic scope", Exclusions = "", Deliverables = "Synthetic report", Dependencies = "",
         Fee = 1200m, Currency = "QAR", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31",
         PreparedByUserId = fixture.Admin.Id, ApprovedByUserId = partner.Id, ApprovedAt = now, CreatedAt = now
+      });
+      var quotationId = Guid.NewGuid();
+      db.QuotationVersions.Add(new QuotationVersion
+      {
+        Id = quotationId, FirmId = fixture.FirmId, ProposalId = proposalId, Revision = 1, Currency = "QAR",
+        LinesJson = "[]", ComplexityFactor = 1m, BaseAmount = 1200m, Fee = 1200m,
+        InputHash = Hashing.Sha256Hex("synthetic-quotation-workflow-1"),
+        Status = QuotationStates.Approved, RequiredApprovalsJson = "[]", CreatedByUserId = fixture.Admin.Id,
+        CreatedAt = now, ApprovedAt = now
+      });
+      var bytes = System.Text.Encoding.UTF8.GetBytes("Synthetic quotation artifact 1");
+      db.CommercialDocuments.Add(new CommercialDocument
+      {
+        Id = Guid.NewGuid(), FirmId = fixture.FirmId, ProposalId = proposalId, QuotationVersionId = quotationId,
+        Kind = CommercialDocumentKinds.Quotation, FileName = "Quotation.txt", ContentType = "text/plain",
+        TemplateVersion = "v1", Bytes = bytes, Sha256Hex = Hashing.Sha256Hex(bytes),
+        CreatedByUserId = fixture.Admin.Id, CreatedAt = now
+      });
+      var contactId = Guid.NewGuid();
+      db.ClientContacts.Add(new ClientContact
+      {
+        Id = contactId, FirmId = fixture.FirmId, PracticeClientId = fixture.ClientId,
+        FullName = "Synthetic contact", Email = "lifecycle@example.test", Role = "ClientCommercial",
+        IsActive = true
+      });
+      db.ClientContactRoutings.Add(new ClientContactRouting
+      {
+        Id = Guid.NewGuid(), FirmId = fixture.FirmId, PracticeClientId = fixture.ClientId,
+        ClientContactId = contactId, Purpose = CorrespondencePurposes.Commercial,
+        IsPrimaryForPurpose = true, CreatedByUserId = fixture.Admin.Id, CreatedAt = now
       });
       await db.SaveChangesAsync();
     }
@@ -125,6 +160,25 @@ public sealed class AngularProposalWorkflowJourneyTests
           "QAR", "2026-01-01", "2026-12-31", 0));
       Assert.True(proposal.Succeeded, proposal.Message);
       proposalId = proposal.Value;
+      var quotationId = Guid.NewGuid();
+      var now = DateTimeOffset.UtcNow;
+      db.QuotationVersions.Add(new QuotationVersion
+      {
+        Id = quotationId, FirmId = fixture.FirmId, ProposalId = proposalId, Revision = 1, Currency = "QAR",
+        LinesJson = "[]", ComplexityFactor = 1m, BaseAmount = 1200m, Fee = 1200m,
+        InputHash = Hashing.Sha256Hex("synthetic-quotation-workflow-2"),
+        Status = QuotationStates.Approved, RequiredApprovalsJson = "[]", CreatedByUserId = fixture.Admin.Id,
+        CreatedAt = now, ApprovedAt = now
+      });
+      var bytes = System.Text.Encoding.UTF8.GetBytes("Synthetic quotation artifact 2");
+      db.CommercialDocuments.Add(new CommercialDocument
+      {
+        Id = Guid.NewGuid(), FirmId = fixture.FirmId, ProposalId = proposalId, QuotationVersionId = quotationId,
+        Kind = CommercialDocumentKinds.Quotation, FileName = "Quotation.txt", ContentType = "text/plain",
+        TemplateVersion = "v1", Bytes = bytes, Sha256Hex = Hashing.Sha256Hex(bytes),
+        CreatedByUserId = fixture.Admin.Id, CreatedAt = now
+      });
+      await db.SaveChangesAsync();
     }
 
     using var playwright = await Playwright.CreateAsync();
@@ -180,6 +234,7 @@ public sealed class AngularProposalWorkflowJourneyTests
       await page.GetByLabel("Respondent name", new() { Exact = true }).FillAsync("Synthetic contact");
       await page.GetByLabel("Respondent email", new() { Exact = true }).FillAsync("workflow@example.test");
       await page.GetByLabel("Evidence reference", new() { Exact = true }).FillAsync("Signed acceptance letter received by email");
+      await page.GetByLabel("Response channel", new() { Exact = true }).SelectOptionAsync("EMAIL");
       await assent.CheckAsync();
       await page.GetByRole(AriaRole.Button, new() { Name = "Record client acceptance", Exact = true }).ClickAsync();
       await Assertions.Expect(page.GetByRole(AriaRole.Link,
@@ -187,6 +242,8 @@ public sealed class AngularProposalWorkflowJourneyTests
     }
     else
     {
+      await page.GetByLabel("Respondent name", new() { Exact = true }).FillAsync("Synthetic contact");
+      await page.GetByLabel("Respondent email", new() { Exact = true }).FillAsync("workflow@example.test");
       await page.GetByLabel("Client response reason", new() { Exact = true }).FillAsync(declineReason);
       await assent.CheckAsync();
       await page.GetByRole(AriaRole.Button, new() { Name = "Record client decline", Exact = true }).ClickAsync();
@@ -204,7 +261,7 @@ public sealed class AngularProposalWorkflowJourneyTests
       // The response is bound to the exact dispatched offer identity with respondent evidence (STE-REM-01).
       Assert.False(string.IsNullOrWhiteSpace(proposal.SentOfferSha256));
       Assert.Equal(proposal.SentOfferSha256, proposal.ResponseOfferSha256);
-      Assert.Equal(accepted ? "Synthetic contact" : null, proposal.RespondentName);
+      Assert.Equal("Synthetic contact", proposal.RespondentName);
       Assert.Equal(accepted ? "Signed acceptance letter received by email" : null, proposal.ResponseEvidenceReference);
       Assert.NotNull(proposal.ResponseAt);
       Assert.Equal(accepted ? null : declineReason, proposal.ResponseReason);

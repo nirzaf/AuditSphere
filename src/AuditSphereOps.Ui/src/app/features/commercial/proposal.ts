@@ -456,19 +456,20 @@ export function isResponseChannel(value: string): boolean {
             [disabled]="busy()"
             name="respondentEmail"
         /></label>
-        <label
-          >Response channel<select
-            [(ngModel)]="responseChannel"
-            (ngModelChange)="reviewed = false"
-            [disabled]="busy()"
-            name="responseChannel"
-          >
-            <option value="" disabled>Choose how the response arrived</option>
-            @for (channel of responseChannels; track channel.value) {
-              <option [value]="channel.value">{{ channel.label }}</option>
-            }
-          </select></label
+        <label for="responseChannel">Response channel</label>
+        <select
+          id="responseChannel"
+          aria-label="Response channel"
+          [(ngModel)]="responseChannel"
+          (ngModelChange)="reviewed = false"
+          [disabled]="busy()"
+          name="responseChannel"
         >
+          <option value="" disabled>Choose how the response arrived</option>
+          @for (channel of responseChannels; track channel.value) {
+            <option [value]="channel.value">{{ channel.label }}</option>
+          }
+        </select>
         <label
           >Evidence reference<input
             type="text"

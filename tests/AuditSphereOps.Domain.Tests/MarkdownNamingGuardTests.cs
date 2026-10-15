@@ -15,7 +15,8 @@ public sealed class MarkdownNamingGuardTests
   {
     "README.md",
     "AGENTS.md",
-    "CLAUDE.md"
+    "CLAUDE.md",
+    "Audit_and_Gap_Closure.md"
   };
 
   private static readonly HashSet<string> ProhibitedGenericNames = new(StringComparer.OrdinalIgnoreCase)

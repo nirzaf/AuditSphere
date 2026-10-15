@@ -468,7 +468,7 @@
       "source": "src/AuditSphereOps.Web/Components/Pages/RecordsArchive.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-records-source-review.md",
-      "reviewedAtCommit": "21e85a17",
+      "reviewedAtCommit": "21e85a173190132e452f1956106b79feec4651b4",
       "openGaps": ["Complete role/scope, expired-grant and cross-firm response matrix", "Large-manifest and archive failure/recovery variants", "Human screen-reader and wider-locale acceptance"]
     },
     {

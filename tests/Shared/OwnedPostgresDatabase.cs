@@ -174,7 +174,7 @@ internal sealed class OwnedPostgresDatabase : IAsyncDisposable, ITestPostgresDat
       Database = databaseName,
       Pooling = true,
       Timeout = 30,
-      MaxPoolSize = 10
+      MaxPoolSize = 30
     };
     return builder.ConnectionString;
   }

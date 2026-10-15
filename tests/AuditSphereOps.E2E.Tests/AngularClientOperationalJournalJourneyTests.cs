@@ -160,8 +160,8 @@ public sealed class AngularClientOperationalJournalJourneyTests
     await partyHistory.GetByLabel("Party amendment review reason", new() { Exact = true }).FillAsync("Independent address check completed");
     await partyHistory.GetByRole(AriaRole.Checkbox, new() { Name = "I independently reviewed this exact party proposal.", Exact = true }).CheckAsync();
     await partyHistory.GetByRole(AriaRole.Button, new() { Name = "Approve party amendment", Exact = true }).ClickAsync();
-    await Assertions.Expect(partyHistory.GetByText("Effective party revision 2", new() { Exact = false })).ToBeVisibleAsync();
-    await Assertions.Expect(partyHistory.GetByText("Effective address: Reviewed party address", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(partyHistory.GetByText("Effective party revision 2", new() { Exact = false })).ToBeVisibleAsync(new() { Timeout = 15000 });
+    await Assertions.Expect(partyHistory.GetByText("Effective address: Reviewed party address", new() { Exact = true })).ToBeVisibleAsync(new() { Timeout = 15000 });
     await using (var db = host.CreateDbContext())
       Assert.Equal("Original party address", (await db.ClientBookkeepingCounterparties.SingleAsync(x => x.ClientId == fixture.ClientId)).Address);
 

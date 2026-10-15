@@ -649,7 +649,7 @@ export class ClientOperationalJournals {
     if (journal.invoiceOrigin || this.editing() || !this.reviewed() || (action !== 'return' && (!this.preview() || this.preview()?.journalId !== journal.id || this.preview()?.revision !== journal.revision)) || this.busy() || this.uncertain() || journal.clientId !== this.clientId()) return;
     const generation = this.session.invalidation(); this.busy.set(true); this.error.set('');
     this.operation = this.http.post(`/api/ui/accounting/clients/${journal.clientId}/operational-journals/${journal.id}/${action}`, body).pipe(timeout(15000)).subscribe({
-      next: () => { if (generation !== this.session.invalidation()) return; this.busy.set(false); this.error.set(success); this.reviewed.set(false); this.load(); },
+      next: () => { if (generation !== this.session.invalidation()) return; this.busy.set(false); this.error.set(success); this.reviewed.set(false); this.lookupId = journal.id; this.load(); },
       error: failure => { if (generation !== this.session.invalidation()) return; this.failedUnknown(); if (failure.status === 401) this.session.clear(); },
     });
   }

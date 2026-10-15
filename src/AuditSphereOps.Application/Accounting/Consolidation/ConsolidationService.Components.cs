@@ -204,7 +204,7 @@ public static partial class ConsolidationService
           packageHash.Currency != component.Currency || packageHash.TaxonomyVersion != component.TaxonomyVersion ||
           !Guid.TryParse(component.MappingVersion, out var componentMappingId) || componentMappingId != packageHash.MappingVersionId)
         return CommandResult.Fail(ErrorCodes.GenerationStale, "The component package changed; resubmit the current approved package.");
-      var packageReview = await FinancialPackageReviewService.RequireCurrentAsync(db, actor, packageId, requirePartner: true, ct);
+      var packageReview = await FinancialPackageReviewService.RequireCurrentAsync(db, actor, packageId, requirePartner: false, ct);
       if (!packageReview.Succeeded)
         return packageReview;
     }

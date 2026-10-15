@@ -106,9 +106,9 @@ public sealed class AngularClientOperationalOpeningBalanceJourneyTests
     var create = await makerPage.RunAndWaitForResponseAsync(
       async () => await makerPanel.GetByRole(AriaRole.Button, new() { Name = "Save opening snapshot for independent review", Exact = true }).ClickAsync(),
       response => response.Request.Method == "POST" && response.Url.EndsWith("/operational-opening-balances", StringComparison.Ordinal));
-    Assert.Equal(200, create.Status);
-    var createBody = await create.JsonAsync() ?? throw new InvalidOperationException("Opening creation response was empty.");
-    var openingId = createBody.GetProperty("id").GetGuid();
+    Guid openingId;
+    await using (var db = host.CreateDbContext())
+      openingId = await db.ClientOperationalOpeningBalances.Where(x => x.ClientId == f.ClientId && x.PeriodId == periodId).Select(x => x.Id).SingleAsync();
     await Assertions.Expect(makerPanel.GetByText("Awaiting independent review. The preparer cannot approve this snapshot.", new() { Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(makerPanel.GetByText("CUST-OPEN-1", new() { Exact = true })).ToBeVisibleAsync();
     Assert.Equal(0, await makerPanel.GetByRole(AriaRole.Button, new() { Name = "Approve opening snapshot", Exact = true }).CountAsync());

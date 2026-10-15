@@ -106,7 +106,7 @@ export function decodeOpeningBalance(value: unknown, clientId: string, period: P
             @if (counterparties().length < partyTotal()) { <button matButton type="button" [disabled]="busy()" (click)="loadCounterparties(partyPage() + 1)">Load more client parties</button> }
           </fieldset>
           <label><input name="openingReviewed" type="checkbox" [ngModel]="reviewed()" (ngModelChange)="reviewed.set($event)" /> I reviewed the client, cutover date, source reference, account mapping, and exact opening balances.</label>
-          <button matButton type="submit" [disabled]="openingForm.invalid || busy() || uncertain() || !reviewed() || !balanced() || selected()?.status === 'CLOSED'">Save opening snapshot for independent review</button>
+          <button matButton type="button" [disabled]="openingForm.invalid || busy() || uncertain() || !reviewed() || !balanced() || selected()?.status === 'CLOSED'" (click)="openingForm.valid && create()">Save opening snapshot for independent review</button>
         </fieldset>
       </form>
       @if (selected()?.status === 'CLOSED') { <p role="note">This period is closed; a new opening snapshot cannot be created.</p> }
