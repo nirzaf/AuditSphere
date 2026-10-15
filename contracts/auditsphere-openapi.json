@@ -32733,6 +32733,13 @@
             "schema": {
               "type": "boolean"
             }
+          },
+          {
+            "name": "includeSummary",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
