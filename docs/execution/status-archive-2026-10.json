@@ -15242,6 +15242,40 @@
       }
     },
     "targetedVerification": {
+      "releaseBundleRaceAndAngular": {
+        "baseCommit": "4a813f36e8db04b990182972415c3fc926db715d",
+        "recordedAtUtc": "2026-10-13T18:22:14.599487+00:00",
+        "workingTreeChangesIncluded": true,
+        "changedSourceSha256": "26fcbfe3d1ba1e89bfe0190d1cd64566638db77c98edbdfa6781afb31b77f33a",
+        "scope": "REL-01 comment/message bounds with deterministic append after count; canonical Angular release journey and shared reference journey fixture; representation-template hash checked before assembly",
+        "checks": {
+          "domain": "PASS 12/12 final bundle/certificate cohort, including message/comment bounds and deterministic append-after-count overflow",
+          "build": "PASS Application/API/Web/Domain-test/E2E/emitter Release builds; NU1900 feed warnings",
+          "angularJourney": "PASS 1/1 canonical Angular clearance/opinion, exact LOR acknowledgement/upload/verification, signing, bundle assembly and staff/client downloads; Required=true replay refused with one retained bundle",
+          "builtInBrowser": "PASS same owned Angular fixture: required certificate policy visible, reviewed assembly refused image-only report; no captured warning/error logs; observed before final representation-template integrity guard",
+          "bothPresentations": "PASS 2/2 final Angular and retained Web completion/release/client-download journeys after representation-template integrity guard",
+          "integrity": "PASS exact ZIP paths, embedded manifest, source identities/byte counts, readable DOCX and five corrupt artifact reads refused; intact stored evidence still assembles",
+          "drift": "PASS OpenAPI current; EF model unchanged; documentation health/naming/metrics, board and source inventory"
+        },
+        "artifacts": [
+          "/private/tmp/auditsphere-rel01-race-tests/_Mac_2026-10-13_21_08_56_net10.0.trx",
+          "/private/tmp/auditsphere-rel01-angular-browser/_Mac_2026-10-13_21_12_55_net10.0.trx",
+          "/private/tmp/auditsphere-rel01-angular-browser.png",
+          "/private/tmp/auditsphere-rel01-final-presentations/_Mac_2026-10-13_21_14_29_net10.0.trx",
+          "/private/tmp/auditsphere-rel01-final-integrity/_Mac_2026-10-13_21_19_35_net10.0.trx",
+          "/private/tmp/auditsphere-rel01-final-hosts/_Mac_2026-10-13_21_20_44_net10.0.trx"
+        ],
+        "filters": [
+          "AuditDeliverablesTests.FivePartBundle_ | AuditDeliverablesTests.CertificateSignedReport_IsReleased | ReportCertificateSigningTests",
+          "CompletionDeliverablesJourneyTests"
+        ],
+        "disposition": "Supersedes comment-bound, race-injection and canonical Angular omissions in prior REL-01 slice records; REL-01 still partial",
+        "remaining": [
+          "Full designated regression suites and remaining release-identity adverse matrix",
+          "Live provider release acceptance, signer trust, recipient and professional decisions remain separately governed"
+        ],
+        "migration": "No schema change or persistent database migration"
+      },
       "releaseBundleCorrespondence": {
         "recordedAtUtc": "2026-10-13T18:07:01.620602+00:00",
         "baseCommit": "e1e25462e953eddf8e581add6f4196099c6c3cdb",

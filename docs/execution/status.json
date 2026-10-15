@@ -73,6 +73,42 @@
     }
   ],
   "targetedVerification": {
+    "angularBlazorPackageGateFixtureFollowUp": {
+      "sourceCommit": "b410768b88641d0f35df70424814d0ceb2003fdf",
+      "result": "FOCUSED_PASS_FULL_DOMAIN_FAIL_RETIREMENT_NOT_READY",
+      "focused": {
+        "passed": 2,
+        "failed": 0,
+        "report": "/tmp/auditsphere-parity-regression/package-gate-repair-final.trx",
+        "scope": "PeriodClose_RequiresCurrentReviewsForMatchingFinancialPackages and FinancialPackageRelease_BindsCandidateToCurrentPackageReviews"
+      },
+      "change": "Use actual rendered three-format compositions and independent decisions; retain unreviewed close/approval and missing-checkpoint refusal. Release asserts exact composition and PDF identity/digest pins; current client/package/policy generations replace hard-coded values.",
+      "fullDomain": {
+        "passed": 1046,
+        "failed": 13,
+        "skipped": 0,
+        "total": 1059,
+        "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --configuration Release --maxcpucount:1 --logger trx;LogFileName=domain-parity-consolidated.trx --results-directory /tmp/auditsphere-parity-regression",
+        "report": "/tmp/auditsphere-parity-regression/domain-parity-consolidated.trx",
+        "failedMethods": [
+          "ForeignOperation_ZeroReserveStillUsesPerLinePurposes",
+          "ForeignOperation_ChangedRateOrComponentStalesOldReview",
+          "ForeignOperation_SameCurrencyComponentTranslatesAsIdentity",
+          "ForeignOperation_MissingRequiredAverageDoesNotFallback",
+          "ReportUsesApprovedTermsAndOnlyReceiptsCreditsAndAllocationsEffectiveByUtcAsOfDate",
+          "ForeignOperationGroup_RequiresPinnedApprovedTranslation",
+          "ForeignOperation_ManifestUsesExactLineRateIdentity",
+          "ForeignOperation_MissingRequiredHistoricalDoesNotFallback",
+          "GroupWorkflow_UsesApprovedComponentPackagesWithoutMutatingThem",
+          "ForeignOperation_AssetOnlyProfileNeedsOnlyClosingRate",
+          "ForeignOperation_Gold07_ReplayApprovalAndReadbackAreStable",
+          "ForeignOperation_GoldR2R07_TranslatesPerLineWithExplainedReserveAndConsolidates",
+          "ForeignOperation_UnknownTaxonomyRequiresApprovedMapping"
+        ],
+        "attribution": "Product/test sources matched the source commit. Another process temporarily deleted/restored docs/migration during the run; no such deletions were committed here."
+      },
+      "next": "Repair receivables exact rendered-offer/immutable-response setup and consolidation/foreign-operation fixtures requiring composition-bound approvals. Preserve approval guard. Remaining source-action, browser, operational/human/external retirement gates stay open."
+    },
     "angularBlazorTenantConsentFixtureFollowUp": {
       "sourceCommit": "d5aaec16d6d3cdb56f508020d4aeb06c2396dde2",
       "recordedAtUtc": "2026-10-15T23:27:57.469558+00:00",
@@ -559,40 +595,7 @@
     },
     "releaseBundleSigningReplay": {"archivedTo": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.releaseBundleSigningReplay", "supersededBy": "targetedVerification.releaseBundleRaceAndAngular"},
     "releaseBundleCorrespondence": {"archivedTo": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.releaseBundleCorrespondence", "laterEvidence": "targetedVerification.releaseBundleRaceAndAngular"},
-    "releaseBundleRaceAndAngular": {
-      "baseCommit": "4a813f36e8db04b990182972415c3fc926db715d",
-      "recordedAtUtc": "2026-10-13T18:22:14.599487+00:00",
-      "workingTreeChangesIncluded": true,
-      "changedSourceSha256": "26fcbfe3d1ba1e89bfe0190d1cd64566638db77c98edbdfa6781afb31b77f33a",
-      "scope": "REL-01 comment/message bounds with deterministic append after count; canonical Angular release journey and shared reference journey fixture; representation-template hash checked before assembly",
-      "checks": {
-        "domain": "PASS 12/12 final bundle/certificate cohort, including message/comment bounds and deterministic append-after-count overflow",
-        "build": "PASS Application/API/Web/Domain-test/E2E/emitter Release builds; NU1900 feed warnings",
-        "angularJourney": "PASS 1/1 canonical Angular clearance/opinion, exact LOR acknowledgement/upload/verification, signing, bundle assembly and staff/client downloads; Required=true replay refused with one retained bundle",
-        "builtInBrowser": "PASS same owned Angular fixture: required certificate policy visible, reviewed assembly refused image-only report; no captured warning/error logs; observed before final representation-template integrity guard",
-        "bothPresentations": "PASS 2/2 final Angular and retained Web completion/release/client-download journeys after representation-template integrity guard",
-        "integrity": "PASS exact ZIP paths, embedded manifest, source identities/byte counts, readable DOCX and five corrupt artifact reads refused; intact stored evidence still assembles",
-        "drift": "PASS OpenAPI current; EF model unchanged; documentation health/naming/metrics, board and source inventory"
-      },
-      "artifacts": [
-        "/private/tmp/auditsphere-rel01-race-tests/_Mac_2026-10-13_21_08_56_net10.0.trx",
-        "/private/tmp/auditsphere-rel01-angular-browser/_Mac_2026-10-13_21_12_55_net10.0.trx",
-        "/private/tmp/auditsphere-rel01-angular-browser.png",
-        "/private/tmp/auditsphere-rel01-final-presentations/_Mac_2026-10-13_21_14_29_net10.0.trx",
-        "/private/tmp/auditsphere-rel01-final-integrity/_Mac_2026-10-13_21_19_35_net10.0.trx",
-        "/private/tmp/auditsphere-rel01-final-hosts/_Mac_2026-10-13_21_20_44_net10.0.trx"
-      ],
-      "filters": [
-        "AuditDeliverablesTests.FivePartBundle_ | AuditDeliverablesTests.CertificateSignedReport_IsReleased | ReportCertificateSigningTests",
-        "CompletionDeliverablesJourneyTests"
-      ],
-      "disposition": "Supersedes comment-bound, race-injection and canonical Angular omissions in prior REL-01 slice records; REL-01 still partial",
-      "remaining": [
-        "Full designated regression suites and remaining release-identity adverse matrix",
-        "Live provider release acceptance, signer trust, recipient and professional decisions remain separately governed"
-      ],
-      "migration": "No schema change or persistent database migration"
-    },
+    "releaseBundleRaceAndAngular": {"archivedTo": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.releaseBundleRaceAndAngular"},
     "workflowTemplateProfessionalBoundary": {
       "archivedTo": "docs/execution/status-archive-2026-10.json",
       "key": "targetedVerification.workflowTemplateProfessionalBoundary"

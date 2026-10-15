@@ -15,6 +15,12 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08 and 2026-10-15, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Angular/Blazor parity — package close/release fixtures and consolidated regression
+
+The package close and release fixtures now render/select a real three-format composition and record independent decisions on that identity. They retain prerequisite refusals; release now asserts the exact composition and PDF pins rather than fabricating package PDF bytes. The focused cases passed, but the consolidated Domain suite failed. Exact source, totals, named failures and reports are in `status.json` under `targetedVerification.angularBlazorPackageGateFixtureFollowUp`.
+
+Remaining failures concern receivables exact-offer response evidence and consolidation/foreign-operation fixture approvals that still omit selected compositions. The required approval guard remains enabled. Migration documents were temporarily removed and restored by another process during the run; no deletions were made or committed here. Retirement remains `NOT_READY`; other source-action, browser, operational and external acceptance is incomplete.
+
 ## Angular/Blazor parity — restatement issuance fixture
 
 The restatement regression fixture now uses a presentable source-backed original package, renders and selects its three-format composition, records management/accounting/Partner decisions, and closes the period through the Application command before preparing the correction. It explicitly checks that an unreviewed close is denied and retains the change-type, affected-period and independent approval assertions. The accounting-record approval class passed; exact source, command and report are in `status.json` under `targetedVerification.angularBlazorTenantConsentFixtureFollowUp.restatementFollowUp`.
@@ -274,13 +280,9 @@ This is a partial workflow increment. The canonical lifecycle stage does not reg
 
 The original increment is preserved verbatim in the [current-slice archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). Later workflow sections above and `status.json` retain current implementation and pending acceptance.
 
-## Exact pinned financial statement drafts — 2026-10-12
+## Exact pinned financial statement drafts — earlier evidence
 
-The FSR presentation slice now saves an immutable draft revision against the exact package inputs, published layout version/hash, comparative package/hash, note-source manifest, builder/renderer versions and display policy. Repeating the same pin request is idempotent. PDF, DOCX and XLSX bytes are stored as package artifacts and linked to that revision; repeat downloads reuse the stored bytes. A source change makes the pin stale: the historical rendered bytes remain retrievable, while an unrendered format cannot be created from the stale snapshot. The package seal manifest records pinned presentation identity and artifact hashes without changing the draft's `UNAPPROVED_DRAFT` status or treating it as an approved/issued statement. Cross-casts for current and comparative note amounts are checked against their own package balances.
-
-Observed on this uncommitted working tree based on `00376915`: the focused PostgreSQL Domain regression passed 30/30; the Angular presentation spec passed 4/4; the API and OpenAPI emitter Release builds passed; EF model drift reported no pending changes; and the OpenAPI contract was regenerated. Angular production build passed using the SQLite cache backend, with the existing `commercial/settings.scss` budget warning. `status.json` records the focused commands and provenance. No full suite or signed-in browser workflow was run for this slice. No development or production database was migrated and no live financial data was changed.
-
-This remains a partial, unapproved draft capability. The manifest preserves source identities, but preparer-entered references are not independently resolved to ledger evidence. Professional framework/display policy approval, the approved golden fixture, full note narratives and disclosure schedules, review and authorization, audited report assembly, signing/legal acceptance, release/archive and production acceptance remain open. Full cash-flow and equity completeness also remains gated by approved methodology and source lineage.
+The earlier pinning increment is preserved in the [current-slice archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). Later reporting sections and `status.json` retain current implementation and open acceptance requirements.
 
 ## Dedicated client SharePoint sites default rollout — 2026-10-12
 
