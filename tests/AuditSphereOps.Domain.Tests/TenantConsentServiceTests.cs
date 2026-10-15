@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Microsoft365;
 using AuditSphereOps.Application.Security;
+using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Microsoft365;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Infrastructure.Persistence;
@@ -163,7 +164,7 @@ public sealed class TenantConsentServiceTests
     var reader = new FakeDirectoryReader(new DirectoryCandidatePage([candidate], null), candidate);
     var first = await DirectoryUserBindingService.BindMemberAsync(db, fixture.Actor,
       reader, TenantId, objectId);
-    Assert.True(first.Succeeded);
+    Assert.True(first.Succeeded, first.Message);
     Assert.NotEqual(Guid.Empty, first.Value);
     var second = await DirectoryUserBindingService.BindMemberAsync(db, fixture.Actor,
       reader, TenantId, objectId);
@@ -206,7 +207,7 @@ public sealed class TenantConsentServiceTests
     var reader = new FakeDirectoryReader(new DirectoryCandidatePage([candidate], null), candidate);
     var bound = await DirectoryUserBindingService.BindMemberAsync(db, fixture.Actor,
       reader, TenantId, objectId);
-    Assert.True(bound.Succeeded);
+    Assert.True(bound.Succeeded, bound.Message);
     var observation = await db.DirectoryUserObservations.SingleAsync(x => x.ObjectId == objectId.ToString("D"));
     observation.ObservedAt = DateTimeOffset.UtcNow.AddHours(-1);
     await db.SaveChangesAsync();
@@ -387,6 +388,7 @@ public sealed class TenantConsentServiceTests
       var sessionId = Guid.CreateVersion7();
       var connectionId = Guid.CreateVersion7();
       await using var db = new AuditSphereDbContext(fixture.Options);
+      db.FirmSafetyStates.Add(new FirmSafetyState { Id = fixture.Actor.FirmId });
       db.Users.Add(new AppUser
       {
         Id = fixture.Actor.UserId, FirmId = fixture.Actor.FirmId, TenantId = TenantId,
