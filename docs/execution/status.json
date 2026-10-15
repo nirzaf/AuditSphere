@@ -73,6 +73,52 @@
     }
   ],
   "targetedVerification": {
+    "ste22F07LifecycleProjection": {
+      "recordedAtUtc": "2026-10-15T09:36:53Z",
+      "source": "AuditSphere STE v2.2 End-to-End Audit and Completion Story, F-07",
+      "baseCommit": "ef42caf924e2652f79702801ee41af76d617d69b",
+      "implementationCommit": "25d11dac997a3692c173594df478453ecfa01c18",
+      "status": "PARTIAL",
+      "closedInCode": [
+        "Lifecycle uses current applicable procedure results/reviews; a current returned result routes projection to Fieldwork, and approved not-applicable work needs no fabricated result",
+        "Manager Review remains current while applicable results await review",
+        "Partner Approval predicate requires current SRM clearance and zero completion blockers, not a pre-recorded opinion",
+        "Signature-anchored countdown remains visible in Report and Delivery; countdown stage requires scheduled freeze plus exact current signed-report/financial-release bundle identity and valid stored-byte and manifest hashes",
+        "Due date alone does not mark local archive; a committed local freeze is required for Archived Read-Only",
+        "Playwright journey observes the seven-phase workflow and canonical stage before and after a synthetic local freeze"
+      ],
+      "runs": [
+        {
+          "name": "EngagementLifecycleQueryTests",
+          "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --configuration Release --filter FullyQualifiedName~EngagementLifecycleQueryTests --maxcpucount:1",
+          "result": "PASS",
+          "passed": 5,
+          "failed": 0,
+          "total": 5,
+          "database": "loopback auditsphere_tests, PostgreSQL 18.6; disposable schema"
+        },
+        {
+          "name": "Angular completion/file-records Playwright lifecycle journey",
+          "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --configuration Release --filter FullyQualifiedName~PartnerReviewsReadinessLocksScheduledFileAndLifecycleKeepsProviderStateSeparate --maxcpucount:1",
+          "result": "PASS",
+          "passed": 1,
+          "failed": 0,
+          "total": 1,
+          "database": "loopback auditsphere_tests, PostgreSQL 18.6; owned synthetic test database"
+        }
+      ],
+      "notRun": [
+        "Full Domain, API, Angular, and E2E suites",
+        "Positive integrated lifecycle projection for an exact current bundle reaching Compliance Countdown",
+        "Integrated Partner Approval transition with a fully current SRM and completion-clear fixture before opinion selection",
+        "Hosted CI, live Microsoft/provider verification, VPS deployment, or production acceptance"
+      ],
+      "stillOpen": [
+        "F-07 remains PARTIAL until the positive exact-bundle and current-SRM Partner-stage integration cases are evidenced",
+        "A portal bundle row proves availability only; no client open/download receipt is recorded",
+        "Provider protection and external/production acceptance remain separate gates"
+      ]
+    },
     "workflowExperiencePrH": {
       "archivedTo": "docs/execution/status-archive-2026-10.json",
       "key": "targetedVerification.workflowExperiencePrH"

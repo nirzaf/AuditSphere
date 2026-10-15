@@ -32,6 +32,19 @@ Verification on this tree (local container, PostgreSQL 18.6 on port 5433, .NET S
 
 Not done in this increment and still open: E2E/Playwright and authenticated browser journeys, the hosted full release workflow, F-06 annual comparatives and multi-book sources, F-07 lifecycle projection, F-08 purpose-based routing and response provenance, F-10 typed indirect cash-flow roles and assessed-zero states, remaining F-11 publication content, F-12 assigned fieldwork, F-13/F-14 release governance and live production qualification, and every professional decision packet (T003 profile, management signatory/capacity, document wording). Synthetic fixtures were completed with a balancing statement of financial position, a revaluation OCI movement, investing and financing cash events and a USD account at the unchanged QAR peg; they are engineering fixtures, not accountant-approved golden fixtures.
 
+## F-07 lifecycle phase projection — 2026-10-15
+
+Implemented and focused-verified on master commit `25d11dac` (pulled base `ef42caf9`):
+
+- Procedure progression uses the current result revision and its matching review. A current `CHANGES_REQUIRED` result returns the canonical projection to Fieldwork; a prior returned revision does not control a newer submission. Approved not-applicable procedures count as resolved without a fabricated result. An applicable submission without its review remains in Managerial Review.
+- Partner Approval eligibility is based on a current SRM clearance and a clear completion gate; selecting an opinion is an action in that phase, not a prerequisite to seeing it. The focused predicate regression covers readiness before an opinion exists. A fully current, completion-ready SRM fixture for the integrated phase transition remains to be added.
+- The report-signature deadline remains visible while the user-facing phase is Report & Delivery. Stage 10 requires a scheduled freeze and a bundle matching the freeze's signed report and the latest financial-package release, including pinned artifact/composition identities and valid stored content/manifest hashes. A committed bundle is available through the client portal; the system does not record that a client opened or downloaded it. An expired clock by itself stays unarchived; stage 11 requires a committed local freeze.
+- The 11 canonical states and seven user-facing phases are unchanged. The browser journey checks the ordinary Engagement workflow panel before and after a synthetic early freeze.
+
+Verification: PostgreSQL-backed `EngagementLifecycleQueryTests` passed 5/5 on loopback PostgreSQL 18.6 (`auditsphere_tests`); the focused Playwright browser journey `PartnerReviewsReadinessLocksScheduledFileAndLifecycleKeepsProviderStateSeparate` passed 1/1. The E2E build compiled the API and UI-backed journey. No migration, OpenAPI change, persistent database update, live provider check, or VPS deployment was made. Exact command and remaining evidence gaps are in `status.json` under `targetedVerification.ste22F07LifecycleProjection`.
+
+F-07 remains PARTIAL: the positive exact-bundle-to-countdown transition and a fully current SRM/clear-completion Partner phase are not covered by an integrated lifecycle fixture. No provider immutability or live production acceptance is claimed.
+
 ## F-08 selected composition through review, release and bundle — 2026-10-15
 
 Implemented on master `7023a9f4`:
