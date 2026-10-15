@@ -291,3 +291,7 @@ Figma shell is live from API image `48e9f205` (VPS checkout `12e51e60`). CI #387
 Fresh custom backup (1,862,104 bytes; 3,016 catalog entries) restored; 34-migration rehearsal passed before live apply. Database head `20261015113704` (225). API alone recreated; local/public readiness 200; database/workers unchanged.
 
 Browser smoke rendered Portfolio; scope was empty and reported no active M365 config. Client-sites default is enabled, but rollout cutoff is unset and isolated worker stopped, so provisioning fails closed. Temporary SSH key revoked and local private key removed; broad feature/external acceptance remains open.
+
+## Administration group-grant revocation fencing — 2026-10-15
+
+Group-scoped role revocation now waits on the firm safety row and reauthorizes the acting Administrator after the lock, matching the other reviewed role-change commands. A deterministic PostgreSQL regression revokes the acting Administrator while the group-revocation command is waiting and confirms the target group grant, target session epoch and audit event are unchanged. The focused `RoleAssignmentTests` cohort passed 9/9 at commit `1f19d07d179060b8f59e702ce0149e14768fd772`. This is a narrow security evidence increment; Administration source/action parity remains partial and Blazor removal remains `NOT_READY`.

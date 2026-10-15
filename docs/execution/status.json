@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "b3ddfa8c339b5b83f7c16d5f4939a641298eab19",
+  "headCommit": "1f19d07d179060b8f59e702ce0149e14768fd772",
   "verifiedCommit": "12e51e6031605245c22df8331d7ca12f345dbf36",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": true,
@@ -1062,6 +1062,18 @@
       "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release --maxcpucount:1 --filter FullyQualifiedName~ParameterlessRoutesRenderAndPreserveRoleSpecificShells",
       "database": "PostgreSQL 18.6 loopback; OwnedHost disposable synthetic database in auditsphere_tests",
       "coverage": "The server-owned access-denial route returns HTTP 403 with Cache-Control no-store, generic access text and only a sign-out link. This did not exercise a live Entra callback or unmapped Microsoft identity.",
+      "scopeStatus": "PARTIAL"
+    },
+    "angularMigrationAdminGroupRevocationFencing": {
+      "recordedAtUtc": "2026-10-15T15:39:15Z",
+      "sourceCommit": "1f19d07d179060b8f59e702ce0149e14768fd772",
+      "result": "PASS",
+      "passed": 9,
+      "failed": 0,
+      "total": 9,
+      "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore --configuration Release --maxcpucount:1 --filter FullyQualifiedName~RoleAssignmentTests",
+      "database": "PostgreSQL 18.6 loopback; TenantAdministrationFixture disposable schema in auditsphere_tests",
+      "coverage": "Group-grant revocation waits on the firm safety row and reauthorizes the acting Administrator. The deterministic lock-wait regression revokes the acting Administrator and advances the session epoch before releasing the lock, then confirms no group-grant revocation, target session-epoch change or revocation event occurred.",
       "scopeStatus": "PARTIAL"
     }
   },
