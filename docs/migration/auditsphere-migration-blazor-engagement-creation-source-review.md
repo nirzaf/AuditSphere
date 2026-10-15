@@ -35,6 +35,8 @@ host; Angular uses the reviewed preview/assent/receipt endpoints. Both paths
 create blocked drafts only, and neither implicitly accepts or activates the
 engagement.
 
+Supplemental current-tree evidence is recorded in `status.json` under `targetedVerification.angularMigrationAcceptanceCrossFirmIsolation`. `AngularAcceptanceCrossFirmIsolationJourneyTests.ForeignAndGuessedClientOrEngagementIdsAreOpaqueAcrossAcceptanceWorkspaces` seeds a real foreign-firm client, compares its engagement-creation API denial with a guessed client ID, and directly visits the foreign Angular creation route. No private foreign-client marker was returned or rendered. The full role, validation/error and assistive-technology matrix remains open.
+
 ## Local verification
 
 - Angular CI: 483/483 passed across 94 files; the engagement-creation unit file

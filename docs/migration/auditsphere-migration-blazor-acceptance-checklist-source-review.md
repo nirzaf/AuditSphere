@@ -33,6 +33,8 @@ denies Senior and Reviewer identities that are outside its approved view
 boundary. The narrower route is a security decision, not a missing role to add
 without approval.
 
+Supplemental current-tree evidence is recorded in `status.json` under `targetedVerification.angularMigrationAcceptanceCrossFirmIsolation`. `AngularAcceptanceCrossFirmIsolationJourneyTests.ForeignAndGuessedClientOrEngagementIdsAreOpaqueAcrossAcceptanceWorkspaces` seeds a real foreign-firm client and engagement, compares API read denials with guessed IDs, and directly visits the foreign Angular checklist route. The foreign registration marker was absent from responses and rendered content. This closes only that cross-firm/guessed-ID read case. Full role, answer-validation, command failure/recovery and assistive-technology acceptance remain open.
+
 ## Local verification
 
 - The PostgreSQL-backed `AngularAcceptanceChecklistWorkspaceJourneyTests` browser journey passed 1/1. It verifies the current client workspace state, answer progress, pending specialist clearance, Staff edit/request permissions, Manager review permissions without Partner decision controls, refresh confirmation that preserves unsaved input when kept, confirmed discard restoring persisted values, and removal of profile/question/evidence content after the client grant is revoked.

@@ -34,6 +34,8 @@ Application lifecycle service. The Angular UI uses the stronger reviewed
 preview/assent/receipt workflow. That compatibility boundary is recorded here;
 this review does not claim the rollback UI has been retired.
 
+Supplemental current-tree evidence is recorded in `status.json` under `targetedVerification.angularMigrationAcceptanceCrossFirmIsolation`. `AngularAcceptanceCrossFirmIsolationJourneyTests.ForeignAndGuessedClientOrEngagementIdsAreOpaqueAcrossAcceptanceWorkspaces` seeds a real foreign-firm engagement, compares its activation-workspace API denial with a guessed ID, and directly visits the foreign Angular activation route. No foreign client or service-profile marker was returned or rendered. Role/blocker combinations, complete error/recovery parity and assistive-technology acceptance remain open.
+
 ## Local verification
 
 - Angular CI: 483/483 passed across 94 files.
