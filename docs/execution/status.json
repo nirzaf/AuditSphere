@@ -96,8 +96,18 @@
         "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --configuration Release --maxcpucount:1 --filter FullyQualifiedName~TenantConsentServiceTests --logger trx;LogFileName=tenant-consent-fixture-repair.trx --results-directory /tmp/auditsphere-parity-regression",
         "report": "/tmp/auditsphere-parity-regression/tenant-consent-fixture-repair.trx"
       },
-      "remaining": "Restatement test still fails at period close: its legacy reviews do not bind a selected three-format composition. Repair its reporting fixture while preserving the close gate and positive restatement assertions. Other full-regression failures and source-action/operational/external retirement gates remain open.",
-      "boundaries": "Synthetic owned test databases and fake directory reader only; no live tenant acceptance or deployment."
+      "remaining": "Other full-regression failures, remaining source-action comparisons, authenticated browser, cutover/recovery, human and external acceptance. Retirement remains NOT_READY.",
+      "boundaries": "Synthetic owned test databases and fake directory reader only; no live tenant acceptance or deployment.",
+      "restatementFollowUp": {
+        "sourceCommit": "8681b3634170662d57c0f0730942e52b2565198b",
+        "passed": 5,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "AccountingRecordsApprovalTests",
+        "report": "/tmp/auditsphere-parity-regression/restatement-composition-fixture.trx",
+        "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --configuration Release --maxcpucount:1 --filter FullyQualifiedName~AccountingRecordsApprovalTests --logger trx;LogFileName=restatement-composition-fixture.trx --results-directory /tmp/auditsphere-parity-regression",
+        "coverage": "Selected composition and management/accounting/Partner decisions; unreviewed close denied; correction after close; type/period refusals and independent approval retained."
+      }
     },
     "angularBlazorConsolidationGuardFollowUp": {
       "recordedAtUtc": "2026-10-15T23:24:26.050474+00:00",

@@ -15,6 +15,12 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08 and 2026-10-15, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Angular/Blazor parity — restatement issuance fixture
+
+The restatement regression fixture now uses a presentable source-backed original package, renders and selects its three-format composition, records management/accounting/Partner decisions, and closes the period through the Application command before preparing the correction. It explicitly checks that an unreviewed close is denied and retains the change-type, affected-period and independent approval assertions. The accounting-record approval class passed; exact source, command and report are in `status.json` under `targetedVerification.angularBlazorTenantConsentFixtureFollowUp.restatementFollowUp`.
+
+This repairs a local regression fixture without changing production gates. Other full-regression failures and source-action, browser, operational and external retirement criteria remain open. Web remains present; retirement is `NOT_READY`.
+
 ## Angular/Blazor parity — directory-binding regression fixture
 
 The tenant-consent test fixture now supplies the firm safety row required by role administration's transaction lock and authority recheck. This repairs the exact directory-binding and stale-observation regression cases without changing production authorization or Microsoft capability behavior. The complete tenant-consent class passed; source attribution, command and report are in `status.json` under `targetedVerification.angularBlazorTenantConsentFixtureFollowUp`.
