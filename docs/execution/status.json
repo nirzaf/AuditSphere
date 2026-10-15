@@ -73,6 +73,32 @@
     }
   ],
   "targetedVerification": {
+    "angularBlazorTenantConsentFixtureFollowUp": {
+      "sourceCommit": "d5aaec16d6d3cdb56f508020d4aeb06c2396dde2",
+      "recordedAtUtc": "2026-10-15T23:27:57.469558+00:00",
+      "result": "FOCUSED_PASS_RETIREMENT_NOT_READY",
+      "repair": "TenantConsentServiceTests fixture now includes the firm safety row required by role-administration serialization. Production authorization, consent and directory freshness guards are unchanged.",
+      "baseline": {
+        "sourceCommit": "3e2ba586c3c997268c40f24d6d4ba0aadb6255a5",
+        "passed": 0,
+        "failed": 3,
+        "scope": [
+          "ExactEnabledDirectoryMemberBindsOnceWithoutGrant",
+          "StaleGraphObservationBlocksLocalGrantUntilExactReverification",
+          "Restatement_RequiresSupportedChangeTypeAndAffectedPeriods"
+        ],
+        "report": "/tmp/auditsphere-parity-regression/parity-domain-baseline.trx"
+      },
+      "verification": {
+        "passed": 12,
+        "failed": 0,
+        "skipped": 0,
+        "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --configuration Release --maxcpucount:1 --filter FullyQualifiedName~TenantConsentServiceTests --logger trx;LogFileName=tenant-consent-fixture-repair.trx --results-directory /tmp/auditsphere-parity-regression",
+        "report": "/tmp/auditsphere-parity-regression/tenant-consent-fixture-repair.trx"
+      },
+      "remaining": "Restatement test still fails at period close: its legacy reviews do not bind a selected three-format composition. Repair its reporting fixture while preserving the close gate and positive restatement assertions. Other full-regression failures and source-action/operational/external retirement gates remain open.",
+      "boundaries": "Synthetic owned test databases and fake directory reader only; no live tenant acceptance or deployment."
+    },
     "angularBlazorConsolidationGuardFollowUp": {
       "recordedAtUtc": "2026-10-15T23:24:26.050474+00:00",
       "sourceCommit": "886a73889d22399a7fb44e779652158a07c8397c",
@@ -522,29 +548,7 @@
       "verification": "Documentation-only intake; documentation health/naming/narrative metrics and diff checks. No additional application test run or live provider change."
     },
     "releaseBundleSigningReplay": {"archivedTo": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.releaseBundleSigningReplay", "supersededBy": "targetedVerification.releaseBundleRaceAndAngular"},
-    "releaseBundleCorrespondence": {
-      "recordedAtUtc": "2026-10-13T18:07:01.620602+00:00",
-      "baseCommit": "e1e25462e953eddf8e581add6f4196099c6c3cdb",
-      "workingTreeChangesIncluded": true,
-      "changedSourceSha256": "c91871d521c729e2be79a707498d2b0eaab90c4397054a2c4aa0daa6baaefd00",
-      "scope": "REL-01 bounded correspondence reads, source digest lineage, concurrent idempotent assembly, missing and stale component denials",
-      "checks": {
-        "build": "PASS Domain test Release build; existing NU1900 feed warnings",
-        "domain": "PASS 6/6 focused bundle and certificate tests",
-        "artifact": "Extracted Audit_trail.json contains exact communication counts for original, changed and inclusive-limit bundles; original bytes/hash retained",
-        "bounds": "10000 rows accepted; 10001 refused without another bundle; each materialized communication/comment read capped at limit plus one and rechecked",
-        "lineage": "Changed correspondence produces a new source digest; concurrent replays return that bundle; new finding invalidates current signed report before assembly",
-        "missing": "Missing management letter refused; reviewed financial package, posted balance, signature and scoped download checks retained in existing cohort"
-      },
-      "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --no-restore --configuration Release --maxcpucount:1 --filter 'FullyQualifiedName~AuditDeliverablesTests.FivePartBundle_|FullyQualifiedName~AuditDeliverablesTests.CertificateSignedReport_IsReleased|FullyQualifiedName~ReportCertificateSigningTests'",
-      "artifact": "/private/tmp/auditsphere-rel01-correspondence-final/_Mac_2026-10-13_21_06_08_net10.0.trx",
-      "migration": "No schema change or persistent database migration",
-      "remaining": [
-        "Comment-row limit and race-injection cohort",
-        "Canonical Angular completion and full release suites",
-        "Complete adverse-artifact acceptance; live provider and professional decisions remain separate"
-      ]
-    },
+    "releaseBundleCorrespondence": {"archivedTo": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.releaseBundleCorrespondence", "laterEvidence": "targetedVerification.releaseBundleRaceAndAngular"},
     "releaseBundleRaceAndAngular": {
       "baseCommit": "4a813f36e8db04b990182972415c3fc926db715d",
       "recordedAtUtc": "2026-10-13T18:22:14.599487+00:00",
