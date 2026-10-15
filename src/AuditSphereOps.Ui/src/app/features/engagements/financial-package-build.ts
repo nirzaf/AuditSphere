@@ -87,9 +87,10 @@ function sumContributions(allocations: readonly AllocationForm[]): bigint {
   return allocations.reduce((sum, a) => sum + toMicro(a.signedAmount), 0n);
 }
 
-/** The server's shape rule: contributions may not exceed the movement amount or run against its sign. Inputs must already be valid. */
-function contributionsOverdrawn(allocations: readonly AllocationForm[], amount: string): boolean {
-  const total = sumContributions(allocations);
+/** Project debit-positive ledger provenance into the server's statement-effect convention before checking movement shape. */
+function contributionsOverdrawn(allocations: readonly AllocationForm[], amount: string, isNonCash: boolean): boolean {
+  const ledgerTotal = sumContributions(allocations);
+  const total = isNonCash ? ledgerTotal : -ledgerTotal;
   if (total === 0n) return false;
   const target = toMicro(amount);
   return absMicro(total) > absMicro(target) || (total < 0n) !== (target < 0n);
@@ -152,7 +153,7 @@ export function toBuildRequest(form: BuildForm): { body: unknown } | { error: st
     }
     if (new Set(m.allocations.map((a) => a.generalLedgerLineId.toLowerCase())).size !== m.allocations.length)
       return { error: `${at}: a source line can contribute to a movement only once.` };
-    if (m.allocations.length && contributionsOverdrawn(m.allocations, m.amount))
+    if (m.allocations.length && contributionsOverdrawn(m.allocations, m.amount, m.isNonCash))
       return { error: `${at}: source contributions exceed the movement amount or run against its sign.` };
   }
   for (const d of form.disclosures) {
@@ -249,7 +250,7 @@ export function scheduleBlockers(form: BuildForm): string[] {
       open.push(`${at} is not linked to accepted general-ledger lines, so it stays a draft without lineage.`);
     } else if (!AMOUNT.test(m.amount) || m.allocations.some((a) => !GUID.test(a.generalLedgerLineId) || !AMOUNT.test(a.signedAmount))) {
       open.push(`${at} has a link or amount that is not a valid value yet.`);
-    } else if (sumContributions(m.allocations) !== toMicro(m.amount)) {
+    } else if ((m.isNonCash ? sumContributions(m.allocations) : -sumContributions(m.allocations)) !== toMicro(m.amount)) {
       open.push(`${at} has linked lines that do not total the movement amount, so it is not source-resolved.`);
     }
   }

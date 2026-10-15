@@ -14,7 +14,7 @@ function completeForm(): BuildForm {
     periodStart: '2026-01-01', periodEnd: '2026-12-31', templateVersion: 'build-v1', cashBeginning: '0', cashEnding: '100',
     cashAccountCodes: '1000', openingEvidence: 'opening-bank', closingEvidence: 'closing-bank',
     movements: [{ ...emptyMovement(), description: 'Cash receipts', amount: '100', movementDate: '2026-06-30', activityCode: 'CASH_RECEIPTS',
-      sourceReferences: 'gl-1, gl-2', rationale: 'Agreed to ledger.', allocations: [{ generalLedgerLineId: line, signedAmount: '100' }] }],
+      sourceReferences: 'gl-1, gl-2', rationale: 'Agreed to ledger.', allocations: [{ generalLedgerLineId: line, signedAmount: '-100' }] }],
     disclosures: [{ code: 'CASH_POLICY', response: 'Face value.', notApplicable: false, rationale: '' }],
   };
 }
@@ -39,7 +39,7 @@ describe('financial package build request', () => {
     expect(body.mappingVersionId).toBe(mapping);
     expect(body.adjustmentPlanId).toBe(plan);
     expect(body.supplementaryInformation.cashAccountCodes).toEqual(['1000']);
-    expect(body.supplementaryInformation.cashFlowLines[0].sourceAllocations).toEqual([{ generalLedgerLineId: line, signedAmount: '100' }]);
+    expect(body.supplementaryInformation.cashFlowLines[0].sourceAllocations).toEqual([{ generalLedgerLineId: line, signedAmount: '-100' }]);
     expect(body.supplementaryInformation.cashFlowLines[0].amount).toBe('100');
     expect(body.supplementaryInformation.cashBeginning).toBe('0');
     expect(body.supplementaryInformation.comparative).toBeNull();
@@ -59,7 +59,7 @@ describe('financial package build request', () => {
     form.cashBeginning = '9007199254.123456';
     form.cashEnding = '9007199254.123457';
     form.movements[0].amount = '9007199254.123456';
-    form.movements[0].allocations[0].signedAmount = '9007199254.123456';
+    form.movements[0].allocations[0].signedAmount = '-9007199254.123456';
     form.movements[0].description = '  Cash receipts  ';
     form.movements[0].activityCode = '  CASH_RECEIPTS  ';
     form.movements[0].rationale = '  Agreed to ledger.  ';
@@ -76,7 +76,7 @@ describe('financial package build request', () => {
     expect(supplementary.cashFlowLines[0]).toMatchObject({
       description: 'Cash receipts', amount: '9007199254.123456', activityCode: 'CASH_RECEIPTS',
       sourceReferences: ['gl-1', 'gl-2'], classificationRationale: 'Agreed to ledger.',
-      sourceAllocations: [{ generalLedgerLineId: line, signedAmount: '9007199254.123456' }],
+      sourceAllocations: [{ generalLedgerLineId: line, signedAmount: '-9007199254.123456' }],
     });
     expect(supplementary.disclosures).toEqual([
       { code: 'CASH_POLICY', response: 'Policy response.', notApplicable: false, rationale: null },
@@ -186,8 +186,8 @@ describe('equity, numeric note and FX schedules', () => {
       ['an FX effect without a pair', (f) => (f.fxCashEffects[0].currencyPair = ' ')],
       ['an FX amount that is not a decimal', (f) => (f.fxCashEffects[0].amount = 'abc')],
       ['an FX effect without evidence', (f) => (f.fxCashEffects[0].evidenceReference = ' ')],
-      ['a movement whose source contributions exceed it', (f) => (f.movements[0].allocations[0].signedAmount = '150')],
-      ['a movement whose source contributions run against its sign', (f) => (f.movements[0].allocations[0].signedAmount = '-100')],
+      ['a movement whose source contributions exceed it', (f) => (f.movements[0].allocations[0].signedAmount = '-150')],
+      ['a movement whose source contributions run against its sign', (f) => (f.movements[0].allocations[0].signedAmount = '100')],
       ['a source line repeated within one movement', (f) => {
         f.movements[0].allocations.push({ generalLedgerLineId: line.toUpperCase(), signedAmount: '1' });
       }],
@@ -204,11 +204,29 @@ describe('equity, numeric note and FX schedules', () => {
     const form = fullForm();
     form.movements[0].amount = '10.000001';
     form.movements[0].allocations = [
-      { generalLedgerLineId: line, signedAmount: '5.000001' },
-      { generalLedgerLineId: '44444444-4444-4444-8444-444444444445', signedAmount: '5' },
+      { generalLedgerLineId: line, signedAmount: '-5.000001' },
+      { generalLedgerLineId: '44444444-4444-4444-8444-444444444445', signedAmount: '-5' },
     ];
     expect('body' in toBuildRequest(form)).toBe(true);
     expect(scheduleBlockers(form).some((b) => b.startsWith('Cash-flow source lineage'))).toBe(false);
+  });
+
+  it('projects debit-positive GL provenance to a positive cash receipt while preserving the stored sign', () => {
+    const form = completeForm();
+    const built = toBuildRequest(form);
+    expect('body' in built).toBe(true);
+    expect(scheduleBlockers(form).some((b) => b.startsWith('Cash-flow source lineage'))).toBe(false);
+    expect((built as { body: any }).body.supplementaryInformation.cashFlowLines[0].sourceAllocations)
+      .toEqual([{ generalLedgerLineId: line, signedAmount: '-100' }]);
+  });
+
+  it('keeps the domain convention for noncash movement contributions', () => {
+    const form = completeForm();
+    form.movements[0].isNonCash = true;
+    form.movements[0].allocations[0].signedAmount = '100';
+    expect('body' in toBuildRequest(form)).toBe(true);
+    form.movements[0].allocations[0].signedAmount = '-100';
+    expect('error' in toBuildRequest(form)).toBe(true);
   });
 });
 
@@ -228,7 +246,7 @@ describe('schedule blockers', () => {
     form.movements.push({ ...emptyMovement(), description: 'Payments', amount: '40', movementDate: '2026-06-30', activityCode: 'PAYMENTS',
       sourceReferences: 'gl-3', rationale: 'Unlinked draft.', allocations: [] });
     form.movements.push({ ...emptyMovement(), description: 'Receipts', amount: '50', movementDate: '2026-06-30', activityCode: 'RECEIPTS',
-      sourceReferences: 'gl-4', rationale: 'Partly linked.', allocations: [{ generalLedgerLineId: line, signedAmount: '20' }] });
+      sourceReferences: 'gl-4', rationale: 'Partly linked.', allocations: [{ generalLedgerLineId: line, signedAmount: '-20' }] });
     const open = scheduleBlockers(form);
     expect(open.some((b) => b.startsWith('Cash-flow source lineage: movement 2 is not linked'))).toBe(true);
     expect(open.some((b) => b.startsWith('Cash-flow source lineage: movement 3 has linked lines that do not total'))).toBe(true);
