@@ -102,17 +102,21 @@ public sealed class AngularOperationsRecoveryJourneyTests
       .ToContainTextAsync("Page 1 of 3 · 1–10 of 26");
     Assert.DoesNotContain(privatePayload, await page.Locator("body").InnerTextAsync());
 
+    Assert.Equal(1, await page.Locator("#search-help.sr-only").CountAsync());
+    Assert.Equal(1, await page.Locator("input[aria-describedby~='search-help']").CountAsync());
+    await Assertions.Expect(page.Locator("#search-help")).ToContainTextAsync("Press slash outside fields and dialogs to focus search.");
+    await Assertions.Expect(page.Locator("#search-help")).ToContainTextAsync("Documents and emails are not searched.");
     foreach (var width in new[] { 1141, 1024, 700, 390 })
     {
       await page.SetViewportSizeAsync(width, 844);
       Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
         $"Operations page overflowed the {width}px viewport.");
       Assert.True(await page.EvaluateAsync<bool>("""
-        () => [...document.querySelectorAll('.app-header, #search-help')].every(element => {
+        () => [...document.querySelectorAll('.app-header')].every(element => {
           const rect = element.getBoundingClientRect();
           return rect.left >= -1 && rect.right <= innerWidth + 1 && element.scrollWidth <= element.clientWidth + 1;
         })
-        """), $"Operations header or search guidance was clipped at {width}px.");
+        """), $"Operations header was clipped at {width}px.");
     }
     await page.SetViewportSizeAsync(1440, 900);
 
