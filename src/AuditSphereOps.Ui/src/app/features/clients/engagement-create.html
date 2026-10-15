@@ -62,6 +62,45 @@
             <li>Version {{ mapping.version }} · {{ mapping.taxonomyVersion }} · {{ mapping.periodStart }} to {{ mapping.periodEnd }} · {{ mapping.id }}</li>
           } @empty { <li>No approved mapping exists for the source period.</li> }</ul>
         }
+        <h3>Suggested internal milestones</h3>
+        @if (suggestion.milestoneSuggestionState === 'RESTRICTED') {
+          <p>Source milestone references require planning access.</p>
+        } @else if (suggestion.milestoneSuggestionState === 'AVAILABLE') {
+          <p>These are suggestions, not a saved plan. Creating an engagement does not schedule, activate or approve it.</p>
+          <table aria-label="Suggested internal milestones">
+            <thead>
+              <tr>
+                <th scope="col">Milestone</th>
+                <th scope="col">Prior recorded date</th>
+                <th scope="col">Suggested current-year target</th>
+                <th scope="col">Source plan revision</th>
+                <th scope="col">Required review</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (milestone of suggestion.milestoneSuggestions; track milestone.kind) {
+                <tr>
+                  <th scope="row">
+                    @switch (milestone.kind) {
+                      @case ('FIELDWORK_START') { Fieldwork start }
+                      @case ('DRAFT_REPORT') { Draft report }
+                      @case ('FINAL_REPORT') { Final report }
+                      @case ('STATUTORY_CUTOFF') { Statutory filing cutoff }
+                    }
+                  </th>
+                  <td>{{ milestone.sourceDate }}</td>
+                  <td>{{ milestone.suggestedDate ?? 'Requires current-year input' }}</td>
+                  <td>{{ milestone.sourcePlanRevision }}</td>
+                  <td>{{ milestone.notice }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        } @else if (suggestion.milestoneSuggestionState === 'MISSING') {
+          <p>No prior milestone plan is available for reference.</p>
+        } @else {
+          <p>Prior milestone references are currently unavailable.</p>
+        }
         <h3>Requires fresh current-period work</h3>
         <ul>@for (item of suggestion.requiresFreshWork; track item) { <li>{{ item }}</li> }</ul>
         <p>Suggested period: {{ suggestion.fields.periodStart }} to {{ suggestion.fields.periodEnd }}. No professional approval is copied.</p>
@@ -197,6 +236,7 @@
         @if (r.fields.annualSourceEngagementId) {
           <p>Next: an authorized Manager or Partner must select and review a published task template against the new engagement’s staffing and schedule. Prior-year task completion and deadlines are not copied.</p>
           <a [routerLink]="['/app/engagements', r.engagementId]" [queryParams]="{ templateRevisionId: r.fields.annualTemplateRevisionId }" fragment="engagement-task-plan">Review current-year task plan</a>
+          <a [routerLink]="['/app/engagements', r.engagementId, 'audit-plan']">Review current-year milestone plan</a>
           <p>An authorized Manager or Partner must also review the current-year checklist. A previous-period acceptance cannot clear this engagement.</p>
           <a [routerLink]="['/app/clients', r.clientId, 'assessment']" [queryParams]="{ engagementId: r.engagementId }">Review current-year continuance</a>
         }

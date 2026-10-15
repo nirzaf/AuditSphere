@@ -1,5 +1,7 @@
 using System.Text.Json;
 using AuditSphereOps.Application.Acceptance;
+using AuditSphereOps.Application.Practice;
+using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Infrastructure.Persistence;
@@ -47,6 +49,7 @@ public sealed class AnnualEngagementPreparationTests
     await db.SaveChangesAsync();
     var state = await AnnualEngagementPreparationWorkspace.StateAsync(db, actor, f.ClientId, source.Value);
     Assert.True(state.Succeeded, state.Message); Assert.Contains("Partner continuance", state.Value!.RequiresFreshWork);
+    Assert.Equal("MISSING", state.Value.MilestoneSuggestionState); Assert.Empty(state.Value.MilestoneSuggestions!);
     Assert.Equal("Synthetic valid liaison", Assert.Single(state.Value.ContactSuggestions).Name);
     Assert.Equal("AVAILABLE", state.Value.HistoricalMappingState);
     Assert.Empty(state.Value.HistoricalMappings);
@@ -91,4 +94,127 @@ public sealed class AnnualEngagementPreparationTests
       request with { Reviewed = true, ExpectedRequestHash = preview.RequestHash });
     Assert.Equal("generation.stale", result.ErrorCode); Assert.Empty(await db.EngagementCreations.ToListAsync());
   }
+
+  [Fact]
+  public async Task AnnualMilestonesUseCurrentSourceRevisionAndStayRestrictedWithoutBlockingReviewedCreation()
+  {
+    await using var pg = await PgTestSchema.CreateAsync(); var f = await PbcSeed.SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options); await EngagementCreationReviewSeed.PopulateAsync(db, f);
+    var manager = PbcSeed.Actor(f.Staff, "Manager");
+    var source = await EngagementLifecycleService.CreateDraftAsync(db, manager,
+      new(f.ClientId, "AccountingOnly", "2025-01-01", "2025-12-31", "SYNTHETIC"));
+    Assert.True(source.Succeeded, source.Message);
+    db.AcceptanceDecisions.Add(new() { Id = Guid.NewGuid(), FirmId = f.FirmId, PracticeClientId = f.ClientId,
+      EngagementId = source.Value, ServiceRoute = "AccountingOnly", Decision = "Accepted", Generation = 1,
+      Rationale = "Synthetic previous-period evidence", EvaluationTemplateVersion = "synthetic.v1",
+      EvaluationSnapshotDigest = new string('a', 64), DecidedAt = DateTimeOffset.UtcNow, DecidedByUserId = f.Admin.Id });
+    await db.SaveChangesAsync();
+
+    var firstPlan = await StatutoryMilestoneService.SaveMilestonesAsync(db, manager,
+      new(source.Value, new(2026, 4, 30), new(2026, 1, 7), new(2026, 2, 15), new(2026, 3, 15)));
+    Assert.True(firstPlan.Succeeded, firstPlan.Message);
+    var firstState = await AnnualEngagementPreparationWorkspace.StateAsync(db, manager, f.ClientId, source.Value);
+    Assert.True(firstState.Succeeded, firstState.Message);
+    Assert.Equal("AVAILABLE", firstState.Value!.MilestoneSuggestionState);
+    var firstSuggestions = firstState.Value.MilestoneSuggestions!;
+    Assert.Equal(new DateOnly(2027, 1, 7), Assert.Single(firstSuggestions, x => x.Kind == "FIELDWORK_START").SuggestedDate);
+    Assert.Equal(new DateOnly(2027, 2, 15), Assert.Single(firstSuggestions, x => x.Kind == "DRAFT_REPORT").SuggestedDate);
+    Assert.Equal(new DateOnly(2027, 3, 15), Assert.Single(firstSuggestions, x => x.Kind == "FINAL_REPORT").SuggestedDate);
+    var cutoff = Assert.Single(firstSuggestions, x => x.Kind == "STATUTORY_CUTOFF");
+    Assert.Equal(new DateOnly(2026, 4, 30), cutoff.SourceDate); Assert.Null(cutoff.SuggestedDate);
+    Assert.Equal("Enter a separately verified current-year statutory cutoff; the previous deadline is not reused.", cutoff.Notice);
+    Assert.DoesNotContain(firstSuggestions, x => x.Kind.Contains("ARCHIVE", StringComparison.Ordinal));
+
+    var revisedPlan = await StatutoryMilestoneService.SaveMilestonesAsync(db, manager,
+      new(source.Value, new(2026, 4, 30), new(2026, 1, 8), new(2026, 2, 16), new(2026, 3, 16)));
+    Assert.True(revisedPlan.Succeeded, revisedPlan.Message);
+    var refreshed = await AnnualEngagementPreparationWorkspace.StateAsync(db, manager, f.ClientId, source.Value);
+    Assert.True(refreshed.Succeeded, refreshed.Message);
+    Assert.Equal(2L, Assert.Single(refreshed.Value!.MilestoneSuggestions!, x => x.Kind == "FIELDWORK_START").SourcePlanRevision);
+    Assert.Equal(new DateOnly(2026, 1, 8), Assert.Single(refreshed.Value.MilestoneSuggestions!, x => x.Kind == "FIELDWORK_START").SourceDate);
+    Assert.Equal(new DateOnly(2027, 1, 8), Assert.Single(refreshed.Value.MilestoneSuggestions!, x => x.Kind == "FIELDWORK_START").SuggestedDate);
+
+    await db.RoleGrants.Where(x => x.FirmId == f.FirmId && x.UserId == f.Staff.Id &&
+        x.Role == "Manager" && x.RevokedAt == null)
+      .ExecuteUpdateAsync(update => update.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow));
+    var relationshipGrant = PbcSeed.Grant(f.FirmId, f.Staff, "RelationshipManager", f.ClientId);
+    db.RoleGrants.Add(relationshipGrant); await db.SaveChangesAsync();
+    var relationshipManager = PbcSeed.Actor(f.Staff, "RelationshipManager");
+    var planRead = await StatutoryMilestoneService.GetMilestonesAsync(db, relationshipManager, source.Value);
+    Assert.False(planRead.Succeeded); Assert.Equal("scope.denied", planRead.ErrorCode); Assert.Null(planRead.Value);
+    var restricted = await AnnualEngagementPreparationWorkspace.StateAsync(db, relationshipManager, f.ClientId, source.Value);
+    Assert.True(restricted.Succeeded, restricted.Message);
+    Assert.Equal("RESTRICTED", restricted.Value!.MilestoneSuggestionState);
+    Assert.Empty(restricted.Value.MilestoneSuggestions!);
+    var restrictedJson = JsonSerializer.Serialize(restricted.Value);
+    Assert.DoesNotContain("2026-01-07", restrictedJson);
+    Assert.DoesNotContain("2026-02-15", restrictedJson);
+    Assert.DoesNotContain("2026-03-15", restrictedJson);
+    Assert.DoesNotContain("2026-04-30", restrictedJson);
+
+    var milestoneCount = await db.EngagementMilestonePlans.CountAsync(x => x.EngagementId == source.Value);
+    var decisionCount = await db.AcceptanceDecisions.CountAsync();
+    var materialityApprovalCount = await db.MaterialityApprovals.CountAsync();
+    var riskClearanceCount = await db.RiskPartnerClearances.CountAsync();
+    var timeEntryCount = await db.TimeEntries.CountAsync();
+    var client = await EngagementCreationWorkspace.StateAsync(db, relationshipManager, f.ClientId);
+    Assert.True(client.Succeeded, client.Message);
+    var request = new EngagementCreationRequest(Guid.NewGuid(), client.Value!.ReviewBasis, restricted.Value.Fields);
+    var preview = await AnnualEngagementPreparationWorkspace.PreviewAsync(db, relationshipManager, f.ClientId, request);
+    Assert.True(preview.Succeeded, preview.Message);
+    var created = await AnnualEngagementPreparationWorkspace.ExecuteAsync(db, relationshipManager, f.ClientId,
+      request with { Reviewed = true, ExpectedRequestHash = preview.Value!.RequestHash });
+    Assert.True(created.Succeeded, created.Message);
+    var target = await db.Engagements.AsNoTracking().SingleAsync(x => x.Id == created.Value!.EngagementId);
+    Assert.Equal(("Draft", true, "2026-01-01", "2026-12-31"),
+      (target.Status, target.ProfessionalWorkBlocked, target.PeriodStart, target.PeriodEnd));
+    Assert.Equal(milestoneCount, await db.EngagementMilestonePlans.CountAsync(x => x.EngagementId == source.Value));
+    Assert.False(await db.EngagementMilestonePlans.AnyAsync(x => x.EngagementId == target.Id));
+    Assert.Equal(decisionCount, await db.AcceptanceDecisions.CountAsync());
+    Assert.Equal(materialityApprovalCount, await db.MaterialityApprovals.CountAsync());
+    Assert.Equal(riskClearanceCount, await db.RiskPartnerClearances.CountAsync());
+    Assert.Equal(timeEntryCount, await db.TimeEntries.CountAsync());
+    Assert.False(await db.AcceptanceDecisions.AnyAsync(x => x.EngagementId == target.Id));
+    Assert.Null(await EngagementRiskEvidence.LatestAsync(db, f.FirmId, target, default));
+    Assert.False(created.Value.InputJson.Contains("milestone", StringComparison.OrdinalIgnoreCase));
+  }
+
+  [Fact]
+  public void AnnualMilestoneProjectionFailsClosedForInvalidChronologyOffsetsAndDateOverflow()
+  {
+    var sourceEnd = new DateOnly(2025, 12, 31);
+    var nextEnd = new DateOnly(2026, 12, 31);
+    const string reviewNotice = "Historical dates need review; no automatic date was proposed.";
+
+    var reversed = AnnualEngagementPreparationWorkspace.ProjectMilestones(
+      Plan(new(2026, 3, 20), new(2026, 2, 15), new(2026, 3, 15), new(2026, 4, 30)), sourceEnd, nextEnd);
+    Assert.All(reversed.Where(x => x.Kind != "STATUTORY_CUTOFF"), suggestion =>
+    {
+      Assert.Null(suggestion.SuggestedDate);
+      Assert.Equal(reviewNotice, suggestion.Notice);
+    });
+
+    var offsetExceeded = AnnualEngagementPreparationWorkspace.ProjectMilestones(
+      Plan(new(2026, 12, 30), new(2027, 1, 2), new(2027, 1, 3), new(2027, 4, 30)), sourceEnd, nextEnd);
+    Assert.Equal(new DateOnly(2027, 12, 30), Assert.Single(offsetExceeded, x => x.Kind == "FIELDWORK_START").SuggestedDate);
+    foreach (var kind in new[] { "DRAFT_REPORT", "FINAL_REPORT" })
+    {
+      var invalid = Assert.Single(offsetExceeded, x => x.Kind == kind);
+      Assert.Equal(367 + (kind == "FINAL_REPORT" ? 1 : 0), invalid.OffsetDaysFromSourcePeriodEnd);
+      Assert.Null(invalid.SuggestedDate); Assert.Equal(reviewNotice, invalid.Notice);
+    }
+
+    var overflow = AnnualEngagementPreparationWorkspace.ProjectMilestones(
+      Plan(new(9999, 1, 1), new(9999, 1, 2), new(9999, 1, 3), new(9999, 4, 30)),
+      new(9998, 12, 30), new(9999, 12, 30));
+    Assert.All(overflow.Where(x => x.Kind != "STATUTORY_CUTOFF"), suggestion =>
+    {
+      Assert.Null(suggestion.SuggestedDate);
+      Assert.Equal(reviewNotice, suggestion.Notice);
+    });
+  }
+
+  private static MilestonePlanView Plan(DateOnly fieldwork, DateOnly draft, DateOnly finalReport, DateOnly cutoff) =>
+    new(Guid.NewGuid(), Guid.NewGuid(), new(2025, 12, 31), cutoff, fieldwork, draft, finalReport,
+      finalReport.AddDays(60), null, null, [], 1, Guid.NewGuid(), DateTimeOffset.UnixEpoch, false);
 }

@@ -73,6 +73,26 @@ const timestamp = (v: unknown, p: string) => {
   if (!Number.isFinite(Date.parse(s))) throw new Error('Unsupported time');
   return s;
 };
+const annualMilestoneKind = (v: unknown, p: string) => {
+  if (v === 'FIELDWORK_START' || v === 'DRAFT_REPORT' || v === 'FINAL_REPORT' || v === 'STATUTORY_CUTOFF') return v;
+  throw new Error(`Unsupported milestone kind at ${p}`);
+};
+const annualMilestoneSuggestionState = (v: unknown, p: string) => {
+  if (v === 'AVAILABLE' || v === 'MISSING' || v === 'RESTRICTED' || v === 'UNAVAILABLE') return v;
+  throw new Error(`Unsupported milestone suggestion state at ${p}`);
+};
+const signedDayOffset = (v: unknown, p: string) => {
+  if (Number.isSafeInteger(v)) return v as number;
+  throw new Error(`Unsupported milestone offset at ${p}`);
+};
+const annualMilestoneSuggestion = obj({
+  kind: annualMilestoneKind,
+  sourceDate: date,
+  offsetDaysFromSourcePeriodEnd: signedDayOffset,
+  suggestedDate: nullable(date),
+  sourcePlanRevision: nat,
+  notice: str(300),
+});
 export const decodeEngagementCreationState = obj({
   clientId: identity,
   clientName: str(500),
@@ -89,16 +109,28 @@ const annualPreparation = obj({
   },
   historicalMappings: arr(obj({ id: identity, version: generation, taxonomyVersion: str(100), periodStart: date, periodEnd: date }), 5),
   taskTemplateSuggestions: arr(obj({ templateId: identity, revisionId: identity, version: nat, name: str(160), contentDigest: sha256 }), 3),
+  milestoneSuggestions: arr(annualMilestoneSuggestion, 4),
+  milestoneSuggestionState: annualMilestoneSuggestionState,
 });
 export const decodeAnnualPreparation = (value: unknown, path = '') => {
-  const annual = annualPreparation(value, path);
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`Unsupported annual preparation at ${path}`);
+  const raw = value as Record<string, unknown>;
+  const annual = annualPreparation({
+    ...raw,
+    milestoneSuggestions: raw.milestoneSuggestions ?? [],
+    milestoneSuggestionState: raw.milestoneSuggestionState ?? 'MISSING',
+  }, path);
   if ((annual.historicalMappingState === 'RESTRICTED' && annual.historicalMappings.length !== 0) ||
     annual.historicalMappings.some(mapping => mapping.periodStart !== annual.sourcePeriodStart || mapping.periodEnd !== annual.sourcePeriodEnd) ||
     new Set(annual.historicalMappings.map(mapping => mapping.id)).size !== annual.historicalMappings.length ||
     new Set(annual.contactSuggestions.map(contact => contact.id)).size !== annual.contactSuggestions.length ||
     new Set(annual.taskTemplateSuggestions.map(template => template.revisionId)).size !== annual.taskTemplateSuggestions.length ||
     annual.taskTemplateSuggestions.some(template => template.version < 1) ||
-    (annual.fields.annualTemplateRevisionId && !annual.taskTemplateSuggestions.some(template => template.revisionId === annual.fields.annualTemplateRevisionId)))
+    (annual.fields.annualTemplateRevisionId && !annual.taskTemplateSuggestions.some(template => template.revisionId === annual.fields.annualTemplateRevisionId)) ||
+    (annual.milestoneSuggestionState !== 'AVAILABLE' && annual.milestoneSuggestions.length !== 0) ||
+    new Set(annual.milestoneSuggestions.map(milestone => milestone.kind)).size !== annual.milestoneSuggestions.length ||
+    annual.milestoneSuggestions.some(milestone => milestone.sourcePlanRevision < 1 ||
+      (milestone.kind === 'STATUTORY_CUTOFF' && milestone.suggestedDate !== null)))
     throw new Error('Invalid annual reference context');
   return annual;
 };

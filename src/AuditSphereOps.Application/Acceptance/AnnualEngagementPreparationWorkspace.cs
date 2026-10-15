@@ -2,6 +2,7 @@ using System.Globalization;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Operations;
+using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Engagements;
@@ -14,11 +15,15 @@ namespace AuditSphereOps.Application.Acceptance;
 public sealed record AnnualContactReference(Guid Id, string Name, string Role, bool Primary);
 public sealed record AnnualMappingReference(Guid Id, string Version, string TaxonomyVersion, string PeriodStart, string PeriodEnd);
 public sealed record AnnualTemplateReference(Guid TemplateId, Guid RevisionId, int Version, string Name, string ContentDigest);
+public sealed record AnnualMilestoneSuggestion(string Kind, DateOnly SourceDate,
+  int OffsetDaysFromSourcePeriodEnd, DateOnly? SuggestedDate, long SourcePlanRevision, string Notice);
 public sealed record AnnualEngagementPreparationState(Guid ClientId, Guid SourceEngagementId,
   string SourcePeriodStart, string SourcePeriodEnd, EngagementCreationFields Fields,
   IReadOnlyList<string> CopiedReferences, IReadOnlyList<string> RequiresFreshWork,
   IReadOnlyList<AnnualContactReference> ContactSuggestions, string HistoricalMappingState,
-  IReadOnlyList<AnnualMappingReference> HistoricalMappings, IReadOnlyList<AnnualTemplateReference> TaskTemplateSuggestions);
+  IReadOnlyList<AnnualMappingReference> HistoricalMappings, IReadOnlyList<AnnualTemplateReference> TaskTemplateSuggestions,
+  IReadOnlyList<AnnualMilestoneSuggestion>? MilestoneSuggestions = null,
+  string MilestoneSuggestionState = "MISSING");
 
 /// <summary>Harmless next-period preparation over reviewed blocked-shell creation; no approval or audit evidence is copied.</summary>
 public static class AnnualEngagementPreparationWorkspace
@@ -59,6 +64,29 @@ public static class AnnualEngagementPreparationWorkspace
     var fields = Suggest(source);
     if (fields is null) return CommandResult<AnnualEngagementPreparationState>.Fail("annual.period-unsupported",
       "This source is not a supported 365- or 366-day engagement with a service profile. Prepare and review the period manually.");
+    var milestoneResult = await StatutoryMilestoneService.GetMilestonesAsync(db, actor, sourceId, ct);
+    string milestoneSuggestionState;
+    IReadOnlyList<AnnualMilestoneSuggestion> milestoneSuggestions = [];
+    if (!milestoneResult.Succeeded)
+    {
+      milestoneSuggestionState = milestoneResult.ErrorCode == ErrorCodes.ScopeDenied ? "RESTRICTED" : "UNAVAILABLE";
+    }
+    else if (milestoneResult.Value is not { } milestonePlan)
+    {
+      milestoneSuggestionState = "MISSING";
+    }
+    else if (DateOnly.TryParseExact(source.PeriodEnd, "yyyy-MM-dd", CultureInfo.InvariantCulture,
+        DateTimeStyles.None, out var sourcePeriodEnd) &&
+      DateOnly.TryParseExact(fields.PeriodEnd, "yyyy-MM-dd", CultureInfo.InvariantCulture,
+        DateTimeStyles.None, out var nextPeriodEnd))
+    {
+      milestoneSuggestionState = "AVAILABLE";
+      milestoneSuggestions = ProjectMilestones(milestonePlan, sourcePeriodEnd, nextPeriodEnd);
+    }
+    else
+    {
+      milestoneSuggestionState = "UNAVAILABLE";
+    }
     var references = new List<string> { "Client identity", "Service route", "Service profile", "Prior period calendar reference" };
     // These are discovery references only. The current plan command must independently review and pin a new plan.
     var templates = await CurrentTemplates(db, actor.FirmId, clientId, sourceId, source.ServiceRoute)
@@ -99,7 +127,46 @@ public static class AnnualEngagementPreparationWorkspace
     return CommandResult<AnnualEngagementPreparationState>.Ok(new(clientId, sourceId, source.PeriodStart, source.PeriodEnd, fields,
       references,
       ["Reviewed task template and current-period schedule", "Current-period mapping review", "Client commercial consent", "Partner continuance", "Materiality", "Fieldwork", "Independent review", "Opinion", "Signature", "Fee agreement and advance"],
-      contacts, canReadMappings ? "AVAILABLE" : "RESTRICTED", mappings, templates));
+      contacts, canReadMappings ? "AVAILABLE" : "RESTRICTED", mappings, templates, milestoneSuggestions,
+      milestoneSuggestionState));
+  }
+
+  internal static IReadOnlyList<AnnualMilestoneSuggestion> ProjectMilestones(MilestonePlanView plan,
+    DateOnly sourcePeriodEnd, DateOnly nextPeriodEnd)
+  {
+    var chronologyValid = plan.FieldworkStartDate <= plan.DraftReportDate &&
+      plan.DraftReportDate <= plan.FinalReportDate;
+    return
+    [
+      ProjectInternalMilestone("FIELDWORK_START", plan.FieldworkStartDate, plan.Revision,
+        sourcePeriodEnd, nextPeriodEnd, chronologyValid),
+      ProjectInternalMilestone("DRAFT_REPORT", plan.DraftReportDate, plan.Revision,
+        sourcePeriodEnd, nextPeriodEnd, chronologyValid),
+      ProjectInternalMilestone("FINAL_REPORT", plan.FinalReportDate, plan.Revision,
+        sourcePeriodEnd, nextPeriodEnd, chronologyValid),
+      new("STATUTORY_CUTOFF", plan.StatutoryFilingCutoff,
+        plan.StatutoryFilingCutoff.DayNumber - sourcePeriodEnd.DayNumber, null, plan.Revision,
+        "Enter a separately verified current-year statutory cutoff; the previous deadline is not reused.")
+    ];
+  }
+
+  private static AnnualMilestoneSuggestion ProjectInternalMilestone(string kind, DateOnly sourceDate,
+    long sourcePlanRevision, DateOnly sourcePeriodEnd, DateOnly nextPeriodEnd, bool chronologyValid)
+  {
+    var offset = sourceDate.DayNumber - sourcePeriodEnd.DayNumber;
+    if (!chronologyValid || offset is < 0 or > 366)
+      return new(kind, sourceDate, offset, null, sourcePlanRevision,
+        "Historical dates need review; no automatic date was proposed.");
+    try
+    {
+      return new(kind, sourceDate, offset, nextPeriodEnd.AddDays(offset), sourcePlanRevision,
+        "Suggested internal target only. Confirm current-year commitments in the planning workspace.");
+    }
+    catch (ArgumentOutOfRangeException)
+    {
+      return new(kind, sourceDate, offset, null, sourcePlanRevision,
+        "Historical dates need review; no automatic date was proposed.");
+    }
   }
 
   internal static async Task<CommandResult> ValidateAsync(IAuditSphereDbContext db, ActorContext actor, Guid clientId,

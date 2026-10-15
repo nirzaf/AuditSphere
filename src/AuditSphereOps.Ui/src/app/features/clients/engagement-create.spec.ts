@@ -43,6 +43,25 @@ describe('Reviewed client engagement creation contracts', () => {
     expect(() => decodeAnnualPreparation({ ...annual, historicalMappings: [reference, reference] })).toThrow();
     expect(() => decodeAnnualPreparation({ ...annual, historicalMappings: [{ ...reference, periodEnd: '2025-12-31' }] })).toThrow();
   });
+  it('decodes bounded milestone suggestions and defaults legacy or restricted references safely', () => {
+    const annual = { clientId: id, sourceEngagementId: other, sourcePeriodStart: fields.periodStart,
+      sourcePeriodEnd: fields.periodEnd, fields: { ...fields, annualSourceEngagementId: other },
+      copiedReferences: [], requiresFreshWork: [], contactSuggestions: [], historicalMappingState: 'AVAILABLE',
+      historicalMappings: [], taskTemplateSuggestions: [] };
+    const fieldwork = { kind: 'FIELDWORK_START', sourceDate: '2026-01-07', offsetDaysFromSourcePeriodEnd: 7,
+      suggestedDate: '2027-01-07', sourcePlanRevision: 2,
+      notice: 'Suggested internal target only. Confirm current-year commitments in the planning workspace.' };
+    const current = decodeAnnualPreparation({ ...annual, milestoneSuggestions: [fieldwork], milestoneSuggestionState: 'AVAILABLE' });
+    expect(current.milestoneSuggestions).toEqual([fieldwork]);
+    expect(decodeAnnualPreparation(annual).milestoneSuggestionState).toBe('MISSING');
+    expect(decodeAnnualPreparation(annual).milestoneSuggestions).toEqual([]);
+    const restricted = decodeAnnualPreparation({ ...annual, milestoneSuggestions: [], milestoneSuggestionState: 'RESTRICTED' });
+    expect(restricted.milestoneSuggestionState).toBe('RESTRICTED');
+    expect(() => decodeAnnualPreparation({ ...annual, milestoneSuggestions: [fieldwork], milestoneSuggestionState: 'RESTRICTED' })).toThrow();
+    expect(() => decodeAnnualPreparation({ ...annual, milestoneSuggestions: [fieldwork], milestoneSuggestionState: 'FUTURE' })).toThrow();
+    expect(() => decodeAnnualPreparation({ ...annual, milestoneSuggestions: Array(5).fill(fieldwork), milestoneSuggestionState: 'AVAILABLE' })).toThrow();
+    expect(() => decodeAnnualPreparation({ ...annual, milestoneSuggestions: [{ ...fieldwork, sourcePlanRevision: 0 }], milestoneSuggestionState: 'AVAILABLE' })).toThrow();
+  });
   it('allowlists bounded fields and exact generations without retaining assent', () => {
     expect(engagementFields({ ...fields, annualTemplateRevisionId: other })).toBeNull();
     expect(engagementFields({ ...fields, reviewed: true })).toBeNull();
@@ -168,6 +187,7 @@ describe('Native engagement creation review, tab recovery and ownership', () => 
     c.chooseAnnualTemplate(id); expect(c.model()).toEqual(proposed);
     f.detectChanges(); TestBed.tick();
     expect(f.nativeElement.textContent).toContain('Requires fresh current-period work');
+    expect(f.nativeElement.textContent).toContain('No prior milestone plan is available for reference.');
     expect(f.nativeElement.textContent).toContain('Synthetic annual liaison');
     expect(f.nativeElement.textContent).toContain('Mapping references require accounting read access');
     const pending = c.prepare(); const request = TestBed.inject(HttpTestingController).expectOne(url + '/preview');
@@ -176,6 +196,88 @@ describe('Native engagement creation review, tab recovery and ownership', () => 
       requestHash: hash, fields: proposed, existingEngagementId: null } });
     await pending; TestBed.tick(); expect(c.preview()?.fields.annualSourceEngagementId).toBe(other);
     expect(c.reviewed()).toBe(false);
+  });
+  it('renders read-only renewal milestones and links only to the created engagement', async () => {
+    queries.next(convertToParamMap({ annualSourceEngagementId: other }));
+    const f = open(); read(); const c = f.componentInstance;
+    const createdEngagementId = '33333333-3333-4333-8333-333333333333';
+    const proposed = { ...fields, periodStart: '2027-01-01', periodEnd: '2027-12-31',
+      annualSourceEngagementId: other, annualTemplateRevisionId: id };
+    const suggestionRows = [
+      { kind: 'FIELDWORK_START', sourceDate: '2026-01-07', offsetDaysFromSourcePeriodEnd: 7,
+        suggestedDate: '2027-01-07', sourcePlanRevision: 2,
+        notice: 'Suggested internal target only. Confirm current-year commitments in the planning workspace.' },
+      { kind: 'DRAFT_REPORT', sourceDate: '2026-02-15', offsetDaysFromSourcePeriodEnd: 46,
+        suggestedDate: '2027-02-15', sourcePlanRevision: 2,
+        notice: 'Suggested internal target only. Confirm current-year commitments in the planning workspace.' },
+      { kind: 'FINAL_REPORT', sourceDate: '2026-03-15', offsetDaysFromSourcePeriodEnd: 74,
+        suggestedDate: '2027-03-15', sourcePlanRevision: 2,
+        notice: 'Suggested internal target only. Confirm current-year commitments in the planning workspace.' },
+      { kind: 'STATUTORY_CUTOFF', sourceDate: '2026-04-30', offsetDaysFromSourcePeriodEnd: 120,
+        suggestedDate: null, sourcePlanRevision: 2,
+        notice: 'Enter a separately verified current-year statutory cutoff; the previous deadline is not reused.' },
+    ];
+    TestBed.inject(HttpTestingController).expectOne('/api/ui/clients/' + id + '/annual-engagement/' + other).flush({
+      clientId: id, sourceEngagementId: other, sourcePeriodStart: '2026-01-01', sourcePeriodEnd: '2026-12-31',
+      fields: proposed, copiedReferences: [], requiresFreshWork: ['Partner continuance'], contactSuggestions: [],
+      historicalMappingState: 'AVAILABLE', historicalMappings: [], taskTemplateSuggestions: [
+        { templateId: other, revisionId: id, version: 1, name: 'Synthetic annual plan', contentDigest: hash },
+      ], milestoneSuggestions: suggestionRows, milestoneSuggestionState: 'AVAILABLE',
+    });
+    TestBed.tick(); f.detectChanges();
+    const annual = f.nativeElement.querySelector('[aria-label="Annual engagement preparation"]') as HTMLElement;
+    expect(annual.querySelector('[aria-label="Suggested internal milestones"]')).not.toBeNull();
+    expect(annual.textContent).toContain('2026-01-07');
+    expect(annual.textContent).toContain('2027-01-07');
+    expect(annual.textContent).toContain('Source plan revision');
+    expect(annual.querySelector('tbody tr td:nth-of-type(3)')?.textContent?.trim()).toBe('2');
+    expect(annual.textContent).toContain('Requires current-year input');
+    expect(annual.textContent).toContain('These are suggestions, not a saved plan. Creating an engagement does not schedule, activate or approve it.');
+
+    c.useAnnualSuggestion(); f.detectChanges(); TestBed.tick();
+    expect(c.model()).toEqual(proposed);
+    const pendingPreview = c.prepare();
+    const previewRequest = TestBed.inject(HttpTestingController).expectOne(url + '/preview');
+    expect(previewRequest.request.body.fields).toEqual(proposed);
+    expect(JSON.stringify(previewRequest.request.body).toLowerCase()).not.toContain('milestone');
+    expect(JSON.stringify(previewRequest.request.body).toLowerCase()).not.toContain('approval');
+    previewRequest.flush({ value: { clientId: id, requestId: previewRequest.request.body.requestId,
+      reviewBasis: basis, requestHash: hash, fields: proposed, existingEngagementId: null } });
+    await pendingPreview; TestBed.tick();
+    c.reviewed.set(true); TestBed.tick();
+    const pendingCreate = c.execute();
+    const createRequest = TestBed.inject(HttpTestingController).expectOne(url);
+    expect(createRequest.request.body.fields).toEqual(proposed);
+    expect(JSON.stringify(createRequest.request.body).toLowerCase()).not.toContain('milestone');
+    expect(JSON.stringify(createRequest.request.body).toLowerCase()).not.toContain('approval');
+    createRequest.flush({ value: {
+      id: '44444444-4444-4444-8444-444444444444', clientId: id, engagementId: createdEngagementId,
+      actorId: id, requestId: createRequest.request.body.requestId, requestHash: hash, reviewBasis: basis,
+      clientGeneration: '9007199254740993', engagementGeneration: '1', fields: proposed,
+      createdAt: '2026-10-03T12:30:00Z',
+    } });
+    await pendingCreate; TestBed.tick();
+    read(); f.detectChanges();
+    const milestoneLink = f.nativeElement.querySelector('a[aria-label="Review current-year milestone plan"]') as HTMLAnchorElement | null;
+    const link = milestoneLink ?? Array.from(f.nativeElement.querySelectorAll('a'))
+      .find((candidate) => candidate.textContent?.trim() === 'Review current-year milestone plan') as HTMLAnchorElement | undefined;
+    expect(link?.getAttribute('href')).toBe('/app/engagements/' + createdEngagementId + '/audit-plan');
+    expect(link?.getAttribute('href')).not.toContain(other);
+  });
+  it('hides all prior milestone dates when the annual reference is restricted', () => {
+    queries.next(convertToParamMap({ annualSourceEngagementId: other }));
+    const f = open(); read();
+    TestBed.inject(HttpTestingController).expectOne('/api/ui/clients/' + id + '/annual-engagement/' + other).flush({
+      clientId: id, sourceEngagementId: other, sourcePeriodStart: '2026-01-01', sourcePeriodEnd: '2026-12-31',
+      fields: { ...fields, periodStart: '2027-01-01', periodEnd: '2027-12-31', annualSourceEngagementId: other },
+      copiedReferences: [], requiresFreshWork: [], contactSuggestions: [], historicalMappingState: 'RESTRICTED',
+      historicalMappings: [], taskTemplateSuggestions: [], milestoneSuggestions: [], milestoneSuggestionState: 'RESTRICTED',
+    });
+    TestBed.tick(); f.detectChanges();
+    const annual = f.nativeElement.querySelector('[aria-label="Annual engagement preparation"]') as HTMLElement;
+    expect(annual.textContent).toContain('Source milestone references require planning access.');
+    expect(annual.querySelector('[aria-label="Suggested internal milestones"]')).toBeNull();
+    expect(annual.textContent).not.toContain('2026-08-21');
   });
   it('does not silently turn a malformed annual source into manual creation', () => {
     queries.next(convertToParamMap({ annualSourceEngagementId: 'invalid' }));
