@@ -164,3 +164,15 @@ was not part of this review or its eventual documentation commit. The separate
 unstaged `docs/execution/angular-source-inventory.json` edit also remains
 outside this review. AS-PAR-002 stays partial and Blazor retirement remains
 `NOT_READY`; this review does not authorize removing the rollback host.
+
+## Foreground timer keyboard follow-up
+
+At `b4dedfef`, the five-case commercial/timer browser cohort passed with zero
+failures and skips. Its productivity journey verifies the Start control is an
+enabled `type="button"`, outside any form, and focused before Enter; then drives
+pause, resume, stop and explicit segment saves. The preceding batch failed at
+the missing Pause control and showed an unexpected time-draft save. No timer
+product code changed, and the successful rerun does not establish the cause of
+that intermittent failure or prove full-suite stability. Preserve the keyboard,
+no-autonomous-write and stored-segment assertions in subsequent regression runs.
+See the commercial source review for the exact command and local TRX evidence.

@@ -58,3 +58,20 @@ delivery/provider evidence, assistive-technology acceptance, production
 canary/rollback, live Microsoft gates, and separate owner acceptance remain
 open. This review does not authorize Blazor removal; retirement remains
 `NOT_READY`.
+
+## Current exact-offer browser follow-up
+
+At code/test commit `b4dedfef`, the Release API-host browser follow-up passed
+**5/5**, with zero failures and skips, in 113 seconds. Four commercial cases
+cover refusal without commercial acceptance and generation of the statutory,
+internal-audit and agreed-upon-procedures route-specific letters. The positive
+fixtures now include real rendered quotation bytes, the exact dispatch identity
+and an immutable response receipt; they assert current acceptance before the
+browser starts. Mutable proposal acceptance columns alone are insufficient.
+No production acceptance guard was relaxed. The fifth case covers the separate
+practice dashboard and foreground timer journey.
+
+Command: `dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --configuration Release --maxcpucount:1 --filter 'FullyQualifiedName~AngularSteCommercialAcceptanceJourneyTests|FullyQualifiedName~AngularPracticeProductivityJourneyTests' --logger 'trx;LogFileName=commercial-and-timer-followup.trx' --results-directory /tmp/auditsphere-parity-regression`.
+Local ephemeral evidence:
+`/tmp/auditsphere-parity-regression/commercial-and-timer-followup.trx`.
+This focused result does not close full commercial parity or the retirement gate.

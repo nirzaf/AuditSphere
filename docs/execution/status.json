@@ -136,6 +136,15 @@
           "report": "/tmp/auditsphere-parity-regression/planning-navigation-current.trx"
         },
         "scope": "API-host Playwright, synthetic owned PostgreSQL; unchanged planning cohort did not reproduce prior timeout. Full solution remains open."
+      },
+      "commercialAndTimerFollowUp": {
+        "codeCommit": "b4dedfef",
+        "passed": 5,
+        "failed": 0,
+        "skipped": 0,
+        "durationSeconds": 113,
+        "report": "/tmp/auditsphere-parity-regression/commercial-and-timer-followup.trx",
+        "scope": "Four commercial cases and one productivity journey. Exact rendered-offer receipt fixture repaired; timer focus diagnostics added, earlier intermittent cause unproven. Full regression and financial composition failures remain open."
       }
     },
     "angularBlazorTenantConsentFixtureFollowUp": {
