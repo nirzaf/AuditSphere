@@ -196,6 +196,7 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<global::AuditSphereOps.Domain.Completion.SignatureApplication> SignatureApplications { get; }
   DbSet<global::AuditSphereOps.Domain.Completion.ClientDeliverableReview> ClientDeliverableReviews { get; }
   DbSet<global::AuditSphereOps.Domain.Completion.ClientDeliverableComment> ClientDeliverableComments { get; }
+  DbSet<global::AuditSphereOps.Domain.Completion.ClientBundleAcknowledgement> ClientBundleAcknowledgements { get; }
   DbSet<global::AuditSphereOps.Domain.Audit.AuditSamplingRun> AuditSamplingRuns { get; }
   DbSet<global::AuditSphereOps.Domain.Audit.ProcedureEvidenceLink> ProcedureEvidenceLinks { get; }
   DbSet<global::AuditSphereOps.Domain.Audit.PhysicalEvidenceItem> PhysicalEvidenceItems { get; }

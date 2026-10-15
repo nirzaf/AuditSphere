@@ -556,6 +556,7 @@ public sealed class AuthorizationDecisionTests
     public DbSet<global::AuditSphereOps.Domain.Completion.SignatureApplication> SignatureApplications => db.SignatureApplications;
     public DbSet<global::AuditSphereOps.Domain.Completion.ClientDeliverableReview> ClientDeliverableReviews => db.ClientDeliverableReviews;
     public DbSet<global::AuditSphereOps.Domain.Completion.ClientDeliverableComment> ClientDeliverableComments => db.ClientDeliverableComments;
+    public DbSet<global::AuditSphereOps.Domain.Completion.ClientBundleAcknowledgement> ClientBundleAcknowledgements => db.ClientBundleAcknowledgements;
     public DbSet<global::AuditSphereOps.Domain.Audit.AuditSamplingRun> AuditSamplingRuns => db.AuditSamplingRuns;
     public DbSet<global::AuditSphereOps.Domain.Audit.ProcedureEvidenceLink> ProcedureEvidenceLinks => db.ProcedureEvidenceLinks;
     public DbSet<global::AuditSphereOps.Domain.Audit.PhysicalEvidenceItem> PhysicalEvidenceItems => db.PhysicalEvidenceItems;

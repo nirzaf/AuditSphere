@@ -9,10 +9,11 @@ import { revision } from './contracts';
 export const sharedDocuments = obj({ documents: arr(obj({ reviewId: guid, deliverableId: guid, kind: text, title: text, version: revision,
   sha256, acknowledgedAt: nullable(instant), comments: arr(obj({ body: text, fromClient: bool, resolution: nullable(text) }), 1000) }), 200),
   signedLetters: arr(obj({ id: guid, deliverableId: guid, version: nat, managementSignatory: text, contentSha256: sha256, uploadedAt: instant, verified: bool, current: bool }), 100),
-  bundles: arr(obj({ id: guid, sha256, assembledAt: instant }), 100) });
+  bundles: arr(obj({ id: guid, sha256, manifestSha256: sha256, assembledAt: instant, acknowledgedAt: nullable(instant) }), 100) });
 @Component({ selector: 'audit-portal-documents', imports: [ReactiveFormsModule, MatButtonModule, ...SHARED], template: `
   <section class="panel"><h2>Documents for your review</h2><audit-state [loading]="ws.loading()" [error]="ws.error()" label="your shared documents" />
     <audit-command-message [message]="message()" [failed]="failed()" />
+    @if (uncertain()) { <button matButton (click)="ws.reload()" [disabled]="ws.loading()">Refresh saved receipt state</button> }
     @if (ws.data(); as w) {
       @for (d of w.documents; track d.reviewId) {
         <article class="document"><h3><a [href]="'/api/deliverables/' + d.deliverableId + '/download'">{{ d.title }} v{{ d.version }}</a></h3><p class="fingerprint">SHA-256 {{ d.sha256 }}</p>
@@ -39,7 +40,12 @@ export const sharedDocuments = obj({ documents: arr(obj({ reviewId: guid, delive
           @for (s of w.signedLetters; track s.id) { @if (s.deliverableId === d.deliverableId) { <p><a [href]="'/api/representation-scans/' + s.id + '/download'">Management-signed PDF</a> <audit-status [value]="!s.current ? 'STALE' : s.verified ? 'VERIFIED' : 'PENDING_REVIEW'" /></p> } }
         </article>
       } @empty { <p>No reports or letters are shared with your current scope.</p> }
-      @for (b of w.bundles; track b.id) { <p><a [href]="'/api/deliverable-bundles/' + b.id + '/download'">Download five-part final bundle</a><span class="fingerprint"> · SHA-256 {{ b.sha256 }}</span></p> }
+      @for (b of w.bundles; track b.id) { <article class="document"><p><a [href]="'/api/deliverable-bundles/' + b.id + '/download'">Download five-part final bundle</a></p>
+        <p class="fingerprint">ZIP SHA-256 {{ b.sha256 }} · manifest SHA-256 {{ b.manifestSha256 }}</p>
+        @if (b.acknowledgedAt) { <p>Receipt acknowledged by your client account at {{ b.acknowledgedAt }}. This is a client report, not proof of email delivery or an independently observed download.</p> }
+        @else { <label><input type="checkbox" [checked]="receiptReviewed() === b.id" (change)="reviewReceipt(b.id, $event)" /> I confirm that I received this exact final bundle.</label>
+          <button matButton (click)="acknowledgeBundle(b)" [disabled]="busy() || uncertain() || receiptReviewed() !== b.id">Record receipt acknowledgment</button> }
+      </article> }
     }
   </section>
 `, styles: `.fingerprint { overflow-wrap: anywhere; } .document { padding-block: 1rem; border-bottom: 1px solid var(--mat-sys-outline-variant); } textarea { width: 100%; min-height: 6rem; }` })
@@ -48,8 +54,13 @@ export class PortalDocuments {
   readonly ws = this.api.resource(() => '/api/ui/portal/documents', sharedDocuments);
   readonly review = this.fb.nonNullable.group({ body: ['', Validators.maxLength(4000)], reviewed: false });
   readonly signed = this.fb.nonNullable.group({ signatory: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(200)]] });
-  readonly selected = signal(''); readonly busy = signal(false); readonly uncertain = signal(false); readonly message = signal(''); readonly failed = signal(false); readonly file = signal<File | null>(null);
-  constructor() { effect(() => { this.session.invalidation(); if (!this.ws.data()) { this.selected.set(''); this.review.reset(); this.signed.reset(); this.file.set(null); } }); }
+  readonly selected = signal(''); readonly receiptReviewed = signal(''); readonly busy = signal(false); readonly uncertain = signal(false); readonly message = signal(''); readonly failed = signal(false); readonly file = signal<File | null>(null);
+  constructor() { effect(() => {
+    this.session.invalidation();
+    const saved = this.ws.data();
+    if (!saved) { this.selected.set(''); this.receiptReviewed.set(''); this.review.reset(); this.signed.reset(); this.file.set(null); }
+    else if (this.uncertain()) { this.uncertain.set(false); this.message.set('Saved portal state was reloaded. Review it before trying another action.'); }
+  }); }
   select(id: string): void { this.selected.set(id); this.review.reset(); this.signed.reset(); this.file.set(null); }
   choose(e: Event): void { const file = (e.target as HTMLInputElement).files?.[0]; this.file.set(file && file.size > 0 && file.size <= 10 * 1024 * 1024 ? file : null);
     if (!this.file()) { this.failed.set(true); this.message.set('Select a non-empty PDF of at most 10 MB.'); } }
@@ -60,6 +71,13 @@ export class PortalDocuments {
   upload(id: string, hash: string): void { const file = this.file(); if (!file || this.signed.invalid) return;
     const form = new FormData(); form.append('file', file); form.append('expectedHash', hash); form.append('signatory', this.signed.controls.signatory.value);
     void this.run(`/api/ui/portal/documents/${id}/signed-representation`, form, 'Signed PDF uploaded. Engagement Partner verification is pending.'); }
+  reviewReceipt(id: string, event: Event): void { this.receiptReviewed.set((event.target as HTMLInputElement).checked ? id : ''); }
+  async acknowledgeBundle(bundle: { id: string; sha256: string; manifestSha256: string }): Promise<void> {
+    if (this.receiptReviewed() !== bundle.id) return;
+    await this.run(`/api/ui/portal/bundles/${bundle.id}/acknowledge`,
+      { contentSha256: bundle.sha256, manifestSha256: bundle.manifestSha256, received: true },
+      'Your receipt report for this exact bundle was recorded. It does not confirm provider delivery or prove a browser download.');
+  }
   private async run(url: string, body: unknown, success: string): Promise<void> {
     if (this.busy() || this.uncertain()) return; const generation = this.session.invalidation(); this.busy.set(true);
     try { const r = await this.api.command(url, body); if (generation !== this.session.invalidation()) return;

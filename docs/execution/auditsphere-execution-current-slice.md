@@ -285,3 +285,10 @@ Observed: the focused Domain and Angular presentation tests passed. The API Rele
 The statement presentation now cross-casts current and comparative equity rollforwards to mapped profit or loss, OCI and SFP balances. Cash-flow readiness requires operating, investing and financing amounts, validates current and comparative bridges independently, and carries the package's persisted `CASH_FLOW_RECONCILED` check, which also validates the selected closing-cash population. PDF, DOCX and XLSX all include the same per-check `PASS`/`FAIL` diagnostics in the presentation basis. Builder version is v3. Missing comparative schedules and incomplete source data remain explicitly failed or unavailable; output remains `UNAPPROVED_DRAFT`.
 
 Observed: the focused Domain and Angular presentation tests passed; the API Release build passed with NuGet vulnerability-feed warnings; Markdown health, filename, narrative-metric, status JSON and `git diff --check` gates passed. The .NET test host initially could not bind its runner socket in the sandbox; the elevated retry ran and passed the focused suite. No full suite or PostgreSQL-backed integration test was run. A signed-in browser export journey was unavailable; the local UI had previously stopped at its unauthenticated access gate. No migration or business-data change was made. FSR remains PARTIAL; this slice does not provide source-record lineage, professional policy approval, complete notes/disclosures, final composition, sealing, signing acceptance or release.
+
+
+## Client receipt acknowledgment — 2026-10-15
+
+The portal stores a signed-in client user's immutable, engagement-scoped attestation for exact ZIP and manifest hashes. Row locking makes retries idempotent; authorization, stale hashes and SQL mutation are covered. It does not prove completed download or provider delivery.
+
+Observed: Release solution build; Domain 2/2, Angular 2/2; EF/OpenAPI drift pass. Migration generated; no persistent database migrated. Full suites, authenticated browser, provider, legal/signing and production gates remain open. Commands: [status.json](status.json).

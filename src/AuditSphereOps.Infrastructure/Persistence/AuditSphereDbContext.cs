@@ -87,6 +87,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<global::AuditSphereOps.Domain.Completion.SignatureApplication> SignatureApplications => Set<global::AuditSphereOps.Domain.Completion.SignatureApplication>();
   public DbSet<global::AuditSphereOps.Domain.Completion.ClientDeliverableReview> ClientDeliverableReviews => Set<global::AuditSphereOps.Domain.Completion.ClientDeliverableReview>();
   public DbSet<global::AuditSphereOps.Domain.Completion.ClientDeliverableComment> ClientDeliverableComments => Set<global::AuditSphereOps.Domain.Completion.ClientDeliverableComment>();
+  public DbSet<global::AuditSphereOps.Domain.Completion.ClientBundleAcknowledgement> ClientBundleAcknowledgements => Set<global::AuditSphereOps.Domain.Completion.ClientBundleAcknowledgement>();
   public DbSet<global::AuditSphereOps.Domain.Audit.AuditSamplingRun> AuditSamplingRuns => Set<global::AuditSphereOps.Domain.Audit.AuditSamplingRun>();
   public DbSet<global::AuditSphereOps.Domain.Audit.ProcedureEvidenceLink> ProcedureEvidenceLinks => Set<global::AuditSphereOps.Domain.Audit.ProcedureEvidenceLink>();
   public DbSet<global::AuditSphereOps.Domain.Audit.PhysicalEvidenceItem> PhysicalEvidenceItems => Set<global::AuditSphereOps.Domain.Audit.PhysicalEvidenceItem>();

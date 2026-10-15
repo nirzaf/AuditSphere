@@ -3,6 +3,7 @@ using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Acceptance;
 using AuditSphereOps.Application.Completion;
+using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Reviews;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Completion;
@@ -237,12 +238,44 @@ public sealed partial class AuditDeliverablesTests
       Assert.True(pdf.PageCount > 1);
       Assert.Contains(pdf.Internals.GetAllObjects(), x => x is PdfSharp.Pdf.PdfDictionary d && d.Elements.GetName("/Subtype") == "/Image");
       Assert.Single(await db.CommercialDeliverableBundles.ToListAsync());
-      Assert.Single(await AuditDeliverableService.ClientBundlesAsync(db, client, w.EngagementId));
+      var clientBundles = await AuditDeliverableService.ClientBundlesAsync(db, client, w.EngagementId);
+      var clientBundle = Assert.Single(clientBundles);
+      Assert.Equal(row.ContentSha256, clientBundle.Sha256);
+      Assert.Equal(row.ManifestSha256, clientBundle.ManifestSha256);
+      Assert.Null(clientBundle.AcknowledgedAt);
+
+      // Concurrent retries for the same client user and exact bundle return one immutable receipt.
+      await using var receiptDbA = new AuditSphereDbContext(pg.Options);
+      await using var receiptDbB = new AuditSphereDbContext(pg.Options);
+      var acknowledgements = await Task.WhenAll(
+        ClientBundleAcknowledgementCommands.AcknowledgeAsync(receiptDbA, client, row.Id, row.ContentSha256, row.ManifestSha256, true),
+        ClientBundleAcknowledgementCommands.AcknowledgeAsync(receiptDbB, client, row.Id, row.ContentSha256, row.ManifestSha256, true));
+      Assert.All(acknowledgements, result => Assert.True(result.Succeeded, result.Message));
+      Assert.Equal(acknowledgements[0].Value, acknowledgements[1].Value);
+      Assert.Single(await db.ClientBundleAcknowledgements.AsNoTracking().Where(x => x.BundleId == row.Id).ToListAsync());
+      Assert.Equal(ErrorCodes.GenerationStale, (await ClientBundleAcknowledgementCommands.AcknowledgeAsync(db, client, row.Id,
+        new string('0', 64), row.ManifestSha256, true)).ErrorCode);
+      Assert.Equal("receipt.confirmation-required", (await ClientBundleAcknowledgementCommands.AcknowledgeAsync(db, client, row.Id,
+        row.ContentSha256, row.ManifestSha256, false)).ErrorCode);
+      Assert.Equal(ErrorCodes.ScopeDenied, (await ClientBundleAcknowledgementCommands.AcknowledgeAsync(db, partner, row.Id,
+        row.ContentSha256, row.ManifestSha256, true)).ErrorCode);
+      var acknowledgedView = Assert.Single(await AuditDeliverableService.ClientBundlesAsync(db, client, w.EngagementId));
+      Assert.NotNull(acknowledgedView.AcknowledgedAt);
+      var receipt = await db.ClientBundleAcknowledgements.AsNoTracking().SingleAsync(x => x.BundleId == row.Id);
+      Assert.Equal(client.UserId, receipt.AcknowledgedByUserId);
+      Assert.Equal(row.ContentSha256, receipt.ContentSha256);
+      Assert.Equal(row.ManifestSha256, receipt.ManifestSha256);
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+        $"UPDATE client_bundle_acknowledgements SET content_sha256 = {new string('0', 64)} WHERE id = {receipt.Id}"));
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+        $"DELETE FROM client_bundle_acknowledgements WHERE id = {receipt.Id}"));
       Assert.Equal(ErrorCodes.ProtectedState, (await AuditSphereOps.Application.Documents.ClientPortalService.RequireUploadWindowAsync(db, client, w.EngagementId)).ErrorCode);
       var outsider = NewUser(w.FirmId, "outside", "Client");
       db.Users.Add(outsider); db.RoleGrants.Add(new RoleGrant { Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = outsider.Id, Role = "ClientUser", ClientId = w.ClientId, EngagementId = null,
         GrantedAt = DateTimeOffset.UtcNow, RevokedAt = DateTimeOffset.UtcNow, GrantedByUserId = w.U["partner"].Id }); await db.SaveChangesAsync();
       Assert.Equal(ErrorCodes.ScopeDenied, (await AuditDeliverableService.GetBundleAsync(db, new(outsider.Id, w.FirmId, outsider.SessionEpoch, ["ClientUser"]), row.Id)).ErrorCode);
+      Assert.Equal(ErrorCodes.ScopeDenied, (await ClientBundleAcknowledgementCommands.AcknowledgeAsync(db,
+        new(outsider.Id, w.FirmId, outsider.SessionEpoch, ["ClientUser"]), row.Id, row.ContentSha256, row.ManifestSha256, true)).ErrorCode);
       Assert.False((await AuditDeliverableService.GetBundleAsync(db, client with { FirmId = Guid.NewGuid() }, row.Id)).Succeeded);
       await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM commercial_deliverable_bundles WHERE id = {row.Id}"));
     }

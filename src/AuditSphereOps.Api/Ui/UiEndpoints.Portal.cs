@@ -22,6 +22,7 @@ public static partial class UiEndpoints
     Guid? PresentationRevisionId = null, Guid? PresentationCompositionId = null, string? CompositionManifestDigest = null,
     Guid? RequestId = null, Guid? ExpectedLatestDecisionId = null);
   public sealed record PortalAcknowledgementInput(string Sha256, bool Reviewed);
+  public sealed record PortalBundleAcknowledgementInput(string ContentSha256, string ManifestSha256, bool Received);
 
   private static void MapPortalEndpoints(RouteGroupBuilder group)
   {
@@ -75,6 +76,8 @@ public static partial class UiEndpoints
     group.MapPost("/portal/documents/{id:guid}/acknowledge", (Guid id, PortalAcknowledgementInput i, HttpContext http) => CommandAsync(http,
       (db, actor, ct) => i.Reviewed ? ClientPortalReviewCommands.AcknowledgeAsync(db, actor, id, i.Sha256 ?? "", ct) :
         Task.FromResult(CommandResult.Fail("review.required", "Review the exact document before acknowledgement."))));
+    group.MapPost("/portal/bundles/{id:guid}/acknowledge", (Guid id, PortalBundleAcknowledgementInput i, HttpContext http) => CommandAsync(http,
+      (db, actor, ct) => ClientBundleAcknowledgementCommands.AcknowledgeAsync(db, actor, id, i.ContentSha256 ?? "", i.ManifestSha256 ?? "", i.Received, ct)));
     group.MapPost("/portal/documents/{id:guid}/signed-representation", (Guid id, HttpContext http) => CommandAsync(http,
       async (db, actor, ct) =>
       {

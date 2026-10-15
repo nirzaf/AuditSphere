@@ -9,7 +9,7 @@ namespace AuditSphereOps.Application.Documents;
 public sealed record PortalDocumentComment(string Body, bool FromClient, string? Resolution);
 public sealed record PortalSharedDocument(Guid ReviewId, Guid DeliverableId, string Kind, string Title, string Version, string Sha256,
   DateTimeOffset? AcknowledgedAt, IReadOnlyList<PortalDocumentComment> Comments);
-public sealed record PortalReviewDocuments(IReadOnlyList<PortalSharedDocument> Documents, IReadOnlyList<SignedLetterView> SignedLetters, IReadOnlyList<BundleView> Bundles);
+public sealed record PortalReviewDocuments(IReadOnlyList<PortalSharedDocument> Documents, IReadOnlyList<SignedLetterView> SignedLetters, IReadOnlyList<ClientBundleView> Bundles);
 public static class ClientPortalReviewQuery
 {
   public static async Task<CommandResult<PortalReviewDocuments>> GetAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct = default)
@@ -20,7 +20,7 @@ public static class ClientPortalReviewQuery
     var reviewIds = await db.ClientDeliverableReviews.AsNoTracking().Where(x => x.FirmId == actor.FirmId && ids.Contains(x.EngagementId)).OrderBy(x => x.Id).Take(201).Select(x => x.Id).ToListAsync(ct);
     if (reviewIds.Count > 200 || await db.ClientDeliverableComments.AsNoTracking().Where(x => x.FirmId == actor.FirmId && reviewIds.Contains(x.ReviewId)).Take(1001).CountAsync(ct) > 1000)
       return CommandResult<PortalReviewDocuments>.Fail(ErrorCodes.GateBlocked, "Contact your audit team for a bounded document archive review.");
-    var documents = new List<PortalSharedDocument>(); var scans = new List<SignedLetterView>(); var bundles = new List<BundleView>();
+    var documents = new List<PortalSharedDocument>(); var scans = new List<SignedLetterView>(); var bundles = new List<ClientBundleView>();
     foreach (var engagementId in ids)
     {
       var shared = await AuditDeliverableService.SharedAsync(db, actor, engagementId, ct);

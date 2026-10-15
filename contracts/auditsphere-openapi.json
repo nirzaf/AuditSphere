@@ -19544,6 +19544,74 @@
         ]
       }
     },
+    "/api/ui/portal/bundles/{id}/acknowledge": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortalBundleAcknowledgementInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
     "/api/ui/portal/documents/{id}/signed-representation": {
       "post": {
         "tags": [
@@ -44312,6 +44380,25 @@
             "type": "string"
           },
           "reviewed": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PortalBundleAcknowledgementInput": {
+        "required": [
+          "contentSha256",
+          "manifestSha256",
+          "received"
+        ],
+        "type": "object",
+        "properties": {
+          "contentSha256": {
+            "type": "string"
+          },
+          "manifestSha256": {
+            "type": "string"
+          },
+          "received": {
             "type": "boolean"
           }
         }

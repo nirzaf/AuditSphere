@@ -14,7 +14,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Application.Completion;
 
-public sealed record BundleView(Guid Id, string Sha256, DateTimeOffset AssembledAt);
+public record BundleView(Guid Id, string Sha256, DateTimeOffset AssembledAt);
+public sealed record ClientBundleView(Guid Id, string Sha256, DateTimeOffset AssembledAt, string ManifestSha256, DateTimeOffset? AcknowledgedAt)
+  : BundleView(Id, Sha256, AssembledAt);
 public sealed record BundleAssemblyState(IReadOnlyList<string> Blockers, IReadOnlyList<BundleView> Bundles);
 
 public static partial class AuditDeliverableService
@@ -312,12 +314,19 @@ public static partial class AuditDeliverableService
     return auth.Succeeded ? CommandResult<CommercialDeliverableBundle>.Ok(bundle) : CommandResult<CommercialDeliverableBundle>.Fail(auth.ErrorCode!, auth.Message!);
   }
 
-  public static async Task<IReadOnlyList<BundleView>> ClientBundlesAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)
+  public static async Task<IReadOnlyList<ClientBundleView>> ClientBundlesAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)
   {
     var engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == engagementId, ct);
     if (engagement is null || !(await AuthorizationDecision.AuthorizeAsync(db, actor, new(actor.FirmId, engagement.PracticeClientId, engagementId, ["ClientUser"]), ct)).Succeeded) return [];
-    return await db.CommercialDeliverableBundles.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId)
-      .OrderByDescending(x => x.AssembledAt).Take(10).Select(x => new BundleView(x.Id, x.ContentSha256, x.AssembledAt)).ToListAsync(ct);
+    var bundles = await db.CommercialDeliverableBundles.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId)
+      .OrderByDescending(x => x.AssembledAt).Take(10)
+      .Select(x => new { x.Id, x.ContentSha256, x.ManifestSha256, x.AssembledAt }).ToListAsync(ct);
+    var bundleIds = bundles.Select(x => x.Id).ToArray();
+    var acknowledgements = await db.ClientBundleAcknowledgements.AsNoTracking().Where(x =>
+      x.FirmId == actor.FirmId && x.AcknowledgedByUserId == actor.UserId && bundleIds.Contains(x.BundleId))
+      .ToDictionaryAsync(x => x.BundleId, x => x.AcknowledgedAt, ct);
+    return bundles.Select(x => new ClientBundleView(x.Id, x.ContentSha256, x.AssembledAt, x.ManifestSha256,
+      acknowledgements.TryGetValue(x.Id, out var acknowledgedAt) ? acknowledgedAt : null)).ToArray();
   }
 
   private static byte[] JoinPdfs(byte[] first, byte[] second)

@@ -1,5 +1,6 @@
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Completion;
+using AuditSphereOps.Domain.Security;
 using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Infrastructure.Persistence;
@@ -34,6 +35,7 @@ public sealed partial class AuditSphereDbContext
     });
     b.Entity<CommercialDeliverableBundle>(e =>
     {
+      e.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id });
       ScopeToEngagement(e, nameof(CommercialDeliverableBundle.FirmId), nameof(CommercialDeliverableBundle.ClientId), nameof(CommercialDeliverableBundle.EngagementId));
       e.HasOne<Release>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageReleaseId })
         .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
@@ -124,6 +126,19 @@ public sealed partial class AuditSphereDbContext
       e.HasOne<AuditDeliverable>().WithMany().HasForeignKey(x => x.DeliverableId).OnDelete(DeleteBehavior.Restrict);
       e.ToTable("client_deliverable_reviews", t => t.HasCheckConstraint("ck_client_deliverable_review_values",
         "(acknowledged_at IS NULL) = (acknowledged_sha256 IS NULL)"));
+    });
+    b.Entity<ClientBundleAcknowledgement>(e =>
+    {
+      ScopeToEngagement(e, nameof(ClientBundleAcknowledgement.FirmId), nameof(ClientBundleAcknowledgement.ClientId), nameof(ClientBundleAcknowledgement.EngagementId));
+      e.HasOne<CommercialDeliverableBundle>().WithMany()
+        .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.BundleId })
+        .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+      e.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.AcknowledgedByUserId })
+        .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+      e.HasIndex(x => new { x.FirmId, x.BundleId, x.AcknowledgedByUserId }).IsUnique();
+      e.HasIndex(x => new { x.FirmId, x.EngagementId, x.AcknowledgedAt });
+      e.ToTable("client_bundle_acknowledgements", t => t.HasCheckConstraint("ck_client_bundle_acknowledgement_hashes",
+        "content_sha256 ~ '^[0-9a-f]{64}$' AND manifest_sha256 ~ '^[0-9a-f]{64}$'"));
     });
     b.Entity<ClientDeliverableComment>(e =>
     {
