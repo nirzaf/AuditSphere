@@ -1077,16 +1077,26 @@
       "scopeStatus": "PARTIAL"
     },
     "angularMigrationAdministrationReviewFreshnessCi": {
-      "recordedAtUtc": "2026-10-15T16:37:00Z",
-      "sourceCommit": "660c1605cd943db11a7c3dd86303313d5e5752e4",
+      "recordedAtUtc": "2026-10-15T18:16:06Z",
+      "sourceCommit": "8959f6e7a17456acbc5cba4f1e2b3fc469fc54b8",
       "result": "PASS",
-      "passed": 17,
+      "passed": 19,
       "failed": 0,
-      "total": 17,
-      "command": "GitHub Actions run 38768464486; CI step 'Verify workflow coordination through the real API and browser' (focused Angular E2E filter)",
+      "total": 19,
+      "suites": {
+        "angular": {"specFiles": 132, "passed": 773, "failed": 0},
+        "domain": {"passed": 150, "failed": 0},
+        "api": {"passed": 8, "failed": 0},
+        "e2e": {"passed": 19, "failed": 0},
+        "efModelDrift": "PASS",
+        "openApiDrift": "PASS",
+        "docsHealth": "PASS",
+        "gitGuardian": "PASS"
+      },
+      "command": "GitHub Actions run 38781204290; Release build, focused PostgreSQL Domain/API cohorts, focused Playwright E2E cohort, EF model drift, OpenAPI drift and documentation/security checks",
       "database": "PostgreSQL 18.6; isolated synthetic OwnedHost fixtures",
-      "coverage": "The filtered cohort includes AngularAdministrationJourneyTests and AngularTenantConnectionJourneyTests. The role-assignment browser journey invalidates its preview and assent after a reason edit, requires a fresh review and assent, and persists the revised reason. The tenant-connection journey binds an exact simulated existing guest without automatic role assignment, then separately grants CLIENT-scoped ClientUser access. This is focused E2E evidence; it is not full Angular migration parity or production acceptance.",
-      "runUrl": "https://github.com/nirzaf/AuditSphere/actions/runs/38768464486",
+      "coverage": "The filtered browser cohort verifies administration role-review invalidation after reason, expiry and role edits; exact guest binding; simulated reviewed user provisioning and unknown-result reconciliation; and managed-group allowlist, add/remove and retirement. Provider behavior is simulated. This focused cohort is not full Angular migration parity, the unfiltered solution regression, live Microsoft acceptance or production acceptance.",
+      "runUrl": "https://github.com/nirzaf/AuditSphere/actions/runs/38781204290",
       "scopeStatus": "PARTIAL"
     }
   },
