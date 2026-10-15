@@ -98,7 +98,7 @@ blocked when the client generation changes; journal risk is deterministic, never
 
 - Domain: `Domain/Accounting/` (mapping versions/allocations, financial packages, artifacts)
 
-- Application: `Application/Accounting/FinancialStatements/FinancialStatementService.{Mapping,Package,Render,Authorization}.cs`, `FinancialPackageReviewService.cs`, `FinancialPackageBuildHandler.cs`, `FinancialPackageRenderHandler.cs`, `FinancialPackageOfficeRenderer.cs`, `PackageSealService.cs`, `PackageManifestQuery.cs`, `StatementLayoutService.cs`, `FinancialStatementCalculator.cs`
+- Application: `Application/Accounting/FinancialStatements/FinancialStatementService.{Mapping,Package,Render,Authorization,CashFlowSources,CashFlowSourceReview,ContentReview,PresentationPins,Composition}.cs`, `FinancialPackageReviewService.cs` (with `.DecisionChain.cs` for latest-effective formal decisions and `.ClientComposition.cs` for client-management approval of the exact composition), `FinancialPackageBuildHandler.cs`, `FinancialPackageRenderHandler.cs`, `FinancialPackageOfficeRenderer.cs`, `PackageSealService.cs`, `PackageManifestQuery.cs`, `StatementLayoutService.cs`, `FinancialStatementCalculator.cs`
 
 - Persistence: `AuditSphereDbContext.FinancialStatements.cs`
 
@@ -109,6 +109,15 @@ blocked when the client generation changes; journal risk is deterministic, never
 Critical invariants: mapping allocations are append-only; review decisions are stage-bound and
 
 immutable; artifacts are exact-byte sealed; release candidates bind the current reviewed package.
+
+A signing candidate is created only when every presentation check passes, with note, disclosure and equity
+content approved by an independent content review of the exact draft snapshot. Formal decisions carry an
+original request identity and the latest decision the decider saw; only the latest-effective approval at each
+stage, recorded after its predecessor's, counts for progression and release.
+
+Lock order for package review, source review, content review, pin, promotion and composition: firm safety row
+(when taken), client safety row, financial package row, then dependent rows and the actor's role grants (share).
+Authority is rechecked after the locks are held. A command never takes the package row before the client row.
 
 ## Currency translation and foreign operations
 

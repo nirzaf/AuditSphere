@@ -415,6 +415,37 @@ public sealed partial class AuditSphereDbContext
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
+    var contentReview = b.Entity<FinancialStatementContentReview>();
+    contentReview.Property(x => x.SnapshotSha256Hex).HasMaxLength(64).IsFixedLength();
+    contentReview.Property(x => x.Decision).HasMaxLength(20);
+    contentReview.Property(x => x.Reason).HasMaxLength(2000);
+    contentReview.Property(x => x.RequestHash).HasMaxLength(64).IsFixedLength();
+    contentReview.Property(x => x.Sequence).ValueGeneratedOnAdd().UseIdentityByDefaultColumn();
+    contentReview.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("AK_financial_statement_content_reviews_scope_id");
+    contentReview.ToTable("financial_statement_content_reviews", t => t.HasCheckConstraint("ck_financial_statement_content_review_values",
+      "decision IN ('APPROVED','RETURNED') AND (decision = 'APPROVED' OR length(trim(reason)) > 0)" +
+      " AND snapshot_sha256_hex ~ '^[0-9a-f]{64}$' AND request_hash ~ '^[0-9a-f]{64}$'"));
+    ScopeToEngagement(contentReview, nameof(FinancialStatementContentReview.FirmId), nameof(FinancialStatementContentReview.ClientId),
+      nameof(FinancialStatementContentReview.EngagementId));
+    contentReview.HasIndex(x => new { x.FirmId, x.PresentationRevisionId, x.Sequence })
+      .HasDatabaseName("ix_financial_statement_content_review_revision");
+    // One decision per original intent: a retry of the same request resolves to the stored row.
+    contentReview.HasIndex(x => new { x.FirmId, x.PresentationRevisionId, x.RequestId }).IsUnique()
+      .HasDatabaseName("ux_financial_statement_content_review_request");
+    contentReview.HasOne<FinancialPackage>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    contentReview.HasOne<FinancialStatementPresentationRevision>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.PresentationRevisionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    contentReview.HasOne<FinancialStatementContentReview>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.PreviousReviewId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    contentReview.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ReviewedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
     var cashReview = b.Entity<FinancialPackageCashFlowSourceReview>();
     cashReview.Property(x => x.Decision).HasMaxLength(20);
     cashReview.Property(x => x.Reason).HasMaxLength(2000);
@@ -517,6 +548,14 @@ public sealed partial class AuditSphereDbContext
     packageReview.Property(x => x.Comment).HasMaxLength(4000);
     packageReview.HasIndex(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId, x.Stage, x.DecidedAt })
       .HasDatabaseName("ix_financial_package_review_stage");
+    packageReview.Property(x => x.Sequence).ValueGeneratedOnAdd().UseIdentityByDefaultColumn();
+    packageReview.Property(x => x.RequestHash).HasMaxLength(64).IsFixedLength();
+    // One decision per original intent: a retry of the same request resolves to the stored row.
+    packageReview.HasIndex(x => new { x.FirmId, x.FinancialPackageId, x.RequestId }).IsUnique()
+      .HasFilter("request_id IS NOT NULL").HasDatabaseName("ux_financial_package_review_request");
+    packageReview.HasOne<FinancialPackageReviewDecision>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.PreviousDecisionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     packageReview.ToTable("financial_package_review_decisions", t => t.HasCheckConstraint("ck_financial_package_review_values",
       "package_revision >= 1 AND package_generation >= 1 AND package_hash ~ '^[0-9a-f]{64}$'" +
       " AND artifact_sha256_hex ~ '^[0-9a-f]{64}$' AND length(trim(artifact_version)) > 0" +
@@ -525,6 +564,9 @@ public sealed partial class AuditSphereDbContext
       " AND evidence_mode IN ('SIGNED_IN','OFFLINE') AND length(trim(evidence_reference)) > 0" +
       " AND ((presentation_composition_id IS NULL AND composition_manifest_digest IS NULL) OR (presentation_composition_id IS NOT NULL AND composition_manifest_digest ~ '^[0-9a-f]{64}$'))" +
       " AND ((evidence_mode = 'SIGNED_IN' AND decided_by_user_id IS NOT NULL) OR evidence_mode = 'OFFLINE')"));
+    // A row written with an intent carries its payload digest. Legacy rows carry neither and cannot replay.
+    packageReview.ToTable(t => t.HasCheckConstraint("ck_financial_package_review_intent",
+      "(request_id IS NULL AND request_hash IS NULL) OR (request_id IS NOT NULL AND request_hash ~ '^[0-9a-f]{64}$')"));
     ScopeToEngagement(packageReview, nameof(FinancialPackageReviewDecision.FirmId), nameof(FinancialPackageReviewDecision.ClientId), nameof(FinancialPackageReviewDecision.EngagementId));
     packageReview.HasOne<FinancialPackage>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })

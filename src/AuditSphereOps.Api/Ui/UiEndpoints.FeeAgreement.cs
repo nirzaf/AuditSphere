@@ -81,7 +81,8 @@ public static partial class UiEndpoints
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await FeeAgreementService.RecordAdvancePaymentAsync(db, actor, id, amount, input.Reference, ct: http.RequestAborted);
       return result.Succeeded ? Results.Ok(new { id = result.Value!.ReceiptId, paid = result.Value.MilestonePaid,
-        receiptDocumentId = result.Value.ReceiptDocumentId, emailQueued = result.Value.EmailQueued })
+        receiptDocumentId = result.Value.ReceiptDocumentId, emailQueued = result.Value.EmailQueued,
+        voucherDocumentId = result.Value.VoucherDocumentId, voucherEmailQueued = result.Value.VoucherEmailQueued })
         : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
     });
     group.MapPost("/fee-agreements/{id:guid}/balance-payment", async (Guid id, FeePaymentInput input, HttpContext http,
@@ -96,7 +97,8 @@ public static partial class UiEndpoints
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await FeeAgreementService.RecordBalancePaymentAsync(db, actor, id, amount, input.Reference, ct: http.RequestAborted);
       return result.Succeeded ? Results.Ok(new { id = result.Value!.ReceiptId, paid = result.Value.MilestonePaid,
-        receiptDocumentId = result.Value.ReceiptDocumentId, emailQueued = result.Value.EmailQueued })
+        receiptDocumentId = result.Value.ReceiptDocumentId, emailQueued = result.Value.EmailQueued,
+        voucherDocumentId = result.Value.VoucherDocumentId, voucherEmailQueued = result.Value.VoucherEmailQueued })
         : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
     });
   }

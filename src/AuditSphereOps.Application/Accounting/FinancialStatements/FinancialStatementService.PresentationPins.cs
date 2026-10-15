@@ -278,7 +278,23 @@ public static partial class FinancialStatementService
       return CommandResult<FinancialStatementPresentationPin>.Fail(ErrorCodes.StaleRevision,
         "The published layout no longer matches this draft.");
 
-    var candidatePresentation = draftPresentation with { Status = FinancialStatementPresentationRevisionStatuses.Candidate };
+    // Candidate eligibility is complete final-content readiness: every presentation check must pass. The professional content checks
+    // pass only through an independent approval of this exact draft snapshot; a missing schedule, comparative or reconciliation still
+    // refuses, however many canonical package validations pass.
+    var contentReview = await ApprovedStatementContentReviewAsync(db, draft, ct);
+    var candidateChecks = CandidateChecks(draftPresentation.Checks, contentReview);
+    var unresolved = UnresolvedChecks(candidateChecks);
+    if (unresolved.Count > 0)
+      return CommandResult<FinancialStatementPresentationPin>.Fail(ErrorCodes.GateBlocked,
+        $"The draft is not ready to become a signing candidate under {StatementReadinessProfileVersion}. Unresolved checks: " +
+        string.Join(", ", unresolved) + (contentReview is null && unresolved.Any(ContentReviewedChecks.Contains)
+          ? ". Note, disclosure and equity content needs an independent content review of this exact draft." : "."));
+    var candidateWarnings = contentReview is null ? draftPresentation.Warnings
+      : draftPresentation.Warnings.Where(x => !ContentReviewPendingWarnings.Contains(x.Code, StringComparer.Ordinal)).ToList();
+    var candidatePresentation = draftPresentation with
+    {
+      Status = FinancialStatementPresentationRevisionStatuses.Candidate, Checks = candidateChecks, Warnings = candidateWarnings
+    };
     var candidateSnapshot = JsonSerializer.SerializeToUtf8Bytes(candidatePresentation, PresentationSnapshotJson);
     var candidateSnapshotHash = Hashing.Sha256Hex(candidateSnapshot);
     var candidateRevisionHash = PresentationRevisionHash(package, layout, comparative, draft.NoteSourceManifestHash,

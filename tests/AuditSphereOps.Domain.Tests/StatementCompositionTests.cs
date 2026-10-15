@@ -32,6 +32,7 @@ public sealed class StatementCompositionTests
       Assert.True(pin.Succeeded, pin.Message);
       Assert.True((await FinancialStatementService.RenderPinnedPresentationArtifactAsync(db, reviewer, pin.Value!.RevisionId,
         FinancialStatementPresentationRenderer.PdfFormat)).Succeeded);
+      Assert.True((await StatementContentReviewCall.RecordAsync(db, reviewer, s.PackageId, pin.Value!.RevisionId)).Succeeded);
       var promoted = await FinancialStatementService.PromotePresentationToCandidateAsync(db, reviewer, s.PackageId, pin.Value!.RevisionId);
       Assert.True(promoted.Succeeded, promoted.Message);
       candidateId = promoted.Value!.RevisionId;
@@ -82,6 +83,7 @@ public sealed class StatementCompositionTests
     Assert.True(pin.Succeeded, pin.Message);
     Assert.True((await FinancialStatementService.RenderPinnedPresentationArtifactAsync(db, reviewer, pin.Value!.RevisionId,
       FinancialStatementPresentationRenderer.PdfFormat)).Succeeded);
+    Assert.True((await StatementContentReviewCall.RecordAsync(db, reviewer, s.PackageId, pin.Value.RevisionId)).Succeeded);
     var promoted = await FinancialStatementService.PromotePresentationToCandidateAsync(db, reviewer, s.PackageId, pin.Value.RevisionId);
     Assert.True(promoted.Succeeded, promoted.Message);
     var composition = (await FinancialStatementService.SelectCompositionAsync(db, preparer, s.PackageId, promoted.Value!.RevisionId)).Value!;
@@ -114,6 +116,7 @@ public sealed class StatementCompositionTests
     // A package the caller cannot see is refused without revealing that the revision exists.
     Assert.True((await FinancialStatementService.RenderPinnedPresentationArtifactAsync(db, reviewer, pin.Value.RevisionId,
       FinancialStatementPresentationRenderer.PdfFormat)).Succeeded);
+    Assert.True((await StatementContentReviewCall.RecordAsync(db, reviewer, s.PackageId, pin.Value.RevisionId)).Succeeded);
     var promoted = await FinancialStatementService.PromotePresentationToCandidateAsync(db, reviewer, s.PackageId, pin.Value.RevisionId);
     Assert.True(promoted.Succeeded, promoted.Message);
     var foreign = await FinancialStatementService.SelectCompositionAsync(db, preparer, Guid.NewGuid(), promoted.Value!.RevisionId);

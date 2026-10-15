@@ -508,6 +508,8 @@ export class FeeAgreement {
             paid?: unknown;
             emailQueued?: unknown;
             receiptDocumentId?: unknown;
+            voucherDocumentId?: unknown;
+            voucherEmailQueued?: unknown;
           };
           if (
             !noContent &&
@@ -515,21 +517,32 @@ export class FeeAgreement {
               (payment &&
                 (typeof r.paid !== 'boolean' ||
                   typeof r.emailQueued !== 'boolean' ||
-                  !(r.receiptDocumentId === null || guid(r.receiptDocumentId)))))
+                  !(r.receiptDocumentId === null || guid(r.receiptDocumentId)) ||
+                  typeof r.voucherEmailQueued !== 'boolean' ||
+                  !(r.voucherDocumentId === null || guid(r.voucherDocumentId)))))
           ) {
             this.uncertain.set(true);
             this.data.set(null);
             this.message.set('Outcome unconfirmed. Refresh persisted fee state.');
             return;
           }
+          // Every payment has its own voucher; a missing voucher means the profile or contact needs attention, and recording the same
+          // reference again completes it without a second payment.
+          const voucher = payment
+            ? r.voucherDocumentId
+              ? r.voucherEmailQueued
+                ? ' Payment voucher issued and its notification queued.'
+                : ' Payment voucher issued; no voucher email was queued (check client contact).'
+              : ' No payment voucher yet: configure the firm profile, then record the same reference again.'
+            : '';
           this.message.set(
-            payment
+            (payment
               ? r.paid
                 ? r.emailQueued
                   ? 'Advance paid. Receipt notification queued; delivery remains external.'
                   : 'Advance paid. Review receipt/profile/contact availability.'
                 : 'Partial payment recorded. Review remaining outstanding amount.'
-              : 'Fee action recorded. Invoice drafts still require finance review and posting.',
+              : 'Fee action recorded. Invoice drafts still require finance review and posting.') + voucher,
           );
           if (payment) this.reference = '';
           this.load();

@@ -291,7 +291,7 @@ public static class ReleaseService
           x.PackageHash == releasedPackage.CalculationHash &&
           x.Stage == FinancialPackageReviewStages.PartnerApproval &&
           x.Decision == FinancialPackageReviewDecisions.Approved)
-          .OrderByDescending(x => x.DecidedAt).FirstOrDefaultAsync(ct);
+          .OrderByDescending(x => x.Sequence).FirstOrDefaultAsync(ct);
         if (partnerApproval?.PresentationRevisionId is Guid candidateRevisionId &&
             partnerApproval.PresentationCompositionId is Guid compositionId &&
             !string.IsNullOrWhiteSpace(partnerApproval.CompositionManifestDigest))

@@ -1,7 +1,12 @@
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Completion;
+using AuditSphereOps.Api.Authentication;
+using AuditSphereOps.Api.HttpBoundary;
 using AuditSphereOps.Domain.Shared;
+using AuditSphereOps.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Api.Ui;
 
@@ -13,7 +18,9 @@ public static partial class UiEndpoints
   public sealed record PortalUploadInput(string FileName, string ContentType, string ByteCount, string Sha256);
   public sealed record PortalUploadResumeInput(string FileName, string ByteCount, string Sha256);
 
-  public sealed record PortalPackageDecisionInput(string Decision, string EvidenceReference, string Comment, string ExpectedHash, bool Reviewed);
+  public sealed record PortalPackageDecisionInput(string Decision, string EvidenceReference, string Comment, string ExpectedHash, bool Reviewed,
+    Guid? PresentationRevisionId = null, Guid? PresentationCompositionId = null, string? CompositionManifestDigest = null,
+    Guid? RequestId = null, Guid? ExpectedLatestDecisionId = null);
   public sealed record PortalAcknowledgementInput(string Sha256, bool Reviewed);
 
   private static void MapPortalEndpoints(RouteGroupBuilder group)
@@ -35,8 +42,34 @@ public static partial class UiEndpoints
         if (!current.Succeeded) return CommandResult<Guid>.Fail(current.ErrorCode!, "Package unavailable.");
         if (!i.Reviewed || current.Value!.PackageHash != i.ExpectedHash)
           return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision, "Review the current package before recording a decision.");
-        return await FinancialPackageReviewService.RecordAsync(db, actor, new(id, "MANAGEMENT_APPROVAL", i.Decision, "SIGNED_IN", i.EvidenceReference ?? "", i.Comment ?? ""), ct);
+        // When a sealed composition awaits approval, the decision must name exactly that composition. A package-only decision would not
+        // be the management approval the composition path requires, and a decision on an earlier composition is stale.
+        var invited = current.Value.Composition;
+        if (invited is null ? i.PresentationCompositionId is not null || i.PresentationRevisionId is not null || i.CompositionManifestDigest is not null
+            : invited.CompositionId != i.PresentationCompositionId || invited.PresentationRevisionId != i.PresentationRevisionId ||
+              invited.CompositionManifestDigest != i.CompositionManifestDigest)
+          return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision,
+            "The report awaiting your approval changed. Refresh the package and review the current report before deciding.");
+        return await FinancialPackageReviewService.RecordAsync(db, actor, new(id, "MANAGEMENT_APPROVAL", i.Decision, "SIGNED_IN",
+          i.EvidenceReference ?? "", i.Comment ?? "", invited?.PresentationRevisionId, null, invited?.CompositionId,
+          invited?.CompositionManifestDigest, i.RequestId, i.ExpectedLatestDecisionId), ct);
       }));
+    // The exact sealed PDF of the composition awaiting approval. Downloading records nothing and approves nothing.
+    group.MapPost("/portal/accounting/packages/{id:guid}/compositions/{compositionId:guid}/pdf", async (Guid id, Guid compositionId,
+      HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
+    {
+      var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
+      if (actor is null) return Failure("session.unavailable", "Sign in again.", 401);
+      try { await csrf.ValidateRequestAsync(http); }
+      catch (AntiforgeryValidationException) { return Failure("csrf.invalid", "Refresh the page and try again.", 403); }
+      await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
+      var result = await FinancialPackageReviewService.GetClientCompositionPdfAsync(db, actor, id, compositionId, http.RequestAborted);
+      if (!result.Succeeded || result.Value is null) return Failure(result.ErrorCode, result.Message ?? "The report is unavailable.");
+      http.Response.Headers.CacheControl = "no-store";
+      http.Response.Headers["X-Content-Type-Options"] = "nosniff";
+      http.Response.Headers["X-Statement-Composition-PDF-SHA256"] = result.Value.ArtifactSha256Hex;
+      return Results.File(result.Value.Bytes, "application/pdf", result.Value.FileName);
+    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export));
     group.MapPost("/portal/documents/{id:guid}/comment", (Guid id, PortalReplyInput i, HttpContext http) => CommandAsync(http,
       (db, actor, ct) => ClientPortalReviewCommands.CommentAsync(db, actor, id, i.Body ?? "", ct)));
     group.MapPost("/portal/documents/{id:guid}/acknowledge", (Guid id, PortalAcknowledgementInput i, HttpContext http) => CommandAsync(http,

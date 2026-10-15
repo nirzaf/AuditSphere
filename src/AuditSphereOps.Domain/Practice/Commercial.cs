@@ -68,6 +68,8 @@ public static class CommercialDocumentKinds
   public const string ComprehensiveProposal = "COMPREHENSIVE_PROPOSAL";
   public const string EngagementLetter = "ENGAGEMENT_LETTER";
   public const string PaymentReceipt = "PAYMENT_RECEIPT";
+  /// <summary>The official voucher for one actual payment (STE 2.2 line 411). A milestone settlement receipt is separate.</summary>
+  public const string PaymentVoucher = "PAYMENT_VOUCHER";
 }
 
 public static class FeeMilestoneKinds
@@ -186,6 +188,8 @@ public sealed class CommercialDocument
   public Guid? ProposalId { get; set; }
   public Guid? QuotationVersionId { get; set; }
   public Guid? FeeMilestoneId { get; set; }
+  /// <summary>The single payment a PAYMENT_VOUCHER acknowledges; null for every other kind.</summary>
+  public Guid? ReceiptId { get; set; }
   public string Kind { get; set; } = CommercialDocumentKinds.Quotation;
   public string TemplateVersion { get; set; } = string.Empty;
   public long ProfileVersion { get; set; }
@@ -234,6 +238,8 @@ public sealed class CommercialNotification
   public Guid FirmId { get; set; }
   public string Kind { get; set; } = CommercialNotificationKinds.Receipt;
   public Guid? FeeMilestoneId { get; set; }
+  /// <summary>The payment whose voucher this notification dispatches; set only for PAYMENT_VOUCHER.</summary>
+  public Guid? ReceiptId { get; set; }
   public Guid? ProposalId { get; set; }
   public Guid? PracticeClientId { get; set; }
   /// <summary>The approved quotation revision the dispatched offer was built from; downstream letters and fee agreements must use it.</summary>
@@ -256,6 +262,8 @@ public sealed class CommercialNotification
 public static class CommercialNotificationKinds
 {
   public const string Receipt = "RECEIPT";
+  /// <summary>Dispatch of one payment's voucher; one per payment.</summary>
+  public const string PaymentVoucher = "PAYMENT_VOUCHER";
   public const string Proposal = "PROPOSAL";
   public const string HoldingLetter = "HOLDING_LETTER";
 }

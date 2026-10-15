@@ -12,7 +12,8 @@ public sealed record FinancialPackageReviewRequest(
   Guid FinancialPackageId, string Stage, string Decision, string EvidenceMode,
   string EvidenceReference, string Comment,
   Guid? PresentationRevisionId = null, string? TargetArtifactVersion = null,
-  Guid? PresentationCompositionId = null, string? CompositionManifestDigest = null);
+  Guid? PresentationCompositionId = null, string? CompositionManifestDigest = null,
+  Guid? RequestId = null, Guid? ExpectedLatestDecisionId = null);
 
 public sealed record FinancialPackageReviewSummary(
   Guid Id, string Stage, string Decision, string EvidenceMode, string PackageHash,
@@ -22,18 +23,27 @@ public sealed record FinancialPackageReviewSummary(
 
 public sealed record ClientFinancialPackageLineSummary(string StatementSection, decimal Amount);
 
+/// <summary>
+/// The exact three-format composition a client manager is asked to approve. Its identity and digest are what the management decision
+/// names; the PDF fingerprint lets the manager confirm the downloaded document is the one the decision covers.
+/// </summary>
+public sealed record ClientFinancialPackageComposition(
+  Guid PresentationRevisionId, Guid CompositionId, string CompositionManifestDigest,
+  string PdfSha256Hex, string WordSha256Hex, string ExcelSha256Hex, DateTimeOffset SelectedAt);
+
 public sealed record ClientFinancialPackageView(
   Guid PackageId, string Framework, string PeriodStart, string PeriodEnd, string Currency,
   string TemplateVersion, string PackageHash, bool HasCashFlow, bool HasDisclosures,
   string ManagementDecision, DateTimeOffset? ManagementDecidedAt,
-  IReadOnlyList<ClientFinancialPackageLineSummary> StatementTotals);
+  IReadOnlyList<ClientFinancialPackageLineSummary> StatementTotals,
+  ClientFinancialPackageComposition? Composition = null, Guid? LatestDecisionId = null);
 
 public sealed record FinancialPackageReviewQueueItem(
   Guid PackageId, string Framework, string PeriodStart, string PeriodEnd, string Currency,
   string PackageHash, string ManagementDecision, string AccountingDecision,
   string PartnerDecision, string NextAction);
 
-public static class FinancialPackageReviewService
+public static partial class FinancialPackageReviewService
 {
   private static readonly string[] AccountingRoles = ["AccountingReviewer", "Manager", "Partner", "Administrator"];
   // Professional Partner authority is never derived from administration. Matches AcceptanceDecisionService.PartnerRoles.
@@ -65,10 +75,12 @@ public static class FinancialPackageReviewService
     if (evidenceMode == FinancialPackageReviewEvidenceModes.Offline &&
         stage != FinancialPackageReviewStages.ManagementApproval)
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.PackageInvalid, "Offline evidence is only supported for management approval.");
+    if (request.RequestId == Guid.Empty)
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.PackageInvalid, "A decision request identity cannot be empty.");
 
-    var package = await db.FinancialPackages.AsNoTracking()
+    var unlocked = await db.FinancialPackages.AsNoTracking()
       .SingleOrDefaultAsync(x => x.Id == request.FinancialPackageId && x.FirmId == actor.FirmId, ct);
-    if (package is null)
+    if (unlocked is null)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
     var (roles, internalOnly) = stage switch
@@ -81,9 +93,49 @@ public static class FinancialPackageReviewService
       _ => (Array.Empty<string>(), true)
     };
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(unlocked.FirmId, unlocked.ClientId, unlocked.EngagementId, roles, InternalOnly: internalOnly), ct);
+    if (!auth.Succeeded)
+      return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+
+    // Shared lock order (firm safety, client safety, package, then dependent rows): the client safety row, the package row, then the
+    // decider's grants. Decisions on one package serialize on the package row, so concurrent approvers cannot build an inconsistent chain.
+    // Authority is checked again after the locks are held, because a grant can be revoked while this command waits.
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    await db.ClientSafetyStates.FromSqlInterpolated(
+        $"SELECT * FROM client_safety_states WHERE firm_id = {unlocked.FirmId} AND id = {unlocked.ClientId} FOR SHARE")
+      .AsNoTracking().ToListAsync(ct);
+    var package = await db.FinancialPackages.FromSqlInterpolated(
+        $"SELECT * FROM financial_packages WHERE firm_id = {unlocked.FirmId} AND id = {unlocked.Id} FOR UPDATE")
+      .AsNoTracking().SingleOrDefaultAsync(ct);
+    if (package is null || package.ClientId != unlocked.ClientId)
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    await db.RoleGrants.FromSqlInterpolated(
+        $"SELECT * FROM role_grants WHERE firm_id = {package.FirmId} AND user_id = {actor.UserId} AND revoked_at IS NULL FOR SHARE")
+      .AsNoTracking().ToListAsync(ct);
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(package.FirmId, package.ClientId, package.EngagementId, roles, InternalOnly: internalOnly), ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+
+    // The same original intent recovers the stored decision. The same identity with a different payload is a conflict, never an overwrite.
+    var intentHash = request.RequestId is Guid
+      ? ReviewRequestHash(stage, decision, evidenceMode, evidenceReference, comment, request.PresentationRevisionId,
+          request.PresentationCompositionId, request.CompositionManifestDigest, request.ExpectedLatestDecisionId)
+      : null;
+    if (request.RequestId is Guid requestId)
+    {
+      var recorded = await db.FinancialPackageReviewDecisions.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.FirmId == package.FirmId && x.FinancialPackageId == package.Id && x.RequestId == requestId, ct);
+      if (recorded is not null)
+      {
+        // A signed-in request identity belongs to the person who recorded it. Another person presenting it is refused.
+        if (recorded.EvidenceMode == FinancialPackageReviewEvidenceModes.SignedIn && recorded.DecidedByUserId != actor.UserId)
+          return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict, "This request was already used by another person.");
+        return recorded.RequestHash == intentHash
+          ? CommandResult<Guid>.Ok(recorded.Id)
+          : CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict, "This request was already used for a different package decision.");
+      }
+    }
 
     var readiness = await FinancialPackageValidationReadiness.GetAsync(db, package.FirmId, package.Id, ct);
     if (!readiness.Ready)
@@ -110,6 +162,9 @@ public static class FinancialPackageReviewService
       if (!await FinancialStatementService.PresentationSourceIsCurrentAsync(db, candidate, ct))
         return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision,
           "The candidate presentation source is no longer current; generate a new signing candidate before deciding.");
+      if (!FinancialStatementService.PresentationChecksAllPass(candidate))
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+          "This signing candidate carries unresolved presentation checks. Complete the content review and create a new candidate before deciding.");
 
       composition = await db.FinancialStatementCompositions.AsNoTracking().SingleOrDefaultAsync(x =>
         x.FirmId == package.FirmId && x.ClientId == package.ClientId && x.EngagementId == package.EngagementId &&
@@ -135,40 +190,9 @@ public static class FinancialPackageReviewService
         return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
           "The reviewed candidate presentation artifact (PDF) has not been rendered yet.");
 
-      if (stage is FinancialPackageReviewStages.AccountingReview or FinancialPackageReviewStages.PartnerApproval)
-      {
-        var predecessorStage = stage == FinancialPackageReviewStages.AccountingReview
-          ? FinancialPackageReviewStages.ManagementApproval
-          : FinancialPackageReviewStages.AccountingReview;
-        var predecessorApproved = await db.FinancialPackageReviewDecisions.AsNoTracking().AnyAsync(x =>
-          x.FirmId == package.FirmId && x.FinancialPackageId == package.Id &&
-          x.PackageHash == package.CalculationHash && x.PackageRevision == package.Revision &&
-          x.PackageGeneration == package.Generation && x.Stage == predecessorStage &&
-          x.Decision == FinancialPackageReviewDecisions.Approved &&
-          x.PresentationRevisionId == candidate.Id && x.PresentationCompositionId == composition.Id &&
-          x.CompositionManifestDigest == composition.ManifestDigest, ct);
-        if (!predecessorApproved)
-          return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
-            $"A current approved {predecessorStage} decision for this signing candidate is required before {stage}.");
-      }
     }
     else
     {
-      if (stage is FinancialPackageReviewStages.AccountingReview or FinancialPackageReviewStages.PartnerApproval)
-      {
-        var predecessorStage = stage == FinancialPackageReviewStages.AccountingReview
-          ? FinancialPackageReviewStages.ManagementApproval
-          : FinancialPackageReviewStages.AccountingReview;
-        var predecessorApproved = await db.FinancialPackageReviewDecisions.AsNoTracking().AnyAsync(x =>
-          x.FirmId == package.FirmId && x.FinancialPackageId == package.Id &&
-          x.PackageHash == package.CalculationHash && x.PackageRevision == package.Revision &&
-          x.PackageGeneration == package.Generation && x.Stage == predecessorStage &&
-          x.Decision == FinancialPackageReviewDecisions.Approved, ct);
-        if (!predecessorApproved)
-          return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
-            $"A current approved {predecessorStage} decision is required before {stage}.");
-      }
-
       artifact = await db.FinancialPackageArtifacts.AsNoTracking().SingleOrDefaultAsync(x =>
         x.FirmId == package.FirmId && x.ClientId == package.ClientId && x.EngagementId == package.EngagementId &&
         x.FinancialPackageId == package.Id && x.PackageRevision == package.Revision &&
@@ -192,17 +216,36 @@ public static class FinancialPackageReviewService
           "The same person cannot record approved decisions at two different stages of one package version.");
     }
 
+    // The decision chain is every decision on this exact package version and composition identity (none, for the legacy package path).
     Guid? selectedPresentationId = candidate?.Id;
     Guid? selectedCompositionId = composition?.Id;
     var selectedCompositionDigest = composition?.ManifestDigest;
-    if (await db.FinancialPackageReviewDecisions.AnyAsync(x =>
+    var chain = await db.FinancialPackageReviewDecisions.AsNoTracking().Where(x =>
         x.FirmId == package.FirmId && x.ClientId == package.ClientId && x.EngagementId == package.EngagementId &&
         x.FinancialPackageId == package.Id && x.PackageHash == package.CalculationHash &&
         x.PackageRevision == package.Revision && x.PackageGeneration == package.Generation &&
-        x.Stage == stage && x.Decision == decision &&
         x.PresentationRevisionId == selectedPresentationId &&
         x.PresentationCompositionId == selectedCompositionId &&
-        x.CompositionManifestDigest == selectedCompositionDigest, ct))
+        x.CompositionManifestDigest == selectedCompositionDigest)
+      .ToListAsync(ct);
+    var latestDecision = InRecordedOrder(chain).LastOrDefault();
+    // A caller with an original intent decides on the chain it saw. A decision recorded since then makes the request stale.
+    if (request.RequestId is Guid && latestDecision?.Id != request.ExpectedLatestDecisionId)
+      return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision,
+        "A package decision was recorded after this review was loaded. Reload the package before deciding.");
+
+    if (stage is FinancialPackageReviewStages.AccountingReview or FinancialPackageReviewStages.PartnerApproval)
+    {
+      var predecessorStage = stage == FinancialPackageReviewStages.AccountingReview
+        ? FinancialPackageReviewStages.ManagementApproval
+        : FinancialPackageReviewStages.AccountingReview;
+      if (EffectiveApprovals(chain)[predecessorStage] is null)
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, candidate is null
+          ? $"A current approved {predecessorStage} decision is required before {stage}."
+          : $"A current approved {predecessorStage} decision for this signing candidate is required before {stage}.");
+    }
+
+    if (IsCurrentDuplicate(chain, stage, decision))
       return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict, "This package decision already exists for the current package version.");
 
     var review = new FinancialPackageReviewDecision
@@ -218,10 +261,20 @@ public static class FinancialPackageReviewService
       ArtifactSha256Hex = artifact.ArtifactSha256Hex,
       EvidenceMode = evidenceMode, EvidenceReference = evidenceReference, Comment = comment,
       DecidedByUserId = evidenceMode == FinancialPackageReviewEvidenceModes.SignedIn ? actor.UserId : null,
-      DecidedAt = DateTimeOffset.UtcNow
+      DecidedAt = DateTimeOffset.UtcNow,
+      RequestId = request.RequestId, RequestHash = intentHash, PreviousDecisionId = latestDecision?.Id
     };
     db.FinancialPackageReviewDecisions.Add(review);
-    await db.SaveChangesAsync(ct);
+    try
+    {
+      await db.SaveChangesAsync(ct);
+    }
+    catch (DbUpdateException ex) when (ex.InnerException?.Message.Contains("ux_financial_package_review_request", StringComparison.Ordinal) == true)
+    {
+      // Only the request-identity uniqueness maps to a conflict. Any other database failure is a fault and propagates.
+      return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict, "This package decision was recorded concurrently. Reload the package.");
+    }
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(review.Id);
   }
 
@@ -241,7 +294,7 @@ public static class FinancialPackageReviewService
     var reviews = await db.FinancialPackageReviewDecisions.AsNoTracking()
       .Where(x => x.FirmId == package.FirmId && x.ClientId == package.ClientId && x.EngagementId == package.EngagementId &&
         x.FinancialPackageId == package.Id)
-      .OrderBy(x => x.DecidedAt)
+      .OrderBy(x => x.Sequence)
       .Select(x => new FinancialPackageReviewSummary(x.Id, x.Stage, x.Decision, x.EvidenceMode,
         x.PackageHash, x.FinancialPackageArtifactId, x.ArtifactVersion, x.ArtifactSha256Hex,
         x.EvidenceReference, x.Comment, x.DecidedByUserId, x.DecidedAt, x.PresentationRevisionId,
@@ -301,20 +354,29 @@ public static class FinancialPackageReviewService
       .AnyAsync(x => x.FirmId == package.FirmId && x.ClientId == package.ClientId &&
         x.EngagementId == package.EngagementId && x.FinancialPackageId == package.Id, ct);
 
-    var management = await db.FinancialPackageReviewDecisions.AsNoTracking()
+    // When a sealed candidate composition exists, the management decision is about that exact composition. A package-only decision
+    // recorded before it remains historical package evidence and is not shown as approval of the composition.
+    var composition = await CurrentClientCompositionAsync(db, package, ct);
+    Guid? compositionRevisionId = composition?.PresentationRevisionId;
+    Guid? compositionId = composition?.Id;
+    var compositionDigest = composition?.ManifestDigest;
+    var chain = await db.FinancialPackageReviewDecisions.AsNoTracking()
       .Where(x => x.FirmId == package.FirmId && x.ClientId == package.ClientId &&
         x.EngagementId == package.EngagementId && x.FinancialPackageId == package.Id &&
-        x.Stage == FinancialPackageReviewStages.ManagementApproval &&
         x.PackageHash == package.CalculationHash && x.PackageRevision == package.Revision &&
-        x.PackageGeneration == package.Generation)
-      .OrderByDescending(x => x.DecidedAt)
-      .Select(x => new { x.Decision, x.DecidedAt })
-      .FirstOrDefaultAsync(ct);
+        x.PackageGeneration == package.Generation && x.PresentationRevisionId == compositionRevisionId &&
+        x.PresentationCompositionId == compositionId && x.CompositionManifestDigest == compositionDigest)
+      .ToListAsync(ct);
+    var ordered = InRecordedOrder(chain);
+    var management = ordered.LastOrDefault(x => x.Stage == FinancialPackageReviewStages.ManagementApproval);
 
     return CommandResult<ClientFinancialPackageView>.Ok(new ClientFinancialPackageView(
       package.Id, package.Framework, package.PeriodStart, package.PeriodEnd, package.Currency,
       package.TemplateVersion, package.CalculationHash, hasCashFlow, hasDisclosures,
-      management?.Decision ?? "PENDING", management?.DecidedAt, statementTotals));
+      management?.Decision ?? "PENDING", management?.DecidedAt, statementTotals,
+      composition is null ? null : new ClientFinancialPackageComposition(composition.PresentationRevisionId, composition.Id,
+        composition.ManifestDigest, composition.PdfSha256Hex, composition.WordSha256Hex, composition.ExcelSha256Hex, composition.SelectedAt),
+      ordered.LastOrDefault()?.Id));
   }
 
   /// <summary>
@@ -365,15 +427,24 @@ public static class FinancialPackageReviewService
       if (!FinancialPackageValidationReadiness.Evaluate(package.FirmId, package.Id, validations).Ready) continue;
       if (!await CashFlowSourcesIndependentlyApprovedAsync(db, actor, package, ct)) continue;
 
-      var current = decisions.Where(x => x.FinancialPackageId == package.Id &&
+      // Status follows the chain the latest management decision names. An approval that a later return at an earlier stage defeated
+      // shows as pending, because it must be recorded again.
+      var version = decisions.Where(x => x.FinancialPackageId == package.Id &&
           x.PackageHash == package.CalculationHash && x.PackageRevision == package.Revision &&
-          x.PackageGeneration == package.Generation)
-        .GroupBy(x => x.Stage, StringComparer.Ordinal)
-        .ToDictionary(x => x.Key, x => x.OrderByDescending(y => y.DecidedAt).First().Decision,
-          StringComparer.Ordinal);
-      var management = current.GetValueOrDefault(FinancialPackageReviewStages.ManagementApproval, "PENDING");
-      var accounting = current.GetValueOrDefault(FinancialPackageReviewStages.AccountingReview, "PENDING");
-      var partner = current.GetValueOrDefault(FinancialPackageReviewStages.PartnerApproval, "PENDING");
+          x.PackageGeneration == package.Generation).ToList();
+      var latestManagement = InRecordedOrder(version.Where(x => x.Stage == FinancialPackageReviewStages.ManagementApproval)).LastOrDefault();
+      var chain = latestManagement is null ? version : version.Where(x =>
+        x.PresentationRevisionId == latestManagement.PresentationRevisionId &&
+        x.PresentationCompositionId == latestManagement.PresentationCompositionId &&
+        x.CompositionManifestDigest == latestManagement.CompositionManifestDigest).ToList();
+      var effective = EffectiveApprovals(chain);
+      string StageStatus(string stage) => effective[stage] is not null
+        ? FinancialPackageReviewDecisions.Approved
+        : InRecordedOrder(chain.Where(x => x.Stage == stage)).LastOrDefault()?.Decision is { } latest &&
+          latest != FinancialPackageReviewDecisions.Approved ? latest : "PENDING";
+      var management = StageStatus(FinancialPackageReviewStages.ManagementApproval);
+      var accounting = StageStatus(FinancialPackageReviewStages.AccountingReview);
+      var partner = StageStatus(FinancialPackageReviewStages.PartnerApproval);
       var next = management != FinancialPackageReviewDecisions.Approved
         ? FinancialPackageReviewStages.ManagementApproval
         : accounting != FinancialPackageReviewDecisions.Approved
@@ -419,36 +490,46 @@ public static class FinancialPackageReviewService
       .Where(x => x.FirmId == package.FirmId && x.ClientId == package.ClientId && x.EngagementId == package.EngagementId &&
         x.FinancialPackageId == package.Id)
       .ToListAsync(ct);
+    // The composition the chain is about is the one the latest management decision names. Every required stage must then hold the
+    // latest-effective approval on that exact chain: a later return defeats an earlier approval, and an approval recorded before the
+    // predecessor's latest approval does not count.
     Guid? expectedPresentationRevisionId = null;
     Guid? expectedCompositionId = null;
     string? expectedCompositionDigest = null;
-    var firstStage = true;
+    IReadOnlyDictionary<string, FinancialPackageReviewDecision?>? effective = null;
     foreach (var stage in requiredStages)
     {
-      var current = reviews.Where(x => x.Stage == stage).OrderByDescending(x => x.DecidedAt).FirstOrDefault();
+      var current = InRecordedOrder(reviews.Where(x => x.Stage == stage)).LastOrDefault();
       if (current is null || current.Decision != FinancialPackageReviewDecisions.Approved ||
           current.PackageHash != package.CalculationHash || current.PackageRevision != package.Revision ||
           current.PackageGeneration != package.Generation)
         return CommandResult.Fail(ErrorCodes.GateBlocked, $"The current {stage} decision is required before release.");
 
-      if (firstStage)
+      if (effective is null)
       {
         expectedPresentationRevisionId = current.PresentationRevisionId;
         expectedCompositionId = current.PresentationCompositionId;
         expectedCompositionDigest = current.CompositionManifestDigest;
-        firstStage = false;
+        effective = EffectiveApprovals(reviews.Where(x =>
+          x.PackageHash == package.CalculationHash && x.PackageRevision == package.Revision &&
+          x.PackageGeneration == package.Generation && x.PresentationRevisionId == expectedPresentationRevisionId &&
+          x.PresentationCompositionId == expectedCompositionId && x.CompositionManifestDigest == expectedCompositionDigest));
       }
       else if (current.PresentationRevisionId != expectedPresentationRevisionId ||
           current.PresentationCompositionId != expectedCompositionId ||
           current.CompositionManifestDigest != expectedCompositionDigest)
         return CommandResult.Fail(ErrorCodes.GateBlocked,
           "The management, accounting and Partner decisions must approve the same exact candidate composition.");
+
+      if (effective[stage]?.Id != current.Id)
+        return CommandResult.Fail(ErrorCodes.GateBlocked,
+          $"The current {stage} decision predates a later decision at an earlier stage and must be recorded again before release.");
     }
     // Rows recorded before Administrator left the Partner stage remain in the table. A Partner decision counts only when its recorder
     // still holds a current Partner grant covering this engagement.
     if (requirePartner)
     {
-      var partner = reviews.Where(x => x.Stage == FinancialPackageReviewStages.PartnerApproval).OrderByDescending(x => x.DecidedAt).First();
+      var partner = effective![FinancialPackageReviewStages.PartnerApproval]!;
       if (!await PartnerDecisionHeldByPartnerAsync(db, package, partner.DecidedByUserId, ct))
         return CommandResult.Fail(ErrorCodes.GateBlocked,
           "The current PartnerApproval decision was not recorded by a current Partner for this engagement.");
@@ -472,6 +553,7 @@ public static class FinancialPackageReviewService
           candidate.PackageGeneration != package.Generation ||
           candidate.Status is not (FinancialStatementPresentationRevisionStatuses.Candidate or FinancialStatementPresentationRevisionStatuses.Approved) ||
           !await FinancialStatementService.PresentationSourceIsCurrentAsync(db, candidate, ct) ||
+          !FinancialStatementService.PresentationChecksAllPass(candidate) ||
           !await CompositionArtifactsAreIntactAsync(db, package, candidate, composition, ct))
         return CommandResult.Fail(ErrorCodes.GateBlocked,
           "The approved statement composition is missing, stale or fails its exact-artifact integrity check.");

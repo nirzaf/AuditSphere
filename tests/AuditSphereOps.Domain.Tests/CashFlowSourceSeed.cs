@@ -19,7 +19,7 @@ internal static class CashFlowSourceSeed
   /// payment journal opts in, and then must explain every cash event it includes, because an unexplained one fails lineage.
   /// </summary>
   [Flags]
-  internal enum OptionalCashEvents { None = 0, Equipment = 1, Compound = 2 }
+  internal enum OptionalCashEvents { None = 0, Equipment = 1, Compound = 2, Borrowing = 4 }
 
   /// <summary>
   /// Named lines. Receivable is the credit side of a customer receipt (negative), Depreciation a debit with no cash leg,
@@ -27,7 +27,7 @@ internal static class CashFlowSourceSeed
   /// CompoundEquipment and CompoundFee the two debits of a compound payment whose single cash credit is in the same journal.
   /// </summary>
   internal sealed record Source(Guid BatchId, Guid Receivable, Guid Depreciation, Guid CashAccount, Guid Equipment,
-    Guid NoncashEquipment, Guid CompoundEquipment, Guid CompoundFee);
+    Guid NoncashEquipment, Guid CompoundEquipment, Guid CompoundFee, Guid Borrowing = default);
 
   internal static async Task<Source> SeedAcceptedGeneralLedgerAsync(PgTestSchema pg, Guid firmId, Guid clientId, Guid engagementId,
     Guid periodId, Guid bookId, Guid preparerId, ActorContext reviewer, string tag) =>
@@ -41,7 +41,7 @@ internal static class CashFlowSourceSeed
     var batchHash = batch.ToString("N") + batch.ToString("N");
     var now = DateTimeOffset.UtcNow;
     var source = new Source(batch, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
-      Guid.NewGuid(), Guid.NewGuid());
+      Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
     // Default journals: J1 cash receipt, J2 noncash depreciation, J3 a transfer between two declared cash lines that nets to zero, and
     // J5 noncash equipment bought on credit. Account 1000 is the cash account. Optional journals: J4 cash equipment, J6 compound payment with a fee.
     var lines = new List<(int Journal, Guid Id, string Account, string Stable, decimal Amount)>
@@ -65,6 +65,12 @@ internal static class CashFlowSourceSeed
       lines.Add((6, source.CompoundEquipment, "1500", "L6-equipment", 20m));
       lines.Add((6, source.CompoundFee, "6000", "L6-fee", 5m));
       lines.Add((6, Guid.NewGuid(), "1000", "L6-cash", -25m));
+    }
+    if (optional.HasFlag(OptionalCashEvents.Borrowing))
+    {
+      // J7: a new loan received in cash. The credited borrowing (-40) is the noncash counterpart of a +40 financing inflow.
+      lines.Add((7, Guid.NewGuid(), "1000", "L7-cash", 40m));
+      lines.Add((7, source.Borrowing, "2500", "L7-borrowing", -40m));
     }
     var journals = lines.Select(x => x.Journal).Distinct().ToDictionary(i => i, _ => Guid.NewGuid());
     await using (var db = new AuditSphereDbContext(options))

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   decodeBuildInputs, decodeBuildStatus, emptyBuildForm, emptyFxCashEffect, emptyEquityLine, emptyMovement, emptyNoteLine,
-  isTerminalBuildStatus, queueButtonLabel, scheduleBlockers, toBuildRequest, BuildForm,
+  formatMicro, isTerminalBuildStatus, movementProjection, queueButtonLabel, scheduleBlockers, toBuildRequest, BuildForm,
 } from './financial-package-build';
 
 const mapping = '11111111-1111-4111-8111-111111111111';
@@ -188,6 +188,9 @@ describe('equity, numeric note and FX schedules', () => {
       ['an FX effect without evidence', (f) => (f.fxCashEffects[0].evidenceReference = ' ')],
       ['a movement whose source contributions exceed it', (f) => (f.movements[0].allocations[0].signedAmount = '-150')],
       ['a movement whose source contributions run against its sign', (f) => (f.movements[0].allocations[0].signedAmount = '100')],
+      ['a noncash movement whose ledger contributions run against its sign', (f) => {
+        f.movements[0].isNonCash = true; f.movements[0].allocations[0].signedAmount = '-100';
+      }],
       ['a source line repeated within one movement', (f) => {
         f.movements[0].allocations.push({ generalLedgerLineId: line.toUpperCase(), signedAmount: '1' });
       }],
@@ -210,23 +213,66 @@ describe('equity, numeric note and FX schedules', () => {
     expect('body' in toBuildRequest(form)).toBe(true);
     expect(scheduleBlockers(form).some((b) => b.startsWith('Cash-flow source lineage'))).toBe(false);
   });
+});
 
-  it('projects debit-positive GL provenance to a positive cash receipt while preserving the stored sign', () => {
-    const form = completeForm();
-    const built = toBuildRequest(form);
-    expect('body' in built).toBe(true);
-    expect(scheduleBlockers(form).some((b) => b.startsWith('Cash-flow source lineage'))).toBe(false);
-    expect((built as { body: any }).body.supplementaryInformation.cashFlowLines[0].sourceAllocations)
-      .toEqual([{ generalLedgerLineId: line, signedAmount: '-100' }]);
+describe('cash-flow contribution projection (F-01)', () => {
+  // Each row is the accepted noncash counterpart of a balanced cash journal, with its debit-positive ledger sign unchanged.
+  const ordinary: [string, string, string, string][] = [
+    ['equipment purchased with bank cash', 'INVESTING', '25000', '-25000'],
+    ['receivable collected from a customer', 'OPERATING', '-270000', '270000'],
+    ['new borrowing received', 'FINANCING', '-40000', '40000'],
+    ['loan principal repaid', 'FINANCING', '10000', '-10000'],
+  ];
+
+  for (const [label, section, ledger, effect] of ordinary) {
+    it(`accepts the ${label} counterpart and sends its ledger amount unchanged`, () => {
+      const form = fullForm();
+      form.movements[0] = { ...form.movements[0], section, amount: effect, allocations: [{ generalLedgerLineId: line, signedAmount: ledger }] };
+      const built = toBuildRequest(form);
+      expect('body' in built, label).toBe(true);
+      const sent = (built as { body: any }).body.supplementaryInformation.cashFlowLines[0];
+      expect(sent.sourceAllocations).toEqual([{ generalLedgerLineId: line, signedAmount: ledger }]);
+      expect(sent.amount).toBe(effect);
+      expect(movementProjection(form.movements[0])).toBe(effect);
+      expect(scheduleBlockers(form).some((b) => b.startsWith('Cash-flow source lineage'))).toBe(false);
+    });
+  }
+
+  it('keeps the ledger sign for a noncash movement and refuses the reversed sign', () => {
+    const form = fullForm();
+    form.movements[0] = { ...form.movements[0], section: 'OPERATING', isNonCash: true, amount: '1200',
+      allocations: [{ generalLedgerLineId: line, signedAmount: '1200' }] };
+    expect('body' in toBuildRequest(form)).toBe(true);
+    expect(movementProjection(form.movements[0])).toBe('1200');
+    form.movements[0].allocations[0].signedAmount = '-1200';
+    expect(toBuildRequest(form)).toEqual({ error: 'Movement 1: source contributions exceed the movement amount or run against its sign.' });
   });
 
-  it('keeps the domain convention for noncash movement contributions', () => {
-    const form = completeForm();
-    form.movements[0].isNonCash = true;
-    form.movements[0].allocations[0].signedAmount = '100';
-    expect('body' in toBuildRequest(form)).toBe(true);
-    form.movements[0].allocations[0].signedAmount = '-100';
+  it('still refuses over-allocation of a cash counterpart and leaves a partial allocation a draft', () => {
+    const form = fullForm();
+    form.movements[0] = { ...form.movements[0], section: 'INVESTING', amount: '-25000',
+      allocations: [{ generalLedgerLineId: line, signedAmount: '25000.000001' }] };
     expect('error' in toBuildRequest(form)).toBe(true);
+    form.movements[0].allocations[0].signedAmount = '20000';
+    expect('body' in toBuildRequest(form)).toBe(true);
+    expect(scheduleBlockers(form).some((b) => b.startsWith('Cash-flow source lineage: movement 1 has linked lines that do not total'))).toBe(true);
+  });
+
+  it('projects compound journals with six-decimal amounts exactly', () => {
+    const form = fullForm();
+    form.movements[0] = { ...form.movements[0], section: 'OPERATING', amount: '270000.000003', allocations: [
+      { generalLedgerLineId: line, signedAmount: '-270000.000004' },
+      { generalLedgerLineId: '44444444-4444-4444-8444-444444444445', signedAmount: '0.000001' },
+    ] };
+    expect('body' in toBuildRequest(form)).toBe(true);
+    expect(movementProjection(form.movements[0])).toBe('270000.000003');
+    expect(formatMicro(-1n)).toBe('-0.000001');
+  });
+
+  it('shows no projection while a link amount is not yet valid', () => {
+    const form = fullForm();
+    form.movements[0].allocations[0].signedAmount = '12,5';
+    expect(movementProjection(form.movements[0])).toBeNull();
   });
 });
 

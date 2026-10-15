@@ -91,8 +91,12 @@ public sealed partial class AuditSphereDbContext
       e.HasIndex(x => new { x.FirmId, x.ProposalId, x.Kind, x.CreatedAt });
       e.HasIndex(x => new { x.FirmId, x.QuotationVersionId, x.Kind }).IsUnique().HasFilter("kind IN ('QUOTATION','ENGAGEMENT_LETTER','COMPREHENSIVE_PROPOSAL')");
       e.HasIndex(x => new { x.FirmId, x.FeeMilestoneId, x.Kind }).IsUnique().HasFilter("kind = 'PAYMENT_RECEIPT'");
+      // One immutable voucher per actual payment.
+      e.HasIndex(x => new { x.FirmId, x.ReceiptId, x.Kind }).IsUnique().HasFilter("kind = 'PAYMENT_VOUCHER'");
+      e.HasOne<Receipt>().WithMany().HasForeignKey(x => new { x.FirmId, x.ReceiptId }).HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
       e.ToTable("commercial_documents", t => t.HasCheckConstraint("ck_commercial_document_values",
-        "kind IN ('QUOTATION','ENGAGEMENT_LETTER','PAYMENT_RECEIPT','COMPREHENSIVE_PROPOSAL') AND length(template_version) > 0 AND length(sha256_hex) = 64 AND octet_length(bytes) > 0 AND length(file_name) > 0"));
+        "kind IN ('QUOTATION','ENGAGEMENT_LETTER','PAYMENT_RECEIPT','COMPREHENSIVE_PROPOSAL','PAYMENT_VOUCHER') AND length(template_version) > 0 AND length(sha256_hex) = 64 AND octet_length(bytes) > 0 AND length(file_name) > 0" +
+        " AND ((kind = 'PAYMENT_VOUCHER') = (receipt_id IS NOT NULL))"));
     });
     b.Entity<EngagementFeeAgreement>(e =>
     {
@@ -114,11 +118,14 @@ public sealed partial class AuditSphereDbContext
       e.HasIndex(x => new { x.FirmId, x.FeeMilestoneId }).IsUnique();
       e.HasIndex(x => new { x.FirmId, x.DeliveryState, x.CreatedAt });
       e.HasIndex(x => new { x.FirmId, x.ProposalId }).IsUnique().HasFilter("proposal_id IS NOT NULL");
+      // One voucher dispatch per actual payment: a retried payment record cannot send twice.
+      e.HasIndex(x => new { x.FirmId, x.ReceiptId }).IsUnique().HasFilter("receipt_id IS NOT NULL");
+      e.HasOne<Receipt>().WithMany().HasForeignKey(x => new { x.FirmId, x.ReceiptId }).HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
       // One holding-letter dispatch per exact outstanding blocker set: regenerating an unchanged set cannot send twice.
       e.HasIndex(x => new { x.FirmId, x.DispatchKey }).IsUnique().HasFilter("dispatch_key IS NOT NULL");
       e.ToTable("commercial_notifications", t => t.HasCheckConstraint("ck_commercial_notification_values",
-        "delivery_state IN ('QUEUED','DISPATCHED','PROVIDER_ACCEPTED','DELIVERED','REJECTED','UNKNOWN') AND kind IN ('RECEIPT','PROPOSAL','HOLDING_LETTER') AND length(recipient) > 0 AND length(subject) > 0 AND ((delivery_state IN ('PROVIDER_ACCEPTED','DELIVERED')) = (delivered_at IS NOT NULL)) AND " +
-        "((kind = 'RECEIPT') = (fee_milestone_id IS NOT NULL)) AND ((kind = 'PROPOSAL') = (proposal_id IS NOT NULL)) AND ((kind = 'HOLDING_LETTER') = (deliverable_id IS NOT NULL)) AND ((kind = 'HOLDING_LETTER') = (dispatch_key IS NOT NULL))"));
+        "delivery_state IN ('QUEUED','DISPATCHED','PROVIDER_ACCEPTED','DELIVERED','REJECTED','UNKNOWN') AND kind IN ('RECEIPT','PROPOSAL','HOLDING_LETTER','PAYMENT_VOUCHER') AND length(recipient) > 0 AND length(subject) > 0 AND ((delivery_state IN ('PROVIDER_ACCEPTED','DELIVERED')) = (delivered_at IS NOT NULL)) AND " +
+        "((kind = 'RECEIPT') = (fee_milestone_id IS NOT NULL)) AND ((kind = 'PROPOSAL') = (proposal_id IS NOT NULL)) AND ((kind = 'HOLDING_LETTER') = (deliverable_id IS NOT NULL)) AND ((kind = 'HOLDING_LETTER') = (dispatch_key IS NOT NULL)) AND ((kind = 'PAYMENT_VOUCHER') = (receipt_id IS NOT NULL))"));
     });
   }
 }

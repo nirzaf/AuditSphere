@@ -145,6 +145,19 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            // An empty or composition-free database may step back. Once a decision, release or bundle names a composition, dropping
+            // these columns would erase which exact report the decision or delivery covered, so the downgrade refuses instead.
+            migrationBuilder.Sql("""
+                DO $$
+                BEGIN
+                  IF EXISTS (SELECT 1 FROM financial_package_review_decisions WHERE presentation_composition_id IS NOT NULL)
+                     OR EXISTS (SELECT 1 FROM releases WHERE pinned_composition_id IS NOT NULL)
+                     OR EXISTS (SELECT 1 FROM commercial_deliverable_bundles WHERE financial_statement_composition_id IS NOT NULL) THEN
+                    RAISE EXCEPTION 'Composition-binding downgrade would discard the exact composition identity of retained decisions, releases or bundles.';
+                  END IF;
+                END $$;
+                """);
+
             migrationBuilder.DropForeignKey(
                 name: "FK_commercial_deliverable_bundles_financial_statement_composit~",
                 table: "commercial_deliverable_bundles");
@@ -214,6 +227,8 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                 table: "financial_package_review_decisions",
                 newName: "IX_financial_package_review_decisions_firm_id_client_id_engag~1");
 
+            // Reverse Up's renames from the lowest free suffix upward. The composition index named ~2 has already been dropped, so ~3
+            // can take ~2, which frees ~3 for ~4, which frees ~4 for ~5. Renaming ~5 first collides with the still-present ~4 (42P07).
             migrationBuilder.RenameIndex(
                 name: "IX_commercial_deliverable_bundles_firm_id_client_id_engagemen~3",
                 table: "commercial_deliverable_bundles",
