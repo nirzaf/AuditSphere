@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "779646b1c2219d2329f892f74b248276c645c4c4",
+  "headCommit": "b3ddfa8c339b5b83f7c16d5f4939a641298eab19",
   "verifiedCommit": "12e51e6031605245c22df8331d7ca12f345dbf36",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": true,
@@ -1050,6 +1050,18 @@
       "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --configuration Release --maxcpucount:1 --filter FullyQualifiedName~RoleAdministrationTests",
       "database": "PostgreSQL 18.6 loopback; PgTestSchema disposable synthetic database in auditsphere_tests",
       "coverage": "All three role-administration tests pass. Deterministically revoking an Administrator while a role-revocation command waits on the firm lock denies the stale actor and leaves the target grant and revocation evidence unchanged.",
+      "scopeStatus": "PARTIAL"
+    },
+    "angularMigrationAccessNotAssignedBrowser": {
+      "recordedAtUtc": "2026-10-15T15:31:47Z",
+      "sourceCommit": "b3ddfa8c339b5b83f7c16d5f4939a641298eab19",
+      "result": "PASS",
+      "passed": 1,
+      "failed": 0,
+      "total": 1,
+      "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release --maxcpucount:1 --filter FullyQualifiedName~ParameterlessRoutesRenderAndPreserveRoleSpecificShells",
+      "database": "PostgreSQL 18.6 loopback; OwnedHost disposable synthetic database in auditsphere_tests",
+      "coverage": "The server-owned access-denial route returns HTTP 403 with Cache-Control no-store, generic access text and only a sign-out link. This did not exercise a live Entra callback or unmapped Microsoft identity.",
       "scopeStatus": "PARTIAL"
     }
   },

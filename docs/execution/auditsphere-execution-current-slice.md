@@ -15,13 +15,9 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08 and 2026-10-15, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
-## Blazor parity — acceptance read isolation — 2026-10-15
+## Blazor parity — focused security and denial boundaries — 2026-10-15
 
-Focused browser evidence covers foreign-firm and guessed-ID read denial for assessment, engagement creation and activation. The full Release solution baseline was interrupted without a verdict. Overall parity remains partial and Blazor removal is NOT_READY; exact evidence and run attribution are in `status.json` under `targetedVerification.angularMigrationAcceptanceCrossFirmIsolation`.
-
-## Blazor parity — role-administration revocation fencing — 2026-10-15
-
-Role-administration mutations now acquire the firm safety lock and reauthorize the acting Administrator after lock acquisition. The PostgreSQL race regression and full `RoleAdministrationTests` cohort passed; the administration source review records the exact boundary. This closes one stale-authority race only. Source/action parity and the Blazor removal gate remain PARTIAL / NOT_READY; exact evidence is in `status.json` under `targetedVerification.angularMigrationAdminRevocationFencing`.
+Focused browser coverage compares foreign-firm and guessed-ID denials for assessment, engagement creation and activation, and verifies the server-owned access-denial page returns 403 with `no-store`, generic text and sign-out. The role-administration PostgreSQL cohort also proves a revoked Administrator waiting on the firm lock cannot finish a grant revocation. These close only narrow boundaries; the full Release solution baseline was interrupted without a verdict. Overall parity remains partial and Blazor removal is NOT_READY. Evidence is in `status.json` under `targetedVerification.angularMigrationAcceptanceCrossFirmIsolation`, `angularMigrationAccessNotAssignedBrowser` and `angularMigrationAdminRevocationFencing`.
 
 ## AS-UX-001 Angular visual adoption — shell foundation — 2026-10-15
 
