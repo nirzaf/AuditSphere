@@ -112,7 +112,8 @@ public sealed class AngularPracticeTimeScopeParityJourneyTests
     }
 
     await managerPage.Locator("select[name='task']").SelectOptionAsync(taskId.ToString());
-    await managerPage.GetByLabel("Date", new() { Exact = true }).FillAsync("2026-10-09");
+    await managerPage.GetByLabel("Work date (UTC)", new() { Exact = true }).FillAsync("2026-10-09");
+    await managerPage.GetByLabel("Start time (UTC)", new() { Exact = true }).FillAsync("09:00");
     await managerPage.GetByLabel("Duration (minutes)", new() { Exact = true }).FillAsync("60");
     await managerPage.GetByLabel("Role", new() { Exact = true }).FillAsync("Audit Manager");
     await managerPage.GetByLabel("Activity", new() { Exact = true }).FillAsync("General");
@@ -123,6 +124,8 @@ public sealed class AngularPracticeTimeScopeParityJourneyTests
     await using (var db = host.CreateDbContext())
     {
       var entry = await db.TimeEntries.AsNoTracking().SingleAsync(x => x.TaskId == taskId);
+      Assert.Equal(new DateOnly(2026, 10, 9), entry.WorkDate);
+      Assert.Equal(540, entry.StartMinute);
       Assert.Equal(mappingId, entry.MappingVersionId);
       Assert.Equal("CASH", entry.FsliCode);
       Assert.Equal(PracticeTimeStates.Billable, entry.BillableClassification);
