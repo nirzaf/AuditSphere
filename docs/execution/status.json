@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "d991ddc682cf3e657927d1a01542922911e174d3",
+  "headCommit": "9a2630f628ca1c64ebffe576e716cbdc1b849f2e",
   "verifiedCommit": "acf6201959e015a63d5ec7ac436b310a97e795a1",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -1025,11 +1025,11 @@
       ]
     },
     "ste22F08CommercialResponse": {
-      "recordedAtUtc": "2026-10-15T10:27:47Z",
-      "sourceCommit": "d991ddc682cf3e657927d1a01542922911e174d3",
+      "recordedAtUtc": "2026-10-15T11:22:47Z",
+      "sourceCommit": "9a2630f628ca1c64ebffe576e716cbdc1b849f2e",
       "status": "PARTIAL",
-      "verified": "Release build 0 warnings/errors; PG Domain 42/42; API 1/1; E2E 1/1; Angular 752/752; EF/OpenAPI/docs pass; style warning.",
-      "open": "Full suites/hosted CI; broader offer/content/routing/expiry/recovery; provider delivery; professional/live acceptance and deployment."
+      "verified": "d991 build; D42/API1/E2E1/Ng752. 9a build; D148/API8; CI38724299753 green incl. 15 E2E/Angular/EF/OpenAPI/Docs; image build green.",
+      "open": "Full workflow 38726773300 pending; story PARTIAL: output/profile and professional/owner/provider/live gates; no deployment."
     }
   },
   "externalGates": [
