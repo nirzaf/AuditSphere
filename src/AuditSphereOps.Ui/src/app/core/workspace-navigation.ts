@@ -38,7 +38,7 @@ const ACCOUNTING_ENGAGEMENT = /^\/app\/engagements\/[^/]+\/(general-ledger|tb-in
         }
         <p class="access-note">Your access follows current AuditSphere assignments.</p>
       } @else if (session.current()) {
-        <h2 aria-label="Your workspace" [attr.title]="compactNavigation() ? 'Your workspace' : null"><span class="group-mark"><audit-nav-icon [name]="'user'" /></span><span class="group-label">Your workspace</span></h2>
+        <h2 aria-label="Your workspace" [attr.title]="compactNavigation() ? 'Your workspace' : null"><span class="group-mark"><audit-nav-icon [name]="'user-round'" /></span><span class="group-label">Your workspace</span></h2>
         <a routerLink="/portal" routerLinkActive="active" ariaCurrentWhenActive="page"
           [attr.aria-label]="compactNavigation() ? 'Client portal' : null"
           [attr.title]="compactNavigation() ? 'Client portal' : null">
