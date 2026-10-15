@@ -4,12 +4,12 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "48e9f2059662d0712f2d1b23d5616b4e8494dad4",
-  "verifiedCommit": "acf6201959e015a63d5ec7ac436b310a97e795a1",
+  "headCommit": "12e51e6031605245c22df8331d7ca12f345dbf36",
+  "verifiedCommit": "12e51e6031605245c22df8331d7ca12f345dbf36",
   "remoteHeadVerified": true,
-  "verifiedCommitWasRemoteHead": false,
+  "verifiedCommitWasRemoteHead": true,
   "productionEnabled": false,
-  "verifiedAt": "2026-10-12T08:17:17Z",
+  "verifiedAt": "2026-10-15T13:28:06Z",
   "toolchain": {
     "sdk": ".NET 10",
     "efCore": "10.0.12",
@@ -1200,21 +1200,23 @@
     "migrationHead": "20261010203413_ReportCertificateSignatureEvidence"
   },
   "hostingerAcceptance": {
-    "recordedAtUtc": "2026-10-11T17:36:47.672211Z",
-    "vpsCheckout": "107a9f97257274e708b76d08d94c58fdbd704d5a",
-    "releaseImageSource": "e64a0cf97adc93fa8416c6288e02bb62fb30db00",
-    "liveMigrationHead": "20261010203413_ReportCertificateSignatureEvidence",
-    "liveMigrationCount": 191,
+    "recordedAtUtc": "2026-10-15T13:28:06Z",
+    "vpsCheckout": "12e51e6031605245c22df8331d7ca12f345dbf36",
+    "releaseImageSource": "48e9f2059662d0712f2d1b23d5616b4e8494dad4",
+    "liveMigrationHead": "20261015113704_ClientBundleReceiptAcknowledgements",
+    "liveMigrationCount": 225,
     "backup": {
-      "path": "/opt/auditsphere/storage/backups/pre-acceptance-upgrade-20261011T010144Z.dump",
-      "bytes": 1828313,
+      "path": "/opt/auditsphere/storage/backups/auditsphere-pre-deploy-20261015T131215Z.dump",
+      "bytes": 1862104,
       "format": "PostgreSQL custom",
       "catalogValidated": true,
+      "catalogEntries": 3016,
       "restoredToDisposableDatabase": true
     },
     "rehearsal": {
-      "migrationHead": "20261010203413_ReportCertificateSignatureEvidence",
-      "migrationCount": 191,
+      "migrationHead": "20261015113704_ClientBundleReceiptAcknowledgements",
+      "migrationCount": 225,
+      "migrationsApplied": 34,
       "migrations": "PASS",
       "apiReadyHttp": 200,
       "temporaryResourcesRemoved": true,
@@ -1281,10 +1283,12 @@
     "publicReadyHttp": 200,
     "workerContainersUnchanged": true,
     "liveUpgradeBackup": {
-      "path": "/opt/auditsphere/storage/backups/pre-approved-upgrade-20261011T010838Z.dump",
-      "bytes": 1828313,
+      "path": "/opt/auditsphere/storage/backups/auditsphere-pre-deploy-20261015T131215Z.dump",
+      "bytes": 1862104,
       "format": "PostgreSQL custom",
-      "catalogValidated": true
+      "catalogValidated": true,
+      "catalogEntries": 3016,
+      "restoredToDisposableDatabase": true
     },
     "mailSetup": {
       "status": "LIVE_TRANSPORT_DELIVERED_AND_CAPABILITY_VERIFIED",
@@ -1380,6 +1384,39 @@
       "operationsUiErrorLogs": 0,
       "businessMailOperationExecuted": false,
       "pbcWorkerStarted": false
+    },
+    "latestDeployment": {
+      "recordedAtUtc": "2026-10-15T13:28:06Z",
+      "repositoryCheckout": "12e51e6031605245c22df8331d7ca12f345dbf36",
+      "apiAndMigrationImageSource": "48e9f2059662d0712f2d1b23d5616b4e8494dad4",
+      "apiImageDigest": "sha256:f4e80f0e20452134492fd9161d5d59cf5535e7a88743263421e2048cce666b7f",
+      "migrationImageDigest": "sha256:e929f78638e222edc9437732b812668e5ef08166b2c515175a5ef7b7f59d079b",
+      "ciRunId": 38736649493,
+      "imageBuildRunId": 38736552467,
+      "migrationHeadBefore": "20261010203413_ReportCertificateSignatureEvidence",
+      "migrationCountBefore": 191,
+      "migrationHeadAfter": "20261015113704_ClientBundleReceiptAcknowledgements",
+      "migrationCountAfter": 225,
+      "backup": {
+        "path": "/opt/auditsphere/storage/backups/auditsphere-pre-deploy-20261015T131215Z.dump",
+        "bytes": 1862104,
+        "format": "PostgreSQL custom",
+        "catalogValidated": true,
+        "catalogEntries": 3016,
+        "restoredToDisposableDatabase": true
+      },
+      "rehearsalMigrations": "PASS",
+      "rehearsalApiReadyHttp": 200,
+      "localReadyHttp": 200,
+      "publicReadyHttp": 200,
+      "apiOnlyRecreated": true,
+      "workerContainersUnchanged": true,
+      "temporarySshKeyRevoked": true,
+      "temporaryPrivateKeyRemoved": true,
+      "browser": "Authenticated portfolio shell rendered; current scope showed zero clients and engagements.",
+      "clientSitesPolicyDefaultEnabled": true,
+      "clientSitesRolloutBoundaryConfigured": false,
+      "clientSitesWorkerRunning": false
     }
   }
 }
