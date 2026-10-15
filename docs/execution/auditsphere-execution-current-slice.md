@@ -19,6 +19,10 @@ which the full suite was run; per-slice records carry their own evidence.
 
 Focused browser evidence covers foreign-firm and guessed-ID read denial for assessment, engagement creation and activation. The full Release solution baseline was interrupted without a verdict. Overall parity remains partial and Blazor removal is NOT_READY; exact evidence and run attribution are in `status.json` under `targetedVerification.angularMigrationAcceptanceCrossFirmIsolation`.
 
+## Blazor parity — role-administration revocation fencing — 2026-10-15
+
+Role-administration mutations now acquire the firm safety lock and reauthorize the acting Administrator after lock acquisition. The PostgreSQL race regression and full `RoleAdministrationTests` cohort passed; the administration source review records the exact boundary. This closes one stale-authority race only. Source/action parity and the Blazor removal gate remain PARTIAL / NOT_READY; exact evidence is in `status.json` under `targetedVerification.angularMigrationAdminRevocationFencing`.
+
 ## AS-UX-001 Angular visual adoption — shell foundation — 2026-10-15
 
 The existing Angular shell now uses the approved dark navigation/light workspace visual direction. The staff-only global search remains backed by its existing authorized API; its results are presented in a bounded header panel. Existing route groups and session/sign-out behavior remain. The seven visible workflow phases remain a read-only server projection of the canonical lifecycle.
