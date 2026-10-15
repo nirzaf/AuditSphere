@@ -1,9 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import { routes } from '../app.routes';
 import { NAVIGATION } from '../navigation';
+import { NAV_ICON_PATHS } from '../navigation-icons';
 import { migratedHref, workspaceRoute, workspaceSignInHref } from './navigation';
 
 describe('Angular workspace navigation ownership', () => {
+  it('gives every group and destination a drawn icon and files firm books under Practice', () => {
+    for (const group of NAVIGATION) {
+      expect(NAV_ICON_PATHS[group.icon].length).toBeGreaterThan(0);
+      for (const item of group.items) expect(NAV_ICON_PATHS[item.icon].length).toBeGreaterThan(0);
+    }
+    const groupOf = (path: string) => NAVIGATION.find(group => group.items.some(item => item.path === path))?.title;
+    expect(groupOf('/app/finance')).toBe('Practice');
+    expect(groupOf('/app/finance/books')).toBe('Practice');
+    expect(groupOf('/app/consolidation')).toBe('Consolidation');
+    expect(groupOf('/app/accounting/remeasurement')).toBe('Accounting');
+  });
   it('owns every sidebar destination and every declared parameterized route', () => {
     for (const group of NAVIGATION) for (const item of group.items) {
       expect(workspaceRoute(item.path)).toBe(item.path);

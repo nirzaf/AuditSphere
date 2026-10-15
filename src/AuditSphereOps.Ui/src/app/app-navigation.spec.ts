@@ -8,6 +8,7 @@ import { provideRouter, Router } from '@angular/router';
 import { BehaviorSubject, Subject } from 'rxjs';
 import { App } from './app';
 import { SessionService } from './core/session';
+import { NAVIGATION } from './navigation';
 
 @Component({ template: '<h1>Test workspace</h1>' })
 class TestWorkspace {}
@@ -80,6 +81,16 @@ describe('responsive workspace navigation', () => {
     expect(s.fixture.nativeElement.querySelector('.workspace-navigation.compact-navigation')).toBeTruthy();
     expect(s.fixture.nativeElement.querySelector('a[aria-label="Portfolio"]')).toBeTruthy();
     expect(s.fixture.nativeElement.querySelector('a[title="Portfolio"]')).toBeTruthy();
+    s.fixture.destroy();
+  });
+  it('draws one decorative icon per staff destination and group, leaving labels as the accessible names', async () => {
+    const s = await setup();
+    const nav = s.fixture.nativeElement.querySelector('nav.workspace-navigation') as HTMLElement;
+    const links = nav.querySelectorAll('a');
+    expect(links.length).toBe(NAVIGATION.reduce((count, group) => count + group.items.length, 0));
+    for (const link of links) expect(link.querySelector('svg[aria-hidden="true"] path')).toBeTruthy();
+    for (const heading of nav.querySelectorAll('h2')) expect(heading.querySelector('svg[aria-hidden="true"]')).toBeTruthy();
+    expect(nav.querySelector('a[href$="/app/finance/books"]')?.textContent?.trim()).toBe('Firm books');
     s.fixture.destroy();
   });
   it('reports a safe load failure and allows retry', async () => {

@@ -321,11 +321,12 @@ public sealed class AngularRouteAndShellMigrationSweepTests
     {
       "/" or "/app" => "Practice",
       _ when route.StartsWith("/app/administration", StringComparison.Ordinal) || route == "/app/operations" => "Administration",
-      _ when route.StartsWith("/app/accounting", StringComparison.Ordinal) || route.StartsWith("/app/consolidation", StringComparison.Ordinal) ||
-        route.StartsWith("/app/finance", StringComparison.Ordinal) => "Accounting",
+      _ when route.StartsWith("/app/accounting", StringComparison.Ordinal) => "Accounting",
+      _ when route.StartsWith("/app/consolidation", StringComparison.Ordinal) => "Consolidation",
       _ when route.StartsWith("/app/audit", StringComparison.Ordinal) || route == "/app/library" ||
         Regex.IsMatch(route, @"^/app/engagements/[^/]+/(audit-plan|audit-fieldwork|completion)(?:/|$)") => "Audit",
       _ when route.StartsWith("/app/practice", StringComparison.Ordinal) || route.StartsWith("/app/clients/", StringComparison.Ordinal) ||
+        route.StartsWith("/app/finance", StringComparison.Ordinal) || route == "/app/work" ||
         Regex.IsMatch(route, @"^/app/engagements/[^/]+(?:/pbc)?$") => "Practice",
       _ => null
     };
