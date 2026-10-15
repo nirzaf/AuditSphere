@@ -21,7 +21,8 @@ public sealed class FirmReceivablesAgingApiTests
     var seed = await PbcSeed.SeedAsync(pg);
     var manager = PbcSeed.Actor(seed.Admin, "FinanceManager");
     var reviewer = PbcSeed.Actor(seed.Reviewer, "FinanceReviewer");
-    var now = DateTimeOffset.UtcNow;
+    var instant = DateTimeOffset.UtcNow;
+    var now = new DateTimeOffset(instant.Ticks - instant.Ticks % 10, TimeSpan.Zero);
     var asOf = DateOnly.FromDateTime(now.UtcDateTime).AddDays(1);
     Guid accountId, invoiceId;
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -44,29 +45,51 @@ public sealed class FirmReceivablesAgingApiTests
         PeriodEnd = "2026-12-31", Currency = "QAR", CreatedAt = now
       };
       var quotationId = Guid.NewGuid();
-      var offerHash = Hashing.Sha256Hex("synthetic dispatched API receivables offer");
       var proposal = new Proposal
       {
         Id = Guid.NewGuid(), FirmId = seed.FirmId, OpportunityId = opportunity.Id, PracticeClientId = seed.ClientId,
         Status = CrmStates.ProposalAccepted, Currency = "QAR", Fee = 200m,
         ServiceProfileId = "AUDIT-2026", Scope = "Synthetic API audit scope", Deliverables = "Synthetic API report",
         PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", CreatedAt = now, SentAt = now, ResponseAt = now,
-        SentOfferSha256 = offerHash, ResponseOfferSha256 = offerHash
       };
       db.Leads.Add(lead);
       db.Opportunities.Add(opportunity);
       db.Proposals.Add(proposal);
       db.QuotationVersions.Add(new QuotationVersion
       {
-        Id = quotationId, FirmId = seed.FirmId, ProposalId = proposal.Id, Currency = "QAR",
+        Id = quotationId, FirmId = seed.FirmId, ProposalId = proposal.Id, Revision = 1, Currency = "QAR",
         BaseAmount = 200m, Fee = 200m, InputHash = Hashing.Sha256Hex("synthetic API ageing quotation"),
         Status = QuotationStates.Approved, CreatedByUserId = seed.Admin.Id, ApprovedAt = now, CreatedAt = now
       });
+      await db.SaveChangesAsync();
+
+      await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(db, PbcSeed.Actor(seed.Admin, "Partner"), proposal.Id);
+      var renderedOffer = await db.CommercialDocuments.AsNoTracking()
+        .SingleAsync(x => x.FirmId == seed.FirmId && x.ProposalId == proposal.Id && x.Kind == CommercialDocumentKinds.Quotation);
+      const string recipient = "owner@receivables.example.test";
+      var dispatchId = Guid.NewGuid();
+      proposal.SentOfferSha256 = renderedOffer.Sha256Hex;
+      proposal.ResponseOfferSha256 = renderedOffer.Sha256Hex;
+      proposal.RespondentName = "Synthetic client owner";
+      proposal.RespondentEmail = recipient;
+      proposal.ResponseEvidenceReference = "SYN-CLIENT-ACCEPTANCE";
+      proposal.ResponseChannel = ProposalResponseChannels.Email;
       db.CommercialNotifications.Add(new CommercialNotification
       {
-        Id = Guid.NewGuid(), FirmId = seed.FirmId, Kind = CommercialNotificationKinds.Proposal,
-        ProposalId = proposal.Id, PracticeClientId = seed.ClientId, QuotationVersionId = quotationId, OfferSha256 = offerHash,
-        Recipient = "owner@receivables.example.test", Subject = "Synthetic dispatched offer", Body = "Synthetic test evidence", CreatedAt = now
+        Id = dispatchId, FirmId = seed.FirmId, Kind = CommercialNotificationKinds.Proposal,
+        ProposalId = proposal.Id, PracticeClientId = seed.ClientId,
+        QuotationVersionId = quotationId, DocumentId = renderedOffer.Id, OfferSha256 = renderedOffer.Sha256Hex,
+        RecipientAuthorityBasis = ProposalRecipientAuthorityBases.LegacyDispatchSnapshot,
+        Recipient = recipient, Subject = "Synthetic dispatched offer", Body = "Synthetic test evidence", CreatedAt = now
+      });
+      db.ProposalResponseRecords.Add(new ProposalResponseRecord
+      {
+        Id = Guid.NewGuid(), FirmId = seed.FirmId, ProposalId = proposal.Id, CommercialNotificationId = dispatchId,
+        Decision = CrmStates.ProposalAccepted, OfferSha256 = renderedOffer.Sha256Hex,
+        DispatchRecipient = recipient, AuthorityBasis = ProposalRecipientAuthorityBases.LegacyDispatchSnapshot,
+        RespondentName = "Synthetic client owner", RespondentEmail = recipient,
+        EvidenceReference = "SYN-CLIENT-ACCEPTANCE", Channel = ProposalResponseChannels.Email,
+        RecordedByUserId = seed.Admin.Id, RecordedAt = now
       });
       await db.SaveChangesAsync();
 
@@ -99,10 +122,12 @@ public sealed class FirmReceivablesAgingApiTests
     var proof = await SignInAsync(managerClient);
     var reportPath = $"/api/ui/finance/receivables-aging?asOf={asOf:yyyy-MM-dd}";
     var initial = await managerClient.GetFromJsonAsync<JsonElement>(reportPath);
-    var initialRow = Assert.Single(initial.GetProperty("rows").EnumerateArray());
+    var initialRows = initial.GetProperty("rows").EnumerateArray().ToArray();
+    Assert.Equal(2, initialRows.Length);
+    Assert.Equal("OTHER", initialRows.Single(x => x.GetProperty("invoiceNumber").GetString() == "SYN-AGING-API-UNLINKED")
+      .GetProperty("invoiceType").GetString());
+    var initialRow = initialRows.Single(x => x.GetProperty("invoiceId").GetGuid() == invoiceId);
     Assert.Equal(invoiceId, initialRow.GetProperty("invoiceId").GetGuid());
-    Assert.DoesNotContain(initial.GetProperty("rows").EnumerateArray(), x =>
-      x.GetProperty("invoiceNumber").GetString() == "SYN-AGING-API-UNLINKED");
     Assert.Equal("UNDATED_REVIEW_REQUIRED", initialRow.GetProperty("bucket").GetString());
     Assert.Null(initialRow.GetProperty("dueDate").GetStringOrNull());
 
@@ -119,7 +144,8 @@ public sealed class FirmReceivablesAgingApiTests
     Assert.Equal(HttpStatusCode.OK, submitted.StatusCode);
     var revisionId = (await submitted.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("value").GetGuid();
     var pending = await managerClient.GetFromJsonAsync<JsonElement>(reportPath);
-    Assert.Equal("UNDATED_REVIEW_REQUIRED", Assert.Single(pending.GetProperty("rows").EnumerateArray()).GetProperty("bucket").GetString());
+    Assert.Equal("UNDATED_REVIEW_REQUIRED", pending.GetProperty("rows").EnumerateArray()
+      .Single(x => x.GetProperty("invoiceId").GetGuid() == invoiceId).GetProperty("bucket").GetString());
 
     using var reviewerFactory = Factory(pg, seed.Reviewer.Subject);
     using var reviewerClient = reviewerFactory.CreateClient(new() { AllowAutoRedirect = false });
@@ -142,7 +168,8 @@ public sealed class FirmReceivablesAgingApiTests
     Assert.Equal(HttpStatusCode.OK, reversalRequest.StatusCode);
     var reversalId = (await reversalRequest.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("value").GetGuid();
     var beforeReversalApproval = await managerClient.GetFromJsonAsync<JsonElement>(reportPath);
-    var pendingReversalRow = Assert.Single(beforeReversalApproval.GetProperty("rows").EnumerateArray());
+    var pendingReversalRow = beforeReversalApproval.GetProperty("rows").EnumerateArray()
+      .Single(x => x.GetProperty("invoiceId").GetGuid() == invoiceId);
     Assert.Equal(0m, decimal.Parse(pendingReversalRow.GetProperty("reversedReceipts").GetString()!, CultureInfo.InvariantCulture));
     Assert.Equal(80m, decimal.Parse(pendingReversalRow.GetProperty("outstanding").GetString()!, CultureInfo.InvariantCulture));
     using var reversalDecision = await PostAsync(reviewerClient, $"/api/ui/finance/allocation-reversals/{reversalId:D}/review",
@@ -150,7 +177,7 @@ public sealed class FirmReceivablesAgingApiTests
     Assert.Equal(HttpStatusCode.OK, reversalDecision.StatusCode);
 
     var aged = await managerClient.GetFromJsonAsync<JsonElement>(reportPath);
-    var row = Assert.Single(aged.GetProperty("rows").EnumerateArray());
+    var row = aged.GetProperty("rows").EnumerateArray().Single(x => x.GetProperty("invoiceId").GetGuid() == invoiceId);
     Assert.Equal("OVERDUE_31_60", row.GetProperty("bucket").GetString());
     Assert.Equal("APPROVED", row.GetProperty("paymentTermsStatus").GetString());
     Assert.Equal(20m, decimal.Parse(row.GetProperty("appliedReceipts").GetString()!, CultureInfo.InvariantCulture));

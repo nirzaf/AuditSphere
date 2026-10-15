@@ -4,6 +4,7 @@ using System.Text.Json;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Security;
+using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Domain.Tests;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Testing;
@@ -46,7 +47,7 @@ public sealed class ConsolidationWorkspaceApiTests
   }
 
   [Fact]
-  public async Task ScopeWorkspace_CanQueryDetail_AndSubmitAndApproveComponentWithMakerChecker()
+  public async Task ScopeWorkspace_CanQueryDetail_AndBlocksComponentApprovalWithoutSelectedComposition()
   {
     await using var pg = await OwnedPostgresDatabase.CreateAsync("API-CONSOL-COMPONENTS");
     var seed = await PbcSeed.SeedAsync(pg);
@@ -151,16 +152,26 @@ public sealed class ConsolidationWorkspaceApiTests
       };
       db.FinancialPackages.Add(package);
       packageId = package.Id;
+      db.FinancialPackageValidations.AddRange(FinancialPackageValidationReadiness.RequiredCodes.Select(code =>
+        new FinancialPackageValidation
+        {
+          Id = Guid.CreateVersion7(), FirmId = seed.FirmId, FinancialPackageId = package.Id,
+          Code = code, Passed = true, Detail = "Seeded canonical validation for a validated synthetic package.",
+          CreatedAt = DateTimeOffset.UtcNow
+        }));
 
       var artifactId = Guid.CreateVersion7();
+      var artifactBytes = new byte[] { 1, 2, 3 };
+      var artifactDigest = Hashing.Sha256Hex(artifactBytes);
       db.FinancialPackageArtifacts.Add(new FinancialPackageArtifact
       {
         Id = artifactId, FirmId = seed.FirmId, ClientId = seed.ClientId, EngagementId = seed.EngagementId,
         FinancialPackageId = package.Id, PackageRevision = 1, PackageGeneration = 1,
         PackageHash = digest, ArtifactVersion = "v1", FrameworkVersion = "IFRS", TemplateVersion = "1.0",
-        ArtifactSha256Hex = digest, ArtifactBytes = [1, 2, 3], CreatedByUserId = seed.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
+        ArtifactSha256Hex = artifactDigest, ArtifactBytes = artifactBytes, CreatedByUserId = seed.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
       });
 
+      await db.SaveChangesAsync();
       // Add required review decisions so RequireCurrentAsync succeeds for package
       foreach (var stage in new[] { FinancialPackageReviewStages.ManagementApproval, FinancialPackageReviewStages.AccountingReview, FinancialPackageReviewStages.PartnerApproval })
       {
@@ -169,14 +180,13 @@ public sealed class ConsolidationWorkspaceApiTests
           Id = Guid.CreateVersion7(), FirmId = seed.FirmId, ClientId = seed.ClientId, EngagementId = seed.EngagementId,
           FinancialPackageId = package.Id, PackageRevision = 1, PackageGeneration = 1,
           PackageHash = package.CalculationHash, FinancialPackageArtifactId = artifactId,
-          ArtifactVersion = "v1", ArtifactSha256Hex = digest,
+          ArtifactVersion = "v1", ArtifactSha256Hex = artifactDigest,
           Stage = stage, Decision = FinancialPackageReviewDecisions.Approved,
           EvidenceMode = FinancialPackageReviewEvidenceModes.SignedIn, EvidenceReference = "EVID-01",
           DecidedByUserId = reviewer.Id, DecidedAt = DateTimeOffset.UtcNow
         });
+        await db.SaveChangesAsync();
       }
-
-      await db.SaveChangesAsync();
     }
 
     // Preparer client
@@ -193,6 +203,9 @@ public sealed class ConsolidationWorkspaceApiTests
     Assert.True(ws.GetProperty("eligiblePackages").GetArrayLength() >= 1);
 
     // 2. Submit component
+    var eligiblePackage = (await Read(prepClient, $"/api/ui/consolidation/scopes/{scopeId}"))
+      .GetProperty("eligiblePackages").EnumerateArray()
+      .Single(x => x.GetProperty("packageId").GetGuid() == packageId);
     var submitRes = await Post(prepClient, prepCsrf, $"/api/ui/consolidation/scopes/{scopeId}/components", new
     {
       clientId = seed.ClientId,
@@ -202,9 +215,10 @@ public sealed class ConsolidationWorkspaceApiTests
       controlMethod = "CONTROLLED",
       periodBasis = "2026-01-01..2026-12-31",
       taxonomyVersion = "IFRS-2026",
-      mappingVersion = (await Read(prepClient, $"/api/ui/consolidation/scopes/{scopeId}")).GetProperty("eligiblePackages")[0].GetProperty("mappingVersion").GetString()
+      mappingVersion = eligiblePackage.GetProperty("mappingVersion").GetString()
     });
-    Assert.Equal(HttpStatusCode.OK, submitRes.StatusCode);
+    Assert.True(submitRes.StatusCode == HttpStatusCode.OK,
+      $"Expected component submission to succeed; got {(int)submitRes.StatusCode}: {await submitRes.Content.ReadAsStringAsync()}");
     var submitJson = JsonDocument.Parse(await submitRes.Content.ReadAsStringAsync()).RootElement;
     var componentId = submitJson.GetProperty("value").GetGuid();
 
@@ -212,7 +226,7 @@ public sealed class ConsolidationWorkspaceApiTests
     var selfApprove = await Post(prepClient, prepCsrf, $"/api/ui/consolidation/components/{componentId}/approve", new { });
     Assert.True(selfApprove.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.BadRequest);
 
-    // 4. Reviewer signs in and approves component -> succeeds
+    // 4. A reviewer cannot approve this synthetic package until its exact three-format composition is selected and approved.
     using var revFactory = Factory(pg, reviewer);
     using var revClient = revFactory.CreateClient();
     var revCsrf = await SignIn(revClient);
@@ -223,11 +237,13 @@ public sealed class ConsolidationWorkspaceApiTests
     Assert.Equal("SUBMITTED", revWs.GetProperty("components")[0].GetProperty("status").GetString());
 
     var approveRes = await Post(revClient, revCsrf, $"/api/ui/consolidation/components/{componentId}/approve", new { });
-    Assert.Equal(HttpStatusCode.OK, approveRes.StatusCode);
+    Assert.Equal(HttpStatusCode.BadRequest, approveRes.StatusCode);
+    var approvalFailure = await approveRes.Content.ReadFromJsonAsync<JsonElement>();
+    Assert.Contains("composition", approvalFailure.GetProperty("message").GetString(), StringComparison.OrdinalIgnoreCase);
 
-    // 5. Verify component is now Approved
-    var finalWs = await Read(revClient, $"/api/ui/consolidation/scopes/{scopeId}");
-    Assert.Equal("APPROVED", finalWs.GetProperty("components")[0].GetProperty("status").GetString());
+    // 5. The failed review leaves the submitted component unchanged.
+    var afterBlockedApproval = await Read(revClient, $"/api/ui/consolidation/scopes/{scopeId}");
+    Assert.Equal("SUBMITTED", afterBlockedApproval.GetProperty("components")[0].GetProperty("status").GetString());
   }
 
   [Fact]
