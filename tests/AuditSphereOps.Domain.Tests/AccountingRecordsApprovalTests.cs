@@ -162,20 +162,40 @@ public sealed class AccountingRecordsApprovalTests
   public async Task Restatement_RequiresSupportedChangeTypeAndAffectedPeriods()
   {
     await using var pg = await PgTestSchema.CreateAsync();
-    var fixture = await SeedAsync(pg);
-    var preparer = Actor(fixture.Preparer, "AccountingPreparer");
-    var reviewer = Actor(fixture.Reviewer, "AccountingReviewer");
-    var partner = Actor(fixture.Partner, "Partner");
+    var issued = await StatementCandidatePromotionTests.SeedPresentableAsync(pg);
+    var preparer = Actor(issued.Preparer, "AccountingPreparer");
+    var reviewer = Actor(issued.Reviewer, "AccountingReviewer");
+    var partner = Actor(issued.Partner, "Partner");
 
-    Guid periodId, originalPackageId, revisedPackageId;
+    Fixture fixture;
+    Guid periodId, revisedPackageId;
+    var originalPackageId = issued.PackageId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      periodId = (await ClientAccountingService.CreatePeriodAsync(db, preparer,
-        new ReportingPeriodRequest(fixture.ClientId, "2026", new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31),
-          "STATUTORY", "QAR"))).Value;
-      originalPackageId = AddValidatedPackage(db, fixture, 100m, "CASH", "restatement-original");
-      revisedPackageId = AddValidatedPackage(db, fixture, 90m, "CASH", "restatement-revised");
-      await db.SaveChangesAsync();
+      var package = await db.FinancialPackages.SingleAsync(x => x.Id == originalPackageId);
+      var datasetId = await db.MappingVersions.Where(x => x.Id == package.MappingVersionId)
+        .Select(x => x.DatasetId).SingleAsync();
+      fixture = new(issued.FirmId, issued.ClientId, issued.EngagementId, datasetId,
+        issued.Preparer, issued.Reviewer, issued.Partner);
+      periodId = await db.ClientReportingPeriods.Where(x => x.FirmId == fixture.FirmId && x.ClientId == fixture.ClientId)
+        .Select(x => x.Id).SingleAsync();
+      var unreviewedClose = await ClientAccountingService.ClosePeriodAsync(db, reviewer, periodId, "Unreviewed close");
+      Assert.False(unreviewedClose.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, unreviewedClose.ErrorCode);
+
+      var pin = await FinancialStatementService.PinPresentationAsync(db, preparer, originalPackageId, issued.LayoutId);
+      Assert.True(pin.Succeeded, pin.Message);
+      var rendered = await FinancialStatementService.RenderPinnedPresentationArtifactAsync(db, reviewer,
+        pin.Value!.RevisionId, FinancialStatementPresentationRenderer.PdfFormat);
+      Assert.True(rendered.Succeeded, rendered.Message);
+      var content = await StatementContentReviewCall.RecordAsync(db, reviewer, originalPackageId, pin.Value.RevisionId);
+      Assert.True(content.Succeeded, content.Message);
+      var candidate = await FinancialStatementService.PromotePresentationToCandidateAsync(db, reviewer,
+        originalPackageId, pin.Value.RevisionId);
+      Assert.True(candidate.Succeeded, candidate.Message);
+      var composition = await FinancialStatementService.SelectCompositionAsync(db, preparer,
+        originalPackageId, candidate.Value!.RevisionId);
+      Assert.True(composition.Succeeded, composition.Message);
       foreach (var (actor, stage, evidence) in new[]
       {
         (preparer, FinancialPackageReviewStages.ManagementApproval, "mgmt-restatement"),
@@ -183,15 +203,20 @@ public sealed class AccountingRecordsApprovalTests
         (partner, FinancialPackageReviewStages.PartnerApproval, "partner-restatement")
       })
       {
-        foreach (var packageId in new[] { originalPackageId, revisedPackageId })
-          Assert.True((await FinancialPackageReviewService.RecordAsync(db, actor,
-            new FinancialPackageReviewRequest(packageId, stage, FinancialPackageReviewDecisions.Approved,
-              stage == FinancialPackageReviewStages.ManagementApproval
-                ? FinancialPackageReviewEvidenceModes.Offline
-                : FinancialPackageReviewEvidenceModes.SignedIn,
-              evidence, "Restatement fixture approval."))).Succeeded);
+        var decision = await FinancialPackageReviewService.RecordAsync(db, actor,
+          new FinancialPackageReviewRequest(originalPackageId, stage, FinancialPackageReviewDecisions.Approved,
+            stage == FinancialPackageReviewStages.ManagementApproval
+              ? FinancialPackageReviewEvidenceModes.Offline : FinancialPackageReviewEvidenceModes.SignedIn,
+            evidence, "Restatement fixture approval.", candidate.Value.RevisionId, null,
+            composition.Value!.Id, composition.Value.ManifestDigest));
+        Assert.True(decision.Succeeded, decision.Message);
       }
-      Assert.True((await ClientAccountingService.ClosePeriodAsync(db, reviewer, periodId, "Restatement fixture close")).Succeeded);
+      var closed = await ClientAccountingService.ClosePeriodAsync(db, reviewer, periodId, "Restatement fixture close");
+      Assert.True(closed.Succeeded, closed.Message);
+
+      // A correction is prepared after the original reporting period was independently closed.
+      revisedPackageId = AddValidatedPackage(db, fixture, 90m, "CASH", "restatement-revised");
+      await db.SaveChangesAsync();
     }
 
     await using (var db = new AuditSphereDbContext(pg.Options))
