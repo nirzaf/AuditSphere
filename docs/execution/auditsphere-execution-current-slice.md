@@ -295,3 +295,10 @@ Browser smoke rendered Portfolio; scope was empty and reported no active M365 co
 ## Administration group-grant revocation fencing — 2026-10-15
 
 Group-scoped role revocation now waits on the firm safety row and reauthorizes the acting Administrator after the lock, matching the other reviewed role-change commands. A deterministic PostgreSQL regression revokes the acting Administrator while the group-revocation command is waiting and confirms the target group grant, target session epoch and audit event are unchanged. The focused `RoleAssignmentTests` cohort passed 9/9 at commit `1f19d07d179060b8f59e702ce0149e14768fd772`. This is a narrow security evidence increment; Administration source/action parity remains partial and Blazor removal remains `NOT_READY`.
+
+
+## Blazor migration parity — stale role review — 2026-10-15
+
+The Angular role-assignment journey now proves that changing the reviewed reason invalidates the preview, assent and save action; the operator must obtain a fresh preview and assent, and the persisted evidence records the newly reviewed reason. The existing-guest journey is also confirmed in the focused tenant-connection browser cohort: exact identity binding grants no role automatically, and the CLIENT-scoped `ClientUser` grant is a separate reviewed action. Source/action rows remain `PARTIAL`; the removal gate remains `NOT_READY`.
+
+Hosted CI run [38768464486](https://github.com/nirzaf/AuditSphere/actions/runs/38768464486) at `660c1605`: Release build passed; Angular 132/773; focused Domain 150/150, API 8/8 and E2E 17/17 passed; EF and OpenAPI drift passed. Docs Health and GitGuardian were green in that run. After ledger edits, local docs checks passed (210 Markdown files; 2,726 links). The E2E filter includes the administration stale-review and exact-guest journeys. Full solution regression, remaining migration matrix, live provider acceptance, production cutover/rollback, human accessibility/locale acceptance and independent retirement review remain open. Details: `status.json`, `targetedVerification.angularMigrationAdministrationReviewFreshnessCi`.
