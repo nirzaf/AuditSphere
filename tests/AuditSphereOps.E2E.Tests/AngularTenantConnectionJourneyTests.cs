@@ -13,6 +13,11 @@ public sealed class AngularTenantConnectionJourneyTests
     await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-TENANT-CONNECTION");
     var seeded = await TenantAdministrationSeed.SeedAsync(host, verified: false);
     var settings = TenantAdministrationSeed.Simulation(seeded);
+    var guestObjectId = Guid.NewGuid().ToString("D");
+    settings["TenantAdministration__Simulation__Users__2__ObjectId"] = guestObjectId;
+    settings["TenantAdministration__Simulation__Users__2__DisplayName"] = "Directory Journey Guest";
+    settings["TenantAdministration__Simulation__Users__2__UserPrincipalName"] = "existing.guest_client.test#EXT#@simulated.onmicrosoft.com";
+    settings["TenantAdministration__Simulation__Users__2__UserType"] = "Guest";
     settings["AngularUi__Enabled"] = "true";
     var origin = await host.StartApiForIdentityAsync(seeded.Admin, settings);
     using var playwright = await Playwright.CreateAsync(); await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
@@ -113,6 +118,42 @@ public sealed class AngularTenantConnectionJourneyTests
       Assert.NotNull((await db.RoleGrants.SingleAsync(x => x.Id == grantId && x.UserId == boundUserId)).RevokedAt);
       Assert.Contains(await db.RoleGrantChangeEvidences.ToListAsync(),
         x => x.RoleGrantId == grantId && x.Reason == "Directory assignment ended");
+    }
+
+    await directory.GetByLabel("Display name or user principal name prefix", new() { Exact = true }).FillAsync("Directory Journey Guest");
+    await directory.GetByRole(AriaRole.Button, new() { Name = "Search Microsoft directory", Exact = true }).ClickAsync();
+    await directory.GetByRole(AriaRole.Button, new() { Name = "Review Directory Journey Guest", Exact = true }).ClickAsync();
+    await Assertions.Expect(directory.GetByRole(AriaRole.Heading, new() { Name = "Review existing guest", Exact = true })).ToBeVisibleAsync();
+    await directory.GetByLabel("I reviewed this exact Microsoft identity and account type.", new() { Exact = true }).CheckAsync();
+    await directory.GetByRole(AriaRole.Button, new() { Name = "Verify and bind selected identity", Exact = true }).ClickAsync();
+    await Assertions.Expect(directory.GetByText("Identity verified and bound locally. No new AuditSphere role has been granted.", new() { Exact = true })).ToBeVisibleAsync();
+    Guid guestUserId;
+    await using (var db = host.CreateDbContext())
+    {
+      var guest = await db.Users.SingleAsync(x => x.TenantId == seeded.TenantId && x.Subject == guestObjectId);
+      Assert.Equal("Client", guest.UserKind);
+      Assert.Equal("existing.guest@client.test", guest.Email);
+      Assert.False(await db.RoleGrants.AnyAsync(x => x.UserId == guest.Id));
+      guestUserId = guest.Id;
+    }
+    await directory.GetByRole(AriaRole.Button, new() { Name = "Assign reviewed role and scope", Exact = true }).ClickAsync();
+    var guestRoleDialog = page.GetByRole(AriaRole.Dialog);
+    Assert.Equal(0, await guestRoleDialog.Locator("#scope-kind option[value=FIRM_WIDE]").CountAsync());
+    await guestRoleDialog.GetByLabel("Role", new() { Exact = true }).SelectOptionAsync("ClientUser");
+    await guestRoleDialog.GetByLabel("Scope type", new() { Exact = true }).SelectOptionAsync("CLIENT");
+    await guestRoleDialog.GetByLabel("Client", new() { Exact = true }).SelectOptionAsync(host.Fixture.ClientId.ToString());
+    await guestRoleDialog.GetByLabel("Reason", new() { Exact = true }).FillAsync("Existing guest approved for client portal");
+    await guestRoleDialog.GetByRole(AriaRole.Button, new() { Name = "Review proposed access", Exact = true }).ClickAsync();
+    await guestRoleDialog.GetByLabel("I reviewed the proposed access, scope change, expiry and independence impact.", new() { Exact = true }).CheckAsync();
+    await guestRoleDialog.GetByRole(AriaRole.Button, new() { Name = "Assign reviewed access", Exact = true }).ClickAsync();
+    await Assertions.Expect(guestRoleDialog).ToHaveCountAsync(0);
+    await using (var db = host.CreateDbContext())
+    {
+      var grant = await db.RoleGrants.SingleAsync(x => x.UserId == guestUserId && x.RevokedAt == null);
+      Assert.Equal("ClientUser", grant.Role);
+      Assert.Equal(host.Fixture.ClientId, grant.ClientId);
+      Assert.Null(grant.EngagementId);
+      Assert.Equal("Existing guest approved for client portal", grant.Reason);
     }
     Assert.Empty(errors);
   }
