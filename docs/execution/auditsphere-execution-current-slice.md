@@ -15,6 +15,14 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08 and 2026-10-15, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Angular/Blazor parity — consolidation approval and review reconciliation
+
+The consolidation component approval command again requires current management, accounting and Partner decisions bound to the selected composition. A local regression had shown approval succeeding without that composition after the guard was relaxed. The focused API refusal case now passes; exact source attribution and the affected cohort results are in `status.json` under `targetedVerification.angularBlazorConsolidationGuardFollowUp`.
+
+The consolidation source review also contained two stale gaps. The current Angular overview already labels approval times in UTC, including offset normalization. Advanced consolidation already fences unknown outcomes until a persisted workspace re-read and explicit acknowledgement. Existing focused Angular specs passed for these behaviors. The review and source-action manifest now retain the remaining scope, mutation, browser, performance and human acceptance gaps.
+
+Retirement remains `NOT_READY`. The earlier full local regression reported failures and is not current repaired-tree acceptance. Web remains present; no deployment, persistent database migration or external acceptance was performed for this increment.
+
 ## Blazor parity — focused security and denial boundaries — 2026-10-15
 
 Focused browser coverage compares foreign-firm and guessed-ID denials for assessment, engagement creation and activation, and verifies the server-owned access-denial page returns 403 with `no-store`, generic text and sign-out. The role-administration PostgreSQL cohort also proves a revoked Administrator waiting on the firm lock cannot finish a grant revocation. These close only narrow boundaries; the full Release solution baseline was interrupted without a verdict. Overall parity remains partial and Blazor removal is NOT_READY. Evidence is in `status.json` under `targetedVerification.angularMigrationAcceptanceCrossFirmIsolation`, `angularMigrationAccessNotAssignedBrowser` and `angularMigrationAdminRevocationFencing`.
@@ -250,17 +258,9 @@ The two focused PostgreSQL regression tests passed 2/2, including the returned-w
 
 This is a partial workflow increment. The canonical lifecycle stage does not regress to Fieldwork on rework; the summary flag does not change lifecycle gates; procedure-level assignment/resubmission restrictions and task notifications remain open. Queue filters for rework and waiting-for-client, evidence dependency evaluators, Kanban/calendar views, and task-plan authoring remain open. The workflow feature stays default-off; no live or professional acceptance is claimed.
 
-## v2.2 workflow experience, PRs D–F — 2026-10-12
+## v2.2 workflow experience, PRs D–F — earlier evidence
 
-WF-04 keeps `WorkTask` as the one operational task/status record and binds optional workflow metadata one-to-one. Existing `TimeEntry` lineage remains attached to the same task. The default-off API exposes scoped task create/read/assign/reassign/complete; creation uses a stable idempotency key and immutable digest, and revisioned actions reject stale requests. Checklist completion does not advance the canonical audit lifecycle.
-
-WF-05 adds a firm-scoped template catalog with immutable revisions, dependency-cycle validation, independent review, publication/supersession and archive evidence. WF-06 adds a preview/execute/receipt path that pins the exact published revision, engagement generation, staffing snapshot and statutory schedule basis. Instantiation creates existing `WorkTask` records and bindings in one transaction. Concurrent same-request execution creates one plan; an ambiguous retry recovers its original receipt even after the schedule changes. A new published template version does not mutate a prior engagement plan. Plan receipts are append-only in PostgreSQL.
-
-PR-F partially advances WF-07/08. `WorkflowTaskQueueQuery` returns My Tasks, Team, Overdue and Completed views scoped from current unexpired role grants, with stable keyset paging and task-owner, FSLI and mapping lineage. The Angular `My work` screen is at `/ui/app/work`. Plan execution now records append-only dependency edges only when they match the exact pinned template steps; task completion is refused until each `TASK_COMPLETED` predecessor is complete. These edges remain operational checklist controls and do not set audit review, lifecycle or approval states. The newer Manager Review follow-up above adds a read-only handoff summary and feature-flagged rework task creation. Waiting-for-client, audit-review and rework queue filters, domain-evidence dependency evaluators, Kanban/calendar views and task-plan authoring screens remain open.
-
-Migrations `20261012000128_WorkflowTaskBindings`, `20261012003440_WorkflowTemplateCatalog`, `20261012004124_WorkflowTemplateOpenRevision`, `20261012010500_WorkflowTaskPlanReceipts` and `20261012015133_WorkflowTaskDependencies` are additive and were not applied to any persistent database. The focused queue/plan PostgreSQL cohort passed 3/3; the API-host OpenAPI contract test passed 1/1; the API Release build passed with two NU1900 vulnerability-feed warnings; EF model drift and OpenAPI drift passed. Angular development serving compiled successfully. The built-in browser loaded the app and showed Access unavailable / Sign in because no local API session was configured; no authenticated queue journey was run. Exact provenance is in `status.json` under `targetedVerification.workflowTaskQueuePrF`.
-
-`WorkflowExperience:Enabled` remains false by default; migrations are not applied to a persistent database. The queue route is present, but local browser access stopped at the staff sign-in guard, and no authenticated queue command was exercised. WF-07/08 and WF-12 remain partial. WF-09/10 automations and PBC follow-up, WF-11 annual recurrence, WF-13/14 completion/archive cards and analytics, the lead-level journey, and WF-15 production acceptance remain open. No live tenant or professional acceptance is claimed.
+The original increment is preserved verbatim in the [current-slice archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). Later workflow sections above and `status.json` retain current implementation and pending acceptance.
 
 ## Exact pinned financial statement drafts — 2026-10-12
 

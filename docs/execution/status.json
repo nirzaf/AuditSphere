@@ -73,6 +73,49 @@
     }
   ],
   "targetedVerification": {
+    "angularBlazorConsolidationGuardFollowUp": {
+      "recordedAtUtc": "2026-10-15T23:24:26.050474+00:00",
+      "sourceCommit": "886a73889d22399a7fb44e779652158a07c8397c",
+      "result": "FOCUSED_PASS_RETIREMENT_NOT_READY",
+      "change": "Restored requirePartner=true for internally sourced consolidation component approval. Management, accounting and Partner decisions must bind the selected composition.",
+      "api": {
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0,
+        "command": "dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-build --configuration Release --maxcpucount:1 --filter FullyQualifiedName~ConsolidationWorkspaceApiTests --logger trx;LogFileName=consolidation-workspace-cohort.trx --results-directory /tmp/auditsphere-parity-regression",
+        "report": "/tmp/auditsphere-parity-regression/consolidation-workspace-cohort.trx"
+      },
+      "angularExistingBehavior": {
+        "sourceCommit": "5af08a5111f5a310125f94b19103251675be505c",
+        "overviewPassed": 1,
+        "advancedRecoveryPassed": 2,
+        "failed": 0,
+        "commands": [
+          "npm run test:ci -- --include=src/app/features/consolidation/overview.spec.ts",
+          "npm run test:ci -- --include=src/app/features/consolidation/advanced-recovery.spec.ts"
+        ],
+        "coverage": "UTC and offset normalization with explicit UTC label; unknown outcomes fenced until persisted workspace is read and acknowledged; failed re-read remains fenced."
+      },
+      "earlierFullRun": {
+        "result": "FAILED",
+        "sourceCommit": null,
+        "attribution": "Earlier continuing working-tree run; checkout and source changed during its lifetime. Results are diagnostic and are not attributed as clean current-commit acceptance.",
+        "api": {
+          "passed": 252,
+          "failed": 1
+        },
+        "domain": {
+          "passed": 1052,
+          "failed": 7
+        },
+        "e2e": {
+          "passed": 237,
+          "failed": 12
+        }
+      },
+      "remaining": "Full current-tree regression; remaining source-action, role/scope, mutation, authenticated browser recovery, load, assistive-technology and locale acceptance; production-like cutover/recovery and external gates. Web remains present; retirement NOT_READY.",
+      "boundaries": "No persistent database migration, live provider action, deployment or professional approval."
+    },
     "angularMigrationAcceptanceCrossFirmIsolation": {
       "recordedAtUtc": "2026-10-15T15:15:05Z",
       "sourceCommit": "cf7c88e08c98512908569a450a2d9ebd1ec9f381",
@@ -478,35 +521,7 @@
       "nextAction": "Inspect REL-01 release-bundle artifact and existing tests; lifecycle, professional methodology/assignment, signing and external gates remain separately governed.",
       "verification": "Documentation-only intake; documentation health/naming/narrative metrics and diff checks. No additional application test run or live provider change."
     },
-    "releaseBundleSigningReplay": {
-      "recordedAtUtc": "2026-10-13T18:01:15.429499+00:00",
-      "baseCommit": "460b5b02a3d75d8cae168fda297169812f6ba98f",
-      "workingTreeChangesIncluded": true,
-      "changedSourceSha256": "1cce0ef9f59cb293e4f0e611e82e188c230ec6233990ad988df39be11b87c4d7",
-      "scope": "REL-01 current signing policy and matching certificate on assembly/replay; shared credential source forwarded by retained Web host; accessible specimen/seal inputs",
-      "checks": {
-        "domain": "PASS 5/5 focused report certificate and five-part bundle cohort",
-        "build": "PASS Application, Domain tests, API, OpenAPI emitter, Web and E2E Release builds; existing NU1900 vulnerability-feed warnings",
-        "artifact": "Existing test extracts actual ZIP entries, checks per-part and manifest hashes and validates both certificate-signed PDFs against the exact original certificate",
-        "regressions": "Missing/different certificate denied before first assembly and after saved replay; enabling Required cannot reuse an image-only bundle; exact valid replay retains one bundle",
-        "documentation": "PASS Markdown health/naming/narrative metrics, board freshness, source inventory and diff checks",
-        "host": "PASS OpenAPI drift and EF pending-model checks; no schema/contract change",
-        "referenceJourney": "PASS 1/1 retained Web staff/client journey: exact LOR acknowledgement/upload/verification, image-only signing, gated assembly and both downloads; Required=true replay denied with one existing bundle",
-        "builtInBrowser": "PASS owned synthetic Required=true host: reviewed statements, assembly refused image-only report; current host policy and upload labels visible; no warning/error console entries"
-      },
-      "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --no-restore --configuration Release --maxcpucount:1 --filter 'FullyQualifiedName~FivePartBundle_RequiresReviewedReleaseAndPostedBalance|FullyQualifiedName~CertificateSignedReport_IsReleased|FullyQualifiedName~ReportCertificateSigningTests'",
-      "artifact": "/private/tmp/auditsphere-rel01-signing-tests/_Mac_2026-10-13_20_38_56_net10.0.trx",
-      "remaining": [
-        "REL-01 complete adverse-source/correspondence-bound acceptance",
-        "Full release suites and canonical Angular completion journey not run for this slice",
-        "Operator certificate retention/rotation guidance; live trust and professional acceptance remain separate"
-      ],
-      "migration": "No schema change or persistent migration",
-      "browserArtifact": "/private/tmp/auditsphere-rel01-reference-browser.png",
-      "referenceArtifact": "/private/tmp/auditsphere-rel01-reference-browser-final/_Mac_2026-10-13_21_00_43_net10.0.trx",
-      "referenceCommand": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-build --no-restore --configuration Release --maxcpucount:1 --filter 'FullyQualifiedName~CompletionDeliverablesJourneyTests.PartnerClearsDecidesAndIssues_ClientReviewsInThePortal'",
-      "fixtureCorrections": "Mixed API/Blazor host and portal locators corrected; synthetic cash/revenue planning basis aligned to release fixture; production cross-cast guard retained"
-    },
+    "releaseBundleSigningReplay": {"archivedTo": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.releaseBundleSigningReplay", "supersededBy": "targetedVerification.releaseBundleRaceAndAngular"},
     "releaseBundleCorrespondence": {
       "recordedAtUtc": "2026-10-13T18:07:01.620602+00:00",
       "baseCommit": "e1e25462e953eddf8e581add6f4196099c6c3cdb",
