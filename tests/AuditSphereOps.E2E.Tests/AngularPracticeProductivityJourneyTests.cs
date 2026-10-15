@@ -122,7 +122,12 @@ public sealed class AngularPracticeProductivityJourneyTests
     await page.GetByLabel("Open work task to track").SelectOptionAsync(taskId.ToString());
     var startButton = page.GetByRole(AriaRole.Button, new() { Name = "Start", Exact = true });
     var pauseButton = page.GetByRole(AriaRole.Button, new() { Name = "Pause", Exact = true });
+    await Assertions.Expect(startButton).ToBeEnabledAsync();
+    await Assertions.Expect(startButton).ToHaveAttributeAsync("type", "button");
+    Assert.True(await startButton.EvaluateAsync<bool>("element => element.closest('form') === null"),
+      "The foreground timer must not submit a time-draft form.");
     await startButton.FocusAsync();
+    await Assertions.Expect(startButton).ToBeFocusedAsync();
     await startButton.PressAsync("Enter");
     await Assertions.Expect(pauseButton).ToBeVisibleAsync();
     Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));

@@ -173,13 +173,6 @@ public sealed class AngularSteCommercialAcceptanceJourneyTests
         Status = QuotationStates.Approved, RequiredApprovalsJson = "[]", CreatedByUserId = f.Admin.Id,
         CreatedAt = now, ApprovedAt = now
       });
-      db.CommercialNotifications.Add(new CommercialNotification
-      {
-        Id = Guid.NewGuid(), FirmId = f.FirmId, Kind = CommercialNotificationKinds.Proposal,
-        ProposalId = proposalId, PracticeClientId = f.ClientId, QuotationVersionId = quotationId,
-        OfferSha256 = offerHash, Recipient = "signatory@example.test", Subject = "Synthetic dispatched offer",
-        Body = "Synthetic test evidence", CreatedAt = now
-      });
       db.FirmCommercialProfiles.Add(new FirmCommercialProfile
       {
         Id = Guid.NewGuid(), FirmId = f.FirmId, Version = 1, LegalName = "Synthetic Audit Firm",
@@ -198,6 +191,36 @@ public sealed class AngularSteCommercialAcceptanceJourneyTests
         DecidedByUserId = partner.Id, DecidedAt = now
       });
       await db.SaveChangesAsync();
+      var actor = PbcSeed.Actor(partner, "Partner");
+      await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(db, actor, proposalId);
+      var offer = await db.CommercialDocuments.AsNoTracking().SingleAsync(x =>
+        x.ProposalId == proposalId && x.Kind == CommercialDocumentKinds.Quotation);
+      var proposal = await db.Proposals.SingleAsync(x => x.Id == proposalId);
+      proposal.SentOfferSha256 = offer.Sha256Hex;
+      proposal.ResponseOfferSha256 = offer.Sha256Hex;
+      proposal.ResponseChannel = ProposalResponseChannels.Email;
+      var dispatchId = Guid.NewGuid();
+      db.CommercialNotifications.Add(new CommercialNotification
+      {
+        Id = dispatchId, FirmId = f.FirmId, Kind = CommercialNotificationKinds.Proposal,
+        ProposalId = proposalId, PracticeClientId = f.ClientId, QuotationVersionId = quotationId,
+        DocumentId = offer.Id, OfferSha256 = offer.Sha256Hex,
+        RecipientAuthorityBasis = ProposalRecipientAuthorityBases.LegacyDispatchSnapshot,
+        Recipient = "signatory@example.test", Subject = "Synthetic dispatched offer",
+        Body = "Synthetic test evidence", CreatedAt = now
+      });
+      db.ProposalResponseRecords.Add(new ProposalResponseRecord
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, ProposalId = proposalId,
+        CommercialNotificationId = dispatchId, Decision = CrmStates.ProposalAccepted,
+        OfferSha256 = offer.Sha256Hex, DispatchRecipient = "signatory@example.test",
+        AuthorityBasis = ProposalRecipientAuthorityBases.LegacyDispatchSnapshot,
+        RespondentName = proposal.RespondentName!, RespondentEmail = "signatory@example.test",
+        EvidenceReference = "synthetic-accepted-offer", Channel = ProposalResponseChannels.Email,
+        RecordedByUserId = partner.Id, RecordedAt = now
+      });
+      await db.SaveChangesAsync();
+      Assert.True(await ProposalResponseEvidence.IsCurrentAcceptedAsync(db, f.FirmId, proposalId));
       Assert.True((await AuditDeliverableService.RegisterSignatureAsync(db, PbcSeed.Actor(partner, "Partner"),
         CompletionTestFixtures.Png(100, 60))).Succeeded);
       Assert.True((await AuditDeliverableService.RegisterFirmSealAsync(db, PbcSeed.Actor(partner, "Partner"),
