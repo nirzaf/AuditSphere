@@ -15,6 +15,19 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## F-08 selected composition through review, release and bundle — 2026-10-15
+
+Implemented on master `7023a9f4`:
+
+- The Angular package screen requires selection of a current sealed composition before it enables a formal decision. Its request includes the exact candidate revision ID, composition ID and lowercase SHA-256 manifest digest.
+- Candidate-bound management, accounting and Partner decisions persist those identities. Each later stage must approve the same current composition; release rechecks the Partner decision, source currency and all three artifact hashes, then pins the composition ID/digest and selected PDF identity/version/hash. It refuses to substitute the legacy package PDF.
+- The five-part audit bundle requires the released composition, verifies its PDF/DOCX/XLSX bytes, includes those exact files and records their IDs and hashes in the bundle manifest. Legacy releases without a composition remain readable but cannot be replayed as new composed releases.
+- Migration `20261015000622_FinancialStatementReviewCompositionBinding` adds nullable, scoped composition references and integrity constraints. EF model drift is clear. The migration was not applied to a persistent local database or the VPS; test fixtures used disposable migrated databases.
+
+Verification: Release solution build passed with 0 warnings and 0 errors. The focused PostgreSQL-backed Domain cohort passed 35/35 (`StatementCandidatePromotionTests`, `FinancialPackageGateTests`, `AuditDeliverablesTests`, and `ClientAccountingTests.FinancialPackages`). Angular `test:ci` passed 127 files / 736 tests. The Angular production build passed with its existing `commercial/settings.scss` budget warning (7.53 kB against 4.00 kB). EF model drift, OpenAPI contract, Markdown health, filename, narrative-metrics and `git diff --check` passed.
+
+The interactive built-in-browser review/release journey was not run: this commit is not deployed to the VPS, and no local authenticated package fixture was started. Full unfiltered Domain, API and E2E suites and the hosted release workflow also remain unrun. F-08 therefore remains PARTIAL: cross-format content/reference parity, approved profile membership, MIME/glyph/clipping validation, management signatory/capacity and offline evidence, review receipt/revision recovery, final audit-report/signing/legal acceptance and live-provider gates remain open. No persistent business data or production deployment was changed.
+
 ## Statement presentation signing candidate and formal review artifact pin (CP-18 / CP-19) — 2026-10-15
 
 Implements the governed presentation successor workflow and formal review decision artifact binding under CP-18 and CP-19:

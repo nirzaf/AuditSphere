@@ -158,9 +158,13 @@ The old missing-result problem is corrected for the evaluator's 11 canonical cod
 
 **P0 · SOURCE_CONFIRMED · CP-18/CP-19/CP-20.**
 
-Presentation pins are still created as `UnapprovedDraft`. Formal package decisions select `FinancialPackageArtifactVersions.Text`. The bundle resolves the standard released `FinancialPackageArtifactVersions.Pdf`, not an expressly selected final presentation composition. These are useful, separately controlled paths, but they do not establish approval and issue of the new intended formatted report. [R17]–[R19]
+**Baseline finding:** presentation pins were created as `UnapprovedDraft`; formal package decisions selected `FinancialPackageArtifactVersions.Text`; and the bundle resolved the standard released `FinancialPackageArtifactVersions.Pdf`, not an expressly selected final presentation composition. These were useful, separately controlled paths, but did not establish approval and issue of the new intended formatted report. [R17]–[R19]
 
-**Required correction:** select one exact composition, render and validate its required formats, seal explicit membership and bind the required decisions to the content/artifact manifests. Resolve that approved artifact in signing/delivery without silently substituting the legacy PDF. Preserve canonical text in the evidence chain and retain its historical approval meaning. A changed banner, note, layout or report date creates new bytes and requires the appropriate successor/review before issue.
+**Implementation update — 2026-10-15, master `7023a9f4`:** the candidate's PDF, DOCX and XLSX are sealed as one immutable composition. In the candidate-bound review path, Management, Accounting and Partner decisions carry the exact candidate revision, composition ID and manifest digest, and each stage must follow the same composition. Release issuance pins the composition ID/digest and selected PDF identity/version/hash; it refuses legacy-PDF fallback. The audit bundle revalidates source currency and the three artifact hashes, includes the exact selected PDF/DOCX/XLSX, and records their IDs and hashes in its manifest. Historic releases without a composition remain readable but cannot be replayed as composed releases. The additive migration is generated and model-checked; it has not been applied to a persistent database or the VPS.
+
+This closes the F-08 composition-to-review/release/bundle wiring. F-08 remains **PARTIAL**: format-content parity and document-quality acceptance, complete approved report-profile membership, management signatory/capacity evidence, revision/receipt recovery, signing/legal acceptance and live-provider gates remain open. Focused verification: Release build 0 warnings/errors; 35/35 PostgreSQL-backed Domain tests; Angular 127 files / 736 tests; OpenAPI, EF model-drift and documentation gates pass. Interactive built-in-browser acceptance and full Domain/API/E2E suites were not run.
+
+**Remaining correction:** complete professional and output-profile approval, validate that the required formats contain matching approved content and references, and exercise malformed/clipped/missing-output refusals. Resolve the selected composition through final signing/delivery without substituting the legacy PDF. Preserve canonical text in the evidence chain and retain its historical approval meaning. A changed banner, note, layout or report date creates new bytes and requires the appropriate successor/review before issue.
 
 ## F-09 — Partner-stage role contract needs an explicit policy-aligned denial test
 
@@ -801,7 +805,7 @@ The original CP names, criterion IDs and criterion wording below are retained. T
 
 ## CP-18 — Exact composition and professionally structured document publication
 
-**Priority:** P0. **Current disposition:** PARTIAL — existing renderer/pins/seals; final composition not complete.
+**Priority:** P0. **Current disposition:** PARTIAL — immutable candidate composition and exact PDF/DOCX/XLSX membership are implemented; approved output-profile and document-quality acceptance remain open.
 
 **Dependencies:** CP-17; reviewed design/output profile and existing artifact kernel.
 
@@ -811,10 +815,10 @@ The original CP names, criterion IDs and criterion wording below are retained. T
 
 ### Remaining implementation
 
-1. Reuse current presentation pins, renderer, package artifacts and seals. Add only missing explicit composition selection: result/current/prior references, schedule/note membership, ordered sections, approved layout/branding/locale and required/optional formats.
-2. Keep unapproved draft history. Create a controlled successor signing candidate once eligible; do not update old status/bytes or remove a draft banner after approval. Include necessary cover/entity/framework/period, statements, notes and signatory blocks from approved data.
-3. Validate genuine PDF/DOCX/XLSX, repeated headers, note links, signs, current/prior amounts, rounding, long labels and multi-page coverage. Pin font/renderer dependencies without distributing raw fonts. Required formats cannot become optional after a failed render.
-4. Seal only the explicitly selected artifact set. A second draft layout or exploratory export cannot silently change a previously sealed report membership or final approval basis.
+1. Reuse current presentation pins, renderer, package artifacts and seals. The selected composition now binds one candidate revision to PDF/DOCX/XLSX artifacts and their ordered manifest. Still approve and bind complete report membership: result/current/prior references, schedule/note membership, ordered sections, branding/locale and required formats.
+2. Keep unapproved draft history. The controlled successor signing-candidate path is implemented; do not update old status/bytes or remove a draft banner after approval. Complete the approved-data cover, entity/framework/period, notes and signatory blocks.
+3. Validate genuine PDF/DOCX/XLSX, repeated headers, note links, signs, current/prior amounts, rounding, long labels and multi-page coverage. Pin font/renderer dependencies without distributing raw fonts. Malformed, clipped, wrong-MIME or missing-glyph output must block final acceptance.
+4. The explicitly selected artifact set is sealed and cannot be silently replaced by later draft exports. Verify approved membership and final approval behavior against the complete output profile.
 5. Use existing durable render intents and immutable input capture; render outside long locks and fence final publication. Repeated original intent returns the correct stored output. Never fetch newer GL or change arithmetic inside a renderer.
 6. Keep content and post-render artifact digests separate. Preserve historic legacy artifacts and make new output purpose explicit, with complete safe draft/stale/final-candidate/issued labels.
 
@@ -831,7 +835,7 @@ The original CP names, criterion IDs and criterion wording below are retained. T
 
 ## CP-19 — Exact-report management, accounting and Partner decisions
 
-**Priority:** P0. **Current disposition:** PARTIAL — current decisions still bind canonical text.
+**Priority:** P0. **Current disposition:** PARTIAL — formal decisions bind the same candidate composition ID/digest and its PDF; management identity, offline evidence and review recovery semantics remain open.
 
 **Dependencies:** CP-18; approved current formal order and management evidence policy.
 
@@ -841,8 +845,8 @@ The original CP names, criterion IDs and criterion wording below are retained. T
 
 ### Remaining implementation
 
-1. Extend existing FinancialPackageReviewDecision/service with explicit composition/seal/content/artifact-set identities and original-intent metadata. Keep the canonical text as source evidence, not as a substitute for examining the formatted report.
-2. Preserve management -> accounting -> Partner formal package order unless a separately approved versioned decision changes it. Earlier internal preparation review is a distinct action; do not silently swap stages to imitate the lesson order.
+1. FinancialPackageReviewDecision/service now records candidate revision, composition ID and manifest digest; downstream release validates the PDF/Word/Excel set. Complete decision evidence for the selected signatory and required management capacity. Keep canonical text as source evidence, not as a substitute for examining the formatted report.
+2. Management -> accounting -> Partner formal package order is preserved and enforced for the same composition. Earlier internal preparation review remains a distinct action.
 3. Resolve F-09 using assignment-aware Partner authority and actual person-based independence. Test administrator-only and multi-role actors. Align UI capabilities with the exact command policy rather than roles listed on the session.
 4. Capture real client signatory/capacity and permitted signed-in/offline evidence, named staff recorder and required independent verification. Selecting OFFLINE cannot impersonate client management or omit the identity of the person whose acceptance was recorded.
 5. Use expected candidate/review revisions and original receipts with post-lock source/authority checks. Return/reject/revoke requires reason, a substantive successor does not inherit old approvals and uncertain responses recover the same result.
@@ -861,7 +865,7 @@ The original CP names, criterion IDs and criterion wording below are retained. T
 
 ## CP-20 — Audit report, five-part deliverables, signing and controlled issue
 
-**Priority:** P0. **Current disposition:** PARTIAL — signing and ZIP exist; exact new report integration open.
+**Priority:** P0. **Current disposition:** PARTIAL — release and five-part bundle use the exact selected composition; audit-report/signing/legal acceptance remains open.
 
 **Dependencies:** CP-05/CP-16/CP-19; selected audit template, delivery and signing profile.
 
@@ -872,7 +876,7 @@ The original CP names, criterion IDs and criterion wording below are retained. T
 ### Remaining implementation
 
 1. Reuse approved report generation, four opinion choices, modified-opinion basis, current SRM, critical confirmations, representation verification and authorized Partner signing. No automatic conclusion or invented professional/legal wording.
-2. Resolve the expressly approved composition artifact in BundleInputsAsync and downstream signing/release. Do not silently substitute FinancialPackageArtifactVersions.Pdf when a different presentation was approved.
+2. Release and `BundleInputsAsync` now resolve the expressly selected composition and include its exact three formats. Complete downstream signing for any approved combined output; never substitute `FinancialPackageArtifactVersions.Pdf` when a different presentation was approved.
 3. Preserve the five-part ZIP, reviewed management letter, representation source/verified scan, permitted correspondence and posted balance invoice prerequisites. Redact internal audit/cost/AML content from client-facing files and metadata.
 4. For a separately selected combined-PDF profile, finalize approved unsigned cover/opinion/statements/notes before signing. Preserve separately signed originals in the ZIP; do not append pages to signed content or introduce a statement-release/bundle/balance-invoice cycle.
 5. Use configured certificate policy, signer authority, candidate verification, signed-byte verification and original-intent recovery. Separate signature appearance, cryptographic validity, trust/timestamp support and qualified legal acceptance; never treat a test certificate as firm authorization.
