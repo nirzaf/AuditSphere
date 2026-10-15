@@ -34,6 +34,15 @@ public sealed class AngularAdministrationJourneyTests
     await Assertions.Expect(dialog.GetByRole(AriaRole.Heading, new() { Name = "Professional independence impact", Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(dialog.GetByRole(AriaRole.Button, new() { Name = "Assign reviewed access", Exact = true })).ToBeDisabledAsync();
     await dialog.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed the proposed access", Exact = false }).CheckAsync();
+    await Assertions.Expect(dialog.GetByRole(AriaRole.Button, new() { Name = "Assign reviewed access", Exact = true })).ToBeEnabledAsync();
+    await dialog.GetByLabel("Reason", new() { Exact = true }).FillAsync("Reviewed assignment after validating current access");
+    await Assertions.Expect(dialog.GetByRole(AriaRole.Heading, new() { Name = "Professional independence impact", Exact = true })).ToHaveCountAsync(0);
+    await Assertions.Expect(dialog.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed the proposed access", Exact = false })).ToHaveCountAsync(0);
+    await Assertions.Expect(dialog.GetByRole(AriaRole.Button, new() { Name = "Assign reviewed access", Exact = true })).ToHaveCountAsync(0);
+    await dialog.GetByRole(AriaRole.Button, new() { Name = "Review proposed access", Exact = true }).ClickAsync();
+    await Assertions.Expect(dialog.GetByRole(AriaRole.Heading, new() { Name = "Professional independence impact", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(dialog.GetByRole(AriaRole.Button, new() { Name = "Assign reviewed access", Exact = true })).ToBeDisabledAsync();
+    await dialog.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed the proposed access", Exact = false }).CheckAsync();
     await dialog.GetByRole(AriaRole.Button, new() { Name = "Assign reviewed access", Exact = true }).ClickAsync();
     await Assertions.Expect(dialog).ToHaveCountAsync(0);
     await Assertions.Expect(staffPage.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable", Exact = true })).ToBeVisibleAsync(new() { Timeout = 15000 });
@@ -42,7 +51,7 @@ public sealed class AngularAdministrationJourneyTests
     {
       var grant = await db.RoleGrants.SingleAsync(x => x.UserId == host.Fixture.Staff.Id && x.Role == "Manager" && x.RevokedAt == null);
       grantId = grant.Id; Assert.Equal(host.Fixture.ClientId, grant.ClientId); Assert.Null(grant.EngagementId);
-      Assert.True(await db.RoleGrantChangeEvidences.AnyAsync(x => x.RoleGrantId == grantId && x.Reason == "Reviewed client management assignment"));
+      Assert.True(await db.RoleGrantChangeEvidences.AnyAsync(x => x.RoleGrantId == grantId && x.Reason == "Reviewed assignment after validating current access"));
     }
     await page.GetByLabel("Search local users", new() { Exact = true }).FillAsync(host.Fixture.Staff.Email);
     await page.GetByRole(AriaRole.Button, new() { Name = "Search local access", Exact = true }).ClickAsync();

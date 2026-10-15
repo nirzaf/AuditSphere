@@ -159,7 +159,7 @@ jobs:
           set -euo pipefail
           pwsh tests/AuditSphereOps.E2E.Tests/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
           dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-build --no-restore \
-            --configuration Release --maxcpucount:1 --filter 'FullyQualifiedName~AngularAnalyticsPagingJourneyTests|FullyQualifiedName~AngularEngagementCreationJourneyTests|FullyQualifiedName~AngularEngagementActivationJourneyTests|FullyQualifiedName~AngularScopedAssessmentDecisionJourneyTests|FullyQualifiedName~AngularAnnualEngagementJourneyTests|FullyQualifiedName~AngularAnnualContinuanceJourneyTests|FullyQualifiedName~AngularWorkflowEvidenceJourneyTests|FullyQualifiedName~AngularWorkflowOrderingJourneyTests|FullyQualifiedName~AngularTenantConnectionJourneyTests|FullyQualifiedName~CompletionDeliverablesJourneyTests|FullyQualifiedName~AngularCashFlowPackageJourneyTests'
+            --configuration Release --maxcpucount:1 --filter 'FullyQualifiedName~AngularAnalyticsPagingJourneyTests|FullyQualifiedName~AngularEngagementCreationJourneyTests|FullyQualifiedName~AngularEngagementActivationJourneyTests|FullyQualifiedName~AngularScopedAssessmentDecisionJourneyTests|FullyQualifiedName~AngularAnnualEngagementJourneyTests|FullyQualifiedName~AngularAnnualContinuanceJourneyTests|FullyQualifiedName~AngularWorkflowEvidenceJourneyTests|FullyQualifiedName~AngularWorkflowOrderingJourneyTests|FullyQualifiedName~AngularAdministrationJourneyTests|FullyQualifiedName~AngularTenantConnectionJourneyTests|FullyQualifiedName~CompletionDeliverablesJourneyTests|FullyQualifiedName~AngularCashFlowPackageJourneyTests'
 
       - name: Verify standalone API and Angular publication
         run: |
