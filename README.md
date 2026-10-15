@@ -57,8 +57,8 @@ Start/build/publish instructions are in the [Angular development guide](src/Audi
 Absolute isolation is enforced between three accounting domains — in the Domain model, services, and database. This is an **import-first** preparation, audit, and consolidation platform, **not** an operational client ERP: client sales/purchase/inventory order processing, payroll execution, and payment initiation are excluded.
 
 1. **Firm's Own Books (`Practice/FirmLedger`):** Client billing, WIP time tracking and rate cards, invoices, credit notes, receipts, and an immutable double-entry firm general ledger with closed-period locks and balance integrity.
-2. **Client Accounting Workspace (`Accounting/`):** Client-owned source TB/GL imports, client charts of accounts, approved taxonomy mappings, proposed/agreed adjustments, reconciliation proofs, specialist schedules, audit fieldwork evidence, and draft/validated entity financial statement packages.
-3. **Group Consolidation Workspace (`Consolidation/`):** Approved component packages, consolidation perimeter definitions, intercompany 1-to-1 matching and elimination journals, foreign currency translation (CTA reserves), and functional currency remeasurement. **Never** mutates component client books.
+2. **Client Accounting Workspace (`Accounting/`):** Client-owned source TB/GL imports, client charts of accounts, approved taxonomy mappings, proposed/agreed adjustments, reconciliation proofs, specialist schedules, audit fieldwork evidence, draft/validated entity financial statement packages, and client FX remeasurement of foreign-currency GL balances within reporting periods (using approved rates and policies).
+3. **Group Consolidation Workspace (`Consolidation/`):** Approved component packages, consolidation perimeter definitions, intercompany 1-to-1 matching and elimination journals, and foreign currency translation of component statements (CTA reserves). Client FX remeasurement stays in the Client Accounting Workspace. **Never** mutates component client books.
 
 ---
 
@@ -148,8 +148,8 @@ Project reference direction (enforced by the architecture guard tests):
 - **Practice:** CRM, leads, proposals, client acceptance, time, fee budgets, billing, invoices, receipts, firm ledger.
 - **Acceptance:** Risk assessments, QAR setup defaults, independence confirmations, acceptance sign-offs.
 - **Engagements:** Setup, periods, assigned staff teams, scope governance.
-- **Accounting:** Client profiles, charts of accounts, trial balances, GLs, adjustment journals, specialist schedules, financial statements.
-- **Consolidation:** Group perimeters, component packages, translation/remeasurement, eliminations.
+- **Accounting:** Client profiles, charts of accounts, trial balances, GLs, adjustment journals, specialist schedules, financial statements, currency rates and policies, client FX remeasurement.
+- **Consolidation:** Group perimeters, component packages, FX translation, eliminations.
 - **Audit:** Fieldwork, programs, procedures, workpapers, sampling, journal-risk indicators, bank reconciliations, differences.
 - **Reviews:** Stage-bound package reviews, partner review decisions, review point governance.
 - **Completion:** Representation letters, audit sign-offs, controlled package release handoffs.
@@ -169,7 +169,7 @@ Native, production-grade implementations for the R2R lifecycle defined under `do
 | **Module 23: Reconciliations, ECL & Specialist Schedules** | Source-bound bank and AR/AP aging reconciliations, transparent proof calculations with item summation and residual checks, correction journal linking, ECL provision matrix assessments, lower-of-cost-and-NRV inventory valuations, and specialist schedules (PPE, payroll, loans, equity, tax, cash forecast). | `AccountingAnalysisService`<br>• `CalculateReconciliationProofAsync`<br>• `LinkReconciliationCorrectionAsync`<br>• `AssessEclProvisionAsync` |
 | **Module 24: Financial Statements & Taxonomy Alignment** | Versioned chart-to-taxonomy mapping drafts and reviews, multi-tier allocation validation, approved taxonomy enforcement, and pure deterministic financial statement calculators. | `FinancialStatementService`<br>`FinancialStatementCalculator`<br>• `CalculateFinancialStatements`<br>• `ApproveMappingRevisionAsync` |
 | **Module 25: Financial Package Assembly & Rendering** | Versioned financial packages, durable outbox worker builds, exact-byte rendered HTML/PDF artifacts, OpenXML formula-free/macro-free XLSX workbooks, and immutable partner review decisions. | `FinancialStatementService`<br>`PackageRenderingService`<br>• `EnqueuePackageCalculationAsync`<br>• `RecordReviewDecisionAsync` |
-| **Module 26: Group Consolidation & Multi-Currency** | Perimeter membership, draft scope versions, component pins and replacements, intercompany 1-to-1 matching and eliminations, foreign operation currency translation and remeasurement with rate policies and historical rate rules, and consolidated reporting. | `ConsolidationService`<br>`CurrencyTranslationService`<br>`CurrencyRemeasurementService`<br>• `ReplaceComponentAsync`<br>• `TranslateForeignOperationAsync` |
+| **Module 26: Group Consolidation & Multi-Currency** | Perimeter membership, draft scope versions, component pins and replacements, intercompany 1-to-1 matching and eliminations, foreign operation currency translation with rate policies and historical rate rules, and consolidated reporting. | `ConsolidationService`<br>`CurrencyTranslationService`<br>• `ReplaceComponentAsync`<br>• `TranslateForeignOperationAsync` |
 
 ---
 
@@ -191,7 +191,7 @@ The table below lists native workspace routes in AuditSphere. Angular routes use
 | `/app/accounting/rollforward` | **Period Roll-forward** | Opening-balance roll-forward, chart revisions, prior-period mapping lineage. |
 | `/app/accounting/reviews` | **Package Reviews** | Multi-stage review queue (management, accounting, partner). |
 | `/app/accounting/restatements` | **Period Restatements** | Retrospective restatement drafts, version comparison, restatement journals. |
-| `/app/accounting/remeasurement` | **Currency Remeasurement** | Source-evidence-linked workpapers with draft autosave and independent approval. |
+| `/app/accounting/remeasurement` | **FX Remeasurement** (client accounting) | Client foreign-currency GL remeasurement workpapers within reporting periods, source-evidence-linked, with draft autosave and independent approval. |
 | `/app/consolidation` | **Group Consolidation** | Perimeter management, component pins/replacements, elimination journals. |
 | `/app/operations` | **Durable Operations** | Live monitor for operations, leases, retries, manual cancellations. |
 | `/app/administration` | **Administration** | Firm-wide configuration, user roles, security policies, preferences. |
