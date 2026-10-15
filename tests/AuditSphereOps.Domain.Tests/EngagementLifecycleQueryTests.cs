@@ -16,6 +16,47 @@ namespace AuditSphereOps.Domain.Tests;
 public sealed class EngagementLifecycleQueryTests
 {
   [Fact]
+  public void CurrentProcedureProjectionUsesTheCurrentRevisionAndTreatsApprovedNotApplicableAsComplete()
+  {
+    var now = DateTimeOffset.UtcNow;
+    var notApplicable = new AuditProcedure
+    {
+      ApplicabilityStatus = AuditApplicabilityStatuses.NotApplicableApproved,
+      Status = AuditProcedureStatuses.Planned,
+      CurrentResultRevision = 0
+    };
+    Assert.True(EngagementLifecycleQuery.IsCurrentProcedureSubmittedForReview(notApplicable, null, null));
+
+    var applicable = new AuditProcedure
+    {
+      ApplicabilityStatus = AuditApplicabilityStatuses.Applicable,
+      Status = AuditProcedureStatuses.Submitted,
+      CurrentResultRevision = 2
+    };
+    var submitted = new AuditProcedureResult { Revision = 2, Status = AuditProcedureResultStatuses.Submitted };
+    Assert.True(EngagementLifecycleQuery.IsCurrentProcedureSubmittedForReview(applicable, submitted, null));
+    Assert.False(EngagementLifecycleQuery.IsCurrentProcedureSubmittedForReview(applicable,
+      new AuditProcedureResult { Revision = 1, Status = AuditProcedureResultStatuses.Submitted }, null));
+
+    var returned = new AuditProcedureResult { Revision = 2, Status = AuditProcedureResultStatuses.ChangesRequired };
+    var returnReview = new AuditProcedureReview { ResultRevision = 2, Decision = AuditProcedureReviewDecisions.ChangesRequired, CreatedAt = now };
+    Assert.False(EngagementLifecycleQuery.IsCurrentProcedureSubmittedForReview(applicable, returned, returnReview));
+    Assert.False(EngagementLifecycleQuery.IsCurrentProcedureSubmittedForReview(applicable, submitted, returnReview));
+  }
+
+  [Fact]
+  public void SignatureClockKeepsDeliveryPhaseUntilExactBundleIsAvailableAndPartnerPhaseDoesNotNeedOpinion()
+  {
+    Assert.Equal(CanonicalEngagementStages.DeliverableRelease, EngagementLifecycleQuery.PostSignatureStage(false, false));
+    Assert.Equal(CanonicalEngagementStages.DeliverableRelease, EngagementLifecycleQuery.PostSignatureStage(true, false));
+    Assert.Equal(CanonicalEngagementStages.DeliverableRelease, EngagementLifecycleQuery.PostSignatureStage(false, true));
+    Assert.Equal(CanonicalEngagementStages.ComplianceCountdown, EngagementLifecycleQuery.PostSignatureStage(true, true));
+    Assert.True(EngagementLifecycleQuery.PartnerApprovalReady(currentClearance: true, completionBlockerCount: 0));
+    Assert.False(EngagementLifecycleQuery.PartnerApprovalReady(currentClearance: true, completionBlockerCount: 1));
+    Assert.False(EngagementLifecycleQuery.PartnerApprovalReady(currentClearance: false, completionBlockerCount: 0));
+  }
+
+  [Fact]
   public async Task EngagementTraversesCanonicalStagesAndEnforcesScope()
   {
     await using var pg = await PgTestSchema.CreateAsync();
@@ -215,7 +256,15 @@ public sealed class EngagementLifecycleQueryTests
         ApplicabilityStatus = AuditApplicabilityStatuses.Applicable,
         CurrentResultRevision = 0, CreatedAt = now
       };
-      db.AuditProcedures.Add(proc);
+      var approvedNotApplicable = new AuditProcedure
+      {
+        Id = Guid.NewGuid(), FirmId = seed.FirmId, ClientId = seed.ClientId, EngagementId = engagementId,
+        SourceProcedureId = "NA-APPROVED", Title = "Synthetic approved not-applicable procedure",
+        Status = AuditProcedureStatuses.Planned, ApplicabilityStatus = AuditApplicabilityStatuses.NotApplicableApproved,
+        ApplicabilityRationale = "Outside this engagement's approved scope.", ApplicabilityDecidedByUserId = seed.Admin.Id,
+        ApplicabilityDecidedAt = now, CreatedAt = now
+      };
+      db.AuditProcedures.AddRange(proc, approvedNotApplicable);
       await db.SaveChangesAsync();
 
       report = await EngagementLifecycleQuery.GetAsync(db, partner, engagementId);
@@ -226,10 +275,58 @@ public sealed class EngagementLifecycleQueryTests
       // 6. Execute procedures -> ManagerialReview
       proc.CurrentResultRevision = 1;
       proc.Status = AuditProcedureStatuses.Submitted;
+      db.AuditProcedureResults.Add(new AuditProcedureResult
+      {
+        Id = Guid.NewGuid(), FirmId = seed.FirmId, ClientId = seed.ClientId, EngagementId = engagementId,
+        AuditProcedureId = proc.Id, Revision = 1, InputGeneration = 1, WorkPerformed = "Synthetic procedure work submitted.",
+        StructuredResultJson = "{}", EvidenceReferencesJson = "[]", Conclusion = "Awaiting manager review.",
+        Status = AuditProcedureResultStatuses.Submitted, PreparedByUserId = seed.Admin.Id, SubmittedAt = now
+      });
       await db.SaveChangesAsync();
 
       report = await EngagementLifecycleQuery.GetAsync(db, partner, engagementId);
       Assert.True(report.Succeeded);
+      Assert.Equal(CanonicalEngagementStages.ManagerialReview, report.Value!.Summary.CanonicalStage);
+      Assert.Equal(7, report.Value.Summary.StageIndex);
+
+      // Approved N/A contributes no fictitious result. An unreviewed submitted result remains in Managerial Review.
+      Assert.DoesNotContain(report.Value.Summary.BlockedReasons, x => x.Contains("not-applicable", StringComparison.OrdinalIgnoreCase));
+
+      // A current returned result routes back to preparer fieldwork, even though an earlier revision was submitted.
+      var returned = new AuditProcedureResult
+      {
+        Id = Guid.NewGuid(), FirmId = seed.FirmId, ClientId = seed.ClientId, EngagementId = engagementId,
+        AuditProcedureId = proc.Id, Revision = 2, InputGeneration = 1, WorkPerformed = "Synthetic rework required.",
+        StructuredResultJson = "{}", EvidenceReferencesJson = "[]", Conclusion = "Revise the evidence linkage.",
+        Status = AuditProcedureResultStatuses.ChangesRequired, PreparedByUserId = seed.Admin.Id, SubmittedAt = now.AddSeconds(1)
+      };
+      proc.CurrentResultRevision = 2;
+      proc.Status = AuditProcedureStatuses.ChangesRequired;
+      db.AuditProcedureResults.Add(returned);
+      db.AuditProcedureReviews.Add(new AuditProcedureReview
+      {
+        Id = Guid.NewGuid(), FirmId = seed.FirmId, ClientId = seed.ClientId, EngagementId = engagementId,
+        AuditProcedureResultId = returned.Id, AuditProcedureId = proc.Id, ResultRevision = returned.Revision,
+        Decision = AuditProcedureReviewDecisions.ChangesRequired, Comment = "Revise the evidence linkage.",
+        ReviewerUserId = seed.Admin.Id, CreatedAt = now.AddSeconds(2)
+      });
+      await db.SaveChangesAsync();
+      report = await EngagementLifecycleQuery.GetAsync(db, partner, engagementId);
+      Assert.Equal(CanonicalEngagementStages.FieldworkExecution, report.Value!.Summary.CanonicalStage);
+      Assert.Contains(report.Value.Summary.BlockedReasons, x => x.Contains("returned for preparer rework", StringComparison.Ordinal));
+
+      // A new submitted revision returns to Managerial Review; the historical returned revision does not control the projection.
+      proc.CurrentResultRevision = 3;
+      proc.Status = AuditProcedureStatuses.Submitted;
+      db.AuditProcedureResults.Add(new AuditProcedureResult
+      {
+        Id = Guid.NewGuid(), FirmId = seed.FirmId, ClientId = seed.ClientId, EngagementId = engagementId,
+        AuditProcedureId = proc.Id, Revision = 3, InputGeneration = 1, WorkPerformed = "Synthetic corrected procedure work submitted.",
+        StructuredResultJson = "{}", EvidenceReferencesJson = "[]", Conclusion = "Resubmitted for review.",
+        Status = AuditProcedureResultStatuses.Submitted, PreparedByUserId = seed.Admin.Id, SubmittedAt = now.AddSeconds(3)
+      });
+      await db.SaveChangesAsync();
+      report = await EngagementLifecycleQuery.GetAsync(db, partner, engagementId);
       Assert.Equal(CanonicalEngagementStages.ManagerialReview, report.Value!.Summary.CanonicalStage);
       Assert.Equal(7, report.Value.Summary.StageIndex);
 
@@ -261,13 +358,13 @@ public sealed class EngagementLifecycleQueryTests
       });
       await db.SaveChangesAsync();
 
-      // STE-GAP-008 C: a partner clearance and opinion do not hand over to Partner Approval while the completion gate is open
-      // (the synthetic fixture has no adopted audit program or reviewed procedure record), so the stage stays in Managerial Review.
+      // A hand-built clearance bound to a stale synthetic SRM is not current and cannot hand over the workflow.
       report = await EngagementLifecycleQuery.GetAsync(db, partner, engagementId);
       Assert.True(report.Succeeded);
       Assert.Equal(CanonicalEngagementStages.ManagerialReview, report.Value!.Summary.CanonicalStage);
       Assert.Equal(7, report.Value.Summary.StageIndex);
-      Assert.Contains(report.Value.Summary.BlockedReasons, x => x.StartsWith("Completion gate:", StringComparison.Ordinal));
+      Assert.Contains(report.Value.Summary.BlockedReasons,
+        x => x.StartsWith("Partner clearance of a current Summary Review Memorandum is pending.", StringComparison.Ordinal));
 
       // 8. Sign report deliverable -> DeliverableRelease
       var signedReport = new AuditDeliverable
@@ -285,7 +382,7 @@ public sealed class EngagementLifecycleQueryTests
       Assert.Equal(CanonicalEngagementStages.DeliverableRelease, report.Value!.Summary.CanonicalStage);
       Assert.Equal(9, report.Value.Summary.StageIndex);
 
-      // 9. Schedule file freeze -> ComplianceCountdown (<60 days)
+      // A signature starts the clock, but Report & Delivery remains current until the exact final bundle is available in the client portal.
       var freeze = new EngagementFileFreeze
       {
         Id = Guid.NewGuid(), FirmId = seed.FirmId, ClientId = seed.ClientId,
@@ -299,10 +396,11 @@ public sealed class EngagementLifecycleQueryTests
 
       report = await EngagementLifecycleQuery.GetAsync(db, partner, engagementId);
       Assert.True(report.Succeeded);
-      Assert.Equal(CanonicalEngagementStages.ComplianceCountdown, report.Value!.Summary.CanonicalStage);
-      Assert.Equal(10, report.Value.Summary.StageIndex);
+      Assert.Equal(CanonicalEngagementStages.DeliverableRelease, report.Value!.Summary.CanonicalStage);
+      Assert.Equal(9, report.Value.Summary.StageIndex);
       Assert.NotNull(report.Value.Summary.ComplianceCountdownDays);
       Assert.True(report.Value.Summary.ComplianceCountdownDays <= 51);
+      Assert.Contains(report.Value.Summary.BlockedReasons, x => x.Contains("final bundle available in the client portal", StringComparison.Ordinal));
       Assert.Equal(FileFreezeStates.Scheduled, report.Value.Summary.LocalArchiveState);
       Assert.Equal(ExternalReadOnlyStates.NotRequested, report.Value.Summary.ProviderProtectionState);
       Assert.Contains("does not claim provider immutability", report.Value.Summary.ComplianceWarning!);
@@ -310,6 +408,7 @@ public sealed class EngagementLifecycleQueryTests
       // The dashboard names the people staffed at the level that owns the step. A revoked assignment and another level are not named.
       var unstaffed = await EngagementWorkflowWorkspaceQuery.GetAsync(db, partner, engagementId);
       Assert.Equal(("EngagementPartner", 0), (unstaffed.Value!.ResponsibleRole, unstaffed.Value.ResponsibleUsers.Count));
+      Assert.Equal("REPORT_DELIVERY", unstaffed.Value.CurrentPhase.Code);
       var staffedPartner = PbcSeed.User(seed.FirmId, "Staff"); staffedPartner.DisplayName = "Staffed Partner";
       var formerPartner = PbcSeed.User(seed.FirmId, "Staff"); formerPartner.DisplayName = "Former Partner";
       var staffedManager = PbcSeed.User(seed.FirmId, "Staff"); staffedManager.DisplayName = "Staffed Manager";
@@ -334,12 +433,13 @@ public sealed class EngagementLifecycleQueryTests
       Assert.Equal(["Staffed Partner"], staffed.Value!.ResponsibleUsers);
       Assert.Equal(report.Value.Summary.ComplianceCountdownDays, staffed.Value.Archive!.ComplianceCountdownDays);
 
-      // A due but uncommitted freeze stays in the countdown state and is not described as locally archived.
+      // An expired clock without final delivery or a committed freeze stays in Report & Delivery; elapsed time is not archive evidence.
       freeze.ReportSignedAt = now.AddDays(-61);
       freeze.DueAt = freeze.ReportSignedAt.AddDays(60);
       await db.SaveChangesAsync();
       report = await EngagementLifecycleQuery.GetAsync(db, partner, engagementId);
-      Assert.Equal(CanonicalEngagementStages.ComplianceCountdown, report.Value!.Summary.CanonicalStage);
+      Assert.Equal(CanonicalEngagementStages.DeliverableRelease, report.Value!.Summary.CanonicalStage);
+      Assert.Equal(0, report.Value.Summary.ComplianceCountdownDays.GetValueOrDefault());
       Assert.False(report.Value.Summary.IsArchived);
       Assert.Contains(report.Value.Summary.BlockedReasons, x => x.Contains("freeze is due but has not committed", StringComparison.Ordinal));
 

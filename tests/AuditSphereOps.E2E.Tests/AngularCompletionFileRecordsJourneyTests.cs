@@ -77,13 +77,15 @@ public sealed class AngularCompletionFileRecordsJourneyTests
 
     var engagementRoute = $"/app/engagements/{f.EngagementId:D}";
     await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(engagementRoute));
-    await page.GetByText("Canonical Engagement Lifecycle", new() { Exact = true }).ScrollIntoViewIfNeededAsync();
-    var lifecycle = page.GetByRole(AriaRole.Region,
-      new() { Name = "Engagement lifecycle progression", Exact = true });
-    await Assertions.Expect(lifecycle.GetByText("Stage 10 of 11: Compliance Countdown", new() { Exact = true }))
-      .ToBeVisibleAsync();
-    await Assertions.Expect(lifecycle).ToContainTextAsync("Local archive state: SCHEDULED");
-    await Assertions.Expect(lifecycle).ToContainTextAsync("Provider protection state: BLOCKED_EXTERNAL");
+    var workflow = page.GetByRole(AriaRole.Region,
+      new() { Name = "Engagement workflow", Exact = true });
+    await Assertions.Expect(workflow).ToContainTextAsync("Phase 6 of 7: Report and Delivery");
+    await Assertions.Expect(workflow).ToContainTextAsync("Current step: Deliverable Release (stage 9 of 11)");
+    await Assertions.Expect(workflow).ToContainTextAsync("Local archive state: SCHEDULED");
+    await Assertions.Expect(workflow).ToContainTextAsync("External provider protection: BLOCKED_EXTERNAL");
+    await Assertions.Expect(workflow).ToContainTextAsync("Compliance countdown:");
+    await Assertions.Expect(workflow).ToContainTextAsync("60 days until the scheduled freeze.");
+    await Assertions.Expect(workflow).ToContainTextAsync("final bundle available in the client portal");
 
     var completionRoute = engagementRoute + "/completion";
     await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(completionRoute));
@@ -112,13 +114,11 @@ public sealed class AngularCompletionFileRecordsJourneyTests
     }
 
     await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(engagementRoute));
-    await page.GetByText("Canonical Engagement Lifecycle", new() { Exact = true }).ScrollIntoViewIfNeededAsync();
-    lifecycle = page.GetByRole(AriaRole.Region,
-      new() { Name = "Engagement lifecycle progression", Exact = true });
-    await Assertions.Expect(lifecycle.GetByText("Stage 11 of 11: Archived (Read-Only)", new() { Exact = true }))
-      .ToBeVisibleAsync();
-    await Assertions.Expect(lifecycle).ToContainTextAsync("Local archive state: FROZEN");
-    await Assertions.Expect(lifecycle).ToContainTextAsync("Provider protection state: BLOCKED_EXTERNAL");
+    workflow = page.GetByRole(AriaRole.Region,
+      new() { Name = "Engagement workflow", Exact = true });
+    await Assertions.Expect(workflow).ToContainTextAsync("Current step: Archived (Read-Only) (stage 11 of 11)");
+    await Assertions.Expect(workflow).ToContainTextAsync("Local archive state: FROZEN");
+    await Assertions.Expect(workflow).ToContainTextAsync("External provider protection: BLOCKED_EXTERNAL");
     Assert.Empty(errors);
   }
 

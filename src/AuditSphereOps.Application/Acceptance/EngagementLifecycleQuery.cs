@@ -1,6 +1,7 @@
 using System.Globalization;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Audit;
+using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Acceptance;
@@ -96,8 +97,18 @@ public static class EngagementLifecycleQuery
     // (the same anchor as FileFreezeService). The file is archived only when the local freeze has committed; elapsed time
     // alone never archives it, and an active document lock is a working lock, not an archive.
     var freeze = await db.EngagementFileFreezes.AsNoTracking().FirstOrDefaultAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId, ct);
-    var release = await db.Releases.AsNoTracking().FirstOrDefaultAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId, ct);
-    var deliverable = await db.AuditDeliverables.AsNoTracking().FirstOrDefaultAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId, ct);
+    var release = await db.Releases.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId &&
+        db.ReleaseCandidates.Any(candidate => candidate.FirmId == x.FirmId && candidate.Id == x.ReleaseCandidateId &&
+          candidate.TargetKind == ReleaseTargetKinds.FinancialPackage))
+      .OrderByDescending(x => x.ReleasedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+    var signedReport = freeze is null
+      ? await db.AuditDeliverables.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId &&
+          x.Kind == DeliverableKinds.IndependentAuditorsReport && x.SignedFromDeliverableId != null)
+        .OrderByDescending(x => x.Version).ThenByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct)
+      : await db.AuditDeliverables.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ClientId == client.Id &&
+          x.EngagementId == engagementId && x.Id == freeze.ReportDeliverableId && x.Kind == DeliverableKinds.IndependentAuditorsReport &&
+          x.SignedFromDeliverableId != null, ct);
     var completionLink = $"/app/engagements/{engagementId}/completion";
 
     if (freeze is { State: FileFreezeStates.Frozen })
@@ -110,29 +121,50 @@ public static class EngagementLifecycleQuery
 
     if (freeze is not null)
     {
-      var remaining = Math.Max(0, (int)Math.Ceiling((freeze.DueAt - now).TotalDays));
+      var remaining = freeze.State == FileFreezeStates.Scheduled
+        ? Math.Max(0, (int)Math.Ceiling((freeze.DueAt - now).TotalDays)) : (int?)null;
+      var deliveredBundle = release is null || signedReport is null || release.PinnedArtifactId is null
+        ? null
+        : await db.CommercialDeliverableBundles.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == client.Id &&
+            x.EngagementId == engagementId && x.SignedReportId == signedReport.Id && x.FinancialPackageReleaseId == release.Id &&
+            x.FinancialPackageArtifactId == release.PinnedArtifactId && x.FinancialStatementCompositionId == release.PinnedCompositionId &&
+            x.CompositionManifestDigest == release.PinnedCompositionManifestDigest && x.Content.Length > 0)
+          .OrderByDescending(x => x.AssembledAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+      // Persisted bundles are listed and downloadable through the client portal. This proves availability, not that a client
+      // opened or downloaded the bundle; the portal has no separate receipt for either action.
+      var bundleAvailableToClient = deliveredBundle is not null &&
+        Hashing.Sha256Hex(deliveredBundle.Content) == deliveredBundle.ContentSha256 &&
+        Hashing.Sha256Hex(deliveredBundle.ManifestJson) == deliveredBundle.ManifestSha256;
       var countdownBlocked = new List<string>();
-      if (now >= freeze.DueAt)
+      if (holds.Count > 0) countdownBlocked.AddRange(holds.Select(h => $"Open hold: {h}"));
+      if (!bundleAvailableToClient)
+        countdownBlocked.Add(deliveredBundle is null
+          ? "The current signed report and financial release are not yet assembled as a final bundle available in the client portal."
+          : "The final client bundle failed its stored-byte or manifest integrity check and is not treated as delivered.");
+      if (freeze.State == FileFreezeStates.Scheduled && now >= freeze.DueAt)
         countdownBlocked.Add("The freeze is due but has not committed; the file is not archived until the local freeze succeeds.");
+      var phaseDelivered = PostSignatureStage(freeze.State == FileFreezeStates.Scheduled, bundleAvailableToClient) ==
+        CanonicalEngagementStages.ComplianceCountdown;
       return Project(new EngagementLifecycleSummary(
-        CanonicalEngagementStages.ComplianceCountdown, "Compliance Countdown", 10, countdownBlocked,
+        PostSignatureStage(freeze.State == FileFreezeStates.Scheduled, bundleAvailableToClient),
+        phaseDelivered ? "Compliance Countdown" : "Deliverable Release", phaseDelivered ? 10 : 9, countdownBlocked,
         "EngagementPartner", completionLink, remaining, false, false, ComplianceWarningFor(freeze),
         freeze.State, freeze.ExternalReadOnly));
     }
 
-    if (release is not null)
+    if (release is not null || signedReport is not null)
     {
       return Project(new EngagementLifecycleSummary(
         CanonicalEngagementStages.DeliverableRelease, "Deliverable Release", 9,
-        ["The compliance countdown starts when the Partner signs the Independent Auditor's Report."],
+        [signedReport is null
+          ? "The compliance countdown starts when the Partner signs the Independent Auditor's Report."
+          : "The signed report has no scheduled local compliance freeze; review the signature and archive workflow."],
         "EngagementPartner", completionLink, null, false, false));
     }
 
     // 9. Deliverable Release & 8. Partner Approval
-    var bundle = await db.CommercialDeliverableBundles.AsNoTracking().FirstOrDefaultAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId, ct);
-    var opinion = await db.AuditOpinionDecisions.AsNoTracking().FirstOrDefaultAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId, ct);
-    var partnerClearance = await db.PartnerCompletionClearances.AsNoTracking().FirstOrDefaultAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId, ct);
-    var hasSignedReport = await db.AuditDeliverables.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId && x.Kind == DeliverableKinds.IndependentAuditorsReport && x.SignedFromDeliverableId != null, ct);
+    var partnerClearance = await AuditDeliverableService.CurrentClearanceAsync(db, actor, engagementId, ct);
+    var opinion = await AuditDeliverableService.CurrentOpinionAsync(db, actor, engagementId, ct);
 
     // Managerial Review gate (STE lifecycle 7 -> 8): Partner Approval is reachable only when the completion gate is clear
     // before signing: zero open review notes, current materiality and SRM, critical confirmations evaluated and required
@@ -145,47 +177,52 @@ public static class EngagementLifecycleQuery
       where latestEvent == null || latestEvent.Kind != ReviewNoteEventKinds.Resolved
       select note.Id).CountAsync(ct);
 
-    var procedures = await db.AuditProcedures.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId).ToListAsync(ct);
-    var allExecuted = procedures.Count > 0 && procedures.All(x => x.CurrentResultRevision > 0);
-    var pastSigning = hasSignedReport || (bundle is not null && bundle.Content.Length > 0);
+    var procedures = await db.AuditProcedures.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == client.Id &&
+      x.EngagementId == engagementId).ToListAsync(ct);
+    var procedureResults = await db.AuditProcedureResults.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == client.Id &&
+      x.EngagementId == engagementId).ToListAsync(ct);
+    var procedureReviews = await db.AuditProcedureReviews.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == client.Id &&
+      x.EngagementId == engagementId).ToListAsync(ct);
+    var procedureProgress = procedures.Select(procedure =>
+    {
+      var latest = procedureResults.Where(x => x.AuditProcedureId == procedure.Id).OrderByDescending(x => x.Revision)
+        .ThenByDescending(x => x.Id).FirstOrDefault();
+      var current = latest is not null && latest.Revision == procedure.CurrentResultRevision ? latest : null;
+      var review = current is null ? null : procedureReviews.Where(x => x.AuditProcedureResultId == current.Id && x.ResultRevision == current.Revision)
+        .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).FirstOrDefault();
+      return (Procedure: procedure, IsSubmitted: IsCurrentProcedureSubmittedForReview(procedure, current, review));
+    }).ToArray();
+    var allSubmittedForReview = procedures.Count > 0 && procedureProgress.All(x => x.IsSubmitted);
 
     var handoverBlockers = new List<string>();
-    if (partnerClearance is not null && opinion is not null && !pastSigning)
+    if (partnerClearance is not null)
     {
       if (openReviewNotes > 0) handoverBlockers.Add($"{openReviewNotes} open review note(s) require resolution");
-      var completion = await AuditFieldworkService.EvaluateCompletionAsync(db, actor, engagementId, ct);
+      var completion = await AuditFieldworkService.EvaluateCompletionForAuthorizedScopeAsync(db, actor.FirmId, client.Id, engagementId, ct);
       handoverBlockers.AddRange(completion.Succeeded
         ? completion.Value!.Blockers.Select(b => $"Completion gate: {b}")
         : ["Completion gate could not be evaluated for your role."]);
     }
 
-    if (partnerClearance is not null && opinion is not null && pastSigning)
-    {
-      var blocked = new List<string>();
-      if (holds.Count > 0) blocked.AddRange(holds.Select(h => $"Open hold: {h}"));
-      blocked.Add("Awaiting final client deliverable release and portal upload freeze");
-      return Project(new EngagementLifecycleSummary(
-        CanonicalEngagementStages.DeliverableRelease, "Deliverable Release", 9, blocked,
-        "EngagementPartner", $"/app/engagements/{engagementId}/completion", null, false, false));
-    }
-
-    if (partnerClearance is not null && opinion is not null && handoverBlockers.Count == 0)
+    if (PartnerApprovalReady(partnerClearance is not null, handoverBlockers.Count))
     {
       var partnerBlocked = new List<string>();
       if (holds.Count > 0) partnerBlocked.AddRange(holds.Select(h => $"Open hold: {h}"));
-      if (bundle is null || bundle.Content.Length == 0) partnerBlocked.Add("Assembly of 5-part final completion bundle required");
+      if (opinion is null) partnerBlocked.Add("Partner audit opinion decision pending");
+      else partnerBlocked.Add("Partner signature of the current Independent Auditor's Report pending");
       return Project(new EngagementLifecycleSummary(
         CanonicalEngagementStages.PartnerApproval, "Partner Approval & Signing", 8, partnerBlocked,
         "EngagementPartner", $"/app/engagements/{engagementId}/completion", null, false, false));
     }
 
-    if (allExecuted || handoverBlockers.Count > 0)
+    if (allSubmittedForReview || handoverBlockers.Count > 0)
     {
       var mgrBlocked = new List<string>();
       if (holds.Count > 0) mgrBlocked.AddRange(holds.Select(h => $"Open hold: {h}"));
-      if (openReviewNotes > 0 && handoverBlockers.Count == 0) mgrBlocked.Add($"{openReviewNotes} open review note(s) require resolution");
+      if (openReviewNotes > 0 && !handoverBlockers.Any(x => x.StartsWith($"{openReviewNotes} open review note", StringComparison.Ordinal)))
+        mgrBlocked.Add($"{openReviewNotes} open review note(s) require resolution");
       mgrBlocked.AddRange(handoverBlockers);
-      if (opinion is null) mgrBlocked.Add("Partner audit opinion decision pending");
+      if (partnerClearance is null) mgrBlocked.Add("Partner clearance of a current Summary Review Memorandum is pending.");
       return Project(new EngagementLifecycleSummary(
         CanonicalEngagementStages.ManagerialReview, "Managerial Review", 7, mgrBlocked,
         "AuditManager", $"/app/engagements/{engagementId}/audit-fieldwork", null, false, false));
@@ -201,8 +238,15 @@ public static class EngagementLifecycleQuery
     {
       var fwBlocked = new List<string>();
       if (holds.Count > 0) fwBlocked.AddRange(holds.Select(h => $"Open hold: {h}"));
-      var pendingCount = procedures.Count(x => x.CurrentResultRevision == 0);
+      var pendingApplicability = procedures.Count(x => x.ApplicabilityStatus is AuditApplicabilityStatuses.Pending or AuditApplicabilityStatuses.NotApplicablePendingReview);
+      if (pendingApplicability > 0) fwBlocked.Add($"{pendingApplicability} procedure applicability decision(s) remain unresolved");
+      var pendingCount = procedureProgress.Count(x => !x.IsSubmitted && x.Procedure.ApplicabilityStatus == AuditApplicabilityStatuses.Applicable);
       if (pendingCount > 0) fwBlocked.Add($"{pendingCount} substantive audit procedure(s) pending execution");
+      var returnedCount = procedureProgress.Count(x => x.Procedure.ApplicabilityStatus == AuditApplicabilityStatuses.Applicable &&
+        (x.Procedure.Status == AuditProcedureStatuses.ChangesRequired ||
+         procedureResults.Any(result => result.AuditProcedureId == x.Procedure.Id && result.Revision == x.Procedure.CurrentResultRevision &&
+           result.Status == AuditProcedureResultStatuses.ChangesRequired)));
+      if (returnedCount > 0) fwBlocked.Add($"{returnedCount} audit procedure(s) returned for preparer rework");
       return Project(new EngagementLifecycleSummary(
         CanonicalEngagementStages.FieldworkExecution, "Fieldwork Execution", 6, fwBlocked,
         "SeniorAuditor", $"/app/engagements/{engagementId}/audit-fieldwork", null, false, false));
@@ -279,6 +323,29 @@ public static class EngagementLifecycleQuery
       ["Commercial proposal preparation and dispatch required"],
       "CommercialManager", $"/app/clients/{engagement.PracticeClientId}", null, false, false));
   }
+
+  internal static bool IsCurrentProcedureSubmittedForReview(
+    AuditProcedure procedure, AuditProcedureResult? currentResult, AuditProcedureReview? currentReview)
+  {
+    if (procedure.ApplicabilityStatus == AuditApplicabilityStatuses.NotApplicableApproved) return true;
+    if (procedure.ApplicabilityStatus != AuditApplicabilityStatuses.Applicable || currentResult is null ||
+        currentResult.Revision != procedure.CurrentResultRevision || procedure.CurrentResultRevision <= 0)
+      return false;
+    if (procedure.Status == AuditProcedureStatuses.ChangesRequired ||
+        currentResult.Status == AuditProcedureResultStatuses.ChangesRequired ||
+        currentReview?.Decision == AuditProcedureReviewDecisions.ChangesRequired)
+      return false;
+    return (procedure.Status is AuditProcedureStatuses.Submitted or AuditProcedureStatuses.InReview or AuditProcedureStatuses.Reviewed) &&
+      (currentResult.Status is AuditProcedureResultStatuses.Submitted or AuditProcedureResultStatuses.Reviewed);
+  }
+
+  internal static string PostSignatureStage(bool freezeScheduled, bool exactBundleAvailable) =>
+    freezeScheduled && exactBundleAvailable
+      ? CanonicalEngagementStages.ComplianceCountdown
+      : CanonicalEngagementStages.DeliverableRelease;
+
+  internal static bool PartnerApprovalReady(bool currentClearance, int completionBlockerCount) =>
+    currentClearance && completionBlockerCount == 0;
 
   /// <summary>
   /// A manually entered (pre-engine) materiality counts as approved only when its status is Approved and a separate Partner
