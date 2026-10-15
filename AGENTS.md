@@ -13,7 +13,6 @@ An audit, accounting and assurance operations platform for the STE firm (Qatar, 
 | `src/AuditSphereOps.Infrastructure/` | EF Core 10 + Npgsql 10, `AuditSphereDbContext.<Module>.cs` partials, migrations, provider adapters. |
 | `src/AuditSphereOps.Api/` | API host, cookie/Entra authentication, `/api/ui/*` endpoints (`Ui/UiEndpoints.<Area>.cs`), Angular route serving. Composes Application; never references Web or MudBlazor. |
 | `src/AuditSphereOps.Ui/` | Angular 22 + Material/CDK. Staff workbench `/ui/app`, client portal `/ui/portal`. Same-origin API only; never Microsoft Graph, never browser bearer tokens. |
-| `src/AuditSphereOps.Web/` | Legacy Blazor rollback/reference host. Keep it until the canonical migration readiness gate passes and the owner separately accepts retirement. |
 | `src/AuditSphereOps.Worker/` | BackgroundService host for durable operations. |
 
 ### Three strict financial boundaries
