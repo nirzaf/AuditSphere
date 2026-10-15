@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "9a2630f628ca1c64ebffe576e716cbdc1b849f2e",
+  "headCommit": "18c20d44b2dd4bbfe2ce359940aed64cde373877",
   "verifiedCommit": "acf6201959e015a63d5ec7ac436b310a97e795a1",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -85,7 +85,8 @@
         "Partner Approval predicate requires current SRM clearance and zero completion blockers, not a pre-recorded opinion",
         "Signature-anchored countdown remains visible in Report and Delivery; countdown stage requires scheduled freeze plus exact current signed-report/financial-release bundle identity and valid stored-byte and manifest hashes",
         "Due date alone does not mark local archive; a committed local freeze is required for Archived Read-Only",
-        "Playwright journey observes the seven-phase workflow and canonical stage before and after a synthetic local freeze"
+        "Playwright journey observes the seven-phase workflow and canonical stage before and after a synthetic local freeze",
+        "Integrated tests pass: exact bundle to Compliance Countdown; current SRM to Partner Approval before opinion."
       ],
       "runs": [
         {
@@ -109,14 +110,11 @@
       ],
       "notRun": [
         "Full Domain, API, Angular, and E2E suites",
-        "Positive integrated lifecycle projection for an exact current bundle reaching Compliance Countdown",
-        "Integrated Partner Approval transition with a fully current SRM and completion-clear fixture before opinion selection",
         "Hosted CI, live Microsoft/provider verification, VPS deployment, or production acceptance"
       ],
       "stillOpen": [
-        "F-07 remains PARTIAL until the positive exact-bundle and current-SRM Partner-stage integration cases are evidenced",
-        "A portal bundle row proves availability only; no client open/download receipt is recorded",
-        "Provider protection and external/production acceptance remain separate gates"
+        "F-07 lifecycle transitions are locally evidenced; provider protection and production acceptance remain external gates.",
+        "Client confirmation is self-attested; browser-observed download completion is not recorded."
       ]
     },
     "workflowExperiencePrH": {
@@ -877,11 +875,11 @@
         "F-12 release precondition subset: release.yml refuses release without a successful ci.yml run for the exact SHA (not yet observed hosted)",
         "Tests: concurrent approve and return commits exactly one decision; raw SQL refuses a duplicate request identity and a partial intent; scoped Partner tests (other engagement, revoked, multi-role)",
         "F-08 CP-18 composition: selecting a candidate renders its PDF, Word and Excel and seals them as one record with per-format digests and a manifest digest; no partial set; append-only (migration FinancialStatementComposition)",
-        "F-08 exact composition handoff: candidate-bound management, accounting and Partner decisions bind the same candidate/composition ID/manifest digest; release pins that composition and PDF identity; bundle verifies and includes the selected PDF/DOCX/XLSX with IDs and hashes; legacy fallback is refused"
+        "F-08 exact composition handoff: candidate-bound management, accounting and Partner decisions bind the same candidate/composition ID/manifest digest; release pins that composition and PDF identity; bundle verifies and includes the selected PDF/DOCX/XLSX with IDs and hashes; legacy fallback is refused; client bundle receipt binds ZIP and manifest hashes and is per-user, append-only and retry-safe."
       ],
       "verified": {
         "domainFocusedClasses": "245 passed at 0eb44ece (CashFlowContract, FinancialPackageGate, FinancialStatement, CompletionBundle, AccountingRecordsApproval, SourceAcceptanceAndComparatives, PackageSeal, FinancialPackage, ReleaseTests, ReleaseEvidence, AuditDeliverables, ClientAccountingTests)",
-        "solutionBuild": "dotnet build AuditSphereOps.slnx Release --no-restore: 0 errors",
+        "solutionBuild": "PASS: dotnet build AuditSphereOps.slnx Release --no-restore; 0 warnings/0 errors",
         "efModel": "has-pending-model-changes: no changes",
         "openApi": "PASS: regenerated contracts/auditsphere-openapi.json and scripts/contracts/verify-openapi.sh is current",
         "earlierSlices": "Angular specs 28 passed and tsc clean at 4075d2b2 (package and build screens); not rerun after 0eb44ece, which changed no Angular file",
@@ -890,8 +888,9 @@
         "compositionReviewReleaseBundle": "PASS: 35/35 PostgreSQL-backed Domain tests across StatementCandidatePromotion, FinancialPackageGate, AuditDeliverables and ClientAccounting financial packages; exact composition approval, release pin and bundle integrity covered",
         "angularFullSuite": "PASS: npm run test:ci; 127 files and 736 tests",
         "angularBuild": "PASS: npm run build; existing commercial/settings.scss component-style budget warning (7.53 kB vs 4.00 kB)",
-        "migration": "20261015000622_FinancialStatementReviewCompositionBinding generated; EF has-pending-model-changes reports no drift; test harness used disposable migrated databases; no persistent local or VPS database migration was applied",
-        "documentation": "PASS: markdown health, filename and narrative-metrics validators"
+        "migration": "20261015000622_FinancialStatementReviewCompositionBinding and 20261015113704_ClientBundleReceiptAcknowledgements generated; EF model drift clean; tests use disposable databases; no persistent local or VPS migration applied.",
+        "documentation": "PASS: markdown health, filename and narrative-metrics validators",
+        "clientBundleReceipt": "PASS: dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --configuration Release --no-restore --filter 'FullyQualifiedName~FivePartBundle_RequiresReviewedReleaseAndPostedBalance_IsIdempotent_AndClientScoped|FullyQualifiedName~CurrentPartnerClearanceProjectsPartnerApprovalBeforeOpinionSelection' --maxcpucount:1 (Domain 2/2: exact hashes, concurrent retry, scope, append-only); npm --prefix src/AuditSphereOps.Ui run test:ci -- --include=src/app/features/portal/documents.spec.ts (2/2). Client-attested, not download/provider proof."
       },
       "notRun": [
         "full unfiltered Domain suite",
@@ -901,11 +900,11 @@
         "Interactive built-in-browser review/release flow: not run; the code is not deployed to the VPS and no local authenticated package fixture was started."
       ],
       "openBlockers": [
-        "F-02 minor: a revocation that commits after the decision's share locks and re-check would wait; residual window closed by the grant share lock, but not covered by a test of the timing",
-        "F-09: assignment-aware deciding-Partner rule beyond grant scope is not modelled; Administrator keeps accounting-review and source-review rights (owner policy decision)",
-        "F-01/CP-12: only two projection roles; working-capital adjustments need a third role under an approved method (professional)",
-        "F-08 / CP-18: composition membership, current-source checks and byte-hash verification are implemented; cross-format content/reference parity, approved profile membership, MIME/glyph/clipping validation and professional output acceptance remain unverified",
-        "F-08 / CP-19 / CP-20: exact composition decisions, release pin and bundle integration are implemented; management signatory/capacity, verified offline evidence, review revision/receipt recovery, final audit-report/signing/legal acceptance and live-provider gates remain open"
+        "F-02 minor: post-lock revocation waits; timing lacks a dedicated test.",
+        "F-09: assignment-aware Partner rule remains unmodelled; Administrator review rights need owner policy.",
+        "CP-12: third working-capital role requires approved professional methodology.",
+        "CP-18: cross-format parity, approved profiles, MIME/glyph/clipping and professional output acceptance remain unverified.",
+        "CP-19/20: signatory capacity, offline evidence, package-review revision/receipt recovery, final report/signing/legal and live-provider gates remain open."
       ],
       "storyItemsNotStarted": [
         "F-05 indirect cash-flow methodology (BLOCKED_PROFESSIONAL)",
