@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Accounting;
+using AuditSphereOps.Application.Acceptance;
 using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Reviews;
 using AuditSphereOps.Domain.Accounting;
@@ -9,6 +10,7 @@ using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
+using AuditSphereOps.Domain.Records;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
@@ -174,6 +176,20 @@ public sealed partial class AuditDeliverablesTests
       Assert.Equal(releaseId, row.FinancialPackageReleaseId);
       Assert.Equal(Hashing.Sha256Hex(row.Content), row.ContentSha256);
       Assert.Equal(Hashing.Sha256Hex(row.ManifestJson), row.ManifestSha256);
+
+      var freeze = await db.EngagementFileFreezes.AsNoTracking()
+        .SingleAsync(x => x.FirmId == w.FirmId && x.EngagementId == w.EngagementId);
+      Assert.Equal(signedId, freeze.ReportDeliverableId);
+      Assert.Equal(FileFreezeStates.Scheduled, freeze.State);
+
+      var lifecycle = await EngagementLifecycleQuery.GetAsync(db, partner, w.EngagementId);
+      Assert.True(lifecycle.Succeeded, lifecycle.Message);
+      Assert.Equal(CanonicalEngagementStages.ComplianceCountdown, lifecycle.Value!.Summary.CanonicalStage);
+      Assert.Equal(10, lifecycle.Value.Summary.StageIndex);
+      Assert.Equal(FileFreezeStates.Scheduled, lifecycle.Value.Summary.LocalArchiveState);
+      Assert.False(lifecycle.Value.Summary.IsArchived);
+      Assert.Empty(lifecycle.Value.Summary.BlockedReasons);
+
       using var archive = new ZipArchive(new MemoryStream(row.Content), ZipArchiveMode.Read);
       Assert.Equal(new[] {
         "01_Report_and_statements/Certified_financial_statements.pdf", "01_Report_and_statements/Independent_auditors_report.pdf",

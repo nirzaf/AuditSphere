@@ -128,11 +128,11 @@ public static class EngagementLifecycleQuery
         : await db.CommercialDeliverableBundles.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == client.Id &&
             x.EngagementId == engagementId && x.SignedReportId == signedReport.Id && x.FinancialPackageReleaseId == release.Id &&
             x.FinancialPackageArtifactId == release.PinnedArtifactId && x.FinancialStatementCompositionId == release.PinnedCompositionId &&
-            x.CompositionManifestDigest == release.PinnedCompositionManifestDigest && x.Content.Length > 0)
+            x.CompositionManifestDigest == release.PinnedCompositionManifestDigest)
           .OrderByDescending(x => x.AssembledAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
       // Persisted bundles are listed and downloadable through the client portal. This proves availability, not that a client
       // opened or downloaded the bundle; the portal has no separate receipt for either action.
-      var bundleAvailableToClient = deliveredBundle is not null &&
+      var bundleAvailableToClient = deliveredBundle is { Content.Length: > 0 } &&
         Hashing.Sha256Hex(deliveredBundle.Content) == deliveredBundle.ContentSha256 &&
         Hashing.Sha256Hex(deliveredBundle.ManifestJson) == deliveredBundle.ManifestSha256;
       var countdownBlocked = new List<string>();

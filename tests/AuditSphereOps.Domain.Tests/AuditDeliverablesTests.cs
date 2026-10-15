@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Text;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Audit;
+using AuditSphereOps.Application.Acceptance;
 using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Practice;
@@ -810,6 +811,31 @@ public sealed partial class AuditDeliverablesTests
   {
     var partner = w.A("partner", "Partner");
     var manager = w.A("manager", "Manager");
+    await PartnerClearCurrentSummaryAsync(pg, w);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    Assert.True((await AuditDeliverableService.DecideOpinionAsync(db, partner, w.EngagementId, "UNMODIFIED", null, null)).Succeeded);
+    var letter = (await AuditDeliverableService.GenerateReportAsync(db, manager, w.EngagementId, DeliverableKinds.RepresentationLetter)).Value!.DeliverableId!.Value;
+    var review = (await AuditDeliverableService.ShareWithClientAsync(db, manager, letter)).Value;
+    Assert.True((await AuditDeliverableService.AcknowledgeAsync(db, w.A("client", "ClientUser"), review,
+      (await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.Id == letter)).ContentSha256)).Succeeded);
+    var representation = await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.Id == letter);
+    var scan = await AuditDeliverableService.UploadSignedRepresentationAsync(db, w.A("client", "ClientUser"), letter,
+      representation.ContentSha256, "Authorized Management", CompletionTestFixtures.SignedPdf());
+    Assert.True(scan.Succeeded, scan.Message);
+    var uploaded = await db.SignedRepresentationLetters.AsNoTracking().SingleAsync(x => x.Id == scan.Value);
+    Assert.True((await AuditDeliverableService.VerifySignedRepresentationAsync(db, partner, scan.Value, uploaded.ContentSha256,
+      "Management signature and authority independently reviewed.")).Succeeded);
+    Assert.True((await AuditDeliverableService.RegisterFirmSealAsync(db, partner, Png(100, 100))).Succeeded);
+    var iar = (await AuditDeliverableService.GenerateReportAsync(db, manager, w.EngagementId,
+      DeliverableKinds.IndependentAuditorsReport)).Value!.DeliverableId!.Value;
+    Assert.True((await AuditDeliverableService.RegisterSignatureAsync(db, partner, Png(120, 40))).Succeeded);
+    return iar;
+  }
+
+  private static async Task<Guid> PartnerClearCurrentSummaryAsync(PgTestSchema pg, World w)
+  {
+    var partner = w.A("partner", "Partner");
+    var manager = w.A("manager", "Manager");
     await using var db = new AuditSphereDbContext(pg.Options);
     var result = await db.AuditProcedureResults.AsNoTracking().SingleAsync(x => x.Id == w.ResultId);
     var inputGeneration = await db.ClientSafetyStates.AsNoTracking().Where(x => x.FirmId == w.FirmId && x.Id == w.ClientId)
@@ -833,19 +859,27 @@ public sealed partial class AuditDeliverablesTests
     var srm = (await AuditDeliverableService.GenerateSummaryReviewMemorandumAsync(db, manager, w.EngagementId, "Ready.")).Value;
     var clearResult = await AuditDeliverableService.PartnerClearAsync(db, partner, srm, "Risks reviewed.", "Notes reviewed.");
     Assert.True(clearResult.Succeeded, $"PartnerClearAsync failed: {clearResult.ErrorCode} - {clearResult.Message}");
-    Assert.True((await AuditDeliverableService.DecideOpinionAsync(db, partner, w.EngagementId, "UNMODIFIED", null, null)).Succeeded);
-    var letter = (await AuditDeliverableService.GenerateReportAsync(db, manager, w.EngagementId, DeliverableKinds.RepresentationLetter)).Value!.DeliverableId!.Value;
-    var review = (await AuditDeliverableService.ShareWithClientAsync(db, manager, letter)).Value;
-    Assert.True((await AuditDeliverableService.AcknowledgeAsync(db, w.A("client", "ClientUser"), review, (await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.Id == letter)).ContentSha256)).Succeeded);
-    var representation = await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.Id == letter);
-    var scan = await AuditDeliverableService.UploadSignedRepresentationAsync(db, w.A("client", "ClientUser"), letter, representation.ContentSha256, "Authorized Management", CompletionTestFixtures.SignedPdf());
-    Assert.True(scan.Succeeded, scan.Message);
-    var uploaded = await db.SignedRepresentationLetters.AsNoTracking().SingleAsync(x => x.Id == scan.Value);
-    Assert.True((await AuditDeliverableService.VerifySignedRepresentationAsync(db, partner, scan.Value, uploaded.ContentSha256, "Management signature and authority independently reviewed.")).Succeeded);
-    Assert.True((await AuditDeliverableService.RegisterFirmSealAsync(db, partner, Png(100, 100))).Succeeded);
-    var iar = (await AuditDeliverableService.GenerateReportAsync(db, manager, w.EngagementId, DeliverableKinds.IndependentAuditorsReport)).Value!.DeliverableId!.Value;
-    Assert.True((await AuditDeliverableService.RegisterSignatureAsync(db, partner, Png(120, 40))).Succeeded);
-    return iar;
+    return srm;
+  }
+
+  [Fact]
+  public async Task CurrentPartnerClearanceProjectsPartnerApprovalBeforeOpinionSelection()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    await PartnerClearCurrentSummaryAsync(pg, w);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var partner = w.A("partner", "Partner");
+
+    Assert.Null(await AuditDeliverableService.CurrentOpinionAsync(db, partner, w.EngagementId));
+    var lifecycle = await EngagementLifecycleQuery.GetAsync(db, partner, w.EngagementId);
+
+    Assert.True(lifecycle.Succeeded, lifecycle.Message);
+    Assert.Equal(CanonicalEngagementStages.PartnerApproval, lifecycle.Value!.Summary.CanonicalStage);
+    Assert.Equal(8, lifecycle.Value.Summary.StageIndex);
+    Assert.Contains("Partner audit opinion decision pending", lifecycle.Value.Summary.BlockedReasons);
+    Assert.DoesNotContain(lifecycle.Value.Summary.BlockedReasons,
+      reason => reason.StartsWith("Partner clearance of a current Summary Review Memorandum is pending.", StringComparison.Ordinal));
   }
 
   [Fact]
