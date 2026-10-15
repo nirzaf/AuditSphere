@@ -32733,6 +32733,13 @@
             "schema": {
               "type": "boolean"
             }
+          },
+          {
+            "name": "includeSummary",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -47438,6 +47445,15 @@
               "null",
               "string"
             ]
+          },
+          "startMinute": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },

@@ -54,8 +54,8 @@ public static partial class UiEndpoints
       }));
 
     group.MapGet("/work/tasks", (string? view, DateOnly? afterDueDate, Guid? afterTaskId, int? pageSize,
-      Guid? assigneeUserId, bool? unassignedOnly, HttpContext http) =>
-      WorkflowQueueAsync(http, view, afterDueDate, afterTaskId, pageSize, assigneeUserId, unassignedOnly));
+      Guid? assigneeUserId, bool? unassignedOnly, bool? includeSummary, HttpContext http) =>
+      WorkflowQueueAsync(http, view, afterDueDate, afterTaskId, pageSize, assigneeUserId, unassignedOnly, includeSummary));
 
     var tasks = group.MapGroup("/engagements/{engagementId:guid}/workflow/tasks")
       .AddEndpointFilter(async (context, next) =>
@@ -183,7 +183,7 @@ public static partial class UiEndpoints
   }
 
   private static Task<IResult> WorkflowQueueAsync(HttpContext http, string? view, DateOnly? afterDueDate,
-    Guid? afterTaskId, int? pageSize, Guid? assigneeUserId, bool? unassignedOnly) =>
+    Guid? afterTaskId, int? pageSize, Guid? assigneeUserId, bool? unassignedOnly, bool? includeSummary) =>
     ReadAsync(http, async (db, actor, ct) =>
     {
       var configuration = http.RequestServices.GetRequiredService<IConfiguration>();
@@ -191,7 +191,7 @@ public static partial class UiEndpoints
         return CommandResult<WorkflowTaskQueue>.Fail(ErrorCodes.ScopeDenied, "Workflow task experience is not enabled on this server.");
       return await WorkflowTaskQueueQuery.GetAsync(db, actor,
         new WorkflowTaskQueueRequest(view ?? "MY_TASKS", afterDueDate, afterTaskId, pageSize ?? 50,
-          assigneeUserId, unassignedOnly ?? false), ct);
+          assigneeUserId, unassignedOnly ?? false, includeSummary ?? false), ct);
     });
 
   private static void MapWorkflowTemplateEndpoints(RouteGroupBuilder group)

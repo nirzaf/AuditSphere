@@ -8,7 +8,8 @@ public static partial class UiEndpoints
 {
   public sealed record WorkTaskInput(string Title, Guid? ReportingPeriodId, string? DueDate,
     Guid? EngagementId = null, Guid? MappingVersionId = null, string? FsliCode = null);
-  public sealed record TimeDraftInput(Guid TaskId, string WorkDate, int DurationMinutes, string Role, string Activity, bool Billable, string? Narrative);
+  public sealed record TimeDraftInput(Guid TaskId, string WorkDate, int DurationMinutes, string Role, string Activity, bool Billable, string? Narrative,
+    int? StartMinute = null);
 
   private static void MapTimeEndpoints(RouteGroupBuilder group)
   {
@@ -47,7 +48,7 @@ public static partial class UiEndpoints
     });
     group.MapPost("/practice/time/entries", (TimeDraftInput input, HttpContext http) =>
       TryDate(input.WorkDate, out var date)
-        ? CommandAsync(http, (db, actor, ct) => PracticeTimeService.SaveTimeDraftAsync(db, actor, new SaveTimeDraftRequest(input.TaskId, date, 540, input.DurationMinutes,
+        ? CommandAsync(http, (db, actor, ct) => PracticeTimeService.SaveTimeDraftAsync(db, actor, new SaveTimeDraftRequest(input.TaskId, date, input.StartMinute ?? 540, input.DurationMinutes,
             input.Role, input.Activity, input.Billable ? PracticeTimeStates.Billable : PracticeTimeStates.NonBillable, input.Narrative ?? "",
             PracticeTimeStates.NarrativeInternal, "QAR"), ct))
         : Task.FromResult(Invalid("Enter the work date.")));
