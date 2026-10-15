@@ -69,8 +69,8 @@
       "source": "src/AuditSphereOps.Web/Components/Administration/GuestInvitationPanel.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-administration-source-review.md",
-      "reviewedAtCommit": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
-      "openGaps": ["Existing-guest choice journey", "Live B2B invitation acceptance"]
+      "reviewedAtCommit": "660c1605cd943db11a7c3dd86303313d5e5752e4",
+      "openGaps": ["Live B2B invitation acceptance"]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Administration/ManagedGroupsPanel.razor",
@@ -97,8 +97,8 @@
       "source": "src/AuditSphereOps.Web/Components/Administration/RoleAssignmentDialog.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-administration-source-review.md",
-      "reviewedAtCommit": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
-      "openGaps": ["Complete role and scope comparison", "Stale-preview UI matrix"]
+      "reviewedAtCommit": "660c1605cd943db11a7c3dd86303313d5e5752e4",
+      "openGaps": ["Complete role and scope comparison", "Stale-preview invalidation across all review inputs and concurrent authority changes"]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Administration/WorkspaceProvisioningPanel.razor",

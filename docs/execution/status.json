@@ -1075,6 +1075,19 @@
       "database": "PostgreSQL 18.6 loopback; TenantAdministrationFixture disposable schema in auditsphere_tests",
       "coverage": "Group-grant revocation waits on the firm safety row and reauthorizes the acting Administrator. The deterministic lock-wait regression revokes the acting Administrator and advances the session epoch before releasing the lock, then confirms no group-grant revocation, target session-epoch change or revocation event occurred.",
       "scopeStatus": "PARTIAL"
+    },
+    "angularMigrationAdministrationReviewFreshnessCi": {
+      "recordedAtUtc": "2026-10-15T16:37:00Z",
+      "sourceCommit": "660c1605cd943db11a7c3dd86303313d5e5752e4",
+      "result": "PASS",
+      "passed": 17,
+      "failed": 0,
+      "total": 17,
+      "command": "GitHub Actions run 38768464486; CI step 'Verify workflow coordination through the real API and browser' (focused Angular E2E filter)",
+      "database": "PostgreSQL 18.6; isolated synthetic OwnedHost fixtures",
+      "coverage": "The filtered cohort includes AngularAdministrationJourneyTests and AngularTenantConnectionJourneyTests. The role-assignment browser journey invalidates its preview and assent after a reason edit, requires a fresh review and assent, and persists the revised reason. The tenant-connection journey binds an exact simulated existing guest without automatic role assignment, then separately grants CLIENT-scoped ClientUser access. This is focused E2E evidence; it is not full Angular migration parity or production acceptance.",
+      "runUrl": "https://github.com/nirzaf/AuditSphere/actions/runs/38768464486",
+      "scopeStatus": "PARTIAL"
     }
   },
   "externalGates": [
