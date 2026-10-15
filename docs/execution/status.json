@@ -118,6 +118,24 @@
         "repair": "Exact rendered quotation, dispatch identity and immutable response evidence added; as-of-date receipt, credit and allocation assertions retained.",
         "buildCaveat": "Three MSB3026 copy retries from concurrent Infrastructure output use; build completed.",
         "limits": "Full Domain not rerun after this repair. Consolidation/foreign-operation fixtures and other retirement criteria stay open."
+      },
+      "timeAndPlanningFollowUp": {
+        "codeCommit": "dfb73530",
+        "time": {
+          "passed": 2,
+          "failed": 0,
+          "skipped": 0,
+          "durationSeconds": 74,
+          "report": "/tmp/auditsphere-parity-regression/time-scope-current-form.trx"
+        },
+        "planning": {
+          "passed": 2,
+          "failed": 0,
+          "skipped": 0,
+          "durationSeconds": 65,
+          "report": "/tmp/auditsphere-parity-regression/planning-navigation-current.trx"
+        },
+        "scope": "API-host Playwright, synthetic owned PostgreSQL; unchanged planning cohort did not reproduce prior timeout. Full solution remains open."
       }
     },
     "angularBlazorTenantConsentFixtureFollowUp": {

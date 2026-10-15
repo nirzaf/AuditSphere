@@ -49,6 +49,29 @@ the 20-route Angular accessibility contract including these practice routes.
 The suite compiled Domain, Application, Infrastructure, API, Worker and E2E
 projects in Release before running the browser tests.
 
+### Current Time and planning browser regression
+
+At code/test commit `dfb73530`, the Release API-host browser cohort
+`AngularPracticeTimeScopeParityJourneyTests` passed **2/2**, with zero failures
+and skips, in 74 seconds. The mapped billable-time journey uses the current
+`Work date (UTC)` and `Start time (UTC)` labels and verifies the persisted date
+and start minute alongside the exact FSLI mapping and independently approved
+rate. The second journey preserves sibling-engagement task, entry and period
+isolation. No product authorization or calculation guard was changed.
+
+The unchanged `AngularPlanningNavigationJourneyTests` cohort passed **2/2**
+in 65 seconds against the same built code, covering canonical and prefixed
+routes, keeping edits, tab-local save/restore, discard navigation, and zero
+business writes. The earlier Currency timeout was not reproduced; this focused
+result does not prove the full suite is free of ordering or timing failures.
+
+Both commands targeted the E2E project in Release with `--maxcpucount:1` and
+`--filter FullyQualifiedName~<class name>`; Time rebuilt, Planning used
+`--no-build`. Local ephemeral TRX reports are
+`/tmp/auditsphere-parity-regression/time-scope-current-form.trx` and
+`/tmp/auditsphere-parity-regression/planning-navigation-current.trx`.
+The full-solution regression and retirement gate remain open.
+
 ### Technical library Angular-form follow-up
 
 At `4cb6faffc4bdac3a97b2e70eb4031a018e72ef51`, the focused
