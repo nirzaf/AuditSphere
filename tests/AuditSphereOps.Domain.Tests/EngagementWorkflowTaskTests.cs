@@ -1,6 +1,7 @@
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Completion;
+using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Security;
@@ -364,6 +365,302 @@ public sealed class EngagementWorkflowTaskTests
       AssignmentSource = "MANUAL", CreatedAt = DateTimeOffset.UtcNow, CreatedByUserId = user.Id, Revision = 1
     });
     await Assert.ThrowsAsync<DbUpdateException>(() => bad.SaveChangesAsync());
+  }
+
+  private static readonly string[] SummaryViewOrder =
+    ["MY_TASKS", "DUE_TODAY", "OVERDUE", "WAITING_FOR_CLIENT", "UNDER_REVIEW", "CHANGES_REQUIRED", "UPCOMING"];
+
+  [Fact]
+  public async Task DueTodaySummaryCountsTheCompleteAuthorizedPopulationRatherThanTheLoadedPage()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var firmId = Guid.NewGuid();
+    var clientId = Guid.NewGuid();
+    var engagementId = Guid.NewGuid();
+    var manager = User(firmId, "Manager");
+    var managerActor = Actor(manager, "Manager");
+    await SeedQueueScopeAsync(pg, firmId, [(clientId, engagementId)], [manager],
+      () => [Grant(firmId, manager, "Manager")]);
+
+    var today = DateOnly.FromDateTime(DateTime.UtcNow);
+    var taskIds = new List<Guid>();
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      for (var ordinal = 1; ordinal <= 101; ordinal++)
+        taskIds.Add(await CreateQueueTaskAsync(db, managerActor, engagementId, $"Due today {ordinal}", ordinal, today));
+      var assigned = await EngagementWorkflowTaskService.AssignAsync(db, managerActor, taskIds[0], manager.Id, 1);
+      Assert.True(assigned.Succeeded, assigned.Message);
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var before = await QueueStateFingerprintAsync(db, firmId);
+
+      var first = await WorkflowTaskQueueQuery.GetAsync(db, managerActor,
+        new WorkflowTaskQueueRequest("DUE_TODAY", PageSize: 1, IncludeSummary: true));
+      Assert.True(first.Succeeded, first.Message);
+      var firstRow = Assert.Single(first.Value!.Tasks);
+      Assert.True(first.Value.HasMore);
+      Assert.Equal("DUE_TODAY", first.Value.View);
+      var summary = Assert.IsType<WorkflowTaskQueueSummary>(first.Value.Summary);
+      Assert.Equal(today, summary.AsOfDateUtc);
+      Assert.Equal(SummaryViewOrder, summary.Counts.Select(x => x.View));
+      Assert.Equal("101", SummaryCount(summary, "DUE_TODAY"));
+      Assert.Equal("1", SummaryCount(summary, "MY_TASKS"));
+      foreach (var empty in new[] { "OVERDUE", "WAITING_FOR_CLIENT", "UNDER_REVIEW", "CHANGES_REQUIRED", "UPCOMING" })
+        Assert.Equal("0", SummaryCount(summary, empty));
+
+      var cursor = Assert.IsType<WorkflowTaskQueueCursor>(first.Value.NextCursor);
+      var second = await WorkflowTaskQueueQuery.GetAsync(db, managerActor,
+        new WorkflowTaskQueueRequest("DUE_TODAY", cursor.DueDate, cursor.TaskId, 1, IncludeSummary: true));
+      Assert.True(second.Succeeded, second.Message);
+      Assert.NotEqual(firstRow.TaskId, Assert.Single(second.Value!.Tasks).TaskId);
+      Assert.Equal(summary.Counts, second.Value.Summary!.Counts);
+
+      var owned = await WorkflowTaskQueueQuery.GetAsync(db, managerActor,
+        new WorkflowTaskQueueRequest("DUE_TODAY", AssigneeUserId: manager.Id, IncludeSummary: true));
+      Assert.True(owned.Succeeded, owned.Message);
+      Assert.Equal(taskIds[0], Assert.Single(owned.Value!.Tasks).TaskId);
+      Assert.Equal(summary.Counts, owned.Value.Summary!.Counts);
+
+      var unassigned = await WorkflowTaskQueueQuery.GetAsync(db, managerActor,
+        new WorkflowTaskQueueRequest("TEAM", PageSize: 100, UnassignedOnly: true, IncludeSummary: true));
+      Assert.True(unassigned.Succeeded, unassigned.Message);
+      Assert.Equal(100, unassigned.Value!.Tasks.Count);
+      Assert.False(unassigned.Value.HasMore);
+      Assert.Equal(summary.Counts, unassigned.Value.Summary!.Counts);
+
+      var emptyPage = await WorkflowTaskQueueQuery.GetAsync(db, managerActor,
+        new WorkflowTaskQueueRequest("COMPLETED", IncludeSummary: true));
+      Assert.True(emptyPage.Succeeded, emptyPage.Message);
+      Assert.Empty(emptyPage.Value!.Tasks);
+      Assert.Equal(summary.Counts, emptyPage.Value.Summary!.Counts);
+
+      var withoutSummary = await WorkflowTaskQueueQuery.GetAsync(db, managerActor,
+        new WorkflowTaskQueueRequest("DUE_TODAY", PageSize: 1));
+      Assert.True(withoutSummary.Succeeded, withoutSummary.Message);
+      Assert.Single(withoutSummary.Value!.Tasks);
+      Assert.Null(withoutSummary.Value.Summary);
+
+      Assert.Equal(before, await QueueStateFingerprintAsync(db, firmId));
+    }
+  }
+
+  [Fact]
+  public async Task DateViewsUseTheUtcCalendarDateAndSummaryStaysScopedDeniedAndReadOnly()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var firmId = Guid.NewGuid();
+    var clientA = Guid.NewGuid();
+    var clientB = Guid.NewGuid();
+    var engagementA = Guid.NewGuid();
+    var engagementB = Guid.NewGuid();
+    var manager = User(firmId, "Manager");
+    var staff = User(firmId, "Staff");
+    var clientUser = User(firmId, "ClientUser");
+    clientUser.UserKind = "Client";
+    var expiredUser = User(firmId, "Expired");
+    var revokedUser = User(firmId, "Revoked");
+    var managerActor = Actor(manager, "Manager");
+    var staffActor = Actor(staff, "Staff");
+    await SeedQueueScopeAsync(pg, firmId, [(clientA, engagementA), (clientB, engagementB)],
+      [manager, staff, clientUser, expiredUser, revokedUser], () =>
+      {
+        var expired = Grant(firmId, expiredUser, "Staff", clientA, engagementA);
+        expired.GrantedAt = DateTimeOffset.UtcNow.AddDays(-30);
+        expired.ExpiresAt = DateTimeOffset.UtcNow.AddDays(-1);
+        var revoked = Grant(firmId, revokedUser, "Staff", clientA, engagementA);
+        revoked.RevokedAt = DateTimeOffset.UtcNow.AddHours(-1);
+        return
+        [
+          Grant(firmId, manager, "Manager"), Grant(firmId, staff, "Staff", clientA, engagementA),
+          Grant(firmId, clientUser, "Staff", clientA, engagementA), expired, revoked
+        ];
+      });
+
+    var today = DateOnly.FromDateTime(DateTime.UtcNow);
+    Guid yesterdayTask, todayTask, plusOneTask, plusSevenTask, plusEightTask, undatedTask, completedTask, cancelledTask;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      yesterdayTask = await CreateQueueTaskAsync(db, managerActor, engagementA, "Overdue client request", 1, today.AddDays(-1));
+      todayTask = await CreateQueueTaskAsync(db, managerActor, engagementA, "Due today", 2, today);
+      plusOneTask = await CreateQueueTaskAsync(db, managerActor, engagementA, "Due tomorrow", 3, today.AddDays(1));
+      plusSevenTask = await CreateQueueTaskAsync(db, managerActor, engagementA, "Due in seven days", 4, today.AddDays(7));
+      plusEightTask = await CreateQueueTaskAsync(db, managerActor, engagementA, "Due in eight days", 5, today.AddDays(8));
+      undatedTask = await CreateQueueTaskAsync(db, managerActor, engagementA, "No due date", 6, null);
+      completedTask = await CreateQueueTaskAsync(db, managerActor, engagementA, "Completed today", 7, today);
+      cancelledTask = await CreateQueueTaskAsync(db, managerActor, engagementA, "Cancelled today", 8, today);
+      var completed = await EngagementWorkflowTaskService.CompleteAsync(db, managerActor, completedTask, 1);
+      Assert.True(completed.Succeeded, completed.Message);
+      var assigned = await EngagementWorkflowTaskService.AssignAsync(db, managerActor, todayTask, staff.Id, 1);
+      Assert.True(assigned.Succeeded, assigned.Message);
+    }
+
+    // Arrange a sent PBC request for the overdue task and a cancelled task directly; neither is a queue mutation.
+    await using (var arrange = new AuditSphereDbContext(pg.Options))
+    {
+      var pbcId = Guid.NewGuid();
+      arrange.PbcRequests.Add(new PbcRequest
+      {
+        Id = pbcId, FirmId = firmId, ClientId = clientA, EngagementId = engagementA,
+        Objective = "Upload the signed bank confirmations.", EntityScope = "TEST ENTITY",
+        PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", Area = "Cash", RequestedFormat = "PDF",
+        ClientOwnerUserId = clientUser.Id, FirmOwnerUserId = staff.Id, ReviewerUserId = manager.Id,
+        DueDate = "2026-12-31", Confidentiality = "Confidential", AcceptanceCriteria = "Signed and readable.",
+        State = PbcStates.Sent, Revision = 2, CreatedAt = DateTimeOffset.UtcNow, CreatedByUserId = staff.Id,
+        UpdatedAt = DateTimeOffset.UtcNow
+      });
+      await arrange.SaveChangesAsync();
+      var binding = await arrange.WorkflowTaskBindings.SingleAsync(x => x.WorkTaskId == yesterdayTask);
+      binding.PbcRequestId = pbcId;
+      binding.Revision++;
+      (await arrange.WorkTasks.SingleAsync(x => x.Id == cancelledTask)).Status = PracticeTimeStates.TaskCancelled;
+      await arrange.SaveChangesAsync();
+    }
+
+    WorkflowTaskQueueSummary scopedSummary;
+    Dictionary<string, Guid[]> scopedRows;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var before = await QueueStateFingerprintAsync(db, firmId);
+      scopedRows = await QueueTaskIdsAsync(db, staffActor);
+      Assert.Equal([todayTask], scopedRows["DUE_TODAY"]);
+      Assert.Equal([plusOneTask, plusSevenTask], scopedRows["UPCOMING"]);
+      Assert.Equal([yesterdayTask], scopedRows["OVERDUE"]);
+      Assert.Equal([yesterdayTask], scopedRows["WAITING_FOR_CLIENT"]);
+      Assert.Equal([todayTask], scopedRows["MY_TASKS"]);
+      Assert.DoesNotContain(cancelledTask, scopedRows.Values.SelectMany(x => x));
+      Assert.Contains(plusEightTask, scopedRows["TEAM"]);
+      Assert.Contains(undatedTask, scopedRows["TEAM"]);
+      Assert.Equal([completedTask], scopedRows["COMPLETED"]);
+
+      var result = await WorkflowTaskQueueQuery.GetAsync(db, staffActor,
+        new WorkflowTaskQueueRequest("TEAM", IncludeSummary: true));
+      Assert.True(result.Succeeded, result.Message);
+      scopedSummary = result.Value!.Summary!;
+      Assert.Equal(today, scopedSummary.AsOfDateUtc);
+      // An overdue task waiting for the client appears once on each card; no grand total is produced.
+      Assert.Equal(SummaryViewOrder, scopedSummary.Counts.Select(x => x.View));
+      Assert.Equal(["1", "1", "1", "1", "0", "0", "2"], scopedSummary.Counts.Select(x => x.Count));
+
+      foreach (var invalid in new[]
+        {
+          new WorkflowTaskQueueRequest("NOT_A_VIEW", IncludeSummary: true),
+          new WorkflowTaskQueueRequest("DUE_TODAY", AfterDueDate: today, IncludeSummary: true),
+          new WorkflowTaskQueueRequest("UPCOMING", PageSize: 0, IncludeSummary: true),
+          new WorkflowTaskQueueRequest("DUE_TODAY", AssigneeUserId: staff.Id, UnassignedOnly: true, IncludeSummary: true),
+          new WorkflowTaskQueueRequest("MY_TASKS", AssigneeUserId: manager.Id, IncludeSummary: true)
+        })
+      {
+        var rejected = await WorkflowTaskQueueQuery.GetAsync(db, staffActor, invalid);
+        Assert.False(rejected.Succeeded);
+        Assert.Equal("workflow.queue-invalid", rejected.ErrorCode);
+        Assert.Equal("Choose a supported queue view, page size from 1 to 100, and a valid task cursor.", rejected.Message);
+        Assert.Null(rejected.Value);
+      }
+
+      foreach (var denied in new[] { Actor(clientUser, "ClientUser"), Actor(expiredUser, "Staff"), Actor(revokedUser, "Staff") })
+      foreach (var view in new[] { "DUE_TODAY", "UPCOMING", "TEAM" })
+      {
+        var refused = await WorkflowTaskQueueQuery.GetAsync(db, denied,
+          new WorkflowTaskQueueRequest(view, IncludeSummary: true));
+        Assert.False(refused.Succeeded);
+        Assert.Equal(ErrorCodes.ScopeDenied, refused.ErrorCode);
+        Assert.Null(refused.Value);
+      }
+
+      Assert.Equal(before, await QueueStateFingerprintAsync(db, firmId));
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      await CreateQueueTaskAsync(db, managerActor, engagementB, "Sibling due today", 1, today);
+      await CreateQueueTaskAsync(db, managerActor, engagementB, "Sibling overdue", 2, today.AddDays(-1));
+      await CreateQueueTaskAsync(db, managerActor, engagementB, "Sibling upcoming", 3, today.AddDays(1));
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var siblingRows = await QueueTaskIdsAsync(db, staffActor);
+      Assert.Equal(scopedRows.Keys.Order(), siblingRows.Keys.Order());
+      foreach (var (view, ids) in scopedRows)
+        Assert.Equal(ids, siblingRows[view]);
+      var siblingSummary = await WorkflowTaskQueueQuery.GetAsync(db, staffActor,
+        new WorkflowTaskQueueRequest("TEAM", IncludeSummary: true));
+      Assert.True(siblingSummary.Succeeded, siblingSummary.Message);
+      Assert.Equal(scopedSummary.AsOfDateUtc, siblingSummary.Value!.Summary!.AsOfDateUtc);
+      Assert.Equal(scopedSummary.Counts, siblingSummary.Value.Summary.Counts);
+
+      var firmWide = await WorkflowTaskQueueQuery.GetAsync(db, managerActor,
+        new WorkflowTaskQueueRequest("DUE_TODAY", IncludeSummary: true));
+      Assert.True(firmWide.Succeeded, firmWide.Message);
+      Assert.Equal(2, firmWide.Value!.Tasks.Count);
+      Assert.Equal("2", SummaryCount(firmWide.Value.Summary!, "DUE_TODAY"));
+      Assert.Equal("2", SummaryCount(firmWide.Value.Summary!, "OVERDUE"));
+    }
+  }
+
+  private static async Task SeedQueueScopeAsync(PgTestSchema pg, Guid firmId,
+    (Guid ClientId, Guid EngagementId)[] scopes, AppUser[] users, Func<RoleGrant[]> grants)
+  {
+    await using var seed = new AuditSphereDbContext(pg.Options);
+    seed.FirmSafetyStates.Add(new FirmSafetyState { Id = firmId });
+    foreach (var (clientId, engagementId) in scopes)
+    {
+      seed.ClientSafetyStates.Add(new ClientSafetyState { Id = clientId, FirmId = firmId });
+      seed.PracticeClients.Add(new PracticeClient
+        { Id = clientId, FirmId = firmId, LegalName = $"Queue Client {clientId:N}", CreatedAt = DateTimeOffset.UtcNow });
+      seed.Engagements.Add(Engagement(engagementId, firmId, clientId));
+    }
+    seed.Users.AddRange(users);
+    await seed.SaveChangesAsync();
+    seed.RoleGrants.AddRange(grants());
+    await seed.SaveChangesAsync();
+  }
+
+  private static async Task<Guid> CreateQueueTaskAsync(AuditSphereDbContext db, ActorContext actor,
+    Guid engagementId, string title, int ordinal, DateOnly? dueDate)
+  {
+    var created = await EngagementWorkflowTaskService.CreateAsync(db, actor, engagementId,
+      new WorkflowTaskCreateRequest(title, WorkflowTaskPhases.AuditFieldwork, ordinal, dueDate,
+        IdempotencyKey: Guid.NewGuid()));
+    Assert.True(created.Succeeded, created.Message);
+    return created.Value;
+  }
+
+  private static async Task<Dictionary<string, Guid[]>> QueueTaskIdsAsync(AuditSphereDbContext db, ActorContext actor)
+  {
+    var rows = new Dictionary<string, Guid[]>();
+    foreach (var view in SummaryViewOrder.Concat(["TEAM", "COMPLETED"]))
+    {
+      var page = await WorkflowTaskQueueQuery.GetAsync(db, actor, new WorkflowTaskQueueRequest(view, PageSize: 100));
+      Assert.True(page.Succeeded, page.Message);
+      Assert.False(page.Value!.HasMore);
+      rows[view] = page.Value.Tasks.Select(x => x.TaskId).ToArray();
+    }
+    return rows;
+  }
+
+  private static string SummaryCount(WorkflowTaskQueueSummary summary, string view) =>
+    Assert.Single(summary.Counts, x => x.View == view).Count;
+
+  private static async Task<string> QueueStateFingerprintAsync(AuditSphereDbContext db, Guid firmId)
+  {
+    var tasks = await db.WorkTasks.AsNoTracking().Where(x => x.FirmId == firmId)
+      .Select(x => new { x.Id, x.Status, x.DueDate, x.AssigneeUserId }).ToListAsync();
+    var bindings = await db.WorkflowTaskBindings.AsNoTracking().Where(x => x.FirmId == firmId)
+      .Select(x => new { x.WorkTaskId, x.Revision, x.Generation, x.PbcRequestId }).ToListAsync();
+    var engagements = await db.Engagements.AsNoTracking().Where(x => x.FirmId == firmId)
+      .Select(x => new { x.Id, x.Generation, x.Status }).ToListAsync();
+    return string.Join("|",
+      string.Join(";", tasks.OrderBy(x => x.Id).Select(x => $"{x.Id}:{x.Status}:{x.DueDate}:{x.AssigneeUserId}")),
+      string.Join(";", bindings.OrderBy(x => x.WorkTaskId).Select(x => $"{x.WorkTaskId}:{x.Revision}:{x.Generation}:{x.PbcRequestId}")),
+      string.Join(";", engagements.OrderBy(x => x.Id).Select(x => $"{x.Id}:{x.Generation}:{x.Status}")),
+      await db.WorkflowTaskActivities.CountAsync(x => x.FirmId == firmId),
+      await db.MaterialityApprovals.CountAsync(),
+      await db.AuditProcedureReviews.CountAsync(),
+      await db.AuditProcedureResults.CountAsync(),
+      await db.FinancialPackageReviewDecisions.CountAsync());
   }
 
   private static Engagement Engagement(Guid id, Guid firmId, Guid clientId) => new()
