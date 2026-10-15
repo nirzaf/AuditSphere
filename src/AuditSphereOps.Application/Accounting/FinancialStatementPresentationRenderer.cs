@@ -25,7 +25,7 @@ public static class FinancialStatementPresentationRenderer
   public const string WordContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
   public const string ExcelContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
   public const string DraftBanner = "UNAPPROVED PRESENTATION DRAFT — not reviewed, not sealed, not for issue";
-  public const string CandidateBanner = "SIGNING CANDIDATE — reviewed composition, candidate for formal decision";
+  public const string CandidateBanner = "SIGNING CANDIDATE — awaiting formal decisions; not approved";
   public const string ApprovedBanner = "APPROVED FINANCIAL STATEMENTS — formally reviewed and approved";
   public const string Banner = DraftBanner;
 

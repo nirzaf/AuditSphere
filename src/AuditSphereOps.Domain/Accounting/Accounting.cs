@@ -508,6 +508,13 @@ public sealed class FinancialPackageReviewDecision
   public string Comment { get; set; } = string.Empty;
   public Guid? DecidedByUserId { get; set; }
   public DateTimeOffset DecidedAt { get; set; }
+  /// <summary>Database-assigned order of recording. Ties on DecidedAt never decide which decision is latest.</summary>
+  public long Sequence { get; set; }
+  /// <summary>The caller's original intent. A retry with the same identity and payload returns this row; null only for legacy rows.</summary>
+  public Guid? RequestId { get; set; }
+  public string? RequestHash { get; set; }
+  /// <summary>The latest decision on the same package version and composition that the decider saw, or null when there was none.</summary>
+  public Guid? PreviousDecisionId { get; set; }
 }
 
 public sealed class FinancialPackageLine

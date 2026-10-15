@@ -87,12 +87,41 @@ function sumContributions(allocations: readonly AllocationForm[]): bigint {
   return allocations.reduce((sum, a) => sum + toMicro(a.signedAmount), 0n);
 }
 
-/** The server's shape rule: contributions may not exceed the movement amount or run against its sign. Inputs must already be valid. */
-function contributionsOverdrawn(allocations: readonly AllocationForm[], amount: string): boolean {
-  const total = sumContributions(allocations);
+/**
+ * The statement effect of linked ledger contributions, mirroring the server's projection role exactly. A cash movement draws on the
+ * noncash counterpart of a cash event, so the ledger sign reverses onto the cash flow: a credited receivable of -270,000 is a receipt of
+ * +270,000, and a debited equipment line of +25,000 is an investing outflow of -25,000. A noncash movement keeps the ledger sign. The
+ * ledger amounts themselves are sent unchanged; this projection is only the mechanical preview the server recomputes.
+ */
+export function projectedContribution(allocations: readonly AllocationForm[], isNonCash: boolean): bigint {
+  const ledger = sumContributions(allocations);
+  return isNonCash ? ledger : -ledger;
+}
+
+/**
+ * The server's shape rule: projected contributions may not exceed the movement amount or run against its sign. Inputs must already be
+ * valid.
+ */
+function contributionsOverdrawn(allocations: readonly AllocationForm[], amount: string, isNonCash: boolean): boolean {
+  const total = projectedContribution(allocations, isNonCash);
   if (total === 0n) return false;
   const target = toMicro(amount);
   return absMicro(total) > absMicro(target) || (total < 0n) !== (target < 0n);
+}
+
+/** Exact decimal text for a six-decimal unit count, for showing the projected statement effect without floating point. */
+export function formatMicro(units: bigint): string {
+  const negative = units < 0n;
+  const magnitude = negative ? -units : units;
+  const whole = magnitude / 1_000_000n;
+  const fraction = (magnitude % 1_000_000n).toString().padStart(6, '0').replace(/0+$/, '');
+  return `${negative ? '-' : ''}${whole}${fraction ? `.${fraction}` : ''}`;
+}
+
+/** The projected statement effect of a movement's valid links, or null while any link or amount is not yet a valid value. */
+export function movementProjection(m: MovementForm): string | null {
+  if (!m.allocations.length || m.allocations.some((a) => !AMOUNT.test(a.signedAmount))) return null;
+  return formatMicro(projectedContribution(m.allocations, m.isNonCash));
 }
 
 export function emptyBuildForm(): BuildForm {
@@ -152,7 +181,7 @@ export function toBuildRequest(form: BuildForm): { body: unknown } | { error: st
     }
     if (new Set(m.allocations.map((a) => a.generalLedgerLineId.toLowerCase())).size !== m.allocations.length)
       return { error: `${at}: a source line can contribute to a movement only once.` };
-    if (m.allocations.length && contributionsOverdrawn(m.allocations, m.amount))
+    if (m.allocations.length && contributionsOverdrawn(m.allocations, m.amount, m.isNonCash))
       return { error: `${at}: source contributions exceed the movement amount or run against its sign.` };
   }
   for (const d of form.disclosures) {
@@ -249,7 +278,7 @@ export function scheduleBlockers(form: BuildForm): string[] {
       open.push(`${at} is not linked to accepted general-ledger lines, so it stays a draft without lineage.`);
     } else if (!AMOUNT.test(m.amount) || m.allocations.some((a) => !GUID.test(a.generalLedgerLineId) || !AMOUNT.test(a.signedAmount))) {
       open.push(`${at} has a link or amount that is not a valid value yet.`);
-    } else if (sumContributions(m.allocations) !== toMicro(m.amount)) {
+    } else if (projectedContribution(m.allocations, m.isNonCash) !== toMicro(m.amount)) {
       open.push(`${at} has linked lines that do not total the movement amount, so it is not source-resolved.`);
     }
   }
@@ -314,7 +343,7 @@ export function queueButtonLabel(openBlockers: readonly string[]): string {
         <label>Closing cash evidence (comma separated) <input name="closingEvidence" [(ngModel)]="form.closingEvidence" /></label>
 
         <h2>Cash-flow movements</h2>
-        <p><small>A movement that links to accepted general-ledger lines is source-resolved only when its links total its amount. Preparer text alone is never lineage.</small></p>
+        <p><small>A movement that links to accepted general-ledger lines is source-resolved only when its projected links total its amount. Link the noncash counterpart of each cash event with its ledger sign unchanged: for a cash movement the ledger sign reverses onto the cash flow (a credited receivable of -270,000 is a receipt of +270,000); a noncash movement keeps the ledger sign. Preparer text alone is never lineage.</small></p>
         @for (m of form.movements; track $index; let i = $index) {
           <fieldset class="movement">
             <legend>Movement {{ i + 1 }}</legend>
@@ -334,6 +363,9 @@ export function queueButtonLabel(openBlockers: readonly string[]): string {
                     <button matButton type="button" (click)="m.allocations.splice(j, 1)">Remove</button></li>
                 }
               </ul>
+              @if (projection(m); as effect) {
+                <p><small>Projected statement effect of these ledger amounts: <span class="number">{{ effect }}</span> ({{ m.isNonCash ? 'noncash role keeps the ledger sign' : 'cash role reverses the ledger sign' }}). The server recomputes this when the build runs.</small></p>
+              }
             }
             <button matButton="outlined" type="button" (click)="pickerFor.set(i)">{{ pickerFor() === i ? 'Hide source lines' : 'Choose source lines' }}</button>
             <button matButton type="button" (click)="form.movements.splice(i, 1)">Remove movement</button>
@@ -516,6 +548,7 @@ export class FinancialPackageBuild {
   }, decodeScheduleSources, 'The accepted general-ledger lines are unavailable in your current scope.');
 
   newMovement(): MovementForm { return emptyMovement(); }
+  projection(m: MovementForm): string | null { return movementProjection(m); }
   newDisclosure(): DisclosureForm { return { code: '', response: '', notApplicable: false, rationale: '' }; }
   newEquityLine(): EquityLineForm { return emptyEquityLine(); }
   newNoteLine(): NoteLineForm { return emptyNoteLine(); }

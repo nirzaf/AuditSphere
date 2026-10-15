@@ -56,4 +56,28 @@ public static class CompletionTestFixtures
     }));
     await db.SaveChangesAsync();
   }
+
+  /// <summary>
+  /// Adds the nodes a complete synthetic statement set needs to the approved TEST-IFRS taxonomy: equipment, borrowings, share capital
+  /// and a revaluation surplus in OCI. Idempotent.
+  /// </summary>
+  public static async Task SeedCompleteStatementTaxonomyAsync(AuditSphereDbContext db, Guid firmId)
+  {
+    var version = await db.ReportingTaxonomyVersions.AsNoTracking().Where(x => x.FirmId == firmId && x.Code == "TEST-IFRS")
+      .Select(x => x.Id).SingleAsync();
+    var existing = await db.ReportingTaxonomyNodes.AsNoTracking().Where(x => x.FirmId == firmId && x.TaxonomyVersionId == version)
+      .Select(x => x.Code).ToListAsync();
+    db.ReportingTaxonomyNodes.AddRange(new[]
+      {
+        ("PPE", "Property and equipment", "ASSETS", "DEBIT"), ("BORROWINGS", "Borrowings", "LIABILITIES", "CREDIT"),
+        ("SHARE_CAPITAL", "Share capital", "EQUITY", "CREDIT"), ("REVALUATION", "Revaluation surplus", "OCI", "CREDIT")
+      }
+      .Where(x => !existing.Contains(x.Item1))
+      .Select(x => new ReportingTaxonomyNode
+      {
+        Id = Guid.NewGuid(), FirmId = firmId, TaxonomyVersionId = version, Code = x.Item1, Name = x.Item2, StatementSection = x.Item3,
+        DisplaySign = "SIGNED", NormalBalance = x.Item4, IsPosting = true, Applicability = "ALL", CreatedAt = DateTimeOffset.UtcNow
+      }));
+    await db.SaveChangesAsync();
+  }
 }

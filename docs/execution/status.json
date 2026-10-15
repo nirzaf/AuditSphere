@@ -230,37 +230,12 @@
       "acceptance": "Focused working-tree evidence only; full suite and authenticated UI not run."
     },
     "workflowTaskActivity": {
-      "recordedAtUtc": "2026-10-12T06:19:36Z",
-      "baseCommit": "445e1d99",
-      "scope": "WF-14 append-only operational task activity, exact task-binding integrity, scoped timeline, 90-day date bound and keyset paging.",
-      "runs": {
-        "apiReleaseBuild": "PASS: 0 errors, 2 offline NU1900 warnings",
-        "postgresWorkflowActivity": "PASS: 1/1; create/assign/reassign/complete, replay, paging, scope/revocation, immutable update/delete, mismatched task-binding insert rejected",
-        "angularActivity": "PASS: 3/3 contract cases",
-        "angularDevServer": "PASS: compiled",
-        "browser": "LIMITED: staff sign-in guard; local API unavailable",
-        "angularProductionBuild": "ABORTED: exit 134, no diagnostics",
-        "efModelDrift": "PASS: no pending model changes after both additive migrations",
-        "openApiDrift": "PASS: current",
-        "docsMarkdown": "LIMITED: current-slice is 59158 bytes and documentation content checks pass; filename validator flags only the preserved staged user requirements file STE_Audit_Management_Requirements_v2.2.md"
-      },
-      "acceptance": "Focused working-tree evidence only; full suite not run; migrations unapplied to persistent databases; no authenticated browser journey or external/professional acceptance."
+      "archivedTo": "docs/execution/status-archive-2026-10.json",
+      "key": "targetedVerification.workflowTaskActivity"
     },
     "workflowClientWait": {
-      "recordedAtUtc": "2026-10-12T07:01:17Z",
-      "baseCommit": "d4f013da",
-      "scope": "WF-14 PBC client-wait intervals and append-only client acknowledgement/resubmission evidence; migration 20261012064219_PbcClientWaitAnalytics is additive and unapplied to persistent databases.",
-      "runs": {
-        "apiReleaseBuild": "PASS: 0 errors, 2 offline NU1900 warnings",
-        "postgresClientWait": "PASS: 3/3 focused cases; provider-accepted sends, duplicate send, reminder suppression, queued/failed exclusion, client message/upload/action, terminal exclusion, cross-firm isolation and bounded no-partial behavior",
-        "angularAnalytics": "PASS: 5/5 focused contract tests",
-        "angularProductionBuild": "PASS with NG_BUILD_CACHE_STORE=sqlite and existing commercial/settings.scss budget warning; default cache backend aborted with exit 134 and no diagnostics",
-        "efModelDrift": "PASS: no pending model changes",
-        "openApiDrift": "PASS: current, unchanged",
-        "browser": "LIMITED: local Angular route redirected to staff sign-in guard; /api/ui/session was refused because no local API/session was running",
-        "docs": "LIMITED: Markdown health and filename gates flag only the preserved staged user file STE_Audit_Management_Requirements_v2.2.md; narrative metrics, UI inventory, JSON syntax and git diff checks pass"
-      },
-      "acceptance": "Focused local evidence only. No full suite, persistent migration, authenticated browser metric view, live mail/provider or professional acceptance; WF-14 and v2.2 remain PARTIAL."
+      "archivedTo": "docs/execution/status-archive-2026-10.json",
+      "key": "targetedVerification.workflowClientWait"
     },
     "workflowTaskDueDateHistory": {
       "archivedEvidence": "docs/execution/status-archive-2026-10.json",
@@ -478,43 +453,8 @@
       "jsonPath": "keys.targetedVerification.workflowAnnualTemplateReference"
     },
     "workflowDomainEvidencePrerequisites": {
-      "baseCommit": "4862237b2adaae48b74603e812a67cf0b37075bc",
-      "workingTreeChangesIncluded": true,
-      "recordedAtUtc": "2026-10-13T16:47:47.205355+00:00",
-      "changedSourceSha256": "82aac60af8fbb7634caf0213e3f1d0711cb9adb00a06ae6a7bf5da76b4c5d0ff",
-      "scope": "WF-08 manager-reviewed live domain prerequisites, immutable policy history, current-source completion gates and scoped Angular receipt recovery",
-      "checks": {
-        "domain": "PASS 36/36 final focused workflow/task/plan/template/PBC/time/authorization cohort; initial 35/36 corrected a synthetic procedure status fixture",
-        "api": "PASS 10/10 focused evidence, workflow read-status and canonical deep-link cohort",
-        "angular": "PASS 12/12 evidence contract, reviewed change/recovery and queue cohorts",
-        "e2e": "PASS 1/1 final lost-response recovery, blocked completion, mobile overflow and professional-boundary journey; initial assertion incorrectly expected OPEN instead of assigned IN_PROGRESS",
-        "builtInBrowser": "PASS owned synthetic fixture: pending materiality blocks completion; reviewed withdrawal appends version 2 and restores operational completion without source approval; no warn/error console logs",
-        "builds": "PASS Release solution, affected consumer rebuilds and production Angular; existing NU1900 vulnerability-feed and stylesheet-budget warnings",
-        "drift": "PASS EF no pending model changes, regenerated OpenAPI and drift, Markdown health/filenames/narrative metrics, UI inventory, git diff check"
-      },
-      "evidence": {
-        "domain": [
-          "/private/tmp/auditsphere-workflow-evidence-domain-final/_Mac_2026-10-13_19_45_21_net10.0.trx"
-        ],
-        "api": [
-          "/private/tmp/auditsphere-workflow-evidence-api-tests/_Mac_2026-10-13_19_37_27_net10.0.trx"
-        ],
-        "e2e": [
-          "/private/tmp/auditsphere-workflow-evidence-browser-final/_Mac_2026-10-13_19_47_02_net10.0.trx"
-        ]
-      },
-      "browserScreenshot": "/private/tmp/auditsphere-workflow-evidence-browser.png",
-      "migration": "20261013161624_WorkflowEvidencePrerequisites applied only by disposable test fixtures; no development or VPS database migration",
-      "priorCi": {
-        "commit": "4862237b2adaae48b74603e812a67cf0b37075bc",
-        "runId": 38423498095,
-        "conclusion": "success"
-      },
-      "remaining": [
-        "WF-08 template-declared domain prerequisites and safe manual task-edge amendments",
-        "Other workflow automation, annual-policy and scale gaps",
-        "Full release suites, live Microsoft and professional acceptance; full verifiedCommit unchanged"
-      ]
+      "archivedTo": "docs/execution/status-archive-2026-10.json",
+      "key": "targetedVerification.workflowDomainEvidencePrerequisites"
     },
     "workflowTrackerReconciliation": {
       "baseCommit": "52c9f91b94b843f5c0f3c6825cd4d03e006055bd",
@@ -524,57 +464,8 @@
       "remaining": "Full workflow/release and external/professional acceptance unchanged"
     },
     "workflowTaskDependencyAmendments": {
-      "baseCommit": "b8b2743bbf9ff9e1f03fbacd445d60fe9547e5f8",
-      "workingTreeChangesIncluded": true,
-      "recordedAtUtc": "2026-10-13T17:29:10.667126+00:00",
-      "changedSourceSha256": "da21b2b5110e9559b0632a63a6eae1b7323cfe43bae7a0e7fd495bdfe217d69a",
-      "scope": "WF-08 exact-scope task dependency amendments over pinned template ordering, effective graph completion gates, cycle/race protection and reviewed Angular recovery",
-      "checks": {
-        "domain": {
-          "result": "PASS",
-          "passed": 39,
-          "failed": 0,
-          "artifact": "/private/tmp/auditsphere-workflow-ordering-domain-final/_Mac_2026-10-13_20_23_08_net10.0.trx"
-        },
-        "api": {
-          "result": "PASS",
-          "passed": 12,
-          "failed": 0,
-          "artifact": "/private/tmp/auditsphere-workflow-ordering-api-final/_Mac_2026-10-13_20_23_07_net10.0.trx"
-        },
-        "orderingBrowser": {
-          "result": "PASS",
-          "passed": 1,
-          "failed": 0,
-          "artifact": "/private/tmp/auditsphere-workflow-ordering-browser-final/_Mac_2026-10-13_20_27_58_net10.0.trx"
-        },
-        "evidenceBrowser": {
-          "result": "PASS",
-          "passed": 1,
-          "failed": 0,
-          "artifact": "/private/tmp/auditsphere-workflow-ordering-evidence-final/_Mac_2026-10-13_20_26_48_net10.0.trx"
-        },
-        "angular": "PASS 16/16 final ordering, evidence and work queue cohort",
-        "builtInBrowser": "PASS owned synthetic fixture: current predecessor blocks completion; reviewed withdrawal appends version 2 and restores operational completion; no warn/error logs",
-        "builds": "PASS Release solution after xUnit analyzer corrections; final Application/API/test/emitter consumers refreshed after read-race guard; Angular production build passed. Existing NU1900 and stylesheet warnings.",
-        "drift": "PASS EF no pending model changes, regenerated OpenAPI/drift, Markdown health/filenames/narrative metrics, source inventory and git diff check"
-      },
-      "resolvedFailures": [
-        "Initial build found three xUnit2031 assertions; changed to the predicate overload before the successful build.",
-        "Initial ordering E2E and bounded diagnostic replay failed exact label lookup: built-in DOM proved byLabel=0 and byRole=1. Explicit for/id dropdown labels fixed the unchanged locator; final journey passed."
-      ],
-      "browserScreenshot": "/private/tmp/auditsphere-workflow-ordering-browser.png",
-      "migration": "20261013170642_WorkflowDependencyAmendments applied only to disposable test fixtures; no development/VPS database migrated",
-      "bounds": "Edits/read workspace require the complete engagement graph: maximum 500 workflow tasks and 4000 effective edges; no partial graph can be edited.",
-      "priorCi": {
-        "commit": "b8b2743bbf9ff9e1f03fbacd445d60fe9547e5f8",
-        "runId": 38433824802,
-        "conclusion": "success"
-      },
-      "remaining": [
-        "Template-declared domain prerequisites and remaining workflow automation/annual/scale gaps",
-        "Full release suites and live-provider/professional acceptance; full verifiedCommit unchanged"
-      ]
+      "archivedTo": "docs/execution/status-archive-2026-10.json",
+      "key": "targetedVerification.workflowTaskDependencyAmendments"
     },
     "ste22ImplementationBacklogIntake": {
       "recordedAtUtc": "2026-10-13T17:33:04.151103+00:00",
@@ -979,6 +870,111 @@
         "F-12 branch protection and required checks (external, owner)",
         "CP-25 live identity, mail, selected-site, recovery and capacity gates (BLOCKED_EXTERNAL)",
         "F-08 remains PARTIAL: CP-18 output-quality/profile acceptance, CP-19 management identity/evidence/recovery, and CP-20 audit-report/signing/legal/provider acceptance remain open"
+      ]
+    },
+    "ste22EndToEndIncrement1": {
+      "recordedAtUtc": "2026-10-15T03:20:00Z",
+      "source": "STE v2.2 end-to-end audit and completion story reviewed at b05a6bf6 (F-01..F-15, CP-00..CP-25); first dependency-ordered increment",
+      "baseCommit": "b05a6bf6fb84088dba9123104e974afffac74714",
+      "closedInCode": [
+        "F-15 composition-binding migration Down renames bundle indexes from the lowest free suffix; downgrade refuses once a decision, release or bundle names a composition",
+        "F-01 Angular build form mirrors the server cash/noncash projection role; stored ledger amounts unchanged; projected effect shown",
+        "F-02 client portal view and decision name the exact sealed composition; request identity and expected latest decision; authorized exact-PDF download with browser fingerprint check",
+        "F-03 signing candidate requires every presentation check to pass (statement-candidate-readiness.v1); note/disclosure/equity content via append-only independent content review of the exact draft snapshot; formal decisions, client offer and release recheck the candidate",
+        "F-04 formal decisions: client-safety/package/grant locks with post-wait authority recheck, original-request receipts, expected latest decision, database sequence and predecessor link, latest-effective approval chain for progression and release",
+        "F-05 cash-flow source review takes the client safety row before the package row; lock order recorded in the architecture code map",
+        "F-09 one immutable voucher and one dispatch intent per actual payment; settlement receipt v2 lists constituent payments",
+        "F-11 label: candidate banner no longer claims a review that has not occurred"
+      ],
+      "migrations": [
+        "20261015000622_FinancialStatementReviewCompositionBinding (Down corrected)",
+        "20261015020548_PackageDecisionReceiptsContentReviewAndPaymentVouchers (additive, append-only content reviews, guarded downgrade)"
+      ],
+      "environment": "Local container: .NET SDK 10.0.300, Node 26.8.1, PostgreSQL 18.6 on port 5433 (disposable test databases only)",
+      "runs": [
+        {
+          "name": "Release solution build",
+          "result": "PASS",
+          "warnings": 0,
+          "errors": 0,
+          "note": "local build used DOTNET_GCHeapHardLimit=0x600000000 because the default compiler heap ran out of memory on the Infrastructure project"
+        },
+        {
+          "name": "CI Domain filter (ci.yml)",
+          "result": "PASS",
+          "passed": 145,
+          "failed": 0
+        },
+        {
+          "name": "CI API filter (ci.yml)",
+          "result": "PASS",
+          "passed": 8,
+          "failed": 0
+        },
+        {
+          "name": "Full unfiltered Domain suite, this tree",
+          "passed": 1003,
+          "failed": 27,
+          "total": 1030
+        },
+        {
+          "name": "Full unfiltered Domain suite, base commit b05a6bf6 (same environment)",
+          "passed": 995,
+          "failed": 32,
+          "total": 1027
+        },
+        {
+          "name": "Domain failure comparison",
+          "result": "No failure unique to this tree; all 27 remaining failures reproduce on the base commit (composition-required legacy release paths in translation/group/period-close tests, client-site rollout policy, receipt timestamp-precision tests, restatement, markdown filename test). Fixed versus base: both F-15 tests, CurrentSettlementSchemaRetainsItsGuardAndPermanentFreezeBlocksDowngrade."
+        },
+        {
+          "name": "Full unfiltered API suite, this tree",
+          "result": "INCOMPLETE_AT_COMMIT",
+          "observedFailures": 5,
+          "note": "Run still in progress when committed. Each observed failure (StaffingChangeReviewApiTests.ExactReview…, ClientConversionReviewApiTests.ExactReview…, ClientContactCreationApiTests.CookieCsrf…, ConsolidationWorkspaceApiTests.ScopeWorkspace…, FirmReceivablesAgingApiTests.Terms…) was rerun on base commit b05a6bf6 and fails there too."
+        },
+        {
+          "name": "Angular CI specs",
+          "command": "npm --prefix src/AuditSphereOps.Ui run test:ci",
+          "specFiles": 129,
+          "tests": 752,
+          "failed": 0
+        },
+        {
+          "name": "Angular production build",
+          "result": "PASS_WITH_WARNING",
+          "warning": "existing commercial/settings.scss budget warning (7.53 kB against 4.00 kB)"
+        },
+        {
+          "name": "EF model drift",
+          "result": "no pending model changes"
+        },
+        {
+          "name": "OpenAPI drift",
+          "result": "regenerated; contract is current"
+        },
+        {
+          "name": "Documentation, filename, narrative-metrics, UI inventory, git diff --check",
+          "result": "PASS"
+        }
+      ],
+      "notRun": [
+        "E2E/Playwright suite",
+        "authenticated browser journeys",
+        "hosted CI and release-verification workflows",
+        "live provider, deployment or production checks"
+      ],
+      "stillOpen": [
+        "F-06",
+        "F-07",
+        "F-08",
+        "F-10",
+        "F-11 publication content",
+        "F-12",
+        "F-13",
+        "F-14",
+        "28 pre-existing Domain failures listed above",
+        "professional decision packets (T003 profile, management signatory/capacity, document wording)"
       ]
     }
   },

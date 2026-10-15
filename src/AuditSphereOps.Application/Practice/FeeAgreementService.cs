@@ -18,7 +18,8 @@ public sealed record FeeMilestoneView(
   FeeMilestone Milestone, string? InvoiceNumber, string? InvoiceStatus, decimal Allocated, decimal Outstanding);
 
 public sealed record AdvancePaymentOutcome(
-  Guid ReceiptId, decimal Allocated, decimal Outstanding, bool MilestonePaid, Guid? ReceiptDocumentId, bool EmailQueued, string Message);
+  Guid ReceiptId, decimal Allocated, decimal Outstanding, bool MilestonePaid, Guid? ReceiptDocumentId, bool EmailQueued, string Message,
+  Guid? VoucherDocumentId = null, bool VoucherEmailQueued = false);
 
 /// <summary>
 /// The agreed-fee cycle: one agreement per accepted proposal, an advance (default 50%) invoiced and recorded manually
@@ -26,7 +27,7 @@ public sealed record AdvancePaymentOutcome(
 /// balance invoiced once, only after the engagement's final release exists. Every step is idempotent and reuses the
 /// existing billing commands, so invoice review, posting and receipt allocation controls are unchanged.
 /// </summary>
-public static class FeeAgreementService
+public static partial class FeeAgreementService
 {
   public const string MilestoneSourceKind = "FEE_MILESTONE";
   public const decimal DefaultAdvancePercent = 50m;
@@ -255,9 +256,13 @@ public static class FeeAgreementService
 
     var outstanding = await OutstandingAsync(db, actor.FirmId, invoice, ct);
     var allocated = invoice.Total - outstanding;
+    // Every actual payment receives its own voucher and one dispatch intent, partial or not. A missing profile or recipient keeps the
+    // payment and leaves the voucher recoverable: recording the same reference again completes it without a second receipt.
+    var voucher = await EnsurePaymentVoucherAsync(db, actor, agreement, milestone, invoice, receipt, ct);
     if (outstanding > 0)
       return CommandResult<AdvancePaymentOutcome>.Ok(new(receipt.Id, allocated, outstanding, false, null, false,
-        $"Partial {kind.ToLowerInvariant()} recorded; {outstanding.ToString("N2", CultureInfo.InvariantCulture)} {agreement.Currency} remains outstanding."));
+        $"Partial {kind.ToLowerInvariant()} recorded; {outstanding.ToString("N2", CultureInfo.InvariantCulture)} {agreement.Currency} remains outstanding. {voucher.Message}",
+        voucher.DocumentId, voucher.EmailQueued));
 
     var tracked = await db.FeeMilestones.SingleAsync(x => x.Id == milestone.Id && x.FirmId == actor.FirmId, ct);
     if (tracked.State != FeeMilestoneStates.Paid)
@@ -271,7 +276,10 @@ public static class FeeAgreementService
     {
       await AuditSphereOps.Application.Documents.ClientPortalService.RefreshCommercialIntentAsync(db, actor.FirmId, agreement.PracticeClientId, ct);
     }
-    return await EnsureReceiptDocumentAndEmailAsync(db, actor, agreement, tracked, invoice, receipt, ct);
+    var settled = await EnsureReceiptDocumentAndEmailAsync(db, actor, agreement, tracked, invoice, receipt, ct);
+    return settled.Succeeded
+      ? CommandResult<AdvancePaymentOutcome>.Ok(settled.Value! with { VoucherDocumentId = voucher.DocumentId, VoucherEmailQueued = voucher.EmailQueued })
+      : settled;
   }
 
   private static async Task<CommandResult<AdvancePaymentOutcome>> EnsureReceiptDocumentAndEmailAsync(
@@ -291,11 +299,17 @@ public static class FeeAgreementService
       var receiptNumber = $"RCT-{milestone.Id.ToString("N")[..8].ToUpperInvariant()}";
       var balance = agreement.AgreedFee - invoice.Total;
       var isAdvance = milestone.Kind == FeeMilestoneKinds.Advance;
+      // The settlement receipt identifies every constituent payment with its own amount, date and reference. It never presents the last
+      // payment as if it carried the whole milestone; each payment also has its own voucher.
+      var payments = await InvoicePaymentsAsync(db, actor.FirmId, invoice, ct);
+      var paymentRows = payments.Select((p, index) => new[]
+      {
+        $"Payment {index + 1} received on {p.ReceivedAt.UtcDateTime.ToString("dd MMMM yyyy", CultureInfo.InvariantCulture)} (reference {p.Reference})",
+        $"{p.Allocated.ToString("N2", CultureInfo.InvariantCulture)} {agreement.Currency}"
+      }).ToList();
       var detailRows = isAdvance
         ? new List<string[]>
         {
-          new[] { "Received on", receipt.ReceivedAt.UtcDateTime.ToString("dd MMMM yyyy", CultureInfo.InvariantCulture) },
-          new[] { "Payment reference", receipt.Reference },
           new[] { "Applied to invoice", invoice.InvoiceNumber },
           new[] { "Agreed engagement fee", $"{agreement.AgreedFee.ToString("N2", CultureInfo.InvariantCulture)} {agreement.Currency}" },
           new[] { $"Advance ({agreement.AdvancePercent:0.##}%)", $"{invoice.Total.ToString("N2", CultureInfo.InvariantCulture)} {agreement.Currency} — paid" },
@@ -303,25 +317,24 @@ public static class FeeAgreementService
         }
         : new List<string[]>
         {
-          new[] { "Received on", receipt.ReceivedAt.UtcDateTime.ToString("dd MMMM yyyy", CultureInfo.InvariantCulture) },
-          new[] { "Payment reference", receipt.Reference },
           new[] { "Applied to invoice", invoice.InvoiceNumber },
           new[] { "Agreed engagement fee", $"{agreement.AgreedFee.ToString("N2", CultureInfo.InvariantCulture)} {agreement.Currency}" },
           new[] { "Milestone settlement", $"Final balance ({invoice.Total.ToString("N2", CultureInfo.InvariantCulture)} {agreement.Currency}) — paid in full" },
           new[] { "Total outstanding balance", $"0.00 {agreement.Currency}" },
         };
 
+      detailRows.InsertRange(0, paymentRows);
       var model = new CommercialDocumentModel(profile, "Official payment receipt", receiptNumber,
         DateOnly.FromDateTime(receipt.ReceivedAt.UtcDateTime), client.LegalName,
         [
-          new("Payment received", [$"We acknowledge receipt of {invoice.Total.ToString("N2", CultureInfo.InvariantCulture)} {agreement.Currency} from {client.LegalName}."],
+          new("Payment received", [$"We acknowledge settlement of {invoice.Total.ToString("N2", CultureInfo.InvariantCulture)} {agreement.Currency} from {client.LegalName}, received in {payments.Count} payment(s) listed below. Each payment has its own official voucher."],
             new(["Item", "Detail"], detailRows.ToArray(), [1]))
         ], false);
       var bytes = CommercialDocumentRenderer.RenderDocx(model);
       document = new CommercialDocument
       {
         Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ProposalId = agreement.ProposalId, QuotationVersionId = agreement.QuotationVersionId,
-        FeeMilestoneId = milestone.Id, Kind = CommercialDocumentKinds.PaymentReceipt, TemplateVersion = CommercialDocumentRenderer.ReceiptTemplate,
+        FeeMilestoneId = milestone.Id, Kind = CommercialDocumentKinds.PaymentReceipt, TemplateVersion = CommercialDocumentRenderer.SettlementReceiptTemplate,
         ProfileVersion = profile.Version, FileName = $"Receipt-{receiptNumber}.docx", ContentType = CommercialDocumentRenderer.DocxContentType,
         Bytes = bytes, Sha256Hex = Hashing.Sha256Hex(bytes), CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
       };
@@ -340,11 +353,11 @@ public static class FeeAgreementService
       var isAdvance = milestone.Kind == FeeMilestoneKinds.Advance;
       var subject = $"Payment receipt {document.FileName.Replace("Receipt-", string.Empty).Replace(".docx", string.Empty)} — {profile.LegalName}";
       var body = isAdvance
-        ? $"Dear {client.LegalName},\n\nWe confirm receipt of your advance payment of {invoice.Total.ToString("N2", CultureInfo.InvariantCulture)} {agreement.Currency} " +
-          $"(reference {receipt.Reference}) against invoice {invoice.InvoiceNumber}. The remaining balance is invoiced on delivery of the final report.\n\n" +
+        ? $"Dear {client.LegalName},\n\nWe confirm that your advance of {invoice.Total.ToString("N2", CultureInfo.InvariantCulture)} {agreement.Currency} " +
+          $"against invoice {invoice.InvoiceNumber} is now paid in full. The remaining balance is invoiced on delivery of the final report.\n\n" +
           $"Your official receipt voucher is available for authenticated download at /api/commercial/documents/{document.Id}/download and is retained on your engagement record.\n\n{profile.LegalName}"
-        : $"Dear {client.LegalName},\n\nWe confirm receipt of your final balance payment of {invoice.Total.ToString("N2", CultureInfo.InvariantCulture)} {agreement.Currency} " +
-          $"(reference {receipt.Reference}) against invoice {invoice.InvoiceNumber}. The engagement fee is now settled in full.\n\n" +
+        : $"Dear {client.LegalName},\n\nWe confirm that your final balance of {invoice.Total.ToString("N2", CultureInfo.InvariantCulture)} {agreement.Currency} " +
+          $"against invoice {invoice.InvoiceNumber} is now paid in full. The engagement fee is now settled in full.\n\n" +
           $"Your official receipt voucher is available for authenticated download at /api/commercial/documents/{document.Id}/download and is retained on your engagement record.\n\n{profile.LegalName}";
 
       db.CommercialNotifications.Add(new CommercialNotification

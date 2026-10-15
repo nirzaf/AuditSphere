@@ -4,6 +4,7 @@ import { Api } from '../../core/api';
 import { exactDecimal } from '../../core/contracts';
 import { arr, bool, dec, decode, guid, nat, nullable, obj, oneOf, sha256, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
+import { StatementContentReview } from './content-review';
 
 /** Read-only statement presentation (unapproved draft). Every amount is a display string produced by the server. */
 export const decodePresentation = obj({
@@ -73,7 +74,7 @@ export function presentationAmount(value: string | null | undefined, decimals = 
 
 @Component({
   selector: 'audit-statement-presentation',
-  imports: [MatButtonModule, ...SHARED],
+  imports: [MatButtonModule, StatementContentReview, ...SHARED],
   template: `
     <section class="panel" aria-labelledby="presentation-heading">
       <h2 id="presentation-heading">Statement presentation (unapproved draft)</h2>
@@ -180,8 +181,12 @@ export function presentationAmount(value: string | null | undefined, decimals = 
               </button>
             }
           </p>
+          @if (pin.status === 'UNAPPROVED_DRAFT' && pin.sourceIsCurrent) {
+            <audit-statement-content-review [packageId]="packageId()" [revisionId]="pin.revisionId" />
+          }
           @if (pin.status === 'UNAPPROVED_DRAFT' && pin.sourceIsCurrent && pin.artifactFormats.includes('pdf')) {
             <button matButton="outlined" (click)="promoteToCandidate(pin.revisionId)" [disabled]="busy()">Promote exact draft to signing candidate</button>
+            <p><small>A signing candidate is created only when every presentation check passes, including an approved independent content review of this draft.</small></p>
           }
           @if (pin.status === 'CANDIDATE' && !pin.compositionId && pin.sourceIsCurrent) {
             <button matButton="filled" (click)="composeCandidate(pin.revisionId)" [disabled]="busy()">Seal candidate PDF, Word and Excel</button>

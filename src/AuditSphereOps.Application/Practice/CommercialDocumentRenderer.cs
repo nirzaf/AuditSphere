@@ -30,6 +30,10 @@ public static class CommercialDocumentRenderer
   /// <summary>Identity of letters generated before service-specific templates; existing letters keep it unchanged.</summary>
   public const string LegacyEngagementLetterTemplate = "COMMERCIAL-ENGAGEMENT-LETTER-v1";
   public const string ReceiptTemplate = "COMMERCIAL-RECEIPT-v1";
+  /// <summary>Milestone settlement receipt that lists each constituent payment; receipts generated before it keep v1.</summary>
+  public const string SettlementReceiptTemplate = "COMMERCIAL-RECEIPT-v2";
+  /// <summary>Official voucher for one actual payment.</summary>
+  public const string PaymentVoucherTemplate = "COMMERCIAL-PAYMENT-VOUCHER-v1";
   public const string DocxContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
   public static byte[] RenderDocx(CommercialDocumentModel model)

@@ -287,6 +287,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<FinancialPackageCashFlowLine> FinancialPackageCashFlowLines => Set<FinancialPackageCashFlowLine>();
   public DbSet<FinancialPackageCashFlowAllocation> FinancialPackageCashFlowAllocations => Set<FinancialPackageCashFlowAllocation>();
   public DbSet<FinancialPackageCashFlowSourceReview> FinancialPackageCashFlowSourceReviews => Set<FinancialPackageCashFlowSourceReview>();
+  public DbSet<FinancialStatementContentReview> FinancialStatementContentReviews => Set<FinancialStatementContentReview>();
 
   public DbSet<FinancialPackageFxEffect> FinancialPackageFxEffects => Set<FinancialPackageFxEffect>();
 

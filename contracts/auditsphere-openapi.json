@@ -19351,6 +19351,63 @@
         ]
       }
     },
+    "/api/ui/portal/accounting/packages/{id}/compositions/{compositionId}/pdf": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "compositionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
     "/api/ui/portal/documents/{id}/comment": {
       "post": {
         "tags": [
@@ -25415,6 +25472,138 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/PackageReviewInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/packages/{id}/presentation/pins/{revisionId}/content-review": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "revisionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "revisionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatementContentReviewInput"
               }
             }
           },
@@ -43828,6 +44017,20 @@
               "null",
               "string"
             ]
+          },
+          "requestId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "expectedLatestDecisionId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -44160,6 +44363,40 @@
           },
           "reviewed": {
             "type": "boolean"
+          },
+          "presentationRevisionId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "presentationCompositionId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "compositionManifestDigest": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "requestId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "expectedLatestDecisionId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -46742,6 +46979,44 @@
           },
           "targetUtilizationPercent": {
             "type": "string"
+          }
+        }
+      },
+      "StatementContentReviewInput": {
+        "required": [
+          "decision",
+          "reason",
+          "requestId",
+          "expectedSnapshotSha256Hex",
+          "expectedPreviousReviewId"
+        ],
+        "type": "object",
+        "properties": {
+          "decision": {
+            "type": "string"
+          },
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedSnapshotSha256Hex": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "expectedPreviousReviewId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },

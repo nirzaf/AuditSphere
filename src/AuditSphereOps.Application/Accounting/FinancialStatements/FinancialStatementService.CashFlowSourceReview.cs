@@ -57,19 +57,22 @@ public static partial class FinancialStatementService
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
 
-    // Lock order: the package row, then this package's decisions. Authority is checked again once the lock is held, because a grant can
-    // be revoked while this command waits. Opposing decisions therefore serialize instead of winning by wall-clock order.
+    // Lock order is the shared one (firm safety, client safety, package, then dependent rows): the client safety row first, then the
+    // package row, then this reviewer's grants. Presentation pin and promotion lock firm and client before the package, so taking the
+    // package first here could hold it while waiting for the client and deadlock against them. A package's client never changes, so the
+    // unlocked read above names the right client row. Opposing decisions serialize on the package instead of winning by wall-clock order.
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    // The share lock fences what the decision depends on. Source acceptance holds the client safety row for update, so an acceptance
+    // cannot land between this check and the commit.
+    await db.ClientSafetyStates.FromSqlInterpolated(
+        $"SELECT * FROM client_safety_states WHERE firm_id = {actor.FirmId} AND id = {package.ClientId} FOR SHARE")
+      .AsNoTracking().ToListAsync(ct);
     var locked = await db.FinancialPackages.FromSqlInterpolated(
         $"SELECT * FROM financial_packages WHERE firm_id = {actor.FirmId} AND id = {packageId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
-    if (locked is null)
+    if (locked is null || locked.ClientId != package.ClientId)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    // Share locks fence what the decision depends on. Source acceptance holds the client safety row for update, so an acceptance cannot land
-    // between this check and the commit. The reviewer's grant rows are held too, so a revocation waits for this decision to finish.
-    await db.ClientSafetyStates.FromSqlInterpolated(
-        $"SELECT * FROM client_safety_states WHERE firm_id = {actor.FirmId} AND id = {locked.ClientId} FOR SHARE")
-      .AsNoTracking().ToListAsync(ct);
+    // The reviewer's grant rows are held too, so a revocation waits for this decision to finish.
     await db.RoleGrants.FromSqlInterpolated(
         $"SELECT * FROM role_grants WHERE firm_id = {actor.FirmId} AND user_id = {actor.UserId} AND revoked_at IS NULL FOR SHARE")
       .AsNoTracking().ToListAsync(ct);

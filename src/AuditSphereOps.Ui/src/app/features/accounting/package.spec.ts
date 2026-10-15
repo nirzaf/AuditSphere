@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeCashFlowSourceReview, decodePackage, packageReviewRequestFor, sourceIntentFor } from './package';
+import { decodeCashFlowSourceReview, decodePackage, latestCompositionDecisionId, packageReviewIntentFor, packageReviewRequestFor, sourceIntentFor } from './package';
 import { decodeReviewQueue } from './reviews';
 
 const id1 = '11111111-1111-4111-8111-111111111111';
@@ -50,6 +50,7 @@ describe('Financial Package and Review Queue Contracts', () => {
           presentationRevisionId: id1,
           compositionId: id2,
           compositionManifestDigest: hash64,
+          id: id1,
         },
       ],
       artifact: {
@@ -84,6 +85,22 @@ describe('Financial Package and Review Queue Contracts', () => {
     expect(packageReviewRequestFor({ stage: 'PARTNER_APPROVAL', decision: 'APPROVED', mode: 'SIGNED_IN', reference: 'partner-review-1', comment: '' }, null)).toBeNull();
   });
 
+  it('sends the original intent and the latest decision on the selected composition chain (F-04)', () => {
+    const composition = { revisionId: id1, compositionId: id2, manifestDigest: hash64 };
+    const other = { id: '99999999-9999-4999-8999-999999999999', presentationRevisionId: id1, compositionId: id1, compositionManifestDigest: hash64 };
+    const first = { id: '77777777-7777-4777-8777-777777777777', presentationRevisionId: id1, compositionId: id2, compositionManifestDigest: hash64 };
+    const second = { id: '88888888-8888-4888-8888-888888888888', presentationRevisionId: id1, compositionId: id2, compositionManifestDigest: hash64 };
+    expect(latestCompositionDecisionId([], composition)).toBeNull();
+    expect(latestCompositionDecisionId([first, second, other], composition)).toBe(second.id);
+    const form = { stage: 'ACCOUNTING_REVIEW', decision: 'APPROVED', mode: 'SIGNED_IN', reference: 'review-1', comment: '' };
+    const intent = packageReviewIntentFor(null, form, composition, second.id, 'request-1');
+    expect(packageReviewIntentFor(intent, form, composition, second.id, 'request-2')).toBe(intent);
+    expect(packageReviewIntentFor(intent, { ...form, decision: 'CHANGES_REQUIRED' }, composition, second.id, 'request-2').requestId).toBe('request-2');
+    expect(packageReviewIntentFor(intent, form, composition, null, 'request-3').requestId).toBe('request-3');
+    expect(packageReviewRequestFor(form, composition, { requestId: intent.requestId, expectedLatestDecisionId: second.id }))
+      .toMatchObject({ requestId: 'request-1', expectedLatestDecisionId: second.id, presentationCompositionId: id2 });
+  });
+
   it('decodes a valid review queue payload', () => {
     const raw = [
       {
@@ -114,7 +131,7 @@ describe('Financial Package and Review Queue Contracts', () => {
 
   it('rejects a malformed review composition digest', () => {
     const invalidReview = { stage: 'ACCOUNTING_REVIEW', decision: 'APPROVED', evidenceMode: 'SIGNED_IN', evidenceReference: 'review',
-      packageHash: hash64, decidedAt: '2026-10-02T15:00:00Z', presentationRevisionId: id1, compositionId: id2, compositionManifestDigest: 'bad' };
+      packageHash: hash64, decidedAt: '2026-10-02T15:00:00Z', presentationRevisionId: id1, compositionId: id2, compositionManifestDigest: 'bad', id: id1 };
     const validBase = {
       id: id1, engagementId: id2, comparativePackageId: null, status: 'VALIDATED', framework: 'IFRS', periodStart: '2026-01-01', periodEnd: '2026-12-31',
       currency: 'QAR', templateVersion: '1.0', calculationHash: hash64, supplementaryHash: null, revision: 1, cashBeginning: null, cashEnding: null,

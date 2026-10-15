@@ -550,7 +550,8 @@ public sealed class CommercialWorkflowTests
     Assert.Equal(ErrorCodes.ProtectedState, (await QuotationService.SaveAsync(db, w.Prep, Quote(proposalId, complexity: 1.3m, risk: 10m))).ErrorCode);
     await db.ClientSafetyStates.Where(x => x.Id == clientId).ExecuteUpdateAsync(x => x.SetProperty(v => v.InputGeneration, v => v.InputGeneration + 1));
     Assert.Equal(ErrorCodes.GenerationStale, (await CommercialDocumentService.GenerateEngagementLetterAsync(db, w.Partner, proposalId)).ErrorCode);
-    Assert.Equal(revokeStandingAuthority ? 2 : 3, (await CommercialDocumentService.ListAsync(db, w.Prep, proposalId)).Value!.Count); // paid case also retains its immutable receipt
+    // The paid case also retains its immutable settlement receipt and the voucher for its single payment.
+    Assert.Equal(revokeStandingAuthority ? 2 : 4, (await CommercialDocumentService.ListAsync(db, w.Prep, proposalId)).Value!.Count);
 
     // Generated documents are append-only, and a stranger from another firm cannot read them.
     await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
@@ -668,6 +669,37 @@ public sealed class CommercialWorkflowTests
     var notification = await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.Kind == CommercialNotificationKinds.Receipt);
     Assert.Equal("owner@gulf.example.test", notification.Recipient);
     Assert.Equal(FeeMilestoneStates.Paid, (await db.FeeMilestones.AsNoTracking().SingleAsync(x => x.Kind == FeeMilestoneKinds.Advance)).State);
+    // The settlement receipt lists each constituent payment instead of presenting the last one as the whole advance.
+    Assert.Contains("TT-1", receiptText);
+    Assert.Contains("TT-2", receiptText);
+    Assert.Contains("5,000.00 QAR", receiptText);
+    Assert.Contains("7,500.00 QAR", receiptText);
+
+    // Each actual payment has its own voucher (F-09). The first payment was recorded before the profile existed; recording the same
+    // reference again issues its voucher without a second receipt, allocation or email for the payment.
+    Assert.NotNull(paid.Value.VoucherDocumentId);
+    Assert.Equal(paid.Value.VoucherDocumentId, again.Value.VoucherDocumentId);
+    var recovered = await FeeAgreementService.RecordAdvancePaymentAsync(db, w.FinanceManager, agreementId, 5000m, "TT-1");
+    Assert.True(recovered.Succeeded, recovered.Message);
+    Assert.NotNull(recovered.Value!.VoucherDocumentId);
+    Assert.Equal(recovered.Value.VoucherDocumentId,
+      (await FeeAgreementService.RecordAdvancePaymentAsync(db, w.FinanceManager, agreementId, 5000m, "TT-1")).Value!.VoucherDocumentId);
+    Assert.Equal(2, await db.Receipts.CountAsync(x => x.FirmId == w.FirmId));
+    var vouchers = await db.CommercialDocuments.AsNoTracking().Where(x => x.Kind == CommercialDocumentKinds.PaymentVoucher).ToListAsync();
+    Assert.Equal(2, vouchers.Count);
+    var voucherReceipts = await db.Receipts.AsNoTracking().Where(x => vouchers.Select(v => v.ReceiptId).Contains(x.Id)).ToListAsync();
+    Assert.Equal(12500m, voucherReceipts.Sum(x => x.Amount));
+    var firstVoucher = DocxText(vouchers.Single(x => x.ReceiptId == partial.Value.ReceiptId).Bytes);
+    var secondVoucher = DocxText(vouchers.Single(x => x.ReceiptId == paid.Value.ReceiptId).Bytes);
+    Assert.Contains("5,000.00 QAR", firstVoucher);
+    Assert.Contains("TT-1", firstVoucher);
+    Assert.DoesNotContain("12,500.00 QAR from", firstVoucher);
+    Assert.Contains("7,500.00 QAR", secondVoucher);
+    Assert.Contains("TT-2", secondVoucher);
+    // The first voucher states the balance as it stood after the first payment, even though it was issued after the second.
+    Assert.Contains("Remaining on this invoice after this payment", firstVoucher);
+    Assert.Contains("7,500.00 QAR", firstVoucher);
+    Assert.Equal(2, await db.CommercialNotifications.CountAsync(x => x.Kind == CommercialNotificationKinds.PaymentVoucher));
 
     // The isolated mail worker delivers the receipt email exactly once (the proposal dispatch email is separate).
     var factory = new OperationContextFactory(new PbcSeed.OptionsDbContextFactory(pg.Options));
@@ -679,8 +711,11 @@ public sealed class CommercialWorkflowTests
       [new CommercialMailDiscovery(factory, store, handler, options)], NullLogger<AuditSphereOps.Worker.Worker>.Instance);
     Assert.True(await worker.ProcessNextAsync());
     Assert.True(await worker.ProcessNextAsync());
+    Assert.True(await worker.ProcessNextAsync());
+    Assert.True(await worker.ProcessNextAsync());
     Assert.False(await worker.ProcessNextAsync());
-    Assert.Equal(2, sender.Plans.Count);
+    Assert.Equal(4, sender.Plans.Count);
+    Assert.Equal(2, sender.Plans.Count(p => p.Subject.StartsWith("Payment voucher")));
     Assert.Contains(sender.Plans, p => p.Subject.StartsWith("Payment receipt"));
     Assert.Contains(sender.Plans, p => p.Subject.Contains("Proposal revision"));
     var deliveredReceipt = await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.Kind == CommercialNotificationKinds.Receipt);

@@ -15,6 +15,23 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## STE v2.2 end-to-end story, first increment (F-15, F-01–F-05, F-09, F-11 label) — 2026-10-15
+
+Source: the STE v2.2 end-to-end audit and completion story reviewed at `b05a6bf6`. This increment implements its first dependency-ordered handoff and the engineering-only P0/P1 deltas that need no professional decision. The overall project remains PARTIAL; no production readiness is claimed.
+
+- **F-15 migration reversal.** `20261015000622_FinancialStatementReviewCompositionBinding.Down` renamed bundle index suffix `~5` to `~4` while `~4` still existed (42P07). It now reverses from the lowest free suffix upward. A downgrade refuses once any decision, release or bundle names a composition. The two hosted-failing tests (`RelationshipManagerAnnualPreparationTests.ClientScoped…`, `AcceptanceChecklistTests.ReviewedScopedDecision…`) pass locally on PostgreSQL 18.6.
+- **F-01 cash projection parity.** The Angular build form now mirrors the server projection role: a cash movement reverses the ledger sign of its noncash counterpart, a noncash movement keeps it. Stored ledger amounts are sent unchanged; over-allocation and wrong-sign refusals remain. The form shows the projected statement effect. Specs cover equipment (+25,000 → −25,000), receivable collection (−270,000 → +270,000), borrowing (−40,000 → +40,000), principal repayment (+10,000 → −10,000), noncash, partial, compound and six-decimal cases.
+- **F-02 portal composition approval.** The client package view names the sealed composition of the newest active, complete, current candidate (revision, composition, manifest digest and format fingerprints). The portal decision must name exactly that composition, carries an original request identity and the latest decision seen, and is recorded against the composition chain. Client managers download the exact sealed PDF through an authorized, antiforgery-checked endpoint whose fingerprint the browser verifies before saving. Legacy package-only acknowledgements stay historical evidence.
+- **F-03 final-content readiness.** A signing candidate is created only when every presentation check passes (`statement-candidate-readiness.v1`). Note, disclosure and equity content checks pass only through a new append-only independent content review of the exact draft snapshot (preparer excluded, request receipts, stale-chain refusal). Equity evidence is labelled reviewed manual evidence (`EQUITY_EVIDENCE_REVIEW`), never ledger-derived. Formal decisions, client composition offers and release recheck that the candidate carries no unresolved check. Candidate banner now reads "awaiting formal decisions; not approved" (F-11 label).
+- **F-04 latest-effective decisions.** Formal package decisions take the client-safety → package → grant lock order, recheck authority after waiting, recover by original request identity (same payload returns the row, different payload conflicts), refuse a stale expected latest decision, and record a database sequence and predecessor link. Progression and release use the latest-effective approval per stage recorded after its predecessor's; a return defeats earlier downstream approvals and a genuine re-approval is accepted.
+- **F-05 lock order.** Cash-flow source review now takes the client safety row before the package row, matching pin, promotion and composition. The order is recorded in the architecture code map.
+- **F-09 per-payment vouchers.** Every actual payment receives one immutable voucher (amount, date, reference, amount applied, balance remaining after it) and one dispatch intent; a missing profile or contact keeps the payment and the same reference later completes the voucher. The milestone settlement receipt (template v2) lists each constituent payment instead of presenting the last one as the whole milestone.
+- Migration `20261015020548_PackageDecisionReceiptsContentReviewAndPaymentVouchers` is additive, adds an append-only trigger for content reviews and refuses a downgrade that would discard reviews, receipts or vouchers. It was applied only to disposable test databases.
+
+Verification on this tree (local container, PostgreSQL 18.6 on port 5433, .NET SDK 10.0.300, Node 26.8.1): Release solution build 0 warnings / 0 errors; the exact CI Domain filter 145/145 and API filter 8/8; focused statement, bundle, gate, commercial and cash-flow cohorts passed; Angular `test:ci` 129 files / 752 tests; Angular production build passed with the existing `commercial/settings.scss` budget warning; EF model drift clear; OpenAPI regenerated and verified; Markdown, filename, narrative-metrics, UI-inventory and `git diff --check` passed. Full-suite results and their baseline comparison are recorded in `status.json` (`targetedVerification.ste22EndToEndIncrement1`).
+
+Not done in this increment and still open: E2E/Playwright and authenticated browser journeys, the hosted full release workflow, F-06 annual comparatives and multi-book sources, F-07 lifecycle projection, F-08 purpose-based routing and response provenance, F-10 typed indirect cash-flow roles and assessed-zero states, remaining F-11 publication content, F-12 assigned fieldwork, F-13/F-14 release governance and live production qualification, and every professional decision packet (T003 profile, management signatory/capacity, document wording). Synthetic fixtures were completed with a balancing statement of financial position, a revaluation OCI movement, investing and financing cash events and a USD account at the unchanged QAR peg; they are engineering fixtures, not accountant-approved golden fixtures.
+
 ## F-08 selected composition through review, release and bundle — 2026-10-15
 
 Implemented on master `7023a9f4`:
@@ -242,71 +259,3 @@ Observed: the focused Domain and Angular presentation tests passed. The API Rele
 The statement presentation now cross-casts current and comparative equity rollforwards to mapped profit or loss, OCI and SFP balances. Cash-flow readiness requires operating, investing and financing amounts, validates current and comparative bridges independently, and carries the package's persisted `CASH_FLOW_RECONCILED` check, which also validates the selected closing-cash population. PDF, DOCX and XLSX all include the same per-check `PASS`/`FAIL` diagnostics in the presentation basis. Builder version is v3. Missing comparative schedules and incomplete source data remain explicitly failed or unavailable; output remains `UNAPPROVED_DRAFT`.
 
 Observed: the focused Domain and Angular presentation tests passed; the API Release build passed with NuGet vulnerability-feed warnings; Markdown health, filename, narrative-metric, status JSON and `git diff --check` gates passed. The .NET test host initially could not bind its runner socket in the sandbox; the elevated retry ran and passed the focused suite. No full suite or PostgreSQL-backed integration test was run. A signed-in browser export journey was unavailable; the local UI had previously stopped at its unauthenticated access gate. No migration or business-data change was made. FSR remains PARTIAL; this slice does not provide source-record lineage, professional policy approval, complete notes/disclosures, final composition, sealing, signing acceptance or release.
-
-## Cash-flow and equity schedules in statement presentation — 2026-10-11
-
-Working-tree follow-up based on `3012b495`. The typed statement presentation now renders the persisted cash-flow movements and equity rollforward beside the SFP and profit-or-loss statements. PDF, Word and Excel exports use the same model. Cash bridge totals exclude noncash items and remain unavailable when an operating, investing, financing or FX input is missing; a supplied zero FX effect is distinct from an absent effect. Comparative schedule amounts remain unavailable when the comparative package has no matching rows. The builder refuses oversized supplementary schedules rather than silently truncating them.
-
-The output remains `UNAPPROVED_DRAFT`. Readiness checks expose missing schedules, an unreconciled cash bridge, absent comparatives, preparer-entered references without source resolution, and equity not cross-cast to the SFP. This does not add source-record lineage, pin profit-transfer treatment, approve policy, or complete composition, sealing, signing or release. No migration or persisted business-data change was made.
-
-Observed: `FinancialStatementPresentationTests` passed 16/16; the targeted Angular presentation spec passed 4/4; the API project build passed with two `NU1900` vulnerability-feed warnings; and the Angular production build passed with the existing `commercial/settings.scss` component-style budget warning. The full solution build was cancelled after Domain and Application compiled because Infrastructure compilation stopped making progress; it is not counted as passed. The built-in browser rendered the local Angular shell and its `Access unavailable` sign-in gate. Its `/api/ui/session` request was refused because no local API was running, so no authenticated package or export flow was browser-verified. This slice remains partial; the FSR backlog and professional acceptance gates remain open.
-
-## Cash-flow movement evidence and adjusted cash cross-cast — 2026-10-11
-
-The package build contract now requires each cash-flow movement to carry a reporting-period date, activity code, preparer-entered source reference and classification rationale. It also records the selected cash-account codes and separate opening/closing balance references. The metadata is persisted, included in the supplementary hash, surfaced in the scoped package workspace, and included in the canonical package artifact. New noncash operating adjustments are retained alongside noncash investing/financing items but excluded from the cash bridge. The selected adjusted cash-account population must exist in the adjusted source balances and cross-cast exactly to supplied closing cash; no balancing plug is created.
-
-These references and classifications remain preparer inputs: the implementation does not resolve them to source-record identities or independently verify the underlying documents. There is no editor for this new schedule yet, and no approved framework-specific cash-flow classification policy. The increment is therefore PARTIAL. T030 still waits on T029 under the R2R task dependencies; it is not marked complete. It does not deliver the complete indirect method, population lineage, review workflow or professional acceptance described by FSR-005.
-
-Observed on this working tree: Release solution build passed with zero errors and six `NU1900` warnings because the NuGet vulnerability feed was unavailable; Angular CI suite passed 634/634; `FinancialStatementPresentationTests` passed 15/15; Angular production build passed with the existing `commercial/settings.scss` budget warning (7.53 kB against 4.00 kB); EF reported no pending model changes; OpenAPI drift, Markdown, filename, narrative-metric, UI source-inventory and `git diff --check` gates passed. The new PostgreSQL-backed cash-flow cases were compiled but not run because PostgreSQL on `127.0.0.1:5433` did not respond. The built-in browser opened the local Angular package route and showed the expected unauthenticated access guard; no signed-in package data or cash-flow schedule was available for browser verification. This slice remains unapproved and does not close the attached statement backlog.
-
-## A4-safe statement PDF and preview-pinned export — 2026-10-11
-
-The statement PDF now allocates its four columns within the A4 printable width: 21 cm page width minus the configured 2 cm left and right margins, or 17 cm. Deep-row indentation is capped so the label column retains at least 4.5 cm for text. A long-label regression confirms the PDF paginates the wrapped row and every rendered page remains A4. The Angular export request now carries the exact published `layoutVersionId` shown in the preview. The PostgreSQL-backed regression also publishes a successor layout after preview and checks that an explicit export retains the reviewed version, but that integration case could not run locally.
-
-Observed for this working tree based on `1f783baf`: Application Release build passed with one `NU1900` warning because the NuGet vulnerability feed was unreachable; `FinancialStatementPresentationTests` passed 15/15; the targeted Angular presentation spec passed 4/4; and the Angular production build passed with the existing commercial-settings stylesheet budget warning. The modified Domain test assembly compiled. Markdown, filename, narrative-metric, status JSON and diff checks passed. The PostgreSQL service on port 5433 was down; its documented local start attempt failed because a shared-memory block for that data directory was still in use, so it was left untouched. The local in-app browser did not reach the dev server route, and no signed-in/API workflow was assessed. The layout-lineage integration test and browser flow remain unverified. This is still an unapproved draft slice; it does not close the wider FSR backlog or professional, signing, composition, sealing or release gates.
-
-## Typed financial-statement presentation draft — 2026-10-11
-
-The current local slice implements the recommended first FSR presentation milestone. A scoped read and export now build a typed SFP and profit-or-loss presentation from persisted package lines and a published layout for the same client/framework. The server applies display signs, joins current and explicitly bound comparative package lines, links persisted note cross-casts, and blocks unbalanced or incompletely mapped statements. Exports produce deterministic PDF, DOCX and XLSX from that same draft model; Excel numeric cells remain numeric. The package's existing immutable artifact generation and stored bytes are unchanged.
-
-The output is marked `UNAPPROVED_DRAFT`, and amounts use a display policy that still needs professional/design approval. The fixture uses synthetic balances matched to selected reference totals; it is not the NAQAHA ledger or an approved golden fixture. The focused tests and browser boundary evidence are recorded in [`status.json`](status.json). The local browser rendered the Angular shell's unauthenticated access guard; no API session or signed-in package data was available for a full screen journey.
-
-FSR-001/T003 accounting-policy approval remains blocked on qualified owners. Cash-flow and equity statement matrices, complete disclosure policy and dynamic note numbering, full composition/sealing, audited report assembly, management and Partner acceptance, and production/legal sign-off remain open. This partial presentation slice does not complete the R2R task cards or the attached backlog.
-
-## Isolated background mail worker active — 2026-10-11
-
-The acceptance mail queues and pending discovery rows were checked before activation; no
-unreviewed recipient was pending. The isolated mail profile was started with the previously
-verified sender credential. Its broad parent credential mount was identified and replaced with
-an outbound-mail-only read-only mount. The disabled PBC profile now also uses only its own
-Selected Site mount; it was not started.
-
-The clean VPS checkout was fast-forwarded to the reviewed Compose change and only the new mail
-worker recreated. Its own key is readable and sibling credentials are absent. Logs show successful
-queue polling without failures; API readiness and existing worker preservation passed. The
-administrator Operations page is accessible and has no browser errors. This verifies idle worker
-deployment, not an unexecuted business-mail workflow. Exact evidence is in [`status.json`](status.json).
-
-SharePoint's separate exact-site grant remains unresolved; its Entra consent is present and the
-runtime identity still cannot access the approved site. The exact grant receipt is requested
-before another provider probe. No tenant-wide scope or site permission was added.
-
-## Separate directory capabilities configured and verified — 2026-10-11
-
-Following exact owner approval, the existing User Creation certificate was matched to its Entra
-registration and staged privately on the VPS. Guest Invitation and Group Membership received
-separate restricted VPS key pairs; only their public certificates were uploaded to their exact
-single-permission app registrations. All identities authenticated for the configured tenant with
-exactly their named application role, and their distinct app IDs were saved in the protected
-server environment.
-
-Only the API was recreated to enable the reviewed capabilities. Readiness passed and existing
-workers were unchanged. AuditSphere persisted verified permission checks for User Creation and
-Guest Invitation, plus a successful bounded read for Group Membership. Directory Reader and Mail
-also verified successfully; browser console error checks were empty. No user was created, guest
-invited or group membership modified. This completes capability setup and read/permission
-verification, not full mutation-journey acceptance. Exact observations are in [`status.json`](status.json).
-
-SharePoint remains separately blocked by the approved-target denial. The site's inspected General panel
-confirmed the reviewed site identity; no grant or permission scope was changed. Further duplicate target probes remain paused pending exact grant
-investigation, and the runtime Selected Site app ID stays unset.

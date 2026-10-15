@@ -17,9 +17,12 @@ public static partial class UiEndpoints
 {
   public sealed record PackageReviewInput(string Stage, string Decision, string EvidenceMode, string EvidenceReference, string? Comment,
     Guid? PresentationRevisionId = null, string? TargetArtifactVersion = null,
-    Guid? PresentationCompositionId = null, string? CompositionManifestDigest = null);
+    Guid? PresentationCompositionId = null, string? CompositionManifestDigest = null,
+    Guid? RequestId = null, Guid? ExpectedLatestDecisionId = null);
   public sealed record PackageArtifactInput(string ArtifactVersion);
   public sealed record CashFlowSourceReviewInput(string Decision, string? Reason, Guid RequestId, string? ExpectedLinkDigest,
+    Guid? ExpectedPreviousReviewId);
+  public sealed record StatementContentReviewInput(string Decision, string? Reason, Guid RequestId, string? ExpectedSnapshotSha256Hex,
     Guid? ExpectedPreviousReviewId);
   public sealed record StatementPresentationExportInput(string? Format, Guid? LayoutVersionId);
   public sealed record StatementPresentationPinInput(Guid LayoutVersionId);
@@ -55,7 +58,16 @@ public static partial class UiEndpoints
     group.MapPost("/accounting/packages/{id:guid}/reviews", (Guid id, PackageReviewInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => FinancialPackageReviewService.RecordAsync(db, actor,
         new FinancialPackageReviewRequest(id, i.Stage, i.Decision, i.EvidenceMode, i.EvidenceReference ?? "", i.Comment ?? "",
-          i.PresentationRevisionId, i.TargetArtifactVersion, i.PresentationCompositionId, i.CompositionManifestDigest), ct)));
+          i.PresentationRevisionId, i.TargetArtifactVersion, i.PresentationCompositionId, i.CompositionManifestDigest,
+          i.RequestId, i.ExpectedLatestDecisionId), ct)));
+    // Independent review of a draft presentation's note, disclosure and equity content. Approval is what lets that exact draft become a
+    // signing candidate; it is not a formal statement approval.
+    group.MapGet("/accounting/packages/{id:guid}/presentation/pins/{revisionId:guid}/content-review", (Guid id, Guid revisionId, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => FinancialStatementService.GetStatementContentReviewAsync(db, actor, id, revisionId, ct)));
+    group.MapPost("/accounting/packages/{id:guid}/presentation/pins/{revisionId:guid}/content-review", (Guid id, Guid revisionId,
+      StatementContentReviewInput i, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => FinancialStatementService.RecordStatementContentReviewAsync(db, actor, id, revisionId,
+        i.Decision, i.Reason, i.RequestId, i.ExpectedSnapshotSha256Hex, i.ExpectedPreviousReviewId, ct)));
     // Build inputs: the approved mappings, finalized plans and reporting periods a preparer can choose from.
     group.MapGet("/engagements/{id:guid}/financial-package-inputs", (Guid id, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => FinancialPackageBuildInputsQuery.GetAsync(db, actor, id, ct)));

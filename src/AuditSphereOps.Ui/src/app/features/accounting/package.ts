@@ -15,7 +15,7 @@ export const decodePackage = obj({ id: guid, engagementId: guid, comparativePack
     movementDate: nullable(text), activityCode: nullable(text), sourceReferences: arr(text, 50), classificationRationale: nullable(text) }), 2000),
   disclosures: arr(obj({ code: text, response: text, notApplicable: bool, rationale: nullable(text) }), 2000),
   reviews: arr(obj({ stage: text, decision: text, evidenceMode: text, evidenceReference: text, packageHash: text, decidedAt: instant,
-    presentationRevisionId: nullable(guid), compositionId: nullable(guid), compositionManifestDigest: nullable(sha256) }), 500),
+    presentationRevisionId: nullable(guid), compositionId: nullable(guid), compositionManifestDigest: nullable(sha256), id: guid }), 500),
   artifact: nullable(obj({ artifactSha256Hex: text, byteCount: nat, renderedText: text })), canReview: bool, reviewStages: arr(text, 10), reviewDecisions: arr(text, 10) });
 /** The original intent of a source decision, kept until the server answers. */
 export interface PendingSourceIntent { requestId: string; decision: string; reason: string | null; }
@@ -30,7 +30,30 @@ const pendingSourceIntentKey = (packageId: string): string => `auditsphere.cash-
 export interface SelectedStatementComposition { revisionId: string; compositionId: string; manifestDigest: string; }
 export interface PackageReviewForm { stage: string; decision: string; mode: string; reference: string; comment: string; }
 
-export function packageReviewRequestFor(form: PackageReviewForm, composition: SelectedStatementComposition | null): Record<string, unknown> | null {
+type PackageReviewEntry = { id: string; presentationRevisionId: string | null; compositionId: string | null; compositionManifestDigest: string | null };
+
+/**
+ * The latest decision already recorded on the selected composition's chain, in the server's recorded order (the list arrives in that
+ * order). The decision is refused as stale when another one was recorded after this view was loaded.
+ */
+export function latestCompositionDecisionId(reviews: readonly PackageReviewEntry[], composition: SelectedStatementComposition): string | null {
+  const chain = reviews.filter((r) => r.presentationRevisionId === composition.revisionId && r.compositionId === composition.compositionId &&
+    r.compositionManifestDigest === composition.manifestDigest);
+  return chain.length ? chain[chain.length - 1].id : null;
+}
+
+/** The original intent of a formal decision, kept until the server answers so a lost reply retries the same decision. */
+export interface PendingPackageReview { requestId: string; key: string }
+
+export function packageReviewIntentFor(pending: PendingPackageReview | null, form: PackageReviewForm, composition: SelectedStatementComposition,
+  expectedLatestDecisionId: string | null, newRequestId: string): PendingPackageReview {
+  const key = JSON.stringify([form.stage, form.decision, form.mode, form.reference, form.comment || null, composition.revisionId,
+    composition.compositionId, composition.manifestDigest, expectedLatestDecisionId]);
+  return pending && pending.key === key ? pending : { requestId: newRequestId, key };
+}
+
+export function packageReviewRequestFor(form: PackageReviewForm, composition: SelectedStatementComposition | null,
+  intent?: { requestId: string; expectedLatestDecisionId: string | null }): Record<string, unknown> | null {
   if (!composition) return null;
   return {
     stage: form.stage,
@@ -41,6 +64,7 @@ export function packageReviewRequestFor(form: PackageReviewForm, composition: Se
     presentationRevisionId: composition.revisionId,
     presentationCompositionId: composition.compositionId,
     compositionManifestDigest: composition.manifestDigest,
+    ...(intent ? { requestId: intent.requestId, expectedLatestDecisionId: intent.expectedLatestDecisionId } : {}),
   };
 }
 
@@ -221,12 +245,20 @@ export class FinancialPackage {
       () => { this.sourceReason = ''; writePendingSourceIntent(id, null); })
       .finally(() => { this.sourceReview.reload(); this.pkg.reload(); });
   }
+  private pendingReview: PendingPackageReview | null = null;
   review(id: string): void {
-    const request = packageReviewRequestFor(this.r, this.selectedComposition());
+    const composition = this.selectedComposition();
+    const p = this.pkg.data();
+    if (!composition || !p) return;
+    const expectedLatestDecisionId = latestCompositionDecisionId(p.reviews, composition);
+    // A lost reply keeps the same identity, so retrying after a reload recovers the stored decision instead of recording a second one.
+    const intent = packageReviewIntentFor(this.pendingReview, this.r, composition, expectedLatestDecisionId, crypto.randomUUID());
+    this.pendingReview = intent;
+    const request = packageReviewRequestFor(this.r, composition, { requestId: intent.requestId, expectedLatestDecisionId });
     if (!request) return;
     void this.cmd.run(`/api/ui/accounting/packages/${id}/reviews`, request,
       'Decision recorded against the exact selected three-format composition.',
-      () => (this.r = { ...this.r, reference: '', comment: '' })).finally(() => this.pkg.reload());
+      () => { this.r = { ...this.r, reference: '', comment: '' }; this.pendingReview = null; }).finally(() => this.pkg.reload());
   }
   async download(id: string, version: string): Promise<void> {
     if (this.downloading()) return;

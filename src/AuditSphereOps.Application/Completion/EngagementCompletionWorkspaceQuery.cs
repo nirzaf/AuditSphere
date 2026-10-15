@@ -1,3 +1,4 @@
+using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Records;
@@ -61,10 +62,19 @@ public static class EngagementCompletionWorkspaceQuery
       var reviews = await db.FinancialPackageReviewDecisions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == package.ClientId &&
           x.EngagementId == package.EngagementId && x.FinancialPackageId == package.Id && x.PackageRevision == package.Revision &&
           x.PackageGeneration == package.Generation && x.PackageHash == package.CalculationHash).ToListAsync(ct);
-      foreach (var stage in new[] { FinancialPackageReviewStages.ManagementApproval, FinancialPackageReviewStages.AccountingReview, FinancialPackageReviewStages.PartnerApproval })
+      // The gate follows the chain the latest management decision names. An approval defeated by a later return at an earlier stage is
+      // shown as pending, because it must be recorded again before release.
+      var latestManagement = FinancialPackageReviewService.InRecordedOrder(
+        reviews.Where(x => x.Stage == FinancialPackageReviewStages.ManagementApproval)).LastOrDefault();
+      var chain = latestManagement is null ? reviews : reviews.Where(x => x.PresentationRevisionId == latestManagement.PresentationRevisionId &&
+        x.PresentationCompositionId == latestManagement.PresentationCompositionId &&
+        x.CompositionManifestDigest == latestManagement.CompositionManifestDigest).ToList();
+      var effective = FinancialPackageReviewService.EffectiveApprovals(chain);
+      foreach (var stage in FinancialPackageReviewService.FormalStageOrder)
       {
-        var review = reviews.Where(x => x.Stage == stage).OrderByDescending(x => x.DecidedAt).FirstOrDefault();
-        var status = review?.Decision ?? "PENDING";
+        var review = effective[stage] ?? FinancialPackageReviewService.InRecordedOrder(chain.Where(x => x.Stage == stage)).LastOrDefault();
+        var status = review is null ? "PENDING"
+          : effective[stage] is null && review.Decision == FinancialPackageReviewDecisions.Approved ? "PENDING" : review.Decision;
         gates.Add(new($"Package {stage}", status, status == FinancialPackageReviewDecisions.Approved ? "ok"
           : status is FinancialPackageReviewDecisions.ChangesRequired or FinancialPackageReviewDecisions.Rejected ? "blocked" : "pending", review?.EvidenceReference, review?.DecidedAt));
         if (stage == FinancialPackageReviewStages.PartnerApproval) partnerApproved = status == FinancialPackageReviewDecisions.Approved;

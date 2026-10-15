@@ -31,7 +31,7 @@ public static class CompletionBundleFixture
     var periodId = Guid.NewGuid();
     var bookId = Guid.NewGuid();
     var targetDataset = Guid.NewGuid();
-    var cashAmount = 100m;
+    var cashAmount = 120m;
     var netIncome = 100m;
     var preparer = w.A("associate", "AccountingPreparer");
     var reviewer = w.A("senior", "AccountingReviewer");
@@ -53,6 +53,7 @@ public static class CompletionBundleFixture
           });
       }
       await CompletionTestFixtures.SeedTaxonomyAsync(db, w.FirmId, w.U["partner"].Id);
+      await CompletionTestFixtures.SeedCompleteStatementTaxonomyAsync(db, w.FirmId);
       db.ClientReportingPeriods.Add(new ClientReportingPeriod { Id = periodId, FirmId = w.FirmId, ClientId = w.ClientId, PeriodCode = "BUNDLE-" + periodId.ToString("N")[..8], StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31),
         Basis = "STATUTORY", Currency = "QAR", Status = AccountingWorkflowStates.Active, CreatedByUserId = w.U["associate"].Id, CreatedAt = now });
       db.ClientReportingBooks.Add(new ClientReportingBook { Id = bookId, FirmId = w.FirmId, ClientId = w.ClientId, PeriodId = periodId, Code = "STATUTORY", Basis = "STATUTORY", InclusionRule = "ALL_ENTITIES",
@@ -60,19 +61,25 @@ public static class CompletionBundleFixture
       db.TrialBalanceDatasets.Add(new TrialBalanceDataset { Id = targetDataset, FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId, PeriodId = periodId, BookId = bookId, Basis = "STATUTORY",
         SourceKind = "Raw", Currency = "QAR", Balanced = true, ValidationStatus = "Accepted", ImportState = TrialBalanceImportStates.Loading,
         NormalizedDatasetDigest = Hashing.Sha256Hex(targetDataset.ToString()), ImportedAt = now, ImportedByUserId = w.U["associate"].Id });
-      db.TrialBalanceRows.AddRange(new TrialBalanceRow { Id = Guid.NewGuid(), DatasetId = targetDataset, AccountCode = "1000", AccountName = "Cash", Amount = cashAmount, Currency = "QAR", Entity = "TEST" },
-        new TrialBalanceRow { Id = Guid.NewGuid(), DatasetId = targetDataset, AccountCode = "4000", AccountName = "Revenue", Amount = -netIncome, Currency = "QAR", Entity = "TEST" });
+      // A complete synthetic package: equity, a revaluation movement in OCI, and operating, investing and financing cash events.
+      TrialBalanceRow Row(string account, string name, decimal amount) => new()
+      { Id = Guid.NewGuid(), DatasetId = targetDataset, AccountCode = account, AccountName = name, Amount = amount, Currency = "QAR", Entity = "TEST" };
+      db.TrialBalanceRows.AddRange(Row("1000", "Cash", cashAmount), Row("1500", "Equipment", 35m), Row("2500", "Borrowings", -40m),
+        Row("3000", "Share capital", -5m), Row("4000", "Revenue", -netIncome), Row("4900", "Revaluation surplus", -10m));
       await db.SaveChangesAsync();
       await db.TrialBalanceDatasets.Where(x => x.Id == targetDataset)
         .ExecuteUpdateAsync(update => update.SetProperty(x => x.ImportState, TrialBalanceImportStates.Sealed));
     }
     var source = await CashFlowSourceSeed.SeedAcceptedGeneralLedgerAsync(options, w.FirmId, w.ClientId, w.EngagementId,
-      periodId, bookId, w.U["associate"].Id, reviewer, "completion-bundle", netIncome);
+      periodId, bookId, w.U["associate"].Id, reviewer, "completion-bundle", netIncome,
+      optional: CashFlowSourceSeed.OptionalCashEvents.Equipment | CashFlowSourceSeed.OptionalCashEvents.Borrowing);
     Guid packageId;
     await using (var db = new AuditSphereDbContext(options))
     {
       var mapping = await FinancialStatementService.CreateMappingVersionAsync(db, preparer, new(targetDataset, "TEST-IFRS", "2026-01-01", "2026-12-31",
-        [new("1000", "CASH", "ASSETS", 1m, "Cash mapping"), new("4000", "REVENUE", "INCOME", 1m, "Revenue mapping")]));
+        [new("1000", "CASH", "ASSETS", 1m, "Cash mapping"), new("1500", "PPE", "ASSETS", 1m, "Equipment mapping"),
+          new("2500", "BORROWINGS", "LIABILITIES", 1m, "Borrowings mapping"), new("3000", "SHARE_CAPITAL", "EQUITY", 1m, "Share capital mapping"),
+          new("4000", "REVENUE", "INCOME", 1m, "Revenue mapping"), new("4900", "REVALUATION", "OCI", 1m, "Revaluation surplus mapping")]));
       Assert.True(mapping.Succeeded, $"CreateMappingVersion failed: {mapping.ErrorCode} - {mapping.Message}");
       var mappingRow = await db.MappingVersions.AsNoTracking().SingleAsync(x => x.Id == mapping.Value);
       var approved = await FinancialStatementService.ApproveMappingAsync(db, reviewer, mapping.Value, mappingRow.Version);
@@ -82,12 +89,24 @@ public static class CompletionBundleFixture
       var finalized = await AdjustmentPlanService.FinalizeAsync(db, preparer, plan.Value);
       Assert.True(finalized.Succeeded, finalized.Message);
       var built = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, new(plan.Value, mapping.Value, "IFRS", "2026-01-01", "2026-12-31", "bundle-test-v1",
-        new FinancialSupplementaryInformation(0m, netIncome, [new CashFlowLineInput("OPERATING", "Cash receipts", netIncome,
-            MovementDate: new DateOnly(2026, 6, 30), ActivityCode: "CASH_RECEIPTS", SourceReferences: ["bank-ledger-bundle"],
-            ClassificationRationale: "Synthetic receipt agreed to source.", SourceAllocations: [new CashFlowSourceAllocationInput(source.Receivable, -netIncome)])],
+        new FinancialSupplementaryInformation(5m, cashAmount,
+          [
+            new CashFlowLineInput("OPERATING", "Cash receipts", netIncome,
+              MovementDate: new DateOnly(2026, 6, 30), ActivityCode: "CASH_RECEIPTS", SourceReferences: ["bank-ledger-bundle"],
+              ClassificationRationale: "Synthetic receipt agreed to source.", SourceAllocations: [new CashFlowSourceAllocationInput(source.Receivable, -netIncome)]),
+            new CashFlowLineInput("INVESTING", "Purchase of equipment", -25m,
+              MovementDate: new DateOnly(2026, 6, 30), ActivityCode: "EQUIPMENT_PURCHASE", SourceReferences: ["bank-ledger-equipment"],
+              ClassificationRationale: "Equipment paid from the bank account.", SourceAllocations: [new CashFlowSourceAllocationInput(source.Equipment, 25m)]),
+            new CashFlowLineInput("FINANCING", "Proceeds from borrowings", 40m,
+              MovementDate: new DateOnly(2026, 6, 30), ActivityCode: "LOAN_PROCEEDS", SourceReferences: ["bank-ledger-loan"],
+              ClassificationRationale: "Loan drawdown received in the bank account.", SourceAllocations: [new CashFlowSourceAllocationInput(source.Borrowing, -40m)])
+          ],
           [new DisclosureInput("CASH_POLICY", "Cash is presented at face value."), new DisclosureInput("COMMITMENTS", "", true, "No commitments in the synthetic management information.")],
-          [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, netIncome, 0m, 0m, 0m, netIncome, "equity-test")],
+          [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, netIncome, 0m, 0m, 0m, netIncome, "equity-test"),
+            new EquityLineInput("REVALUATION_RESERVE", "Revaluation reserve", 0m, 0m, 10m, 0m, 0m, 10m, "valuation-report-test"),
+            new EquityLineInput("SHARE_CAPITAL", "Share capital", 5m, 0m, 0m, 0m, 0m, 5m, "share-register-test")],
           NoteLines: [new NoteLineInput("CASH_NOTE", "CASH", cashAmount, "note-test")],
+          FxCashEffects: [new FxCashEffectInput("USD/QAR", 0m, "USD account translated at the unchanged 3.64 peg")],
           CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-cash-bundle"], ClosingCashEvidenceReferences: ["closing-cash-bundle"])));
       Assert.True(built.Succeeded, built.Message);
       Assert.Equal(AccountingPackageStates.PackageValidated, built.Value!.Status);
@@ -102,13 +121,26 @@ public static class CompletionBundleFixture
             StatementLayoutSections.FinancialPosition, 1),
           new StatementLineDefinition("CASH", "Cash", StatementLayoutLineKinds.MappedTaxonomyBalance,
             StatementLayoutSections.FinancialPosition, 2, TaxonomyNodeCode: "CASH"),
+          new StatementLineDefinition("PPE", "Property and equipment", StatementLayoutLineKinds.MappedTaxonomyBalance,
+            StatementLayoutSections.FinancialPosition, 3, TaxonomyNodeCode: "PPE"),
           new StatementLineDefinition("TA", "Total assets", StatementLayoutLineKinds.SumChildLines,
-            StatementLayoutSections.FinancialPosition, 3, ChildLineCodes: ["CASH"], IsSubtotal: true),
+            StatementLayoutSections.FinancialPosition, 4, ChildLineCodes: ["CASH", "PPE"], IsSubtotal: true),
+          new StatementLineDefinition("H_LE", "Liabilities and equity", StatementLayoutLineKinds.Heading,
+            StatementLayoutSections.FinancialPosition, 5),
+          new StatementLineDefinition("LOANS", "Borrowings", StatementLayoutLineKinds.MappedTaxonomyBalance,
+            StatementLayoutSections.FinancialPosition, 6, DisplaySign: StatementLayoutDisplaySigns.Inverted, TaxonomyNodeCode: "BORROWINGS"),
+          new StatementLineDefinition("SC", "Share capital", StatementLayoutLineKinds.MappedTaxonomyBalance,
+            StatementLayoutSections.FinancialPosition, 7, DisplaySign: StatementLayoutDisplaySigns.Inverted, TaxonomyNodeCode: "SHARE_CAPITAL"),
           new StatementLineDefinition("H_PL", "Revenue", StatementLayoutLineKinds.Heading,
             StatementLayoutSections.ProfitOrLoss, 1),
           new StatementLineDefinition("REV", "Revenue", StatementLayoutLineKinds.MappedTaxonomyBalance,
             StatementLayoutSections.ProfitOrLoss, 2, DisplaySign: StatementLayoutDisplaySigns.Inverted,
-            TaxonomyNodeCode: "REVENUE")
+            TaxonomyNodeCode: "REVENUE"),
+          new StatementLineDefinition("H_OCI", "Other comprehensive income", StatementLayoutLineKinds.Heading,
+            StatementLayoutSections.OtherComprehensiveIncome, 1),
+          new StatementLineDefinition("REVAL", "Revaluation surplus", StatementLayoutLineKinds.MappedTaxonomyBalance,
+            StatementLayoutSections.OtherComprehensiveIncome, 2, DisplaySign: StatementLayoutDisplaySigns.Inverted,
+            TaxonomyNodeCode: "REVALUATION")
         ]));
       Assert.True(layout.Succeeded, layout.Message);
       Assert.True((await StatementLayoutService.ValidateLayoutAsync(db, preparer, layout.Value!.LayoutVersionId)).Value!.IsValid);
@@ -118,6 +150,8 @@ public static class CompletionBundleFixture
       Assert.True(draft.Succeeded, draft.Message);
       Assert.True((await FinancialStatementService.RenderPinnedPresentationArtifactAsync(db, reviewer, draft.Value!.RevisionId,
         FinancialStatementPresentationRenderer.PdfFormat)).Succeeded);
+      var contentReview = await StatementContentReviewCall.RecordAsync(db, reviewer, packageId, draft.Value.RevisionId);
+      Assert.True(contentReview.Succeeded, contentReview.Message);
       var candidate = await FinancialStatementService.PromotePresentationToCandidateAsync(db, reviewer, packageId, draft.Value.RevisionId);
       Assert.True(candidate.Succeeded, candidate.Message);
       var composition = await FinancialStatementService.SelectCompositionAsync(db, preparer, packageId, candidate.Value!.RevisionId);

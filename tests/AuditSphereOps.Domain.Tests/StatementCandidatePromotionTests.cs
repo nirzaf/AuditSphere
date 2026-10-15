@@ -50,6 +50,7 @@ public sealed class StatementCandidatePromotionTests
     Guid candidateId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
+      Assert.True((await StatementContentReviewCall.RecordAsync(db, reviewer, s.PackageId, draftId)).Succeeded);
       var promoted = await FinancialStatementService.PromotePresentationToCandidateAsync(db, reviewer, s.PackageId, draftId);
       Assert.True(promoted.Succeeded, promoted.Message);
       var candidate = promoted.Value!;
@@ -110,6 +111,7 @@ public sealed class StatementCandidatePromotionTests
     {
       Assert.True((await FinancialStatementService.RenderPinnedPresentationArtifactAsync(db, reviewer, draftId,
         FinancialStatementPresentationRenderer.PdfFormat)).Succeeded);
+      Assert.True((await StatementContentReviewCall.RecordAsync(db, reviewer, s.PackageId, draftId)).Succeeded);
       var candidate = await FinancialStatementService.PromotePresentationToCandidateAsync(db, reviewer, s.PackageId, draftId);
       Assert.True(candidate.Succeeded, candidate.Message);
 
@@ -171,19 +173,18 @@ public sealed class StatementCandidatePromotionTests
         CreatedByUserId = preparer.Id, ApprovedByUserId = reviewer.Id, ApprovedAt = DateTimeOffset.UtcNow,
         CreatedAt = DateTimeOffset.UtcNow
       });
+      // A complete synthetic package: a balancing statement of financial position with equity, a profit, a revaluation movement in
+      // OCI, and operating, investing and financing cash events linked to an accepted general ledger. The entity also holds a USD
+      // account translated at the unchanged QAR/USD peg, so its foreign-exchange effect on cash is a genuine, evidenced zero.
+      ReportingTaxonomyNode Node(string code, string name, string section, string normal) => new()
+      {
+        Id = Guid.NewGuid(), FirmId = firmId, TaxonomyVersionId = taxonomyId, Code = code, Name = name, StatementSection = section,
+        DisplaySign = "SIGNED", NormalBalance = normal, IsPosting = true, Applicability = "ALL", CreatedAt = DateTimeOffset.UtcNow
+      };
       db.ReportingTaxonomyNodes.AddRange(
-        new ReportingTaxonomyNode
-        {
-          Id = Guid.NewGuid(), FirmId = firmId, TaxonomyVersionId = taxonomyId, Code = "CASH", Name = "Cash",
-          StatementSection = "ASSETS", DisplaySign = "SIGNED", NormalBalance = "DEBIT", IsPosting = true,
-          Applicability = "ALL", CreatedAt = DateTimeOffset.UtcNow
-        },
-        new ReportingTaxonomyNode
-        {
-          Id = Guid.NewGuid(), FirmId = firmId, TaxonomyVersionId = taxonomyId, Code = "REVENUE", Name = "Revenue",
-          StatementSection = "INCOME", DisplaySign = "SIGNED", NormalBalance = "CREDIT", IsPosting = true,
-          Applicability = "ALL", CreatedAt = DateTimeOffset.UtcNow
-        });
+        Node("CASH", "Cash", "ASSETS", "DEBIT"), Node("PPE", "Property and equipment", "ASSETS", "DEBIT"),
+        Node("BORROWINGS", "Borrowings", "LIABILITIES", "CREDIT"), Node("SHARE_CAPITAL", "Share capital", "EQUITY", "CREDIT"),
+        Node("REVENUE", "Revenue", "INCOME", "CREDIT"), Node("REVALUATION", "Revaluation surplus", "OCI", "CREDIT"));
       db.TrialBalanceDatasets.Add(new TrialBalanceDataset
       {
         Id = datasetId, FirmId = firmId, ClientId = clientId, EngagementId = engagementId,
@@ -192,49 +193,66 @@ public sealed class StatementCandidatePromotionTests
         ValidationStatus = "Accepted", ControlTotal = 0m, ImportedAt = DateTimeOffset.UtcNow,
         ImportedByUserId = preparer.Id
       });
+      TrialBalanceRow Row(string account, string name, decimal amount) => new()
+      {
+        Id = Guid.NewGuid(), DatasetId = datasetId, AccountCode = account, AccountName = name, Amount = amount, Currency = "QAR", Entity = "TEST"
+      };
       db.TrialBalanceRows.AddRange(
-        new TrialBalanceRow
-        {
-          Id = Guid.NewGuid(), DatasetId = datasetId, AccountCode = "1000",
-          AccountName = "Cash", Amount = 100m, Currency = "QAR", Entity = "TEST"
-        },
-        new TrialBalanceRow
-        {
-          Id = Guid.NewGuid(), DatasetId = datasetId, AccountCode = "4000",
-          AccountName = "Revenue", Amount = -100m, Currency = "QAR", Entity = "TEST"
-        });
+        Row("1000", "Cash", 120m), Row("1500", "Equipment", 35m), Row("2500", "Borrowings", -40m),
+        Row("3000", "Share capital", -5m), Row("4000", "Revenue", -100m), Row("4900", "Revaluation surplus", -10m));
       await db.SaveChangesAsync();
     }
 
     var preparerActor = Actor(preparer, "AccountingPreparer");
     var reviewerActor = Actor(reviewer, "AccountingReviewer");
     var source = await CashFlowSourceSeed.SeedAcceptedGeneralLedgerAsync(pg.Options, firmId, clientId, engagementId,
-      periodId, bookId, preparer.Id, reviewerActor, "candidate");
+      periodId, bookId, preparer.Id, reviewerActor, "candidate",
+      optional: CashFlowSourceSeed.OptionalCashEvents.Equipment | CashFlowSourceSeed.OptionalCashEvents.Borrowing);
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var mapping = await FinancialStatementService.CreateMappingVersionAsync(db, preparerActor,
         new CreateMappingVersionRequest(datasetId, "tax-v1", "2026-01-01", "2026-12-31",
           [
             new MappingAllocationInput("1000", "CASH", "ASSETS", 1m, "Cash mapping"),
-            new MappingAllocationInput("4000", "REVENUE", "INCOME", 1m, "Revenue mapping")
+            new MappingAllocationInput("1500", "PPE", "ASSETS", 1m, "Equipment mapping"),
+            new MappingAllocationInput("2500", "BORROWINGS", "LIABILITIES", 1m, "Borrowings mapping"),
+            new MappingAllocationInput("3000", "SHARE_CAPITAL", "EQUITY", 1m, "Share capital mapping"),
+            new MappingAllocationInput("4000", "REVENUE", "INCOME", 1m, "Revenue mapping"),
+            new MappingAllocationInput("4900", "REVALUATION", "OCI", 1m, "Revaluation surplus mapping")
           ]));
       Assert.True(mapping.Succeeded, mapping.Message);
       Assert.True((await FinancialStatementService.ApproveMappingAsync(db, reviewerActor, mapping.Value, 1)).Succeeded);
       var plan = await AdjustmentPlanService.CreatePlanAsync(db, preparerActor, datasetId, []);
       Assert.True(plan.Succeeded, plan.Message);
       Assert.True((await AdjustmentPlanService.FinalizeAsync(db, preparerActor, plan.Value)).Succeeded);
+      // Each cash movement links the noncash counterpart of its cash event with the ledger sign unchanged (F-01).
       var built = await FinancialStatementService.BuildFinancialPackageAsync(db, preparerActor,
         new BuildFinancialPackageRequest(plan.Value, mapping.Value, "IFRS", "2026-01-01", "2026-12-31", "candidate-v1")
         {
           SupplementaryInformation = new FinancialSupplementaryInformation(
-            0m, 100m,
-            [new CashFlowLineInput("OPERATING", "Cash receipts", 100m, MovementDate: new DateOnly(2026, 6, 30),
-              ActivityCode: "CASH_RECEIPTS", SourceReferences: ["bank-ledger-candidate"],
-              ClassificationRationale: "Synthetic receipts agreed to source.",
-              SourceAllocations: [new CashFlowSourceAllocationInput(source.Receivable, -100m)])],
+            5m, 120m,
+            [
+              new CashFlowLineInput("OPERATING", "Cash receipts from customers", 100m, MovementDate: new DateOnly(2026, 6, 30),
+                ActivityCode: "CASH_RECEIPTS", SourceReferences: ["bank-ledger-candidate"],
+                ClassificationRationale: "Synthetic receipts agreed to source.",
+                SourceAllocations: [new CashFlowSourceAllocationInput(source.Receivable, -100m)]),
+              new CashFlowLineInput("INVESTING", "Purchase of equipment", -25m, MovementDate: new DateOnly(2026, 6, 30),
+                ActivityCode: "EQUIPMENT_PURCHASE", SourceReferences: ["bank-ledger-equipment"],
+                ClassificationRationale: "Equipment paid from the bank account.",
+                SourceAllocations: [new CashFlowSourceAllocationInput(source.Equipment, 25m)]),
+              new CashFlowLineInput("FINANCING", "Proceeds from borrowings", 40m, MovementDate: new DateOnly(2026, 6, 30),
+                ActivityCode: "LOAN_PROCEEDS", SourceReferences: ["bank-ledger-loan"],
+                ClassificationRationale: "Loan drawdown received in the bank account.",
+                SourceAllocations: [new CashFlowSourceAllocationInput(source.Borrowing, -40m)])
+            ],
             [new DisclosureInput("CASH_POLICY", "Cash is presented at face value."),
               new DisclosureInput("COMMITMENTS", string.Empty, NotApplicable: true, Rationale: "None identified.")],
-            [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 100m, "equity-candidate")],
+            [
+              new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 100m, "equity-candidate"),
+              new EquityLineInput("REVALUATION_RESERVE", "Revaluation reserve", 0m, 0m, 10m, 0m, 0m, 10m, "valuation-report-candidate"),
+              new EquityLineInput("SHARE_CAPITAL", "Share capital", 5m, 0m, 0m, 0m, 0m, 5m, "share-register-candidate")
+            ],
+            FxCashEffects: [new FxCashEffectInput("USD/QAR", 0m, "USD account translated at the unchanged 3.64 peg")],
             CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-cash-candidate"],
             ClosingCashEvidenceReferences: ["closing-cash-candidate"])
         });
@@ -249,16 +267,30 @@ public sealed class StatementCandidatePromotionTests
               StatementLayoutSections.FinancialPosition, 1),
             new StatementLineDefinition("CASH", "Cash", StatementLayoutLineKinds.MappedTaxonomyBalance,
               StatementLayoutSections.FinancialPosition, 2, TaxonomyNodeCode: "CASH"),
+            new StatementLineDefinition("PPE", "Property and equipment", StatementLayoutLineKinds.MappedTaxonomyBalance,
+              StatementLayoutSections.FinancialPosition, 3, TaxonomyNodeCode: "PPE"),
             new StatementLineDefinition("TA", "Total assets", StatementLayoutLineKinds.SumChildLines,
-              StatementLayoutSections.FinancialPosition, 3, ChildLineCodes: ["CASH"], IsSubtotal: true),
+              StatementLayoutSections.FinancialPosition, 4, ChildLineCodes: ["CASH", "PPE"], IsSubtotal: true),
+            new StatementLineDefinition("H_LE", "Liabilities and equity", StatementLayoutLineKinds.Heading,
+              StatementLayoutSections.FinancialPosition, 5),
+            new StatementLineDefinition("LOANS", "Borrowings", StatementLayoutLineKinds.MappedTaxonomyBalance,
+              StatementLayoutSections.FinancialPosition, 6, DisplaySign: StatementLayoutDisplaySigns.Inverted, TaxonomyNodeCode: "BORROWINGS"),
+            new StatementLineDefinition("SC", "Share capital", StatementLayoutLineKinds.MappedTaxonomyBalance,
+              StatementLayoutSections.FinancialPosition, 7, DisplaySign: StatementLayoutDisplaySigns.Inverted, TaxonomyNodeCode: "SHARE_CAPITAL"),
             new StatementLineDefinition("H_PL", "Revenue", StatementLayoutLineKinds.Heading,
               StatementLayoutSections.ProfitOrLoss, 1),
             new StatementLineDefinition("REV", "Revenue", StatementLayoutLineKinds.MappedTaxonomyBalance,
               StatementLayoutSections.ProfitOrLoss, 2, DisplaySign: StatementLayoutDisplaySigns.Inverted,
-              TaxonomyNodeCode: "REVENUE")
+              TaxonomyNodeCode: "REVENUE"),
+            new StatementLineDefinition("H_OCI", "Other comprehensive income", StatementLayoutLineKinds.Heading,
+              StatementLayoutSections.OtherComprehensiveIncome, 1),
+            new StatementLineDefinition("REVAL", "Revaluation surplus", StatementLayoutLineKinds.MappedTaxonomyBalance,
+              StatementLayoutSections.OtherComprehensiveIncome, 2, DisplaySign: StatementLayoutDisplaySigns.Inverted,
+              TaxonomyNodeCode: "REVALUATION")
           ]));
       Assert.True(layout.Succeeded, layout.Message);
-      Assert.True((await StatementLayoutService.ValidateLayoutAsync(db, preparerActor, layout.Value!.LayoutVersionId)).Value!.IsValid);
+      var validated = await StatementLayoutService.ValidateLayoutAsync(db, preparerActor, layout.Value!.LayoutVersionId);
+      Assert.True(validated.Value!.IsValid, string.Join("; ", validated.Value.Errors.Select(x => x.Code + " " + x.Message)));
       Assert.True((await StatementLayoutService.PublishLayoutAsync(db, reviewerActor, layout.Value.LayoutVersionId,
         "Published for the candidate promotion test")).Succeeded);
       return new Seeded(firmId, clientId, engagementId, built.Value.PackageId,
@@ -266,7 +298,7 @@ public sealed class StatementCandidatePromotionTests
     }
   }
 
-  private static ActorContext Actor(AppUser user, string role) =>
+  internal static ActorContext Actor(AppUser user, string role) =>
     new(user.Id, user.FirmId, user.SessionEpoch, [role]);
 
   private static AppUser User(Guid firmId, string name) => new()
@@ -297,6 +329,7 @@ public sealed class StatementCandidatePromotionTests
     Guid candidateId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
+      Assert.True((await StatementContentReviewCall.RecordAsync(db, reviewer, s.PackageId, draftId)).Succeeded);
       var promoted = await FinancialStatementService.PromotePresentationToCandidateAsync(db, reviewer, s.PackageId, draftId);
       Assert.True(promoted.Succeeded, promoted.Message);
       candidateId = promoted.Value!.RevisionId;
