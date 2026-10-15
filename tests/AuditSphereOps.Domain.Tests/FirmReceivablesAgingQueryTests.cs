@@ -68,15 +68,39 @@ public sealed class FirmReceivablesAgingQueryTests
       db.Proposals.Add(proposal);
       db.QuotationVersions.Add(new QuotationVersion
       {
-        Id = quotationId, FirmId = seed.FirmId, ProposalId = proposal.Id, Currency = "QAR",
+        Id = quotationId, FirmId = seed.FirmId, ProposalId = proposal.Id, Revision = 1, Currency = "QAR",
         BaseAmount = 200m, Fee = 200m, InputHash = Hashing.Sha256Hex("synthetic ageing quotation"),
         Status = QuotationStates.Approved, CreatedByUserId = seed.Admin.Id, ApprovedAt = now, CreatedAt = now
       });
+      await db.SaveChangesAsync();
+
+      await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(db, PbcSeed.Actor(seed.Admin, "Partner"), proposal.Id);
+      var renderedOffer = await db.CommercialDocuments.AsNoTracking()
+        .SingleAsync(x => x.FirmId == seed.FirmId && x.ProposalId == proposal.Id && x.Kind == CommercialDocumentKinds.Quotation);
+      const string recipient = "owner@receivables.example.test";
+      var dispatchId = Guid.NewGuid();
+      proposal.SentOfferSha256 = renderedOffer.Sha256Hex;
+      proposal.ResponseOfferSha256 = renderedOffer.Sha256Hex;
+      proposal.RespondentName = "Synthetic client owner";
+      proposal.RespondentEmail = recipient;
+      proposal.ResponseEvidenceReference = "SYN-CLIENT-ACCEPTANCE";
+      proposal.ResponseChannel = ProposalResponseChannels.Email;
       db.CommercialNotifications.Add(new CommercialNotification
       {
-        Id = Guid.NewGuid(), FirmId = seed.FirmId, Kind = CommercialNotificationKinds.Proposal,
-        ProposalId = proposal.Id, PracticeClientId = seed.ClientId, QuotationVersionId = quotationId, OfferSha256 = offerHash,
-        Recipient = "owner@receivables.example.test", Subject = "Synthetic dispatched offer", Body = "Synthetic test evidence", CreatedAt = now
+        Id = dispatchId, FirmId = seed.FirmId, Kind = CommercialNotificationKinds.Proposal,
+        ProposalId = proposal.Id, PracticeClientId = seed.ClientId,
+        QuotationVersionId = quotationId, DocumentId = renderedOffer.Id, OfferSha256 = renderedOffer.Sha256Hex,
+        RecipientAuthorityBasis = ProposalRecipientAuthorityBases.LegacyDispatchSnapshot,
+        Recipient = recipient, Subject = "Synthetic dispatched offer", Body = "Synthetic test evidence", CreatedAt = now
+      });
+      db.ProposalResponseRecords.Add(new ProposalResponseRecord
+      {
+        Id = Guid.NewGuid(), FirmId = seed.FirmId, ProposalId = proposal.Id, CommercialNotificationId = dispatchId,
+        Decision = CrmStates.ProposalAccepted, OfferSha256 = renderedOffer.Sha256Hex,
+        DispatchRecipient = recipient, AuthorityBasis = ProposalRecipientAuthorityBases.LegacyDispatchSnapshot,
+        RespondentName = "Synthetic client owner", RespondentEmail = recipient,
+        EvidenceReference = "SYN-CLIENT-ACCEPTANCE", Channel = ProposalResponseChannels.Email,
+        RecordedByUserId = seed.Admin.Id, RecordedAt = now
       });
       await db.SaveChangesAsync();
 
