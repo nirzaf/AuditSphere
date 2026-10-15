@@ -182,6 +182,8 @@ public static class RoleAssignmentService
     var auth = await RoleAdministrationService.FirmAdministratorAsync(db, actor, ct);
     if (!auth.Succeeded) return auth;
     await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var lockedAuth = await RoleAdministrationService.LockFirmAndReauthorizeAsync(db, actor, ct);
+    if (!lockedAuth.Succeeded) return lockedAuth;
     var grant = await db.GroupAccessGrants.SingleOrDefaultAsync(x => x.Id == groupGrantId && x.FirmId == actor.FirmId, ct);
     if (grant is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "The group grant is unavailable.");
     if (grant.RevokedAt is not null) return CommandResult.Ok();

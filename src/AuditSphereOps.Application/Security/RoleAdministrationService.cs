@@ -342,7 +342,7 @@ public static class RoleAdministrationService
     AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, RequiredRoles: ["Administrator"], InternalOnly: true, RequireFirmWide: true), ct);
 
-  private static async Task<CommandResult> LockFirmAndReauthorizeAsync(
+  internal static async Task<CommandResult> LockFirmAndReauthorizeAsync(
     IAuditSphereDbContext db, ActorContext actor, CancellationToken ct)
   {
     var firmGuard = await db.FirmSafetyStates.FromSqlInterpolated(
