@@ -36,6 +36,8 @@ public static partial class UiEndpoints
       (db, actor, ct) => ClientPortalFinanceQuery.GetAsync(db, actor, ct)));
     group.MapGet("/portal/accounting/packages/{id:guid}", (Guid id, HttpContext http) => ReadAsync(http,
       (db, actor, ct) => FinancialPackageReviewService.GetClientViewAsync(db, actor, id, ct)));
+    group.MapGet("/portal/accounting/packages/{id:guid}/decision-receipts/{requestId:guid}", (Guid id, Guid requestId, HttpContext http) => ReadAsync(http,
+      (db, actor, ct) => FinancialPackageReviewService.GetClientDecisionReceiptAsync(db, actor, id, requestId, ct)));
     group.MapPost("/portal/accounting/packages/{id:guid}/decision", (Guid id, PortalPackageDecisionInput i, HttpContext http) => CommandAsync(http,
       async (db, actor, ct) =>
       {

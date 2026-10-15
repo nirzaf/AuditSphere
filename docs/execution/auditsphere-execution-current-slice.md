@@ -287,8 +287,8 @@ The statement presentation now cross-casts current and comparative equity rollfo
 Observed: the focused Domain and Angular presentation tests passed; the API Release build passed with NuGet vulnerability-feed warnings; Markdown health, filename, narrative-metric, status JSON and `git diff --check` gates passed. The .NET test host initially could not bind its runner socket in the sandbox; the elevated retry ran and passed the focused suite. No full suite or PostgreSQL-backed integration test was run. A signed-in browser export journey was unavailable; the local UI had previously stopped at its unauthenticated access gate. No migration or business-data change was made. FSR remains PARTIAL; this slice does not provide source-record lineage, professional policy approval, complete notes/disclosures, final composition, sealing, signing acceptance or release.
 
 
-## Client receipt acknowledgment — 2026-10-15
+## CP-19 client receipt recovery — 2026-10-15
 
-The portal stores a signed-in client user's immutable, engagement-scoped attestation for exact ZIP and manifest hashes. Row locking makes retries idempotent; authorization, stale hashes and SQL mutation are covered. It does not prove completed download or provider delivery.
+A scoped client-only receipt lookup resolves an exact management request. The tab persists only request ID (firm/user/session/package scope); after reload, the client re-enters values and confirms exact-intent retry. A missing receipt is point-in-time, not proof no commit occurred. Bundle acknowledgement does not prove download or delivery.
 
-Observed: Release solution build; Domain 2/2, Angular 2/2; EF/OpenAPI drift pass. Migration generated; no persistent database migrated. Full suites, authenticated browser, provider, legal/signing and production gates remain open. Commands: [status.json](status.json).
+Observed: Release build; Domain 1/1; Angular 7/7; EF/OpenAPI PASS. No migration, authenticated browser or full suite; external and professional gates remain.

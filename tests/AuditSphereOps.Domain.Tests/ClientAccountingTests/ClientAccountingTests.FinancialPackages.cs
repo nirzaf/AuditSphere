@@ -243,6 +243,7 @@ public sealed partial class ClientAccountingTests
     }
 
     var actor = Actor(clientUser, "ClientUser");
+    var decisionRequestId = Guid.CreateVersion7();
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var view = await FinancialPackageReviewService.GetClientViewAsync(db, actor, packageA);
@@ -254,8 +255,20 @@ public sealed partial class ClientAccountingTests
       var decision = await FinancialPackageReviewService.RecordAsync(db, actor,
         new FinancialPackageReviewRequest(packageA, FinancialPackageReviewStages.ManagementApproval,
           FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn,
-          "client-portal-ack-1", "Management reviewed the supplied package."));
+          "client-portal-ack-1", "Management reviewed the supplied package.", RequestId: decisionRequestId,
+          ExpectedLatestDecisionId: null));
       Assert.True(decision.Succeeded, decision.Message);
+
+      var receipt = await FinancialPackageReviewService.GetClientDecisionReceiptAsync(db, actor, packageA, decisionRequestId);
+      Assert.True(receipt.Succeeded, receipt.Message);
+      Assert.True(receipt.Value!.Found);
+      Assert.Equal(decision.Value, receipt.Value.DecisionId);
+      Assert.Equal(FinancialPackageReviewDecisions.Approved, receipt.Value.Decision);
+      Assert.Equal((await db.FinancialPackages.AsNoTracking().SingleAsync(x => x.Id == packageA)).CalculationHash, receipt.Value.PackageHash);
+      Assert.NotNull(receipt.Value.DecidedAt);
+      var absent = await FinancialPackageReviewService.GetClientDecisionReceiptAsync(db, actor, packageA, Guid.CreateVersion7());
+      Assert.True(absent.Succeeded, absent.Message);
+      Assert.False(absent.Value!.Found);
 
       var approved = await FinancialPackageReviewService.GetClientViewAsync(db, actor, packageA);
       Assert.True(approved.Succeeded, approved.Message);
@@ -270,6 +283,12 @@ public sealed partial class ClientAccountingTests
       var otherClient = await FinancialPackageReviewService.GetClientViewAsync(db, actor, packageB);
       Assert.False(otherClient.Succeeded);
       Assert.Equal(ErrorCodes.ScopeDenied, otherClient.ErrorCode);
+      var foreignReceipt = await FinancialPackageReviewService.GetClientDecisionReceiptAsync(db, actor, packageB, decisionRequestId);
+      Assert.False(foreignReceipt.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, foreignReceipt.ErrorCode);
+      var staffLookup = await FinancialPackageReviewService.GetClientDecisionReceiptAsync(db, Actor(scope.Partner, "Partner"), packageA, decisionRequestId);
+      Assert.False(staffLookup.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, staffLookup.ErrorCode);
     }
 
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -290,6 +309,9 @@ public sealed partial class ClientAccountingTests
           "stale-client-session", "Must not persist after grant revocation."));
       Assert.False(staleDecision.Succeeded);
       Assert.Equal(ErrorCodes.GenerationStale, staleDecision.ErrorCode);
+      var staleReceipt = await FinancialPackageReviewService.GetClientDecisionReceiptAsync(db, actor, packageA, decisionRequestId);
+      Assert.False(staleReceipt.Succeeded);
+      Assert.Equal(ErrorCodes.GenerationStale, staleReceipt.ErrorCode);
       Assert.Single(await db.FinancialPackageReviewDecisions.AsNoTracking()
         .Where(x => x.FinancialPackageId == packageA).ToListAsync());
     }

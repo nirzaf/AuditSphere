@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { clientDecisionIntent, clientDecisionRequest, clientPackage, ClientDecisionForm, ClientPackageView } from './package';
+import { clientDecisionIntent, clientDecisionReceiptUrl, clientDecisionRequest, clientPackage, ClientDecisionForm,
+  ClientPackageView, clearClientDecisionReference, readClientDecisionReference, saveClientDecisionReference } from './package';
 
 const hash = 'a'.repeat(64);
 const digest = 'b'.repeat(64);
@@ -50,5 +51,20 @@ describe('client management decision on the exact composition (F-02)', () => {
 
   it('refuses a composition without a lowercase SHA-256 manifest digest', () => {
     expect(() => view({ composition: { ...view().composition!, compositionManifestDigest: 'not-a-digest' } })).toThrow();
+  });
+
+  it('persists only the scoped opaque request identity for reload recovery', () => {
+    sessionStorage.clear();
+    const scope = { firmId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', userId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      generation: '7', packageId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' };
+    const requestId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+    expect(saveClientDecisionReference(sessionStorage, scope, requestId)).toBe(true);
+    expect(readClientDecisionReference(sessionStorage, scope)).toBe(requestId);
+    const stored = sessionStorage.getItem(sessionStorage.key(0)!);
+    expect(stored).toBe(requestId);
+    expect(stored).not.toContain('evidence');
+    expect(clientDecisionReceiptUrl(scope.packageId, requestId)).toContain(`/decision-receipts/${requestId}`);
+    clearClientDecisionReference(sessionStorage, scope);
+    expect(readClientDecisionReference(sessionStorage, scope)).toBeNull();
   });
 });
