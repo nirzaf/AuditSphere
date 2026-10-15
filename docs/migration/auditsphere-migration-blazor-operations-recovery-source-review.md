@@ -40,7 +40,7 @@ recovery remain owned by Application `OperationRecoveryService`.
 - The PostgreSQL-backed API-host browser cohort passed **2/2**:
   `AngularOperationsRecoveryJourneyTests` and
   `AngularFirmScopeRevocationParityJourneyTests`. It verifies 26-row paging,
-  no horizontal overflow or clipped header/search text at 1141, 1024, 700 and
+  no horizontal overflow or clipped header at 1141, 1024, 700 and
   390px, request-byte redaction, administrator cancellation, and a retry whose
   successful server response is dropped. The refreshed row confirms
   `RETRY_WAIT`; the browser sends one POST and PostgreSQL contains exactly one
@@ -69,6 +69,16 @@ recovery remain owned by Application `OperationRecoveryService`.
   business action was submitted. The authorized interactive action path was
   verified against the isolated PostgreSQL browser fixture above.
 
+- At code commit `3a4acec2`, `AngularOperationsRecoveryJourneyTests` passed
+  **1/1** in 56 seconds. The responsive assertion now distinguishes intentional
+  screen-reader-only search guidance from visible header content. It checks the
+  search input's accessible description and guidance text, and preserves page
+  overflow and header bounds checks at 1141, 1024, 700 and 390px. The same journey
+  retains operation paging, redaction, cancellation and retry assertions.
+  Command: `dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --configuration Release --maxcpucount:1 --filter 'FullyQualifiedName~AngularOperationsRecoveryJourneyTests' --logger 'trx;LogFileName=operations-accessible-search-repair.trx' --results-directory /tmp/auditsphere-parity-regression`.
+  Evidence: `/tmp/auditsphere-parity-regression/operations-accessible-search-repair.trx`
+  (local ephemeral report).
+
 ## Remaining gaps
 
-This source row remains `PARTIAL`. Expired Administrator grant revocation and foreign-firm operation list/retry/cancel denial now have focused browser regressions. Other cross-firm capability boundaries, concurrent command, non-accepted/ambiguous retry, quarantine restart approval, operational rollback, and assistive-technology acceptance matrices remain open. The broader AS-PAR-002 retry/idempotency and authorization crosswalk remains open. This slice changed Application `RoleGrantExpiry` transaction handling; it did not change Domain models, API endpoints, EF mappings or schema. The full solution regression and EF pending-model check were not rerun; the latest complete solution checkpoint remains the earlier **1001/1001** result at `ead85032`. The rollback Web host and Blazor sources remain required until the source/action and external retirement gates pass.
+This source row remains `PARTIAL`. Expired Administrator grant revocation and foreign-firm operation list/retry/cancel denial now have focused browser regressions. Other cross-firm capability boundaries, concurrent command, non-accepted/ambiguous retry, quarantine restart approval, operational rollback, and assistive-technology acceptance matrices remain open. The broader AS-PAR-002 retry/idempotency and authorization crosswalk remains open. This slice changed Application `RoleGrantExpiry` transaction handling; it did not change Domain models, API endpoints, EF mappings or schema. The full solution regression remains open. The historical **1001/1001** checkpoint at `ead85032` does not establish current-tree readiness: the later Domain run at `b410768b` recorded 1046 passed and 13 failed, followed by a focused receivables repair. See `docs/execution/status.json` for current regression evidence. This Operations rerun does not close those failures or the full-solution gate. The rollback Web host and Blazor sources remain required until the source/action and external retirement gates pass.
