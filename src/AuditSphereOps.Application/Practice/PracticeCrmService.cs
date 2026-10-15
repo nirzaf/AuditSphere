@@ -545,7 +545,10 @@ public static partial class PracticeCrmService
         return CommandResult.Fail(ErrorCodes.GenerationStale, "The rendered quotation bytes no longer match the dispatched offer identity.");
     }
 
-    var recordedAt = DateTimeOffset.UtcNow;
+    // PostgreSQL timestamptz stores microseconds. Keep the mutable proposal projection and its
+    // immutable receipt on that same precision even when the host clock exposes 100 ns ticks.
+    var instant = DateTimeOffset.UtcNow;
+    var recordedAt = new DateTimeOffset(instant.Ticks - instant.Ticks % 10, TimeSpan.Zero);
     db.ProposalResponseRecords.Add(new ProposalResponseRecord
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ProposalId = proposal.Id,

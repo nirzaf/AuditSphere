@@ -1,4 +1,6 @@
+using System.Text;
 using AuditSphereOps.Application.Acceptance;
+using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Acceptance;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Audit;
@@ -128,25 +130,11 @@ public sealed class EngagementLifecycleQueryTests
       Assert.Equal(2, report.Value.Summary.StageIndex);
 
       var proposal = await db.Proposals.SingleAsync(x => x.FirmId == seed.FirmId && x.PracticeClientId == seed.ClientId);
-      var sentOffer = new string('c', 64);
-      var quotation = new QuotationVersion
-      {
-        Id = Guid.NewGuid(), FirmId = seed.FirmId, ProposalId = proposal.Id, Revision = 1, Currency = "QAR",
-        BaseAmount = proposal.Fee, Fee = proposal.Fee, InputHash = new string('e', 64), Status = QuotationStates.Approved,
-        ApprovedAt = now
-      };
-      db.QuotationVersions.Add(quotation);
-      proposal.Status = CrmStates.ProposalSent;
-      proposal.SentAt = now;
-      proposal.SentOfferSha256 = sentOffer;
-      db.CommercialNotifications.Add(new CommercialNotification
-      {
-        Id = Guid.NewGuid(), FirmId = seed.FirmId, Kind = CommercialNotificationKinds.Proposal,
-        ProposalId = proposal.Id, PracticeClientId = seed.ClientId, QuotationVersionId = quotation.Id,
-        OfferSha256 = sentOffer, Recipient = "director@lifecycle.example.test", Subject = "Synthetic dispatched offer",
-        Body = "Synthetic test evidence", CreatedAt = now
-      });
+      proposal.Status = CrmStates.ProposalInternalReview;
       await db.SaveChangesAsync();
+      var dispatch = await SeedDispatchedOfferAsync(db, proposal, partner.UserId, now, "director@lifecycle.example.test");
+      await db.SaveChangesAsync();
+      var sentOffer = dispatch.OfferSha256!;
 
       report = await EngagementLifecycleQuery.GetAsync(db, partner, engagementId);
       Assert.True(report.Succeeded);
@@ -173,10 +161,18 @@ public sealed class EngagementLifecycleQueryTests
       Assert.Equal(3, report.Value.Summary.StageIndex);
       Assert.Contains("Client commercial acceptance of proposal required", report.Value.Summary.BlockedReasons);
 
-      // Acceptance that answers an offer identity other than the dispatched one does not complete the commercial key.
-      proposal.Status = CrmStates.ProposalAccepted;
-      proposal.ResponseAt = now;
-      proposal.SentOfferSha256 = sentOffer;
+      // A real immutable response to the exact dispatch opens the client key.
+      var accepted = await PracticeCrmService.RecordProposalResponseAsync(db, partner, proposal.Id,
+        new("ACCEPTED", null, sentOffer, "Synthetic director", dispatch.Recipient,
+          "Synthetic signed acceptance evidence", Channel: ProposalResponseChannels.Email));
+      Assert.True(accepted.Succeeded, accepted.Message);
+
+      report = await EngagementLifecycleQuery.GetAsync(db, partner, engagementId);
+      Assert.Equal(CanonicalEngagementStages.AdvanceBilling, report.Value!.Summary.CanonicalStage);
+
+      // A tampered legacy projection that cites another offer identity cannot shadow its immutable receipt.
+      proposal = await db.Proposals.SingleAsync(x => x.FirmId == seed.FirmId && x.Id == proposal.Id);
+      var acceptedOffer = proposal.ResponseOfferSha256;
       proposal.ResponseOfferSha256 = new string('d', 64);
       await db.SaveChangesAsync();
 
@@ -185,8 +181,8 @@ public sealed class EngagementLifecycleQueryTests
       Assert.Contains("Client acceptance does not cite the current dispatched offer or quotation revision; re-record acceptance against the exact current offer.",
         report.Value.Summary.BlockedReasons);
 
-      // Exact acceptance of the dispatched offer -> AdvanceBilling, still gated on the letter and the fee agreement.
-      proposal.ResponseOfferSha256 = sentOffer;
+      // Restoring the projection to the exact immutable receipt returns the workflow to AdvanceBilling.
+      proposal.ResponseOfferSha256 = acceptedOffer;
       await db.SaveChangesAsync();
 
       report = await EngagementLifecycleQuery.GetAsync(db, partner, engagementId);
@@ -497,14 +493,12 @@ public sealed class EngagementLifecycleQueryTests
         Id = Guid.NewGuid(), FirmId = seed.FirmId, LeadId = lead.Id, PracticeClientId = seed.ClientId,
         ServiceRoute = "Audit", EntityScope = "TEST", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", Currency = "QAR", CreatedAt = now
       };
-      var quotationId = Guid.NewGuid();
-      var offerHash = new string('c', 64);
       var proposal = new Proposal
       {
         Id = Guid.NewGuid(), FirmId = seed.FirmId, PracticeClientId = seed.ClientId, OpportunityId = opportunity.Id,
-        Status = CrmStates.ProposalAccepted, Fee = 50000m, Currency = "QAR", ServiceProfileId = "AUDIT-2026",
+        Status = CrmStates.ProposalInternalReview, Fee = 50000m, Currency = "QAR", ServiceProfileId = "AUDIT-2026",
         Scope = "Statutory Financial Audit", Deliverables = "Audit Report", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31",
-        SentAt = now, SentOfferSha256 = offerHash, ResponseAt = now, ResponseOfferSha256 = offerHash
+        CreatedAt = now
       };
       db.Engagements.Add(new Engagement
       {
@@ -515,18 +509,14 @@ public sealed class EngagementLifecycleQueryTests
       db.Leads.Add(lead);
       db.Opportunities.Add(opportunity);
       db.Proposals.Add(proposal);
-      db.QuotationVersions.Add(new QuotationVersion
-      {
-        Id = quotationId, FirmId = seed.FirmId, ProposalId = proposal.Id, Revision = 1, Currency = "QAR",
-        BaseAmount = 50000m, Fee = 50000m, InputHash = new string('e', 64), Status = QuotationStates.Approved, ApprovedAt = now
-      });
-      db.CommercialNotifications.Add(new CommercialNotification
-      {
-        Id = Guid.NewGuid(), FirmId = seed.FirmId, Kind = CommercialNotificationKinds.Proposal,
-        ProposalId = proposal.Id, PracticeClientId = seed.ClientId, QuotationVersionId = quotationId,
-        OfferSha256 = offerHash, Recipient = "owner@matrix.example.test", Subject = "Synthetic dispatched offer",
-        Body = "Synthetic test evidence", CreatedAt = now
-      });
+      await db.SaveChangesAsync();
+      var dispatch = await SeedDispatchedOfferAsync(db, proposal, seed.Admin.Id, now, "owner@matrix.example.test");
+      await db.SaveChangesAsync();
+      var offerHash = dispatch.OfferSha256!;
+      var response = await PracticeCrmService.RecordProposalResponseAsync(db, partner, proposal.Id,
+        new("ACCEPTED", null, offerHash, "Synthetic director", dispatch.Recipient,
+          "Synthetic signed acceptance evidence", Channel: ProposalResponseChannels.Email));
+      Assert.True(response.Succeeded, response.Message);
       db.AcceptanceDecisions.Add(new AcceptanceDecision
       {
         Id = unconditionalId, FirmId = seed.FirmId, PracticeClientId = seed.ClientId, ServiceRoute = "Audit",
@@ -572,9 +562,23 @@ public sealed class EngagementLifecycleQueryTests
       report = await EngagementLifecycleQuery.GetAsync(db, partner, engagementId);
       Assert.Equal(CanonicalEngagementStages.AdvanceBilling, report.Value!.Summary.CanonicalStage);
 
-      // A declined dispatched proposal is never treated as client commercial consent.
-      var declined = await db.Proposals.SingleAsync(x => x.FirmId == seed.FirmId && x.PracticeClientId == seed.ClientId);
-      declined.Status = CrmStates.ProposalDeclined;
+      // A later immutable decline is the current offer and never inherits the prior proposal's acceptance.
+      var declineLead = new Lead { Id = Guid.NewGuid(), FirmId = seed.FirmId, Name = "Synthetic declined proposal", Source = "Referral", CreatedAt = now.AddSeconds(5) };
+      var declineOpportunity = new Opportunity { Id = Guid.NewGuid(), FirmId = seed.FirmId, LeadId = declineLead.Id, PracticeClientId = seed.ClientId,
+        ServiceRoute = "Audit", EntityScope = "TEST", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", Currency = "QAR", CreatedAt = now.AddSeconds(5) };
+      var declined = new Proposal { Id = Guid.NewGuid(), FirmId = seed.FirmId, PracticeClientId = seed.ClientId, OpportunityId = declineOpportunity.Id,
+        Status = CrmStates.ProposalInternalReview, Fee = 50000m, Currency = "QAR", ServiceProfileId = "AUDIT-2026",
+        Scope = "Statutory Financial Audit", Deliverables = "Audit Report", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", CreatedAt = now.AddSeconds(5) };
+      db.Leads.Add(declineLead);
+      db.Opportunities.Add(declineOpportunity);
+      db.Proposals.Add(declined);
+      await db.SaveChangesAsync();
+      var declineDispatch = await SeedDispatchedOfferAsync(db, declined, seed.Admin.Id, now.AddSeconds(5), "owner@matrix.example.test");
+      await db.SaveChangesAsync();
+      var declineResponse = await PracticeCrmService.RecordProposalResponseAsync(db, partner, declined.Id,
+        new("DECLINED", "Revise scope", declineDispatch.OfferSha256!, "Synthetic director", declineDispatch.Recipient,
+          "Synthetic decline evidence", Channel: ProposalResponseChannels.Email));
+      Assert.True(declineResponse.Succeeded, declineResponse.Message);
       await db.SaveChangesAsync();
       report = await EngagementLifecycleQuery.GetAsync(db, partner, engagementId);
       Assert.Equal(CanonicalEngagementStages.DualKeyPending, report.Value!.Summary.CanonicalStage);
@@ -593,8 +597,6 @@ public sealed class EngagementLifecycleQueryTests
     var leadId = Guid.NewGuid();
     var opportunityId = Guid.NewGuid();
     var proposalId = Guid.NewGuid();
-    var quotationId = Guid.NewGuid();
-    var offerHash = new string('c', 64);
 
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
@@ -605,37 +607,33 @@ public sealed class EngagementLifecycleQueryTests
         PeriodStart = "2027-01-01", PeriodEnd = "2027-12-31", ServiceProfileId = "CommercialAudit",
         Status = "Draft", ProfessionalWorkBlocked = true, CreatedAt = now
       });
-      db.Leads.Add(new Lead
+      var lead = new Lead
       {
         Id = leadId, FirmId = seed.FirmId, Name = "Synthetic annual workflow client", Source = "Referral", CreatedAt = now
-      });
-      db.Opportunities.Add(new Opportunity
+      };
+      var opportunity = new Opportunity
       {
         Id = opportunityId, FirmId = seed.FirmId, LeadId = leadId, PracticeClientId = seed.ClientId,
         ServiceRoute = "Audit", EntityScope = "TEST", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31",
         Currency = "QAR", CreatedAt = now
-      });
-      db.Proposals.Add(new Proposal
+      };
+      var proposal = new Proposal
       {
         Id = proposalId, FirmId = seed.FirmId, PracticeClientId = seed.ClientId, OpportunityId = opportunityId,
-        Status = CrmStates.ProposalAccepted, Fee = 50000m, Currency = "QAR", ServiceProfileId = "AUDIT-2026",
+        Status = CrmStates.ProposalInternalReview, Fee = 50000m, Currency = "QAR", ServiceProfileId = "AUDIT-2026",
         Scope = "Statutory Financial Audit", Deliverables = "Audit Report", PeriodStart = "2026-01-01",
-        PeriodEnd = "2026-12-31", SentAt = now, SentOfferSha256 = offerHash, ResponseAt = now,
-        ResponseOfferSha256 = offerHash
-      });
-      db.QuotationVersions.Add(new QuotationVersion
-      {
-        Id = quotationId, FirmId = seed.FirmId, ProposalId = proposalId, Revision = 1, Currency = "QAR",
-        BaseAmount = 50000m, Fee = 50000m, InputHash = new string('e', 64), Status = QuotationStates.Approved,
-        ApprovedAt = now
-      });
-      db.CommercialNotifications.Add(new CommercialNotification
-      {
-        Id = Guid.NewGuid(), FirmId = seed.FirmId, Kind = CommercialNotificationKinds.Proposal,
-        ProposalId = proposalId, PracticeClientId = seed.ClientId, QuotationVersionId = quotationId,
-        OfferSha256 = offerHash, Recipient = "owner@annual.example.test", Subject = "Prior-period synthetic offer",
-        Body = "Synthetic test evidence", CreatedAt = now
-      });
+        PeriodEnd = "2026-12-31", CreatedAt = now
+      };
+      db.Leads.Add(lead);
+      db.Opportunities.Add(opportunity);
+      db.Proposals.Add(proposal);
+      await db.SaveChangesAsync();
+      var dispatch = await SeedDispatchedOfferAsync(db, proposal, seed.Admin.Id, now, "owner@annual.example.test");
+      await db.SaveChangesAsync();
+      var accepted = await PracticeCrmService.RecordProposalResponseAsync(db, partner, proposalId,
+        new("ACCEPTED", null, dispatch.OfferSha256!, "Synthetic director", dispatch.Recipient,
+          "Synthetic signed acceptance evidence", Channel: ProposalResponseChannels.Email));
+      Assert.True(accepted.Succeeded, accepted.Message);
       db.AcceptanceDecisions.Add(new AcceptanceDecision
       {
         Id = Guid.NewGuid(), FirmId = seed.FirmId, PracticeClientId = seed.ClientId, ServiceRoute = "Audit",
@@ -650,5 +648,67 @@ public sealed class EngagementLifecycleQueryTests
       Assert.Equal(CanonicalEngagementStages.ProposalGeneration, report.Value!.Summary.CanonicalStage);
       Assert.Contains("Commercial proposal preparation and dispatch required", report.Value.Summary.BlockedReasons);
     }
+  }
+
+  private static async Task<CommercialNotification> SeedDispatchedOfferAsync(
+    AuditSphereDbContext db, Proposal proposal, Guid actorUserId, DateTimeOffset createdAt, string recipient)
+  {
+    var routed = await (from routing in db.ClientContactRoutings.AsNoTracking()
+      join contact in db.ClientContacts.AsNoTracking() on new { routing.FirmId, routing.PracticeClientId, Id = routing.ClientContactId }
+        equals new { contact.FirmId, contact.PracticeClientId, Id = contact.Id }
+      where routing.FirmId == proposal.FirmId && routing.PracticeClientId == proposal.PracticeClientId &&
+        routing.Purpose == CorrespondencePurposes.Commercial && routing.IsPrimaryForPurpose && routing.RevokedAt == null && contact.IsActive
+      orderby routing.CreatedAt descending, routing.Id descending
+      select new { Routing = routing, Contact = contact }).FirstOrDefaultAsync();
+    var contactId = routed?.Contact.Id ?? Guid.NewGuid();
+    var routingId = routed?.Routing.Id ?? Guid.NewGuid();
+    if (routed is null)
+    {
+      db.ClientContacts.Add(new ClientContact
+      {
+        Id = contactId, FirmId = proposal.FirmId, PracticeClientId = proposal.PracticeClientId!.Value,
+        FullName = "Synthetic authorized commercial contact", Email = recipient, Role = "Director", Title = "Finance Director",
+        SignatoryAuthority = "Authorized commercial contact", Primary = true, IsActive = true
+      });
+      db.ClientContactRoutings.Add(new ClientContactRouting
+      {
+        Id = routingId, FirmId = proposal.FirmId, PracticeClientId = proposal.PracticeClientId.Value,
+        ClientContactId = contactId, Purpose = CorrespondencePurposes.Commercial, IsPrimaryForPurpose = true,
+        CreatedByUserId = actorUserId, CreatedAt = createdAt
+      });
+    }
+
+    var quotationId = Guid.NewGuid();
+    var documentId = Guid.NewGuid();
+    var bytes = Encoding.UTF8.GetBytes($"Synthetic exact rendered offer for proposal {proposal.Id:D}.");
+    var offerHash = Hashing.Sha256Hex(bytes);
+    db.QuotationVersions.Add(new QuotationVersion
+    {
+      Id = quotationId, FirmId = proposal.FirmId, ProposalId = proposal.Id, Revision = 1,
+      Currency = proposal.Currency, BaseAmount = proposal.Fee, Fee = proposal.Fee,
+      InputHash = Hashing.Sha256Hex($"synthetic quotation {proposal.Id:D}"),
+      Status = QuotationStates.Approved, RequiredApprovalsJson = "[]", CreatedByUserId = actorUserId,
+      CreatedAt = createdAt, ApprovedAt = createdAt
+    });
+    db.CommercialDocuments.Add(new CommercialDocument
+    {
+      Id = documentId, FirmId = proposal.FirmId, ProposalId = proposal.Id, QuotationVersionId = quotationId,
+      Kind = CommercialDocumentKinds.Quotation, TemplateVersion = "SYNTHETIC-QUOTATION-v1", ProfileVersion = 1,
+      FileName = $"Quotation-{proposal.Id:N}.docx", ContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      Bytes = bytes, Sha256Hex = offerHash, CreatedByUserId = actorUserId, CreatedAt = createdAt
+    });
+    proposal.Status = CrmStates.ProposalSent;
+    proposal.SentAt = createdAt;
+    proposal.SentOfferSha256 = offerHash;
+    var dispatch = new CommercialNotification
+    {
+      Id = Guid.NewGuid(), FirmId = proposal.FirmId, Kind = CommercialNotificationKinds.Proposal,
+      ProposalId = proposal.Id, PracticeClientId = proposal.PracticeClientId, QuotationVersionId = quotationId,
+      DocumentId = documentId, OfferSha256 = offerHash, RecipientContactId = contactId, RecipientRoutingId = routingId,
+      RecipientAuthorityBasis = ProposalRecipientAuthorityBases.ClientCommercialRouting, Recipient = recipient,
+      Subject = "Synthetic exact rendered offer", Body = "Synthetic dispatch evidence", CreatedAt = createdAt
+    };
+    db.CommercialNotifications.Add(dispatch);
+    return dispatch;
   }
 }
