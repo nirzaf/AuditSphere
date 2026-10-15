@@ -178,7 +178,7 @@ This closes the F-08 composition-to-review/release/bundle wiring. F-08 remains *
 
 **P1; P0 when confidential dispatch/consent is affected · SOURCE_CONFIRMED fallback plus DOCUMENTED_OPEN/VERIFICATION_GAP · CP-02–CP-08/CP-15/CP-16/CP-22/CP-23.**
 
-The inspected fallback offer hash uses proposal/revision, optional `CreateRequestHash`, quotation references and amounts/currency. It does not independently enumerate all entity/scope/period/terms fields; whether those are transitively bound depends on creation provenance. Do not assert that every modern proposal is unsafe, but legacy/missing creation hashes require an explicit complete-offer rule. [R25]
+The baseline fallback offer hash used proposal/revision, optional `CreateRequestHash`, quotation references and amounts/currency. It did not independently enumerate all entity/scope/period/terms fields. The current dispatch path now requires the exact current rendered quotation and immutable response provenance; legacy or insufficiently evidenced offers remain blocked. Broader recipient-purpose routing and proposal-content acceptance remain open. [R25] [R28]
 
 The v2.2 map and code map identify residual routing, professional template content, response history, assignment/recurrence/deadline and cross-workbench acceptance work. Some old “missing” views, reminder mechanisms and analytics definitions already exist. Re-inspect each affected command before implementation; broad gaps below are not blanket claims that CRM, billing, planning or audit programs are absent. Preserve ADR-0017/0018 decisions and existing task/PBC/reminder work. [R02]–[R04]
 
@@ -340,15 +340,18 @@ The original CP names, criterion IDs and criterion wording below are retained. T
 
 **Outcome:** Route offers, invoices, requests and final reports to the correct current same-client people.
 
-**Evidence / reuse map:** [R02] [R03] [R04] [R25].
+**Evidence / reuse map:** [R02] [R03] [R04] [R25] [R28].
+
+### Implementation update — 2026-10-15, master `d991ddc6`
+
+Proposal dispatch now snapshots the eligible same-client commercial recipient and binds it to the current approved quotation and its rendered artifact. The broader purpose-based contact model, ambiguity/expiry screens and contact-history workflows remain open. See [R28].
 
 ### Remaining implementation
 
-1. Re-inspect client relationship and contact commands before adding code. Preserve the existing parent/subsidiary/affiliate model and distinguish a holding relationship from consolidated-book authority. Test cycles, duplicate links, invalid scope and supported tree depth.
-2. Complete create/amend/deactivate and history flows for legal identity, contacts, validity windows, signatory capacity and approved communication purposes. Job-title text is descriptive and must not become an access grant.
-3. Resolve COMMERCIAL, FINANCE, AUDIT_FIELDWORK and final-deliverable recipient rules with the owner. PBC assignment to a portal identity is not automatically equivalent to emailing a routed contact; keep the selected security model explicit.
-4. Bind recipient/contact revision, actual address, purpose, approved artifact and override rationale to the original send intent. Recheck eligibility at dispatch; do not silently replace a queued recipient after a contact amendment.
-5. Provide an authorized ambiguity/expiry/remediation screen and safe contact history. Multiple recipients must each be permitted for the document subset. Do not add WhatsApp dispatch from a channel label.
+1. Complete create/amend/deactivate and history flows for legal identity, contacts, validity windows, signatory capacity and approved communication purposes. Job-title text is descriptive and must not become an access grant. Preserve the existing parent/subsidiary/affiliate model and distinguish a holding relationship from consolidated-book authority. Test cycles, duplicate links, invalid scope and supported tree depth.
+2. Resolve COMMERCIAL, FINANCE, AUDIT_FIELDWORK and final-deliverable recipient rules with the owner. PBC assignment to a portal identity is not automatically equivalent to emailing a routed contact; keep the selected security model explicit.
+3. Extend the proposal dispatch’s recipient snapshot and stale-intent protection to the remaining approved communication purposes. Recheck eligibility at dispatch; do not silently replace a queued recipient after a contact amendment.
+4. Provide an authorized ambiguity/expiry/remediation screen and safe contact history. Multiple recipients must each be permitted for the document subset. Do not add WhatsApp dispatch from a channel label.
 
 **Required focused verification:** Recipient change, contact deactivation, expired delegation, wrong-client contact, ambiguous role routing and a lost send reply preserve exact intent and confidentiality.
 
@@ -363,21 +366,26 @@ The original CP names, criterion IDs and criterion wording below are retained. T
 
 ## CP-03 — Pricing, commercial documents and exact-offer acceptance
 
-**Priority:** P0 offer identity; P1 content/UX. **Current disposition:** PARTIAL — exact fallback requires provenance review; commercial paths exist.
+**Priority:** P0 offer identity; P1 content/UX. **Current disposition:** PARTIAL — exact rendered-offer response provenance is implemented for the verified path; broader routing, content and acceptance remain open.
 
 **Dependencies:** CP-00–CP-02; offer identity, wording and acceptance decisions.
 
 **Outcome:** Make client commercial consent refer to the exact offer actually issued, including legacy/fallback cases.
 
-**Evidence / reuse map:** [R02] [R03] [R04] [R25].
+**Evidence / reuse map:** [R02] [R03] [R04] [R25] [R28].
+
+### Implementation update — 2026-10-15, master `d991ddc6`
+
+New proposal dispatches require the current approved quotation and its exact current rendered artifact with a matching SHA-256; an incomplete legacy fallback cannot be treated as an offer. Acceptance records the exact offer digest, frozen recipient, respondent, authority basis, response channel, evidence reference, actor and time in append-only evidence. Identical replay is idempotent; changed replay is refused. Client conversion and fee-agreement progression require this evidence. The worker attaches the exact rendered quotation bytes, and the Angular response form captures the required acceptance evidence. See [R28].
+
+Focused verification at `d991ddc6` passed: Release solution build; 42 PostgreSQL-backed Domain tests; 1 API journey; 1 Playwright commercial journey; 752 Angular tests; Angular production build; EF model drift; OpenAPI drift. The Angular build retains an existing component-style budget warning. No full .NET suite, live mailbox delivery, tenant acceptance, deployment or persistent database migration is claimed.
 
 ### Remaining implementation
 
-1. Reuse quotation/rate-card approval, CommercialDocumentService and PracticeCrmService. Examine CreateRequestHash provenance for every creation path before changing ProposalOfferSha256; do not assume either that it covers nothing or that it always covers all terms.
-2. Adopt the approved complete canonical fallback or require an eligible reviewed rendered offer. Bind entity, service, period, scope, fee/currency, payment terms, timeline, pricing revision and artifact/template identity. Legacy missing creation hashes must not acquire retrospective complete consent.
-3. Persist append-only dispatch and client response evidence with actual recorder, authorized respondent/capacity, response channel/time, source document and exact offer digest. Rejection/revision and stale consent must preserve predecessor history.
-4. Close the enabled brief quotation and five-chapter proposal path using reviewed firm text, exact team/CV/profile versions and mandatory content. Confirm whether DOCX is the approved presentation output; do not add PowerPoint just because a source uses the word presentation.
-5. Verify pricing boundaries, independent approvals/revocation, expiry and retries through Angular and API. Dispatch rechecks the unchanged recipient/offer; template or scope changes cannot inherit prior client consent.
+1. Complete the approved offer-content model across every proposal creation path, including entity, service, period, scope, fee/currency, terms, timeline, pricing revision, template and artifact identity. Historical proposals without sufficient provenance stay blocked; any supported fallback needs an explicit complete-identity rule.
+2. Complete purpose-specific recipient selection, ambiguity/expiry preview and remediation for the approved contact model. Recheck eligibility at dispatch and preserve the original intent if contact data changes.
+3. Close the enabled brief quotation and five-chapter proposal path using reviewed firm text, exact team/CV/profile versions and mandatory content. Confirm whether DOCX is the approved presentation output; do not add PowerPoint just because a source uses the word presentation.
+4. Verify pricing boundaries, independent approvals/revocation, expiry and unknown-send recovery across Angular and API. Record provider delivery only when the provider supplies evidence; the current dispatch receipt does not prove mailbox delivery.
 
 **Required focused verification:** Missing fallback provenance, altered period/terms/CV/timeline, stale price approval, wrong signatory and repeat dispatch cannot create a valid acceptance of a different offer.
 
@@ -1578,11 +1586,13 @@ All repository implementation links below are pinned to the audited source unles
 
 - **R24 — [Existing production Data Protection key persistence and certificate guard](https://github.com/nirzaf/AuditSphere/blob/bf30879adcec13c90ade353986151f997eedb450/src/AuditSphereOps.Api/Authentication/ProductionDataProtection.cs)**. `src/AuditSphereOps.Api/Authentication/ProductionDataProtection.cs`.
 
-- **R25 — [Commercial offer fallback digest](https://github.com/nirzaf/AuditSphere/blob/bf30879adcec13c90ade353986151f997eedb450/src/AuditSphereOps.Application/Practice/PracticeCrmService.Dispatch.cs)**. `src/AuditSphereOps.Application/Practice/PracticeCrmService.Dispatch.cs`.
+- **R25 — Historical baseline evidence: [commercial offer fallback digest](https://github.com/nirzaf/AuditSphere/blob/bf30879adcec13c90ade353986151f997eedb450/src/AuditSphereOps.Application/Practice/PracticeCrmService.Dispatch.cs)**. The cited implementation was later replaced; see R28 for current code.
 
 - **R26 — [Common API command/session/antiforgery wrapper](https://github.com/nirzaf/AuditSphere/blob/bf30879adcec13c90ade353986151f997eedb450/src/AuditSphereOps.Api/Ui/UiEndpoints.Infrastructure.cs)**. `src/AuditSphereOps.Api/Ui/UiEndpoints.Infrastructure.cs`.
 
 - **R27 — [Existing approved-chart GL import and sealed source records](https://github.com/nirzaf/AuditSphere/blob/bf30879adcec13c90ade353986151f997eedb450/src/AuditSphereOps.Application/Accounting/ClientAccounting/ClientAccountingService.GeneralLedger.cs)**. `src/AuditSphereOps.Application/Accounting/ClientAccounting/ClientAccountingService.GeneralLedger.cs`.
+
+- **R28 — [Current rendered-offer dispatch and immutable proposal response provenance](https://github.com/nirzaf/AuditSphere/blob/d991ddc682cf3e657927d1a01542922911e174d3/src/AuditSphereOps.Application/Practice/PracticeCrmService.cs)**. Response-evidence model: `src/AuditSphereOps.Application/Practice/ProposalResponseEvidence.cs`.
 
 - **H01 — [Observed branch metadata; live endpoint, observation is pinned by the recorded SHA](https://api.github.com/repos/nirzaf/AuditSphere/branches/master)**.
 
@@ -1655,6 +1665,8 @@ No repository source, database, workflow run, branch setting, provider permissio
 [R26]: https://github.com/nirzaf/AuditSphere/blob/bf30879adcec13c90ade353986151f997eedb450/src/AuditSphereOps.Api/Ui/UiEndpoints.Infrastructure.cs
 
 [R27]: https://github.com/nirzaf/AuditSphere/blob/bf30879adcec13c90ade353986151f997eedb450/src/AuditSphereOps.Application/Accounting/ClientAccounting/ClientAccountingService.GeneralLedger.cs
+
+[R28]: https://github.com/nirzaf/AuditSphere/blob/d991ddc682cf3e657927d1a01542922911e174d3/src/AuditSphereOps.Application/Practice/PracticeCrmService.cs
 
 [H01]: https://api.github.com/repos/nirzaf/AuditSphere/branches/master
 

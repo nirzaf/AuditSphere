@@ -4,10 +4,10 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "6f0713299059635fd05c80f3864354f7fbd7c282",
+  "headCommit": "d991ddc682cf3e657927d1a01542922911e174d3",
   "verifiedCommit": "acf6201959e015a63d5ec7ac436b310a97e795a1",
   "remoteHeadVerified": true,
-  "verifiedCommitWasRemoteHead": true,
+  "verifiedCommitWasRemoteHead": false,
   "productionEnabled": false,
   "verifiedAt": "2026-10-12T08:17:17Z",
   "toolchain": {
@@ -1023,6 +1023,13 @@
         "28 pre-existing Domain failures listed above",
         "professional decision packets (T003 profile, management signatory/capacity, document wording)"
       ]
+    },
+    "ste22F08CommercialResponse": {
+      "recordedAtUtc": "2026-10-15T10:27:47Z",
+      "sourceCommit": "d991ddc682cf3e657927d1a01542922911e174d3",
+      "status": "PARTIAL",
+      "verified": "Release build 0 warnings/errors; PG Domain 42/42; API 1/1; E2E 1/1; Angular 752/752; EF/OpenAPI/docs pass; style warning.",
+      "open": "Full suites/hosted CI; broader offer/content/routing/expiry/recovery; provider delivery; professional/live acceptance and deployment."
     }
   },
   "externalGates": [

@@ -15,6 +15,19 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## STE v2.2 proposal response provenance increment — 2026-10-15
+
+Source: the STE v2.2 end-to-end audit and completion story. Code is on `master` at `d991ddc682cf3e657927d1a01542922911e174d3` (pushed). This increment closes the exact rendered-offer and immutable client-response evidence path within CP-03/F-10; it does not close the wider work packages or the whole story.
+
+- Proposal dispatch requires the current approved quotation and exact current rendered artifact with a matching digest. The linked client’s eligible commercial contact is snapshotted; a prospect’s primary contact is captured for the proposal intent. Stale, missing or incomplete legacy offer evidence fails closed.
+- Acceptance evidence records the exact offer digest, recipient and route/contact identity, respondent and authority basis, response channel, evidence reference, actor and time. Response evidence is append-only. Exact replay is idempotent; altered replay is refused. Client conversion and fee-agreement progression require the current evidence.
+- The durable mail operation attaches the rendered quotation bytes whose digest was checked. The Angular response flow collects the evidence needed to record acceptance or decline.
+- The additive persistence migration is generated and model-checked; it has not been applied to any persistent database. No live mail delivery, VPS update, production migration or provider acceptance is claimed.
+
+Verification at the code commit: Release solution build (0 warnings, 0 errors); focused PostgreSQL Domain cohort 42/42; API journey 1/1; Playwright commercial journey 1/1; Angular CI specs 752/752; Angular production build; EF model drift; OpenAPI drift. Angular reports the existing `commercial/settings.scss` style-budget warning. Documentation health still required a stale baseline-reference correction, recorded in the follow-up commit. Full .NET suite and hosted CI were not part of this focused run.
+
+Remaining CP-03/F-10 work includes full proposal identity/content coverage, all approved recipient-purpose routes, ambiguity/expiry preview and remediation, pricing revocation and unknown-send recovery, truthful provider-delivery evidence, broader regression cohorts and professional/live-provider acceptance. See the specific update and evidence in [`Audit_and_Gap_Closure.md`](../../Audit_and_Gap_Closure.md) and `status.json` under `targetedVerification.ste22F08CommercialResponse`.
+
 ## STE v2.2 end-to-end story, first increment (F-15, F-01–F-05, F-09, F-11 label) — 2026-10-15
 
 Source: the STE v2.2 end-to-end audit and completion story reviewed at `b05a6bf6`. This increment implements its first dependency-ordered handoff and the engineering-only P0/P1 deltas that need no professional decision. The overall project remains PARTIAL; no production readiness is claimed.
