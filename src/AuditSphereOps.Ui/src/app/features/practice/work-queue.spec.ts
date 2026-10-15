@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeActivity } from './work-queue';
+import { decodeActivity, decodeQueueSummary } from './work-queue';
 
 const activity = {
   engagementId: 'b43c00a8-a7a1-4efb-8e3d-1fd88f7ee447',
@@ -53,6 +53,39 @@ describe('workflow task activity contract', () => {
   });
 });
 
+const summaryViews = ['MY_TASKS', 'DUE_TODAY', 'OVERDUE', 'WAITING_FOR_CLIENT', 'UNDER_REVIEW', 'CHANGES_REQUIRED', 'UPCOMING'];
+const summary = (counts: Record<string, string> = {}) => ({
+  asOfDateUtc: '2026-10-15',
+  counts: summaryViews.map(view => ({ view, count: counts[view] ?? '0' })),
+});
+
+describe('work overview summary contract', () => {
+  it('decodes seven exact count strings into the fixed card order without numeric conversion', () => {
+    const source = summary({ MY_TASKS: '101', UPCOMING: '9223372036854775807' });
+    const decoded = decodeQueueSummary({ ...source, counts: [...source.counts].reverse() }, 'summary');
+    expect(decoded.asOfDateUtc).toBe('2026-10-15');
+    expect(decoded.cards.map(x => x.key)).toEqual(summaryViews);
+    expect(decoded.cards.map(x => x.label))
+      .toEqual(['My tasks', 'Due today', 'Overdue', 'Waiting for client', 'Under review', 'Rework required', 'Next 7 days']);
+    expect(decoded.cards[0].count).toBe('101');
+    expect(decoded.cards[6].count).toBe('9223372036854775807');
+  });
+
+  it('rejects malformed, negative, scientific, padded and non-string counts', () => {
+    for (const count of ['1e3', '-1', '01', '1.0', ' 1', '', '12345678901234567890', 101, null])
+      expect(() => decodeQueueSummary({ ...summary(), counts: summary().counts.map(x => x.view === 'OVERDUE' ? { ...x, count } : x) }, 'summary')).toThrow();
+  });
+
+  it('rejects duplicate, missing, unexpected and extra views and a malformed as-of date', () => {
+    const counts = summary().counts;
+    expect(() => decodeQueueSummary({ ...summary(), counts: [...counts.slice(0, 6), { view: 'MY_TASKS', count: '1' }] }, 'summary')).toThrow();
+    expect(() => decodeQueueSummary({ ...summary(), counts: counts.slice(0, 6) }, 'summary')).toThrow();
+    expect(() => decodeQueueSummary({ ...summary(), counts: [...counts.slice(0, 6), { view: 'TEAM', count: '1' }] }, 'summary')).toThrow();
+    expect(() => decodeQueueSummary({ ...summary(), counts: [...counts, { view: 'TEAM', count: '1' }] }, 'summary')).toThrow();
+    expect(() => decodeQueueSummary({ ...summary(), asOfDateUtc: '15/10/2026' }, 'summary')).toThrow();
+  });
+});
+
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
@@ -70,20 +103,185 @@ describe('workflow queue assignment filters', () => {
     const flushQueue = (url: string, view: string) => http.expectOne(url).flush({ view, tasks: [], hasMore: false, nextCursor: null });
     try {
       fixture.detectChanges(); TestBed.tick();
-      flushQueue('/api/ui/work/tasks?view=MY_TASKS&pageSize=50', 'MY_TASKS');
+      flushQueue('/api/ui/work/tasks?view=MY_TASKS&pageSize=50&includeSummary=true', 'MY_TASKS');
       http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
       const component = fixture.componentInstance;
       component.selectView('TEAM'); TestBed.tick();
-      flushQueue('/api/ui/work/tasks?view=TEAM&pageSize=50', 'TEAM');
+      flushQueue('/api/ui/work/tasks?view=TEAM&pageSize=50&includeSummary=true', 'TEAM');
       component.selectOwnerFilter('ME'); TestBed.tick();
-      flushQueue(`/api/ui/work/tasks?view=TEAM&pageSize=50&assigneeUserId=${userId}`, 'TEAM');
+      flushQueue(`/api/ui/work/tasks?view=TEAM&pageSize=50&includeSummary=true&assigneeUserId=${userId}`, 'TEAM');
       component.nextPage({ dueDate: null, taskId: userId }); TestBed.tick();
-      flushQueue(`/api/ui/work/tasks?view=TEAM&pageSize=50&assigneeUserId=${userId}&afterTaskId=${userId}`, 'TEAM');
+      flushQueue(`/api/ui/work/tasks?view=TEAM&pageSize=50&includeSummary=true&assigneeUserId=${userId}&afterTaskId=${userId}`, 'TEAM');
       component.selectOwnerFilter('UNASSIGNED'); TestBed.tick();
-      flushQueue('/api/ui/work/tasks?view=TEAM&pageSize=50&unassignedOnly=true', 'TEAM');
+      flushQueue('/api/ui/work/tasks?view=TEAM&pageSize=50&includeSummary=true&unassignedOnly=true', 'TEAM');
       component.selectView('MY_TASKS'); TestBed.tick();
-      flushQueue('/api/ui/work/tasks?view=MY_TASKS&pageSize=50', 'MY_TASKS');
+      flushQueue('/api/ui/work/tasks?view=MY_TASKS&pageSize=50&includeSummary=true', 'MY_TASKS');
       expect(component.ownerFilter()).toBe('ALL');
+      http.verify({ ignoreCancelled: true });
+    } finally { fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+
+  const tasksUrl = (query: string) => `/api/ui/work/tasks?${query}`;
+  const task = {
+    taskId: '22222222-2222-4222-8222-222222222222', clientId: '33333333-3333-4333-8333-333333333333', clientName: 'Client A',
+    engagementId: '44444444-4444-4444-8444-444444444444', engagementServiceRoute: 'AUDIT', engagementPeriod: 'FY2026',
+    title: 'Prepare lead schedule', phase: 'FIELDWORK', ordinal: 1, taskStatus: 'OPEN',
+    assigneeUserId: '11111111-1111-4111-8111-111111111111', assigneeDisplayName: 'Audit staff', dueDate: '2026-10-15',
+    mappingVersionId: null, fsliCode: null, unmetTaskDependencies: 0, unmetEvidencePrerequisites: 0,
+    canComplete: false, canChangeDueDate: false, revision: 1, pbcRequestId: null, pbcState: null, reviewState: null, reviewComment: null,
+  };
+  const start = () => {
+    TestBed.configureTestingModule({ imports: [WorkflowWorkQueue], providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])] });
+    const userId = '11111111-1111-4111-8111-111111111111';
+    const session = TestBed.inject(SessionService);
+    session.current.set({ userId, firmId: userId, generation: '1', staff: true });
+    const fixture = TestBed.createComponent(WorkflowWorkQueue);
+    const http = TestBed.inject(HttpTestingController);
+    const host = fixture.nativeElement as HTMLElement;
+    const overview = () => host.querySelector('section[aria-labelledby="work-summary-heading"]') as HTMLElement;
+    const cards = () => Array.from(overview().querySelectorAll<HTMLButtonElement>('button.summary-card'));
+    const card = (label: string) => cards().find(x => x.querySelector('.summary-label')?.textContent?.trim() === label)!;
+    const countOf = (label: string) => card(label).querySelector('.summary-count')?.textContent?.trim();
+    return { fixture, http, session, userId, host, overview, cards, card, countOf, component: fixture.componentInstance };
+  };
+
+  it('renders exact complete counts above the review inbox and opens each card view with paging and assignment reset', () => {
+    const { fixture, http, userId, host, overview, cards, card, countOf, component } = start();
+    try {
+      fixture.detectChanges(); TestBed.tick();
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [task], hasMore: false, nextCursor: null, summary: summary({ MY_TASKS: '101', OVERDUE: '1234567' }) });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      TestBed.tick();
+
+      expect(overview().querySelector('h2#work-summary-heading')?.textContent?.trim()).toBe('Work overview');
+      const inbox = host.querySelector('section[aria-labelledby="review-inbox-heading"]')!;
+      expect(overview().compareDocumentPosition(inbox) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(cards().map(x => x.querySelector('.summary-label')?.textContent?.trim()))
+        .toEqual(['My tasks', 'Due today', 'Overdue', 'Waiting for client', 'Under review', 'Rework required', 'Next 7 days']);
+      expect(countOf('My tasks')).toBe('101');
+      expect(countOf('Overdue')).toBe('1,234,567');
+      expect(countOf('Due today')).toBe('0');
+      expect(host.textContent).toContain('1 assigned to you.');
+      expect(overview().textContent).toContain('As of 2026-10-15 (UTC)');
+      expect(overview().textContent).toContain('Counts cover each default authorized view and may overlap. Assignment filters affect the list below.');
+      expect(card('My tasks').getAttribute('aria-pressed')).toBe('true');
+      expect(card('Due today').getAttribute('aria-pressed')).toBe('false');
+      for (const item of cards()) {
+        expect(item.type).toBe('button');
+        expect(item.disabled).toBe(false);
+        expect(item.tabIndex).toBe(0);
+        item.focus();
+        expect(document.activeElement).toBe(item);
+      }
+
+      const display = host.querySelector('nav[aria-label="Work queue display"]')!;
+      expect(Array.from(display.querySelectorAll('button')).map(x => x.textContent?.trim())).toEqual(['List', 'Board', 'Calendar']);
+      const buttons = Array.from(host.querySelectorAll('button')).map(x => x.textContent?.trim());
+      expect(buttons).toContain('Review prerequisites');
+      expect(buttons).toContain('Review task ordering');
+      expect(buttons).toContain('View activity');
+
+      component.selectView('TEAM'); TestBed.tick();
+      http.expectOne(tasksUrl('view=TEAM&pageSize=50&includeSummary=true')).flush({ view: 'TEAM', tasks: [task], hasMore: false, nextCursor: null, summary: summary() });
+      component.selectOwnerFilter('ME'); TestBed.tick();
+      http.expectOne(tasksUrl(`view=TEAM&pageSize=50&includeSummary=true&assigneeUserId=${userId}`)).flush({ view: 'TEAM', tasks: [task], hasMore: false, nextCursor: null, summary: summary() });
+      component.nextPage({ dueDate: '2026-10-15', taskId: task.taskId }); TestBed.tick();
+      http.expectOne(tasksUrl(`view=TEAM&pageSize=50&includeSummary=true&assigneeUserId=${userId}&afterDueDate=2026-10-15&afterTaskId=${task.taskId}`))
+        .flush({ view: 'TEAM', tasks: [], hasMore: false, nextCursor: null, summary: summary() });
+      TestBed.tick();
+      card('Due today').click(); TestBed.tick();
+      http.expectOne(tasksUrl('view=DUE_TODAY&pageSize=50&includeSummary=true')).flush({ view: 'DUE_TODAY', tasks: [task], hasMore: false, nextCursor: null, summary: summary() });
+      TestBed.tick();
+      expect(component.selectedView()).toBe('DUE_TODAY');
+      expect(component.ownerFilter()).toBe('ALL');
+      expect(card('Due today').getAttribute('aria-pressed')).toBe('true');
+
+      component.selectOwnerFilter('UNASSIGNED'); TestBed.tick();
+      http.expectOne(tasksUrl('view=DUE_TODAY&pageSize=50&includeSummary=true&unassignedOnly=true')).flush({ view: 'DUE_TODAY', tasks: [task], hasMore: false, nextCursor: null, summary: summary() });
+      component.nextPage({ dueDate: null, taskId: task.taskId }); TestBed.tick();
+      http.expectOne(tasksUrl(`view=DUE_TODAY&pageSize=50&includeSummary=true&unassignedOnly=true&afterTaskId=${task.taskId}`))
+        .flush({ view: 'DUE_TODAY', tasks: [], hasMore: false, nextCursor: null, summary: summary() });
+      TestBed.tick();
+      card('Rework required').click(); TestBed.tick();
+      http.expectOne(tasksUrl('view=CHANGES_REQUIRED&pageSize=50&includeSummary=true')).flush({ view: 'CHANGES_REQUIRED', tasks: [], hasMore: false, nextCursor: null, summary: summary() });
+      TestBed.tick();
+      expect(component.selectedView()).toBe('CHANGES_REQUIRED');
+      expect(component.ownerFilter()).toBe('ALL');
+      expect(host.textContent).toContain('Changes required — workflow tasks');
+
+      expect(http.match(request => request.method !== 'GET')).toEqual([]);
+      http.verify({ ignoreCancelled: true });
+    } finally { fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+
+  it('shows the unavailable notice for a legacy summary and the safe error for a malformed one, never zero cards', () => {
+    const { fixture, http, host, overview, cards, component } = start();
+    const unavailable = 'Summary unavailable — refresh after the dashboard API is updated.';
+    try {
+      fixture.detectChanges(); TestBed.tick();
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true')).flush({ view: 'MY_TASKS', tasks: [task], hasMore: false, nextCursor: null, summary: null });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      TestBed.tick();
+      expect(overview().textContent).toContain(unavailable);
+      expect(cards()).toEqual([]);
+      expect(overview().textContent).not.toContain('As of');
+
+      component.selectView('TEAM'); TestBed.tick();
+      http.expectOne(tasksUrl('view=TEAM&pageSize=50&includeSummary=true')).flush({ view: 'TEAM', tasks: [task], hasMore: false, nextCursor: null });
+      TestBed.tick();
+      expect(overview().textContent).toContain(unavailable);
+      expect(cards()).toEqual([]);
+
+      component.selectView('OVERDUE'); TestBed.tick();
+      http.expectOne(tasksUrl('view=OVERDUE&pageSize=50&includeSummary=true'))
+        .flush({ view: 'OVERDUE', tasks: [task], hasMore: false, nextCursor: null, summary: summary({ OVERDUE: '1e3' }) });
+      TestBed.tick();
+      expect(cards()).toEqual([]);
+      expect(overview().textContent).not.toContain(unavailable);
+      expect(host.querySelector('[role="alert"]')?.textContent).toContain('Unsupported response.');
+      expect(http.match(request => request.method !== 'GET')).toEqual([]);
+      http.verify({ ignoreCancelled: true });
+    } finally { fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+
+  it('hides prior counts while loading and never renders counts from a delayed response after session invalidation', () => {
+    const { fixture, http, session, userId, overview, cards, card, countOf, component } = start();
+    try {
+      fixture.detectChanges(); TestBed.tick();
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [task], hasMore: false, nextCursor: null, summary: summary({ MY_TASKS: '101' }) });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      TestBed.tick();
+      expect(countOf('My tasks')).toBe('101');
+
+      card('Due today').click(); TestBed.tick();
+      const delayed = http.expectOne(tasksUrl('view=DUE_TODAY&pageSize=50&includeSummary=true'));
+      expect(overview().textContent).toContain('Loading work overview.');
+      expect(overview().textContent).not.toContain('101');
+      expect(cards()).toEqual([]);
+
+      component.activityTask.set({ engagementId: task.engagementId, taskId: task.taskId, title: task.title });
+      session.clear(); TestBed.tick();
+      expect(delayed.cancelled).toBe(true);
+      expect(() => delayed.flush({ view: 'DUE_TODAY', tasks: [task], hasMore: false, nextCursor: null, summary: summary({ MY_TASKS: '101' }) })).toThrow();
+      TestBed.tick();
+      expect(component.activityTask()).toBeNull();
+      expect(component.evidenceTask()).toBeNull();
+      expect(component.orderingTask()).toBeNull();
+      expect(cards()).toEqual([]);
+      expect(overview().textContent).not.toContain('101');
+      expect(overview().textContent).not.toContain('Loading work overview.');
+
+      session.current.set({ userId, firmId: userId, generation: '2', staff: true }); TestBed.tick();
+      http.expectOne(tasksUrl('view=DUE_TODAY&pageSize=50&includeSummary=true'))
+        .flush({ view: 'DUE_TODAY', tasks: [task], hasMore: false, nextCursor: null, summary: summary({ DUE_TODAY: '5' }) });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      TestBed.tick();
+      expect(countOf('Due today')).toBe('5');
+      expect(countOf('My tasks')).toBe('0');
+      expect(overview().textContent).not.toContain('101');
+      expect(http.match(request => request.method !== 'GET')).toEqual([]);
       http.verify({ ignoreCancelled: true });
     } finally { fixture.destroy(); TestBed.resetTestingModule(); }
   });

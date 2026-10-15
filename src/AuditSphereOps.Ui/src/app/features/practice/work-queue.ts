@@ -24,9 +24,34 @@ const queueTask = obj({
   pbcRequestId: nullable(guid), pbcState: nullable(str(32)),
   reviewState: nullable(str(30)), reviewComment: nullable(str(20000)),
 });
+/** Work overview cards in display order; each opens its server queue view through selectView. */
+const summaryCards: { key: QueueView; label: string }[] = [
+  { key: 'MY_TASKS', label: 'My tasks' },
+  { key: 'DUE_TODAY', label: 'Due today' },
+  { key: 'OVERDUE', label: 'Overdue' },
+  { key: 'WAITING_FOR_CLIENT', label: 'Waiting for client' },
+  { key: 'UNDER_REVIEW', label: 'Under review' },
+  { key: 'CHANGES_REQUIRED', label: 'Rework required' },
+  { key: 'UPCOMING', label: 'Next 7 days' },
+];
+/** Exact non-negative count kept as its JSON text; never converted to a JavaScript number. */
+const exactCount = (value: unknown, path: string): string => {
+  if (typeof value === 'string' && /^(0|[1-9][0-9]{0,18})$/.test(value)) return value;
+  throw new Error(`${path}: expected exact count`);
+};
+const summaryShape = obj({ asOfDateUtc: date, counts: arr(obj({ view: str(30), count: exactCount }), 7) });
+/** Complete authorized counts for every work overview view; duplicate, missing or unexpected views are refused. */
+export const decodeQueueSummary = (value: unknown, path: string) => {
+  const decoded = summaryShape(value, path);
+  const counts = new Map<string, string>(decoded.counts.map(x => [x.view, x.count]));
+  if (counts.size !== decoded.counts.length || counts.size !== summaryCards.length || summaryCards.some(x => !counts.has(x.key)))
+    throw new Error(`${path || 'summary'}: expected one count for each work overview view`);
+  return { asOfDateUtc: decoded.asOfDateUtc, cards: summaryCards.map(x => ({ ...x, count: counts.get(x.key)! })) };
+};
 const decodeQueue = obj({
   view: str(30), tasks: arr(queueTask, 100), hasMore: bool,
   nextCursor: nullable(obj({ dueDate: nullable(date), taskId: guid })),
+  summary: nullable(decodeQueueSummary),
 });
 const reviewItem = obj({ resultId: guid, procedureId: guid, engagementId: guid, clientName: text,
   serviceRoute: str(100), engagementPeriod: str(80), sourceProcedureId: str(100), procedureTitle: text,
@@ -44,10 +69,12 @@ export const decodeActivity = obj({
   hasMore: bool, nextCursor: nullable(obj({ occurredAt: instant, activityId: guid })),
 });
 
-type QueueView = 'MY_TASKS' | 'TEAM' | 'WAITING_FOR_CLIENT' | 'UNDER_REVIEW' | 'CHANGES_REQUIRED' | 'OVERDUE' | 'COMPLETED';
+type QueueView = 'MY_TASKS' | 'TEAM' | 'DUE_TODAY' | 'UPCOMING' | 'WAITING_FOR_CLIENT' | 'UNDER_REVIEW' | 'CHANGES_REQUIRED' | 'OVERDUE' | 'COMPLETED';
 const queueViews: { key: QueueView; label: string }[] = [
   { key: 'MY_TASKS', label: 'My tasks' },
   { key: 'TEAM', label: 'Team' },
+  { key: 'DUE_TODAY', label: 'Due today' },
+  { key: 'UPCOMING', label: 'Next 7 days' },
   { key: 'WAITING_FOR_CLIENT', label: 'Waiting for client' },
   { key: 'UNDER_REVIEW', label: 'Under review' },
   { key: 'CHANGES_REQUIRED', label: 'Changes required' },
@@ -62,6 +89,26 @@ const queueViews: { key: QueueView; label: string }[] = [
     <audit-page-header title="My work" eyebrow="Engagement tasks"
       description="Operational tasks across your current client and engagement grants. Task completion never replaces audit review or engagement approval." />
     <p><a matButton routerLink="/app/practice/workflow-templates">Manage workflow templates</a></p>
+    <section class="work-summary" aria-labelledby="work-summary-heading">
+      <h2 id="work-summary-heading">Work overview</h2>
+      <div role="status">@if (queue.loading()) { <p>Loading work overview.</p> }</div>
+      @if (queue.data(); as result) {
+        @if (result.summary; as summary) {
+          <p>As of {{ summary.asOfDateUtc }} (UTC)</p>
+          <p class="queue-note">Counts cover each default authorized view and may overlap. Assignment filters affect the list below.</p>
+          <div class="summary-cards">
+            @for (card of summary.cards; track card.key) {
+              <button type="button" class="summary-card" [attr.aria-pressed]="selectedView() === card.key" (click)="selectView(card.key)">
+                <span class="summary-label">{{ card.label }}</span>
+                <span class="summary-count">{{ groupCount(card.count) }}</span>
+              </button>
+            }
+          </div>
+        } @else {
+          <p class="queue-note">Summary unavailable — refresh after the dashboard API is updated.</p>
+        }
+      }
+    </section>
     <section aria-labelledby="review-inbox-heading">
       <h2 id="review-inbox-heading">Submitted reviews without task links</h2>
       <p>Current submitted procedure results with no operational task for their procedure. Opening fieldwork rechecks review eligibility and current evidence.</p>
@@ -276,7 +323,7 @@ export class WorkflowWorkQueue {
   private readonly reviewCursor = signal<{ submittedAt: string; resultId: string } | null>(null);
   private readonly activityCursor = signal<{ occurredAt: string; activityId: string } | null>(null);
   readonly queue = this.api.resource(() => {
-    const params = new URLSearchParams({ view: this.selectedView(), pageSize: '50' });
+    const params = new URLSearchParams({ view: this.selectedView(), pageSize: '50', includeSummary: 'true' });
     if (this.selectedView() !== 'MY_TASKS') {
       if (this.ownerFilter() === 'ME') {
         const user = this.session.current()?.userId;
@@ -329,6 +376,11 @@ export class WorkflowWorkQueue {
 
   labelFor(value: string): string {
     return this.views.find(x => x.key === value)?.label ?? 'Work';
+  }
+
+  /** Groups an exact count string for display without converting it to a number. */
+  groupCount(value: string): string {
+    return value.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   }
 
   selectView(value: QueueView): void {
