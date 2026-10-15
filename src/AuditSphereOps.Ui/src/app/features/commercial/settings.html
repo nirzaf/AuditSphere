@@ -255,6 +255,50 @@
             </div>
           </details>
 
+          <div class="field field-wide logo-picker" aria-labelledby="firm-logo-title">
+            <h3 id="firm-logo-title">Client portal logo</h3>
+            @if (profile.hasLogo && profile.logoSha256Hex) {
+              <p>Current logo SHA-256: <code>{{ profile.logoSha256Hex }}</code></p>
+            } @else {
+              <p>No logo is stored on the current firm profile.</p>
+            }
+            @if (logoAction === 'REPLACE') {
+              <p>Selected: {{ logoFileName }} · {{ logoByteCount }} bytes · SHA-256 {{ logoSha256 }}</p>
+            }
+            @if (logoAction === 'REMOVE') {
+              <p>Logo removal is selected for the next reviewed profile version.</p>
+            }
+            <label for="firm-logo">Choose a PNG logo</label>
+            <input
+              #logoFileInput
+              id="firm-logo"
+              class="field-control"
+              type="file"
+              accept="image/png"
+              [disabled]="!w.canEdit || busy() || uncertain() || logoReading()"
+              (change)="selectLogo($event)"
+              aria-describedby="firm-logo-help"
+            />
+            <small id="firm-logo-help">PNG only; 128 KiB maximum; 16x16 to 1024x512 pixels. Logos are not signatures or seals.</small>
+            <div class="draft-actions" aria-label="Logo actions">
+              <button
+                matButton="outlined"
+                type="button"
+                [disabled]="!w.canEdit || busy() || uncertain() || logoReading()"
+                (click)="keepCurrentLogo()"
+              >Keep current logo</button>
+              <button
+                matButton="outlined"
+                type="button"
+                [disabled]="!profile.hasLogo || !w.canEdit || busy() || uncertain() || logoReading()"
+                (click)="removeCurrentLogo()"
+              >Remove current logo</button>
+            </div>
+            @if (logoMessage()) {
+              <small role="status">{{ logoMessage() }}</small>
+            }
+          </div>
+
           <div class="review-confirmation">
             <input id="profile-reviewed" type="checkbox" name="reviewed" [(ngModel)]="reviewed" />
             <label for="profile-reviewed"
@@ -266,7 +310,7 @@
             <button
               matButton="filled"
               type="submit"
-              [disabled]="!reviewed || busy() || uncertain()"
+              [disabled]="!reviewed || busy() || uncertain() || logoReading()"
             >
               {{ busy() ? 'Saving…' : 'Save letterhead version' }}
             </button>

@@ -139,9 +139,12 @@ describe('foreground practice time tracker integration', () => {
     const now = new Date('2026-10-15T09:00:00Z').getTime();
     const clock = vi.spyOn(Date, 'now').mockReturnValue(now);
     try {
-      const dialog = TestBed.inject(MatDialog);
-      vi.spyOn(dialog, 'open').mockReturnValueOnce({ afterClosed: () => of('keep') } as never)
-        .mockReturnValueOnce({ afterClosed: () => of('discard') } as never);
+      const dialog = fixture.debugElement.injector.get(MatDialog);
+      const choices = ['keep', 'discard'];
+      const openDialog = vi.spyOn(dialog, 'open').mockImplementation(() => {
+        const choice = choices.shift() ?? 'keep';
+        return { afterClosed: () => of(choice) } as never;
+      });
       component.trackerTask.set(taskId);
       component.startTimer(component.view.data()!);
       clock.mockReturnValue(now + 60_000);
@@ -155,11 +158,13 @@ describe('foreground practice time tracker integration', () => {
       window.dispatchEvent(new Event('pagehide'));
       expect(component.tracker().phase).toBe('PAUSED');
       expect(await component.confirmNavigation()).toBe(false);
+      expect(openDialog).toHaveBeenCalledTimes(1);
       expect(await component.confirmNavigation()).toBe(true);
+      expect(openDialog).toHaveBeenCalledTimes(2);
       expect(component.tracker().phase).toBe('IDLE');
       component.trackerTask.set(taskId);
       component.startTimer(component.view.data()!);
-      session.clear(); TestBed.tick();
+      session.clear(); TestBed.tick(); fixture.detectChanges();
       expect(component.tracker().phase).toBe('IDLE');
       expect(component.trackerTask()).toBe('');
       expect(await component.confirmNavigation()).toBe(true);

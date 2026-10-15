@@ -301,6 +301,11 @@ public static partial class UiEndpoints
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);
     });
+    group.MapGet("/engagements/{id:guid}/activity",
+      (Guid id, DateOnly? from, DateOnly? to, DateTimeOffset? snapshotAtUtc, DateTimeOffset? afterAtUtc,
+        int? afterSource, Guid? afterId, int? pageSize, HttpContext http) =>
+        ReadAsync(http, (db, actor, ct) => EngagementCommunicationTimelineQuery.GetActivityAsync(db, actor, id,
+          new EngagementActivityRequest(from, to, snapshotAtUtc, afterAtUtc, afterSource, afterId, pageSize ?? 50), ct)));
     // Dual-Key onboarding readiness (WF-03): independent cards for client consent, Partner risk, letter and advance payment. Read-only.
     group.MapGet("/engagements/{id:guid}/onboarding-readiness", async (Guid id, HttpContext http, TrustedActorResolver resolver,
       IDbContextFactory<AuditSphereDbContext> factory) =>

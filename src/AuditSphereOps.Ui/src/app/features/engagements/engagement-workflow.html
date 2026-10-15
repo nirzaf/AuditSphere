@@ -110,6 +110,8 @@
       </nav>
     </article>
 
+    <audit-engagement-reminders [engagementId]="report.engagementId" />
+
     @if (checklistError()) {
       <p role="alert">{{ checklistError() }}</p>
     }

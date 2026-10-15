@@ -9,6 +9,7 @@ import {
   EngagementWorkflowReport, PhaseChecklist, WorkbenchLink, decodeEngagementWorkflowReport, decodeEngagementWorkflowTasks,
   phaseChecklists, workbenchLinksFor,
 } from './engagement-workflow-contracts';
+import { EngagementReminders } from './engagement-reminders';
 
 const PHASE_STATUS_LABELS: Record<string, string> = {
   NOT_STARTED: 'Not started',
@@ -25,7 +26,7 @@ const PHASE_STATUS_LABELS: Record<string, string> = {
  */
 @Component({
   selector: 'audit-engagement-workflow',
-  imports: [RouterLink, MatButtonModule],
+  imports: [RouterLink, MatButtonModule, EngagementReminders],
   templateUrl: './engagement-workflow.html',
   styleUrl: './engagement-workflow.scss',
 })

@@ -117,8 +117,8 @@ export const decodeAnnualPreparation = (value: unknown, path = '') => {
   const raw = value as Record<string, unknown>;
   const annual = annualPreparation({
     ...raw,
-    milestoneSuggestions: raw.milestoneSuggestions ?? [],
-    milestoneSuggestionState: raw.milestoneSuggestionState ?? 'MISSING',
+    milestoneSuggestions: raw['milestoneSuggestions'] ?? [],
+    milestoneSuggestionState: raw['milestoneSuggestionState'] ?? 'MISSING',
   }, path);
   if ((annual.historicalMappingState === 'RESTRICTED' && annual.historicalMappings.length !== 0) ||
     annual.historicalMappings.some(mapping => mapping.periodStart !== annual.sourcePeriodStart || mapping.periodEnd !== annual.sourcePeriodEnd) ||

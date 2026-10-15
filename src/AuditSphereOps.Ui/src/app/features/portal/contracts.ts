@@ -4,9 +4,33 @@ export const revision: Decoder<string> = (v, p) => {
   return v;
 };
 export const firstSignIn = obj({ completed: bool, identityPath: text, canComplete: bool, message: text });
-export const portalWorkspace = obj({ firstSignIn, pendingOnboarding: bool, engagementCount: nat, hasMoreRequests: bool,
-  requests: arr(obj({ id: guid, area: text, objective: text, periodStart: date, periodEnd: date, dueDate: date, state: text, delegated: bool }), 50),
-  packages: arr(obj({ id: guid, framework: text, periodStart: date, periodEnd: date, currency: str(3) }), 100) });
+const portalWorkspaceShape = obj({ firstSignIn, pendingOnboarding: bool, engagementCount: nat, hasMoreRequests: bool,
+  requests: arr(obj({ id: guid, area: text, objective: text, periodStart: date, periodEnd: date, dueDate: date, state: text, delegated: bool,
+    clarificationReason: nullable(text), clarificationReasonTruncated: bool, canWrite: bool }), 50),
+  packages: arr(obj({ id: guid, framework: text, periodStart: date, periodEnd: date, currency: str(3) }), 100),
+  asOfDateUtc: nullable(date), hasMorePackages: bool });
+type PortalWorkspace = ReturnType<typeof portalWorkspaceShape>;
+export type PortalRequestItem = PortalWorkspace['requests'][number];
+export const portalWorkspace: Decoder<PortalWorkspace> = (value, path) => {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new DecodeError(`${path}: expected object`);
+  const raw = value as Record<string, unknown>;
+  const requests = Array.isArray(raw['requests']) ? raw['requests'].map((item) => {
+    if (typeof item !== 'object' || item === null || Array.isArray(item)) return item;
+    const request = item as Record<string, unknown>;
+    return {
+      ...request,
+      clarificationReason: Object.prototype.hasOwnProperty.call(request, 'clarificationReason') ? request['clarificationReason'] : null,
+      clarificationReasonTruncated: Object.prototype.hasOwnProperty.call(request, 'clarificationReasonTruncated') ? request['clarificationReasonTruncated'] : false,
+      canWrite: Object.prototype.hasOwnProperty.call(request, 'canWrite') ? request['canWrite'] : false,
+    };
+  }) : raw['requests'];
+  return portalWorkspaceShape({
+    ...raw,
+    requests,
+    asOfDateUtc: Object.prototype.hasOwnProperty.call(raw, 'asOfDateUtc') ? raw['asOfDateUtc'] : null,
+    hasMorePackages: Object.prototype.hasOwnProperty.call(raw, 'hasMorePackages') ? raw['hasMorePackages'] : false,
+  }, path);
+};
 export const portalRequest = obj({ id: guid, area: text, objective: text, instructions: text, requestedFormat: text, dueDate: date, state: text,
   revision, firstSignIn, canWrite: bool, canDelegate: bool,
   delegations: arr(obj({ id: guid, delegateUserId: guid, delegateName: text, createdAt: instant }), 500),

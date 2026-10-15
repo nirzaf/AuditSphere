@@ -32,6 +32,17 @@ public static partial class UiEndpoints
 
   private static void MapFinanceEndpoints(RouteGroupBuilder group)
   {
+    group.MapGet("/finance/unbilled-time", (string? from, string? to, Guid? clientId,
+      Guid? engagementId, int? page, int? pageSize, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) =>
+      {
+        if (!TryDate(from, out var fromDate) || !TryDate(to, out var toDate))
+          return Task.FromResult(CommandResult<FirmUnbilledTimeReport>.Fail("wip.query-invalid",
+            "Choose a valid work-date range of at most 366 days and a supported page."));
+        return FirmUnbilledTimeQuery.GetAsync(db, actor,
+          new FirmUnbilledTimeRequest(fromDate, toDate, clientId, engagementId, page ?? 0, pageSize ?? 50), ct);
+      }));
+
     group.MapUiGet("/finance/receivables-aging", http => ReadAsync(http, (db, actor, ct) =>
     {
       var asOf = ParseAsOfDate(http.Request.Query["asOf"].FirstOrDefault());

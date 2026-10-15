@@ -5,6 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { Api } from '../../core/api';
 import { arr, date, dec, guid, int, nullable, obj, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
+import { FirmUnbilledTime } from './unbilled-time';
 
 export const decodeReceivablesAging = obj({
   asOfDate: date, dateBasis: text, bucketPolicy: text,
@@ -27,7 +28,7 @@ export const decodeReceivablesAging = obj({
 
 @Component({
   selector: 'audit-receivables-aging',
-  imports: [FormsModule, RouterLink, MatButtonModule, ...SHARED],
+  imports: [FormsModule, RouterLink, MatButtonModule, FirmUnbilledTime, ...SHARED],
   template: `
     <a routerLink="/app/finance">← Back to firm finance</a>
     <audit-page-header title="Firm receivables ageing" eyebrow="Firm billing"
@@ -89,6 +90,10 @@ export const decodeReceivablesAging = obj({
           </tr> } @empty { <tr><td colspan="9">No invoices are linked to an engagement.</td></tr> }</tbody></table></div>
       </section>
     }
+    <details class="panel unbilled-time" (toggle)="setUnbilledTimeOpen($event)">
+      <summary>Approved unbilled time (standard value)</summary>
+      @if (unbilledTimeOpen()) { <audit-firm-unbilled-time /> }
+    </details>
   `,
   styles: `
     .filters { display:flex; flex-wrap:wrap; align-items:end; justify-content:space-between; gap:1rem; }
@@ -99,16 +104,22 @@ export const decodeReceivablesAging = obj({
     .policy p { margin:.35rem 0; }
     td, th { vertical-align:top; }
     td small { display:block; margin-top:.25rem; color:var(--text-muted,#566575); }
+    .unbilled-time > summary { cursor:pointer; font-weight:700; }
+    .unbilled-time[open] > summary { margin-bottom:1rem; }
   `,
 })
 export class FirmReceivablesAging {
   private readonly api = inject(Api);
+  readonly unbilledTimeOpen = signal(false);
   readonly asOf = signal(new Date().toISOString().slice(0, 10));
   readonly report = this.api.resource(() => `/api/ui/finance/receivables-aging?asOf=${encodeURIComponent(this.asOf())}`,
     decodeReceivablesAging, 'Receivables ageing is limited to firm-wide FinanceManager and FinanceReviewer grants.');
   readonly exporting = signal(false);
   readonly message = signal('');
   readonly failed = signal(false);
+  setUnbilledTimeOpen(event: Event): void {
+    this.unbilledTimeOpen.set((event.currentTarget as HTMLDetailsElement).open);
+  }
   changeDate(value: string): void {
     if (/^\d{4}-\d{2}-\d{2}$/.test(value)) { this.message.set(''); this.asOf.set(value); }
   }

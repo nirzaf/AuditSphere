@@ -26,6 +26,24 @@ public static partial class UiEndpoints
 
   private static void MapPortalEndpoints(RouteGroupBuilder group)
   {
+    group.MapUiGet("/portal/branding", http => ReadAsync(http,
+      (db, actor, ct) => ClientPortalBrandingQuery.GetAsync(db, actor, ct)));
+    group.MapGet("/portal/branding/{profileId:guid}/logo", async (Guid profileId, HttpContext http,
+      TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
+    {
+      var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
+      if (actor is null) return Failure("session.unavailable", "Sign in again.", 401);
+      await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
+      var result = await ClientPortalBrandingQuery.LogoAsync(db, actor, profileId, http.RequestAborted);
+      if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
+        return Failure("session.unavailable", "Sign in again.", 401);
+      if (!result.Succeeded || result.Value is null)
+        return Failure(result.ErrorCode, result.Message);
+      http.Response.Headers.CacheControl = "no-store";
+      http.Response.Headers["X-Content-Type-Options"] = "nosniff";
+      http.Response.Headers["X-Logo-SHA256"] = result.Value.Sha256Hex;
+      return Results.File(result.Value.Bytes, "image/png");
+    });
     group.MapGet("/portal", (int? page, int? pageSize, HttpContext http) => ReadAsync(http,
       (db, actor, ct) => ClientPortalWorkspaceQuery.GetAsync(db, actor, page ?? 0, pageSize ?? 50, ct)));
     group.MapGet("/portal/requests/{id:guid}", (Guid id, HttpContext http) => ReadAsync(http,

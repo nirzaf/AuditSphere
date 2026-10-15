@@ -32,6 +32,15 @@ describe('Commercial settings contract', () => {
   it('bounds the active matrix', () => {
     expect(() => decodeSettings({ ...workspace, rules: Array(101).fill(rule) })).toThrow();
   });
+  it('decodes legacy logo metadata and rejects inconsistent logo pairs', () => {
+    const legacy = decodeSettings({ ...workspace, profile: { ...profile, version: '1' } });
+    expect(legacy.profile).toMatchObject({ hasLogo: false, logoSha256Hex: null });
+    const current = decodeSettings({ ...workspace, profile: { ...profile, version: '2', hasLogo: true, logoSha256Hex: 'b'.repeat(64) } });
+    expect(current.profile).toMatchObject({ hasLogo: true, logoSha256Hex: 'b'.repeat(64) });
+    expect(() => decodeSettings({ ...workspace, profile: { ...profile, version: '1', hasLogo: true, logoSha256Hex: null } })).toThrow('Invalid profile');
+    expect(() => decodeSettings({ ...workspace, profile: { ...profile, version: '1', hasLogo: false, logoSha256Hex: 'B'.repeat(64) } })).toThrow('Invalid profile');
+    expect(() => decodeSettings({ ...workspace, profile: { ...profile, version: '1', hasLogo: true } })).toThrow('Invalid profile');
+  });
 });
 const policy = {
   id,
@@ -74,6 +83,8 @@ describe('Commercial settings tab drafts',()=>{
   it('allowlists editable fields without version or review authorization',()=>{
     const r=settingsDraft({profile:{...profile,version:'999'},kind:'NON_STANDARD_TERMS',threshold:'10',role:'Partner',reviewed:true});
     expect(r?.profile).toEqual(profile);expect(r).not.toHaveProperty('reviewed');
+    const withLogoMetadata=settingsDraft({profile:{...profile,version:'3',hasLogo:true,logoSha256Hex:'c'.repeat(64),logoPngBytes:[1,2],logoPngBase64:'secret'},kind:'NON_STANDARD_TERMS',threshold:'10',role:'Partner'});
+    expect(withLogoMetadata?.profile).toEqual(profile);expect(JSON.stringify(withLogoMetadata)).not.toContain('secret');
     expect(settingsDraft({profile:{...profile,methodology:'x'.repeat(16001)},kind:'DISCOUNT_OVER_PERCENT',threshold:'10',role:'Partner'})).toBeNull();
   });
   it('recovers compatible fields with current version and fresh review',()=>{
@@ -83,6 +94,15 @@ describe('Commercial settings tab drafts',()=>{
     const c=f.componentInstance;c.draftScope.set({entity:'commercial-settings',baseRevision:'a'.repeat(64)});
     vi.spyOn(TestBed.inject(TabDrafts),'read').mockReturnValue({state:'ready',draft:{submissionPending:false,value:{profile:{...profile,legalName:'Recovered firm'},kind:'DISCOUNT_OVER_PERCENT',threshold:'15',role:'Partner'}}});
     c.reviewed=c.ruleReviewed=true;c.recoverTabDraft();expect(c.profile.legalName).toBe('Recovered firm');expect(c.profile.version).toBe('3');expect(c.reviewed).toBe(false);expect(c.ruleReviewed).toBe(false);expect(c.dirty()).toBe(true);f.destroy();
+  });
+  it('keeps logo write controls disabled when the server marks the workspace read-only',()=>{
+    const f=TestBed.createComponent(CommercialSettings),http=TestBed.inject(HttpTestingController);f.detectChanges();
+    http.expectOne('/api/ui/commercial-settings').flush({...workspace,canEdit:false,profile:{...profile,version:'3',hasLogo:true,logoSha256Hex:'c'.repeat(64)}});TestBed.tick();f.detectChanges();
+    http.expectOne('/api/ui/commercial-settings/pricing-policy').flush([]);TestBed.tick();
+    const root=f.nativeElement as HTMLElement;
+    expect((root.querySelector('#firm-logo') as HTMLInputElement).disabled).toBe(true);
+    const logoButtons=Array.from(root.querySelectorAll('button')).filter(button=>['Keep current logo','Remove current logo'].includes(button.textContent?.trim() ?? ''));
+    expect(logoButtons).toHaveLength(2);expect(logoButtons.every(button=>button.disabled)).toBe(true);f.destroy();
   });
   it('preserves other unsubmitted rule fields after a confirmed profile command',()=>{
     const f=TestBed.createComponent(CommercialSettings),http=TestBed.inject(HttpTestingController);f.detectChanges();
@@ -116,5 +136,93 @@ describe('Commercial settings tab drafts',()=>{
     const save=http.expectOne('/api/ui/commercial-settings/pricing-policy');
     expect(save.request.body).toEqual({currency:'QAR',minimumFee:'1000',maximumFee:null,maxDiscount:null,validityDays:'45',expectedRevision:null,reviewed:true});
     save.flush({id});http.expectOne('/api/ui/commercial-settings/pricing-policy').flush([]);f.destroy();
+  });
+  it('posts a selected logo only after fresh review and never includes display metadata',async()=>{
+    const f=TestBed.createComponent(CommercialSettings),http=TestBed.inject(HttpTestingController);f.detectChanges();
+    http.expectOne('/api/ui/commercial-settings').flush({...workspace,canEdit:true,profile:{...profile,version:'3',hasLogo:false,logoSha256Hex:null}});TestBed.tick();
+    http.expectOne('/api/ui/commercial-settings/pricing-policy').flush([]);TestBed.tick();
+    const c=f.componentInstance;
+    const png=Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAL0lEQVR42u3OIQEAAAgDMMqQjEQkhhg3E/Ornr2kEhAQEBAQEBAQEBAQSAcejNxgeevvdAwAAAAASUVORK5CYII='),x=>x.charCodeAt(0));
+    const input=document.createElement('input');input.type='file';
+    Object.defineProperty(input,'files',{value:[new File([png],'brand.PNG',{type:'image/png'})]});
+    await c.selectLogo({currentTarget:input} as unknown as Event);
+    expect(c.logoAction).toBe('REPLACE');expect(c.logoBase64).toBeTruthy();expect(c.logoSha256).toMatch(/^[0-9a-f]{64}$/);expect(c.reviewed).toBe(false);
+    c.draftScope.set({entity:'commercial-settings',baseRevision:'a'.repeat(64)});
+    expect(c.saveTabDraft()).toBe(false);expect(c.message()).toContain('Logo changes are not saved in tab drafts');
+    c.reviewed=true;c.saveProfile();
+    const save=http.expectOne('/api/ui/commercial-settings/profile');
+    expect(save.request.body).toEqual({version:'3',...profile,reviewed:true,logoPngBase64:c.logoBase64,removeLogo:false});
+    expect(save.request.body).not.toHaveProperty('hasLogo');expect(save.request.body).not.toHaveProperty('logoSha256Hex');
+    const savedLogoDigest = c.logoSha256;
+    save.flush({id});
+    TestBed.tick();
+    http.expectOne('/api/ui/commercial-settings').flush({...workspace,canEdit:true,profile:{...profile,version:'4',hasLogo:true,logoSha256Hex:savedLogoDigest}});
+    TestBed.tick();
+    http.expectOne('/api/ui/commercial-settings/pricing-policy').flush([]);TestBed.tick();
+    expect(c.logoAction).toBe('KEEP');expect(c.logoBase64).toBeNull();expect(c.logoFileName).toBe('');f.destroy();
+  });
+  it('fences a late file read after a second selection or explicit keep action',async()=>{
+    const f=TestBed.createComponent(CommercialSettings),http=TestBed.inject(HttpTestingController);f.detectChanges();
+    http.expectOne('/api/ui/commercial-settings').flush({...workspace,canEdit:true,profile:{...profile,version:'3',hasLogo:false,logoSha256Hex:null}});TestBed.tick();
+    http.expectOne('/api/ui/commercial-settings/pricing-policy').flush([]);TestBed.tick();
+    const c=f.componentInstance;
+    let finishFirst:(value:ArrayBuffer)=>void=()=>{};
+    const first=new File([new Uint8Array([1,2,3])],'first.png',{type:'image/png'});
+    Object.defineProperty(first,'arrayBuffer',{value:()=>new Promise<ArrayBuffer>(resolve=>{finishFirst=resolve;})});
+    const firstInput=document.createElement('input');Object.defineProperty(firstInput,'files',{value:[first]});
+    const pending=c.selectLogo({currentTarget:firstInput} as unknown as Event);
+    const secondInput=document.createElement('input');Object.defineProperty(secondInput,'files',{value:[new File([new Uint8Array([4,5,6])],'second.png',{type:'image/png'})]});
+    await c.selectLogo({currentTarget:secondInput} as unknown as Event);
+    finishFirst(new Uint8Array([1,2,3]).buffer);await pending;
+    expect(c.logoFileName).toBe('second.png');
+    let finishLate:(value:ArrayBuffer)=>void=()=>{};
+    const late=new File([new Uint8Array([7,8,9])],'late.png',{type:'image/png'});
+    Object.defineProperty(late,'arrayBuffer',{value:()=>new Promise<ArrayBuffer>(resolve=>{finishLate=resolve;})});
+    const lateInput=document.createElement('input');Object.defineProperty(lateInput,'files',{value:[late]});
+    const lateRead=c.selectLogo({currentTarget:lateInput} as unknown as Event);
+    c.keepCurrentLogo();finishLate(new Uint8Array([7,8,9]).buffer);await lateRead;
+    expect(c.logoAction).toBe('KEEP');expect(c.logoBase64).toBeNull();f.destroy();
+  });
+  it('drops a late logo file read after session identity invalidation',async()=>{
+    const f=TestBed.createComponent(CommercialSettings),http=TestBed.inject(HttpTestingController);f.detectChanges();
+    http.expectOne('/api/ui/commercial-settings').flush({...workspace,canEdit:true,profile:{...profile,version:'3',hasLogo:false,logoSha256Hex:null}});TestBed.tick();
+    http.expectOne('/api/ui/commercial-settings/pricing-policy').flush([]);TestBed.tick();
+    const c=f.componentInstance;let finish:(value:ArrayBuffer)=>void=()=>{};
+    const file=new File([new Uint8Array([1,2,3])],'late.png',{type:'image/png'});
+    Object.defineProperty(file,'arrayBuffer',{value:()=>new Promise<ArrayBuffer>(resolve=>{finish=resolve;})});
+    const input=document.createElement('input');Object.defineProperty(input,'files',{value:[file]});
+    const pending=c.selectLogo({currentTarget:input} as unknown as Event);
+    TestBed.inject(SessionService).clear();TestBed.tick();finish(new Uint8Array([1,2,3]).buffer);await pending;
+    expect(c.logoAction).toBe('KEEP');expect(c.logoBase64).toBeNull();expect(c.logoSha256).toBeNull();f.destroy();
+  });
+  it('reconciles an unknown logo outcome with one GET and explicit acknowledgment without replay',async()=>{
+    const f=TestBed.createComponent(CommercialSettings),http=TestBed.inject(HttpTestingController);f.detectChanges();
+    http.expectOne('/api/ui/commercial-settings').flush({...workspace,canEdit:true,profile:{...profile,version:'3',hasLogo:false,logoSha256Hex:null}});TestBed.tick();
+    http.expectOne('/api/ui/commercial-settings/pricing-policy').flush([]);TestBed.tick();
+    const c=f.componentInstance;
+    const png=Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAL0lEQVR42u3OIQEAAAgDMMqQjEQkhhg3E/Ornr2kEhAQEBAQEBAQEBAQSAcejNxgeevvdAwAAAAASUVORK5CYII='),x=>x.charCodeAt(0));
+    const input=document.createElement('input');Object.defineProperty(input,'files',{value:[new File([png],'brand.png',{type:'image/png'})]});
+    await c.selectLogo({currentTarget:input} as unknown as Event);c.reviewed=true;c.saveProfile();
+    const post=http.expectOne('/api/ui/commercial-settings/profile');
+    post.flush({}, {status:500,statusText:'Server Error'});
+    expect(c.uncertain()).toBe(true);
+    await c.refresh();
+    expect(c.logoAction).toBe('KEEP');expect(c.logoBase64).toBeNull();
+    http.expectOne('/api/ui/commercial-settings').flush({...workspace,canEdit:true,profile:{...profile,version:'3',hasLogo:false,logoSha256Hex:null}});TestBed.tick();
+    http.expectOne('/api/ui/commercial-settings/pricing-policy').flush([]);TestBed.tick();
+    expect(c.uncertain()).toBe(true);c.acknowledge();expect(c.uncertain()).toBe(false);expect(c.reviewed).toBe(false);
+    http.expectNone('/api/ui/commercial-settings/profile');f.destroy();
+  });
+  it('sends explicit remove intent and preserves current logo when KEEP is selected',()=>{
+    const f=TestBed.createComponent(CommercialSettings),http=TestBed.inject(HttpTestingController);f.detectChanges();
+    const hash='d'.repeat(64);
+    http.expectOne('/api/ui/commercial-settings').flush({...workspace,canEdit:true,profile:{...profile,version:'5',hasLogo:true,logoSha256Hex:hash}});TestBed.tick();
+    http.expectOne('/api/ui/commercial-settings/pricing-policy').flush([]);TestBed.tick();
+    const c=f.componentInstance;c.removeCurrentLogo();expect(c.reviewed).toBe(false);c.reviewed=true;c.saveProfile();
+    const remove=http.expectOne('/api/ui/commercial-settings/profile');
+    expect(remove.request.body.logoPngBase64).toBeNull();expect(remove.request.body.removeLogo).toBe(true);remove.flush({id});
+    http.expectOne('/api/ui/commercial-settings').flush({...workspace,canEdit:true,profile:{...profile,version:'6',hasLogo:false,logoSha256Hex:null}});
+    http.expectOne('/api/ui/commercial-settings/pricing-policy').flush([]);TestBed.tick();
+    expect(c.logoAction).toBe('KEEP');f.destroy();
   });
 });
