@@ -86,11 +86,6 @@ public sealed class CompletionDeliverablesJourneyTests
       Assert.True((await StaffingService.AssignAsync(db, new ActorContext(f.Admin.Id, f.FirmId, f.Admin.SessionEpoch, ["Administrator"]),
         new(f.EngagementId, partner.Id, StaffingLevels.EngagementPartner))).Succeeded);
 
-    await using (var db = host.CreateDbContext())
-      await PlanningBasisSeed.EstablishAsync(db, f.FirmId, f.ClientId, f.EngagementId,
-        PbcSeed.Actor(manager, "Manager"), PbcSeed.Actor(partner, "Partner"),
-        accounts: [("1000", "Cash", 100m, "CASH", "ASSETS"), ("4000", "Revenue", -100m, "REVENUE", "INCOME")]);
-
     // Seed the released financial package before generating/signing deliverables so every final document
     // is current against the same completed-engagement facts.
     var financialScope = new CompletionBundleScope(f.FirmId, f.ClientId, f.EngagementId, new()
@@ -103,6 +98,13 @@ public sealed class CompletionDeliverablesJourneyTests
       await PlanningBasisSeed.ApproveMaterialityAsync(db, f.FirmId, f.ClientId, f.EngagementId,
         PbcSeed.Actor(manager, "Manager"), PbcSeed.Actor(partner, "Partner"));
     await CompletionBundleFixture.SeedPostedFeeAsync(host.DbOptions, financialScope);
+
+    // The package fixture adds a separate sealed TB and approved mapping. Establish completion materiality
+    // afterwards so it is current for the engagement planning basis used by the deliverables journey.
+    await using (var db = host.CreateDbContext())
+      await PlanningBasisSeed.EstablishAsync(db, f.FirmId, f.ClientId, f.EngagementId,
+        PbcSeed.Actor(manager, "Manager"), PbcSeed.Actor(partner, "Partner"),
+        accounts: [("1000", "Cash", 100m, "CASH", "ASSETS"), ("4000", "Revenue", -100m, "REVENUE", "INCOME")]);
 
     var origin = await StartIdentityAsync(partner);
     using var playwright = await Playwright.CreateAsync();

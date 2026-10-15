@@ -25,6 +25,15 @@ public sealed class AngularCashFlowPackageJourneyTests
     var preparerPage = await preparerContext.NewPageAsync();
     var errors = new List<string>();
     preparerPage.PageError += (_, error) => errors.Add(error);
+    var inputsStatus = 0;
+    var inputsBody = string.Empty;
+    await preparerPage.RouteAsync("**/financial-package-inputs", async route =>
+    {
+      var response = await route.FetchAsync();
+      inputsStatus = response.Status;
+      inputsBody = await response.TextAsync();
+      await route.FulfillAsync(new() { Status = response.Status, ContentType = "application/json", Body = inputsBody });
+    });
     await preparerPage.GotoAsync(preparerOrigin + "/auth/sign-in?returnUrl=" +
       Uri.EscapeDataString($"/ui/app/engagements/{host.Fixture.EngagementId:D}/financial-package"));
     await Assertions.Expect(preparerPage.GetByRole(AriaRole.Heading,
@@ -40,7 +49,19 @@ public sealed class AngularCashFlowPackageJourneyTests
         await preparerPage.Locator("body").InnerTextAsync() + " JavaScript errors: " + string.Join(" | ", errors));
     }
 
-    await preparerPage.GetByLabel("Approved mapping", new() { Exact = true }).SelectOptionAsync(seed.MappingId.ToString("D"));
+    if (inputsStatus != 200 || !inputsBody.Contains(seed.MappingId.ToString("D"), StringComparison.OrdinalIgnoreCase))
+      throw new InvalidOperationException($"The build-input API did not return the seeded mapping. HTTP {inputsStatus}: {inputsBody}. Page: {await preparerPage.Locator("body").InnerTextAsync()}");
+
+    try
+    {
+      await preparerPage.GetByLabel("Approved mapping", new() { Exact = true })
+        .SelectOptionAsync(seed.MappingId.ToString("D"), new() { Timeout = 10000 });
+    }
+    catch (PlaywrightException error)
+    {
+      throw new InvalidOperationException($"Approved mapping selector did not render the seeded mapping. HTTP {inputsStatus}: {inputsBody}. " +
+        $"Page: {await preparerPage.Locator("body").InnerTextAsync()}. JavaScript errors: {string.Join(" | ", errors)}", error);
+    }
     await preparerPage.GetByLabel("Finalized adjustment plan", new() { Exact = true }).SelectOptionAsync(seed.PlanId.ToString("D"));
     await preparerPage.GetByLabel("Reporting period", new() { Exact = true }).SelectOptionAsync(seed.PeriodId.ToString("D"));
     await preparerPage.GetByLabel("Template version", new() { Exact = true }).FillAsync("e2e-cash-flow-v2");
