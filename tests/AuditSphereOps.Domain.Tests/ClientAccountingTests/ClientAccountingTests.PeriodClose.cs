@@ -119,40 +119,20 @@ public sealed partial class ClientAccountingTests
   public async Task PeriodClose_RequiresCurrentReviewsForMatchingFinancialPackages()
   {
     await using var pg = await PgTestSchema.CreateAsync();
-    var scope = await SeedAsync(pg);
-    var preparer = Actor(scope.Preparer, "AccountingPreparer");
-    var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
-    var partner = Actor(scope.Partner, "Partner");
+    var source = await StatementCandidatePromotionTests.SeedPresentableAsync(pg);
+    var reviewer = Actor(source.Reviewer, "AccountingReviewer");
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var periodId = await db.ClientReportingPeriods.Where(x => x.FirmId == source.FirmId && x.ClientId == source.ClientId)
+      .Select(x => x.Id).SingleAsync();
+    var blocked = await ClientAccountingService.ClosePeriodAsync(db, reviewer, periodId, "Package approvals pending");
+    Assert.False(blocked.Succeeded);
+    Assert.Equal(ErrorCodes.GateBlocked, blocked.ErrorCode);
 
-    await using (var db = new AuditSphereDbContext(pg.Options))
-    {
-      var periodId = (await ClientAccountingService.CreatePeriodAsync(db, preparer,
-        new ReportingPeriodRequest(scope.ClientA, "2026", new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), "STATUTORY", "QAR"))).Value;
-      var packageId = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 100m, "CASH", "period-close-gate");
-      await db.SaveChangesAsync();
-
-      var blocked = await ClientAccountingService.ClosePeriodAsync(db, reviewer, periodId, "Package approvals pending");
-      Assert.False(blocked.Succeeded);
-      Assert.Equal(ErrorCodes.GateBlocked, blocked.ErrorCode);
-
-      Assert.True((await FinancialPackageReviewService.RecordAsync(db, preparer,
-        new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.ManagementApproval,
-          FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.Offline,
-          "management-close-gate", "Management approved the exact package."))).Succeeded);
-      Assert.True((await FinancialPackageReviewService.RecordAsync(db, reviewer,
-        new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.AccountingReview,
-          FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn,
-          "accounting-close-gate", "Accounting review completed."))).Succeeded);
-      Assert.True((await FinancialPackageReviewService.RecordAsync(db, partner,
-        new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.PartnerApproval,
-          FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn,
-          "partner-close-gate", "Partner approval completed."))).Succeeded);
-
-      var closed = await ClientAccountingService.ClosePeriodAsync(db, reviewer, periodId, "All package approvals complete");
-      Assert.True(closed.Succeeded, closed.Message);
-      Assert.Equal(AccountingWorkflowStates.Closed,
-        await db.ClientReportingPeriods.Where(x => x.Id == periodId).Select(x => x.Status).SingleAsync());
-    }
+    await SelectReviewedCompositionAsync(db, source);
+    var closed = await ClientAccountingService.ClosePeriodAsync(db, reviewer, periodId, "All package approvals complete");
+    Assert.True(closed.Succeeded, closed.Message);
+    Assert.Equal(AccountingWorkflowStates.Closed,
+      await db.ClientReportingPeriods.Where(x => x.Id == periodId).Select(x => x.Status).SingleAsync());
   }
 
   [Fact]

@@ -136,86 +136,87 @@ public sealed partial class ClientAccountingTests
   public async Task FinancialPackageRelease_BindsCandidateToCurrentPackageReviews()
   {
     await using var pg = await PgTestSchema.CreateAsync();
-    var scope = await SeedAsync(pg);
-    var preparer = Actor(scope.Preparer, "AccountingPreparer");
-    var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
-    var partner = Actor(scope.Partner, "Partner");
+    var source = await StatementCandidatePromotionTests.SeedPresentableAsync(pg);
+    var partner = Actor(source.Partner, "Partner");
     var manifestBytes = System.Text.Encoding.UTF8.GetBytes("financial-package-release-manifest");
     var manifest = Hashing.Sha256Hex(manifestBytes);
-    Guid packageId, candidateId;
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var package = await db.FinancialPackages.AsNoTracking().SingleAsync(x => x.Id == source.PackageId);
+    var generation = await db.ClientSafetyStates.Where(x => x.FirmId == source.FirmId && x.Id == source.ClientId)
+      .Select(x => x.InputGeneration).SingleAsync();
+    var policy = await db.FirmSafetyStates.Where(x => x.Id == source.FirmId).Select(x => x.PolicyGeneration).SingleAsync();
+    var unreviewed = await ApprovalService.CreateAsync(db, partner,
+      new CreateApprovalRequest(ReleaseTargetKinds.FinancialPackage, source.PackageId, package.Revision, generation, policy, manifest));
+    Assert.False(unreviewed.Succeeded);
+    Assert.Equal(ErrorCodes.GateBlocked, unreviewed.ErrorCode);
 
-    await using (var db = new AuditSphereDbContext(pg.Options))
+    var composition = await SelectReviewedCompositionAsync(db, source);
+    var approval = await ApprovalService.CreateAsync(db, partner,
+      new CreateApprovalRequest(ReleaseTargetKinds.FinancialPackage, source.PackageId, package.Revision, generation, policy, manifest));
+    Assert.True(approval.Succeeded, approval.Message);
+    var candidate = await ReleaseService.CreateCandidateAsync(db, partner,
+      new CreateReleaseCandidateRequest(approval.Value, ReleaseTargetKinds.FinancialPackage,
+        source.PackageId, package.Revision, generation, policy, manifest));
+    Assert.True(candidate.Succeeded, candidate.Message);
+    var missingCheckpoint = await ReleaseService.IssueAsync(db, partner,
+      new IssueReleaseRequest(candidate.Value, 1, manifest, "financial-package-release-001"));
+    Assert.False(missingCheckpoint.Succeeded);
+
+    var root = Path.Combine(Path.GetTempPath(), "AuditSphereOps-Tests", Guid.NewGuid().ToString("N"));
+    try
     {
-      packageId = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 100m, "CASH", "release");
-      await db.SaveChangesAsync();
-
-      Assert.True((await FinancialPackageReviewService.RecordAsync(db, preparer,
-        new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.ManagementApproval,
-          FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.Offline,
-          "management-package-approval", "Management approved the exact package."))).Succeeded);
-      Assert.True((await FinancialPackageReviewService.RecordAsync(db, reviewer,
-        new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.AccountingReview,
-          FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn,
-          "accounting-package-review", "Accounting review completed."))).Succeeded);
-      Assert.True((await FinancialPackageReviewService.RecordAsync(db, partner,
-        new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.PartnerApproval,
-          FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn,
-          "partner-package-review", "Partner approval completed."))).Succeeded);
-
-      var approval = await ApprovalService.CreateAsync(db, partner,
-        new CreateApprovalRequest(ReleaseTargetKinds.FinancialPackage, packageId, 1, 1, 1, manifest));
-      Assert.True(approval.Succeeded, approval.Message);
-
-      var candidate = await ReleaseService.CreateCandidateAsync(db, partner,
-        new CreateReleaseCandidateRequest(approval.Value, ReleaseTargetKinds.FinancialPackage,
-          packageId, 1, 1, 1, manifest));
-      Assert.True(candidate.Succeeded, candidate.Message);
-      candidateId = candidate.Value;
-
-      var checkpointStore = new LocalAppendOnlyCheckpointStore(
-        Path.Combine(Path.GetTempPath(), "AuditSphereOps-Tests", Guid.NewGuid().ToString("N")));
-      var checkpoint = await ReleaseCheckpointService.RecordCheckpointDirectAsync(db, checkpointStore, partner,
-        new RecordReleaseCheckpointRequest(candidateId, 1, "financial-package-release-001", manifest, manifestBytes));
+      var checkpoint = await ReleaseCheckpointService.RecordCheckpointDirectAsync(db,
+        new LocalAppendOnlyCheckpointStore(root), partner,
+        new RecordReleaseCheckpointRequest(candidate.Value, 1, "financial-package-release-001", manifest, manifestBytes));
       Assert.True(checkpoint.Succeeded, checkpoint.Message);
-
-
-      // Without a rendered PDF the release cannot pin an artifact, so issuance is refused.
-      var unpinned = await ReleaseService.IssueAsync(db, partner,
-        new IssueReleaseRequest(candidateId, 1, manifest, "financial-package-release-001"));
-      Assert.Equal(ErrorCodes.GateBlocked, unpinned.ErrorCode);
-      Assert.Contains("Render the exact reviewed financial package as PDF", unpinned.Message!, StringComparison.Ordinal);
-
-      // The reviewed revision has a PDF before release, so the release can pin it. This package carries a synthetic text artifact, so the
-      // PDF is recorded at the same revision and hash rather than rendered from the export; the bundle tests cover the real render.
-      var releasedPackage = await db.FinancialPackages.AsNoTracking().SingleAsync(x => x.Id == packageId);
-      var pdfBytes = System.Text.Encoding.UTF8.GetBytes($"package-pdf|{packageId:D}|{releasedPackage.CalculationHash}");
-      db.FinancialPackageArtifacts.Add(new FinancialPackageArtifact
-      {
-        Id = Guid.CreateVersion7(), FirmId = releasedPackage.FirmId, ClientId = releasedPackage.ClientId,
-        EngagementId = releasedPackage.EngagementId, FinancialPackageId = packageId, PackageRevision = releasedPackage.Revision,
-        PackageGeneration = releasedPackage.Generation, PackageHash = releasedPackage.CalculationHash,
-        ArtifactVersion = FinancialPackageArtifactVersions.Pdf, FrameworkVersion = releasedPackage.Framework,
-        TemplateVersion = releasedPackage.TemplateVersion, ArtifactSha256Hex = AuditSphereOps.Domain.Shared.Hashing.Sha256Hex(pdfBytes),
-        ArtifactBytes = pdfBytes, CreatedByUserId = partner.UserId, CreatedAt = DateTimeOffset.UtcNow
-      });
-      await db.SaveChangesAsync();
-
       var issued = await ReleaseService.IssueAsync(db, partner,
-        new IssueReleaseRequest(candidateId, 1, manifest, "financial-package-release-001"));
-      Assert.True(issued.Succeeded, $"{issued.ErrorCode}: {issued.Message}");
-      Assert.Equal(packageId, await db.Releases.Where(x => x.Id == issued.Value).Select(x => x.PackageId).SingleAsync());
-      // The release pins the PDF it was approved for, and the pin is the artifact that was rendered for this revision.
+        new IssueReleaseRequest(candidate.Value, 1, manifest, "financial-package-release-001"));
+      Assert.True(issued.Succeeded, issued.Message);
       var pinned = await db.Releases.AsNoTracking().SingleAsync(x => x.Id == issued.Value);
-      var rendered = await db.FinancialPackageArtifacts.AsNoTracking().SingleAsync(x => x.FinancialPackageId == packageId &&
-        x.ArtifactVersion == FinancialPackageArtifactVersions.Pdf);
-      Assert.Equal(rendered.Id, pinned.PinnedArtifactId);
-      Assert.Equal(rendered.ArtifactSha256Hex, pinned.PinnedArtifactSha256Hex);
+      Assert.Equal(source.PackageId, pinned.PackageId);
+      Assert.Equal(composition.Id, pinned.PinnedCompositionId);
+      Assert.Equal(composition.ManifestDigest, pinned.PinnedCompositionManifestDigest);
+      Assert.Equal(composition.PdfArtifactId, pinned.PinnedArtifactId);
+      Assert.Equal(composition.PdfSha256Hex, pinned.PinnedArtifactSha256Hex);
+      Assert.Equal(ReleaseStates.Issued,
+        await db.ReleaseCandidates.Where(x => x.Id == candidate.Value).Select(x => x.Status).SingleAsync());
     }
+    finally { if (Directory.Exists(root)) Directory.Delete(root, recursive: true); }
+  }
 
-    await using var verify = new AuditSphereDbContext(pg.Options);
-    var candidateRow = await verify.ReleaseCandidates.SingleAsync(x => x.Id == candidateId);
-    Assert.Equal(ReleaseTargetKinds.FinancialPackage, candidateRow.TargetKind);
-    Assert.Equal(ReleaseStates.Issued, candidateRow.Status);
+  private static async Task<FinancialStatementComposition> SelectReviewedCompositionAsync(
+    AuditSphereDbContext db, StatementCandidatePromotionTests.Seeded source)
+  {
+    var preparer = Actor(source.Preparer, "AccountingPreparer");
+    var reviewer = Actor(source.Reviewer, "AccountingReviewer");
+    var partner = Actor(source.Partner, "Partner");
+    var pin = await FinancialStatementService.PinPresentationAsync(db, preparer, source.PackageId, source.LayoutId);
+    Assert.True(pin.Succeeded, pin.Message);
+    var rendered = await FinancialStatementService.RenderPinnedPresentationArtifactAsync(db, reviewer,
+      pin.Value!.RevisionId, FinancialStatementPresentationRenderer.PdfFormat);
+    Assert.True(rendered.Succeeded, rendered.Message);
+    var content = await StatementContentReviewCall.RecordAsync(db, reviewer, source.PackageId, pin.Value.RevisionId);
+    Assert.True(content.Succeeded, content.Message);
+    var candidate = await FinancialStatementService.PromotePresentationToCandidateAsync(db, reviewer,
+      source.PackageId, pin.Value.RevisionId);
+    Assert.True(candidate.Succeeded, candidate.Message);
+    var selected = await FinancialStatementService.SelectCompositionAsync(db, preparer,
+      source.PackageId, candidate.Value!.RevisionId);
+    Assert.True(selected.Succeeded, selected.Message);
+    foreach (var (actor, stage, mode) in new[]
+    {
+      (preparer, FinancialPackageReviewStages.ManagementApproval, FinancialPackageReviewEvidenceModes.Offline),
+      (reviewer, FinancialPackageReviewStages.AccountingReview, FinancialPackageReviewEvidenceModes.SignedIn),
+      (partner, FinancialPackageReviewStages.PartnerApproval, FinancialPackageReviewEvidenceModes.SignedIn)
+    })
+    {
+      var decision = await FinancialPackageReviewService.RecordAsync(db, actor,
+        new(source.PackageId, stage, FinancialPackageReviewDecisions.Approved, mode,
+          "composition-review-" + stage, "Reviewed exact test composition.", candidate.Value.RevisionId, null,
+          selected.Value!.Id, selected.Value.ManifestDigest));
+      Assert.True(decision.Succeeded, decision.Message);
+    }
+    return selected.Value!;
   }
 
   [Fact]
