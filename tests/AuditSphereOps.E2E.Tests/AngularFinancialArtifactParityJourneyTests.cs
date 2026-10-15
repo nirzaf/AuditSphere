@@ -329,6 +329,78 @@ public sealed class AngularFinancialArtifactParityJourneyTests
   }
 
   [Fact]
+  [Trait("CaseId", "AS-PAR-002-ANGULAR-CLIENT-DECISION-RECOVERY-01")]
+  public async Task ClientManagementDecisionRecoversAfterCommittedReplyIsLost()
+  {
+    await using var host = await OwnedHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-ANGULAR-CLIENT-DECISION-RECOVERY-01");
+    var (packageId, _) = await FinancialPackageFixture.CreatePackageAsync(host);
+    var client = PbcSeed.User(host.Fixture.FirmId, "Client");
+    await using (var db = host.CreateDbContext())
+    {
+      db.Users.Add(client);
+      db.RoleGrants.Add(PbcSeed.Grant(host.Fixture.FirmId, client, "ClientUser", host.Fixture.ClientId, host.Fixture.EngagementId));
+      await db.SaveChangesAsync();
+    }
+
+    var origin = await host.StartApiForIdentityAsync(client,
+      new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var errors = new List<string>();
+    page.PageError += (_, error) => errors.Add(error);
+    var path = $"/ui/portal/accounting/packages/{packageId:D}";
+    var intercepted = 0;
+    await page.RouteAsync($"**/api/ui/portal/accounting/packages/{packageId:D}/decision", async route =>
+    {
+      if (route.Request.Method != "POST" || Interlocked.Increment(ref intercepted) != 1)
+      {
+        await route.ContinueAsync();
+        return;
+      }
+      await using var accepted = await route.FetchAsync();
+      Assert.Equal(200, accepted.Status);
+      await route.AbortAsync("failed");
+    });
+
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(path));
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Financial package", Exact = true }))
+      .ToBeVisibleAsync();
+    await page.GetByLabel("Evidence reference", new() { Exact = true }).FillAsync("Synthetic committed decision receipt");
+    await page.GetByLabel("I reviewed this exact package and its SHA-256 identity.", new() { Exact = true }).CheckAsync();
+    await page.GetByRole(AriaRole.Button, new() { Name = "Record decision", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "Resolve the previous decision request", Exact = true })).ToBeVisibleAsync();
+    Assert.Equal(1, intercepted);
+
+    Guid requestId;
+    await using (var db = host.CreateDbContext())
+    {
+      var decision = await db.FinancialPackageReviewDecisions.AsNoTracking().SingleAsync(x =>
+        x.FinancialPackageId == packageId && x.Stage == FinancialPackageReviewStages.ManagementApproval);
+      Assert.Equal(client.Id, decision.DecidedByUserId);
+      Assert.Equal(FinancialPackageReviewDecisions.Approved, decision.Decision);
+      Assert.Equal(FinancialPackageReviewEvidenceModes.SignedIn, decision.EvidenceMode);
+      requestId = Assert.IsType<Guid>(decision.RequestId);
+    }
+    Assert.Equal(requestId.ToString("D"), await page.EvaluateAsync<string>("() => Object.values(sessionStorage)[0]"));
+
+    await page.ReloadAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "Resolve the previous decision request", Exact = true })).ToBeVisibleAsync();
+    await page.GetByRole(AriaRole.Button, new() { Name = "Check saved decision", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByText("Saved APPROVED decision confirmed", new() { Exact = false }))
+      .ToBeVisibleAsync();
+    Assert.Equal(0, await page.EvaluateAsync<int>("() => sessionStorage.length"));
+    await using (var db = host.CreateDbContext())
+      Assert.Equal(1, await db.FinancialPackageReviewDecisions.AsNoTracking().CountAsync(x =>
+        x.FinancialPackageId == packageId && x.Stage == FinancialPackageReviewStages.ManagementApproval && x.RequestId == requestId));
+    Assert.Empty(errors);
+  }
+
+  [Fact]
   [Trait("CaseId", "AS-PAR-002-ANGULAR-ACCOUNTING-ROUTES-01")]
   public async Task AccountingQueuesAndDetailsClearAfterRouteChangesAndGrantRevocation()
   {

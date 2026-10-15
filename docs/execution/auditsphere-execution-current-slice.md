@@ -289,6 +289,6 @@ Observed: the focused Domain and Angular presentation tests passed; the API Rele
 
 ## CP-19 client receipt recovery — 2026-10-15
 
-A scoped client-only receipt lookup resolves an exact management request. The tab persists only request ID (firm/user/session/package scope); after reload, the client re-enters values and confirms exact-intent retry. A missing receipt is point-in-time, not proof no commit occurred. Bundle acknowledgement does not prove download or delivery.
+A scoped client-only receipt lookup resolves an exact management request. The tab persists only request ID (firm/user/session/package scope); after reload, the client re-enters values and confirms exact-intent retry. Missing receipt is point-in-time, not proof no commit occurred. Bundle acknowledgement does not prove download/delivery.
 
-Observed: Release build; Domain 1/1; Angular 7/7; EF/OpenAPI PASS. No migration, authenticated browser or full suite; external and professional gates remain.
+Observed: Release build; Domain 1/1; Angular 7/7; E2E 1/1 (server commit, dropped reply, reload recovery); EF/OpenAPI PASS. No migration/full suite/live-provider or professional acceptance.
