@@ -278,27 +278,12 @@ The API and `worker-pbc` receive the same cutoff. Repository resolution blocks s
 
 The heartbeat migration is part of the source tree and model snapshot. The latest grouped follow-up on 2026-10-12 passed the focused Domain cohort 37/37, workspace provisioning API tests 4/4, PostgreSQL-backed Playwright journey 1/1 and Angular workspace administration spec 4/4. The Release test builds emitted NU1900 warnings because `api.nuget.org` was unreachable; the tests themselves passed against isolated synthetic fixtures. These results are from an uncommitted working tree based on `00376915`, which also contains separate in-progress financial statement presentation edits; the full Domain, API and E2E suites were not run. Markdown health, filename and narrative-metrics gates passed. A read-only built-in Chrome check on 2026-10-12 loaded the acceptance tenant page and rendered the Dedicated client SharePoint sites panel, with no client-site rows. The page did not identify its deployed source commit, so this does not prove the current source revision is deployed. No development, acceptance or production migration was run; no real client site was provisioned and no staff membership reconciliation was performed. Exact commands and provenance are in [`status.json`](status.json). Live acceptance still requires identifying the deployed revision, applying the approved UTC cutoff consistently to API and worker configuration, and verifying a synthetic new-client site and staff membership reconciliation in the real tenant.
 
-## CP-19 client receipt recovery — 2026-10-15
+## 2026-10-15 operational and deployment updates
 
-A scoped client-only receipt lookup resolves an exact management request. The tab persists only request ID (firm/user/session/package scope); after reload, the client re-enters values and confirms exact-intent retry. Missing receipt is point-in-time, not proof no commit occurred. Bundle acknowledgement does not prove download/delivery.
+CP-19 receipt recovery, Hostinger acceptance deployment, administrator group-revocation fencing, and Angular stale-role review were recorded on 2026-10-15. Detailed results remain in `status.json`; this handoff does not change production or external-gate status.
 
-Observed: Release build; Domain 1/1; Angular 7/7; E2E 1/1 (server commit, dropped reply, reload recovery); EF/OpenAPI PASS. No migration/full suite/live-provider or professional acceptance.
+## AS-PM8 atomic practice-productivity package — 2026-10-16
 
-## Hostinger acceptance deployment — 2026-10-15
+Tasks 01–25 and the Task 26 Playwright journey are on `codex/as-pm8-atomic` at `6e4d8682fa4886223422990f010f6d40e8729fe6`. All eight focused acceptance rows pass: Domain 56/56, API 14/14, Playwright 1/1, Angular 839/839 (139 spec files). Release build, EF drift, OpenAPI drift, Angular build and final docs checks pass. Angular build has the existing `commercial/settings.scss` 7.53/4.00 kB budget warning. Details, commands and per-row evidence: `status.json`, `targetedVerification.asPm8Atomic`.
 
-Figma shell is live from API image `48e9f205` (VPS checkout `12e51e60`). CI #38736649493 and image build #38736552467 passed; no local test suites ran.
-
-Fresh custom backup (1,862,104 bytes; 3,016 catalog entries) restored; 34-migration rehearsal passed before live apply. Database head `20261015113704` (225). API alone recreated; local/public readiness 200; database/workers unchanged.
-
-Browser smoke rendered Portfolio; scope was empty and reported no active M365 config. Client-sites default is enabled, but rollout cutoff is unset and isolated worker stopped, so provisioning fails closed. Temporary SSH key revoked and local private key removed; broad feature/external acceptance remains open.
-
-## Administration group-grant revocation fencing — 2026-10-15
-
-Group-scoped role revocation now waits on the firm safety row and reauthorizes the acting Administrator after the lock, matching the other reviewed role-change commands. A deterministic PostgreSQL regression revokes the acting Administrator while the group-revocation command is waiting and confirms the target group grant, target session epoch and audit event are unchanged. The focused `RoleAssignmentTests` cohort passed 9/9 at commit `1f19d07d179060b8f59e702ce0149e14768fd772`. This is a narrow security evidence increment; Administration source/action parity remains partial and Blazor removal remains `NOT_READY`.
-
-
-## Blazor migration parity — stale role review — 2026-10-15
-
-The Angular role-assignment journey now proves that changing the reviewed reason invalidates the preview, assent and save action; the operator must obtain a fresh preview and assent, and the persisted evidence records the newly reviewed reason. The existing-guest journey is also confirmed in the focused tenant-connection browser cohort: exact identity binding grants no role automatically, and the CLIENT-scoped `ClientUser` grant is a separate reviewed action. Source/action rows remain `PARTIAL`; the removal gate remains `NOT_READY`.
-
-Hosted CI run [38768464486](https://github.com/nirzaf/AuditSphere/actions/runs/38768464486) at `660c1605`: Release build passed; Angular 132/773; focused Domain 150/150, API 8/8 and E2E 17/17 passed; EF and OpenAPI drift passed. Docs Health and GitGuardian were green in that run. After ledger edits, local docs checks passed (210 Markdown files; 2,726 links). The E2E filter includes the administration stale-review and exact-guest journeys. Full solution regression, remaining migration matrix, live provider acceptance, production cutover/rollback, human accessibility/locale acceptance and independent retirement review remain open. Details: `status.json`, `targetedVerification.angularMigrationAdministrationReviewFreshnessCi`.
+The full solution suite was stopped after about 34 minutes under severe memory pressure while still in API tests. Two failures were observed (`FirmReceivablesAgingApiTests.TermsRequireIndependentReviewAndReportAndExportUseAuthorizedAsOfState`; `ConsolidationWorkspaceApiTests.ScopeWorkspace_CanQueryDetail_AndSubmitAndApproveComponentWithMakerChecker`); there is no final count or green verdict. AS-PM8 remains **PARTIAL** pending full regression resolution/completion and hosted CI. No persistent database migration, live provider action, deployment, professional decision, or whole-product acceptance is claimed; external gates are unchanged.
