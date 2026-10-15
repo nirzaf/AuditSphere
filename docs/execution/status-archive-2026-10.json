@@ -15242,6 +15242,149 @@
       }
     },
     "targetedVerification": {
+      "agentCapabilityRunner20261016": {
+        "recordedAtUtc": "2026-10-13T15:34:45.303671+00:00",
+        "baseCommit": "cef614954375ac4ccc7c1cb436e11b94ab8802e8",
+        "scope": "Strengthen existing task packets, read-only preflight, sanitized structured failure evidence, complete source stability, fresh browser builds, exclusive report creation and measured matching-cohort comparison. No application, deployment, schema or tenant changes.",
+        "sourceTree": "Pilot reports identify working-tree hashes, not a tested clean commit. Final report formatting/build-comparison guard was followed by runner safety checks; application suites were not repeated for those tooling-only edits.",
+        "priorEvidence": {
+          "file": "docs/execution/status-archive-2026-10.json",
+          "jsonPath": "keys.targetedVerification.agentCapabilityRunner"
+        },
+        "runnerSafety": {
+          "command": "python3 -m unittest discover -s scripts/agent -p 'test_*.py'",
+          "result": "PASS",
+          "passed": 32,
+          "failed": 0
+        },
+        "catalog": {
+          "command": "./scripts/agent-check --validate-catalog",
+          "result": "PASS",
+          "packets": 3
+        },
+        "runs": [
+          {
+            "capability": "accounting-calculation",
+            "selection": "unit",
+            "result": "FOCUSED_CHECKS_PASSED",
+            "report": "artifacts/agent-check/accounting-tooling-permitted-20261013.json",
+            "sourceTreeDigest": "0853620471dc98bf7847a634716ea1895a264b904c7c8fd6b18cc71ff9169b84",
+            "sourceUnchangedDuringRun": true,
+            "testedCommit": null,
+            "checks": [
+              {
+                "name": "Pure exact trial-balance calculator",
+                "status": "PASS",
+                "passedTests": 5,
+                "failedTests": 0,
+                "seconds": 1.528
+              }
+            ],
+            "preparations": [],
+            "preflightSeconds": 0.263,
+            "testWaitSeconds": 1.528
+          },
+          {
+            "capability": "review-permissions",
+            "selection": "unit-api",
+            "result": "FOCUSED_CHECKS_PASSED",
+            "report": "artifacts/agent-check/review-tooling-permitted-20261013.json",
+            "sourceTreeDigest": "0853620471dc98bf7847a634716ea1895a264b904c7c8fd6b18cc71ff9169b84",
+            "sourceUnchangedDuringRun": true,
+            "testedCommit": null,
+            "checks": [
+              {
+                "name": "Domain scope and stale-authority baseline",
+                "status": "PASS",
+                "passedTests": 13,
+                "failedTests": 0,
+                "seconds": 9.124
+              },
+              {
+                "name": "Exact-scope review-note commands",
+                "status": "PASS",
+                "passedTests": 1,
+                "failedTests": 0,
+                "seconds": 3.596
+              },
+              {
+                "name": "API cookie and revoked identity checks",
+                "status": "PASS",
+                "passedTests": 1,
+                "failedTests": 0,
+                "seconds": 38.256
+              }
+            ],
+            "preparations": [],
+            "preflightSeconds": 0.279,
+            "testWaitSeconds": 50.976
+          },
+          {
+            "capability": "engagement-ui",
+            "selection": "unit-api-browser",
+            "result": "FOCUSED_CHECKS_PASSED",
+            "report": "artifacts/agent-check/engagement-ui-browser-tooling-20261013.json",
+            "sourceTreeDigest": "0853620471dc98bf7847a634716ea1895a264b904c7c8fd6b18cc71ff9169b84",
+            "sourceUnchangedDuringRun": true,
+            "testedCommit": null,
+            "checks": [
+              {
+                "name": "Engagement UI contracts and lifetime",
+                "status": "PASS",
+                "passedTests": 7,
+                "failedTests": 0,
+                "seconds": 2.276
+              },
+              {
+                "name": "Synthetic engagement profile browser journey",
+                "status": "PASS",
+                "passedTests": 5,
+                "failedTests": 0,
+                "seconds": 120.393
+              }
+            ],
+            "preparations": [
+              {
+                "name": "Current Angular browser bundle",
+                "command": [
+                  "npm",
+                  "--prefix",
+                  "src/AuditSphereOps.Ui",
+                  "run",
+                  "build"
+                ],
+                "status": "PASS",
+                "exitCode": 0,
+                "seconds": 7.3,
+                "failureEvidence": []
+              }
+            ],
+            "preflightSeconds": 0.554,
+            "testWaitSeconds": 129.969
+          }
+        ],
+        "comparisonGuard": "PASS: CLI refused preflight-only/different-cohort reports. Pure safety checks cover matching cohorts, missing measurements, differing commands/context/test counts/build preparations and stale source.",
+        "resolvedEnvironmentFailure": {
+          "report": "artifacts/agent-check/accounting-tooling-20261013.json",
+          "result": "CHECKS_FAILED",
+          "executedTests": 0,
+          "cause": "Restricted .NET test-runner socket bind denied; affected command passed in a permitted shell. No database reset or migration."
+        },
+        "documentationGates": "Markdown health, filename, narrative metrics, UI inventory and diff validation passed.",
+        "measurements": {
+          "discoverySeconds": null,
+          "editingSeconds": null,
+          "reworkCount": null,
+          "acceptanceRegressions": null,
+          "beforeAfterComparison": "NOT_MEASURED"
+        },
+        "limits": [
+          "Full release suites not run; review/accounting browser cohorts not run.",
+          "Command-specific independent-review/stale-revision coverage belongs to the changed-command task card.",
+          "No comparative productivity measurements or causal speedup/regression-reduction claim.",
+          "Full-suite verifiedCommit and live/provider/professional acceptance unchanged."
+        ]
+      },
       "releaseBundleRaceAndAngular": {
         "baseCommit": "4a813f36e8db04b990182972415c3fc926db715d",
         "recordedAtUtc": "2026-10-13T18:22:14.599487+00:00",

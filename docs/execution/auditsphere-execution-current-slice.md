@@ -15,6 +15,12 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08 and 2026-10-15, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## Angular/Blazor parity — receivables exact-offer fixture
+
+The receivables aging fixture now supplies the exact rendered quotation, dispatch identity and immutable client-response evidence required by the fee-agreement command. Its original as-of-date receipt, credit and allocation assertions remain intact and the focused test passed. The build completed after concurrent-output copy retries. Exact source, command, report and caveats are in `status.json` under `targetedVerification.angularBlazorPackageGateFixtureFollowUp.receivablesFollowUp`.
+
+The full Domain suite has not been rerun after this repair. Consolidation/foreign-operation fixtures still need composition-bound approvals, and source-action, browser, operational and external retirement criteria remain open. Web remains present; retirement is `NOT_READY`.
+
 ## Angular/Blazor parity — package close/release fixtures and consolidated regression
 
 The package close and release fixtures now render/select a real three-format composition and record independent decisions on that identity. They retain prerequisite refusals; release now asserts the exact composition and PDF pins rather than fabricating package PDF bytes. The focused cases passed, but the consolidated Domain suite failed. Exact source, totals, named failures and reports are in `status.json` under `targetedVerification.angularBlazorPackageGateFixtureFollowUp`.
