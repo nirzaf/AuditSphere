@@ -97,8 +97,8 @@
       "source": "src/AuditSphereOps.Web/Components/Administration/RoleAssignmentDialog.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-administration-source-review.md",
-      "reviewedAtCommit": "660c1605cd943db11a7c3dd86303313d5e5752e4",
-      "openGaps": ["Complete role and scope comparison", "Stale-preview invalidation across all review inputs and concurrent authority changes"]
+      "reviewedAtCommit": "8959f6e7a17456acbc5cba4f1e2b3fc469fc54b8",
+      "openGaps": ["Complete role and scope comparison", "Scope-change and concurrent-authority stale-preview invalidation"]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Administration/WorkspaceProvisioningPanel.razor",
